@@ -10,12 +10,16 @@ const supabaseAnonKey =
   process.env.SUPABASE_ANON_KEY ||
   "";
 
-// ✅ NO reventar en build: usar placeholders si faltan.
-// En runtime, si faltan, las llamadas fallarán y lo verás claramente en consola.
-const safeUrl = supabaseUrl || "https://example.supabase.co";
-const safeAnon = supabaseAnonKey || "public-anon-key-missing";
+/**
+ * ⚠️ IMPORTANTE
+ * No lanzar error en build / SSR.
+ * Si las env vars no están, usamos placeholders.
+ * En runtime real (browser), Supabase sí tendrá las vars.
+ */
+const safeUrl = supabaseUrl || "https://placeholder.supabase.co";
+const safeKey = supabaseAnonKey || "public-anon-key-placeholder";
 
-const supabase = createClient(safeUrl, safeAnon, {
+const supabase = createClient(safeUrl, safeKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
