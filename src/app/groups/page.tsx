@@ -5,19 +5,18 @@ import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
-import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
+import { getMyGroups } from "@/lib/groupsDb";
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
-
-type Role = "owner" | "admin" | "member";
 
 type GroupRowUI = {
   id: string;
   name: string | null;
   type: "pair" | "family" | string;
-  created_at?: string | null; // ✅
-  owner_id?: string | null;
-};
 
+  // ✅ nullable/optional para no romper build si DB devuelve null/undefined
+  created_at: string | null;
+  owner_id: string | null;
+};
 
 function labelType(t?: string | null) {
   const x = (t || "").toLowerCase();
@@ -47,17 +46,20 @@ export default function GroupsPage() {
     }
 
     // ✅ traer grupos desde DB (RLS)
-    const gs = await getMyGroups();
+    const gs: any[] = (await getMyGroups()) as any[];
 
-    const ui: GroupRowUI[] = (gs ?? []).map((g: GroupRow) => ({
-      id: g.id,
-      name: g.name ?? null,
-      type: (g.type as any) ?? "pair",
-      created_at: g.created_at ?? null,
-      owner_id: g.owner_id ?? null,
-    }));
+    // ✅ normaliza sin depender del type exacto de DB
+    const ui: GroupRowUI[] = (gs ?? []).map((g: any) => ({
+      id: String(g?.id ?? ""),
+      name: g?.name ?? null,
+      type: (g?.type as any) ?? "pair",
+      created_at: g?.created_at ?? null,
+      owner_id: g?.owner_id ?? null,
+    }))
+    // filtra por seguridad si viniera algo sin id
+    .filter((g) => !!g.id);
 
-    // orden por created_at (si existe)
+    // ✅ orden por created_at (si existe)
     ui.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
     setGroups(ui);
   }
@@ -78,6 +80,7 @@ export default function GroupsPage() {
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const hasGroups = groups.length > 0;
@@ -92,7 +95,9 @@ export default function GroupsPage() {
   async function openGroup(gid: string) {
     try {
       await setActiveGroupIdInDb(gid);
-    } catch {}
+    } catch {
+      // no bloquear navegación
+    }
     router.push(`/groups/${gid}`);
   }
 
@@ -226,7 +231,13 @@ const styles: Record<string, React.CSSProperties> = {
   toastTitle: { fontWeight: 900, fontSize: 13 },
   toastSub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 },
 
-  topRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, marginBottom: 14 },
+  topRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    marginBottom: 14,
+  },
   topActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
 
   card: {
