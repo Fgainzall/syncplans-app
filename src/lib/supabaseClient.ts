@@ -1,21 +1,25 @@
-// src/lib/supabaseClient.ts
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  process.env.SUPABASE_URL ||
+  "";
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  // Esto te ayuda a detectar envs rotas rápido
-  // (no rompe build, pero sí te avisa en consola)
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
-}
+const supabaseAnonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  "";
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// ✅ NO reventar en build: usar placeholders si faltan.
+// En runtime, si faltan, las llamadas fallarán y lo verás claramente en consola.
+const safeUrl = supabaseUrl || "https://example.supabase.co";
+const safeAnon = supabaseAnonKey || "public-anon-key-missing";
+
+const supabase = createClient(safeUrl, safeAnon, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storageKey: "syncplans-auth",
   },
 });
 
