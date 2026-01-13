@@ -1,21 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
 
+function getEnv(name: string) {
+  return (process.env[name] ?? "").toString().trim();
+}
+
 const supabaseUrl =
-  process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  process.env.SUPABASE_URL ||
-  "";
+  getEnv("NEXT_PUBLIC_SUPABASE_URL") ||
+  getEnv("SUPABASE_URL");
 
 const supabaseAnonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  process.env.SUPABASE_ANON_KEY ||
-  "";
+  getEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY") ||
+  getEnv("SUPABASE_ANON_KEY");
 
-/**
- * ⚠️ IMPORTANTE
- * No lanzar error en build / SSR.
- * Si las env vars no están, usamos placeholders.
- * En runtime real (browser), Supabase sí tendrá las vars.
- */
+// ✅ nunca reventar el build
 const safeUrl = supabaseUrl || "https://placeholder.supabase.co";
 const safeKey = supabaseAnonKey || "public-anon-key-placeholder";
 
