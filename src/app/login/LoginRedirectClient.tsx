@@ -22,17 +22,17 @@ export default function LoginRedirectClient() {
 
     (async () => {
       try {
-        const { data } = await supabase.auth.getSession();
+        const { data, error } = await supabase.auth.getSession();
         if (!alive) return;
 
+        if (error) throw error;
+
         if (data?.session) {
-          // ya logueado → afuera
           router.replace(next);
           return;
         }
 
-        // no logueado → manda a tu UI real de login
-        // Ajusta esta ruta si tu login "real" está en otro path
+        // ⚠️ Si tu login real NO es /auth/login, cámbialo aquí:
         router.replace(`/auth/login?next=${encodeURIComponent(next)}`);
       } catch (e: any) {
         if (!alive) return;
@@ -69,3 +69,8 @@ export default function LoginRedirectClient() {
         }}
       >
         <div style={{ fontWeight: 950, fontSize: 14 }}>SyncPlans</div>
+        <div style={{ marginTop: 8, opacity: 0.75, fontSize: 13 }}>{msg}</div>
+      </div>
+    </main>
+  );
+}
