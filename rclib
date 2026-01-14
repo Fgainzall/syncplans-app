@@ -4,7 +4,6 @@ function getEnv(name: string) {
   return (process.env[name] ?? "").toString().trim();
 }
 
-// Variables reales
 const supabaseUrl =
   getEnv("NEXT_PUBLIC_SUPABASE_URL") ||
   getEnv("SUPABASE_URL");
@@ -13,12 +12,10 @@ const supabaseAnonKey =
   getEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY") ||
   getEnv("SUPABASE_ANON_KEY");
 
-// ✅ fallback SOLO para evitar que el build crashee
-// (nunca se usa en runtime real si las env vars existen)
+// ✅ nunca reventar el build
 const safeUrl = supabaseUrl || "https://placeholder.supabase.co";
 const safeKey = supabaseAnonKey || "public-anon-key-placeholder";
 
-// ✅ UN SOLO cliente
 const supabase = createClient(safeUrl, safeKey, {
   auth: {
     persistSession: true,

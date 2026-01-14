@@ -3,14 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getGroupState, setMode, UsageMode, GroupState } from "@/lib/groups";
-import { getMyNotifications } from "@/lib/notificationsDb";
 import NotificationsDrawer, { NavigationMode } from "./NotificationsDrawer";
-
-// ✅ DB active group
-import { getActiveGroupIdFromDb, setActiveGroupIdInDb } from "@/lib/activeGroup";
-
-// ✅ DB groups (source of truth)
-import { getMyGroups } from "@/lib/groupsDb";
 
 type Tab = {
   key: UsageMode;
@@ -48,24 +41,26 @@ function applyThemeVars(mode: UsageMode) {
  * - si ya hay activeGroupId guardado, úsalo
  * - si no hay, elige el primer grupo cuyo type coincida con el modo (pair/family)
  * - si tampoco hay, usa el primer grupo disponible
+ *
+ * 🔥 IMPORTANTE: imports a Supabase se hacen LAZY (dinámicos) para no romper build.
  */
 async function ensureActiveGroupForMode(mode: UsageMode): Promise<string | null> {
-  if (mode === "solo") {
-    // En modo personal, no necesitamos active group.
-    // OJO: no lo borramos automáticamente (para no molestar), pero podrías hacerlo si quieres.
-    return null;
-  }
+  if (mode === "solo") return null;
 
-  // 1) si ya existe en DB/LS, úsalo
+  // lazy import (evita que supabaseClient se evalúe en build por el import estático)
+  const { getActiveGroupIdFromDb, setActiveGroupIdInDb } = await import("@/lib/activeGroup");
+  const { getMyGroups } = await import("@/lib/groupsDb");
+
+  // 1) si ya existe, úsalo
   const existing = await getActiveGroupIdFromDb();
   if (existing) return existing;
 
-  // 2) si no existe, intenta setear uno que coincida con el modo
+  // 2) si no existe, elige uno
   const groups = await getMyGroups();
   if (!groups.length) return null;
 
   const match = groups.find((g: any) => String(g.type) === mode);
-  const pick = match?.id ?? groups[0].id ?? null;
+  const pick = match?.id ?? groups[0]?.id ?? null;
 
   if (pick) {
     await setActiveGroupIdInDb(pick);
@@ -108,8 +103,11 @@ export default function PremiumHeader({
 
   async function refreshBadge() {
     try {
+      // ✅ LAZY import para evitar romper build
+      const { getMyNotifications } = await import("@/lib/notificationsDb");
+
       const n = await getMyNotifications(50);
-      const unread = n.filter((x) => !x.read_at).length;
+      const unread = n.filter((x: any) => !x.read_at).length;
       setUnreadCount(unread);
     } catch {
       setUnreadCount(0);
@@ -131,20 +129,17 @@ export default function PremiumHeader({
     [activeMode]
   );
 
-  // ✅ FIX REAL: el CTA crea evento acorde al modo + asegura activeGroupId
+  // ✅ CTA crea evento acorde al modo + asegura activeGroupId
   async function onNewEvent() {
     try {
-      // personal
       if (activeMode === "solo") {
         router.push("/events/new/details?type=personal");
         return;
       }
 
-      // group mode => asegura activeGroupId
       const gid = await ensureActiveGroupForMode(activeMode);
 
       if (!gid) {
-        // si no hay grupos, llévalo a crear
         router.push("/groups/new");
         return;
       }
@@ -155,7 +150,7 @@ export default function PremiumHeader({
     }
   }
 
-  // ✅ FIX REAL: al cambiar a pair/family, setea un activeGroupId si faltaba
+  // ✅ al cambiar a pair/family, setea un activeGroupId si faltaba
   async function onPickMode(nextMode: UsageMode) {
     const next = setMode(nextMode);
     setGroup(next);
