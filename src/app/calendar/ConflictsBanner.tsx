@@ -1,16 +1,12 @@
-"use client";
-
-import { useRouter, useSearchParams } from "next/navigation";
-
-export default function ConflictsBanner() {
-  const router = useRouter();
-  const sp = useSearchParams();
-
-  const applied = sp.get("applied") === "1";
-  const deleted = sp.get("deleted");
-  const appliedCount = sp.get("appliedCount");
-  const skipped = sp.get("skipped");
-
+// src/app/calendar/ConflictsBanner.tsx
+export default function ConflictsBanner(props: {
+  applied: boolean;
+  deleted?: number;
+  appliedCount?: number;
+  skipped?: number;
+  onDismiss: () => void;
+}) {
+  const { applied, deleted, appliedCount, skipped, onDismiss } = props;
   if (!applied) return null;
 
   return (
@@ -29,18 +25,16 @@ export default function ConflictsBanner() {
       }}
     >
       <div>
-        <div style={{ fontWeight: 900, fontSize: 14 }}>
-          ✅ Conflictos resueltos
-        </div>
+        <div style={{ fontWeight: 900, fontSize: 14 }}>✅ Conflictos resueltos</div>
         <div style={{ fontSize: 12, opacity: 0.85, marginTop: 4 }}>
           {appliedCount ?? 0} decisión(es) aplicadas
-          {deleted ? ` · ${deleted} evento(s) eliminados` : ""}
-          {skipped ? ` · ${skipped} ignorado(s)` : ""}
+          {typeof deleted === "number" ? ` · ${deleted} evento(s) eliminados` : ""}
+          {typeof skipped === "number" ? ` · ${skipped} ignorado(s)` : ""}
         </div>
       </div>
 
       <button
-        onClick={() => router.replace("/calendar")}
+        onClick={onDismiss}
         style={{
           padding: "8px 12px",
           borderRadius: 12,
