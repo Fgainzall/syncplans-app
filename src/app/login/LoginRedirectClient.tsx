@@ -1,7 +1,7 @@
 // src/app/login/LoginRedirectClient.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 
@@ -9,26 +9,21 @@ export default function LoginRedirectClient({ next }: { next: string }) {
   const router = useRouter();
   const [msg, setMsg] = useState("Cargando…");
 
-  const safeNext = useMemo(() => {
-    return next && next.startsWith("/") ? next : "/calendar";
-  }, [next]);
-
   useEffect(() => {
     let alive = true;
 
     (async () => {
       try {
-        const { data, error } = await supabase.auth.getSession();
+        const { data } = await supabase.auth.getSession();
         if (!alive) return;
-        if (error) throw error;
 
         if (data?.session) {
-          router.replace(safeNext);
+          router.replace(next);
           return;
         }
 
-        // ⚠️ Si tu login real NO es /auth/login, cámbialo aquí:
-        router.replace(`/auth/login?next=${encodeURIComponent(safeNext)}`);
+        // no logueado → manda a tu UI real de login
+        router.replace(`/auth/login?next=${encodeURIComponent(next)}`);
       } catch (e: any) {
         if (!alive) return;
         setMsg(e?.message || "No se pudo cargar. Intenta recargar.");
@@ -38,7 +33,7 @@ export default function LoginRedirectClient({ next }: { next: string }) {
     return () => {
       alive = false;
     };
-  }, [router, safeNext]);
+  }, [router, next]);
 
   return (
     <main
