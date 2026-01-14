@@ -7,8 +7,10 @@ import { usePathname, useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+
 import { getMyGroups } from "@/lib/groupsDb";
 import { getEventsForGroups, deleteEventsByIds } from "@/lib/eventsDb";
+import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 
 import {
   type CalendarEvent,
@@ -63,14 +65,39 @@ function ymd(d: Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 function prettyMonthRange(a: Date, b: Date) {
-  const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-  return `${a.getDate()} ${meses[a.getMonth()]} ${a.getFullYear()} – ${b.getDate()} ${meses[b.getMonth()]} ${b.getFullYear()}`;
+  const meses = [
+    "ene",
+    "feb",
+    "mar",
+    "abr",
+    "may",
+    "jun",
+    "jul",
+    "ago",
+    "sep",
+    "oct",
+    "nov",
+    "dic",
+  ];
+  return `${a.getDate()} ${meses[a.getMonth()]} ${a.getFullYear()} – ${b.getDate()} ${
+    meses[b.getMonth()]
+  } ${b.getFullYear()}`;
 }
 function prettyDay(d: Date) {
   const dias = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
   const meses = [
-    "enero","febrero","marzo","abril","mayo","junio","julio","agosto",
-    "septiembre","octubre","noviembre","diciembre",
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
   ];
   return `${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]} ${d.getFullYear()}`;
 }
@@ -80,7 +107,8 @@ function prettyTimeRange(startIso: string, endIso: string) {
   const hhmm = (x: Date) =>
     `${String(x.getHours()).padStart(2, "0")}:${String(x.getMinutes()).padStart(2, "0")}`;
   const cross = !sameDay(s, e);
-  if (cross) return `${s.toLocaleDateString()} ${hhmm(s)} → ${e.toLocaleDateString()} ${hhmm(e)}`;
+  if (cross)
+    return `${s.toLocaleDateString()} ${hhmm(s)} → ${e.toLocaleDateString()} ${hhmm(e)}`;
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
 function isValidIsoish(v: any) {
@@ -92,19 +120,11 @@ function isValidIsoish(v: any) {
 /**
  * ✅ Normalización para conflictos:
  * El motor de conflictos trabaja con "couple" (no "pair").
+ * OJO: En UI/estado guardamos "pair", y SOLO aquí convertimos para el motor.
  */
 function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
   if (!gt) return "personal" as GroupType;
   return (gt === ("pair" as any) ? ("couple" as any) : gt) as GroupType;
-}
-
-/**
- * ✅ Normalización para UI:
- * Si tu UI (groupMeta) espera "pair", convertimos "couple" -> "pair"
- */
-function normalizeForUI(gt: GroupType | null | undefined): GroupType {
-  if (!gt) return "personal" as GroupType;
-  return (gt === ("couple" as any) ? ("pair" as any) : gt) as GroupType;
 }
 
 export default function CalendarClient(props: {
@@ -134,12 +154,15 @@ export default function CalendarClient(props: {
   const [error, setError] = useState<string | null>(null);
   const [eventsLoaded, setEventsLoaded] = useState(false);
 
-  const [enabledGroups, setEnabledGroups] = useState<Record<GroupType, boolean>>({
+  // ✅ grupo activo real (para scope = "active")
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+
+  // ✅ UI sólo maneja: personal/pair/family
+  const [enabledGroups, setEnabledGroups] = useState({
     personal: true,
     pair: true,
     family: true,
-    couple: true,
-  } as any);
+  });
 
   const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
 
@@ -166,20 +189,26 @@ export default function CalendarClient(props: {
           return;
         }
 
+        // ✅ grupo activo desde DB
+        const active = await getActiveGroupIdFromDb();
+        setActiveGroupId(active ? String(active) : null);
+
         const myGroups = await getMyGroups();
         setGroups(myGroups);
 
         const rawEvents: any[] = (await getEventsForGroups()) as any[];
 
-        const groupTypeById = new Map<string, "family" | "couple">(
+        // ✅ mapping group_id -> type UI (pair/family)
+        const groupTypeById = new Map<string, "family" | "pair">(
           (myGroups || []).map((g: any) => {
             const id = String(g.id);
             const rawType = String(g.type ?? "").toLowerCase();
-            const normalized: "family" | "couple" = rawType === "family" ? "family" : "couple";
+            const normalized: "family" | "pair" = rawType === "family" ? "family" : "pair";
             return [id, normalized];
           })
         );
 
+        // ✅ IMPORTANT: guardamos eventos con groupType UI (personal/pair/family)
         const enriched: CalendarEvent[] = (rawEvents || [])
           .map((ev: any) => {
             const gid = ev.group_id ?? ev.groupId ?? null;
@@ -187,9 +216,9 @@ export default function CalendarClient(props: {
             let gt: GroupType = "personal" as any;
             if (gid) {
               const t = groupTypeById.get(String(gid));
-              gt = (t === "family" ? "family" : "couple") as any;
+              gt = (t === "family" ? "family" : "pair") as any;
             } else {
-              gt = (ev.groupType ?? "personal") as any;
+              gt = "personal" as any;
             }
 
             const startRaw = ev.start;
@@ -204,7 +233,7 @@ export default function CalendarClient(props: {
               end: String(endRaw),
               notes: ev.notes ?? undefined,
               groupId: gid ? String(gid) : null,
-              groupType: normalizeForConflicts(gt),
+              groupType: gt, // ✅ UI: pair/family/personal
             } as CalendarEvent;
           })
           .filter(Boolean) as CalendarEvent[];
@@ -238,7 +267,9 @@ export default function CalendarClient(props: {
 
   const handleDeleteEvent = useCallback(
     async (eventId: string, title?: string) => {
-      const ok = confirm(`¿Eliminar el evento${title ? ` "${title}"` : ""}?\nEsta acción no se puede deshacer.`);
+      const ok = confirm(
+        `¿Eliminar el evento${title ? ` "${title}"` : ""}?\nEsta acción no se puede deshacer.`
+      );
       if (!ok) return;
 
       try {
@@ -307,25 +338,31 @@ export default function CalendarClient(props: {
     };
   }, [router, refreshCalendar]);
 
+  // ✅ Filtros: usan SOLO UI types (personal/pair/family)
   const filteredEvents = useMemo(() => {
     const isEnabled = (g?: GroupType | null) => {
-      const key = normalizeForConflicts((g ?? "personal") as any);
-
-      if (key === ("couple" as any)) {
-        return !!(enabledGroups as any).couple && !!(enabledGroups as any).pair;
-      }
+      const key = (g ?? "personal") as any;
       return !!(enabledGroups as any)[key];
     };
 
     return (Array.isArray(events) ? events : []).filter((e) => {
-      const gt = normalizeForConflicts((e.groupType ?? "personal") as any);
-      if (!isEnabled(gt as any)) return false;
+      const gt = (e.groupType ?? "personal") as any;
+
+      if (!isEnabled(gt)) return false;
 
       if (scope === "all") return true;
-      if (scope === "personal") return gt === ("personal" as any);
-      return true;
+
+      if (scope === "personal") {
+        return gt === "personal";
+      }
+
+      // scope === "active"
+      // muestra: personal + eventos del grupo activo
+      if (gt === "personal") return true;
+      if (!activeGroupId) return false;
+      return String(e.groupId ?? "") === String(activeGroupId);
     });
-  }, [events, scope, enabledGroups]);
+  }, [events, scope, enabledGroups, activeGroupId]);
 
   const visibleEvents = useMemo(() => {
     const a = gridStart.getTime();
@@ -338,6 +375,7 @@ export default function CalendarClient(props: {
     });
   }, [filteredEvents, gridStart, gridEnd]);
 
+  // ✅ Conflictos: aquí sí normalizamos pair -> couple (SOLO para el motor)
   const conflicts = useMemo(() => {
     const normalized = (Array.isArray(events) ? events : []).map((e) => ({
       ...e,
@@ -436,16 +474,9 @@ export default function CalendarClient(props: {
     setSelectedDay(t);
   };
 
+  // ✅ toggle simple (sin couple)
   const toggleGroup = (g: GroupType) =>
     setEnabledGroups((s: any) => {
-      if (g === ("pair" as any)) {
-        const next = !s.pair;
-        return { ...s, pair: next, couple: next };
-      }
-      if (g === ("couple" as any)) {
-        const next = !s.couple;
-        return { ...s, couple: next, pair: next };
-      }
       return { ...s, [g]: !s[g] };
     });
 
@@ -661,7 +692,10 @@ export default function CalendarClient(props: {
                 <div style={styles.dayPanelTitle}>{prettyDay(selectedDay)}</div>
 
                 <div style={styles.dayPanelActions}>
-                  <button onClick={() => openNewEventPersonal(selectedDay)} style={styles.ghostBtnSmallPersonal}>
+                  <button
+                    onClick={() => openNewEventPersonal(selectedDay)}
+                    style={styles.ghostBtnSmallPersonal}
+                  >
                     + Personal
                   </button>
                   <button onClick={() => openNewEventGroup(selectedDay)} style={styles.ghostBtnSmallGroup}>
@@ -729,7 +763,7 @@ function EventRow({
   setRef?: (id: string) => (el: HTMLDivElement | null) => void;
   onDelete?: (id: string, title?: string) => void;
 }) {
-  const g = normalizeForUI((e.groupType ?? "personal") as any) as GroupType;
+  const g = (e.groupType ?? "personal") as any as GroupType;
   const meta = groupMeta(g);
   const isHighlighted = highlightId && String(e.id) === String(highlightId);
 
@@ -786,8 +820,16 @@ function renderMonthCells(opts: {
   openNewEventPersonal: (date?: Date) => void;
   openNewEventGroup: (date?: Date) => void;
 }) {
-  const { gridStart, gridEnd, monthStart, selectedDay, setSelectedDay, eventsByDay, openNewEventPersonal, openNewEventGroup } =
-    opts;
+  const {
+    gridStart,
+    gridEnd,
+    monthStart,
+    selectedDay,
+    setSelectedDay,
+    eventsByDay,
+    openNewEventPersonal,
+    openNewEventGroup,
+  } = opts;
 
   const cells: React.ReactNode[] = [];
   const totalDays = Math.round((gridEnd.getTime() - gridStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -857,7 +899,7 @@ function renderMonthCells(opts: {
 
         <div style={styles.cellEvents}>
           {top3.map((e) => {
-            const meta = groupMeta(normalizeForUI((e.groupType ?? "personal") as any) as any);
+            const meta = groupMeta((e.groupType ?? "personal") as any);
             return (
               <div key={e.id ?? `${e.start}_${e.end}`} style={styles.cellEventLine}>
                 <span style={{ ...styles.miniDot, background: meta.dot }} />
