@@ -1,39 +1,71 @@
-// src/app/events/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+
 import { getMyEvents, deleteEventsByIds } from "@/lib/eventsDb";
+import { getMyGroups } from "@/lib/groupsDb";
+
 import { groupMeta, type CalendarEvent } from "@/lib/conflicts";
+
+type DbGroup = {
+  id: string;
+  name: string | null;
+  type: "pair" | "family" | string;
+};
 
 export default function EventsPage() {
   const router = useRouter();
+
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [groupTypeById, setGroupTypeById] = useState<Map<string, "pair" | "family">>(new Map());
+
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
       try {
         setLoading(true);
-        const data = (await getMyEvents()) as any[];
+
+        const [rawEvents, rawGroups] = await Promise.all([
+          getMyEvents().catch(() => [] as any[]),
+          getMyGroups().catch(() => [] as any[]),
+        ]);
+
         if (!alive) return;
 
-        // normaliza mínimos para UI
-        const list: CalendarEvent[] = (data || [])
-          .map((e: any) => ({
+        const groups: DbGroup[] = Array.isArray(rawGroups) ? (rawGroups as any) : [];
+
+        // ✅ Mapa groupId -> ("pair" | "family")
+        const typeMap = new Map<string, "pair" | "family">();
+        for (const g of groups) {
+          if (!g?.id) continue;
+          const t = String(g.type);
+          typeMap.set(String(g.id), t === "family" ? "family" : "pair");
+        }
+        setGroupTypeById(typeMap);
+
+        // ✅ Normaliza eventos (NO confiamos en groupType que venga de DB)
+        const list: CalendarEvent[] = (rawEvents || []).map((e: any) => {
+          const groupId = e.group_id ? String(e.group_id) : null;
+
+          // 👇 Importante: dejamos groupType como personal por defecto
+          // y el color REAL lo resolvemos en render usando groupId + typeMap
+          return {
             id: String(e.id),
             title: e.title ?? "Evento",
             start: String(e.start),
             end: String(e.end),
-            groupType: (e.group_id ? "pair" : "personal") as any, // si quieres, aquí luego lo afinamos por group_id
-            groupId: e.group_id ? String(e.group_id) : null,
+            groupId,
+            groupType: "personal" as any,
             notes: e.notes ?? undefined,
-          }))
-          .filter(Boolean);
+          } as CalendarEvent;
+        });
 
         setEvents(list);
       } finally {
@@ -41,6 +73,7 @@ export default function EventsPage() {
         setLoading(false);
       }
     })();
+
     return () => {
       alive = false;
     };
@@ -65,6 +98,13 @@ export default function EventsPage() {
     }
   }
 
+  // ✅ calcula el tipo real para color: personal si no hay groupId; si hay, pair/family según groups
+  function resolveTypeForColor(e: CalendarEvent): "personal" | "pair" | "family" {
+    const gid = e.groupId ? String(e.groupId) : "";
+    if (!gid) return "personal";
+    return groupTypeById.get(gid) ?? "pair"; // fallback seguro
+  }
+
   return (
     <main style={S.page}>
       {toast && <div style={S.toast}>{toast}</div>}
@@ -73,7 +113,10 @@ export default function EventsPage() {
         <div style={S.topRow}>
           <PremiumHeader />
           <div style={S.topActions}>
-            <button style={S.primary} onClick={() => router.push("/events/new/details?type=personal")}>
+            <button
+              style={S.primary}
+              onClick={() => router.push("/events/new/details?type=personal")}
+            >
               + Evento
             </button>
             <LogoutButton />
@@ -91,19 +134,37 @@ export default function EventsPage() {
           ) : (
             <div style={S.list}>
               {upcoming.map((e) => {
-                const meta = groupMeta((e.groupType ?? "personal") as any);
+                const realType = resolveTypeForColor(e);
+                const meta = groupMeta(realType as any);
+
                 return (
                   <div key={e.id} style={S.row}>
                     <div style={{ ...S.bar, background: meta.dot }} />
+
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={S.rowTop}>
                         <div style={S.rowTitle}>{e.title}</div>
-                        <button style={S.del} onClick={() => onDelete(String(e.id))} title="Eliminar">
+                        <button
+                          style={S.del}
+                          onClick={() => onDelete(String(e.id))}
+                          title="Eliminar"
+                        >
                           🗑️
                         </button>
                       </div>
+
                       <div style={S.rowSub}>
-                        {new Date(e.start).toLocaleString()} — {new Date(e.end).toLocaleString()}
+                        {new Date(e.start).toLocaleString()} —{" "}
+                        {new Date(e.end).toLocaleString()}
+                      </div>
+
+                      {/* Debug suave (puedes borrarlo después) */}
+                      <div style={S.debug}>
+                        {realType === "personal"
+                          ? "Personal"
+                          : realType === "family"
+                          ? "Familia"
+                          : "Pareja"}
                       </div>
                     </div>
                   </div>
@@ -120,7 +181,13 @@ export default function EventsPage() {
 const S: Record<string, React.CSSProperties> = {
   page: { minHeight: "100vh", background: "#050816", color: "rgba(255,255,255,0.92)" },
   shell: { maxWidth: 1120, margin: "0 auto", padding: "22px 18px 48px" },
-  topRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, marginBottom: 14 },
+  topRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    marginBottom: 14,
+  },
   topActions: { display: "flex", gap: 10, alignItems: "center" },
   primary: {
     height: 40,
@@ -150,11 +217,19 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 700,
   },
   list: { marginTop: 12, display: "flex", flexDirection: "column", gap: 10 },
-  row: { display: "flex", gap: 10, padding: 12, borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" },
+  row: {
+    display: "flex",
+    gap: 10,
+    padding: 12,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+  },
   bar: { width: 6, borderRadius: 999 },
   rowTop: { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" },
   rowTitle: { fontWeight: 950, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
   rowSub: { marginTop: 6, fontSize: 12, opacity: 0.75, fontWeight: 650 },
+  debug: { marginTop: 6, fontSize: 11, opacity: 0.55, fontWeight: 800 },
   del: {
     width: 34,
     height: 34,
