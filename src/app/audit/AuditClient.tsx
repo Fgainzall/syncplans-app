@@ -1,12 +1,13 @@
+// src/app/audit/AuditClient.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import PremiumHeader from "@/components/PremiumHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 
-import { listAudit, AuditRow } from "@/lib/auditDb";
+import { listAudit, type AuditRow } from "@/lib/auditDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 
 function Pill({ children }: { children: React.ReactNode }) {
@@ -45,12 +46,12 @@ export default function AuditClient() {
         const data = await listAudit(gid);
         if (!alive) return;
 
-        setRows(data);
+        setRows(Array.isArray(data) ? data : []);
       } catch (e: any) {
         push({
           kind: "err",
           title: "No se pudo cargar la auditoría",
-          body: e.message,
+          body: e?.message ?? "Error desconocido",
         });
       } finally {
         if (alive) setLoading(false);
@@ -105,7 +106,9 @@ export default function AuditClient() {
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <div className="text-sm font-semibold text-white">Acción: {r.action}</div>
+                      <div className="text-sm font-semibold text-white">
+                        Acción: {r.action}
+                      </div>
                       <div className="mt-1 text-xs text-white/60">
                         {new Date(r.created_at).toLocaleString()}
                       </div>
