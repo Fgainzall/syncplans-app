@@ -1,24 +1,43 @@
 import { createClient } from "@supabase/supabase-js";
 
-function getEnv(name: string) {
-  return (process.env[name] ?? "").toString().trim();
+function mustGetPublicEnv(name: string): string {
+  const v = (process.env[name] ?? "").toString().trim();
+  return v;
 }
 
-// Variables reales
-const supabaseUrl =
-  getEnv("NEXT_PUBLIC_SUPABASE_URL") ||
-  getEnv("SUPABASE_URL");
+const supabaseUrl = mustGetPublicEnv("NEXT_PUBLIC_SUPABASE_URL");
+const supabaseAnonKey = mustGetPublicEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
-const supabaseAnonKey =
-  getEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY") ||
-  getEnv("SUPABASE_ANON_KEY");
+// Detectar si estamos en producción en Next/Vercel
+const isProd = process.env.NODE_ENV === "production";
 
-// ✅ fallback SOLO para evitar que el build crashee
-// (nunca se usa en runtime real si las env vars existen)
+// ⚠️ En prod: NUNCA permitir placeholder.
+// Si falta una env var, es mejor fallar rápido con mensaje claro.
+if (isProd) {
+  if (!supabaseUrl || supabaseUrl.includes("placeholder.supabase.co")) {
+    throw new Error(
+      "Missing/invalid NEXT_PUBLIC_SUPABASE_URL in production. Check Vercel Environment Variables (Production) and redeploy."
+    );
+  }
+  if (!supabaseAnonKey || supabaseAnonKey.includes("placeholder")) {
+    throw new Error(
+      "Missing/invalid NEXT_PUBLIC_SUPABASE_ANON_KEY in production. Check Vercel Environment Variables (Production) and redeploy."
+    );
+  }
+}
+
+// En dev/local: si falta, dejamos placeholders para no crashear el build,
+// pero te va a quedar claro en consola.
 const safeUrl = supabaseUrl || "https://placeholder.supabase.co";
 const safeKey = supabaseAnonKey || "public-anon-key-placeholder";
 
-// ✅ UN SOLO cliente
+if (!isProd && safeUrl.includes("placeholder.supabase.co")) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    "[supabaseClient] Using placeholder Supabase URL/key. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local"
+  );
+}
+
 const supabase = createClient(safeUrl, safeKey, {
   auth: {
     persistSession: true,
