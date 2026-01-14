@@ -324,7 +324,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   loadingTitle: { fontWeight: 900 },
   loadingSub: { fontSize: 12, opacity: 0.75 },
-
   toast: {
     position: "fixed",
     left: 18,
