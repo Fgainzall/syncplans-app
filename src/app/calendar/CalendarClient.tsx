@@ -151,6 +151,17 @@ export default function CalendarClient(props: {
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
+    // ✅ map: group_id -> type (pair/family) para pintar SIEMPRE bien
+  const groupTypeById = useMemo(() => {
+    const m = new Map<string, "pair" | "family">();
+    for (const g of groups || []) {
+      const id = String(g.id);
+      const rawType = String(g.type ?? "").toLowerCase();
+      m.set(id, rawType === "family" ? "family" : "pair");
+    }
+    return m;
+  }, [groups]);
+
   const [error, setError] = useState<string | null>(null);
   const [eventsLoaded, setEventsLoaded] = useState(false);
 
@@ -684,6 +695,8 @@ export default function CalendarClient(props: {
                 eventsByDay,
                 openNewEventPersonal,
                 openNewEventGroup,
+                  groupTypeById,
+
               })}
             </div>
 
@@ -715,6 +728,8 @@ export default function CalendarClient(props: {
                       highlightId={highlightId}
                       setRef={setEventRef}
                       onDelete={handleDeleteEvent}
+                        groupTypeById={groupTypeById}
+
                     />
                   ))
                 )}
@@ -757,14 +772,22 @@ function EventRow({
   highlightId,
   setRef,
   onDelete,
+  groupTypeById,
 }: {
   e: CalendarEvent;
   highlightId?: string | null;
   setRef?: (id: string) => (el: HTMLDivElement | null) => void;
   onDelete?: (id: string, title?: string) => void;
+  groupTypeById?: Map<string, "pair" | "family">; // ✅ opcional
 }) {
-  const g = (e.groupType ?? "personal") as any as GroupType;
-  const meta = groupMeta(g);
+
+  const resolvedType: GroupType = e.groupId
+  ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
+  : ("personal" as any);
+
+
+  const meta = groupMeta(resolvedType);
+
   const isHighlighted = highlightId && String(e.id) === String(highlightId);
 
   return (
@@ -819,6 +842,8 @@ function renderMonthCells(opts: {
   eventsByDay: Map<string, CalendarEvent[]>;
   openNewEventPersonal: (date?: Date) => void;
   openNewEventGroup: (date?: Date) => void;
+    groupTypeById: Map<string, "pair" | "family">;
+
 }) {
   const {
     gridStart,
@@ -899,7 +924,12 @@ function renderMonthCells(opts: {
 
         <div style={styles.cellEvents}>
           {top3.map((e) => {
-            const meta = groupMeta((e.groupType ?? "personal") as any);
+             const resolvedType: GroupType = e.groupId
+    ? ((opts.groupTypeById.get(String(e.groupId)) ?? "pair") as any)
+    : ("personal" as any);
+
+  const meta = groupMeta(resolvedType);
+
             return (
               <div key={e.id ?? `${e.start}_${e.end}`} style={styles.cellEventLine}>
                 <span style={{ ...styles.miniDot, background: meta.dot }} />
