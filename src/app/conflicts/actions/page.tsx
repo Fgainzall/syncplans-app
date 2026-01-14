@@ -1,4 +1,5 @@
 // src/app/conflicts/actions/page.tsx
+import { Suspense } from "react";
 import ActionsClient from "./ActionsClient";
 
 export const dynamic = "force-dynamic";
@@ -8,10 +9,20 @@ type PageProps = {
   searchParams?: Record<string, string | string[] | undefined>;
 };
 
-export default function ConflictsActionsPage({ searchParams }: PageProps) {
-  const raw = searchParams?.groupId;
-  const groupId =
-    typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : null;
+function asString(v: string | string[] | undefined): string | null {
+  if (!v) return null;
+  return Array.isArray(v) ? v[0] ?? null : v;
+}
 
-  return <ActionsClient groupIdFromUrl={groupId} />;
+function ActionsClientWithProps({ searchParams }: PageProps) {
+  const groupIdFromUrl = asString(searchParams?.groupId);
+  return <ActionsClient groupIdFromUrl={groupIdFromUrl} />;
+}
+
+export default function ConflictsActionsPage(props: PageProps) {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-[#050816]" />}>
+      <ActionsClientWithProps {...props} />
+    </Suspense>
+  );
 }
