@@ -1,22 +1,26 @@
-"use client";
+// src/app/register/page.tsx
+import RegisterRedirectClient from "./RegisterRedirectClient";
 
-import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
-export default function RegisterRedirectPage() {
-  const router = useRouter();
-  const sp = useSearchParams();
+type PageProps = {
+  searchParams?: Record<string, string | string[] | undefined>;
+};
 
-  useEffect(() => {
-    const next = sp.get("next") || "/calendar";
-    router.replace(`/auth/register?next=${encodeURIComponent(next)}`);
-  }, [router, sp]);
+function asString(v: string | string[] | undefined): string | null {
+  if (!v) return null;
+  if (Array.isArray(v)) return v[0] ?? null;
+  return v;
+}
 
-  return (
-    <main className="min-h-screen bg-[#050816] text-white grid place-items-center">
-      <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/80">
-        Redirigiendo a registro…
-      </div>
-    </main>
-  );
+function safeNext(raw: string | null): string {
+  if (!raw) return "/calendar";
+  return raw.startsWith("/") ? raw : "/calendar";
+}
+
+export default function Page({ searchParams }: PageProps) {
+  const next = safeNext(asString(searchParams?.next));
+  return <RegisterRedirectClient next={next} />;
 }
