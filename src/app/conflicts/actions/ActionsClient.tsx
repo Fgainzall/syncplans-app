@@ -1,7 +1,8 @@
+// src/app/conflicts/actions/ActionsClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
@@ -22,18 +23,12 @@ import {
   clearMyConflictResolutions,
 } from "@/lib/conflictResolutionsDb";
 
-export default function ActionsClient() {
+export default function ActionsClient({
+  groupIdFromUrl,
+}: {
+  groupIdFromUrl: string | null;
+}) {
   const router = useRouter();
-  const sp = useSearchParams();
-
-  // ✅ lee params una vez y marca listo
-  const [groupIdFromUrl, setGroupIdFromUrl] = useState<string | null>(null);
-  const [readyParams, setReadyParams] = useState(false);
-
-  useEffect(() => {
-    setGroupIdFromUrl(sp.get("groupId"));
-    setReadyParams(true);
-  }, [sp]);
 
   const [booting, setBooting] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -57,9 +52,6 @@ export default function ActionsClient() {
      Boot
      ========================= */
   useEffect(() => {
-    // ✅ evita doble boot (primero null, luego con groupId real)
-    if (!readyParams) return;
-
     let alive = true;
 
     (async () => {
@@ -100,7 +92,7 @@ export default function ActionsClient() {
     return () => {
       alive = false;
     };
-  }, [router, groupIdFromUrl, readyParams]);
+  }, [router, groupIdFromUrl]);
 
   /* =========================
      Conflicts + plan
@@ -247,7 +239,8 @@ export default function ActionsClient() {
               style={{
                 ...styles.primaryBtn,
                 opacity: plan.decided === 0 || busy ? 0.55 : 1,
-                cursor: plan.decided === 0 || busy ? "not-allowed" : "pointer",
+                cursor:
+                  plan.decided === 0 || busy ? "not-allowed" : "pointer",
               }}
             >
               {busy ? "Aplicando…" : "Aplicar cambios ✅"}
