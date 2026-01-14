@@ -1,27 +1,31 @@
+// src/app/events/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 
 import { getMyEvents, deleteEventsByIds } from "@/lib/eventsDb";
 import { getMyGroups } from "@/lib/groupsDb";
+import { groupMeta, type CalendarEvent, type GroupType } from "@/lib/conflicts";
 
-import { groupMeta, type CalendarEvent } from "@/lib/conflicts";
-
-type DbGroup = {
+type DbEvent = {
   id: string;
-  name: string | null;
-  type: "pair" | "family" | string;
+  title?: string | null;
+  start: string;
+  end: string;
+  notes?: string | null;
+
+  group_id?: string | null;
+  groupId?: string | null; // fallback si viene con otro nombre
 };
 
 export default function EventsPage() {
   const router = useRouter();
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [groupTypeById, setGroupTypeById] = useState<Map<string, "pair" | "family">>(new Map());
-
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -32,40 +36,42 @@ export default function EventsPage() {
       try {
         setLoading(true);
 
-        const [rawEvents, rawGroups] = await Promise.all([
-          getMyEvents().catch(() => [] as any[]),
-          getMyGroups().catch(() => [] as any[]),
-        ]);
+        // ✅ Cargamos ambas cosas (igual que CalendarClient)
+        const [myGroups, rawEvents] = await Promise.all([getMyGroups(), getMyEvents()]);
 
         if (!alive) return;
 
-        const groups: DbGroup[] = Array.isArray(rawGroups) ? (rawGroups as any) : [];
+        // ✅ Map group_id -> type ("pair" | "family")
+        const groupTypeById = new Map<string, "pair" | "family">(
+          (myGroups || []).map((g: any) => {
+            const id = String(g.id);
+            const rawType = String(g.type ?? "").toLowerCase();
+            const normalized: "pair" | "family" = rawType === "family" ? "family" : "pair";
+            return [id, normalized];
+          })
+        );
 
-        // ✅ Mapa groupId -> ("pair" | "family")
-        const typeMap = new Map<string, "pair" | "family">();
-        for (const g of groups) {
-          if (!g?.id) continue;
-          const t = String(g.type);
-          typeMap.set(String(g.id), t === "family" ? "family" : "pair");
-        }
-        setGroupTypeById(typeMap);
+        const list: CalendarEvent[] = ((rawEvents || []) as DbEvent[])
+          .map((ev) => {
+            const gid = ev.group_id ?? ev.groupId ?? null;
 
-        // ✅ Normaliza eventos (NO confiamos en groupType que venga de DB)
-        const list: CalendarEvent[] = (rawEvents || []).map((e: any) => {
-          const groupId = e.group_id ? String(e.group_id) : null;
+            let gt: GroupType = "personal";
+            if (gid) {
+              const t = groupTypeById.get(String(gid));
+              gt = (t === "family" ? "family" : "pair") as GroupType;
+            }
 
-          // 👇 Importante: dejamos groupType como personal por defecto
-          // y el color REAL lo resolvemos en render usando groupId + typeMap
-          return {
-            id: String(e.id),
-            title: e.title ?? "Evento",
-            start: String(e.start),
-            end: String(e.end),
-            groupId,
-            groupType: "personal" as any,
-            notes: e.notes ?? undefined,
-          } as CalendarEvent;
-        });
+            return {
+              id: String(ev.id),
+              title: ev.title ?? "Evento",
+              start: String(ev.start),
+              end: String(ev.end),
+              notes: ev.notes ?? undefined,
+              groupId: gid ? String(gid) : null,
+              groupType: gt,
+            };
+          })
+          .filter(Boolean);
 
         setEvents(list);
       } finally {
@@ -98,13 +104,6 @@ export default function EventsPage() {
     }
   }
 
-  // ✅ calcula el tipo real para color: personal si no hay groupId; si hay, pair/family según groups
-  function resolveTypeForColor(e: CalendarEvent): "personal" | "pair" | "family" {
-    const gid = e.groupId ? String(e.groupId) : "";
-    if (!gid) return "personal";
-    return groupTypeById.get(gid) ?? "pair"; // fallback seguro
-  }
-
   return (
     <main style={S.page}>
       {toast && <div style={S.toast}>{toast}</div>}
@@ -134,38 +133,25 @@ export default function EventsPage() {
           ) : (
             <div style={S.list}>
               {upcoming.map((e) => {
-                const realType = resolveTypeForColor(e);
-                const meta = groupMeta(realType as any);
+                const meta = groupMeta((e.groupType ?? "personal") as any);
 
                 return (
                   <div key={e.id} style={S.row}>
                     <div style={{ ...S.bar, background: meta.dot }} />
-
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={S.rowTop}>
                         <div style={S.rowTitle}>{e.title}</div>
-                        <button
-                          style={S.del}
-                          onClick={() => onDelete(String(e.id))}
-                          title="Eliminar"
-                        >
+                        <button style={S.del} onClick={() => onDelete(String(e.id))} title="Eliminar">
                           🗑️
                         </button>
                       </div>
 
                       <div style={S.rowSub}>
-                        {new Date(e.start).toLocaleString()} —{" "}
-                        {new Date(e.end).toLocaleString()}
+                        {new Date(e.start).toLocaleString()} — {new Date(e.end).toLocaleString()}
                       </div>
 
-                      {/* Debug suave (puedes borrarlo después) */}
-                      <div style={S.debug}>
-                        {realType === "personal"
-                          ? "Personal"
-                          : realType === "family"
-                          ? "Familia"
-                          : "Pareja"}
-                      </div>
+                      {/* ✅ etiqueta para verificar rápido */}
+                      <div style={S.badge}>{meta.label}</div>
                     </div>
                   </div>
                 );
@@ -229,7 +215,18 @@ const S: Record<string, React.CSSProperties> = {
   rowTop: { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" },
   rowTitle: { fontWeight: 950, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
   rowSub: { marginTop: 6, fontSize: 12, opacity: 0.75, fontWeight: 650 },
-  debug: { marginTop: 6, fontSize: 11, opacity: 0.55, fontWeight: 800 },
+  badge: {
+    marginTop: 8,
+    display: "inline-flex",
+    padding: "4px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    fontSize: 12,
+    fontWeight: 800,
+    opacity: 0.9,
+    width: "fit-content",
+  },
   del: {
     width: 34,
     height: 34,
