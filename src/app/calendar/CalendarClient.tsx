@@ -151,7 +151,8 @@ export default function CalendarClient(props: {
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
-    // ✅ map: group_id -> type (pair/family) para pintar SIEMPRE bien
+
+  // ✅ map: group_id -> type (pair/family) para pintar SIEMPRE bien
   const groupTypeById = useMemo(() => {
     const m = new Map<string, "pair" | "family">();
     for (const g of groups || []) {
@@ -210,7 +211,7 @@ export default function CalendarClient(props: {
         const rawEvents: any[] = (await getEventsForGroups()) as any[];
 
         // ✅ mapping group_id -> type UI (pair/family)
-        const groupTypeById = new Map<string, "family" | "pair">(
+        const groupTypeByIdLocal = new Map<string, "family" | "pair">(
           (myGroups || []).map((g: any) => {
             const id = String(g.id);
             const rawType = String(g.type ?? "").toLowerCase();
@@ -226,7 +227,7 @@ export default function CalendarClient(props: {
 
             let gt: GroupType = "personal" as any;
             if (gid) {
-              const t = groupTypeById.get(String(gid));
+              const t = groupTypeByIdLocal.get(String(gid));
               gt = (t === "family" ? "family" : "pair") as any;
             } else {
               gt = "personal" as any;
@@ -349,6 +350,52 @@ export default function CalendarClient(props: {
     };
   }, [router, refreshCalendar]);
 
+  // ✅ Conflictos: normalizamos pair -> couple (SOLO para el motor)
+  const conflicts = useMemo(() => {
+    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map((e) => ({
+      ...e,
+      groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
+    }));
+
+    return computeVisibleConflicts(normalized);
+  }, [events]);
+
+  const conflictCount = conflicts.length;
+
+  // ✅ Para el filtro "Activo": mostrar SIEMPRE los eventos involucrados en conflictos
+  // (aunque sean de otro grupo), para que el usuario vea "el rojo".
+  const conflictEventIdsInGrid = useMemo(() => {
+    const a = gridStart.getTime();
+    const b = gridEnd.getTime();
+
+    const set = new Set<string>();
+    for (const c of conflicts) {
+      const s = new Date(c.overlapStart).getTime();
+      const e = new Date(c.overlapEnd).getTime();
+      const intersects = e >= a && s <= b;
+      if (!intersects) continue;
+
+      set.add(String(c.existingEventId));
+      set.add(String(c.incomingEventId));
+    }
+    return set;
+  }, [conflicts, gridStart, gridEnd]);
+
+  const firstRelevantConflictIndex = useMemo(() => {
+    if (conflicts.length === 0) return 0;
+
+    const a = gridStart.getTime();
+    const b = gridEnd.getTime();
+
+    const idx = conflicts.findIndex((c) => {
+      const s = new Date(c.overlapStart).getTime();
+      const e = new Date(c.overlapEnd).getTime();
+      return e >= a && s <= b;
+    });
+
+    return idx >= 0 ? idx : 0;
+  }, [conflicts, gridStart, gridEnd]);
+
   // ✅ Filtros: usan SOLO UI types (personal/pair/family)
   const filteredEvents = useMemo(() => {
     const isEnabled = (g?: GroupType | null) => {
@@ -369,11 +416,15 @@ export default function CalendarClient(props: {
 
       // scope === "active"
       // muestra: personal + eventos del grupo activo
+      // PERO: si el evento está involucrado en un conflicto visible, lo mostramos igual.
+      const inConflict = conflictEventIdsInGrid.has(String(e.id));
+      if (inConflict) return true;
+
       if (gt === "personal") return true;
       if (!activeGroupId) return false;
       return String(e.groupId ?? "") === String(activeGroupId);
     });
-  }, [events, scope, enabledGroups, activeGroupId]);
+  }, [events, scope, enabledGroups, activeGroupId, conflictEventIdsInGrid]);
 
   const visibleEvents = useMemo(() => {
     const a = gridStart.getTime();
@@ -385,33 +436,6 @@ export default function CalendarClient(props: {
       return en >= a && s <= b;
     });
   }, [filteredEvents, gridStart, gridEnd]);
-
-  // ✅ Conflictos: aquí sí normalizamos pair -> couple (SOLO para el motor)
-  const conflicts = useMemo(() => {
-    const normalized = (Array.isArray(events) ? events : []).map((e) => ({
-      ...e,
-      groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
-    })) as CalendarEvent[];
-
-    return computeVisibleConflicts(normalized);
-  }, [events]);
-
-  const conflictCount = conflicts.length;
-
-  const firstRelevantConflictIndex = useMemo(() => {
-    if (conflicts.length === 0) return 0;
-
-    const a = gridStart.getTime();
-    const b = gridEnd.getTime();
-
-    const idx = conflicts.findIndex((c) => {
-      const s = new Date(c.overlapStart).getTime();
-      const e = new Date(c.overlapEnd).getTime();
-      return e >= a && s <= b;
-    });
-
-    return idx >= 0 ? idx : 0;
-  }, [conflicts, gridStart, gridEnd]);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
@@ -695,8 +719,7 @@ export default function CalendarClient(props: {
                 eventsByDay,
                 openNewEventPersonal,
                 openNewEventGroup,
-                  groupTypeById,
-
+                groupTypeById,
               })}
             </div>
 
@@ -711,7 +734,10 @@ export default function CalendarClient(props: {
                   >
                     + Personal
                   </button>
-                  <button onClick={() => openNewEventGroup(selectedDay)} style={styles.ghostBtnSmallGroup}>
+                  <button
+                    onClick={() => openNewEventGroup(selectedDay)}
+                    style={styles.ghostBtnSmallGroup}
+                  >
                     + Grupo
                   </button>
                 </div>
@@ -728,8 +754,7 @@ export default function CalendarClient(props: {
                       highlightId={highlightId}
                       setRef={setEventRef}
                       onDelete={handleDeleteEvent}
-                        groupTypeById={groupTypeById}
-
+                      groupTypeById={groupTypeById}
                     />
                   ))
                 )}
@@ -756,6 +781,7 @@ export default function CalendarClient(props: {
                     highlightId={highlightId}
                     setRef={setEventRef}
                     onDelete={handleDeleteEvent}
+                    groupTypeById={groupTypeById}
                   />
                 ))
               )}
@@ -778,13 +804,11 @@ function EventRow({
   highlightId?: string | null;
   setRef?: (id: string) => (el: HTMLDivElement | null) => void;
   onDelete?: (id: string, title?: string) => void;
-  groupTypeById?: Map<string, "pair" | "family">; // ✅ opcional
+  groupTypeById?: Map<string, "pair" | "family">;
 }) {
-
   const resolvedType: GroupType = e.groupId
-  ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
-  : ("personal" as any);
-
+    ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
+    : ("personal" as any);
 
   const meta = groupMeta(resolvedType);
 
@@ -842,8 +866,7 @@ function renderMonthCells(opts: {
   eventsByDay: Map<string, CalendarEvent[]>;
   openNewEventPersonal: (date?: Date) => void;
   openNewEventGroup: (date?: Date) => void;
-    groupTypeById: Map<string, "pair" | "family">;
-
+  groupTypeById: Map<string, "pair" | "family">;
 }) {
   const {
     gridStart,
@@ -924,11 +947,11 @@ function renderMonthCells(opts: {
 
         <div style={styles.cellEvents}>
           {top3.map((e) => {
-             const resolvedType: GroupType = e.groupId
-    ? ((opts.groupTypeById.get(String(e.groupId)) ?? "pair") as any)
-    : ("personal" as any);
+            const resolvedType: GroupType = e.groupId
+              ? ((opts.groupTypeById.get(String(e.groupId)) ?? "pair") as any)
+              : ("personal" as any);
 
-  const meta = groupMeta(resolvedType);
+            const meta = groupMeta(resolvedType);
 
             return (
               <div key={e.id ?? `${e.start}_${e.end}`} style={styles.cellEventLine}>

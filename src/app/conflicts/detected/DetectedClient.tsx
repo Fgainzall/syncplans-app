@@ -45,6 +45,15 @@ function prettyTimeRange(startIso: string, endIso: string) {
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
 
+/**
+ * ✅ Normalización para conflictos:
+ * El motor trabaja con "couple" (no "pair").
+ */
+function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
+  if (!gt) return "personal" as GroupType;
+  return (gt === ("pair" as any) ? ("couple" as any) : gt) as GroupType;
+}
+
 type AttachedConflict = {
   id: string;
   existingEventId: string;
@@ -108,7 +117,15 @@ export default function DetectedClient() {
   }, [router, groupIdFromUrl]);
 
   const conflicts = useMemo<AttachedConflict[]>(() => {
-    const cx = computeVisibleConflicts(events);
+    // ✅ motor: normalizamos SOLO para detectar conflictos
+    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map((e) => ({
+      ...e,
+      groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
+    }));
+
+    const cx = computeVisibleConflicts(normalized);
+
+    // ✅ attach con los eventos originales (para títulos / colores correctos)
     const attached = attachEvents(cx, events) as unknown as AttachedConflict[];
 
     if (!focusEventId) return attached;
@@ -220,8 +237,9 @@ export default function DetectedClient() {
                 const a = c.existingEvent;
                 const b = c.incomingEvent;
 
-                const aMeta = groupMeta((a?.groupType ?? "personal") as GroupType);
-                const bMeta = groupMeta((b?.groupType ?? "personal") as GroupType);
+                // ✅ groupMeta también necesita couple
+                const aMeta = groupMeta(normalizeForConflicts((a?.groupType ?? "personal") as any));
+                const bMeta = groupMeta(normalizeForConflicts((b?.groupType ?? "personal") as any));
 
                 return (
                   <button key={c.id} onClick={() => openCompare(idx)} style={styles.rowBtn}>
@@ -242,17 +260,13 @@ export default function DetectedClient() {
                         <div style={styles.miniLine}>
                           <span style={{ ...styles.dot, background: aMeta.dot }} />
                           <span style={styles.miniTitle}>{a?.title || "Evento A"}</span>
-                          <span style={styles.miniTime}>
-                            {a ? prettyTimeRange(a.start, a.end) : ""}
-                          </span>
+                          <span style={styles.miniTime}>{a ? prettyTimeRange(a.start, a.end) : ""}</span>
                         </div>
 
                         <div style={styles.miniLine}>
                           <span style={{ ...styles.dot, background: bMeta.dot }} />
                           <span style={styles.miniTitle}>{b?.title || "Evento B"}</span>
-                          <span style={styles.miniTime}>
-                            {b ? prettyTimeRange(b.start, b.end) : ""}
-                          </span>
+                          <span style={styles.miniTime}>{b ? prettyTimeRange(b.start, b.end) : ""}</span>
                         </div>
                       </div>
                     </div>

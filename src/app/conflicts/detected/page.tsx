@@ -1,26 +1,14 @@
-// src/app/conflicts/detected/DetectedClient.tsx
-"use client";
+// src/app/conflicts/detected/page.tsx
+import { Suspense } from "react";
+import DetectedClient from "./DetectedClient";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import supabase from "@/lib/supabaseClient";
-import PremiumHeader from "@/components/PremiumHeader";
-import LogoutButton from "@/components/LogoutButton";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-import {
-  CalendarEvent,
-  GroupType,
-  groupMeta,
-  computeVisibleConflicts,
-  attachEvents,
-} from "@/lib/conflicts";
-
-import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
-import { Resolution, getMyConflictResolutionsMap } from "@/lib/conflictResolutionsDb";
-
-// ✅ PEGA AQUÍ TODO TU CÓDIGO COMPLETO DE detected (helpers + componente + styles)
-// (el mismo que me enviaste)
-// y deja:
 export default function ConflictsDetectedPage() {
-  // ...
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-[#050816]" />}>
+      <DetectedClient />
+    </Suspense>
+  );
 }
