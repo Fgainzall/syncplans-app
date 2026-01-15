@@ -208,7 +208,9 @@ export default function CalendarClient(props: {
         const myGroups = await getMyGroups();
         setGroups(myGroups);
 
-        const rawEvents: any[] = (await getEventsForGroups()) as any[];
+        // ✅ FIX: siempre pedir eventos por groupIds (personales + mis grupos)
+        const groupIds = (myGroups || []).map((g: any) => String(g.id));
+        const rawEvents: any[] = (await getEventsForGroups(groupIds)) as any[];
 
         // ✅ mapping group_id -> type UI (pair/family)
         const groupTypeByIdLocal = new Map<string, "family" | "pair">(
@@ -421,8 +423,8 @@ export default function CalendarClient(props: {
       if (inConflict) return true;
 
       if (gt === "personal") return true;
-      if (!activeGroupId) return false;
-      return String(e.groupId ?? "") === String(activeGroupId);
+     if (!activeGroupId) return true;
+return String(e.groupId ?? "") === String(activeGroupId);
     });
   }, [events, scope, enabledGroups, activeGroupId, conflictEventIdsInGrid]);
 

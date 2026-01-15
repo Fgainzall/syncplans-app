@@ -6,16 +6,12 @@ import type { CalendarEvent, GroupType } from "@/lib/conflicts";
 /**
  * events (DB) esperado:
  * - id uuid
- * - owner_id uuid  ✅ (recomendado con RLS)
+ * - owner_id uuid
  * - title text
  * - notes text nullable
  * - start timestamptz
  * - end timestamptz
  * - group_id uuid nullable
- *
- * IMPORTANTE:
- * - NO usamos events.group_type (NO existe)
- * - El groupType se resuelve en UI usando group_id -> groups.type
  */
 
 export type DbEventRow = {
@@ -46,9 +42,9 @@ function toCalendarEvent(r: DbEventRow): CalendarEvent {
     start: r.start,
     end: r.end,
     groupId: r.group_id ?? null,
-    // se “enriquece” bien en /calendar
+    // se enriquece luego con groups.type
     groupType: "personal" as GroupType,
-  } as CalendarEvent;
+  };
 }
 
 export async function getMyEvents(): Promise<CalendarEvent[]> {
@@ -58,18 +54,38 @@ export async function getMyEvents(): Promise<CalendarEvent[]> {
     .order("start", { ascending: true });
 
   if (error) throw error;
-
   return ((data ?? []) as DbEventRow[]).map(toCalendarEvent);
 }
 
+/**
+ * ✅ Importante:
+ * Si pasas groupIds, trae:
+ * - eventos de esos grupos
+ * - + eventos personales (group_id is null)
+ */
 export async function getEventsForGroups(groupIds?: string[]): Promise<CalendarEvent[]> {
   if (!groupIds) return getMyEvents();
-  if (groupIds.length === 0) return [];
+
+  if (groupIds.length === 0) {
+    // si no hay grupos, al menos trae personales
+    const { data, error } = await supabase
+      .from("events")
+      .select("id,title,notes,start,end,group_id")
+      .is("group_id", null)
+      .order("start", { ascending: true });
+
+    if (error) throw error;
+    return ((data ?? []) as DbEventRow[]).map(toCalendarEvent);
+  }
+
+  // ✅ Supabase OR syntax: group_id.in.(uuid1,uuid2) OR group_id.is.null
+  // Importante: NO uses comillas dentro del in.(...)
+  const inList = groupIds.join(",");
 
   const { data, error } = await supabase
     .from("events")
     .select("id,title,notes,start,end,group_id")
-    .in("group_id", groupIds)
+    .or(`group_id.in.(${inList}),group_id.is.null`)
     .order("start", { ascending: true });
 
   if (error) throw error;
@@ -86,8 +102,8 @@ export async function createEventForGroup(input: {
 }): Promise<{ id: string }> {
   const uid = await requireUid();
 
-  const payload: any = {
-    owner_id: uid, // ✅ explícito (evita depender de triggers)
+  const payload = {
+    owner_id: uid,
     title: input.title,
     notes: input.notes ?? null,
     start: input.start,
@@ -95,16 +111,23 @@ export async function createEventForGroup(input: {
     group_id: input.groupId ?? null,
   };
 
-  const { data, error } = await supabase.from("events").insert([payload]).select("id").single();
-  if (error) throw error;
+  const { data, error } = await supabase
+    .from("events")
+    .insert([payload])
+    .select("id")
+    .single();
 
+  if (error) throw error;
   return { id: (data as any).id };
 }
 
 export async function deleteEventsByIds(ids: string[]): Promise<number> {
   if (!ids.length) return 0;
 
-  const { error, count } = await supabase.from("events").delete({ count: "exact" }).in("id", ids);
+  const { error, count } = await supabase
+    .from("events")
+    .delete({ count: "exact" })
+    .in("id", ids);
 
   if (error) throw error;
   return count ?? 0;
