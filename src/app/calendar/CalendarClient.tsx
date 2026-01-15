@@ -144,7 +144,7 @@ export default function CalendarClient(props: {
   const [booting, setBooting] = useState(true);
 
   const [tab, setTab] = useState<Tab>("month");
-  const [scope, setScope] = useState<Scope>("active");
+  const [scope, setScope] = useState<Scope>("all");
 
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
@@ -207,6 +207,9 @@ export default function CalendarClient(props: {
 
         const myGroups = await getMyGroups();
         setGroups(myGroups);
+if (!active && (myGroups?.length ?? 0) > 0) {
+  setActiveGroupId(String(myGroups[0].id));
+}
 
         // ✅ FIX: siempre pedir eventos por groupIds (personales + mis grupos)
         const groupIds = (myGroups || []).map((g: any) => String(g.id));
