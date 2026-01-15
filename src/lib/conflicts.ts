@@ -22,7 +22,7 @@ export type CalendarEvent = {
 export type ConflictResolution = "keep_existing" | "replace_with_new" | "none";
 
 export type ConflictItem = {
-  id: string; // estable (determinístico)
+  id: string; // ✅ estable (determinístico)
   kind: "overlap";
   existingEventId: string;
   incomingEventId: string;
@@ -60,7 +60,10 @@ export function loadEvents(): CalendarEvent[] {
 
 export function saveEvents(events: CalendarEvent[]) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(EVENTS_KEY, JSON.stringify(Array.isArray(events) ? events : []));
+  localStorage.setItem(
+    EVENTS_KEY,
+    JSON.stringify(Array.isArray(events) ? events : [])
+  );
 }
 
 /* =========================
@@ -157,7 +160,11 @@ export function fmtTime(d: Date) {
 }
 
 export function fmtDate(d: Date) {
-  return d.toLocaleDateString([], { weekday: "short", day: "2-digit", month: "short" });
+  return d.toLocaleDateString([], {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  });
 }
 
 export function fmtRange(startISO: string, endISO: string) {
@@ -178,7 +185,9 @@ export function fmtRange(startISO: string, endISO: string) {
    Groups
    ========================= */
 
-export function normalizeGroupType(gt: GroupType): "personal" | "pair" | "family" {
+export function normalizeGroupType(
+  gt: GroupType
+): "personal" | "pair" | "family" {
   if (gt === "couple") return "pair";
   if (gt === "pair") return "pair";
   if (gt === "family") return "family";
@@ -196,7 +205,12 @@ export function groupMeta(groupType: GroupType) {
    Overlap + stable id
    ========================= */
 
-export function overlapRange(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
+export function overlapRange(
+  aStart: Date,
+  aEnd: Date,
+  bStart: Date,
+  bEnd: Date
+) {
   const start = new Date(Math.max(aStart.getTime(), bStart.getTime()));
   const end = new Date(Math.min(aEnd.getTime(), bEnd.getTime()));
   return start.getTime() < end.getTime() ? { start, end } : null;
@@ -209,19 +223,27 @@ export function chooseExistingIncoming(a: CalendarEvent, b: CalendarEvent) {
   if (aS < bS) return { existing: a, incoming: b };
   if (bS < aS) return { existing: b, incoming: a };
 
-  return String(a.id) < String(b.id) ? { existing: a, incoming: b } : { existing: b, incoming: a };
+  return String(a.id) < String(b.id)
+    ? { existing: a, incoming: b }
+    : { existing: b, incoming: a };
 }
 
-function stableConflictId(aId: string, bId: string, overlapStartMs: number, overlapEndMs: number) {
+/**
+ * ✅ NUEVO: ID estable SOLO por pareja de eventos
+ * (esto arregla que Compare y Actions calculen el mismo conflict_id siempre)
+ */
+function conflictKey(aId: string, bId: string) {
   const [x, y] = [String(aId), String(bId)].sort();
-  return `cx::${x}::${y}::${overlapStartMs}::${overlapEndMs}`;
+  return `cx::${x}::${y}`;
 }
 
 /**
  * ✅ Detector robusto (cross-day OK, sin duplicados, ignora eventos inválidos)
  */
 export function computeVisibleConflicts(events: unknown): ConflictItem[] {
-  const list: CalendarEvent[] = Array.isArray(events) ? (events.filter(Boolean) as CalendarEvent[]) : [];
+  const list: CalendarEvent[] = Array.isArray(events)
+    ? (events.filter(Boolean) as CalendarEvent[])
+    : [];
 
   const normalized = list
     .map((e) => {
@@ -250,7 +272,11 @@ export function computeVisibleConflicts(events: unknown): ConflictItem[] {
       if (oStart >= oEnd) continue;
 
       const pick = chooseExistingIncoming(prev.e, cur.e);
-      const id = stableConflictId(pick.existing.id, pick.incoming.id, oStart, oEnd);
+
+      // ✅ antes: stableConflictId(...overlapMs...)
+      // ✅ ahora: conflictKey(eventIdA,eventIdB) => estable siempre
+      const id = conflictKey(pick.existing.id, pick.incoming.id);
+
       if (seen.has(id)) continue;
       seen.add(id);
 
@@ -282,13 +308,26 @@ export function computeVisibleConflicts(events: unknown): ConflictItem[] {
   return out;
 }
 
-export function attachEvents(conflicts: ConflictItem[], allEvents: unknown): ConflictItem[] {
-  const list: CalendarEvent[] = Array.isArray(allEvents) ? (allEvents.filter(Boolean) as CalendarEvent[]) : [];
+export function attachEvents(
+  conflicts: ConflictItem[],
+  allEvents: unknown
+): ConflictItem[] {
+  const list: CalendarEvent[] = Array.isArray(allEvents)
+    ? (allEvents.filter(Boolean) as CalendarEvent[])
+    : [];
   const map = new Map(list.map((e) => [String(e.id), e]));
 
   return conflicts.map((c) => {
-    const existing = map.get(String(c.existingEventId)) ?? c.existing ?? c.existingEvent ?? null;
-    const incoming = map.get(String(c.incomingEventId)) ?? c.incoming ?? c.incomingEvent ?? null;
+    const existing =
+      map.get(String(c.existingEventId)) ??
+      c.existing ??
+      c.existingEvent ??
+      null;
+    const incoming =
+      map.get(String(c.incomingEventId)) ??
+      c.incoming ??
+      c.incomingEvent ??
+      null;
 
     return {
       ...c,
