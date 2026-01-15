@@ -54,6 +54,12 @@ export default function ActionsClient({
   useEffect(() => {
     let alive = true;
 
+    const fetchResMap = async () => {
+      const dbMap = await getMyConflictResolutionsMap();
+      if (!alive) return;
+      setResMap(dbMap ?? {});
+    };
+
     (async () => {
       setBooting(true);
 
@@ -78,9 +84,12 @@ export default function ActionsClient({
       }
 
       try {
-        const dbMap = await getMyConflictResolutionsMap();
-        if (!alive) return;
-        setResMap(dbMap ?? {});
+        await fetchResMap();
+
+        // ✅ segundo pull por si el upsert recién aterriza o hay race
+        setTimeout(() => {
+          fetchResMap().catch(() => {});
+        }, 450);
       } catch {
         if (!alive) return;
         setResMap({});
@@ -171,11 +180,13 @@ export default function ActionsClient({
       router.replace(
         `/calendar?applied=1&deleted=${plan.deleteIds.length}&skipped=${plan.skipped}&appliedCount=${plan.decided}`
       );
-    } catch {
+    } catch (e: any) {
       setBusy(false);
       setToast({
         title: "No se pudo aplicar",
-        sub: "Inténtalo nuevamente en unos segundos.",
+        sub:
+          e?.message ??
+          "Inténtalo nuevamente en unos segundos (puede ser RLS/permiso).",
       });
     }
   };
@@ -206,6 +217,8 @@ export default function ActionsClient({
     );
   }
 
+  const disabledApply = plan.decided === 0 || busy;
+
   /* =========================
      UI
      ========================= */
@@ -230,17 +243,23 @@ export default function ActionsClient({
               Esto actualizará tu calendario y resolverá los conflictos
               seleccionados.
             </div>
+
+            {conflicts.length > 0 && plan.decided === 0 && (
+              <div style={styles.helperText}>
+                No hay decisiones guardadas aún. Vuelve a “Comparar” y elige
+                Conservar A/B.
+              </div>
+            )}
           </div>
 
           <div style={styles.heroRight}>
             <button
               onClick={apply}
-              disabled={plan.decided === 0 || busy}
+              disabled={disabledApply}
               style={{
                 ...styles.primaryBtn,
-                opacity: plan.decided === 0 || busy ? 0.55 : 1,
-                cursor:
-                  plan.decided === 0 || busy ? "not-allowed" : "pointer",
+                opacity: disabledApply ? 0.55 : 1,
+                cursor: disabledApply ? "not-allowed" : "pointer",
               }}
             >
               {busy ? "Aplicando…" : "Aplicar cambios ✅"}
@@ -292,6 +311,12 @@ const styles: Record<string, React.CSSProperties> = {
   kicker: { fontSize: 11, fontWeight: 900 },
   h1: { margin: 0, fontSize: 28 },
   sub: { fontSize: 13, opacity: 0.75 },
+  helperText: {
+    marginTop: 10,
+    fontSize: 12,
+    opacity: 0.8,
+    lineHeight: 1.35,
+  },
   ghostBtn: {
     padding: "10px 12px",
     borderRadius: 14,

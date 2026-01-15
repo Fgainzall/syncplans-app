@@ -1,4 +1,3 @@
-// src/lib/conflictResolutionsDb.ts
 "use client";
 
 import supabase from "@/lib/supabaseClient";
@@ -11,72 +10,61 @@ export type ConflictResolutionRow = {
   user_id: string;
 };
 
-/**
- * Devuelve un map conflictId -> resolution
- */
-export async function getMyConflictResolutionsMap(): Promise<
-  Record<string, Resolution>
-> {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+async function requireUserId(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw error;
+  const uid = data.user?.id;
+  if (!uid) throw new Error("Not authenticated");
+  return uid;
+}
 
-  if (userError || !user) return {};
+/**
+ * Devuelve un map conflictId -> resolution (solo del usuario actual)
+ */
+export async function getMyConflictResolutionsMap(): Promise<Record<string, Resolution>> {
+  const uid = await requireUserId();
 
   const { data, error } = await supabase
     .from("conflict_resolutions")
     .select("conflict_id, resolution")
-    .eq("user_id", user.id);
+    .eq("user_id", uid);
 
-  if (error || !data) return {};
+  if (error) throw error;
 
   const map: Record<string, Resolution> = {};
-  for (const row of data) {
-    map[row.conflict_id] = row.resolution as Resolution;
+  for (const row of data ?? []) {
+    map[String(row.conflict_id)] = row.resolution as Resolution;
   }
   return map;
 }
 
 /**
  * Inserta o actualiza la resolución de un conflicto
+ * IMPORTANTÍSIMO: valida error y lanza (para que Compare muestre "No se pudo guardar").
  */
-export async function upsertConflictResolution(
-  conflictId: string,
-  resolution: Resolution
-) {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+export async function upsertConflictResolution(conflictId: string, resolution: Resolution) {
+  const uid = await requireUserId();
 
-  if (userError || !user) return;
+  const { error } = await supabase
+    .from("conflict_resolutions")
+    .upsert(
+      { conflict_id: String(conflictId), resolution, user_id: uid },
+      { onConflict: "conflict_id,user_id" }
+    );
 
-  await supabase.from("conflict_resolutions").upsert(
-    {
-      conflict_id: conflictId,
-      resolution,
-      user_id: user.id,
-    },
-    {
-      onConflict: "conflict_id,user_id",
-    }
-  );
+  if (error) throw error;
 }
 
 /**
  * Borra todas las resoluciones del usuario (reset)
  */
 export async function clearMyConflictResolutions() {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+  const uid = await requireUserId();
 
-  if (userError || !user) return;
-
-  await supabase
+  const { error } = await supabase
     .from("conflict_resolutions")
     .delete()
-    .eq("user_id", user.id);
+    .eq("user_id", uid);
+
+  if (error) throw error;
 }
