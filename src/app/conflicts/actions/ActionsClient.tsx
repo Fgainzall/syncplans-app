@@ -150,6 +150,8 @@ export default function ActionsClient({
     };
   }, [conflicts, resMap]);
 
+  const disabledApply = plan.decided === 0 || busy;
+
   /* =========================
      Actions
      ========================= */
@@ -217,8 +219,6 @@ export default function ActionsClient({
     );
   }
 
-  const disabledApply = plan.decided === 0 || busy;
-
   /* =========================
      UI
      ========================= */
@@ -266,6 +266,62 @@ export default function ActionsClient({
             </button>
           </div>
         </section>
+
+        {/* DEBUG (temporal) */}
+        <div
+          style={{
+            marginTop: 14,
+            borderRadius: 14,
+            border: "1px solid rgba(255,255,255,0.10)",
+            background: "rgba(0,0,0,0.25)",
+            padding: 12,
+            fontSize: 12,
+            opacity: 0.9,
+          }}
+        >
+          <div style={{ fontWeight: 900, marginBottom: 6 }}>
+            DEBUG /conflicts/actions
+          </div>
+
+          <div>
+            conflicts.length: <b>{conflicts.length}</b>
+          </div>
+          <div>
+            resMap keys: <b>{Object.keys(resMap).length}</b>
+          </div>
+          <div>
+            plan.decided: <b>{plan.decided}</b> | pending: <b>{plan.pending}</b>{" "}
+            | deleteIds: <b>{plan.deleteIds.length}</b>
+          </div>
+          <div>
+            disabledApply: <b>{String(disabledApply)}</b>
+          </div>
+
+          <div style={{ marginTop: 8, opacity: 0.8 }}>
+            <div>
+              <b>first conflict id</b>: {conflicts[0]?.id ?? "—"}
+            </div>
+            <div>
+              <b>first resMap key</b>: {Object.keys(resMap)[0] ?? "—"}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 8, opacity: 0.7 }}>
+            <div>
+              <b>conflict ids (top 3)</b>:
+            </div>
+            <div style={{ wordBreak: "break-all" }}>
+              {conflicts.slice(0, 3).map((c) => c.id).join(" | ") || "—"}
+            </div>
+
+            <div style={{ marginTop: 6 }}>
+              <b>resMap keys (top 3)</b>:
+            </div>
+            <div style={{ wordBreak: "break-all" }}>
+              {Object.keys(resMap).slice(0, 3).join(" | ") || "—"}
+            </div>
+          </div>
+        </div>
 
         {toast && (
           <div style={styles.toast}>
