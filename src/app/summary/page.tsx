@@ -1,12 +1,15 @@
+// src/app/summary/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { getEvents, type CalendarEvent } from "@/lib/events";
-import { computeVisibleConflicts, type ConflictItem } from "@/lib/conflicts";
+import { computeVisibleConflicts, type ConflictItem, type CalendarEvent } from "@/lib/conflicts";
 import { groupMeta } from "@/lib/scheduling";
+
+import { getMyGroups } from "@/lib/groupsDb";
+import { getEventsForGroups } from "@/lib/eventsDb";
 
 type GroupUiType = "personal" | "pair" | "family";
 type SchedulingGroupType = "personal" | "couple" | "family";
@@ -57,6 +60,7 @@ function fmtDay(d: Date) {
 }
 
 function toGroupUiType(gt: any): GroupUiType {
+  // Normalización para UI (tu app usa "pair" visualmente)
   if (gt === "couple") return "pair";
   if (gt === "personal" || gt === "pair" || gt === "family") return gt;
   return "personal";
@@ -72,7 +76,6 @@ function toSchedulingType(gt: any): SchedulingGroupType {
 function pickTopConflict(list: ConflictItem[]) {
   if (!Array.isArray(list) || list.length === 0) return null;
 
-  // Prefer the one with the longest overlap (if possible)
   const scored = list
     .map((c) => {
       const os = safeDate((c as any).overlapStart);
@@ -89,13 +92,27 @@ export default function SummaryPage() {
   const router = useRouter();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
 
+  // ✅ DB source of truth (Supabase)
   useEffect(() => {
-    try {
-      const loaded = getEvents();
-      setEvents(Array.isArray(loaded) ? loaded : []);
-    } catch {
-      setEvents([]);
-    }
+    let alive = true;
+
+    (async () => {
+      try {
+        const groups = await getMyGroups().catch(() => []);
+        const groupIds = (groups ?? []).map((g: any) => String(g.id)).filter(Boolean);
+
+        const loaded = await getEventsForGroups(groupIds);
+        if (!alive) return;
+        setEvents(Array.isArray(loaded) ? loaded : []);
+      } catch {
+        if (!alive) return;
+        setEvents([]);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const weekStart = useMemo(() => startOfWeekMonday(new Date()), []);
@@ -187,8 +204,6 @@ export default function SummaryPage() {
       return;
     }
 
-    // Prefer compare with conflictId if your compare page supports it.
-    // If not, it still lands on compare and you can pick inside.
     const id = (topConflict as any).id;
     if (id) {
       router.push(`/conflicts/compare?conflictId=${encodeURIComponent(id)}`);
@@ -337,7 +352,7 @@ export default function SummaryPage() {
             </div>
           </section>
 
-          {/* Right: week-by-day */}
+          {/* Right */}
           <aside className="rounded-2xl border border-white/10 bg-white/5 p-5">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
@@ -407,9 +422,7 @@ export default function SummaryPage() {
 
             <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-sm font-semibold">Acción recomendada</div>
-              <div className="mt-1 text-xs text-white/60">
-                Mantén tu semana limpia resolviendo lo detectado (en 3 clicks).
-              </div>
+              <div className="mt-1 text-xs text-white/60">Mantén tu semana limpia resolviendo lo detectado (en 3 clicks).</div>
 
               <div className="mt-3 flex flex-wrap gap-2">
                 <button

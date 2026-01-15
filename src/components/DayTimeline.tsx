@@ -1,8 +1,10 @@
+// src/components/DayTimeline.tsx
 "use client";
 
 import * as React from "react";
-import { getEvents, updateEvent, type CalendarEvent } from "@/lib/events";
-import { getActiveGroupId } from "@/lib/groups";
+import supabase from "@/lib/supabaseClient";
+import type { CalendarEvent } from "@/lib/conflicts";
+import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 
 type Props = {
   dateISO: string; // YYYY-MM-DD
@@ -39,11 +41,11 @@ function snapTo(n: number, step: number) {
   return Math.round(n / step) * step;
 }
 
-// Conflictos local (no depende de otro archivo)
+// Conflictos local
 function detectConflictedIds(events: CalendarEvent[]) {
- const sorted = [...events].sort(
-  (a: CalendarEvent, b: CalendarEvent) => new Date(a.start).getTime() - new Date(b.start).getTime()
-);
+  const sorted = [...events].sort(
+    (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+  );
 
   const conflicted = new Set<string>();
 
@@ -70,11 +72,18 @@ function detectConflictedIds(events: CalendarEvent[]) {
   return conflicted;
 }
 
+function normalizeGroupType(groupId: string | null) {
+  // Para este timeline no necesitamos color exacto por tipo;
+  // lo más importante es que filtre por group_id y muestre personales siempre.
+  // Si quieres, luego lo enriquecemos con getMyGroups (como en conflictsDbBridge).
+  if (!groupId) return "personal";
+  return "couple";
+}
+
 export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props) {
   const [events, setEvents] = React.useState<CalendarEvent[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  // Drag/resize overrides
   const [overrideTop, setOverrideTop] = React.useState<Record<string, number>>({});
   const [overrideHeight, setOverrideHeight] = React.useState<Record<string, number>>({});
   const [savingId, setSavingId] = React.useState<string | null>(null);
@@ -95,40 +104,62 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
     heightAtStart: number;
   } | null>(null);
 
-  // Visual tuning
   const pxPerMin = 1.2;
   const snapMin = 15;
   const minDurationMin = 15;
 
-  // Window
   const dayStartMin = 6 * 60;
   const dayEndMin = 23 * 60;
   const dayWindowMin = dayEndMin - dayStartMin;
 
-  const activeGroupId = React.useMemo(() => getActiveGroupId(), []);
   const conflictedIds = React.useMemo(() => detectConflictedIds(events), [events]);
 
   async function load() {
     setLoading(true);
-    const all = await getEvents();
 
     const base = startOfDay(dateISO);
     const end = new Date(base);
     end.setDate(end.getDate() + 1);
 
-    const dayEvents = all.filter((e: CalendarEvent) => {
-      const s = new Date(e.start).getTime();
-      const inDay = s >= base.getTime() && s < end.getTime();
-      if (!inDay) return false;
+    // ✅ Grupo activo desde DB
+    const activeGroupId = await getActiveGroupIdFromDb().catch(() => null);
 
-      const evGroupId = (e as any).groupId ?? null;
-      if (!activeGroupId) return true;
-      return evGroupId === activeGroupId || !evGroupId; // personal siempre visible
-    });
+    // ✅ Query DB: (group activo + personales) o (solo personales si no hay grupo activo)
+    let q = supabase
+      .from("events")
+      .select("id,title,notes,start,end,group_id")
+      .gte("start", base.toISOString())
+      .lt("start", end.toISOString())
+      .order("start", { ascending: true });
 
-    dayEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    if (activeGroupId) {
+      q = q.or(`group_id.eq.${activeGroupId},group_id.is.null`);
+    } else {
+      q = q.is("group_id", null);
+    }
 
-    setEvents(dayEvents);
+    const { data, error } = await q;
+    if (error) {
+      setEvents([]);
+      setOverrideTop({});
+      setOverrideHeight({});
+      setLoading(false);
+      onChanged?.();
+      return;
+    }
+
+    const mapped: CalendarEvent[] = (data ?? []).map((r: any) => ({
+      id: String(r.id),
+      title: r.title ?? "Evento",
+      start: String(r.start),
+      end: String(r.end),
+      notes: r.notes ?? undefined,
+      description: r.notes ?? "",
+      groupId: r.group_id ? String(r.group_id) : null,
+      groupType: normalizeGroupType(r.group_id ? String(r.group_id) : null) as any,
+    }));
+
+    setEvents(mapped);
     setOverrideTop({});
     setOverrideHeight({});
     setLoading(false);
@@ -174,7 +205,6 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
     return marks;
   }
 
-  // MOVE
   function onMovePointerDown(e: React.PointerEvent, item: CalendarEvent) {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 
@@ -191,7 +221,6 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
     };
   }
 
-  // RESIZE (bottom handle)
   function onResizePointerDown(e: React.PointerEvent, item: CalendarEvent) {
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -209,7 +238,6 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
   }
 
   function onPointerMove(e: React.PointerEvent) {
-    // resize first
     if (resizeRef.current) {
       const d = resizeRef.current;
       const dy = e.clientY - d.pointerStartY;
@@ -226,8 +254,16 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
     }
   }
 
+  async function persistEventTime(id: string, startISO: string, endISO: string) {
+    const { error } = await supabase
+      .from("events")
+      .update({ start: startISO, end: endISO })
+      .eq("id", id);
+
+    if (error) throw error;
+  }
+
   async function onPointerUp() {
-    // RESIZE commit
     if (resizeRef.current) {
       const d = resizeRef.current;
       resizeRef.current = null;
@@ -244,7 +280,7 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
 
       setSavingId(d.id);
       try {
-        await updateEvent(d.id, { start: nextStartISO, end: nextEndISO });
+        await persistEventTime(d.id, nextStartISO, nextEndISO);
         await load();
       } finally {
         setSavingId(null);
@@ -252,7 +288,6 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
       return;
     }
 
-    // MOVE commit
     if (moveRef.current) {
       const d = moveRef.current;
       moveRef.current = null;
@@ -268,7 +303,7 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
 
       setSavingId(d.id);
       try {
-        await updateEvent(d.id, { start: nextStartISO, end: nextEndISO });
+        await persistEventTime(d.id, nextStartISO, nextEndISO);
         await load();
       } finally {
         setSavingId(null);
@@ -303,7 +338,6 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
       </div>
 
       <div className="mt-5 grid grid-cols-[72px_1fr] gap-3">
-        {/* Hours column */}
         <div className="relative" style={{ height: timelineHeight }}>
           {marks.map((m) => (
             <div
@@ -316,14 +350,12 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
           ))}
         </div>
 
-        {/* Timeline */}
         <div
           className="relative rounded-3xl border border-white/10 bg-black/20"
           style={{ height: timelineHeight }}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
         >
-          {/* grid lines */}
           {marks.map((m) => (
             <div
               key={m.label}
@@ -332,7 +364,6 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
             />
           ))}
 
-          {/* Events */}
           {events.map((ev) => {
             const top = getTop(ev);
             const h = getHeight(ev);
@@ -340,29 +371,21 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
             const isConflict = conflictedIds.has(ev.id);
 
             return (
-              <div
-                key={ev.id}
-                className="absolute left-3 right-3"
-                style={{ top, height: h }}
-              >
+              <div key={ev.id} className="absolute left-3 right-3" style={{ top, height: h }}>
                 <button
                   onClick={() => onEventClick?.(ev)}
                   onPointerDown={(e) => onMovePointerDown(e, ev)}
                   className={[
                     "relative h-full w-full rounded-2xl border px-4 py-3 text-left",
                     "shadow-lg shadow-black/30 transition hover:bg-white/15 active:scale-[0.995]",
-                    isConflict
-                      ? "border-red-500/40 bg-red-500/10"
-                      : "border-white/10 bg-white/10",
+                    isConflict ? "border-red-500/40 bg-red-500/10" : "border-white/10 bg-white/10",
                     isSaving ? "opacity-60" : "",
                   ].join(" ")}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold">{ev.title}</div>
-                      <div className="mt-1 text-xs text-white/60 truncate">
-                        {ev.description || " "}
-                      </div>
+                      <div className="mt-1 text-xs text-white/60 truncate">{(ev as any).description || ev.notes || " "}</div>
                     </div>
 
                     <div className="flex flex-col items-end gap-2">
@@ -377,7 +400,6 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
                     </div>
                   </div>
 
-                  {/* Resize handle */}
                   <div
                     onPointerDown={(e) => onResizePointerDown(e, ev)}
                     className={[
@@ -395,9 +417,7 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
           })}
 
           {events.length === 0 && (
-            <div className="absolute inset-0 grid place-items-center text-sm text-white/60">
-              No hay eventos hoy.
-            </div>
+            <div className="absolute inset-0 grid place-items-center text-sm text-white/60">No hay eventos hoy.</div>
           )}
         </div>
       </div>

@@ -1,9 +1,10 @@
+// src/components/EventEditModal.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { SyncPlans } from "@/lib/events";
-
-type GroupType = "personal" | "pair" | "family";
+import supabase from "@/lib/supabaseClient";
+import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
+import type { GroupType } from "@/lib/conflicts";
 
 type EventEditModalProps = {
   isOpen: boolean;
@@ -78,6 +79,14 @@ function toISOFromLocal(local: string) {
   return d.toISOString();
 }
 
+async function requireUid(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw error;
+  const uid = data.user?.id;
+  if (!uid) throw new Error("Not authenticated");
+  return uid;
+}
+
 export function EventEditModal({ isOpen, onClose, initialEvent, onSaved }: EventEditModalProps) {
   const isEdit = Boolean(initialEvent?.id);
 
@@ -125,7 +134,18 @@ export function EventEditModal({ isOpen, onClose, initialEvent, onSaved }: Event
     onClose();
   }
 
-  function handleSave() {
+  async function resolveGroupIdForSave(): Promise<string | null> {
+    if (groupType === "personal") return null;
+
+    // ✅ Para pareja/familia usamos el grupo activo en DB
+    const gid = await getActiveGroupIdFromDb().catch(() => null);
+    if (!gid) {
+      throw new Error("No hay grupo activo. Ve a /groups y elige tu grupo antes de crear evento de pareja/familia.");
+    }
+    return gid;
+  }
+
+  async function handleSave() {
     const v = validate();
     if (v) {
       setError(v);
@@ -135,34 +155,60 @@ export function EventEditModal({ isOpen, onClose, initialEvent, onSaved }: Event
     setBusy("save");
     setError("");
 
-    const payload = {
-      title: title.trim(),
-      groupType,
-      description: description.trim(),
-      allDay,
-      start: toISOFromLocal(startLocal),
-      end: toISOFromLocal(endLocal),
-      groupId: null,
-    };
-
     try {
-      if (initialEvent?.id) SyncPlans.updateEvent(initialEvent.id, payload);
-      else SyncPlans.addEvent(payload);
+      const uid = await requireUid();
+      const groupId = await resolveGroupIdForSave();
+
+      const payload = {
+        owner_id: uid,
+        title: title.trim(),
+        notes: description.trim() || null,
+        start: toISOFromLocal(startLocal),
+        end: toISOFromLocal(endLocal),
+        group_id: groupId,
+      };
+
+      if (initialEvent?.id) {
+        const { error } = await supabase
+          .from("events")
+          .update({
+            title: payload.title,
+            notes: payload.notes,
+            start: payload.start,
+            end: payload.end,
+            group_id: payload.group_id,
+          })
+          .eq("id", initialEvent.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("events").insert([payload]);
+        if (error) throw error;
+      }
+
       onSaved?.();
       closeSafely();
+    } catch (e: any) {
+      setError(e?.message ?? "No se pudo guardar.");
     } finally {
       setBusy("idle");
     }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!initialEvent?.id) return;
+
     setBusy("delete");
     setError("");
+
     try {
-      SyncPlans.deleteEvent(initialEvent.id);
+      const { error } = await supabase.from("events").delete().eq("id", initialEvent.id);
+      if (error) throw error;
+
       onSaved?.();
       closeSafely();
+    } catch (e: any) {
+      setError(e?.message ?? "No se pudo eliminar.");
     } finally {
       setBusy("idle");
     }
@@ -234,7 +280,7 @@ export function EventEditModal({ isOpen, onClose, initialEvent, onSaved }: Event
               {(
                 [
                   { k: "personal", label: "Personal", pill: "bg-yellow-50 text-yellow-800 ring-yellow-200" },
-                  { k: "pair", label: "Pareja", pill: "bg-red-50 text-red-700 ring-red-200" },
+                  { k: "couple", label: "Pareja", pill: "bg-red-50 text-red-700 ring-red-200" },
                   { k: "family", label: "Familia", pill: "bg-blue-50 text-blue-700 ring-blue-200" },
                 ] as const
               ).map((g) => {
@@ -280,15 +326,11 @@ export function EventEditModal({ isOpen, onClose, initialEvent, onSaved }: Event
             <button
               type="button"
               onClick={() => setAllDay((v) => !v)}
-              className={["relative inline-flex h-7 w-12 items-center rounded-full transition", allDay ? "bg-gray-900" : "bg-gray-300"].join(
-                " "
-              )}
+              className={["relative inline-flex h-7 w-12 items-center rounded-full transition", allDay ? "bg-gray-900" : "bg-gray-300"].join(" ")}
               aria-label="Toggle todo el día"
             >
               <span
-                className={["inline-block h-5 w-5 transform rounded-full bg-white shadow transition", allDay ? "translate-x-6" : "translate-x-1"].join(
-                  " "
-                )}
+                className={["inline-block h-5 w-5 transform rounded-full bg-white shadow transition", allDay ? "translate-x-6" : "translate-x-1"].join(" ")}
               />
             </button>
           </div>
