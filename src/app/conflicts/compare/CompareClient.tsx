@@ -212,19 +212,37 @@ export default function CompareClient() {
   /* =========================
      Actions
      ========================= */
+const setChoice = async (r: Resolution) => {
+  if (!c || !conflictId) return;
 
-  const setChoice = async (r: Resolution) => {
-    if (!c || !conflictId) return;
+  // optimistic update
+  setResMap((prev) => ({ ...prev, [conflictId]: r }));
 
-    setResMap((prev) => ({ ...prev, [conflictId]: r }));
+  try {
+    await upsertConflictResolution(conflictId, r);
 
-    try {
-      await upsertConflictResolution(conflictId, r);
-      setToast({ title: "Decisión guardada", sub: conflictResolutionHint(r) });
-    } catch {
-      setToast({ title: "No se pudo guardar", sub: "Intenta otra vez." });
-    }
-  };
+    // Opcional: refetch para confirmar (muy útil en debug)
+    // const fresh = await getMyConflictResolutionsMap();
+    // setResMap(fresh ?? {});
+
+    setToast({ title: "Decisión guardada", sub: conflictResolutionHint(r) });
+  } catch (e: any) {
+    // rollback: deja pendiente si no se guardó
+    setResMap((prev) => {
+      const next = { ...prev };
+      delete next[conflictId];
+      return next;
+    });
+
+    setToast({
+      title: "No se pudo guardar",
+      sub:
+        typeof e?.message === "string"
+          ? e.message
+          : "Revisa RLS/constraints y vuelve a intentar.",
+    });
+  }
+};
 
   const go = (idx: number) => {
     const qp = new URLSearchParams();

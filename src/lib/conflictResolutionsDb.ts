@@ -39,20 +39,40 @@ export async function getMyConflictResolutionsMap(): Promise<Record<string, Reso
 }
 
 /**
- * Inserta o actualiza la resolución de un conflicto
- * IMPORTANTÍSIMO: valida error y lanza (para que Compare muestre "No se pudo guardar").
+ * ✅ Upsert robusto sin depender de onConflict (evita 400 PostgREST)
  */
 export async function upsertConflictResolution(conflictId: string, resolution: Resolution) {
   const uid = await requireUserId();
 
-  const { error } = await supabase
-    .from("conflict_resolutions")
-    .upsert(
-      { conflict_id: String(conflictId), resolution, user_id: uid },
-      { onConflict: "conflict_id,user_id" }
-    );
+  const payload = {
+    conflict_id: String(conflictId),
+    user_id: uid,
+    resolution,
+  };
 
-  if (error) throw error;
+  // 1) Intentar UPDATE
+  const { data: updated, error: updateErr } = await supabase
+    .from("conflict_resolutions")
+    .update({ resolution })
+    .eq("conflict_id", payload.conflict_id)
+    .eq("user_id", payload.user_id)
+    .select("conflict_id")
+    .maybeSingle();
+
+  if (updateErr) {
+    // si update falla por RLS u otro motivo, lo propagamos (así se ve en toast)
+    throw updateErr;
+  }
+
+  // Si actualizó, listo
+  if (updated?.conflict_id) return;
+
+  // 2) Si no existía, INSERT
+  const { error: insertErr } = await supabase
+    .from("conflict_resolutions")
+    .insert(payload);
+
+  if (insertErr) throw insertErr;
 }
 
 /**
