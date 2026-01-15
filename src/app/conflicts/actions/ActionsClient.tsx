@@ -23,6 +23,29 @@ import {
   clearMyConflictResolutions,
 } from "@/lib/conflictResolutionsDb";
 
+/** fallback: si el conflictId exacto no matchea, matcheamos por pareja de eventos */
+function resolutionForConflict(
+  c: ConflictItem,
+  resMap: Record<string, Resolution>
+): Resolution | undefined {
+  const exact = resMap[String(c.id)];
+  if (exact) return exact;
+
+  const a = String(c.existingEventId ?? "");
+  const b = String(c.incomingEventId ?? "");
+  if (!a || !b) return undefined;
+
+  const [x, y] = [a, b].sort();
+  const prefix = `cx::${x}::${y}::`;
+
+  // busca cualquier resolución guardada para esa pareja de eventos
+  for (const k of Object.keys(resMap)) {
+    if (k.startsWith(prefix)) return resMap[k];
+  }
+
+  return undefined;
+}
+
 export default function ActionsClient({
   groupIdFromUrl,
 }: {
@@ -54,12 +77,6 @@ export default function ActionsClient({
   useEffect(() => {
     let alive = true;
 
-    const fetchResMap = async () => {
-      const dbMap = await getMyConflictResolutionsMap();
-      if (!alive) return;
-      setResMap(dbMap ?? {});
-    };
-
     (async () => {
       setBooting(true);
 
@@ -84,12 +101,9 @@ export default function ActionsClient({
       }
 
       try {
-        await fetchResMap();
-
-        // ✅ segundo pull por si el upsert recién aterriza o hay race
-        setTimeout(() => {
-          fetchResMap().catch(() => {});
-        }, 450);
+        const dbMap = await getMyConflictResolutionsMap();
+        if (!alive) return;
+        setResMap(dbMap ?? {});
       } catch {
         if (!alive) return;
         setResMap({});
@@ -118,7 +132,7 @@ export default function ActionsClient({
     const deleteIds = new Set<string>();
 
     for (const c of conflicts) {
-      const r = resMap[String(c.id)];
+      const r = resolutionForConflict(c, resMap);
 
       if (!r) {
         pending++;
@@ -266,62 +280,6 @@ export default function ActionsClient({
             </button>
           </div>
         </section>
-
-        {/* DEBUG (temporal) */}
-        <div
-          style={{
-            marginTop: 14,
-            borderRadius: 14,
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(0,0,0,0.25)",
-            padding: 12,
-            fontSize: 12,
-            opacity: 0.9,
-          }}
-        >
-          <div style={{ fontWeight: 900, marginBottom: 6 }}>
-            DEBUG /conflicts/actions
-          </div>
-
-          <div>
-            conflicts.length: <b>{conflicts.length}</b>
-          </div>
-          <div>
-            resMap keys: <b>{Object.keys(resMap).length}</b>
-          </div>
-          <div>
-            plan.decided: <b>{plan.decided}</b> | pending: <b>{plan.pending}</b>{" "}
-            | deleteIds: <b>{plan.deleteIds.length}</b>
-          </div>
-          <div>
-            disabledApply: <b>{String(disabledApply)}</b>
-          </div>
-
-          <div style={{ marginTop: 8, opacity: 0.8 }}>
-            <div>
-              <b>first conflict id</b>: {conflicts[0]?.id ?? "—"}
-            </div>
-            <div>
-              <b>first resMap key</b>: {Object.keys(resMap)[0] ?? "—"}
-            </div>
-          </div>
-
-          <div style={{ marginTop: 8, opacity: 0.7 }}>
-            <div>
-              <b>conflict ids (top 3)</b>:
-            </div>
-            <div style={{ wordBreak: "break-all" }}>
-              {conflicts.slice(0, 3).map((c) => c.id).join(" | ") || "—"}
-            </div>
-
-            <div style={{ marginTop: 6 }}>
-              <b>resMap keys (top 3)</b>:
-            </div>
-            <div style={{ wordBreak: "break-all" }}>
-              {Object.keys(resMap).slice(0, 3).join(" | ") || "—"}
-            </div>
-          </div>
-        </div>
 
         {toast && (
           <div style={styles.toast}>
