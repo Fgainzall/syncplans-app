@@ -96,19 +96,18 @@ export async function POST(req: Request) {
     }
 
     const resendKey = requiredEnv("RESEND_API_KEY");
-    const from = requiredEnv("RESEND_FROM"); // <-- clave: TU DOMINIO VERIFICADO
     if (!resendKey) {
       return NextResponse.json(
         { ok: false, error: "Falta RESEND_API_KEY" },
         { status: 500 }
       );
     }
-    if (!from) {
-      return NextResponse.json(
-        { ok: false, error: "Falta RESEND_FROM (ej: SyncPlans <noreply@syncplansapp.com>)" },
-        { status: 500 }
-      );
-    }
+
+    // FROM:
+    // 1) Usa RESEND_FROM si está definido
+    // 2) Si no, usa por defecto el dominio verificado en Resend
+    const fromEnv = requiredEnv("RESEND_FROM");
+    const from = fromEnv || "SyncPlans <noreply@syncplansapp.com>";
 
     const appUrl = baseUrl();
     const acceptUrl =
