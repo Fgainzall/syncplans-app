@@ -1,16 +1,12 @@
-// src/app/auth/register/page.tsx
+// src/app/auth/register/RegisterClient.tsx
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import React, { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 
-export default function RegisterPage() {
+export default function RegisterClient() {
   const router = useRouter();
-  const search = useSearchParams();
-
-  // A dónde queremos mandar después de confirmar / loguear
-  const next = search.get("next") || "/calendar";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,16 +26,12 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const redirectUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(
-        next
-      )}`;
-
       const { error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password: password.trim(),
         options: {
-          // ✅ Vuelve a TU app cuando confirmas el mail
-          emailRedirectTo: redirectUrl,
+          // ✅ vuelve a TU app al confirmar email
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
@@ -49,7 +41,6 @@ export default function RegisterPage() {
         return;
       }
 
-      // Normalmente Supabase pedirá confirmar correo → mostramos estado “Cuenta creada”
       setDone(true);
       setLoading(false);
     } catch (err: any) {
@@ -58,18 +49,13 @@ export default function RegisterPage() {
     }
   }
 
-  function goToLogin() {
-    const url = `/auth/login?next=${encodeURIComponent(next)}`;
-    router.push(url);
-  }
-
   return (
     <main className="min-h-screen bg-[#050816] text-white">
       <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 py-10">
         <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-2">
           {/* Left: brand / pitch */}
           <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-8">
-            <div className="pointer-events-none absolute inset-0 opacity-60">
+            <div className="absolute inset-0 pointer-events-none opacity-60">
               <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-sky-500/20 blur-3xl" />
               <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
             </div>
@@ -86,8 +72,8 @@ export default function RegisterPage() {
               </h1>
 
               <p className="mt-3 text-sm text-white/70">
-                Confirmas tu correo una vez y listo: calendario, grupos
-                (personal/pareja/familia) y el flujo estrella de conflictos.
+                Confirmas tu correo una vez y listo: calendario, grupos (personal/pareja/familia)
+                y el flujo estrella de conflictos.
               </p>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -98,10 +84,9 @@ export default function RegisterPage() {
 
               <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-white/70">
                 Tip: tras registrarte, revisa tu correo y toca{" "}
-                <span className="font-semibold text-white/90">Confirm your mail</span>. Te
+                <span className="text-white/90 font-semibold">Confirm your mail</span>. Te
                 devolverá automáticamente a{" "}
-                <span className="font-semibold text-white/90">/auth/callback</span>{" "}
-                (que a su vez te mandará a <b>{next}</b>).
+                <span className="text-white/90 font-semibold">/auth/callback</span>.
               </div>
             </div>
           </section>
@@ -109,22 +94,18 @@ export default function RegisterPage() {
           {/* Right: form */}
           <section className="rounded-3xl border border-white/10 bg-white/5 p-8">
             <h2 className="text-xl font-semibold">Crear cuenta</h2>
-            <p className="mt-1 text-sm text-white/60">
-              Empieza a organizar tu vida sin conflictos.
-            </p>
+            <p className="mt-1 text-sm text-white/60">Empieza a organizar tu vida sin conflictos.</p>
 
             {done ? (
               <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
-                <div className="text-sm font-semibold text-emerald-100">
-                  Cuenta creada ✅
-                </div>
+                <div className="text-sm font-semibold text-emerald-100">Cuenta creada ✅</div>
                 <div className="mt-1 text-xs text-emerald-100/80">
                   Revisa tu correo y confirma el registro. Luego vuelve aquí e inicia sesión.
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
-                    onClick={goToLogin}
+                    onClick={() => router.push("/auth/login")}
                     className="rounded-xl border border-white/10 bg-gradient-to-r from-sky-500/80 to-emerald-500/80 px-4 py-2 text-sm font-semibold hover:from-sky-500 hover:to-emerald-500"
                   >
                     Ir a iniciar sesión →
@@ -181,7 +162,7 @@ export default function RegisterPage() {
 
                 <button
                   type="button"
-                  onClick={goToLogin}
+                  onClick={() => router.push("/auth/login")}
                   className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white/80 hover:bg-white/10"
                 >
                   Ya tengo cuenta
