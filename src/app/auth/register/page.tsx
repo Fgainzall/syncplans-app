@@ -50,12 +50,12 @@ export default function RegisterClient() {
   }
 
   return (
-    <main className="min-h-screen bg-[#050816] text-white">
-      <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 py-10">
-        <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-2">
+    <main className="min-h-screen bg-[#050816] text-white flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-5xl">
+        <div className="grid w-full gap-6 lg:grid-cols-2">
           {/* Left: brand / pitch */}
           <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-8">
-            <div className="absolute inset-0 pointer-events-none opacity-60">
+            <div className="pointer-events-none absolute inset-0 opacity-60">
               <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-sky-500/20 blur-3xl" />
               <div className="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-emerald-500/20 blur-3xl" />
             </div>
@@ -72,8 +72,8 @@ export default function RegisterClient() {
               </h1>
 
               <p className="mt-3 text-sm text-white/70">
-                Confirmas tu correo una vez y listo: calendario, grupos (personal/pareja/familia)
-                y el flujo estrella de conflictos.
+                Confirmas tu correo una vez y listo: calendario, grupos
+                (personal/pareja/familia) y el flujo estrella de conflictos.
               </p>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -84,9 +84,9 @@ export default function RegisterClient() {
 
               <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-white/70">
                 Tip: tras registrarte, revisa tu correo y toca{" "}
-                <span className="text-white/90 font-semibold">Confirm your mail</span>. Te
+                <span className="font-semibold text-white/90">Confirm your mail</span>. Te
                 devolverá automáticamente a{" "}
-                <span className="text-white/90 font-semibold">/auth/callback</span>.
+                <span className="font-semibold text-white/90">/auth/callback</span>.
               </div>
             </div>
           </section>
@@ -94,13 +94,18 @@ export default function RegisterClient() {
           {/* Right: form */}
           <section className="rounded-3xl border border-white/10 bg-white/5 p-8">
             <h2 className="text-xl font-semibold">Crear cuenta</h2>
-            <p className="mt-1 text-sm text-white/60">Empieza a organizar tu vida sin conflictos.</p>
+            <p className="mt-1 text-sm text-white/60">
+              Empieza a organizar tu vida sin conflictos.
+            </p>
 
             {done ? (
               <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
-                <div className="text-sm font-semibold text-emerald-100">Cuenta creada ✅</div>
+                <div className="text-sm font-semibold text-emerald-100">
+                  Cuenta creada ✅
+                </div>
                 <div className="mt-1 text-xs text-emerald-100/80">
-                  Revisa tu correo y confirma el registro. Luego vuelve aquí e inicia sesión.
+                  Revisa tu correo y confirma el registro. Luego vuelve aquí e inicia
+                  sesión.
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
