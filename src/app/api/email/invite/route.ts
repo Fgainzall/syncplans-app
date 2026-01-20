@@ -54,17 +54,32 @@ function inviteEmailHtml(opts: { acceptUrl: string; appUrl: string }) {
         Abre la invitación para unirte y sincronizar horarios.
       </p>
 
-      <div style="margin:16px 0 14px;">
-        <a href="${acceptUrl}"
-          style="display:inline-block;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,0.14);background:linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22));color:rgba(255,255,255,0.95);text-decoration:none;font-weight:900;">
-          Aceptar invitación ✅
-        </a>
-      </div>
+      <!-- BOTÓN COMPATIBLE CON OUTLOOK -->
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:16px 0 14px;">
+        <tr>
+          <td align="center" bgcolor="#2563eb" style="border-radius:12px;">
+            <a href="${acceptUrl}"
+               target="_blank"
+               style="
+                 display:inline-block;
+                 padding:12px 20px;
+                 font-family:Arial,Helvetica,sans-serif;
+                 font-size:14px;
+                 font-weight:700;
+                 color:#ffffff;
+                 text-decoration:none;
+                 border-radius:12px;
+               ">
+              Aceptar invitación ✅
+            </a>
+          </td>
+        </tr>
+      </table>
 
       <div style="margin-top:14px;padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,0.10);background:rgba(0,0,0,0.20);">
         <div style="font-size:12px;opacity:0.85;font-weight:800;margin-bottom:6px;">Si el botón no abre:</div>
         <div style="font-size:12px;opacity:0.75;word-break:break-all;line-height:1.45;">
-          <a href="${acceptUrl}" style="color:rgba(56,189,248,0.95);text-decoration:none;">${acceptUrl}</a>
+          <a href="${acceptUrl}" target="_blank" style="color:rgba(56,189,248,0.95);text-decoration:none;">${acceptUrl}</a>
         </div>
       </div>
 
@@ -96,18 +111,23 @@ export async function POST(req: Request) {
     }
 
     const resendKey = requiredEnv("RESEND_API_KEY");
+    const from = requiredEnv("RESEND_FROM");
     if (!resendKey) {
       return NextResponse.json(
         { ok: false, error: "Falta RESEND_API_KEY" },
         { status: 500 }
       );
     }
-
-    // FROM:
-    // 1) Usa RESEND_FROM si está definido
-    // 2) Si no, usa por defecto el dominio verificado en Resend
-    const fromEnv = requiredEnv("RESEND_FROM");
-    const from = fromEnv || "SyncPlans <noreply@syncplansapp.com>";
+    if (!from) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Falta RESEND_FROM (ej: SyncPlans <noreply@syncplansapp.com>)",
+        },
+        { status: 500 }
+      );
+    }
 
     const appUrl = baseUrl();
     const acceptUrl =
@@ -131,7 +151,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: error.message || "Resend error",
+          error: (error as any).message || "Resend error",
           debug: { from, to: email, appUrl },
         },
         { status: 502 }
