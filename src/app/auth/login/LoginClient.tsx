@@ -1,17 +1,23 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 
-export default function RegisterClient() {
+export default function LoginClient() {
   const router = useRouter();
+  const sp = useSearchParams();
+
+  const nextParam = sp.get("next");
+  const nextTarget = useMemo(
+    () => (nextParam && nextParam.startsWith("/") ? nextParam : "/calendar"),
+    [nextParam]
+  );
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canSubmit = useMemo(() => {
@@ -23,26 +29,27 @@ export default function RegisterClient() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password.trim(),
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
       });
 
-      if (signUpError) {
-        setError(signUpError.message);
+      if (signInError) {
+        if (signInError.message.toLowerCase().includes("email")) {
+          setError(
+            "Debes confirmar tu correo antes de iniciar sesión. Revisa tu bandeja de entrada."
+          );
+        } else {
+          setError(signInError.message);
+        }
         setLoading(false);
         return;
       }
 
-      setDone(true);
-      setLoading(false);
+      router.replace(nextTarget);
     } catch (err: any) {
-      setError(err?.message ?? "Error inesperado. Intenta de nuevo.");
+      setError(err?.message ?? "Error inesperado. Intenta otra vez.");
       setLoading(false);
     }
   }
@@ -167,7 +174,7 @@ export default function RegisterClient() {
     marginTop: 6,
     fontSize: 13,
     opacity: 0.78,
-    maxWidth: 440,
+    maxWidth: 420,
     lineHeight: 1.5,
     fontWeight: 500,
   };
@@ -267,15 +274,6 @@ export default function RegisterClient() {
     outline: "none",
   };
 
-  const infoBox: React.CSSProperties = {
-    borderRadius: 16,
-    border: "1px solid rgba(52,211,153,0.45)",
-    background: "rgba(16,185,129,0.10)",
-    padding: "8px 10px",
-    fontSize: 11,
-    color: "rgba(240,253,250,0.95)",
-  };
-
   const errorBox: React.CSSProperties = {
     borderRadius: 16,
     border: "1px solid rgba(248,113,113,0.45)",
@@ -324,15 +322,15 @@ export default function RegisterClient() {
         <div style={topRow}>
           <div style={badge}>
             <span style={badgeDot} />
-            <span>SyncPlans · Registro beta</span>
+            <span>SyncPlans · Beta privada</span>
           </div>
 
           <button
             type="button"
             style={linkTop}
-            onClick={() => router.push("/auth/login")}
+            onClick={() => router.push("/auth/register")}
           >
-            Ya tengo cuenta →
+            ¿Nuevo aquí? Crear cuenta →
           </button>
         </div>
 
@@ -347,14 +345,14 @@ export default function RegisterClient() {
               </div>
 
               <h1 style={heroTitle}>
-                Crea tu cuenta y organiza tu semana{" "}
+                Inicia sesión y mantén tu semana{" "}
                 <span style={heroGradientWord}>sin choques.</span>
               </h1>
 
               <p style={heroSub}>
-                Confirmas tu correo una vez y listo: calendario personal, grupos
-                de pareja y familia, y un flujo de resolución de conflictos para
-                que nadie se pise los planes.
+                Registra tus planes una sola vez y deja que SyncPlans se
+                encargue de mostrar quién está libre, dónde hay conflictos y
+                qué eventos chocan entre sí.
               </p>
 
               <div style={heroList}>
@@ -368,7 +366,7 @@ export default function RegisterClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Tu agenda, simple.</div>
+                  <div style={pillSub}>Tu agenda, limpia y clara.</div>
                 </div>
                 <div style={pill}>
                   <div style={pillRow}>
@@ -380,7 +378,7 @@ export default function RegisterClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Evita solapamientos.</div>
+                  <div style={pillSub}>Citas sin solapamientos.</div>
                 </div>
                 <div style={pill}>
                   <div style={pillRow}>
@@ -392,34 +390,33 @@ export default function RegisterClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Todo sincronizado.</div>
+                  <div style={pillSub}>Horarios alineados siempre.</div>
                 </div>
               </div>
 
               <p style={steps}>
-                <b>¿Cómo funciona el registro?</b>
+                <b>¿Cómo funciona?</b>
                 <br />
-                1. Escribes tu correo y una contraseña.
+                1. Inicia sesión con tu correo y contraseña.
                 <br />
-                2. Te llega un mail de Supabase: haz clic en{" "}
-                <b>"Confirm your mail"</b>.
+                2. Crea tus grupos de pareja / familia.
                 <br />
-                3. Vuelves automáticamente a <b>/auth/callback</b> y entras a tu
-                calendario.
+                3. Empieza a crear eventos y deja que SyncPlans te avise de los
+                choques.
               </p>
             </div>
           </article>
 
-          {/* RIGHT: FORM */}
+          {/* RIGHT: LOGIN FORM */}
           <article style={formCard}>
             <div style={formHeader}>
-              <h2 style={h2}>Crear cuenta</h2>
+              <h2 style={h2}>Iniciar sesión en SyncPlans</h2>
               <button
                 type="button"
                 style={subtleLink}
-                onClick={() => router.push("/auth/login")}
+                onClick={() => router.push("/auth/register")}
               >
-                Ya tengo cuenta
+                Crear cuenta nueva
               </button>
             </div>
             <div
@@ -430,99 +427,53 @@ export default function RegisterClient() {
                 marginBottom: 6,
               }}
             >
-              Empieza a organizar tu vida sin conflictos.
+              Accede a tu agenda sin choques de horario.
             </div>
 
-            {done ? (
-              <>
-                <div style={infoBox}>
-                  <div style={{ fontWeight: 800, marginBottom: 4 }}>
-                    Cuenta creada ✅
-                  </div>
-                  <div style={{ fontSize: 11, lineHeight: 1.5 }}>
-                    Revisa tu correo y confirma el registro. Después de hacer
-                    clic en <b>"Confirm your mail"</b> volverás automáticamente
-                    a <b>/auth/callback</b> y podrás iniciar sesión.
-                  </div>
-                </div>
+            <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
+              <div>
+                <div style={label}>Correo</div>
+                <input
+                  style={input}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="tu@correo.com"
+                  autoComplete="email"
+                />
+              </div>
 
-                <button
-                  type="button"
-                  style={secondaryBtn}
-                  onClick={() => router.push("/auth/login")}
-                >
-                  Ir a iniciar sesión
-                </button>
+              <div>
+                <div style={label}>Contraseña</div>
+                <input
+                  style={input}
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="mínimo 6 caracteres"
+                  autoComplete="current-password"
+                />
+              </div>
 
-                <button
-                  type="button"
-                  style={secondaryBtn}
-                  onClick={() => {
-                    setDone(false);
-                    setEmail("");
-                    setPassword("");
-                  }}
-                >
-                  Crear otra cuenta
-                </button>
+              {error && <div style={errorBox}>{error}</div>}
 
-                <div style={legal}>
-                  Si no ves el correo, revisa tu bandeja de spam o busca por
-                  &ldquo;Supabase Auth&rdquo;.
-                </div>
-              </>
-            ) : (
-              <>
-                <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
-                  <div>
-                    <div style={label}>Correo</div>
-                    <input
-                      style={input}
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="tu@correo.com"
-                      autoComplete="email"
-                    />
-                  </div>
+              <button type="submit" disabled={!canSubmit} style={primaryBtn}>
+                {loading ? "Ingresando…" : "Ingresar"}
+              </button>
+            </form>
 
-                  <div>
-                    <div style={label}>Contraseña</div>
-                    <input
-                      style={input}
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="mínimo 6 caracteres"
-                      autoComplete="new-password"
-                    />
-                  </div>
+            <button
+              type="button"
+              style={secondaryBtn}
+              onClick={() => router.push("/auth/register")}
+            >
+              Crear cuenta
+            </button>
 
-                  {error && <div style={errorBox}>{error}</div>}
-
-                  <button
-                    type="submit"
-                    disabled={!canSubmit}
-                    style={primaryBtn}
-                  >
-                    {loading ? "Creando cuenta…" : "Crear cuenta"}
-                  </button>
-                </form>
-
-                <button
-                  type="button"
-                  style={secondaryBtn}
-                  onClick={() => router.push("/auth/login")}
-                >
-                  Ya tengo cuenta
-                </button>
-
-                <div style={legal}>
-                  Al crear una cuenta aceptas que esta es una beta privada
-                  pensada para pruebas personales. Podrás borrar tu cuenta y
-                  datos cuando quieras desde el panel de perfil.
-                </div>
-              </>
-            )}
+            <div style={legal}>
+              Al entrar aceptas que esta es una beta privada pensada para pruebas
+              personales. Podrás borrar tu cuenta y datos cuando quieras desde el
+              panel de perfil.
+            </div>
           </article>
         </section>
       </div>
