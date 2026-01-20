@@ -1,5 +1,5 @@
 // src/app/login/page.tsx
-import LoginRedirectClient from "./LoginRedirectClient";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -16,12 +16,12 @@ function asString(v: string | string[] | undefined): string | null {
 }
 
 function safeNext(raw: string | null): string {
-  // solo permitimos rutas internas
+  // ✅ solo permitimos rutas internas
   if (!raw) return "/calendar";
   return raw.startsWith("/") ? raw : "/calendar";
 }
 
 export default function Page({ searchParams }: PageProps) {
   const next = safeNext(asString(searchParams?.next));
-  return <LoginRedirectClient next={next} />;
+  redirect(`/auth/login?next=${encodeURIComponent(next)}`);
 }
