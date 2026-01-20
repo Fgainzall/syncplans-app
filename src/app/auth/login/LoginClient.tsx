@@ -5,20 +5,18 @@ import React, { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 
-function safeNext(raw: string | null): string {
-  if (!raw) return "/calendar";
-  return raw.startsWith("/") ? raw : "/calendar";
-}
-
 export default function LoginClient() {
   const router = useRouter();
   const sp = useSearchParams();
 
-  const nextTarget = useMemo(() => safeNext(sp.get("next")), [sp]);
+  const nextParam = sp.get("next");
+  const nextTarget = useMemo(
+    () => (nextParam && nextParam.startsWith("/") ? nextParam : "/calendar"),
+    [nextParam]
+  );
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,47 +37,46 @@ export default function LoginClient() {
       });
 
       if (signInError) {
-        const msg = signInError.message.toLowerCase();
-        if (msg.includes("email") && (msg.includes("confirm") || msg.includes("verified"))) {
+        if (signInError.message.toLowerCase().includes("email")) {
           setError(
             "Debes confirmar tu correo antes de iniciar sesión. Revisa tu bandeja de entrada."
           );
         } else {
           setError(signInError.message);
         }
+        setLoading(false);
         return;
       }
 
-      // ✅ Login OK
       router.replace(nextTarget);
     } catch (err: any) {
       setError(err?.message ?? "Error inesperado. Intenta otra vez.");
-    } finally {
       setLoading(false);
     }
   }
 
-  // ---------- ESTILOS PREMIUM (MISMA LÍNEA QUE REGISTER) ----------
-
   const page: React.CSSProperties = {
     minHeight: "100vh",
     background:
-      "radial-gradient(1400px 700px at 15% -10%, rgba(56,189,248,0.22), transparent 60%)," +
-      "radial-gradient(1100px 600px at 90% 0%, rgba(129,140,248,0.20), transparent 60%)," +
+      "radial-gradient(1200px 600px at 15% -10%, rgba(56,189,248,0.20), transparent 60%)," +
+      "radial-gradient(900px 500px at 90% 0%, rgba(37,99,235,0.18), transparent 60%)," +
       "#050816",
-    color: "rgba(248,250,252,0.96)",
+    color: "rgba(255,255,255,0.92)",
   };
 
   const shell: React.CSSProperties = {
-    maxWidth: 1120,
+    maxWidth: 1180,
     margin: "0 auto",
-    padding: "32px 20px 56px",
+    padding: "32px 24px 56px",
     display: "flex",
     flexDirection: "column",
-    gap: 22,
+    gap: 20,
+    alignItems: "center", // ✅ centra el grid
   };
 
   const topRow: React.CSSProperties = {
+    width: "100%",
+    maxWidth: 1080,
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
@@ -92,21 +89,21 @@ export default function LoginClient() {
     gap: 8,
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.55)",
-    background: "rgba(15,23,42,0.80)",
-    padding: "6px 11px",
+    background: "rgba(15,23,42,0.85)",
+    padding: "6px 12px",
     fontSize: 11,
     letterSpacing: "0.08em",
     textTransform: "uppercase",
     fontWeight: 800,
-    opacity: 0.95,
+    opacity: 0.9,
   };
 
   const badgeDot: React.CSSProperties = {
     width: 8,
     height: 8,
     borderRadius: 999,
-    background: "rgba(45,212,191,0.95)",
-    boxShadow: "0 0 16px rgba(45,212,191,0.85)",
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 16px rgba(56,189,248,0.65)",
   };
 
   const linkTop: React.CSSProperties = {
@@ -117,24 +114,26 @@ export default function LoginClient() {
   };
 
   const layout: React.CSSProperties = {
+    width: "100%",
+    maxWidth: 1080,
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)",
-    gap: 22,
-    marginTop: 6,
+    gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)",
+    gap: 20,
+    marginTop: 10,
     alignItems: "stretch",
   };
 
   const heroCard: React.CSSProperties = {
     position: "relative",
-    borderRadius: 26,
+    borderRadius: 28,
     border: "1px solid rgba(255,255,255,0.10)",
     background:
-      "radial-gradient(900px 480px at 0% 0%, rgba(56,189,248,0.28), transparent 55%)," +
-      "radial-gradient(900px 480px at 100% 0%, rgba(129,140,248,0.26), transparent 55%)," +
-      "rgba(15,23,42,0.94)",
+      "radial-gradient(800px 420px at 0% 0%, rgba(56,189,248,0.24), transparent 55%)," +
+      "radial-gradient(800px 420px at 100% 0%, rgba(37,99,235,0.24), transparent 55%)," +
+      "rgba(15,23,42,0.96)",
     padding: 24,
     overflow: "hidden",
-    boxShadow: "0 30px 95px rgba(0,0,0,0.65)",
+    boxShadow: "0 30px 90px rgba(0,0,0,0.60)",
   };
 
   const heroInner: React.CSSProperties = {
@@ -148,11 +147,11 @@ export default function LoginClient() {
     gap: 8,
     padding: "4px 10px",
     borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.45)",
-    background: "rgba(15,23,42,0.88)",
+    border: "1px solid rgba(148,163,184,0.5)",
+    background: "rgba(15,23,42,0.9)",
     fontSize: 11,
     fontWeight: 800,
-    opacity: 0.95,
+    opacity: 0.9,
   };
 
   const heroDot: React.CSSProperties = {
@@ -160,28 +159,27 @@ export default function LoginClient() {
     height: 8,
     borderRadius: 999,
     background: "rgba(251,191,36,0.95)",
-    boxShadow: "0 0 20px rgba(251,191,36,0.9)",
+    boxShadow: "0 0 20px rgba(251,191,36,0.90)",
   };
 
   const heroTitle: React.CSSProperties = {
     margin: "16px 0 6px",
     fontSize: 30,
     fontWeight: 900,
-    letterSpacing: -0.7,
+    letterSpacing: -0.6,
   };
 
-  // Gradiente solo en gama fría (azules/violetas) para que quede más “marca SyncPlans”
   const heroGradientWord: React.CSSProperties = {
     background:
-      "linear-gradient(120deg, #22d3ee 0%, #38bdf8 30%, #6366f1 65%, #a855f7 100%)",
+      "linear-gradient(120deg, #38bdf8 0%, #22c55e 45%, #14b8a6 100%)",
     WebkitBackgroundClip: "text",
     color: "transparent",
   };
 
   const heroSub: React.CSSProperties = {
-    marginTop: 8,
+    marginTop: 6,
     fontSize: 13,
-    opacity: 0.80,
+    opacity: 0.8,
     maxWidth: 460,
     lineHeight: 1.55,
     fontWeight: 500,
@@ -191,13 +189,13 @@ export default function LoginClient() {
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
     gap: 10,
-    marginTop: 18,
+    marginTop: 16,
   };
 
   const pill: React.CSSProperties = {
     borderRadius: 18,
-    border: "1px solid rgba(15,23,42,0.95)",
-    background: "rgba(15,23,42,0.9)",
+    border: "1px solid rgba(15,23,42,0.9)",
+    background: "rgba(15,23,42,0.92)",
     padding: "10px 11px",
   };
 
@@ -220,22 +218,22 @@ export default function LoginClient() {
   const pillSub: React.CSSProperties = {
     marginTop: 4,
     fontSize: 11,
-    opacity: 0.80,
+    opacity: 0.8,
   };
 
   const steps: React.CSSProperties = {
     marginTop: 16,
     fontSize: 11,
     opacity: 0.78,
-    lineHeight: 1.55,
+    lineHeight: 1.6,
   };
 
   const formCard: React.CSSProperties = {
-    borderRadius: 26,
+    borderRadius: 28,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(15,23,42,0.97)",
+    background: "rgba(15,23,42,0.98)",
     padding: 24,
-    boxShadow: "0 28px 90px rgba(0,0,0,0.70)",
+    boxShadow: "0 26px 80px rgba(0,0,0,0.60)",
     display: "flex",
     flexDirection: "column",
     gap: 14,
@@ -245,18 +243,18 @@ export default function LoginClient() {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "baseline",
-    gap: 10,
+    gap: 8,
   };
 
   const h2: React.CSSProperties = {
-    fontSize: 19,
+    fontSize: 18,
     fontWeight: 800,
     margin: 0,
   };
 
   const subtleLink: React.CSSProperties = {
     fontSize: 11,
-    opacity: 0.78,
+    opacity: 0.8,
     cursor: "pointer",
     textDecoration: "underline",
     textUnderlineOffset: 3,
@@ -268,23 +266,23 @@ export default function LoginClient() {
     marginBottom: 4,
     textTransform: "uppercase",
     letterSpacing: "0.08em",
-    opacity: 0.82,
+    opacity: 0.8,
   };
 
   const input: React.CSSProperties = {
     width: "100%",
-    borderRadius: 17,
+    borderRadius: 16,
     border: "1px solid rgba(148,163,184,0.55)",
     background: "rgba(15,23,42,0.95)",
-    padding: "10px 13px",
+    padding: "10px 12px",
     fontSize: 13,
     color: "rgba(248,250,252,0.96)",
     outline: "none",
   };
 
   const errorBox: React.CSSProperties = {
-    borderRadius: 18,
-    border: "1px solid rgba(248,113,113,0.55)",
+    borderRadius: 16,
+    border: "1px solid rgba(248,113,113,0.45)",
     background: "rgba(248,113,113,0.14)",
     padding: "8px 10px",
     fontSize: 12,
@@ -296,8 +294,8 @@ export default function LoginClient() {
     borderRadius: 999,
     border: "1px solid rgba(56,189,248,0.9)",
     background:
-      "linear-gradient(90deg, rgba(56,189,248,0.98), rgba(16,185,129,0.98))",
-    padding: "11px 15px",
+      "linear-gradient(90deg, rgba(56,189,248,0.97), rgba(16,185,129,0.97))",
+    padding: "11px 14px",
     fontSize: 13,
     fontWeight: 800,
     cursor: canSubmit ? "pointer" : "not-allowed",
@@ -309,18 +307,18 @@ export default function LoginClient() {
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.6)",
     background: "rgba(15,23,42,0.95)",
-    padding: "10px 15px",
+    padding: "10px 14px",
     fontSize: 12,
     fontWeight: 750,
     cursor: "pointer",
-    opacity: 0.92,
+    opacity: 0.9,
   };
 
   const legal: React.CSSProperties = {
     marginTop: 4,
     fontSize: 10,
-    opacity: 0.62,
-    lineHeight: 1.55,
+    opacity: 0.6,
+    lineHeight: 1.6,
   };
 
   return (
@@ -336,17 +334,15 @@ export default function LoginClient() {
           <button
             type="button"
             style={linkTop}
-            onClick={() =>
-              router.push(`/auth/register?next=${encodeURIComponent(nextTarget)}`)
-            }
+            onClick={() => router.push("/auth/register")}
           >
             ¿Nuevo aquí? Crear cuenta →
           </button>
         </div>
 
-        {/* MAIN GRID */}
+        {/* MAIN LAYOUT */}
         <section style={layout}>
-          {/* LEFT: HERO */}
+          {/* LEFT: HERO / PITCH */}
           <article style={heroCard}>
             <div style={heroInner}>
               <div style={heroKicker}>
@@ -360,9 +356,9 @@ export default function LoginClient() {
               </h1>
 
               <p style={heroSub}>
-                Registra tus planes una sola vez y deja que SyncPlans te muestre
-                quién está libre, dónde hay conflictos y qué eventos se pisan
-                entre sí.
+                Registra tus planes una sola vez y deja que SyncPlans se
+                encargue de mostrar quién está libre, dónde hay conflictos y qué
+                eventos chocan entre sí.
               </p>
 
               <div style={heroList}>
@@ -376,9 +372,8 @@ export default function LoginClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Tu agenda limpia y clara.</div>
+                  <div style={pillSub}>Tu agenda, limpia y clara.</div>
                 </div>
-
                 <div style={pill}>
                   <div style={pillRow}>
                     <span>Pareja</span>
@@ -391,7 +386,6 @@ export default function LoginClient() {
                   </div>
                   <div style={pillSub}>Citas sin solapamientos.</div>
                 </div>
-
                 <div style={pill}>
                   <div style={pillRow}>
                     <span>Familia</span>
@@ -419,27 +413,24 @@ export default function LoginClient() {
             </div>
           </article>
 
-          {/* RIGHT: FORM */}
+          {/* RIGHT: LOGIN FORM */}
           <article style={formCard}>
             <div style={formHeader}>
               <h2 style={h2}>Iniciar sesión en SyncPlans</h2>
               <button
                 type="button"
                 style={subtleLink}
-                onClick={() =>
-                  router.push(`/auth/register?next=${encodeURIComponent(nextTarget)}`)
-                }
+                onClick={() => router.push("/auth/register")}
               >
                 Crear cuenta nueva
               </button>
             </div>
-
             <div
               style={{
                 fontSize: 12,
                 opacity: 0.78,
-                marginTop: 3,
-                marginBottom: 8,
+                marginTop: 2,
+                marginBottom: 6,
               }}
             >
               Accede a tu agenda sin choques de horario.
@@ -479,17 +470,15 @@ export default function LoginClient() {
             <button
               type="button"
               style={secondaryBtn}
-              onClick={() =>
-                router.push(`/auth/register?next=${encodeURIComponent(nextTarget)}`)
-              }
+              onClick={() => router.push("/auth/register")}
             >
               Crear cuenta
             </button>
 
             <div style={legal}>
-              Al entrar aceptas que esta es una beta privada pensada para pruebas
-              personales. Podrás borrar tu cuenta y datos cuando quieras desde el
-              panel de perfil.
+              Al entrar aceptas que esta es una beta privada pensada para
+              pruebas personales. Podrás borrar tu cuenta y datos cuando quieras
+              desde el panel de perfil.
             </div>
           </article>
         </section>
