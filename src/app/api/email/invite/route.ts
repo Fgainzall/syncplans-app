@@ -112,12 +112,14 @@ export async function POST(req: Request) {
 
     const resendKey = requiredEnv("RESEND_API_KEY");
     const from = requiredEnv("RESEND_FROM");
+
     if (!resendKey) {
       return NextResponse.json(
         { ok: false, error: "Falta RESEND_API_KEY" },
         { status: 500 }
       );
     }
+
     if (!from) {
       return NextResponse.json(
         {

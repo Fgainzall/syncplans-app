@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+import supabase from "@/lib/supabaseClient";
 
 import {
   acceptInvitation,
@@ -14,9 +15,7 @@ import {
 } from "@/lib/invitationsDb";
 
 function isUuid(x: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    x
-  );
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x);
 }
 
 function labelType(t?: string | null) {
@@ -62,14 +61,7 @@ function StatusPill({ status }: { status: string }) {
         opacity: 0.95,
       }}
     >
-      <span
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: 999,
-          background: dot,
-        }}
-      />
+      <span style={{ width: 8, height: 8, borderRadius: 999, background: dot }} />
       {meta.label}
     </span>
   );
@@ -120,6 +112,14 @@ export default function AcceptInviteClient() {
         }
 
         setLoading(true);
+
+        const { data } = await supabase.auth.getSession();
+        if (!data.session?.user) {
+          const next = encodeURIComponent(window.location.pathname + window.location.search);
+          router.replace(`/auth/login?next=${next}`);
+          return;
+        }
+
         const r = await getInvitationById(inviteId);
         if (!alive) return;
         setInv(r ?? null);
@@ -138,7 +138,7 @@ export default function AcceptInviteClient() {
     return () => {
       alive = false;
     };
-  }, [inviteId]);
+  }, [inviteId, router]);
 
   const status = String(inv?.status ?? "").toLowerCase();
   const pending = status === "pending";

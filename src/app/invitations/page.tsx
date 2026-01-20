@@ -2,9 +2,11 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+
 import {
   getMyInvitations,
   acceptInvitation,
@@ -14,13 +16,15 @@ import {
 
 const groupLabel: Record<string, string> = {
   personal: "Personal",
+  solo: "Personal",
   pair: "Pareja",
+  couple: "Pareja",
   family: "Familia",
 };
 
 function labelForGroupType(t?: string | null) {
   const key = String(t ?? "").toLowerCase();
-  return groupLabel[key] ?? "Personal";
+  return groupLabel[key] ?? "Grupo";
 }
 
 function safeDateLabel(createdAt?: string | null) {
@@ -39,7 +43,7 @@ export default function InvitationsPage() {
   const [acting, setActing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-    const normalizedInvites = useMemo(() => {
+  const normalizedInvites = useMemo(() => {
     return (invites ?? []).map((i) => ({
       ...i,
       created_at: i.created_at ?? null,
@@ -47,7 +51,6 @@ export default function InvitationsPage() {
       group_type: i.group_type ?? null,
     }));
   }, [invites]);
-
 
   async function requireSessionOrRedirect() {
     const { data, error } = await supabase.auth.getSession();
@@ -76,6 +79,7 @@ export default function InvitationsPage() {
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
       try {
         setBooting(true);
@@ -134,6 +138,7 @@ export default function InvitationsPage() {
             <PremiumHeader />
             <LogoutButton />
           </div>
+
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
@@ -185,15 +190,14 @@ export default function InvitationsPage() {
         ) : (
           <div style={styles.list}>
             {normalizedInvites.map((i) => {
-             const t = i.group_type ?? null;
+              const t = i.group_type ?? null;
 
               return (
                 <div key={i.id} style={styles.card}>
                   <div style={styles.cardTop}>
                     <div>
                       <div style={styles.groupName}>{i.group_name ?? "Grupo sin nombre"}</div>
-<div style={styles.groupType}>{labelForGroupType(t)}</div>
-
+                      <div style={styles.groupType}>{labelForGroupType(t)}</div>
                     </div>
                     <div style={styles.date}>{safeDateLabel(i.created_at)}</div>
                   </div>

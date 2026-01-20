@@ -1,7 +1,9 @@
+// src/app/groups/invite/GroupInviteClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 
@@ -9,9 +11,7 @@ import { inviteToGroup } from "@/lib/invitationsDb";
 import { fetchMyGroups, type GroupRow } from "@/lib/groupsStore";
 
 function isUuid(x: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    x
-  );
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x);
 }
 
 function isValidEmail(email: string) {
@@ -36,7 +36,6 @@ function Glow() {
 }
 
 export default function GroupInviteClient() {
-
   const router = useRouter();
   const sp = useSearchParams();
 
@@ -50,9 +49,7 @@ export default function GroupInviteClient() {
   const [role, setRole] = useState<"member" | "admin">("member");
 
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
-    null
-  );
+  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
 
   // ✅ Premium: link visible + copiar manual
   const [inviteLink, setInviteLink] = useState<string | null>(null);
@@ -70,9 +67,12 @@ export default function GroupInviteClient() {
       try {
         const g = await fetchMyGroups();
         if (!alive) return;
+
         setGroups(g);
 
-        if (!selectedGroupId && g.length) setSelectedGroupId(g[0].id);
+        if (!selectedGroupId && g.length) {
+          setSelectedGroupId(g[0].id);
+        }
       } catch (e: any) {
         showToast({
           title: "No se pudieron cargar grupos",
@@ -82,6 +82,7 @@ export default function GroupInviteClient() {
         if (alive) setLoadingGroups(false);
       }
     })();
+
     return () => {
       alive = false;
     };
@@ -106,7 +107,10 @@ export default function GroupInviteClient() {
     try {
       await navigator.clipboard.writeText(link);
       setCopied(true);
-      showToast({ title: "Copiado ✅", subtitle: "Listo. Pégalo en WhatsApp / iMessage." });
+      showToast({
+        title: "Copiado ✅",
+        subtitle: "Listo. Pégalo en WhatsApp / iMessage.",
+      });
     } catch {
       showToast({
         title: "No pude copiar automático",
@@ -117,7 +121,10 @@ export default function GroupInviteClient() {
 
   async function onInvite() {
     if (!canInvite) {
-      showToast({ title: "Revisa", subtitle: "Elige grupo y escribe un email válido." });
+      showToast({
+        title: "Revisa",
+        subtitle: "Elige grupo y escribe un email válido.",
+      });
       return;
     }
 
@@ -131,11 +138,13 @@ export default function GroupInviteClient() {
 
       if (!res?.ok) {
         const msg = (res?.error || "No se pudo crear la invitación.").toString();
+
         // errores humanos típicos
-        if (msg.toLowerCase().includes("already") || msg.toLowerCase().includes("duplicate")) {
+        const lower = msg.toLowerCase();
+        if (lower.includes("already") || lower.includes("duplicate")) {
           throw new Error("Ese email ya está invitado (o ya es miembro).");
         }
-        if (msg.toLowerCase().includes("permission") || msg.toLowerCase().includes("rls")) {
+        if (lower.includes("permission") || lower.includes("rls")) {
           throw new Error("No tienes permisos para invitar a este grupo.");
         }
         throw new Error(msg);
@@ -162,7 +171,10 @@ export default function GroupInviteClient() {
         await copyLink(link);
       }
     } catch (e: any) {
-      showToast({ title: "No se pudo invitar", subtitle: e?.message || "Intenta otra vez." });
+      showToast({
+        title: "No se pudo invitar",
+        subtitle: e?.message || "Intenta otra vez.",
+      });
     } finally {
       setBusy(false);
     }
@@ -193,7 +205,14 @@ export default function GroupInviteClient() {
           >
             <div style={{ fontWeight: 900, fontSize: 13 }}>{toast.title}</div>
             {toast.subtitle ? (
-              <div style={{ marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 }}>
+              <div
+                style={{
+                  marginTop: 4,
+                  fontSize: 12,
+                  opacity: 0.75,
+                  fontWeight: 650,
+                }}
+              >
                 {toast.subtitle}
               </div>
             ) : null}
@@ -202,7 +221,14 @@ export default function GroupInviteClient() {
       )}
 
       <div style={{ maxWidth: 920, margin: "0 auto", padding: "22px 18px 56px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 14,
+          }}
+        >
           <PremiumHeader />
           <LogoutButton />
         </div>
@@ -238,8 +264,16 @@ export default function GroupInviteClient() {
               Comparte tu calendario sin fricción
             </h1>
 
-            <div style={{ opacity: 0.72, fontSize: 13, lineHeight: 1.45, maxWidth: 650 }}>
-              Envía una invitación. La otra persona acepta y se vuelve miembro del grupo automáticamente (con RLS seguro).
+            <div
+              style={{
+                opacity: 0.72,
+                fontSize: 13,
+                lineHeight: 1.45,
+                maxWidth: 650,
+              }}
+            >
+              Envía una invitación. La otra persona acepta y se vuelve miembro del
+              grupo automáticamente (con RLS seguro).
             </div>
 
             <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
@@ -248,13 +282,32 @@ export default function GroupInviteClient() {
                 <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>Grupo</div>
 
                 {loadingGroups ? (
-                  <div style={{ padding: 14, borderRadius: 14, border: "1px dashed rgba(255,255,255,0.16)", opacity: 0.75 }}>
+                  <div
+                    style={{
+                      padding: 14,
+                      borderRadius: 14,
+                      border: "1px dashed rgba(255,255,255,0.16)",
+                      opacity: 0.75,
+                    }}
+                  >
                     Cargando grupos…
                   </div>
                 ) : groups.length === 0 ? (
-                  <div style={{ padding: 14, borderRadius: 14, border: "1px dashed rgba(255,255,255,0.16)" }}>
+                  <div
+                    style={{
+                      padding: 14,
+                      borderRadius: 14,
+                      border: "1px dashed rgba(255,255,255,0.16)",
+                    }}
+                  >
                     <div style={{ fontWeight: 900 }}>No tienes grupos</div>
-                    <div style={{ opacity: 0.75, fontSize: 12, marginTop: 6 }}>
+                    <div
+                      style={{
+                        opacity: 0.75,
+                        fontSize: 12,
+                        marginTop: 6,
+                      }}
+                    >
                       Crea uno para poder invitar.
                     </div>
 
@@ -265,7 +318,8 @@ export default function GroupInviteClient() {
                         padding: "10px 12px",
                         borderRadius: 14,
                         border: "1px solid rgba(255,255,255,0.14)",
-                        background: "linear-gradient(135deg, rgba(56,189,248,0.20), rgba(124,58,237,0.20))",
+                        background:
+                          "linear-gradient(135deg, rgba(56,189,248,0.20), rgba(124,58,237,0.20))",
                         color: "rgba(255,255,255,0.95)",
                         cursor: "pointer",
                         fontWeight: 900,
@@ -332,7 +386,13 @@ export default function GroupInviteClient() {
                   }}
                 />
                 {email.length > 0 && !emailOk ? (
-                  <div style={{ fontSize: 12, opacity: 0.75, color: "rgba(248,113,113,0.95)" }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      opacity: 0.75,
+                      color: "rgba(248,113,113,0.95)",
+                    }}
+                  >
                     Email inválido
                   </div>
                 ) : null}
@@ -348,7 +408,10 @@ export default function GroupInviteClient() {
                       padding: "10px 12px",
                       borderRadius: 999,
                       border: "1px solid rgba(255,255,255,0.12)",
-                      background: role === "member" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
+                      background:
+                        role === "member"
+                          ? "rgba(255,255,255,0.08)"
+                          : "rgba(255,255,255,0.04)",
                       color: "rgba(255,255,255,0.92)",
                       cursor: "pointer",
                       fontWeight: 900,
@@ -362,7 +425,10 @@ export default function GroupInviteClient() {
                       padding: "10px 12px",
                       borderRadius: 999,
                       border: "1px solid rgba(255,255,255,0.12)",
-                      background: role === "admin" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
+                      background:
+                        role === "admin"
+                          ? "rgba(255,255,255,0.08)"
+                          : "rgba(255,255,255,0.04)",
                       color: "rgba(255,255,255,0.92)",
                       cursor: "pointer",
                       fontWeight: 900,
@@ -374,7 +440,14 @@ export default function GroupInviteClient() {
               </div>
 
               {/* Actions */}
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  marginTop: 6,
+                }}
+              >
                 <button
                   onClick={() => router.push("/groups")}
                   style={{
@@ -398,7 +471,8 @@ export default function GroupInviteClient() {
                     padding: "12px 14px",
                     borderRadius: 14,
                     border: "1px solid rgba(255,255,255,0.14)",
-                    background: "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
+                    background:
+                      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
                     color: "rgba(255,255,255,0.95)",
                     cursor: canInvite ? "pointer" : "not-allowed",
                     fontWeight: 900,
@@ -421,7 +495,15 @@ export default function GroupInviteClient() {
                     background: "rgba(0,0,0,0.22)",
                   }}
                 >
-                  <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>Link de invitación</div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      opacity: 0.8,
+                      fontWeight: 900,
+                    }}
+                  >
+                    Link de invitación
+                  </div>
                   <div
                     style={{
                       marginTop: 8,
@@ -435,7 +517,14 @@ export default function GroupInviteClient() {
                     {inviteLink}
                   </div>
 
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      flexWrap: "wrap",
+                      marginTop: 10,
+                    }}
+                  >
                     <button
                       onClick={() => copyLink(inviteLink)}
                       style={{
@@ -471,7 +560,13 @@ export default function GroupInviteClient() {
                   </div>
                 </div>
               ) : (
-                <div style={{ marginTop: 10, opacity: 0.6, fontSize: 12 }}>
+                <div
+                  style={{
+                    marginTop: 10,
+                    opacity: 0.6,
+                    fontSize: 12,
+                  }}
+                >
                   Tip: el link se arma así:{" "}
                   <span style={{ marginLeft: 6, fontFamily: "ui-monospace" }}>
                     /invitations/accept?invite=UUID

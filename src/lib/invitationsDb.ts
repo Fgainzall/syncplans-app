@@ -1,3 +1,4 @@
+// src/lib/invitationsDb.ts
 "use client";
 
 import supabase from "@/lib/supabaseClient";
@@ -135,15 +136,19 @@ export async function getInvitationById(inviteId: string): Promise<GroupInvitati
   return mapRowToInvitation(data);
 }
 
-// RPCs existentes
+// RPCs existentes (para aceptar / rechazar)
 export async function acceptInvitation(inviteId: string) {
-  const { data, error } = await supabase.rpc("accept_group_invite", { p_invite_id: inviteId });
+  const { data, error } = await supabase.rpc("accept_group_invite", {
+    p_invite_id: inviteId,
+  });
   if (error) throw error;
   return (data ?? { ok: false }) as any;
 }
 
 export async function declineInvitation(inviteId: string) {
-  const { data, error } = await supabase.rpc("decline_group_invite", { p_invite_id: inviteId });
+  const { data, error } = await supabase.rpc("decline_group_invite", {
+    p_invite_id: inviteId,
+  });
   if (error) throw error;
   return (data ?? { ok: false }) as any;
 }
@@ -181,7 +186,9 @@ export async function inviteToGroup(input: {
   if (!to || !to.includes("@")) return { ok: false, error: "Email inválido." };
 
   const me = await requireAuthedUser();
-  if (me.email && me.email === to) return { ok: false, error: "No puedes invitarte a ti mismo." };
+  if (me.email && me.email === to) {
+    return { ok: false, error: "No puedes invitarte a ti mismo." };
+  }
 
   const payload: any = {
     group_id: input.groupId,
@@ -209,16 +216,24 @@ export async function inviteToGroup(input: {
     const res = await fetch("/api/email/invite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: to, inviteId: row.id, groupId: row.group_id }),
+      body: JSON.stringify({
+        email: to,
+        inviteId: row.id,
+        groupId: row.group_id,
+      }),
     });
 
     const { json, text } = await readJsonOrText(res);
 
-    if (res.ok && json?.ok) email_sent = true;
-    else {
+    if (res.ok && json?.ok) {
+      email_sent = true;
+    } else {
       const fromJson = json?.error || json?.message;
       const fromText = text ? text.slice(0, 240) : null;
-      email_error = fromJson || fromText || `HTTP ${res.status} ${res.statusText || ""}`.trim();
+      email_error =
+        fromJson ||
+        fromText ||
+        `HTTP ${res.status} ${res.statusText || ""}`.trim();
     }
   } catch (e: any) {
     email_error = e?.message || "Error enviando email";
