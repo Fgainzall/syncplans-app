@@ -64,7 +64,7 @@ export default function RegisterClient() {
     display: "flex",
     flexDirection: "column",
     gap: 20,
-    alignItems: "center", // ✅ centra el grid
+    alignItems: "center",
   };
 
   const topRow: React.CSSProperties = {
@@ -162,7 +162,6 @@ export default function RegisterClient() {
     letterSpacing: -0.6,
   };
 
-  // 🎨 ahora solo azules / teal, más brand
   const heroGradientWord: React.CSSProperties = {
     background:
       "linear-gradient(120deg, #38bdf8 0%, #22c55e 45%, #14b8a6 100%)",

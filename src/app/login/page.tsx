@@ -16,7 +16,6 @@ function asString(v: string | string[] | undefined): string | null {
 }
 
 function safeNext(raw: string | null): string {
-  // ✅ solo permitimos rutas internas
   if (!raw) return "/calendar";
   return raw.startsWith("/") ? raw : "/calendar";
 }

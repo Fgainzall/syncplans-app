@@ -17,6 +17,7 @@ export default function LoginClient() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +56,8 @@ export default function LoginClient() {
     }
   }
 
+  // 🎨 MISMO LAYOUT QUE RegisterClient (para que se vean gemelos)
+
   const page: React.CSSProperties = {
     minHeight: "100vh",
     background:
@@ -71,7 +74,7 @@ export default function LoginClient() {
     display: "flex",
     flexDirection: "column",
     gap: 20,
-    alignItems: "center", // ✅ centra el grid
+    alignItems: "center", // ✅ centra la grilla, igual que RegisterClient
   };
 
   const topRow: React.CSSProperties = {
@@ -356,9 +359,9 @@ export default function LoginClient() {
               </h1>
 
               <p style={heroSub}>
-                Registra tus planes una sola vez y deja que SyncPlans se
-                encargue de mostrar quién está libre, dónde hay conflictos y qué
-                eventos chocan entre sí.
+                Registra tus planes una sola vez y deja que SyncPlans se encargue
+                de mostrar quién está libre, dónde hay conflictos y qué eventos
+                chocan entre sí.
               </p>
 
               <div style={heroList}>
@@ -374,6 +377,7 @@ export default function LoginClient() {
                   </div>
                   <div style={pillSub}>Tu agenda, limpia y clara.</div>
                 </div>
+
                 <div style={pill}>
                   <div style={pillRow}>
                     <span>Pareja</span>
@@ -386,6 +390,7 @@ export default function LoginClient() {
                   </div>
                   <div style={pillSub}>Citas sin solapamientos.</div>
                 </div>
+
                 <div style={pill}>
                   <div style={pillRow}>
                     <span>Familia</span>
@@ -425,6 +430,7 @@ export default function LoginClient() {
                 Crear cuenta nueva
               </button>
             </div>
+
             <div
               style={{
                 fontSize: 12,
