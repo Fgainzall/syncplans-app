@@ -5,61 +5,72 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 
-export default function LoginRedirectClient({ next }: { next: string }) {
+type Props = {
+  next: string;
+};
+
+export default function LoginRedirectClient({ next }: Props) {
   const router = useRouter();
-  const [msg, setMsg] = useState("Cargando…");
+  const [msg, setMsg] = useState("Comprobando tu sesión…");
 
   useEffect(() => {
     let alive = true;
 
     (async () => {
       try {
-        const { data } = await supabase.auth.getSession();
+        const { data, error } = await supabase.auth.getSession();
+
         if (!alive) return;
 
+        if (error) {
+          console.error("Error al obtener sesión:", error);
+          setMsg("Error verificando sesión. Intenta de nuevo.");
+          return;
+        }
+
         if (data?.session) {
+          // ✅ Ya está logueado → lo mando a la ruta deseada
           router.replace(next);
           return;
         }
 
-        // no logueado → manda a tu UI real de login
-        router.replace(`/auth/login?next=${encodeURIComponent(next)}`);
+        // ❌ No logueado → mando a /auth/login con next=
+        const encodedNext = encodeURIComponent(next);
+        router.replace(`/auth/login?next=${encodedNext}`);
       } catch (e: any) {
         if (!alive) return;
-        setMsg(e?.message || "No se pudo cargar. Intenta recargar.");
+        console.error("Excepción en LoginRedirectClient:", e);
+        setMsg("Ocurrió un error verificando tu sesión.");
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, [router, next]);
+  }, [next, router]);
 
   return (
     <main
-      className="min-h-screen"
       style={{
-        background:
-          "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
-        color: "rgba(255,255,255,0.92)",
+        minHeight: "100vh",
+        background: "#050816",
+        color: "#e5e7eb",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: 24,
+        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
       <div
         style={{
-          width: "min(520px, 100%)",
-          borderRadius: 18,
-          border: "1px solid rgba(255,255,255,0.10)",
-          background: "rgba(255,255,255,0.03)",
-          boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
-          padding: 18,
+          padding: "16px 20px",
+          borderRadius: 16,
+          border: "1px solid rgba(148,163,184,0.45)",
+          background: "rgba(15,23,42,0.95)",
+          fontSize: 14,
         }}
       >
-        <div style={{ fontWeight: 950, fontSize: 14 }}>SyncPlans</div>
-        <div style={{ marginTop: 8, opacity: 0.75, fontSize: 13 }}>{msg}</div>
+        {msg}
       </div>
     </main>
   );

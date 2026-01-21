@@ -9,7 +9,6 @@ import LogoutButton from "@/components/LogoutButton";
 
 import {
   getMyInvitations,
-  acceptInvitation,
   declineInvitation,
   type GroupInvitation,
 } from "@/lib/invitationsDb";
@@ -99,19 +98,12 @@ export default function InvitationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const onAccept = async (id: string) => {
-    setActing(id);
-    try {
-      const user = await requireSessionOrRedirect();
-      if (!user) return;
-
-      await acceptInvitation(id);
-      await load();
-    } catch (e: any) {
-      alert(e?.message ?? "No se pudo aceptar");
-    } finally {
-      setActing(null);
-    }
+  // ✅ IMPORTANTE:
+  // Aquí ya NO aceptamos directamente.
+  // Solo redirigimos a la pantalla premium:
+  // /invitations/accept?invite=<ID>
+  const onAccept = (id: string) => {
+    router.push(`/invitations/accept?invite=${id}`);
   };
 
   const onDecline = async (id: string) => {
@@ -168,11 +160,19 @@ export default function InvitationsPage() {
           </div>
 
           <div style={styles.heroActions}>
-            <button onClick={() => router.push("/groups")} style={styles.ghostBtn} disabled={loading}>
+            <button
+              onClick={() => router.push("/groups")}
+              style={styles.ghostBtn}
+              disabled={loading}
+            >
               ← Volver a grupos
             </button>
 
-            <button onClick={load} style={styles.primaryBtn} disabled={loading}>
+            <button
+              onClick={load}
+              style={styles.primaryBtn}
+              disabled={loading}
+            >
               {loading ? "Actualizando…" : "Actualizar"}
             </button>
           </div>
@@ -185,7 +185,9 @@ export default function InvitationsPage() {
         ) : isEmpty ? (
           <div style={styles.empty}>
             <div style={styles.emptyTitle}>No tienes invitaciones pendientes</div>
-            <div style={styles.emptySub}>Cuando alguien te invite a un grupo aparecerá aquí.</div>
+            <div style={styles.emptySub}>
+              Cuando alguien te invite a un grupo aparecerá aquí.
+            </div>
           </div>
         ) : (
           <div style={styles.list}>
@@ -196,10 +198,16 @@ export default function InvitationsPage() {
                 <div key={i.id} style={styles.card}>
                   <div style={styles.cardTop}>
                     <div>
-                      <div style={styles.groupName}>{i.group_name ?? "Grupo sin nombre"}</div>
-                      <div style={styles.groupType}>{labelForGroupType(t)}</div>
+                      <div style={styles.groupName}>
+                        {i.group_name ?? "Grupo sin nombre"}
+                      </div>
+                      <div style={styles.groupType}>
+                        {labelForGroupType(t)}
+                      </div>
                     </div>
-                    <div style={styles.date}>{safeDateLabel(i.created_at)}</div>
+                    <div style={styles.date}>
+                      {safeDateLabel(i.created_at)}
+                    </div>
                   </div>
 
                   <div style={styles.actions}>
@@ -258,7 +266,12 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "flex-end",
     flexWrap: "wrap",
   },
-  heroActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
+  heroActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
 
   h1: { fontSize: 28, fontWeight: 900, margin: 0 },
   sub: { opacity: 0.75, margin: "6px 0 0" },

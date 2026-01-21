@@ -56,8 +56,7 @@ export default function LoginClient() {
     }
   }
 
-  // 🎨 MISMO LAYOUT QUE RegisterClient (para que se vean gemelos)
-
+  // 🎨 Mismos estilos base que RegisterClient
   const page: React.CSSProperties = {
     minHeight: "100vh",
     background:
@@ -74,7 +73,7 @@ export default function LoginClient() {
     display: "flex",
     flexDirection: "column",
     gap: 20,
-    alignItems: "center", // ✅ centra la grilla, igual que RegisterClient
+    alignItems: "center", // ✅ centra el grid, igual que en register
   };
 
   const topRow: React.CSSProperties = {
@@ -377,7 +376,6 @@ export default function LoginClient() {
                   </div>
                   <div style={pillSub}>Tu agenda, limpia y clara.</div>
                 </div>
-
                 <div style={pill}>
                   <div style={pillRow}>
                     <span>Pareja</span>
@@ -390,7 +388,6 @@ export default function LoginClient() {
                   </div>
                   <div style={pillSub}>Citas sin solapamientos.</div>
                 </div>
-
                 <div style={pill}>
                   <div style={pillRow}>
                     <span>Familia</span>
