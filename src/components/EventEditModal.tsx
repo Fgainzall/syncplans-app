@@ -320,19 +320,20 @@ export function EventEditModal({
                       opacity: on ? 1 : 0.75,
                     }}
                   >
-                    <div
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: 999,
-                        background:
-                          g.key === "personal"
-                            ? "rgba(250,204,21,1)"
-                            : g.key === "couple"
-                            ? "rgba(59,130,246,1)"
-                            : "rgba(52,211,153,1)",
-                      }}
-                    />
+<div
+  style={{
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    background:
+      g.key === "personal"
+        ? "rgba(250,204,21,1)"              // Amarillo (personal)
+        : g.key === "couple"
+        ? "rgba(248,113,113,0.95)"          // Rojo (pareja)
+        : "rgba(59,130,246,0.95)",          // Azul (familia)
+  }}
+/>
+
                     <div style={{ textAlign: "left" }}>
                       <div style={{ fontSize: 13, fontWeight: 700 }}>
                         {g.label}
