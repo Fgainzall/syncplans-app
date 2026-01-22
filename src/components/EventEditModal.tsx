@@ -13,8 +13,8 @@ type EventEditModalProps = {
   initialEvent?: {
     id?: string;
     title?: string;
-    start?: string;
-    end?: string;
+    start?: string; // ISO o local
+    end?: string;   // ISO o local
     groupType?: GroupType;
     description?: string;
     allDay?: boolean;
@@ -74,6 +74,23 @@ function nowPlusMinutes(min: number) {
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
 }
 
+/**
+ * Normaliza cualquier string de fecha (ISO o local) a formato
+ * "YYYY-MM-DDTHH:mm" compatible con <input type="datetime-local">
+ */
+function normalizeToLocalInput(src: string | undefined, fallbackMinutes: number) {
+  if (!src) return nowPlusMinutes(fallbackMinutes);
+  const d = new Date(src);
+  if (Number.isNaN(d.getTime())) return nowPlusMinutes(fallbackMinutes);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const mm = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const mi = pad(d.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+}
+
 function toISOFromLocal(local: string) {
   const d = new Date(local);
   return d.toISOString();
@@ -90,8 +107,14 @@ async function requireUid(): Promise<string> {
 export function EventEditModal({ isOpen, onClose, initialEvent, onSaved }: EventEditModalProps) {
   const isEdit = Boolean(initialEvent?.id);
 
-  const defaultStart = useMemo(() => initialEvent?.start ?? nowPlusMinutes(15), [initialEvent?.start]);
-  const defaultEnd = useMemo(() => initialEvent?.end ?? nowPlusMinutes(75), [initialEvent?.end]);
+  const defaultStart = useMemo(
+    () => normalizeToLocalInput(initialEvent?.start, 15),
+    [initialEvent?.start]
+  );
+  const defaultEnd = useMemo(
+    () => normalizeToLocalInput(initialEvent?.end, 75),
+    [initialEvent?.end]
+  );
 
   const [title, setTitle] = useState(initialEvent?.title ?? "");
   const [startLocal, setStartLocal] = useState(defaultStart);
@@ -105,8 +128,8 @@ export function EventEditModal({ isOpen, onClose, initialEvent, onSaved }: Event
   useEffect(() => {
     if (!isOpen) return;
     setTitle(initialEvent?.title ?? "");
-    setStartLocal(initialEvent?.start ?? nowPlusMinutes(15));
-    setEndLocal(initialEvent?.end ?? nowPlusMinutes(75));
+    setStartLocal(normalizeToLocalInput(initialEvent?.start, 15));
+    setEndLocal(normalizeToLocalInput(initialEvent?.end, 75));
     setGroupType(initialEvent?.groupType ?? "personal");
     setDescription(initialEvent?.description ?? "");
     setAllDay(Boolean(initialEvent?.allDay));
@@ -140,7 +163,9 @@ export function EventEditModal({ isOpen, onClose, initialEvent, onSaved }: Event
     // ✅ Para pareja/familia usamos el grupo activo en DB
     const gid = await getActiveGroupIdFromDb().catch(() => null);
     if (!gid) {
-      throw new Error("No hay grupo activo. Ve a /groups y elige tu grupo antes de crear evento de pareja/familia.");
+      throw new Error(
+        "No hay grupo activo. Ve a /groups y elige tu grupo antes de crear evento de pareja/familia."
+      );
     }
     return gid;
   }
@@ -222,7 +247,9 @@ export function EventEditModal({ isOpen, onClose, initialEvent, onSaved }: Event
         <div className="relative flex items-center justify-between px-6 pt-6">
           <div>
             <div className="text-xs font-semibold tracking-wide text-gray-500">SYNCPLANS</div>
-            <h2 className="mt-1 text-xl font-semibold text-gray-900">{isEdit ? "Editar evento" : "Nuevo evento"}</h2>
+            <h2 className="mt-1 text-xl font-semibold text-gray-900">
+              {isEdit ? "Editar evento" : "Nuevo evento"}
+            </h2>
           </div>
 
           <button
@@ -292,12 +319,19 @@ export function EventEditModal({ isOpen, onClose, initialEvent, onSaved }: Event
                     onClick={() => setGroupType(g.k)}
                     className={[
                       "rounded-2xl border px-3 py-3 text-left text-sm shadow-sm transition active:scale-[0.99]",
-                      active ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-900 hover:bg-gray-50",
+                      active
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 bg-white text-gray-900 hover:bg-gray-50",
                     ].join(" ")}
                   >
                     <div className="flex items-center justify-between">
                       <div className="font-semibold">{g.label}</div>
-                      <span className={["inline-flex items-center rounded-full px-2 py-1 text-[11px] ring-1", g.pill].join(" ")}>
+                      <span
+                        className={[
+                          "inline-flex items-center rounded-full px-2 py-1 text-[11px] ring-1",
+                          g.pill,
+                        ].join(" ")}
+                      >
                         {active ? "Activo" : "Elegir"}
                       </span>
                     </div>
@@ -326,11 +360,17 @@ export function EventEditModal({ isOpen, onClose, initialEvent, onSaved }: Event
             <button
               type="button"
               onClick={() => setAllDay((v) => !v)}
-              className={["relative inline-flex h-7 w-12 items-center rounded-full transition", allDay ? "bg-gray-900" : "bg-gray-300"].join(" ")}
+              className={[
+                "relative inline-flex h-7 w-12 items-center rounded-full transition",
+                allDay ? "bg-gray-900" : "bg-gray-300",
+              ].join(" ")}
               aria-label="Toggle todo el día"
             >
               <span
-                className={["inline-block h-5 w-5 transform rounded-full bg-white shadow transition", allDay ? "translate-x-6" : "translate-x-1"].join(" ")}
+                className={[
+                  "inline-block h-5 w-5 transform rounded-full bg-white shadow transition",
+                  allDay ? "translate-x-6" : "translate-x-1",
+                ].join(" ")}
               />
             </button>
           </div>
