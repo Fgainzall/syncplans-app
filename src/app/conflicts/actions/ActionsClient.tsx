@@ -15,7 +15,8 @@ import {
   type ConflictItem,
 } from "@/lib/conflicts";
 
-import { loadEventsFromDb, deleteEventsByIdsDb } from "@/lib/conflictsDbBridge";
+import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
+import { deleteEventsByIds } from "@/lib/eventsDb";
 
 import {
   Resolution,
@@ -184,7 +185,8 @@ export default function ActionsClient({
       setBusy(true);
 
       if (plan.deleteIds.length > 0) {
-        await deleteEventsByIdsDb(plan.deleteIds);
+        // ✅ Ahora usamos el mismo deleter que el calendario
+        await deleteEventsByIds(plan.deleteIds);
       }
 
       try {
