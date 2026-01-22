@@ -1,3 +1,4 @@
+// src/app/groups/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -7,6 +8,7 @@ import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 import { getMyGroups } from "@/lib/groupsDb";
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
+import { getMyInvitations } from "@/lib/invitationsDb"; // 🆕 importar invitaciones
 
 type GroupRowUI = {
   id: string;
@@ -30,6 +32,7 @@ export default function GroupsPage() {
 
   const [booting, setBooting] = useState(true);
   const [groups, setGroups] = useState<GroupRowUI[]>([]);
+  const [pendingInvites, setPendingInvites] = useState(0); // 🆕 contador
   const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
 
   function showToast(title: string, subtitle?: string) {
@@ -49,19 +52,29 @@ export default function GroupsPage() {
     const gs: any[] = (await getMyGroups()) as any[];
 
     // ✅ normaliza sin depender del type exacto de DB
-    const ui: GroupRowUI[] = (gs ?? []).map((g: any) => ({
-      id: String(g?.id ?? ""),
-      name: g?.name ?? null,
-      type: (g?.type as any) ?? "pair",
-      created_at: g?.created_at ?? null,
-      owner_id: g?.owner_id ?? null,
-    }))
-    // filtra por seguridad si viniera algo sin id
-    .filter((g) => !!g.id);
+    const ui: GroupRowUI[] = (gs ?? [])
+      .map((g: any) => ({
+        id: String(g?.id ?? ""),
+        name: g?.name ?? null,
+        type: (g?.type as any) ?? "pair",
+        created_at: g?.created_at ?? null,
+        owner_id: g?.owner_id ?? null,
+      }))
+      // filtra por seguridad si viniera algo sin id
+      .filter((g) => !!g.id);
 
     // ✅ orden por created_at (si existe)
     ui.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
     setGroups(ui);
+
+    // 🆕 contar invitaciones pendientes
+    try {
+      const invites = await getMyInvitations();
+      setPendingInvites((invites ?? []).length);
+    } catch {
+      // si falla, simplemente dejamos el contador en 0, sin romper nada
+      setPendingInvites(0);
+    }
   }
 
   useEffect(() => {
@@ -118,6 +131,10 @@ export default function GroupsPage() {
     );
   }
 
+  // 🧮 texto del botón Invitaciones
+  const invitationsLabel =
+    pendingInvites > 0 ? `Invitaciones (${pendingInvites})` : "Invitaciones";
+
   return (
     <main style={styles.page}>
       {toast && (
@@ -133,9 +150,15 @@ export default function GroupsPage() {
         <div style={styles.topRow}>
           <PremiumHeader />
           <div style={styles.topActions}>
+            {/* 🆕 Botón de invitaciones con contador */}
+            <button onClick={() => router.push("/invitations")} style={styles.secondaryBtn}>
+              {invitationsLabel}
+            </button>
+
             <button onClick={() => router.push("/groups/new")} style={styles.primaryBtn}>
               + Nuevo grupo
             </button>
+
             <LogoutButton />
           </div>
         </div>
@@ -289,6 +312,17 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 900,
+  },
+  // 🆕 botón “Invitaciones”
+  secondaryBtn: {
+    padding: "10px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.16)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    fontWeight: 900,
+    fontSize: 13,
   },
   primaryBtnWide: {
     padding: "12px 14px",
