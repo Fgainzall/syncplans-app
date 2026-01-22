@@ -1,403 +1,446 @@
 // src/components/EventEditModal.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import supabase from "@/lib/supabaseClient";
-import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import type { GroupType } from "@/lib/conflicts";
+
+type EditableGroupType = "personal" | "couple" | "family";
+
+type EditEventShape = {
+  id?: string;
+  title: string;
+  start: string; // ISO
+  end: string; // ISO
+  description?: string;
+  groupType?: EditableGroupType | GroupType | null;
+};
 
 type EventEditModalProps = {
   isOpen: boolean;
   onClose: () => void;
-
-  initialEvent?: {
-    id?: string;
-    title?: string;
-    start?: string; // ISO o local
-    end?: string;   // ISO o local
-    groupType?: GroupType;
-    description?: string;
-    allDay?: boolean;
-  };
-
-  onSaved?: () => void;
+  initialEvent?: EditEventShape;
+  onSaved?: () => void | Promise<void>;
 };
 
-function IconX(props: { size?: number }) {
-  const s = props.size ?? 18;
-  return (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconTrash(props: { size?: number }) {
-  const s = props.size ?? 16;
-  return (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M8 6V4h8v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M19 6l-1 14H6L5 6" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M10 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconSave(props: { size?: number }) {
-  const s = props.size ?? 16;
-  return (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-      <path d="M17 21v-8H7v8" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M7 3v5h8" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function nowPlusMinutes(min: number) {
-  const d = new Date();
-  d.setMinutes(d.getMinutes() + min);
+// Helpers para datetime-local
+function isoToLocalInput(iso: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   const yyyy = d.getFullYear();
   const mm = pad(d.getMonth() + 1);
   const dd = pad(d.getDate());
   const hh = pad(d.getHours());
-  const mi = pad(d.getMinutes());
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  const min = pad(d.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
 }
 
-/**
- * Normaliza cualquier string de fecha (ISO o local) a formato
- * "YYYY-MM-DDTHH:mm" compatible con <input type="datetime-local">
- */
-function normalizeToLocalInput(src: string | undefined, fallbackMinutes: number) {
-  if (!src) return nowPlusMinutes(fallbackMinutes);
-  const d = new Date(src);
-  if (Number.isNaN(d.getTime())) return nowPlusMinutes(fallbackMinutes);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  const mm = pad(d.getMonth() + 1);
-  const dd = pad(d.getDate());
-  const hh = pad(d.getHours());
-  const mi = pad(d.getMinutes());
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
-}
-
-function toISOFromLocal(local: string) {
-  const d = new Date(local);
+function localInputToIso(v: string) {
+  if (!v) return "";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "";
   return d.toISOString();
 }
 
-async function requireUid(): Promise<string> {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) throw error;
-  const uid = data.user?.id;
-  if (!uid) throw new Error("Not authenticated");
-  return uid;
-}
+const groupLabels: { key: EditableGroupType; label: string; hint: string }[] = [
+  { key: "personal", label: "Personal", hint: "Sólo tú" },
+  { key: "couple", label: "Pareja", hint: "Calendario compartido" },
+  { key: "family", label: "Familia", hint: "Todos los miembros" },
+];
 
-export function EventEditModal({ isOpen, onClose, initialEvent, onSaved }: EventEditModalProps) {
-  const isEdit = Boolean(initialEvent?.id);
+export function EventEditModal({
+  isOpen,
+  onClose,
+  initialEvent,
+  onSaved,
+}: EventEditModalProps) {
+  const [title, setTitle] = useState("");
+  const [startLocal, setStartLocal] = useState("");
+  const [endLocal, setEndLocal] = useState("");
+  const [description, setDescription] = useState("");
+  const [groupType, setGroupType] = useState<EditableGroupType>("personal");
+  const [allDay, setAllDay] = useState(false);
 
-  const defaultStart = useMemo(
-    () => normalizeToLocalInput(initialEvent?.start, 15),
-    [initialEvent?.start]
-  );
-  const defaultEnd = useMemo(
-    () => normalizeToLocalInput(initialEvent?.end, 75),
-    [initialEvent?.end]
-  );
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [title, setTitle] = useState(initialEvent?.title ?? "");
-  const [startLocal, setStartLocal] = useState(defaultStart);
-  const [endLocal, setEndLocal] = useState(defaultEnd);
-  const [groupType, setGroupType] = useState<GroupType>(initialEvent?.groupType ?? "personal");
-  const [description, setDescription] = useState(initialEvent?.description ?? "");
-  const [allDay, setAllDay] = useState(Boolean(initialEvent?.allDay));
-  const [busy, setBusy] = useState<"idle" | "save" | "delete">("idle");
-  const [error, setError] = useState<string>("");
+  const hasId = !!initialEvent?.id;
 
+  // Cargar datos cuando abre o cambia initialEvent
   useEffect(() => {
     if (!isOpen) return;
-    setTitle(initialEvent?.title ?? "");
-    setStartLocal(normalizeToLocalInput(initialEvent?.start, 15));
-    setEndLocal(normalizeToLocalInput(initialEvent?.end, 75));
-    setGroupType(initialEvent?.groupType ?? "personal");
-    setDescription(initialEvent?.description ?? "");
-    setAllDay(Boolean(initialEvent?.allDay));
-    setBusy("idle");
-    setError("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, initialEvent?.id]);
 
-  if (!isOpen) return null;
-
-  function validate() {
-    const t = title.trim();
-    if (!t) return "Ponle un título al evento.";
-    if (!startLocal || !endLocal) return "Selecciona inicio y fin.";
-    const s = new Date(startLocal).getTime();
-    const e = new Date(endLocal).getTime();
-    if (Number.isNaN(s) || Number.isNaN(e)) return "Formato de fecha inválido.";
-    if (e <= s) return "La hora de fin debe ser posterior al inicio.";
-    return "";
-  }
-
-  function closeSafely() {
-    setError("");
-    setBusy("idle");
-    onClose();
-  }
-
-  async function resolveGroupIdForSave(): Promise<string | null> {
-    if (groupType === "personal") return null;
-
-    // ✅ Para pareja/familia usamos el grupo activo en DB
-    const gid = await getActiveGroupIdFromDb().catch(() => null);
-    if (!gid) {
-      throw new Error(
-        "No hay grupo activo. Ve a /groups y elige tu grupo antes de crear evento de pareja/familia."
-      );
-    }
-    return gid;
-  }
-
-  async function handleSave() {
-    const v = validate();
-    if (v) {
-      setError(v);
+    const ie = initialEvent;
+    if (!ie) {
+      setTitle("");
+      setStartLocal("");
+      setEndLocal("");
+      setDescription("");
+      setGroupType("personal");
+      setAllDay(false);
+      setError(null);
       return;
     }
 
-    setBusy("save");
-    setError("");
+    setTitle(ie.title ?? "");
+    setStartLocal(isoToLocalInput(ie.start));
+    setEndLocal(isoToLocalInput(ie.end));
+    setDescription(ie.description ?? "");
+
+    const gtRaw = (ie.groupType ?? "personal") as any;
+    const normalized: EditableGroupType =
+      gtRaw === "family" ? "family" : gtRaw === "couple" || gtRaw === "pair"
+      ? "couple"
+      : "personal";
+    setGroupType(normalized);
+
+    // all day guess: si empieza a las 00:00 y termina a las 23:59 o 23:00
+    const s = new Date(ie.start);
+    const e = new Date(ie.end);
+    const isAllDayGuess =
+      s.getHours() === 0 &&
+      s.getMinutes() === 0 &&
+      e.getHours() >= 23;
+    setAllDay(isAllDayGuess);
+
+    setError(null);
+  }, [isOpen, initialEvent]);
+
+  const canSave = useMemo(() => {
+    return (
+      !!title.trim() &&
+      !!startLocal &&
+      !!endLocal &&
+      !saving &&
+      !deleting
+    );
+  }, [title, startLocal, endLocal, saving, deleting]);
+
+  if (!isOpen) return null;
+
+  const handleClose = () => {
+    if (saving || deleting) return;
+    onClose();
+  };
+
+  const handleToggleAllDay = () => {
+    if (!startLocal) {
+      // si no hay fecha aún, nada
+      return;
+    }
+    const d = new Date(startLocal);
+    if (Number.isNaN(d.getTime())) return;
+
+    if (!allDay) {
+      // Activar "Todo el día" → 00:00 a 23:59 del mismo día
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const yyyy = d.getFullYear();
+      const mm = pad(d.getMonth() + 1);
+      const dd = pad(d.getDate());
+      setStartLocal(`${yyyy}-${mm}-${dd}T00:00`);
+      setEndLocal(`${yyyy}-${mm}-${dd}T23:59`);
+      setAllDay(true);
+    } else {
+      // Desactivar: mantenemos fechas actuales, sólo cambiamos flag
+      setAllDay(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    setError(null);
 
     try {
-      const uid = await requireUid();
-      const groupId = await resolveGroupIdForSave();
+      const startIso = localInputToIso(startLocal);
+      const endIso = localInputToIso(endLocal);
 
-      const payload = {
-        owner_id: uid,
-        title: title.trim(),
-        notes: description.trim() || null,
-        start: toISOFromLocal(startLocal),
-        end: toISOFromLocal(endLocal),
-        group_id: groupId,
-      };
-
-      if (initialEvent?.id) {
-        const { error } = await supabase
-          .from("events")
-          .update({
-            title: payload.title,
-            notes: payload.notes,
-            start: payload.start,
-            end: payload.end,
-            group_id: payload.group_id,
-          })
-          .eq("id", initialEvent.id);
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("events").insert([payload]);
-        if (error) throw error;
+      if (!startIso || !endIso) {
+        setError("Fechas inválidas.");
+        setSaving(false);
+        return;
       }
 
-      onSaved?.();
-      closeSafely();
+      if (!hasId) {
+        // No permitimos crear desde aquí: sólo edición
+        setError("No se encontró el ID del evento.");
+        setSaving(false);
+        return;
+      }
+
+      const { error: dbError } = await supabase
+        .from("events")
+        .update({
+          title: title.trim(),
+          start: startIso,
+          end: endIso,
+          notes: description.trim() || null,
+          // groupType se maneja en otro lado (events ya tiene group_id)
+        })
+        .eq("id", initialEvent!.id);
+
+      if (dbError) {
+        console.error(dbError);
+        setError(dbError.message ?? "No se pudo guardar el evento.");
+        setSaving(false);
+        return;
+      }
+
+      if (onSaved) {
+        await onSaved();
+      }
+      setSaving(false);
+      onClose();
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo guardar.");
-    } finally {
-      setBusy("idle");
+      console.error(e);
+      setError(e?.message ?? "Error inesperado al guardar.");
+      setSaving(false);
     }
-  }
+  };
 
-  async function handleDelete() {
-    if (!initialEvent?.id) return;
+  const handleDelete = async () => {
+    if (!hasId || deleting) return;
 
-    setBusy("delete");
-    setError("");
+    const ok = confirm(
+      `¿Eliminar el evento"${title ? ` "${title}"` : ""}"?\nEsta acción no se puede deshacer.`
+    );
+    if (!ok) return;
+
+    setDeleting(true);
+    setError(null);
 
     try {
-      const { error } = await supabase.from("events").delete().eq("id", initialEvent.id);
-      if (error) throw error;
+      const { error: dbError } = await supabase
+        .from("events")
+        .delete()
+        .eq("id", initialEvent!.id);
 
-      onSaved?.();
-      closeSafely();
+      if (dbError) {
+        console.error(dbError);
+        setError(dbError.message ?? "No se pudo eliminar el evento.");
+        setDeleting(false);
+        return;
+      }
+
+      if (onSaved) {
+        await onSaved();
+      }
+      setDeleting(false);
+      onClose();
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo eliminar.");
-    } finally {
-      setBusy("idle");
+      console.error(e);
+      setError(e?.message ?? "Error inesperado al eliminar.");
+      setDeleting(false);
     }
-  }
+  };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 backdrop-blur-sm px-4">
-      <div className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-black/5">
-        <div className="pointer-events-none absolute -top-24 left-1/2 h-48 w-[28rem] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-200 via-purple-200 to-pink-200 blur-3xl opacity-60" />
-
-        <div className="relative flex items-center justify-between px-6 pt-6">
+    <div style={overlayStyles} onClick={handleClose}>
+      <div
+        style={modalStyles}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      >
+        {/* Header */}
+        <div style={headerStyles}>
           <div>
-            <div className="text-xs font-semibold tracking-wide text-gray-500">SYNCPLANS</div>
-            <h2 className="mt-1 text-xl font-semibold text-gray-900">
-              {isEdit ? "Editar evento" : "Nuevo evento"}
+            <div style={badgeStyles}>SYNCPLANS</div>
+            <h2 style={titleStyles}>
+              {hasId ? "Editar evento" : "Nuevo evento"}
             </h2>
           </div>
-
           <button
-            onClick={closeSafely}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gray-50 text-gray-700 hover:bg-gray-100 active:scale-[0.98]"
+            type="button"
+            onClick={handleClose}
+            style={closeBtnStyles}
             aria-label="Cerrar"
           >
-            <IconX size={18} />
+            ✕
           </button>
         </div>
 
-        <div className="relative px-6 pb-6 pt-5">
-          {error ? (
-            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
-          ) : null}
-
-          <label className="block">
-            <div className="mb-2 text-xs font-semibold text-gray-600">Título</div>
+        {/* Form */}
+        <div style={formStyles}>
+          {/* Título */}
+          <div style={fieldStyles}>
+            <label style={labelStyles}>Título</label>
             <input
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
-              placeholder="Ej: Cena, Reunión, Gym…"
+              style={inputStyles}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              autoFocus
+              placeholder="Corre, cumple, viaje…"
             />
-          </label>
+          </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="block">
-              <div className="mb-2 text-xs font-semibold text-gray-600">Inicio</div>
+          {/* Inicio / Fin */}
+          <div style={{ ...fieldStyles, gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyles}>Inicio</label>
               <input
                 type="datetime-local"
-                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
+                style={inputStyles}
                 value={startLocal}
                 onChange={(e) => setStartLocal(e.target.value)}
               />
-            </label>
-
-            <label className="block">
-              <div className="mb-2 text-xs font-semibold text-gray-600">Fin</div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyles}>Fin</label>
               <input
                 type="datetime-local"
-                className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
+                style={inputStyles}
                 value={endLocal}
                 onChange={(e) => setEndLocal(e.target.value)}
               />
-            </label>
+            </div>
           </div>
 
-          <div className="mt-4">
-            <div className="mb-2 text-xs font-semibold text-gray-600">Calendario</div>
-            <div className="grid grid-cols-3 gap-2">
-              {(
-                [
-                  { k: "personal", label: "Personal", pill: "bg-yellow-50 text-yellow-800 ring-yellow-200" },
-                  { k: "couple", label: "Pareja", pill: "bg-red-50 text-red-700 ring-red-200" },
-                  { k: "family", label: "Familia", pill: "bg-blue-50 text-blue-700 ring-blue-200" },
-                ] as const
-              ).map((g) => {
-                const active = groupType === g.k;
+          {/* Calendario */}
+          <div style={fieldStyles}>
+            <label style={labelStyles}>Calendario</label>
+            <div style={groupRowStyles}>
+              {groupLabels.map((g) => {
+                const on = groupType === g.key;
                 return (
                   <button
-                    key={g.k}
+                    key={g.key}
                     type="button"
-                    onClick={() => setGroupType(g.k)}
-                    className={[
-                      "rounded-2xl border px-3 py-3 text-left text-sm shadow-sm transition active:scale-[0.99]",
-                      active
-                        ? "border-gray-900 bg-gray-900 text-white"
-                        : "border-gray-200 bg-white text-gray-900 hover:bg-gray-50",
-                    ].join(" ")}
+                    onClick={() => setGroupType(g.key)}
+                    style={{
+                      ...groupChipStyles,
+                      borderColor: on
+                        ? "rgba(255,255,255,0.35)"
+                        : "rgba(255,255,255,0.12)",
+                      background: on
+                        ? "linear-gradient(135deg, rgba(59,130,246,0.15), rgba(59,130,246,0.05))"
+                        : "rgba(15,23,42,0.65)",
+                      opacity: on ? 1 : 0.75,
+                    }}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold">{g.label}</div>
-                      <span
-                        className={[
-                          "inline-flex items-center rounded-full px-2 py-1 text-[11px] ring-1",
-                          g.pill,
-                        ].join(" ")}
+                    <div
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: 999,
+                        background:
+                          g.key === "personal"
+                            ? "rgba(250,204,21,1)"
+                            : g.key === "couple"
+                            ? "rgba(59,130,246,1)"
+                            : "rgba(52,211,153,1)",
+                      }}
+                    />
+                    <div style={{ textAlign: "left" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>
+                        {g.label}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          opacity: 0.7,
+                          lineHeight: 1.2,
+                        }}
                       >
-                        {active ? "Activo" : "Elegir"}
-                      </span>
+                        {g.hint}
+                      </div>
                     </div>
+                    {g.key === "couple" && (
+                      <span
+                        style={{
+                          marginLeft: "auto",
+                          fontSize: 10,
+                          padding: "2px 6px",
+                          borderRadius: 999,
+                          border: "1px solid rgba(129,140,248,0.6)",
+                          color: "rgba(191,219,254,0.95)",
+                        }}
+                      >
+                        Activo
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          <label className="mt-4 block">
-            <div className="mb-2 text-xs font-semibold text-gray-600">Notas</div>
+          {/* Notas */}
+          <div style={fieldStyles}>
+            <label style={labelStyles}>Notas</label>
             <textarea
-              className="min-h-[96px] w-full resize-none rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
-              placeholder="Detalles, ubicación, lo que sea…"
+              style={textareaStyles}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              placeholder="Detalles, ubicación, lo que sea…"
+              rows={4}
             />
-          </label>
+          </div>
 
-          <div className="mt-4 flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
+          {/* Todo el día */}
+          <div style={allDayRowStyles}>
             <div>
-              <div className="text-sm font-semibold text-gray-900">Todo el día</div>
-              <div className="text-xs text-gray-600">Útil para viajes, cumpleaños o bloqueos.</div>
+              <div style={allDayTitleStyles}>Todo el día</div>
+              <div style={allDayHintStyles}>
+                Útil para viajes, cumpleaños o bloqueos.
+              </div>
             </div>
-
             <button
               type="button"
-              onClick={() => setAllDay((v) => !v)}
-              className={[
-                "relative inline-flex h-7 w-12 items-center rounded-full transition",
-                allDay ? "bg-gray-900" : "bg-gray-300",
-              ].join(" ")}
-              aria-label="Toggle todo el día"
+              onClick={handleToggleAllDay}
+              style={{
+                ...switchStyles,
+                background: allDay
+                  ? "rgba(56,189,248,0.85)"
+                  : "rgba(15,23,42,1)",
+                justifyContent: allDay ? "flex-end" : "flex-start",
+              }}
             >
-              <span
-                className={[
-                  "inline-block h-5 w-5 transform rounded-full bg-white shadow transition",
-                  allDay ? "translate-x-6" : "translate-x-1",
-                ].join(" ")}
-              />
+              <div style={switchThumbStyles} />
             </button>
           </div>
 
-          <div className="mt-6 flex items-center justify-between">
-            {initialEvent?.id ? (
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={busy !== "idle"}
-                className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:opacity-50"
-              >
-                <IconTrash size={16} />
-                Eliminar
-              </button>
-            ) : (
-              <div />
-            )}
+          {error && <div style={errorStyles}>{error}</div>}
+        </div>
 
+        {/* Footer */}
+        <div style={footerStyles}>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={!hasId || deleting || saving}
+            style={{
+              ...dangerBtnStyles,
+              opacity: !hasId || deleting ? 0.65 : 1,
+              cursor:
+                !hasId || deleting || saving ? "default" : "pointer",
+            }}
+          >
+            {deleting ? "Eliminando…" : "Eliminar"}
+          </button>
+
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <button
+              type="button"
+              onClick={handleClose}
+              disabled={saving || deleting}
+              style={secondaryBtnStyles}
+            >
+              Cancelar
+            </button>
             <button
               type="button"
               onClick={handleSave}
-              disabled={busy !== "idle"}
-              className="inline-flex items-center gap-2 rounded-2xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-black/10 transition hover:bg-black disabled:opacity-50"
+              disabled={!canSave}
+              style={{
+                ...primaryBtnStyles,
+                opacity: canSave ? 1 : 0.6,
+                cursor: canSave ? "pointer" : "default",
+              }}
             >
-              <IconSave size={16} />
-              {busy === "save" ? "Guardando…" : "Guardar"}
+              {saving ? "Guardando…" : "Guardar"}
             </button>
           </div>
         </div>
@@ -405,3 +448,215 @@ export function EventEditModal({ isOpen, onClose, initialEvent, onSaved }: Event
     </div>
   );
 }
+
+/* =========================
+   Styles inline (premium)
+   ========================= */
+
+const overlayStyles: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(2,6,23,0.72)",
+  backdropFilter: "blur(18px)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 80,
+};
+
+const modalStyles: React.CSSProperties = {
+  width: "100%",
+  maxWidth: 520,
+  borderRadius: 24,
+  border: "1px solid rgba(148,163,184,0.35)",
+  background:
+    "radial-gradient(circle at 0% 0%, rgba(244,114,182,0.12), transparent 55%), radial-gradient(circle at 100% 0%, rgba(56,189,248,0.16), transparent 60%), rgba(15,23,42,0.98)",
+  boxShadow: "0 30px 120px rgba(0,0,0,0.65)",
+  padding: "18px 20px 16px",
+  color: "rgba(248,250,252,0.96)",
+  display: "flex",
+  flexDirection: "column",
+  gap: 14,
+};
+
+const headerStyles: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 16,
+};
+
+const badgeStyles: React.CSSProperties = {
+  fontSize: 10,
+  letterSpacing: "0.16em",
+  textTransform: "uppercase",
+  color: "rgba(148,163,184,0.9)",
+  marginBottom: 4,
+};
+
+const titleStyles: React.CSSProperties = {
+  margin: 0,
+  fontSize: 18,
+  letterSpacing: "-0.02em",
+};
+
+const closeBtnStyles: React.CSSProperties = {
+  width: 28,
+  height: 28,
+  borderRadius: 999,
+  border: "1px solid rgba(148,163,184,0.55)",
+  background: "rgba(15,23,42,0.9)",
+  color: "rgba(248,250,252,0.9)",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 14,
+};
+
+const formStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+  marginTop: 4,
+};
+
+const fieldStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+};
+
+const labelStyles: React.CSSProperties = {
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.12em",
+  color: "rgba(148,163,184,0.95)",
+};
+
+const inputBase: React.CSSProperties = {
+  width: "100%",
+  borderRadius: 12,
+  border: "1px solid rgba(148,163,184,0.55)",
+  background: "rgba(15,23,42,0.92)",
+  color: "rgba(248,250,252,0.96)",
+  padding: "8px 10px",
+  fontSize: 13,
+  outline: "none",
+};
+
+const inputStyles: React.CSSProperties = {
+  ...inputBase,
+};
+
+const textareaStyles: React.CSSProperties = {
+  ...inputBase,
+  resize: "vertical",
+  minHeight: 80,
+};
+
+const groupRowStyles: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 8,
+};
+
+const groupChipStyles: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "8px 10px",
+  borderRadius: 999,
+  border: "1px solid rgba(148,163,184,0.55)",
+  background: "rgba(15,23,42,0.9)",
+  cursor: "pointer",
+  minWidth: 0,
+  flex: "1 1 0",
+};
+
+const allDayRowStyles: React.CSSProperties = {
+  marginTop: 6,
+  paddingTop: 8,
+  borderTop: "1px solid rgba(51,65,85,0.9)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 16,
+};
+
+const allDayTitleStyles: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+};
+
+const allDayHintStyles: React.CSSProperties = {
+  fontSize: 11,
+  opacity: 0.75,
+};
+
+const switchStyles: React.CSSProperties = {
+  width: 44,
+  height: 24,
+  borderRadius: 999,
+  border: "1px solid rgba(15,23,42,1)",
+  background: "rgba(15,23,42,1)",
+  padding: 2,
+  display: "flex",
+  alignItems: "center",
+  transition: "all 0.18s ease-out",
+};
+
+const switchThumbStyles: React.CSSProperties = {
+  width: 18,
+  height: 18,
+  borderRadius: 999,
+  background: "white",
+  boxShadow: "0 4px 10px rgba(15,23,42,0.55)",
+};
+
+const errorStyles: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 11,
+  color: "rgba(248,113,113,0.96)",
+};
+
+const footerStyles: React.CSSProperties = {
+  marginTop: 4,
+  paddingTop: 10,
+  borderTop: "1px solid rgba(30,64,175,0.7)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+};
+
+const baseBtn: React.CSSProperties = {
+  borderRadius: 999,
+  fontSize: 13,
+  fontWeight: 700,
+  padding: "8px 14px",
+  border: "1px solid transparent",
+  cursor: "pointer",
+};
+
+const dangerBtnStyles: React.CSSProperties = {
+  ...baseBtn,
+  borderColor: "rgba(248,113,113,0.5)",
+  background: "rgba(127,29,29,0.85)",
+  color: "rgba(254,242,242,0.96)",
+};
+
+const secondaryBtnStyles: React.CSSProperties = {
+  ...baseBtn,
+  borderColor: "rgba(148,163,184,0.7)",
+  background: "rgba(15,23,42,0.9)",
+  color: "rgba(226,232,240,0.96)",
+};
+
+const primaryBtnStyles: React.CSSProperties = {
+  ...baseBtn,
+  borderColor: "rgba(56,189,248,0.75)",
+  background:
+    "linear-gradient(135deg, rgba(56,189,248,0.95), rgba(129,140,248,0.85))",
+  color: "white",
+};
