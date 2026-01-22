@@ -49,7 +49,12 @@ type DbGroup = {
 };
 
 type NewType = "personal" | "group";
-type PreflightChoice = "edit" | "keep_existing" | "replace_with_new";
+type PreflightChoice =
+  | "edit"
+  | "keep_existing"
+  | "replace_with_new"
+  | "keep_both";
+
 
 type PreflightConflict = {
   id: string;
@@ -63,10 +68,15 @@ type PreflightConflict = {
 
 function mapDefaultResolutionToChoice(s: NotificationSettings | null): PreflightChoice {
   const def = (s as any)?.conflictDefaultResolution ?? "ask_me";
+
   if (def === "keep_existing") return "keep_existing";
   if (def === "replace_with_new") return "replace_with_new";
+  if (def === "none") return "keep_both"; // ← mantener ambos
+
+  // "ask_me" u otros → te mando a editar
   return "edit";
 }
+
 
 export default function NewEventDetailsClient() {
   return (
@@ -424,21 +434,31 @@ function NewEventDetailsInner() {
   const onPreflightChoose = async (choice: PreflightChoice) => {
     setPreflightOpen(false);
 
+    // 1) Editar: no guardo ni borro nada, solo aviso
     if (choice === "edit") {
       setToast({ title: "Ok", subtitle: "Ajusta horario/título y vuelve a guardar." });
       return;
     }
 
+    // 2) Conservar existentes: NO guardo el nuevo
     if (choice === "keep_existing") {
       setToast({ title: "No se guardó", subtitle: "Conservamos tus eventos existentes." });
       return;
     }
 
+    // A partir de aquí necesito tener el payload pendiente
     if (!pendingPayload) {
       setToast({ title: "Ups", subtitle: "No encontré el evento pendiente. Intenta otra vez." });
       return;
     }
 
+    // 3) Conservar ambos: guardo el nuevo y NO borro nada
+    if (choice === "keep_both") {
+      await doSave(pendingPayload);
+      return;
+    }
+
+    // 4) Reemplazar por el nuevo: borro los existentes y luego guardo
     setSaving(true);
     try {
       const deleted = await deleteEventsByIds(existingIdsToReplace);
@@ -446,7 +466,10 @@ function NewEventDetailsInner() {
 
       setToast({
         title: "Listo ✅",
-        subtitle: deleted > 0 ? `Reemplacé ${deleted} evento(s) en conflicto.` : "Guardé el nuevo evento.",
+        subtitle:
+          deleted > 0
+            ? `Reemplacé ${deleted} evento(s) en conflicto.`
+            : "Guardé el nuevo evento.",
       });
       window.setTimeout(() => router.push("/calendar"), 550);
     } catch (err: any) {
@@ -766,6 +789,12 @@ function ConflictPreflightModal({
             onClick={() => setChoice("replace_with_new")}
           />
           <ChoiceCard
+            active={choice === "keep_both"}
+            title="Conservar ambos"
+            desc="Guardo el nuevo y mantengo los existentes (el conflicto queda)."
+            onClick={() => setChoice("keep_both")}
+          />
+          <ChoiceCard
             active={choice === "edit"}
             title="Editar antes"
             desc="Ajustar horas o título."
@@ -900,9 +929,10 @@ const modalStyles: Record<string, React.CSSProperties> = {
   choices: {
     padding: "0 18px 14px",
     display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))", // 2 x 2
     gap: 10,
   },
+
   choice: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.12)",
