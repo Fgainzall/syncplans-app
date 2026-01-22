@@ -835,6 +835,7 @@ export default function CalendarClient(props: {
                 openNewEventPersonal,
                 openNewEventGroup,
                 groupTypeById,
+                onEdit: handleEditEvent,
               })}
             </div>
 
@@ -981,6 +982,11 @@ function EventRow({
   return (
     <div
       ref={setRef ? setRef(String(e.id)) : undefined}
+           onClick={(ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        onEdit?.(e);
+      }}
       style={{
         ...styles.eventRow,
         border: isHighlighted
@@ -1058,6 +1064,7 @@ function renderMonthCells(opts: {
   openNewEventPersonal: (date?: Date) => void;
   openNewEventGroup: (date?: Date) => void;
   groupTypeById: Map<string, "pair" | "family">;
+  onEdit: (e: CalendarEvent) => void;
 }) {
   const {
     gridStart,
@@ -1147,28 +1154,36 @@ function renderMonthCells(opts: {
         </div>
 
         <div style={styles.cellEvents}>
-          {top3.map((e) => {
-            const resolvedType: GroupType = e.groupId
-              ? ((opts.groupTypeById.get(String(e.groupId)) ??
-                  "pair") as any)
-              : ("personal" as any);
+{top3.map((e) => {
+  const resolvedType: GroupType = e.groupId
+    ? ((opts.groupTypeById.get(String(e.groupId)) ??
+        "pair") as any)
+    : ("personal" as any);
 
-            const meta = groupMeta(resolvedType);
+  const meta = groupMeta(resolvedType);
 
-            return (
-              <div
-                key={e.id ?? `${e.start}_${e.end}`}
-                style={styles.cellEventLine}
-              >
-                <span
-                  style={{ ...styles.miniDot, background: meta.dot }}
-                />
-                <span style={styles.cellEventText}>
-                  {e.title || "Evento"}
-                </span>
-              </div>
-            );
-          })}
+  return (
+    <div
+      key={e.id ?? `${e.start}_${e.end}`}
+      onClick={(ev) => {
+        ev.preventDefault();
+        ev.stopPropagation(); // para que no cambie sólo el día
+        opts.onEdit(e);
+      }}
+      style={{
+        ...styles.cellEventLine,
+        cursor: "pointer",
+      }}
+    >
+      <span
+        style={{ ...styles.miniDot, background: meta.dot }}
+      />
+      <span style={styles.cellEventText}>
+        {e.title || "Evento"}
+      </span>
+    </div>
+  );
+})}
 
           {dayEvents.length > 3 ? (
             <div style={styles.moreHint}>
