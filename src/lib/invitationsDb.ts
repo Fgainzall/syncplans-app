@@ -7,7 +7,7 @@ export type GroupInvitationStatus = "pending" | "accepted" | "declined";
 
 /**
  * Esta interfaz ES la que debe importar tu UI.
- * group_name / group_type vienen desde el join groups:groups (name,type)
+ * group_name / group_type vienen desde el join groups:group_id (name,type)
  */
 export type GroupInvitation = {
   id: string;
@@ -82,6 +82,10 @@ function mapRowToInvitation(r: any): GroupInvitation {
   };
 }
 
+/**
+ * 🔹 Invitaciones del usuario logueado
+ * Hace join con groups usando la FK group_id → groups.id
+ */
 export async function getMyInvitations(): Promise<GroupInvitation[]> {
   const myEmail = await requireAuthedEmail();
 
@@ -98,7 +102,7 @@ export async function getMyInvitations(): Promise<GroupInvitation[]> {
       invited_by,
       created_at,
       accepted_at,
-      groups:groups ( name, type )
+      groups:group_id ( name, type )
     `
     )
     .eq("status", "pending")
@@ -110,7 +114,12 @@ export async function getMyInvitations(): Promise<GroupInvitation[]> {
   return (data ?? []).map(mapRowToInvitation);
 }
 
-export async function getInvitationById(inviteId: string): Promise<GroupInvitation | null> {
+/**
+ * 🔹 Detalle de una invitación por ID (para /invitations/accept)
+ */
+export async function getInvitationById(
+  inviteId: string
+): Promise<GroupInvitation | null> {
   const { data, error } = await supabase
     .from("group_invites")
     .select(
@@ -124,7 +133,7 @@ export async function getInvitationById(inviteId: string): Promise<GroupInvitati
       invited_by,
       created_at,
       accepted_at,
-      groups:groups ( name, type )
+      groups:group_id ( name, type )
     `
     )
     .eq("id", inviteId)
@@ -154,7 +163,9 @@ export async function declineInvitation(inviteId: string) {
 }
 
 /** Lee respuesta como JSON si se puede, si no como texto */
-async function readJsonOrText(res: Response): Promise<{ json: any | null; text: string | null }> {
+async function readJsonOrText(
+  res: Response
+): Promise<{ json: any | null; text: string | null }> {
   const ct = res.headers.get("content-type") || "";
   if (ct.includes("application/json")) {
     try {
@@ -181,7 +192,7 @@ export async function inviteToGroup(input: {
   groupId: string;
   email: string;
   role?: "member" | "admin" | "owner";
-}): Promise<RpcResult> {
+}: Promise<RpcResult> extends never ? never : any) {
   const to = normEmail(input.email);
   if (!to || !to.includes("@")) return { ok: false, error: "Email inválido." };
 
