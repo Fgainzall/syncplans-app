@@ -1,3 +1,10 @@
+// LEGACY / DEMO LOCAL GROUPS STORE
+// ------------------------------------------------------
+// Este archivo mantiene un estado de grupos SOLO en localStorage.
+// No es la fuente de verdad real de grupos en Supabase.
+// Para datos reales usa src/lib/groupsDb.ts + src/lib/activeGroup.ts.
+// Se mantiene por compatibilidad con pantallas antiguas (ej. /members, PremiumHeader).
+
 // src/lib/groups.ts
 // SyncPlans — Groups store (LOCAL demo storage)
 // Objetivo: COMPAT TOTAL con pantallas actuales (0 TS errors por exports/props)
@@ -23,20 +30,21 @@ export type GroupState = {
   reason?: string;
 
   updatedAt?: string;
+
+  // alias compat
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
 };
 
 export type StoredGroup = {
   id: string;
   mode: UsageMode;
   name: string;
-
   me?: Person;
   partnerEmail?: string;
   partnerName?: string;
-
   inviteCode?: string;
   joinCode?: string;
-
   createdAt: string;
 };
 
@@ -90,16 +98,19 @@ export function getGroupState(): GroupState {
 
   const parsed = safeParse<Partial<GroupState>>(localStorage.getItem(KEY_STATE));
   const base = defaultState();
-  const merged: GroupState = { ...base, ...(parsed ?? {}) };
 
-  if (!merged.mode) merged.mode = "solo";
-  if (!merged.groupId) merged.groupId = idFromMode(merged.mode);
-  if (!merged.groupName) merged.groupName = nameFromMode(merged.mode);
+  const merged: GroupState = {
+    ...base,
+    ...(parsed ?? {}),
+    mode: (parsed?.mode ?? base.mode) as UsageMode,
+    groupId: String(parsed?.groupId ?? base.groupId),
+    groupName: String(parsed?.groupName ?? base.groupName),
+  };
 
   return normalizeAliases(merged);
 }
 
-/** ✅ Set parcial (merge) */
+/** set total (se usa internamente, merge limitado) */
 export function setGroupState(patch: Partial<GroupState>): GroupState {
   if (typeof window === "undefined") {
     const cur = defaultState();
@@ -155,7 +166,7 @@ export function getGroups(): SyncGroup[] {
 }
 
 /* ─────────────────────────────────────────────
-   ✅ Compat legacy: calendar/month, DayTimeline
+   ✅ Active group helpers
    ───────────────────────────────────────────── */
 
 export function getActiveGroup(): "personal" | "pair" | "family" {
@@ -166,23 +177,20 @@ export function getActiveGroup(): "personal" | "pair" | "family" {
   return "family";
 }
 
-export function defaultScopeFromActive(active: ReturnType<typeof getActiveGroup>): CalendarScope {
+export function defaultScopeFromActive(
+  active: ReturnType<typeof getActiveGroup>
+): CalendarScope {
   if (active === "personal") return "personal";
   return "active";
 }
 
-export function getActiveGroupId(): string {
-  const gs = getGroupState();
-  if (gs.groupId) return gs.groupId;
-
+export function getCalendarScope(): CalendarScope {
   const active = getActiveGroup();
-  if (active === "personal") return "personal";
-  if (active === "pair") return "pair";
-  return "family";
+  return defaultScopeFromActive(active);
 }
 
 /* ─────────────────────────────────────────────
-   ✅ Storage de “grupos” (compat: loadGroup/saveGroup)
+   ✅ Local "groups" list (demo)
    ───────────────────────────────────────────── */
 
 function listGroups(): StoredGroup[] {
@@ -198,77 +206,80 @@ export function saveGroup(group: StoredGroup): void {
   localStorage.setItem(KEY_GROUPS, JSON.stringify(next));
 }
 
-/** ✅ loadGroup(id?) — si no mandan id, usa el groupId actual */
-export function loadGroup(id?: string): StoredGroup | null {
+export function loadGroup(id: string): StoredGroup | null {
+  if (typeof window === "undefined") return null;
   const all = listGroups();
-  const gid = id ?? getGroupState().groupId;
-  return all.find((g) => g.id === gid) ?? null;
+  return all.find((g) => g.id === id) ?? null;
+}
+
+export function getAllLocalGroups(): StoredGroup[] {
+  return listGroups();
 }
 
 /* ─────────────────────────────────────────────
-   ✅ Flujos /groups — tolerantes (aceptan 1 arg sin romper TS)
+   ✅ Creación de grupos (solo / pair / family)
    ───────────────────────────────────────────── */
 
-type CreatePairInput = {
-  myName?: string;
-  myEmail?: string;
-  partnerEmail?: string;
-  partnerName?: string;
-};
-
-type JoinInput = {
-  myName?: string;
-  myEmail?: string;
-  code?: string;
-};
-
-type CreateFamilyInput = {
-  myName?: string;
-  myEmail?: string;
-  familyName?: string;
-};
-
-function genInviteCode() {
+function genInviteCode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-/** createSolo: 0 args, 1 string, 2 strings, o objeto */
-export function createSolo(): GroupState;
-export function createSolo(myName: string): GroupState;
-export function createSolo(myName: string, myEmail: string): GroupState;
-export function createSolo(input: { myName?: string; myEmail?: string }): GroupState;
-export function createSolo(a?: any, b?: any): GroupState {
-  let myName: string | undefined;
-  let myEmail: string | undefined;
+export type CreateSoloInput = {
+  myName: string;
+  myEmail: string;
+};
 
-  if (typeof a === "object" && a) {
-    myName = a.myName;
-    myEmail = a.myEmail;
-  } else if (typeof a === "string" && typeof b === "string") {
-    myName = a;
-    myEmail = b;
-  } else if (typeof a === "string") {
-    myName = a;
+export type CreatePairInput = {
+  myName: string;
+  myEmail: string;
+  partnerEmail: string;
+  partnerName?: string;
+};
+
+export type CreateFamilyInput = {
+  myName: string;
+  myEmail: string;
+  familyName?: string;
+};
+
+export function createSolo(myName: string): GroupState;
+export function createSolo(input: CreateSoloInput): GroupState;
+export function createSolo(myName: string, myEmail: string): GroupState;
+export function createSolo(a: any, b?: any): GroupState {
+  const myName = typeof a === "object" ? a.myName : a;
+  const myEmail = typeof a === "object" ? a.myEmail : b;
+
+  if (!myName || !myEmail) {
+    return setGroupState({
+      ok: false,
+      reason: "Faltan datos para crear perfil personal (nombre y email).",
+    });
   }
 
-  return setGroupState({
+  const st: GroupState = {
     mode: "solo",
     groupId: "personal",
     groupName: "Personal",
-    me: myName && myEmail ? { name: myName, email: myEmail } : undefined,
+    me: { name: myName, email: myEmail },
     partnerEmail: undefined,
     partnerName: undefined,
     inviteCode: undefined,
     joinCode: undefined,
     ok: true,
-    reason: undefined,
-  });
+    updatedAt: nowIso(),
+  };
+
+  return setGroupState(st);
 }
 
 /** createPair: acepta 1 string (no rompe TS) + objeto + posicional */
 export function createPair(myName: string): GroupState;
 export function createPair(input: CreatePairInput): GroupState;
-export function createPair(myName: string, myEmail: string, partnerEmail: string): GroupState;
+export function createPair(
+  myName: string,
+  myEmail: string,
+  partnerEmail: string
+): GroupState;
 export function createPair(a: any, b?: any, c?: any): GroupState {
   const myName = typeof a === "object" ? a.myName : a;
   const myEmail = typeof a === "object" ? a.myEmail : b;
@@ -278,7 +289,8 @@ export function createPair(a: any, b?: any, c?: any): GroupState {
   if (!myName || !myEmail || !partnerEmail) {
     return setGroupState({
       ok: false,
-      reason: "Faltan datos para crear pareja (nombre, email y email de pareja).",
+      reason:
+        "Faltan datos para crear pareja (nombre, email y email de la pareja).",
     });
   }
 
@@ -310,10 +322,14 @@ export function createPair(a: any, b?: any, c?: any): GroupState {
   });
 }
 
-/** createFamily: acepta 1 string (no rompe TS) + objeto + posicional */
+/** createFamily: acepta 1 string + objeto + posicional */
 export function createFamily(myName: string): GroupState;
 export function createFamily(input: CreateFamilyInput): GroupState;
-export function createFamily(myName: string, myEmail: string, familyName?: string): GroupState;
+export function createFamily(
+  myName: string,
+  myEmail: string,
+  familyName: string
+): GroupState;
 export function createFamily(a: any, b?: any, c?: any): GroupState {
   const myName = typeof a === "object" ? a.myName : a;
   const myEmail = typeof a === "object" ? a.myEmail : b;
@@ -350,32 +366,36 @@ export function createFamily(a: any, b?: any, c?: any): GroupState {
   });
 }
 
-/** joinWithCode: acepta 1 string (no rompe TS) + objeto + posicional */
-export function joinWithCode(code: string): GroupState;
-export function joinWithCode(input: JoinInput): GroupState;
-export function joinWithCode(myName: string, myEmail: string, code: string): GroupState;
-export function joinWithCode(a: any, b?: any, c?: any): GroupState {
-  const myName = typeof a === "object" ? a.myName : undefined;
-  const myEmail = typeof a === "object" ? a.myEmail : undefined;
-  const code = (typeof a === "object" ? a.code : a) as string;
+/* ─────────────────────────────────────────────
+   ✅ Join con código (demo)
+   ───────────────────────────────────────────── */
+
+export type JoinInput =
+  | { myName: string; myEmail: string; code: string }
+  | string;
+
+export function joinWithCode(input: JoinInput): GroupState {
+  const myName = typeof input === "object" ? input.myName : undefined;
+  const myEmail = typeof input === "object" ? input.myEmail : undefined;
+  const code = (typeof input === "object" ? input.code : input) as string;
 
   if (!code) {
     return setGroupState({ ok: false, reason: "Ingresa un código." });
   }
 
   const groups = listGroups();
-  const found = groups.find((g) => (g.inviteCode ?? g.joinCode ?? "").toUpperCase() === code.toUpperCase());
+  const found = groups.find(
+    (g) =>
+      (g.inviteCode ?? g.joinCode ?? "").toUpperCase() === code.toUpperCase()
+  );
 
   if (!found) {
     return setGroupState({
       mode: "pair",
       groupId: `pair_join_${Date.now().toString(16)}`,
       groupName: "Pareja",
-      me: myName && myEmail ? { name: myName, email: myEmail } : undefined,
-      inviteCode: code.toUpperCase(),
-      joinCode: code.toUpperCase(),
-      ok: true,
-      reason: undefined,
+      ok: false,
+      reason: "No se encontró un grupo con ese código.",
     });
   }
 
