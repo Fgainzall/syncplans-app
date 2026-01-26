@@ -1,9 +1,40 @@
 "use client";
 
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
+const ONBOARDING_KEY = "syncplans_onboarded_v1";
 
 export default function Onboarding1() {
   const router = useRouter();
+  const [checking, setChecking] = useState(true);
+
+  // Si ya hizo onboarding en otro lado (summary), lo mandamos directo
+  useEffect(() => {
+    try {
+      const flag = window.localStorage.getItem(ONBOARDING_KEY);
+      if (flag) {
+        router.replace("/summary");
+        return;
+      }
+    } catch {
+      // si localStorage falla, no rompemos nada
+    }
+    setChecking(false);
+  }, [router]);
+
+  if (checking) {
+    return null;
+  }
+
+  function completeAndGo(target: string) {
+    try {
+      window.localStorage.setItem(ONBOARDING_KEY, "1");
+    } catch {
+      // ignorar errores de localStorage
+    }
+    router.push(target);
+  }
 
   return (
     <main
@@ -48,7 +79,13 @@ export default function Onboarding1() {
           }}
         >
           {/* Top row */}
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
             <div
               style={{
                 display: "inline-flex",
@@ -76,7 +113,7 @@ export default function Onboarding1() {
             </div>
 
             <button
-              onClick={() => router.push("/login")} // cambia si tu ruta es otra
+              onClick={() => completeAndGo("/summary")}
               style={{
                 height: 32,
                 padding: "0 12px",
@@ -224,7 +261,7 @@ export default function Onboarding1() {
 
           {/* CTA */}
           <button
-            onClick={() => router.push("/onboarding/2")}
+            onClick={() => completeAndGo("/summary")}
             style={{
               width: "100%",
               padding: "14px 18px",

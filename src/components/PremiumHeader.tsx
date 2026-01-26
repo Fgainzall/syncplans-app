@@ -261,6 +261,11 @@ export default function PremiumHeader({
             onClick={() => router.push("/groups")}
           />
           <NavPill
+            label="Miembros"
+            active={pathname.startsWith("/members")}
+            onClick={() => router.push("/members")}
+          />
+          <NavPill
             label="Invitaciones"
             active={pathname.startsWith("/invitations")}
             onClick={() => router.push("/invitations")}
