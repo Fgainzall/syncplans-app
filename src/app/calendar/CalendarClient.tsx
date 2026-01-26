@@ -22,9 +22,12 @@ import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import {
   type CalendarEvent,
   type GroupType,
-  groupMeta,
   computeVisibleConflicts,
+  attachEvents,
+  groupMeta,
+  filterIgnoredConflicts,
 } from "@/lib/conflicts";
+
 
 type Scope = "personal" | "active" | "all";
 type Tab = "month" | "agenda";
@@ -394,15 +397,17 @@ export default function CalendarClient(props: {
      Conflictos
      ========================= */
   const conflicts = useMemo(() => {
-    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
-      (e) => ({
-        ...e,
-        groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
-      })
-    );
+  const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
+    (e) => ({
+      ...e,
+      groupType: normalizeForConflicts(e.groupType),
+    })
+  );
 
-    return computeVisibleConflicts(normalized);
-  }, [events]);
+  const all = computeVisibleConflicts(normalized);
+  return filterIgnoredConflicts(all);
+}, [events]);
+
 
   const conflictCount = conflicts.length;
 

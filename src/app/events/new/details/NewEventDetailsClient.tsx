@@ -11,7 +11,9 @@ import {
   computeVisibleConflicts,
   fmtRange,
   type CalendarEvent,
+  ignoreConflictIds,
 } from "@/lib/conflicts";
+
 
 import { getSettingsFromDb, type NotificationSettings } from "@/lib/settings";
 
@@ -431,54 +433,64 @@ function NewEventDetailsInner() {
     await doSave(payload);
   };
 
-  const onPreflightChoose = async (choice: PreflightChoice) => {
-    setPreflightOpen(false);
+const onPreflightChoose = async (choice: PreflightChoice) => {
+  setPreflightOpen(false);
 
-    // 1) Editar: no guardo ni borro nada, solo aviso
-    if (choice === "edit") {
-      setToast({ title: "Ok", subtitle: "Ajusta horario/título y vuelve a guardar." });
-      return;
-    }
+  // 👇 Opción "Editar antes"
+  if (choice === "edit") {
+    setToast({ title: "Ok", subtitle: "Ajusta horario/título y vuelve a guardar." });
+    return;
+  }
 
-    // 2) Conservar existentes: NO guardo el nuevo
-    if (choice === "keep_existing") {
-      setToast({ title: "No se guardó", subtitle: "Conservamos tus eventos existentes." });
-      return;
-    }
+  // 👇 Opción "Conservar existente" → no guardamos el nuevo
+  if (choice === "keep_existing") {
+    setToast({ title: "No se guardó", subtitle: "Conservamos tus eventos existentes." });
+    return;
+  }
 
-    // A partir de aquí necesito tener el payload pendiente
-    if (!pendingPayload) {
-      setToast({ title: "Ups", subtitle: "No encontré el evento pendiente. Intenta otra vez." });
-      return;
-    }
+  if (!pendingPayload) {
+    setToast({ title: "Ups", subtitle: "No encontré el evento pendiente. Intenta otra vez." });
+    return;
+  }
 
-    // 3) Conservar ambos: guardo el nuevo y NO borro nada
-    if (choice === "keep_both") {
-      await doSave(pendingPayload);
-      return;
-    }
-
-    // 4) Reemplazar por el nuevo: borro los existentes y luego guardo
-    setSaving(true);
+  // 🆕 Opción "Conservar ambos": guardo el nuevo,
+  // NO borro nada, y marco estos conflictos como ignorados.
+  if (choice === "keep_both") {
     try {
-      const deleted = await deleteEventsByIds(existingIdsToReplace);
-      await doSave(pendingPayload);
-
-      setToast({
-        title: "Listo ✅",
-        subtitle:
-          deleted > 0
-            ? `Reemplacé ${deleted} evento(s) en conflicto.`
-            : "Guardé el nuevo evento.",
-      });
-      window.setTimeout(() => router.push("/calendar"), 550);
-    } catch (err: any) {
-      setToast({ title: "No se pudo aplicar", subtitle: err?.message || "Intenta nuevamente." });
-      window.setTimeout(() => setToast(null), 2800);
-    } finally {
-      setSaving(false);
+      const ids = preflightItems.map((it) => it.id).filter(Boolean);
+      ignoreConflictIds(ids);
+    } catch {
+      // si falla localStorage, igual seguimos
     }
-  };
+
+    await doSave(pendingPayload);
+    return;
+  }
+
+  // 👇 Opción "Reemplazar por el nuevo"
+  setSaving(true);
+  try {
+    const deleted = await deleteEventsByIds(existingIdsToReplace);
+    await doSave(pendingPayload);
+
+    setToast({
+      title: "Listo ✅",
+      subtitle:
+        deleted > 0
+          ? `Reemplacé ${deleted} evento(s) en conflicto.`
+          : "Guardé el nuevo evento.",
+    });
+    window.setTimeout(() => router.push("/calendar"), 550);
+  } catch (err: any) {
+    setToast({
+      title: "No se pudo aplicar",
+      subtitle: err?.message || "Intenta nuevamente.",
+    });
+    window.setTimeout(() => setToast(null), 2800);
+  } finally {
+    setSaving(false);
+  }
+};
 
   return (
     <main style={styles.page}>
