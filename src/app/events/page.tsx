@@ -22,12 +22,16 @@ type DbEvent = {
   groupId?: string | null; // fallback si viene con otro nombre
 };
 
+type ViewMode = "upcoming" | "past" | "all";
+
 export default function EventsPage() {
   const router = useRouter();
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+  const [view, setView] = useState<ViewMode>("upcoming");
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -37,7 +41,10 @@ export default function EventsPage() {
         setLoading(true);
 
         // ✅ Cargamos ambas cosas (igual que CalendarClient)
-        const [myGroups, rawEvents] = await Promise.all([getMyGroups(), getMyEvents()]);
+        const [myGroups, rawEvents] = await Promise.all([
+          getMyGroups(),
+          getMyEvents(),
+        ]);
 
         if (!alive) return;
 
@@ -46,7 +53,8 @@ export default function EventsPage() {
           (myGroups || []).map((g: any) => {
             const id = String(g.id);
             const rawType = String(g.type ?? "").toLowerCase();
-            const normalized: "pair" | "family" = rawType === "family" ? "family" : "pair";
+            const normalized: "pair" | "family" =
+              rawType === "family" ? "family" : "pair";
             return [id, normalized];
           })
         );
@@ -85,15 +93,48 @@ export default function EventsPage() {
     };
   }, []);
 
+  const now = Date.now();
+
   const upcoming = useMemo(() => {
-    const now = Date.now();
     return [...events]
       .filter((e) => new Date(e.end).getTime() >= now)
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-  }, [events]);
+      .sort(
+        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+      );
+  }, [events, now]);
+
+  const past = useMemo(() => {
+    return [...events]
+      .filter((e) => new Date(e.end).getTime() < now)
+      .sort(
+        (a, b) => new Date(b.start).getTime() - new Date(a.start).getTime()
+      );
+  }, [events, now]);
+
+  const visible = useMemo(() => {
+    let base: CalendarEvent[];
+    if (view === "upcoming") base = upcoming;
+    else if (view === "past") base = past;
+    else {
+      base = [...events].sort(
+        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+      );
+    }
+
+    const q = query.trim().toLowerCase();
+    if (!q) return base;
+
+    return base.filter((e) => {
+      const t = (e.title ?? "").toLowerCase();
+      const n = (e.notes ?? "").toLowerCase();
+      return t.includes(q) || n.includes(q);
+    });
+  }, [view, upcoming, past, events, query]);
 
   async function onDelete(id: string) {
-    const ok = confirm("¿Eliminar este evento? Esta acción no se puede deshacer.");
+    const ok = confirm(
+      "¿Eliminar este evento? Esta acción no se puede deshacer."
+    );
     if (!ok) return;
 
     const deleted = await deleteEventsByIds([id]);
@@ -102,6 +143,39 @@ export default function EventsPage() {
       setToast("Evento eliminado ✅");
       window.setTimeout(() => setToast(null), 1800);
     }
+  }
+
+  function formatRange(e: CalendarEvent): string {
+    const start = new Date(e.start);
+    const end = new Date(e.end);
+
+    const sameDay =
+      start.getFullYear() === end.getFullYear() &&
+      start.getMonth() === end.getMonth() &&
+      start.getDate() === end.getDate();
+
+    const optsDate: Intl.DateTimeFormatOptions = {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+    };
+
+    const optsTime: Intl.DateTimeFormatOptions = {
+      hour: "2-digit",
+      minute: "2-digit",
+    };
+
+    if (sameDay) {
+      return `${start.toLocaleDateString(
+        undefined,
+        optsDate
+      )} · ${start.toLocaleTimeString(
+        undefined,
+        optsTime
+      )} — ${end.toLocaleTimeString(undefined, optsTime)}`;
+    }
+
+    return `${start.toLocaleString()} — ${end.toLocaleString()}`;
   }
 
   return (
@@ -123,16 +197,72 @@ export default function EventsPage() {
         </div>
 
         <section style={S.card}>
-          <div style={S.title}>Próximos eventos</div>
-          <div style={S.sub}>Tu agenda futura (personal y grupos)</div>
+          <div style={S.titleRow}>
+            <div>
+              <div style={S.title}>Eventos</div>
+              <div style={S.sub}>
+                {events.length === 0
+                  ? "Aún no tienes eventos registrados."
+                  : `Total: ${events.length} · Próximos: ${upcoming.length} · Historial: ${past.length}`}
+              </div>
+            </div>
+
+            <div style={S.filters}>
+              <div style={S.tabs}>
+                <button
+                  type="button"
+                  style={{
+                    ...S.tab,
+                    ...(view === "upcoming" ? S.tabActive : null),
+                  }}
+                  onClick={() => setView("upcoming")}
+                >
+                  Próximos
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    ...S.tab,
+                    ...(view === "past" ? S.tabActive : null),
+                  }}
+                  onClick={() => setView("past")}
+                >
+                  Historial
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    ...S.tab,
+                    ...(view === "all" ? S.tabActive : null),
+                  }}
+                  onClick={() => setView("all")}
+                >
+                  Todos
+                </button>
+              </div>
+
+              <input
+                placeholder="Buscar por título o nota…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                style={S.search}
+              />
+            </div>
+          </div>
 
           {loading ? (
             <div style={S.empty}>Cargando…</div>
-          ) : upcoming.length === 0 ? (
-            <div style={S.empty}>No tienes eventos futuros.</div>
+          ) : visible.length === 0 ? (
+            <div style={S.empty}>
+              {view === "past"
+                ? "Aún no tienes historial de eventos."
+                : view === "upcoming"
+                ? "No tienes eventos futuros."
+                : "No hay eventos que coincidan con la búsqueda."}
+            </div>
           ) : (
             <div style={S.list}>
-              {upcoming.map((e) => {
+              {visible.map((e) => {
                 const meta = groupMeta((e.groupType ?? "personal") as any);
 
                 return (
@@ -141,16 +271,17 @@ export default function EventsPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={S.rowTop}>
                         <div style={S.rowTitle}>{e.title}</div>
-                        <button style={S.del} onClick={() => onDelete(String(e.id))} title="Eliminar">
+                        <button
+                          style={S.del}
+                          onClick={() => onDelete(String(e.id))}
+                          title="Eliminar"
+                        >
                           🗑️
                         </button>
                       </div>
 
-                      <div style={S.rowSub}>
-                        {new Date(e.start).toLocaleString()} — {new Date(e.end).toLocaleString()}
-                      </div>
+                      <div style={S.rowSub}>{formatRange(e)}</div>
 
-                      {/* ✅ etiqueta para verificar rápido */}
                       <div style={S.badge}>{meta.label}</div>
                     </div>
                   </div>
@@ -165,7 +296,12 @@ export default function EventsPage() {
 }
 
 const S: Record<string, React.CSSProperties> = {
-  page: { minHeight: "100vh", background: "#050816", color: "rgba(255,255,255,0.92)" },
+  page: {
+    minHeight: "100vh",
+    background: "#050816",
+    color: "rgba(255,255,255,0.92)",
+    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+  },
   shell: { maxWidth: 1120, margin: "0 auto", padding: "22px 18px 48px" },
   topRow: {
     display: "flex",
@@ -180,7 +316,8 @@ const S: Record<string, React.CSSProperties> = {
     padding: "0 14px",
     borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.14)",
-    background: "linear-gradient(135deg, rgba(56,189,248,0.20), rgba(124,58,237,0.20))",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.20), rgba(124,58,237,0.20))",
     color: "#fff",
     fontWeight: 950,
     cursor: "pointer",
@@ -191,18 +328,57 @@ const S: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.03)",
     padding: 16,
   },
+  titleRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 16,
+    marginBottom: 12,
+    flexWrap: "wrap",
+  },
   title: { fontSize: 16, fontWeight: 950 },
   sub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 },
-  empty: {
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 16,
-    border: "1px dashed rgba(255,255,255,0.16)",
-    background: "rgba(255,255,255,0.02)",
-    opacity: 0.8,
-    fontWeight: 700,
+  filters: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
   },
-  list: { marginTop: 12, display: "flex", flexDirection: "column", gap: 10 },
+  tabs: {
+    display: "flex",
+    gap: 6,
+    padding: 2,
+    borderRadius: 999,
+    background: "rgba(15,23,42,0.85)",
+    border: "1px solid rgba(255,255,255,0.08)",
+  },
+  tab: {
+    border: "none",
+    outline: "none",
+    padding: "4px 10px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 700,
+    background: "transparent",
+    color: "rgba(255,255,255,0.70)",
+    cursor: "pointer",
+  } as React.CSSProperties,
+  tabActive: {
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.40), rgba(124,58,237,0.40))",
+    color: "#fff",
+  },
+  search: {
+    minWidth: 160,
+    padding: "5px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.5)",
+    background: "rgba(15,23,42,0.9)",
+    color: "#e5e7eb",
+    fontSize: 11,
+  },
+  list: { marginTop: 10, display: "flex", flexDirection: "column", gap: 10 },
   row: {
     display: "flex",
     gap: 10,
@@ -212,30 +388,37 @@ const S: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.03)",
   },
   bar: { width: 6, borderRadius: 999 },
-  rowTop: { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" },
-  rowTitle: { fontWeight: 950, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
+  rowTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    alignItems: "center",
+  },
+  rowTitle: {
+    fontWeight: 950,
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    textOverflow: "ellipsis",
+  },
   rowSub: { marginTop: 6, fontSize: 12, opacity: 0.75, fontWeight: 650 },
   badge: {
     marginTop: 8,
     display: "inline-flex",
-    padding: "4px 10px",
+    alignItems: "center",
+    padding: "2px 8px",
+    fontSize: 11,
+    fontWeight: 700,
     borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    fontSize: 12,
-    fontWeight: 800,
-    opacity: 0.9,
-    width: "fit-content",
+    border: "1px solid rgba(255,255,255,0.16)",
+    background: "rgba(15,23,42,0.9)",
   },
-  del: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    border: "1px solid rgba(248,113,113,0.28)",
-    background: "rgba(248,113,113,0.10)",
-    color: "#fff",
-    cursor: "pointer",
-    fontWeight: 900,
+  empty: {
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 16,
+    border: "1px dashed rgba(255,255,255,0.16)",
+    fontSize: 13,
+    opacity: 0.8,
   },
   toast: {
     position: "fixed",

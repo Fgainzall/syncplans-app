@@ -24,9 +24,10 @@ import {
   type GroupType,
   computeVisibleConflicts,
   attachEvents,
-  groupMeta,
   filterIgnoredConflicts,
+  groupMeta, // 👈 ESTE ES EL QUE FALTABA
 } from "@/lib/conflicts";
+
 
 
 type Scope = "personal" | "active" | "all";
@@ -348,12 +349,46 @@ export default function CalendarClient(props: {
   );
 
   /* ✅ toast post-apply desde props (sin useSearchParams) */
+  /* ✅ toast post-apply desde props (sin useSearchParams) */
   useEffect(() => {
     if (!appliedToast) return;
 
+    const { appliedCount, deleted, skipped } = appliedToast;
+
+    const parts: string[] = [];
+
+    if (appliedCount > 0) {
+      parts.push(
+        `${appliedCount} decisión${
+          appliedCount === 1 ? "" : "es"
+        } aplicada${appliedCount === 1 ? "" : "s"}`
+      );
+    }
+
+    if (deleted > 0) {
+      parts.push(
+        `${deleted} evento${deleted === 1 ? "" : "s"} eliminado${
+          deleted === 1 ? "" : "s"
+        }`
+      );
+    }
+
+    if (skipped > 0) {
+      parts.push(
+        `${skipped} conflicto${skipped === 1 ? "" : "s"} saltado${
+          skipped === 1 ? "" : "s"
+        }`
+      );
+    }
+
+    const subtitle =
+      parts.length > 0
+        ? parts.join(" · ")
+        : "No hubo cambios que aplicar en los conflictos.";
+
     setToast({
       title: "Cambios aplicados ✅",
-      subtitle: `Aplicados: ${appliedToast.appliedCount} · Eliminados: ${appliedToast.deleted} · Saltados: ${appliedToast.skipped}`,
+      subtitle,
     });
 
     refreshCalendar();
