@@ -29,32 +29,20 @@ export default function NotificationsDrawer({
 
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
+  const [toast, setToast] = useState<{ title: string; subtitle?: string } | null>(null);
 
-  // Evita re-fetch doble si abres/cierra rápido
-  const lastOpenFetchAt = useRef<number>(0);
+  const lastOpenFetchAt = useRef(0);
+  const busyIds = useRef<Set<string>>(new Set());
 
-  const unreadCount = useMemo(() => items.filter((n) => !n.read_at).length, [items]);
+  const unreadCount = useMemo(
+    () => items.filter((x) => !x.read_at).length,
+    [items]
+  );
 
-  // ✅ baja badge “al toque”
   useEffect(() => {
-    onUnreadChange?.(unreadCount);
+    if (!onUnreadChange) return;
+    onUnreadChange(unreadCount);
   }, [unreadCount, onUnreadChange]);
-
-  async function refreshFromDb(silent = true) {
-    try {
-      const n = await getMyNotifications(limit);
-      setItems(n);
-    } catch {
-      if (!silent) {
-        setToast({
-          title: "No pudimos actualizar",
-          subtitle: "Tus cambios se guardaron, pero no pudimos recargar la lista.",
-        });
-      }
-    }
-  }
 
   useEffect(() => {
     if (!open) return;
@@ -107,10 +95,20 @@ export default function NotificationsDrawer({
 
   function subtitleFor(n: NotificationRow) {
     if (n.body) return n.body;
-    if (n.type === "conflict_detected") return "Encontramos un choque de horario. Resuélvelo en 1 toque.";
-    if (n.type === "event_created") return "Tu evento se guardó correctamente.";
-    if (n.type === "event_deleted") return "Tu evento fue eliminado.";
+    if (n.type === "conflict_detected")
+      return "Encontramos un choque de horario. Resuélvelo en 1 toque.";
+    if (n.type === "event_created")
+      return "Tu evento se guardó correctamente.";
+    if (n.type === "event_deleted")
+      return "Tu evento fue eliminado.";
     return "Toca para ver más.";
+  }
+
+  function typeLabel(n: NotificationRow): string {
+    const t = String(n.type || "").toLowerCase();
+    if (t === "conflict" || t === "conflict_detected") return "Conflicto";
+    if (t === "event_created" || t === "event_deleted") return "Evento";
+    return "Notificación";
   }
 
   function timeFor(n: NotificationRow) {
@@ -131,7 +129,9 @@ export default function NotificationsDrawer({
       setLoading(true);
 
       // ✅ optimista: baja badge al instante
-      setItems((prev) => prev.map((x) => ({ ...x, read_at: x.read_at ?? nowIso })));
+      setItems((prev) =>
+        prev.map((x) => ({ ...x, read_at: x.read_at ?? nowIso }))
+      );
 
       // persist
       await markAllRead();
@@ -139,266 +139,327 @@ export default function NotificationsDrawer({
       // ✅ refresh “no-blocking” (silencioso)
       refreshFromDb(true);
 
-      setToast({ title: "Listo", subtitle: "Marcamos todo como leído." });
+      setToast({
+        title: "Listo",
+        subtitle: "Marcaste todas como leídas.",
+      });
     } catch {
-      // si falló el persist, intentamos volver a estado real
-      await refreshFromDb(false);
-      setToast({ title: "Ups", subtitle: "No se pudo marcar todo como leído." });
+      setToast({
+        title: "No pudimos marcar como leídas",
+        subtitle: "Intenta nuevamente.",
+      });
     } finally {
       setLoading(false);
     }
   }
 
-  async function openNotification(n: NotificationRow) {
-    const href = notificationHref(n);
-    const nowIso = new Date().toISOString();
+  async function refreshFromDb(silent = false) {
+    let alive = true;
 
     try {
-      setBusyId(n.id);
-
-      // ✅ optimista (baja badge)
-      setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: x.read_at ?? nowIso } : x)));
-
-      // persist si era unread
-      if (!n.read_at) {
-        await markNotificationRead(n.id);
-      }
+      if (!silent) setLoading(true);
+      const n = await getMyNotifications(limit);
+      if (!alive) return;
+      setItems(n);
     } catch {
-      // si falla, igual navegamos
+      if (!silent) {
+        setToast({
+          title: "No pudimos actualizar",
+          subtitle: "Verifica tu conexión.",
+        });
+      }
     } finally {
-      setBusyId(null);
-      onClose();
-      navTo(href);
-
-      // ✅ refresh silencioso para que lista quede exacta al volver
-      refreshFromDb(true);
+      if (alive && !silent) setLoading(false);
     }
   }
 
-  if (!open) return null;
+  async function onOpenNotification(n: NotificationRow) {
+    const href = notificationHref(n);
+
+    const id = String(n.id);
+    const nowIso = new Date().toISOString();
+
+    try {
+      busyIds.current.add(id);
+      setItems((prev) =>
+        prev.map((x) =>
+          String(x.id) === id ? { ...x, read_at: x.read_at ?? nowIso } : x
+        )
+      );
+
+      await markNotificationRead(id);
+
+      navTo(href);
+      onClose();
+    } catch {
+      // No bloqueamos, solo mostramos toast
+      setToast({
+        title: "No pudimos abrir esa notificación",
+        subtitle: "Intenta de nuevo.",
+      });
+    } finally {
+      busyIds.current.delete(id);
+    }
+  }
+
+  const showEmptyState = !loading && items.length === 0;
 
   return (
-    <div style={overlay} onMouseDown={onClose}>
-      <div style={panel} onMouseDown={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div style={header}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={headerTitle}>Notificaciones</div>
-              {unreadCount > 0 && <div style={badge}>{unreadCount}</div>}
-            </div>
-            <div style={headerSub}>Tu bandeja de alertas y conflictos</div>
-          </div>
+    <>
+      {open && (
+        <div style={backdrop} onClick={onClose}>
+          <div
+            style={drawer}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            <div style={header}>
+              <div>
+                <div style={title}>Notificaciones</div>
+                <div style={sub}>
+                  {unreadCount > 0
+                    ? `${unreadCount} sin leer`
+                    : "Estás al día ✨"}
+                </div>
+              </div>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <button
-              onClick={onMarkAll}
-              disabled={loading || items.length === 0 || unreadCount === 0}
-              style={{
-                ...ghostBtn,
-                opacity: loading || items.length === 0 || unreadCount === 0 ? 0.6 : 1,
-                cursor: loading || items.length === 0 || unreadCount === 0 ? "not-allowed" : "pointer",
-              }}
-              title="Marcar todo como leído"
-            >
-              {loading ? "..." : "Marcar todo"}
-            </button>
-
-            <button onClick={onClose} style={iconBtn} aria-label="Cerrar">
-              ✕
-            </button>
-          </div>
-        </div>
-
-        {/* List */}
-        <div style={body}>
-          {loading && items.length === 0 ? (
-            <div style={{ display: "grid", gap: 10 }}>
-              <SkeletonRow />
-              <SkeletonRow />
-              <SkeletonRow />
-            </div>
-          ) : items.length === 0 ? (
-            <div style={emptyWrap}>
-              <div style={emptyTitle}>Todo tranquilo ✨</div>
-              <div style={emptySub}>Cuando tengas recordatorios o conflictos, aparecerán aquí.</div>
-              <button
-                style={primaryBtn}
-                onClick={() => {
-                  onClose();
-                  navTo("/calendar");
-                }}
-              >
-                Ir a mi calendario
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: 10 }}>
-              {items.map((n) => {
-                const isUnread = !n.read_at;
-                const isBusy = busyId === n.id;
-
-                return (
+              <div style={headerActions}>
+                <button
+                  type="button"
+                  style={{
+                    ...iconBtn,
+                    opacity: loading ? 0.6 : 1,
+                    cursor: loading ? "progress" : "pointer",
+                  }}
+                  onClick={() => refreshFromDb()}
+                  disabled={loading}
+                  title="Actualizar"
+                >
+                  ⟳
+                </button>
+                {items.length > 0 && (
                   <button
-                    key={n.id}
-                    onClick={() => openNotification(n)}
+                    type="button"
                     style={{
-                      ...rowBtn,
-                      borderColor: isUnread ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.08)",
-                      background: isUnread
-                        ? "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05))"
-                        : "rgba(255,255,255,0.04)",
-                      opacity: isBusy ? 0.7 : 1,
-                      cursor: isBusy ? "progress" : "pointer",
+                      ...ghostBtn,
+                      opacity: unreadCount === 0 || loading ? 0.6 : 1,
+                      cursor:
+                        unreadCount === 0 || loading ? "default" : "pointer",
                     }}
-                    disabled={isBusy}
+                    onClick={() => {
+                      if (unreadCount === 0 || loading) return;
+                      onMarkAll();
+                    }}
+                    disabled={unreadCount === 0 || loading}
                   >
-                    <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                      <div
-                        style={{
-                          ...dot,
-                          background: isUnread ? "#FBBF24" : "rgba(255,255,255,0.22)",
-                          boxShadow: isUnread ? "0 0 0 4px rgba(251,191,36,0.12)" : "none",
-                        }}
-                      />
-
-                      <div style={{ flex: 1, textAlign: "left" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                          <div style={{ ...rowTitle, opacity: isUnread ? 1 : 0.9 }}>{titleFor(n)}</div>
-                          <div style={rowTime}>{timeFor(n)}</div>
-                        </div>
-
-                        <div style={rowSub}>{subtitleFor(n)}</div>
-
-                        <div style={rowMeta}>
-                          <span style={metaPill}>Abrir</span>
-                          {isUnread && (
-                            <span style={{ ...metaPill, borderColor: "rgba(251,191,36,0.35)" }}>Nuevo</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: 2, opacity: 0.8 }}>›</div>
-                    </div>
+                    Marcar todo leído
                   </button>
-                );
-              })}
+                )}
+                <button type="button" style={iconBtn} onClick={onClose}>
+                  ✕
+                </button>
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* Toast */}
-        {toast && (
-          <div style={toastWrap}>
-            <div style={toastTitle}>{toast.title}</div>
-            {toast.subtitle && <div style={toastSub}>{toast.subtitle}</div>}
+            <div style={body}>
+              {loading && items.length === 0 ? (
+                <SkeletonList />
+              ) : showEmptyState ? (
+                <div style={emptyBox}>
+                  <div style={emptyTitle}>Nada nuevo por aquí</div>
+                  <div style={emptySub}>
+                    Cuando tengas conflictos, eventos o invitaciones, aparecerán
+                    aquí.
+                  </div>
+                </div>
+              ) : (
+                <div style={list}>
+                  {items.map((n) => {
+                    const isUnread = !n.read_at;
+                    const isBusy = busyIds.current.has(String(n.id));
+
+                    return (
+                      <button
+                        key={n.id}
+                        type="button"
+                        onClick={() => onOpenNotification(n)}
+                        style={{
+                          ...rowBtn,
+                          borderColor: isUnread
+                            ? "rgba(255,255,255,0.16)"
+                            : "rgba(255,255,255,0.08)",
+                          background: isUnread
+                            ? "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05))"
+                            : "rgba(255,255,255,0.04)",
+                          opacity: isBusy ? 0.7 : 1,
+                          cursor: isBusy ? "progress" : "pointer",
+                        }}
+                        disabled={isBusy}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 12,
+                            alignItems: "flex-start",
+                          }}
+                        >
+                          <div
+                            style={{
+                              ...dot,
+                              background: isUnread
+                                ? "#FBBF24"
+                                : "rgba(255,255,255,0.22)",
+                              boxShadow: isUnread
+                                ? "0 0 0 4px rgba(251,191,36,0.12)"
+                                : "none",
+                            }}
+                          />
+
+                          <div style={{ flex: 1, textAlign: "left" }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                gap: 10,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  ...rowTitle,
+                                  opacity: isUnread ? 1 : 0.9,
+                                }}
+                              >
+                                {titleFor(n)}
+                              </div>
+                              <div style={rowTime}>{timeFor(n)}</div>
+                            </div>
+
+                            <div style={rowSub}>{subtitleFor(n)}</div>
+
+                            <div style={rowMeta}>
+                              <span style={metaPill}>{typeLabel(n)}</span>
+                              <span style={metaPill}>Abrir</span>
+                              {isUnread && (
+                                <span
+                                  style={{
+                                    ...metaPill,
+                                    borderColor:
+                                      "rgba(251,191,36,0.35)",
+                                  }}
+                                >
+                                  Nuevo
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div style={{ marginTop: 2, opacity: 0.8 }}>›</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+
+      {toast && (
+        <div style={toastBox}>
+          <div style={toastTitle}>{toast.title}</div>
+          {toast.subtitle && <div style={toastSub}>{toast.subtitle}</div>}
+        </div>
+      )}
+    </>
   );
 }
 
-function SkeletonRow() {
+function SkeletonList() {
   return (
-    <div style={skRow}>
-      <div style={skDot} />
-      <div style={{ flex: 1 }}>
-        <div style={skLine1} />
-        <div style={skLine2} />
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {Array.from({ length: 4 }).map((_, idx) => (
+        <div key={idx} style={skRow}>
+          <div style={skDot} />
+          <div style={{ flex: 1 }}>
+            <div style={skLine1} />
+            <div style={skLine2} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-/* ------------------------------ Styles ------------------------------ */
-
-const overlay: React.CSSProperties = {
+const backdrop: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.35)",
-  backdropFilter: "blur(6px)",
+  background: "rgba(0,0,0,0.30)",
+  backdropFilter: "blur(10px)",
+  WebkitBackdropFilter: "blur(10px)",
+  zIndex: 40,
   display: "flex",
   justifyContent: "flex-end",
-  zIndex: 80,
 };
 
-const panel: React.CSSProperties = {
-  width: 420,
-  maxWidth: "92vw",
-  height: "100vh",
-  background: "linear-gradient(180deg, rgba(10,12,18,0.96), rgba(10,12,18,0.92))",
-  borderLeft: "1px solid rgba(255,255,255,0.10)",
-  boxShadow: "-20px 0 60px rgba(0,0,0,0.45)",
+const drawer: React.CSSProperties = {
+  width: 360,
+  maxWidth: "100%",
+  height: "100%",
+  background: "radial-gradient(circle at top, #0f172a 0, #020617 60%)",
+  borderLeft: "1px solid rgba(148,163,184,0.45)",
+  padding: 16,
   display: "flex",
   flexDirection: "column",
-  position: "relative",
 };
 
 const header: React.CSSProperties = {
-  padding: "18px 18px 14px",
-  borderBottom: "1px solid rgba(255,255,255,0.10)",
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
   gap: 12,
+  alignItems: "flex-start",
 };
 
-const headerTitle: React.CSSProperties = {
-  color: "rgba(255,255,255,0.95)",
+const title: React.CSSProperties = {
   fontSize: 16,
-  fontWeight: 700,
-  letterSpacing: 0.2,
+  fontWeight: 900,
+  color: "rgba(248,250,252,0.98)",
 };
 
-const headerSub: React.CSSProperties = {
-  color: "rgba(255,255,255,0.60)",
+const sub: React.CSSProperties = {
+  marginTop: 4,
   fontSize: 12,
+  color: "rgba(148,163,184,0.95)",
 };
 
-const badge: React.CSSProperties = {
-  padding: "2px 8px",
-  borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 700,
-  color: "rgba(12,14,18,0.95)",
-  background: "#FBBF24",
+const headerActions: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
 };
 
 const body: React.CSSProperties = {
-  padding: 16,
-  overflow: "auto",
+  marginTop: 14,
   flex: 1,
+  overflowY: "auto",
+  paddingRight: 4,
 };
 
-const ghostBtn: React.CSSProperties = {
-  padding: "8px 10px",
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.04)",
-  color: "rgba(255,255,255,0.86)",
-  fontSize: 12,
-  fontWeight: 600,
-};
-
-const iconBtn: React.CSSProperties = {
-  width: 34,
-  height: 34,
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.04)",
-  color: "rgba(255,255,255,0.86)",
-  fontSize: 14,
-  cursor: "pointer",
+const list: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 10,
 };
 
 const rowBtn: React.CSSProperties = {
   width: "100%",
-  textAlign: "left",
-  padding: 14,
   borderRadius: 16,
-  border: "1px solid rgba(255,255,255,0.10)",
-  color: "rgba(255,255,255,0.92)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  padding: 10,
+  background: "rgba(255,255,255,0.04)",
+  color: "inherit",
+  textAlign: "left",
 };
 
 const dot: React.CSSProperties = {
@@ -444,79 +505,63 @@ const metaPill: React.CSSProperties = {
   color: "rgba(255,255,255,0.78)",
 };
 
-const emptyWrap: React.CSSProperties = {
-  border: "1px dashed rgba(255,255,255,0.18)",
-  borderRadius: 18,
-  padding: 18,
-  background: "rgba(255,255,255,0.03)",
-  display: "grid",
-  gap: 10,
+const ghostBtn: React.CSSProperties = {
+  padding: "8px 10px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.04)",
+  color: "rgba(255,255,255,0.86)",
+  fontSize: 12,
+  fontWeight: 600,
+};
+
+const iconBtn: React.CSSProperties = {
+  width: 34,
+  height: 34,
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(15,23,42,0.85)",
+  color: "rgba(248,250,252,0.96)",
+  fontSize: 16,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const emptyBox: React.CSSProperties = {
+  padding: 16,
+  borderRadius: 16,
+  border: "1px dashed rgba(148,163,184,0.55)",
+  background: "rgba(15,23,42,0.75)",
 };
 
 const emptyTitle: React.CSSProperties = {
-  fontSize: 14,
-  fontWeight: 900,
-  color: "rgba(255,255,255,0.92)",
+  fontSize: 13,
+  fontWeight: 800,
+  color: "rgba(248,250,252,0.95)",
 };
 
 const emptySub: React.CSSProperties = {
-  fontSize: 12,
-  color: "rgba(255,255,255,0.65)",
-  lineHeight: 1.35,
-};
-
-const primaryBtn: React.CSSProperties = {
-  marginTop: 6,
-  padding: "10px 12px",
-  borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06))",
-  color: "rgba(255,255,255,0.92)",
-  fontSize: 12,
-  fontWeight: 800,
-  cursor: "pointer",
-};
-
-const toastWrap: React.CSSProperties = {
-  position: "absolute",
-  bottom: 18,
-  left: 18,
-  right: 18,
-  padding: 14,
-  borderRadius: 16,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(16,18,26,0.92)",
-  boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
-};
-
-const toastTitle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 900,
-  color: "rgba(255,255,255,0.92)",
-};
-
-const toastSub: React.CSSProperties = {
   marginTop: 4,
   fontSize: 12,
-  color: "rgba(255,255,255,0.70)",
+  color: "rgba(148,163,184,0.95)",
 };
 
 const skRow: React.CSSProperties = {
-  borderRadius: 16,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.04)",
-  padding: 14,
   display: "flex",
-  gap: 12,
-  alignItems: "flex-start",
+  alignItems: "center",
+  gap: 10,
+  padding: 10,
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.06)",
+  background: "rgba(15,23,42,0.85)",
 };
 
 const skDot: React.CSSProperties = {
   width: 10,
   height: 10,
   borderRadius: 999,
-  marginTop: 6,
-  background: "rgba(255,255,255,0.22)",
+  background: "rgba(148,163,184,0.8)",
 };
 
 const skLine1: React.CSSProperties = {
@@ -532,4 +577,28 @@ const skLine2: React.CSSProperties = {
   borderRadius: 999,
   background: "rgba(255,255,255,0.12)",
   marginTop: 10,
+};
+
+const toastBox: React.CSSProperties = {
+  position: "fixed",
+  bottom: 18,
+  right: 18,
+  zIndex: 50,
+  padding: "10px 12px",
+  borderRadius: 16,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(16,18,26,0.92)",
+  boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
+};
+
+const toastTitle: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 900,
+  color: "rgba(255,255,255,0.92)",
+};
+
+const toastSub: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 12,
+  color: "rgba(209,213,219,0.95)",
 };
