@@ -1,9 +1,18 @@
+// src/components/PremiumHeader.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getGroupState, setMode, UsageMode, GroupState } from "@/lib/groups";
-import NotificationsDrawer, { NavigationMode } from "./NotificationsDrawer";
+
+import {
+  getGroupState,
+  setMode,
+  type UsageMode,
+  type GroupState,
+} from "@/lib/groups";
+import NotificationsDrawer, {
+  type NavigationMode,
+} from "./NotificationsDrawer";
 
 type Tab = {
   key: UsageMode;
@@ -44,18 +53,19 @@ function applyThemeVars(mode: UsageMode) {
  *
  * 🔥 IMPORTANTE: imports a Supabase se hacen LAZY (dinámicos) para no romper build.
  */
-async function ensureActiveGroupForMode(mode: UsageMode): Promise<string | null> {
+async function ensureActiveGroupForMode(
+  mode: UsageMode
+): Promise<string | null> {
   if (mode === "solo") return null;
 
-  // lazy import (evita que supabaseClient se evalúe en build por el import estático)
-  const { getActiveGroupIdFromDb, setActiveGroupIdInDb } = await import("@/lib/activeGroup");
+  const { getActiveGroupIdFromDb, setActiveGroupIdInDb } = await import(
+    "@/lib/activeGroup"
+  );
   const { getMyGroups } = await import("@/lib/groupsDb");
 
-  // 1) si ya existe, úsalo
   const existing = await getActiveGroupIdFromDb();
   if (existing) return existing;
 
-  // 2) si no existe, elige uno
   const groups = await getMyGroups();
   if (!groups.length) return null;
 
@@ -82,10 +92,9 @@ export default function PremiumHeader({
   const router = useRouter();
   const pathname = usePathname();
 
-  const NAV_MODE: NavigationMode = "replace"; // push | replace
+  const NAV_MODE: NavigationMode = "replace"; // "push" | "replace"
 
   const [group, setGroup] = useState<GroupState | null>(null);
-
   const [openNotif, setOpenNotif] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -103,11 +112,9 @@ export default function PremiumHeader({
 
   async function refreshBadge() {
     try {
-      // ✅ LAZY import para evitar romper build
       const { getMyNotifications } = await import("@/lib/notificationsDb");
-
       const n = await getMyNotifications(50);
-      const unread = n.filter((x: any) => !x.read_at).length;
+      const unread = (n ?? []).filter((x: any) => !x.read_at).length;
       setUnreadCount(unread);
     } catch {
       setUnreadCount(0);
@@ -120,6 +127,7 @@ export default function PremiumHeader({
   }, []);
 
   useEffect(() => {
+    // refresca cuando abres/cierra drawer o cambias de ruta
     refreshBadge();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openNotif, pathname]);
@@ -129,7 +137,6 @@ export default function PremiumHeader({
     [activeMode]
   );
 
-  // ✅ CTA crea evento acorde al modo + asegura activeGroupId
   async function onNewEvent() {
     try {
       if (activeMode === "solo") {
@@ -144,13 +151,14 @@ export default function PremiumHeader({
         return;
       }
 
-      router.push(`/events/new/details?type=group&groupId=${encodeURIComponent(gid)}`);
+      router.push(
+        `/events/new/details?type=group&groupId=${encodeURIComponent(gid)}`
+      );
     } catch {
       router.push("/events/new/details?type=personal");
     }
   }
 
-  // ✅ al cambiar a pair/family, setea un activeGroupId si faltaba
   async function onPickMode(nextMode: UsageMode) {
     const next = setMode(nextMode);
     setGroup(next);
@@ -171,7 +179,9 @@ export default function PremiumHeader({
           <div style={S.left}>
             <div style={S.kicker}>
               <span style={{ ...S.dot, background: active.dot }} />
-              <span style={S.kickerText}>{group?.groupName ?? active.label}</span>
+              <span style={S.kickerText}>
+                {group?.groupName ?? active.label}
+              </span>
             </div>
 
             <h1 style={S.title}>{title}</h1>
@@ -190,7 +200,9 @@ export default function PremiumHeader({
               </button>
 
               {unreadCount > 0 && (
-                <span style={S.badgeCount}>{unreadCount > 99 ? "99+" : unreadCount}</span>
+                <span style={S.badgeCount}>
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
               )}
             </div>
 
@@ -224,6 +236,11 @@ export default function PremiumHeader({
 
         <nav style={S.nav}>
           <NavPill
+            label="Resumen"
+            active={pathname.startsWith("/summary")}
+            onClick={() => router.push("/summary")}
+          />
+          <NavPill
             label="Calendario"
             active={pathname === "/calendar"}
             onClick={() => router.push("/calendar")}
@@ -242,6 +259,11 @@ export default function PremiumHeader({
             label="Grupos"
             active={pathname.startsWith("/groups")}
             onClick={() => router.push("/groups")}
+          />
+          <NavPill
+            label="Invitaciones"
+            active={pathname.startsWith("/invitations")}
+            onClick={() => router.push("/invitations")}
           />
           <NavPill
             label="Panel"
@@ -271,7 +293,10 @@ function NavPill({
   onClick: () => void;
 }) {
   return (
-    <button onClick={onClick} style={{ ...S.pill, ...(active ? S.pillActive : {}) }}>
+    <button
+      onClick={onClick}
+      style={{ ...S.pill, ...(active ? S.pillActive : {}) }}
+    >
       {label}
     </button>
   );
@@ -297,19 +322,41 @@ const S: Record<string, React.CSSProperties> = {
   left: { minWidth: 0 },
   right: { display: "flex", gap: 10, alignItems: "center" },
 
-  kicker: { display: "inline-flex", gap: 10, alignItems: "center", marginBottom: 10 },
-  dot: { width: 10, height: 10, borderRadius: 999, boxShadow: "0 0 0 4px rgba(255,255,255,0.06)" },
+  kicker: {
+    display: "inline-flex",
+    gap: 10,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    boxShadow: "0 0 0 4px rgba(255,255,255,0.06)",
+  },
   kickerText: { fontSize: 12, fontWeight: 800, color: "#dbeafe" },
 
-  title: { margin: 0, fontSize: 26, fontWeight: 900, letterSpacing: -0.5, color: "#fff" },
-  subtitle: { margin: "6px 0 0", color: "#a8b3cf", fontSize: 13, fontWeight: 650 },
+  title: {
+    margin: 0,
+    fontSize: 26,
+    fontWeight: 900,
+    letterSpacing: -0.5,
+    color: "#fff",
+  },
+  subtitle: {
+    margin: "6px 0 0",
+    color: "#a8b3cf",
+    fontSize: 13,
+    fontWeight: 650,
+  },
 
   iconBtn: {
     height: 40,
     padding: "0 14px",
     borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.12)",
-    background: "linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.55))",
+    background:
+      "linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.55))",
     color: "#fff",
     fontWeight: 900,
     cursor: "pointer",
@@ -342,7 +389,8 @@ const S: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    boxShadow: "0 0 0 2px rgba(2,6,23,0.85), 0 10px 25px rgba(0,0,0,0.35)",
+    boxShadow:
+      "0 0 0 2px rgba(2,6,23,0.85), 0 10px 25px rgba(0,0,0,0.35)",
   },
 
   tabs: { position: "relative", marginTop: 14 },
@@ -376,12 +424,20 @@ const S: Record<string, React.CSSProperties> = {
     color: "#fff",
     textAlign: "left",
   },
-  tabActive: { background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.16)" },
+  tabActive: {
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.16)",
+  },
   tabDot: { width: 10, height: 10, borderRadius: 999, gridRow: "1 / span 2" },
   tabText: { fontSize: 13, fontWeight: 900 },
   tabHint: { fontSize: 11, opacity: 0.75, fontWeight: 650 },
 
-  nav: { display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" },
+  nav: {
+    display: "flex",
+    gap: 10,
+    marginTop: 12,
+    flexWrap: "wrap",
+  },
   pill: {
     height: 34,
     padding: "0 12px",
@@ -393,5 +449,8 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 850,
     fontSize: 12,
   },
-  pillActive: { border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)" },
+  pillActive: {
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "rgba(255,255,255,0.08)",
+  },
 };
