@@ -43,6 +43,50 @@ export type ConflictItem = {
 export const EVENTS_KEY = "syncplans_events_v1";
 export const RESOLUTIONS_KEY = "syncplans_conflict_resolutions_v1";
 
+// 🆕 Conflictos ignorados a nivel local (para "Conservar ambos" del preflight)
+export const IGNORED_CONFLICTS_KEY = "syncplans_conflicts_ignored_v1";
+
+export function loadIgnoredConflictKeys(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(IGNORED_CONFLICTS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.map((x) => String(x)));
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveIgnoredConflictKeys(keys: Set<string>) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(
+    IGNORED_CONFLICTS_KEY,
+    JSON.stringify(Array.from(keys))
+  );
+}
+
+/** Marcar una lista de conflictos como ignorados (por id) */
+export function ignoreConflictIds(ids: string[]) {
+  if (!ids || !ids.length) return;
+  const set = loadIgnoredConflictKeys();
+  for (const id of ids) {
+    if (!id) continue;
+    set.add(String(id));
+  }
+  saveIgnoredConflictKeys(set);
+}
+
+/** Filtro de conveniencia para quitar conflictos ignorados */
+export function filterIgnoredConflicts(
+  conflicts: ConflictItem[],
+  ignored?: Set<string>
+): ConflictItem[] {
+  const set = ignored ?? loadIgnoredConflictKeys();
+  if (!set.size) return conflicts;
+  return conflicts.filter((c) => !set.has(String(c.id)));
+}
+
 /* =========================
    Local Storage helpers
    ========================= */
@@ -273,15 +317,11 @@ export function computeVisibleConflicts(events: unknown): ConflictItem[] {
 
       const pick = chooseExistingIncoming(prev.e, cur.e);
 
-      // ✅ antes: stableConflictId(...overlapMs...)
-      // ✅ ahora: conflictKey(eventIdA,eventIdB) => estable siempre
       const id = conflictKey(pick.existing.id, pick.incoming.id);
 
       if (seen.has(id)) continue;
       seen.add(id);
 
-      // OJO: acá devolvemos ISO en UTC (solo para transportar/ordenar),
-      // el cálculo ya se hizo en ms correctos.
       out.push({
         id,
         kind: "overlap",

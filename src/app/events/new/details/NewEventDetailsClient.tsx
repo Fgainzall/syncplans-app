@@ -11,7 +11,7 @@ import {
   computeVisibleConflicts,
   fmtRange,
   type CalendarEvent,
-  ignoreConflictIds,
+  ignoreConflictIds,   // 👈 ESTE, así escrito
 } from "@/lib/conflicts";
 
 
