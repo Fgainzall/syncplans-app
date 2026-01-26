@@ -192,7 +192,7 @@ export async function inviteToGroup(input: {
   groupId: string;
   email: string;
   role?: "member" | "admin" | "owner";
-}: Promise<RpcResult> extends never ? never : any) {
+}): Promise<RpcResult> {
   const to = normEmail(input.email);
   if (!to || !to.includes("@")) return { ok: false, error: "Email inválido." };
 
