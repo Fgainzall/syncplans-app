@@ -1,4 +1,3 @@
-// src/app/summary/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -31,25 +30,50 @@ export default function SummaryPage() {
   // 👇 Nuevo: estado para el onboarding suave
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  // Carga de datos del resumen (igual que antes)
+  // Carga de datos del resumen
   useEffect(() => {
     let alive = true;
+
     (async () => {
       try {
         setLoading(true);
         setErrorMsg(null);
 
-        const [groups, rawEvents] = await Promise.all([
+        // 🔹 Usamos allSettled para que un error en grupos/eventos NO rompa todo el resumen
+        const [groupsResult, eventsResult] = await Promise.allSettled([
           getMyGroups(),
           getMyEvents(),
         ]);
         if (!alive) return;
 
+        if (
+          groupsResult.status === "rejected" ||
+          eventsResult.status === "rejected"
+        ) {
+          console.error("Error cargando resumen:", {
+            groupsError:
+              groupsResult.status === "rejected"
+                ? groupsResult.reason
+                : null,
+            eventsError:
+              eventsResult.status === "rejected"
+                ? eventsResult.reason
+                : null,
+          });
+          // No mostramos el error al usuario; simplemente dejamos 0s.
+          // setErrorMsg("No pudimos cargar todo tu resumen, pero mostramos lo disponible.");
+        }
+
+        const groups =
+          groupsResult.status === "fulfilled" ? groupsResult.value : [];
+        const rawEvents =
+          eventsResult.status === "fulfilled" ? eventsResult.value : [];
+
+        // Mapeo igual que antes
         const groupTypeById = new Map<string, GroupType>(
           (groups || []).map((g: any) => {
             const id = String(g.id);
             const rawType = String(g.type ?? "").toLowerCase();
-            // normalizamos: solo/personal → personal, couple → pair
             let gt: GroupType = "personal";
             if (rawType === "pair" || rawType === "couple") gt = "pair";
             else if (rawType === "family") gt = "family";
@@ -78,7 +102,10 @@ export default function SummaryPage() {
         setEvents(mapped);
       } catch (err: any) {
         console.error(err);
-        setErrorMsg("No pudimos cargar tu resumen. Intenta de nuevo.");
+        if (alive) {
+          // Solo si es un fallo muy gordo (raro) mostramos el error
+          setErrorMsg("No pudimos cargar tu resumen. Intenta de nuevo.");
+        }
       } finally {
         if (alive) setLoading(false);
       }
@@ -89,7 +116,7 @@ export default function SummaryPage() {
     };
   }, []);
 
-  // 👇 Nuevo: revisar si ya se mostró el onboarding
+  // 👇 Onboarding ligero: solo una vez
   useEffect(() => {
     try {
       const flag = window.localStorage.getItem(ONBOARDING_KEY);
@@ -147,7 +174,6 @@ export default function SummaryPage() {
   const upcomingConflicts = useMemo(() => {
     const list = conflicts || [];
     if (!list.length) return list;
-    // nos quedamos con los que afectan hoy hacia adelante
     return list.filter((c) => {
       const endMs = new Date(c.overlapEnd).getTime();
       return endMs >= now;
@@ -212,7 +238,7 @@ export default function SummaryPage() {
           </div>
         </div>
 
-        {/* 👇 Onboarding ligero, premium y solo una vez */}
+        {/* Onboarding ligero */}
         {showOnboarding && (
           <section style={S.onboardCard}>
             <div>
@@ -277,6 +303,7 @@ export default function SummaryPage() {
           </div>
         </section>
 
+        {/* 🔹 Podemos dejar este error solo para casos extremos */}
         {errorMsg && <div style={S.errorBox}>{errorMsg}</div>}
 
         <section style={S.grid}>
@@ -496,7 +523,7 @@ function formatRange(e: CalendarEvent): string {
   return `${start.toLocaleString()} — ${end.toLocaleString()}`;
 }
 
-/* ────────────── Estilos inline (matching estilo SyncPlans) ────────────── */
+/* ────────────── Estilos inline ────────────── */
 
 const S: Record<string, React.CSSProperties> = {
   page: {
@@ -548,7 +575,6 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 12,
     cursor: "pointer",
   },
-  // Onboarding
   onboardCard: {
     marginBottom: 16,
     borderRadius: 22,
