@@ -68,33 +68,39 @@ export default function CalendarMonthPage() {
       setActiveGroupId(activeId);
 
       const myGroups = await getMyGroups();
-      const allGroupIds = (myGroups ?? []).map((g: any) => g.id);
+      const allGroupIds = (myGroups ?? []).map((g: any) => String(g.id));
 
       let groupIdsToFetch: string[] = [];
-      if (scope === "active") groupIdsToFetch = activeId ? [activeId] : allGroupIds;
+      if (scope === "active") groupIdsToFetch = activeId ? [String(activeId)] : allGroupIds;
       else groupIdsToFetch = allGroupIds;
 
+      // ✅ ahora acepta args y SIEMPRE incluye personal
       const raw = await getEventsForGroups(groupIdsToFetch);
 
-      // Map group_id -> groupType (usa groups.type: solo|pair|family)
       const typeByGroupId = new Map<string, GroupType>(
-        (myGroups ?? []).map((g: any) => [g.id, (g.type === "solo" ? "personal" : g.type) as GroupType])
+        (myGroups ?? []).map((g: any) => [String(g.id), (String(g.type ?? "").toLowerCase() === "family" ? "family" : "pair") as GroupType])
       );
 
       const adapted: CalendarEvent[] = (raw ?? []).map((e: any) => {
         const gid = e.groupId ?? e.group_id ?? null;
-        const gt = gid ? typeByGroupId.get(gid) ?? "personal" : (e.groupType ?? "personal");
+
+        const gt: GroupType = gid
+          ? (typeByGroupId.get(String(gid)) ?? ("pair" as any))
+          : ("personal" as any);
+
         return {
-          ...e,
-          groupId: gid,
+          id: String(e.id),
+          title: e.title ?? "Evento",
+          start: String(e.start),
+          end: String(e.end),
+          notes: e.notes ?? undefined,
+          groupId: gid ? String(gid) : null,
           groupType: gt,
         };
       });
 
       const finalEvents =
-        scope === "personal"
-          ? adapted.filter((e) => (e.groupType ?? "personal") === "personal")
-          : adapted;
+        scope === "personal" ? adapted.filter((e) => (e.groupType ?? "personal") === "personal") : adapted;
 
       setEvents(finalEvents);
     } catch (e: any) {
@@ -143,7 +149,7 @@ export default function CalendarMonthPage() {
               {scope === "active" && activeGroupId ? (
                 <span style={{ opacity: 0.7 }}>
                   {" "}
-                  · activo: <span style={{ fontFamily: "ui-monospace" }}>{activeGroupId.slice(0, 8)}…</span>
+                  · activo: <span style={{ fontFamily: "ui-monospace" }}>{String(activeGroupId).slice(0, 8)}…</span>
                 </span>
               ) : null}
             </div>
@@ -169,11 +175,7 @@ export default function CalendarMonthPage() {
 
         <div style={styles.scopeRow}>
           {(["active", "personal", "all"] as Scope[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => setScope(s)}
-              style={{ ...styles.scopeBtn, ...(scope === s ? styles.scopeOn : {}) }}
-            >
+            <button key={s} onClick={() => setScope(s)} style={{ ...styles.scopeBtn, ...(scope === s ? styles.scopeOn : {}) }}>
               {s === "active" ? "Grupo activo" : s === "personal" ? "Personal" : "Todo"}
             </button>
           ))}
@@ -221,9 +223,7 @@ export default function CalendarMonthPage() {
                       return <span key={String(e.id)} title={e.title} style={{ ...styles.dot, background: m.dot as any }} />;
                     })
                   )}
-                  {!loading && dayEvents.length > 12 ? (
-                    <span style={{ fontSize: 11, opacity: 0.6 }}>+{dayEvents.length - 12}</span>
-                  ) : null}
+                  {!loading && dayEvents.length > 12 ? <span style={{ fontSize: 11, opacity: 0.6 }}>+{dayEvents.length - 12}</span> : null}
                 </div>
 
                 <div style={styles.lines}>
@@ -239,8 +239,7 @@ export default function CalendarMonthPage() {
         </div>
 
         <div style={styles.footerHint}>
-          Tip: define el grupo activo en <span style={{ fontFamily: "ui-monospace" }}>/groups</span> para que “Grupo activo”
-          tenga sentido.
+          Tip: define el grupo activo en <span style={{ fontFamily: "ui-monospace" }}>/groups</span> para que “Grupo activo” tenga sentido.
         </div>
       </div>
     </div>
@@ -258,70 +257,20 @@ const styles: Record<string, React.CSSProperties> = {
   top: { display: "flex", justifyContent: "space-between", gap: 14, flexWrap: "wrap", alignItems: "flex-start" },
   h1: { margin: 0, fontSize: 26, fontWeight: 900, textTransform: "capitalize" },
   sub: { marginTop: 6, fontSize: 13, opacity: 0.75 },
-  error: {
-    marginTop: 10,
-    padding: 12,
-    borderRadius: 14,
-    border: "1px solid rgba(248,113,113,0.30)",
-    background: "rgba(248,113,113,0.10)",
-    fontSize: 13,
-  },
+  error: { marginTop: 10, padding: 12, borderRadius: 14, border: "1px solid rgba(248,113,113,0.30)", background: "rgba(248,113,113,0.10)", fontSize: 13 },
   actions: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" },
-  linkBtn: {
-    padding: "10px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-    color: "rgba(255,255,255,0.92)",
-    textDecoration: "none",
-    fontWeight: 800,
-    fontSize: 13,
-  },
-  btn: {
-    width: 44,
-    height: 40,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 16,
-  },
+  linkBtn: { padding: "10px 12px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.92)", textDecoration: "none", fontWeight: 800, fontSize: 13 },
+  btn: { width: 44, height: 40, borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 900, fontSize: 16 },
   scopeRow: { marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" },
-  scopeBtn: {
-    padding: "10px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 800,
-    fontSize: 13,
-  },
+  scopeBtn: { padding: "10px 12px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 800, fontSize: 13 },
   scopeOn: { background: "rgba(255,255,255,0.09)" },
-
   weekHeader: { marginTop: 14, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 },
   weekDay: { fontSize: 12, opacity: 0.65, padding: "0 6px" },
-
   grid: { marginTop: 10, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 },
-  cell: {
-    minHeight: 122,
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.10)",
-    padding: 12,
-  },
+  cell: { minHeight: 122, borderRadius: 18, border: "1px solid rgba(255,255,255,0.10)", padding: 12 },
   cellTop: { display: "flex", alignItems: "center", justifyContent: "space-between" },
   dayNum: { fontSize: 12, fontWeight: 900 },
-  todayPill: {
-    fontSize: 10,
-    fontWeight: 900,
-    padding: "2px 8px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.08)",
-    opacity: 0.9,
-  },
+  todayPill: { fontSize: 10, fontWeight: 900, padding: "2px 8px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.08)", opacity: 0.9 },
   dotRow: { marginTop: 10, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" },
   dot: { width: 9, height: 9, borderRadius: 999 },
   lines: { marginTop: 10, display: "flex", flexDirection: "column", gap: 6 },

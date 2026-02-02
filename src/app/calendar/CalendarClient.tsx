@@ -1,13 +1,7 @@
 // src/app/calendar/CalendarClient.tsx
 "use client";
 
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useCallback,
-} from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
@@ -23,12 +17,9 @@ import {
   type CalendarEvent,
   type GroupType,
   computeVisibleConflicts,
-  attachEvents,
   filterIgnoredConflicts,
-  groupMeta, // 👈 ESTE ES EL QUE FALTABA
+  groupMeta,
 } from "@/lib/conflicts";
-
-
 
 type Scope = "personal" | "active" | "all";
 type Tab = "month" | "agenda";
@@ -63,11 +54,7 @@ function addDays(d: Date, n: number) {
   return x;
 }
 function sameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 function ymd(d: Date) {
   const yyyy = d.getFullYear();
@@ -76,56 +63,20 @@ function ymd(d: Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 function prettyMonthRange(a: Date, b: Date) {
-  const meses = [
-    "ene",
-    "feb",
-    "mar",
-    "abr",
-    "may",
-    "jun",
-    "jul",
-    "ago",
-    "sep",
-    "oct",
-    "nov",
-    "dic",
-  ];
-  return `${a.getDate()} ${meses[a.getMonth()]} ${a.getFullYear()} – ${
-    b.getDate()
-  } ${meses[b.getMonth()]} ${b.getFullYear()}`;
+  const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  return `${a.getDate()} ${meses[a.getMonth()]} ${a.getFullYear()} – ${b.getDate()} ${meses[b.getMonth()]} ${b.getFullYear()}`;
 }
 function prettyDay(d: Date) {
   const dias = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-  const meses = [
-    "enero",
-    "febrero",
-    "marzo",
-    "abril",
-    "mayo",
-    "junio",
-    "julio",
-    "agosto",
-    "septiembre",
-    "octubre",
-    "noviembre",
-    "diciembre",
-  ];
-  return `${dias[d.getDay()]}, ${d.getDate()} de ${
-    meses[d.getMonth()]
-  } ${d.getFullYear()}`;
+  const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  return `${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]} ${d.getFullYear()}`;
 }
 function prettyTimeRange(startIso: string, endIso: string) {
   const s = new Date(startIso);
   const e = new Date(endIso);
-  const hhmm = (x: Date) =>
-    `${String(x.getHours()).padStart(2, "0")}:${String(
-      x.getMinutes()
-    ).padStart(2, "0")}`;
+  const hhmm = (x: Date) => `${String(x.getHours()).padStart(2, "0")}:${String(x.getMinutes()).padStart(2, "0")}`;
   const cross = !sameDay(s, e);
-  if (cross)
-    return `${s.toLocaleDateString()} ${hhmm(
-      s
-    )} → ${e.toLocaleDateString()} ${hhmm(e)}`;
+  if (cross) return `${s.toLocaleDateString()} ${hhmm(s)} → ${e.toLocaleDateString()} ${hhmm(e)}`;
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
 function isValidIsoish(v: any) {
@@ -149,11 +100,7 @@ function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
    ========================= */
 export default function CalendarClient(props: {
   highlightId: string | null;
-  appliedToast: null | {
-    deleted: number;
-    skipped: number;
-    appliedCount: number;
-  };
+  appliedToast: null | { deleted: number; skipped: number; appliedCount: number };
 }) {
   const { highlightId, appliedToast } = props;
 
@@ -197,10 +144,7 @@ export default function CalendarClient(props: {
     family: true,
   });
 
-  const [toast, setToast] = useState<null | {
-    title: string;
-    subtitle?: string;
-  }>(null);
+  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
 
   /* ✏️ ESTADO DEL MODAL DE EDICIÓN */
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
@@ -220,11 +164,7 @@ export default function CalendarClient(props: {
      Carga de datos + sync
      ========================= */
   const refreshCalendar = useCallback(
-    async (opts?: {
-      showToast?: boolean;
-      toastTitle?: string;
-      toastSubtitle?: string;
-    }) => {
+    async (opts?: { showToast?: boolean; toastTitle?: string; toastSubtitle?: string }) => {
       const showToast = opts?.showToast ?? false;
 
       try {
@@ -252,14 +192,15 @@ export default function CalendarClient(props: {
         }
 
         const groupIds = (myGroups || []).map((g: any) => String(g.id));
+
+        // ✅ ahora getEventsForGroups(groupIds) funciona (y siempre incluye personal)
         const rawEvents: any[] = (await getEventsForGroups(groupIds)) as any[];
 
         const groupTypeByIdLocal = new Map<string, "family" | "pair">(
           (myGroups || []).map((g: any) => {
             const id = String(g.id);
             const rawType = String(g.type ?? "").toLowerCase();
-            const normalized: "family" | "pair" =
-              rawType === "family" ? "family" : "pair";
+            const normalized: "family" | "pair" = rawType === "family" ? "family" : "pair";
             return [id, normalized];
           })
         );
@@ -322,9 +263,7 @@ export default function CalendarClient(props: {
 
   const handleDeleteEvent = useCallback(
     async (eventId: string, title?: string) => {
-      const ok = confirm(
-        `¿Eliminar el evento${title ? ` "${title}"` : ""}?\nEsta acción no se puede deshacer.`
-      );
+      const ok = confirm(`¿Eliminar el evento${title ? ` "${title}"` : ""}?\nEsta acción no se puede deshacer.`);
       if (!ok) return;
 
       try {
@@ -349,47 +288,19 @@ export default function CalendarClient(props: {
   );
 
   /* ✅ toast post-apply desde props (sin useSearchParams) */
-  /* ✅ toast post-apply desde props (sin useSearchParams) */
   useEffect(() => {
     if (!appliedToast) return;
 
     const { appliedCount, deleted, skipped } = appliedToast;
 
     const parts: string[] = [];
+    if (appliedCount > 0) parts.push(`${appliedCount} decisión${appliedCount === 1 ? "" : "es"} aplicada${appliedCount === 1 ? "" : "s"}`);
+    if (deleted > 0) parts.push(`${deleted} evento${deleted === 1 ? "" : "s"} eliminado${deleted === 1 ? "" : "s"}`);
+    if (skipped > 0) parts.push(`${skipped} conflicto${skipped === 1 ? "" : "s"} saltado${skipped === 1 ? "" : "s"}`);
 
-    if (appliedCount > 0) {
-      parts.push(
-        `${appliedCount} decisión${
-          appliedCount === 1 ? "" : "es"
-        } aplicada${appliedCount === 1 ? "" : "s"}`
-      );
-    }
+    const subtitle = parts.length > 0 ? parts.join(" · ") : "No hubo cambios que aplicar en los conflictos.";
 
-    if (deleted > 0) {
-      parts.push(
-        `${deleted} evento${deleted === 1 ? "" : "s"} eliminado${
-          deleted === 1 ? "" : "s"
-        }`
-      );
-    }
-
-    if (skipped > 0) {
-      parts.push(
-        `${skipped} conflicto${skipped === 1 ? "" : "s"} saltado${
-          skipped === 1 ? "" : "s"
-        }`
-      );
-    }
-
-    const subtitle =
-      parts.length > 0
-        ? parts.join(" · ")
-        : "No hubo cambios que aplicar en los conflictos.";
-
-    setToast({
-      title: "Cambios aplicados ✅",
-      subtitle,
-    });
+    setToast({ title: "Cambios aplicados ✅", subtitle });
 
     refreshCalendar();
 
@@ -432,17 +343,14 @@ export default function CalendarClient(props: {
      Conflictos
      ========================= */
   const conflicts = useMemo(() => {
-  const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
-    (e) => ({
+    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map((e) => ({
       ...e,
       groupType: normalizeForConflicts(e.groupType),
-    })
-  );
+    }));
 
-  const all = computeVisibleConflicts(normalized);
-  return filterIgnoredConflicts(all);
-}, [events]);
-
+    const all = computeVisibleConflicts(normalized);
+    return filterIgnoredConflicts(all);
+  }, [events]);
 
   const conflictCount = conflicts.length;
 
@@ -529,10 +437,7 @@ export default function CalendarClient(props: {
       map.set(key, arr);
     }
     for (const [k, arr] of map.entries()) {
-      arr.sort(
-        (a, b) =>
-          new Date(a.start).getTime() - new Date(b.start).getTime()
-      );
+      arr.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
       map.set(k, arr);
     }
     return map;
@@ -540,17 +445,13 @@ export default function CalendarClient(props: {
 
   const agendaEvents = useMemo(() => {
     const list = [...visibleEvents];
-    list.sort(
-      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
-    );
+    list.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
     return list;
   }, [visibleEvents]);
 
   const highlightedEvent = useMemo(() => {
     if (!highlightId) return null;
-    return (
-      filteredEvents.find((e) => String(e.id) === String(highlightId)) ?? null
-    );
+    return filteredEvents.find((e) => String(e.id) === String(highlightId)) ?? null;
   }, [highlightId, filteredEvents]);
 
   useEffect(() => {
@@ -593,18 +494,15 @@ export default function CalendarClient(props: {
   /* =========================
      Navegación y acciones
      ========================= */
-  const goPrevMonth = () =>
-    setAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
-  const goNextMonth = () =>
-    setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  const goPrevMonth = () => setAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  const goNextMonth = () => setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
   const goToday = () => {
     const t = new Date();
     setAnchor(t);
     setSelectedDay(t);
   };
 
-  const toggleGroup = (g: GroupType) =>
-    setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
+  const toggleGroup = (g: GroupType) => setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
 
   const handleSync = async () => {
     await refreshCalendar({ showToast: true });
@@ -612,25 +510,16 @@ export default function CalendarClient(props: {
 
   const openNewEventPersonal = (date?: Date) => {
     const d = date ?? selectedDay ?? new Date();
-    router.push(
-      `/events/new/details?type=personal&date=${encodeURIComponent(
-        d.toISOString()
-      )}`
-    );
+    router.push(`/events/new/details?type=personal&date=${encodeURIComponent(d.toISOString())}`);
   };
 
   const openNewEventGroup = (date?: Date) => {
     const d = date ?? selectedDay ?? new Date();
-    router.push(
-      `/events/new/details?type=group&date=${encodeURIComponent(
-        d.toISOString()
-      )}`
-    );
+    router.push(`/events/new/details?type=group&date=${encodeURIComponent(d.toISOString())}`);
   };
 
   const openConflicts = () => router.push("/conflicts/detected");
-  const resolveNow = () =>
-    router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`);
+  const resolveNow = () => router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`);
 
   /* =========================
      RENDER
@@ -644,9 +533,7 @@ export default function CalendarClient(props: {
             <div style={styles.loadingDot} />
             <div>
               <div style={styles.loadingTitle}>Cargando tu calendario…</div>
-              <div style={styles.loadingSub}>
-                Preparando tus eventos y grupos
-              </div>
+              <div style={styles.loadingSub}>Preparando tus eventos y grupos</div>
             </div>
           </div>
         </div>
@@ -668,9 +555,7 @@ export default function CalendarClient(props: {
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
             <div style={styles.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? (
-              <div style={styles.toastSub}>{toast.subtitle}</div>
-            ) : null}
+            {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
           </div>
         </div>
       )}
@@ -698,13 +583,9 @@ export default function CalendarClient(props: {
                 </div>
               ) : conflictCount > 0 ? (
                 <div style={styles.conflictCluster}>
-                  <button
-                    onClick={openConflicts}
-                    style={styles.conflictPill}
-                  >
+                  <button onClick={openConflicts} style={styles.conflictPill}>
                     <span style={styles.conflictDot} />
-                    {conflictCount} conflicto
-                    {conflictCount === 1 ? "" : "s"}
+                    {conflictCount} conflicto{conflictCount === 1 ? "" : "s"}
                     <span style={styles.conflictArrow}>→</span>
                   </button>
 
@@ -721,30 +602,17 @@ export default function CalendarClient(props: {
             </div>
 
             <div style={styles.sub}>
-              Vista {tab === "month" ? "mensual" : "agenda"} ·{" "}
-              {prettyMonthRange(monthStart, monthEnd)}
+              Vista {tab === "month" ? "mensual" : "agenda"} · {prettyMonthRange(monthStart, monthEnd)}
             </div>
 
-            {error ? (
-              <div
-                style={{ ...styles.emptyHint, borderStyle: "solid" }}
-              >
-                {error}
-              </div>
-            ) : null}
+            {error ? <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>{error}</div> : null}
           </div>
 
           <div style={styles.heroRight}>
-            <button
-              onClick={() => openNewEventPersonal()}
-              style={styles.primaryBtnPersonal}
-            >
+            <button onClick={() => openNewEventPersonal()} style={styles.primaryBtnPersonal}>
               + Personal
             </button>
-            <button
-              onClick={() => openNewEventGroup()}
-              style={styles.primaryBtnGroup}
-            >
+            <button onClick={() => openNewEventGroup()} style={styles.primaryBtnGroup}>
               + Grupo
             </button>
           </div>
@@ -753,81 +621,41 @@ export default function CalendarClient(props: {
         <section style={styles.filtersCard}>
           <div style={styles.filtersRow}>
             <div style={styles.segment}>
-              <button
-                onClick={() => setTab("month")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(tab === "month" ? styles.segmentOn : {}),
-                }}
-              >
+              <button onClick={() => setTab("month")} style={{ ...styles.segmentBtn, ...(tab === "month" ? styles.segmentOn : {}) }}>
                 Mes
               </button>
-              <button
-                onClick={() => setTab("agenda")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(tab === "agenda" ? styles.segmentOn : {}),
-                }}
-              >
+              <button onClick={() => setTab("agenda")} style={{ ...styles.segmentBtn, ...(tab === "agenda" ? styles.segmentOn : {}) }}>
                 Agenda
               </button>
             </div>
 
             <div style={styles.segment}>
-              <button
-                onClick={() => setScope("active")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "active" ? styles.segmentOn : {}),
-                }}
-              >
+              <button onClick={() => setScope("active")} style={{ ...styles.segmentBtn, ...(scope === "active" ? styles.segmentOn : {}) }}>
                 Activo
               </button>
-              <button
-                onClick={() => setScope("personal")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "personal" ? styles.segmentOn : {}),
-                }}
-              >
+              <button onClick={() => setScope("personal")} style={{ ...styles.segmentBtn, ...(scope === "personal" ? styles.segmentOn : {}) }}>
                 Personal
               </button>
-              <button
-                onClick={() => setScope("all")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "all" ? styles.segmentOn : {}),
-                }}
-              >
+              <button onClick={() => setScope("all")} style={{ ...styles.segmentBtn, ...(scope === "all" ? styles.segmentOn : {}) }}>
                 Todo
               </button>
             </div>
 
             <div style={styles.navRow}>
-              <button
-                onClick={goPrevMonth}
-                style={styles.iconBtn}
-                aria-label="Mes anterior"
-              >
+              <button onClick={goPrevMonth} style={styles.iconBtn} aria-label="Mes anterior">
                 ‹
               </button>
               <button onClick={goToday} style={styles.ghostBtnSmall}>
                 Hoy
               </button>
-              <button
-                onClick={goNextMonth}
-                style={styles.iconBtn}
-                aria-label="Mes siguiente"
-              >
+              <button onClick={goNextMonth} style={styles.iconBtn} aria-label="Mes siguiente">
                 ›
               </button>
             </div>
           </div>
 
           <div style={styles.groupRow}>
-            {(
-              ["personal", "pair", "family"] as any as GroupType[]
-            ).map((g) => {
+            {(["personal", "pair", "family"] as any as GroupType[]).map((g) => {
               const meta = groupMeta(g);
               const on = (enabledGroups as any)[g];
               return (
@@ -836,15 +664,11 @@ export default function CalendarClient(props: {
                   onClick={() => toggleGroup(g)}
                   style={{
                     ...styles.groupChip,
-                    borderColor: on
-                      ? "rgba(255,255,255,0.18)"
-                      : "rgba(255,255,255,0.10)",
+                    borderColor: on ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)",
                     opacity: on ? 1 : 0.5,
                   }}
                 >
-                  <span
-                    style={{ ...styles.groupDot, background: meta.dot }}
-                  />
+                  <span style={{ ...styles.groupDot, background: meta.dot }} />
                   {meta.label}
                 </button>
               );
@@ -855,13 +679,11 @@ export default function CalendarClient(props: {
         {tab === "month" ? (
           <section style={styles.calendarCard}>
             <div style={styles.weekHeader}>
-              {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map(
-                (d) => (
-                  <div key={d} style={styles.weekDay}>
-                    {d}
-                  </div>
-                )
-              )}
+              {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
+                <div key={d} style={styles.weekDay}>
+                  {d}
+                </div>
+              ))}
             </div>
 
             <div style={styles.grid}>
@@ -881,32 +703,21 @@ export default function CalendarClient(props: {
 
             <div style={styles.dayPanel}>
               <div style={styles.dayPanelTop}>
-                <div style={styles.dayPanelTitle}>
-                  {prettyDay(selectedDay)}
-                </div>
+                <div style={styles.dayPanelTitle}>{prettyDay(selectedDay)}</div>
 
                 <div style={styles.dayPanelActions}>
-                  <button
-                    onClick={() => openNewEventPersonal(selectedDay)}
-                    style={styles.ghostBtnSmallPersonal}
-                  >
+                  <button onClick={() => openNewEventPersonal(selectedDay)} style={styles.ghostBtnSmallPersonal}>
                     + Personal
                   </button>
-                  <button
-                    onClick={() => openNewEventGroup(selectedDay)}
-                    style={styles.ghostBtnSmallGroup}
-                  >
+                  <button onClick={() => openNewEventGroup(selectedDay)} style={styles.ghostBtnSmallGroup}>
                     + Grupo
                   </button>
                 </div>
               </div>
 
               <div style={styles.dayList}>
-                {(eventsByDay.get(ymd(selectedDay)) || []).length ===
-                0 ? (
-                  <div style={styles.emptyHint}>
-                    No hay eventos este día.
-                  </div>
+                {(eventsByDay.get(ymd(selectedDay)) || []).length === 0 ? (
+                  <div style={styles.emptyHint}>No hay eventos este día.</div>
                 ) : (
                   (eventsByDay.get(ymd(selectedDay)) || []).map((e) => (
                     <EventRow
@@ -928,16 +739,13 @@ export default function CalendarClient(props: {
             <div style={styles.agendaTop}>
               <div style={styles.agendaTitle}>Agenda del mes</div>
               <div style={styles.agendaSub}>
-                Mostrando {agendaEvents.length} evento
-                {agendaEvents.length === 1 ? "" : "s"}
+                Mostrando {agendaEvents.length} evento{agendaEvents.length === 1 ? "" : "s"}
               </div>
             </div>
 
             <div style={styles.agendaList}>
               {agendaEvents.length === 0 ? (
-                <div style={styles.emptyHint}>
-                  No hay eventos para mostrar con estos filtros.
-                </div>
+                <div style={styles.emptyHint}>No hay eventos para mostrar con estos filtros.</div>
               ) : (
                 agendaEvents.map((e) => (
                   <EventRow
@@ -970,10 +778,7 @@ export default function CalendarClient(props: {
                   start: editingEvent.start,
                   end: editingEvent.end,
                   description: editingEvent.notes,
-                  groupType:
-                    editingEvent.groupType === "pair"
-                      ? ("couple" as any)
-                      : editingEvent.groupType,
+                  groupType: editingEvent.groupType === "pair" ? ("couple" as any) : editingEvent.groupType,
                 }
               : undefined
           }
@@ -1010,34 +815,26 @@ function EventRow({
   onEdit?: (e: CalendarEvent) => void;
   groupTypeById?: Map<string, "pair" | "family">;
 }) {
-  const resolvedType: GroupType = e.groupId
-    ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
-    : ("personal" as any);
+  const resolvedType: GroupType = e.groupId ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any) : ("personal" as any);
 
   const meta = groupMeta(resolvedType);
 
-  const isHighlighted =
-    highlightId && String(e.id) === String(highlightId);
+  const isHighlighted = highlightId && String(e.id) === String(highlightId);
 
   return (
     <div
       ref={setRef ? setRef(String(e.id)) : undefined}
-           onClick={(ev) => {
+      style={{
+        ...styles.eventRow,
+        border: isHighlighted ? "1px solid rgba(56,189,248,0.55)" : (styles.eventRow.border as any),
+        background: isHighlighted ? "rgba(255,255,255,0.08)" : (styles.eventRow.background as any),
+        animation: isHighlighted ? "spPulseGlow 2.6s ease-out" : undefined,
+        cursor: "pointer",
+      }}
+      onClick={(ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         onEdit?.(e);
-      }}
-      style={{
-        ...styles.eventRow,
-        border: isHighlighted
-          ? "1px solid rgba(56,189,248,0.55)"
-          : (styles.eventRow.border as any),
-        background: isHighlighted
-          ? "rgba(255,255,255,0.08)"
-          : (styles.eventRow.background as any),
-        animation: isHighlighted
-          ? "spPulseGlow 2.6s ease-out"
-          : undefined,
       }}
     >
       <div style={{ ...styles.eventBar, background: meta.dot }} />
@@ -1047,9 +844,7 @@ function EventRow({
 
           <div style={styles.eventRight}>
             <div style={styles.eventTag}>
-              <span
-                style={{ ...styles.eventDot, background: meta.dot }}
-              />
+              <span style={{ ...styles.eventDot, background: meta.dot }} />
               {meta.label}
             </div>
 
@@ -1083,9 +878,7 @@ function EventRow({
           </div>
         </div>
 
-        <div style={styles.eventTime}>
-          {prettyTimeRange(e.start, e.end)}
-        </div>
+        <div style={styles.eventTime}>{prettyTimeRange(e.start, e.end)}</div>
       </div>
     </div>
   );
@@ -1106,23 +899,10 @@ function renderMonthCells(opts: {
   groupTypeById: Map<string, "pair" | "family">;
   onEdit: (e: CalendarEvent) => void;
 }) {
-  const {
-    gridStart,
-    gridEnd,
-    monthStart,
-    selectedDay,
-    setSelectedDay,
-    eventsByDay,
-    openNewEventPersonal,
-    openNewEventGroup,
-  } = opts;
+  const { gridStart, gridEnd, monthStart, selectedDay, setSelectedDay, eventsByDay, openNewEventPersonal, openNewEventGroup } = opts;
 
   const cells: React.ReactNode[] = [];
-  const totalDays =
-    Math.round(
-      (gridEnd.getTime() - gridStart.getTime()) /
-        (1000 * 60 * 60 * 24)
-    ) + 1;
+  const totalDays = Math.round((gridEnd.getTime() - gridStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
   for (let i = 0; i < totalDays; i++) {
     const day = addDays(gridStart, i);
@@ -1147,20 +927,14 @@ function renderMonthCells(opts: {
         style={{
           ...styles.cell,
           opacity: inMonth ? 1 : 0.35,
-          outline: isSelected
-            ? "2px solid rgba(255,255,255,0.25)"
-            : "1px solid rgba(255,255,255,0.08)",
-          background: isSelected
-            ? "rgba(255,255,255,0.06)"
-            : "rgba(255,255,255,0.03)",
+          outline: isSelected ? "2px solid rgba(255,255,255,0.25)" : "1px solid rgba(255,255,255,0.08)",
+          background: isSelected ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.03)",
         }}
       >
         <div style={styles.cellTop}>
           <div style={styles.cellDay}>{day.getDate()}</div>
           <div style={styles.cellTopRight}>
-            {dayEvents.length > 0 ? (
-              <div style={styles.cellCount}>{dayEvents.length}</div>
-            ) : null}
+            {dayEvents.length > 0 ? <div style={styles.cellCount}>{dayEvents.length}</div> : null}
 
             <div style={styles.cellQuickAdd}>
               <button
@@ -1194,42 +968,27 @@ function renderMonthCells(opts: {
         </div>
 
         <div style={styles.cellEvents}>
-{top3.map((e) => {
-  const resolvedType: GroupType = e.groupId
-    ? ((opts.groupTypeById.get(String(e.groupId)) ??
-        "pair") as any)
-    : ("personal" as any);
+          {top3.map((e) => {
+            const resolvedType: GroupType = e.groupId ? ((opts.groupTypeById.get(String(e.groupId)) ?? "pair") as any) : ("personal" as any);
+            const meta = groupMeta(resolvedType);
 
-  const meta = groupMeta(resolvedType);
+            return (
+              <div
+                key={e.id ?? `${e.start}_${e.end}`}
+                onClick={(ev) => {
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                  opts.onEdit(e);
+                }}
+                style={{ ...styles.cellEventLine, cursor: "pointer" }}
+              >
+                <span style={{ ...styles.miniDot, background: meta.dot }} />
+                <span style={styles.cellEventText}>{e.title || "Evento"}</span>
+              </div>
+            );
+          })}
 
-  return (
-    <div
-      key={e.id ?? `${e.start}_${e.end}`}
-      onClick={(ev) => {
-        ev.preventDefault();
-        ev.stopPropagation(); // para que no cambie sólo el día
-        opts.onEdit(e);
-      }}
-      style={{
-        ...styles.cellEventLine,
-        cursor: "pointer",
-      }}
-    >
-      <span
-        style={{ ...styles.miniDot, background: meta.dot }}
-      />
-      <span style={styles.cellEventText}>
-        {e.title || "Evento"}
-      </span>
-    </div>
-  );
-})}
-
-          {dayEvents.length > 3 ? (
-            <div style={styles.moreHint}>
-              +{dayEvents.length - 3} más
-            </div>
-          ) : null}
+          {dayEvents.length > 3 ? <div style={styles.moreHint}>+{dayEvents.length - 3} más</div> : null}
         </div>
       </div>
     );
@@ -1250,13 +1009,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   shell: { maxWidth: 1120, margin: "0 auto", padding: "22px 18px 48px" },
 
-  toastWrap: {
-    position: "fixed",
-    top: 18,
-    right: 18,
-    zIndex: 50,
-    pointerEvents: "none",
-  },
+  toastWrap: { position: "fixed", top: 18, right: 18, zIndex: 50, pointerEvents: "none" },
   toastCard: {
     pointerEvents: "auto",
     minWidth: 260,
@@ -1268,25 +1021,10 @@ const styles: Record<string, React.CSSProperties> = {
     backdropFilter: "blur(14px)",
     padding: "12px 14px",
   },
-  toastTitle: {
-    fontWeight: 900,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.95)",
-  },
-  toastSub: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "rgba(255,255,255,0.70)",
-    fontWeight: 650,
-  },
+  toastTitle: { fontWeight: 900, fontSize: 13, color: "rgba(255,255,255,0.95)" },
+  toastSub: { marginTop: 4, fontSize: 12, color: "rgba(255,255,255,0.70)", fontWeight: 650 },
 
-  topRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    marginBottom: 14,
-  },
+  topRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, marginBottom: 14 },
   topActions: { display: "flex", gap: 10, alignItems: "center" },
 
   hero: {
@@ -1297,34 +1035,18 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "18px 16px",
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+    background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
     boxShadow: "0 18px 60px rgba(0, 0, 0, 0.35)",
     marginBottom: 12,
   },
   heroLeft: { display: "flex", flexDirection: "column", gap: 6 },
-  heroRight: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
+  heroRight: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
 
-  titleRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
+  titleRow: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
   h1: { margin: 0, fontSize: 30, letterSpacing: "-0.5px" },
   sub: { fontSize: 13, opacity: 0.8 },
 
-  conflictCluster: {
-    display: "inline-flex",
-    gap: 8,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
+  conflictCluster: { display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" },
 
   filtersCard: {
     borderRadius: 18,
@@ -1333,13 +1055,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 12,
     marginBottom: 12,
   },
-  filtersRow: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-  },
+  filtersRow: { display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" },
 
   segment: {
     display: "flex",
@@ -1348,14 +1064,7 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: "hidden",
     background: "rgba(255,255,255,0.03)",
   },
-  segmentBtn: {
-    padding: "10px 12px",
-    fontSize: 13,
-    color: "rgba(255,255,255,0.86)",
-    background: "transparent",
-    border: "none",
-    cursor: "pointer",
-  },
+  segmentBtn: { padding: "10px 12px", fontSize: 13, color: "rgba(255,255,255,0.86)", background: "transparent", border: "none", cursor: "pointer" },
   segmentOn: { background: "rgba(255,255,255,0.08)" },
 
   navRow: { display: "flex", gap: 8, alignItems: "center" },
@@ -1370,12 +1079,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 18,
   },
 
-  groupRow: {
-    display: "flex",
-    gap: 10,
-    paddingTop: 10,
-    flexWrap: "wrap",
-  },
+  groupRow: { display: "flex", gap: 10, paddingTop: 10, flexWrap: "wrap" },
   groupChip: {
     display: "inline-flex",
     alignItems: "center",
@@ -1390,353 +1094,75 @@ const styles: Record<string, React.CSSProperties> = {
   },
   groupDot: { width: 10, height: 10, borderRadius: 999 },
 
-  calendarCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    overflow: "hidden",
-  },
-  weekHeader: {
-    display: "grid",
-    gridTemplateColumns: "repeat(7, 1fr)",
-    padding: "10px 10px 0",
-  },
+  calendarCard: { borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", overflow: "hidden" },
+  weekHeader: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: "10px 10px 0" },
   weekDay: { padding: "10px 10px", fontSize: 12, opacity: 0.75 },
 
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(7, 1fr)",
-    gap: 10,
-    padding: 10,
-  },
-  cell: {
-    minHeight: 108,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 10,
-    cursor: "pointer",
-    textAlign: "left",
-  },
-  cellTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
+  grid: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10, padding: 10 },
+  cell: { minHeight: 108, borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", padding: 10, cursor: "pointer", textAlign: "left" },
+  cellTop: { display: "flex", justifyContent: "space-between", alignItems: "center" },
   cellTopRight: { display: "flex", alignItems: "center", gap: 10 },
   cellDay: { fontSize: 14, fontWeight: 700 },
-  cellCount: {
-    fontSize: 12,
-    padding: "2px 8px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-    opacity: 0.9,
-  },
+  cellCount: { fontSize: 12, padding: "2px 8px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.04)", opacity: 0.9 },
 
   cellQuickAdd: { display: "flex", gap: 6, alignItems: "center" },
-  cellQuickBtnPersonal: {
-    width: 22,
-    height: 22,
-    borderRadius: 9,
-    border: "1px solid rgba(250,204,21,0.40)",
-    background: "rgba(250,204,21,0.12)",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 900,
-    lineHeight: "22px",
-    textAlign: "center",
-  },
-  cellQuickBtnGroup: {
-    width: 22,
-    height: 22,
-    borderRadius: 9,
-    border: "1px solid rgba(96,165,250,0.40)",
-    background: "rgba(96,165,250,0.12)",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 900,
-    lineHeight: "22px",
-    textAlign: "center",
-  },
+  cellQuickBtnPersonal: { width: 22, height: 22, borderRadius: 9, border: "1px solid rgba(250,204,21,0.40)", background: "rgba(250,204,21,0.12)", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900, lineHeight: "22px", textAlign: "center" },
+  cellQuickBtnGroup: { width: 22, height: 22, borderRadius: 9, border: "1px solid rgba(96,165,250,0.40)", background: "rgba(96,165,250,0.12)", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900, lineHeight: "22px", textAlign: "center" },
 
-  cellEvents: {
-    marginTop: 10,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
+  cellEvents: { marginTop: 10, display: "flex", flexDirection: "column", gap: 6 },
   cellEventLine: { display: "flex", gap: 8, alignItems: "center" },
   miniDot: { width: 8, height: 8, borderRadius: 999, flex: "0 0 auto" },
-  cellEventText: {
-    fontSize: 12,
-    opacity: 0.9,
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis",
-  },
+  cellEventText: { fontSize: 12, opacity: 0.9, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
   moreHint: { fontSize: 12, opacity: 0.6, marginTop: 4 },
 
-  dayPanel: {
-    borderTop: "1px solid rgba(255,255,255,0.08)",
-    padding: 12,
-  },
-  dayPanelTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
+  dayPanel: { borderTop: "1px solid rgba(255,255,255,0.08)", padding: 12 },
+  dayPanelTop: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" },
   dayPanelTitle: { fontSize: 14, fontWeight: 700, opacity: 0.95 },
   dayPanelActions: { display: "flex", gap: 8, alignItems: "center" },
 
-  dayList: {
-    marginTop: 10,
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
+  dayList: { marginTop: 10, display: "flex", flexDirection: "column", gap: 10 },
 
-  agendaCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    overflow: "hidden",
-  },
-  agendaTop: {
-    padding: 14,
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-  },
+  agendaCard: { borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", overflow: "hidden" },
+  agendaTop: { padding: 14, borderBottom: "1px solid rgba(255,255,255,0.08)" },
   agendaTitle: { fontSize: 16, fontWeight: 800 },
   agendaSub: { marginTop: 4, fontSize: 12, opacity: 0.75 },
-  agendaList: {
-    padding: 12,
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
+  agendaList: { padding: 12, display: "flex", flexDirection: "column", gap: 10 },
 
-  eventRow: {
-    display: "flex",
-    gap: 10,
-    padding: 12,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-  },
+  eventRow: { display: "flex", gap: 10, padding: 12, borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" },
   eventBar: { width: 6, borderRadius: 999 },
-  eventBody: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  eventTop: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  eventRight: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-  },
-  eventTitle: {
-    fontSize: 14,
-    fontWeight: 800,
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis",
-  },
+  eventBody: { flex: 1, display: "flex", flexDirection: "column", gap: 6 },
+  eventTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  eventRight: { display: "inline-flex", alignItems: "center", gap: 8 },
+  eventTitle: { fontSize: 14, fontWeight: 800, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
   eventTime: { fontSize: 12, opacity: 0.78 },
-  eventTag: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    fontSize: 12,
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.03)",
-    opacity: 0.95,
-    whiteSpace: "nowrap",
-  },
+  eventTag: { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.03)", opacity: 0.95, whiteSpace: "nowrap" },
   eventDot: { width: 8, height: 8, borderRadius: 999 },
 
-  editBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    border: "1px solid rgba(59,130,246,0.45)",
-    background: "rgba(59,130,246,0.16)",
-    color: "rgba(255,255,255,0.94)",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 14,
-    fontWeight: 900,
-  },
+  editBtn: { width: 34, height: 34, borderRadius: 12, border: "1px solid rgba(59,130,246,0.45)", background: "rgba(59,130,246,0.16)", color: "rgba(255,255,255,0.94)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 900 },
+  deleteBtn: { width: 34, height: 34, borderRadius: 12, border: "1px solid rgba(248,113,113,0.28)", background: "rgba(248,113,113,0.10)", color: "rgba(255,255,255,0.92)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 900 },
 
-  deleteBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    border: "1px solid rgba(248,113,113,0.28)",
-    background: "rgba(248,113,113,0.10)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 14,
-    fontWeight: 900,
-  },
+  primaryBtnPersonal: { padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(250,204,21,0.30)", background: "linear-gradient(135deg, rgba(250,204,21,0.22), rgba(250,204,21,0.08))", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900 },
+  primaryBtnGroup: { padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(96,165,250,0.30)", background: "linear-gradient(135deg, rgba(96,165,250,0.22), rgba(96,165,250,0.08))", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900 },
 
-  primaryBtnPersonal: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(250,204,21,0.30)",
-    background:
-      "linear-gradient(135deg, rgba(250,204,21,0.22), rgba(250,204,21,0.08))",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  primaryBtnGroup: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(96,165,250,0.30)",
-    background:
-      "linear-gradient(135deg, rgba(96,165,250,0.22), rgba(96,165,250,0.08))",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
+  ghostBtn: { padding: "10px 12px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 700 },
+  ghostBtnSmall: { padding: "8px 10px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 700, fontSize: 12 },
 
-  ghostBtn: {
-    padding: "10px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 700,
-  },
-  ghostBtnSmall: {
-    padding: "8px 10px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 700,
-    fontSize: 12,
-  },
+  ghostBtnSmallPersonal: { padding: "8px 10px", borderRadius: 12, border: "1px solid rgba(250,204,21,0.22)", background: "rgba(250,204,21,0.08)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 800, fontSize: 12 },
+  ghostBtnSmallGroup: { padding: "8px 10px", borderRadius: 12, border: "1px solid rgba(96,165,250,0.22)", background: "rgba(96,165,250,0.08)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 800, fontSize: 12 },
 
-  ghostBtnSmallPersonal: {
-    padding: "8px 10px",
-    borderRadius: 12,
-    border: "1px solid rgba(250,204,21,0.22)",
-    background: "rgba(250,204,21,0.08)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 800,
-    fontSize: 12,
-  },
-  ghostBtnSmallGroup: {
-    padding: "8px 10px",
-    borderRadius: 12,
-    border: "1px solid rgba(96,165,250,0.22)",
-    background: "rgba(96,165,250,0.08)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 800,
-    fontSize: 12,
-  },
-
-  conflictPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "8px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(248,113,113,0.35)",
-    background: "rgba(248,113,113,0.12)",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 12,
-  },
-  conflictDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    background: "rgba(248,113,113,0.95)",
-  },
+  conflictPill: { display: "inline-flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(248,113,113,0.35)", background: "rgba(248,113,113,0.12)", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900, fontSize: 12 },
+  conflictDot: { width: 10, height: 10, borderRadius: 999, background: "rgba(248,113,113,0.95)" },
   conflictArrow: { opacity: 0.8 },
 
-  resolvePill: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "8px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 12,
-  },
+  resolvePill: { display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 900, fontSize: 12 },
 
-  okPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "8px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(34,197,94,0.30)",
-    background: "rgba(34,197,94,0.10)",
-    color: "rgba(255,255,255,0.92)",
-    fontWeight: 900,
-    fontSize: 12,
-  },
-  okDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    background: "rgba(34,197,94,0.95)",
-  },
+  okPill: { display: "inline-flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(34,197,94,0.30)", background: "rgba(34,197,94,0.10)", color: "rgba(255,255,255,0.92)", fontWeight: 900, fontSize: 12 },
+  okDot: { width: 10, height: 10, borderRadius: 999, background: "rgba(34,197,94,0.95)" },
 
-  emptyHint: {
-    padding: 14,
-    borderRadius: 14,
-    border: "1px dashed rgba(255,255,255,0.16)",
-    background: "rgba(255,255,255,0.02)",
-    opacity: 0.75,
-    fontSize: 13,
-  },
+  emptyHint: { padding: 14, borderRadius: 14, border: "1px dashed rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.02)", opacity: 0.75, fontSize: 13 },
 
-  loadingCard: {
-    marginTop: 18,
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-    padding: 16,
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-  },
-  loadingDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 999,
-    background: "rgba(56,189,248,0.95)",
-    boxShadow: "0 0 24px rgba(56,189,248,0.55)",
-  },
+  loadingCard: { marginTop: 18, display: "flex", gap: 12, alignItems: "center", padding: 16, borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" },
+  loadingDot: { width: 12, height: 12, borderRadius: 999, background: "rgba(56,189,248,0.95)", boxShadow: "0 0 24px rgba(56,189,248,0.55)" },
   loadingTitle: { fontWeight: 900 },
   loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
 };

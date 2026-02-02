@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
-
 import {
   computeVisibleConflicts,
   type CalendarEvent,
@@ -35,7 +34,6 @@ export default function SummaryPage() {
   // Carga de datos del resumen (igual que antes)
   useEffect(() => {
     let alive = true;
-
     (async () => {
       try {
         setLoading(true);
@@ -45,32 +43,27 @@ export default function SummaryPage() {
           getMyGroups(),
           getMyEvents(),
         ]);
-
         if (!alive) return;
 
         const groupTypeById = new Map<string, GroupType>(
           (groups || []).map((g: any) => {
             const id = String(g.id);
             const rawType = String(g.type ?? "").toLowerCase();
-
             // normalizamos: solo/personal → personal, couple → pair
             let gt: GroupType = "personal";
             if (rawType === "pair" || rawType === "couple") gt = "pair";
             else if (rawType === "family") gt = "family";
-
             return [id, gt];
           })
         );
 
         const mapped: CalendarEvent[] = (rawEvents || []).map((e: any) => {
           const gid = e.group_id ?? e.groupId ?? null;
-
           let groupType: GroupType = "personal";
           if (gid) {
             const t = groupTypeById.get(String(gid));
             groupType = (t ?? "pair") as GroupType;
           }
-
           return {
             id: String(e.id),
             title: String(e.title ?? "Evento"),
@@ -116,7 +109,8 @@ export default function SummaryPage() {
     return events
       .filter((e) => new Date(e.end).getTime() >= now)
       .sort(
-        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+        (a, b) =>
+          new Date(a.start).getTime() - new Date(b.start).getTime()
       );
   }, [events, now]);
 
@@ -153,7 +147,6 @@ export default function SummaryPage() {
   const upcomingConflicts = useMemo(() => {
     const list = conflicts || [];
     if (!list.length) return list;
-
     // nos quedamos con los que afectan hoy hacia adelante
     return list.filter((c) => {
       const endMs = new Date(c.overlapEnd).getTime();
@@ -165,13 +158,11 @@ export default function SummaryPage() {
     let personal = 0;
     let pair = 0;
     let family = 0;
-
     for (const e of upcoming) {
       if (e.groupType === "family") family++;
       else if (e.groupType === "pair" || e.groupType === "couple") pair++;
       else personal++;
     }
-
     return { personal, pair, family };
   }, [upcoming]);
 
@@ -211,7 +202,9 @@ export default function SummaryPage() {
             <button
               type="button"
               style={S.primary}
-              onClick={() => router.push("/events/new/details?type=personal")}
+              onClick={() =>
+                router.push("/events/new/details?type=personal")
+              }
             >
               + Nuevo evento
             </button>
@@ -219,7 +212,7 @@ export default function SummaryPage() {
           </div>
         </div>
 
-        {/* 👇 Nuevo: Onboarding ligero, premium y solo una vez */}
+        {/* 👇 Onboarding ligero, premium y solo una vez */}
         {showOnboarding && (
           <section style={S.onboardCard}>
             <div>
@@ -228,9 +221,8 @@ export default function SummaryPage() {
                 Tu semana, tu pareja y tu familia en una sola vista.
               </h2>
               <p style={S.onboardText}>
-                Aquí verás tus próximos eventos, cómo se reparten entre
-                personal, pareja y familia, y dónde hay posibles choques de
-                horario.
+                Aquí verás tus próximos eventos, cómo se reparten entre personal,
+                pareja y familia, y dónde hay posibles choques de horario.
               </p>
             </div>
             <div style={S.onboardButtons}>
@@ -257,11 +249,10 @@ export default function SummaryPage() {
             <div style={S.badge}>Resumen</div>
             <h1 style={S.title}>Así se ve tu semana con SyncPlans</h1>
             <p style={S.subtitle}>
-              Mira de un vistazo cuántos planes tienes, dónde hay posibles
-              choques y cuál es tu próximo evento importante.
+              Mira de un vistazo cuántos planes tienes, dónde hay posibles choques
+              y cuál es tu próximo evento importante.
             </p>
           </div>
-
           <div style={S.heroStats}>
             <HeroStat
               label="Próximos 7 días"
@@ -319,9 +310,8 @@ export default function SummaryPage() {
             <div style={S.tipBox}>
               <div style={S.tipTitle}>Consejo rápido</div>
               <p style={S.tipBody}>
-                Si ves muchos eventos en un mismo día, entra al calendario y
-                usa el botón <strong>Conflictos</strong> para resolverlos en
-                segundos.
+                Si ves muchos eventos en un mismo día, entra al calendario y usa el
+                botón <strong>Conflictos</strong> para resolverlos en segundos.
               </p>
             </div>
           </div>
@@ -336,8 +326,8 @@ export default function SummaryPage() {
               <div style={S.emptyBox}>
                 <div style={S.emptyTitle}>Todavía no tienes eventos</div>
                 <div style={S.emptySub}>
-                  Empieza creando un evento personal o de pareja. SyncPlans te
-                  avisará si se cruza con algo más.
+                  Empieza creando un evento personal o de pareja. SyncPlans te avisará
+                  si se cruza con algo más.
                 </div>
                 <button
                   type="button"
@@ -351,10 +341,12 @@ export default function SummaryPage() {
               </div>
             ) : nextEvents.length === 0 ? (
               <div style={S.emptyBox}>
-                <div style={S.emptyTitle}>No hay nada en los próximos días</div>
+                <div style={S.emptyTitle}>
+                  No hay nada en los próximos días
+                </div>
                 <div style={S.emptySub}>
-                  Tu calendario está libre por ahora. Aprovecha para planear
-                  algo que te haga ilusión.
+                  Tu calendario está libre por ahora. Aprovecha para planear algo que
+                  te haga ilusión.
                 </div>
               </div>
             ) : (
@@ -449,7 +441,6 @@ function TypeRow({
 
 function UpcomingRow({ event }: { event: SummaryEvent }) {
   const meta = groupMeta(event.groupType);
-
   return (
     <div style={S.row}>
       <div style={{ ...S.rowBar, background: meta.dot }} />
@@ -487,7 +478,6 @@ function formatRange(e: CalendarEvent): string {
     day: "2-digit",
     month: "short",
   };
-
   const optsTime: Intl.DateTimeFormatOptions = {
     hour: "2-digit",
     minute: "2-digit",
@@ -513,7 +503,8 @@ const S: Record<string, React.CSSProperties> = {
     minHeight: "100vh",
     background: "#050816",
     color: "rgba(248,250,252,0.98)",
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+    fontFamily:
+      "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
   },
   shell: {
     maxWidth: 1120,
@@ -557,8 +548,7 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 12,
     cursor: "pointer",
   },
-
-  // 🔹 Nuevo: estilos onboarding
+  // Onboarding
   onboardCard: {
     marginBottom: 16,
     borderRadius: 22,
@@ -623,7 +613,6 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     cursor: "pointer",
   },
-
   heroCard: {
     borderRadius: 24,
     border: "1px solid rgba(148,163,184,0.45)",

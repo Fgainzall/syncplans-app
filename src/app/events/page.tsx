@@ -17,7 +17,6 @@ type DbEvent = {
   start: string;
   end: string;
   notes?: string | null;
-
   group_id?: string | null;
   groupId?: string | null; // fallback si viene con otro nombre
 };
@@ -35,17 +34,11 @@ export default function EventsPage() {
 
   useEffect(() => {
     let alive = true;
-
     (async () => {
       try {
         setLoading(true);
-
         // ✅ Cargamos ambas cosas (igual que CalendarClient)
-        const [myGroups, rawEvents] = await Promise.all([
-          getMyGroups(),
-          getMyEvents(),
-        ]);
-
+        const [myGroups, rawEvents] = await Promise.all([getMyGroups(), getMyEvents()]);
         if (!alive) return;
 
         // ✅ Map group_id -> type ("pair" | "family")
@@ -62,7 +55,6 @@ export default function EventsPage() {
         const list: CalendarEvent[] = ((rawEvents || []) as DbEvent[])
           .map((ev) => {
             const gid = ev.group_id ?? ev.groupId ?? null;
-
             let gt: GroupType = "personal";
             if (gid) {
               const t = groupTypeById.get(String(gid));
@@ -99,7 +91,8 @@ export default function EventsPage() {
     return [...events]
       .filter((e) => new Date(e.end).getTime() >= now)
       .sort(
-        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+        (a, b) =>
+          new Date(a.start).getTime() - new Date(b.start).getTime()
       );
   }, [events, now]);
 
@@ -107,7 +100,8 @@ export default function EventsPage() {
     return [...events]
       .filter((e) => new Date(e.end).getTime() < now)
       .sort(
-        (a, b) => new Date(b.start).getTime() - new Date(a.start).getTime()
+        (a, b) =>
+          new Date(b.start).getTime() - new Date(a.start).getTime()
       );
   }, [events, now]);
 
@@ -117,7 +111,8 @@ export default function EventsPage() {
     else if (view === "past") base = past;
     else {
       base = [...events].sort(
-        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+        (a, b) =>
+          new Date(a.start).getTime() - new Date(b.start).getTime()
       );
     }
 
@@ -132,11 +127,8 @@ export default function EventsPage() {
   }, [view, upcoming, past, events, query]);
 
   async function onDelete(id: string) {
-    const ok = confirm(
-      "¿Eliminar este evento? Esta acción no se puede deshacer."
-    );
+    const ok = confirm("¿Eliminar este evento? Esta acción no se puede deshacer.");
     if (!ok) return;
-
     const deleted = await deleteEventsByIds([id]);
     if (deleted >= 0) {
       setEvents((s) => s.filter((x) => String(x.id) !== String(id)));
@@ -159,7 +151,6 @@ export default function EventsPage() {
       day: "2-digit",
       month: "short",
     };
-
     const optsTime: Intl.DateTimeFormatOptions = {
       hour: "2-digit",
       minute: "2-digit",
@@ -181,7 +172,6 @@ export default function EventsPage() {
   return (
     <main style={S.page}>
       {toast && <div style={S.toast}>{toast}</div>}
-
       <div style={S.shell}>
         <div style={S.topRow}>
           <PremiumHeader />
@@ -264,7 +254,6 @@ export default function EventsPage() {
             <div style={S.list}>
               {visible.map((e) => {
                 const meta = groupMeta((e.groupType ?? "personal") as any);
-
                 return (
                   <div key={e.id} style={S.row}>
                     <div style={{ ...S.bar, background: meta.dot }} />
@@ -279,9 +268,7 @@ export default function EventsPage() {
                           🗑️
                         </button>
                       </div>
-
                       <div style={S.rowSub}>{formatRange(e)}</div>
-
                       <div style={S.badge}>{meta.label}</div>
                     </div>
                   </div>
@@ -300,17 +287,26 @@ const S: Record<string, React.CSSProperties> = {
     minHeight: "100vh",
     background: "#050816",
     color: "rgba(255,255,255,0.92)",
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+    fontFamily:
+      "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
   },
-  shell: { maxWidth: 1120, margin: "0 auto", padding: "22px 18px 48px" },
+  shell: {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: "22px 18px 48px",
+  },
   topRow: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "spaceBetween" as any, // o "space-between"
     gap: 14,
     marginBottom: 14,
   },
-  topActions: { display: "flex", gap: 10, alignItems: "center" },
+  topActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+  },
   primary: {
     height: 40,
     padding: "0 14px",
@@ -336,8 +332,16 @@ const S: Record<string, React.CSSProperties> = {
     marginBottom: 12,
     flexWrap: "wrap",
   },
-  title: { fontSize: 16, fontWeight: 950 },
-  sub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 },
+  title: {
+    fontSize: 16,
+    fontWeight: 950,
+  },
+  sub: {
+    marginTop: 4,
+    fontSize: 12,
+    opacity: 0.75,
+    fontWeight: 650,
+  },
   filters: {
     display: "flex",
     gap: 10,
@@ -378,7 +382,12 @@ const S: Record<string, React.CSSProperties> = {
     color: "#e5e7eb",
     fontSize: 11,
   },
-  list: { marginTop: 10, display: "flex", flexDirection: "column", gap: 10 },
+  list: {
+    marginTop: 10,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
   row: {
     display: "flex",
     gap: 10,
@@ -387,7 +396,10 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
   },
-  bar: { width: 6, borderRadius: 999 },
+  bar: {
+    width: 6,
+    borderRadius: 999,
+  },
   rowTop: {
     display: "flex",
     justifyContent: "space-between",
@@ -400,7 +412,12 @@ const S: Record<string, React.CSSProperties> = {
     whiteSpace: "nowrap",
     textOverflow: "ellipsis",
   },
-  rowSub: { marginTop: 6, fontSize: 12, opacity: 0.75, fontWeight: 650 },
+  rowSub: {
+    marginTop: 6,
+    fontSize: 12,
+    opacity: 0.75,
+    fontWeight: 650,
+  },
   badge: {
     marginTop: 8,
     display: "inline-flex",
@@ -431,5 +448,11 @@ const S: Record<string, React.CSSProperties> = {
     background: "rgba(7,11,22,0.75)",
     backdropFilter: "blur(12px)",
     fontWeight: 900,
+  },
+  del: {
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    fontSize: 16,
   },
 };

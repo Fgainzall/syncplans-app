@@ -14,7 +14,6 @@ import {
   attachEvents,
   type ConflictItem,
 } from "@/lib/conflicts";
-
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
 import { deleteEventsByIds } from "@/lib/eventsDb";
 
@@ -37,13 +36,11 @@ function resolutionForConflict(
   if (!a || !b) return undefined;
 
   const [x, y] = [a, b].sort();
-  const prefix = `cx::${x}::${y}::`;
+  const prefix = `cx::${x}::${y}::`; // busca cualquier resolución guardada para esa pareja de eventos
 
-  // busca cualquier resolución guardada para esa pareja de eventos
   for (const k of Object.keys(resMap)) {
     if (k.startsWith(prefix)) return resMap[k];
   }
-
   return undefined;
 }
 
@@ -56,28 +53,20 @@ export default function ActionsClient({
 
   const [booting, setBooting] = useState(true);
   const [busy, setBusy] = useState(false);
-
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
-  const [toast, setToast] = useState<null | { title: string; sub?: string }>(
-    null
-  );
+  const [toast, setToast] = useState<null | { title: string; sub?: string }>(null);
 
-  /* =========================
-     Toast auto-hide
-     ========================= */
+  /* ========================= Toast auto-hide ========================= */
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2600);
     return () => clearTimeout(t);
   }, [toast]);
 
-  /* =========================
-     Boot
-     ========================= */
+  /* ========================= Boot ========================= */
   useEffect(() => {
     let alive = true;
-
     (async () => {
       setBooting(true);
 
@@ -91,9 +80,7 @@ export default function ActionsClient({
       }
 
       try {
-        const { events: ev } = await loadEventsFromDb({
-          groupId: groupIdFromUrl,
-        });
+        const { events: ev } = await loadEventsFromDb({ groupId: groupIdFromUrl });
         if (!alive) return;
         setEvents(Array.isArray(ev) ? ev : []);
       } catch {
@@ -118,9 +105,7 @@ export default function ActionsClient({
     };
   }, [router, groupIdFromUrl]);
 
-  /* =========================
-     Conflicts + plan
-     ========================= */
+  /* ========================= Conflicts + plan ========================= */
   const conflicts = useMemo<ConflictItem[]>(() => {
     const cx = computeVisibleConflicts(events);
     return attachEvents(cx, events);
@@ -134,23 +119,18 @@ export default function ActionsClient({
 
     for (const c of conflicts) {
       const r = resolutionForConflict(c, resMap);
-
       if (!r) {
         pending++;
         continue;
       }
-
       decided++;
-
       if (r === "none") {
         skipped++;
         continue;
       }
-
       if (r === "keep_existing" && c.incomingEventId) {
         deleteIds.add(String(c.incomingEventId));
       }
-
       if (r === "replace_with_new" && c.existingEventId) {
         deleteIds.add(String(c.existingEventId));
       }
@@ -167,9 +147,7 @@ export default function ActionsClient({
 
   const disabledApply = plan.decided === 0 || busy;
 
-  /* =========================
-     Actions
-     ========================= */
+  /* ========================= Actions ========================= */
   const apply = async () => {
     if (busy) return;
 
@@ -215,9 +193,7 @@ export default function ActionsClient({
     router.push(`/conflicts/detected?${qp.toString()}`);
   };
 
-  /* =========================
-     Loading
-     ========================= */
+  /* ========================= Loading ========================= */
   if (booting) {
     return (
       <main style={styles.page}>
@@ -235,9 +211,7 @@ export default function ActionsClient({
     );
   }
 
-  /* =========================
-     UI
-     ========================= */
+  /* ========================= UI ========================= */
   return (
     <main style={styles.page}>
       <div style={styles.shell}>
@@ -256,18 +230,14 @@ export default function ActionsClient({
             <div style={styles.kicker}>Último paso</div>
             <h1 style={styles.h1}>Aplicar decisiones</h1>
             <div style={styles.sub}>
-              Esto actualizará tu calendario y resolverá los conflictos
-              seleccionados.
+              Esto actualizará tu calendario y resolverá los conflictos seleccionados.
             </div>
-
             {conflicts.length > 0 && plan.decided === 0 && (
               <div style={styles.helperText}>
-                No hay decisiones guardadas aún. Vuelve a “Comparar” y elige
-                Conservar A/B.
+                No hay decisiones guardadas aún. Vuelve a “Comparar” y elige Conservar A/B.
               </div>
             )}
           </div>
-
           <div style={styles.heroRight}>
             <button
               onClick={apply}
@@ -294,16 +264,19 @@ export default function ActionsClient({
   );
 }
 
-/* =========================
-   Styles
-   ========================= */
+/* ========================= Styles ========================= */
+
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
     background: "#050816",
     color: "rgba(255,255,255,0.92)",
   },
-  shell: { maxWidth: 1120, margin: "0 auto", padding: "22px 18px 48px" },
+  shell: {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: "22px 18px 48px",
+  },
   topRow: {
     display: "flex",
     alignItems: "center",
@@ -311,7 +284,11 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 14,
     marginBottom: 14,
   },
-  topActions: { display: "flex", gap: 10, alignItems: "center" },
+  topActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+  },
   hero: {
     display: "flex",
     justifyContent: "space-between",
@@ -322,11 +299,28 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
   },
-  heroLeft: { display: "flex", flexDirection: "column", gap: 6 },
-  heroRight: { display: "flex", gap: 10, alignItems: "center" },
-  kicker: { fontSize: 11, fontWeight: 900 },
-  h1: { margin: 0, fontSize: 28 },
-  sub: { fontSize: 13, opacity: 0.75 },
+  heroLeft: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  heroRight: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+  },
+  kicker: {
+    fontSize: 11,
+    fontWeight: 900,
+  },
+  h1: {
+    margin: 0,
+    fontSize: 28,
+  },
+  sub: {
+    fontSize: 13,
+    opacity: 0.75,
+  },
   helperText: {
     marginTop: 10,
     fontSize: 12,
@@ -363,8 +357,13 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 999,
     background: "rgba(56,189,248,0.95)",
   },
-  loadingTitle: { fontWeight: 900 },
-  loadingSub: { fontSize: 12, opacity: 0.75 },
+  loadingTitle: {
+    fontWeight: 900,
+  },
+  loadingSub: {
+    fontSize: 12,
+    opacity: 0.75,
+  },
   toast: {
     position: "fixed",
     left: 18,
@@ -378,6 +377,13 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(16,18,26,0.92)",
     boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
   },
-  toastT: { fontSize: 13, fontWeight: 900 },
-  toastS: { marginTop: 4, fontSize: 12, opacity: 0.75 },
+  toastT: {
+    fontSize: 13,
+    fontWeight: 900,
+  },
+  toastS: {
+    marginTop: 4,
+    fontSize: 12,
+    opacity: 0.75,
+  },
 };
