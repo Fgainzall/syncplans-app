@@ -6,11 +6,18 @@ import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+import {
+  getMyProfile,
+  getInitials,
+  type Profile,
+} from "@/lib/profilesDb";
 
 type UserUI = {
   name: string;
   email: string;
   verified: boolean;
+  hasProfile: boolean;
+  initials: string;
 };
 
 export default function ProfilePage() {
@@ -33,16 +40,36 @@ export default function ProfilePage() {
 
         const u = data.session.user;
 
-        // nombre: prioriza metadata si existe
-        const name =
+        // 1) Intentar leer perfil real de la tabla "profiles"
+        let profile: Profile | null = null;
+        try {
+          profile = await getMyProfile();
+        } catch (e) {
+          console.error("Error getMyProfile:", e);
+        }
+
+        // 2) Nombre base desde metadata / email (fallback)
+        const metaName =
           (u.user_metadata?.full_name as string) ||
           (u.user_metadata?.name as string) ||
           (u.email ? u.email.split("@")[0] : "Usuario");
+
+        let name = metaName;
+        let initials = metaName.charAt(0).toUpperCase();
+        let hasProfile = false;
+
+        if (profile) {
+          name = `${profile.first_name} ${profile.last_name}`.trim();
+          initials = getInitials(profile);
+          hasProfile = true;
+        }
 
         setUser({
           name,
           email: u.email ?? "—",
           verified: !!u.email_confirmed_at,
+          hasProfile,
+          initials,
         });
       } finally {
         if (!alive) return;
@@ -87,7 +114,7 @@ export default function ProfilePage() {
         <section style={styles.card}>
           <div style={styles.profileRow}>
             <div style={styles.avatar}>
-              {user.name.charAt(0).toUpperCase()}
+              {user.initials || user.name.charAt(0).toUpperCase()}
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={styles.name}>{user.name}</div>
@@ -102,6 +129,11 @@ export default function ProfilePage() {
               tone={user.verified ? "good" : "warn"}
             />
             <InfoRow label="Plan" value="Demo Premium" tone="neutral" />
+            <InfoRow
+              label="Perfil"
+              value={user.hasProfile ? "Completo" : "Sin completar"}
+              tone={user.hasProfile ? "good" : "warn"}
+            />
           </div>
 
           <div style={styles.actions}>
@@ -111,6 +143,15 @@ export default function ProfilePage() {
             >
               Ver resumen semanal
             </button>
+
+            {!user.hasProfile && (
+              <button
+                onClick={() => router.push("/onboarding/profile")}
+                style={styles.secondaryBtn}
+              >
+                Completar mi perfil
+              </button>
+            )}
           </div>
         </section>
 
@@ -251,6 +292,16 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.92)",
     cursor: "pointer",
     fontWeight: 900,
+  },
+  secondaryBtn: {
+    padding: "10px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(148,163,184,0.65)",
+    background: "rgba(15,23,42,0.95)",
+    color: "rgba(226,232,240,0.96)",
+    cursor: "pointer",
+    fontWeight: 900,
+    fontSize: 12,
   },
 
   footer: {

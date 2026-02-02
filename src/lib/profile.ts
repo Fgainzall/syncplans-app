@@ -7,7 +7,10 @@ export type SyncUser = {
 const PROFILE_KEY = "syncplans:profile:v1";
 
 function isBrowser() {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+  return (
+    typeof window !== "undefined" &&
+    typeof window.localStorage !== "undefined"
+  );
 }
 
 function safeParse<T>(raw: string | null, fallback: T): T {
@@ -22,7 +25,10 @@ function safeParse<T>(raw: string | null, fallback: T): T {
 export function uid(): string {
   const g = globalThis as any;
   if (g?.crypto?.randomUUID) return g.crypto.randomUUID();
-  const rnd = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+  const rnd = () =>
+    Math.floor((1 + Math.random()) * 0x10000)
+      .toString(16)
+      .substring(1);
   return `${rnd()}${rnd()}-${rnd()}-${rnd()}-${rnd()}-${rnd()}${rnd()}${rnd()}`;
 }
 

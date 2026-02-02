@@ -11,6 +11,11 @@ import {
   getActiveGroupIdFromDb,
   setActiveGroupIdInDb,
 } from "@/lib/activeGroup";
+import {
+  getProfilesByIds,
+  getInitials,
+  type Profile,
+} from "@/lib/profilesDb";
 
 type MemberRow = {
   id: string;
@@ -19,6 +24,9 @@ type MemberRow = {
   role: string;
   created_at: string | null;
   isMe: boolean;
+  profile: Profile | null;
+  displayName: string;
+  initials: string;
 };
 
 export default function MembersClient() {
@@ -109,7 +117,8 @@ export default function MembersClient() {
         if (error) throw error;
         if (!alive) return;
 
-        const rows: MemberRow[] = (data ?? []).map((m: any) => ({
+        // Base rows sin info de perfil todavía
+        const baseRows = (data ?? []).map((m: any) => ({
           id: String(m.id),
           group_id: String(m.group_id),
           user_id: String(m.user_id),
@@ -118,7 +127,49 @@ export default function MembersClient() {
           isMe: meId != null && String(m.user_id) === String(meId),
         }));
 
-        setMembers(rows);
+        // Obtener perfiles para todos los user_id del grupo
+        const userIds = Array.from(
+          new Set(baseRows.map((m) => m.user_id).filter(Boolean))
+        );
+
+        let profilesById = new Map<string, Profile>();
+        if (userIds.length > 0) {
+          try {
+            const profs = await getProfilesByIds(userIds);
+            profs.forEach((p) => profilesById.set(p.id, p));
+          } catch (e) {
+            console.error("Error getProfilesByIds:", e);
+          }
+        }
+
+        const enriched: MemberRow[] = baseRows.map((m) => {
+          const p = profilesById.get(m.user_id) ?? null;
+          const nameFromProfile = p
+            ? `${p.first_name} ${p.last_name}`.trim()
+            : null;
+
+          const displayName = m.isMe
+            ? "Tú"
+            : nameFromProfile || "Miembro";
+
+          const initials = p
+            ? getInitials(p)
+            : m.isMe
+            ? "Tú"
+            : (nameFromProfile ?? "Miembro")
+                .charAt(0)
+                .toUpperCase();
+
+          return {
+            ...m,
+            profile: p,
+            displayName,
+            initials,
+          };
+        });
+
+        if (!alive) return;
+        setMembers(enriched);
       } catch (e: any) {
         console.error(e);
         if (alive)
@@ -192,6 +243,14 @@ export default function MembersClient() {
                 <p style={S.cardSub}>
                   Gestiona quién forma parte de este grupo y revisa sus roles.
                 </p>
+                {activeGroup && (
+                  <p style={S.cardGroupName}>
+                    Grupo activo:{" "}
+                    <strong>
+                      {activeGroup.name || nombrePorTipo(activeGroup.type)}
+                    </strong>
+                  </p>
+                )}
               </div>
 
               <div style={S.cardHeaderRight}>
@@ -249,8 +308,21 @@ export default function MembersClient() {
   );
 }
 
+function labelForRole(role: string | null | undefined): string {
+  if (!role) return "Miembro";
+
+  switch (role) {
+    case "owner":
+      return "Admin"; // antes “Propietario”
+    case "admin":
+      return "Admin";
+    case "member":
+    default:
+      return "Miembro";
+  }
+}
+
 function MemberRowView({ member }: { member: MemberRow }) {
-  const shortId = member.user_id.slice(0, 8) + "…";
   const roleLabel = labelForRole(member.role);
   const isOwner = member.role === "owner";
   const isAdmin = member.role === "admin";
@@ -258,14 +330,9 @@ function MemberRowView({ member }: { member: MemberRow }) {
   return (
     <div style={S.row}>
       <div style={S.rowMain}>
-        <div style={S.avatarCircle}>
-          {member.isMe ? "Tú" : roleLabel.charAt(0)}
-        </div>
+        <div style={S.avatarCircle}>{member.initials}</div>
         <div>
-          <div style={S.rowTitle}>
-            {member.isMe ? "Tú" : "Miembro"}{" "}
-            <span style={S.rowIdHint}>({shortId})</span>
-          </div>
+          <div style={S.rowTitle}>{member.displayName}</div>
           <div style={S.rowSub}>
             {member.isMe
               ? "Este eres tú dentro del grupo."
@@ -286,13 +353,6 @@ function MemberRowView({ member }: { member: MemberRow }) {
       </div>
     </div>
   );
-}
-
-function labelForRole(role: string): string {
-  const r = role.toLowerCase();
-  if (r === "owner") return "Propietario";
-  if (r === "admin") return "Administrador";
-  return "Miembro";
 }
 
 function nombrePorTipo(type: GroupRow["type"]): string {
@@ -380,6 +440,11 @@ const S: Record<string, React.CSSProperties> = {
     marginTop: 4,
     fontSize: 12,
     color: "rgba(148,163,184,0.96)",
+  },
+  cardGroupName: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "rgba(203,213,225,0.96)",
   },
   cardHeaderRight: {
     display: "flex",

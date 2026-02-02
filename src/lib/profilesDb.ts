@@ -1,3 +1,4 @@
+// src/lib/profilesDb.ts
 "use client";
 
 import supabase from "@/lib/supabaseClient";
@@ -17,6 +18,9 @@ async function requireUid(): Promise<string> {
   return uid;
 }
 
+/**
+ * Perfil del usuario logueado (o null si aún no creó perfil).
+ */
 export async function getMyProfile(): Promise<Profile | null> {
   const uid = await requireUid();
 
@@ -30,6 +34,10 @@ export async function getMyProfile(): Promise<Profile | null> {
   return data ?? null;
 }
 
+/**
+ * Crea el perfil del usuario logueado.
+ * - Usa el UID del auth.user como id en profiles.
+ */
 export async function createMyProfile(input: {
   first_name: string;
   last_name: string;
@@ -50,13 +58,33 @@ export async function createMyProfile(input: {
       first_name,
       last_name,
     })
-    .select()
+    .select("id, first_name, last_name, avatar_url")
     .single();
 
   if (error) throw error;
-  return data;
+  return data as Profile;
 }
 
+/**
+ * Devuelve perfiles para un conjunto de IDs.
+ * - Usado para Members (mostrar nombres reales en grupos).
+ */
+export async function getProfilesByIds(ids: string[]): Promise<Profile[]> {
+  const unique = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+  if (unique.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, first_name, last_name, avatar_url")
+    .in("id", unique);
+
+  if (error) throw error;
+  return (data ?? []) as Profile[];
+}
+
+/**
+ * Iniciales a partir de nombre + apellido.
+ */
 export function getInitials(p: {
   first_name: string;
   last_name: string;
