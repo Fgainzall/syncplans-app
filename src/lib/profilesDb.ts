@@ -51,13 +51,17 @@ export async function createMyProfile(input: {
     throw new Error("Nombre y apellido son obligatorios.");
   }
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .insert({
-      id: uid,
-      first_name,
-      last_name,
-    })
+ const display_name = `${first_name} ${last_name}`.trim();
+
+const { data, error } = await supabase
+  .from("profiles")
+  .insert({
+    id: uid,
+    display_name,
+    first_name,
+    last_name,
+  })
+
     .select("id, first_name, last_name, avatar_url")
     .single();
 
