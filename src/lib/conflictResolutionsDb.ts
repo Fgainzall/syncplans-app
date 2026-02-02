@@ -1,3 +1,4 @@
+// src/lib/conflictResolutionsDb.ts
 "use client";
 
 import supabase from "@/lib/supabaseClient";
@@ -21,7 +22,9 @@ async function requireUserId(): Promise<string> {
 /**
  * Devuelve un map conflictId -> resolution (solo del usuario actual)
  */
-export async function getMyConflictResolutionsMap(): Promise<Record<string, Resolution>> {
+export async function getMyConflictResolutionsMap(): Promise<
+  Record<string, Resolution>
+> {
   const uid = await requireUserId();
 
   const { data, error } = await supabase
@@ -41,7 +44,10 @@ export async function getMyConflictResolutionsMap(): Promise<Record<string, Reso
 /**
  * ✅ Upsert robusto sin depender de onConflict (evita 400 PostgREST)
  */
-export async function upsertConflictResolution(conflictId: string, resolution: Resolution) {
+export async function upsertConflictResolution(
+  conflictId: string,
+  resolution: Resolution
+) {
   const uid = await requireUserId();
 
   const payload = {
@@ -60,7 +66,6 @@ export async function upsertConflictResolution(conflictId: string, resolution: R
     .maybeSingle();
 
   if (updateErr) {
-    // si update falla por RLS u otro motivo, lo propagamos (así se ve en toast)
     throw updateErr;
   }
 

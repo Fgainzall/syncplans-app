@@ -130,37 +130,24 @@ export function conflictResolutionHint(r?: ConflictResolution) {
 
 /* =========================
    Date parsing (FIX REAL)
-   =========================
-   Problema: "2026-02-21T22:45:00" (sin Z ni offset) es ambiguo:
-   algunos engines lo tratan como UTC, otros como local.
-   Aquí lo forzamos a LOCAL si no trae timezone.
-*/
+   ========================= */
 
 function hasTimezone(iso: string) {
-  // Z o ±HH:MM o ±HHMM
   return /([zZ]|[+\-]\d{2}:\d{2}|[+\-]\d{4})$/.test(iso);
 }
 
 function parseLocalIsoNoTz(iso: string): Date | null {
-  // Acepta:
-  //  - "YYYY-MM-DDTHH:mm"
-  //  - "YYYY-MM-DDTHH:mm:ss"
-  //  - "YYYY-MM-DDTHH:mm:ss.SSS"
-  //  - "YYYY-MM-DD HH:mm:ss" (space)
-  //  - "YYYY-MM-DD" (día)
   const s = iso.trim().replace(" ", "T");
 
-  // Día solo
   const mDay = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (mDay) {
     const y = Number(mDay[1]);
     const mo = Number(mDay[2]) - 1;
     const d = Number(mDay[3]);
-    const dt = new Date(y, mo, d, 0, 0, 0, 0); // LOCAL
+    const dt = new Date(y, mo, d, 0, 0, 0, 0);
     return Number.isNaN(dt.getTime()) ? null : dt;
   }
 
-  // Fecha + hora
   const m = s.match(
     /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/
   );
@@ -174,7 +161,7 @@ function parseLocalIsoNoTz(iso: string): Date | null {
   const ss = m[6] ? Number(m[6]) : 0;
   const ms = m[7] ? Number(String(m[7]).padEnd(3, "0")) : 0;
 
-  const dt = new Date(y, mo, d, hh, mm, ss, ms); // LOCAL
+  const dt = new Date(y, mo, d, hh, mm, ss, ms);
   return Number.isNaN(dt.getTime()) ? null : dt;
 }
 
@@ -183,13 +170,11 @@ export function parseISO(s: string) {
 
   const t = s.trim();
 
-  // Si trae timezone, parse normal (es estable)
   if (hasTimezone(t)) {
     const d = new Date(t);
     return Number.isNaN(d.getTime()) ? null : d;
   }
 
-  // Si NO trae timezone, forzar LOCAL determinístico
   return parseLocalIsoNoTz(t);
 }
 
@@ -274,7 +259,6 @@ export function chooseExistingIncoming(a: CalendarEvent, b: CalendarEvent) {
 
 /**
  * ✅ NUEVO: ID estable SOLO por pareja de eventos
- * (esto arregla que Compare y Actions calculen el mismo conflict_id siempre)
  */
 export function conflictKey(aId: string, bId: string) {
   const [x, y] = [String(aId), String(bId)].sort();
@@ -282,7 +266,7 @@ export function conflictKey(aId: string, bId: string) {
 }
 
 /**
- * ✅ Detector robusto (cross-day OK, sin duplicados, ignora eventos inválidos)
+ * ✅ Detector robusto
  */
 export function computeVisibleConflicts(events: unknown): ConflictItem[] {
   const list: CalendarEvent[] = Array.isArray(events)

@@ -88,7 +88,9 @@ export default function ActionsClient({
       }
 
       try {
-        const { events: ev } = await loadEventsFromDb({ groupId: groupIdFromUrl });
+        const { events: ev } = await loadEventsFromDb({
+          groupId: groupIdFromUrl,
+        });
         if (!alive) return;
         setEvents(Array.isArray(ev) ? ev : []);
       } catch {
@@ -243,7 +245,8 @@ export default function ActionsClient({
             </div>
             {conflicts.length > 0 && plan.decided === 0 && (
               <div style={styles.helperText}>
-                No hay decisiones guardadas aún. Vuelve a “Comparar” y elige Conservar A/B.
+                No hay decisiones guardadas aún. Vuelve a “Comparar” y elige
+                Conservar A/B.
               </div>
             )}
           </div>
