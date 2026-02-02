@@ -14,7 +14,7 @@ import {
 import {
   getProfilesByIds,
   getInitials,
-  type Profile,
+  type Profile as UserProfile,
 } from "@/lib/profilesDb";
 
 type MemberRow = {
@@ -24,9 +24,10 @@ type MemberRow = {
   role: string;
   created_at: string | null;
   isMe: boolean;
-  profile: Profile | null;
-  displayName: string;
-  initials: string;
+  display_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  avatar_url?: string | null;
 };
 
 export default function MembersClient() {
@@ -117,8 +118,7 @@ export default function MembersClient() {
         if (error) throw error;
         if (!alive) return;
 
-        // Base rows sin info de perfil todavía
-        const baseRows = (data ?? []).map((m: any) => ({
+        const baseRows: MemberRow[] = (data ?? []).map((m: any) => ({
           id: String(m.id),
           group_id: String(m.group_id),
           user_id: String(m.user_id),
@@ -127,49 +127,37 @@ export default function MembersClient() {
           isMe: meId != null && String(m.user_id) === String(meId),
         }));
 
-        // Obtener perfiles para todos los user_id del grupo
-        const userIds = Array.from(
-          new Set(baseRows.map((m) => m.user_id).filter(Boolean))
-        );
+        // 🔹 Enriquecer con perfiles (nombres reales, avatar, etc.)
+        let enrichedRows: MemberRow[] = baseRows;
 
-        let profilesById = new Map<string, Profile>();
-        if (userIds.length > 0) {
-          try {
-            const profs = await getProfilesByIds(userIds);
-            profs.forEach((p) => profilesById.set(p.id, p));
-          } catch (e) {
-            console.error("Error getProfilesByIds:", e);
+        try {
+          const userIds = Array.from(
+            new Set(baseRows.map((m) => m.user_id))
+          );
+          if (userIds.length > 0) {
+            const profiles: UserProfile[] = await getProfilesByIds(userIds);
+            const mapById = new Map<string, UserProfile>(
+              profiles.map((p) => [p.id, p])
+            );
+
+            enrichedRows = baseRows.map((m) => {
+              const p = mapById.get(m.user_id);
+              if (!p) return m;
+              return {
+                ...m,
+                display_name: p.display_name ?? null,
+                first_name: p.first_name ?? null,
+                last_name: p.last_name ?? null,
+                avatar_url: p.avatar_url ?? null,
+              };
+            });
           }
+        } catch (e) {
+          console.error("Error cargando perfiles para miembros:", e);
         }
 
-        const enriched: MemberRow[] = baseRows.map((m) => {
-          const p = profilesById.get(m.user_id) ?? null;
-          const nameFromProfile = p
-            ? `${p.first_name} ${p.last_name}`.trim()
-            : null;
-
-          const displayName = m.isMe
-            ? "Tú"
-            : nameFromProfile || "Miembro";
-
-          const initials = p
-            ? getInitials(p)
-            : m.isMe
-            ? "Tú"
-            : (nameFromProfile ?? "Miembro")
-                .charAt(0)
-                .toUpperCase();
-
-          return {
-            ...m,
-            profile: p,
-            displayName,
-            initials,
-          };
-        });
-
         if (!alive) return;
-        setMembers(enriched);
+        setMembers(enrichedRows);
       } catch (e: any) {
         console.error(e);
         if (alive)
@@ -243,14 +231,6 @@ export default function MembersClient() {
                 <p style={S.cardSub}>
                   Gestiona quién forma parte de este grupo y revisa sus roles.
                 </p>
-                {activeGroup && (
-                  <p style={S.cardGroupName}>
-                    Grupo activo:{" "}
-                    <strong>
-                      {activeGroup.name || nombrePorTipo(activeGroup.type)}
-                    </strong>
-                  </p>
-                )}
               </div>
 
               <div style={S.cardHeaderRight}>
@@ -313,7 +293,7 @@ function labelForRole(role: string | null | undefined): string {
 
   switch (role) {
     case "owner":
-      return "Admin"; // antes “Propietario”
+      return "Admin";
     case "admin":
       return "Admin";
     case "member":
@@ -322,17 +302,40 @@ function labelForRole(role: string | null | undefined): string {
   }
 }
 
+function memberDisplayName(member: MemberRow): string {
+  if (member.isMe) return "Tú";
+
+  const full = (
+    member.display_name ??
+    `${member.first_name ?? ""} ${member.last_name ?? ""}`
+  ).trim();
+
+  if (full) return full;
+  return "Miembro";
+}
+
 function MemberRowView({ member }: { member: MemberRow }) {
   const roleLabel = labelForRole(member.role);
   const isOwner = member.role === "owner";
   const isAdmin = member.role === "admin";
 
+  let avatarText = member.isMe ? "Tú" : roleLabel.charAt(0);
+  if (member.display_name || member.first_name || member.last_name) {
+    avatarText = getInitials({
+      first_name: member.first_name,
+      last_name: member.last_name,
+      display_name: member.display_name,
+    });
+  }
+
+  const title = memberDisplayName(member);
+
   return (
     <div style={S.row}>
       <div style={S.rowMain}>
-        <div style={S.avatarCircle}>{member.initials}</div>
+        <div style={S.avatarCircle}>{avatarText}</div>
         <div>
-          <div style={S.rowTitle}>{member.displayName}</div>
+          <div style={S.rowTitle}>{title}</div>
           <div style={S.rowSub}>
             {member.isMe
               ? "Este eres tú dentro del grupo."
@@ -440,11 +443,6 @@ const S: Record<string, React.CSSProperties> = {
     marginTop: 4,
     fontSize: 12,
     color: "rgba(148,163,184,0.96)",
-  },
-  cardGroupName: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "rgba(203,213,225,0.96)",
   },
   cardHeaderRight: {
     display: "flex",
@@ -560,11 +558,6 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 800,
     color: "#E5E7EB",
-  },
-  rowIdHint: {
-    fontSize: 11,
-    color: "rgba(148,163,184,0.9)",
-    marginLeft: 4,
   },
   rowSub: {
     marginTop: 2,

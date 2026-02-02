@@ -1,22 +1,17 @@
 // src/app/profile/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
-import {
-  getMyProfile,
-  getInitials,
-  type Profile,
-} from "@/lib/profilesDb";
+import { getMyProfile, getInitials, type Profile } from "@/lib/profilesDb";
 
 type UserUI = {
   name: string;
   email: string;
   verified: boolean;
-  hasProfile: boolean;
   initials: string;
 };
 
@@ -30,6 +25,7 @@ export default function ProfilePage() {
 
     (async () => {
       try {
+        setBooting(true);
         const { data, error } = await supabase.auth.getSession();
         if (!alive) return;
 
@@ -40,35 +36,49 @@ export default function ProfilePage() {
 
         const u = data.session.user;
 
-        // 1) Intentar leer perfil real de la tabla "profiles"
-        let profile: Profile | null = null;
-        try {
-          profile = await getMyProfile();
-        } catch (e) {
-          console.error("Error getMyProfile:", e);
-        }
-
-        // 2) Nombre base desde metadata / email (fallback)
-        const metaName =
+        // Nombre base desde metadata o email
+        let baseName =
           (u.user_metadata?.full_name as string) ||
           (u.user_metadata?.name as string) ||
           (u.email ? u.email.split("@")[0] : "Usuario");
 
-        let name = metaName;
-        let initials = metaName.charAt(0).toUpperCase();
-        let hasProfile = false;
+        const email = u.email ?? "—";
+        const verified = !!u.email_confirmed_at;
 
-        if (profile) {
-          name = `${profile.first_name} ${profile.last_name}`.trim();
-          initials = getInitials(profile);
-          hasProfile = true;
+        let finalName = baseName;
+        let initials =
+          baseName && baseName.length > 0
+            ? baseName.charAt(0).toUpperCase()
+            : "U";
+
+        // 👇 Intentar leer perfil real desde la tabla `profiles`
+        try {
+          const profile: Profile | null = await getMyProfile();
+          if (profile) {
+            const dn = (
+              profile.display_name ??
+              `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
+            ).trim();
+
+            if (dn) {
+              finalName = dn;
+            }
+
+            initials = getInitials({
+              first_name: profile.first_name,
+              last_name: profile.last_name,
+              display_name: profile.display_name,
+            });
+          }
+        } catch (e) {
+          console.error("Error leyendo perfil desde DB:", e);
         }
 
+        if (!alive) return;
         setUser({
-          name,
-          email: u.email ?? "—",
-          verified: !!u.email_confirmed_at,
-          hasProfile,
+          name: finalName,
+          email,
+          verified,
           initials,
         });
       } finally {
@@ -114,7 +124,7 @@ export default function ProfilePage() {
         <section style={styles.card}>
           <div style={styles.profileRow}>
             <div style={styles.avatar}>
-              {user.initials || user.name.charAt(0).toUpperCase()}
+              {user.initials}
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={styles.name}>{user.name}</div>
@@ -129,11 +139,6 @@ export default function ProfilePage() {
               tone={user.verified ? "good" : "warn"}
             />
             <InfoRow label="Plan" value="Demo Premium" tone="neutral" />
-            <InfoRow
-              label="Perfil"
-              value={user.hasProfile ? "Completo" : "Sin completar"}
-              tone={user.hasProfile ? "good" : "warn"}
-            />
           </div>
 
           <div style={styles.actions}>
@@ -143,15 +148,6 @@ export default function ProfilePage() {
             >
               Ver resumen semanal
             </button>
-
-            {!user.hasProfile && (
-              <button
-                onClick={() => router.push("/onboarding/profile")}
-                style={styles.secondaryBtn}
-              >
-                Completar mi perfil
-              </button>
-            )}
           </div>
         </section>
 
@@ -292,16 +288,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.92)",
     cursor: "pointer",
     fontWeight: 900,
-  },
-  secondaryBtn: {
-    padding: "10px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(148,163,184,0.65)",
-    background: "rgba(15,23,42,0.95)",
-    color: "rgba(226,232,240,0.96)",
-    cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 12,
   },
 
   footer: {
