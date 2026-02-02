@@ -276,7 +276,7 @@ export function chooseExistingIncoming(a: CalendarEvent, b: CalendarEvent) {
  * ✅ NUEVO: ID estable SOLO por pareja de eventos
  * (esto arregla que Compare y Actions calculen el mismo conflict_id siempre)
  */
-function conflictKey(aId: string, bId: string) {
+export function conflictKey(aId: string, bId: string) {
   const [x, y] = [String(aId), String(bId)].sort();
   return `cx::${x}::${y}`;
 }

@@ -13,6 +13,7 @@ import {
   computeVisibleConflicts,
   attachEvents,
   type ConflictItem,
+  conflictKey,
 } from "@/lib/conflicts";
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
 import { deleteEventsByIds } from "@/lib/eventsDb";
@@ -35,11 +36,16 @@ function resolutionForConflict(
   const b = String(c.incomingEventId ?? "");
   if (!a || !b) return undefined;
 
+  // ✅ Nueva clave estable (mismo generador que computeVisibleConflicts)
+  const stableKey = conflictKey(a, b);
+  if (resMap[stableKey]) return resMap[stableKey];
+
+  // ✅ compat: si en algún momento guardaste con formato viejo "cx::a::b::algo"
   const [x, y] = [a, b].sort();
-  const prefix = `cx::${x}::${y}::`; // busca cualquier resolución guardada para esa pareja de eventos
+  const legacyPrefix = `cx::${x}::${y}::`;
 
   for (const k of Object.keys(resMap)) {
-    if (k.startsWith(prefix)) return resMap[k];
+    if (k.startsWith(legacyPrefix)) return resMap[k];
   }
   return undefined;
 }
@@ -55,7 +61,9 @@ export default function ActionsClient({
   const [busy, setBusy] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
-  const [toast, setToast] = useState<null | { title: string; sub?: string }>(null);
+  const [toast, setToast] = useState<null | { title: string; sub?: string }>(
+    null
+  );
 
   /* ========================= Toast auto-hide ========================= */
   useEffect(() => {
@@ -230,7 +238,8 @@ export default function ActionsClient({
             <div style={styles.kicker}>Último paso</div>
             <h1 style={styles.h1}>Aplicar decisiones</h1>
             <div style={styles.sub}>
-              Esto actualizará tu calendario y resolverá los conflictos seleccionados.
+              Esto actualizará tu calendario y resolverá los conflictos
+              seleccionados.
             </div>
             {conflicts.length > 0 && plan.decided === 0 && (
               <div style={styles.helperText}>
