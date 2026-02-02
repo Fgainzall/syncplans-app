@@ -1,4 +1,6 @@
 // src/lib/eventsDb.ts
+"use client";
+
 import supabase from "@/lib/supabaseClient";
 
 /* ======================================================
@@ -46,16 +48,14 @@ async function requireUid(): Promise<string> {
 
 /**
  * Devuelve TODOS los eventos visibles para el usuario actual.
+ * (RLS manda la visibilidad.)
  *
- * El mapeo a CalendarEvent + groupType se hace en:
+ * El mapeo a CalendarEvent + groupType se hace en UI:
  * - CalendarClient
- * - /calendar
- * - /calendar/month
  * - /events
  * - /summary
  */
 export async function getMyEvents(_opts?: unknown): Promise<DbEventRow[]> {
-  // Solo para forzar que haya sesión; RLS hace el resto
   await requireUid();
 
   const { data, error } = await supabase
@@ -109,15 +109,15 @@ export async function createEventForGroup(
   if (error) throw error;
 
   return {
-    id: String(data.id),
-    user_id: data.user_id ?? null,
-    group_id: data.group_id ?? null,
-    title: data.title ?? null,
-    notes: data.notes ?? null,
-    start: String(data.start),
-    end: String(data.end),
-    created_at: data.created_at ?? null,
-    updated_at: data.updated_at ?? null,
+    id: String((data as any).id),
+    user_id: (data as any).user_id ?? null,
+    group_id: (data as any).group_id ?? null,
+    title: (data as any).title ?? null,
+    notes: (data as any).notes ?? null,
+    start: String((data as any).start),
+    end: String((data as any).end),
+    created_at: (data as any).created_at ?? null,
+    updated_at: (data as any).updated_at ?? null,
   };
 }
 
@@ -126,50 +126,56 @@ export async function createEventForGroup(
 ====================================================== */
 
 export async function deleteEventsByIds(ids: string[]): Promise<number> {
-  if (!ids || ids.length === 0) return 0;
+  // Normalizamos y evitamos llamadas vacías
+  const cleaned = (ids ?? [])
+    .map((id) => String(id).trim())
+    .filter((id) => id.length > 0);
 
-  const uid = await requireUid();
+  if (cleaned.length === 0) return 0;
 
+  await requireUid();
+
+  // ✅ SOLO borramos por `id` con un array de UUIDs plano
+  // ✅ NINGUNA subquery, nada de "select group_id from group_members"
   const { error, count } = await supabase
     .from("events")
     .delete({ count: "exact" })
-    .in(
-      "id",
-      ids.map((id) => String(id))
-    )
-    // Seguridad extra: solo borro lo que le pertenece al usuario
-    .or(
-      `user_id.eq.${uid},group_id.in.(select group_id from group_members where user_id.eq.${uid})`
-    );
+    .in("id", cleaned);
 
-  if (error) throw error;
+  if (error) {
+    console.error("[deleteEventsByIds] error", error);
+    throw error;
+  }
+
   return count ?? 0;
 }
 
 /* ======================================================
-   Aliases de compatibilidad
+   Aliases de compatibilidad (para no romper imports antiguos)
 ====================================================== */
 
 /**
- * Alias plano: reutiliza getMyEvents.
+ * ✅ Compat: muchas pantallas antiguas llaman getEventsForGroups(groupIds)
+ * Mantiene personal (group_id null) SIEMPRE, y si pasan groupIds filtra SOLO eventos de esos grupos.
  */
+export async function getEventsForGroups(
+  groupIds?: string[]
+): Promise<DbEventRow[]> {
+  const rows = await getMyEvents();
+
+  // Si no pasaron ids, devolvemos todo lo visible
+  if (!groupIds || groupIds.length === 0) return rows;
+
+  const set = new Set(groupIds.map(String));
+
+  // ✅ personal siempre incluido (group_id null)
+  return rows.filter((r) => !r.group_id || set.has(String(r.group_id)));
+}
+
 export async function getAllEventsFlat(): Promise<DbEventRow[]> {
   return getMyEvents();
 }
 
-/**
- * API para código viejo. Acepta opcionalmente una lista de groupIds
- * pero por ahora los filtros de grupo se hacen en el frontend.
- */
-export async function getEventsForGroups(
-  _groupIds?: string[]
-): Promise<DbEventRow[]> {
-  return getMyEvents();
-}
-
-/**
- * Alias de borrado de un solo evento.
- */
 export async function deleteEvent(id: string): Promise<number> {
   if (!id) return 0;
   return deleteEventsByIds([id]);
