@@ -11,7 +11,7 @@ export type AuditRow = {
   created_at: string;
 };
 
-export async function listAudit(groupId: string) {
+export async function listAudit(groupId: string): Promise<AuditRow[]> {
   const { data, error } = await supabase
     .from("events_audit")
     .select("*")

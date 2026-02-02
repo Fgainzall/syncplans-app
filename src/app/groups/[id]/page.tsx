@@ -29,7 +29,7 @@ type MemberRow = {
 function labelGroupType(t?: string | null) {
   const x = (t || "").toLowerCase();
   if (x === "family") return "Familia";
-  if (x === "pair") return "Pareja";
+  if (x === "pair" || x === "couple") return "Pareja";
   if (x === "solo" || x === "personal") return "Personal";
   return t ? String(t) : "Grupo";
 }
@@ -63,13 +63,9 @@ export default function GroupDetailsPage() {
 
   const typeLabel = useMemo(() => labelGroupType(group?.type ?? null), [group]);
 
-  /**
-   * ✅ Carga miembros + profiles SIN depender del embed (evita 500 PostgREST)
-   */
   async function loadMembers(gid: string) {
     setMembersLoading(true);
     try {
-      // 1) miembros
       const { data: ms, error: mErr } = await supabase
         .from("group_members")
         .select("user_id,role,created_at")
@@ -84,7 +80,6 @@ export default function GroupDetailsPage() {
         created_at: string | null;
       }>;
 
-      // 2) perfiles (por ids únicos)
       const ids = Array.from(new Set(rawMembers.map((m) => m.user_id).filter(Boolean)));
 
       let profilesById = new Map<string, { display_name: string | null; avatar_url: string | null }>();
@@ -105,7 +100,6 @@ export default function GroupDetailsPage() {
         });
       }
 
-      // 3) merge
       const merged: MemberRow[] = rawMembers.map((m) => ({
         ...m,
         profiles: profilesById.get(m.user_id) ?? null,
@@ -199,8 +193,6 @@ export default function GroupDetailsPage() {
       }
 
       setEmail("");
-
-      // refrescar miembros (no afecta si aún no aceptan)
       await loadMembers(group.id);
     } catch (e: any) {
       showToast("No se pudo invitar", e?.message || "Intenta nuevamente.");
@@ -212,7 +204,9 @@ export default function GroupDetailsPage() {
   async function goCalendar() {
     try {
       await setActiveGroupIdInDb(groupId);
-    } catch {}
+    } catch {
+      // ignore
+    }
     router.push("/calendar");
   }
 
@@ -313,9 +307,7 @@ export default function GroupDetailsPage() {
                       <div style={styles.avatarCircle}>{initials(name)}</div>
                       <div style={{ display: "flex", flexDirection: "column" }}>
                         <div style={{ fontWeight: 900, fontSize: 13 }}>{name}</div>
-
-                        {/* ✅ Para ocultar el UUID por completo, borra este <div> */}
-                        <div style={{ fontSize: 11, opacity: 0.55 }}>{m.user_id}</div>
+                        {/* UUID oculto a propósito para no ensuciar la UI */}
                       </div>
                     </div>
 

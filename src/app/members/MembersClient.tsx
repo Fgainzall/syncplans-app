@@ -1,4 +1,3 @@
-// src/app/members/MembersClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -127,7 +126,7 @@ export default function MembersClient() {
           isMe: meId != null && String(m.user_id) === String(meId),
         }));
 
-        // 🔹 Enriquecer con perfiles (nombres reales, avatar, etc.)
+        // Enriquecer con perfiles (nombres reales, avatar, etc.)
         let enrichedRows: MemberRow[] = baseRows;
 
         try {

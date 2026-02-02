@@ -1,4 +1,3 @@
-// src/components/DayTimeline.tsx
 "use client";
 
 import * as React from "react";
@@ -73,9 +72,6 @@ function detectConflictedIds(events: CalendarEvent[]) {
 }
 
 function normalizeGroupType(groupId: string | null) {
-  // Para este timeline no necesitamos color exacto por tipo;
-  // lo más importante es que filtre por group_id y muestre personales siempre.
-  // Si quieres, luego lo enriquecemos con getMyGroups (como en conflictsDbBridge).
   if (!groupId) return "personal";
   return "couple";
 }
@@ -121,10 +117,10 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
     const end = new Date(base);
     end.setDate(end.getDate() + 1);
 
-    // ✅ Grupo activo desde DB
+    // Grupo activo desde DB
     const activeGroupId = await getActiveGroupIdFromDb().catch(() => null);
 
-    // ✅ Query DB: (group activo + personales) o (solo personales si no hay grupo activo)
+    // Query DB: (group activo + personales) o (solo personales si no hay grupo activo)
     let q = supabase
       .from("events")
       .select("id,title,notes,start,end,group_id")
@@ -148,7 +144,7 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
       return;
     }
 
-    const mapped: CalendarEvent[] = (data ?? []).map((r: any) => ({
+    const mapped: CalendarEvent[] = (data ?? []).map((r) => ({
       id: String(r.id),
       title: r.title ?? "Evento",
       start: String(r.start),
@@ -385,7 +381,9 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold">{ev.title}</div>
-                      <div className="mt-1 text-xs text-white/60 truncate">{(ev as any).description || ev.notes || " "}</div>
+                      <div className="mt-1 truncate text-xs text-white/60">
+                        {ev.description || ev.notes || " "}
+                      </div>
                     </div>
 
                     <div className="flex flex-col items-end gap-2">
@@ -403,9 +401,8 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
                   <div
                     onPointerDown={(e) => onResizePointerDown(e, ev)}
                     className={[
-                      "absolute bottom-2 right-2 h-7 w-7 rounded-xl border border-white/10",
-                      "bg-black/30 grid place-items-center",
-                      "cursor-ns-resize hover:bg-white/10 transition",
+                      "absolute bottom-2 right-2 grid h-7 w-7 cursor-ns-resize place-items-center rounded-xl border border-white/10",
+                      "bg-black/30 hover:bg-white/10 transition",
                     ].join(" ")}
                     title="Arrastra para cambiar duración"
                   >
@@ -417,7 +414,9 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
           })}
 
           {events.length === 0 && (
-            <div className="absolute inset-0 grid place-items-center text-sm text-white/60">No hay eventos hoy.</div>
+            <div className="absolute inset-0 grid place-items-center text-sm text-white/60">
+              No hay eventos hoy.
+            </div>
           )}
         </div>
       </div>
