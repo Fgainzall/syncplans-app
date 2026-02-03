@@ -36,7 +36,7 @@ function resolutionForConflict(
   const b = String(c.incomingEventId ?? "");
   if (!a || !b) return undefined;
 
-  // ✅ Nueva clave estable (mismo generador que computeVisibleConflicts)
+  // ✅ clave estable (mismo generador que computeVisibleConflicts)
   const stableKey = conflictKey(a, b);
   if (resMap[stableKey]) return resMap[stableKey];
 
@@ -173,14 +173,14 @@ export default function ActionsClient({
       setBusy(true);
 
       if (plan.deleteIds.length > 0) {
-        // ✅ Ahora usamos el mismo deleter que el calendario
+        // ✅ solo por id, RLS-safe (sin SELECT raros)
         await deleteEventsByIds(plan.deleteIds);
       }
 
       try {
         await clearMyConflictResolutions();
       } catch {
-        // no bloquea UX
+        // no bloquea la UX si falla limpiar
       }
 
       router.replace(
@@ -250,7 +250,27 @@ export default function ActionsClient({
               </div>
             )}
           </div>
+
           <div style={styles.heroRight}>
+            <div style={styles.statsGrid}>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Conflictos</div>
+                <div style={styles.statValue}>{plan.total}</div>
+              </div>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Decididos</div>
+                <div style={styles.statValue}>{plan.decided}</div>
+              </div>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Pendientes</div>
+                <div style={styles.statValue}>{plan.pending}</div>
+              </div>
+              <div style={styles.statCard}>
+                <div style={styles.statLabel}>Por eliminar</div>
+                <div style={styles.statValue}>{plan.deleteIds.length}</div>
+              </div>
+            </div>
+
             <button
               onClick={apply}
               disabled={disabledApply}
@@ -264,6 +284,22 @@ export default function ActionsClient({
             </button>
           </div>
         </section>
+
+        {conflicts.length === 0 && (
+          <section style={styles.emptyCard}>
+            <div style={styles.emptyTitle}>No hay conflictos abiertos</div>
+            <div style={styles.emptySub}>
+              Tu calendario ya está limpio. Puedes volver al calendario o crear
+              nuevos eventos.
+            </div>
+            <button
+              onClick={() => router.push("/calendar")}
+              style={styles.primaryBtnWide}
+            >
+              Ir al calendario
+            </button>
+          </section>
+        )}
 
         {toast && (
           <div style={styles.toast}>
@@ -281,7 +317,8 @@ export default function ActionsClient({
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
-    background: "#050816",
+    background:
+      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
   },
   shell: {
@@ -304,39 +341,52 @@ const styles: Record<string, React.CSSProperties> = {
   hero: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "flex-end",
+    alignItems: "stretch",
     gap: 16,
     padding: "18px 16px",
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
+    marginBottom: 14,
   },
   heroLeft: {
     display: "flex",
     flexDirection: "column",
     gap: 6,
+    flex: 1,
   },
   heroRight: {
     display: "flex",
+    flexDirection: "column",
     gap: 10,
-    alignItems: "center",
+    alignItems: "flex-end",
+    minWidth: 260,
   },
   kicker: {
     fontSize: 11,
     fontWeight: 900,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
   },
   h1: {
     margin: 0,
-    fontSize: 28,
+    fontSize: 26,
+    letterSpacing: "-0.6px",
   },
   sub: {
     fontSize: 13,
-    opacity: 0.75,
+    opacity: 0.78,
   },
   helperText: {
-    marginTop: 10,
+    marginTop: 8,
     fontSize: 12,
-    opacity: 0.8,
+    opacity: 0.82,
     lineHeight: 1.35,
   },
   ghostBtn: {
@@ -349,19 +399,73 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
   },
   primaryBtn: {
-    padding: "12px 14px",
+    padding: "12px 16px",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(124,58,237,0.25)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
     color: "#fff",
     cursor: "pointer",
     fontWeight: 900,
+  },
+  statsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(80px, 1fr))",
+    gap: 8,
+    marginBottom: 10,
+  },
+  statCard: {
+    padding: 8,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(5,8,22,0.85)",
+  },
+  statLabel: {
+    fontSize: 11,
+    opacity: 0.75,
+  },
+  statValue: {
+    marginTop: 2,
+    fontSize: 16,
+    fontWeight: 900,
+  },
+  emptyCard: {
+    marginTop: 12,
+    borderRadius: 18,
+    border: "1px dashed rgba(255,255,255,0.18)",
+    background: "rgba(255,255,255,0.02)",
+    padding: 18,
+  },
+  emptyTitle: {
+    fontWeight: 900,
+    fontSize: 16,
+  },
+  emptySub: {
+    marginTop: 6,
+    opacity: 0.78,
+    fontSize: 13,
+  },
+  primaryBtnWide: {
+    marginTop: 12,
+    padding: "12px 16px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
+    color: "#fff",
+    cursor: "pointer",
+    fontWeight: 900,
+    minWidth: 240,
   },
   loadingCard: {
     marginTop: 18,
     display: "flex",
     gap: 12,
     alignItems: "center",
+    padding: 16,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
   },
   loadingDot: {
     width: 12,

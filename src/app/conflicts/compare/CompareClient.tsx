@@ -415,9 +415,7 @@ export default function CompareClient() {
               onClick={() => setChoice("keep_existing")}
               style={{
                 ...styles.actionBtn,
-                ...(chosen === "keep_existing"
-                  ? styles.actionOn
-                  : {}),
+                ...(chosen === "keep_existing" ? styles.actionOn : {}),
               }}
             >
               ✅ Conservar A
@@ -428,9 +426,7 @@ export default function CompareClient() {
               onClick={() => setChoice("replace_with_new")}
               style={{
                 ...styles.actionBtn,
-                ...(chosen === "replace_with_new"
-                  ? styles.actionOn
-                  : {}),
+                ...(chosen === "replace_with_new" ? styles.actionOn : {}),
               }}
             >
               ⭐ Conservar B
@@ -445,9 +441,7 @@ export default function CompareClient() {
               }}
             >
               💤 Mantener ambos
-              <div style={styles.actionHint}>
-                Ignorar este conflicto
-              </div>
+              <div style={styles.actionHint}>Ignorar este conflicto</div>
             </button>
           </div>
 

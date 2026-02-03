@@ -38,7 +38,10 @@ export default function EventsPage() {
       try {
         setLoading(true);
         // ✅ Cargamos ambas cosas (igual que CalendarClient)
-        const [myGroups, rawEvents] = await Promise.all([getMyGroups(), getMyEvents()]);
+        const [myGroups, rawEvents] = await Promise.all([
+          getMyGroups(),
+          getMyEvents(),
+        ]);
         if (!alive) return;
 
         // ✅ Map group_id -> type ("pair" | "family")

@@ -203,8 +203,8 @@ export default function SummaryPage() {
           </div>
         </div>
 
-        {/* Onboarding ligero reutilizable */}
-        <SummaryOnboardingBanner />
+        {/* Onboarding ligero reutilizable (ahora depende de si hay eventos o no) */}
+        <SummaryOnboardingBanner hasEvents={hasAny} />
 
         <section style={S.heroCard}>
           <div>
