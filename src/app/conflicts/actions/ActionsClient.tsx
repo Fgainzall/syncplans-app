@@ -183,9 +183,16 @@ export default function ActionsClient({
         // no bloquea la UX si falla limpiar
       }
 
-      router.replace(
-        `/calendar?applied=1&deleted=${plan.deleteIds.length}&skipped=${plan.skipped}&appliedCount=${plan.decided}`
-      );
+      // 🔁 Ahora volvemos al SUMMARY con stats para mostrar banner de éxito
+      const qp = new URLSearchParams();
+      qp.set("from", "conflicts");
+      qp.set("applied", "1");
+      qp.set("appliedCount", String(plan.decided));
+      qp.set("deleted", String(plan.deleteIds.length));
+      qp.set("skipped", String(plan.skipped));
+      if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
+
+      router.replace(`/summary?${qp.toString()}`);
     } catch (e: any) {
       setBusy(false);
       setToast({

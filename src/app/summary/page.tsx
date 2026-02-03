@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
@@ -23,10 +23,19 @@ type SummaryEvent = CalendarEvent & {
 
 export default function SummaryPage() {
   const router = useRouter();
+  const sp = useSearchParams();
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // 🔁 Info de retorno desde conflictos (para banner de éxito)
+  const fromConflicts = sp.get("from") === "conflicts";
+  const appliedFlag = sp.get("applied") === "1";
+  const appliedCount = Number(sp.get("appliedCount") ?? "0");
+  const deletedCount = Number(sp.get("deleted") ?? "0");
+  const skippedCount = Number(sp.get("skipped") ?? "0");
+  const showConflictsBanner = fromConflicts && appliedFlag && appliedCount > 0;
 
   // Carga de datos del resumen
   useEffect(() => {
@@ -205,6 +214,28 @@ export default function SummaryPage() {
 
         {/* Onboarding ligero reutilizable (ahora depende de si hay eventos o no) */}
         <SummaryOnboardingBanner hasEvents={hasAny} />
+
+        {showConflictsBanner && (
+          <section style={S.successBox}>
+            <div style={S.successTitle}>Conflictos aplicados ✅</div>
+            <div style={S.successBody}>
+              Resolvimos <strong>{appliedCount}</strong> conflicto(s)
+              {deletedCount > 0 && (
+                <>
+                  {" "}
+                  y actualizamos <strong>{deletedCount}</strong> evento(s)
+                </>
+              )}
+              {skippedCount > 0 && (
+                <>
+                  {" "}
+                  · <strong>{skippedCount}</strong> conflicto(s) se dejaron tal cual
+                </>
+              )}
+              . Tu calendario ya está al día.
+            </div>
+          </section>
+        )}
 
         <section style={S.heroCard}>
           <div>
@@ -509,6 +540,22 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     fontSize: 12,
     cursor: "pointer",
+  },
+  successBox: {
+    marginTop: 12,
+    marginBottom: 6,
+    padding: 12,
+    borderRadius: 16,
+    border: "1px solid rgba(34,197,94,0.55)",
+    background: "rgba(22,101,52,0.85)",
+    fontSize: 12,
+  },
+  successTitle: {
+    fontWeight: 900,
+    marginBottom: 4,
+  },
+  successBody: {
+    color: "rgba(226,232,240,0.96)",
   },
   heroCard: {
     borderRadius: 24,
