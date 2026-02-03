@@ -1,11 +1,12 @@
 // src/app/profile/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+
 import {
   getMyProfile,
   getInitials,
@@ -15,6 +16,8 @@ import {
 import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { computeVisibleConflicts } from "@/lib/conflicts";
+
+/* ─────────────────── Tipos de UI ─────────────────── */
 
 type UserUI = {
   name: string;
@@ -44,23 +47,27 @@ type Recommendation = {
     | "invitations";
 };
 
+/* ─────────────────── Componente principal ─────────────────── */
+
 export default function ProfilePage() {
   const router = useRouter();
+
+  // 🔹 Estado base
   const [booting, setBooting] = useState(true);
   const [user, setUser] = useState<UserUI | null>(null);
 
-  // 👇 formulario de nombre/apellido
-const [firstName, setFirstName] = useState("");
-const [lastName, setLastName] = useState("");
-
+  // 🔹 Formulario de nombre/apellido
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveOk, setSaveOk] = useState<string | null>(null);
 
-  // 📊 stats de uso (eventos, grupos, conflictos)
+  // 🔹 Stats de uso
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
+  // ── 1) Cargar sesión + perfil + nombre visual ──
   useEffect(() => {
     let alive = true;
 
@@ -95,7 +102,7 @@ const [lastName, setLastName] = useState("");
         let localFirst = "";
         let localLast = "";
 
-        // 👇 Intentar leer perfil real desde la tabla `profiles`
+        // Intentar leer perfil real desde la tabla `profiles`
         try {
           const profile: Profile | null = await getMyProfile();
           if (profile) {
@@ -117,7 +124,7 @@ const [lastName, setLastName] = useState("");
             localFirst = (profile.first_name ?? "").trim();
             localLast = (profile.last_name ?? "").trim();
           } else {
-            // Si no hay perfil aún, intentamos inferir del baseName
+            // Inferir de baseName si no hay perfil
             const parts = baseName.trim().split(/\s+/);
             if (parts.length >= 2) {
               localFirst = parts[0];
@@ -153,7 +160,7 @@ const [lastName, setLastName] = useState("");
     };
   }, [router]);
 
-  // 📊 Cargar stats de uso cuando ya tenemos user
+  // ── 2) Cargar stats de uso cuando ya tenemos user ──
   useEffect(() => {
     if (!user) return;
     let alive = true;
@@ -161,16 +168,14 @@ const [lastName, setLastName] = useState("");
     (async () => {
       try {
         setStatsLoading(true);
-
         const [events, groups] = await Promise.all([
           getMyEvents(),
           getMyGroups(),
         ]);
-
         if (!alive) return;
 
-        const stats = buildDashboardStats(events, groups);
-        setStats(stats);
+        const nextStats = buildDashboardStats(events, groups);
+        setStats(nextStats);
       } catch (e) {
         console.error("[ProfilePage] Error cargando stats:", e);
         if (!alive) return;
@@ -186,6 +191,7 @@ const [lastName, setLastName] = useState("");
     };
   }, [user]);
 
+  // ── 3) Guardar perfil (nombre / apellido) ──
   async function onSaveProfile(e: React.FormEvent) {
     e.preventDefault();
     setSaveError(null);
@@ -242,6 +248,7 @@ const [lastName, setLastName] = useState("");
     }
   }
 
+  // ── 4) Pantallas de carga / sin user ──
   if (booting) {
     return (
       <main style={styles.page}>
@@ -262,69 +269,20 @@ const [lastName, setLastName] = useState("");
 
   if (!user) return null;
 
-  const accountStatusLabel = user.verified ? "Cuenta verificada" : "Verifica tu correo";
+  // ── 5) Derivados de UI (sin hooks) ──
+  const accountStatusLabel = user.verified
+    ? "Cuenta verificada"
+    : "Verifica tu correo";
   const accountStatusHint = user.verified
     ? "Tu correo está confirmado."
     : "Busca el correo de confirmación en tu bandeja o spam.";
 
-  const recommendation: Recommendation | null = useMemo(() => {
-    if (!user) return null;
+  const recommendation: Recommendation | null = buildRecommendation(
+    user,
+    stats
+  );
 
-    // 1) Primero la seguridad
-    if (!user.verified) {
-      return {
-        title: "Verifica tu correo",
-        hint: "Cerrar el ciclo de verificación protege tus grupos y eventos compartidos.",
-      };
-    }
-
-    // Si no hay stats todavía, no recomendamos nada concreto
-    if (!stats) return null;
-
-    // 2) Sin grupos aún → crea tu primer grupo
-    if (stats.totalGroups === 0) {
-      return {
-        title: "Crea tu primer grupo",
-        hint: "Empieza por un grupo de pareja o familia para compartir eventos y conflictos.",
-        ctaLabel: "Crear grupo",
-        ctaTarget: "groups_new",
-      };
-    }
-
-    // 3) Con grupos pero sin eventos → crea tu primer evento
-    if (stats.totalEvents === 0) {
-      return {
-        title: "Crea tu primer evento",
-        hint: "Agenda algo real — una cena, un viaje o una reunión — y deja que SyncPlans trabaje.",
-        ctaLabel: "Nuevo evento",
-        ctaTarget: "events_new",
-      };
-    }
-
-    // 4) Hay conflictos activos → revísalos
-    if (stats.conflictsNow > 0) {
-      return {
-        title: "Tienes conflictos activos",
-        hint: "Hay choques de horario detectados. Revísalos y decide qué conservar.",
-        ctaLabel: "Revisar conflictos",
-        ctaTarget: "conflicts",
-      };
-    }
-
-    // 5) Caso estable → invitar a alguien más o seguir usando
-    if (stats.totalGroups > 0 && stats.totalEvents > 0) {
-      return {
-        title: "Saca más valor de tus grupos",
-        hint: "Invita a alguien nuevo o revisa tu calendario compartido para la próxima semana.",
-        ctaLabel: "Invitar a alguien",
-        ctaTarget: "invitations",
-      };
-    }
-
-    return null;
-  }, [user, stats]);
-
-  const handleRecommendationClick = (target: Recommendation["ctaTarget"]) => {
+  function handleRecommendationClick(target: Recommendation["ctaTarget"]) {
     if (!target) return;
     if (target === "groups_new") router.push("/groups/new");
     else if (target === "calendar") router.push("/calendar");
@@ -332,12 +290,13 @@ const [lastName, setLastName] = useState("");
       router.push("/events/new/details?type=personal");
     else if (target === "conflicts") router.push("/conflicts/detected");
     else if (target === "invitations") router.push("/invitations");
-  };
+  }
 
+  // ── 6) Render principal ──
   return (
     <main style={styles.page}>
       <div style={styles.shell}>
-        {/* 🧭 Header premium + logout como acción principal */}
+        {/* Header premium + logout */}
         <div style={styles.headerRow}>
           <PremiumHeader
             title="Panel"
@@ -346,11 +305,11 @@ const [lastName, setLastName] = useState("");
           />
         </div>
 
-        {/* 🧩 GRID PRINCIPAL: izquierda (identidad) / derecha (estado & acciones) */}
+        {/* GRID: Izquierda (identidad) / Derecha (estado & acciones) */}
         <div style={styles.mainGrid}>
-          {/* Columna izquierda: identidad + edición de nombre */}
+          {/* Columna izquierda */}
           <div style={styles.leftCol}>
-            {/* Identidad del usuario */}
+            {/* Identidad */}
             <section style={styles.card}>
               <div style={styles.sectionLabel}>Identidad</div>
 
@@ -405,7 +364,7 @@ const [lastName, setLastName] = useState("");
               </div>
             </section>
 
-            {/* Edición de nombre dentro del contexto de identidad */}
+            {/* Edición de nombre */}
             <section style={styles.card}>
               <div style={styles.sectionLabel}>Cómo te ve el resto</div>
               <div style={styles.sectionSub}>
@@ -462,9 +421,9 @@ const [lastName, setLastName] = useState("");
             </section>
           </div>
 
-          {/* Columna derecha: estado de cuenta, uso y acciones rápidas */}
+          {/* Columna derecha */}
           <div style={styles.rightCol}>
-            {/* Estado de la cuenta + Próximo paso recomendado */}
+            {/* Estado general */}
             <section style={styles.card}>
               <div style={styles.sectionLabel}>Estado general</div>
               <div style={styles.sectionSub}>
@@ -526,7 +485,9 @@ const [lastName, setLastName] = useState("");
                     <button
                       type="button"
                       onClick={() =>
-                        handleRecommendationClick(recommendation.ctaTarget)
+                        handleRecommendationClick(
+                          recommendation.ctaTarget!
+                        )
                       }
                       style={styles.recoBtn}
                     >
@@ -537,7 +498,7 @@ const [lastName, setLastName] = useState("");
               )}
             </section>
 
-            {/* Uso / valor + acciones rápidas */}
+            {/* Uso / acciones rápidas */}
             <section style={styles.card}>
               <div style={styles.sectionLabel}>Uso y acciones rápidas</div>
               <div style={styles.sectionSub}>
@@ -570,7 +531,7 @@ const [lastName, setLastName] = useState("");
           </div>
         </div>
 
-        {/* Footer sutil, tipo copy de valor */}
+        {/* Footer de valor */}
         <div style={styles.footer}>
           SyncPlans está pensado para que tu calendario personal, de pareja y
           familia convivan sin fricciones. Este panel es tu centro de control.
@@ -604,7 +565,6 @@ function buildDashboardStats(
     (g) => String(g.type) === "family"
   ).length;
 
-  // Para conflictos solo necesitamos start/end; groupType aquí es irrelevante
   const eventsForConflicts = events.map((e) => ({
     id: e.id,
     title: e.title ?? "(Sin título)",
@@ -624,6 +584,67 @@ function buildDashboardStats(
     familyGroups,
     conflictsNow: conflicts.length,
   };
+}
+
+/* ───────────────────── RECOMENDACIÓN ───────────────────── */
+
+function buildRecommendation(
+  user: UserUI | null,
+  stats: DashboardStats | null
+): Recommendation | null {
+  if (!user) return null;
+
+  // 1) Primero seguridad
+  if (!user.verified) {
+    return {
+      title: "Verifica tu correo",
+      hint: "Cerrar el ciclo de verificación protege tus grupos y eventos compartidos.",
+    };
+  }
+
+  if (!stats) return null;
+
+  // 2) Sin grupos
+  if (stats.totalGroups === 0) {
+    return {
+      title: "Crea tu primer grupo",
+      hint: "Empieza por un grupo de pareja o familia para compartir eventos y conflictos.",
+      ctaLabel: "Crear grupo",
+      ctaTarget: "groups_new",
+    };
+  }
+
+  // 3) Con grupos pero sin eventos
+  if (stats.totalEvents === 0) {
+    return {
+      title: "Crea tu primer evento",
+      hint: "Agenda algo real — una cena, un viaje o una reunión — y deja que SyncPlans trabaje.",
+      ctaLabel: "Nuevo evento",
+      ctaTarget: "events_new",
+    };
+  }
+
+  // 4) Conflictos activos
+  if (stats.conflictsNow > 0) {
+    return {
+      title: "Tienes conflictos activos",
+      hint: "Hay choques de horario detectados. Revísalos y decide qué conservar.",
+      ctaLabel: "Revisar conflictos",
+      ctaTarget: "conflicts",
+    };
+  }
+
+  // 5) Caso estable
+  if (stats.totalGroups > 0 && stats.totalEvents > 0) {
+    return {
+      title: "Saca más valor de tus grupos",
+      hint: "Invita a alguien nuevo o revisa tu calendario compartido para la próxima semana.",
+      ctaLabel: "Invitar a alguien",
+      ctaTarget: "invitations",
+    };
+  }
+
+  return null;
 }
 
 /* ───────────────────── COMPONENTES DE APOYO ───────────────────── */
