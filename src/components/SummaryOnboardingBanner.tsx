@@ -44,12 +44,15 @@ export default function SummaryOnboardingBanner({
         >
           Resumen inteligente
         </div>
+
         <div style={{ fontSize: 16, fontWeight: 900 }}>
-          Crea tu primer evento en SyncPlans
+          Activa tu resumen con el primer evento
         </div>
+
         <div style={{ fontSize: 13, opacity: 0.85, maxWidth: 420 }}>
-          Empieza con un evento personal o invita a tu pareja. El resumen se
-          llenará automáticamente con tus planes y posibles conflictos.
+          Crea un evento personal o arma un grupo con tu pareja o familia.
+          A partir de ahí, este resumen se llenará solo con tus planes y
+          posibles cruces.
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
@@ -83,7 +86,7 @@ export default function SummaryOnboardingBanner({
               cursor: "pointer",
             }}
           >
-            Crear grupo
+            Ver grupos
           </button>
         </div>
       </div>

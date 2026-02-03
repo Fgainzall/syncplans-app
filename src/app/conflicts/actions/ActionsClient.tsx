@@ -183,14 +183,15 @@ export default function ActionsClient({
         // no bloquea la UX si falla limpiar
       }
 
-      // 🔁 Ahora volvemos al SUMMARY con stats para mostrar banner de éxito
+      // 🔁 Ahora redirigimos al resumen con contexto,
+      // para mostrar un feedback sutil post-conflictos
+      const resolved = plan.decided; // decisiones tomadas (incluye "none")
       const qp = new URLSearchParams();
       qp.set("from", "conflicts");
-      qp.set("applied", "1");
-      qp.set("appliedCount", String(plan.decided));
-      qp.set("deleted", String(plan.deleteIds.length));
-      qp.set("skipped", String(plan.skipped));
-      if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
+      qp.set("resolved", String(resolved));
+      if (plan.deleteIds.length > 0) {
+        qp.set("deleted", String(plan.deleteIds.length));
+      }
 
       router.replace(`/summary?${qp.toString()}`);
     } catch (e: any) {

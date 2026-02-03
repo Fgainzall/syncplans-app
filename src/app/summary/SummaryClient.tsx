@@ -1,8 +1,8 @@
-// src/app/summary/SummaryClient.tsx
+// src/app/summary/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
@@ -21,21 +21,20 @@ type SummaryEvent = CalendarEvent & {
   whenLabel: string;
 };
 
-export default function SummaryClient() {
+type SummaryFeedback = {
+  fromConflicts: boolean;
+  resolvedCount?: number;
+};
+
+export default function SummaryPage() {
   const router = useRouter();
-  const sp = useSearchParams();
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // 🔁 Info de retorno desde conflictos (para banner de éxito)
-  const fromConflicts = sp.get("from") === "conflicts";
-  const appliedFlag = sp.get("applied") === "1";
-  const appliedCount = Number(sp.get("appliedCount") ?? "0");
-  const deletedCount = Number(sp.get("deleted") ?? "0");
-  const skippedCount = Number(sp.get("skipped") ?? "0");
-  const showConflictsBanner = fromConflicts && appliedFlag && appliedCount > 0;
+  const [feedback, setFeedback] = useState<SummaryFeedback>({
+    fromConflicts: false,
+  });
 
   // Carga de datos del resumen
   useEffect(() => {
@@ -120,6 +119,34 @@ export default function SummaryClient() {
     };
   }, []);
 
+  // Feedback post-conflictos (solo lectura de query string, sin useSearchParams)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const sp = new URLSearchParams(window.location.search);
+    const from = sp.get("from");
+    const resolvedRaw = sp.get("resolved");
+
+    if (from === "conflicts") {
+      const n = resolvedRaw ? Number(resolvedRaw) : NaN;
+      const resolvedCount = Number.isFinite(n) && n > 0 ? n : undefined;
+
+      setFeedback({
+        fromConflicts: true,
+        resolvedCount,
+      });
+
+      // Limpiamos la URL para que el mensaje no quede pegado a futuras visitas
+      sp.delete("from");
+      sp.delete("resolved");
+      const cleaned = sp.toString();
+      const newUrl = cleaned
+        ? `${window.location.pathname}?${cleaned}`
+        : window.location.pathname;
+      window.history.replaceState(null, "", newUrl);
+    }
+  }, []);
+
   const now = Date.now();
   const in7 = now + 7 * 24 * 60 * 60 * 1000;
   const in30 = now + 30 * 24 * 60 * 60 * 1000;
@@ -186,6 +213,18 @@ export default function SummaryClient() {
 
   const hasAny = events.length > 0;
 
+  const conflictsHighlight =
+    upcomingConflicts.length > 0 || feedback.fromConflicts;
+
+  const conflictsHint =
+    upcomingConflicts.length === 0
+      ? feedback.fromConflicts
+        ? feedback.resolvedCount && feedback.resolvedCount > 0
+          ? "Se aplicaron tus decisiones de conflicto."
+          : "Se actualizaron los conflictos pendientes."
+        : "Todo en orden."
+      : "Revísalos para evitar choques.";
+
   return (
     <main style={S.page}>
       <div style={S.shell}>
@@ -215,36 +254,25 @@ export default function SummaryClient() {
         {/* Onboarding ligero reutilizable (ahora depende de si hay eventos o no) */}
         <SummaryOnboardingBanner hasEvents={hasAny} />
 
-        {showConflictsBanner && (
-          <section style={S.successBox}>
-            <div style={S.successTitle}>Conflictos aplicados ✅</div>
-            <div style={S.successBody}>
-              Resolvimos <strong>{appliedCount}</strong> conflicto(s)
-              {deletedCount > 0 && (
-                <>
-                  {" "}
-                  y actualizamos <strong>{deletedCount}</strong> evento(s)
-                </>
-              )}
-              {skippedCount > 0 && (
-                <>
-                  {" "}
-                  · <strong>{skippedCount}</strong> conflicto(s) se dejaron tal cual
-                </>
-              )}
-              . Tu calendario ya está al día.
-            </div>
-          </section>
+        {/* Feedback sutil post-conflictos */}
+        {feedback.fromConflicts && (
+          <div style={S.feedbackBox}>
+            <span style={S.feedbackDot} />
+            <span style={S.feedbackText}>
+              Conflictos actualizados correctamente.
+            </span>
+          </div>
         )}
 
         <section style={S.heroCard}>
           <div>
-            <div style={S.badge}>Resumen</div>
-            <h1 style={S.title}>Así se ve tu semana con SyncPlans</h1>
-            <p style={S.subtitle}>
-              Mira de un vistazo cuántos planes tienes, dónde hay posibles
-              choques y cuál es tu próximo evento importante.
-            </p>
+          <div style={S.badge}>Resumen</div>
+<h1 style={S.title}>Tu agenda en una sola mirada</h1>
+<p style={S.subtitle}>
+  Aquí ves cuántos planes tienes pronto, si hay cruces entre ellos
+  y cuál es tu próximo evento importante.
+</p>
+
           </div>
           <div style={S.heroStats}>
             <HeroStat
@@ -257,16 +285,17 @@ export default function SummaryClient() {
               value={next30.length}
               hint="entre personales y compartidos"
             />
-            <HeroStat
-              label="Conflictos detectados"
-              value={upcomingConflicts.length}
-              hint={
-                upcomingConflicts.length === 0
-                  ? "Todo en orden ✨"
-                  : "Revísalos para evitar choques"
-              }
-              highlight={upcomingConflicts.length > 0}
-            />
+          <HeroStat
+  label="Conflictos detectados"
+  value={upcomingConflicts.length}
+  hint={
+    upcomingConflicts.length === 0
+      ? "Todo en orden. Ningún evento se cruza."
+      : "Tienes eventos que se cruzan entre sí."
+  }
+  highlight={upcomingConflicts.length > 0}
+/>
+
           </div>
         </section>
 
@@ -391,7 +420,7 @@ function HeroStat({
       style={{
         ...S.heroStat,
         borderColor: highlight
-          ? "rgba(248,113,113,0.7)"
+          ? "rgba(34,197,94,0.8)"
           : "rgba(148,163,184,0.45)",
       }}
     >
@@ -541,21 +570,27 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 12,
     cursor: "pointer",
   },
-  successBox: {
-    marginTop: 12,
-    marginBottom: 6,
-    padding: 12,
-    borderRadius: 16,
-    border: "1px solid rgba(34,197,94,0.55)",
-    background: "rgba(22,101,52,0.85)",
+  feedbackBox: {
+    marginBottom: 10,
+    marginTop: 2,
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(34,197,94,0.5)",
+    background: "rgba(22,163,74,0.15)",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  feedbackDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(34,197,94,0.9)",
+  },
+  feedbackText: {
     fontSize: 12,
-  },
-  successTitle: {
-    fontWeight: 900,
-    marginBottom: 4,
-  },
-  successBody: {
-    color: "rgba(226,232,240,0.96)",
+    fontWeight: 700,
+    color: "rgba(220,252,231,0.95)",
   },
   heroCard: {
     borderRadius: 24,
