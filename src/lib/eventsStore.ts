@@ -1,20 +1,27 @@
 // src/lib/eventsStore.ts
-import supabase from "@/lib/supabaseClient";
+"use client";
+
+/**
+ * EVENTS STORE (UI BRIDGE)
+ * ------------------------
+ * Esta capa adapta la forma cruda de la tabla `events` (DbEventRow)
+ * a la forma UI `CalendarEvent` que usan:
+ *
+ *  - CalendarClient
+ *  - /events
+ *  - /summary
+ *
+ * 👉 Source of truth REAL: src/lib/eventsDb.ts
+ * 👉 No guarda nada en memoria global, ni en localStorage.
+ */
+
 import { type CalendarEvent, type GroupType } from "@/lib/conflicts";
-
-type DbEventRow = {
-  id: string;
-  user_id: string | null;
-  group_id: string | null;
-
-  title: string | null;
-  notes: string | null;
-
-  start: string;
-  end: string;
-  created_at: string | null;
-  updated_at: string | null;
-};
+import {
+  getMyEvents,
+  createEventForGroup,
+  deleteEventsByIds as dbDeleteEventsByIds,
+  type DbEventRow,
+} from "@/lib/eventsDb";
 
 function normalizeTs(v: string) {
   if (!v) return v;
@@ -22,8 +29,14 @@ function normalizeTs(v: string) {
   return v.replace(" ", "T");
 }
 
+function inferGroupTypeFromRow(r: DbEventRow): GroupType {
+  if (!r.group_id) return "personal";
+  // Si quieres algo más fino (family vs pair) necesitaríamos join con groups.
+  return "pair" as GroupType;
+}
+
 function toCalendarEvent(r: DbEventRow): CalendarEvent {
-  const inferred: GroupType = r.group_id ? "pair" : "personal";
+  const inferred = inferGroupTypeFromRow(r);
 
   const ev: CalendarEvent = {
     id: String(r.id),
@@ -38,20 +51,19 @@ function toCalendarEvent(r: DbEventRow): CalendarEvent {
   return ev;
 }
 
+/**
+ * Devuelve todos los eventos del usuario como CalendarEvent[]
+ * usando eventsDb como source of truth.
+ */
 export async function fetchEvents(): Promise<CalendarEvent[]> {
-  const { data, error } = await supabase
-    .from("events")
-    .select(
-      "id, user_id, group_id, title, notes, start, end, created_at, updated_at"
-    )
-    .order("start", { ascending: true });
-
-  if (error) throw error;
-
-  const rows = (data ?? []) as DbEventRow[];
-  return rows.map(toCalendarEvent);
+  const rows = await getMyEvents();
+  return (rows ?? []).map(toCalendarEvent);
 }
 
+/**
+ * Crea un evento desde UI legacy (calendario viejo).
+ * Usa eventsDb como source of truth.
+ */
 export async function createEvent(input: {
   groupType: GroupType;
   groupId?: string | null;
@@ -60,14 +72,8 @@ export async function createEvent(input: {
   startIso: string;
   endIso: string;
 }): Promise<CalendarEvent> {
-  const {
-    data: { user },
-    error: authErr,
-  } = await supabase.auth.getUser();
-
-  if (authErr || !user) throw authErr || new Error("No auth user");
-
   if (!input.title?.trim()) throw new Error("Falta título.");
+
   const s = new Date(input.startIso);
   const e = new Date(input.endIso);
   if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
@@ -81,40 +87,25 @@ export async function createEvent(input: {
     throw new Error("Falta groupId para evento de grupo.");
   }
 
-  const payload = {
-    user_id: user.id,
-    group_id: input.groupType === "personal" ? null : input.groupId!,
+  const dbRow = await createEventForGroup({
     title: input.title.trim(),
-    notes: input.notes?.trim() ? input.notes.trim() : null,
+    notes: input.notes?.trim() ? input.notes.trim() : undefined,
     start: input.startIso,
     end: input.endIso,
-  };
+    groupId: input.groupType === "personal" ? null : input.groupId ?? null,
+  });
 
-  const { data, error } = await supabase
-    .from("events")
-    .insert(payload)
-    .select(
-      "id, user_id, group_id, title, notes, start, end, created_at, updated_at"
-    )
-    .single();
-
-  if (error) throw error;
-
-  return toCalendarEvent(data as DbEventRow);
+  return toCalendarEvent(dbRow);
 }
 
+/**
+ * Borrado por IDs, delegando al helper central de eventsDb.
+ */
 export async function deleteEventsByIds(ids: string[]): Promise<number> {
-  const cleaned = ids
+  const cleaned = (ids ?? [])
     .map((id) => String(id).trim())
     .filter((id) => id.length > 0);
 
   if (!cleaned.length) return 0;
-
-  const { error } = await supabase
-    .from("events")
-    .delete()
-    .in("id", cleaned);
-
-  if (error) throw error;
-  return cleaned.length;
+  return dbDeleteEventsByIds(cleaned);
 }

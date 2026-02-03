@@ -1,3 +1,4 @@
+// src/app/summary/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -5,6 +6,8 @@ import { useRouter } from "next/navigation";
 
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+import SummaryOnboardingBanner from "@/components/SummaryOnboardingBanner";
+
 import {
   computeVisibleConflicts,
   type CalendarEvent,
@@ -18,17 +21,12 @@ type SummaryEvent = CalendarEvent & {
   whenLabel: string;
 };
 
-const ONBOARDING_KEY = "syncplans_onboarded_v1";
-
 export default function SummaryPage() {
   const router = useRouter();
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // 👇 Nuevo: estado para el onboarding suave
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Carga de datos del resumen
   useEffect(() => {
@@ -39,7 +37,7 @@ export default function SummaryPage() {
         setLoading(true);
         setErrorMsg(null);
 
-        // 🔹 Usamos allSettled para que un error en grupos/eventos NO rompa todo el resumen
+        // Usamos allSettled para que un error en grupos/eventos NO rompa todo el resumen
         const [groupsResult, eventsResult] = await Promise.allSettled([
           getMyGroups(),
           getMyEvents(),
@@ -61,7 +59,6 @@ export default function SummaryPage() {
                 : null,
           });
           // No mostramos el error al usuario; simplemente dejamos 0s.
-          // setErrorMsg("No pudimos cargar todo tu resumen, pero mostramos lo disponible.");
         }
 
         const groups =
@@ -69,7 +66,6 @@ export default function SummaryPage() {
         const rawEvents =
           eventsResult.status === "fulfilled" ? eventsResult.value : [];
 
-        // Mapeo igual que antes
         const groupTypeById = new Map<string, GroupType>(
           (groups || []).map((g: any) => {
             const id = String(g.id);
@@ -103,7 +99,6 @@ export default function SummaryPage() {
       } catch (err: any) {
         console.error(err);
         if (alive) {
-          // Solo si es un fallo muy gordo (raro) mostramos el error
           setErrorMsg("No pudimos cargar tu resumen. Intenta de nuevo.");
         }
       } finally {
@@ -114,18 +109,6 @@ export default function SummaryPage() {
     return () => {
       alive = false;
     };
-  }, []);
-
-  // 👇 Onboarding ligero: solo una vez
-  useEffect(() => {
-    try {
-      const flag = window.localStorage.getItem(ONBOARDING_KEY);
-      if (!flag) {
-        setShowOnboarding(true);
-      }
-    } catch {
-      // si falla localStorage, no rompemos nada
-    }
   }, []);
 
   const now = Date.now();
@@ -194,24 +177,6 @@ export default function SummaryPage() {
 
   const hasAny = events.length > 0;
 
-  function markOnboardingSeen() {
-    try {
-      window.localStorage.setItem(ONBOARDING_KEY, "1");
-    } catch {
-      // ignorar
-    }
-    setShowOnboarding(false);
-  }
-
-  function goToCalendarFromOnboarding() {
-    try {
-      window.localStorage.setItem(ONBOARDING_KEY, "1");
-    } catch {
-      // ignorar
-    }
-    router.push("/calendar");
-  }
-
   return (
     <main style={S.page}>
       <div style={S.shell}>
@@ -238,45 +203,16 @@ export default function SummaryPage() {
           </div>
         </div>
 
-        {/* Onboarding ligero */}
-        {showOnboarding && (
-          <section style={S.onboardCard}>
-            <div>
-              <div style={S.onboardBadge}>Bienvenido a SyncPlans</div>
-              <h2 style={S.onboardTitle}>
-                Tu semana, tu pareja y tu familia en una sola vista.
-              </h2>
-              <p style={S.onboardText}>
-                Aquí verás tus próximos eventos, cómo se reparten entre personal,
-                pareja y familia, y dónde hay posibles choques de horario.
-              </p>
-            </div>
-            <div style={S.onboardButtons}>
-              <button
-                type="button"
-                style={S.onboardPrimary}
-                onClick={goToCalendarFromOnboarding}
-              >
-                Ir a mi calendario
-              </button>
-              <button
-                type="button"
-                style={S.onboardSecondary}
-                onClick={markOnboardingSeen}
-              >
-                Entendido
-              </button>
-            </div>
-          </section>
-        )}
+        {/* Onboarding ligero reutilizable */}
+        <SummaryOnboardingBanner />
 
         <section style={S.heroCard}>
           <div>
             <div style={S.badge}>Resumen</div>
             <h1 style={S.title}>Así se ve tu semana con SyncPlans</h1>
             <p style={S.subtitle}>
-              Mira de un vistazo cuántos planes tienes, dónde hay posibles choques
-              y cuál es tu próximo evento importante.
+              Mira de un vistazo cuántos planes tienes, dónde hay posibles
+              choques y cuál es tu próximo evento importante.
             </p>
           </div>
           <div style={S.heroStats}>
@@ -303,7 +239,6 @@ export default function SummaryPage() {
           </div>
         </section>
 
-        {/* 🔹 Podemos dejar este error solo para casos extremos */}
         {errorMsg && <div style={S.errorBox}>{errorMsg}</div>}
 
         <section style={S.grid}>
@@ -573,70 +508,6 @@ const S: Record<string, React.CSSProperties> = {
     color: "rgba(226,232,240,0.96)",
     fontWeight: 700,
     fontSize: 12,
-    cursor: "pointer",
-  },
-  onboardCard: {
-    marginBottom: 16,
-    borderRadius: 22,
-    border: "1px solid rgba(148,163,184,0.55)",
-    padding: 16,
-    background:
-      "radial-gradient(circle at top left, rgba(56,189,248,0.18), transparent 55%), radial-gradient(circle at bottom right, rgba(34,197,94,0.20), transparent 55%), rgba(15,23,42,0.96)",
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 14,
-    flexWrap: "wrap",
-  },
-  onboardBadge: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "4px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.7)",
-    fontSize: 11,
-    fontWeight: 700,
-    color: "rgba(226,232,240,0.96)",
-    background: "rgba(15,23,42,0.9)",
-  },
-  onboardTitle: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: 900,
-  },
-  onboardText: {
-    marginTop: 4,
-    fontSize: 12,
-    maxWidth: 520,
-    color: "rgba(203,213,225,0.96)",
-  },
-  onboardButtons: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-    alignItems: "flex-start",
-    justifyContent: "center",
-    minWidth: 180,
-  },
-  onboardPrimary: {
-    padding: "9px 14px",
-    borderRadius: 999,
-    border: "1px solid rgba(244,244,245,0.22)",
-    background:
-      "linear-gradient(135deg, rgba(37,99,235,0.9), rgba(16,185,129,0.95))",
-    color: "#F9FAFB",
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: "pointer",
-    boxShadow: "0 14px 38px rgba(37,99,235,0.45)",
-  },
-  onboardSecondary: {
-    padding: "7px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.7)",
-    background: "rgba(15,23,42,0.9)",
-    color: "rgba(226,232,240,0.96)",
-    fontSize: 11,
-    fontWeight: 700,
     cursor: "pointer",
   },
   heroCard: {

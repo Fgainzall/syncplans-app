@@ -1,4 +1,3 @@
-// src/components/PremiumHeader.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -13,6 +12,12 @@ import {
 import NotificationsDrawer, {
   type NavigationMode,
 } from "./NotificationsDrawer";
+
+import {
+  getMyProfile,
+  getInitials,
+  type Profile as UserProfile,
+} from "@/lib/profilesDb";
 
 type Tab = {
   key: UsageMode;
@@ -80,6 +85,11 @@ async function ensureActiveGroupForMode(
   return null;
 }
 
+type HeaderUser = {
+  name: string;
+  initials: string;
+};
+
 export default function PremiumHeader({
   title = "Calendario",
   subtitle = "Organiza tu día sin choques de horario",
@@ -98,6 +108,9 @@ export default function PremiumHeader({
   const [openNotif, setOpenNotif] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  const [headerUser, setHeaderUser] = useState<HeaderUser | null>(null);
+
+  // 🔹 Cargar modo/tema de grupos
   useEffect(() => {
     const g = getGroupState();
     setGroup(g);
@@ -109,6 +122,46 @@ export default function PremiumHeader({
   useEffect(() => {
     applyThemeVars(activeMode);
   }, [activeMode]);
+
+  // 🔹 Cargar usuario para mostrar chip con nombre/iniciales
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const profile: UserProfile | null = await getMyProfile();
+
+        if (!alive) return;
+
+        if (profile) {
+          const display = (
+            profile.display_name ??
+            `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
+          ).trim();
+
+          const name = display || "Tú";
+          const initials = getInitials({
+            first_name: profile.first_name,
+            last_name: profile.last_name,
+            display_name: profile.display_name,
+          });
+
+          setHeaderUser({ name, initials });
+        } else {
+          // Sin perfil todavía: fallback genérico
+          setHeaderUser({ name: "Tú", initials: "T" });
+        }
+      } catch {
+        if (!alive) return;
+        // Si falla (no autenticado, error de red, etc.) no rompe el header
+        setHeaderUser(null);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function refreshBadge() {
     try {
@@ -205,6 +258,18 @@ export default function PremiumHeader({
                 </span>
               )}
             </div>
+
+            {headerUser && (
+              <button
+                type="button"
+                style={S.userChip}
+                onClick={() => router.push("/profile")}
+                title="Ver panel de cuenta"
+              >
+                <div style={S.userAvatar}>{headerUser.initials}</div>
+                <span style={S.userLabel}>{headerUser.name}</span>
+              </button>
+            )}
 
             {rightSlot ?? (
               <button style={S.iconBtn} onClick={onNewEvent}>
@@ -396,6 +461,40 @@ const S: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     boxShadow:
       "0 0 0 2px rgba(2,6,23,0.85), 0 10px 25px rgba(0,0,0,0.35)",
+  },
+
+  // 🔹 Chip de usuario (avatar + nombre)
+  userChip: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(15,23,42,0.85)",
+    cursor: "pointer",
+    maxWidth: 210,
+  },
+  userAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.7)",
+    background: "rgba(8,47,73,0.9)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 11,
+    fontWeight: 900,
+    color: "#E0F2FE",
+  },
+  userLabel: {
+    fontSize: 12,
+    fontWeight: 750,
+    color: "#E5E7EB",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
 
   tabs: { position: "relative", marginTop: 14 },

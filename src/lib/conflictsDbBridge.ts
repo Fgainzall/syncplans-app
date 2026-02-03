@@ -10,6 +10,8 @@ import { getMyEvents } from "@/lib/eventsDb";
  *
  * ✅ Usa getMyEvents() como source of truth (igual que el calendario).
  * ✅ Opcionalmente filtra por groupId si viene en la URL.
+ * ✅ Para conflictos, si hay group_id => usamos "couple" como groupType
+ *    (el motor y groupMeta trabajan con "couple").
  */
 export async function loadEventsFromDb(opts?: {
   groupId?: string | null;
@@ -39,10 +41,8 @@ export async function loadEventsFromDb(opts?: {
       if (ev.groupType) {
         gt = ev.groupType as GroupType;
       } else if (gid) {
-        // Si tiene group_id, asumimos "pair" por defecto (pareja/familia
-        // ya se distingue en el calendario con groupsDb, aquí solo importa
-        // para el color de la UI).
-        gt = "pair";
+        // 🔥 Para conflictos: si tiene group_id => "couple"
+        gt = "couple";
       } else {
         gt = "personal";
       }

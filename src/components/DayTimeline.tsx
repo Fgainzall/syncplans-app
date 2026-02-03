@@ -1,9 +1,14 @@
+// src/app/calendar/DayTimeline.tsx
 "use client";
 
 import * as React from "react";
-import supabase from "@/lib/supabaseClient";
-import type { CalendarEvent } from "@/lib/conflicts";
+import type { CalendarEvent, GroupType } from "@/lib/conflicts";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
+import {
+  getMyEvents,
+  updateEventTime,
+  type DbEventRow,
+} from "@/lib/eventsDb";
 
 type Props = {
   dateISO: string; // YYYY-MM-DD
@@ -40,7 +45,7 @@ function snapTo(n: number, step: number) {
   return Math.round(n / step) * step;
 }
 
-// Conflictos local
+// Conflictos local (solo para pintar en el timeline)
 function detectConflictedIds(events: CalendarEvent[]) {
   const sorted = [...events].sort(
     (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
@@ -58,6 +63,7 @@ function detectConflictedIds(events: CalendarEvent[]) {
       const bS = new Date(b.start).getTime();
       const bE = new Date(b.end).getTime();
 
+      // Si el siguiente empieza después o exactamente cuando termina A, ya no solapa
       if (bS >= aE) break;
 
       const overlaps = aS < bE && bS < aE;
@@ -71,9 +77,16 @@ function detectConflictedIds(events: CalendarEvent[]) {
   return conflicted;
 }
 
-function normalizeGroupType(groupId: string | null) {
+/**
+ * Por ahora:
+ *  - sin group_id → "personal"
+ *  - con group_id → "pair"
+ *
+ * (Ya encaja con el resto de la app, Bloque 3 terminará de unificar esto.)
+ */
+function normalizeGroupType(groupId: string | null): GroupType {
   if (!groupId) return "personal";
-  return "couple";
+  return "pair";
 }
 
 export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props) {
@@ -117,50 +130,59 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
     const end = new Date(base);
     end.setDate(end.getDate() + 1);
 
-    // Grupo activo desde DB
-    const activeGroupId = await getActiveGroupIdFromDb().catch(() => null);
+    try {
+      // Grupo activo desde DB + todos los eventos visibles via eventsDb
+      const [activeGroupId, raw] = await Promise.all([
+        getActiveGroupIdFromDb().catch(() => null),
+        getMyEvents().catch(() => [] as DbEventRow[]),
+      ]);
 
-    // Query DB: (group activo + personales) o (solo personales si no hay grupo activo)
-    let q = supabase
-      .from("events")
-      .select("id,title,notes,start,end,group_id")
-      .gte("start", base.toISOString())
-      .lt("start", end.toISOString())
-      .order("start", { ascending: true });
+      const baseMs = base.getTime();
+      const endMs = end.getTime();
 
-    if (activeGroupId) {
-      q = q.or(`group_id.eq.${activeGroupId},group_id.is.null`);
-    } else {
-      q = q.is("group_id", null);
-    }
+      // Filtramos solo eventos que caen en ese día
+      const filteredByDay = (raw ?? []).filter((r: DbEventRow) => {
+        const startMs = new Date(r.start).getTime();
+        if (Number.isNaN(startMs)) return false;
+        return startMs >= baseMs && startMs < endMs;
+      });
 
-    const { data, error } = await q;
-    if (error) {
+      // Y aplicamos la misma lógica de grupo que antes:
+      // - si hay grupo activo → personales (group_id null) + ese grupo
+      // - si no hay grupo activo → solo personales
+      const filtered = filteredByDay.filter((r) => {
+        if (!activeGroupId) {
+          return !r.group_id;
+        }
+        return !r.group_id || String(r.group_id) === String(activeGroupId);
+      });
+
+      const mapped: CalendarEvent[] = filtered.map((r) => {
+        const gid = r.group_id ? String(r.group_id) : null;
+        return {
+          id: String(r.id),
+          title: r.title ?? "Evento",
+          start: String(r.start),
+          end: String(r.end),
+          notes: r.notes ?? undefined,
+          description: r.notes ?? "",
+          groupId: gid,
+          groupType: normalizeGroupType(gid),
+        };
+      });
+
+      setEvents(mapped);
+      setOverrideTop({});
+      setOverrideHeight({});
+    } catch (err) {
+      console.error("[DayTimeline] load error", err);
       setEvents([]);
       setOverrideTop({});
       setOverrideHeight({});
+    } finally {
       setLoading(false);
       onChanged?.();
-      return;
     }
-
-    const mapped: CalendarEvent[] = (data ?? []).map((r) => ({
-      id: String(r.id),
-      title: r.title ?? "Evento",
-      start: String(r.start),
-      end: String(r.end),
-      notes: r.notes ?? undefined,
-      description: r.notes ?? "",
-      groupId: r.group_id ? String(r.group_id) : null,
-      groupType: normalizeGroupType(r.group_id ? String(r.group_id) : null) as any,
-    }));
-
-    setEvents(mapped);
-    setOverrideTop({});
-    setOverrideHeight({});
-    setLoading(false);
-
-    onChanged?.();
   }
 
   React.useEffect(() => {
@@ -251,12 +273,8 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
   }
 
   async function persistEventTime(id: string, startISO: string, endISO: string) {
-    const { error } = await supabase
-      .from("events")
-      .update({ start: startISO, end: endISO })
-      .eq("id", id);
-
-    if (error) throw error;
+    // ✅ Ahora usamos el helper central de eventsDb
+    await updateEventTime(id, startISO, endISO);
   }
 
   async function onPointerUp() {

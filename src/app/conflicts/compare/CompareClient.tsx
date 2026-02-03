@@ -53,9 +53,9 @@ function prettyTimeRange(startIso: string, endIso: string) {
     s.getDate() === e.getDate();
 
   if (!sameDay)
-    return `${s.toLocaleDateString()} ${hhmm(s)} → ${e.toLocaleDateString()} ${hhmm(
-      e
-    )}`;
+    return `${s.toLocaleDateString()} ${hhmm(
+      s
+    )} → ${e.toLocaleDateString()} ${hhmm(e)}`;
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
 
@@ -184,7 +184,9 @@ export default function CompareClient() {
   const bMeta = groupMeta((b?.groupType ?? "personal") as GroupType);
 
   const conflictId = c?.id ?? "";
-  const chosen: Resolution | undefined = conflictId ? resMap[conflictId] : undefined;
+  const chosen: Resolution | undefined = conflictId
+    ? resMap[conflictId]
+    : undefined;
 
   /* =========================
      Focus (evento origen)
@@ -212,37 +214,34 @@ export default function CompareClient() {
   /* =========================
      Actions
      ========================= */
-const setChoice = async (r: Resolution) => {
-  if (!c || !conflictId) return;
 
-  // optimistic update
-  setResMap((prev) => ({ ...prev, [conflictId]: r }));
+  const setChoice = async (r: Resolution) => {
+    if (!c || !conflictId) return;
 
-  try {
-    await upsertConflictResolution(conflictId, r);
+    // optimistic update
+    setResMap((prev) => ({ ...prev, [conflictId]: r }));
 
-    // Opcional: refetch para confirmar (muy útil en debug)
-    // const fresh = await getMyConflictResolutionsMap();
-    // setResMap(fresh ?? {});
+    try {
+      await upsertConflictResolution(conflictId, r);
 
-    setToast({ title: "Decisión guardada", sub: conflictResolutionHint(r) });
-  } catch (e: any) {
-    // rollback: deja pendiente si no se guardó
-    setResMap((prev) => {
-      const next = { ...prev };
-      delete next[conflictId];
-      return next;
-    });
+      setToast({ title: "Decisión guardada", sub: conflictResolutionHint(r) });
+    } catch (e: any) {
+      // rollback: deja pendiente si no se guardó
+      setResMap((prev) => {
+        const next = { ...prev };
+        delete next[conflictId];
+        return next;
+      });
 
-    setToast({
-      title: "No se pudo guardar",
-      sub:
-        typeof e?.message === "string"
-          ? e.message
-          : "Revisa RLS/constraints y vuelve a intentar.",
-    });
-  }
-};
+      setToast({
+        title: "No se pudo guardar",
+        sub:
+          typeof e?.message === "string"
+            ? e.message
+            : "Revisa RLS/constraints y vuelve a intentar.",
+      });
+    }
+  };
 
   const go = (idx: number) => {
     const qp = new URLSearchParams();
@@ -343,7 +342,11 @@ const setChoice = async (r: Resolution) => {
             <button onClick={prev} style={styles.iconBtn} aria-label="Anterior">
               ‹
             </button>
-            <button onClick={next} style={styles.iconBtn} aria-label="Siguiente">
+            <button
+              onClick={next}
+              style={styles.iconBtn}
+              aria-label="Siguiente"
+            >
               ›
             </button>
           </div>
@@ -361,7 +364,9 @@ const setChoice = async (r: Resolution) => {
             <div style={styles.cardTop}>
               <span style={styles.badgeA}>Evento A</span>
               <span style={styles.pill}>
-                <span style={{ ...styles.pillDot, background: aMeta.dot }} />
+                <span
+                  style={{ ...styles.pillDot, background: aMeta.dot }}
+                />
                 {aMeta.label}
               </span>
             </div>
@@ -383,7 +388,9 @@ const setChoice = async (r: Resolution) => {
             <div style={styles.cardTop}>
               <span style={styles.badgeB}>Evento B</span>
               <span style={styles.pill}>
-                <span style={{ ...styles.pillDot, background: bMeta.dot }} />
+                <span
+                  style={{ ...styles.pillDot, background: bMeta.dot }}
+                />
                 {bMeta.label}
               </span>
             </div>
@@ -408,7 +415,9 @@ const setChoice = async (r: Resolution) => {
               onClick={() => setChoice("keep_existing")}
               style={{
                 ...styles.actionBtn,
-                ...(chosen === "keep_existing" ? styles.actionOn : {}),
+                ...(chosen === "keep_existing"
+                  ? styles.actionOn
+                  : {}),
               }}
             >
               ✅ Conservar A
@@ -419,7 +428,9 @@ const setChoice = async (r: Resolution) => {
               onClick={() => setChoice("replace_with_new")}
               style={{
                 ...styles.actionBtn,
-                ...(chosen === "replace_with_new" ? styles.actionOn : {}),
+                ...(chosen === "replace_with_new"
+                  ? styles.actionOn
+                  : {}),
               }}
             >
               ⭐ Conservar B
@@ -434,7 +445,9 @@ const setChoice = async (r: Resolution) => {
               }}
             >
               💤 Mantener ambos
-              <div style={styles.actionHint}>Ignorar este conflicto</div>
+              <div style={styles.actionHint}>
+                Ignorar este conflicto
+              </div>
             </button>
           </div>
 

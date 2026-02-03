@@ -12,7 +12,7 @@ import {
   computeVisibleConflicts,
   fmtRange,
   type CalendarEvent,
-  ignoreConflictIds, // 👈 IMPORT TAL CUAL
+  ignoreConflictIds,
 } from "@/lib/conflicts";
 
 import { getSettingsFromDb, type NotificationSettings } from "@/lib/settings";
@@ -359,88 +359,88 @@ function NewEventDetailsInner() {
     }
   };
 
-const preflight = async (payload: {
-  groupType: GroupType;
-  groupId: string | null;
-  title: string;
-  notes?: string;
-  startIso: string;
-  endIso: string;
-}): Promise<{ ok: true } | { ok: false }> => {
-  const warn = (settings as any)?.conflictWarnBeforeSave ?? true;
-  if (!warn) return { ok: true };
+  const preflight = async (payload: {
+    groupType: GroupType;
+    groupId: string | null;
+    title: string;
+    notes?: string;
+    startIso: string;
+    endIso: string;
+  }): Promise<{ ok: true } | { ok: false }> => {
+    const warn = (settings as any)?.conflictWarnBeforeSave ?? true;
+    if (!warn) return { ok: true };
 
-  // 1) Traemos eventos desde la DB (DbEventRow[])
-  let existing: CalendarEvent[] = [];
-  try {
-    const raw = await getMyEvents(); // DbEventRow[]
+    // 1) Traemos eventos desde la DB (DbEventRow[])
+    let existing: CalendarEvent[] = [];
+    try {
+      const raw = await getMyEvents(); // DbEventRow[]
 
-    // 2) Map → CalendarEvent (solo necesitamos lo básico + groupType)
-    existing = (raw ?? []).map((e: any) => {
-      const gid = e.group_id ?? e.groupId ?? null;
-      const groupType: GroupType = gid ? "pair" : "personal";
+      // 2) Map → CalendarEvent (solo necesitamos lo básico + groupType)
+      existing = (raw ?? []).map((e: any) => {
+        const gid = e.group_id ?? e.groupId ?? null;
+        const groupType: GroupType = gid ? "pair" : "personal";
+
+        return {
+          id: String(e.id),
+          title: e.title ?? "Evento",
+          start: String(e.start),
+          end: String(e.end),
+          notes: e.notes ?? undefined,
+          groupId: gid ? String(gid) : null,
+          groupType,
+        } as CalendarEvent;
+      });
+    } catch {
+      // Si algo falla cargando eventos, no bloqueamos el guardado
+      return { ok: true };
+    }
+
+    // 3) Inyectamos el evento "nuevo" como si ya existiera
+    const incomingId = `incoming_${Date.now().toString(16)}`;
+
+    const incoming: CalendarEvent = {
+      id: incomingId,
+      title: payload.title || "Nuevo evento",
+      start: payload.startIso,
+      end: payload.endIso,
+      groupType: payload.groupType,
+      groupId: payload.groupId ?? null,
+      notes: payload.notes,
+    } as any;
+
+    const combined = [...existing, incoming];
+
+    // 4) Calculamos conflictos visibles (igual que antes)
+    const conflicts = computeVisibleConflicts(combined).filter(
+      (c) => c.incomingEventId === incomingId
+    );
+
+    if (!conflicts.length) return { ok: true };
+
+    const items: PreflightConflict[] = conflicts.map((c) => {
+      const ex = c.existing;
+      const gm = groupMeta(ex?.groupType ?? "personal");
 
       return {
-        id: String(e.id),
-        title: e.title ?? "Evento",
-        start: String(e.start),
-        end: String(e.end),
-        notes: e.notes ?? undefined,
-        groupId: gid ? String(gid) : null,
-        groupType,
-      } as CalendarEvent;
+        id: c.id,
+        existingId: c.existingEventId,
+        title: ex?.title ?? "Evento existente",
+        groupLabel: gm.label,
+        range: ex ? fmtRange(ex.start, ex.end) : "—",
+        overlapStart: c.overlapStart,
+        overlapEnd: c.overlapEnd,
+      };
     });
-  } catch {
-    // Si algo falla cargando eventos, no bloqueamos el guardado
-    return { ok: true };
-  }
 
-  // 3) Inyectamos el evento "nuevo" como si ya existiera
-  const incomingId = `incoming_${Date.now().toString(16)}`;
+    setExistingIdsToReplace(
+      Array.from(new Set(items.map((x) => x.existingId)))
+    );
+    setPreflightItems(items);
+    setPreflightDefaultChoice(mapDefaultResolutionToChoice(settings));
+    setPreflightOpen(true);
 
-  const incoming: CalendarEvent = {
-    id: incomingId,
-    title: payload.title || "Nuevo evento",
-    start: payload.startIso,
-    end: payload.endIso,
-    groupType: payload.groupType,
-    groupId: payload.groupId ?? null,
-    notes: payload.notes,
-  } as any;
-
-  const combined = [...existing, incoming];
-
-  // 4) Calculamos conflictos visibles (igual que antes)
-  const conflicts = computeVisibleConflicts(combined).filter(
-    (c) => c.incomingEventId === incomingId
-  );
-
-  if (!conflicts.length) return { ok: true };
-
-  const items: PreflightConflict[] = conflicts.map((c) => {
-    const ex = c.existing;
-    const gm = groupMeta(ex?.groupType ?? "personal");
-
-    return {
-      id: c.id,
-      existingId: c.existingEventId,
-      title: ex?.title ?? "Evento existente",
-      groupLabel: gm.label,
-      range: ex ? fmtRange(ex.start, ex.end) : "—",
-      overlapStart: c.overlapStart,
-      overlapEnd: c.overlapEnd,
-    };
-  });
-
-  setExistingIdsToReplace(
-    Array.from(new Set(items.map((x) => x.existingId)))
-  );
-  setPreflightItems(items);
-  setPreflightDefaultChoice(mapDefaultResolutionToChoice(settings));
-  setPreflightOpen(true);
-
-  return { ok: false };
-};
+    return { ok: false };
+  };
 
   const save = async () => {
     if (!canSave) {
@@ -1051,7 +1051,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
   choices: {
     padding: "0 18px 14px",
     display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))", // 2 x 2
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 10,
   },
   choice: {

@@ -1,8 +1,10 @@
+// src/app/events/new/page.tsx
 "use client";
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import supabase from "@/lib/supabaseClient";
+import { createEventForGroup } from "@/lib/eventsDb";
 
 export default function NewEventPage() {
   const router = useRouter();
@@ -41,26 +43,18 @@ export default function NewEventPage() {
         return;
       }
 
-      // ✅ NO mandes user_id (tu tabla no lo tiene)
-      // ✅ owner_id debe ser default auth.uid() en DB
-      const { error } = await supabase.from("events").insert({
+      // ✅ Usamos el helper central (personal = groupId null)
+      await createEventForGroup({
         title: title.trim(),
-        start_at: startISO,
-        end_at: endISO,
-        group_id: null,
-        group_type: "personal",
-        notes: null,
+        notes: undefined,
+        start: startISO,
+        end: endISO,
+        groupId: null,
       });
 
-      if (error) {
-        alert(error.message || "No se pudo guardar el evento");
-        setBusy(false);
-        return;
-      }
-
       router.push("/calendar");
-    } catch {
-      alert("Error inesperado al guardar");
+    } catch (err: any) {
+      alert(err?.message || "Error inesperado al guardar");
       setBusy(false);
     }
   }

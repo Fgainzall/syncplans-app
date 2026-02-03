@@ -16,7 +16,10 @@ import {
 } from "@/lib/conflicts";
 
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
-import { Resolution, getMyConflictResolutionsMap } from "@/lib/conflictResolutionsDb";
+import {
+  Resolution,
+  getMyConflictResolutionsMap,
+} from "@/lib/conflictResolutionsDb";
 
 /* =========================
    Helpers
@@ -33,7 +36,9 @@ function prettyTimeRange(startIso: string, endIso: string) {
   const s = new Date(startIso);
   const e = new Date(endIso);
   const hhmm = (x: Date) =>
-    `${String(x.getHours()).padStart(2, "0")}:${String(x.getMinutes()).padStart(2, "0")}`;
+    `${String(x.getHours()).padStart(2, "0")}:${String(
+      x.getMinutes()
+    ).padStart(2, "0")}`;
 
   const sameDay =
     s.getFullYear() === e.getFullYear() &&
@@ -41,7 +46,9 @@ function prettyTimeRange(startIso: string, endIso: string) {
     s.getDate() === e.getDate();
 
   if (!sameDay)
-    return `${s.toLocaleDateString()} ${hhmm(s)} → ${e.toLocaleDateString()} ${hhmm(e)}`;
+    return `${s.toLocaleDateString()} ${hhmm(
+      s
+    )} → ${e.toLocaleDateString()} ${hhmm(e)}`;
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
 
@@ -118,10 +125,14 @@ export default function DetectedClient() {
 
   const conflicts = useMemo<AttachedConflict[]>(() => {
     // ✅ motor: normalizamos SOLO para detectar conflictos
-    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map((e) => ({
-      ...e,
-      groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
-    }));
+    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
+      (e) => ({
+        ...e,
+        groupType: normalizeForConflicts(
+          (e.groupType ?? "personal") as any
+        ),
+      })
+    );
 
     const cx = computeVisibleConflicts(normalized);
 
@@ -177,7 +188,9 @@ export default function DetectedClient() {
             <div style={styles.loadingDot} />
             <div>
               <div style={styles.loadingTitle}>Analizando tu agenda…</div>
-              <div style={styles.loadingSub}>Buscando choques de horario</div>
+              <div style={styles.loadingSub}>
+                Buscando choques de horario
+              </div>
             </div>
           </div>
         </div>
@@ -210,7 +223,10 @@ export default function DetectedClient() {
                 Resolver ahora ✨
               </button>
             ) : (
-              <button onClick={() => router.push("/calendar")} style={styles.ghostBtn}>
+              <button
+                onClick={() => router.push("/calendar")}
+                style={styles.ghostBtn}
+              >
                 Volver al calendario
               </button>
             )}
@@ -221,14 +237,17 @@ export default function DetectedClient() {
           <section style={styles.emptyCard}>
             <div style={styles.emptyTitle}>Todo en orden ✅</div>
             <div style={styles.emptySub}>
-              Cuando dos eventos choquen, aparecerán aquí con opciones claras para resolverlos.
+              Cuando dos eventos choquen, aparecerán aquí con opciones claras
+              para resolverlos.
             </div>
           </section>
         ) : (
           <section style={styles.listCard}>
             <div style={styles.listTop}>
               <div style={styles.listTitle}>Conflictos detectados</div>
-              <div style={styles.listHint}>Toca uno para compararlos y decidir.</div>
+              <div style={styles.listHint}>
+                Toca uno para compararlos y decidir.
+              </div>
             </div>
 
             <div style={styles.list}>
@@ -238,11 +257,23 @@ export default function DetectedClient() {
                 const b = c.incomingEvent;
 
                 // ✅ groupMeta también necesita couple
-                const aMeta = groupMeta(normalizeForConflicts((a?.groupType ?? "personal") as any));
-                const bMeta = groupMeta(normalizeForConflicts((b?.groupType ?? "personal") as any));
+                const aMeta = groupMeta(
+                  normalizeForConflicts(
+                    (a?.groupType ?? "personal") as any
+                  )
+                );
+                const bMeta = groupMeta(
+                  normalizeForConflicts(
+                    (b?.groupType ?? "personal") as any
+                  )
+                );
 
                 return (
-                  <button key={c.id} onClick={() => openCompare(idx)} style={styles.rowBtn}>
+                  <button
+                    key={c.id}
+                    onClick={() => openCompare(idx)}
+                    style={styles.rowBtn}
+                  >
                     <div style={styles.rowLeft}>
                       <div style={styles.rowTop}>
                         <span style={styles.badgeDanger}>
@@ -258,15 +289,37 @@ export default function DetectedClient() {
 
                       <div style={styles.rowTwo}>
                         <div style={styles.miniLine}>
-                          <span style={{ ...styles.dot, background: aMeta.dot }} />
-                          <span style={styles.miniTitle}>{a?.title || "Evento A"}</span>
-                          <span style={styles.miniTime}>{a ? prettyTimeRange(a.start, a.end) : ""}</span>
+                          <span
+                            style={{
+                              ...styles.dot,
+                              background: aMeta.dot,
+                            }}
+                          />
+                          <span style={styles.miniTitle}>
+                            {a?.title || "Evento A"}
+                          </span>
+                          <span style={styles.miniTime}>
+                            {a
+                              ? prettyTimeRange(a.start, a.end)
+                              : ""}
+                          </span>
                         </div>
 
                         <div style={styles.miniLine}>
-                          <span style={{ ...styles.dot, background: bMeta.dot }} />
-                          <span style={styles.miniTitle}>{b?.title || "Evento B"}</span>
-                          <span style={styles.miniTime}>{b ? prettyTimeRange(b.start, b.end) : ""}</span>
+                          <span
+                            style={{
+                              ...styles.dot,
+                              background: bMeta.dot,
+                            }}
+                          />
+                          <span style={styles.miniTitle}>
+                            {b?.title || "Evento B"}
+                          </span>
+                          <span style={styles.miniTime}>
+                            {b
+                              ? prettyTimeRange(b.start, b.end)
+                              : ""}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -291,7 +344,7 @@ export default function DetectedClient() {
   );
 }
 
-/* ===== styles (idénticos a los tuyos) ===== */
+/* ===== styles ===== */
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
@@ -299,8 +352,18 @@ const styles: Record<string, React.CSSProperties> = {
       "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
   },
-  shell: { maxWidth: 1120, margin: "0 auto", padding: "22px 18px 48px" },
-  topRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, marginBottom: 14 },
+  shell: {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: "22px 18px 48px",
+  },
+  topRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    marginBottom: 14,
+  },
   hero: {
     display: "flex",
     justifyContent: "space-between",
@@ -309,7 +372,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "18px 16px",
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
     boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
     marginBottom: 12,
   },
@@ -332,7 +396,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "12px 14px",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.14)",
-    background: "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 900,
@@ -362,7 +427,10 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.03)",
     overflow: "hidden",
   },
-  listTop: { padding: 14, borderBottom: "1px solid rgba(255,255,255,0.08)" },
+  listTop: {
+    padding: 14,
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+  },
   listTitle: { fontSize: 16, fontWeight: 900 },
   listHint: { marginTop: 4, fontSize: 12, opacity: 0.75 },
   list: { display: "flex", flexDirection: "column" },
@@ -380,7 +448,12 @@ const styles: Record<string, React.CSSProperties> = {
     borderTop: "1px solid rgba(255,255,255,0.06)",
   },
   rowLeft: { flex: 1, display: "flex", flexDirection: "column", gap: 10 },
-  rowTop: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
+  rowTop: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
   rowTwo: { display: "flex", flexDirection: "column", gap: 8 },
   badgeDanger: {
     fontSize: 12,
@@ -406,7 +479,12 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(34,197,94,0.28)",
     background: "rgba(34,197,94,0.10)",
   },
-  miniLine: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
+  miniLine: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
   dot: { width: 10, height: 10, borderRadius: 999 },
   miniTitle: { fontSize: 13, fontWeight: 900, opacity: 0.95 },
   miniTime: { fontSize: 12, opacity: 0.7 },
@@ -437,7 +515,11 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 0 24px rgba(56,189,248,0.55)",
   },
   loadingTitle: { fontWeight: 900 },
-  loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
+  loadingSub: {
+    fontSize: 12,
+    opacity: 0.75,
+    marginTop: 2,
+  },
   footerCta: {
     padding: 14,
     display: "flex",

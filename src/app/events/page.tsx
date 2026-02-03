@@ -298,7 +298,7 @@ const S: Record<string, React.CSSProperties> = {
   topRow: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "spaceBetween" as any, // o "space-between"
+    justifyContent: "space-between",
     gap: 14,
     marginBottom: 14,
   },

@@ -13,8 +13,8 @@ export type DbEventRow = {
   group_id: string | null;
   title: string | null;
   notes: string | null;
-  start: string; // ISO string
-  end: string; // ISO string
+  start: string; // ISO string (timestamptz)
+  end: string; // ISO string (timestamptz)
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -54,6 +54,7 @@ async function requireUid(): Promise<string> {
  * - CalendarClient
  * - /events
  * - /summary
+ * - flujos de conflictos (vía conflictsDbBridge)
  */
 export async function getMyEvents(_opts?: unknown): Promise<DbEventRow[]> {
   await requireUid();
@@ -108,17 +109,31 @@ export async function createEventForGroup(
 
   if (error) throw error;
 
+  const row: any = data;
+
   return {
-    id: String((data as any).id),
-    user_id: (data as any).user_id ?? null,
-    group_id: (data as any).group_id ?? null,
-    title: (data as any).title ?? null,
-    notes: (data as any).notes ?? null,
-    start: String((data as any).start),
-    end: String((data as any).end),
-    created_at: (data as any).created_at ?? null,
-    updated_at: (data as any).updated_at ?? null,
+    id: String(row.id),
+    user_id: row.user_id ?? null,
+    group_id: row.group_id ?? null,
+    title: row.title ?? null,
+    notes: row.notes ?? null,
+    start: String(row.start),
+    end: String(row.end),
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null,
   };
+}
+
+/**
+ * Azúcar: crear evento personal (sin group_id)
+ */
+export async function createPersonalEvent(
+  payload: Omit<CreateEventPayload, "groupId">
+): Promise<DbEventRow> {
+  return createEventForGroup({
+    ...payload,
+    groupId: null,
+  });
 }
 
 /* ======================================================
@@ -155,7 +170,7 @@ export async function deleteEventsByIds(ids: string[]): Promise<number> {
 ====================================================== */
 
 /**
- * ✅ Compat: muchas pantallas antiguas llaman getEventsForGroups(groupIds)
+ * Compat: muchas pantallas antiguas llaman getEventsForGroups(groupIds)
  * Mantiene personal (group_id null) SIEMPRE, y si pasan groupIds filtra SOLO eventos de esos grupos.
  */
 export async function getEventsForGroups(
@@ -172,11 +187,101 @@ export async function getEventsForGroups(
   return rows.filter((r) => !r.group_id || set.has(String(r.group_id)));
 }
 
+/**
+ * Compat: algunos sitios pueden esperar algo tipo "getAllEventsFlat"
+ * → devolvemos exactamente lo mismo que getMyEvents().
+ */
 export async function getAllEventsFlat(): Promise<DbEventRow[]> {
   return getMyEvents();
 }
 
+/**
+ * Compat: deleteEvent(id) → deleteEventsByIds([id])
+ */
 export async function deleteEvent(id: string): Promise<number> {
   if (!id) return 0;
   return deleteEventsByIds([id]);
+}
+
+/**
+ * Alias adicionales por si quedaron imports antiguos:
+ * - getEvents()
+ * - getAllEvents()
+ * - getEventsFlat()
+ */
+export async function getEvents(): Promise<DbEventRow[]> {
+  return getMyEvents();
+}
+
+export async function getAllEvents(): Promise<DbEventRow[]> {
+  return getMyEvents();
+}
+
+export async function getEventsFlat(): Promise<DbEventRow[]> {
+  return getMyEvents();
+}
+
+/* ======================================================
+   Helpers adicionales usados por otros módulos
+====================================================== */
+
+export type DbEvent = {
+  id: string;
+  group_id: string | null;
+  title: string | null;
+  notes: string | null;
+  start: string; // timestamptz ISO
+  end: string; // timestamptz ISO
+};
+
+export async function getEventById(eventId: string): Promise<DbEvent> {
+  await requireUid();
+
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, group_id, title, notes, start, end")
+    .eq("id", eventId)
+    .single();
+
+  if (error) throw error;
+  return data as DbEvent;
+}
+
+export async function listEventsByGroup(groupId: string): Promise<DbEvent[]> {
+  await requireUid();
+
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, group_id, title, notes, start, end")
+    .eq("group_id", groupId)
+    .order("start", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as DbEvent[];
+}
+
+export async function deleteEventById(eventId: string): Promise<void> {
+  await requireUid();
+
+  const { error } = await supabase
+    .from("events")
+    .delete()
+    .eq("id", eventId);
+
+  if (error) throw error;
+}
+
+export async function updateEventTime(
+  eventId: string,
+  startIso: string,
+  endIso: string
+): Promise<void> {
+  await requireUid();
+
+  const { error } = await supabase
+    .from("events")
+    .update({ start: startIso, end: endIso })
+    .eq("id", eventId);
+
+  if (error) throw error;
 }

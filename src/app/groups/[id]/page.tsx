@@ -1,3 +1,4 @@
+// src/app/groups/[id]/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -7,6 +8,10 @@ import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
 import { inviteToGroup } from "@/lib/invitationsDb";
+import {
+  getProfilesByIds,
+  type Profile as UserProfile,
+} from "@/lib/profilesDb";
 
 type Group = {
   id: string;
@@ -24,6 +29,7 @@ type MemberRow = {
     display_name: string | null;
     avatar_url: string | null;
   } | null;
+  isMe: boolean;
 };
 
 function labelGroupType(t?: string | null) {
@@ -56,6 +62,8 @@ export default function GroupDetailsPage() {
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
 
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
   function showToast(title: string, subtitle?: string) {
     setToast({ title, subtitle });
     window.setTimeout(() => setToast(null), 3200);
@@ -63,7 +71,7 @@ export default function GroupDetailsPage() {
 
   const typeLabel = useMemo(() => labelGroupType(group?.type ?? null), [group]);
 
-  async function loadMembers(gid: string) {
+  async function loadMembers(gid: string, userId: string | null) {
     setMembersLoading(true);
     try {
       const { data: ms, error: mErr } = await supabase
@@ -85,14 +93,8 @@ export default function GroupDetailsPage() {
       let profilesById = new Map<string, { display_name: string | null; avatar_url: string | null }>();
 
       if (ids.length > 0) {
-        const { data: ps, error: pErr } = await supabase
-          .from("profiles")
-          .select("id,display_name,avatar_url")
-          .in("id", ids);
-
-        if (pErr) throw pErr;
-
-        (ps ?? []).forEach((p: any) => {
+        const profiles: UserProfile[] = await getProfilesByIds(ids);
+        profiles.forEach((p) => {
           profilesById.set(p.id, {
             display_name: p.display_name ?? null,
             avatar_url: p.avatar_url ?? null,
@@ -103,6 +105,7 @@ export default function GroupDetailsPage() {
       const merged: MemberRow[] = rawMembers.map((m) => ({
         ...m,
         profiles: profilesById.get(m.user_id) ?? null,
+        isMe: userId != null && String(m.user_id) === String(userId),
       }));
 
       setMembers(merged);
@@ -122,6 +125,9 @@ export default function GroupDetailsPage() {
       return;
     }
 
+    const userId = ses.session.user.id;
+    setCurrentUserId(userId);
+
     const { data: g, error: gErr } = await supabase
       .from("groups")
       .select("id,name,type,owner_id,created_at")
@@ -131,7 +137,7 @@ export default function GroupDetailsPage() {
     if (gErr) throw gErr;
     setGroup(g as any);
 
-    await loadMembers(groupId);
+    await loadMembers(groupId, userId);
   }
 
   useEffect(() => {
@@ -193,7 +199,7 @@ export default function GroupDetailsPage() {
       }
 
       setEmail("");
-      await loadMembers(group.id);
+      await loadMembers(group.id, currentUserId);
     } catch (e: any) {
       showToast("No se pudo invitar", e?.message || "Intenta nuevamente.");
     } finally {
@@ -277,8 +283,7 @@ export default function GroupDetailsPage() {
               ← Volver
             </button>
             <button onClick={goCalendar} style={styles.primaryBtn}>
-              Ir al calendario →
-            </button>
+              Ir al calendario →</button>
           </div>
         </section>
 
@@ -300,18 +305,21 @@ export default function GroupDetailsPage() {
               </div>
             ) : (
               members.map((m) => {
-                const name = m.profiles?.display_name || "Usuario";
+                const baseName = m.profiles?.display_name || "Usuario";
+                const label = m.isMe ? "Tú" : baseName;
+
                 return (
                   <div key={m.user_id} style={styles.tableRow}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={styles.avatarCircle}>{initials(name)}</div>
+                      <div style={styles.avatarCircle}>{initials(baseName)}</div>
                       <div style={{ display: "flex", flexDirection: "column" }}>
-                        <div style={{ fontWeight: 900, fontSize: 13 }}>{name}</div>
-                        {/* UUID oculto a propósito para no ensuciar la UI */}
+                        <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
                       </div>
                     </div>
 
-                    <div style={{ fontWeight: 900, fontSize: 12 }}>{m.role || "member"}</div>
+                    <div style={{ fontWeight: 900, fontSize: 12 }}>
+                      {m.role || "member"}
+                    </div>
                   </div>
                 );
               })
