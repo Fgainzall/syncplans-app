@@ -8,7 +8,6 @@ import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 import { createGroup } from "@/lib/groupsDb";
 
-// Ahora soporta también "other" (grupos compartidos / amigos / equipos)
 type GType = "pair" | "family" | "other";
 
 export default function NewGroupPage() {
@@ -46,7 +45,9 @@ export default function NewGroupPage() {
   const typeMeta = useMemo(() => {
     if (type === "pair") {
       return {
+        key: "pair" as const,
         label: "Pareja",
+        title: "Crea tu pareja",
         hint: "Comparte eventos y detecta choques con tu pareja.",
         soft: "rgba(96,165,250,0.14)",
         border: "rgba(96,165,250,0.28)",
@@ -54,7 +55,9 @@ export default function NewGroupPage() {
     }
     if (type === "family") {
       return {
+        key: "family" as const,
         label: "Familia",
+        title: "Crea tu familia",
         hint: "Coordina horarios familiares con visibilidad total.",
         soft: "rgba(34,197,94,0.12)",
         border: "rgba(34,197,94,0.24)",
@@ -62,17 +65,20 @@ export default function NewGroupPage() {
     }
     // other / compartido
     return {
+      key: "other" as const,
       label: "Compartido",
-      hint: "Para amigos, equipos o cualquier grupo con el que quieras coordinar.",
-      soft: "rgba(192,132,252,0.14)",
-      border: "rgba(192,132,252,0.30)",
+      title: "Crea tu grupo compartido",
+      hint: "Para amigos, equipos, pichangas o cualquier grupo con el que quieras coordinar.",
+      soft: "rgba(147,51,234,0.16)",
+      border: "rgba(147,51,234,0.32)",
     };
   }, [type]);
 
   const errors = useMemo(() => {
     const e: string[] = [];
     if (!name.trim()) e.push("Ponle un nombre al grupo.");
-    if (name.trim().length < 3) e.push("El nombre debe tener al menos 3 caracteres.");
+    if (name.trim().length < 3)
+      e.push("El nombre debe tener al menos 3 caracteres.");
     return e;
   }, [name]);
 
@@ -96,7 +102,6 @@ export default function NewGroupPage() {
 
     setSaving(true);
     try {
-      // createGroup ahora acepta "pair" | "family" | "other"
       const g: any = await createGroup({ type, name: name.trim() });
 
       const gid =
@@ -105,7 +110,9 @@ export default function NewGroupPage() {
         null;
 
       if (!gid) {
-        throw new Error("Grupo creado pero no se recibió el ID (respuesta inválida).");
+        throw new Error(
+          "Grupo creado pero no se recibió el ID (respuesta inválida)."
+        );
       }
 
       setToast({ title: "Grupo creado ✅", subtitle: "Abriendo detalle…" });
@@ -121,12 +128,12 @@ export default function NewGroupPage() {
     }
   };
 
-  const placeholderByType =
+  const placeholder =
     type === "pair"
       ? "Ej: Fernando & Ara"
       : type === "family"
       ? "Ej: Familia Llosa"
-      : "Ej: Amigos del pádel";
+      : "Ej: Pichanga de los jueves";
 
   if (booting) {
     return (
@@ -151,7 +158,9 @@ export default function NewGroupPage() {
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
             <div style={styles.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
+            {toast.subtitle ? (
+              <div style={styles.toastSub}>{toast.subtitle}</div>
+            ) : null}
           </div>
         </div>
       )}
@@ -173,7 +182,7 @@ export default function NewGroupPage() {
         >
           <div style={styles.heroLeft}>
             <div style={styles.kicker}>Nuevo grupo</div>
-            <h1 style={styles.h1}>Crea tu {typeMeta.label.toLowerCase()}</h1>
+            <h1 style={styles.h1}>{typeMeta.title}</h1>
             <div style={styles.sub}>{typeMeta.hint}</div>
           </div>
 
@@ -201,10 +210,14 @@ export default function NewGroupPage() {
                 style={{
                   ...styles.chip,
                   background:
-                    type === "pair" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)",
+                    type === "pair"
+                      ? "rgba(255,255,255,0.08)"
+                      : "rgba(255,255,255,0.03)",
                 }}
               >
-                <span style={{ ...styles.chipDot, background: "rgba(96,165,250,0.95)" }} />
+                <span
+                  style={{ ...styles.chipDot, background: "rgba(96,165,250,0.95)" }}
+                />
                 Pareja
               </button>
               <button
@@ -218,7 +231,9 @@ export default function NewGroupPage() {
                       : "rgba(255,255,255,0.03)",
                 }}
               >
-                <span style={{ ...styles.chipDot, background: "rgba(34,197,94,0.95)" }} />
+                <span
+                  style={{ ...styles.chipDot, background: "rgba(34,197,94,0.95)" }}
+                />
                 Familia
               </button>
               <button
@@ -232,7 +247,9 @@ export default function NewGroupPage() {
                       : "rgba(255,255,255,0.03)",
                 }}
               >
-                <span style={{ ...styles.chipDot, background: "rgba(192,132,252,0.95)" }} />
+                <span
+                  style={{ ...styles.chipDot, background: "rgba(147,51,234,0.95)" }}
+                />
                 Compartido
               </button>
             </div>
@@ -243,7 +260,7 @@ export default function NewGroupPage() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder={placeholderByType}
+              placeholder={placeholder}
               style={styles.input}
             />
             <div style={styles.hint}>Tip: usa un nombre corto y reconocible.</div>
@@ -417,7 +434,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "10px 14px",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.14)",
-    background: "linear-gradient(135deg, rgba(56,189,248,0.20), rgba(124,58,237,0.20))",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.20), rgba(124,58,237,0.20))",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 900,
@@ -436,7 +454,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "12px 14px",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.14)",
-    background: "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 900,
