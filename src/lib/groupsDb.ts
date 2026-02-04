@@ -233,24 +233,17 @@ export async function updateMyGroupMeta(
     coordination_prefs: any | null;
   }
 ): Promise<void> {
-  const { data, error } = await supabase.auth.getUser();
+  const { data: userData, error } = await supabase.auth.getUser();
   if (error) throw error;
-  const uid = data.user?.id;
-  if (!uid) {
-    throw new Error("Not authenticated");
-  }
+  const uid = userData.user?.id;
+  if (!uid) throw new Error("Not authenticated");
 
-  const payload: Record<string, any> = {};
-
-  if (patch.display_name !== undefined) {
-    payload.display_name = patch.display_name;
-  }
-  if (patch.relationship_role !== undefined) {
-    payload.relationship_role = patch.relationship_role;
-  }
-  if (patch.coordination_prefs !== undefined) {
-    payload.coordination_prefs = patch.coordination_prefs;
-  }
+  // 🔑 Normalización mínima
+  const payload: Record<string, any> = {
+    display_name: patch.display_name?.trim() || "Miembro",
+    relationship_role: patch.relationship_role ?? null,
+    coordination_prefs: patch.coordination_prefs ?? null,
+  };
 
   const { error: updError } = await supabase
     .from("group_members")
@@ -263,7 +256,3 @@ export async function updateMyGroupMeta(
     throw updError;
   }
 }
-
-
-
- 
