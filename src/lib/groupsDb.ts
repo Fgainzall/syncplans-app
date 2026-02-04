@@ -217,38 +217,53 @@ export async function getMyGroupMemberships(): Promise<GroupMemberRow[]> {
       null) as GroupMemberCoordinationPrefs | null,
   }));
 }
+// Asegúrate de tener ya importado supabase arriba:
+// import supabase from "@/lib/supabaseClient";
 
 /**
- * Actualiza SOLO la metadata humana de MI membresía en un grupo concreto.
- * No toca rol (owner/admin/member), solo cómo me presento ante el grupo.
+ * Actualiza MI metadata en un grupo concreto (fila en group_members).
+ * - Solo toca display_name, relationship_role y coordination_prefs.
+ * - Respeta RLS filtrando por group_id + user_id = auth.uid().
  */
 export async function updateMyGroupMeta(
   groupId: string,
-  meta: GroupMemberMeta
+  patch: {
+    display_name: string | null;
+    relationship_role: string | null;
+    coordination_prefs: any | null;
+  }
 ): Promise<void> {
-  const uid = await requireUid();
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw error;
+  const uid = data.user?.id;
+  if (!uid) {
+    throw new Error("Not authenticated");
+  }
 
   const payload: Record<string, any> = {};
 
-  if ("display_name" in meta) {
-    payload.display_name = meta.display_name ?? null;
+  if (patch.display_name !== undefined) {
+    payload.display_name = patch.display_name;
   }
-  if ("relationship_role" in meta) {
-    payload.relationship_role = meta.relationship_role ?? null;
+  if (patch.relationship_role !== undefined) {
+    payload.relationship_role = patch.relationship_role;
   }
-  if ("coordination_prefs" in meta) {
-    payload.coordination_prefs = meta.coordination_prefs ?? null;
-  }
-
-  if (Object.keys(payload).length === 0) {
-    throw new Error("No hay cambios para guardar.");
+  if (patch.coordination_prefs !== undefined) {
+    payload.coordination_prefs = patch.coordination_prefs;
   }
 
-  const { error } = await supabase
+  const { error: updError } = await supabase
     .from("group_members")
     .update(payload)
     .eq("group_id", groupId)
     .eq("user_id", uid);
 
-  if (error) throw error;
+  if (updError) {
+    console.error("[updateMyGroupMeta] error", updError);
+    throw updError;
+  }
 }
+
+
+
+ 
