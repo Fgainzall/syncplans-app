@@ -5,7 +5,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import PremiumHeader from "@/components/PremiumHeader";
-import LogoutButton from "@/components/LogoutButton";
 import SummaryOnboardingBanner from "@/components/SummaryOnboardingBanner";
 
 import {
@@ -222,38 +221,20 @@ export default function SummaryPage() {
     upcomingConflicts.length === 0
       ? feedback.fromConflicts
         ? feedback.resolvedCount && feedback.resolvedCount > 0
-          ? "Se aplicaron tus decisiones de conflicto. Tu calendario ya refleja lo que eligieron conservar."
-          : "Se actualizaron los conflictos pendientes. Ahora todos ven la misma versión de la agenda."
-        : "Todo en orden. No hay eventos que se crucen entre sí."
-      : "Hay eventos que se pisan entre sí. SyncPlans los marca para que decidan qué se queda y qué se mueve.";
+          ? "Se aplicaron tus decisiones de conflicto."
+          : "Se actualizaron los conflictos pendientes."
+        : "Todo en orden. No hay eventos que se crucen."
+      : "Tienes eventos que se cruzan entre sí. Revísalos para ajustar tu agenda.";
 
   return (
     <main style={S.page}>
       <div style={S.shell}>
+        {/* 🔝 Solo el header global, sin botones duplicados */}
         <div style={S.topRow}>
           <PremiumHeader />
-          <div style={S.topActions}>
-            <button
-              type="button"
-              style={S.secondary}
-              onClick={() => router.push("/calendar")}
-            >
-              Ver calendario
-            </button>
-            <button
-              type="button"
-              style={S.primary}
-              onClick={() =>
-                router.push("/events/new/details?type=personal")
-              }
-            >
-              + Nuevo evento
-            </button>
-            <LogoutButton />
-          </div>
         </div>
 
-        {/* Onboarding ligero reutilizable (depende de si hay eventos o no) */}
+        {/* Onboarding ligero reutilizable (ahora depende de si hay eventos o no) */}
         <SummaryOnboardingBanner hasEvents={hasAny} />
 
         {/* Feedback sutil post-conflictos */}
@@ -261,7 +242,7 @@ export default function SummaryPage() {
           <div style={S.feedbackBox}>
             <span style={S.feedbackDot} />
             <span style={S.feedbackText}>
-              Tus decisiones de conflicto ya se aplicaron. Esta vista es la nueva verdad compartida.
+              Tus cambios de conflicto ya se aplicaron al calendario.
             </span>
           </div>
         )}
@@ -269,23 +250,22 @@ export default function SummaryPage() {
         <section style={S.heroCard}>
           <div>
             <div style={S.badge}>Resumen</div>
-            <h1 style={S.title}>Una sola verdad sobre tus planes</h1>
+            <h1 style={S.title}>Tu agenda en una sola mirada</h1>
             <p style={S.subtitle}>
-              Aquí ves cómo se reparten tus próximos eventos, cuántos choques hay
-              y cuál es el siguiente plan que realmente importa para ti, tu pareja
-              y tu familia.
+              Aquí ves cuántos planes tienes pronto, si algo se cruza y cuál
+              es tu próximo evento importante.
             </p>
           </div>
           <div style={S.heroStats}>
             <HeroStat
               label="Próximos 7 días"
               value={next7.length}
-              hint="Eventos que vienen en la siguiente semana."
+              hint="Eventos en la próxima semana."
             />
             <HeroStat
               label="Próximos 30 días"
               value={next30.length}
-              hint="Planes que ya tienes agendados para este mes."
+              hint="Eventos en el próximo mes."
             />
             <HeroStat
               label="Conflictos detectados"
@@ -300,10 +280,9 @@ export default function SummaryPage() {
 
         <section style={S.grid}>
           <div style={S.cardLeft}>
-            <h2 style={S.cardTitle}>Capas de tu tiempo</h2>
+            <h2 style={S.cardTitle}>Tus calendarios</h2>
             <p style={S.cardSub}>
-              Tus planes personales, de pareja y de familia conviven aquí. SyncPlans
-              los separa por capas para que veas quién está ocupado y cuándo.
+              Así se reparten tus planes entre personal, pareja y familia.
             </p>
 
             <div style={S.typeList}>
@@ -315,13 +294,13 @@ export default function SummaryPage() {
               />
               <TypeRow
                 typeLabel="Pareja"
-                description="Compromisos que tienen que funcionar para dos."
+                description="Planes que compartes con tu pareja."
                 count={perType.pair}
                 meta={groupMeta("pair")}
               />
               <TypeRow
                 typeLabel="Familia"
-                description="Momentos donde se mueve toda la familia."
+                description="Planes donde se mueve toda la familia."
                 count={perType.family}
                 meta={groupMeta("family")}
               />
@@ -331,9 +310,8 @@ export default function SummaryPage() {
               <div style={S.tipTitle}>Consejo rápido</div>
               <p style={S.tipBody}>
                 Si ves un día muy cargado, abre el calendario y usa el botón{" "}
-                <strong>Conflictos</strong> para decidir qué se queda, qué se mueve
-                y qué puede esperar. Decidir antes siempre es mejor que discutir
-                después.
+                <strong>Conflictos</strong> para decidir qué se queda y qué se
+                mueve.
               </p>
             </div>
           </div>
@@ -341,16 +319,15 @@ export default function SummaryPage() {
           <div style={S.cardRight}>
             <h2 style={S.cardTitle}>Lo que viene</h2>
             <p style={S.cardSub}>
-              Tus próximos eventos, empezando por el más cercano. Si hay notas,
-              también las ves aquí.
+              Tus próximos eventos, empezando por el más cercano.
             </p>
 
             {!hasAny ? (
               <div style={S.emptyBox}>
                 <div style={S.emptyTitle}>Todavía no tienes eventos</div>
                 <div style={S.emptySub}>
-                  Crea tu primer evento y aquí verás un resumen automático de tu
-                  semana y de los choques que vayan apareciendo.
+                  Crea tu primer evento y aquí verás un resumen automático de
+                  tu semana.
                 </div>
                 <button
                   type="button"
@@ -368,8 +345,8 @@ export default function SummaryPage() {
                   No hay eventos en los próximos días
                 </div>
                 <div style={S.emptySub}>
-                  Tu agenda está tranquila. Es un buen momento para planear algo
-                  que te provoque con tu pareja, amigos o familia.
+                  Tu agenda está tranquila. Es un buen momento para planear
+                  algo que te provoque.
                 </div>
               </div>
             ) : (
@@ -541,35 +518,6 @@ const S: Record<string, React.CSSProperties> = {
     gap: 14,
     marginBottom: 16,
     flexWrap: "wrap",
-  },
-  topActions: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  primary: {
-    height: 40,
-    padding: "0 16px",
-    borderRadius: 12,
-    border: "1px solid rgba(244,244,245,0.14)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.40), rgba(124,58,237,0.60))",
-    color: "#fff",
-    fontWeight: 900,
-    fontSize: 13,
-    cursor: "pointer",
-  },
-  secondary: {
-    height: 40,
-    padding: "0 14px",
-    borderRadius: 12,
-    border: "1px solid rgba(148,163,184,0.45)",
-    background: "rgba(15,23,42,0.90)",
-    color: "rgba(226,232,240,0.96)",
-    fontWeight: 700,
-    fontSize: 12,
-    cursor: "pointer",
   },
   feedbackBox: {
     marginBottom: 10,
