@@ -8,14 +8,14 @@ import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 import { getMyGroups } from "@/lib/groupsDb";
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
-import { getMyInvitations } from "@/lib/invitationsDb"; // 🆕 importar invitaciones
+import { getMyInvitations } from "@/lib/invitationsDb";
 
 type GroupRowUI = {
   id: string;
   name: string | null;
   type: "pair" | "family" | string;
 
-  // ✅ nullable/optional para no romper build si DB devuelve null/undefined
+  // nullable/optional para no romper build si DB devuelve null/undefined
   created_at: string | null;
   owner_id: string | null;
 };
@@ -32,7 +32,7 @@ export default function GroupsPage() {
 
   const [booting, setBooting] = useState(true);
   const [groups, setGroups] = useState<GroupRowUI[]>([]);
-  const [pendingInvites, setPendingInvites] = useState(0); // 🆕 contador
+  const [pendingInvites, setPendingInvites] = useState(0);
   const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
 
   function showToast(title: string, subtitle?: string) {
@@ -41,17 +41,17 @@ export default function GroupsPage() {
   }
 
   async function load() {
-    // ✅ asegurar sesión
+    // asegurar sesión
     const { data, error } = await supabase.auth.getSession();
     if (error || !data.session?.user) {
       router.replace("/auth/login");
       return;
     }
 
-    // ✅ traer grupos desde DB (RLS)
+    // traer grupos desde DB (RLS)
     const gs: any[] = (await getMyGroups()) as any[];
 
-    // ✅ normaliza sin depender del type exacto de DB
+    // normaliza sin depender del type exacto de DB
     const ui: GroupRowUI[] = (gs ?? [])
       .map((g: any) => ({
         id: String(g?.id ?? ""),
@@ -60,19 +60,17 @@ export default function GroupsPage() {
         created_at: g?.created_at ?? null,
         owner_id: g?.owner_id ?? null,
       }))
-      // filtra por seguridad si viniera algo sin id
       .filter((g) => !!g.id);
 
-    // ✅ orden por created_at (si existe)
+    // orden por created_at (si existe)
     ui.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
     setGroups(ui);
 
-    // 🆕 contar invitaciones pendientes
+    // contar invitaciones pendientes
     try {
       const invites = await getMyInvitations();
       setPendingInvites((invites ?? []).length);
     } catch {
-      // si falla, simplemente dejamos el contador en 0, sin romper nada
       setPendingInvites(0);
     }
   }
@@ -101,7 +99,9 @@ export default function GroupsPage() {
   const grouped = useMemo(() => {
     const pair = groups.filter((g) => (g.type || "").toLowerCase() === "pair");
     const family = groups.filter((g) => (g.type || "").toLowerCase() === "family");
-    const other = groups.filter((g) => !["pair", "family"].includes((g.type || "").toLowerCase()));
+    const other = groups.filter(
+      (g) => !["pair", "family"].includes((g.type || "").toLowerCase())
+    );
     return { pair, family, other };
   }, [groups]);
 
@@ -131,7 +131,6 @@ export default function GroupsPage() {
     );
   }
 
-  // 🧮 texto del botón Invitaciones
   const invitationsLabel =
     pendingInvites > 0 ? `Invitaciones (${pendingInvites})` : "Invitaciones";
 
@@ -150,7 +149,6 @@ export default function GroupsPage() {
         <div style={styles.topRow}>
           <PremiumHeader />
           <div style={styles.topActions}>
-            {/* 🆕 Botón de invitaciones con contador */}
             <button onClick={() => router.push("/invitations")} style={styles.secondaryBtn}>
               {invitationsLabel}
             </button>
@@ -163,19 +161,47 @@ export default function GroupsPage() {
           </div>
         </div>
 
+        {/* Hero de contexto: con quién compartes tiempo */}
+        <section style={styles.hero}>
+          <div>
+            <div style={styles.heroKicker}>Personas con las que te organizas</div>
+            <h1 style={styles.heroTitle}>Grupos para coordinar sin fricciones</h1>
+            <p style={styles.heroSub}>
+              Cada grupo tiene su propio calendario compartido. Aquí decides con quién
+              se cruzan tus planes: pareja, familia u otros círculos importantes.
+            </p>
+          </div>
+          <div style={styles.heroTip}>
+            <div style={styles.heroTipTitle}>Tip</div>
+            <p style={styles.heroTipBody}>
+              Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>. Luego invita y deja
+              que SyncPlans señale los choques por ustedes.
+            </p>
+          </div>
+        </section>
+
         <section style={styles.card}>
-          <div style={styles.sectionTitle}>Grupos</div>
+          <div style={styles.sectionHeader}>
+            <div>
+              <div style={styles.sectionTitle}>Tus grupos</div>
+              <div style={styles.sectionSub}>
+                Elige un grupo para ver miembros, enviar invitaciones o saltar directo al
+                calendario compartido.
+              </div>
+            </div>
+          </div>
 
           {!hasGroups ? (
             <>
-              <div style={styles.emptyTitle}>Aún no tienes grupos</div>
+              <div style={styles.emptyTitle}>Todavía no tienes grupos</div>
               <div style={styles.emptySub}>
-                Crea tu pareja o familia. Entra al grupo para invitar y gestionar miembros.
+                Crea un grupo de <b>pareja</b> o <b>familia</b>. Después podrás invitar,
+                ver con quién compartes tiempo y detectar choques entre agendas.
               </div>
 
               <div style={{ marginTop: 12 }}>
                 <button onClick={() => router.push("/groups/new")} style={styles.primaryBtnWide}>
-                  Crear grupo
+                  Crear mi primer grupo
                 </button>
               </div>
             </>
@@ -186,9 +212,15 @@ export default function GroupsPage() {
                   <div style={styles.kicker}>Pareja</div>
                   <div style={styles.grid}>
                     {grouped.pair.map((g) => (
-                      <button key={g.id} onClick={() => openGroup(g.id)} style={styles.groupCard}>
+                      <button
+                        key={g.id}
+                        onClick={() => openGroup(g.id)}
+                        style={styles.groupCard}
+                      >
                         <div style={styles.groupName}>{g.name || "Pareja"}</div>
-                        <div style={styles.groupMeta}>{labelType(g.type)}</div>
+                        <div style={styles.groupMeta}>
+                          {labelType(g.type)} · Calendario compartido de pareja
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -200,9 +232,15 @@ export default function GroupsPage() {
                   <div style={styles.kicker}>Familia</div>
                   <div style={styles.grid}>
                     {grouped.family.map((g) => (
-                      <button key={g.id} onClick={() => openGroup(g.id)} style={styles.groupCard}>
+                      <button
+                        key={g.id}
+                        onClick={() => openGroup(g.id)}
+                        style={styles.groupCard}
+                      >
                         <div style={styles.groupName}>{g.name || "Familia"}</div>
-                        <div style={styles.groupMeta}>{labelType(g.type)}</div>
+                        <div style={styles.groupMeta}>
+                          {labelType(g.type)} · Agenda donde todos ven todo
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -211,12 +249,18 @@ export default function GroupsPage() {
 
               {grouped.other.length > 0 && (
                 <div style={{ marginTop: 12 }}>
-                  <div style={styles.kicker}>Otros</div>
+                  <div style={styles.kicker}>Otros grupos</div>
                   <div style={styles.grid}>
                     {grouped.other.map((g) => (
-                      <button key={g.id} onClick={() => openGroup(g.id)} style={styles.groupCard}>
+                      <button
+                        key={g.id}
+                        onClick={() => openGroup(g.id)}
+                        style={styles.groupCard}
+                      >
                         <div style={styles.groupName}>{g.name || "Grupo"}</div>
-                        <div style={styles.groupMeta}>{labelType(g.type)}</div>
+                        <div style={styles.groupMeta}>
+                          {labelType(g.type)} · Calendario compartido
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -260,8 +304,67 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     gap: 14,
     marginBottom: 14,
+    flexWrap: "wrap",
   },
   topActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
+
+  // Hero de contexto
+  hero: {
+    marginBottom: 14,
+    borderRadius: 20,
+    border: "1px solid rgba(148,163,184,0.35)",
+    background:
+      "radial-gradient(circle at 0% 0%, rgba(56,189,248,0.16), transparent 55%), radial-gradient(circle at 100% 0%, rgba(34,197,94,0.18), transparent 55%), rgba(15,23,42,0.96)",
+    padding: 16,
+    display: "flex",
+    alignItems: "stretch",
+    justifyContent: "space-between",
+    gap: 16,
+    flexWrap: "wrap",
+  },
+  heroKicker: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "4px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.6)",
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.10em",
+    textTransform: "uppercase",
+    color: "rgba(226,232,240,0.96)",
+    background: "rgba(15,23,42,0.85)",
+  },
+  heroTitle: {
+    marginTop: 10,
+    fontSize: 22,
+    fontWeight: 900,
+    letterSpacing: "-0.03em",
+  },
+  heroSub: {
+    marginTop: 6,
+    fontSize: 13,
+    maxWidth: 480,
+    color: "rgba(203,213,225,0.96)",
+  },
+  heroTip: {
+    minWidth: 220,
+    maxWidth: 260,
+    borderRadius: 16,
+    border: "1px dashed rgba(148,163,184,0.7)",
+    background: "rgba(15,23,42,0.9)",
+    padding: 10,
+  },
+  heroTipTitle: {
+    fontSize: 12,
+    fontWeight: 800,
+    color: "rgba(226,232,240,0.96)",
+  },
+  heroTipBody: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "rgba(148,163,184,0.96)",
+  },
 
   card: {
     borderRadius: 18,
@@ -269,10 +372,19 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.03)",
     padding: 14,
   },
+  sectionHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 4,
+    flexWrap: "wrap",
+  },
   sectionTitle: { fontWeight: 950, fontSize: 14 },
+  sectionSub: { marginTop: 4, fontSize: 12, opacity: 0.8, maxWidth: 520 },
 
   emptyTitle: { marginTop: 10, fontWeight: 950, fontSize: 18 },
-  emptySub: { marginTop: 6, fontSize: 12, opacity: 0.75 },
+  emptySub: { marginTop: 6, fontSize: 12, opacity: 0.8 },
 
   kicker: {
     fontSize: 11,
@@ -313,7 +425,6 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     fontWeight: 900,
   },
-  // 🆕 botón “Invitaciones”
   secondaryBtn: {
     padding: "10px 14px",
     borderRadius: 14,

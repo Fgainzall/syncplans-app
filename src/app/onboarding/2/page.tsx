@@ -71,7 +71,7 @@ export default function Onboarding2() {
                 boxShadow: "0 0 0 6px rgba(56,189,248,0.16)",
               }}
             />
-            2 de 4 · Conflictos inteligentes
+            2 de 4 · Situaciones que ya conoces
           </div>
 
           {/* Title */}
@@ -83,7 +83,7 @@ export default function Onboarding2() {
               marginBottom: 10,
             }}
           >
-            Evita choques{" "}
+            El problema no es el{" "}
             <span
               style={{
                 background: "linear-gradient(90deg, #38BDF8, #7C3AED)",
@@ -91,8 +91,9 @@ export default function Onboarding2() {
                 color: "transparent",
               }}
             >
-              antes de que pasen
+              calendario
             </span>
+            . Es la coordinación.
           </h1>
 
           {/* Subtitle */}
@@ -101,12 +102,48 @@ export default function Onboarding2() {
               fontSize: 15,
               lineHeight: 1.6,
               color: "#9CA3AF",
+              marginBottom: 12,
+            }}
+          >
+            Los choques casi nunca son por mala intención. Pasa porque cada uno
+            tiene su versión de la agenda en la cabeza, en WhatsApp o en apps
+            distintas.
+          </p>
+
+          {/* Frases reconocibles */}
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 8,
               marginBottom: 16,
             }}
           >
-            SyncPlans detecta cruces de horario y te lo muestra claro, con
-            sugerencias rápidas para reprogramar sin estrés.
-          </p>
+            {[
+              "Pensé que era otro día",
+              "No vi ese mensaje",
+              "Ya tenía algo",
+            ].map((text) => (
+              <div
+                key={text}
+                style={{
+                  borderRadius: 999,
+                  padding: "7px 12px",
+                  border: "1px solid rgba(148,163,184,0.30)",
+                  background: "rgba(15,23,42,0.85)",
+                  fontSize: 12,
+                  color: "#E5E7EB",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  boxShadow: "0 12px 30px rgba(15,23,42,0.65)",
+                }}
+              >
+                <span style={{ fontSize: 14 }}>💬</span>
+                <span>{text}</span>
+              </div>
+            ))}
+          </div>
 
           {/* Premium “conflict preview” */}
           <div
@@ -129,8 +166,8 @@ export default function Onboarding2() {
                 marginBottom: 10,
               }}
             >
-              <span>Hoy</span>
-              <span style={{ color: "#94A3B8" }}>Detección en vivo</span>
+              <span>Ejemplo real</span>
+              <span style={{ color: "#94A3B8" }}>Dos planes, misma hora</span>
             </div>
 
             <div style={{ display: "grid", gap: 10 }}>
@@ -180,17 +217,30 @@ export default function Onboarding2() {
                 </div>
 
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: "#E5E7EB" }}>
-                    Conflicto detectado (30 min)
+                  <div
+                    style={{
+                      fontWeight: 800,
+                      fontSize: 13,
+                      color: "#E5E7EB",
+                    }}
+                  >
+                    Conflicto típico: nadie lo vio a tiempo
                   </div>
-                  <div style={{ color: "#9CA3AF", fontSize: 12, lineHeight: 1.45 }}>
-                    Mueve <b style={{ color: "#E5E7EB" }}>Gym</b> a 19:00 o cambia{" "}
-                    <b style={{ color: "#E5E7EB" }}>Cena</b> a 21:30. Tú eliges.
+                  <div
+                    style={{
+                      color: "#9CA3AF",
+                      fontSize: 12,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    Uno lo apuntó en el calendario. El otro lo tenía en la cabeza
+                    o en un chat. Resultado:{" "}
+                    <b style={{ color: "#E5E7EB" }}>choque asegurado</b>.
                   </div>
 
                   <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
                     <MiniAction label="Reprogramar" />
-                    <MiniAction label="Ver opciones" />
+                    <MiniAction label="Hablarlo antes" />
                   </div>
                 </div>
               </div>
@@ -217,7 +267,8 @@ export default function Onboarding2() {
           </button>
 
           <button
-            onClick={() => router.push("/onboarding/1")}
+            // 🔧 Mejora: la primera pantalla vive en /onboarding, no en /onboarding/1
+            onClick={() => router.push("/onboarding")}
             style={{
               width: "100%",
               padding: "12px 18px",
@@ -242,7 +293,8 @@ export default function Onboarding2() {
               marginTop: 10,
             }}
           >
-            Tip: los conflictos se ven igual en la agenda.
+            Estas frases no son raras. Son normales. SyncPlans existe para que
+            dejen de aparecer tan seguido.
           </div>
         </section>
       </div>

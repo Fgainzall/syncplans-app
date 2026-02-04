@@ -48,7 +48,9 @@ export default function Onboarding1() {
           }}
         >
           {/* Top row */}
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <div
+            style={{ display: "flex", justifyContent: "space-between", gap: 12 }}
+          >
             <div
               style={{
                 display: "inline-flex",
@@ -72,7 +74,7 @@ export default function Onboarding1() {
                   boxShadow: "0 0 0 6px rgba(56,189,248,0.16)",
                 }}
               />
-              1 de 4 · Bienvenido
+              1 de 4 · Por qué existe SyncPlans
             </div>
 
             <button
@@ -102,7 +104,7 @@ export default function Onboarding1() {
               marginBottom: 10,
             }}
           >
-            Tu agenda,{" "}
+            Coordinar horarios{" "}
             <span
               style={{
                 background: "linear-gradient(90deg, #38BDF8, #22C55E)",
@@ -110,7 +112,7 @@ export default function Onboarding1() {
                 color: "transparent",
               }}
             >
-              sin choques de horario
+              no debería ser complicado
             </span>
           </h1>
 
@@ -123,8 +125,9 @@ export default function Onboarding1() {
               marginBottom: 16,
             }}
           >
-            SyncPlans organiza tu vida en un solo lugar y te ayuda a evitar
-            conflictos entre tus planes personales, de pareja y de familia.
+            Cuando varias agendas se cruzan (personal, pareja, familia),
+            los malentendidos aparecen: alguien no vio el mensaje, pensó que
+            era otro día o ya tenía algo agendado.
           </p>
 
           {/* Premium mini calendar preview */}
@@ -148,8 +151,8 @@ export default function Onboarding1() {
                 marginBottom: 10,
               }}
             >
-              <span>Semana</span>
-              <span style={{ color: "#94A3B8" }}>Vista inteligente</span>
+              <span>Semana típica</span>
+              <span style={{ color: "#94A3B8" }}>Todo mezclado</span>
             </div>
 
             <div
@@ -183,21 +186,21 @@ export default function Onboarding1() {
 
             <div style={{ display: "grid", gap: 10 }}>
               <QuickEvent
-                title="Reunión (Personal)"
+                title="Reunión de trabajo"
                 time="09:30"
                 dot="#FACC15"
                 bg="rgba(250,204,21,0.14)"
                 border="rgba(250,204,21,0.25)"
               />
               <QuickEvent
-                title="Almuerzo (Pareja)"
-                time="13:00"
+                title="Cena con pareja"
+                time="20:00"
                 dot="#F87171"
                 bg="rgba(248,113,113,0.12)"
                 border="rgba(248,113,113,0.22)"
               />
               <QuickEvent
-                title="Cumpleaños (Familia)"
+                title="Cumpleaños familiar"
                 time="19:30"
                 dot="#60A5FA"
                 bg="rgba(96,165,250,0.12)"
@@ -217,8 +220,10 @@ export default function Onboarding1() {
                 lineHeight: 1.45,
               }}
             >
-              ✨ <b style={{ color: "#E5E7EB" }}>Resultado:</b> claridad inmediata
-              por colores + alertas cuando algo se cruza.
+              💬{" "}
+              <b style={{ color: "#E5E7EB" }}>Hoy se ve así:</b> un poco en el
+              calendario, un poco en WhatsApp, un poco en notas. SyncPlans nace
+              para poner <b>una sola versión de la verdad</b> en el centro.
             </div>
           </div>
 
@@ -238,7 +243,7 @@ export default function Onboarding1() {
               boxShadow: "0 18px 40px rgba(37,99,235,0.35)",
             }}
           >
-            Siguiente
+            Empezar
           </button>
 
           <div
@@ -249,7 +254,8 @@ export default function Onboarding1() {
               marginTop: 10,
             }}
           >
-            Tip: puedes empezar solo y luego invitar a tu pareja/familia.
+            En las siguientes pantallas verás cómo SyncPlans actúa como
+            árbitro neutral del tiempo compartido.
           </div>
         </section>
       </div>

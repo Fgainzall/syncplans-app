@@ -10,8 +10,11 @@ export default function LoginClient() {
   const sp = useSearchParams();
 
   const nextParam = sp.get("next");
+
+  // 🔥 Regla actual: si no hay `next` válido → /summary
+  // (En el punto 2 vemos si esto se queda así o cambia a /calendar u otra ruta)
   const nextTarget = useMemo(
-    () => (nextParam && nextParam.startsWith("/") ? nextParam : "/calendar"),
+    () => (nextParam && nextParam.startsWith("/") ? nextParam : "/summary"),
     [nextParam]
   );
 
@@ -56,7 +59,7 @@ export default function LoginClient() {
     }
   }
 
-  // 🎨 Mismos estilos base que RegisterClient
+  // 🎨 Estilos
   const page: React.CSSProperties = {
     minHeight: "100vh",
     background:
@@ -73,7 +76,7 @@ export default function LoginClient() {
     display: "flex",
     flexDirection: "column",
     gap: 20,
-    alignItems: "center", // ✅ centra el grid, igual que en register
+    alignItems: "center",
   };
 
   const topRow: React.CSSProperties = {
@@ -353,14 +356,15 @@ export default function LoginClient() {
               </div>
 
               <h1 style={heroTitle}>
-                Inicia sesión y mantén tu semana{" "}
-                <span style={heroGradientWord}>sin choques.</span>
+                Inicia sesión y deja que{" "}
+                <span style={heroGradientWord}>SyncPlans arbitre el tiempo.</span>
               </h1>
 
               <p style={heroSub}>
-                Registra tus planes una sola vez y deja que SyncPlans se encargue
-                de mostrar quién está libre, dónde hay conflictos y qué eventos
-                chocan entre sí.
+                En lugar de tener cada plan en tu cabeza o en distintos chats,
+                SyncPlans pone una sola verdad en el centro: un calendario
+                compartido que muestra quién está libre, dónde hay conflictos y
+                qué decisiones hay que tomar.
               </p>
 
               <div style={heroList}>
@@ -374,7 +378,7 @@ export default function LoginClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Tu agenda, limpia y clara.</div>
+                  <div style={pillSub}>Tu agenda, clara y sin ruido.</div>
                 </div>
                 <div style={pill}>
                   <div style={pillRow}>
@@ -386,7 +390,9 @@ export default function LoginClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Citas sin solapamientos.</div>
+                  <div style={pillSub}>
+                    Menos “pensé que era otro día”.
+                  </div>
                 </div>
                 <div style={pill}>
                   <div style={pillRow}>
@@ -398,19 +404,19 @@ export default function LoginClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Horarios alineados siempre.</div>
+                  <div style={pillSub}>Todos ven lo mismo, al mismo tiempo.</div>
                 </div>
               </div>
 
               <p style={steps}>
-                <b>¿Cómo funciona?</b>
+                <b>¿Qué pasa después de iniciar sesión?</b>
                 <br />
-                1. Inicia sesión con tu correo y contraseña.
+                • Ves tus planes y los de tus grupos en una sola vista.
                 <br />
-                2. Crea tus grupos de pareja / familia.
+                • SyncPlans te marca choques de horario automáticamente.
                 <br />
-                3. Empieza a crear eventos y deja que SyncPlans te avise de los
-                choques.
+                • Deciden qué conservar, qué mover y qué ajustar después, sin
+                discutir a ciegas.
               </p>
             </div>
           </article>
@@ -436,7 +442,8 @@ export default function LoginClient() {
                 marginBottom: 6,
               }}
             >
-              Accede a tu agenda sin choques de horario.
+              Accede a tu calendario compartido y deja que SyncPlans detecte los
+              conflictos por ti.
             </div>
 
             <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
@@ -479,9 +486,9 @@ export default function LoginClient() {
             </button>
 
             <div style={legal}>
-              Al entrar aceptas que esta es una beta privada pensada para
-              pruebas personales. Podrás borrar tu cuenta y datos cuando quieras
-              desde el panel de perfil.
+              Al entrar aceptas que esta es una beta privada pensada para pruebas
+              personales. Podrás borrar tu cuenta y datos cuando quieras desde el
+              panel de perfil.
             </div>
           </article>
         </section>

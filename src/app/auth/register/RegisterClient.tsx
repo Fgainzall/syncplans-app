@@ -353,14 +353,14 @@ export default function RegisterClient() {
               </div>
 
               <h1 style={heroTitle}>
-                Crea tu cuenta y organiza tu semana{" "}
-                <span style={heroGradientWord}>sin choques.</span>
+                Crea tu espacio y pon{" "}
+                <span style={heroGradientWord}>una sola verdad</span> en el centro.
               </h1>
 
               <p style={heroSub}>
-                Confirmas tu correo una vez y listo: calendario personal, grupos
-                de pareja y familia, y un flujo de resolución de conflictos para
-                que nadie se pise los planes.
+                Con una sola cuenta tendrás tu calendario personal y el de tus
+                grupos de pareja y familia. SyncPlans detecta choques de horario y
+                te obliga a decidir antes, para evitar discusiones después.
               </p>
 
               <div style={heroList}>
@@ -374,7 +374,7 @@ export default function RegisterClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Tu agenda, simple.</div>
+                  <div style={pillSub}>Tus cosas, claras y visibles.</div>
                 </div>
                 <div style={pill}>
                   <div style={pillRow}>
@@ -386,7 +386,7 @@ export default function RegisterClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Evita solapamientos.</div>
+                  <div style={pillSub}>Un solo lugar para los planes juntos.</div>
                 </div>
                 <div style={pill}>
                   <div style={pillRow}>
@@ -398,20 +398,20 @@ export default function RegisterClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Todo sincronizado.</div>
+                  <div style={pillSub}>Todos alineados con la misma agenda.</div>
                 </div>
               </div>
 
               <p style={steps}>
-                <b>¿Cómo funciona el registro?</b>
+                <b>¿Qué pasa cuando creas tu cuenta?</b>
                 <br />
-                1. Escribes tu correo y una contraseña.
+                1. Confirmas tu correo con un mail de Supabase.
                 <br />
-                2. Te llega un mail de Supabase: haz clic en{" "}
-                <b>"Confirm your mail"</b>.
+                2. Entras a SyncPlans y configuras tus grupos (pareja, familia,
+                amigos).
                 <br />
-                3. Vuelves automáticamente a <b>/auth/callback</b> y entras a tu
-                calendario.
+                3. Empiezas a crear eventos y SyncPlans te marca automáticamente
+                los choques para que decidan qué hacer.
               </p>
             </div>
           </article>
@@ -419,7 +419,7 @@ export default function RegisterClient() {
           {/* RIGHT: FORM */}
           <article style={formCard}>
             <div style={formHeader}>
-              <h2 style={h2}>Crear cuenta</h2>
+              <h2 style={h2}>Crear cuenta en SyncPlans</h2>
               <button
                 type="button"
                 style={subtleLink}
@@ -436,7 +436,8 @@ export default function RegisterClient() {
                 marginBottom: 6,
               }}
             >
-              Empieza a organizar tu vida sin conflictos.
+              Empieza por ti. Después podrás invitar a tu pareja, familia o amigos
+              para compartir el calendario.
             </div>
 
             {done ? (
@@ -446,9 +447,10 @@ export default function RegisterClient() {
                     Cuenta creada ✅
                   </div>
                   <div style={{ fontSize: 11, lineHeight: 1.5 }}>
-                    Revisa tu correo y confirma el registro. Después de hacer
-                    clic en <b>"Confirm your mail"</b> volverás automáticamente a{" "}
-                    <b>/auth/callback</b> y podrás iniciar sesión.
+                    Te enviamos un correo para confirmar tu registro. Después de
+                    hacer clic en <b>"Confirm your mail"</b> volverás
+                    automáticamente a <b>/auth/callback</b> y podrás iniciar sesión
+                    en SyncPlans.
                   </div>
                 </div>
 
@@ -474,7 +476,8 @@ export default function RegisterClient() {
 
                 <div style={legal}>
                   Si no ves el correo, revisa tu bandeja de spam o busca por
-                  &ldquo;Supabase Auth&rdquo;.
+                  &ldquo;Supabase Auth&rdquo;. Sin confirmar el correo no podrás
+                  acceder a tu calendario.
                 </div>
               </>
             ) : (
@@ -523,9 +526,9 @@ export default function RegisterClient() {
                 </button>
 
                 <div style={legal}>
-                  Al crear una cuenta aceptas que esta es una beta privada
-                  pensada para pruebas personales. Podrás borrar tu cuenta y
-                  datos cuando quieras desde el panel de perfil.
+                  Al crear una cuenta aceptas que esta es una beta privada pensada
+                  para pruebas personales. Podrás borrar tu cuenta y datos cuando
+                  quieras desde el panel de perfil.
                 </div>
               </>
             )}

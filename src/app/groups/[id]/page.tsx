@@ -240,7 +240,9 @@ export default function GroupDetailsPage() {
           <PremiumHeader />
           <div style={styles.card}>
             <div style={styles.h1}>Grupo no encontrado</div>
-            <div style={styles.sub}>Puede ser que no seas miembro o que el grupo ya no exista.</div>
+            <div style={styles.sub}>
+              Puede ser que no seas miembro o que el grupo ya no exista.
+            </div>
             <button onClick={() => router.push("/groups")} style={styles.ghostBtnWide}>
               ← Volver a grupos
             </button>
@@ -274,7 +276,9 @@ export default function GroupDetailsPage() {
             <div style={styles.kicker}>Grupo</div>
             <h1 style={styles.h1}>{group.name || typeLabel}</h1>
             <div style={styles.sub}>
-              Tipo: <b>{typeLabel}</b> · ID: <span style={{ opacity: 0.85 }}>{group.id}</span>
+              Este es el grupo con el que compartes tu calendario. Tipo:{" "}
+              <b>{typeLabel}</b> · ID:{" "}
+              <span style={{ opacity: 0.85 }}>{group.id}</span>
             </div>
           </div>
 
@@ -283,14 +287,16 @@ export default function GroupDetailsPage() {
               ← Volver
             </button>
             <button onClick={goCalendar} style={styles.primaryBtn}>
-              Ir al calendario →</button>
+              Ir al calendario →
+            </button>
           </div>
         </section>
 
         <section style={styles.card}>
           <div style={styles.sectionTitle}>Miembros</div>
           <div style={styles.smallNote}>
-            {membersLoading ? "Cargando miembros…" : "Mostramos nombre del perfil + rol."}
+            Personas que ven este calendario compartido. Cuando alguien acepta una
+            invitación, aparecerá aquí automáticamente.
           </div>
 
           <div style={styles.table}>
@@ -301,7 +307,8 @@ export default function GroupDetailsPage() {
 
             {members.length === 0 ? (
               <div style={{ padding: 12, opacity: 0.75, fontSize: 12 }}>
-                No hay miembros visibles (si esto pasa, revisamos RLS de group_members).
+                Aún no hay miembros visibles. Invita a alguien para empezar a
+                compartir horarios.
               </div>
             ) : (
               members.map((m) => {
@@ -330,7 +337,9 @@ export default function GroupDetailsPage() {
         <section style={styles.card}>
           <div style={styles.sectionTitle}>Invitar</div>
           <div style={styles.smallNote}>
-            Escribe el email del invitado. Se creará una invitación <b>pending</b> y podrá aceptarla desde su enlace.
+            Escribe el email del invitado. Se creará una invitación{" "}
+            <b>pending</b> y, cuando la acepte, se agregará automáticamente como
+            miembro de este grupo.
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
@@ -378,13 +387,20 @@ const styles: Record<string, React.CSSProperties> = {
   toastTitle: { fontWeight: 900, fontSize: 13 },
   toastSub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 },
 
-  topRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, marginBottom: 14 },
+  topRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    marginBottom: 14,
+    flexWrap: "wrap",
+  },
   topActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
 
   hero: {
     padding: "18px 16px",
     borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.10)",
     background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
     boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
     marginBottom: 12,

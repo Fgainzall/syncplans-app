@@ -16,19 +16,11 @@ const BRAND = {
 export default function Onboarding4Page() {
   const router = useRouter();
 
-  function markOnboardingDone() {
-    try {
-      localStorage.setItem("syncplans.onboarding_done", "true");
-    } catch {}
-  }
-
   function handleLogin() {
-    // ✅ No marcamos onboarding done todavía (aún no entró al producto)
     router.push("/auth/login");
   }
 
   function handleCreateAccount() {
-    // ✅ No marcamos onboarding done todavía (aún no entró al producto)
     router.push("/auth/register");
   }
 
@@ -43,72 +35,81 @@ export default function Onboarding4Page() {
           <div style={styles.topRow}>
             <div style={styles.progressPill}>
               <span style={{ ...styles.dot, background: BRAND.ok }} />
-              4 de 4 · Listo para empezar
+              4 de 4 · Decidir mejor, discutir menos
             </div>
 
-            <div style={styles.iconWrap}>✨</div>
+            <div style={styles.iconWrap}>⚖️</div>
           </div>
 
           <h1 style={styles.h1}>
-            Empieza con <span style={{ color: BRAND.accent }}>una configuración</span>{" "}
-            <span style={{ color: BRAND.ok }}>rápida</span>
+            Decidir es mejor que{" "}
+            <span style={{ color: BRAND.accent }}>discutir</span>{" "}
+            <span style={{ color: BRAND.ok }}>después</span>
           </h1>
 
           <p style={styles.p}>
-            Crea tu primer calendario y, si quieres, invita a tu pareja o familia.
-            <br />
-            En <b>60 segundos</b> estarás listo.
+            Cuando dos planes se cruzan, SyncPlans no se queda callado. Marca el
+            conflicto y te pide una decisión clara, para que todos sepan a qué
+            atenerse y nadie se lleve la sorpresa a último minuto.
           </p>
 
           <div style={styles.list}>
             <div style={styles.item}>
-              <div style={styles.check}>✓</div>
+              <div style={styles.check}>1</div>
               <div style={styles.itemText}>
-                <div style={styles.itemTitle}>Crea tu perfil</div>
-                <div style={styles.itemSub}>Nombre y preferencias</div>
+                <div style={styles.itemTitle}>Conservar uno</div>
+                <div style={styles.itemSub}>
+                  Eliges qué plan se queda y cuál se mueve o se cancela. Una
+                  decisión, una sola versión de la verdad.
+                </div>
               </div>
-              <div style={styles.status}>Listo</div>
+              <div style={styles.status}>Decisión</div>
             </div>
 
             <div style={styles.item}>
-              <div style={styles.check}>✓</div>
+              <div style={styles.check}>2</div>
               <div style={styles.itemText}>
-                <div style={styles.itemTitle}>Elige tus capas</div>
-                <div style={styles.itemSub}>Personal · Pareja · Familia</div>
+                <div style={styles.itemTitle}>Conservar ambos</div>
+                <div style={styles.itemSub}>
+                  Aceptas que convivan (por ejemplo, ver un partido mientras
+                  cocinan en familia). El conflicto sigue visible para todos.
+                </div>
               </div>
-              <div style={styles.status}>Listo</div>
+              <div style={styles.status}>Acordado</div>
             </div>
 
             <div style={styles.item}>
-              <div style={styles.check}>✓</div>
+              <div style={styles.check}>3</div>
               <div style={styles.itemText}>
-                <div style={styles.itemTitle}>Activa alertas</div>
-                <div style={styles.itemSub}>Conflictos, recordatorios y más</div>
+                <div style={styles.itemTitle}>Ajustar después</div>
+                <div style={styles.itemSub}>
+                  Dejas marcado que hay un tema pendiente. No se borra nada, pero
+                  todos ven que hay algo por resolver.
+                </div>
               </div>
-              <div style={styles.status}>Listo</div>
+              <div style={styles.status}>Pendiente</div>
             </div>
           </div>
 
-          {/* ✅ NUEVO: Login arriba del CTA principal */}
-          <button style={styles.login} onClick={handleLogin}>
-            Iniciar sesión
+          {/* CTA PRINCIPAL: crear espacio (registro) */}
+          <button style={styles.primary} onClick={handleCreateAccount}>
+            Crear mi espacio en SyncPlans
           </button>
 
-          <button style={styles.primary} onClick={handleCreateAccount}>
-            Crear mi cuenta
+          {/* CTA SECUNDARIA: login para los que ya tienen cuenta */}
+          <button style={styles.login} onClick={handleLogin}>
+            Ya tengo cuenta, iniciar sesión
           </button>
 
           <button style={styles.secondary} onClick={handleBack}>
             Volver
           </button>
 
-          <div style={styles.tip}>Tip: luego puedes sincronizar Google/Apple Calendar.</div>
-
-          {/* 
-            Nota importante (para hacerlo “perfecto”):
-            Marca onboarding_done cuando realmente entren a la app (ej: en /groups/choose o /calendar),
-            no aquí. Si quieres, te digo exactamente dónde poner markOnboardingDone().
-          */}
+          <div style={styles.tip}>
+            Tip: SyncPlans funciona mejor cuando no estás solo. Después de
+            crear tu cuenta podrás invitar a tu pareja o familia y compartir el
+            calendario sin fricciones.
+          </div>
         </section>
       </div>
     </main>
@@ -138,7 +139,12 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 30px 80px rgba(0,0,0,0.45)",
     backdropFilter: "blur(10px)",
   },
-  topRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  topRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
   progressPill: {
     display: "inline-flex",
     alignItems: "center",
@@ -161,8 +167,18 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.04)",
     fontSize: 18,
   },
-  h1: { margin: "14px 0 0", fontSize: 32, lineHeight: 1.1, letterSpacing: -0.5 },
-  p: { margin: "10px 0 0", color: BRAND.sub, fontSize: 14, lineHeight: 1.6 },
+  h1: {
+    margin: "14px 0 0",
+    fontSize: 32,
+    lineHeight: 1.1,
+    letterSpacing: -0.5,
+  },
+  p: {
+    margin: "10px 0 0",
+    color: BRAND.sub,
+    fontSize: 14,
+    lineHeight: 1.6,
+  },
   list: {
     marginTop: 16,
     borderRadius: 22,
@@ -207,9 +223,22 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.92)",
   },
 
-  // ✅ NUEVO: botón login (más “ligero” que el primary)
-  login: {
+  primary: {
     marginTop: 16,
+    width: "100%",
+    borderRadius: 18,
+    padding: "14px 16px",
+    border: "1px solid rgba(56,189,248,0.35)",
+    background:
+      "linear-gradient(90deg, rgba(37,99,235,0.9), rgba(34,197,94,0.9))",
+    color: "white",
+    fontWeight: 900,
+    fontSize: 14,
+    cursor: "pointer",
+  },
+
+  login: {
+    marginTop: 10,
     width: "100%",
     borderRadius: 18,
     padding: "12px 16px",
@@ -221,18 +250,6 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
 
-  primary: {
-    marginTop: 10,
-    width: "100%",
-    borderRadius: 18,
-    padding: "14px 16px",
-    border: "1px solid rgba(56,189,248,0.35)",
-    background: "linear-gradient(90deg, rgba(37,99,235,0.9), rgba(34,197,94,0.9))",
-    color: "white",
-    fontWeight: 900,
-    fontSize: 14,
-    cursor: "pointer",
-  },
   secondary: {
     marginTop: 10,
     width: "100%",
@@ -245,5 +262,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     cursor: "pointer",
   },
-  tip: { marginTop: 12, textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.55)" },
+  tip: {
+    marginTop: 12,
+    textAlign: "center",
+    fontSize: 12,
+    color: "rgba(255,255,255,0.55)",
+  },
 };

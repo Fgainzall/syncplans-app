@@ -72,7 +72,7 @@ export default function Onboarding3() {
                 boxShadow: "0 0 0 6px rgba(34,197,94,0.16)",
               }}
             />
-            3 de 4 · Capas de tu vida
+            3 de 4 · Una sola verdad compartida
           </div>
 
           {/* Título */}
@@ -84,7 +84,7 @@ export default function Onboarding3() {
               marginBottom: 10,
             }}
           >
-            Organización para{" "}
+            SyncPlans pone{" "}
             <span
               style={{
                 background: "linear-gradient(90deg, #38BDF8, #22C55E)",
@@ -92,8 +92,9 @@ export default function Onboarding3() {
                 color: "transparent",
               }}
             >
-              ti, tu pareja y tu familia
-            </span>
+              una sola verdad
+            </span>{" "}
+            en el centro
           </h1>
 
           {/* Subtítulo */}
@@ -102,12 +103,39 @@ export default function Onboarding3() {
               fontSize: 15,
               lineHeight: 1.6,
               color: "#9CA3AF",
-              marginBottom: 18,
+              marginBottom: 10,
             }}
           >
-            SyncPlans separa tus planes en capas para que entiendas todo de un
-            vistazo y evites choques antes de que ocurran.
+            En vez de tener versiones distintas en la cabeza, en chats o en
+            capturas, todos miran el mismo calendario. SyncPlans detecta
+            conflictos y te obliga a decidir antes, no cuando ya es tarde.
           </p>
+
+          {/* Bullets de propuesta de valor */}
+          <ul
+            style={{
+              listStyle: "none",
+              padding: 0,
+              margin: "0 0 18px",
+              display: "grid",
+              gap: 6,
+              fontSize: 13,
+              color: "#E5E7EB",
+            }}
+          >
+            <li style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <span style={{ fontSize: 14 }}>•</span>
+              <span>Detecta choques automáticamente.</span>
+            </li>
+            <li style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <span style={{ fontSize: 14 }}>•</span>
+              <span>Nada se borra sin que lo veas.</span>
+            </li>
+            <li style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <span style={{ fontSize: 14 }}>•</span>
+              <span>Todos ven lo mismo, al mismo tiempo.</span>
+            </li>
+          </ul>
 
           {/* Mini “preview” tipo agenda */}
           <div
@@ -129,8 +157,8 @@ export default function Onboarding3() {
                 marginBottom: 10,
               }}
             >
-              <span>Hoy</span>
-              <span style={{ color: "#94A3B8" }}>Vista rápida</span>
+              <span>Hoy · Vista compartida</span>
+              <span style={{ color: "#94A3B8" }}>Capas sobre la misma agenda</span>
             </div>
 
             <div style={{ display: "grid", gap: 10 }}>
@@ -159,11 +187,28 @@ export default function Onboarding3() {
                 icon="🔵"
               />
             </div>
+
+            <div
+              style={{
+                marginTop: 12,
+                borderRadius: 16,
+                padding: 12,
+                background: "rgba(34,197,94,0.08)",
+                border: "1px solid rgba(34,197,94,0.18)",
+                color: "#CBD5E1",
+                fontSize: 12,
+                lineHeight: 1.45,
+              }}
+            >
+              ⚖️ <b style={{ color: "#E5E7EB" }}>Piensa en SyncPlans como un árbitro neutral:</b>{" "}
+              todos juegan en el mismo campo, con las mismas líneas y las mismas
+              reglas de tiempo.
+            </div>
           </div>
 
           {/* CTA */}
           <button
-            onClick={() => router.push("/onboarding/4")} // cambia a una ruta que exista
+            onClick={() => router.push("/onboarding/4")}
             style={{
               width: "100%",
               padding: "14px 18px",
@@ -206,7 +251,8 @@ export default function Onboarding3() {
               marginTop: 10,
             }}
           >
-            Tip: verás colores consistentes en toda la app.
+            En la siguiente pantalla verás cómo SyncPlans te obliga a{" "}
+            <b>decidir</b> cuando hay conflicto, en vez de discutir después.
           </div>
         </section>
       </div>

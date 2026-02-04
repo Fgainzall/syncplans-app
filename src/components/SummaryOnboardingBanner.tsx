@@ -42,20 +42,20 @@ export default function SummaryOnboardingBanner({
             opacity: 0.9,
           }}
         >
-          Resumen inteligente
+          Primer paso
         </div>
 
         <div style={{ fontSize: 16, fontWeight: 900 }}>
-          Activa tu resumen con el primer evento
+          Dale a SyncPlans algo de qué defenderte
         </div>
 
         <div style={{ fontSize: 13, opacity: 0.85, maxWidth: 420 }}>
-          Crea un evento personal o arma un grupo con tu pareja o familia.
-          A partir de ahí, este resumen se llenará solo con tus planes y
-          posibles cruces.
+          Crea tu primer evento o un grupo con alguien con quien compartes
+          tiempo. Desde ahí, SyncPlans empieza a detectar choques y a mostrar
+          una sola versión verdadera de la agenda para todos.
         </div>
 
-        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+        <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
           <button
             onClick={() =>
               router.push("/events/new/details?type=personal")
@@ -69,9 +69,10 @@ export default function SummaryOnboardingBanner({
               color: "#fff",
               fontWeight: 900,
               cursor: "pointer",
+              fontSize: 13,
             }}
           >
-            Crear evento
+            Crear mi primer evento
           </button>
 
           <button
@@ -84,9 +85,10 @@ export default function SummaryOnboardingBanner({
               color: "#fff",
               fontWeight: 800,
               cursor: "pointer",
+              fontSize: 13,
             }}
           >
-            Ver grupos
+            Crear grupo con alguien
           </button>
         </div>
       </div>
@@ -103,7 +105,7 @@ export default function SummaryOnboardingBanner({
           whiteSpace: "nowrap",
         }}
       >
-        Beta interna · SyncPlans
+        SyncPlans · Una sola verdad compartida
       </div>
     </section>
   );

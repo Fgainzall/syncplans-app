@@ -1,4 +1,4 @@
-// src/app/summary/page.tsx
+// src/app/summary/SummaryClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -107,7 +107,9 @@ export default function SummaryPage() {
       } catch (err: any) {
         console.error(err);
         if (alive) {
-          setErrorMsg("No pudimos cargar tu resumen. Intenta de nuevo.");
+          setErrorMsg(
+            "No pudimos cargar tu resumen. Intenta de nuevo en unos segundos."
+          );
         }
       } finally {
         if (alive) setLoading(false);
@@ -220,10 +222,10 @@ export default function SummaryPage() {
     upcomingConflicts.length === 0
       ? feedback.fromConflicts
         ? feedback.resolvedCount && feedback.resolvedCount > 0
-          ? "Se aplicaron tus decisiones de conflicto."
-          : "Se actualizaron los conflictos pendientes."
-        : "Todo en orden."
-      : "Revísalos para evitar choques.";
+          ? "Se aplicaron tus decisiones de conflicto. Tu calendario ya refleja lo que eligieron conservar."
+          : "Se actualizaron los conflictos pendientes. Ahora todos ven la misma versión de la agenda."
+        : "Todo en orden. No hay eventos que se crucen entre sí."
+      : "Hay eventos que se pisan entre sí. SyncPlans los marca para que decidan qué se queda y qué se mueve.";
 
   return (
     <main style={S.page}>
@@ -234,9 +236,9 @@ export default function SummaryPage() {
             <button
               type="button"
               style={S.secondary}
-              onClick={() => router.push("/events")}
+              onClick={() => router.push("/calendar")}
             >
-              Ver eventos
+              Ver calendario
             </button>
             <button
               type="button"
@@ -251,7 +253,7 @@ export default function SummaryPage() {
           </div>
         </div>
 
-        {/* Onboarding ligero reutilizable (ahora depende de si hay eventos o no) */}
+        {/* Onboarding ligero reutilizable (depende de si hay eventos o no) */}
         <SummaryOnboardingBanner hasEvents={hasAny} />
 
         {/* Feedback sutil post-conflictos */}
@@ -259,43 +261,38 @@ export default function SummaryPage() {
           <div style={S.feedbackBox}>
             <span style={S.feedbackDot} />
             <span style={S.feedbackText}>
-              Conflictos actualizados correctamente.
+              Tus decisiones de conflicto ya se aplicaron. Esta vista es la nueva verdad compartida.
             </span>
           </div>
         )}
 
         <section style={S.heroCard}>
           <div>
-          <div style={S.badge}>Resumen</div>
-<h1 style={S.title}>Tu agenda en una sola mirada</h1>
-<p style={S.subtitle}>
-  Aquí ves cuántos planes tienes pronto, si hay cruces entre ellos
-  y cuál es tu próximo evento importante.
-</p>
-
+            <div style={S.badge}>Resumen</div>
+            <h1 style={S.title}>Una sola verdad sobre tus planes</h1>
+            <p style={S.subtitle}>
+              Aquí ves cómo se reparten tus próximos eventos, cuántos choques hay
+              y cuál es el siguiente plan que realmente importa para ti, tu pareja
+              y tu familia.
+            </p>
           </div>
           <div style={S.heroStats}>
             <HeroStat
               label="Próximos 7 días"
               value={next7.length}
-              hint="eventos agendados"
+              hint="Eventos que vienen en la siguiente semana."
             />
             <HeroStat
               label="Próximos 30 días"
               value={next30.length}
-              hint="entre personales y compartidos"
+              hint="Planes que ya tienes agendados para este mes."
             />
-          <HeroStat
-  label="Conflictos detectados"
-  value={upcomingConflicts.length}
-  hint={
-    upcomingConflicts.length === 0
-      ? "Todo en orden. Ningún evento se cruza."
-      : "Tienes eventos que se cruzan entre sí."
-  }
-  highlight={upcomingConflicts.length > 0}
-/>
-
+            <HeroStat
+              label="Conflictos detectados"
+              value={upcomingConflicts.length}
+              hint={conflictsHint}
+              highlight={conflictsHighlight}
+            />
           </div>
         </section>
 
@@ -303,27 +300,28 @@ export default function SummaryPage() {
 
         <section style={S.grid}>
           <div style={S.cardLeft}>
-            <h2 style={S.cardTitle}>Tus calendarios</h2>
+            <h2 style={S.cardTitle}>Capas de tu tiempo</h2>
             <p style={S.cardSub}>
-              Así se reparten tus planes entre personal, pareja y familia.
+              Tus planes personales, de pareja y de familia conviven aquí. SyncPlans
+              los separa por capas para que veas quién está ocupado y cuándo.
             </p>
 
             <div style={S.typeList}>
               <TypeRow
                 typeLabel="Personal"
-                description="Solo tú"
+                description="Planes que solo dependen de ti."
                 count={perType.personal}
                 meta={groupMeta("personal")}
               />
               <TypeRow
                 typeLabel="Pareja"
-                description="Eventos con tu persona favorita"
+                description="Compromisos que tienen que funcionar para dos."
                 count={perType.pair}
                 meta={groupMeta("pair")}
               />
               <TypeRow
                 typeLabel="Familia"
-                description="Planes con tu círculo más cercano"
+                description="Momentos donde se mueve toda la familia."
                 count={perType.family}
                 meta={groupMeta("family")}
               />
@@ -332,8 +330,10 @@ export default function SummaryPage() {
             <div style={S.tipBox}>
               <div style={S.tipTitle}>Consejo rápido</div>
               <p style={S.tipBody}>
-                Si ves muchos eventos en un mismo día, entra al calendario y usa el
-                botón <strong>Conflictos</strong> para resolverlos en segundos.
+                Si ves un día muy cargado, abre el calendario y usa el botón{" "}
+                <strong>Conflictos</strong> para decidir qué se queda, qué se mueve
+                y qué puede esperar. Decidir antes siempre es mejor que discutir
+                después.
               </p>
             </div>
           </div>
@@ -341,15 +341,16 @@ export default function SummaryPage() {
           <div style={S.cardRight}>
             <h2 style={S.cardTitle}>Lo que viene</h2>
             <p style={S.cardSub}>
-              Tus próximos eventos, ordenados de más cercano a más lejano.
+              Tus próximos eventos, empezando por el más cercano. Si hay notas,
+              también las ves aquí.
             </p>
 
             {!hasAny ? (
               <div style={S.emptyBox}>
                 <div style={S.emptyTitle}>Todavía no tienes eventos</div>
                 <div style={S.emptySub}>
-                  Empieza creando un evento personal o de pareja. SyncPlans te avisará
-                  si se cruza con algo más.
+                  Crea tu primer evento y aquí verás un resumen automático de tu
+                  semana y de los choques que vayan apareciendo.
                 </div>
                 <button
                   type="button"
@@ -364,11 +365,11 @@ export default function SummaryPage() {
             ) : nextEvents.length === 0 ? (
               <div style={S.emptyBox}>
                 <div style={S.emptyTitle}>
-                  No hay nada en los próximos días
+                  No hay eventos en los próximos días
                 </div>
                 <div style={S.emptySub}>
-                  Tu calendario está libre por ahora. Aprovecha para planear algo que
-                  te haga ilusión.
+                  Tu agenda está tranquila. Es un buen momento para planear algo
+                  que te provoque con tu pareja, amigos o familia.
                 </div>
               </div>
             ) : (

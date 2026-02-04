@@ -1,3 +1,4 @@
+// src/app/auth/callback/page.tsx
 "use client";
 
 import { useEffect } from "react";
@@ -14,7 +15,8 @@ export default function AuthCallbackPage() {
       } = await supabase.auth.getSession();
 
       if (session) {
-        router.replace("/calendar");
+        // ✅ Después de confirmar correo, primera parada: resumen
+        router.replace("/summary");
       } else {
         router.replace("/auth/login");
       }
@@ -26,7 +28,7 @@ export default function AuthCallbackPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-[#050816] text-white">
       <div className="text-sm text-white/70">
-        Confirmando acceso…
+        Confirmando tu acceso a SyncPlans…
       </div>
     </main>
   );
