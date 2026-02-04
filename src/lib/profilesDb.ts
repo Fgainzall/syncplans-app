@@ -170,18 +170,47 @@ export async function updateMyCoordinationPrefs(
   prefs: CoordinationPrefs
 ): Promise<Profile> {
   const uid = await requireUid();
-
   const normalized = normalizeCoordinationPrefs(prefs);
+
+  // 1) Intentar leer perfil actual para no pisar datos
+  let existing: Profile | null = null;
+  try {
+    existing = await getMyProfile();
+  } catch {
+    existing = null;
+  }
+
+  // 2) Si no existe, necesitamos un display_name no nulo
+  let displayNameForInsert: string | null = null;
+  if (!existing) {
+    // Intentamos construir algo razonable
+    const { data: userData } = await supabase.auth.getUser();
+    const u = userData?.user;
+
+    const metaName =
+      (u?.user_metadata?.full_name as string | undefined) ||
+      (u?.user_metadata?.name as string | undefined) ||
+      "";
+
+    const emailName =
+      (u?.email ? u.email.split("@")[0] : "") || "Usuario SyncPlans";
+
+    displayNameForInsert = (metaName || emailName).trim() || "Usuario SyncPlans";
+  }
+
+  const payload: any = {
+    id: uid,
+    coordination_prefs: normalized,
+  };
+
+  // Solo seteamos display_name si estamos insertando por primera vez
+  if (!existing && displayNameForInsert) {
+    payload.display_name = displayNameForInsert;
+  }
 
   const { data, error } = await supabase
     .from("profiles")
-    .upsert(
-      {
-        id: uid,
-        coordination_prefs: normalized,
-      },
-      { onConflict: "id" }
-    )
+    .upsert(payload, { onConflict: "id" })
     .select(
       `
       id,
@@ -213,6 +242,7 @@ export async function updateMyCoordinationPrefs(
     trial_ends_at: p.trial_ends_at ?? null,
   };
 }
+
 
 /**
  * (Opcional) Helper para debug / ajustes manuales:
