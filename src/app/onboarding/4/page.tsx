@@ -49,8 +49,10 @@ export default function Onboarding4Page() {
 
           <p style={styles.p}>
             Cuando dos planes se cruzan, SyncPlans no se queda callado. Marca el
-            conflicto y te pide una decisión clara, para que todos sepan a qué
-            atenerse y nadie se lleve la sorpresa a último minuto.
+            conflicto, te muestra todo lo que está en juego y te pide una
+            decisión clara, para que haya{" "}
+            <strong>una sola versión de la verdad</strong> y nadie se lleve la
+            sorpresa a último minuto.
           </p>
 
           <div style={styles.list}>
@@ -60,7 +62,7 @@ export default function Onboarding4Page() {
                 <div style={styles.itemTitle}>Conservar uno</div>
                 <div style={styles.itemSub}>
                   Eliges qué plan se queda y cuál se mueve o se cancela. Una
-                  decisión, una sola versión de la verdad.
+                  decisión, una sola historia que todos comparten.
                 </div>
               </div>
               <div style={styles.status}>Decisión</div>
@@ -72,7 +74,8 @@ export default function Onboarding4Page() {
                 <div style={styles.itemTitle}>Conservar ambos</div>
                 <div style={styles.itemSub}>
                   Aceptas que convivan (por ejemplo, ver un partido mientras
-                  cocinan en familia). El conflicto sigue visible para todos.
+                  cocinan en familia). El conflicto se mantiene visible para
+                  todos, sin engaños.
                 </div>
               </div>
               <div style={styles.status}>Acordado</div>
@@ -83,8 +86,8 @@ export default function Onboarding4Page() {
               <div style={styles.itemText}>
                 <div style={styles.itemTitle}>Ajustar después</div>
                 <div style={styles.itemSub}>
-                  Dejas marcado que hay un tema pendiente. No se borra nada, pero
-                  todos ven que hay algo por resolver.
+                  Dejas marcado que hay un tema pendiente. No se borra nada, y
+                  todos ven que hay algo por resolver más adelante.
                 </div>
               </div>
               <div style={styles.status}>Pendiente</div>
@@ -106,9 +109,11 @@ export default function Onboarding4Page() {
           </button>
 
           <div style={styles.tip}>
-            Tip: SyncPlans funciona mejor cuando no estás solo. Después de
-            crear tu cuenta podrás invitar a tu pareja o familia y compartir el
-            calendario sin fricciones.
+            Después de crear tu cuenta, verás un{" "}
+            <strong>resumen claro de tus próximos planes</strong> y de los
+            conflictos que podrías tener. SyncPlans funciona mejor cuando no
+            estás solo: luego podrás invitar a tu pareja o familia y compartir
+            la misma verdad sobre la agenda.
           </div>
         </section>
       </div>

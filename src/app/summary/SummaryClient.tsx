@@ -250,10 +250,12 @@ export default function SummaryPage() {
         <section style={S.heroCard}>
           <div>
             <div style={S.badge}>Resumen</div>
-            <h1 style={S.title}>Tu agenda en una sola mirada</h1>
+            <h1 style={S.title}>Una sola verdad sobre tus planes</h1>
             <p style={S.subtitle}>
-              Aquí ves cuántos planes tienes pronto, si algo se cruza y cuál
-              es tu próximo evento importante.
+              Aquí ves, en un solo lugar, qué viene pronto, dónde se cruzan las
+              cosas y cómo se reparte tu tiempo entre lo personal, la pareja y
+              la familia. SyncPlans actúa como árbitro neutral: nada se esconde,
+              nada se borra sin que lo veas.
             </p>
           </div>
           <div style={S.heroStats}>
@@ -310,8 +312,8 @@ export default function SummaryPage() {
               <div style={S.tipTitle}>Consejo rápido</div>
               <p style={S.tipBody}>
                 Si ves un día muy cargado, abre el calendario y usa el botón{" "}
-                <strong>Conflictos</strong> para decidir qué se queda y qué se
-                mueve.
+                <strong>Conflictos</strong> para decidir qué se queda, qué se
+                mueve y qué prefieren dejar pendiente.
               </p>
             </div>
           </div>
@@ -327,7 +329,7 @@ export default function SummaryPage() {
                 <div style={S.emptyTitle}>Todavía no tienes eventos</div>
                 <div style={S.emptySub}>
                   Crea tu primer evento y aquí verás un resumen automático de
-                  tu semana.
+                  tu semana y de los cruces que podrían aparecer.
                 </div>
                 <button
                   type="button"

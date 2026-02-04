@@ -50,14 +50,6 @@ function applyThemeVars(mode: UsageMode) {
   root.style.setProperty("--sp-active", active);
 }
 
-/**
- * ✅ Heurística segura:
- * - si ya hay activeGroupId guardado, úsalo
- * - si no hay, elige el primer grupo cuyo type coincida con el modo (pair/family)
- * - si tampoco hay, usa el primer grupo disponible
- *
- * 🔥 IMPORTANTE: imports a Supabase se hacen LAZY (dinámicos) para no romper build.
- */
 async function ensureActiveGroupForMode(
   mode: UsageMode
 ): Promise<string | null> {
@@ -97,20 +89,18 @@ export default function PremiumHeader({
 }: {
   title?: string;
   subtitle?: string;
-  rightSlot?: React.ReactNode;
+  rightSlot?: React.ReactNode; // 👈 IMPORTANTE para que funcione rightSlot
 }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const NAV_MODE: NavigationMode = "replace"; // "push" | "replace"
+  const NAV_MODE: NavigationMode = "replace";
 
   const [group, setGroup] = useState<GroupState | null>(null);
   const [openNotif, setOpenNotif] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-
   const [headerUser, setHeaderUser] = useState<HeaderUser | null>(null);
 
-  // 🔹 Cargar modo/tema de grupos
   useEffect(() => {
     const g = getGroupState();
     setGroup(g);
@@ -123,14 +113,12 @@ export default function PremiumHeader({
     applyThemeVars(activeMode);
   }, [activeMode]);
 
-  // 🔹 Cargar usuario para mostrar chip con nombre/iniciales
   useEffect(() => {
     let alive = true;
 
     (async () => {
       try {
         const profile: UserProfile | null = await getMyProfile();
-
         if (!alive) return;
 
         if (profile) {
@@ -148,12 +136,10 @@ export default function PremiumHeader({
 
           setHeaderUser({ name, initials });
         } else {
-          // Sin perfil todavía: fallback genérico
           setHeaderUser({ name: "Tú", initials: "T" });
         }
       } catch {
         if (!alive) return;
-        // Si falla (no autenticado, error de red, etc.) no rompe el header
         setHeaderUser(null);
       }
     })();
@@ -180,7 +166,6 @@ export default function PremiumHeader({
   }, []);
 
   useEffect(() => {
-    // refresca cuando abres/cierra drawer o cambias de ruta
     refreshBadge();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openNotif, pathname]);
@@ -198,7 +183,6 @@ export default function PremiumHeader({
       }
 
       const gid = await ensureActiveGroupForMode(activeMode);
-
       if (!gid) {
         router.push("/groups/new");
         return;
@@ -220,7 +204,7 @@ export default function PremiumHeader({
       try {
         await ensureActiveGroupForMode(nextMode);
       } catch {
-        // no bloquees UI
+        // no bloquear UI
       }
     }
   }
@@ -463,7 +447,6 @@ const S: Record<string, React.CSSProperties> = {
       "0 0 0 2px rgba(2,6,23,0.85), 0 10px 25px rgba(0,0,0,0.35)",
   },
 
-  // 🔹 Chip de usuario (avatar + nombre)
   userChip: {
     display: "flex",
     alignItems: "center",

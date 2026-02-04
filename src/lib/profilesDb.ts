@@ -3,12 +3,29 @@
 
 import supabase from "@/lib/supabaseClient";
 
+export type CoordinationPrefs = {
+  prefers_mornings: boolean;
+  prefers_evenings: boolean;
+  prefers_weekdays: boolean;
+  prefers_weekends: boolean;
+  blocked_note: string;
+  decision_style: "decide_fast" | "discuss" | "depends";
+};
+
 export type Profile = {
   id: string;
-  first_name: string;
-  last_name: string;
+  first_name: string | null;
+  last_name: string | null;
   avatar_url?: string | null;
   display_name?: string | null;
+
+  // 👇 Preferencias de coordinación globales
+  coordination_prefs?: CoordinationPrefs | null;
+
+  // 👇 Info básica de plan / monetización
+  plan_tier?: string | null;       // 'demo_premium', 'free', 'premium', etc.
+  plan_status?: string | null;     // 'trial', 'active', 'cancelled', etc.
+  trial_ends_at?: string | null;   // ISO string o null
 };
 
 async function requireUid(): Promise<string> {
@@ -22,6 +39,22 @@ async function requireUid(): Promise<string> {
 }
 
 /**
+ * Normaliza un objeto cualquiera a CoordinationPrefs completo.
+ */
+export function normalizeCoordinationPrefs(
+  prefs?: CoordinationPrefs | null
+): CoordinationPrefs {
+  return {
+    prefers_mornings: prefs?.prefers_mornings ?? false,
+    prefers_evenings: prefs?.prefers_evenings ?? false,
+    prefers_weekdays: prefs?.prefers_weekdays ?? false,
+    prefers_weekends: prefs?.prefers_weekends ?? false,
+    blocked_note: prefs?.blocked_note ?? "",
+    decision_style: prefs?.decision_style ?? "depends",
+  };
+}
+
+/**
  * Obtiene mi perfil desde la tabla `profiles`.
  * Si no existe, devuelve null.
  */
@@ -30,12 +63,38 @@ export async function getMyProfile(): Promise<Profile | null> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, first_name, last_name, avatar_url, display_name")
+    .select(
+      `
+      id,
+      first_name,
+      last_name,
+      avatar_url,
+      display_name,
+      coordination_prefs,
+      plan_tier,
+      plan_status,
+      trial_ends_at
+    `
+    )
     .eq("id", uid)
     .maybeSingle();
 
   if (error) throw error;
-  return (data as Profile) ?? null;
+  if (!data) return null;
+
+  const p = data as any;
+
+  return {
+    id: p.id,
+    first_name: p.first_name ?? null,
+    last_name: p.last_name ?? null,
+    avatar_url: p.avatar_url ?? null,
+    display_name: p.display_name ?? null,
+    coordination_prefs: p.coordination_prefs ?? null,
+    plan_tier: p.plan_tier ?? null,
+    plan_status: p.plan_status ?? null,
+    trial_ends_at: p.trial_ends_at ?? null,
+  };
 }
 
 /**
@@ -43,6 +102,7 @@ export async function getMyProfile(): Promise<Profile | null> {
  * Usa:
  *  - id = auth.uid()
  *  - display_name = "Nombre Apellido"
+ * No toca coordinación ni plan; respeta lo que ya haya en la fila.
  */
 export async function createMyProfile(input: {
   first_name: string;
@@ -70,11 +130,147 @@ export async function createMyProfile(input: {
       },
       { onConflict: "id" }
     )
-    .select("id, first_name, last_name, avatar_url, display_name")
+    .select(
+      `
+      id,
+      first_name,
+      last_name,
+      avatar_url,
+      display_name,
+      coordination_prefs,
+      plan_tier,
+      plan_status,
+      trial_ends_at
+    `
+    )
     .single();
 
   if (error) throw error;
-  return data as Profile;
+
+  const p = data as any;
+
+  return {
+    id: p.id,
+    first_name: p.first_name ?? null,
+    last_name: p.last_name ?? null,
+    avatar_url: p.avatar_url ?? null,
+    display_name: p.display_name ?? null,
+    coordination_prefs: p.coordination_prefs ?? null,
+    plan_tier: p.plan_tier ?? null,
+    plan_status: p.plan_status ?? null,
+    trial_ends_at: p.trial_ends_at ?? null,
+  };
+}
+
+/**
+ * Actualiza SOLO las preferencias de coordinación.
+ * Si no existe fila en profiles, la crea.
+ */
+export async function updateMyCoordinationPrefs(
+  prefs: CoordinationPrefs
+): Promise<Profile> {
+  const uid = await requireUid();
+
+  const normalized = normalizeCoordinationPrefs(prefs);
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .upsert(
+      {
+        id: uid,
+        coordination_prefs: normalized,
+      },
+      { onConflict: "id" }
+    )
+    .select(
+      `
+      id,
+      first_name,
+      last_name,
+      avatar_url,
+      display_name,
+      coordination_prefs,
+      plan_tier,
+      plan_status,
+      trial_ends_at
+    `
+    )
+    .single();
+
+  if (error) throw error;
+
+  const p = data as any;
+
+  return {
+    id: p.id,
+    first_name: p.first_name ?? null,
+    last_name: p.last_name ?? null,
+    avatar_url: p.avatar_url ?? null,
+    display_name: p.display_name ?? null,
+    coordination_prefs: p.coordination_prefs ?? null,
+    plan_tier: p.plan_tier ?? null,
+    plan_status: p.plan_status ?? null,
+    trial_ends_at: p.trial_ends_at ?? null,
+  };
+}
+
+/**
+ * (Opcional) Helper para debug / ajustes manuales:
+ * cambia plan_tier / plan_status / trial_ends_at del usuario actual.
+ * Útil mientras no hay Stripe todavía.
+ */
+export async function updateMyPlanDebug(input: {
+  plan_tier?: string | null;
+  plan_status?: string | null;
+  trial_ends_at?: string | null;
+}): Promise<Profile> {
+  const uid = await requireUid();
+
+  const payload: Record<string, any> = { id: uid };
+
+  if (input.plan_tier !== undefined) {
+    payload.plan_tier = input.plan_tier;
+  }
+  if (input.plan_status !== undefined) {
+    payload.plan_status = input.plan_status;
+  }
+  if (input.trial_ends_at !== undefined) {
+    payload.trial_ends_at = input.trial_ends_at;
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .upsert(payload, { onConflict: "id" })
+    .select(
+      `
+      id,
+      first_name,
+      last_name,
+      avatar_url,
+      display_name,
+      coordination_prefs,
+      plan_tier,
+      plan_status,
+      trial_ends_at
+    `
+    )
+    .single();
+
+  if (error) throw error;
+
+  const p = data as any;
+
+  return {
+    id: p.id,
+    first_name: p.first_name ?? null,
+    last_name: p.last_name ?? null,
+    avatar_url: p.avatar_url ?? null,
+    display_name: p.display_name ?? null,
+    coordination_prefs: p.coordination_prefs ?? null,
+    plan_tier: p.plan_tier ?? null,
+    plan_status: p.plan_status ?? null,
+    trial_ends_at: p.trial_ends_at ?? null,
+  };
 }
 
 /**
@@ -88,11 +284,34 @@ export async function getProfilesByIds(ids: string[]): Promise<Profile[]> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, first_name, last_name, avatar_url, display_name")
+    .select(
+      `
+      id,
+      first_name,
+      last_name,
+      avatar_url,
+      display_name,
+      coordination_prefs,
+      plan_tier,
+      plan_status,
+      trial_ends_at
+    `
+    )
     .in("id", uniqueIds);
 
   if (error) throw error;
-  return (data ?? []) as Profile[];
+
+  return (data ?? []).map((p: any) => ({
+    id: p.id,
+    first_name: p.first_name ?? null,
+    last_name: p.last_name ?? null,
+    avatar_url: p.avatar_url ?? null,
+    display_name: p.display_name ?? null,
+    coordination_prefs: p.coordination_prefs ?? null,
+    plan_tier: p.plan_tier ?? null,
+    plan_status: p.plan_status ?? null,
+    trial_ends_at: p.trial_ends_at ?? null,
+  }));
 }
 
 /**

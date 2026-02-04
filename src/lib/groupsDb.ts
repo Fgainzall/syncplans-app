@@ -1,3 +1,4 @@
+// src/lib/groupsDb.ts
 "use client";
 
 import supabase from "@/lib/supabaseClient";
@@ -12,6 +13,30 @@ export type GroupRow = {
   owner_id?: string | null;
 };
 
+/**
+ * Metadata humana de la membresía de un usuario en un grupo.
+ * No son permisos (owner/admin), es cómo se ve en ese grupo.
+ */
+export type GroupMemberCoordinationPrefs = {
+  group_note?: string;
+  priority_hint?: "alta" | "media" | "baja";
+};
+
+export type GroupMemberRow = {
+  group_id: string;
+  user_id: string;
+  role: string; // 'owner' | 'admin' | 'member'...
+  display_name: string | null;
+  relationship_role: string | null;
+  coordination_prefs: GroupMemberCoordinationPrefs | null;
+};
+
+export type GroupMemberMeta = {
+  display_name?: string | null;
+  relationship_role?: string | null;
+  coordination_prefs?: GroupMemberCoordinationPrefs | null;
+};
+
 async function requireUid(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
   if (error) throw error;
@@ -20,6 +45,13 @@ async function requireUid(): Promise<string> {
   return uid;
 }
 
+/* ─────────────────── Mis grupos ─────────────────── */
+
+/**
+ * Devuelve los grupos a los que pertenezco, ordenados por
+ * membresía más reciente. No incluye la metadata humana
+ * de la membresía (display_name, relationship_role, etc.).
+ */
 export async function getMyGroups(): Promise<GroupRow[]> {
   const uid = await requireUid();
 
@@ -32,7 +64,9 @@ export async function getMyGroups(): Promise<GroupRow[]> {
 
   if (mErr) throw mErr;
 
-  const groupIds = Array.from(new Set((ms ?? []).map((m: any) => m.group_id).filter(Boolean)));
+  const groupIds = Array.from(
+    new Set((ms ?? []).map((m: any) => m.group_id).filter(Boolean))
+  );
   if (groupIds.length === 0) return [];
 
   // 2) grupos por ids
@@ -46,7 +80,9 @@ export async function getMyGroups(): Promise<GroupRow[]> {
   // 3) orden por “más reciente membership”
   const membershipRank = new Map<string, number>();
   (ms ?? []).forEach((m: any, idx: number) => {
-    if (m.group_id && !membershipRank.has(m.group_id)) membershipRank.set(m.group_id, idx);
+    if (m.group_id && !membershipRank.has(m.group_id)) {
+      membershipRank.set(m.group_id, idx);
+    }
   });
 
   const rows = (gs ?? []) as any[];
@@ -65,12 +101,17 @@ export async function getMyGroups(): Promise<GroupRow[]> {
   }));
 }
 
+/* ─────────────────── Crear grupo ─────────────────── */
+
 /**
  * Crea un grupo.
  * - Preferencia: RPC create_group(p_name, p_type) si existe
  * - Fallback: insert directo en groups + insert owner en group_members
  */
-export async function createGroup(input: { name: string; type: "pair" | "family" }): Promise<GroupRow> {
+export async function createGroup(input: {
+  name: string;
+  type: "pair" | "family";
+}): Promise<GroupRow> {
   const uid = await requireUid();
 
   const name = input.name.trim();
@@ -119,7 +160,9 @@ export async function createGroup(input: { name: string; type: "pair" | "family"
 
   // asegurar membership owner (si tu trigger/RPC ya lo hace, esto puede fallar por duplicate; lo ignoramos si es duplicate)
   try {
-    await supabase.from("group_members").insert([{ group_id: gRow.id, user_id: uid, role: "owner" }]);
+    await supabase
+      .from("group_members")
+      .insert([{ group_id: gRow.id, user_id: uid, role: "owner" }]);
   } catch {
     // ignore
   }
@@ -131,4 +174,81 @@ export async function createGroup(input: { name: string; type: "pair" | "family"
     created_at: (gRow as any).created_at ?? null,
     owner_id: (gRow as any).owner_id ?? null,
   };
+}
+
+/* ─────────────────── Mis memberships ─────────────────── */
+
+/**
+ * Devuelve TODAS mis memberships con metadata humana:
+ * - display_name (cómo quiero que me llamen en ese grupo)
+ * - relationship_role (pareja, padre, hijo/a, etc.)
+ * - coordination_prefs (nota contextual por grupo)
+ *
+ * Esto lo usaremos en el Panel para “Tu rol en los grupos”.
+ */
+export async function getMyGroupMemberships(): Promise<GroupMemberRow[]> {
+  const uid = await requireUid();
+
+  const { data, error } = await supabase
+    .from("group_members")
+    .select(
+      `
+      group_id,
+      user_id,
+      role,
+      display_name,
+      relationship_role,
+      coordination_prefs
+    `
+    )
+    .eq("user_id", uid);
+
+  if (error) throw error;
+
+  const rows = (data ?? []) as any[];
+
+  return rows.map((row) => ({
+    group_id: row.group_id,
+    user_id: row.user_id,
+    role: row.role,
+    display_name: row.display_name ?? null,
+    relationship_role: row.relationship_role ?? null,
+    coordination_prefs: (row.coordination_prefs ??
+      null) as GroupMemberCoordinationPrefs | null,
+  }));
+}
+
+/**
+ * Actualiza SOLO la metadata humana de MI membresía en un grupo concreto.
+ * No toca rol (owner/admin/member), solo cómo me presento ante el grupo.
+ */
+export async function updateMyGroupMeta(
+  groupId: string,
+  meta: GroupMemberMeta
+): Promise<void> {
+  const uid = await requireUid();
+
+  const payload: Record<string, any> = {};
+
+  if ("display_name" in meta) {
+    payload.display_name = meta.display_name ?? null;
+  }
+  if ("relationship_role" in meta) {
+    payload.relationship_role = meta.relationship_role ?? null;
+  }
+  if ("coordination_prefs" in meta) {
+    payload.coordination_prefs = meta.coordination_prefs ?? null;
+  }
+
+  if (Object.keys(payload).length === 0) {
+    throw new Error("No hay cambios para guardar.");
+  }
+
+  const { error } = await supabase
+    .from("group_members")
+    .update(payload)
+    .eq("group_id", groupId)
+    .eq("user_id", uid);
+
+  if (error) throw error;
 }

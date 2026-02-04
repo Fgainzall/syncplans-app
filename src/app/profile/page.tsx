@@ -11,10 +11,17 @@ import {
   getMyProfile,
   getInitials,
   createMyProfile,
-  type Profile,
+  updateMyCoordinationPrefs,
+  type CoordinationPrefs,
 } from "@/lib/profilesDb";
 import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
-import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
+import {
+  getMyGroups,
+  getMyGroupMemberships,
+  updateMyGroupMeta,
+  type GroupRow,
+  type GroupMemberRow,
+} from "@/lib/groupsDb";
 import { computeVisibleConflicts } from "@/lib/conflicts";
 
 /* ─────────────────── Tipos de UI ─────────────────── */
@@ -47,6 +54,78 @@ type Recommendation = {
     | "invitations";
 };
 
+type PlanInfo = {
+  planTier: string | null;
+  planStatus: string | null;
+  trialEndsAt: string | null;
+};
+
+/* ─────────────────── Helpers locales ─────────────────── */
+
+function normalizeCoordPrefs(
+  prefs?: Partial<CoordinationPrefs> | null
+): CoordinationPrefs {
+  return {
+    prefers_mornings: prefs?.prefers_mornings ?? false,
+    prefers_evenings: prefs?.prefers_evenings ?? false,
+    prefers_weekdays: prefs?.prefers_weekdays ?? false,
+    prefers_weekends: prefs?.prefers_weekends ?? false,
+    blocked_note: prefs?.blocked_note ?? "",
+    decision_style: prefs?.decision_style ?? "depends",
+  };
+}
+
+
+function buildPlanUi(plan: PlanInfo | null): { value: string; hint: string } {
+  if (!plan) {
+    return {
+      value: "Demo Premium (beta)",
+      hint: "Acceso completo mientras probamos SyncPlans.",
+    };
+  }
+
+  const tier = (plan.planTier ?? "demo_premium").toLowerCase();
+  const status = (plan.planStatus ?? "trial").toLowerCase();
+
+  let value: string;
+  if (tier === "free") {
+    value = "Plan gratuito";
+  } else if (tier === "premium") {
+    value = status === "trial" ? "Premium (prueba)" : "Premium";
+  } else {
+    // demo_premium u otros
+    value = status === "trial" ? "Demo Premium (prueba)" : "Demo Premium";
+  }
+
+  let hint = "Acceso completo mientras pruebas SyncPlans.";
+
+  if (status === "active") {
+    if (tier === "free") {
+      hint = "Funciones básicas para organizar tu tiempo.";
+    } else {
+      hint = "Funciones premium activas para tu cuenta.";
+    }
+  } else if (status === "trial") {
+    if (plan.trialEndsAt) {
+      const end = new Date(plan.trialEndsAt);
+      if (!isNaN(end.getTime())) {
+        const today = new Date();
+        const msDiff = end.getTime() - today.getTime();
+        const daysDiff = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
+        if (daysDiff > 0) {
+          hint = `Tu prueba termina en aproximadamente ${daysDiff} día${
+            daysDiff === 1 ? "" : "s"
+          }.`;
+        } else {
+          hint = "Tu periodo de prueba está por terminar.";
+        }
+      }
+    }
+  }
+
+  return { value, hint };
+}
+
 /* ─────────────────── Componente principal ─────────────────── */
 
 export default function ProfilePage() {
@@ -67,7 +146,25 @@ export default function ProfilePage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
-  // ── 1) Cargar sesión + perfil + nombre visual ──
+  // 🔹 Plan / monetización (solo lectura de momento)
+  const [plan, setPlan] = useState<PlanInfo | null>(null);
+
+  // 🔹 Grupos y memberships (para “Tu rol en los grupos”)
+  const [groups, setGroups] = useState<GroupRow[] | null>(null);
+  const [memberships, setMemberships] = useState<GroupMemberRow[] | null>(null);
+  const [membershipsLoading, setMembershipsLoading] = useState(false);
+  const [membershipsError, setMembershipsError] = useState<string | null>(null);
+  const [savingGroupId, setSavingGroupId] = useState<string | null>(null);
+  const [groupSaveMessage, setGroupSaveMessage] = useState<string | null>(null);
+  const [groupSaveError, setGroupSaveError] = useState<string | null>(null);
+
+  // 🔹 Preferencias de coordinación globales
+  const [coordPrefs, setCoordPrefs] = useState<CoordinationPrefs | null>(null);
+  const [savingCoord, setSavingCoord] = useState(false);
+  const [saveCoordError, setSaveCoordError] = useState<string | null>(null);
+  const [saveCoordOk, setSaveCoordOk] = useState<string | null>(null);
+
+  // ── 1) Cargar sesión + perfil + nombre visual + plan ──
   useEffect(() => {
     let alive = true;
 
@@ -101,10 +198,12 @@ export default function ProfilePage() {
 
         let localFirst = "";
         let localLast = "";
+        let localCoordPrefs: CoordinationPrefs | null = null;
+        let localPlan: PlanInfo | null = null;
 
         // Intentar leer perfil real desde la tabla `profiles`
         try {
-          const profile: Profile | null = await getMyProfile();
+          const profile = await getMyProfile();
           if (profile) {
             const dn = (
               profile.display_name ??
@@ -116,13 +215,22 @@ export default function ProfilePage() {
             }
 
             initials = getInitials({
-              first_name: profile.first_name,
-              last_name: profile.last_name,
-              display_name: profile.display_name,
+              first_name: profile.first_name ?? undefined,
+              last_name: profile.last_name ?? undefined,
+              display_name: profile.display_name ?? undefined,
             });
 
             localFirst = (profile.first_name ?? "").trim();
             localLast = (profile.last_name ?? "").trim();
+            localCoordPrefs = normalizeCoordPrefs(
+              profile.coordination_prefs ?? null
+            );
+
+            localPlan = {
+              planTier: profile.plan_tier ?? null,
+              planStatus: profile.plan_status ?? null,
+              trialEndsAt: profile.trial_ends_at ?? null,
+            };
           } else {
             // Inferir de baseName si no hay perfil
             const parts = baseName.trim().split(/\s+/);
@@ -133,9 +241,22 @@ export default function ProfilePage() {
               localFirst = baseName.trim();
               localLast = "";
             }
+            localCoordPrefs = normalizeCoordPrefs(null);
+            // default de plan si no hay fila todavía
+            localPlan = {
+              planTier: "demo_premium",
+              planStatus: "trial",
+              trialEndsAt: null,
+            };
           }
         } catch (e) {
           console.error("Error leyendo perfil desde DB:", e);
+          localCoordPrefs = normalizeCoordPrefs(null);
+          localPlan = {
+            planTier: "demo_premium",
+            planStatus: "trial",
+            trialEndsAt: null,
+          };
         }
 
         if (!alive) return;
@@ -149,6 +270,8 @@ export default function ProfilePage() {
 
         setFirstName(localFirst);
         setLastName(localLast);
+        setCoordPrefs(localCoordPrefs);
+        setPlan(localPlan);
       } finally {
         if (!alive) return;
         setBooting(false);
@@ -160,7 +283,7 @@ export default function ProfilePage() {
     };
   }, [router]);
 
-  // ── 2) Cargar stats de uso cuando ya tenemos user ──
+  // ── 2) Cargar stats de uso + grupos ──
   useEffect(() => {
     if (!user) return;
     let alive = true;
@@ -168,18 +291,20 @@ export default function ProfilePage() {
     (async () => {
       try {
         setStatsLoading(true);
-        const [events, groups] = await Promise.all([
+        const [events, groupsRows] = await Promise.all([
           getMyEvents(),
           getMyGroups(),
         ]);
         if (!alive) return;
 
-        const nextStats = buildDashboardStats(events, groups);
+        const nextStats = buildDashboardStats(events, groupsRows);
         setStats(nextStats);
+        setGroups(groupsRows);
       } catch (e) {
         console.error("[ProfilePage] Error cargando stats:", e);
         if (!alive) return;
         setStats(null);
+        setGroups(null);
       } finally {
         if (!alive) return;
         setStatsLoading(false);
@@ -191,7 +316,37 @@ export default function ProfilePage() {
     };
   }, [user]);
 
-  // ── 3) Guardar perfil (nombre / apellido) ──
+  // ── 3) Cargar memberships para “Tu rol en los grupos” ──
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+
+    (async () => {
+      try {
+        setMembershipsLoading(true);
+        setMembershipsError(null);
+        const ms = await getMyGroupMemberships();
+        if (!alive) return;
+        setMemberships(ms);
+      } catch (err: any) {
+        console.error("[ProfilePage] Error cargando memberships:", err);
+        if (!alive) return;
+        setMemberships(null);
+        setMembershipsError(
+          "No pudimos cargar tus roles en los grupos. Intenta recargar la página."
+        );
+      } finally {
+        if (!alive) return;
+        setMembershipsLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [user]);
+
+  // ── 4) Guardar perfil (nombre / apellido) ──
   async function onSaveProfile(e: React.FormEvent) {
     e.preventDefault();
     setSaveError(null);
@@ -220,9 +375,9 @@ export default function ProfilePage() {
       const newDisplay: string = baseDisplay || user?.name || "Usuario";
 
       const newInitials = getInitials({
-        first_name: profile.first_name,
-        last_name: profile.last_name,
-        display_name: profile.display_name,
+        first_name: profile.first_name ?? undefined,
+        last_name: profile.last_name ?? undefined,
+        display_name: profile.display_name ?? undefined,
       });
 
       setUser((prev) =>
@@ -248,7 +403,92 @@ export default function ProfilePage() {
     }
   }
 
-  // ── 4) Pantallas de carga / sin user ──
+  // ── 5) Guardar preferencias de coordinación ──
+  async function onSaveCoordPrefs(e: React.FormEvent) {
+    e.preventDefault();
+    if (!coordPrefs) return;
+    setSaveCoordError(null);
+    setSaveCoordOk(null);
+
+    try {
+      setSavingCoord(true);
+      await updateMyCoordinationPrefs(coordPrefs);
+      setSaveCoordOk("Preferencias guardadas correctamente.");
+    } catch (err: any) {
+      console.error("Error guardando preferencias de coordinación:", err);
+      setSaveCoordError(
+        typeof err?.message === "string"
+          ? err.message
+          : "No se pudieron guardar tus preferencias. Intenta de nuevo."
+      );
+    } finally {
+      setSavingCoord(false);
+    }
+  }
+
+  // ── 6) Editar metadata de membership (estado local) ──
+  function updateMembershipLocal(
+    groupId: string,
+    updater: (prev: GroupMemberRow) => GroupMemberRow
+  ) {
+    setMemberships((prev) => {
+      if (!prev) return prev;
+      return prev.map((m) => (m.group_id === groupId ? updater(m) : m));
+    });
+  }
+
+  function handleMembershipFieldChange(
+    groupId: string,
+    field: "display_name" | "relationship_role" | "group_note",
+    value: string
+  ) {
+    updateMembershipLocal(groupId, (m) => {
+      if (field === "display_name") {
+        return { ...m, display_name: value };
+      }
+      if (field === "relationship_role") {
+        return { ...m, relationship_role: value };
+      }
+      if (field === "group_note") {
+        const nextPrefs = {
+          ...(m.coordination_prefs ?? {}),
+          group_note: value,
+        };
+        return { ...m, coordination_prefs: nextPrefs };
+      }
+      return m;
+    });
+  }
+
+  async function handleSaveGroupMeta(groupId: string) {
+    if (!memberships) return;
+    const m = memberships.find((mm) => mm.group_id === groupId);
+    if (!m) return;
+
+    setGroupSaveMessage(null);
+    setGroupSaveError(null);
+    setSavingGroupId(groupId);
+
+    try {
+      await updateMyGroupMeta(groupId, {
+        display_name: m.display_name ?? null,
+        relationship_role: m.relationship_role ?? null,
+        coordination_prefs: m.coordination_prefs ?? null,
+      });
+      setGroupSaveMessage("Cambios guardados para este grupo.");
+    } catch (err: any) {
+      console.error("Error guardando metadata de grupo:", err);
+      setGroupSaveError(
+        typeof err?.message === "string"
+          ? err.message
+          : "No se pudieron guardar los cambios. Intenta de nuevo."
+      );
+    } finally {
+      setSavingGroupId(null);
+    }
+  }
+
+  // ── 7) Pantallas de carga / sin user ──
   if (booting) {
     return (
       <main style={styles.page}>
@@ -269,7 +509,7 @@ export default function ProfilePage() {
 
   if (!user) return null;
 
-  // ── 5) Derivados de UI (sin hooks) ──
+  // ── 8) Derivados de UI (sin hooks) ──
   const accountStatusLabel = user.verified
     ? "Cuenta verificada"
     : "Verifica tu correo";
@@ -282,6 +522,28 @@ export default function ProfilePage() {
     stats
   );
 
+  const coord = normalizeCoordPrefs(coordPrefs);
+  const hasCoordPrefsMeaningful =
+    coord.prefers_mornings ||
+    coord.prefers_evenings ||
+    coord.prefers_weekdays ||
+    coord.prefers_weekends ||
+    !!coord.blocked_note?.trim() ||
+    coord.decision_style !== "depends";
+
+  const hasNameCompleted = !!firstName.trim() && !!lastName.trim();
+  const hasGroupMeta =
+    memberships &&
+    memberships.length > 0 &&
+    memberships.some(
+      (m) =>
+        !!m.display_name ||
+        !!m.relationship_role ||
+        !!m.coordination_prefs?.group_note
+    );
+
+  const planUi = buildPlanUi(plan);
+
   function handleRecommendationClick(target: Recommendation["ctaTarget"]) {
     if (!target) return;
     if (target === "groups_new") router.push("/groups/new");
@@ -292,7 +554,20 @@ export default function ProfilePage() {
     else if (target === "invitations") router.push("/invitations");
   }
 
-  // ── 6) Render principal ──
+  // Map rápido de grupos por id para el bloque “Tu rol en los grupos”
+  const groupsById = new Map<string, GroupRow>();
+  (groups ?? []).forEach((g) => groupsById.set(g.id, g));
+
+  const membershipsSorted =
+    memberships && groups
+      ? [...memberships].sort((a, b) => {
+          const ga = groupsById.get(a.group_id);
+          const gb = groupsById.get(b.group_id);
+          return (ga?.name ?? "").localeCompare(gb?.name ?? "");
+        })
+      : memberships ?? [];
+
+  // ── 9) Render principal ──
   return (
     <main style={styles.page}>
       <div style={styles.shell}>
@@ -341,8 +616,8 @@ export default function ProfilePage() {
               <div style={styles.smallGrid}>
                 <InfoStat
                   label="Plan actual"
-                  value="Demo Premium"
-                  hint="Acceso completo mientras pruebas SyncPlans."
+                  value={planUi.value}
+                  hint={planUi.hint}
                 />
                 <InfoStat
                   label="Grupos activos"
@@ -419,6 +694,151 @@ export default function ProfilePage() {
                 </div>
               </form>
             </section>
+
+            {/* Preferencias de coordinación */}
+            <section style={styles.card}>
+              <div style={styles.sectionLabel}>
+                Cómo sueles organizar tu tiempo
+              </div>
+              <div style={styles.sectionSub}>
+                Estas preferencias ayudan a SyncPlans a anticipar fricciones y
+                mostrar mejores decisiones cuando hay choques de horario.
+              </div>
+
+              <form onSubmit={onSaveCoordPrefs} style={styles.coordForm}>
+                <div style={styles.coordGrid}>
+                  <div style={styles.coordCol}>
+                    <div style={styles.coordLabel}>Ritmo del día</div>
+                    <label style={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={coord.prefers_mornings}
+                        onChange={(e) =>
+                          setCoordPrefs((prev) =>
+                            normalizeCoordPrefs({
+                              ...(prev ?? {}),
+                              prefers_mornings: e.target.checked,
+                            })
+                          )
+                        }
+                      />
+                      <span>Soy más de madrugar</span>
+                    </label>
+                    <label style={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={coord.prefers_evenings}
+                        onChange={(e) =>
+                          setCoordPrefs((prev) =>
+                            normalizeCoordPrefs({
+                              ...(prev ?? {}),
+                              prefers_evenings: e.target.checked,
+                            })
+                          )
+                        }
+                      />
+                      <span>Soy más nocturno</span>
+                    </label>
+                  </div>
+
+                  <div style={styles.coordCol}>
+                    <div style={styles.coordLabel}>Cuándo prefieres planear</div>
+                    <label style={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={coord.prefers_weekdays}
+                        onChange={(e) =>
+                          setCoordPrefs((prev) =>
+                            normalizeCoordPrefs({
+                              ...(prev ?? {}),
+                              prefers_weekdays: e.target.checked,
+                            })
+                          )
+                        }
+                      />
+                      <span>Entre semana</span>
+                    </label>
+                    <label style={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={coord.prefers_weekends}
+                        onChange={(e) =>
+                          setCoordPrefs((prev) =>
+                            normalizeCoordPrefs({
+                              ...(prev ?? {}),
+                              prefers_weekends: e.target.checked,
+                            })
+                          )
+                        }
+                      />
+                      <span>Fines de semana</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div style={styles.coordFieldBlock}>
+                  <div style={styles.coordLabel}>
+                    Horarios que casi siempre tienes ocupados
+                  </div>
+                  <textarea
+                    style={styles.textarea}
+                    rows={3}
+                    value={coord.blocked_note}
+                    onChange={(e) =>
+                      setCoordPrefs((prev) =>
+                        normalizeCoordPrefs({
+                          ...(prev ?? {}),
+                          blocked_note: e.target.value,
+                        })
+                      )
+                    }
+                    placeholder="Ej: Lunes y miércoles de 7 a 9 pm entreno."
+                  />
+                </div>
+
+                <div style={styles.coordFieldBlock}>
+                  <div style={styles.coordLabel}>
+                    Cuando hay conflictos de horario, normalmente prefieres…
+                  </div>
+                  <select
+                    style={styles.select}
+                    value={coord.decision_style ?? "depends"}
+                    onChange={(e) =>
+                      setCoordPrefs((prev) =>
+                        normalizeCoordPrefs({
+                          ...(prev ?? {}),
+                          decision_style:
+                            e.target.value as CoordinationPrefs["decision_style"],
+                        })
+                      )
+                    }
+                  >
+                    <option value="decide_fast">Decidir rápido y seguir</option>
+                    <option value="discuss">Hablarlo con calma</option>
+                    <option value="depends">Depende del evento</option>
+                  </select>
+                </div>
+
+                {saveCoordError && (
+                  <div style={styles.error}>{saveCoordError}</div>
+                )}
+                {saveCoordOk && <div style={styles.ok}>{saveCoordOk}</div>}
+
+                <div style={styles.coordActions}>
+                  <button
+                    type="submit"
+                    disabled={savingCoord}
+                    style={{
+                      ...styles.primaryBtn,
+                      opacity: savingCoord ? 0.7 : 1,
+                      cursor: savingCoord ? "progress" : "pointer",
+                    }}
+                  >
+                    {savingCoord ? "Guardando…" : "Guardar preferencias"}
+                  </button>
+                </div>
+              </form>
+            </section>
           </div>
 
           {/* Columna derecha */}
@@ -473,6 +893,31 @@ export default function ProfilePage() {
                 />
               </div>
 
+              {/* Estado de configuración */}
+              <div style={styles.configStatusBox}>
+                <div style={styles.configStatusTitle}>
+                  Cómo vas con tu configuración
+                </div>
+                <div style={styles.configStatusItem}>
+                  <span style={styles.configStatusBullet}>
+                    {hasNameCompleted ? "✅" : "⏳"}
+                  </span>
+                  <span>Nombre y apellido definidos</span>
+                </div>
+                <div style={styles.configStatusItem}>
+                  <span style={styles.configStatusBullet}>
+                    {hasCoordPrefsMeaningful ? "✅" : "⏳"}
+                  </span>
+                  <span>Preferencias de tiempo configuradas</span>
+                </div>
+                <div style={styles.configStatusItem}>
+                  <span style={styles.configStatusBullet}>
+                    {hasGroupMeta ? "✅" : "⏳"}
+                  </span>
+                  <span>Roles y nombres en grupos configurados</span>
+                </div>
+              </div>
+
               {/* Próximo paso recomendado */}
               {recommendation && (
                 <div style={styles.recoCard}>
@@ -493,6 +938,156 @@ export default function ProfilePage() {
                     >
                       {recommendation.ctaLabel}
                     </button>
+                  )}
+                </div>
+              )}
+            </section>
+
+            {/* Tu rol en los grupos */}
+            <section style={styles.card}>
+              <div style={styles.sectionLabel}>Tu rol en los grupos</div>
+              <div style={styles.sectionSub}>
+                No eres la misma persona en todos tus calendarios. Aquí defines
+                cómo te ve cada grupo.
+              </div>
+
+              {membershipsLoading && (
+                <div style={styles.smallInfo}>
+                  Cargando tus grupos y roles…
+                </div>
+              )}
+
+              {membershipsError && (
+                <div style={styles.error}>{membershipsError}</div>
+              )}
+
+              {!membershipsLoading &&
+                (!memberships || memberships.length === 0) && (
+                  <div style={styles.smallInfo}>
+                    Aún no perteneces a ningún grupo. Empieza creando uno desde
+                    la sección de grupos.
+                  </div>
+                )}
+
+              {membershipsSorted && membershipsSorted.length > 0 && (
+                <div style={styles.groupMetaList}>
+                  {membershipsSorted.map((m) => {
+                    const g = groupsById.get(m.group_id);
+                    const groupName =
+                      (g?.name ?? "(Grupo sin nombre)") +
+                      (g?.type ? ` · ${String(g.type)}` : "");
+
+                    const groupNote = m.coordination_prefs?.group_note ?? "";
+
+                    return (
+                      <div key={m.group_id} style={styles.groupMetaItem}>
+                        <div style={styles.groupMetaHeader}>
+                          <div style={styles.groupMetaTitle}>
+                            {groupName}
+                          </div>
+                          <span style={styles.badgeTiny}>
+                            {String(g?.type ?? "grupo")}
+                          </span>
+                        </div>
+
+                        <div style={styles.groupMetaFieldRow}>
+                          <div style={styles.groupMetaField}>
+                            <div style={styles.groupMetaLabel}>
+                              Nombre visible en este grupo
+                            </div>
+                            <input
+                              style={styles.groupMetaInput}
+                              value={m.display_name ?? ""}
+                              onChange={(e) =>
+                                handleMembershipFieldChange(
+                                  m.group_id,
+                                  "display_name",
+                                  e.target.value
+                                )
+                              }
+                              placeholder="Ej: Fer, Papá, Fernando"
+                            />
+                          </div>
+                        </div>
+
+                        <div style={styles.groupMetaFieldRow}>
+                          <div style={styles.groupMetaField}>
+                            <div style={styles.groupMetaLabel}>
+                              Rol en este grupo
+                            </div>
+                            <select
+                              style={styles.groupMetaSelect}
+                              value={m.relationship_role ?? ""}
+                              onChange={(e) =>
+                                handleMembershipFieldChange(
+                                  m.group_id,
+                                  "relationship_role",
+                                  e.target.value
+                                )
+                              }
+                            >
+                              <option value="">(Sin especificar)</option>
+                              <option value="pareja">Pareja</option>
+                              <option value="padre_madre">
+                                Padre / Madre
+                              </option>
+                              <option value="hijo_hija">Hijo / Hija</option>
+                              <option value="tutor">Tutor</option>
+                              <option value="otro">Otro</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div style={styles.groupMetaFieldRow}>
+                          <div style={styles.groupMetaField}>
+                            <div style={styles.groupMetaLabel}>
+                              Algo que deberían saber al coordinar contigo
+                            </div>
+                            <textarea
+                              style={styles.groupMetaTextarea}
+                              rows={2}
+                              value={groupNote}
+                              onChange={(e) =>
+                                handleMembershipFieldChange(
+                                  m.group_id,
+                                  "group_note",
+                                  e.target.value
+                                )
+                              }
+                              placeholder="Ej: Los domingos casi siempre priorizo familia."
+                            />
+                          </div>
+                        </div>
+
+                        <div style={styles.groupMetaSaveRow}>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveGroupMeta(m.group_id)}
+                            disabled={savingGroupId === m.group_id}
+                            style={{
+                              ...styles.groupMetaSaveBtn,
+                              opacity:
+                                savingGroupId === m.group_id ? 0.7 : 1,
+                              cursor:
+                                savingGroupId === m.group_id
+                                  ? "progress"
+                                  : "pointer",
+                            }}
+                          >
+                            {savingGroupId === m.group_id
+                              ? "Guardando…"
+                              : "Guardar cambios en este grupo"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {groupSaveError && (
+                    <div style={styles.error}>{groupSaveError}</div>
+                  )}
+                  {groupSaveMessage && (
+                    <div style={styles.ok}>{groupSaveMessage}</div>
                   )}
                 </div>
               )}
@@ -856,10 +1451,12 @@ const styles: Record<string, React.CSSProperties> = {
   error: {
     fontSize: 12,
     color: "rgba(248,113,113,0.95)",
+    marginTop: 2,
   },
   ok: {
     fontSize: 12,
     color: "rgba(52,211,153,0.95)",
+    marginTop: 2,
   },
 
   formActions: {
@@ -999,5 +1596,187 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     opacity: 0.75,
     fontWeight: 650,
+  },
+
+  /* Preferencias de coordinación */
+  coordForm: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  coordGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 10,
+  },
+  coordCol: {
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(15,23,42,0.85)",
+    padding: 10,
+  },
+  coordLabel: {
+    fontSize: 12,
+    fontWeight: 700,
+    opacity: 0.85,
+    marginBottom: 6,
+  },
+  checkboxRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 12,
+    opacity: 0.85,
+    marginBottom: 4,
+  } as React.CSSProperties,
+  coordFieldBlock: {
+    marginTop: 8,
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  textarea: {
+    width: "100%",
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.18)",
+    padding: "8px 10px",
+    background: "rgba(15,23,42,0.85)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 12,
+    resize: "vertical",
+    minHeight: 52,
+  } as React.CSSProperties,
+  select: {
+    width: "100%",
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.18)",
+    padding: "8px 10px",
+    background: "rgba(15,23,42,0.95)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 12,
+  } as React.CSSProperties,
+  coordActions: {
+    marginTop: 4,
+    display: "flex",
+    justifyContent: "flex-end",
+  },
+
+  /* Estado de configuración */
+  configStatusBox: {
+    marginTop: 10,
+    borderRadius: 14,
+    border: "1px solid rgba(148,163,184,0.45)",
+    background: "rgba(15,23,42,0.85)",
+    padding: 10,
+    fontSize: 12,
+  },
+  configStatusTitle: {
+    fontWeight: 800,
+    marginBottom: 4,
+    opacity: 0.9,
+  },
+  configStatusItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 2,
+  },
+  configStatusBullet: {
+    fontSize: 13,
+  },
+
+  /* Roles en grupos */
+  smallInfo: {
+    fontSize: 12,
+    opacity: 0.8,
+    marginBottom: 6,
+  },
+  groupMetaList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    marginTop: 4,
+  },
+  groupMetaItem: {
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(15,23,42,0.9)",
+    padding: 10,
+  },
+  groupMetaHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 6,
+    marginBottom: 6,
+  },
+  groupMetaTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  badgeTiny: {
+    padding: "3px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.6)",
+    fontSize: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    opacity: 0.85,
+  } as React.CSSProperties,
+  groupMetaFieldRow: {
+    marginTop: 4,
+  },
+  groupMetaField: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  groupMetaLabel: {
+    fontSize: 11,
+    opacity: 0.8,
+    fontWeight: 700,
+  },
+  groupMetaInput: {
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.18)",
+    padding: "7px 9px",
+    background: "rgba(15,23,42,0.85)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 12,
+  } as React.CSSProperties,
+  groupMetaTextarea: {
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.18)",
+    padding: "7px 9px",
+    background: "rgba(15,23,42,0.85)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 12,
+    resize: "vertical",
+    minHeight: 46,
+  } as React.CSSProperties,
+  groupMetaSelect: {
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.18)",
+    padding: "7px 9px",
+    background: "rgba(15,23,42,0.95)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 12,
+  } as React.CSSProperties,
+  groupMetaSaveRow: {
+    marginTop: 8,
+    display: "flex",
+    justifyContent: "flex-end",
+  },
+  groupMetaSaveBtn: {
+    padding: "7px 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.5)",
+    background: "rgba(8,47,73,0.95)",
+    color: "#E0F2FE",
+    fontSize: 11,
+    fontWeight: 900,
   },
 };

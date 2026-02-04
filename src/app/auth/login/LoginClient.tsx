@@ -11,8 +11,9 @@ export default function LoginClient() {
 
   const nextParam = sp.get("next");
 
-  // 🔥 Regla actual: si no hay `next` válido → /summary
-  // (En el punto 2 vemos si esto se queda así o cambia a /calendar u otra ruta)
+  // ✅ Regla definitiva:
+  // Si viene ?next=/algo lo respetamos.
+  // Si no hay next válido → /summary (una sola verdad sobre tus planes).
   const nextTarget = useMemo(
     () => (nextParam && nextParam.startsWith("/") ? nextParam : "/summary"),
     [nextParam]
@@ -364,7 +365,8 @@ export default function LoginClient() {
                 En lugar de tener cada plan en tu cabeza o en distintos chats,
                 SyncPlans pone una sola verdad en el centro: un calendario
                 compartido que muestra quién está libre, dónde hay conflictos y
-                qué decisiones hay que tomar.
+                qué decisiones hay que tomar. Al entrar, verás un resumen claro
+                de lo que viene y de los cruces detectados.
               </p>
 
               <div style={heroList}>
@@ -411,12 +413,11 @@ export default function LoginClient() {
               <p style={steps}>
                 <b>¿Qué pasa después de iniciar sesión?</b>
                 <br />
-                • Ves tus planes y los de tus grupos en una sola vista.
+                • Primero ves tu resumen: próximos eventos, cruces y tipos de
+                planes.
                 <br />
-                • SyncPlans te marca choques de horario automáticamente.
-                <br />
-                • Deciden qué conservar, qué mover y qué ajustar después, sin
-                discutir a ciegas.
+                • Luego puedes abrir el calendario y los conflictos para decidir
+                qué se queda, qué se mueve y qué ajustar después.
               </p>
             </div>
           </article>

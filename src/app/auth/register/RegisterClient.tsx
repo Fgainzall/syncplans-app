@@ -354,13 +354,15 @@ export default function RegisterClient() {
 
               <h1 style={heroTitle}>
                 Crea tu espacio y pon{" "}
-                <span style={heroGradientWord}>una sola verdad</span> en el centro.
+                <span style={heroGradientWord}>una sola verdad</span> en el
+                centro.
               </h1>
 
               <p style={heroSub}>
                 Con una sola cuenta tendrás tu calendario personal y el de tus
-                grupos de pareja y familia. SyncPlans detecta choques de horario y
-                te obliga a decidir antes, para evitar discusiones después.
+                grupos de pareja y familia. SyncPlans detecta choques de horario
+                y te obliga a decidir antes, para evitar discusiones después. Al
+                entrar, empezarás por un resumen claro de tus próximos planes.
               </p>
 
               <div style={heroList}>
@@ -407,11 +409,11 @@ export default function RegisterClient() {
                 <br />
                 1. Confirmas tu correo con un mail de Supabase.
                 <br />
-                2. Entras a SyncPlans y configuras tus grupos (pareja, familia,
-                amigos).
+                2. Después de iniciar sesión, SyncPlans te lleva a un resumen
+                donde ves qué viene pronto y dónde se cruzan las cosas.
                 <br />
-                3. Empiezas a crear eventos y SyncPlans te marca automáticamente
-                los choques para que decidan qué hacer.
+                3. Luego podrás crear grupos, eventos y usar el detector de
+                conflictos para decidir qué se queda y qué se mueve.
               </p>
             </div>
           </article>
@@ -436,8 +438,8 @@ export default function RegisterClient() {
                 marginBottom: 6,
               }}
             >
-              Empieza por ti. Después podrás invitar a tu pareja, familia o amigos
-              para compartir el calendario.
+              Empieza por ti. Después podrás invitar a tu pareja, familia o
+              amigos para compartir el calendario.
             </div>
 
             {done ? (
@@ -449,15 +451,16 @@ export default function RegisterClient() {
                   <div style={{ fontSize: 11, lineHeight: 1.5 }}>
                     Te enviamos un correo para confirmar tu registro. Después de
                     hacer clic en <b>"Confirm your mail"</b> volverás
-                    automáticamente a <b>/auth/callback</b> y podrás iniciar sesión
-                    en SyncPlans.
+                    automáticamente a <b>/auth/callback</b> y desde ahí podrás
+                    iniciar sesión. Al entrar, comenzarás en tu resumen de
+                    planes.
                   </div>
                 </div>
 
                 <button
                   type="button"
                   style={secondaryBtn}
-                  onClick={() => router.push("/auth/login")}
+                  onClick={() => router.push("/auth/login?next=/summary")}
                 >
                   Ir a iniciar sesión
                 </button>
@@ -513,7 +516,9 @@ export default function RegisterClient() {
                     disabled={!canSubmit}
                     style={primaryBtn}
                   >
-                    {loading ? "Creando cuenta…" : "Crear cuenta"}
+                    {loading
+                      ? "Creando cuenta…"
+                      : "Crear mi calendario compartido"}
                   </button>
                 </form>
 
@@ -526,9 +531,9 @@ export default function RegisterClient() {
                 </button>
 
                 <div style={legal}>
-                  Al crear una cuenta aceptas que esta es una beta privada pensada
-                  para pruebas personales. Podrás borrar tu cuenta y datos cuando
-                  quieras desde el panel de perfil.
+                  Al crear una cuenta aceptas que esta es una beta privada
+                  pensada para pruebas personales. Podrás borrar tu cuenta y
+                  datos cuando quieras desde el panel de perfil.
                 </div>
               </>
             )}
