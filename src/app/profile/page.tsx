@@ -12,6 +12,7 @@ import {
   getInitials,
   createMyProfile,
   updateMyCoordinationPrefs,
+  normalizeCoordinationPrefs,
   type CoordinationPrefs,
 } from "@/lib/profilesDb";
 import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
@@ -65,16 +66,10 @@ type PlanInfo = {
 function normalizeCoordPrefs(
   prefs?: Partial<CoordinationPrefs> | null
 ): CoordinationPrefs {
-  return {
-    prefers_mornings: prefs?.prefers_mornings ?? false,
-    prefers_evenings: prefs?.prefers_evenings ?? false,
-    prefers_weekdays: prefs?.prefers_weekdays ?? false,
-    prefers_weekends: prefs?.prefers_weekends ?? false,
-    blocked_note: prefs?.blocked_note ?? "",
-    decision_style: prefs?.decision_style ?? "depends",
-  };
+  return normalizeCoordinationPrefs(
+    prefs as CoordinationPrefs | null | undefined
+  );
 }
-
 
 function buildPlanUi(plan: PlanInfo | null): { value: string; hint: string } {
   if (!plan) {
@@ -368,8 +363,7 @@ export default function ProfilePage() {
       });
 
       const baseDisplay = (
-        profile.display_name ??
-        `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
+        profile.display_name ?? `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
       ).trim();
 
       const newDisplay: string = baseDisplay || user?.name || "Usuario";
@@ -412,6 +406,16 @@ export default function ProfilePage() {
 
     try {
       setSavingCoord(true);
+
+      // 🔐 Aseguramos que ya exista perfil con display_name
+      const profile = await getMyProfile();
+      if (!profile || !profile.display_name) {
+        setSaveCoordError(
+          "Antes de guardar tus preferencias, completa tu nombre y apellido arriba."
+        );
+        return;
+      }
+
       await updateMyCoordinationPrefs(coordPrefs);
       setSaveCoordOk("Preferencias guardadas correctamente.");
     } catch (err: any) {
@@ -1156,9 +1160,8 @@ function buildDashboardStats(
   const pairGroups = groups.filter(
     (g) => String(g.type) === "pair" || String(g.type) === "couple"
   ).length;
-  const familyGroups = groups.filter(
-    (g) => String(g.type) === "family"
-  ).length;
+  const familyGroups = groups.filter((g) => String(g.type) === "family")
+    .length;
 
   const eventsForConflicts = events.map((e) => ({
     id: e.id,

@@ -23,9 +23,9 @@ export type Profile = {
   coordination_prefs?: CoordinationPrefs | null;
 
   // 👇 Info básica de plan / monetización
-  plan_tier?: string | null;       // 'demo_premium', 'free', 'premium', etc.
-  plan_status?: string | null;     // 'trial', 'active', 'cancelled', etc.
-  trial_ends_at?: string | null;   // ISO string o null
+  plan_tier?: string | null; // 'demo_premium', 'free', 'premium', etc.
+  plan_status?: string | null; // 'trial', 'active', 'cancelled', etc.
+  trial_ends_at?: string | null; // ISO string o null
 };
 
 async function requireUid(): Promise<string> {
@@ -107,7 +107,7 @@ export async function getMyProfile(): Promise<Profile | null> {
 export async function createMyProfile(input: {
   first_name: string;
   last_name: string;
-}): Promise<Profile> {
+}: PromiseLike<never> | any): Promise<Profile> {
   const uid = await requireUid();
 
   const first_name = input.first_name.trim();
@@ -165,6 +165,7 @@ export async function createMyProfile(input: {
 /**
  * Actualiza SOLO las preferencias de coordinación.
  * Si no existe fila en profiles, la crea.
+ * Se asegura de no violar el NOT NULL de display_name.
  */
 export async function updateMyCoordinationPrefs(
   prefs: CoordinationPrefs
@@ -183,7 +184,6 @@ export async function updateMyCoordinationPrefs(
   // 2) Si no existe, necesitamos un display_name no nulo
   let displayNameForInsert: string | null = null;
   if (!existing) {
-    // Intentamos construir algo razonable
     const { data: userData } = await supabase.auth.getUser();
     const u = userData?.user;
 
@@ -242,7 +242,6 @@ export async function updateMyCoordinationPrefs(
     trial_ends_at: p.trial_ends_at ?? null,
   };
 }
-
 
 /**
  * (Opcional) Helper para debug / ajustes manuales:
