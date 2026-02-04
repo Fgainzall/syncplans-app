@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
-import { getMyGroups } from "@/lib/groupsDb";
+import { getMyGroups, getGroupTypeLabel } from "@/lib/groupsDb";
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
 import { getMyInvitations } from "@/lib/invitationsDb";
 
 type GroupRowUI = {
   id: string;
   name: string | null;
-  type: "pair" | "family" | string;
+  type: "pair" | "family" | "other" | string;
 
   // nullable/optional para no romper build si DB devuelve null/undefined
   created_at: string | null;
@@ -21,10 +21,7 @@ type GroupRowUI = {
 };
 
 function labelType(t?: string | null) {
-  const x = (t || "").toLowerCase();
-  if (x === "pair") return "Pareja";
-  if (x === "family") return "Familia";
-  return t || "Grupo";
+  return getGroupTypeLabel(t ?? "");
 }
 
 export default function GroupsPage() {
@@ -33,7 +30,9 @@ export default function GroupsPage() {
   const [booting, setBooting] = useState(true);
   const [groups, setGroups] = useState<GroupRowUI[]>([]);
   const [pendingInvites, setPendingInvites] = useState(0);
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
+  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
+    null
+  );
 
   function showToast(title: string, subtitle?: string) {
     setToast({ title, subtitle });
@@ -99,9 +98,10 @@ export default function GroupsPage() {
   const grouped = useMemo(() => {
     const pair = groups.filter((g) => (g.type || "").toLowerCase() === "pair");
     const family = groups.filter((g) => (g.type || "").toLowerCase() === "family");
-    const other = groups.filter(
-      (g) => !["pair", "family"].includes((g.type || "").toLowerCase())
-    );
+    const other = groups.filter((g) => {
+      const t = (g.type || "").toLowerCase();
+      return !["pair", "family"].includes(t);
+    });
     return { pair, family, other };
   }, [groups]);
 
@@ -168,14 +168,16 @@ export default function GroupsPage() {
             <h1 style={styles.heroTitle}>Grupos para coordinar sin fricciones</h1>
             <p style={styles.heroSub}>
               Cada grupo tiene su propio calendario compartido. Aquí decides con quién
-              se cruzan tus planes: pareja, familia u otros círculos importantes.
+              se cruzan tus planes: pareja, familia o grupos compartidos como amigos y
+              equipos.
             </p>
           </div>
           <div style={styles.heroTip}>
             <div style={styles.heroTipTitle}>Tip</div>
             <p style={styles.heroTipBody}>
-              Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>. Luego invita y deja
-              que SyncPlans señale los choques por ustedes.
+              Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>. Después puedes
+              sumar grupos compartidos (amigos, pádel, trabajo) y dejar que SyncPlans
+              señale los choques por ustedes.
             </p>
           </div>
         </section>
@@ -195,8 +197,9 @@ export default function GroupsPage() {
             <>
               <div style={styles.emptyTitle}>Todavía no tienes grupos</div>
               <div style={styles.emptySub}>
-                Crea un grupo de <b>pareja</b> o <b>familia</b>. Después podrás invitar,
-                ver con quién compartes tiempo y detectar choques entre agendas.
+                Crea un grupo de <b>pareja</b>, <b>familia</b> o un grupo{" "}
+                <b>compartido</b> para amigos o equipos. Después podrás invitar, ver con
+                quién compartes tiempo y detectar choques entre agendas.
               </div>
 
               <div style={{ marginTop: 12 }}>

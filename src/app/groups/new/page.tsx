@@ -1,3 +1,4 @@
+// src/app/groups/new/page.tsx
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
@@ -7,7 +8,8 @@ import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 import { createGroup } from "@/lib/groupsDb";
 
-type GType = "pair" | "family";
+// Ahora soporta también "other" (grupos compartidos / amigos / equipos)
+type GType = "pair" | "family" | "other";
 
 export default function NewGroupPage() {
   const router = useRouter();
@@ -16,7 +18,9 @@ export default function NewGroupPage() {
   const [type, setType] = useState<GType>("pair");
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
+  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
+    null
+  );
 
   useEffect(() => {
     let alive = true;
@@ -48,11 +52,20 @@ export default function NewGroupPage() {
         border: "rgba(96,165,250,0.28)",
       };
     }
+    if (type === "family") {
+      return {
+        label: "Familia",
+        hint: "Coordina horarios familiares con visibilidad total.",
+        soft: "rgba(34,197,94,0.12)",
+        border: "rgba(34,197,94,0.24)",
+      };
+    }
+    // other / compartido
     return {
-      label: "Familia",
-      hint: "Coordina horarios familiares con visibilidad total.",
-      soft: "rgba(34,197,94,0.12)",
-      border: "rgba(34,197,94,0.24)",
+      label: "Compartido",
+      hint: "Para amigos, equipos o cualquier grupo con el que quieras coordinar.",
+      soft: "rgba(192,132,252,0.14)",
+      border: "rgba(192,132,252,0.30)",
     };
   }, [type]);
 
@@ -83,7 +96,7 @@ export default function NewGroupPage() {
 
     setSaving(true);
     try {
-      // Nota: no asumimos shape exacto del retorno para evitar TS/build issues
+      // createGroup ahora acepta "pair" | "family" | "other"
       const g: any = await createGroup({ type, name: name.trim() });
 
       const gid =
@@ -107,6 +120,13 @@ export default function NewGroupPage() {
       setSaving(false);
     }
   };
+
+  const placeholderByType =
+    type === "pair"
+      ? "Ej: Fernando & Ara"
+      : type === "family"
+      ? "Ej: Familia Llosa"
+      : "Ej: Amigos del pádel";
 
   if (booting) {
     return (
@@ -180,7 +200,8 @@ export default function NewGroupPage() {
                 onClick={() => setType("pair")}
                 style={{
                   ...styles.chip,
-                  background: type === "pair" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)",
+                  background:
+                    type === "pair" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)",
                 }}
               >
                 <span style={{ ...styles.chipDot, background: "rgba(96,165,250,0.95)" }} />
@@ -192,11 +213,27 @@ export default function NewGroupPage() {
                 style={{
                   ...styles.chip,
                   background:
-                    type === "family" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)",
+                    type === "family"
+                      ? "rgba(255,255,255,0.08)"
+                      : "rgba(255,255,255,0.03)",
                 }}
               >
                 <span style={{ ...styles.chipDot, background: "rgba(34,197,94,0.95)" }} />
                 Familia
+              </button>
+              <button
+                type="button"
+                onClick={() => setType("other")}
+                style={{
+                  ...styles.chip,
+                  background:
+                    type === "other"
+                      ? "rgba(255,255,255,0.08)"
+                      : "rgba(255,255,255,0.03)",
+                }}
+              >
+                <span style={{ ...styles.chipDot, background: "rgba(192,132,252,0.95)" }} />
+                Compartido
               </button>
             </div>
           </div>
@@ -206,7 +243,7 @@ export default function NewGroupPage() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder={type === "pair" ? "Ej: Fernando & Ara" : "Ej: Familia Llosa"}
+              placeholder={placeholderByType}
               style={styles.input}
             />
             <div style={styles.hint}>Tip: usa un nombre corto y reconocible.</div>

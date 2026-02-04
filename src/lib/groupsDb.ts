@@ -3,11 +3,20 @@
 
 import supabase from "@/lib/supabaseClient";
 
-export type GroupType = "pair" | "family" | "solo" | "personal";
+/**
+ * Tipos de grupo soportados por la app.
+ *
+ * - pair: grupos de pareja
+ * - family: grupos familiares
+ * - other: grupos compartidos genéricos (amigos, equipos, etc.)
+ * - solo/personal: reservas para modos personales si la DB los usa
+ */
+export type GroupType = "pair" | "family" | "other" | "solo" | "personal";
 
 export type GroupRow = {
   id: string;
   name: string | null;
+  // Dejamos string extra para no romper si la DB tiene otros valores legacy
   type: GroupType | string;
   created_at?: string | null;
   owner_id?: string | null;
@@ -43,6 +52,23 @@ async function requireUid(): Promise<string> {
   const uid = data.user?.id;
   if (!uid) throw new Error("Not authenticated");
   return uid;
+}
+
+/**
+ * Helper centralizado para convertir el tipo técnico de grupo
+ * en una etiqueta humana consistente en toda la app.
+ */
+export function getGroupTypeLabel(
+  type: GroupType | string | null | undefined
+): string {
+  const t = String(type ?? "").toLowerCase();
+
+  if (t === "pair" || t === "couple") return "Pareja";
+  if (t === "family") return "Familia";
+  if (t === "other") return "Compartido";
+  if (t === "solo" || t === "personal") return "Personal";
+
+  return "Grupo";
 }
 
 /* ─────────────────── Mis grupos ─────────────────── */
@@ -87,8 +113,8 @@ export async function getMyGroups(): Promise<GroupRow[]> {
 
   const rows = (gs ?? []) as any[];
   rows.sort((a, b) => {
-    const ra = membershipRank.get(a.id) ?? 999999;
-    const rb = membershipRank.get(b.id) ?? 999999;
+    const ra = membershipRank.get(a.id) ?? 999_999;
+    const rb = membershipRank.get(b.id) ?? 999_999;
     return ra - rb;
   });
 
@@ -105,12 +131,17 @@ export async function getMyGroups(): Promise<GroupRow[]> {
 
 /**
  * Crea un grupo.
- * - Preferencia: RPC create_group(p_name, p_type) si existe
- * - Fallback: insert directo en groups + insert owner en group_members
+ * - Preferencia: RPC create_group(p_name, p_type) si existe.
+ * - Fallback: insert directo en groups + insert owner en group_members.
+ *
+ * Tipos permitidos aquí:
+ * - "pair"   → grupo de pareja
+ * - "family" → grupo familiar
+ * - "other"  → grupo compartido genérico (amigos, equipos, etc.)
  */
 export async function createGroup(input: {
   name: string;
-  type: "pair" | "family";
+  type: "pair" | "family" | "other";
 }): Promise<GroupRow> {
   const uid = await requireUid();
 
@@ -213,10 +244,11 @@ export async function getMyGroupMemberships(): Promise<GroupMemberRow[]> {
     role: row.role,
     display_name: row.display_name ?? null,
     relationship_role: row.relationship_role ?? null,
-    coordination_prefs: (row.coordination_prefs ??
-      null) as GroupMemberCoordinationPrefs | null,
+    coordination_prefs:
+      (row.coordination_prefs ?? null) as GroupMemberCoordinationPrefs | null,
   }));
 }
+
 // Asegúrate de tener ya importado supabase arriba:
 // import supabase from "@/lib/supabaseClient";
 
@@ -233,10 +265,7 @@ export async function updateMyGroupMeta(
     coordination_prefs: any | null;
   }
 ): Promise<void> {
-  const { data: userData, error } = await supabase.auth.getUser();
-  if (error) throw error;
-  const uid = userData.user?.id;
-  if (!uid) throw new Error("Not authenticated");
+  const uid = await requireUid();
 
   // 🔑 Normalización mínima
   const payload: Record<string, any> = {

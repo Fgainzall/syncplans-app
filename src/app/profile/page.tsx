@@ -20,6 +20,7 @@ import {
   getMyGroups,
   getMyGroupMemberships,
   updateMyGroupMeta,
+  getGroupTypeLabel,
   type GroupRow,
   type GroupMemberRow,
 } from "@/lib/groupsDb";
@@ -40,6 +41,7 @@ type DashboardStats = {
   totalGroups: number;
   pairGroups: number;
   familyGroups: number;
+  otherGroups: number;
   conflictsNow: number;
 };
 
@@ -61,7 +63,7 @@ type PlanInfo = {
   trialEndsAt: string | null;
 };
 
-type GroupFilter = "all" | "pair" | "family";
+type GroupFilter = "all" | "pair" | "family" | "other";
 
 /* ─────────────────── Helpers locales ─────────────────── */
 
@@ -371,7 +373,7 @@ export default function ProfilePage() {
 
         const pairMembership = memberships.find((m) => {
           const g = byId.get(m.group_id);
-          const t = String(g?.type ?? "");
+          const t = String(g?.type ?? "").toLowerCase();
           return t === "pair" || t === "couple";
         });
 
@@ -626,10 +628,17 @@ export default function ProfilePage() {
   const searchTerm = groupSearch.trim().toLowerCase();
   const membershipsFiltered = membershipsSorted.filter((m) => {
     const g = groupsById.get(m.group_id);
-    const typeStr = String(g?.type ?? "");
+    const typeRaw = String(g?.type ?? "");
+    const typeStr = typeRaw.toLowerCase();
+
     if (groupFilter === "pair" && !(typeStr === "pair" || typeStr === "couple"))
       return false;
     if (groupFilter === "family" && typeStr !== "family") return false;
+    if (
+      groupFilter === "other" &&
+      (typeStr === "pair" || typeStr === "family" || typeStr === "couple")
+    )
+      return false;
 
     if (!searchTerm) return true;
 
@@ -638,7 +647,7 @@ export default function ProfilePage() {
     return (
       name.includes(searchTerm) ||
       displayName.includes(searchTerm) ||
-      typeStr.toLowerCase().includes(searchTerm)
+      typeStr.includes(searchTerm)
     );
   });
 
@@ -724,7 +733,7 @@ export default function ProfilePage() {
                   }
                   hint={
                     stats && stats.totalGroups > 0
-                      ? `Pareja: ${stats.pairGroups} · Familia: ${stats.familyGroups}`
+                      ? `Pareja: ${stats.pairGroups} · Familia: ${stats.familyGroups} · Compartidos: ${stats.otherGroups}`
                       : "Crea un grupo para compartir calendario y conflictos."
                   }
                 />
@@ -1117,6 +1126,18 @@ export default function ProfilePage() {
                           >
                             Familia
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => setGroupFilter("other")}
+                            style={{
+                              ...styles.groupFilterChip,
+                              ...(groupFilter === "other"
+                                ? styles.groupFilterChipActive
+                                : {}),
+                            }}
+                          >
+                            Compartidos
+                          </button>
                         </div>
                         <input
                           style={styles.groupSearchInput}
@@ -1137,7 +1158,8 @@ export default function ProfilePage() {
                           const g = groupsById.get(m.group_id);
                           const groupName =
                             g?.name ?? "(Grupo sin nombre)";
-                          const typeStr = String(g?.type ?? "grupo");
+                          const typeRaw = String(g?.type ?? "grupo");
+                          const typeLabel = getGroupTypeLabel(typeRaw);
                           const isSelected = m.group_id === selectedGroupId;
                           const isConfigured = membershipHasMeta(m);
                           const isDirty = dirtyGroups.has(m.group_id);
@@ -1160,7 +1182,7 @@ export default function ProfilePage() {
                                   <span>{groupName}</span>
                                 </div>
                                 <span style={styles.badgeTiny}>
-                                  {typeStr}
+                                  {typeLabel}
                                 </span>
                               </div>
                               <div style={styles.groupListItemMeta}>
@@ -1202,9 +1224,12 @@ export default function ProfilePage() {
                               </div>
                             </div>
                             <span style={styles.badgeTiny}>
-                              {String(
-                                groupsById.get(selectedMembership.group_id)
-                                  ?.type ?? "grupo"
+                              {getGroupTypeLabel(
+                                String(
+                                  groupsById.get(
+                                    selectedMembership.group_id
+                                  )?.type ?? "grupo"
+                                )
                               )}
                             </span>
                           </div>
@@ -1368,8 +1393,9 @@ export default function ProfilePage() {
 
         {/* Footer de valor */}
         <div style={styles.footer}>
-          SyncPlans está pensado para que tu calendario personal, de pareja y
-          familia convivan sin fricciones. Este panel es tu centro de control.
+          SyncPlans está pensado para que tu calendario personal, de pareja,
+          familia y grupos compartidos convivan sin fricciones. Este panel es tu
+          centro de control.
         </div>
       </div>
     </main>
@@ -1393,10 +1419,18 @@ function buildDashboardStats(
   }).length;
 
   const totalGroups = groups.length;
-  const pairGroups = groups.filter(
-    (g) => String(g.type) === "pair" || String(g.type) === "couple"
-  ).length;
-  const familyGroups = groups.filter((g) => String(g.type) === "family").length;
+  const pairGroups = groups.filter((g) => {
+    const t = String(g.type).toLowerCase();
+    return t === "pair" || t === "couple";
+  }).length;
+  const familyGroups = groups.filter((g) => {
+    const t = String(g.type).toLowerCase();
+    return t === "family";
+  }).length;
+  const otherGroups = groups.filter((g) => {
+    const t = String(g.type).toLowerCase();
+    return t !== "pair" && t !== "couple" && t !== "family";
+  }).length;
 
   const eventsForConflicts = events.map((e) => ({
     id: e.id,
@@ -1415,6 +1449,7 @@ function buildDashboardStats(
     totalGroups,
     pairGroups,
     familyGroups,
+    otherGroups,
     conflictsNow: conflicts.length,
   };
 }
@@ -1441,7 +1476,7 @@ function buildRecommendation(
   if (stats.totalGroups === 0) {
     return {
       title: "Crea tu primer grupo",
-      hint: "Empieza por un grupo de pareja o familia para compartir eventos y conflictos.",
+      hint: "Empieza por un grupo de pareja o familia para compartir eventos y conflictos. Luego suma grupos compartidos como amigos o equipos.",
       ctaLabel: "Crear grupo",
       ctaTarget: "groups_new",
     };
