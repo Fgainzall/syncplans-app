@@ -107,7 +107,7 @@ export async function getMyProfile(): Promise<Profile | null> {
 export async function createMyProfile(input: {
   first_name: string;
   last_name: string;
-}: PromiseLike<never> | any): Promise<Profile> {
+}): Promise<Profile> {
   const uid = await requireUid();
 
   const first_name = input.first_name.trim();
