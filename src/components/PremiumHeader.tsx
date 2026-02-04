@@ -1,3 +1,4 @@
+// src/components/PremiumHeader.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -19,8 +20,10 @@ import {
   type Profile as UserProfile,
 } from "@/lib/profilesDb";
 
+type TabKey = UsageMode | "other";
+
 type Tab = {
-  key: UsageMode;
+  key: TabKey;
   label: string;
   hint: string;
   dot: string;
@@ -30,28 +33,41 @@ const TABS: Tab[] = [
   { key: "solo", label: "Personal", hint: "Solo tú", dot: "#FBBF24" },
   { key: "pair", label: "Pareja", hint: "2 personas", dot: "#F87171" },
   { key: "family", label: "Familia", hint: "Varios", dot: "#60A5FA" },
+  {
+    key: "other",
+    label: "Compartido",
+    hint: "Amigos, equipos",
+    dot: "#A855F7",
+  },
 ];
 
-function applyThemeVars(mode: UsageMode) {
+function applyThemeVars(mode: UsageMode | "other") {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
 
   root.style.setProperty("--sp-personal", "#FBBF24");
   root.style.setProperty("--sp-pair", "#F87171");
   root.style.setProperty("--sp-family", "#60A5FA");
+  root.style.setProperty("--sp-other", "#A855F7");
 
-  const active =
-    mode === "solo"
-      ? "var(--sp-personal)"
-      : mode === "pair"
-      ? "var(--sp-pair)"
-      : "var(--sp-family)";
+  let active: string;
+
+  if (mode === "solo") {
+    active = "var(--sp-personal)";
+  } else if (mode === "pair") {
+    active = "var(--sp-pair)";
+  } else if (mode === "family") {
+    active = "var(--sp-family)";
+  } else {
+    // "other"
+    active = "var(--sp-other)";
+  }
 
   root.style.setProperty("--sp-active", active);
 }
 
 async function ensureActiveGroupForMode(
-  mode: UsageMode
+  mode: UsageMode | "other"
 ): Promise<string | null> {
   if (mode === "solo") return null;
 
@@ -89,7 +105,7 @@ export default function PremiumHeader({
 }: {
   title?: string;
   subtitle?: string;
-  rightSlot?: React.ReactNode; // 👈 IMPORTANTE para que funcione rightSlot
+  rightSlot?: React.ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -104,10 +120,10 @@ export default function PremiumHeader({
   useEffect(() => {
     const g = getGroupState();
     setGroup(g);
-    applyThemeVars(g.mode ?? "solo");
+    applyThemeVars((g.mode as TabKey) ?? "solo");
   }, []);
 
-  const activeMode: UsageMode = group?.mode ?? "solo";
+  const activeMode: TabKey = (group?.mode as TabKey) ?? "solo";
 
   useEffect(() => {
     applyThemeVars(activeMode);
@@ -196,8 +212,8 @@ export default function PremiumHeader({
     }
   }
 
-  async function onPickMode(nextMode: UsageMode) {
-    const next = setMode(nextMode);
+  async function onPickMode(nextMode: TabKey) {
+    const next = setMode(nextMode as UsageMode);
     setGroup(next);
 
     if (nextMode !== "solo") {
@@ -491,7 +507,7 @@ const S: Record<string, React.CSSProperties> = {
   tabsInner: {
     position: "relative",
     display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr",
+    gridTemplateColumns: "repeat(4, 1fr)",
     gap: 10,
     padding: 10,
   },
