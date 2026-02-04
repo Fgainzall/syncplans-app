@@ -61,6 +61,8 @@ type PlanInfo = {
   trialEndsAt: string | null;
 };
 
+type GroupFilter = "all" | "pair" | "family";
+
 /* ─────────────────── Helpers locales ─────────────────── */
 
 function normalizeCoordPrefs(
@@ -110,7 +112,7 @@ function buildPlanUi(plan: PlanInfo | null): { value: string; hint: string } {
         if (daysDiff > 0) {
           hint = `Tu prueba termina en aproximadamente ${daysDiff} día${
             daysDiff === 1 ? "" : "s"
-          }.`;
+          }`;
         } else {
           hint = "Tu periodo de prueba está por terminar.";
         }
@@ -119,6 +121,14 @@ function buildPlanUi(plan: PlanInfo | null): { value: string; hint: string } {
   }
 
   return { value, hint };
+}
+
+function membershipHasMeta(m: GroupMemberRow): boolean {
+  return (
+    !!m.display_name ||
+    !!m.relationship_role ||
+    !!m.coordination_prefs?.group_note
+  );
 }
 
 /* ─────────────────── Componente principal ─────────────────── */
@@ -152,6 +162,12 @@ export default function ProfilePage() {
   const [savingGroupId, setSavingGroupId] = useState<string | null>(null);
   const [groupSaveMessage, setGroupSaveMessage] = useState<string | null>(null);
   const [groupSaveError, setGroupSaveError] = useState<string | null>(null);
+
+  // 🔹 Master–detail de grupos
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [groupFilter, setGroupFilter] = useState<GroupFilter>("all");
+  const [groupSearch, setGroupSearch] = useState("");
+  const [dirtyGroups, setDirtyGroups] = useState<Set<string>>(new Set());
 
   // 🔹 Preferencias de coordinación globales
   const [coordPrefs, setCoordPrefs] = useState<CoordinationPrefs | null>(null);
@@ -201,8 +217,7 @@ export default function ProfilePage() {
           const profile = await getMyProfile();
           if (profile) {
             const dn = (
-              profile.display_name ??
-              `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
+              profile.display_name ?? `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
             ).trim();
 
             if (dn) {
@@ -237,7 +252,6 @@ export default function ProfilePage() {
               localLast = "";
             }
             localCoordPrefs = normalizeCoordPrefs(null);
-            // default de plan si no hay fila todavía
             localPlan = {
               planTier: "demo_premium",
               planStatus: "trial",
@@ -341,6 +355,33 @@ export default function ProfilePage() {
     };
   }, [user]);
 
+  // ── 3b) Elegir grupo seleccionado por defecto (pareja > primero) ──
+  useEffect(() => {
+    if (!memberships || memberships.length === 0) {
+      setSelectedGroupId(null);
+      return;
+    }
+
+    setSelectedGroupId((prev) => {
+      if (prev) return prev;
+
+      if (groups && groups.length > 0) {
+        const byId = new Map<string, GroupRow>();
+        groups.forEach((g) => byId.set(g.id, g));
+
+        const pairMembership = memberships.find((m) => {
+          const g = byId.get(m.group_id);
+          const t = String(g?.type ?? "");
+          return t === "pair" || t === "couple";
+        });
+
+        if (pairMembership) return pairMembership.group_id;
+      }
+
+      return memberships[0].group_id;
+    });
+  }, [memberships, groups]);
+
   // ── 4) Guardar perfil (nombre / apellido) ──
   async function onSaveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -407,7 +448,6 @@ export default function ProfilePage() {
     try {
       setSavingCoord(true);
 
-      // 🔐 Aseguramos que ya exista perfil con display_name
       const profile = await getMyProfile();
       if (!profile || !profile.display_name) {
         setSaveCoordError(
@@ -439,6 +479,12 @@ export default function ProfilePage() {
       if (!prev) return prev;
       return prev.map((m) => (m.group_id === groupId ? updater(m) : m));
     });
+
+    setDirtyGroups((prev) => {
+      const next = new Set(prev);
+      next.add(groupId);
+      return next;
+    });
   }
 
   function handleMembershipFieldChange(
@@ -458,7 +504,10 @@ export default function ProfilePage() {
           ...(m.coordination_prefs ?? {}),
           group_note: value,
         };
-        return { ...m, coordination_prefs: nextPrefs };
+        return {
+          ...m,
+          coordination_prefs: nextPrefs,
+        };
       }
       return m;
     });
@@ -479,7 +528,14 @@ export default function ProfilePage() {
         relationship_role: m.relationship_role ?? null,
         coordination_prefs: m.coordination_prefs ?? null,
       });
+
       setGroupSaveMessage("Cambios guardados para este grupo.");
+
+      setDirtyGroups((prev) => {
+        const next = new Set(prev);
+        next.delete(groupId);
+        return next;
+      });
     } catch (err: any) {
       console.error("Error guardando metadata de grupo:", err);
       setGroupSaveError(
@@ -536,15 +592,23 @@ export default function ProfilePage() {
     coord.decision_style !== "depends";
 
   const hasNameCompleted = !!firstName.trim() && !!lastName.trim();
+
+  const groupsById = new Map<string, GroupRow>();
+  (groups ?? []).forEach((g) => groupsById.set(g.id, g));
+
+  const membershipsSorted: GroupMemberRow[] =
+    memberships && groups
+      ? [...memberships].sort((a, b) => {
+          const ga = groupsById.get(a.group_id);
+          const gb = groupsById.get(b.group_id);
+          return (ga?.name ?? "").localeCompare(gb?.name ?? "");
+        })
+      : memberships ?? [];
+
   const hasGroupMeta =
     memberships &&
     memberships.length > 0 &&
-    memberships.some(
-      (m) =>
-        !!m.display_name ||
-        !!m.relationship_role ||
-        !!m.coordination_prefs?.group_note
-    );
+    memberships.some((m) => membershipHasMeta(m));
 
   const planUi = buildPlanUi(plan);
 
@@ -558,18 +622,42 @@ export default function ProfilePage() {
     else if (target === "invitations") router.push("/invitations");
   }
 
-  // Map rápido de grupos por id para el bloque “Tu rol en los grupos”
-  const groupsById = new Map<string, GroupRow>();
-  (groups ?? []).forEach((g) => groupsById.set(g.id, g));
+  // Filtro + búsqueda para lista de grupos
+  const searchTerm = groupSearch.trim().toLowerCase();
+  const membershipsFiltered = membershipsSorted.filter((m) => {
+    const g = groupsById.get(m.group_id);
+    const typeStr = String(g?.type ?? "");
+    if (groupFilter === "pair" && !(typeStr === "pair" || typeStr === "couple"))
+      return false;
+    if (groupFilter === "family" && typeStr !== "family") return false;
 
-  const membershipsSorted =
-    memberships && groups
-      ? [...memberships].sort((a, b) => {
-          const ga = groupsById.get(a.group_id);
-          const gb = groupsById.get(b.group_id);
-          return (ga?.name ?? "").localeCompare(gb?.name ?? "");
-        })
-      : memberships ?? [];
+    if (!searchTerm) return true;
+
+    const name = (g?.name ?? "").toLowerCase();
+    const displayName = (m.display_name ?? "").toLowerCase();
+    return (
+      name.includes(searchTerm) ||
+      displayName.includes(searchTerm) ||
+      typeStr.toLowerCase().includes(searchTerm)
+    );
+  });
+
+  const selectedMembership: GroupMemberRow | null =
+    membershipsFiltered.find((m) => m.group_id === selectedGroupId) ??
+    membershipsFiltered[0] ??
+    null;
+
+  const totalGroupsForRoles = memberships ? memberships.length : 0;
+  const configuredGroupsCount = memberships
+    ? memberships.filter(membershipHasMeta).length
+    : 0;
+  const pendingGroupsCount =
+    totalGroupsForRoles - configuredGroupsCount >= 0
+      ? totalGroupsForRoles - configuredGroupsCount
+      : 0;
+
+  const hasSelectedDirty =
+    selectedMembership && dirtyGroups.has(selectedMembership.group_id);
 
   // ── 9) Render principal ──
   return (
@@ -947,7 +1035,7 @@ export default function ProfilePage() {
               )}
             </section>
 
-            {/* Tu rol en los grupos */}
+            {/* Tu rol en los grupos – Master–Detail */}
             <section style={styles.card}>
               <div style={styles.sectionLabel}>Tu rol en los grupos</div>
               <div style={styles.sectionSub}>
@@ -973,127 +1061,275 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-              {membershipsSorted && membershipsSorted.length > 0 && (
-                <div style={styles.groupMetaList}>
-                  {membershipsSorted.map((m) => {
-                    const g = groupsById.get(m.group_id);
-                    const groupName =
-                      (g?.name ?? "(Grupo sin nombre)") +
-                      (g?.type ? ` · ${String(g.type)}` : "");
+              {memberships && memberships.length > 0 && (
+                <>
+                  {/* Resumen */}
+                  <div style={styles.groupSummaryRow}>
+                    <span>
+                      Tienes{" "}
+                      <strong>{totalGroupsForRoles}</strong> grupo
+                      {totalGroupsForRoles === 1 ? "" : "s"} ·{" "}
+                      <strong>{configuredGroupsCount}</strong> con rol
+                      configurado ·{" "}
+                      <strong>{pendingGroupsCount}</strong> pendiente
+                      {pendingGroupsCount === 1 ? "" : "s"}
+                    </span>
+                  </div>
 
-                    const groupNote = m.coordination_prefs?.group_note ?? "";
-
-                    return (
-                      <div key={m.group_id} style={styles.groupMetaItem}>
-                        <div style={styles.groupMetaHeader}>
-                          <div style={styles.groupMetaTitle}>
-                            {groupName}
-                          </div>
-                          <span style={styles.badgeTiny}>
-                            {String(g?.type ?? "grupo")}
-                          </span>
-                        </div>
-
-                        <div style={styles.groupMetaFieldRow}>
-                          <div style={styles.groupMetaField}>
-                            <div style={styles.groupMetaLabel}>
-                              Nombre visible en este grupo
-                            </div>
-                            <input
-                              style={styles.groupMetaInput}
-                              value={m.display_name ?? ""}
-                              onChange={(e) =>
-                                handleMembershipFieldChange(
-                                  m.group_id,
-                                  "display_name",
-                                  e.target.value
-                                )
-                              }
-                              placeholder="Ej: Fer, Papá, Fernando"
-                            />
-                          </div>
-                        </div>
-
-                        <div style={styles.groupMetaFieldRow}>
-                          <div style={styles.groupMetaField}>
-                            <div style={styles.groupMetaLabel}>
-                              Rol en este grupo
-                            </div>
-                            <select
-                              style={styles.groupMetaSelect}
-                              value={m.relationship_role ?? ""}
-                              onChange={(e) =>
-                                handleMembershipFieldChange(
-                                  m.group_id,
-                                  "relationship_role",
-                                  e.target.value
-                                )
-                              }
-                            >
-                              <option value="">(Sin especificar)</option>
-                              <option value="pareja">Pareja</option>
-                              <option value="padre_madre">
-                                Padre / Madre
-                              </option>
-                              <option value="hijo_hija">Hijo / Hija</option>
-                              <option value="tutor">Tutor</option>
-                              <option value="otro">Otro</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        <div style={styles.groupMetaFieldRow}>
-                          <div style={styles.groupMetaField}>
-                            <div style={styles.groupMetaLabel}>
-                              Algo que deberían saber al coordinar contigo
-                            </div>
-                            <textarea
-                              style={styles.groupMetaTextarea}
-                              rows={2}
-                              value={groupNote}
-                              onChange={(e) =>
-                                handleMembershipFieldChange(
-                                  m.group_id,
-                                  "group_note",
-                                  e.target.value
-                                )
-                              }
-                              placeholder="Ej: Los domingos casi siempre priorizo familia."
-                            />
-                          </div>
-                        </div>
-
-                        <div style={styles.groupMetaSaveRow}>
+                  <div style={styles.groupMasterDetail}>
+                    {/* Columna izquierda: lista de grupos */}
+                    <div style={styles.groupListCol}>
+                      <div style={styles.groupListHeader}>
+                        <div style={styles.groupFilterChips}>
                           <button
                             type="button"
-                            onClick={() => handleSaveGroupMeta(m.group_id)}
-                            disabled={savingGroupId === m.group_id}
+                            onClick={() => setGroupFilter("all")}
                             style={{
-                              ...styles.groupMetaSaveBtn,
-                              opacity:
-                                savingGroupId === m.group_id ? 0.7 : 1,
-                              cursor:
-                                savingGroupId === m.group_id
-                                  ? "progress"
-                                  : "pointer",
+                              ...styles.groupFilterChip,
+                              ...(groupFilter === "all"
+                                ? styles.groupFilterChipActive
+                                : {}),
                             }}
                           >
-                            {savingGroupId === m.group_id
-                              ? "Guardando…"
-                              : "Guardar cambios en este grupo"}
+                            Todos
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setGroupFilter("pair")}
+                            style={{
+                              ...styles.groupFilterChip,
+                              ...(groupFilter === "pair"
+                                ? styles.groupFilterChipActive
+                                : {}),
+                            }}
+                          >
+                            Pareja
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setGroupFilter("family")}
+                            style={{
+                              ...styles.groupFilterChip,
+                              ...(groupFilter === "family"
+                                ? styles.groupFilterChipActive
+                                : {}),
+                            }}
+                          >
+                            Familia
                           </button>
                         </div>
+                        <input
+                          style={styles.groupSearchInput}
+                          placeholder="Buscar grupo…"
+                          value={groupSearch}
+                          onChange={(e) => setGroupSearch(e.target.value)}
+                        />
                       </div>
-                    );
-                  })}
 
-                  {groupSaveError && (
-                    <div style={styles.error}>{groupSaveError}</div>
-                  )}
-                  {groupSaveMessage && (
-                    <div style={styles.ok}>{groupSaveMessage}</div>
-                  )}
-                </div>
+                      <div style={styles.groupListScroll}>
+                        {membershipsFiltered.length === 0 && (
+                          <div style={styles.groupListEmpty}>
+                            No hay grupos que coincidan con el filtro.
+                          </div>
+                        )}
+
+                        {membershipsFiltered.map((m) => {
+                          const g = groupsById.get(m.group_id);
+                          const groupName =
+                            g?.name ?? "(Grupo sin nombre)";
+                          const typeStr = String(g?.type ?? "grupo");
+                          const isSelected = m.group_id === selectedGroupId;
+                          const isConfigured = membershipHasMeta(m);
+                          const isDirty = dirtyGroups.has(m.group_id);
+
+                          return (
+                            <button
+                              key={m.group_id}
+                              type="button"
+                              onClick={() => setSelectedGroupId(m.group_id)}
+                              style={{
+                                ...styles.groupListItem,
+                                ...(isSelected
+                                  ? styles.groupListItemActive
+                                  : {}),
+                              }}
+                            >
+                              <div style={styles.groupListItemTitleRow}>
+                                <div style={styles.groupListItemName}>
+                                  <span style={styles.groupListItemDot} />
+                                  <span>{groupName}</span>
+                                </div>
+                                <span style={styles.badgeTiny}>
+                                  {typeStr}
+                                </span>
+                              </div>
+                              <div style={styles.groupListItemMeta}>
+                                <span style={styles.groupListItemStatus}>
+                                  {isConfigured
+                                    ? "Rol configurado"
+                                    : "Sin rol todavía"}
+                                </span>
+                                {isDirty && (
+                                  <span style={styles.groupListItemDirty}>
+                                    · Cambios sin guardar
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Columna derecha: detalle del grupo seleccionado */}
+                    <div style={styles.groupDetailCol}>
+                      {!selectedMembership ? (
+                        <div style={styles.smallInfo}>
+                          Selecciona un grupo de la lista de la izquierda para
+                          definir cómo te ven en ese calendario.
+                        </div>
+                      ) : (
+                        <>
+                          <div style={styles.groupMetaHeader}>
+                            <div>
+                              <div style={styles.groupMetaTitle}>
+                                {groupsById.get(selectedMembership.group_id)
+                                  ?.name ?? "(Grupo sin nombre)"}
+                              </div>
+                              <div style={styles.groupMetaSubtitle}>
+                                Define tu nombre visible, tu rol y un contexto
+                                rápido para coordinar contigo.
+                              </div>
+                            </div>
+                            <span style={styles.badgeTiny}>
+                              {String(
+                                groupsById.get(selectedMembership.group_id)
+                                  ?.type ?? "grupo"
+                              )}
+                            </span>
+                          </div>
+
+                          <div style={styles.groupMetaFieldRow}>
+                            <div style={styles.groupMetaField}>
+                              <div style={styles.groupMetaLabel}>
+                                Nombre visible en este grupo
+                              </div>
+                              <input
+                                style={styles.groupMetaInput}
+                                value={selectedMembership.display_name ?? ""}
+                                onChange={(e) =>
+                                  handleMembershipFieldChange(
+                                    selectedMembership.group_id,
+                                    "display_name",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="Ej: Fer, Papá, Fernando"
+                              />
+                            </div>
+                          </div>
+
+                          <div style={styles.groupMetaFieldRow}>
+                            <div style={styles.groupMetaField}>
+                              <div style={styles.groupMetaLabel}>
+                                Rol en este grupo
+                              </div>
+                              <select
+                                style={styles.groupMetaSelect}
+                                value={selectedMembership.relationship_role ?? ""}
+                                onChange={(e) =>
+                                  handleMembershipFieldChange(
+                                    selectedMembership.group_id,
+                                    "relationship_role",
+                                    e.target.value
+                                  )
+                                }
+                              >
+                                <option value="">(Sin especificar)</option>
+                                <option value="pareja">Pareja</option>
+                                <option value="padre_madre">
+                                  Padre / Madre
+                                </option>
+                                <option value="hijo_hija">Hijo / Hija</option>
+                                <option value="tutor">Tutor</option>
+                                <option value="otro">Otro</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div style={styles.groupMetaFieldRow}>
+                            <div style={styles.groupMetaField}>
+                              <div style={styles.groupMetaLabel}>
+                                Algo que deberían saber al coordinar contigo
+                              </div>
+                              <textarea
+                                style={styles.groupMetaTextarea}
+                                rows={2}
+                                value={
+                                  selectedMembership.coordination_prefs
+                                    ?.group_note ?? ""
+                                }
+                                onChange={(e) =>
+                                  handleMembershipFieldChange(
+                                    selectedMembership.group_id,
+                                    "group_note",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="Ej: Los domingos casi siempre priorizo familia."
+                              />
+                            </div>
+                          </div>
+
+                          {groupSaveError && (
+                            <div style={styles.error}>{groupSaveError}</div>
+                          )}
+                          {groupSaveMessage && (
+                            <div style={styles.ok}>{groupSaveMessage}</div>
+                          )}
+
+                          <div style={styles.groupMetaSaveRow}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleSaveGroupMeta(
+                                  selectedMembership.group_id
+                                )
+                              }
+                              disabled={savingGroupId === selectedMembership.group_id}
+                              style={{
+                                ...styles.groupMetaSaveBtn,
+                                opacity:
+                                  savingGroupId === selectedMembership.group_id
+                                    ? 0.7
+                                    : 1,
+                                cursor:
+                                  savingGroupId === selectedMembership.group_id
+                                    ? "progress"
+                                    : "pointer",
+                              }}
+                            >
+                              {savingGroupId === selectedMembership.group_id
+                                ? "Guardando…"
+                                : "Guardar cambios en este grupo"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                router.push(
+                                  `/calendar?group=${selectedMembership.group_id}`
+                                )
+                              }
+                              style={styles.groupMetaCalendarBtn}
+                            >
+                              Ver calendario de este grupo
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
             </section>
 
@@ -1160,8 +1396,7 @@ function buildDashboardStats(
   const pairGroups = groups.filter(
     (g) => String(g.type) === "pair" || String(g.type) === "couple"
   ).length;
-  const familyGroups = groups.filter((g) => String(g.type) === "family")
-    .length;
+  const familyGroups = groups.filter((g) => String(g.type) === "family").length;
 
   const eventsForConflicts = events.map((e) => ({
     id: e.id,
@@ -1688,30 +1923,149 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
   },
 
-  /* Roles en grupos */
+  /* Roles en grupos – Master–Detail */
   smallInfo: {
     fontSize: 12,
     opacity: 0.8,
     marginBottom: 6,
   },
-  groupMetaList: {
+
+  groupSummaryRow: {
+    fontSize: 12,
+    opacity: 0.85,
+    marginBottom: 8,
+  },
+
+  groupMasterDetail: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 0.9fr) minmax(0, 1.4fr)",
+    gap: 10,
+    alignItems: "stretch",
+  },
+
+  groupListCol: {
+    borderRadius: 14,
+    border: "1px solid rgba(148,163,184,0.35)",
+    background: "rgba(15,23,42,0.9)",
+    padding: 8,
     display: "flex",
     flexDirection: "column",
-    gap: 10,
-    marginTop: 4,
+    gap: 6,
   },
-  groupMetaItem: {
+  groupDetailCol: {
     borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.10)",
+    border: "1px solid rgba(148,163,184,0.35)",
     background: "rgba(15,23,42,0.9)",
     padding: 10,
   },
-  groupMetaHeader: {
+
+  groupListHeader: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  groupFilterChips: {
+    display: "flex",
+    gap: 6,
+    flexWrap: "wrap",
+  },
+  groupFilterChip: {
+    padding: "4px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.6)",
+    background: "transparent",
+    fontSize: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    opacity: 0.8,
+    cursor: "pointer",
+  } as React.CSSProperties,
+  groupFilterChipActive: {
+    borderColor: "rgba(56,189,248,0.9)",
+    background: "rgba(8,47,73,0.9)",
+    opacity: 1,
+  } as React.CSSProperties,
+  groupSearchInput: {
+    width: "100%",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.45)",
+    padding: "5px 9px",
+    fontSize: 11,
+    background: "rgba(15,23,42,0.95)",
+    color: "rgba(248,250,252,0.96)",
+    outline: "none",
+  } as React.CSSProperties,
+
+  groupListScroll: {
+    marginTop: 4,
+    maxHeight: 280,
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  groupListEmpty: {
+    fontSize: 11,
+    opacity: 0.7,
+    padding: 6,
+  },
+
+  groupListItem: {
+    width: "100%",
+    textAlign: "left",
+    borderRadius: 10,
+    border: "1px solid rgba(51,65,85,0.9)",
+    background: "rgba(15,23,42,0.9)",
+    padding: "6px 8px",
+    cursor: "pointer",
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+  } as React.CSSProperties,
+  groupListItemActive: {
+    borderColor: "rgba(56,189,248,0.9)",
+    boxShadow: "0 0 0 1px rgba(56,189,248,0.45)",
+  } as React.CSSProperties,
+  groupListItemTitleRow: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 6,
-    marginBottom: 6,
+  },
+  groupListItemName: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 12,
+    fontWeight: 700,
+    overflow: "hidden",
+  },
+  groupListItemDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background:
+      "radial-gradient(circle at 30% 30%, rgba(248,250,252,1), rgba(56,189,248,0.9))",
+    flexShrink: 0,
+  },
+  groupListItemMeta: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    fontSize: 11,
+    opacity: 0.8,
+  },
+  groupListItemStatus: {},
+  groupListItemDirty: {
+    color: "rgba(251,191,36,0.95)",
+  },
+
+  groupMetaHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 6,
+    marginBottom: 8,
   },
   groupMetaTitle: {
     fontSize: 13,
@@ -1720,6 +2074,12 @@ const styles: Record<string, React.CSSProperties> = {
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
+  groupMetaSubtitle: {
+    fontSize: 11,
+    opacity: 0.8,
+    marginTop: 2,
+  },
+
   badgeTiny: {
     padding: "3px 8px",
     borderRadius: 999,
@@ -1769,9 +2129,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
   } as React.CSSProperties,
   groupMetaSaveRow: {
-    marginTop: 8,
+    marginTop: 10,
     display: "flex",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
+    gap: 8,
+    flexWrap: "wrap",
   },
   groupMetaSaveBtn: {
     padding: "7px 11px",
@@ -1781,5 +2143,16 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#E0F2FE",
     fontSize: 11,
     fontWeight: 900,
+  },
+  groupMetaCalendarBtn: {
+    padding: "7px 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.6)",
+    background: "transparent",
+    color: "rgba(226,232,240,0.95)",
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   },
 };
