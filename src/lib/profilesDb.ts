@@ -165,7 +165,7 @@ export async function createMyProfile(input: {
 /**
  * Actualiza SOLO las preferencias de coordinación.
  * Si no existe fila en profiles, la crea.
- * Se asegura de no violar el NOT NULL de display_name.
+ * Se asegura de no violar el NOT NULL de display_name enviando siempre uno.
  */
 export async function updateMyCoordinationPrefs(
   prefs: CoordinationPrefs
@@ -181,9 +181,26 @@ export async function updateMyCoordinationPrefs(
     existing = null;
   }
 
-  // 2) Si no existe, necesitamos un display_name no nulo
-  let displayNameForInsert: string | null = null;
-  if (!existing) {
+  // 2) Construir SIEMPRE un display_name no nulo
+  let displayName: string | null = null;
+
+  // a) Si ya hay display_name, lo respetamos
+  if (existing?.display_name && existing.display_name.trim()) {
+    displayName = existing.display_name.trim();
+  }
+
+  // b) Si no, intentamos con first_name + last_name
+  if (!displayName) {
+    const first = existing?.first_name?.trim() ?? "";
+    const last = existing?.last_name?.trim() ?? "";
+    const combined = `${first} ${last}`.trim();
+    if (combined) {
+      displayName = combined;
+    }
+  }
+
+  // c) Si aún no hay, usamos metadata del usuario o el email
+  if (!displayName) {
     const { data: userData } = await supabase.auth.getUser();
     const u = userData?.user;
 
@@ -195,18 +212,14 @@ export async function updateMyCoordinationPrefs(
     const emailName =
       (u?.email ? u.email.split("@")[0] : "") || "Usuario SyncPlans";
 
-    displayNameForInsert = (metaName || emailName).trim() || "Usuario SyncPlans";
+    displayName = (metaName || emailName).trim() || "Usuario SyncPlans";
   }
 
   const payload: any = {
     id: uid,
     coordination_prefs: normalized,
+    display_name: displayName,
   };
-
-  // Solo seteamos display_name si estamos insertando por primera vez
-  if (!existing && displayNameForInsert) {
-    payload.display_name = displayNameForInsert;
-  }
 
   const { data, error } = await supabase
     .from("profiles")
