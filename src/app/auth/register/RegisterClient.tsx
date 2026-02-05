@@ -8,8 +8,10 @@ import supabase from "@/lib/supabaseClient";
 export default function RegisterClient() {
   const router = useRouter();
 
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
@@ -17,20 +19,51 @@ export default function RegisterClient() {
 
   const canSubmit = useMemo(() => {
     const e = email.trim();
-    return e.includes("@") && password.trim().length >= 6 && !loading;
-  }, [email, password, loading]);
+    const n = name.trim();
+    const p1 = password.trim();
+    const p2 = password2.trim();
+    return (
+      e.includes("@") &&
+      n.length > 0 &&
+      p1.length >= 6 &&
+      p2.length >= 6 &&
+      p1 === p2 &&
+      !loading
+    );
+  }, [email, name, password, password2, loading]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPass = password.trim();
+    const trimmedPass2 = password2.trim();
+
+    if (!trimmedName) {
+      setError("Pon tu nombre. Lo usaremos dentro de SyncPlans.");
+      setLoading(false);
+      return;
+    }
+
+    if (trimmedPass !== trimmedPass2) {
+      setError("Las contraseñas no coinciden.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const { error: signUpError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password.trim(),
+        email: trimmedEmail,
+        password: trimmedPass,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            full_name: trimmedName,
+            display_name: trimmedName,
+          },
         },
       });
 
@@ -388,7 +421,9 @@ export default function RegisterClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Un solo lugar para los planes juntos.</div>
+                  <div style={pillSub}>
+                    Un solo lugar para los planes juntos.
+                  </div>
                 </div>
                 <div style={pill}>
                   <div style={pillRow}>
@@ -400,7 +435,9 @@ export default function RegisterClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Todos alineados con la misma agenda.</div>
+                  <div style={pillSub}>
+                    Todos alineados con la misma agenda.
+                  </div>
                 </div>
               </div>
 
@@ -470,8 +507,11 @@ export default function RegisterClient() {
                   style={secondaryBtn}
                   onClick={() => {
                     setDone(false);
+                    setName("");
                     setEmail("");
                     setPassword("");
+                    setPassword2("");
+                    setError(null);
                   }}
                 >
                   Crear otra cuenta
@@ -486,6 +526,17 @@ export default function RegisterClient() {
             ) : (
               <>
                 <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
+                  <div>
+                    <div style={label}>Nombre</div>
+                    <input
+                      style={input}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Cómo quieres que te vean en SyncPlans"
+                      autoComplete="name"
+                    />
+                  </div>
+
                   <div>
                     <div style={label}>Correo</div>
                     <input
@@ -505,6 +556,18 @@ export default function RegisterClient() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="mínimo 6 caracteres"
+                      autoComplete="new-password"
+                    />
+                  </div>
+
+                  <div>
+                    <div style={label}>Confirmar contraseña</div>
+                    <input
+                      style={input}
+                      type="password"
+                      value={password2}
+                      onChange={(e) => setPassword2(e.target.value)}
+                      placeholder="escríbela igual que arriba"
                       autoComplete="new-password"
                     />
                   </div>

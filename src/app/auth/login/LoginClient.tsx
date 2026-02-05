@@ -11,7 +11,7 @@ export default function LoginClient() {
 
   const nextParam = sp.get("next");
 
-  // ✅ Regla definitiva:
+  // ✅ Regla:
   // Si viene ?next=/algo lo respetamos.
   // Si no hay next válido → /summary (una sola verdad sobre tus planes).
   const nextTarget = useMemo(
@@ -60,7 +60,7 @@ export default function LoginClient() {
     }
   }
 
-  // 🎨 Estilos
+  // 🎨 Estilos compartidos con register para que queden alineados
   const page: React.CSSProperties = {
     minHeight: "100vh",
     background:
@@ -340,7 +340,7 @@ export default function LoginClient() {
           <button
             type="button"
             style={linkTop}
-            onClick={() => router.push("/auth/register")}
+            onClick={() => router.push("/auth/register?next=/summary")}
           >
             ¿Nuevo aquí? Crear cuenta →
           </button>
@@ -429,7 +429,7 @@ export default function LoginClient() {
               <button
                 type="button"
                 style={subtleLink}
-                onClick={() => router.push("/auth/register")}
+                onClick={() => router.push("/auth/register?next=/summary")}
               >
                 Crear cuenta nueva
               </button>
@@ -481,7 +481,7 @@ export default function LoginClient() {
             <button
               type="button"
               style={secondaryBtn}
-              onClick={() => router.push("/auth/register")}
+              onClick={() => router.push("/auth/register?next=/summary")}
             >
               Crear cuenta
             </button>
