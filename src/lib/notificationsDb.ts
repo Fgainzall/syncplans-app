@@ -31,6 +31,7 @@ async function requireUid(): Promise<string> {
 
 /**
  * 🔔 SOLO NOTIFICACIONES NO LEÍDAS (Inbox Zero)
+ * + limpieza de duplicados en memoria
  */
 export async function getMyNotifications(
   limit = 20
@@ -41,12 +42,39 @@ export async function getMyNotifications(
     .from("notifications")
     .select("*")
     .eq("user_id", uid)
-    .is("read_at", null) // 👈 CLAVE: nunca traer leídas
+    .is("read_at", null)
     .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) throw error;
-  return (data ?? []) as NotificationRow[];
+
+  const raw = (data ?? []) as NotificationRow[];
+
+  // 🧹 DE-DUPE:
+  // Si por algún motivo la BD creó dos notificaciones casi iguales
+  // para el mismo usuario (mismo tipo, título, body, entity_id),
+  // nos quedamos solo con la más reciente (ya viene ordenado desc).
+  const seen = new Set<string>();
+  const cleaned: NotificationRow[] = [];
+
+  for (const n of raw) {
+    const key = [
+      n.type ?? "",
+      n.entity_id ?? "",
+      n.title ?? "",
+      n.body ?? "",
+    ].join("|");
+
+    if (seen.has(key)) {
+      // Duplicado → lo ignoramos
+      continue;
+    }
+
+    seen.add(key);
+    cleaned.push(n);
+  }
+
+  return cleaned;
 }
 
 export async function markNotificationRead(id: string) {
@@ -68,16 +96,14 @@ export async function markAllRead() {
     .from("notifications")
     .update({ read_at: new Date().toISOString() })
     .eq("user_id", uid)
-    .is("read_at", null); // opcional pero prolijo: solo las no leídas
+    .is("read_at", null);
 
   if (error) throw error;
 }
 
 /**
- * ⚠ IMPORTANTE:
- * Antes estas funciones hacían .delete(), y por RLS probablemente
- * no borraban nada. Ahora "eliminar" = marcar como leída.
- * Como getMyNotifications filtra read_at IS NULL, NO vuelven al drawer.
+ * "Eliminar" = marcar como leída, así respeta RLS
+ * y no vuelve a salir porque getMyNotifications filtra por read_at IS NULL.
  */
 export async function deleteNotification(id: string) {
   const uid = await requireUid();
