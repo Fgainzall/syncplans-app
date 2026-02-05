@@ -58,12 +58,36 @@ export async function markNotificationRead(id: string) {
 export async function markAllRead() {
   const uid = await requireUid();
 
-  // 👇 IMPORTANTE: quitamos el .is("read_at", null)
-  // para asegurarnos de que TODAS las notificaciones del usuario
-  // queden con read_at != null (nada raro como '').
+  // 👇 Marcamos TODAS las notificaciones de este usuario como leídas,
+  // sin condición sobre read_at (así limpiamos cualquier dato viejo raro).
   const { error } = await supabase
     .from("notifications")
     .update({ read_at: new Date().toISOString() })
+    .eq("user_id", uid);
+
+  if (error) throw error;
+}
+
+/** Borra una notificación concreta (por id) del usuario actual */
+export async function deleteNotification(id: string) {
+  const uid = await requireUid();
+
+  const { error } = await supabase
+    .from("notifications")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", uid);
+
+  if (error) throw error;
+}
+
+/** Borra TODAS las notificaciones del usuario actual */
+export async function deleteAllNotifications() {
+  const uid = await requireUid();
+
+  const { error } = await supabase
+    .from("notifications")
+    .delete()
     .eq("user_id", uid);
 
   if (error) throw error;

@@ -1,3 +1,4 @@
+// src/components/NotificationsDrawer.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -6,7 +7,9 @@ import {
   getMyNotifications,
   markAllRead,
   markNotificationRead,
-  NotificationRow,
+  deleteNotification,
+  deleteAllNotifications,
+  type NotificationRow,
   notificationHref,
 } from "@/lib/notificationsDb";
 
@@ -15,7 +18,7 @@ export type NavigationMode = "push" | "replace";
 export default function NotificationsDrawer({
   open,
   onClose,
-  navigationMode = "replace", // B por defecto (app-like)
+  navigationMode = "replace", // app-like
   onUnreadChange,
   limit = 30,
 }: {
@@ -29,13 +32,16 @@ export default function NotificationsDrawer({
 
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState<{ title: string; subtitle?: string } | null>(null);
+  const [toast, setToast] = useState<{ title: string; subtitle?: string } | null>(
+    null
+  );
 
   const lastOpenFetchAt = useRef(0);
   const busyIds = useRef<Set<string>>(new Set());
 
   const unreadCount = useMemo(
-    () => items.filter((x) => !x.read_at).length,
+    () =>
+      items.filter((x) => !x.read_at || x.read_at === "").length,
     [items]
   );
 
@@ -48,7 +54,7 @@ export default function NotificationsDrawer({
     if (!open) return;
 
     const now = Date.now();
-    if (now - lastOpenFetchAt.current < 250) return; // guard anti “doble open”
+    if (now - lastOpenFetchAt.current < 250) return; // guard anti doble open
     lastOpenFetchAt.current = now;
 
     let alive = true;
@@ -87,20 +93,20 @@ export default function NotificationsDrawer({
 
   function titleFor(n: NotificationRow) {
     if (n.title) return n.title;
-    if (n.type === "conflict_detected") return "Conflicto detectado";
-    if (n.type === "event_created") return "Evento creado";
+    if (n.type === "conflict_detected" || n.type === "conflict")
+      return "Conflicto de horario";
+    if (n.type === "event_created") return "Nuevo evento creado";
     if (n.type === "event_deleted") return "Evento eliminado";
     return "Notificación";
   }
 
   function subtitleFor(n: NotificationRow) {
     if (n.body) return n.body;
-    if (n.type === "conflict_detected")
-      return "Encontramos un choque de horario. Resuélvelo en 1 toque.";
+    if (n.type === "conflict_detected" || n.type === "conflict")
+      return "Tu evento se cruza con otro. Revísalo antes de que se complique.";
     if (n.type === "event_created")
       return "Tu evento se guardó correctamente.";
-    if (n.type === "event_deleted")
-      return "Tu evento fue eliminado.";
+    if (n.type === "event_deleted") return "Tu evento fue eliminado.";
     return "Toca para ver más.";
   }
 
@@ -136,7 +142,7 @@ export default function NotificationsDrawer({
       // persist
       await markAllRead();
 
-      // ✅ refresh “no-blocking” (silencioso)
+      // refresh silencioso
       refreshFromDb(true);
 
       setToast({
@@ -146,6 +152,29 @@ export default function NotificationsDrawer({
     } catch {
       setToast({
         title: "No pudimos marcar como leídas",
+        subtitle: "Intenta nuevamente.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onDeleteAll() {
+    try {
+      setLoading(true);
+
+      // ✅ optimista: limpiamos lista
+      setItems([]);
+
+      await deleteAllNotifications();
+
+      setToast({
+        title: "Notificaciones eliminadas",
+        subtitle: "Borraste todo el historial de notificaciones.",
+      });
+    } catch {
+      setToast({
+        title: "No pudimos eliminar",
         subtitle: "Intenta nuevamente.",
       });
     } finally {
@@ -192,10 +221,28 @@ export default function NotificationsDrawer({
       navTo(href);
       onClose();
     } catch {
-      // No bloqueamos, solo mostramos toast
       setToast({
         title: "No pudimos abrir esa notificación",
         subtitle: "Intenta de nuevo.",
+      });
+    } finally {
+      busyIds.current.delete(id);
+    }
+  }
+
+  async function onDeleteNotificationClick(n: NotificationRow) {
+    const id = String(n.id);
+
+    try {
+      busyIds.current.add(id);
+      // optimista: sacamos esa notificación de la lista
+      setItems((prev) => prev.filter((x) => String(x.id) !== id));
+
+      await deleteNotification(id);
+    } catch {
+      setToast({
+        title: "No pudimos eliminar",
+        subtitle: "Intenta nuevamente.",
       });
     } finally {
       busyIds.current.delete(id);
@@ -238,24 +285,41 @@ export default function NotificationsDrawer({
                 >
                   ⟳
                 </button>
+
                 {items.length > 0 && (
-                  <button
-                    type="button"
-                    style={{
-                      ...ghostBtn,
-                      opacity: unreadCount === 0 || loading ? 0.6 : 1,
-                      cursor:
-                        unreadCount === 0 || loading ? "default" : "pointer",
-                    }}
-                    onClick={() => {
-                      if (unreadCount === 0 || loading) return;
-                      onMarkAll();
-                    }}
-                    disabled={unreadCount === 0 || loading}
-                  >
-                    Marcar todo leído
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      style={{
+                        ...ghostBtn,
+                        opacity: unreadCount === 0 || loading ? 0.6 : 1,
+                        cursor:
+                          unreadCount === 0 || loading ? "default" : "pointer",
+                      }}
+                      onClick={() => {
+                        if (unreadCount === 0 || loading) return;
+                        onMarkAll();
+                      }}
+                      disabled={unreadCount === 0 || loading}
+                    >
+                      Marcar todo leído
+                    </button>
+
+                    <button
+                      type="button"
+                      style={{
+                        ...ghostDangerBtn,
+                        opacity: loading ? 0.6 : 1,
+                        cursor: loading ? "progress" : "pointer",
+                      }}
+                      onClick={onDeleteAll}
+                      disabled={loading}
+                    >
+                      Eliminar todo
+                    </button>
+                  </>
                 )}
+
                 <button type="button" style={iconBtn} onClick={onClose}>
                   ✕
                 </button>
@@ -276,7 +340,7 @@ export default function NotificationsDrawer({
               ) : (
                 <div style={list}>
                   {items.map((n) => {
-                    const isUnread = !n.read_at;
+                    const isUnread = !n.read_at || n.read_at === "";
                     const isBusy = busyIds.current.has(String(n.id));
 
                     return (
@@ -344,13 +408,21 @@ export default function NotificationsDrawer({
                                 <span
                                   style={{
                                     ...metaPill,
-                                    borderColor:
-                                      "rgba(251,191,36,0.35)",
+                                    borderColor: "rgba(251,191,36,0.35)",
                                   }}
                                 >
                                   Nuevo
                                 </span>
                               )}
+                              <span
+                                style={metaPillDanger}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteNotificationClick(n);
+                                }}
+                              >
+                                Eliminar
+                              </span>
                             </div>
                           </div>
 
@@ -391,6 +463,8 @@ function SkeletonList() {
     </div>
   );
 }
+
+// ───────────────── estilos ─────────────────
 
 const backdrop: React.CSSProperties = {
   position: "fixed",
@@ -437,6 +511,8 @@ const headerActions: React.CSSProperties = {
   display: "flex",
   gap: 8,
   alignItems: "center",
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
 };
 
 const body: React.CSSProperties = {
@@ -503,6 +579,15 @@ const metaPill: React.CSSProperties = {
   border: "1px solid rgba(255,255,255,0.12)",
   background: "rgba(255,255,255,0.04)",
   color: "rgba(255,255,255,0.78)",
+  cursor: "default",
+};
+
+const metaPillDanger: React.CSSProperties = {
+  ...metaPill,
+  borderColor: "rgba(248,113,113,0.6)",
+  background: "rgba(248,113,113,0.10)",
+  color: "rgba(254,242,242,0.96)",
+  cursor: "pointer",
 };
 
 const ghostBtn: React.CSSProperties = {
@@ -513,6 +598,13 @@ const ghostBtn: React.CSSProperties = {
   color: "rgba(255,255,255,0.86)",
   fontSize: 12,
   fontWeight: 600,
+};
+
+const ghostDangerBtn: React.CSSProperties = {
+  ...ghostBtn,
+  borderColor: "rgba(248,113,113,0.7)",
+  background: "rgba(127,29,29,0.70)",
+  color: "rgba(254,242,242,0.98)",
 };
 
 const iconBtn: React.CSSProperties = {
