@@ -165,16 +165,18 @@ export default function PremiumHeader({
     };
   }, []);
 
-  async function refreshBadge() {
-    try {
-      const { getMyNotifications } = await import("@/lib/notificationsDb");
-      const n = await getMyNotifications(50);
-      const unread = (n ?? []).filter((x: any) => !x.read_at).length;
-      setUnreadCount(unread);
-    } catch {
-      setUnreadCount(0);
-    }
+async function refreshBadge() {
+  try {
+    const { getMyNotifications } = await import("@/lib/notificationsDb");
+    const n = await getMyNotifications(50);
+    const unread = (n ?? []).filter(
+      (x: any) => !x.read_at || x.read_at === ""
+    ).length;
+    setUnreadCount(unread);
+  } catch {
+    setUnreadCount(0);
   }
+}
 
   useEffect(() => {
     refreshBadge();
