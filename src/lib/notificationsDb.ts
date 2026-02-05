@@ -1,4 +1,3 @@
-// src/lib/notificationsDb.ts
 import supabase from "@/lib/supabaseClient";
 
 export type NotificationType =
@@ -6,7 +5,7 @@ export type NotificationType =
   | "event_deleted"
   | "conflict"
   | "conflict_detected"
-  | "group_message"      // 👈 nuevo tipo para chat
+  | "group_message"
   | string;
 
 export type NotificationRow = {
@@ -16,7 +15,7 @@ export type NotificationRow = {
   title: string;
   body: string | null;
   entity_id: string | null;
-  payload?: any | null;   // 👈 NUEVO, opcional
+  payload?: any | null;
   created_at: string;
   read_at: string | null;
 };
@@ -29,6 +28,9 @@ async function requireUid(): Promise<string> {
   return uid;
 }
 
+/**
+ * 🔔 SOLO NOTIFICACIONES NO LEÍDAS (Inbox Zero)
+ */
 export async function getMyNotifications(
   limit = 20
 ): Promise<NotificationRow[]> {
@@ -38,6 +40,7 @@ export async function getMyNotifications(
     .from("notifications")
     .select("*")
     .eq("user_id", uid)
+    .is("read_at", null) // 👈 CLAVE: nunca traer leídas
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -60,16 +63,15 @@ export async function markNotificationRead(id: string) {
 export async function markAllRead() {
   const uid = await requireUid();
 
-  // Marcamos TODAS las notificaciones de este usuario como leídas
   const { error } = await supabase
     .from("notifications")
     .update({ read_at: new Date().toISOString() })
-    .eq("user_id", uid);
+    .eq("user_id", uid)
+    .is("read_at", null); // opcional pero prolijo
 
   if (error) throw error;
 }
 
-/** Borra una notificación concreta (por id) del usuario actual */
 export async function deleteNotification(id: string) {
   const uid = await requireUid();
 
@@ -82,7 +84,6 @@ export async function deleteNotification(id: string) {
   if (error) throw error;
 }
 
-/** Borra TODAS las notificaciones del usuario actual */
 export async function deleteAllNotifications() {
   const uid = await requireUid();
 
@@ -94,13 +95,9 @@ export async function deleteAllNotifications() {
   if (error) throw error;
 }
 
-/**
- * Routing inteligente desde una notificación
- */
 export function notificationHref(n: NotificationRow): string {
   const t = String(n.type || "").toLowerCase();
 
-  // Conflictos
   if (t === "conflict" || t === "conflict_detected") {
     if (n.entity_id) {
       return `/conflicts/compare?eventId=${encodeURIComponent(n.entity_id)}`;
@@ -108,7 +105,6 @@ export function notificationHref(n: NotificationRow): string {
     return "/conflicts/detected";
   }
 
-  // Mensajes de grupo → ir a la página del grupo
   if (t === "group_message") {
     if (n.entity_id) {
       return `/groups/${encodeURIComponent(n.entity_id)}`;
@@ -116,6 +112,5 @@ export function notificationHref(n: NotificationRow): string {
     return "/groups";
   }
 
-  // Fallback
   return "/calendar";
 }
