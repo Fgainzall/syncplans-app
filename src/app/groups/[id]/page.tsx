@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
@@ -83,7 +83,10 @@ function formatTimeShort(iso: string) {
 export default function GroupDetailsPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
+
   const groupId = String((params as any)?.id || "");
+  const highlightMsgId = searchParams.get("msg");
 
   const [booting, setBooting] = useState(true);
   const [group, setGroup] = useState<Group | null>(null);
@@ -107,6 +110,9 @@ export default function GroupDetailsPage() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
+
+  // Ref para scroll / highlight del mensaje al que venimos desde notificación
+  const highlightRef = React.useRef<HTMLDivElement | null>(null);
 
   function showToast(title: string, subtitle?: string) {
     setToast({ title, subtitle });
@@ -265,7 +271,21 @@ export default function GroupDetailsPage() {
     return () => {
       alive = false;
     };
-  }, [groupId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId]);
+
+  // Cuando hay msg en la URL y ya cargamos mensajes, hacemos scroll al mensaje objetivo
+  useEffect(() => {
+    if (!highlightMsgId) return;
+    if (!messages.length) return;
+
+    if (highlightRef.current) {
+      highlightRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }, [highlightMsgId, messages.length]);
 
   const trimmedEmail = email.trim().toLowerCase();
   const canSend = trimmedEmail.includes("@") && trimmedEmail.length >= 6 && !sending;
@@ -326,29 +346,19 @@ export default function GroupDetailsPage() {
     try {
       setSendingMessage(true);
 
-      // 👇 Para debug: ver en consola qué se está mandando
-      console.log("[group message] inserting", {
-        group_id: group.id,
-        author_id: currentUserId,
-        content: trimmed,
-      });
-
       const { data, error } = await supabase
         .from("group_messages")
         .insert([
           {
             group_id: group.id,
-            author_id: currentUserId, // 👈 CLAVE: siempre mandamos author_id
+            author_id: currentUserId,
             content: trimmed,
           },
         ])
         .select("id, group_id, author_id, content, created_at")
         .single();
 
-      if (error) {
-        console.error("[group message] insert error", error);
-        throw error;
-      }
+      if (error) throw error;
 
       const row = data as {
         id: string;
@@ -358,7 +368,6 @@ export default function GroupDetailsPage() {
         created_at: string;
       };
 
-      // Usa el perfil del miembro si lo tenemos ya cargado
       const meMember = members.find(
         (m) => String(m.user_id) === String(currentUserId)
       );
@@ -373,7 +382,6 @@ export default function GroupDetailsPage() {
       setMessages((prev) => [...prev, appended]);
       setNewMessage("");
     } catch (e: any) {
-      console.error("[group message] sendMessage catch", e);
       showToast(
         "No se pudo enviar el mensaje",
         e?.message || "Intenta nuevamente."
@@ -382,7 +390,6 @@ export default function GroupDetailsPage() {
       setSendingMessage(false);
     }
   }
-
 
   async function goCalendar() {
     try {
@@ -414,7 +421,6 @@ export default function GroupDetailsPage() {
       const trimmedName = editName.trim();
 
       if (trimmedName !== (g.name ?? "")) {
-        // si el input queda vacío, mandamos null
         patch.name = trimmedName || null;
       }
 
@@ -511,7 +517,8 @@ export default function GroupDetailsPage() {
               ← Volver
             </button>
             <button onClick={goCalendar} style={styles.primaryBtn}>
-              Ir al calendario →</button>
+              Ir al calendario →
+            </button>
           </div>
         </section>
 
@@ -652,14 +659,21 @@ export default function GroupDetailsPage() {
               </div>
             ) : (
               messages.map((msg) => {
-                const name =
-                  msg.isMe
-                    ? "Tú"
-                    : msg.profile?.display_name || "Miembro";
+                const name = msg.isMe
+                  ? "Tú"
+                  : msg.profile?.display_name || "Miembro";
                 const colorOpacity = msg.isMe ? 1 : 0.85;
+                const isHighlighted = highlightMsgId === msg.id;
 
                 return (
-                  <div key={msg.id} style={styles.messageRow}>
+                  <div
+                    key={msg.id}
+                    ref={isHighlighted ? highlightRef : undefined}
+                    style={{
+                      ...styles.messageRow,
+                      ...(isHighlighted ? styles.messageRowHighlighted : {}),
+                    }}
+                  >
                     <div style={styles.messageAvatar}>
                       {initials(name)}
                     </div>
@@ -965,6 +979,12 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "flex-start",
     gap: 8,
     fontSize: 12,
+    padding: 4,
+    borderRadius: 14,
+  },
+  messageRowHighlighted: {
+    boxShadow: "0 0 0 1px rgba(56,189,248,0.85)",
+    background: "rgba(15,23,42,0.98)",
   },
   messageAvatar: {
     height: 28,

@@ -6,6 +6,7 @@ export type NotificationType =
   | "event_deleted"
   | "conflict"            // ✅ DB actual
   | "conflict_detected"   // ✅ compat
+  | "group_message"       // 💬 mensajes de grupo
   | string;
 
 export type NotificationRow = {
@@ -14,9 +15,13 @@ export type NotificationRow = {
   type: NotificationType;
   title: string;
   body: string | null;
-  entity_id: string | null; // para conflictos: event_id
+  entity_id: string | null; // para conflictos: event_id, para mensajes: message_id (fallback)
   created_at: string;
   read_at: string | null;
+
+  // Campos opcionales si los agregas en la DB para mensajes de grupo
+  group_id?: string | null;
+  message_id?: string | null;
 };
 
 async function requireUid(): Promise<string> {
@@ -58,8 +63,7 @@ export async function markNotificationRead(id: string) {
 export async function markAllRead() {
   const uid = await requireUid();
 
-  // 👇 Marcamos TODAS las notificaciones de este usuario como leídas,
-  // sin condición sobre read_at (así limpiamos cualquier dato viejo raro).
+  // Marcamos TODAS las notificaciones de este usuario como leídas
   const { error } = await supabase
     .from("notifications")
     .update({ read_at: new Date().toISOString() })
@@ -99,6 +103,7 @@ export async function deleteAllNotifications() {
 export function notificationHref(n: NotificationRow): string {
   const t = String(n.type || "").toLowerCase();
 
+  // 🔺 Conflictos
   if (t === "conflict" || t === "conflict_detected") {
     if (n.entity_id) {
       return `/conflicts/compare?eventId=${encodeURIComponent(n.entity_id)}`;
@@ -106,5 +111,25 @@ export function notificationHref(n: NotificationRow): string {
     return "/conflicts/detected";
   }
 
+  // 💬 Mensajes de grupo
+  if (t === "group_message") {
+    const asAny = n as any;
+    const groupId: string | null =
+      asAny.group_id ?? null;
+
+    // message_id preferente; entity_id como fallback
+    const messageId: string | null =
+      asAny.message_id ?? n.entity_id ?? null;
+
+    if (groupId && messageId) {
+      return `/groups/${groupId}?msg=${encodeURIComponent(messageId)}`;
+    }
+    if (groupId) {
+      return `/groups/${groupId}`;
+    }
+    return "/groups";
+  }
+
+  // Default
   return "/calendar";
 }
