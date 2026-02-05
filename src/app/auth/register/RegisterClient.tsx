@@ -567,7 +567,7 @@ export default function RegisterClient() {
                       type="password"
                       value={password2}
                       onChange={(e) => setPassword2(e.target.value)}
-                      placeholder="escríbela igual que arriba"
+                      placeholder="Repite tu contraseña para confirmar"
                       autoComplete="new-password"
                     />
                   </div>
