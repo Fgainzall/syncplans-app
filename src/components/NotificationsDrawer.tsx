@@ -163,7 +163,7 @@ export default function NotificationsDrawer({
       // ✅ optimista: limpiamos lista
       setItems([]);
 
-      await deleteAllNotifications();
+      await deleteAllNotifications(); // 👈 ahora marca read_at en DB
 
       setToast({
         title: "Notificaciones eliminadas",
@@ -233,7 +233,7 @@ export default function NotificationsDrawer({
       // optimista: sacamos esa notificación de la lista
       setItems((prev) => prev.filter((x) => String(x.id) !== id));
 
-      await deleteNotification(id);
+      await deleteNotification(id); // 👈 ahora también solo marca read_at
     } catch {
       setToast({
         title: "No pudimos eliminar",

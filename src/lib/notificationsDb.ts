@@ -1,3 +1,4 @@
+// src/lib/notificationsDb.ts
 import supabase from "@/lib/supabaseClient";
 
 export type NotificationType =
@@ -67,17 +68,23 @@ export async function markAllRead() {
     .from("notifications")
     .update({ read_at: new Date().toISOString() })
     .eq("user_id", uid)
-    .is("read_at", null); // opcional pero prolijo
+    .is("read_at", null); // opcional pero prolijo: solo las no leídas
 
   if (error) throw error;
 }
 
+/**
+ * ⚠ IMPORTANTE:
+ * Antes estas funciones hacían .delete(), y por RLS probablemente
+ * no borraban nada. Ahora "eliminar" = marcar como leída.
+ * Como getMyNotifications filtra read_at IS NULL, NO vuelven al drawer.
+ */
 export async function deleteNotification(id: string) {
   const uid = await requireUid();
 
   const { error } = await supabase
     .from("notifications")
-    .delete()
+    .update({ read_at: new Date().toISOString() })
     .eq("id", id)
     .eq("user_id", uid);
 
@@ -89,12 +96,16 @@ export async function deleteAllNotifications() {
 
   const { error } = await supabase
     .from("notifications")
-    .delete()
-    .eq("user_id", uid);
+    .update({ read_at: new Date().toISOString() })
+    .eq("user_id", uid)
+    .is("read_at", null);
 
   if (error) throw error;
 }
 
+/**
+ * Routing inteligente desde una notificación
+ */
 export function notificationHref(n: NotificationRow): string {
   const t = String(n.type || "").toLowerCase();
 
