@@ -4,9 +4,9 @@ import supabase from "@/lib/supabaseClient";
 export type NotificationType =
   | "event_created"
   | "event_deleted"
-  | "conflict"          // ✅ DB actual
-  | "conflict_detected" // ✅ compat
-  | "group_message"     // ✅ mensajes de grupo
+  | "conflict"
+  | "conflict_detected"
+  | "group_message"      // 👈 nuevo tipo para chat
   | string;
 
 export type NotificationRow = {
@@ -15,11 +15,8 @@ export type NotificationRow = {
   type: NotificationType;
   title: string;
   body: string | null;
-  /**
-   * Para conflictos: event_id
-   * Para mensajes de grupo: group_id
-   */
   entity_id: string | null;
+  payload?: any | null;   // 👈 NUEVO, opcional
   created_at: string;
   read_at: string | null;
 };
