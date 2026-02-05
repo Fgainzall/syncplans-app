@@ -36,6 +36,18 @@ type MemberRow = {
   isMe: boolean;
 };
 
+type GroupMessage = {
+  id: string;
+  group_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+  profile: {
+    display_name: string | null;
+  } | null;
+  isMe: boolean;
+};
+
 const groupTypeOptions: { value: GroupType; label: string; hint: string }[] = [
   { value: "solo", label: "Personal", hint: "Solo tú" },
   { value: "pair", label: "Pareja", hint: "2 personas" },
@@ -59,6 +71,15 @@ function initials(name?: string | null) {
   return parts.map((p) => p[0]?.toUpperCase()).join("");
 }
 
+function formatTimeShort(iso: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 export default function GroupDetailsPage() {
   const router = useRouter();
   const params = useParams();
@@ -80,6 +101,12 @@ export default function GroupDetailsPage() {
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<GroupType>("family");
   const [savingMeta, setSavingMeta] = useState(false);
+
+  // Mensajes del grupo
+  const [messages, setMessages] = useState<GroupMessage[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [newMessage, setNewMessage] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   function showToast(title: string, subtitle?: string) {
     setToast({ title, subtitle });
@@ -143,6 +170,50 @@ export default function GroupDetailsPage() {
     }
   }
 
+  async function loadMessages(gid: string, userId: string | null) {
+    setMessagesLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("group_messages")
+        .select("id, group_id, author_id, content, created_at")
+        .eq("group_id", gid)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      const raw = (data ?? []) as Array<{
+        id: string;
+        group_id: string;
+        author_id: string;
+        content: string;
+        created_at: string;
+      }>;
+
+      const authorIds = Array.from(new Set(raw.map((m) => m.author_id).filter(Boolean)));
+
+      let profilesById = new Map<string, { display_name: string | null }>();
+
+      if (authorIds.length > 0) {
+        const profiles: UserProfile[] = await getProfilesByIds(authorIds);
+        profiles.forEach((p) => {
+          profilesById.set(p.id, {
+            display_name: p.display_name ?? null,
+          });
+        });
+      }
+
+      const merged: GroupMessage[] = raw.map((m) => ({
+        ...m,
+        profile: profilesById.get(m.author_id) ?? null,
+        isMe: userId != null && String(m.author_id) === String(userId),
+      }));
+
+      setMessages(merged);
+    } finally {
+      setMessagesLoading(false);
+    }
+  }
+
   async function loadAll() {
     if (!groupId) throw new Error("Group id missing");
 
@@ -173,6 +244,7 @@ export default function GroupDetailsPage() {
     setEditType((typedGroup.type as GroupType) ?? "family");
 
     await loadMembers(groupId, userId);
+    await loadMessages(groupId, userId);
   }
 
   useEffect(() => {
@@ -193,7 +265,7 @@ export default function GroupDetailsPage() {
     return () => {
       alive = false;
     };
-  }, [groupId]);
+  }, [groupId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const trimmedEmail = email.trim().toLowerCase();
   const canSend = trimmedEmail.includes("@") && trimmedEmail.length >= 6 && !sending;
@@ -239,6 +311,56 @@ export default function GroupDetailsPage() {
       showToast("No se pudo invitar", e?.message || "Intenta nuevamente.");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function sendMessage() {
+    const trimmed = newMessage.trim();
+    if (!group || !trimmed || sendingMessage) return;
+
+    if (!currentUserId) {
+      showToast("Sesión no encontrada", "Vuelve a iniciar sesión.");
+      return;
+    }
+
+    try {
+      setSendingMessage(true);
+
+      const { data, error } = await supabase
+        .from("group_messages")
+        .insert({
+          group_id: group.id,
+          content: trimmed,
+        })
+        .select("id, group_id, author_id, content, created_at")
+        .single();
+
+      if (error) throw error;
+
+      const row = data as {
+        id: string;
+        group_id: string;
+        author_id: string;
+        content: string;
+        created_at: string;
+      };
+
+      // Usa el perfil del miembro si lo tenemos ya cargado
+      const meMember = members.find((m) => String(m.user_id) === String(currentUserId));
+      const display_name = meMember?.profiles?.display_name ?? "Tú";
+
+      const appended: GroupMessage = {
+        ...row,
+        profile: { display_name },
+        isMe: true,
+      };
+
+      setMessages((prev) => [...prev, appended]);
+      setNewMessage("");
+    } catch (e: any) {
+      showToast("No se pudo enviar el mensaje", e?.message || "Intenta nuevamente.");
+    } finally {
+      setSendingMessage(false);
     }
   }
 
@@ -294,6 +416,9 @@ export default function GroupDetailsPage() {
       setSavingMeta(false);
     }
   }
+
+  const trimmedMessage = newMessage.trim();
+  const canSendMessage = trimmedMessage.length > 0 && !sendingMessage;
 
   if (booting) {
     return (
@@ -366,8 +491,7 @@ export default function GroupDetailsPage() {
               ← Volver
             </button>
             <button onClick={goCalendar} style={styles.primaryBtn}>
-              Ir al calendario →
-            </button>
+              Ir al calendario →</button>
           </div>
         </section>
 
@@ -442,6 +566,7 @@ export default function GroupDetailsPage() {
           </div>
         </section>
 
+        {/* Miembros */}
         <section style={styles.card}>
           <div style={styles.sectionTitle}>Miembros</div>
           <div style={styles.smallNote}>
@@ -455,7 +580,11 @@ export default function GroupDetailsPage() {
               <div>Rol</div>
             </div>
 
-            {members.length === 0 ? (
+            {membersLoading ? (
+              <div style={{ padding: 12, opacity: 0.75, fontSize: 12 }}>
+                Cargando miembros…
+              </div>
+            ) : members.length === 0 ? (
               <div style={{ padding: 12, opacity: 0.75, fontSize: 12 }}>
                 Aún no hay miembros visibles. Invita a alguien para empezar a
                 compartir horarios.
@@ -484,6 +613,82 @@ export default function GroupDetailsPage() {
           </div>
         </section>
 
+        {/* Mensajes del grupo */}
+        <section style={styles.card}>
+          <div style={styles.sectionTitle}>Mensajes del grupo</div>
+          <div style={styles.smallNote}>
+            Un espacio ligero para coordinar detalles sobre planes con este grupo.
+            Los mensajes solo los ven los miembros; no reemplaza tu WhatsApp, solo
+            acompaña al calendario compartido.
+          </div>
+
+          <div style={styles.messagesWrap}>
+            {messagesLoading ? (
+              <div style={{ fontSize: 12, opacity: 0.75 }}>Cargando mensajes…</div>
+            ) : messages.length === 0 ? (
+              <div style={{ fontSize: 12, opacity: 0.75 }}>
+                Aún no hay mensajes. Escribe el primero para coordinar algo rápido
+                (horarios, lugar, quién trae qué, etc.).
+              </div>
+            ) : (
+              messages.map((msg) => {
+                const name =
+                  msg.isMe
+                    ? "Tú"
+                    : msg.profile?.display_name || "Miembro";
+                const colorOpacity = msg.isMe ? 1 : 0.85;
+
+                return (
+                  <div key={msg.id} style={styles.messageRow}>
+                    <div style={styles.messageAvatar}>
+                      {initials(name)}
+                    </div>
+                    <div style={styles.messageBubble}>
+                      <div style={styles.messageHeader}>
+                        <span
+                          style={{
+                            ...styles.messageAuthor,
+                            opacity: colorOpacity,
+                          }}
+                        >
+                          {name}
+                        </span>
+                        <span style={styles.messageTime}>
+                          {formatTimeShort(msg.created_at)}
+                        </span>
+                      </div>
+                      <div style={styles.messageContent}>{msg.content}</div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div style={styles.messageInputRow}>
+            <textarea
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Escribe un mensaje corto para este grupo…"
+              rows={2}
+              style={styles.messageInput}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={!canSendMessage}
+              style={{
+                ...styles.primaryBtn,
+                opacity: canSendMessage ? 1 : 0.55,
+                alignSelf: "flex-end",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {sendingMessage ? "Enviando…" : "Enviar mensaje"}
+            </button>
+          </div>
+        </section>
+
+        {/* Invitaciones */}
         <section style={styles.card}>
           <div style={styles.sectionTitle}>Invitar</div>
           <div style={styles.smallNote}>
@@ -724,4 +929,81 @@ const styles: Record<string, React.CSSProperties> = {
   },
   loadingTitle: { fontWeight: 900 },
   loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
+
+  // Mensajes
+  messagesWrap: {
+    marginTop: 10,
+    maxHeight: 260,
+    padding: "8px 4px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    overflowY: "auto",
+  },
+  messageRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 8,
+    fontSize: 12,
+  },
+  messageAvatar: {
+    height: 28,
+    width: 28,
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "rgba(15,23,42,0.9)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 900,
+    fontSize: 11,
+    flexShrink: 0,
+  },
+  messageBubble: {
+    flex: 1,
+    borderRadius: 14,
+    border: "1px solid rgba(148,163,184,0.5)",
+    background: "rgba(15,23,42,0.95)",
+    padding: "6px 9px",
+  },
+  messageHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    gap: 8,
+  },
+  messageAuthor: {
+    fontWeight: 800,
+    fontSize: 11,
+  },
+  messageTime: {
+    fontSize: 10,
+    opacity: 0.65,
+  },
+  messageContent: {
+    marginTop: 3,
+    fontSize: 12,
+    opacity: 0.94,
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+  },
+  messageInputRow: {
+    marginTop: 10,
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "flex-end",
+  },
+  messageInput: {
+    flex: 1,
+    minWidth: 260,
+    padding: "10px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(6,10,20,0.55)",
+    color: "rgba(255,255,255,0.92)",
+    outline: "none",
+    fontSize: 13,
+    resize: "vertical",
+  },
 };
