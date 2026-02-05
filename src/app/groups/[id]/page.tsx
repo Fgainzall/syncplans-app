@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
@@ -83,10 +83,7 @@ function formatTimeShort(iso: string) {
 export default function GroupDetailsPage() {
   const router = useRouter();
   const params = useParams();
-  const searchParams = useSearchParams();
-
   const groupId = String((params as any)?.id || "");
-  const highlightMsgId = searchParams.get("msg");
 
   const [booting, setBooting] = useState(true);
   const [group, setGroup] = useState<Group | null>(null);
@@ -96,7 +93,9 @@ export default function GroupDetailsPage() {
 
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
+  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
+    null
+  );
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -110,9 +109,6 @@ export default function GroupDetailsPage() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
-
-  // Ref para scroll / highlight del mensaje al que venimos desde notificación
-  const highlightRef = React.useRef<HTMLDivElement | null>(null);
 
   function showToast(title: string, subtitle?: string) {
     setToast({ title, subtitle });
@@ -150,9 +146,14 @@ export default function GroupDetailsPage() {
         created_at: string | null;
       }>;
 
-      const ids = Array.from(new Set(rawMembers.map((m) => m.user_id).filter(Boolean)));
+      const ids = Array.from(
+        new Set(rawMembers.map((m) => m.user_id).filter(Boolean))
+      );
 
-      let profilesById = new Map<string, { display_name: string | null; avatar_url: string | null }>();
+      let profilesById = new Map<
+        string,
+        { display_name: string | null; avatar_url: string | null }
+      >();
 
       if (ids.length > 0) {
         const profiles: UserProfile[] = await getProfilesByIds(ids);
@@ -195,7 +196,9 @@ export default function GroupDetailsPage() {
         created_at: string;
       }>;
 
-      const authorIds = Array.from(new Set(raw.map((m) => m.author_id).filter(Boolean)));
+      const authorIds = Array.from(
+        new Set(raw.map((m) => m.author_id).filter(Boolean))
+      );
 
       let profilesById = new Map<string, { display_name: string | null }>();
 
@@ -274,19 +277,6 @@ export default function GroupDetailsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
 
-  // Cuando hay msg en la URL y ya cargamos mensajes, hacemos scroll al mensaje objetivo
-  useEffect(() => {
-    if (!highlightMsgId) return;
-    if (!messages.length) return;
-
-    if (highlightRef.current) {
-      highlightRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    }
-  }, [highlightMsgId, messages.length]);
-
   const trimmedEmail = email.trim().toLowerCase();
   const canSend = trimmedEmail.includes("@") && trimmedEmail.length >= 6 && !sending;
 
@@ -315,14 +305,20 @@ export default function GroupDetailsPage() {
       const emailErr = res?.email_error ? String(res.email_error) : "";
 
       if (emailSent === true) {
-        showToast("Invitación enviada ✅", `Correo enviado a ${res.invited_email || trimmedEmail}`);
+        showToast(
+          "Invitación enviada ✅",
+          `Correo enviado a ${res.invited_email || trimmedEmail}`
+        );
       } else if (emailSent === false) {
         showToast(
           "Invitación creada (sin email)",
           emailErr ? `Error enviando correo: ${emailErr}` : "No se pudo enviar el correo."
         );
       } else {
-        showToast("Invitación creada ✅", `Se invitó a ${res.invited_email || trimmedEmail}`);
+        showToast(
+          "Invitación creada ✅",
+          `Se invitó a ${res.invited_email || trimmedEmail}`
+        );
       }
 
       setEmail("");
@@ -351,14 +347,17 @@ export default function GroupDetailsPage() {
         .insert([
           {
             group_id: group.id,
-            author_id: currentUserId,
+            author_id: currentUserId, // 👈 CLAVE: siempre mandamos author_id
             content: trimmed,
           },
         ])
         .select("id, group_id, author_id, content, created_at")
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("[group message] insert error", error);
+        throw error;
+      }
 
       const row = data as {
         id: string;
@@ -368,6 +367,7 @@ export default function GroupDetailsPage() {
         created_at: string;
       };
 
+      // Usa el perfil del miembro si lo tenemos ya cargado
       const meMember = members.find(
         (m) => String(m.user_id) === String(currentUserId)
       );
@@ -381,7 +381,40 @@ export default function GroupDetailsPage() {
 
       setMessages((prev) => [...prev, appended]);
       setNewMessage("");
+
+      // 🔔 Notificaciones para los otros miembros del grupo
+      try {
+        const others = members.filter(
+          (m) => String(m.user_id) !== String(currentUserId)
+        );
+
+        if (others.length > 0) {
+          const snippet =
+            trimmed.length > 80 ? trimmed.slice(0, 77) + "…" : trimmed;
+
+          const title = `Nuevo mensaje en ${group.name || typeLabel}`;
+
+          const rows = others.map((m) => ({
+            user_id: m.user_id,
+            type: "group_message" as const,
+            title,
+            body: snippet,
+            entity_id: group.id, // 👉 lo usamos para hacer push a /groups/:id
+          }));
+
+          const { error: notifError } = await supabase
+            .from("notifications")
+            .insert(rows);
+
+          if (notifError) {
+            console.error("[group message] notif insert error", notifError);
+          }
+        }
+      } catch (inner) {
+        console.error("[group message] notif outer error", inner);
+      }
     } catch (e: any) {
+      console.error("[group message] sendMessage catch", e);
       showToast(
         "No se pudo enviar el mensaje",
         e?.message || "Intenta nuevamente."
@@ -421,6 +454,7 @@ export default function GroupDetailsPage() {
       const trimmedName = editName.trim();
 
       if (trimmedName !== (g.name ?? "")) {
+        // si el input queda vacío, mandamos null
         patch.name = trimmedName || null;
       }
 
@@ -663,20 +697,10 @@ export default function GroupDetailsPage() {
                   ? "Tú"
                   : msg.profile?.display_name || "Miembro";
                 const colorOpacity = msg.isMe ? 1 : 0.85;
-                const isHighlighted = highlightMsgId === msg.id;
 
                 return (
-                  <div
-                    key={msg.id}
-                    ref={isHighlighted ? highlightRef : undefined}
-                    style={{
-                      ...styles.messageRow,
-                      ...(isHighlighted ? styles.messageRowHighlighted : {}),
-                    }}
-                  >
-                    <div style={styles.messageAvatar}>
-                      {initials(name)}
-                    </div>
+                  <div key={msg.id} style={styles.messageRow}>
+                    <div style={styles.messageAvatar}>{initials(name)}</div>
                     <div style={styles.messageBubble}>
                       <div style={styles.messageHeader}>
                         <span
@@ -731,7 +755,14 @@ export default function GroupDetailsPage() {
             miembro de este grupo.
           </div>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              marginTop: 10,
+            }}
+          >
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -761,7 +792,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   shell: { maxWidth: 980, margin: "0 auto", padding: "22px 18px 48px" },
 
-  toastWrap: { position: "fixed", top: 18, right: 18, zIndex: 50, pointerEvents: "none" },
+  toastWrap: {
+    position: "fixed",
+    top: 18,
+    right: 18,
+    zIndex: 50,
+    pointerEvents: "none",
+  },
   toastCard: {
     pointerEvents: "auto",
     minWidth: 260,
@@ -784,13 +821,19 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 14,
     flexWrap: "wrap",
   },
-  topActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
+  topActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
 
   hero: {
     padding: "18px 16px",
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
     boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
     marginBottom: 12,
     display: "flex",
@@ -938,7 +981,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "12px 14px",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.14)",
-    background: "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 900,
@@ -979,12 +1023,6 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "flex-start",
     gap: 8,
     fontSize: 12,
-    padding: 4,
-    borderRadius: 14,
-  },
-  messageRowHighlighted: {
-    boxShadow: "0 0 0 1px rgba(56,189,248,0.85)",
-    background: "rgba(15,23,42,0.98)",
   },
   messageAvatar: {
     height: 28,

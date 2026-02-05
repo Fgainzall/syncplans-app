@@ -4,9 +4,9 @@ import supabase from "@/lib/supabaseClient";
 export type NotificationType =
   | "event_created"
   | "event_deleted"
-  | "conflict"            // ✅ DB actual
-  | "conflict_detected"   // ✅ compat
-  | "group_message"       // 💬 mensajes de grupo
+  | "conflict"          // ✅ DB actual
+  | "conflict_detected" // ✅ compat
+  | "group_message"     // ✅ mensajes de grupo
   | string;
 
 export type NotificationRow = {
@@ -15,13 +15,13 @@ export type NotificationRow = {
   type: NotificationType;
   title: string;
   body: string | null;
-  entity_id: string | null; // para conflictos: event_id, para mensajes: message_id (fallback)
+  /**
+   * Para conflictos: event_id
+   * Para mensajes de grupo: group_id
+   */
+  entity_id: string | null;
   created_at: string;
   read_at: string | null;
-
-  // Campos opcionales si los agregas en la DB para mensajes de grupo
-  group_id?: string | null;
-  message_id?: string | null;
 };
 
 async function requireUid(): Promise<string> {
@@ -98,12 +98,12 @@ export async function deleteAllNotifications() {
 }
 
 /**
- * Routing inteligente
+ * Routing inteligente desde una notificación
  */
 export function notificationHref(n: NotificationRow): string {
   const t = String(n.type || "").toLowerCase();
 
-  // 🔺 Conflictos
+  // Conflictos
   if (t === "conflict" || t === "conflict_detected") {
     if (n.entity_id) {
       return `/conflicts/compare?eventId=${encodeURIComponent(n.entity_id)}`;
@@ -111,25 +111,14 @@ export function notificationHref(n: NotificationRow): string {
     return "/conflicts/detected";
   }
 
-  // 💬 Mensajes de grupo
+  // Mensajes de grupo → ir a la página del grupo
   if (t === "group_message") {
-    const asAny = n as any;
-    const groupId: string | null =
-      asAny.group_id ?? null;
-
-    // message_id preferente; entity_id como fallback
-    const messageId: string | null =
-      asAny.message_id ?? n.entity_id ?? null;
-
-    if (groupId && messageId) {
-      return `/groups/${groupId}?msg=${encodeURIComponent(messageId)}`;
-    }
-    if (groupId) {
-      return `/groups/${groupId}`;
+    if (n.entity_id) {
+      return `/groups/${encodeURIComponent(n.entity_id)}`;
     }
     return "/groups";
   }
 
-  // Default
+  // Fallback
   return "/calendar";
 }
