@@ -314,56 +314,74 @@ export default function GroupDetailsPage() {
     }
   }
 
-async function sendMessage() {
-  const trimmed = newMessage.trim();
-  if (!group || !trimmed || sendingMessage) return;
+  async function sendMessage() {
+    const trimmed = newMessage.trim();
+    if (!group || !trimmed || sendingMessage) return;
 
-  if (!currentUserId) {
-    showToast("Sesión no encontrada", "Vuelve a iniciar sesión.");
-    return;
-  }
+    if (!currentUserId) {
+      showToast("Sesión no encontrada", "Vuelve a iniciar sesión.");
+      return;
+    }
 
-  try {
-    setSendingMessage(true);
+    try {
+      setSendingMessage(true);
 
-    const { data, error } = await supabase
-      .from("group_messages")
-      .insert({
+      // 👇 Para debug: ver en consola qué se está mandando
+      console.log("[group message] inserting", {
         group_id: group.id,
-        author_id: currentUserId,   // 👈 AQUÍ LA CLAVE
+        author_id: currentUserId,
         content: trimmed,
-      })
-      .select("id, group_id, author_id, content, created_at")
-      .single();
+      });
 
-    if (error) throw error;
+      const { data, error } = await supabase
+        .from("group_messages")
+        .insert([
+          {
+            group_id: group.id,
+            author_id: currentUserId, // 👈 CLAVE: siempre mandamos author_id
+            content: trimmed,
+          },
+        ])
+        .select("id, group_id, author_id, content, created_at")
+        .single();
 
-    const row = data as {
-      id: string;
-      group_id: string;
-      author_id: string;
-      content: string;
-      created_at: string;
-    };
+      if (error) {
+        console.error("[group message] insert error", error);
+        throw error;
+      }
 
-    // Usa el perfil del miembro si lo tenemos ya cargado
-    const meMember = members.find((m) => String(m.user_id) === String(currentUserId));
-    const display_name = meMember?.profiles?.display_name ?? "Tú";
+      const row = data as {
+        id: string;
+        group_id: string;
+        author_id: string;
+        content: string;
+        created_at: string;
+      };
 
-    const appended: GroupMessage = {
-      ...row,
-      profile: { display_name },
-      isMe: true,
-    };
+      // Usa el perfil del miembro si lo tenemos ya cargado
+      const meMember = members.find(
+        (m) => String(m.user_id) === String(currentUserId)
+      );
+      const display_name = meMember?.profiles?.display_name ?? "Tú";
 
-    setMessages((prev) => [...prev, appended]);
-    setNewMessage("");
-  } catch (e: any) {
-    showToast("No se pudo enviar el mensaje", e?.message || "Intenta nuevamente.");
-  } finally {
-    setSendingMessage(false);
+      const appended: GroupMessage = {
+        ...row,
+        profile: { display_name },
+        isMe: true,
+      };
+
+      setMessages((prev) => [...prev, appended]);
+      setNewMessage("");
+    } catch (e: any) {
+      console.error("[group message] sendMessage catch", e);
+      showToast(
+        "No se pudo enviar el mensaje",
+        e?.message || "Intenta nuevamente."
+      );
+    } finally {
+      setSendingMessage(false);
+    }
   }
-}
 
 
   async function goCalendar() {
