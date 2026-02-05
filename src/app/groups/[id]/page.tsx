@@ -342,12 +342,13 @@ export default function GroupDetailsPage() {
     try {
       setSendingMessage(true);
 
+      // 1) Guardar mensaje en group_messages
       const { data, error } = await supabase
         .from("group_messages")
         .insert([
           {
             group_id: group.id,
-            author_id: currentUserId, // 👈 CLAVE: siempre mandamos author_id
+            author_id: currentUserId, // 👈 aseguramos autor en DB
             content: trimmed,
           },
         ])
@@ -367,7 +368,7 @@ export default function GroupDetailsPage() {
         created_at: string;
       };
 
-      // Usa el perfil del miembro si lo tenemos ya cargado
+      // 2) Resolver nombre "bonito" del autor para el propio chat
       const meMember = members.find(
         (m) => String(m.user_id) === String(currentUserId)
       );
@@ -382,7 +383,7 @@ export default function GroupDetailsPage() {
       setMessages((prev) => [...prev, appended]);
       setNewMessage("");
 
-      // 🔔 Notificaciones para los otros miembros del grupo
+      // 3) Notificaciones para los OTROS miembros del grupo
       try {
         const others = members.filter(
           (m) => String(m.user_id) !== String(currentUserId)
@@ -392,14 +393,25 @@ export default function GroupDetailsPage() {
           const snippet =
             trimmed.length > 80 ? trimmed.slice(0, 77) + "…" : trimmed;
 
-          const title = `Nuevo mensaje en ${group.name || typeLabel}`;
+          const groupLabel = group.name || typeLabel;
+          // Nombre que verán los otros (no "Tú")
+          const authorNameForOthers =
+            meMember?.profiles?.display_name || "Alguien del grupo";
 
           const rows = others.map((m) => ({
             user_id: m.user_id,
             type: "group_message" as const,
-            title,
+            title: `${authorNameForOthers} escribió en ${groupLabel}`,
             body: snippet,
-            entity_id: group.id, // 👉 lo usamos para hacer push a /groups/:id
+            entity_id: group.id, // 👉 lo usamos para navegar a /groups/:id
+            payload: {
+              group_id: group.id,
+              group_name: groupLabel,
+              author_id: currentUserId,
+              author_name: authorNameForOthers,
+              message_id: row.id,
+              message_snippet: snippet,
+            },
           }));
 
           const { error: notifError } = await supabase
@@ -407,7 +419,10 @@ export default function GroupDetailsPage() {
             .insert(rows);
 
           if (notifError) {
-            console.error("[group message] notif insert error", notifError);
+            console.error(
+              "[group message] notif insert error",
+              notifError
+            );
           }
         }
       } catch (inner) {

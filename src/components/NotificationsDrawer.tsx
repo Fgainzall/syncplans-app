@@ -91,6 +91,24 @@ export default function NotificationsDrawer({
   }
 
   function titleFor(n: NotificationRow) {
+    // 💬 Notificaciones de mensajes de grupo (V2)
+    if (n.type === "group_message") {
+      const payload = (n.payload || {}) as any;
+      const groupName =
+        payload.group_name ||
+        n.title?.replace(/^Nuevo mensaje en\s+/i, "") ||
+        "tu grupo";
+      const authorName: string | undefined = payload.author_name;
+
+      if (authorName) {
+        return `${authorName} escribió en ${groupName}`;
+      }
+
+      if (n.title) return n.title;
+      return `Nuevo mensaje en ${groupName}`;
+    }
+
+    // Resto de tipos (legacy)
     if (n.title) return n.title;
     if (n.type === "conflict_detected" || n.type === "conflict")
       return "Conflicto de horario";
@@ -100,6 +118,16 @@ export default function NotificationsDrawer({
   }
 
   function subtitleFor(n: NotificationRow) {
+    // 💬 Mensaje de grupo: usamos snippet si viene en payload
+    if (n.type === "group_message") {
+      const payload = (n.payload || {}) as any;
+      return (
+        payload.message_snippet ||
+        n.body ||
+        "Toca para ver el mensaje en el grupo."
+      );
+    }
+
     if (n.body) return n.body;
     if (n.type === "conflict_detected" || n.type === "conflict")
       return "Tu evento se cruza con otro. Revísalo antes de que se complique.";
@@ -112,6 +140,7 @@ export default function NotificationsDrawer({
     const t = String(n.type || "").toLowerCase();
     if (t === "conflict" || t === "conflict_detected") return "Conflicto";
     if (t === "event_created" || t === "event_deleted") return "Evento";
+    if (t === "group_message") return "Mensaje de grupo";
     return "Notificación";
   }
 
@@ -163,7 +192,7 @@ export default function NotificationsDrawer({
       // ✅ optimista: limpiamos lista
       setItems([]);
 
-      await deleteAllNotifications(); // 👈 ahora marca read_at en DB
+      await deleteAllNotifications();
 
       setToast({
         title: "Notificaciones eliminadas",
@@ -206,11 +235,10 @@ export default function NotificationsDrawer({
     try {
       busyIds.current.add(id);
 
-      // ✅ NUEVO COMPORTAMIENTO:
       // Cuando abres una notificación, la quitamos del listado inmediatamente.
       setItems((prev) => prev.filter((x) => String(x.id) !== id));
 
-      // La marcamos como leída en la BD (por consistencia / métricas)
+      // La marcamos como leída en la BD
       await markNotificationRead(id);
 
       navTo(href);
@@ -233,7 +261,7 @@ export default function NotificationsDrawer({
       // optimista: sacamos esa notificación de la lista
       setItems((prev) => prev.filter((x) => String(x.id) !== id));
 
-      await deleteNotification(id); // 👈 ahora también solo marca read_at
+      await deleteNotification(id);
     } catch {
       setToast({
         title: "No pudimos eliminar",
@@ -337,6 +365,7 @@ export default function NotificationsDrawer({
                   {items.map((n) => {
                     const isUnread = !n.read_at || n.read_at === "";
                     const isBusy = busyIds.current.has(String(n.id));
+                    const payload = (n.payload || {}) as any;
 
                     return (
                       <button
@@ -398,6 +427,12 @@ export default function NotificationsDrawer({
 
                             <div style={rowMeta}>
                               <span style={metaPill}>{typeLabel(n)}</span>
+                              {n.type === "group_message" &&
+                                payload.group_name && (
+                                  <span style={metaPill}>
+                                    Grupo: {payload.group_name}
+                                  </span>
+                                )}
                               <span style={metaPill}>Abrir</span>
                               {isUnread && (
                                 <span
