@@ -207,6 +207,45 @@ export async function createGroup(input: {
   };
 }
 
+/* ─────────────────── Editar grupo ─────────────────── */
+
+/**
+ * Actualiza la metadata básica del grupo (nombre y/o tipo).
+ * RLS en `groups` debe permitir UPDATE solo al owner.
+ */
+export async function updateGroupMeta(
+  groupId: string,
+  patch: { name?: string | null; type?: GroupType }
+): Promise<GroupRow> {
+  if (!patch.name && !patch.type) {
+    throw new Error("No hay cambios para guardar.");
+  }
+
+  const { data, error } = await supabase
+    .from("groups")
+    .update(patch)
+    .eq("id", groupId)
+    .select("id,name,type,created_at,owner_id")
+    .single();
+
+  if (error) {
+    console.error("[updateGroupMeta] error", error);
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error("No se pudo actualizar el grupo.");
+  }
+
+  return {
+    id: data.id,
+    name: data.name ?? null,
+    type: data.type,
+    created_at: data.created_at ?? null,
+    owner_id: data.owner_id ?? null,
+  };
+}
+
 /* ─────────────────── Mis memberships ─────────────────── */
 
 /**
@@ -248,9 +287,6 @@ export async function getMyGroupMemberships(): Promise<GroupMemberRow[]> {
       (row.coordination_prefs ?? null) as GroupMemberCoordinationPrefs | null,
   }));
 }
-
-// Asegúrate de tener ya importado supabase arriba:
-// import supabase from "@/lib/supabaseClient";
 
 /**
  * Actualiza MI metadata en un grupo concreto (fila en group_members).

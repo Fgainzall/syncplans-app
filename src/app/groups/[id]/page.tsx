@@ -12,11 +12,15 @@ import {
   getProfilesByIds,
   type Profile as UserProfile,
 } from "@/lib/profilesDb";
+import {
+  updateGroupMeta,
+  type GroupType,
+} from "@/lib/groupsDb";
 
 type Group = {
   id: string;
   name: string | null;
-  type: "pair" | "family" | "solo" | "personal" | string;
+  type: "pair" | "family" | "solo" | "personal" | "other" | string;
   owner_id: string | null;
   created_at: string;
 };
@@ -32,11 +36,19 @@ type MemberRow = {
   isMe: boolean;
 };
 
+const groupTypeOptions: { value: GroupType; label: string; hint: string }[] = [
+  { value: "solo", label: "Personal", hint: "Solo tú" },
+  { value: "pair", label: "Pareja", hint: "2 personas" },
+  { value: "family", label: "Familia", hint: "Varios" },
+  { value: "other", label: "Compartido", hint: "Amigos, equipos" },
+];
+
 function labelGroupType(t?: string | null) {
   const x = (t || "").toLowerCase();
   if (x === "family") return "Familia";
   if (x === "pair" || x === "couple") return "Pareja";
   if (x === "solo" || x === "personal") return "Personal";
+  if (x === "other") return "Compartido";
   return t ? String(t) : "Grupo";
 }
 
@@ -64,12 +76,29 @@ export default function GroupDetailsPage() {
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
+  // Edición de grupo (nombre + tipo)
+  const [editName, setEditName] = useState("");
+  const [editType, setEditType] = useState<GroupType>("family");
+  const [savingMeta, setSavingMeta] = useState(false);
+
   function showToast(title: string, subtitle?: string) {
     setToast({ title, subtitle });
     window.setTimeout(() => setToast(null), 3200);
   }
 
   const typeLabel = useMemo(() => labelGroupType(group?.type ?? null), [group]);
+
+  const isOwner = useMemo(() => {
+    if (!group?.owner_id || !currentUserId) return false;
+    return String(group.owner_id) === String(currentUserId);
+  }, [group?.owner_id, currentUserId]);
+
+  const hasGroupMetaChanges = useMemo(() => {
+    if (!group) return false;
+    const baseName = group.name ?? "";
+    const baseType = (group.type as GroupType) ?? "family";
+    return baseName !== editName.trim() || baseType !== editType;
+  }, [group, editName, editType]);
 
   async function loadMembers(gid: string, userId: string | null) {
     setMembersLoading(true);
@@ -135,7 +164,13 @@ export default function GroupDetailsPage() {
       .single();
 
     if (gErr) throw gErr;
-    setGroup(g as any);
+
+    const typedGroup = g as Group;
+    setGroup(typedGroup);
+
+    // Inicializar formulario de edición
+    setEditName(typedGroup.name ?? "");
+    setEditType((typedGroup.type as GroupType) ?? "family");
 
     await loadMembers(groupId, userId);
   }
@@ -216,6 +251,50 @@ export default function GroupDetailsPage() {
     router.push("/calendar");
   }
 
+  async function handleSaveMeta() {
+    const g = group;
+    if (!g) return;
+
+    if (!isOwner) {
+      showToast("Solo el owner puede editar el grupo");
+      return;
+    }
+
+    if (!hasGroupMetaChanges) {
+      showToast("Sin cambios por guardar");
+      return;
+    }
+
+    try {
+      setSavingMeta(true);
+
+      const patch: { name?: string | null; type?: GroupType } = {};
+      const trimmedName = editName.trim();
+
+      if (trimmedName !== (g.name ?? "")) {
+        // si el input queda vacío, mandamos null
+        patch.name = trimmedName || null;
+      }
+
+      const baseType = (g.type as GroupType) ?? "family";
+      if (editType !== baseType) {
+        patch.type = editType;
+      }
+
+      const updated = await updateGroupMeta(g.id, patch);
+
+      setGroup(updated as Group);
+      showToast("Grupo actualizado ✅", "Todos verán el nuevo nombre y tipo.");
+    } catch (e: any) {
+      showToast(
+        "No se pudo actualizar el grupo",
+        e?.message || "Intenta nuevamente."
+      );
+    } finally {
+      setSavingMeta(false);
+    }
+  }
+
   if (booting) {
     return (
       <main style={styles.page}>
@@ -289,6 +368,77 @@ export default function GroupDetailsPage() {
             <button onClick={goCalendar} style={styles.primaryBtn}>
               Ir al calendario →
             </button>
+          </div>
+        </section>
+
+        {/* Configuración del grupo: nombre + tipo */}
+        <section style={styles.card}>
+          <div style={styles.sectionTitle}>Configurar grupo</div>
+          <div style={styles.smallNote}>
+            Cambia el nombre o el tipo del grupo. El cambio aplica para todos los miembros.
+            {isOwner
+              ? " Solo el owner puede guardar cambios."
+              : " No puedes editar este grupo porque no eres el owner."}
+          </div>
+
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <div style={styles.fieldLabel}>Nombre del grupo</div>
+              <input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Ej. Familia Gainza Llosa"
+                disabled={!isOwner}
+                style={{
+                  ...styles.input,
+                  marginTop: 6,
+                  opacity: isOwner ? 1 : 0.6,
+                }}
+              />
+            </div>
+
+            <div>
+              <div style={styles.fieldLabel}>Tipo de grupo</div>
+              <div style={styles.typePillRow}>
+                {groupTypeOptions.map((opt) => {
+                  const active = editType === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      disabled={!isOwner}
+                      onClick={() => isOwner && setEditType(opt.value)}
+                      style={{
+                        ...styles.typePill,
+                        ...(active ? styles.typePillActive : {}),
+                        ...(isOwner ? {} : { opacity: 0.6, cursor: "default" }),
+                      }}
+                    >
+                      <div style={styles.typePillLabel}>{opt.label}</div>
+                      <div style={styles.typePillHint}>{opt.hint}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
+              <button
+                onClick={handleSaveMeta}
+                disabled={!isOwner || !hasGroupMetaChanges || savingMeta}
+                style={{
+                  ...styles.primaryBtn,
+                  opacity: !isOwner || !hasGroupMetaChanges ? 0.55 : 1,
+                }}
+              >
+                {savingMeta ? "Guardando…" : "Guardar cambios"}
+              </button>
+              {hasGroupMetaChanges && isOwner && (
+                <span style={{ fontSize: 11, opacity: 0.8 }}>
+                  Se actualizará el nombre y/o tipo del grupo para todos.
+                </span>
+              )}
+            </div>
           </div>
         </section>
 
@@ -435,6 +585,12 @@ const styles: Record<string, React.CSSProperties> = {
   sectionTitle: { fontWeight: 950, fontSize: 14 },
   smallNote: { marginTop: 6, fontSize: 12, opacity: 0.72 },
 
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: 800,
+    opacity: 0.9,
+  },
+
   input: {
     flex: 1,
     minWidth: 260,
@@ -445,6 +601,38 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.92)",
     outline: "none",
     fontSize: 14,
+  },
+
+  typePillRow: {
+    marginTop: 8,
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  typePill: {
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(8,12,24,0.85)",
+    padding: "7px 10px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    minWidth: 110,
+    cursor: "pointer",
+  },
+  typePillActive: {
+    border: "1px solid rgba(255,255,255,0.85)",
+    background: "rgba(255,255,255,0.08)",
+    boxShadow: "0 0 18px rgba(56,189,248,0.35)",
+  },
+  typePillLabel: {
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  typePillHint: {
+    fontSize: 10,
+    opacity: 0.7,
+    marginTop: 2,
   },
 
   table: {
