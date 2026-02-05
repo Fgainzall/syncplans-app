@@ -314,55 +314,57 @@ export default function GroupDetailsPage() {
     }
   }
 
-  async function sendMessage() {
-    const trimmed = newMessage.trim();
-    if (!group || !trimmed || sendingMessage) return;
+async function sendMessage() {
+  const trimmed = newMessage.trim();
+  if (!group || !trimmed || sendingMessage) return;
 
-    if (!currentUserId) {
-      showToast("Sesión no encontrada", "Vuelve a iniciar sesión.");
-      return;
-    }
-
-    try {
-      setSendingMessage(true);
-
-      const { data, error } = await supabase
-        .from("group_messages")
-        .insert({
-          group_id: group.id,
-          content: trimmed,
-        })
-        .select("id, group_id, author_id, content, created_at")
-        .single();
-
-      if (error) throw error;
-
-      const row = data as {
-        id: string;
-        group_id: string;
-        author_id: string;
-        content: string;
-        created_at: string;
-      };
-
-      // Usa el perfil del miembro si lo tenemos ya cargado
-      const meMember = members.find((m) => String(m.user_id) === String(currentUserId));
-      const display_name = meMember?.profiles?.display_name ?? "Tú";
-
-      const appended: GroupMessage = {
-        ...row,
-        profile: { display_name },
-        isMe: true,
-      };
-
-      setMessages((prev) => [...prev, appended]);
-      setNewMessage("");
-    } catch (e: any) {
-      showToast("No se pudo enviar el mensaje", e?.message || "Intenta nuevamente.");
-    } finally {
-      setSendingMessage(false);
-    }
+  if (!currentUserId) {
+    showToast("Sesión no encontrada", "Vuelve a iniciar sesión.");
+    return;
   }
+
+  try {
+    setSendingMessage(true);
+
+    const { data, error } = await supabase
+      .from("group_messages")
+      .insert({
+        group_id: group.id,
+        author_id: currentUserId,   // 👈 AQUÍ LA CLAVE
+        content: trimmed,
+      })
+      .select("id, group_id, author_id, content, created_at")
+      .single();
+
+    if (error) throw error;
+
+    const row = data as {
+      id: string;
+      group_id: string;
+      author_id: string;
+      content: string;
+      created_at: string;
+    };
+
+    // Usa el perfil del miembro si lo tenemos ya cargado
+    const meMember = members.find((m) => String(m.user_id) === String(currentUserId));
+    const display_name = meMember?.profiles?.display_name ?? "Tú";
+
+    const appended: GroupMessage = {
+      ...row,
+      profile: { display_name },
+      isMe: true,
+    };
+
+    setMessages((prev) => [...prev, appended]);
+    setNewMessage("");
+  } catch (e: any) {
+    showToast("No se pudo enviar el mensaje", e?.message || "Intenta nuevamente.");
+  } finally {
+    setSendingMessage(false);
+  }
+}
+
 
   async function goCalendar() {
     try {
