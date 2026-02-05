@@ -1,3 +1,4 @@
+// src/app/invitations/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -98,8 +99,7 @@ export default function InvitationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ IMPORTANTE:
-  // Aquí ya NO aceptamos directamente.
+  // ✅ Ahora ya NO aceptamos directamente.
   // Solo redirigimos a la pantalla premium:
   // /invitations/accept?invite=<ID>
   const onAccept = (id: string) => {
@@ -126,9 +126,8 @@ export default function InvitationsPage() {
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-          <div style={styles.topRow}>
-            <PremiumHeader />
-            <LogoutButton />
+          <div style={styles.headerRow}>
+            <PremiumHeader rightSlot={<LogoutButton />} />
           </div>
 
           <div style={styles.loadingCard}>
@@ -148,9 +147,8 @@ export default function InvitationsPage() {
   return (
     <main style={styles.page}>
       <div style={styles.shell}>
-        <div style={styles.topRow}>
-          <PremiumHeader />
-          <LogoutButton />
+        <div style={styles.headerRow}>
+          <PremiumHeader rightSlot={<LogoutButton />} />
         </div>
 
         <section style={styles.hero}>
@@ -168,11 +166,7 @@ export default function InvitationsPage() {
               ← Volver a grupos
             </button>
 
-            <button
-              onClick={load}
-              style={styles.primaryBtn}
-              disabled={loading}
-            >
+            <button onClick={load} style={styles.primaryBtn} disabled={loading}>
               {loading ? "Actualizando…" : "Actualizar"}
             </button>
           </div>
@@ -246,12 +240,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   shell: { maxWidth: 720, margin: "0 auto", padding: 24 },
 
-  topRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
+  headerRow: {
     marginBottom: 16,
-    gap: 12,
   },
 
   hero: {

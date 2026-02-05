@@ -386,7 +386,7 @@ const S: Record<string, React.CSSProperties> = {
   topRow: {
     display: "flex",
     gap: 14,
-    alignItems: "flex-start",
+    alignItems: "center", // ⬅️ antes: "flex-start"
     justifyContent: "space-between",
   },
   left: { minWidth: 0 },
@@ -533,7 +533,14 @@ const S: Record<string, React.CSSProperties> = {
   },
   tabDot: { width: 10, height: 10, borderRadius: 999, gridRow: "1 / span 2" },
   tabText: { fontSize: 13, fontWeight: 900 },
-  tabHint: { fontSize: 11, opacity: 0.75, fontWeight: 650 },
+  tabHint: {
+    fontSize: 11,
+    opacity: 0.75,
+    fontWeight: 650,
+    whiteSpace: "nowrap",      // ⬅️ evita salto de línea
+    overflow: "hidden",        // ⬅️ recorta si no entra
+    textOverflow: "ellipsis",  // ⬅️ añade "…" si se recorta
+  },
 
   nav: {
     display: "flex",

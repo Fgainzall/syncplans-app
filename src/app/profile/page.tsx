@@ -219,7 +219,8 @@ export default function ProfilePage() {
           const profile = await getMyProfile();
           if (profile) {
             const dn = (
-              profile.display_name ?? `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
+              profile.display_name ??
+              `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
             ).trim();
 
             if (dn) {
@@ -406,7 +407,8 @@ export default function ProfilePage() {
       });
 
       const baseDisplay = (
-        profile.display_name ?? `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
+        profile.display_name ??
+        `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
       ).trim();
 
       const newDisplay: string = baseDisplay || user?.name || "Usuario";
@@ -555,11 +557,13 @@ export default function ProfilePage() {
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-          <PremiumHeader
-            title="Panel"
-            subtitle="Tu panel de cuenta en SyncPlans."
-            rightSlot={<LogoutButton />}
-          />
+          <div style={styles.headerRow}>
+            <PremiumHeader
+              title="Panel"
+              subtitle="Tu panel de cuenta en SyncPlans."
+              rightSlot={<LogoutButton />}
+            />
+          </div>
           <div style={styles.loadingRow}>
             <div style={styles.loadingCard} />
             <div style={styles.loadingCard} />
@@ -1321,17 +1325,24 @@ export default function ProfilePage() {
                                   selectedMembership.group_id
                                 )
                               }
-                              disabled={savingGroupId === selectedMembership.group_id}
+                              disabled={
+                                savingGroupId === selectedMembership.group_id ||
+                                !hasSelectedDirty
+                              }
                               style={{
                                 ...styles.groupMetaSaveBtn,
                                 opacity:
                                   savingGroupId === selectedMembership.group_id
                                     ? 0.7
-                                    : 1,
+                                    : hasSelectedDirty
+                                    ? 1
+                                    : 0.55,
                                 cursor:
                                   savingGroupId === selectedMembership.group_id
                                     ? "progress"
-                                    : "pointer",
+                                    : hasSelectedDirty
+                                    ? "pointer"
+                                    : "default",
                               }}
                             >
                               {savingGroupId === selectedMembership.group_id
@@ -1973,9 +1984,10 @@ const styles: Record<string, React.CSSProperties> = {
 
   groupMasterDetail: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 0.9fr) minmax(0, 1.4fr)",
+    gridTemplateColumns: "minmax(0, 0.95fr) minmax(0, 1.5fr)",
     gap: 10,
     alignItems: "stretch",
+    minHeight: 220,
   },
 
   groupListCol: {
@@ -2033,7 +2045,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   groupListScroll: {
     marginTop: 4,
-    maxHeight: 280,
+    maxHeight: 260,
     overflowY: "auto",
     display: "flex",
     flexDirection: "column",
