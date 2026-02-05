@@ -40,7 +40,7 @@ export default function NotificationsDrawer({
   const busyIds = useRef<Set<string>>(new Set());
 
   const unreadCount = useMemo(
-    () => items.filter((x) => !x.read_at).length,
+    () => items.filter((x) => !x.read_at || x.read_at === "").length,
     [items]
   );
 
@@ -53,7 +53,7 @@ export default function NotificationsDrawer({
     if (!open) return;
 
     const now = Date.now();
-    if (now - lastOpenFetchAt.current < 250) return; // pequeño guard anti doble open
+    if (now - lastOpenFetchAt.current < 250) return; // guard anti doble open
     lastOpenFetchAt.current = now;
 
     let alive = true;
@@ -92,23 +92,19 @@ export default function NotificationsDrawer({
 
   function titleFor(n: NotificationRow) {
     if (n.title) return n.title;
-    const t = String(n.type || "").toLowerCase();
-    if (t === "conflict" || t === "conflict_detected") return "Conflicto de horario";
-    if (t === "event_created") return "Nuevo evento creado";
-    if (t === "event_deleted") return "Evento eliminado";
-    if (t === "group_message") return "Nuevo mensaje en el grupo";
+    if (n.type === "conflict_detected" || n.type === "conflict")
+      return "Conflicto de horario";
+    if (n.type === "event_created") return "Nuevo evento creado";
+    if (n.type === "event_deleted") return "Evento eliminado";
     return "Notificación";
   }
 
   function subtitleFor(n: NotificationRow) {
     if (n.body) return n.body;
-    const t = String(n.type || "").toLowerCase();
-    if (t === "conflict" || t === "conflict_detected")
+    if (n.type === "conflict_detected" || n.type === "conflict")
       return "Tu evento se cruza con otro. Revísalo antes de que se complique.";
-    if (t === "event_created") return "Tu evento se guardó correctamente.";
-    if (t === "event_deleted") return "Tu evento fue eliminado.";
-    if (t === "group_message")
-      return "Alguien escribió en este grupo. Toca para ver la conversación.";
+    if (n.type === "event_created") return "Tu evento se guardó correctamente.";
+    if (n.type === "event_deleted") return "Tu evento fue eliminado.";
     return "Toca para ver más.";
   }
 
@@ -116,7 +112,6 @@ export default function NotificationsDrawer({
     const t = String(n.type || "").toLowerCase();
     if (t === "conflict" || t === "conflict_detected") return "Conflicto";
     if (t === "event_created" || t === "event_deleted") return "Evento";
-    if (t === "group_message") return "Mensaje";
     return "Notificación";
   }
 
@@ -137,13 +132,16 @@ export default function NotificationsDrawer({
     try {
       setLoading(true);
 
-      // ✅ optimista: baja badge al instante
+      // ✅ optimista: marcamos todas como leídas en memoria
       setItems((prev) =>
         prev.map((x) => ({ ...x, read_at: x.read_at ?? nowIso }))
       );
 
-      // persist
       await markAllRead();
+
+      // refresh silencioso por si algo cambió en el backend
+      refreshFromDb(true);
+
       setToast({
         title: "Listo",
         subtitle: "Marcaste todas como leídas.",
@@ -201,28 +199,18 @@ export default function NotificationsDrawer({
     }
   }
 
-  // 👇 AQUÍ está el cambio importante:
-  // - marca como leída en memoria (quita "Nuevo")
-  // - intenta persistir en DB
-  // - navega y cierra el drawer
   async function onOpenNotification(n: NotificationRow) {
     const href = notificationHref(n);
     const id = String(n.id);
-    const nowIso = new Date().toISOString();
 
     try {
       busyIds.current.add(id);
 
-      // ✅ Optimista: marcamos como leída localmente
-      setItems((prev) =>
-        prev.map((x) =>
-          String(x.id) === id
-            ? { ...x, read_at: x.read_at ?? nowIso }
-            : x
-        )
-      );
+      // ✅ NUEVO COMPORTAMIENTO:
+      // Cuando abres una notificación, la quitamos del listado inmediatamente.
+      setItems((prev) => prev.filter((x) => String(x.id) !== id));
 
-      // Persistimos en DB (si falla, igual ya no la verás como "Nuevo")
+      // La marcamos como leída en la BD (por consistencia / métricas)
       await markNotificationRead(id);
 
       navTo(href);
@@ -347,7 +335,7 @@ export default function NotificationsDrawer({
               ) : (
                 <div style={list}>
                   {items.map((n) => {
-                    const isUnread = !n.read_at;
+                    const isUnread = !n.read_at || n.read_at === "";
                     const isBusy = busyIds.current.has(String(n.id));
 
                     return (
