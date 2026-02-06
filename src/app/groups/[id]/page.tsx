@@ -110,6 +110,10 @@ export default function GroupDetailsPage() {
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
 
+  // 🔕 Mute de grupo (por usuario)
+  const [muted, setMuted] = useState(false);
+  const [updatingMute, setUpdatingMute] = useState(false);
+
   function showToast(title: string, subtitle?: string) {
     setToast({ title, subtitle });
     window.setTimeout(() => setToast(null), 3200);
@@ -252,6 +256,17 @@ export default function GroupDetailsPage() {
     setEditName(typedGroup.name ?? "");
     setEditType((typedGroup.type as GroupType) ?? "family");
 
+    // 🔕 Leer si este grupo está silenciado para este usuario
+    const { data: ns, error: nsErr } = await supabase
+      .from("group_notification_settings")
+      .select("muted")
+      .eq("user_id", userId)
+      .eq("group_id", groupId)
+      .maybeSingle();
+
+    if (nsErr) throw nsErr;
+    setMuted(Boolean(ns?.muted));
+
     await loadMembers(groupId, userId);
     await loadMessages(groupId, userId);
   }
@@ -342,13 +357,12 @@ export default function GroupDetailsPage() {
     try {
       setSendingMessage(true);
 
-      // 1) Guardar mensaje en group_messages
       const { data, error } = await supabase
         .from("group_messages")
         .insert([
           {
             group_id: group.id,
-            author_id: currentUserId, // 👈 aseguramos autor en DB
+            author_id: currentUserId, // 👈 CLAVE: siempre mandamos author_id
             content: trimmed,
           },
         ])
@@ -368,7 +382,7 @@ export default function GroupDetailsPage() {
         created_at: string;
       };
 
-      // 2) Resolver nombre "bonito" del autor para el propio chat
+      // Usa el perfil del miembro si lo tenemos ya cargado
       const meMember = members.find(
         (m) => String(m.user_id) === String(currentUserId)
       );
@@ -383,7 +397,7 @@ export default function GroupDetailsPage() {
       setMessages((prev) => [...prev, appended]);
       setNewMessage("");
 
-      // 3) Notificaciones para los OTROS miembros del grupo
+      // 🔔 Notificaciones para los otros miembros del grupo
       try {
         const others = members.filter(
           (m) => String(m.user_id) !== String(currentUserId)
@@ -393,25 +407,14 @@ export default function GroupDetailsPage() {
           const snippet =
             trimmed.length > 80 ? trimmed.slice(0, 77) + "…" : trimmed;
 
-          const groupLabel = group.name || typeLabel;
-          // Nombre que verán los otros (no "Tú")
-          const authorNameForOthers =
-            meMember?.profiles?.display_name || "Alguien del grupo";
+          const title = `Nuevo mensaje en ${group.name || typeLabel}`;
 
           const rows = others.map((m) => ({
             user_id: m.user_id,
             type: "group_message" as const,
-            title: `${authorNameForOthers} escribió en ${groupLabel}`,
+            title,
             body: snippet,
-            entity_id: group.id, // 👉 lo usamos para navegar a /groups/:id
-            payload: {
-              group_id: group.id,
-              group_name: groupLabel,
-              author_id: currentUserId,
-              author_name: authorNameForOthers,
-              message_id: row.id,
-              message_snippet: snippet,
-            },
+            entity_id: group.id, // 👉 lo usamos para hacer push a /groups/:id
           }));
 
           const { error: notifError } = await supabase
@@ -419,10 +422,7 @@ export default function GroupDetailsPage() {
             .insert(rows);
 
           if (notifError) {
-            console.error(
-              "[group message] notif insert error",
-              notifError
-            );
+            console.error("[group message] notif insert error", notifError);
           }
         }
       } catch (inner) {
@@ -489,6 +489,48 @@ export default function GroupDetailsPage() {
       );
     } finally {
       setSavingMeta(false);
+    }
+  }
+
+  // 🔕 Toggle mute
+  async function toggleMute(next: boolean) {
+    if (!currentUserId || !groupId) return;
+
+    try {
+      setUpdatingMute(true);
+      setMuted(next); // optimista
+
+      const { error } = await supabase
+        .from("group_notification_settings")
+        .upsert(
+          {
+            user_id: currentUserId,
+            group_id: groupId,
+            muted: next,
+          },
+          { onConflict: "user_id,group_id" }
+        );
+
+      if (error) {
+        console.error("[group mute] upsert error", error);
+        throw error;
+      }
+
+      showToast(
+        next ? "Grupo silenciado 🔕" : "Notificaciones activas 🔔",
+        next
+          ? "No verás nuevas notificaciones de mensajes para este grupo."
+          : "Volverás a ver notificaciones de mensajes para este grupo."
+      );
+    } catch (e: any) {
+      // rollback
+      setMuted((prev) => !next);
+      showToast(
+        "No se pudo actualizar notificaciones",
+        e?.message || "Intenta nuevamente."
+      );
+    } finally {
+      setUpdatingMute(false);
     }
   }
 
@@ -561,12 +603,29 @@ export default function GroupDetailsPage() {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button onClick={() => router.push("/groups")} style={styles.ghostBtn}>
-              ← Volver
-            </button>
-            <button onClick={goCalendar} style={styles.primaryBtn}>
-              Ir al calendario →
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button onClick={() => router.push("/groups")} style={styles.ghostBtn}>
+                ← Volver
+              </button>
+              <button onClick={goCalendar} style={styles.primaryBtn}>
+                Ir al calendario →
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => toggleMute(!muted)}
+              disabled={updatingMute}
+              style={{
+                ...styles.ghostBtn,
+                fontSize: 11,
+                padding: "8px 10px",
+                opacity: updatingMute ? 0.6 : 1,
+                alignSelf: "flex-start",
+              }}
+            >
+              {muted ? "🔕 Grupo silenciado" : "🔔 Notificaciones activas"}
             </button>
           </div>
         </section>

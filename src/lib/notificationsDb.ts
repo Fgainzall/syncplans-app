@@ -31,50 +31,45 @@ async function requireUid(): Promise<string> {
 
 /**
  * 🔔 SOLO NOTIFICACIONES NO LEÍDAS (Inbox Zero)
- * + limpieza de duplicados en memoria
+ * y además respeta grupos silenciados (group_notification_settings.muted = true).
  */
 export async function getMyNotifications(
   limit = 20
 ): Promise<NotificationRow[]> {
   const uid = await requireUid();
 
-  const { data, error } = await supabase
+  // 1) Leer qué grupos tengo silenciados
+  const { data: mutedRows, error: mutedErr } = await supabase
+    .from("group_notification_settings")
+    .select("group_id, muted")
+    .eq("user_id", uid)
+    .eq("muted", true);
+
+  if (mutedErr) throw mutedErr;
+
+  const mutedGroupIds = (mutedRows ?? [])
+    .map((r: any) => r.group_id as string)
+    .filter(Boolean);
+
+  // 2) Base query de notificaciones no leídas
+  let query = supabase
     .from("notifications")
     .select("*")
     .eq("user_id", uid)
-    .is("read_at", null)
+    .is("read_at", null) // 👈 solo no leídas
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (error) throw error;
-
-  const raw = (data ?? []) as NotificationRow[];
-
-  // 🧹 DE-DUPE:
-  // Si por algún motivo la BD creó dos notificaciones casi iguales
-  // para el mismo usuario (mismo tipo, título, body, entity_id),
-  // nos quedamos solo con la más reciente (ya viene ordenado desc).
-  const seen = new Set<string>();
-  const cleaned: NotificationRow[] = [];
-
-  for (const n of raw) {
-    const key = [
-      n.type ?? "",
-      n.entity_id ?? "",
-      n.title ?? "",
-      n.body ?? "",
-    ].join("|");
-
-    if (seen.has(key)) {
-      // Duplicado → lo ignoramos
-      continue;
-    }
-
-    seen.add(key);
-    cleaned.push(n);
+  // 3) Si hay grupos silenciados, excluirlos por entity_id
+  //    (para group_message, entity_id = group_id).
+  if (mutedGroupIds.length > 0) {
+    const list = `(${mutedGroupIds.join(",")})`;
+    query = query.not("entity_id", "in", list);
   }
 
-  return cleaned;
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []) as NotificationRow[];
 }
 
 export async function markNotificationRead(id: string) {
@@ -101,16 +96,12 @@ export async function markAllRead() {
   if (error) throw error;
 }
 
-/**
- * "Eliminar" = marcar como leída, así respeta RLS
- * y no vuelve a salir porque getMyNotifications filtra por read_at IS NULL.
- */
 export async function deleteNotification(id: string) {
   const uid = await requireUid();
 
   const { error } = await supabase
     .from("notifications")
-    .update({ read_at: new Date().toISOString() })
+    .delete()
     .eq("id", id)
     .eq("user_id", uid);
 
@@ -122,9 +113,8 @@ export async function deleteAllNotifications() {
 
   const { error } = await supabase
     .from("notifications")
-    .update({ read_at: new Date().toISOString() })
-    .eq("user_id", uid)
-    .is("read_at", null);
+    .delete()
+    .eq("user_id", uid);
 
   if (error) throw error;
 }
@@ -135,6 +125,7 @@ export async function deleteAllNotifications() {
 export function notificationHref(n: NotificationRow): string {
   const t = String(n.type || "").toLowerCase();
 
+  // Conflictos
   if (t === "conflict" || t === "conflict_detected") {
     if (n.entity_id) {
       return `/conflicts/compare?eventId=${encodeURIComponent(n.entity_id)}`;
@@ -142,6 +133,7 @@ export function notificationHref(n: NotificationRow): string {
     return "/conflicts/detected";
   }
 
+  // Mensajes de grupo → ir a la página del grupo
   if (t === "group_message") {
     if (n.entity_id) {
       return `/groups/${encodeURIComponent(n.entity_id)}`;
@@ -149,5 +141,6 @@ export function notificationHref(n: NotificationRow): string {
     return "/groups";
   }
 
+  // Fallback
   return "/calendar";
 }
