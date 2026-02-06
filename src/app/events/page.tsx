@@ -262,14 +262,41 @@ export default function EventsPage() {
                     <div style={{ ...S.bar, background: meta.dot }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={S.rowTop}>
-                        <div style={S.rowTitle}>{e.title}</div>
-                        <button
-                          style={S.del}
-                          onClick={() => onDelete(String(e.id))}
-                          title="Eliminar"
+                        {/* Título clickeable para editar */}
+                        <div
+                          style={{ ...S.rowTitle, cursor: "pointer" }}
+                          title="Editar evento"
+                          onClick={() =>
+                            router.push(
+                              `/events/new/details?mode=edit&id=${e.id}`
+                            )
+                          }
                         >
-                          🗑️
-                        </button>
+                          {e.title}
+                        </div>
+
+                        {/* Botones Editar + Eliminar */}
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button
+                            style={S.edit}
+                            onClick={() =>
+                              router.push(
+                                `/events/new/details?mode=edit&id=${e.id}`
+                              )
+                            }
+                            title="Editar"
+                          >
+                            ✏️
+                          </button>
+
+                          <button
+                            style={S.del}
+                            onClick={() => onDelete(String(e.id))}
+                            title="Eliminar"
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </div>
                       <div style={S.rowSub}>{formatRange(e)}</div>
                       <div style={S.badge}>{meta.label}</div>
@@ -457,5 +484,12 @@ const S: Record<string, React.CSSProperties> = {
     background: "transparent",
     cursor: "pointer",
     fontSize: 16,
+  },
+  edit: {
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    fontSize: 16,
+    opacity: 0.85,
   },
 };
