@@ -397,19 +397,58 @@ export default function GroupDetailsPage() {
       setMessages((prev) => [...prev, appended]);
       setNewMessage("");
 
-      // 🔔 Notificaciones para los otros miembros del grupo
+      // 🔔 Notificaciones para los otros miembros del grupo (respetando mute)
       try {
         const others = members.filter(
           (m) => String(m.user_id) !== String(currentUserId)
         );
 
         if (others.length > 0) {
+          let recipients = others;
+
+          try {
+            const ids = others.map((m) => m.user_id);
+
+            const { data: prefs, error: prefsError } = await supabase
+              .from("group_notification_settings")
+              .select("user_id, muted")
+              .eq("group_id", group.id)
+              .in("user_id", ids);
+
+            if (prefsError) {
+              console.error(
+                "[group message] mute prefs select error",
+                prefsError
+              );
+            } else {
+              const rows = (prefs ?? []) as Array<{
+                user_id: string;
+                muted: boolean | null;
+              }>;
+
+              const mutedSet = new Set(
+                rows.filter((r) => r.muted).map((r) => r.user_id)
+              );
+
+              recipients = others.filter(
+                (m) => !mutedSet.has(m.user_id)
+              );
+            }
+          } catch (innerMuteErr) {
+            console.error("[group message] mute prefs outer error", innerMuteErr);
+          }
+
+          if (recipients.length === 0) {
+            // Todos están muteados, no hay a quién notificar
+            return;
+          }
+
           const snippet =
             trimmed.length > 80 ? trimmed.slice(0, 77) + "…" : trimmed;
 
           const title = `Nuevo mensaje en ${group.name || typeLabel}`;
 
-          const rows = others.map((m) => ({
+          const rowsToInsert = recipients.map((m) => ({
             user_id: m.user_id,
             type: "group_message" as const,
             title,
@@ -419,7 +458,7 @@ export default function GroupDetailsPage() {
 
           const { error: notifError } = await supabase
             .from("notifications")
-            .insert(rows);
+            .insert(rowsToInsert);
 
           if (notifError) {
             console.error("[group message] notif insert error", notifError);
@@ -498,7 +537,7 @@ export default function GroupDetailsPage() {
 
     try {
       setUpdatingMute(true);
-      setMuted(next); // optimista
+      setMuted(next); // update optimista
 
       const { error } = await supabase
         .from("group_notification_settings")
@@ -612,21 +651,6 @@ export default function GroupDetailsPage() {
                 Ir al calendario →
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => toggleMute(!muted)}
-              disabled={updatingMute}
-              style={{
-                ...styles.ghostBtn,
-                fontSize: 11,
-                padding: "8px 10px",
-                opacity: updatingMute ? 0.6 : 1,
-                alignSelf: "flex-start",
-              }}
-            >
-              {muted ? "🔕 Grupo silenciado" : "🔔 Notificaciones activas"}
-            </button>
           </div>
         </section>
 
@@ -750,7 +774,24 @@ export default function GroupDetailsPage() {
 
         {/* Mensajes del grupo */}
         <section style={styles.card}>
-          <div style={styles.sectionTitle}>Mensajes del grupo</div>
+          <div style={styles.sectionTitleRow}>
+            <div style={styles.sectionTitle}>Mensajes del grupo</div>
+            <button
+              type="button"
+              onClick={() => toggleMute(!muted)}
+              disabled={updatingMute}
+              style={{
+                ...styles.ghostBtn,
+                fontSize: 11,
+                padding: "6px 10px",
+                opacity: updatingMute ? 0.6 : 1,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {muted ? "🔕 Silenciar desactivado" : "🔔 Notificaciones activas"}
+            </button>
+          </div>
+
           <div style={styles.smallNote}>
             Un espacio ligero para coordinar detalles sobre planes con este grupo.
             Los mensajes solo los ven los miembros; no reemplaza tu WhatsApp, solo
@@ -939,6 +980,12 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 12,
   },
   sectionTitle: { fontWeight: 950, fontSize: 14 },
+  sectionTitleRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
   smallNote: { marginTop: 6, fontSize: 12, opacity: 0.72 },
 
   fieldLabel: {
