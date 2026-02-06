@@ -10,6 +10,7 @@ import LogoutButton from "@/components/LogoutButton";
 import { getMyEvents, deleteEventsByIds } from "@/lib/eventsDb";
 import { getMyGroups } from "@/lib/groupsDb";
 import { groupMeta, type CalendarEvent, type GroupType } from "@/lib/conflicts";
+import supabase from "@/lib/supabaseClient";
 
 type DbEvent = {
   id: string;
@@ -31,6 +32,7 @@ export default function EventsPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>("upcoming");
   const [query, setQuery] = useState("");
+  const [sendingDigest, setSendingDigest] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -172,6 +174,81 @@ export default function EventsPage() {
     return `${start.toLocaleString()} — ${end.toLocaleString()}`;
   }
 
+  async function sendTodayDigest() {
+    try {
+      setSendingDigest(true);
+
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data.user) {
+        throw new Error("No pude leer tu sesión. Vuelve a iniciar sesión.");
+      }
+
+      const email = data.user.email;
+      if (!email) {
+        throw new Error("No encontré tu correo en la cuenta.");
+      }
+
+      const today = new Date();
+      const y = today.getFullYear();
+      const m = today.getMonth();
+      const d = today.getDate();
+
+      const todaysEvents = events.filter((e) => {
+        const s = new Date(e.start);
+        return (
+          s.getFullYear() === y &&
+          s.getMonth() === m &&
+          s.getDate() === d
+        );
+      });
+
+      if (todaysEvents.length === 0) {
+        setToast("Hoy no tienes eventos para recordar 🙂");
+        window.setTimeout(() => setToast(null), 2200);
+        return;
+      }
+
+      const payloadEvents = todaysEvents.map((e) => {
+        const meta = groupMeta((e.groupType ?? "personal") as any);
+        return {
+          title: e.title ?? "Evento",
+          start: e.start,
+          end: e.end,
+          groupLabel: meta.label,
+        };
+      });
+
+      const dateLabel = `${String(d).padStart(2, "0")}/${String(
+        m + 1
+      ).padStart(2, "0")}/${y}`;
+
+      const res = await fetch("/api/daily-digest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: email,
+          date: dateLabel,
+          events: payloadEvents,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("No se pudo enviar el correo.");
+      }
+
+      setToast("Te envié un resumen de hoy a tu correo ✉️");
+      window.setTimeout(() => setToast(null), 2200);
+    } catch (err: any) {
+      console.error("[sendTodayDigest] error", err);
+      setToast(
+        err?.message || "No se pudo enviar el recordatorio. Intenta más tarde."
+      );
+      window.setTimeout(() => setToast(null), 2600);
+    } finally {
+      setSendingDigest(false);
+    }
+  }
+
   return (
     <main style={S.page}>
       {toast && <div style={S.toast}>{toast}</div>}
@@ -179,6 +256,14 @@ export default function EventsPage() {
         <div style={S.topRow}>
           <PremiumHeader />
           <div style={S.topActions}>
+            <button
+              style={S.secondary}
+              onClick={sendTodayDigest}
+              disabled={sendingDigest}
+            >
+              {sendingDigest ? "Enviando…" : "Recordatorio de hoy"}
+            </button>
+
             <button
               style={S.primary}
               onClick={() => router.push("/events/new/details?type=personal")}
@@ -347,6 +432,17 @@ const S: Record<string, React.CSSProperties> = {
     color: "#fff",
     fontWeight: 950,
     cursor: "pointer",
+  },
+  secondary: {
+    height: 40,
+    padding: "0 14px",
+    borderRadius: 12,
+    border: "1px solid rgba(148,163,184,0.55)",
+    background: "rgba(15,23,42,0.9)",
+    color: "#e5e7eb",
+    fontWeight: 800,
+    cursor: "pointer",
+    fontSize: 12,
   },
   card: {
     borderRadius: 22,
