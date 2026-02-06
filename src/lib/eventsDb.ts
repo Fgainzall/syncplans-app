@@ -27,6 +27,28 @@ export type CreateEventPayload = {
   groupId: string | null;
 };
 
+export type DbEvent = {
+  id: string;
+  group_id: string | null;
+  title: string | null;
+  notes: string | null;
+  start: string; // timestamptz ISO
+  end: string; // timestamptz ISO
+};
+
+/**
+ * Payload para actualización completa de un evento.
+ * Lo usamos en el formulario de edición.
+ */
+export type UpdateEventPayload = {
+  id: string;
+  title?: string;
+  notes?: string;
+  start?: string; // ISO
+  end?: string; // ISO
+  groupId?: string | null;
+};
+
 /* ======================================================
    Helper interno: uid actual
 ====================================================== */
@@ -166,6 +188,99 @@ export async function deleteEventsByIds(ids: string[]): Promise<number> {
 }
 
 /* ======================================================
+   Lecturas auxiliares
+====================================================== */
+
+export async function getEventById(eventId: string): Promise<DbEvent> {
+  await requireUid();
+
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, group_id, title, notes, start, end")
+    .eq("id", eventId)
+    .single();
+
+  if (error) throw error;
+  return data as DbEvent;
+}
+
+export async function listEventsByGroup(groupId: string): Promise<DbEvent[]> {
+  await requireUid();
+
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, group_id, title, notes, start, end")
+    .eq("group_id", groupId)
+    .order("start", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as DbEvent[];
+}
+
+export async function deleteEventById(eventId: string): Promise<void> {
+  await requireUid();
+
+  const { error } = await supabase
+    .from("events")
+    .delete()
+    .eq("id", eventId);
+
+  if (error) throw error;
+}
+
+/**
+ * Actualizar solo las horas (drag & resize del timeline)
+ */
+export async function updateEventTime(
+  eventId: string,
+  startIso: string,
+  endIso: string
+): Promise<void> {
+  await requireUid();
+
+  const { error } = await supabase
+    .from("events")
+    .update({ start: startIso, end: endIso })
+    .eq("id", eventId);
+
+  if (error) throw error;
+}
+
+/**
+ * 📝 Actualizar un evento completo (formulario de edición)
+ * - Título
+ * - Notas
+ * - Fechas
+ * - group_id
+ */
+export async function updateEvent(payload: UpdateEventPayload): Promise<void> {
+  await requireUid();
+
+  const { id, title, notes, start, end, groupId } = payload;
+
+  if (!id) {
+    throw new Error("Falta el id del evento a actualizar.");
+  }
+
+  const update: Record<string, any> = {};
+  if (typeof title !== "undefined") update.title = title;
+  if (typeof notes !== "undefined") update.notes = notes ?? null;
+  if (typeof start !== "undefined") update.start = start;
+  if (typeof end !== "undefined") update.end = end;
+  if (typeof groupId !== "undefined") update.group_id = groupId;
+
+  // Si por algún motivo llegó sin cambios, no disparamos nada.
+  if (Object.keys(update).length === 0) return;
+
+  const { error } = await supabase
+    .from("events")
+    .update(update)
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+/* ======================================================
    Aliases de compatibilidad (para no romper imports antiguos)
 ====================================================== */
 
@@ -219,69 +334,4 @@ export async function getAllEvents(): Promise<DbEventRow[]> {
 
 export async function getEventsFlat(): Promise<DbEventRow[]> {
   return getMyEvents();
-}
-
-/* ======================================================
-   Helpers adicionales usados por otros módulos
-====================================================== */
-
-export type DbEvent = {
-  id: string;
-  group_id: string | null;
-  title: string | null;
-  notes: string | null;
-  start: string; // timestamptz ISO
-  end: string; // timestamptz ISO
-};
-
-export async function getEventById(eventId: string): Promise<DbEvent> {
-  await requireUid();
-
-  const { data, error } = await supabase
-    .from("events")
-    .select("id, group_id, title, notes, start, end")
-    .eq("id", eventId)
-    .single();
-
-  if (error) throw error;
-  return data as DbEvent;
-}
-
-export async function listEventsByGroup(groupId: string): Promise<DbEvent[]> {
-  await requireUid();
-
-  const { data, error } = await supabase
-    .from("events")
-    .select("id, group_id, title, notes, start, end")
-    .eq("group_id", groupId)
-    .order("start", { ascending: true });
-
-  if (error) throw error;
-  return (data ?? []) as DbEvent[];
-}
-
-export async function deleteEventById(eventId: string): Promise<void> {
-  await requireUid();
-
-  const { error } = await supabase
-    .from("events")
-    .delete()
-    .eq("id", eventId);
-
-  if (error) throw error;
-}
-
-export async function updateEventTime(
-  eventId: string,
-  startIso: string,
-  endIso: string
-): Promise<void> {
-  await requireUid();
-
-  const { error } = await supabase
-    .from("events")
-    .update({ start: startIso, end: endIso })
-    .eq("id", eventId);
-
-  if (error) throw error;
 }

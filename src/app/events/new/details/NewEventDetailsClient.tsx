@@ -21,7 +21,13 @@ import { getSettingsFromDb, type NotificationSettings } from "@/lib/settings";
 import { getMyGroups } from "@/lib/groupsDb";
 
 // ✅ DB Source of Truth
-import { createEventForGroup, deleteEventsByIds, getMyEvents } from "@/lib/eventsDb";
+import {
+  createEventForGroup,
+  deleteEventsByIds,
+  getMyEvents,
+  getEventById,
+  updateEvent,
+} from "@/lib/eventsDb";
 
 // ✅ active group desde DB
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
@@ -32,9 +38,9 @@ function pad2(n: number) {
 }
 
 function toInputLocal(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(
-    d.getHours()
-  )}:${pad2(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(
+    d.getDate()
+  )}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
 function fromInputLocal(s: string) {
@@ -88,6 +94,10 @@ function NewEventDetailsInner() {
   const router = useRouter();
   const sp = useSearchParams();
 
+  // 🔑 Soporte edición: leemos eventId/id desde la URL
+  const eventIdParam = sp.get("eventId") || sp.get("id");
+  const isEditing = !!eventIdParam;
+
   // URL params
   const typeParam = (sp.get("type") || "personal") as NewType;
   const dateParam = sp.get("date");
@@ -112,7 +122,9 @@ function NewEventDetailsInner() {
   );
 
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
+  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
+    null
+  );
 
   // Settings
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
@@ -125,6 +137,9 @@ function NewEventDetailsInner() {
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [groups, setGroups] = useState<DbGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>(groupIdParam || "");
+
+  // Boot de evento (modo edición)
+  const [bootingEvent, setBootingEvent] = useState<boolean>(isEditing);
 
   // ✅ DEDUPE: lista única de grupos por id
   const uniqueGroups = useMemo(() => {
@@ -188,6 +203,8 @@ function NewEventDetailsInner() {
       const gid = nextGroupId || selectedGroupId || activeGroupId || "";
       if (gid) params.set("groupId", gid);
     }
+    // No añadimos eventId aquí a propósito: ese param solo nos sirve
+    // para entrar en modo edición, no es necesario mantenerlo siempre.
     return `/events/new/details?${params.toString()}`;
   }
 
@@ -238,6 +255,44 @@ function NewEventDetailsInner() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 🆕 Boot del evento en modo edición
+  useEffect(() => {
+    if (!isEditing || !eventIdParam) return;
+
+    let alive = true;
+
+    (async () => {
+      try {
+        const ev = await getEventById(eventIdParam);
+        if (!alive) return;
+
+        setTitle(ev.title ?? "");
+        setNotes(ev.notes ?? "");
+
+        const s = new Date(ev.start);
+        const e = new Date(ev.end);
+        if (!Number.isNaN(s.getTime())) setStartLocal(toInputLocal(s));
+        if (!Number.isNaN(e.getTime())) setEndLocal(toInputLocal(e));
+
+        const gid = ev.group_id ? String(ev.group_id) : "";
+        if (gid) setSelectedGroupId(gid);
+      } catch (err: any) {
+        if (!alive) return;
+        setToast({
+          title: "No se pudo cargar el evento",
+          subtitle: err?.message || "Intenta nuevamente.",
+        });
+      } finally {
+        if (!alive) return;
+        setBootingEvent(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [isEditing, eventIdParam]);
 
   const lockedToActiveGroup = useMemo(() => {
     if (typeParam !== "group") return false;
@@ -311,10 +366,21 @@ function NewEventDetailsInner() {
       if (selectedGroupId && !selectedGroup) e.push("Grupo inválido.");
     }
 
-    return e;
-  }, [title, startDate, endDate, effectiveType, loadingGroups, selectedGroupId, selectedGroup]);
+    if (bootingEvent) e.push("Cargando evento…");
 
-  const canSave = errors.length === 0 && !saving;
+    return e;
+  }, [
+    title,
+    startDate,
+    endDate,
+    effectiveType,
+    loadingGroups,
+    selectedGroupId,
+    selectedGroup,
+    bootingEvent,
+  ]);
+
+  const canSave = errors.length === 0 && !saving && !bootingEvent;
 
   const goBack = () => router.push("/calendar");
 
@@ -335,16 +401,29 @@ function NewEventDetailsInner() {
   }) => {
     setSaving(true);
     try {
-      // ✅ IMPORTANTÍSIMO: NO enviar group_type NUNCA.
-      await createEventForGroup({
-        title: payload.title,
-        notes: payload.notes,
-        start: payload.startIso,
-        end: payload.endIso,
-        groupId: payload.groupId,
-      });
+      if (isEditing && eventIdParam) {
+        // 📝 MODO EDICIÓN
+        await updateEvent({
+          id: eventIdParam,
+          title: payload.title,
+          notes: payload.notes,
+          start: payload.startIso,
+          end: payload.endIso,
+          groupId: payload.groupId,
+        });
+      } else {
+        // 🆕 MODO CREACIÓN
+        await createEventForGroup({
+          title: payload.title,
+          notes: payload.notes,
+          start: payload.startIso,
+          end: payload.endIso,
+          groupId: payload.groupId,
+        });
+      }
+
       setToast({
-        title: "Evento creado ✅",
+        title: isEditing ? "Evento actualizado ✅" : "Evento creado ✅",
         subtitle: "Volviendo al calendario…",
       });
       window.setTimeout(() => router.push("/calendar"), 450);
@@ -410,10 +489,16 @@ function NewEventDetailsInner() {
 
     const combined = [...existing, incoming];
 
-    // 4) Calculamos conflictos visibles (igual que antes)
-    const conflicts = computeVisibleConflicts(combined).filter(
-      (c) => c.incomingEventId === incomingId
-    );
+    // 4) Calculamos conflictos visibles:
+    //    - relacionados con el "incoming"
+    //    - y, si estamos editando, ignoramos el conflicto contra el propio evento.
+    const all = computeVisibleConflicts(combined);
+    const conflicts = all.filter((c) => {
+      if (isEditing && eventIdParam && c.existingEventId === eventIdParam) {
+        return false;
+      }
+      return c.incomingEventId === incomingId;
+    });
 
     if (!conflicts.length) return { ok: true };
 
@@ -432,9 +517,7 @@ function NewEventDetailsInner() {
       };
     });
 
-    setExistingIdsToReplace(
-      Array.from(new Set(items.map((x) => x.existingId)))
-    );
+    setExistingIdsToReplace(Array.from(new Set(items.map((x) => x.existingId))));
     setPreflightItems(items);
     setPreflightDefaultChoice(mapDefaultResolutionToChoice(settings));
     setPreflightOpen(true);
@@ -539,14 +622,16 @@ function NewEventDetailsInner() {
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
             <div style={styles.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
+            {toast.subtitle ? (
+              <div style={styles.toastSub}>{toast.subtitle}</div>
+            ) : null}
           </div>
         </div>
       )}
 
       <ConflictPreflightModal
         open={preflightOpen}
-        title={title.trim() || "Nuevo evento"}
+        title={title.trim() || (isEditing ? "Editar evento" : "Nuevo evento")}
         items={preflightItems}
         defaultChoice={preflightDefaultChoice}
         onClose={() => setPreflightOpen(false)}
@@ -569,7 +654,7 @@ function NewEventDetailsInner() {
           }}
         >
           <div style={styles.heroLeft}>
-            <div style={styles.heroKicker}>Nuevo</div>
+            <div style={styles.heroKicker}>{isEditing ? "Editar" : "Nuevo"}</div>
             <div style={styles.heroTitleRow}>
               <h1 style={styles.h1}>{theme.label}</h1>
               <span style={styles.pill}>
@@ -596,7 +681,11 @@ function NewEventDetailsInner() {
               style={{ ...styles.primaryBtn, opacity: canSave ? 1 : 0.6 }}
               disabled={!canSave}
             >
-              {saving ? "Guardando…" : "Guardar"}
+              {saving
+                ? "Guardando…"
+                : isEditing
+                ? "Guardar cambios"
+                : "Guardar"}
             </button>
           </div>
         </section>
@@ -637,7 +726,11 @@ function NewEventDetailsInner() {
                     activeGroupId ||
                     (uniqueGroups[0]?.id ?? "");
                   router.push(
-                    buildUrl("group", new Date(startDate).toISOString(), gid || null)
+                    buildUrl(
+                      "group",
+                      new Date(startDate).toISOString(),
+                      gid || null
+                    )
                   );
                 }}
                 style={{
@@ -702,7 +795,9 @@ function NewEventDetailsInner() {
                   Seleccionado: <b>{selectedGroup.name ?? "Grupo"}</b> · tipo{" "}
                   <b>{selectedGroup.type === "family" ? "Familia" : "Pareja"}</b>
                   {lockedToActiveGroup ? (
-                    <span style={{ marginLeft: 8, opacity: 0.9 }}>· (grupo activo)</span>
+                    <span style={{ marginLeft: 8, opacity: 0.9 }}>
+                      · (grupo activo)
+                    </span>
                   ) : null}
                 </div>
               ) : null}
@@ -775,7 +870,11 @@ function NewEventDetailsInner() {
             style={{ ...styles.primaryBtnWide, opacity: canSave ? 1 : 0.6 }}
             disabled={!canSave}
           >
-            {saving ? "Guardando…" : "Guardar evento"}
+            {saving
+              ? "Guardando…"
+              : isEditing
+              ? "Guardar cambios"
+              : "Guardar evento"}
           </button>
         </section>
       </div>
