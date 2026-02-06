@@ -1,4 +1,4 @@
-// src/app/calendar/DayTimeline.tsx
+// src/app/components/DayTimeline.tsx
 "use client";
 
 import * as React from "react";
@@ -9,6 +9,7 @@ import {
   updateEventTime,
   type DbEventRow,
 } from "@/lib/eventsDb";
+import { getUser } from "@/lib/auth"; // 👈 para obtener el email del usuario
 
 type Props = {
   dateISO: string; // YYYY-MM-DD
@@ -89,6 +90,39 @@ function normalizeGroupType(groupId: string | null): GroupType {
   return "pair";
 }
 
+// Etiqueta de grupo para el correo
+function labelForGroup(ev: CalendarEvent): string {
+  const t = String(ev.groupType || "").toLowerCase();
+  if (t === "personal") return "Personal";
+  if (t === "family") return "Familia";
+  if (t === "pair" || t === "couple") return "Pareja";
+  return "Grupo";
+}
+
+// Texto bonito para el subject/cuerpo del mail (ej: "Lunes, 10 de febrero 2026")
+function prettyDateLabelFromISO(dateISO: string): string {
+  const [y, m, d] = dateISO.split("-").map(Number);
+  const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
+
+  const dias = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+  const meses = [
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+  ];
+
+  return `${dias[dt.getDay()]}, ${dt.getDate()} de ${meses[dt.getMonth()]} ${dt.getFullYear()}`;
+}
+
 export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props) {
   const [events, setEvents] = React.useState<CalendarEvent[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -96,6 +130,9 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
   const [overrideTop, setOverrideTop] = React.useState<Record<string, number>>({});
   const [overrideHeight, setOverrideHeight] = React.useState<Record<string, number>>({});
   const [savingId, setSavingId] = React.useState<string | null>(null);
+
+  const [sendingDigest, setSendingDigest] = React.useState(false);
+  const [toast, setToast] = React.useState<{ title: string; subtitle?: string } | null>(null);
 
   const moveRef = React.useRef<{
     id: string;
@@ -122,6 +159,13 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
   const dayWindowMin = dayEndMin - dayStartMin;
 
   const conflictedIds = React.useMemo(() => detectConflictedIds(events), [events]);
+
+  // Auto-esconder toast
+  React.useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3200);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   async function load() {
     setLoading(true);
@@ -325,6 +369,70 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
     }
   }
 
+  // 🔔 V1 – enviar “Recordatorio de hoy” por correo usando /api/daily-digest
+  async function handleSendTodayDigest() {
+    try {
+      setSendingDigest(true);
+
+      const u = getUser();
+      const email = (u as any)?.email || (u as any)?.user_metadata?.email;
+
+      if (!email) {
+        setToast({
+          title: "No encontramos tu correo",
+          subtitle: "Revisa tu sesión o tu perfil.",
+        });
+        return;
+      }
+
+      if (!events || events.length === 0) {
+        setToast({
+          title: "Hoy no tienes eventos 🙌",
+          subtitle: "Cuando tengas algo agendado, te mandaré el resumen.",
+        });
+        return;
+      }
+
+      const payloadEvents = events.map((ev) => ({
+        title: ev.title || "Evento",
+        start: ev.start,
+        end: ev.end,
+        groupLabel: labelForGroup(ev),
+      }));
+
+      const dateLabel = prettyDateLabelFromISO(dateISO);
+
+      const res = await fetch("/api/daily-digest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: email,
+          date: dateLabel,
+          events: payloadEvents,
+        }),
+      });
+
+      const json = await res.json().catch(() => ({} as any));
+
+      if (!res.ok || !json.ok) {
+        throw new Error(json?.message || "Error enviando el correo");
+      }
+
+      setToast({
+        title: "Te envié un resumen de hoy a tu correo ✉️",
+        subtitle: undefined,
+      });
+    } catch (err) {
+      console.error("[DayTimeline] daily digest error", err);
+      setToast({
+        title: "No se pudo enviar el resumen",
+        subtitle: "Intenta de nuevo en unos segundos.",
+      });
+    } finally {
+      setSendingDigest(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white/70">
@@ -338,7 +446,7 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
 
   return (
     <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent p-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-sm font-semibold">Timeline del día</div>
           <div className="mt-1 text-xs text-white/55">
@@ -346,10 +454,41 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
           </div>
         </div>
 
-        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
-          {conflictedIds.size > 0 ? `${conflictedIds.size} en conflicto` : "Sin conflictos"}
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSendTodayDigest}
+            disabled={sendingDigest || events.length === 0}
+            className={[
+              "rounded-2xl border px-3 py-1.5 text-xs font-semibold transition",
+              events.length === 0
+                ? "border-white/10 bg-white/5 text-white/40 cursor-default"
+                : "border-cyan-400/60 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25",
+            ].join(" ")}
+            title={
+              events.length === 0
+                ? "Hoy no tienes eventos"
+                : "Enviarte un resumen de los eventos de hoy a tu correo"
+            }
+          >
+            {sendingDigest ? "Enviando…" : "Recordatorio de hoy"}
+          </button>
+
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
+            {conflictedIds.size > 0 ? `${conflictedIds.size} en conflicto` : "Sin conflictos"}
+          </span>
+        </div>
       </div>
+
+      {/* Toast local del timeline */}
+      {toast && (
+        <div className="mt-3 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-xs">
+          <div className="font-semibold text-white">{toast.title}</div>
+          {toast.subtitle && (
+            <div className="mt-1 text-[11px] text-white/70">{toast.subtitle}</div>
+          )}
+        </div>
+      )}
 
       <div className="mt-5 grid grid-cols-[72px_1fr] gap-3">
         <div className="relative" style={{ height: timelineHeight }}>

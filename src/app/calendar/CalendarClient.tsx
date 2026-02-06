@@ -120,9 +120,9 @@ function prettyTimeRange(startIso: string, endIso: string) {
     ).padStart(2, "0")}`;
   const cross = !sameDay(s, e);
   if (cross)
-    return `${s.toLocaleDateString()} ${hhmm(
-      s
-    )} → ${e.toLocaleDateString()} ${hhmm(e)}`;
+    return `${s.toLocaleDateString()} ${hhmm(s)} → ${e.toLocaleDateString()} ${hhmm(
+      e
+    )}`;
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
 function isValidIsoish(v: any) {
@@ -203,6 +203,10 @@ export default function CalendarClient(props: {
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
 
+  /* 📧 Estado para el recordatorio diario */
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [sendingDigest, setSendingDigest] = useState(false);
+
   const handleEditEvent = useCallback((e: CalendarEvent) => {
     setEditingEvent(e);
     setIsEditOpen(true);
@@ -239,6 +243,9 @@ export default function CalendarClient(props: {
           return;
         }
 
+        const user = data.session.user;
+        setUserEmail(user?.email ?? null);
+
         const active = await getActiveGroupIdFromDb();
         setActiveGroupId(active ? String(active) : null);
 
@@ -251,7 +258,7 @@ export default function CalendarClient(props: {
 
         const groupIds = (myGroups || []).map((g: any) => String(g.id));
 
-        // ✅ ahora getEventsForGroups(groupIds) funciona (siempre incluye personal)
+        // ✅ ahora getEventsForGroups(groupIds) funciona (y siempre incluye personal)
         const rawEvents: any[] = (await getEventsForGroups(
           groupIds
         )) as any[];
@@ -326,14 +333,15 @@ export default function CalendarClient(props: {
   const handleDeleteEvent = useCallback(
     async (eventId: string, title?: string) => {
       const ok = confirm(
-        `¿Eliminar el evento${
-          title ? ` "${title}"` : ""
-        }?\nEsta acción no se puede deshacer.`
+        `¿Eliminar el evento${title ? ` "${title}"` : ""}?\nEsta acción no se puede deshacer.`
       );
       if (!ok) return;
 
       try {
-        setToast({ title: "Eliminando…", subtitle: "Aplicando cambios" });
+        setToast({
+          title: "Eliminando…",
+          subtitle: "Aplicando cambios",
+        });
 
         await deleteEventsByIds([eventId]);
 
@@ -525,7 +533,8 @@ export default function CalendarClient(props: {
     }
     for (const [k, arr] of map.entries()) {
       arr.sort(
-        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+        (a, b) =>
+          new Date(a.start).getTime() - new Date(b.start).getTime()
       );
       map.set(k, arr);
     }
@@ -535,7 +544,8 @@ export default function CalendarClient(props: {
   const agendaEvents = useMemo(() => {
     const list = [...visibleEvents];
     list.sort(
-      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+      (a, b) =>
+        new Date(a.start).getTime() - new Date(b.start).getTime()
     );
     return list;
   }, [visibleEvents]);
@@ -543,8 +553,9 @@ export default function CalendarClient(props: {
   const highlightedEvent = useMemo(() => {
     if (!highlightId) return null;
     return (
-      filteredEvents.find((e) => String(e.id) === String(highlightId)) ??
-      null
+      filteredEvents.find(
+        (e) => String(e.id) === String(highlightId)
+      ) ?? null
     );
   }, [highlightId, filteredEvents]);
 
@@ -573,7 +584,11 @@ export default function CalendarClient(props: {
 
     const t = window.setTimeout(() => {
       const el = eventRefs.current[String(highlightId)];
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (el)
+        el.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
     }, 140);
 
     return () => window.clearTimeout(t);
@@ -586,6 +601,110 @@ export default function CalendarClient(props: {
     }, 3200);
     return () => window.clearTimeout(t);
   }, [highlightId, pathname, router]);
+
+  /* 📅 Eventos de HOY para el botón de recordatorio */
+  const hasEventsToday = useMemo(() => {
+    const today = new Date();
+    return (events || []).some((e) =>
+      sameDay(new Date(e.start), today)
+    );
+  }, [events]);
+
+  const handleSendTodayDigest = useCallback(async () => {
+    const today = new Date();
+
+    if (!userEmail) {
+      setToast({
+        title: "No encontramos tu correo",
+        subtitle:
+          "Vuelve a iniciar sesión e inténtalo otra vez.",
+      });
+      window.setTimeout(() => setToast(null), 3200);
+      return;
+    }
+
+    const todaysEvents = (events || [])
+      .filter((e) => sameDay(new Date(e.start), today))
+      .sort(
+        (a, b) =>
+          new Date(a.start).getTime() -
+          new Date(b.start).getTime()
+      );
+
+    if (todaysEvents.length === 0) {
+      setToast({
+        title: "No tienes eventos hoy",
+        subtitle:
+          "Cuando tu día tenga algo agendado, podrás enviarte el resumen.",
+      });
+      window.setTimeout(() => setToast(null), 3200);
+      return;
+    }
+
+    const payloadEvents = todaysEvents.map((e) => {
+      const resolvedType: GroupType = e.groupId
+        ? ((groupTypeById.get(String(e.groupId)) ??
+            "pair") as any)
+        : ("personal" as any);
+      const meta = groupMeta(resolvedType);
+
+      return {
+        title: e.title || "Evento",
+        start: e.start,
+        end: e.end,
+        groupLabel: meta.label,
+      };
+    });
+
+    try {
+      setSendingDigest(true);
+      setToast({
+        title: "Preparando tu resumen…",
+        subtitle: "Generando el correo de hoy.",
+      });
+
+      const res = await fetch("/api/daily-digest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: userEmail,
+          date: prettyDay(today),
+          events: payloadEvents,
+        }),
+      });
+
+      if (!res.ok) {
+        let msg = "Error al enviar el correo.";
+        try {
+          const data = await res.json();
+          if (data?.message) msg = data.message;
+        } catch {
+          // ignore
+        }
+        throw new Error(msg);
+      }
+
+      setToast({
+        title: "Te envié un resumen de hoy ✉️",
+        subtitle:
+          "Revisa tu inbox (y spam por si acaso).",
+      });
+    } catch (e: any) {
+      setToast({
+        title: "No se pudo enviar el resumen",
+        subtitle:
+          e?.message ??
+          "Inténtalo de nuevo en unos minutos.",
+      });
+    } finally {
+      setSendingDigest(false);
+      const t = window.setTimeout(
+        () => setToast(null),
+        3800
+      );
+      return () => window.clearTimeout(t);
+    }
+  }, [events, groupTypeById, userEmail]);
 
   /* =========================
      Navegación y acciones
@@ -632,7 +751,9 @@ export default function CalendarClient(props: {
   const openConflicts = () =>
     router.push("/conflicts/detected");
   const resolveNow = () =>
-    router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`);
+    router.push(
+      `/conflicts/compare?i=${firstRelevantConflictIndex}`
+    );
 
   /* =========================
      RENDER
@@ -665,7 +786,6 @@ export default function CalendarClient(props: {
           0% { transform: translateZ(0) scale(1); box-shadow: none; }
           35% { transform: translateZ(0) scale(1.01); box-shadow: 0 0 0 6px rgba(56,189,248,0.22), 0 18px 60px rgba(0,0,0,0.35); }
           100% { transform: translateZ(0) scale(1); box-shadow: none; }
-        }
       `}</style>
 
       {toast && (
@@ -673,7 +793,9 @@ export default function CalendarClient(props: {
           <div style={styles.toastCard}>
             <div style={styles.toastTitle}>{toast.title}</div>
             {toast.subtitle ? (
-              <div style={styles.toastSub}>{toast.subtitle}</div>
+              <div style={styles.toastSub}>
+                {toast.subtitle}
+              </div>
             ) : null}
           </div>
         </div>
@@ -683,7 +805,10 @@ export default function CalendarClient(props: {
         <div style={styles.topRow}>
           <PremiumHeader />
           <div style={styles.topActions}>
-            <button onClick={handleSync} style={styles.ghostBtn}>
+            <button
+              onClick={handleSync}
+              style={styles.ghostBtn}
+            >
               Sync
             </button>
             <LogoutButton />
@@ -757,6 +882,22 @@ export default function CalendarClient(props: {
             >
               + Grupo
             </button>
+
+            {hasEventsToday && (
+              <button
+                onClick={handleSendTodayDigest}
+                style={{
+                  ...styles.ghostBtnSmall,
+                  opacity: sendingDigest ? 0.7 : 1,
+                  cursor: sendingDigest ? "wait" : "pointer",
+                }}
+                disabled={sendingDigest}
+              >
+                {sendingDigest
+                  ? "Enviando…"
+                  : "Recordatorio de hoy"}
+              </button>
+            )}
           </div>
         </section>
 
@@ -767,7 +908,9 @@ export default function CalendarClient(props: {
                 onClick={() => setTab("month")}
                 style={{
                   ...styles.segmentBtn,
-                  ...(tab === "month" ? styles.segmentOn : {}),
+                  ...(tab === "month"
+                    ? styles.segmentOn
+                    : {}),
                 }}
               >
                 Mes
@@ -776,7 +919,9 @@ export default function CalendarClient(props: {
                 onClick={() => setTab("agenda")}
                 style={{
                   ...styles.segmentBtn,
-                  ...(tab === "agenda" ? styles.segmentOn : {}),
+                  ...(tab === "agenda"
+                    ? styles.segmentOn
+                    : {}),
                 }}
               >
                 Agenda
@@ -788,7 +933,9 @@ export default function CalendarClient(props: {
                 onClick={() => setScope("active")}
                 style={{
                   ...styles.segmentBtn,
-                  ...(scope === "active" ? styles.segmentOn : {}),
+                  ...(scope === "active"
+                    ? styles.segmentOn
+                    : {}),
                 }}
               >
                 Activo
@@ -797,7 +944,9 @@ export default function CalendarClient(props: {
                 onClick={() => setScope("personal")}
                 style={{
                   ...styles.segmentBtn,
-                  ...(scope === "personal" ? styles.segmentOn : {}),
+                  ...(scope === "personal"
+                    ? styles.segmentOn
+                    : {}),
                 }}
               >
                 Personal
@@ -806,7 +955,9 @@ export default function CalendarClient(props: {
                 onClick={() => setScope("all")}
                 style={{
                   ...styles.segmentBtn,
-                  ...(scope === "all" ? styles.segmentOn : {}),
+                  ...(scope === "all"
+                    ? styles.segmentOn
+                    : {}),
                 }}
               >
                 Todo
@@ -838,33 +989,33 @@ export default function CalendarClient(props: {
           </div>
 
           <div style={styles.groupRow}>
-            {(["personal", "pair", "family"] as GroupType[]).map(
-              (g) => {
-                const meta = groupMeta(g);
-                const on = (enabledGroups as any)[g];
-                return (
-                  <button
-                    key={g}
-                    onClick={() => toggleGroup(g)}
+            {(
+              ["personal", "pair", "family"] as any as GroupType[]
+            ).map((g) => {
+              const meta = groupMeta(g);
+              const on = (enabledGroups as any)[g];
+              return (
+                <button
+                  key={g}
+                  onClick={() => toggleGroup(g)}
+                  style={{
+                    ...styles.groupChip,
+                    borderColor: on
+                      ? "rgba(255,255,255,0.18)"
+                      : "rgba(255,255,255,0.10)",
+                    opacity: on ? 1 : 0.5,
+                  }}
+                >
+                  <span
                     style={{
-                      ...styles.groupChip,
-                      borderColor: on
-                        ? "rgba(255,255,255,0.18)"
-                        : "rgba(255,255,255,0.10)",
-                      opacity: on ? 1 : 0.5,
+                      ...styles.groupDot,
+                      background: meta.dot,
                     }}
-                  >
-                    <span
-                      style={{
-                        ...styles.groupDot,
-                        background: meta.dot,
-                      }}
-                    />
-                    {meta.label}
-                  </button>
-                );
-              }
-            )}
+                  />
+                  {meta.label}
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -1035,8 +1186,7 @@ function EventRow({
   groupTypeById?: Map<string, "pair" | "family">;
 }) {
   const resolvedType: GroupType = e.groupId
-    ? ((groupTypeById?.get(String(e.groupId)) ??
-        "pair") as any)
+    ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
     : ("personal" as any);
 
   const meta = groupMeta(resolvedType);
@@ -1067,7 +1217,10 @@ function EventRow({
       }}
     >
       <div
-        style={{ ...styles.eventBar, background: meta.dot }}
+        style={{
+          ...styles.eventBar,
+          background: meta.dot,
+        }}
       />
       <div style={styles.eventBody}>
         <div style={styles.eventTop}>
@@ -1409,7 +1562,9 @@ const styles: Record<string, React.CSSProperties> = {
     border: "none",
     cursor: "pointer",
   },
-  segmentOn: { background: "rgba(255,255,255,0.08)" },
+  segmentOn: {
+    background: "rgba(255,255,255,0.08)",
+  },
 
   navRow: {
     display: "flex",
@@ -1458,11 +1613,7 @@ const styles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: "repeat(7, 1fr)",
     padding: "10px 10px 0",
   },
-  weekDay: {
-    padding: "10px 10px",
-    fontSize: 12,
-    opacity: 0.75,
-  },
+  weekDay: { padding: "10px 10px", fontSize: 12, opacity: 0.75 },
 
   grid: {
     display: "grid",
@@ -1570,7 +1721,11 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     flexWrap: "wrap",
   },
-  dayPanelTitle: { fontSize: 14, fontWeight: 700, opacity: 0.95 },
+  dayPanelTitle: {
+    fontSize: 14,
+    fontWeight: 700,
+    opacity: 0.95,
+  },
   dayPanelActions: {
     display: "flex",
     gap: 8,
