@@ -1,4 +1,3 @@
-// src/lib/notificationsDb.ts
 import supabase from "@/lib/supabaseClient";
 
 export type NotificationType =
@@ -51,7 +50,7 @@ export async function getMyNotifications(
     .map((r: any) => r.group_id as string)
     .filter(Boolean);
 
-  // 2) Base query de notificaciones no leídas
+  // 2) Base query de notificaciones NO LEÍDAS
   let query = supabase
     .from("notifications")
     .select("*")
@@ -61,9 +60,12 @@ export async function getMyNotifications(
     .limit(limit);
 
   // 3) Si hay grupos silenciados, excluirlos por entity_id
-  //    (para group_message, entity_id = group_id).
+  //    (para group_message, entity_id = group_id)
   if (mutedGroupIds.length > 0) {
-    const list = `(${mutedGroupIds.join(",")})`;
+    // Supabase espera "(val1,val2,...)"
+    const list = `(${mutedGroupIds
+      .map((id) => `"${id}"`)
+      .join(",")})`;
     query = query.not("entity_id", "in", list);
   }
 
@@ -96,27 +98,21 @@ export async function markAllRead() {
   if (error) throw error;
 }
 
+/**
+ * 🧹 "Eliminar" en UI = soft delete:
+ * simplemente marcamos como leída para que no vuelva a aparecer
+ * en el inbox (getMyNotifications solo trae read_at = NULL).
+ */
 export async function deleteNotification(id: string) {
-  const uid = await requireUid();
-
-  const { error } = await supabase
-    .from("notifications")
-    .delete()
-    .eq("id", id)
-    .eq("user_id", uid);
-
-  if (error) throw error;
+  await markNotificationRead(id);
 }
 
+/**
+ * 🧹 "Eliminar todo" = marcar TODAS como leídas.
+ * Así vaciamos el panel manteniendo histórico en la BD.
+ */
 export async function deleteAllNotifications() {
-  const uid = await requireUid();
-
-  const { error } = await supabase
-    .from("notifications")
-    .delete()
-    .eq("user_id", uid);
-
-  if (error) throw error;
+  await markAllRead();
 }
 
 /**
