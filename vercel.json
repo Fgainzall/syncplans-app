@@ -1,12 +1,16 @@
 {
   "crons": [
     {
-      "path": "/api/daily-digest?token=CRON_SECRET",
-      "schedule": "0 12 * * *"
+      "path": "/api/cron/daily-reminders",
+      "schedule": "0 7 * * *"
     },
     {
       "path": "/api/cron/weekly-summary",
       "schedule": "0 20 * * 0"
+    },
+    {
+      "path": "/api/daily-digest?token=CRON_SECRET",
+      "schedule": "0 12 * * *"
     }
   ]
 }
