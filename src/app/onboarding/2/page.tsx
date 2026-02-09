@@ -10,7 +10,7 @@ export default function Onboarding2() {
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at 18% 12%, rgba(56,189,248,0.20), transparent 36%), radial-gradient(circle at 82% 18%, rgba(124,58,237,0.18), transparent 40%), radial-gradient(circle at 55% 92%, rgba(34,197,94,0.14), transparent 46%), linear-gradient(180deg, #020617 0%, #000 120%)",
+          "radial-gradient(circle at 18% 12%, rgba(125,211,252,0.16), transparent 38%), radial-gradient(circle at 82% 18%, rgba(196,181,253,0.14), transparent 40%), radial-gradient(circle at 55% 92%, rgba(134,239,172,0.12), transparent 48%), linear-gradient(180deg, #0b1020 0%, #020617 120%)",
         color: "#F9FAFB",
         display: "flex",
         alignItems: "center",
@@ -27,9 +27,9 @@ export default function Onboarding2() {
             position: "absolute",
             inset: -70,
             background:
-              "radial-gradient(circle at 28% 35%, rgba(56,189,248,0.20), transparent 55%), radial-gradient(circle at 78% 28%, rgba(124,58,237,0.18), transparent 55%), radial-gradient(circle at 55% 85%, rgba(34,197,94,0.12), transparent 60%)",
+              "radial-gradient(circle at 28% 35%, rgba(125,211,252,0.18), transparent 55%), radial-gradient(circle at 78% 28%, rgba(196,181,253,0.16), transparent 55%), radial-gradient(circle at 55% 85%, rgba(134,239,172,0.10), transparent 60%)",
             filter: "blur(18px)",
-            opacity: 0.95,
+            opacity: 0.9,
             zIndex: 0,
           }}
         />
@@ -41,9 +41,9 @@ export default function Onboarding2() {
             borderRadius: 26,
             padding: "22px 18px 18px",
             background:
-              "linear-gradient(180deg, rgba(15,23,42,0.92), rgba(2,6,23,0.88))",
+              "linear-gradient(180deg, rgba(15,23,42,0.90), rgba(11,15,32,0.92))",
             border: "1px solid rgba(148,163,184,0.28)",
-            boxShadow: "0 22px 60px rgba(15,23,42,0.75)",
+            boxShadow: "0 22px 60px rgba(15,23,42,0.65)",
             backdropFilter: "blur(14px)",
           }}
         >
@@ -56,7 +56,7 @@ export default function Onboarding2() {
               padding: "6px 12px",
               borderRadius: 999,
               border: "1px solid rgba(148,163,184,0.32)",
-              background: "rgba(2,6,23,0.55)",
+              background: "rgba(12,18,34,0.75)",
               color: "#9CA3AF",
               fontSize: 12,
               marginBottom: 14,
@@ -67,8 +67,8 @@ export default function Onboarding2() {
                 width: 8,
                 height: 8,
                 borderRadius: 999,
-                background: "#38BDF8",
-                boxShadow: "0 0 0 6px rgba(56,189,248,0.16)",
+                background: "#7DD3FC",
+                boxShadow: "0 0 0 6px rgba(125,211,252,0.20)",
               }}
             />
             2 de 4 · Situaciones que ya conoces
@@ -86,7 +86,7 @@ export default function Onboarding2() {
             El problema no es el{" "}
             <span
               style={{
-                background: "linear-gradient(90deg, #38BDF8, #7C3AED)",
+                background: "linear-gradient(90deg, #7DD3FC, #C4B5FD)",
                 WebkitBackgroundClip: "text",
                 color: "transparent",
               }}
@@ -119,30 +119,28 @@ export default function Onboarding2() {
               marginBottom: 16,
             }}
           >
-            {[
-              "Pensé que era otro día",
-              "No vi ese mensaje",
-              "Ya tenía algo",
-            ].map((text) => (
-              <div
-                key={text}
-                style={{
-                  borderRadius: 999,
-                  padding: "7px 12px",
-                  border: "1px solid rgba(148,163,184,0.30)",
-                  background: "rgba(15,23,42,0.85)",
-                  fontSize: 12,
-                  color: "#E5E7EB",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  boxShadow: "0 12px 30px rgba(15,23,42,0.65)",
-                }}
-              >
-                <span style={{ fontSize: 14 }}>💬</span>
-                <span>{text}</span>
-              </div>
-            ))}
+            {["Pensé que era otro día", "No vi ese mensaje", "Ya tenía algo"].map(
+              (text) => (
+                <div
+                  key={text}
+                  style={{
+                    borderRadius: 999,
+                    padding: "7px 12px",
+                    border: "1px solid rgba(148,163,184,0.30)",
+                    background: "rgba(15,23,42,0.90)",
+                    fontSize: 12,
+                    color: "#E5E7EB",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    boxShadow: "0 12px 30px rgba(15,23,42,0.55)",
+                  }}
+                >
+                  <span style={{ fontSize: 14 }}>💬</span>
+                  <span>{text}</span>
+                </div>
+              )
+            )}
           </div>
 
           {/* Premium “conflict preview” */}
@@ -151,7 +149,7 @@ export default function Onboarding2() {
               borderRadius: 18,
               padding: 14,
               background:
-                "linear-gradient(180deg, rgba(11,18,32,0.9), rgba(2,6,23,0.7))",
+                "linear-gradient(180deg, rgba(11,18,32,0.95), rgba(10,16,32,0.80))",
               border: "1px solid rgba(148,163,184,0.22)",
               marginBottom: 16,
             }}
@@ -173,16 +171,16 @@ export default function Onboarding2() {
             <div style={{ display: "grid", gap: 10 }}>
               <EventRow
                 pill="Pareja"
-                pillBg="rgba(248,113,113,0.12)"
+                pillBg="rgba(248,113,113,0.10)"
                 pillBorder="rgba(248,113,113,0.22)"
-                dot="#F87171"
+                dot="#FCA5A5"
                 title="Cena con Ara"
                 time="20:00 – 21:30"
               />
               <EventRow
                 pill="Personal"
-                pillBg="rgba(250,204,21,0.14)"
-                pillBorder="rgba(250,204,21,0.25)"
+                pillBg="rgba(250,204,21,0.12)"
+                pillBorder="rgba(250,204,21,0.24)"
                 dot="#FACC15"
                 title="Gym"
                 time="20:30 – 22:00"
@@ -193,8 +191,8 @@ export default function Onboarding2() {
                 style={{
                   borderRadius: 16,
                   padding: 12,
-                  background: "rgba(59,130,246,0.10)",
-                  border: "1px solid rgba(59,130,246,0.22)",
+                  background: "rgba(96,165,250,0.12)",
+                  border: "1px solid rgba(96,165,250,0.25)",
                   display: "flex",
                   gap: 10,
                   alignItems: "flex-start",
@@ -205,8 +203,8 @@ export default function Onboarding2() {
                     width: 34,
                     height: 34,
                     borderRadius: 12,
-                    background: "rgba(2,6,23,0.55)",
-                    border: "1px solid rgba(148,163,184,0.22)",
+                    background: "rgba(15,23,42,0.75)",
+                    border: "1px solid rgba(148,163,184,0.26)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -255,26 +253,26 @@ export default function Onboarding2() {
               padding: "14px 18px",
               borderRadius: 999,
               border: "none",
-              background: "linear-gradient(135deg, #2563EB, #7C3AED)",
+              background: "linear-gradient(135deg, #60A5FA, #C4B5FD)",
               color: "#F9FAFB",
               fontSize: 16,
               fontWeight: 750,
               cursor: "pointer",
-              boxShadow: "0 18px 40px rgba(37,99,235,0.35)",
+              boxShadow: "0 18px 36px rgba(37,99,235,0.28)",
             }}
           >
             Siguiente
           </button>
 
           <button
-            // 🔧 Mejora: la primera pantalla vive en /onboarding, no en /onboarding/1
+            // primera pantalla vive en /onboarding
             onClick={() => router.push("/onboarding")}
             style={{
               width: "100%",
               padding: "12px 18px",
               borderRadius: 999,
-              border: "1px solid rgba(148,163,184,0.35)",
-              background: "rgba(2,6,23,0.45)",
+              border: "1px solid rgba(148,163,184,0.30)",
+              background: "rgba(12,18,34,0.80)",
               color: "#CBD5E1",
               fontSize: 14,
               fontWeight: 600,
@@ -315,8 +313,8 @@ function EventRow(props: {
       style={{
         borderRadius: 16,
         padding: 12,
-        background: "rgba(2,6,23,0.35)",
-        border: "1px solid rgba(148,163,184,0.16)",
+        background: "rgba(15,23,42,0.85)",
+        border: "1px solid rgba(148,163,184,0.18)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -364,8 +362,8 @@ function MiniAction({ label }: { label: string }) {
       style={{
         borderRadius: 999,
         padding: "8px 10px",
-        border: "1px solid rgba(148,163,184,0.28)",
-        background: "rgba(2,6,23,0.45)",
+        border: "1px solid rgba(148,163,184,0.26)",
+        background: "rgba(12,18,34,0.85)",
         color: "#E5E7EB",
         fontSize: 12,
         fontWeight: 700,

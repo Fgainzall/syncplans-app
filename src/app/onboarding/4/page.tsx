@@ -3,13 +3,13 @@
 import { useRouter } from "next/navigation";
 
 const BRAND = {
-  bg: "#020617",
-  card: "rgba(255,255,255,0.06)",
-  border: "rgba(255,255,255,0.12)",
-  text: "rgba(255,255,255,0.92)",
-  sub: "rgba(255,255,255,0.70)",
-  ok: "#22C55E",
-  accent: "#38BDF8",
+  bg: "#0b1020",
+  card: "rgba(15,23,42,0.92)",
+  border: "rgba(148,163,184,0.35)",
+  text: "rgba(248,250,252,0.96)",
+  sub: "rgba(148,163,184,0.85)",
+  ok: "#86EFAC",
+  accent: "#7DD3FC",
   warn: "#FBBF24",
 };
 
@@ -124,8 +124,8 @@ export default function Onboarding4Page() {
 const styles: Record<string, React.CSSProperties> = {
   main: {
     minHeight: "100vh",
-    background: `radial-gradient(900px 450px at 15% 10%, rgba(56,189,248,0.18), transparent 60%),
-                 radial-gradient(900px 450px at 85% 20%, rgba(34,197,94,0.16), transparent 60%),
+    background: `radial-gradient(900px 450px at 15% 10%, rgba(125,211,252,0.18), transparent 60%),
+                 radial-gradient(900px 450px at 85% 20%, rgba(134,239,172,0.16), transparent 60%),
                  ${BRAND.bg}`,
     color: BRAND.text,
     display: "flex",
@@ -141,8 +141,8 @@ const styles: Record<string, React.CSSProperties> = {
     border: `1px solid ${BRAND.border}`,
     borderRadius: 28,
     padding: 22,
-    boxShadow: "0 30px 80px rgba(0,0,0,0.45)",
-    backdropFilter: "blur(10px)",
+    boxShadow: "0 30px 80px rgba(15,23,42,0.75)",
+    backdropFilter: "blur(12px)",
   },
   topRow: {
     display: "flex",
@@ -157,7 +157,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "8px 12px",
     borderRadius: 999,
     border: `1px solid ${BRAND.border}`,
-    background: "rgba(255,255,255,0.04)",
+    background: "rgba(15,23,42,0.85)",
     fontSize: 12,
     color: BRAND.sub,
   },
@@ -169,7 +169,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "grid",
     placeItems: "center",
     border: `1px solid ${BRAND.border}`,
-    background: "rgba(255,255,255,0.04)",
+    background: "rgba(15,23,42,0.85)",
     fontSize: 18,
   },
   h1: {
@@ -187,8 +187,8 @@ const styles: Record<string, React.CSSProperties> = {
   list: {
     marginTop: 16,
     borderRadius: 22,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(0,0,0,0.12)",
+    border: "1px solid rgba(148,163,184,0.22)",
+    background: "rgba(15,23,42,0.90)",
     padding: 12,
     display: "grid",
     gap: 10,
@@ -200,8 +200,8 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     padding: 12,
     borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(148,163,184,0.26)",
+    background: "rgba(15,23,42,0.95)",
   },
   check: {
     width: 24,
@@ -209,9 +209,9 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     display: "grid",
     placeItems: "center",
-    background: "rgba(34,197,94,0.18)",
-    border: "1px solid rgba(34,197,94,0.35)",
-    color: "rgba(255,255,255,0.95)",
+    background: "rgba(134,239,172,0.14)",
+    border: "1px solid rgba(134,239,172,0.30)",
+    color: "rgba(248,250,252,0.96)",
     fontWeight: 800,
     fontSize: 13,
   },
@@ -223,9 +223,9 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     padding: "6px 10px",
     borderRadius: 999,
-    border: "1px solid rgba(34,197,94,0.30)",
-    background: "rgba(34,197,94,0.12)",
-    color: "rgba(255,255,255,0.92)",
+    border: "1px solid rgba(134,239,172,0.35)",
+    background: "rgba(134,239,172,0.14)",
+    color: "rgba(248,250,252,0.96)",
   },
 
   primary: {
@@ -233,13 +233,13 @@ const styles: Record<string, React.CSSProperties> = {
     width: "100%",
     borderRadius: 18,
     padding: "14px 16px",
-    border: "1px solid rgba(56,189,248,0.35)",
-    background:
-      "linear-gradient(90deg, rgba(37,99,235,0.9), rgba(34,197,94,0.9))",
+    border: "1px solid rgba(125,211,252,0.35)",
+    background: "linear-gradient(90deg, #60A5FA, #86EFAC)",
     color: "white",
     fontWeight: 900,
     fontSize: 14,
     cursor: "pointer",
+    boxShadow: "0 18px 36px rgba(37,99,235,0.28)",
   },
 
   login: {
@@ -247,8 +247,8 @@ const styles: Record<string, React.CSSProperties> = {
     width: "100%",
     borderRadius: 18,
     padding: "12px 16px",
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(148,163,184,0.40)",
+    background: "rgba(15,23,42,0.90)",
     color: BRAND.text,
     fontWeight: 900,
     fontSize: 14,
@@ -261,7 +261,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 18,
     padding: "12px 16px",
     border: `1px solid ${BRAND.border}`,
-    background: "rgba(255,255,255,0.04)",
+    background: "rgba(15,23,42,0.90)",
     color: BRAND.text,
     fontWeight: 800,
     fontSize: 13,
@@ -271,6 +271,6 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 12,
     textAlign: "center",
     fontSize: 12,
-    color: "rgba(255,255,255,0.55)",
+    color: "rgba(148,163,184,0.85)",
   },
 };

@@ -10,7 +10,7 @@ export default function Onboarding3() {
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at 20% 10%, rgba(56,189,248,0.22), transparent 35%), radial-gradient(circle at 80% 15%, rgba(34,197,94,0.18), transparent 40%), radial-gradient(circle at 50% 90%, rgba(37,99,235,0.14), transparent 45%), linear-gradient(180deg, #020617 0%, #000 120%)",
+          "radial-gradient(circle at 20% 10%, rgba(125,211,252,0.18), transparent 36%), radial-gradient(circle at 80% 15%, rgba(134,239,172,0.16), transparent 42%), radial-gradient(circle at 50% 90%, rgba(96,165,250,0.14), transparent 46%), linear-gradient(180deg, #0b1020 0%, #020617 120%)",
         color: "#F9FAFB",
         display: "flex",
         alignItems: "center",
@@ -27,7 +27,7 @@ export default function Onboarding3() {
             position: "absolute",
             inset: -60,
             background:
-              "radial-gradient(circle at 30% 30%, rgba(56,189,248,0.22), transparent 55%), radial-gradient(circle at 70% 40%, rgba(34,197,94,0.18), transparent 55%)",
+              "radial-gradient(circle at 30% 30%, rgba(125,211,252,0.20), transparent 55%), radial-gradient(circle at 70% 40%, rgba(134,239,172,0.16), transparent 55%)",
             filter: "blur(18px)",
             opacity: 0.9,
             zIndex: 0,
@@ -42,9 +42,9 @@ export default function Onboarding3() {
             borderRadius: 26,
             padding: "22px 18px 18px",
             background:
-              "linear-gradient(180deg, rgba(15,23,42,0.92), rgba(2,6,23,0.88))",
+              "linear-gradient(180deg, rgba(15,23,42,0.92), rgba(11,15,32,0.90))",
             border: "1px solid rgba(148,163,184,0.28)",
-            boxShadow: "0 22px 60px rgba(15,23,42,0.75)",
+            boxShadow: "0 22px 60px rgba(15,23,42,0.70)",
             backdropFilter: "blur(14px)",
           }}
         >
@@ -57,7 +57,7 @@ export default function Onboarding3() {
               padding: "6px 12px",
               borderRadius: 999,
               border: "1px solid rgba(148,163,184,0.32)",
-              background: "rgba(2,6,23,0.55)",
+              background: "rgba(12,18,34,0.75)",
               color: "#9CA3AF",
               fontSize: 12,
               marginBottom: 14,
@@ -68,8 +68,8 @@ export default function Onboarding3() {
                 width: 8,
                 height: 8,
                 borderRadius: 999,
-                background: "#22C55E",
-                boxShadow: "0 0 0 6px rgba(34,197,94,0.16)",
+                background: "#86EFAC",
+                boxShadow: "0 0 0 6px rgba(134,239,172,0.20)",
               }}
             />
             3 de 4 · Una sola verdad compartida
@@ -87,7 +87,7 @@ export default function Onboarding3() {
             SyncPlans pone{" "}
             <span
               style={{
-                background: "linear-gradient(90deg, #38BDF8, #22C55E)",
+                background: "linear-gradient(90deg, #7DD3FC, #86EFAC)",
                 WebkitBackgroundClip: "text",
                 color: "transparent",
               }}
@@ -143,7 +143,7 @@ export default function Onboarding3() {
               borderRadius: 18,
               padding: 14,
               background:
-                "linear-gradient(180deg, rgba(11,18,32,0.9), rgba(2,6,23,0.7))",
+                "linear-gradient(180deg, rgba(11,18,32,0.95), rgba(10,16,32,0.80))",
               border: "1px solid rgba(148,163,184,0.22)",
               marginBottom: 16,
             }}
@@ -158,7 +158,9 @@ export default function Onboarding3() {
               }}
             >
               <span>Hoy · Vista compartida</span>
-              <span style={{ color: "#94A3B8" }}>Capas sobre la misma agenda</span>
+              <span style={{ color: "#94A3B8" }}>
+                Capas sobre la misma agenda
+              </span>
             </div>
 
             <div style={{ display: "grid", gap: 10 }}>
@@ -166,15 +168,15 @@ export default function Onboarding3() {
                 title="Personal"
                 subtitle="Tus cosas"
                 dot="#FACC15"
-                bg="rgba(250,204,21,0.14)"
-                border="rgba(250,204,21,0.25)"
+                bg="rgba(250,204,21,0.12)"
+                border="rgba(250,204,21,0.24)"
                 icon="🟡"
               />
               <LayerCard
                 title="Pareja"
                 subtitle="Planes compartidos"
-                dot="#F87171"
-                bg="rgba(248,113,113,0.12)"
+                dot="#FCA5A5"
+                bg="rgba(248,113,113,0.10)"
                 border="rgba(248,113,113,0.22)"
                 icon="🔴"
               />
@@ -183,7 +185,7 @@ export default function Onboarding3() {
                 subtitle="Todos alineados"
                 dot="#60A5FA"
                 bg="rgba(96,165,250,0.12)"
-                border="rgba(96,165,250,0.22)"
+                border="rgba(96,165,250,0.24)"
                 icon="🔵"
               />
             </div>
@@ -193,14 +195,17 @@ export default function Onboarding3() {
                 marginTop: 12,
                 borderRadius: 16,
                 padding: 12,
-                background: "rgba(34,197,94,0.08)",
-                border: "1px solid rgba(34,197,94,0.18)",
+                background: "rgba(134,239,172,0.10)",
+                border: "1px solid rgba(134,239,172,0.22)",
                 color: "#CBD5E1",
                 fontSize: 12,
                 lineHeight: 1.45,
               }}
             >
-              ⚖️ <b style={{ color: "#E5E7EB" }}>Piensa en SyncPlans como un árbitro neutral:</b>{" "}
+              ⚖️{" "}
+              <b style={{ color: "#E5E7EB" }}>
+                Piensa en SyncPlans como un árbitro neutral:
+              </b>{" "}
               todos juegan en el mismo campo, con las mismas líneas y las mismas
               reglas de tiempo.
             </div>
@@ -214,12 +219,12 @@ export default function Onboarding3() {
               padding: "14px 18px",
               borderRadius: 999,
               border: "none",
-              background: "linear-gradient(135deg, #2563EB, #22C55E)",
+              background: "linear-gradient(135deg, #60A5FA, #86EFAC)",
               color: "#F9FAFB",
               fontSize: 16,
               fontWeight: 700,
               cursor: "pointer",
-              boxShadow: "0 18px 40px rgba(37,99,235,0.35)",
+              boxShadow: "0 18px 36px rgba(37,99,235,0.28)",
             }}
           >
             Siguiente
@@ -231,8 +236,8 @@ export default function Onboarding3() {
               width: "100%",
               padding: "12px 18px",
               borderRadius: 999,
-              border: "1px solid rgba(148,163,184,0.35)",
-              background: "rgba(2,6,23,0.45)",
+              border: "1px solid rgba(148,163,184,0.30)",
+              background: "rgba(12,18,34,0.80)",
               color: "#CBD5E1",
               fontSize: 14,
               fontWeight: 600,
@@ -287,8 +292,8 @@ function LayerCard(props: {
             width: 34,
             height: 34,
             borderRadius: 12,
-            background: "rgba(2,6,23,0.55)",
-            border: "1px solid rgba(148,163,184,0.22)",
+            background: "rgba(15,23,42,0.80)",
+            border: "1px solid rgba(148,163,184,0.24)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -300,7 +305,9 @@ function LayerCard(props: {
 
         <div>
           <div style={{ fontWeight: 700, fontSize: 14 }}>{props.title}</div>
-          <div style={{ color: "#CBD5E1", fontSize: 12 }}>{props.subtitle}</div>
+          <div style={{ color: "#CBD5E1", fontSize: 12 }}>
+            {props.subtitle}
+          </div>
         </div>
       </div>
 
