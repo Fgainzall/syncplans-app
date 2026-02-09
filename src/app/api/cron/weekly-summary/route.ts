@@ -5,9 +5,6 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// ─────────────────────────────────────────────
-// Config
-// ─────────────────────────────────────────────
 const CRON_SECRET = process.env.CRON_SECRET!;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -15,20 +12,12 @@ const EMAIL_FROM =
   process.env.EMAIL_FROM || "SyncPlans <no-reply@syncplansapp.com>";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-
-// Supabase server client (bypass RLS)
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-// Timezone fijo (Lima)
 const TZ_OFFSET_HOURS = -5;
 
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
-function todayRangeISO() {
+function weekRangeISO() {
   const now = new Date();
-
-  // Ajustamos a Lima
   const local = new Date(
     now.getTime() + TZ_OFFSET_HOURS * 60 * 60 * 1000
   );
@@ -41,25 +30,26 @@ function todayRangeISO() {
     0,
     0
   );
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
 
-  const end = new Date(
-    local.getFullYear(),
-    local.getMonth(),
-    local.getDate() + 1,
-    0,
-    0,
-    0
-  );
+  const label = `Próximos 7 días · desde ${start.toLocaleDateString("es-PE", {
+    day: "numeric",
+    month: "long",
+  })} hasta ${end.toLocaleDateString("es-PE", {
+    day: "numeric",
+    month: "long",
+  })}`;
 
-  return {
-    startISO: start.toISOString(),
-    endISO: end.toISOString(),
-    label: local.toLocaleDateString("es-PE", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    }),
-  };
+  return { startISO: start.toISOString(), endISO: end.toISOString(), label };
+}
+
+function formatDay(iso: string) {
+  return new Date(iso).toLocaleDateString("es-PE", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
 }
 
 function formatTime(iso: string) {
@@ -69,12 +59,8 @@ function formatTime(iso: string) {
   });
 }
 
-// ─────────────────────────────────────────────
-// POST
-// ─────────────────────────────────────────────
 export async function POST(req: Request) {
   try {
-    // 1️⃣ Seguridad
     const secret = req.headers.get("x-cron-secret");
     if (!secret || secret !== CRON_SECRET) {
       return NextResponse.json(
@@ -83,13 +69,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const { startISO, endISO, label } = todayRangeISO();
+    const { startISO, endISO, label } = weekRangeISO();
 
-    // 2️⃣ Usuarios con resumen diario activo
     const { data: users, error: usersErr } = await supabase
       .from("user_settings")
       .select("user_id")
-      .eq("daily_summary", true);
+      .eq("weekly_summary", true);
 
     if (usersErr) throw usersErr;
     if (!users || users.length === 0) {
@@ -98,11 +83,9 @@ export async function POST(req: Request) {
 
     let sent = 0;
 
-    // 3️⃣ Loop usuarios
     for (const u of users) {
       const uid = u.user_id;
 
-      // Email del usuario (auth.users, usando service role)
       const { data: authUser, error: authErr } = await supabase
         .from("auth.users" as any)
         .select("email")
@@ -113,7 +96,6 @@ export async function POST(req: Request) {
       const email = (authUser as any)?.email as string | undefined;
       if (!email) continue;
 
-      // Eventos de HOY
       const { data: events, error: evErr } = await supabase
         .from("events")
         .select("title, start, end, group_id")
@@ -125,33 +107,54 @@ export async function POST(req: Request) {
       if (evErr) throw evErr;
       if (!events || events.length === 0) continue;
 
-      const payload = events.map((e) => ({
-        title: e.title || "Evento",
-        start: e.start as string,
-        end: e.end as string,
-        groupLabel: e.group_id ? "Compartido" : "Personal",
-      }));
+      // Agrupamos por día
+      const byDay = new Map<string, { title: string; start: string; end: string; groupLabel: string }[]>();
 
-      const listHtml = payload
-        .map(
-          (e) =>
-            `<li style="margin-bottom:4px;"><strong>${formatTime(
-              e.start
-            )} – ${formatTime(
-              e.end
-            )}</strong> · ${e.title} <span style="color:#9ca3af;">(${e.groupLabel})</span></li>`
-        )
-        .join("");
+      for (const e of events) {
+        const d = new Date(e.start as string);
+        const dayKey = d.toISOString().slice(0, 10);
+        if (!byDay.has(dayKey)) byDay.set(dayKey, []);
+        byDay.get(dayKey)!.push({
+          title: e.title || "Evento",
+          start: e.start as string,
+          end: e.end as string,
+          groupLabel: e.group_id ? "Compartido" : "Personal",
+        });
+      }
+
+      const sections: string[] = [];
+      const sortedDays = Array.from(byDay.keys()).sort();
+
+      for (const day of sortedDays) {
+        const prettyDay = formatDay(day + "T00:00:00Z");
+        const items = byDay.get(day)!;
+        const list = items
+          .map(
+            (e) =>
+              `<li style="margin-bottom:4px;"><strong>${formatTime(
+                e.start
+              )} – ${formatTime(
+                e.end
+              )}</strong> · ${e.title} <span style="color:#9ca3af;">(${e.groupLabel})</span></li>`
+          )
+          .join("");
+        sections.push(`
+          <section style="margin-bottom:12px;">
+            <h3 style="margin:0 0 4px 0;font-size:13px;">${prettyDay}</h3>
+            <ul style="padding-left:20px;margin:0;list-style:disc;">
+              ${list}
+            </ul>
+          </section>
+        `);
+      }
 
       const html = `
         <div style="font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;color:#0f172a;">
-          <h2 style="margin-bottom:4px;">Tus eventos de hoy</h2>
+          <h2 style="margin-bottom:4px;">Tu semana en SyncPlans</h2>
           <p style="margin-top:0;margin-bottom:12px;color:#6b7280;">${label}</p>
-          <ul style="padding-left:20px;margin-top:0;margin-bottom:16px;list-style:disc;">
-            ${listHtml}
-          </ul>
+          ${sections.join("")}
           <p style="font-size:12px;color:#9ca3af;margin-top:16px;">
-            Enviado por SyncPlans · Una sola verdad para tus horarios compartidos.
+            Enviado por SyncPlans · Decide mejor qué mantener y qué mover, sin discutir por memoria.
           </p>
         </div>
       `;
@@ -159,7 +162,7 @@ export async function POST(req: Request) {
       await resend.emails.send({
         from: EMAIL_FROM,
         to: email,
-        subject: "Tus eventos de hoy · SyncPlans",
+        subject: "Tu semana con SyncPlans",
         html,
       });
 
@@ -168,7 +171,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, sent });
   } catch (err) {
-    console.error("[daily-reminders]", err);
+    console.error("[weekly-summary]", err);
     return NextResponse.json(
       { ok: false, message: "Cron failed" },
       { status: 500 }

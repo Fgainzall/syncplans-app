@@ -1,4 +1,3 @@
-// src/app/settings/notifications/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -35,7 +34,6 @@ export default function NotificationsSettingsPage() {
         setS(db);
         setReady(true);
       } catch {
-        // fallback visual: igual mostramos pero con defaults si fallara
         if (!alive) return;
         setReady(true);
       }
@@ -59,13 +57,14 @@ export default function NotificationsSettingsPage() {
   }
 
   const score = useMemo(() => {
-    if (!s) return { on: 0, total: 5 };
+    if (!s) return { on: 0, total: 6 };
     const toggles = [
       s.eventReminders,
+      s.dailySummary,
+      s.weeklySummary,
       s.conflictAlerts,
       s.partnerUpdates,
       s.familyUpdates,
-      s.weeklySummary,
     ];
     const on = toggles.filter(Boolean).length;
     return { on, total: toggles.length };
@@ -73,7 +72,6 @@ export default function NotificationsSettingsPage() {
 
   if (!ready) return null;
 
-  // si por algún motivo falló carga DB, evitamos crash
   if (!s) {
     return (
       <main className="min-h-screen bg-[#050816] text-white">
@@ -107,7 +105,7 @@ export default function NotificationsSettingsPage() {
             <h1 className="mt-4 text-3xl font-semibold tracking-tight">Notificaciones</h1>
 
             <p className="mt-2 text-sm text-white/60">
-              Controla recordatorios, alertas de conflictos y modo silencioso.
+              Controla recordatorios, resúmenes y modo silencioso.
             </p>
           </div>
 
@@ -166,7 +164,7 @@ export default function NotificationsSettingsPage() {
         {/* Cards */}
         <div className="grid gap-4">
           <Card
-            title="Recordatorios"
+            title="Recordatorios y resúmenes"
             desc="Para que tu semana avance con ritmo (sin olvidar nada importante)."
           >
             <ToggleRow
@@ -177,8 +175,15 @@ export default function NotificationsSettingsPage() {
             />
             <Divider />
             <ToggleRow
+              title="Resumen diario por correo"
+              subtitle="Cada mañana: un correo con los eventos que tienes para ese día."
+              value={s.dailySummary}
+              onChange={(v) => commit({ ...s, dailySummary: v })}
+            />
+            <Divider />
+            <ToggleRow
               title="Resumen semanal"
-              subtitle="Cada semana: tus eventos, horas organizadas y conflictos."
+              subtitle="Una vez a la semana: tus eventos y organización de los próximos días."
               value={s.weeklySummary}
               onChange={(v) => commit({ ...s, weeklySummary: v })}
             />

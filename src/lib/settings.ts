@@ -6,6 +6,7 @@ export type PermMode = "owner_only" | "shared_read" | "shared_write";
 export type NotificationSettings = {
   // Notificaciones
   eventReminders: boolean;
+  dailySummary: boolean;          // 👈 NUEVO
   conflictAlerts: boolean;
   partnerUpdates: boolean;
   familyUpdates: boolean;
@@ -28,6 +29,7 @@ export type NotificationSettings = {
 
 export const DEFAULT_SETTINGS: NotificationSettings = {
   eventReminders: true,
+  dailySummary: true,           // 👈 NUEVO (default ON)
   conflictAlerts: true,
   partnerUpdates: true,
   familyUpdates: true,
@@ -61,6 +63,7 @@ function normalizeSettings(x: Partial<NotificationSettings> | null | undefined):
   const v = x ?? {};
   return {
     eventReminders: v.eventReminders ?? DEFAULT_SETTINGS.eventReminders,
+    dailySummary: v.dailySummary ?? DEFAULT_SETTINGS.dailySummary,          // 👈 NUEVO
     conflictAlerts: v.conflictAlerts ?? DEFAULT_SETTINGS.conflictAlerts,
     partnerUpdates: v.partnerUpdates ?? DEFAULT_SETTINGS.partnerUpdates,
     familyUpdates: v.familyUpdates ?? DEFAULT_SETTINGS.familyUpdates,
@@ -83,6 +86,7 @@ type DbRow = {
   user_id: string;
 
   event_reminders: boolean | null;
+  daily_summary: boolean | null;            // 👈 NUEVO
   conflict_alerts: boolean | null;
   partner_updates: boolean | null;
   family_updates: boolean | null;
@@ -103,6 +107,7 @@ type DbRow = {
 function fromDb(row: DbRow): NotificationSettings {
   return normalizeSettings({
     eventReminders: row.event_reminders ?? DEFAULT_SETTINGS.eventReminders,
+    dailySummary: row.daily_summary ?? DEFAULT_SETTINGS.dailySummary,     // 👈 NUEVO
     conflictAlerts: row.conflict_alerts ?? DEFAULT_SETTINGS.conflictAlerts,
     partnerUpdates: row.partner_updates ?? DEFAULT_SETTINGS.partnerUpdates,
     familyUpdates: row.family_updates ?? DEFAULT_SETTINGS.familyUpdates,
@@ -126,6 +131,7 @@ function toDb(uid: string, s: NotificationSettings): Partial<DbRow> {
   return {
     user_id: uid,
     event_reminders: n.eventReminders,
+    daily_summary: n.dailySummary,                      // 👈 NUEVO
     conflict_alerts: n.conflictAlerts,
     partner_updates: n.partnerUpdates,
     family_updates: n.familyUpdates,
