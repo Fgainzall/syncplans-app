@@ -1,3 +1,4 @@
+// src/app/api/cron/weekly-summary/route.ts
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
@@ -40,9 +41,9 @@ function thisWeekRangeISO() {
     now.getTime() + TZ_OFFSET_HOURS * 60 * 60 * 1000
   );
 
-  // Tomamos lunes como inicio de semana
+  // Lunes como inicio de semana
   const day = local.getDay(); // 0 = domingo, 1 = lunes...
-  const diffToMonday = (day + 6) % 7; // 0 si ya es lunes
+  const diffToMonday = (day + 6) % 7;
 
   const start = new Date(
     local.getFullYear(),
@@ -68,6 +69,11 @@ function thisWeekRangeISO() {
     endISO: end.toISOString(),
     label,
   };
+}
+
+function toLocalDate(iso: string) {
+  const d = new Date(iso);
+  return new Date(d.getTime() + TZ_OFFSET_HOURS * 60 * 60 * 1000);
 }
 
 // ─────────────────────────────────────────────
@@ -127,17 +133,71 @@ export async function POST(req: Request) {
       if (!events || events.length === 0) continue;
 
       const total = events.length;
+      const shared = events.filter((e) => e.group_id).length;
+      const personal = total - shared;
+
+      // Día más cargado
+      const byDay: Record<string, number> = {};
+      for (const ev of events) {
+        const local = toLocalDate(ev.start);
+        const key = local.toISOString().slice(0, 10); // YYYY-MM-DD
+        byDay[key] = (byDay[key] || 0) + 1;
+      }
+
+      let busiestKey: string | null = null;
+      let busiestCount = 0;
+      for (const [k, v] of Object.entries(byDay)) {
+        if (v > busiestCount) {
+          busiestCount = v;
+          busiestKey = k;
+        }
+      }
+
+      let busiestLabel = "";
+      if (busiestKey) {
+        const [y, m, d] = busiestKey.split("-").map(Number);
+        const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
+        busiestLabel = dt.toLocaleDateString("es-PE", {
+          weekday: "long",
+          day: "numeric",
+          month: "short",
+        });
+      }
 
       const html = `
-        <div style="font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;color:#0f172a;">
-          <h2 style="margin-bottom:4px;">Tu semana en SyncPlans</h2>
-          <p style="margin-top:0;margin-bottom:8px;color:#6b7280;">${label}</p>
-          <p style="margin-top:0;margin-bottom:12px;">
-            Tienes <strong>${total}</strong> eventos organizados para esta semana.
-          </p>
-          <p style="font-size:12px;color:#9ca3af;">
-            Enviado por SyncPlans · Una sola verdad para los horarios compartidos.
-          </p>
+        <div style="font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;color:#0f172a;background-color:#020617;padding:24px;">
+          <div style="max-width:520px;margin:0 auto;background:#020617;border-radius:18px;border:1px solid #1f2937;padding:20px;">
+            <p style="font-size:11px;color:#9ca3af;margin:0 0 8px 0;">
+              SyncPlans · Resumen semanal
+            </p>
+            <h2 style="margin:0 0 4px 0;font-size:20px;color:#e5e7eb;">
+              Tu semana en SyncPlans
+            </h2>
+            <p style="margin:0 0 12px 0;color:#9ca3af;font-size:13px;">
+              ${label}
+            </p>
+
+            <ul style="padding-left:18px;margin:0 0 14px 0;color:#e5e7eb;list-style-type:disc;">
+              <li><strong>${total}</strong> evento${
+        total > 1 ? "s" : ""
+      } organizados en esta semana.</li>
+              <li>${personal} personales · ${shared} compartidos.</li>
+              ${
+                busiestLabel
+                  ? `<li>Día más cargado: <strong>${busiestLabel}</strong> (${busiestCount} evento${
+                      busiestCount > 1 ? "s" : ""
+                    }).</li>`
+                  : ""
+              }
+            </ul>
+
+            <p style="margin:0 0 4px 0;font-size:12px;color:#9ca3af;">
+              Usa este correo como “cheat sheet” rápido: abre SyncPlans si necesitas ajustar algo.
+            </p>
+            <p style="margin:0;font-size:11px;color:#6b7280;">
+              SyncPlans · Una sola verdad para los horarios compartidos.
+            </p>
+          </div>
         </div>
       `;
 

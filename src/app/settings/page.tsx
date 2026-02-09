@@ -255,7 +255,7 @@ export default function SettingsHubPage() {
                 ? `${notifScore.on}/${notifScore.total} activadas · ${
                     notifScore.quiet ? "Silencioso ON" : "Silencioso OFF"
                   }`
-                : "Controla recordatorios, alertas y modo silencioso."
+                : "Controla recordatorios, resúmenes y modo silencioso."
             }
             cta="Abrir"
             onClick={() => router.push("/settings/notifications")}
@@ -287,17 +287,17 @@ export default function SettingsHubPage() {
           />
         </div>
 
-        {/* Bloque V2: resumen de hoy por correo (trigger manual desde Settings) */}
+        {/* Bloque: disparar resumen de hoy manualmente */}
         <div className="mt-6 rounded-2xl border border-white/10 bg-black/40 p-4 text-xs text-white/80">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <span className="h-2 w-2 rounded-full bg-cyan-400" />
-                Recordatorio diario por correo (beta)
+                Enviarme el resumen de hoy
               </div>
               <p className="mt-1 text-[11px] text-white/60">
-                Usa el mismo motor de notificaciones que tu timeline: te mando
-                a tu correo los eventos de hoy (personales + del grupo activo).
+                Usa el mismo motor que el resumen diario automático: te mando a tu correo los eventos de hoy
+                (personales + del grupo activo) para que veas cómo se ve.
               </p>
             </div>
 
@@ -312,7 +312,7 @@ export default function SettingsHubPage() {
                   : "border-cyan-400/60 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25",
               ].join(" ")}
             >
-              {digestSending ? "Enviando resumen…" : "Enviarme resumen de hoy"}
+              {digestSending ? "Enviando resumen…" : "Probar resumen de hoy"}
             </button>
           </div>
 
@@ -331,8 +331,7 @@ export default function SettingsHubPage() {
         </div>
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-white/60">
-          Pro tip: este hub hace que SyncPlans se sienta “producto real” (y te
-          ordena el roadmap).
+          Pro tip: este hub hace que SyncPlans se sienta “producto real” (y te ordena el roadmap).
         </div>
       </div>
     </main>

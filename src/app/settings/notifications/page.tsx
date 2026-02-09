@@ -1,3 +1,4 @@
+// src/app/settings/notifications/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -105,7 +106,7 @@ export default function NotificationsSettingsPage() {
             <h1 className="mt-4 text-3xl font-semibold tracking-tight">Notificaciones</h1>
 
             <p className="mt-2 text-sm text-white/60">
-              Controla recordatorios, resúmenes y modo silencioso.
+              Controla recordatorios, resúmenes por correo y modo silencioso.
             </p>
           </div>
 
@@ -165,11 +166,11 @@ export default function NotificationsSettingsPage() {
         <div className="grid gap-4">
           <Card
             title="Recordatorios y resúmenes"
-            desc="Para que tu semana avance con ritmo (sin olvidar nada importante)."
+            desc="Tu foto diaria y semanal: antes de que algo se te pase."
           >
             <ToggleRow
               title="Recordatorio de eventos"
-              subtitle="Te avisa antes de que empiece un evento."
+              subtitle="Te avisamos antes de que empiece un evento."
               value={s.eventReminders}
               onChange={(v) => commit({ ...s, eventReminders: v })}
             />
@@ -248,7 +249,7 @@ export default function NotificationsSettingsPage() {
         </div>
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-white/60">
-          Estos ajustes ahora se guardan en backend (Supabase) con RLS por usuario.
+          Los resúmenes se envían automáticamente cuando están activados. No tienes que hacer nada más.
         </div>
       </div>
     </main>
@@ -257,14 +258,24 @@ export default function NotificationsSettingsPage() {
 
 /* ---------------- UI ---------------- */
 
-function Card({ title, desc, children }: { title: string; desc: string; children: React.ReactNode }) {
+function Card({
+  title,
+  desc,
+  children,
+}: {
+  title: string;
+  desc: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
       <div className="mb-4">
         <div className="text-sm font-semibold">{title}</div>
         <div className="mt-1 text-xs text-white/60">{desc}</div>
       </div>
-      <div className="rounded-2xl border border-white/10 bg-black/30">{children}</div>
+      <div className="rounded-2xl border border-white/10 bg-black/30">
+        {children}
+      </div>
     </section>
   );
 }
@@ -291,7 +302,9 @@ function ToggleRow({
         onClick={() => onChange(!value)}
         className={[
           "relative h-8 w-14 rounded-full border transition",
-          value ? "border-emerald-400/30 bg-emerald-500/20" : "border-white/10 bg-white/5",
+          value
+            ? "border-emerald-400/30 bg-emerald-500/20"
+            : "border-white/10 bg-white/5",
         ].join(" ")}
         aria-label={title}
       >
