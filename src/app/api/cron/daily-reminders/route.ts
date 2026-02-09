@@ -8,16 +8,27 @@ export const dynamic = "force-dynamic";
 // ─────────────────────────────────────────────
 // Config
 // ─────────────────────────────────────────────
-const CRON_SECRET = process.env.CRON_SECRET!;
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const CRON_SECRET = process.env.CRON_SECRET || "";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const EMAIL_FROM =
   process.env.EMAIL_FROM || "SyncPlans <no-reply@syncplansapp.com>";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy init para que el build no reviente si faltan envs en local
+function getAdminSupabase() {
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    throw new Error("Missing Supabase admin env vars");
+  }
+  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+}
 
-// Supabase server client (bypass RLS)
-const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+function getResend() {
+  if (!RESEND_API_KEY) {
+    throw new Error("Missing RESEND_API_KEY env var");
+  }
+  return new Resend(RESEND_API_KEY);
+}
 
 // Timezone fijo (Lima)
 const TZ_OFFSET_HOURS = -5;
@@ -83,13 +94,17 @@ export async function POST(req: Request) {
       );
     }
 
+    // 2️⃣ Clients (solo aquí, no en top-level)
+    const supabase = getAdminSupabase();
+    const resend = getResend();
+
     const { startISO, endISO, label } = todayRangeISO();
 
-    // 2️⃣ Usuarios con resumen diario activo
+    // 3️⃣ Usuarios con resumen diario activo
     const { data: users, error: usersErr } = await supabase
       .from("user_settings")
       .select("user_id")
-      .eq("daily_summary", true);
+      .eq("daily_summary", true); // 👈 usamos daily_summary, no event_reminders
 
     if (usersErr) throw usersErr;
     if (!users || users.length === 0) {
@@ -98,19 +113,20 @@ export async function POST(req: Request) {
 
     let sent = 0;
 
-    // 3️⃣ Loop usuarios
+    // 4️⃣ Loop usuarios
     for (const u of users) {
       const uid = u.user_id;
 
-      // Email del usuario (auth.users, usando service role)
+      // Email del usuario
       const { data: authUser, error: authErr } = await supabase
-        .from("auth.users" as any)
+        .from("auth.users")
         .select("email")
         .eq("id", uid)
-        .single();
+        .maybeSingle();
 
-      if (authErr) continue;
-      const email = (authUser as any)?.email as string | undefined;
+      if (authErr) throw authErr;
+
+      const email = (authUser as any)?.email;
       if (!email) continue;
 
       // Eventos de HOY
@@ -125,19 +141,18 @@ export async function POST(req: Request) {
       if (evErr) throw evErr;
       if (!events || events.length === 0) continue;
 
+      // Payload para el email
       const payload = events.map((e) => ({
         title: e.title || "Evento",
-        start: e.start as string,
-        end: e.end as string,
+        start: e.start,
+        end: e.end,
         groupLabel: e.group_id ? "Compartido" : "Personal",
       }));
 
       const listHtml = payload
         .map(
           (e) =>
-            `<li style="margin-bottom:4px;"><strong>${formatTime(
-              e.start
-            )} – ${formatTime(
+            `<li><strong>${formatTime(e.start)} – ${formatTime(
               e.end
             )}</strong> · ${e.title} <span style="color:#9ca3af;">(${e.groupLabel})</span></li>`
         )
@@ -147,11 +162,11 @@ export async function POST(req: Request) {
         <div style="font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;color:#0f172a;">
           <h2 style="margin-bottom:4px;">Tus eventos de hoy</h2>
           <p style="margin-top:0;margin-bottom:12px;color:#6b7280;">${label}</p>
-          <ul style="padding-left:20px;margin-top:0;margin-bottom:16px;list-style:disc;">
+          <ul style="padding-left:20px;margin-top:0;margin-bottom:16px;">
             ${listHtml}
           </ul>
-          <p style="font-size:12px;color:#9ca3af;margin-top:16px;">
-            Enviado por SyncPlans · Una sola verdad para tus horarios compartidos.
+          <p style="font-size:12px;color:#9ca3af;">
+            Enviado por SyncPlans · Organiza tu día sin choques de horario.
           </p>
         </div>
       `;

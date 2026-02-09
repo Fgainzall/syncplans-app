@@ -5,27 +5,49 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const CRON_SECRET = process.env.CRON_SECRET!;
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// ─────────────────────────────────────────────
+// Config
+// ─────────────────────────────────────────────
+const CRON_SECRET = process.env.CRON_SECRET || "";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const EMAIL_FROM =
   process.env.EMAIL_FROM || "SyncPlans <no-reply@syncplansapp.com>";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+function getAdminSupabase() {
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    throw new Error("Missing Supabase admin env vars");
+  }
+  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+}
+
+function getResend() {
+  if (!RESEND_API_KEY) {
+    throw new Error("Missing RESEND_API_KEY env var");
+  }
+  return new Resend(RESEND_API_KEY);
+}
 
 const TZ_OFFSET_HOURS = -5;
 
-function weekRangeISO() {
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+function thisWeekRangeISO() {
   const now = new Date();
   const local = new Date(
     now.getTime() + TZ_OFFSET_HOURS * 60 * 60 * 1000
   );
 
+  // Tomamos lunes como inicio de semana
+  const day = local.getDay(); // 0 = domingo, 1 = lunes...
+  const diffToMonday = (day + 6) % 7; // 0 si ya es lunes
+
   const start = new Date(
     local.getFullYear(),
     local.getMonth(),
-    local.getDate(),
+    local.getDate() - diffToMonday,
     0,
     0,
     0
@@ -33,32 +55,24 @@ function weekRangeISO() {
   const end = new Date(start);
   end.setDate(end.getDate() + 7);
 
-  const label = `Próximos 7 días · desde ${start.toLocaleDateString("es-PE", {
+  const label = `${start.toLocaleDateString("es-PE", {
     day: "numeric",
-    month: "long",
-  })} hasta ${end.toLocaleDateString("es-PE", {
+    month: "short",
+  })} – ${end.toLocaleDateString("es-PE", {
     day: "numeric",
-    month: "long",
+    month: "short",
   })}`;
 
-  return { startISO: start.toISOString(), endISO: end.toISOString(), label };
+  return {
+    startISO: start.toISOString(),
+    endISO: end.toISOString(),
+    label,
+  };
 }
 
-function formatDay(iso: string) {
-  return new Date(iso).toLocaleDateString("es-PE", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-}
-
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("es-PE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
+// ─────────────────────────────────────────────
+// POST
+// ─────────────────────────────────────────────
 export async function POST(req: Request) {
   try {
     const secret = req.headers.get("x-cron-secret");
@@ -69,8 +83,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const { startISO, endISO, label } = weekRangeISO();
+    const supabase = getAdminSupabase();
+    const resend = getResend();
 
+    const { startISO, endISO, label } = thisWeekRangeISO();
+
+    // Usuarios con resumen semanal activo
     const { data: users, error: usersErr } = await supabase
       .from("user_settings")
       .select("user_id")
@@ -87,13 +105,14 @@ export async function POST(req: Request) {
       const uid = u.user_id;
 
       const { data: authUser, error: authErr } = await supabase
-        .from("auth.users" as any)
+        .from("auth.users")
         .select("email")
         .eq("id", uid)
-        .single();
+        .maybeSingle();
 
-      if (authErr) continue;
-      const email = (authUser as any)?.email as string | undefined;
+      if (authErr) throw authErr;
+
+      const email = (authUser as any)?.email;
       if (!email) continue;
 
       const { data: events, error: evErr } = await supabase
@@ -107,54 +126,17 @@ export async function POST(req: Request) {
       if (evErr) throw evErr;
       if (!events || events.length === 0) continue;
 
-      // Agrupamos por día
-      const byDay = new Map<string, { title: string; start: string; end: string; groupLabel: string }[]>();
-
-      for (const e of events) {
-        const d = new Date(e.start as string);
-        const dayKey = d.toISOString().slice(0, 10);
-        if (!byDay.has(dayKey)) byDay.set(dayKey, []);
-        byDay.get(dayKey)!.push({
-          title: e.title || "Evento",
-          start: e.start as string,
-          end: e.end as string,
-          groupLabel: e.group_id ? "Compartido" : "Personal",
-        });
-      }
-
-      const sections: string[] = [];
-      const sortedDays = Array.from(byDay.keys()).sort();
-
-      for (const day of sortedDays) {
-        const prettyDay = formatDay(day + "T00:00:00Z");
-        const items = byDay.get(day)!;
-        const list = items
-          .map(
-            (e) =>
-              `<li style="margin-bottom:4px;"><strong>${formatTime(
-                e.start
-              )} – ${formatTime(
-                e.end
-              )}</strong> · ${e.title} <span style="color:#9ca3af;">(${e.groupLabel})</span></li>`
-          )
-          .join("");
-        sections.push(`
-          <section style="margin-bottom:12px;">
-            <h3 style="margin:0 0 4px 0;font-size:13px;">${prettyDay}</h3>
-            <ul style="padding-left:20px;margin:0;list-style:disc;">
-              ${list}
-            </ul>
-          </section>
-        `);
-      }
+      const total = events.length;
 
       const html = `
         <div style="font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;color:#0f172a;">
           <h2 style="margin-bottom:4px;">Tu semana en SyncPlans</h2>
-          <p style="margin-top:0;margin-bottom:12px;color:#6b7280;">${label}</p>
-          ${sections.join("")}
-          <p style="font-size:12px;color:#9ca3af;margin-top:16px;">
-            Enviado por SyncPlans · Decide mejor qué mantener y qué mover, sin discutir por memoria.
+          <p style="margin-top:0;margin-bottom:8px;color:#6b7280;">${label}</p>
+          <p style="margin-top:0;margin-bottom:12px;">
+            Tienes <strong>${total}</strong> eventos organizados para esta semana.
+          </p>
+          <p style="font-size:12px;color:#9ca3af;">
+            Enviado por SyncPlans · Una sola verdad para los horarios compartidos.
           </p>
         </div>
       `;
@@ -173,7 +155,7 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("[weekly-summary]", err);
     return NextResponse.json(
-      { ok: false, message: "Cron failed" },
+      { ok: false, message: "Weekly cron failed" },
       { status: 500 }
     );
   }
