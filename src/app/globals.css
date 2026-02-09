@@ -1,29 +1,75 @@
+/* src/app/globals.css */
 @import "tailwindcss";
 
+/* ============================
+   Paleta base – Modo claro
+   ============================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Fondo claro suave (si el sistema está en light mode) */
+  --background: #f3f4f6;   /* gris clarito, no blanco puro */
+  --foreground: #020617;   /* azul muy oscuro, no negro duro */
+
+  /* Texto */
+  --text-main: #020617;
+  --text-soft: #111827;
+  --text-muted: #6b7280;
+
+  /* Acentos (más calmados) */
+  --accent-primary: #6366f1;  /* índigo suave */
+  --accent-secondary: #22c55e;
 }
+
+/* ============================
+   Paleta base – Modo oscuro
+   (lo que más va a ver Ara y tu target)
+   ============================ */
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Fondo con gradiente suave, no bloque negro */
+    --background: radial-gradient(
+        circle at 20% 10%,
+        rgba(56, 189, 248, 0.16),
+        transparent 48%
+      ),
+      radial-gradient(
+        circle at 82% 18%,
+        rgba(34, 197, 94, 0.14),
+        transparent 52%
+      ),
+      radial-gradient(
+        circle at 50% 100%,
+        rgba(129, 140, 248, 0.14),
+        transparent 55%
+      ),
+      #020617;
+
+    --foreground: #e5e7eb;   /* gris claro, no blanco nuclear */
+
+    --text-main: #f9fafb;
+    --text-soft: #e5e7eb;
+    --text-muted: #9ca3af;
+
+    /* Acentos suavizados */
+    --accent-primary: #a855f7;  /* violeta pastel-ish */
+    --accent-secondary: #38bdf8;
+  }
+
+  html {
+    color-scheme: dark;
   }
 }
+
+/* ============================
+   Resets y base
+   ============================ */
 
 html,
 body {
   max-width: 100vw;
   overflow-x: hidden;
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  height: 100%;
 }
 
 * {
@@ -32,13 +78,26 @@ body {
   margin: 0;
 }
 
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Para que el contenido principal se vea un poco menos “duro” */
+main {
+  color: var(--text-soft);
+}
+
 a {
   color: inherit;
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+/* Por si quieres usar estas utilidades más adelante en componentes */
+.sp-text-muted {
+  color: var(--text-muted);
 }
