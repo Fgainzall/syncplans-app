@@ -1,3 +1,4 @@
+// src/app/onboarding/2/page.tsx
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -10,7 +11,7 @@ export default function Onboarding2() {
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at 15% 0%, rgba(191,219,254,0.6), transparent 55%), radial-gradient(circle at 85% 10%, rgba(221,214,254,0.65), transparent 55%), linear-gradient(180deg, #F9FAFB 0%, #EEF2FF 100%)",
+          "radial-gradient(circle at 0% 0%, rgba(191,219,254,0.75), transparent 55%), radial-gradient(circle at 100% 0%, rgba(221,214,254,0.75), transparent 55%), linear-gradient(180deg, #F9FAFB 0%, #EEF2FF 100%)",
         color: "#0F172A",
         display: "flex",
         alignItems: "center",
@@ -22,12 +23,13 @@ export default function Onboarding2() {
         <section
           style={{
             position: "relative",
+            zIndex: 1,
             borderRadius: 24,
             padding: "22px 18px 18px",
             background: "#FFFFFF",
             border: "1px solid #E5E7EB",
             boxShadow:
-              "0 18px 40px rgba(15,23,42,0.07), 0 0 0 1px rgba(148,163,184,0.10)",
+              "0 18px 40px rgba(15,23,42,0.07), 0 0 0 1px rgba(148,163,184,0.08)",
           }}
         >
           {/* Badge */}
@@ -39,7 +41,7 @@ export default function Onboarding2() {
               padding: "6px 12px",
               borderRadius: 999,
               border: "1px solid #E5E7EB",
-              background: "#F3F4FF",
+              background: "#EEF2FF",
               color: "#4B5563",
               fontSize: 12,
               marginBottom: 14,
@@ -50,7 +52,7 @@ export default function Onboarding2() {
                 width: 8,
                 height: 8,
                 borderRadius: 999,
-                background: "#38BDF8",
+                background: "#0EA5E9",
               }}
             />
             2 de 4 · Situaciones que ya conoces
@@ -110,12 +112,13 @@ export default function Onboarding2() {
                     borderRadius: 999,
                     padding: "7px 12px",
                     border: "1px solid #E5E7EB",
-                    background: "#F9FAFB",
+                    background: "#FFFFFF",
                     fontSize: 12,
-                    color: "#111827",
+                    color: "#374151",
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
+                    boxShadow: "0 10px 25px rgba(148,163,184,0.25)",
                   }}
                 >
                   <span style={{ fontSize: 14 }}>💬</span>
@@ -125,7 +128,7 @@ export default function Onboarding2() {
             )}
           </div>
 
-          {/* “Conflict preview” */}
+          {/* Conflict preview (soft) */}
           <div
             style={{
               borderRadius: 18,
@@ -149,12 +152,12 @@ export default function Onboarding2() {
               <span style={{ color: "#6B7280" }}>Dos planes, misma hora</span>
             </div>
 
-            <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "grid", gap: 8 }}>
               <EventRow
                 pill="Pareja"
                 pillBg="#FEF2F2"
                 pillBorder="#FECACA"
-                dot="#F97373"
+                dot="#EF4444"
                 title="Cena con Ara"
                 time="20:00 – 21:30"
               />
@@ -167,12 +170,11 @@ export default function Onboarding2() {
                 time="20:30 – 22:00"
               />
 
-              {/* Conflict callout */}
               <div
                 style={{
-                  borderRadius: 16,
+                  borderRadius: 14,
                   padding: 12,
-                  background: "#EFF6FF",
+                  background: "#DBEAFE",
                   border: "1px solid #BFDBFE",
                   display: "flex",
                   gap: 10,
@@ -183,9 +185,9 @@ export default function Onboarding2() {
                   style={{
                     width: 32,
                     height: 32,
-                    borderRadius: 999,
-                    background: "#FFFFFF",
-                    border: "1px solid #E5E7EB",
+                    borderRadius: 12,
+                    background: "#EFF6FF",
+                    border: "1px solid #BFDBFE",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -198,28 +200,23 @@ export default function Onboarding2() {
                 <div style={{ flex: 1 }}>
                   <div
                     style={{
-                      fontWeight: 600,
+                      fontWeight: 700,
                       fontSize: 13,
-                      color: "#111827",
+                      color: "#1F2933",
                     }}
                   >
                     Conflicto típico: nadie lo vio a tiempo
                   </div>
                   <div
                     style={{
-                      color: "#4B5563",
+                      color: "#374151",
                       fontSize: 12,
                       lineHeight: 1.45,
                     }}
                   >
-                    Uno lo apuntó en el calendario. El otro lo tenía en la
-                    cabeza o en un chat. Resultado:{" "}
+                    Uno lo apuntó en el calendario. El otro lo tenía en la cabeza
+                    o en un chat. Resultado:{" "}
                     <b style={{ color: "#111827" }}>choque asegurado</b>.
-                  </div>
-
-                  <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-                    <MiniAction label="Reprogramar" />
-                    <MiniAction label="Hablarlo antes" />
                   </div>
                 </div>
               </div>
@@ -234,7 +231,7 @@ export default function Onboarding2() {
               padding: "13px 18px",
               borderRadius: 999,
               border: "none",
-              background: "linear-gradient(135deg, #3B82F6, #22C55E)",
+              background: "linear-gradient(135deg, #3B82F6, #6366F1)",
               color: "#F9FAFB",
               fontSize: 15,
               fontWeight: 600,
@@ -252,9 +249,9 @@ export default function Onboarding2() {
               borderRadius: 999,
               border: "1px solid #E5E7EB",
               background: "#FFFFFF",
-              color: "#374151",
+              color: "#4B5563",
               fontSize: 14,
-              fontWeight: 500,
+              fontWeight: 600,
               cursor: "pointer",
               marginTop: 10,
             }}
@@ -291,7 +288,7 @@ function EventRow(props: {
     <div
       style={{
         borderRadius: 14,
-        padding: 12,
+        padding: 10,
         background: "#FFFFFF",
         border: "1px solid #E5E7EB",
         display: "flex",
@@ -325,32 +322,12 @@ function EventRow(props: {
           border: `1px solid ${props.pillBorder}`,
           color: "#374151",
           fontSize: 12,
-          fontWeight: 500,
+          fontWeight: 600,
           whiteSpace: "nowrap",
         }}
       >
         {props.pill}
       </span>
     </div>
-  );
-}
-
-function MiniAction({ label }: { label: string }) {
-  return (
-    <button
-      type="button"
-      style={{
-        borderRadius: 999,
-        padding: "7px 10px",
-        border: "1px solid #E5E7EB",
-        background: "#FFFFFF",
-        color: "#374151",
-        fontSize: 12,
-        fontWeight: 500,
-        cursor: "pointer",
-      }}
-    >
-      {label}
-    </button>
   );
 }

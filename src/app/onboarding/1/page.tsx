@@ -1,48 +1,17 @@
-// src/app/onboarding/profile/page.tsx
+// src/app/onboarding/1/page.tsx
 "use client";
 
-import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const ONBOARDING_KEY = "syncplans_onboarded_v1";
-
-export default function OnboardingProfile() {
+export default function OnboardingIntro() {
   const router = useRouter();
-  const [checking, setChecking] = useState(true);
-
-  // Si ya hizo onboarding (por summary u otro), lo mandamos directo
-  useEffect(() => {
-    try {
-      const flag = window.localStorage.getItem(ONBOARDING_KEY);
-      if (flag) {
-        router.replace("/summary");
-        return;
-      }
-    } catch {
-      // si localStorage falla, no rompemos nada
-    }
-    setChecking(false);
-  }, [router]);
-
-  if (checking) {
-    return null;
-  }
-
-  function completeAndGo(target: string) {
-    try {
-      window.localStorage.setItem(ONBOARDING_KEY, "1");
-    } catch {
-      // ignorar errores de localStorage
-    }
-    router.push(target);
-  }
 
   return (
     <main
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at 0% 0%, rgba(191,219,254,0.7), transparent 55%), radial-gradient(circle at 100% 0%, rgba(221,214,254,0.7), transparent 55%), linear-gradient(180deg, #F9FAFB 0%, #EEF2FF 100%)",
+          "radial-gradient(circle at 0% 0%, rgba(191,219,254,0.75), transparent 55%), radial-gradient(circle at 100% 0%, rgba(221,214,254,0.75), transparent 55%), linear-gradient(180deg, #F9FAFB 0%, #EEF2FF 100%)",
         color: "#0F172A",
         display: "flex",
         alignItems: "center",
@@ -60,7 +29,7 @@ export default function OnboardingProfile() {
             background: "#FFFFFF",
             border: "1px solid #E5E7EB",
             boxShadow:
-              "0 18px 40px rgba(15,23,42,0.07), 0 0 0 1px rgba(148,163,184,0.10)",
+              "0 18px 40px rgba(15,23,42,0.07), 0 0 0 1px rgba(148,163,184,0.08)",
           }}
         >
           {/* Top row */}
@@ -93,11 +62,11 @@ export default function OnboardingProfile() {
                   background: "#0EA5E9",
                 }}
               />
-              1 de 4 · Bienvenido
+              1 de 4 · Por qué existe SyncPlans
             </div>
 
             <button
-              onClick={() => completeAndGo("/summary")}
+              onClick={() => router.push("/auth/login")}
               style={{
                 height: 32,
                 padding: "0 12px",
@@ -124,7 +93,7 @@ export default function OnboardingProfile() {
               color: "#0F172A",
             }}
           >
-            Tu agenda,{" "}
+            Coordinar horarios{" "}
             <span
               style={{
                 background: "linear-gradient(90deg, #0EA5E9, #22C55E)",
@@ -132,7 +101,7 @@ export default function OnboardingProfile() {
                 color: "transparent",
               }}
             >
-              sin choques de horario
+              no debería ser complicado
             </span>
           </h1>
 
@@ -145,12 +114,12 @@ export default function OnboardingProfile() {
               marginBottom: 16,
             }}
           >
-            SyncPlans organiza tu vida en un solo lugar y te ayuda a evitar
-            conflictos entre tus planes personales, de pareja y de familia sin
-            depender de mil chats o capturas de pantalla.
+            Cuando se mezclan tus planes personales, los de pareja y los de
+            familia, los malentendidos aparecen: alguien no vio el mensaje,
+            pensó que era otro día o ya tenía algo agendado.
           </p>
 
-          {/* Mini “calendar preview” en versión soft */}
+          {/* Mini calendar preview (soft) */}
           <div
             style={{
               borderRadius: 18,
@@ -170,8 +139,8 @@ export default function OnboardingProfile() {
                 marginBottom: 10,
               }}
             >
-              <span>Vista semanal</span>
-              <span style={{ color: "#6B7280" }}>Agenda simple y clara</span>
+              <span>Semana típica</span>
+              <span style={{ color: "#6B7280" }}>Todo mezclado</span>
             </div>
 
             <div
@@ -205,21 +174,21 @@ export default function OnboardingProfile() {
 
             <div style={{ display: "grid", gap: 8 }}>
               <QuickEvent
-                title="Reunión (Personal)"
+                title="Reunión de trabajo"
                 time="09:30"
                 dot="#F59E0B"
                 bg="#FFFBEB"
                 border="#FDE68A"
               />
               <QuickEvent
-                title="Almuerzo (Pareja)"
-                time="13:00"
+                title="Cena con pareja"
+                time="20:00"
                 dot="#EF4444"
                 bg="#FEF2F2"
                 border="#FECACA"
               />
               <QuickEvent
-                title="Cumpleaños (Familia)"
+                title="Cumpleaños familiar"
                 time="19:30"
                 dot="#3B82F6"
                 bg="#EFF6FF"
@@ -239,15 +208,16 @@ export default function OnboardingProfile() {
                 lineHeight: 1.45,
               }}
             >
-              ✨ <b style={{ color: "#111827" }}>Resultado:</b> ves tus capas
-              (personal, pareja, familia) en un solo lugar y SyncPlans te avisa
-              cuando algo se cruza.
+              💬{" "}
+              <b style={{ color: "#111827" }}>Hoy se ve así:</b> un poco en el
+              calendario, un poco en WhatsApp, un poco en notas. SyncPlans nace
+              para poner <b>una sola versión de la verdad</b> en el centro.
             </div>
           </div>
 
           {/* CTA */}
           <button
-            onClick={() => completeAndGo("/onboarding/2")}
+            onClick={() => router.push("/onboarding/2")}
             style={{
               width: "100%",
               padding: "13px 18px",
@@ -260,7 +230,7 @@ export default function OnboardingProfile() {
               cursor: "pointer",
             }}
           >
-            Siguiente
+            Empezar
           </button>
 
           <div
@@ -271,8 +241,8 @@ export default function OnboardingProfile() {
               marginTop: 10,
             }}
           >
-            Tip: puedes empezar solo y luego invitar a tu pareja o familia. Lo
-            importante es que todos miren la misma agenda.
+            En las siguientes pantallas verás cómo SyncPlans actúa como
+            árbitro neutral del tiempo compartido.
           </div>
         </section>
       </div>
@@ -309,17 +279,8 @@ function QuickEvent(props: {
             background: props.dot,
           }}
         />
-        <div>
-          <div
-            style={{
-              fontWeight: 600,
-              fontSize: 13,
-              color: "#111827",
-            }}
-          >
-            {props.title}
-          </div>
-          <div style={{ color: "#6B7280", fontSize: 12 }}>{props.time}</div>
+        <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>
+          {props.title}
         </div>
       </div>
 
@@ -335,7 +296,7 @@ function QuickEvent(props: {
           whiteSpace: "nowrap",
         }}
       >
-        Hoy
+        {props.time}
       </div>
     </div>
   );

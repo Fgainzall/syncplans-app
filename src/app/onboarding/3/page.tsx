@@ -1,3 +1,4 @@
+// src/app/onboarding/3/page.tsx
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -10,7 +11,7 @@ export default function Onboarding3() {
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at 10% 0%, rgba(191,219,254,0.6), transparent 55%), radial-gradient(circle at 90% 0%, rgba(187,247,208,0.6), transparent 55%), linear-gradient(180deg, #F9FAFB 0%, #ECFEFF 100%)",
+          "radial-gradient(circle at 0% 0%, rgba(191,219,254,0.75), transparent 55%), radial-gradient(circle at 100% 0%, rgba(221,214,254,0.75), transparent 55%), linear-gradient(180deg, #F9FAFB 0%, #EEF2FF 100%)",
         color: "#0F172A",
         display: "flex",
         alignItems: "center",
@@ -22,12 +23,13 @@ export default function Onboarding3() {
         <section
           style={{
             position: "relative",
+            zIndex: 1,
             borderRadius: 24,
             padding: "22px 18px 18px",
             background: "#FFFFFF",
             border: "1px solid #E5E7EB",
             boxShadow:
-              "0 18px 40px rgba(15,23,42,0.07), 0 0 0 1px rgba(148,163,184,0.10)",
+              "0 18px 40px rgba(15,23,42,0.07), 0 0 0 1px rgba(148,163,184,0.08)",
           }}
         >
           {/* Badge */}
@@ -39,8 +41,8 @@ export default function Onboarding3() {
               padding: "6px 12px",
               borderRadius: 999,
               border: "1px solid #E5E7EB",
-              background: "#ECFEFF",
-              color: "#4B5563",
+              background: "#ECFDF5",
+              color: "#166534",
               fontSize: 12,
               marginBottom: 14,
             }}
@@ -56,7 +58,7 @@ export default function Onboarding3() {
             3 de 4 · Una sola verdad compartida
           </div>
 
-          {/* Título */}
+          {/* Title */}
           <h1
             style={{
               fontSize: 26,
@@ -79,7 +81,7 @@ export default function Onboarding3() {
             en el centro
           </h1>
 
-          {/* Subtítulo */}
+          {/* Subtitle */}
           <p
             style={{
               fontSize: 14,
@@ -93,33 +95,7 @@ export default function Onboarding3() {
             conflictos y te obliga a decidir antes, no cuando ya es tarde.
           </p>
 
-          {/* Bullets */}
-          <ul
-            style={{
-              listStyle: "none",
-              padding: 0,
-              margin: "0 0 18px",
-              display: "grid",
-              gap: 6,
-              fontSize: 13,
-              color: "#111827",
-            }}
-          >
-            <li style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-              <span style={{ fontSize: 14 }}>•</span>
-              <span>Detecta choques automáticamente.</span>
-            </li>
-            <li style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-              <span style={{ fontSize: 14 }}>•</span>
-              <span>Nada se borra sin que lo veas.</span>
-            </li>
-            <li style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-              <span style={{ fontSize: 14 }}>•</span>
-              <span>Todos ven lo mismo, al mismo tiempo.</span>
-            </li>
-          </ul>
-
-          {/* Mini “preview” tipo agenda */}
+          {/* Layers preview */}
           <div
             style={{
               borderRadius: 18,
@@ -139,42 +115,40 @@ export default function Onboarding3() {
               }}
             >
               <span>Hoy · Vista compartida</span>
-              <span style={{ color: "#6B7280" }}>
-                Capas sobre la misma agenda
-              </span>
+              <span style={{ color: "#6B7280" }}>Capas sobre la misma agenda</span>
             </div>
 
-            <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "grid", gap: 8 }}>
               <LayerCard
                 title="Personal"
                 subtitle="Tus cosas"
-                dot="#FACC15"
+                dot="#F59E0B"
                 bg="#FFFBEB"
                 border="#FDE68A"
-                icon="🟡"
+                icon="🙂"
               />
               <LayerCard
                 title="Pareja"
                 subtitle="Planes compartidos"
-                dot="#F97373"
+                dot="#EF4444"
                 bg="#FEF2F2"
                 border="#FECACA"
-                icon="🔴"
+                icon="❤️"
               />
               <LayerCard
                 title="Familia"
                 subtitle="Todos alineados"
-                dot="#60A5FA"
+                dot="#3B82F6"
                 bg="#EFF6FF"
                 border="#BFDBFE"
-                icon="🔵"
+                icon="👨‍👩‍👧‍👦"
               />
             </div>
 
             <div
               style={{
                 marginTop: 12,
-                borderRadius: 16,
+                borderRadius: 14,
                 padding: 12,
                 background: "#ECFDF5",
                 border: "1px solid #BBF7D0",
@@ -218,9 +192,9 @@ export default function Onboarding3() {
               borderRadius: 999,
               border: "1px solid #E5E7EB",
               background: "#FFFFFF",
-              color: "#374151",
+              color: "#4B5563",
               fontSize: 14,
-              fontWeight: 500,
+              fontWeight: 600,
               cursor: "pointer",
               marginTop: 10,
             }}
@@ -269,9 +243,9 @@ function LayerCard(props: {
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div
           style={{
-            width: 32,
-            height: 32,
-            borderRadius: 999,
+            width: 34,
+            height: 34,
+            borderRadius: 12,
             background: "#FFFFFF",
             border: "1px solid #E5E7EB",
             display: "flex",
@@ -287,7 +261,7 @@ function LayerCard(props: {
           <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>
             {props.title}
           </div>
-          <div style={{ color: "#4B5563", fontSize: 12 }}>
+          <div style={{ color: "#6B7280", fontSize: 12 }}>
             {props.subtitle}
           </div>
         </div>
