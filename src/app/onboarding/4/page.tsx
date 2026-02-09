@@ -3,14 +3,13 @@
 import { useRouter } from "next/navigation";
 
 const BRAND = {
-  bg: "#0b1020",
-  card: "rgba(15,23,42,0.92)",
-  border: "rgba(148,163,184,0.35)",
-  text: "rgba(248,250,252,0.96)",
-  sub: "rgba(148,163,184,0.85)",
-  ok: "#86EFAC",
-  accent: "#7DD3FC",
-  warn: "#FBBF24",
+  bg: "#F9FAFB",
+  card: "#FFFFFF",
+  border: "#E5E7EB",
+  text: "#0F172A",
+  sub: "#4B5563",
+  ok: "#22C55E",
+  accent: "#3B82F6",
 };
 
 export default function Onboarding4Page() {
@@ -94,12 +93,12 @@ export default function Onboarding4Page() {
             </div>
           </div>
 
-          {/* CTA PRINCIPAL: crear espacio (registro) */}
+          {/* CTA PRINCIPAL */}
           <button style={styles.primary} onClick={handleCreateAccount}>
             Crear mi espacio en SyncPlans
           </button>
 
-          {/* CTA SECUNDARIA: login para los que ya tienen cuenta */}
+          {/* CTA SECUNDARIA */}
           <button style={styles.login} onClick={handleLogin}>
             Ya tengo cuenta, iniciar sesión
           </button>
@@ -124,9 +123,8 @@ export default function Onboarding4Page() {
 const styles: Record<string, React.CSSProperties> = {
   main: {
     minHeight: "100vh",
-    background: `radial-gradient(900px 450px at 15% 10%, rgba(125,211,252,0.18), transparent 60%),
-                 radial-gradient(900px 450px at 85% 20%, rgba(134,239,172,0.16), transparent 60%),
-                 ${BRAND.bg}`,
+    background:
+      "radial-gradient(circle at 0% 0%, rgba(191,219,254,0.7), transparent 55%), radial-gradient(circle at 100% 0%, rgba(221,214,254,0.7), transparent 55%), linear-gradient(180deg, #F9FAFB 0%, #EFF6FF 100%)",
     color: BRAND.text,
     display: "flex",
     alignItems: "center",
@@ -139,10 +137,10 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: 520,
     background: BRAND.card,
     border: `1px solid ${BRAND.border}`,
-    borderRadius: 28,
+    borderRadius: 24,
     padding: 22,
-    boxShadow: "0 30px 80px rgba(15,23,42,0.75)",
-    backdropFilter: "blur(12px)",
+    boxShadow:
+      "0 18px 40px rgba(15,23,42,0.07), 0 0 0 1px rgba(148,163,184,0.10)",
   },
   topRow: {
     display: "flex",
@@ -157,26 +155,27 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "8px 12px",
     borderRadius: 999,
     border: `1px solid ${BRAND.border}`,
-    background: "rgba(15,23,42,0.85)",
+    background: "#F3F4FF",
     fontSize: 12,
     color: BRAND.sub,
   },
   dot: { width: 8, height: 8, borderRadius: 999 },
   iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 999,
     display: "grid",
     placeItems: "center",
     border: `1px solid ${BRAND.border}`,
-    background: "rgba(15,23,42,0.85)",
+    background: "#FFFFFF",
     fontSize: 18,
   },
   h1: {
     margin: "14px 0 0",
-    fontSize: 32,
-    lineHeight: 1.1,
+    fontSize: 26,
+    lineHeight: 1.2,
     letterSpacing: -0.5,
+    color: BRAND.text,
   },
   p: {
     margin: "10px 0 0",
@@ -186,9 +185,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   list: {
     marginTop: 16,
-    borderRadius: 22,
-    border: "1px solid rgba(148,163,184,0.22)",
-    background: "rgba(15,23,42,0.90)",
+    borderRadius: 18,
+    border: "1px solid #E5E7EB",
+    background: "#F9FAFB",
     padding: 12,
     display: "grid",
     gap: 10,
@@ -198,10 +197,10 @@ const styles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: "28px 1fr auto",
     gap: 10,
     alignItems: "center",
-    padding: 12,
-    borderRadius: 18,
-    border: "1px solid rgba(148,163,184,0.26)",
-    background: "rgba(15,23,42,0.95)",
+    padding: 10,
+    borderRadius: 16,
+    border: "1px solid #E5E7EB",
+    background: "#FFFFFF",
   },
   check: {
     width: 24,
@@ -209,61 +208,60 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     display: "grid",
     placeItems: "center",
-    background: "rgba(134,239,172,0.14)",
-    border: "1px solid rgba(134,239,172,0.30)",
-    color: "rgba(248,250,252,0.96)",
-    fontWeight: 800,
+    background: "#ECFDF5",
+    border: "1px solid #BBF7D0",
+    color: BRAND.text,
+    fontWeight: 700,
     fontSize: 13,
   },
   itemText: { display: "grid", gap: 2 },
-  itemTitle: { fontSize: 14, fontWeight: 800 },
+  itemTitle: { fontSize: 14, fontWeight: 600, color: BRAND.text },
   itemSub: { fontSize: 12, color: BRAND.sub },
   status: {
-    fontSize: 12,
-    fontWeight: 800,
+    fontSize: 11,
+    fontWeight: 600,
     padding: "6px 10px",
     borderRadius: 999,
-    border: "1px solid rgba(134,239,172,0.35)",
-    background: "rgba(134,239,172,0.14)",
-    color: "rgba(248,250,252,0.96)",
+    border: "1px solid #BBF7D0",
+    background: "#ECFDF5",
+    color: "#166534",
   },
 
   primary: {
     marginTop: 16,
     width: "100%",
-    borderRadius: 18,
-    padding: "14px 16px",
-    border: "1px solid rgba(125,211,252,0.35)",
-    background: "linear-gradient(90deg, #60A5FA, #86EFAC)",
+    borderRadius: 999,
+    padding: "13px 16px",
+    border: "none",
+    background: "linear-gradient(90deg, #3B82F6, #22C55E)",
     color: "white",
-    fontWeight: 900,
-    fontSize: 14,
+    fontWeight: 600,
+    fontSize: 15,
     cursor: "pointer",
-    boxShadow: "0 18px 36px rgba(37,99,235,0.28)",
   },
 
   login: {
     marginTop: 10,
     width: "100%",
-    borderRadius: 18,
-    padding: "12px 16px",
-    border: "1px solid rgba(148,163,184,0.40)",
-    background: "rgba(15,23,42,0.90)",
+    borderRadius: 999,
+    padding: "11px 16px",
+    border: "1px solid #E5E7EB",
+    background: "#FFFFFF",
     color: BRAND.text,
-    fontWeight: 900,
+    fontWeight: 500,
     fontSize: 14,
     cursor: "pointer",
   },
 
   secondary: {
-    marginTop: 10,
+    marginTop: 8,
     width: "100%",
-    borderRadius: 18,
-    padding: "12px 16px",
-    border: `1px solid ${BRAND.border}`,
-    background: "rgba(15,23,42,0.90)",
-    color: BRAND.text,
-    fontWeight: 800,
+    borderRadius: 999,
+    padding: "10px 16px",
+    border: "1px solid #E5E7EB",
+    background: "#F9FAFB",
+    color: "#4B5563",
+    fontWeight: 500,
     fontSize: 13,
     cursor: "pointer",
   },
@@ -271,6 +269,6 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 12,
     textAlign: "center",
     fontSize: 12,
-    color: "rgba(148,163,184,0.85)",
+    color: BRAND.sub,
   },
 };

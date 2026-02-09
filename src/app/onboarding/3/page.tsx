@@ -10,42 +10,24 @@ export default function Onboarding3() {
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at 20% 10%, rgba(125,211,252,0.18), transparent 36%), radial-gradient(circle at 80% 15%, rgba(134,239,172,0.16), transparent 42%), radial-gradient(circle at 50% 90%, rgba(96,165,250,0.14), transparent 46%), linear-gradient(180deg, #0b1020 0%, #020617 120%)",
-        color: "#F9FAFB",
+          "radial-gradient(circle at 10% 0%, rgba(191,219,254,0.6), transparent 55%), radial-gradient(circle at 90% 0%, rgba(187,247,208,0.6), transparent 55%), linear-gradient(180deg, #F9FAFB 0%, #ECFEFF 100%)",
+        color: "#0F172A",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: "26px",
-        overflow: "hidden",
       }}
     >
       <div style={{ maxWidth: 460, width: "100%", position: "relative" }}>
-        {/* Glow detrás del card */}
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: -60,
-            background:
-              "radial-gradient(circle at 30% 30%, rgba(125,211,252,0.20), transparent 55%), radial-gradient(circle at 70% 40%, rgba(134,239,172,0.16), transparent 55%)",
-            filter: "blur(18px)",
-            opacity: 0.9,
-            zIndex: 0,
-          }}
-        />
-
-        {/* Card principal */}
         <section
           style={{
             position: "relative",
-            zIndex: 1,
-            borderRadius: 26,
+            borderRadius: 24,
             padding: "22px 18px 18px",
-            background:
-              "linear-gradient(180deg, rgba(15,23,42,0.92), rgba(11,15,32,0.90))",
-            border: "1px solid rgba(148,163,184,0.28)",
-            boxShadow: "0 22px 60px rgba(15,23,42,0.70)",
-            backdropFilter: "blur(14px)",
+            background: "#FFFFFF",
+            border: "1px solid #E5E7EB",
+            boxShadow:
+              "0 18px 40px rgba(15,23,42,0.07), 0 0 0 1px rgba(148,163,184,0.10)",
           }}
         >
           {/* Badge */}
@@ -56,9 +38,9 @@ export default function Onboarding3() {
               gap: 8,
               padding: "6px 12px",
               borderRadius: 999,
-              border: "1px solid rgba(148,163,184,0.32)",
-              background: "rgba(12,18,34,0.75)",
-              color: "#9CA3AF",
+              border: "1px solid #E5E7EB",
+              background: "#ECFEFF",
+              color: "#4B5563",
               fontSize: 12,
               marginBottom: 14,
             }}
@@ -68,8 +50,7 @@ export default function Onboarding3() {
                 width: 8,
                 height: 8,
                 borderRadius: 999,
-                background: "#86EFAC",
-                boxShadow: "0 0 0 6px rgba(134,239,172,0.20)",
+                background: "#22C55E",
               }}
             />
             3 de 4 · Una sola verdad compartida
@@ -78,16 +59,17 @@ export default function Onboarding3() {
           {/* Título */}
           <h1
             style={{
-              fontSize: 28,
-              lineHeight: 1.15,
+              fontSize: 26,
+              lineHeight: 1.2,
               letterSpacing: "-0.02em",
               marginBottom: 10,
+              color: "#0F172A",
             }}
           >
             SyncPlans pone{" "}
             <span
               style={{
-                background: "linear-gradient(90deg, #7DD3FC, #86EFAC)",
+                background: "linear-gradient(90deg, #0EA5E9, #22C55E)",
                 WebkitBackgroundClip: "text",
                 color: "transparent",
               }}
@@ -100,9 +82,9 @@ export default function Onboarding3() {
           {/* Subtítulo */}
           <p
             style={{
-              fontSize: 15,
+              fontSize: 14,
               lineHeight: 1.6,
-              color: "#9CA3AF",
+              color: "#4B5563",
               marginBottom: 10,
             }}
           >
@@ -111,7 +93,7 @@ export default function Onboarding3() {
             conflictos y te obliga a decidir antes, no cuando ya es tarde.
           </p>
 
-          {/* Bullets de propuesta de valor */}
+          {/* Bullets */}
           <ul
             style={{
               listStyle: "none",
@@ -120,7 +102,7 @@ export default function Onboarding3() {
               display: "grid",
               gap: 6,
               fontSize: 13,
-              color: "#E5E7EB",
+              color: "#111827",
             }}
           >
             <li style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
@@ -142,9 +124,8 @@ export default function Onboarding3() {
             style={{
               borderRadius: 18,
               padding: 14,
-              background:
-                "linear-gradient(180deg, rgba(11,18,32,0.95), rgba(10,16,32,0.80))",
-              border: "1px solid rgba(148,163,184,0.22)",
+              background: "#F9FAFB",
+              border: "1px solid #E5E7EB",
               marginBottom: 16,
             }}
           >
@@ -152,13 +133,13 @@ export default function Onboarding3() {
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                color: "#CBD5E1",
+                color: "#111827",
                 fontSize: 12,
                 marginBottom: 10,
               }}
             >
               <span>Hoy · Vista compartida</span>
-              <span style={{ color: "#94A3B8" }}>
+              <span style={{ color: "#6B7280" }}>
                 Capas sobre la misma agenda
               </span>
             </div>
@@ -168,24 +149,24 @@ export default function Onboarding3() {
                 title="Personal"
                 subtitle="Tus cosas"
                 dot="#FACC15"
-                bg="rgba(250,204,21,0.12)"
-                border="rgba(250,204,21,0.24)"
+                bg="#FFFBEB"
+                border="#FDE68A"
                 icon="🟡"
               />
               <LayerCard
                 title="Pareja"
                 subtitle="Planes compartidos"
-                dot="#FCA5A5"
-                bg="rgba(248,113,113,0.10)"
-                border="rgba(248,113,113,0.22)"
+                dot="#F97373"
+                bg="#FEF2F2"
+                border="#FECACA"
                 icon="🔴"
               />
               <LayerCard
                 title="Familia"
                 subtitle="Todos alineados"
                 dot="#60A5FA"
-                bg="rgba(96,165,250,0.12)"
-                border="rgba(96,165,250,0.24)"
+                bg="#EFF6FF"
+                border="#BFDBFE"
                 icon="🔵"
               />
             </div>
@@ -195,15 +176,15 @@ export default function Onboarding3() {
                 marginTop: 12,
                 borderRadius: 16,
                 padding: 12,
-                background: "rgba(134,239,172,0.10)",
-                border: "1px solid rgba(134,239,172,0.22)",
-                color: "#CBD5E1",
+                background: "#ECFDF5",
+                border: "1px solid #BBF7D0",
+                color: "#374151",
                 fontSize: 12,
                 lineHeight: 1.45,
               }}
             >
               ⚖️{" "}
-              <b style={{ color: "#E5E7EB" }}>
+              <b style={{ color: "#111827" }}>
                 Piensa en SyncPlans como un árbitro neutral:
               </b>{" "}
               todos juegan en el mismo campo, con las mismas líneas y las mismas
@@ -216,15 +197,14 @@ export default function Onboarding3() {
             onClick={() => router.push("/onboarding/4")}
             style={{
               width: "100%",
-              padding: "14px 18px",
+              padding: "13px 18px",
               borderRadius: 999,
               border: "none",
-              background: "linear-gradient(135deg, #60A5FA, #86EFAC)",
+              background: "linear-gradient(135deg, #3B82F6, #22C55E)",
               color: "#F9FAFB",
-              fontSize: 16,
-              fontWeight: 700,
+              fontSize: 15,
+              fontWeight: 600,
               cursor: "pointer",
-              boxShadow: "0 18px 36px rgba(37,99,235,0.28)",
             }}
           >
             Siguiente
@@ -234,13 +214,13 @@ export default function Onboarding3() {
             onClick={() => router.push("/onboarding/2")}
             style={{
               width: "100%",
-              padding: "12px 18px",
+              padding: "11px 18px",
               borderRadius: 999,
-              border: "1px solid rgba(148,163,184,0.30)",
-              background: "rgba(12,18,34,0.80)",
-              color: "#CBD5E1",
+              border: "1px solid #E5E7EB",
+              background: "#FFFFFF",
+              color: "#374151",
               fontSize: 14,
-              fontWeight: 600,
+              fontWeight: 500,
               cursor: "pointer",
               marginTop: 10,
             }}
@@ -251,7 +231,7 @@ export default function Onboarding3() {
           <div
             style={{
               textAlign: "center",
-              color: "#94A3B8",
+              color: "#6B7280",
               fontSize: 12,
               marginTop: 10,
             }}
@@ -289,11 +269,11 @@ function LayerCard(props: {
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div
           style={{
-            width: 34,
-            height: 34,
-            borderRadius: 12,
-            background: "rgba(15,23,42,0.80)",
-            border: "1px solid rgba(148,163,184,0.24)",
+            width: 32,
+            height: 32,
+            borderRadius: 999,
+            background: "#FFFFFF",
+            border: "1px solid #E5E7EB",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -304,8 +284,10 @@ function LayerCard(props: {
         </div>
 
         <div>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>{props.title}</div>
-          <div style={{ color: "#CBD5E1", fontSize: 12 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>
+            {props.title}
+          </div>
+          <div style={{ color: "#4B5563", fontSize: 12 }}>
             {props.subtitle}
           </div>
         </div>
@@ -316,7 +298,7 @@ function LayerCard(props: {
           display: "flex",
           alignItems: "center",
           gap: 8,
-          color: "#94A3B8",
+          color: "#6B7280",
           fontSize: 12,
         }}
       >
@@ -326,7 +308,6 @@ function LayerCard(props: {
             height: 8,
             borderRadius: 999,
             background: props.dot,
-            boxShadow: `0 0 0 6px ${props.dot}22`,
           }}
         />
         Capa

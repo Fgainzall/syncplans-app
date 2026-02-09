@@ -10,41 +10,24 @@ export default function Onboarding2() {
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at 18% 12%, rgba(125,211,252,0.16), transparent 38%), radial-gradient(circle at 82% 18%, rgba(196,181,253,0.14), transparent 40%), radial-gradient(circle at 55% 92%, rgba(134,239,172,0.12), transparent 48%), linear-gradient(180deg, #0b1020 0%, #020617 120%)",
-        color: "#F9FAFB",
+          "radial-gradient(circle at 15% 0%, rgba(191,219,254,0.6), transparent 55%), radial-gradient(circle at 85% 10%, rgba(221,214,254,0.65), transparent 55%), linear-gradient(180deg, #F9FAFB 0%, #EEF2FF 100%)",
+        color: "#0F172A",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: "26px",
-        overflow: "hidden",
       }}
     >
       <div style={{ maxWidth: 460, width: "100%", position: "relative" }}>
-        {/* Glow */}
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: -70,
-            background:
-              "radial-gradient(circle at 28% 35%, rgba(125,211,252,0.18), transparent 55%), radial-gradient(circle at 78% 28%, rgba(196,181,253,0.16), transparent 55%), radial-gradient(circle at 55% 85%, rgba(134,239,172,0.10), transparent 60%)",
-            filter: "blur(18px)",
-            opacity: 0.9,
-            zIndex: 0,
-          }}
-        />
-
         <section
           style={{
             position: "relative",
-            zIndex: 1,
-            borderRadius: 26,
+            borderRadius: 24,
             padding: "22px 18px 18px",
-            background:
-              "linear-gradient(180deg, rgba(15,23,42,0.90), rgba(11,15,32,0.92))",
-            border: "1px solid rgba(148,163,184,0.28)",
-            boxShadow: "0 22px 60px rgba(15,23,42,0.65)",
-            backdropFilter: "blur(14px)",
+            background: "#FFFFFF",
+            border: "1px solid #E5E7EB",
+            boxShadow:
+              "0 18px 40px rgba(15,23,42,0.07), 0 0 0 1px rgba(148,163,184,0.10)",
           }}
         >
           {/* Badge */}
@@ -55,9 +38,9 @@ export default function Onboarding2() {
               gap: 8,
               padding: "6px 12px",
               borderRadius: 999,
-              border: "1px solid rgba(148,163,184,0.32)",
-              background: "rgba(12,18,34,0.75)",
-              color: "#9CA3AF",
+              border: "1px solid #E5E7EB",
+              background: "#F3F4FF",
+              color: "#4B5563",
               fontSize: 12,
               marginBottom: 14,
             }}
@@ -67,8 +50,7 @@ export default function Onboarding2() {
                 width: 8,
                 height: 8,
                 borderRadius: 999,
-                background: "#7DD3FC",
-                boxShadow: "0 0 0 6px rgba(125,211,252,0.20)",
+                background: "#38BDF8",
               }}
             />
             2 de 4 · Situaciones que ya conoces
@@ -77,16 +59,17 @@ export default function Onboarding2() {
           {/* Title */}
           <h1
             style={{
-              fontSize: 28,
-              lineHeight: 1.15,
+              fontSize: 26,
+              lineHeight: 1.2,
               letterSpacing: "-0.02em",
               marginBottom: 10,
+              color: "#0F172A",
             }}
           >
             El problema no es el{" "}
             <span
               style={{
-                background: "linear-gradient(90deg, #7DD3FC, #C4B5FD)",
+                background: "linear-gradient(90deg, #0EA5E9, #6366F1)",
                 WebkitBackgroundClip: "text",
                 color: "transparent",
               }}
@@ -99,9 +82,9 @@ export default function Onboarding2() {
           {/* Subtitle */}
           <p
             style={{
-              fontSize: 15,
+              fontSize: 14,
               lineHeight: 1.6,
-              color: "#9CA3AF",
+              color: "#4B5563",
               marginBottom: 12,
             }}
           >
@@ -126,14 +109,13 @@ export default function Onboarding2() {
                   style={{
                     borderRadius: 999,
                     padding: "7px 12px",
-                    border: "1px solid rgba(148,163,184,0.30)",
-                    background: "rgba(15,23,42,0.90)",
+                    border: "1px solid #E5E7EB",
+                    background: "#F9FAFB",
                     fontSize: 12,
-                    color: "#E5E7EB",
+                    color: "#111827",
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
-                    boxShadow: "0 12px 30px rgba(15,23,42,0.55)",
                   }}
                 >
                   <span style={{ fontSize: 14 }}>💬</span>
@@ -143,14 +125,13 @@ export default function Onboarding2() {
             )}
           </div>
 
-          {/* Premium “conflict preview” */}
+          {/* “Conflict preview” */}
           <div
             style={{
               borderRadius: 18,
               padding: 14,
-              background:
-                "linear-gradient(180deg, rgba(11,18,32,0.95), rgba(10,16,32,0.80))",
-              border: "1px solid rgba(148,163,184,0.22)",
+              background: "#F9FAFB",
+              border: "1px solid #E5E7EB",
               marginBottom: 16,
             }}
           >
@@ -159,29 +140,29 @@ export default function Onboarding2() {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                color: "#CBD5E1",
+                color: "#111827",
                 fontSize: 12,
                 marginBottom: 10,
               }}
             >
               <span>Ejemplo real</span>
-              <span style={{ color: "#94A3B8" }}>Dos planes, misma hora</span>
+              <span style={{ color: "#6B7280" }}>Dos planes, misma hora</span>
             </div>
 
             <div style={{ display: "grid", gap: 10 }}>
               <EventRow
                 pill="Pareja"
-                pillBg="rgba(248,113,113,0.10)"
-                pillBorder="rgba(248,113,113,0.22)"
-                dot="#FCA5A5"
+                pillBg="#FEF2F2"
+                pillBorder="#FECACA"
+                dot="#F97373"
                 title="Cena con Ara"
                 time="20:00 – 21:30"
               />
               <EventRow
                 pill="Personal"
-                pillBg="rgba(250,204,21,0.12)"
-                pillBorder="rgba(250,204,21,0.24)"
-                dot="#FACC15"
+                pillBg="#FFFBEB"
+                pillBorder="#FDE68A"
+                dot="#F59E0B"
                 title="Gym"
                 time="20:30 – 22:00"
               />
@@ -191,8 +172,8 @@ export default function Onboarding2() {
                 style={{
                   borderRadius: 16,
                   padding: 12,
-                  background: "rgba(96,165,250,0.12)",
-                  border: "1px solid rgba(96,165,250,0.25)",
+                  background: "#EFF6FF",
+                  border: "1px solid #BFDBFE",
                   display: "flex",
                   gap: 10,
                   alignItems: "flex-start",
@@ -200,11 +181,11 @@ export default function Onboarding2() {
               >
                 <div
                   style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 12,
-                    background: "rgba(15,23,42,0.75)",
-                    border: "1px solid rgba(148,163,184,0.26)",
+                    width: 32,
+                    height: 32,
+                    borderRadius: 999,
+                    background: "#FFFFFF",
+                    border: "1px solid #E5E7EB",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -217,23 +198,23 @@ export default function Onboarding2() {
                 <div style={{ flex: 1 }}>
                   <div
                     style={{
-                      fontWeight: 800,
+                      fontWeight: 600,
                       fontSize: 13,
-                      color: "#E5E7EB",
+                      color: "#111827",
                     }}
                   >
                     Conflicto típico: nadie lo vio a tiempo
                   </div>
                   <div
                     style={{
-                      color: "#9CA3AF",
+                      color: "#4B5563",
                       fontSize: 12,
                       lineHeight: 1.45,
                     }}
                   >
-                    Uno lo apuntó en el calendario. El otro lo tenía en la cabeza
-                    o en un chat. Resultado:{" "}
-                    <b style={{ color: "#E5E7EB" }}>choque asegurado</b>.
+                    Uno lo apuntó en el calendario. El otro lo tenía en la
+                    cabeza o en un chat. Resultado:{" "}
+                    <b style={{ color: "#111827" }}>choque asegurado</b>.
                   </div>
 
                   <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
@@ -250,32 +231,30 @@ export default function Onboarding2() {
             onClick={() => router.push("/onboarding/3")}
             style={{
               width: "100%",
-              padding: "14px 18px",
+              padding: "13px 18px",
               borderRadius: 999,
               border: "none",
-              background: "linear-gradient(135deg, #60A5FA, #C4B5FD)",
+              background: "linear-gradient(135deg, #3B82F6, #22C55E)",
               color: "#F9FAFB",
-              fontSize: 16,
-              fontWeight: 750,
+              fontSize: 15,
+              fontWeight: 600,
               cursor: "pointer",
-              boxShadow: "0 18px 36px rgba(37,99,235,0.28)",
             }}
           >
             Siguiente
           </button>
 
           <button
-            // primera pantalla vive en /onboarding
             onClick={() => router.push("/onboarding")}
             style={{
               width: "100%",
-              padding: "12px 18px",
+              padding: "11px 18px",
               borderRadius: 999,
-              border: "1px solid rgba(148,163,184,0.30)",
-              background: "rgba(12,18,34,0.80)",
-              color: "#CBD5E1",
+              border: "1px solid #E5E7EB",
+              background: "#FFFFFF",
+              color: "#374151",
               fontSize: 14,
-              fontWeight: 600,
+              fontWeight: 500,
               cursor: "pointer",
               marginTop: 10,
             }}
@@ -286,7 +265,7 @@ export default function Onboarding2() {
           <div
             style={{
               textAlign: "center",
-              color: "#94A3B8",
+              color: "#6B7280",
               fontSize: 12,
               marginTop: 10,
             }}
@@ -311,10 +290,10 @@ function EventRow(props: {
   return (
     <div
       style={{
-        borderRadius: 16,
+        borderRadius: 14,
         padding: 12,
-        background: "rgba(15,23,42,0.85)",
-        border: "1px solid rgba(148,163,184,0.18)",
+        background: "#FFFFFF",
+        border: "1px solid #E5E7EB",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -328,12 +307,13 @@ function EventRow(props: {
             height: 10,
             borderRadius: 999,
             background: props.dot,
-            boxShadow: `0 0 0 6px ${props.dot}22`,
           }}
         />
         <div>
-          <div style={{ fontWeight: 800, fontSize: 13 }}>{props.title}</div>
-          <div style={{ color: "#9CA3AF", fontSize: 12 }}>{props.time}</div>
+          <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>
+            {props.title}
+          </div>
+          <div style={{ color: "#6B7280", fontSize: 12 }}>{props.time}</div>
         </div>
       </div>
 
@@ -343,9 +323,9 @@ function EventRow(props: {
           borderRadius: 999,
           background: props.pillBg,
           border: `1px solid ${props.pillBorder}`,
-          color: "#E5E7EB",
+          color: "#374151",
           fontSize: 12,
-          fontWeight: 700,
+          fontWeight: 500,
           whiteSpace: "nowrap",
         }}
       >
@@ -361,12 +341,12 @@ function MiniAction({ label }: { label: string }) {
       type="button"
       style={{
         borderRadius: 999,
-        padding: "8px 10px",
-        border: "1px solid rgba(148,163,184,0.26)",
-        background: "rgba(12,18,34,0.85)",
-        color: "#E5E7EB",
+        padding: "7px 10px",
+        border: "1px solid #E5E7EB",
+        background: "#FFFFFF",
+        color: "#374151",
         fontSize: 12,
-        fontWeight: 700,
+        fontWeight: 500,
         cursor: "pointer",
       }}
     >
