@@ -302,12 +302,13 @@ export async function inviteToGroup(input: {
       .insert([
         {
           group_id: groupId,
-          email: trimmedEmail,
+          invited_email: trimmedEmail, // 👈 CLAVE: usamos invited_email, no email
+          invited_user_id: null,       // se rellenará cuando el invitado acepte
           role,
           status: "pending",
         },
       ])
-      .select("id, group_id, email, status, created_at, role")
+      .select("id, group_id, invited_email, status, created_at, role")
       .single();
 
     if (error) {
@@ -319,7 +320,7 @@ export async function inviteToGroup(input: {
       ok: true,
       id: data.id,
       invite_id: data.id,
-      invited_email: data.email ?? trimmedEmail,
+      invited_email: data.invited_email ?? trimmedEmail,
       email_sent: null,
       email_error: null,
     };
@@ -328,6 +329,7 @@ export async function inviteToGroup(input: {
     return { ok: false, error: e?.message || "No se pudo crear la invitación" };
   }
 }
+
 
 /* ─────────────────── Aceptar / rechazar invitación ─────────────────── */
 
