@@ -1,12 +1,20 @@
+// src/lib/settings.ts
+"use client";
+
 import supabase from "@/lib/supabaseClient";
 
-export type ConflictDefaultResolution = "ask_me" | "keep_existing" | "replace_with_new";
+export type ConflictDefaultResolution =
+  | "ask_me"
+  | "keep_existing"
+  | "replace_with_new"
+  | "none"; // 👈 añadimos "none" porque el flujo de conflictos lo usa
+
 export type PermMode = "owner_only" | "shared_read" | "shared_write";
 
 export type NotificationSettings = {
   // Notificaciones
   eventReminders: boolean;
-  dailySummary: boolean;          // 👈 NUEVO
+  dailySummary: boolean; // 👈 NUEVO
   conflictAlerts: boolean;
   partnerUpdates: boolean;
   familyUpdates: boolean;
@@ -15,7 +23,7 @@ export type NotificationSettings = {
   // Quiet hours
   quietHoursEnabled: boolean;
   quietFrom: string; // "HH:MM"
-  quietTo: string;   // "HH:MM"
+  quietTo: string; // "HH:MM"
 
   // Conflictos
   conflictWarnBeforeSave: boolean;
@@ -29,7 +37,7 @@ export type NotificationSettings = {
 
 export const DEFAULT_SETTINGS: NotificationSettings = {
   eventReminders: true,
-  dailySummary: true,           // 👈 NUEVO (default ON)
+  dailySummary: true, // 👈 NUEVO (default ON)
   conflictAlerts: true,
   partnerUpdates: true,
   familyUpdates: true,
@@ -59,26 +67,39 @@ function clampTime(t: string, fallback: string) {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
-function normalizeSettings(x: Partial<NotificationSettings> | null | undefined): NotificationSettings {
+function normalizeSettings(
+  x: Partial<NotificationSettings> | null | undefined
+): NotificationSettings {
   const v = x ?? {};
   return {
     eventReminders: v.eventReminders ?? DEFAULT_SETTINGS.eventReminders,
-    dailySummary: v.dailySummary ?? DEFAULT_SETTINGS.dailySummary,          // 👈 NUEVO
+    dailySummary: v.dailySummary ?? DEFAULT_SETTINGS.dailySummary, // 👈 NUEVO
     conflictAlerts: v.conflictAlerts ?? DEFAULT_SETTINGS.conflictAlerts,
     partnerUpdates: v.partnerUpdates ?? DEFAULT_SETTINGS.partnerUpdates,
     familyUpdates: v.familyUpdates ?? DEFAULT_SETTINGS.familyUpdates,
     weeklySummary: v.weeklySummary ?? DEFAULT_SETTINGS.weeklySummary,
 
-    quietHoursEnabled: v.quietHoursEnabled ?? DEFAULT_SETTINGS.quietHoursEnabled,
-    quietFrom: clampTime(v.quietFrom ?? DEFAULT_SETTINGS.quietFrom, DEFAULT_SETTINGS.quietFrom),
-    quietTo: clampTime(v.quietTo ?? DEFAULT_SETTINGS.quietTo, DEFAULT_SETTINGS.quietTo),
+    quietHoursEnabled:
+      v.quietHoursEnabled ?? DEFAULT_SETTINGS.quietHoursEnabled,
+    quietFrom: clampTime(
+      v.quietFrom ?? DEFAULT_SETTINGS.quietFrom,
+      DEFAULT_SETTINGS.quietFrom
+    ),
+    quietTo: clampTime(
+      v.quietTo ?? DEFAULT_SETTINGS.quietTo,
+      DEFAULT_SETTINGS.quietTo
+    ),
 
-    conflictWarnBeforeSave: v.conflictWarnBeforeSave ?? DEFAULT_SETTINGS.conflictWarnBeforeSave,
-    conflictDefaultResolution: (v.conflictDefaultResolution ?? DEFAULT_SETTINGS.conflictDefaultResolution) as ConflictDefaultResolution,
+    conflictWarnBeforeSave:
+      v.conflictWarnBeforeSave ?? DEFAULT_SETTINGS.conflictWarnBeforeSave,
+    conflictDefaultResolution:
+      (v.conflictDefaultResolution ??
+        DEFAULT_SETTINGS.conflictDefaultResolution) as ConflictDefaultResolution,
 
     permPersonal: (v.permPersonal ?? DEFAULT_SETTINGS.permPersonal) as PermMode,
     permPair: (v.permPair ?? DEFAULT_SETTINGS.permPair) as PermMode,
-    permFamily: (v.permFamily ?? DEFAULT_SETTINGS.permFamily) as PermMode,
+    permFamily:
+      (v.permFamily ?? DEFAULT_SETTINGS.permFamily) as PermMode,
   };
 }
 
@@ -86,7 +107,7 @@ type DbRow = {
   user_id: string;
 
   event_reminders: boolean | null;
-  daily_summary: boolean | null;            // 👈 NUEVO
+  daily_summary: boolean | null; // 👈 NUEVO
   conflict_alerts: boolean | null;
   partner_updates: boolean | null;
   family_updates: boolean | null;
@@ -106,23 +127,34 @@ type DbRow = {
 
 function fromDb(row: DbRow): NotificationSettings {
   return normalizeSettings({
-    eventReminders: row.event_reminders ?? DEFAULT_SETTINGS.eventReminders,
-    dailySummary: row.daily_summary ?? DEFAULT_SETTINGS.dailySummary,     // 👈 NUEVO
-    conflictAlerts: row.conflict_alerts ?? DEFAULT_SETTINGS.conflictAlerts,
-    partnerUpdates: row.partner_updates ?? DEFAULT_SETTINGS.partnerUpdates,
-    familyUpdates: row.family_updates ?? DEFAULT_SETTINGS.familyUpdates,
+    eventReminders:
+      row.event_reminders ?? DEFAULT_SETTINGS.eventReminders,
+    dailySummary: row.daily_summary ?? DEFAULT_SETTINGS.dailySummary, // 👈 NUEVO
+    conflictAlerts:
+      row.conflict_alerts ?? DEFAULT_SETTINGS.conflictAlerts,
+    partnerUpdates:
+      row.partner_updates ?? DEFAULT_SETTINGS.partnerUpdates,
+    familyUpdates:
+      row.family_updates ?? DEFAULT_SETTINGS.familyUpdates,
     weeklySummary: row.weekly_summary ?? DEFAULT_SETTINGS.weeklySummary,
 
-    quietHoursEnabled: row.quiet_hours_enabled ?? DEFAULT_SETTINGS.quietHoursEnabled,
+    quietHoursEnabled:
+      row.quiet_hours_enabled ?? DEFAULT_SETTINGS.quietHoursEnabled,
     quietFrom: row.quiet_from ?? DEFAULT_SETTINGS.quietFrom,
     quietTo: row.quiet_to ?? DEFAULT_SETTINGS.quietTo,
 
-    conflictWarnBeforeSave: row.conflict_warn_before_save ?? DEFAULT_SETTINGS.conflictWarnBeforeSave,
-    conflictDefaultResolution: (row.conflict_default_resolution as any) ?? DEFAULT_SETTINGS.conflictDefaultResolution,
+    conflictWarnBeforeSave:
+      row.conflict_warn_before_save ??
+      DEFAULT_SETTINGS.conflictWarnBeforeSave,
+    conflictDefaultResolution:
+      (row.conflict_default_resolution as any) ??
+      DEFAULT_SETTINGS.conflictDefaultResolution,
 
-    permPersonal: (row.perm_personal as any) ?? DEFAULT_SETTINGS.permPersonal,
+    permPersonal:
+      (row.perm_personal as any) ?? DEFAULT_SETTINGS.permPersonal,
     permPair: (row.perm_pair as any) ?? DEFAULT_SETTINGS.permPair,
-    permFamily: (row.perm_family as any) ?? DEFAULT_SETTINGS.permFamily,
+    permFamily:
+      (row.perm_family as any) ?? DEFAULT_SETTINGS.permFamily,
   });
 }
 
@@ -131,7 +163,7 @@ function toDb(uid: string, s: NotificationSettings): Partial<DbRow> {
   return {
     user_id: uid,
     event_reminders: n.eventReminders,
-    daily_summary: n.dailySummary,                      // 👈 NUEVO
+    daily_summary: n.dailySummary, // 👈 NUEVO
     conflict_alerts: n.conflictAlerts,
     partner_updates: n.partnerUpdates,
     family_updates: n.familyUpdates,
@@ -184,7 +216,9 @@ export async function getSettingsFromDb(): Promise<NotificationSettings> {
   return fromDb(data as DbRow);
 }
 
-export async function saveSettingsToDb(next: NotificationSettings): Promise<void> {
+export async function saveSettingsToDb(
+  next: NotificationSettings
+): Promise<void> {
   const uid = await requireUid();
   const payload = toDb(uid, next);
 

@@ -32,28 +32,30 @@ export default function NotificationsDrawer({
 
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState<{ title: string; subtitle?: string } | null>(
-    null
-  );
+  const [toast, setToast] = useState<{
+    title: string;
+    subtitle?: string;
+  } | null>(null);
 
+  // guard para no hacer doble fetch cuando open parpadea
   const lastOpenFetchAt = useRef(0);
   const busyIds = useRef<Set<string>>(new Set());
 
-  const unreadCount = useMemo(
-    () => items.filter((x) => !x.read_at || x.read_at === "").length,
-    [items]
-  );
+  // ⚠️ Ahora getMyNotifications SOLO trae no leídas
+  const unreadCount = useMemo(() => items.length, [items]);
 
+  // Actualizar badge en el header premium
   useEffect(() => {
     if (!onUnreadChange) return;
     onUnreadChange(unreadCount);
   }, [unreadCount, onUnreadChange]);
 
+  // Cargar notificaciones cuando se abre el drawer
   useEffect(() => {
     if (!open) return;
 
     const now = Date.now();
-    if (now - lastOpenFetchAt.current < 250) return; // guard anti doble open
+    if (now - lastOpenFetchAt.current < 250) return; // anti doble-open
     lastOpenFetchAt.current = now;
 
     let alive = true;
@@ -65,6 +67,7 @@ export default function NotificationsDrawer({
         if (!alive) return;
         setItems(n);
       } catch {
+        if (!alive) return;
         setToast({
           title: "No pudimos cargar notificaciones",
           subtitle: "Intenta de nuevo en unos segundos.",
@@ -79,6 +82,7 @@ export default function NotificationsDrawer({
     };
   }, [open, limit]);
 
+  // Autocerrar toast suave
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2400);
@@ -131,8 +135,10 @@ export default function NotificationsDrawer({
     if (n.body) return n.body;
     if (n.type === "conflict_detected" || n.type === "conflict")
       return "Tu evento se cruza con otro. Revísalo antes de que se complique.";
-    if (n.type === "event_created") return "Tu evento se guardó correctamente.";
-    if (n.type === "event_deleted") return "Tu evento fue eliminado.";
+    if (n.type === "event_created")
+      return "Tu evento se guardó correctamente.";
+    if (n.type === "event_deleted")
+      return "Tu evento fue eliminado.";
     return "Toca para ver más.";
   }
 
@@ -155,62 +161,8 @@ export default function NotificationsDrawer({
     });
   }
 
-  async function onMarkAll() {
-    const nowIso = new Date().toISOString();
-
-    try {
-      setLoading(true);
-
-      // ✅ optimista: marcamos todas como leídas en memoria
-      setItems((prev) =>
-        prev.map((x) => ({ ...x, read_at: x.read_at ?? nowIso }))
-      );
-
-      await markAllRead();
-
-      // refresh silencioso por si algo cambió en el backend
-      refreshFromDb(true);
-
-      setToast({
-        title: "Listo",
-        subtitle: "Marcaste todas como leídas.",
-      });
-    } catch {
-      setToast({
-        title: "No pudimos marcar como leídas",
-        subtitle: "Intenta nuevamente.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function onDeleteAll() {
-    try {
-      setLoading(true);
-
-      // ✅ optimista: limpiamos lista
-      setItems([]);
-
-      await deleteAllNotifications();
-
-      setToast({
-        title: "Notificaciones eliminadas",
-        subtitle: "Borraste todo el historial de notificaciones.",
-      });
-    } catch {
-      setToast({
-        title: "No pudimos eliminar",
-        subtitle: "Intenta nuevamente.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function refreshFromDb(silent = false) {
     let alive = true;
-
     try {
       if (!silent) setLoading(true);
       const n = await getMyNotifications(limit);
@@ -225,6 +177,61 @@ export default function NotificationsDrawer({
       }
     } finally {
       if (alive && !silent) setLoading(false);
+    }
+  }
+
+  // ✅ Ahora "Marcar todo leído" limpia la bandeja (solo muestra no leídas)
+  async function onMarkAll() {
+    if (items.length === 0) return;
+
+    try {
+      setLoading(true);
+
+      // optimista: vaciamos la lista local
+      setItems([]);
+
+      await markAllRead();
+
+      setToast({
+        title: "Listo",
+        subtitle: "Marcaste todas como leídas.",
+      });
+    } catch {
+      setToast({
+        title: "No pudimos marcar como leídas",
+        subtitle: "Intenta nuevamente.",
+      });
+      // reintentar carga para no quedar desfasados
+      void refreshFromDb(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Igual que marcar todo leído, pero semánticamente “borrar todo”
+  async function onDeleteAll() {
+    if (items.length === 0) return;
+
+    try {
+      setLoading(true);
+
+      // optimista: limpiamos lista
+      setItems([]);
+
+      await deleteAllNotifications();
+
+      setToast({
+        title: "Notificaciones eliminadas",
+        subtitle: "Limpiaste tu bandeja de notificaciones.",
+      });
+    } catch {
+      setToast({
+        title: "No pudimos eliminar",
+        subtitle: "Intenta nuevamente.",
+      });
+      void refreshFromDb(true);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -267,6 +274,7 @@ export default function NotificationsDrawer({
         title: "No pudimos eliminar",
         subtitle: "Intenta nuevamente.",
       });
+      void refreshFromDb(true);
     } finally {
       busyIds.current.delete(id);
     }
@@ -292,6 +300,17 @@ export default function NotificationsDrawer({
                     ? `${unreadCount} sin leer`
                     : "Estás al día ✨"}
                 </div>
+                <div
+                  style={{
+                    marginTop: 4,
+                    fontSize: 11,
+                    color: "rgba(148,163,184,0.85)",
+                  }}
+                >
+                  Solo mostramos notificaciones pendientes. Lo que
+                  marques como leído desaparecerá de aquí, pero se
+                  mantiene en el historial interno.
+                </div>
               </div>
 
               <div style={headerActions}>
@@ -315,15 +334,11 @@ export default function NotificationsDrawer({
                       type="button"
                       style={{
                         ...ghostBtn,
-                        opacity: unreadCount === 0 || loading ? 0.6 : 1,
-                        cursor:
-                          unreadCount === 0 || loading ? "default" : "pointer",
+                        opacity: loading ? 0.6 : 1,
+                        cursor: loading ? "progress" : "pointer",
                       }}
-                      onClick={() => {
-                        if (unreadCount === 0 || loading) return;
-                        onMarkAll();
-                      }}
-                      disabled={unreadCount === 0 || loading}
+                      onClick={onMarkAll}
+                      disabled={loading}
                     >
                       Marcar todo leído
                     </button>
@@ -338,7 +353,7 @@ export default function NotificationsDrawer({
                       onClick={onDeleteAll}
                       disabled={loading}
                     >
-                      Eliminar todo
+                      Limpiar bandeja
                     </button>
                   </>
                 )}
@@ -356,14 +371,13 @@ export default function NotificationsDrawer({
                 <div style={emptyBox}>
                   <div style={emptyTitle}>Nada nuevo por aquí</div>
                   <div style={emptySub}>
-                    Cuando tengas conflictos, eventos o invitaciones, aparecerán
-                    aquí.
+                    Cuando tengas conflictos, eventos o mensajes en tus
+                    grupos, aparecerán en esta bandeja.
                   </div>
                 </div>
               ) : (
                 <div style={list}>
                   {items.map((n) => {
-                    const isUnread = !n.read_at || n.read_at === "";
                     const isBusy = busyIds.current.has(String(n.id));
                     const payload = (n.payload || {}) as any;
 
@@ -374,12 +388,9 @@ export default function NotificationsDrawer({
                         onClick={() => onOpenNotification(n)}
                         style={{
                           ...rowBtn,
-                          borderColor: isUnread
-                            ? "rgba(255,255,255,0.16)"
-                            : "rgba(255,255,255,0.08)",
-                          background: isUnread
-                            ? "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05))"
-                            : "rgba(255,255,255,0.04)",
+                          borderColor: "rgba(255,255,255,0.16)",
+                          background:
+                            "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05))",
                           opacity: isBusy ? 0.7 : 1,
                           cursor: isBusy ? "progress" : "pointer",
                         }}
@@ -395,16 +406,18 @@ export default function NotificationsDrawer({
                           <div
                             style={{
                               ...dot,
-                              background: isUnread
-                                ? "#FBBF24"
-                                : "rgba(255,255,255,0.22)",
-                              boxShadow: isUnread
-                                ? "0 0 0 4px rgba(251,191,36,0.12)"
-                                : "none",
+                              background: "#FBBF24",
+                              boxShadow:
+                                "0 0 0 4px rgba(251,191,36,0.12)",
                             }}
                           />
 
-                          <div style={{ flex: 1, textAlign: "left" }}>
+                          <div
+                            style={{
+                              flex: 1,
+                              textAlign: "left",
+                            }}
+                          >
                             <div
                               style={{
                                 display: "flex",
@@ -412,21 +425,22 @@ export default function NotificationsDrawer({
                                 gap: 10,
                               }}
                             >
-                              <div
-                                style={{
-                                  ...rowTitle,
-                                  opacity: isUnread ? 1 : 0.9,
-                                }}
-                              >
+                              <div style={rowTitle}>
                                 {titleFor(n)}
                               </div>
-                              <div style={rowTime}>{timeFor(n)}</div>
+                              <div style={rowTime}>
+                                {timeFor(n)}
+                              </div>
                             </div>
 
-                            <div style={rowSub}>{subtitleFor(n)}</div>
+                            <div style={rowSub}>
+                              {subtitleFor(n)}
+                            </div>
 
                             <div style={rowMeta}>
-                              <span style={metaPill}>{typeLabel(n)}</span>
+                              <span style={metaPill}>
+                                {typeLabel(n)}
+                              </span>
                               {n.type === "group_message" &&
                                 payload.group_name && (
                                   <span style={metaPill}>
@@ -434,16 +448,6 @@ export default function NotificationsDrawer({
                                   </span>
                                 )}
                               <span style={metaPill}>Abrir</span>
-                              {isUnread && (
-                                <span
-                                  style={{
-                                    ...metaPill,
-                                    borderColor: "rgba(251,191,36,0.35)",
-                                  }}
-                                >
-                                  Nuevo
-                                </span>
-                              )}
                               <span
                                 style={metaPillDanger}
                                 onClick={(e) => {
@@ -451,12 +455,16 @@ export default function NotificationsDrawer({
                                   onDeleteNotificationClick(n);
                                 }}
                               >
-                                Eliminar
+                                Quitar
                               </span>
                             </div>
                           </div>
 
-                          <div style={{ marginTop: 2, opacity: 0.8 }}>›</div>
+                          <div
+                            style={{ marginTop: 2, opacity: 0.8 }}
+                          >
+                            ›
+                          </div>
                         </div>
                       </button>
                     );
@@ -471,7 +479,9 @@ export default function NotificationsDrawer({
       {toast && (
         <div style={toastBox}>
           <div style={toastTitle}>{toast.title}</div>
-          {toast.subtitle && <div style={toastSub}>{toast.subtitle}</div>}
+          {toast.subtitle && (
+            <div style={toastSub}>{toast.subtitle}</div>
+          )}
         </div>
       )}
     </>
@@ -480,7 +490,9 @@ export default function NotificationsDrawer({
 
 function SkeletonList() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div
+      style={{ display: "flex", flexDirection: "column", gap: 10 }}
+    >
       {Array.from({ length: 4 }).map((_, idx) => (
         <div key={idx} style={skRow}>
           <div style={skDot} />

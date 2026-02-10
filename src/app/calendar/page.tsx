@@ -52,7 +52,8 @@ export default function CalendarPage({
             background:
               "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
             color: "rgba(255,255,255,0.85)",
-            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+            fontFamily:
+              "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
           }}
         >
           <div
@@ -70,7 +71,10 @@ export default function CalendarPage({
         </main>
       }
     >
-      <CalendarClient highlightId={highlightId} appliedToast={appliedToast} />
+      <CalendarClient
+        highlightId={highlightId}
+        appliedToast={appliedToast}
+      />
     </Suspense>
   );
 }

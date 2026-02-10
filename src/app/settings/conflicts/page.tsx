@@ -1,234 +1,297 @@
+// src/app/settings/conflicts/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getUser } from "@/lib/auth";
-import { getSettingsFromDb, saveSettingsToDb, type NotificationSettings } from "@/lib/settings";
 
-type ConflictResolution = "ask_me" | "keep_existing" | "replace_with_new";
+import {
+  getSettingsFromDb,
+  saveSettingsToDb,
+  type NotificationSettings,
+  type ConflictDefaultResolution,
+} from "@/lib/settings";
 
 export default function ConflictsSettingsPage() {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
+
+  const [settings, setSettings] = useState<NotificationSettings | null>(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [s, setS] = useState<NotificationSettings | null>(null);
-  const [savedPulse, setSavedPulse] = useState(false);
+  const [toast, setToast] = useState<{ title: string; subtitle?: string } | null>(
+    null
+  );
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
-      const u = getUser();
-      if (!u) {
-        router.push("/auth/login?next=/settings/conflicts");
-        return;
-      }
       try {
-        const db = await getSettingsFromDb();
+        const s = await getSettingsFromDb();
         if (!alive) return;
-        setS(db);
+        setSettings(s);
+      } catch (err) {
+        console.error("[ConflictsSettings] load error", err);
+        if (!alive) return;
+        setToast({
+          title: "No se pudieron cargar tus ajustes de conflictos",
+          subtitle: "Refresca la página o intenta de nuevo en unos segundos.",
+        });
       } finally {
-        if (alive) setReady(true);
+        if (alive) setLoading(false);
       }
     })();
+
     return () => {
       alive = false;
     };
-  }, [router]);
+  }, []);
 
-  async function commit(next: NotificationSettings) {
-    setS(next);
-    setSaving(true);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  function update<K extends keyof NotificationSettings>(
+    key: K,
+    value: NotificationSettings[K]
+  ) {
+    setSettings((prev: NotificationSettings | null) =>
+      prev ? { ...prev, [key]: value } : prev
+    );
+  }
+
+  async function handleSave() {
+    if (!settings) return;
     try {
-      await saveSettingsToDb(next);
-      setSavedPulse(true);
-      setTimeout(() => setSavedPulse(false), 700);
+      setSaving(true);
+      setToast(null);
+      await saveSettingsToDb(settings);
+      setToast({
+        title: "Ajustes guardados",
+        subtitle: "Tus preferencias de conflictos se actualizaron correctamente.",
+      });
+    } catch (err) {
+      console.error("[ConflictsSettings] save error", err);
+      setToast({
+        title: "No se pudieron guardar los cambios",
+        subtitle: "Inténtalo de nuevo en unos segundos.",
+      });
     } finally {
       setSaving(false);
     }
   }
 
-  if (!ready) return null;
-  if (!s) return <Fallback router={router} />;
+  if (loading || !settings) {
+    return (
+      <main className="min-h-screen bg-[#050816] text-white">
+        <div className="mx-auto max-w-3xl px-4 py-10 text-sm text-white/70">
+          Cargando ajustes de conflictos…
+        </div>
+      </main>
+    );
+  }
+
+  const currentResolution = settings.conflictDefaultResolution;
 
   return (
     <main className="min-h-screen bg-[#050816] text-white">
       <div className="mx-auto max-w-3xl px-4 py-10">
-        <Header
-          title="Preferencias de conflictos"
-          subtitle="Define tu estilo: avisos antes de guardar y resolución por defecto."
-          onBack={() => router.push("/settings")}
-          saving={saving}
-          savedPulse={savedPulse}
-        />
-
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-          <div className="rounded-2xl border border-white/10 bg-black/30">
-            <Row
-              title="Avisarme antes de guardar si hay conflicto"
-              subtitle="Activa esto para el preview de conflictos (tu wow moment)."
-              value={!!(s as any).conflictWarnBeforeSave}
-              onChange={(v) => commit({ ...(s as any), conflictWarnBeforeSave: v })}
-            />
-            <Divider />
-            <SelectRow
-              title="Resolución por defecto"
-              subtitle="Si hay choque, ¿qué preseleccionamos?"
-              value={((s as any).conflictDefaultResolution ?? "ask_me") as ConflictResolution}
-              onChange={(v) => commit({ ...(s as any), conflictDefaultResolution: v })}
-              options={[
-                { value: "ask_me", label: "Preguntarme (recomendado)" },
-                { value: "keep_existing", label: "Conservar existente" },
-                { value: "replace_with_new", label: "Reemplazar por el nuevo" },
-              ]}
-            />
+        {/* Header */}
+        <div className="mb-6">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
+            <span className="h-2 w-2 rounded-full bg-rose-400" />
+            SyncPlans · Preferencias de conflictos
           </div>
 
-          <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-white/60">
-            En el próximo paso, conectamos esto al flujo de crear evento para mostrar el preview antes de guardar.
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight">
+            Cómo quieres resolver los choques
+          </h1>
+          <p className="mt-2 text-sm text-white/60">
+            Cuando un evento nuevo choca con algo que ya existe, SyncPlans puede
+            avisarte antes de guardar y aplicar una decisión por defecto si tú
+            quieres.
+          </p>
+
+          <button
+            onClick={() => router.push("/settings")}
+            className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/80 hover:bg-white/10"
+          >
+            Volver a Settings
+          </button>
+        </div>
+
+        {/* Bloque: Avisar antes de guardar */}
+        <section className="mb-6 rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
+                <h2 className="text-sm font-semibold">
+                  Avisarme antes de guardar
+                </h2>
+              </div>
+              <p className="mt-1 text-xs text-white/60">
+                Si esto está activado, cuando haya un choque verás una pantalla
+                previa para decidir qué hacer con los eventos. Si lo apagas,
+                SyncPlans usará directamente tu decisión por defecto.
+              </p>
+            </div>
+
+            <Toggle
+              checked={settings.conflictWarnBeforeSave}
+              onChange={(v) => update("conflictWarnBeforeSave", v)}
+            />
           </div>
         </section>
+
+        {/* Bloque: Decisión por defecto */}
+        <section className="mb-6 rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="mb-4">
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
+              <h2 className="text-sm font-semibold">Decisión por defecto</h2>
+            </div>
+            <p className="mt-1 text-xs text-white/60">
+              Esto se usa cuando hay conflictos y eliges aplicar tu decisión
+              rápida (o cuando el aviso previo está apagado). Siempre podrás
+              cambiar de idea caso por caso.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ResolutionCard
+              title="Preguntarme siempre"
+              description="Cada vez que haya un conflicto, quiero ver la pantalla con todas las opciones antes de guardar."
+              selected={currentResolution === "ask_me"}
+              onSelect={() => update("conflictDefaultResolution", "ask_me")}
+            />
+
+            <ResolutionCard
+              title="Mantener existente"
+              description="Si hay choque, por defecto se conserva el evento que ya estaba y el nuevo no se guarda."
+              selected={currentResolution === "keep_existing"}
+              onSelect={() =>
+                update("conflictDefaultResolution", "keep_existing")
+              }
+            />
+
+            <ResolutionCard
+              title="Reemplazar por el nuevo"
+              description="Si hay choque, por defecto se borra el/los eventos existentes y se guarda el nuevo."
+              selected={currentResolution === "replace_with_new"}
+              onSelect={() =>
+                update("conflictDefaultResolution", "replace_with_new")
+              }
+            />
+
+            <ResolutionCard
+              title="Conservar ambos"
+              description="Si hay choque, por defecto se guardan ambos eventos. Después puedes ajustarlos manualmente."
+              selected={currentResolution === "none"}
+              onSelect={() => update("conflictDefaultResolution", "none")}
+            />
+          </div>
+        </section>
+
+        {/* Footer */}
+        <div className="mt-4 flex flex-col items-start justify-between gap-3 border-t border-white/10 pt-4 text-xs text-white/60 sm:flex-row sm:items-center">
+          <div>
+            <div className="font-semibold text-white">
+              Cómo se conecta esto con el calendario
+            </div>
+            <p className="mt-1 text-[11px] text-white/60">
+              Estas preferencias se aplican cuando creas o editas eventos desde
+              el calendario y SyncPlans detecta choques. Nada se borra sin que
+              lo confirmes directa o indirectamente con estas reglas.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className={[
+              "inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition",
+              saving
+                ? "border-white/20 bg-white/10 text-white/60 cursor-default"
+                : "border-rose-400/60 bg-rose-500/15 text-rose-100 hover:bg-rose-500/25",
+            ].join(" ")}
+          >
+            {saving ? "Guardando…" : "Guardar cambios"}
+          </button>
+        </div>
+
+        {toast && (
+          <div className="mt-4 rounded-2xl border border-white/10 bg-black/60 px-4 py-3 text-[11px]">
+            <div className="font-semibold text-white">{toast.title}</div>
+            {toast.subtitle && (
+              <div className="mt-1 text-white/70">{toast.subtitle}</div>
+            )}
+          </div>
+        )}
       </div>
     </main>
   );
 }
 
-/* ---------- UI helpers ---------- */
-
-function Header({
-  title,
-  subtitle,
-  onBack,
-  saving,
-  savedPulse,
-}: {
-  title: string;
-  subtitle: string;
-  onBack: () => void;
-  saving: boolean;
-  savedPulse: boolean;
-}) {
-  return (
-    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
-          <span className="h-2 w-2 rounded-full bg-rose-400" />
-          SyncPlans · Ajustes
-        </div>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight">{title}</h1>
-        <p className="mt-2 text-sm text-white/60">{subtitle}</p>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={onBack}
-          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
-        >
-          Volver a settings
-        </button>
-
-        <div
-          className={[
-            "rounded-full border px-3 py-2 text-xs font-semibold transition",
-            savedPulse
-              ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100/80"
-              : "border-white/10 bg-white/5 text-white/60",
-          ].join(" ")}
-        >
-          {saving ? "Guardando…" : savedPulse ? "Guardado ✓" : "Auto-guardado"}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Row({
-  title,
-  subtitle,
-  value,
+function Toggle({
+  checked,
   onChange,
 }: {
-  title: string;
-  subtitle: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
+  checked: boolean;
+  onChange: (value: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 p-4">
-      <div className="min-w-0">
-        <div className="truncate text-sm font-semibold">{title}</div>
-        <div className="mt-1 text-xs text-white/60">{subtitle}</div>
-      </div>
-
-      <button
-        onClick={() => onChange(!value)}
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={[
+        "relative inline-flex h-6 w-11 items-center rounded-full border transition",
+        checked
+          ? "border-emerald-400 bg-emerald-500/40"
+          : "border-white/20 bg-white/10",
+      ].join(" ")}
+    >
+      <span
         className={[
-          "relative h-8 w-14 rounded-full border transition",
-          value ? "border-emerald-400/30 bg-emerald-500/20" : "border-white/10 bg-white/5",
+          "inline-block h-4 w-4 transform rounded-full bg-white shadow transition",
+          checked ? "translate-x-5" : "translate-x-1",
         ].join(" ")}
-        aria-label={title}
-      >
-        <span
-          className={[
-            "absolute top-1 h-6 w-6 rounded-full border bg-[#050816] transition",
-            value ? "left-7 border-emerald-400/30" : "left-1 border-white/10",
-          ].join(" ")}
-        />
-      </button>
-    </div>
+      />
+    </button>
   );
 }
 
-function SelectRow({
+function ResolutionCard({
   title,
-  subtitle,
-  value,
-  onChange,
-  options,
+  description,
+  selected,
+  onSelect,
 }: {
   title: string;
-  subtitle: string;
-  value: string;
-  onChange: (v: any) => void;
-  options: { value: string; label: string }[];
+  description: string;
+  selected: boolean;
+  onSelect: () => void;
 }) {
   return (
-    <div className="p-4">
-      <div className="text-sm font-semibold">{title}</div>
-      <div className="mt-1 text-xs text-white/60">{subtitle}</div>
-
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-3 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/90 outline-none focus:border-white/20"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value} className="text-black">
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function Divider() {
-  return <div className="h-px w-full bg-white/10" />;
-}
-
-function Fallback({ router }: any) {
-  return (
-    <main className="min-h-screen bg-[#050816] text-white">
-      <div className="mx-auto max-w-3xl px-4 py-10">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-          No pude cargar tus ajustes todavía. Revisa sesión / SQL.
-        </div>
-        <button
-          onClick={() => router.push("/settings")}
-          className="mt-4 rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15"
-        >
-          Volver a settings
-        </button>
+    <button
+      type="button"
+      onClick={onSelect}
+      className={[
+        "flex h-full flex-col justify-between rounded-2xl border p-3 text-left text-xs transition",
+        selected
+          ? "border-rose-400/80 bg-rose-500/20"
+          : "border-white/10 bg-black/30 hover:bg-black/40",
+      ].join(" ")}
+    >
+      <div>
+        <div className="text-[12px] font-semibold text-white">{title}</div>
+        <p className="mt-1 text-[11px] text-white/60">{description}</p>
       </div>
-    </main>
+      <div className="mt-2 text-[10px] text-white/60">
+        {selected ? "Seleccionado" : "Elegir como defecto"}
+      </div>
+    </button>
   );
 }

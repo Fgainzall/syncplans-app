@@ -4,17 +4,21 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
+
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 
 import {
   getMyProfile,
-  getInitials,
   createMyProfile,
+  getInitials,
   updateMyCoordinationPrefs,
   normalizeCoordinationPrefs,
+  updateDailyDigestSettings,
   type CoordinationPrefs,
+  type Profile,
 } from "@/lib/profilesDb";
+
 import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
 import {
   getMyGroups,
@@ -24,16 +28,10 @@ import {
   type GroupRow,
   type GroupMemberRow,
 } from "@/lib/groupsDb";
+
 import { computeVisibleConflicts } from "@/lib/conflicts";
 
-/* ─────────────────── Tipos de UI ─────────────────── */
-
-type UserUI = {
-  name: string;
-  email: string;
-  verified: boolean;
-  initials: string;
-};
+/* ─────────────────── Tipos UI ─────────────────── */
 
 type DashboardStats = {
   totalEvents: number;
@@ -57,80 +55,126 @@ type Recommendation = {
     | "invitations";
 };
 
-type PlanInfo = {
-  planTier: string | null;
-  planStatus: string | null;
-  trialEndsAt: string | null;
-};
-
 type GroupFilter = "all" | "pair" | "family" | "other";
 
-/* ─────────────────── Helpers locales ─────────────────── */
+/* ─────────────────── Helpers ─────────────────── */
 
-function normalizeCoordPrefs(
-  prefs?: Partial<CoordinationPrefs> | null
-): CoordinationPrefs {
-  return normalizeCoordinationPrefs(
-    prefs as CoordinationPrefs | null | undefined
-  );
-}
-
-function buildPlanUi(plan: PlanInfo | null): { value: string; hint: string } {
-  if (!plan) {
-    return {
-      value: "Demo Premium (beta)",
-      hint: "Acceso completo mientras probamos SyncPlans.",
-    };
-  }
-
-  const tier = (plan.planTier ?? "demo_premium").toLowerCase();
-  const status = (plan.planStatus ?? "trial").toLowerCase();
-
-  let value: string;
-  if (tier === "free") {
-    value = "Plan gratuito";
-  } else if (tier === "premium") {
-    value = status === "trial" ? "Premium (prueba)" : "Premium";
-  } else {
-    // demo_premium u otros
-    value = status === "trial" ? "Demo Premium (prueba)" : "Demo Premium";
-  }
-
-  let hint = "Acceso completo mientras pruebas SyncPlans.";
-
-  if (status === "active") {
-    if (tier === "free") {
-      hint = "Funciones básicas para organizar tu tiempo.";
-    } else {
-      hint = "Funciones premium activas para tu cuenta.";
-    }
-  } else if (status === "trial") {
-    if (plan.trialEndsAt) {
-      const end = new Date(plan.trialEndsAt);
-      if (!isNaN(end.getTime())) {
-        const today = new Date();
-        const msDiff = end.getTime() - today.getTime();
-        const daysDiff = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
-        if (daysDiff > 0) {
-          hint = `Tu prueba termina en aproximadamente ${daysDiff} día${
-            daysDiff === 1 ? "" : "s"
-          }`;
-        } else {
-          hint = "Tu periodo de prueba está por terminar.";
-        }
-      }
-    }
-  }
-
-  return { value, hint };
-}
-
-function membershipHasMeta(m: GroupMemberRow): boolean {
+function hasGroupMeta(m: GroupMemberRow) {
   return (
     !!m.display_name ||
     !!m.relationship_role ||
     !!m.coordination_prefs?.group_note
   );
+}
+function normalizeCoordPrefs(
+  prefs?: Partial<CoordinationPrefs> | null
+): CoordinationPrefs {
+  return normalizeCoordinationPrefs(
+    (prefs ?? null) as CoordinationPrefs | null | undefined
+  );
+}
+
+function buildDashboardStats(
+  events: DbEventRow[],
+  groups: GroupRow[]
+): DashboardStats {
+  const totalEvents = events.length;
+
+  const now = Date.now();
+  const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+  const eventsLast7 = events.filter((e) => {
+    const t = new Date(e.start).getTime();
+    return Number.isFinite(t) && t >= sevenDaysAgo;
+  }).length;
+
+  const totalGroups = groups.length;
+  const pairGroups = groups.filter((g) => {
+    const t = String(g.type).toLowerCase();
+    return t === "pair" || t === "couple";
+  }).length;
+  const familyGroups = groups.filter((g) => {
+    const t = String(g.type).toLowerCase();
+    return t === "family";
+  }).length;
+  const otherGroups = groups.filter((g) => {
+    const t = String(g.type).toLowerCase();
+    return t !== "pair" && t !== "couple" && t !== "family";
+  }).length;
+
+  const eventsForConflicts = events.map((e) => ({
+    id: e.id,
+    title: e.title ?? "(Sin título)",
+    start: e.start,
+    end: e.end,
+    groupType: e.group_id ? ("family" as const) : ("personal" as const),
+    groupId: e.group_id,
+  }));
+
+  const conflicts = computeVisibleConflicts(eventsForConflicts);
+
+  return {
+    totalEvents,
+    eventsLast7,
+    totalGroups,
+    pairGroups,
+    familyGroups,
+    otherGroups,
+    conflictsNow: conflicts.length,
+  };
+}
+
+function buildRecommendation(
+  verified: boolean,
+  stats: DashboardStats | null
+): Recommendation | null {
+  if (!stats) return null;
+
+  // 1) Primero seguridad
+  if (!verified) {
+    return {
+      title: "Verifica tu correo",
+      hint: "Cerrar el ciclo de verificación protege tus grupos y eventos compartidos.",
+    };
+  }
+
+  // 2) Sin grupos
+  if (stats.totalGroups === 0) {
+    return {
+      title: "Crea tu primer grupo",
+      hint: "Empieza por un grupo de pareja o familia para compartir eventos y conflictos. Luego suma grupos compartidos como amigos o equipos.",
+      ctaLabel: "Crear grupo",
+      ctaTarget: "groups_new",
+    };
+  }
+
+  // 3) Con grupos pero sin eventos
+  if (stats.totalEvents === 0) {
+    return {
+      title: "Crea tu primer evento",
+      hint: "Agenda algo real — una cena, un viaje o una reunión — y deja que SyncPlans trabaje.",
+      ctaLabel: "Nuevo evento",
+      ctaTarget: "events_new",
+    };
+  }
+
+  // 4) Conflictos activos
+  if (stats.conflictsNow > 0) {
+    return {
+      title: "Tienes conflictos activos",
+      hint: "Hay choques de horario detectados. Revísalos y decide qué conservar.",
+      ctaLabel: "Revisar conflictos",
+      ctaTarget: "conflicts",
+    };
+  }
+
+  // 5) Caso estable
+  return {
+    title: "Saca más valor de tus grupos",
+    hint: "Invita a alguien nuevo o revisa tu calendario compartido para la próxima semana.",
+    ctaLabel: "Invitar a alguien",
+    ctaTarget: "invitations",
+  };
 }
 
 /* ─────────────────── Componente principal ─────────────────── */
@@ -138,185 +182,144 @@ function membershipHasMeta(m: GroupMemberRow): boolean {
 export default function ProfilePage() {
   const router = useRouter();
 
-  // 🔹 Estado base
+  // Carga base
   const [booting, setBooting] = useState(true);
-  const [user, setUser] = useState<UserUI | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [email, setEmail] = useState<string>("—");
+  const [verified, setVerified] = useState(false);
+  const [initials, setInitials] = useState<string>("");
 
-  // 🔹 Formulario de nombre/apellido
+  // Nombre / apellido
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveOk, setSaveOk] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileOk, setProfileOk] = useState<string | null>(null);
 
-  // 🔹 Stats de uso
+  // Stats
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
-  // 🔹 Plan / monetización (solo lectura de momento)
-  const [plan, setPlan] = useState<PlanInfo | null>(null);
-
-  // 🔹 Grupos y memberships (para “Tu rol en los grupos”)
+  // Grupos / memberships
   const [groups, setGroups] = useState<GroupRow[] | null>(null);
   const [memberships, setMemberships] = useState<GroupMemberRow[] | null>(null);
   const [membershipsLoading, setMembershipsLoading] = useState(false);
   const [membershipsError, setMembershipsError] = useState<string | null>(null);
-  const [savingGroupId, setSavingGroupId] = useState<string | null>(null);
-  const [groupSaveMessage, setGroupSaveMessage] = useState<string | null>(null);
-  const [groupSaveError, setGroupSaveError] = useState<string | null>(null);
 
-  // 🔹 Master–detail de grupos
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [groupFilter, setGroupFilter] = useState<GroupFilter>("all");
   const [groupSearch, setGroupSearch] = useState("");
   const [dirtyGroups, setDirtyGroups] = useState<Set<string>>(new Set());
+  const [savingGroupId, setSavingGroupId] = useState<string | null>(null);
+  const [groupSaveMessage, setGroupSaveMessage] = useState<string | null>(null);
+  const [groupSaveError, setGroupSaveError] = useState<string | null>(null);
 
-  // 🔹 Preferencias de coordinación globales
+  // Preferencias globales
   const [coordPrefs, setCoordPrefs] = useState<CoordinationPrefs | null>(null);
   const [savingCoord, setSavingCoord] = useState(false);
-  const [saveCoordError, setSaveCoordError] = useState<string | null>(null);
-  const [saveCoordOk, setSaveCoordOk] = useState<string | null>(null);
+  const [coordError, setCoordError] = useState<string | null>(null);
+  const [coordOk, setCoordOk] = useState<string | null>(null);
 
-  // ── 1) Cargar sesión + perfil + nombre visual + plan ──
+  // Resumen diario
+  const [savingDigest, setSavingDigest] = useState(false);
+
+  /* ── 1) Cargar sesión + perfil ── */
   useEffect(() => {
-    let alive = true;
+  let alive = true;
 
-    (async () => {
-      try {
-        setBooting(true);
-        const { data, error } = await supabase.auth.getSession();
-        if (!alive) return;
+  (async () => {
+    try {
+      setBooting(true);
+      const { data, error } = await supabase.auth.getSession();
+      if (!alive) return;
 
-        if (error || !data.session?.user) {
-          router.replace("/auth/login?next=/profile");
-          return;
-        }
-
-        const u = data.session.user;
-
-        // Nombre base desde metadata o email
-        let baseName =
-          (u.user_metadata?.full_name as string) ||
-          (u.user_metadata?.name as string) ||
-          (u.email ? u.email.split("@")[0] : "Usuario");
-
-        const email = u.email ?? "—";
-        const verified = !!u.email_confirmed_at;
-
-        let finalName = baseName;
-        let initials =
-          baseName && baseName.length > 0
-            ? baseName.charAt(0).toUpperCase()
-            : "U";
-
-        let localFirst = "";
-        let localLast = "";
-        let localCoordPrefs: CoordinationPrefs | null = null;
-        let localPlan: PlanInfo | null = null;
-
-        // Intentar leer perfil real desde la tabla `profiles`
-        try {
-          const profile = await getMyProfile();
-          if (profile) {
-            const dn = (
-              profile.display_name ??
-              `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
-            ).trim();
-
-            if (dn) {
-              finalName = dn;
-            }
-
-            initials = getInitials({
-              first_name: profile.first_name ?? undefined,
-              last_name: profile.last_name ?? undefined,
-              display_name: profile.display_name ?? undefined,
-            });
-
-            localFirst = (profile.first_name ?? "").trim();
-            localLast = (profile.last_name ?? "").trim();
-            localCoordPrefs = normalizeCoordPrefs(
-              profile.coordination_prefs ?? null
-            );
-
-            localPlan = {
-              planTier: profile.plan_tier ?? null,
-              planStatus: profile.plan_status ?? null,
-              trialEndsAt: profile.trial_ends_at ?? null,
-            };
-          } else {
-            // Inferir de baseName si no hay perfil
-            const parts = baseName.trim().split(/\s+/);
-            if (parts.length >= 2) {
-              localFirst = parts[0];
-              localLast = parts.slice(1).join(" ");
-            } else {
-              localFirst = baseName.trim();
-              localLast = "";
-            }
-            localCoordPrefs = normalizeCoordPrefs(null);
-            localPlan = {
-              planTier: "demo_premium",
-              planStatus: "trial",
-              trialEndsAt: null,
-            };
-          }
-        } catch (e) {
-          console.error("Error leyendo perfil desde DB:", e);
-          localCoordPrefs = normalizeCoordPrefs(null);
-          localPlan = {
-            planTier: "demo_premium",
-            planStatus: "trial",
-            trialEndsAt: null,
-          };
-        }
-
-        if (!alive) return;
-
-        setUser({
-          name: finalName,
-          email,
-          verified,
-          initials,
-        });
-
-        setFirstName(localFirst);
-        setLastName(localLast);
-        setCoordPrefs(localCoordPrefs);
-        setPlan(localPlan);
-      } finally {
-        if (!alive) return;
-        setBooting(false);
+      if (error || !data.session?.user) {
+        router.replace("/auth/login?next=/profile");
+        return;
       }
-    })();
 
-    return () => {
-      alive = false;
-    };
-  }, [router]);
+      const u = data.session.user;
+      setEmail(u.email ?? "—");
+      setVerified(!!u.email_confirmed_at);
 
-  // ── 2) Cargar stats de uso + grupos ──
+      // 👇 1) Intentar leer perfil
+      let p = await getMyProfile();
+
+      // 👇 2) Si no hay perfil, creamos uno con nombre vacío
+if (!p) {
+  p = await createMyProfile({
+    first_name: "",
+    last_name: "",
+  });
+}
+
+
+      // 👇 3) Si aún así no hay perfil, salimos con error controlado
+      if (!p) {
+        if (!alive) return;
+        console.error("[ProfilePage] No se pudo obtener/crear perfil");
+        setBooting(false);
+        return;
+      }
+
+      if (!alive) return;
+
+      // 👇 A partir de aquí TypeScript sabe que p NO es null
+      setProfile(p);
+
+      const f = (p.first_name ?? "").trim();
+      const l = (p.last_name ?? "").trim();
+      setFirstName(f);
+      setLastName(l);
+
+      setCoordPrefs(
+        normalizeCoordPrefs(
+          p.coordination_prefs as CoordinationPrefs | null
+        )
+      );
+
+      setInitials(
+        getInitials({
+          first_name: p.first_name ?? undefined,
+          last_name: p.last_name ?? undefined,
+          display_name: p.display_name ?? undefined,
+        })
+      );
+    } catch (e) {
+      console.error("[ProfilePage] Error cargando perfil:", e);
+    } finally {
+      if (!alive) return;
+      setBooting(false);
+    }
+  })();
+
+  return () => {
+    alive = false;
+  };
+}, [router]);
+
+  /* ── 2) Cargar stats + grupos ── */
   useEffect(() => {
-    if (!user) return;
+    if (!profile) return;
     let alive = true;
 
     (async () => {
       try {
         setStatsLoading(true);
         const [events, groupsRows] = await Promise.all([
-          getMyEvents(),
-          getMyGroups(),
+          getMyEvents().catch(() => [] as DbEventRow[]),
+          getMyGroups().catch(() => [] as GroupRow[]),
         ]);
+
         if (!alive) return;
 
-        const nextStats = buildDashboardStats(events, groupsRows);
-        setStats(nextStats);
         setGroups(groupsRows);
+        setStats(buildDashboardStats(events, groupsRows));
       } catch (e) {
         console.error("[ProfilePage] Error cargando stats:", e);
         if (!alive) return;
-        setStats(null);
         setGroups(null);
+        setStats(null);
       } finally {
         if (!alive) return;
         setStatsLoading(false);
@@ -326,22 +329,23 @@ export default function ProfilePage() {
     return () => {
       alive = false;
     };
-  }, [user]);
+  }, [profile]);
 
-  // ── 3) Cargar memberships para “Tu rol en los grupos” ──
+  /* ── 3) Cargar memberships ── */
   useEffect(() => {
-    if (!user) return;
+    if (!profile) return;
     let alive = true;
 
     (async () => {
       try {
         setMembershipsLoading(true);
         setMembershipsError(null);
+
         const ms = await getMyGroupMemberships();
         if (!alive) return;
         setMemberships(ms);
-      } catch (err: any) {
-        console.error("[ProfilePage] Error cargando memberships:", err);
+      } catch (e: any) {
+        console.error("[ProfilePage] Error cargando memberships:", e);
         if (!alive) return;
         setMemberships(null);
         setMembershipsError(
@@ -356,9 +360,9 @@ export default function ProfilePage() {
     return () => {
       alive = false;
     };
-  }, [user]);
+  }, [profile]);
 
-  // ── 3b) Elegir grupo seleccionado por defecto (pareja > primero) ──
+  /* ── 3b) Selección por defecto de grupo ── */
   useEffect(() => {
     if (!memberships || memberships.length === 0) {
       setSelectedGroupId(null);
@@ -367,7 +371,6 @@ export default function ProfilePage() {
 
     setSelectedGroupId((prev) => {
       if (prev) return prev;
-
       if (groups && groups.length > 0) {
         const byId = new Map<string, GroupRow>();
         groups.forEach((g) => byId.set(g.id, g));
@@ -385,88 +388,72 @@ export default function ProfilePage() {
     });
   }, [memberships, groups]);
 
-  // ── 4) Guardar perfil (nombre / apellido) ──
-  async function onSaveProfile(e: React.FormEvent) {
+  /* ── 4) Guardar nombre / apellido ── */
+  async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
-    setSaveError(null);
-    setSaveOk(null);
+    setProfileError(null);
+    setProfileOk(null);
 
     const fn = firstName.trim();
     const ln = lastName.trim();
 
     if (!fn || !ln) {
-      setSaveError("Nombre y apellido son obligatorios.");
+      setProfileError("Nombre y apellido son obligatorios.");
       return;
     }
 
     try {
-      setSaving(true);
-      const profile = await createMyProfile({
+      setSavingProfile(true);
+      const updated = await createMyProfile({
         first_name: fn,
         last_name: ln,
       });
 
-      const baseDisplay = (
-        profile.display_name ??
-        `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
-      ).trim();
+      setProfile(updated);
 
-      const newDisplay: string = baseDisplay || user?.name || "Usuario";
+      const display =
+        (updated.display_name ??
+          `${updated.first_name ?? ""} ${updated.last_name ?? ""}`) ||
+        "";
 
-      const newInitials = getInitials({
-        first_name: profile.first_name ?? undefined,
-        last_name: profile.last_name ?? undefined,
-        display_name: profile.display_name ?? undefined,
-      });
-
-      setUser((prev) =>
-        prev
-          ? {
-              ...prev,
-              name: newDisplay,
-              initials: newInitials,
-            }
-          : prev
+      setInitials(
+        getInitials({
+          first_name: updated.first_name ?? undefined,
+          last_name: updated.last_name ?? undefined,
+          display_name: updated.display_name ?? undefined,
+        })
       );
 
-      setSaveOk("Perfil actualizado correctamente.");
-    } catch (err: any) {
-      console.error("Error guardando perfil:", err);
-      setSaveError(
-        typeof err?.message === "string"
-          ? err.message
+      setProfileOk("Perfil actualizado correctamente.");
+    } catch (e: any) {
+      console.error("[ProfilePage] Error guardando perfil:", e);
+      setProfileError(
+        typeof e?.message === "string"
+          ? e.message
           : "No se pudo actualizar tu perfil. Intenta de nuevo."
       );
     } finally {
-      setSaving(false);
+      setSavingProfile(false);
     }
   }
 
-  // ── 5) Guardar preferencias de coordinación ──
-  async function onSaveCoordPrefs(e: React.FormEvent) {
+  /* ── 5) Guardar preferencias globales ── */
+  async function handleSaveCoordPrefs(e: React.FormEvent) {
     e.preventDefault();
     if (!coordPrefs) return;
-    setSaveCoordError(null);
-    setSaveCoordOk(null);
+
+    setCoordError(null);
+    setCoordOk(null);
 
     try {
       setSavingCoord(true);
-
-      const profile = await getMyProfile();
-      if (!profile || !profile.display_name) {
-        setSaveCoordError(
-          "Antes de guardar tus preferencias, completa tu nombre y apellido arriba."
-        );
-        return;
-      }
-
       await updateMyCoordinationPrefs(coordPrefs);
-      setSaveCoordOk("Preferencias guardadas correctamente.");
-    } catch (err: any) {
-      console.error("Error guardando preferencias de coordinación:", err);
-      setSaveCoordError(
-        typeof err?.message === "string"
-          ? err.message
+      setCoordOk("Preferencias guardadas correctamente.");
+    } catch (e: any) {
+      console.error("[ProfilePage] Error guardando preferencias:", e);
+      setCoordError(
+        typeof e?.message === "string"
+          ? e.message
           : "No se pudieron guardar tus preferencias. Intenta de nuevo."
       );
     } finally {
@@ -474,7 +461,7 @@ export default function ProfilePage() {
     }
   }
 
-  // ── 6) Editar metadata de membership (estado local) ──
+  /* ── 6) Manejo local de metadata de grupo ── */
   function updateMembershipLocal(
     groupId: string,
     updater: (prev: GroupMemberRow) => GroupMemberRow
@@ -540,11 +527,11 @@ export default function ProfilePage() {
         next.delete(groupId);
         return next;
       });
-    } catch (err: any) {
-      console.error("Error guardando metadata de grupo:", err);
+    } catch (e: any) {
+      console.error("[ProfilePage] Error guardando metadata de grupo:", e);
       setGroupSaveError(
-        typeof err?.message === "string"
-          ? err.message
+        typeof e?.message === "string"
+          ? e.message
           : "No se pudieron guardar los cambios. Intenta de nuevo."
       );
     } finally {
@@ -552,7 +539,62 @@ export default function ProfilePage() {
     }
   }
 
-  // ── 7) Pantallas de carga / sin user ──
+  /* ── 7) Resumen diario ── */
+  const handleToggleDigest = async (enabled: boolean) => {
+    if (!profile) return;
+    try {
+      setSavingDigest(true);
+      const hour = profile.daily_digest_hour_local ?? 7;
+      const tz = profile.daily_digest_timezone ?? "America/Lima";
+
+      await updateDailyDigestSettings({
+        daily_digest_enabled: enabled,
+        daily_digest_hour_local: hour,
+        daily_digest_timezone: tz,
+      });
+
+      setProfile({
+        ...profile,
+        daily_digest_enabled: enabled,
+        daily_digest_hour_local: hour,
+        daily_digest_timezone: tz,
+      });
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo actualizar el resumen diario. Inténtalo de nuevo.");
+    } finally {
+      setSavingDigest(false);
+    }
+  };
+
+  const handleChangeDigestHour = async (hour: number) => {
+    if (!profile) return;
+    try {
+      setSavingDigest(true);
+      const enabled = profile.daily_digest_enabled ?? true;
+      const tz = profile.daily_digest_timezone ?? "America/Lima";
+
+      await updateDailyDigestSettings({
+        daily_digest_enabled: enabled,
+        daily_digest_hour_local: hour,
+        daily_digest_timezone: tz,
+      });
+
+      setProfile({
+        ...profile,
+        daily_digest_enabled: enabled,
+        daily_digest_hour_local: hour,
+        daily_digest_timezone: tz,
+      });
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo actualizar la hora del resumen. Inténtalo de nuevo.");
+    } finally {
+      setSavingDigest(false);
+    }
+  };
+
+  /* ── 8) Loading / sin perfil ── */
   if (booting) {
     return (
       <main style={styles.page}>
@@ -573,20 +615,34 @@ export default function ProfilePage() {
     );
   }
 
-  if (!user) return null;
+  if (!profile) {
+    return (
+      <main style={styles.page}>
+        <div style={styles.shell}>
+          <div style={styles.headerRow}>
+            <PremiumHeader
+              title="Panel"
+              subtitle="Tu panel de cuenta en SyncPlans."
+              rightSlot={<LogoutButton />}
+            />
+          </div>
+          <div style={styles.error}>
+            No se pudo cargar tu perfil. Vuelve a iniciar sesión.
+          </div>
+        </div>
+      </main>
+    );
+  }
 
-  // ── 8) Derivados de UI (sin hooks) ──
-  const accountStatusLabel = user.verified
-    ? "Cuenta verificada"
-    : "Verifica tu correo";
-  const accountStatusHint = user.verified
+  /* ── 9) Derivados de UI ── */
+
+  const accountStatusLabel = verified ? "Cuenta verificada" : "Verifica tu correo";
+  const accountStatusHint = verified
     ? "Tu correo está confirmado."
     : "Busca el correo de confirmación en tu bandeja o spam.";
 
-  const recommendation: Recommendation | null = buildRecommendation(
-    user,
-    stats
-  );
+  const statsOrNull = stats;
+  const recommendation = buildRecommendation(verified, statsOrNull);
 
   const coord = normalizeCoordPrefs(coordPrefs);
   const hasCoordPrefsMeaningful =
@@ -611,24 +667,11 @@ export default function ProfilePage() {
         })
       : memberships ?? [];
 
-  const hasGroupMeta =
+  const hasGroupMetaGlobal =
     memberships &&
     memberships.length > 0 &&
-    memberships.some((m) => membershipHasMeta(m));
+    memberships.some((m) => hasGroupMeta(m));
 
-  const planUi = buildPlanUi(plan);
-
-  function handleRecommendationClick(target: Recommendation["ctaTarget"]) {
-    if (!target) return;
-    if (target === "groups_new") router.push("/groups/new");
-    else if (target === "calendar") router.push("/calendar");
-    else if (target === "events_new")
-      router.push("/events/new/details?type=personal");
-    else if (target === "conflicts") router.push("/conflicts/detected");
-    else if (target === "invitations") router.push("/invitations");
-  }
-
-  // Filtro + búsqueda para lista de grupos
   const searchTerm = groupSearch.trim().toLowerCase();
   const membershipsFiltered = membershipsSorted.filter((m) => {
     const g = groupsById.get(m.group_id);
@@ -662,7 +705,7 @@ export default function ProfilePage() {
 
   const totalGroupsForRoles = memberships ? memberships.length : 0;
   const configuredGroupsCount = memberships
-    ? memberships.filter(membershipHasMeta).length
+    ? memberships.filter((m) => hasGroupMeta(m)).length
     : 0;
   const pendingGroupsCount =
     totalGroupsForRoles - configuredGroupsCount >= 0
@@ -672,7 +715,19 @@ export default function ProfilePage() {
   const hasSelectedDirty =
     selectedMembership && dirtyGroups.has(selectedMembership.group_id);
 
-  // ── 9) Render principal ──
+  const digestEnabled = profile.daily_digest_enabled ?? false;
+  const digestHour = profile.daily_digest_hour_local ?? 7;
+  const digestTz = profile.daily_digest_timezone ?? "America/Lima";
+
+  const planLabel =
+    profile.plan_tier === "premium"
+      ? "Plan Premium"
+      : profile.plan_tier === "free"
+      ? "Plan gratuito"
+      : "Demo Premium (beta)";
+
+  /* ── 10) Render principal ── */
+
   return (
     <main style={styles.page}>
       <div style={styles.shell}>
@@ -685,7 +740,6 @@ export default function ProfilePage() {
           />
         </div>
 
-        {/* GRID: Izquierda (identidad) / Derecha (estado & acciones) */}
         <div style={styles.mainGrid}>
           {/* Columna izquierda */}
           <div style={styles.leftCol}>
@@ -694,25 +748,31 @@ export default function ProfilePage() {
               <div style={styles.sectionLabel}>Identidad</div>
 
               <div style={styles.profileRow}>
-                <div style={styles.avatar}>{user.initials}</div>
+                <div style={styles.avatar}>{initials || "?"}</div>
                 <div style={{ minWidth: 0 }}>
                   <div style={styles.nameRow}>
-                    <span style={styles.name}>{user.name}</span>
+                    <span style={styles.name}>
+                      {profile.display_name ||
+                        `${profile.first_name ?? ""} ${
+                          profile.last_name ?? ""
+                        }`.trim() ||
+                        "(Sin nombre)"}
+                    </span>
                     <span
                       style={{
                         ...styles.chip,
-                        borderColor: user.verified
+                        borderColor: verified
                           ? "rgba(34,197,94,0.40)"
                           : "rgba(250,204,21,0.40)",
-                        background: user.verified
+                        background: verified
                           ? "rgba(34,197,94,0.10)"
                           : "rgba(250,204,21,0.12)",
                       }}
                     >
-                      {user.verified ? "Verificada" : "Por verificar"}
+                      {verified ? "Verificada" : "Por verificar"}
                     </span>
                   </div>
-                  <div style={styles.email}>{user.email}</div>
+                  <div style={styles.email}>{email}</div>
                 </div>
               </div>
 
@@ -721,8 +781,8 @@ export default function ProfilePage() {
               <div style={styles.smallGrid}>
                 <InfoStat
                   label="Plan actual"
-                  value={planUi.value}
-                  hint={planUi.hint}
+                  value={planLabel}
+                  hint="Acceso completo mientras pruebas SyncPlans."
                 />
                 <InfoStat
                   label="Grupos activos"
@@ -744,7 +804,7 @@ export default function ProfilePage() {
               </div>
             </section>
 
-            {/* Edición de nombre */}
+            {/* Cómo te ve el resto */}
             <section style={styles.card}>
               <div style={styles.sectionLabel}>Cómo te ve el resto</div>
               <div style={styles.sectionSub}>
@@ -752,7 +812,7 @@ export default function ProfilePage() {
                 compartidas.
               </div>
 
-              <form onSubmit={onSaveProfile} style={styles.form}>
+              <form onSubmit={handleSaveProfile} style={styles.form}>
                 <div style={styles.formRow}>
                   <div style={styles.field}>
                     <label style={styles.label}>Nombre</label>
@@ -774,8 +834,8 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {saveError && <div style={styles.error}>{saveError}</div>}
-                {saveOk && <div style={styles.ok}>{saveOk}</div>}
+                {profileError && <div style={styles.error}>{profileError}</div>}
+                {profileOk && <div style={styles.ok}>{profileOk}</div>}
 
                 <div style={styles.formActions}>
                   <button
@@ -787,14 +847,14 @@ export default function ProfilePage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={saving}
+                    disabled={savingProfile}
                     style={{
                       ...styles.primaryBtn,
-                      opacity: saving ? 0.7 : 1,
-                      cursor: saving ? "progress" : "pointer",
+                      opacity: savingProfile ? 0.7 : 1,
+                      cursor: savingProfile ? "progress" : "pointer",
                     }}
                   >
-                    {saving ? "Guardando…" : "Guardar cambios"}
+                    {savingProfile ? "Guardando…" : "Guardar cambios"}
                   </button>
                 </div>
               </form>
@@ -810,7 +870,7 @@ export default function ProfilePage() {
                 mostrar mejores decisiones cuando hay choques de horario.
               </div>
 
-              <form onSubmit={onSaveCoordPrefs} style={styles.coordForm}>
+              <form onSubmit={handleSaveCoordPrefs} style={styles.coordForm}>
                 <div style={styles.coordGrid}>
                   <div style={styles.coordCol}>
                     <div style={styles.coordLabel}>Ritmo del día</div>
@@ -913,7 +973,8 @@ export default function ProfilePage() {
                         normalizeCoordPrefs({
                           ...(prev ?? {}),
                           decision_style:
-                            e.target.value as CoordinationPrefs["decision_style"],
+                            e.target
+                              .value as CoordinationPrefs["decision_style"],
                         })
                       )
                     }
@@ -924,10 +985,8 @@ export default function ProfilePage() {
                   </select>
                 </div>
 
-                {saveCoordError && (
-                  <div style={styles.error}>{saveCoordError}</div>
-                )}
-                {saveCoordOk && <div style={styles.ok}>{saveCoordOk}</div>}
+                {coordError && <div style={styles.error}>{coordError}</div>}
+                {coordOk && <div style={styles.ok}>{coordOk}</div>}
 
                 <div style={styles.coordActions}>
                   <button
@@ -944,6 +1003,54 @@ export default function ProfilePage() {
                 </div>
               </form>
             </section>
+
+            {/* Resumen diario por correo */}
+            <section style={styles.card}>
+              <div style={styles.sectionLabel}>Resumen diario por correo</div>
+              <div style={styles.sectionSub}>
+                Si lo activas, te enviaremos cada mañana un correo con los
+                eventos que tienes para el día, ordenados por hora.
+              </div>
+
+              <div style={styles.digestRow}>
+                <label style={styles.digestToggle}>
+                  <input
+                    type="checkbox"
+                    checked={digestEnabled}
+                    onChange={(e) => handleToggleDigest(e.target.checked)}
+                    disabled={savingDigest}
+                  />
+                  <span style={{ marginLeft: 8 }}>Activar resumen diario</span>
+                </label>
+
+                <div style={styles.digestHourWrap}>
+                  <span style={styles.digestHourLabel}>Hora local:</span>
+                  <select
+                    value={digestHour}
+                    disabled={!digestEnabled || savingDigest}
+                    onChange={(e) =>
+                      handleChangeDigestHour(Number(e.target.value) || 7)
+                    }
+                    style={styles.digestSelect}
+                  >
+                    <option value={6}>6:00</option>
+                    <option value={7}>7:00</option>
+                    <option value={8}>8:00</option>
+                    <option value={9}>9:00</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={styles.digestHint}>
+                Zona horaria: <strong>{digestTz}</strong>
+              </div>
+
+              {savingDigest && (
+                <div style={styles.digestSavingHint}>
+                  Guardando configuración de resumen diario…
+                </div>
+              )}
+            </section>
           </div>
 
           {/* Columna derecha */}
@@ -957,7 +1064,7 @@ export default function ProfilePage() {
 
               <div style={styles.accountStatusRow}>
                 <div style={styles.statusIcon}>
-                  {user.verified ? "✅" : "⚠️"}
+                  {verified ? "✅" : "⚠️"}
                 </div>
                 <div>
                   <div style={styles.statusTitle}>{accountStatusLabel}</div>
@@ -1017,7 +1124,7 @@ export default function ProfilePage() {
                 </div>
                 <div style={styles.configStatusItem}>
                   <span style={styles.configStatusBullet}>
-                    {hasGroupMeta ? "✅" : "⏳"}
+                    {hasGroupMetaGlobal ? "✅" : "⏳"}
                   </span>
                   <span>Roles y nombres en grupos configurados</span>
                 </div>
@@ -1029,16 +1136,26 @@ export default function ProfilePage() {
                   <div style={styles.recoTitle}>
                     Próximo paso recomendado
                   </div>
-                  <div style={styles.recoMain}>{recommendation.title}</div>
-                  <div style={styles.recoHint}>{recommendation.hint}</div>
+                  <div style={styles.recoMain}>
+                    {recommendation.title}
+                  </div>
+                  <div style={styles.recoHint}>
+                    {recommendation.hint}
+                  </div>
                   {recommendation.ctaLabel && recommendation.ctaTarget && (
                     <button
                       type="button"
-                      onClick={() =>
-                        handleRecommendationClick(
-                          recommendation.ctaTarget!
-                        )
-                      }
+                      onClick={() => {
+                        const t = recommendation.ctaTarget!;
+                        if (t === "groups_new") router.push("/groups/new");
+                        else if (t === "calendar") router.push("/calendar");
+                        else if (t === "events_new")
+                          router.push("/events/new/details?type=personal");
+                        else if (t === "conflicts")
+                          router.push("/conflicts/detected");
+                        else if (t === "invitations")
+                          router.push("/invitations");
+                      }}
                       style={styles.recoBtn}
                     >
                       {recommendation.ctaLabel}
@@ -1048,7 +1165,7 @@ export default function ProfilePage() {
               )}
             </section>
 
-            {/* Tu rol en los grupos – Master–Detail */}
+            {/* Tu rol en los grupos */}
             <section style={styles.card}>
               <div style={styles.sectionLabel}>Tu rol en los grupos</div>
               <div style={styles.sectionSub}>
@@ -1076,7 +1193,6 @@ export default function ProfilePage() {
 
               {memberships && memberships.length > 0 && (
                 <>
-                  {/* Resumen */}
                   <div style={styles.groupSummaryRow}>
                     <span>
                       Tienes{" "}
@@ -1090,7 +1206,7 @@ export default function ProfilePage() {
                   </div>
 
                   <div style={styles.groupMasterDetail}>
-                    {/* Columna izquierda: lista de grupos */}
+                    {/* Lista de grupos */}
                     <div style={styles.groupListCol}>
                       <div style={styles.groupListHeader}>
                         <div style={styles.groupFilterChips}>
@@ -1160,12 +1276,11 @@ export default function ProfilePage() {
 
                         {membershipsFiltered.map((m) => {
                           const g = groupsById.get(m.group_id);
-                          const groupName =
-                            g?.name ?? "(Grupo sin nombre)";
+                          const groupName = g?.name ?? "(Grupo sin nombre)";
                           const typeRaw = String(g?.type ?? "grupo");
                           const typeLabel = getGroupTypeLabel(typeRaw);
                           const isSelected = m.group_id === selectedGroupId;
-                          const isConfigured = membershipHasMeta(m);
+                          const isConfigured = hasGroupMeta(m);
                           const isDirty = dirtyGroups.has(m.group_id);
 
                           return (
@@ -1207,7 +1322,7 @@ export default function ProfilePage() {
                       </div>
                     </div>
 
-                    {/* Columna derecha: detalle del grupo seleccionado */}
+                    {/* Detalle de grupo seleccionado */}
                     <div style={styles.groupDetailCol}>
                       {!selectedMembership ? (
                         <div style={styles.smallInfo}>
@@ -1369,7 +1484,7 @@ export default function ProfilePage() {
               )}
             </section>
 
-            {/* Uso / acciones rápidas */}
+            {/* Acciones rápidas */}
             <section style={styles.card}>
               <div style={styles.sectionLabel}>Uso y acciones rápidas</div>
               <div style={styles.sectionSub}>
@@ -1402,7 +1517,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Footer de valor */}
         <div style={styles.footer}>
           SyncPlans está pensado para que tu calendario personal, de pareja,
           familia y grupos compartidos convivan sin fricciones. Este panel es tu
@@ -1412,120 +1526,6 @@ export default function ProfilePage() {
     </main>
   );
 }
-
-/* ───────────────────── HELPERS DE STATS ───────────────────── */
-
-function buildDashboardStats(
-  events: DbEventRow[],
-  groups: GroupRow[]
-): DashboardStats {
-  const totalEvents = events.length;
-
-  const now = Date.now();
-  const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
-
-  const eventsLast7 = events.filter((e) => {
-    const t = new Date(e.start).getTime();
-    return Number.isFinite(t) && t >= sevenDaysAgo;
-  }).length;
-
-  const totalGroups = groups.length;
-  const pairGroups = groups.filter((g) => {
-    const t = String(g.type).toLowerCase();
-    return t === "pair" || t === "couple";
-  }).length;
-  const familyGroups = groups.filter((g) => {
-    const t = String(g.type).toLowerCase();
-    return t === "family";
-  }).length;
-  const otherGroups = groups.filter((g) => {
-    const t = String(g.type).toLowerCase();
-    return t !== "pair" && t !== "couple" && t !== "family";
-  }).length;
-
-  const eventsForConflicts = events.map((e) => ({
-    id: e.id,
-    title: e.title ?? "(Sin título)",
-    start: e.start,
-    end: e.end,
-    groupType: e.group_id ? ("family" as const) : ("personal" as const),
-    groupId: e.group_id,
-  }));
-
-  const conflicts = computeVisibleConflicts(eventsForConflicts);
-
-  return {
-    totalEvents,
-    eventsLast7,
-    totalGroups,
-    pairGroups,
-    familyGroups,
-    otherGroups,
-    conflictsNow: conflicts.length,
-  };
-}
-
-/* ───────────────────── RECOMENDACIÓN ───────────────────── */
-
-function buildRecommendation(
-  user: UserUI | null,
-  stats: DashboardStats | null
-): Recommendation | null {
-  if (!user) return null;
-
-  // 1) Primero seguridad
-  if (!user.verified) {
-    return {
-      title: "Verifica tu correo",
-      hint: "Cerrar el ciclo de verificación protege tus grupos y eventos compartidos.",
-    };
-  }
-
-  if (!stats) return null;
-
-  // 2) Sin grupos
-  if (stats.totalGroups === 0) {
-    return {
-      title: "Crea tu primer grupo",
-      hint: "Empieza por un grupo de pareja o familia para compartir eventos y conflictos. Luego suma grupos compartidos como amigos o equipos.",
-      ctaLabel: "Crear grupo",
-      ctaTarget: "groups_new",
-    };
-  }
-
-  // 3) Con grupos pero sin eventos
-  if (stats.totalEvents === 0) {
-    return {
-      title: "Crea tu primer evento",
-      hint: "Agenda algo real — una cena, un viaje o una reunión — y deja que SyncPlans trabaje.",
-      ctaLabel: "Nuevo evento",
-      ctaTarget: "events_new",
-    };
-  }
-
-  // 4) Conflictos activos
-  if (stats.conflictsNow > 0) {
-    return {
-      title: "Tienes conflictos activos",
-      hint: "Hay choques de horario detectados. Revísalos y decide qué conservar.",
-      ctaLabel: "Revisar conflictos",
-      ctaTarget: "conflicts",
-    };
-  }
-
-  // 5) Caso estable
-  if (stats.totalGroups > 0 && stats.totalEvents > 0) {
-    return {
-      title: "Saca más valor de tus grupos",
-      hint: "Invita a alguien nuevo o revisa tu calendario compartido para la próxima semana.",
-      ctaLabel: "Invitar a alguien",
-      ctaTarget: "invitations",
-    };
-  }
-
-  return null;
-}
-
 /* ───────────────────── COMPONENTES DE APOYO ───────────────────── */
 
 function InfoStat(props: {
@@ -1564,8 +1564,14 @@ const styles: Record<string, React.CSSProperties> = {
     background:
       "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
+    fontFamily:
+      "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
   },
-  shell: { maxWidth: 1120, margin: "0 auto", padding: "22px 18px 48px" },
+  shell: {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: "22px 18px 48px",
+  },
 
   headerRow: {
     marginBottom: 16,
@@ -1633,7 +1639,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: "grid",
     placeItems: "center",
     border: "1px solid rgba(255,255,255,0.16)",
-    background: "rgba(15,23,42,0.85)",
+    background:
+      "radial-gradient(circle at 30% 0%, rgba(250,204,21,0.85), transparent 60%), rgba(15,23,42,0.92)",
     fontWeight: 950,
     fontSize: 18,
   },
@@ -2201,5 +2208,46 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     cursor: "pointer",
     whiteSpace: "nowrap",
+  },
+
+  /* Resumen diario */
+  digestRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 14,
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  digestToggle: {
+    display: "inline-flex",
+    alignItems: "center",
+    fontSize: 13,
+  },
+  digestHourWrap: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  digestHourLabel: {
+    fontSize: 13,
+    opacity: 0.8,
+  },
+  digestSelect: {
+    padding: "6px 10px",
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(5,8,22,0.9)",
+    color: "rgba(255,255,255,0.95)",
+    fontSize: 13,
+  },
+  digestHint: {
+    marginTop: 6,
+    fontSize: 12,
+    opacity: 0.8,
+  },
+  digestSavingHint: {
+    marginTop: 6,
+    fontSize: 12,
+    opacity: 0.8,
   },
 };

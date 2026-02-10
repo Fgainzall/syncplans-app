@@ -157,7 +157,7 @@ export default function CalendarClient(props: {
   const router = useRouter();
   const pathname = usePathname();
 
-  const eventRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const eventRefs = useRef<Record<string, HTMLDivElement | null>>({ });
   const setEventRef = (id: string) => (el: HTMLDivElement | null) => {
     eventRefs.current[String(id)] = el;
   };
@@ -689,6 +689,7 @@ export default function CalendarClient(props: {
         subtitle:
           "Revisa tu inbox (y spam por si acaso).",
       });
+      window.setTimeout(() => setToast(null), 3800);
     } catch (e: any) {
       setToast({
         title: "No se pudo enviar el resumen",
@@ -696,13 +697,9 @@ export default function CalendarClient(props: {
           e?.message ??
           "Inténtalo de nuevo en unos minutos.",
       });
+      window.setTimeout(() => setToast(null), 3800);
     } finally {
       setSendingDigest(false);
-      const t = window.setTimeout(
-        () => setToast(null),
-        3800
-      );
-      return () => window.clearTimeout(t);
     }
   }, [events, groupTypeById, userEmail]);
 
@@ -786,6 +783,7 @@ export default function CalendarClient(props: {
           0% { transform: translateZ(0) scale(1); box-shadow: none; }
           35% { transform: translateZ(0) scale(1.01); box-shadow: 0 0 0 6px rgba(56,189,248,0.22), 0 18px 60px rgba(0,0,0,0.35); }
           100% { transform: translateZ(0) scale(1); box-shadow: none; }
+        }
       `}</style>
 
       {toast && (

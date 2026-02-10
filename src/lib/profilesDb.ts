@@ -26,6 +26,11 @@ export type Profile = {
   plan_tier?: string | null; // 'demo_premium', 'free', 'premium', etc.
   plan_status?: string | null; // 'trial', 'active', 'cancelled', etc.
   trial_ends_at?: string | null; // ISO string o null
+
+  // 👇 NUEVO: Resumen diario por correo
+  daily_digest_enabled?: boolean | null;
+  daily_digest_hour_local?: number | null;
+  daily_digest_timezone?: string | null;
 };
 
 async function requireUid(): Promise<string> {
@@ -73,7 +78,10 @@ export async function getMyProfile(): Promise<Profile | null> {
       coordination_prefs,
       plan_tier,
       plan_status,
-      trial_ends_at
+      trial_ends_at,
+      daily_digest_enabled,
+      daily_digest_hour_local,
+      daily_digest_timezone
     `
     )
     .eq("id", uid)
@@ -94,6 +102,9 @@ export async function getMyProfile(): Promise<Profile | null> {
     plan_tier: p.plan_tier ?? null,
     plan_status: p.plan_status ?? null,
     trial_ends_at: p.trial_ends_at ?? null,
+    daily_digest_enabled: p.daily_digest_enabled ?? null,
+    daily_digest_hour_local: p.daily_digest_hour_local ?? null,
+    daily_digest_timezone: p.daily_digest_timezone ?? null,
   };
 }
 
@@ -140,7 +151,10 @@ export async function createMyProfile(input: {
       coordination_prefs,
       plan_tier,
       plan_status,
-      trial_ends_at
+      trial_ends_at,
+      daily_digest_enabled,
+      daily_digest_hour_local,
+      daily_digest_timezone
     `
     )
     .single();
@@ -159,6 +173,9 @@ export async function createMyProfile(input: {
     plan_tier: p.plan_tier ?? null,
     plan_status: p.plan_status ?? null,
     trial_ends_at: p.trial_ends_at ?? null,
+    daily_digest_enabled: p.daily_digest_enabled ?? null,
+    daily_digest_hour_local: p.daily_digest_hour_local ?? null,
+    daily_digest_timezone: p.daily_digest_timezone ?? null,
   };
 }
 
@@ -234,7 +251,10 @@ export async function updateMyCoordinationPrefs(
       coordination_prefs,
       plan_tier,
       plan_status,
-      trial_ends_at
+      trial_ends_at,
+      daily_digest_enabled,
+      daily_digest_hour_local,
+      daily_digest_timezone
     `
     )
     .single();
@@ -253,6 +273,9 @@ export async function updateMyCoordinationPrefs(
     plan_tier: p.plan_tier ?? null,
     plan_status: p.plan_status ?? null,
     trial_ends_at: p.trial_ends_at ?? null,
+    daily_digest_enabled: p.daily_digest_enabled ?? null,
+    daily_digest_hour_local: p.daily_digest_hour_local ?? null,
+    daily_digest_timezone: p.daily_digest_timezone ?? null,
   };
 }
 
@@ -293,7 +316,10 @@ export async function updateMyPlanDebug(input: {
       coordination_prefs,
       plan_tier,
       plan_status,
-      trial_ends_at
+      trial_ends_at,
+      daily_digest_enabled,
+      daily_digest_hour_local,
+      daily_digest_timezone
     `
     )
     .single();
@@ -312,6 +338,9 @@ export async function updateMyPlanDebug(input: {
     plan_tier: p.plan_tier ?? null,
     plan_status: p.plan_status ?? null,
     trial_ends_at: p.trial_ends_at ?? null,
+    daily_digest_enabled: p.daily_digest_enabled ?? null,
+    daily_digest_hour_local: p.daily_digest_hour_local ?? null,
+    daily_digest_timezone: p.daily_digest_timezone ?? null,
   };
 }
 
@@ -336,7 +365,10 @@ export async function getProfilesByIds(ids: string[]): Promise<Profile[]> {
       coordination_prefs,
       plan_tier,
       plan_status,
-      trial_ends_at
+      trial_ends_at,
+      daily_digest_enabled,
+      daily_digest_hour_local,
+      daily_digest_timezone
     `
     )
     .in("id", uniqueIds);
@@ -353,7 +385,32 @@ export async function getProfilesByIds(ids: string[]): Promise<Profile[]> {
     plan_tier: p.plan_tier ?? null,
     plan_status: p.plan_status ?? null,
     trial_ends_at: p.trial_ends_at ?? null,
+    daily_digest_enabled: p.daily_digest_enabled ?? null,
+    daily_digest_hour_local: p.daily_digest_hour_local ?? null,
+    daily_digest_timezone: p.daily_digest_timezone ?? null,
   }));
+}
+
+/**
+ * NUEVO: actualizar ajustes de resumen diario por correo.
+ */
+export async function updateDailyDigestSettings(input: {
+  daily_digest_enabled: boolean;
+  daily_digest_hour_local: number | null;
+  daily_digest_timezone: string | null;
+}): Promise<void> {
+  const uid = await requireUid();
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      daily_digest_enabled: input.daily_digest_enabled,
+      daily_digest_hour_local: input.daily_digest_hour_local,
+      daily_digest_timezone: input.daily_digest_timezone,
+    })
+    .eq("id", uid);
+
+  if (error) throw error;
 }
 
 /**

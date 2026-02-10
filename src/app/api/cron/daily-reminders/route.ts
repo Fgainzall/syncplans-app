@@ -1,3 +1,4 @@
+// src/app/api/cron/daily-reminders/route.ts
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
@@ -20,7 +21,12 @@ function getAdminSupabase() {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
     throw new Error("Missing Supabase admin env vars");
   }
-  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 }
 
 function getResend() {
@@ -39,7 +45,7 @@ const TZ_OFFSET_HOURS = -5;
 function todayRangeISO() {
   const now = new Date();
 
-  // Ajustamos a Lima
+  // Ajustamos a Lima (aprox)
   const local = new Date(
     now.getTime() + TZ_OFFSET_HOURS * 60 * 60 * 1000
   );
@@ -94,96 +100,123 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2️⃣ Clients (solo aquí, no en top-level)
     const supabase = getAdminSupabase();
     const resend = getResend();
-
     const { startISO, endISO, label } = todayRangeISO();
 
-    // 3️⃣ Usuarios con resumen diario activo
+    // 2️⃣ Usuarios con resumen diario activo
     const { data: users, error: usersErr } = await supabase
       .from("user_settings")
       .select("user_id")
-      .eq("daily_summary", true); // 👈 usamos daily_summary, no event_reminders
+      .eq("daily_summary", true);
 
-    if (usersErr) throw usersErr;
+    if (usersErr) {
+      console.error("[daily-reminders] error fetching users", usersErr);
+      throw usersErr;
+    }
     if (!users || users.length === 0) {
       return NextResponse.json({ ok: true, sent: 0 });
     }
 
     let sent = 0;
 
-    // 4️⃣ Loop usuarios
+    // 3️⃣ Loop usuarios (errores aislados, no rompen todo)
     for (const u of users) {
       const uid = u.user_id;
+      try {
+        // Email vía API admin oficial
+        const { data: adminUser, error: adminErr } =
+          await supabase.auth.admin.getUserById(uid);
 
-      // Email del usuario
-      const { data: authUser, error: authErr } = await supabase
-        .from("auth.users")
-        .select("email")
-        .eq("id", uid)
-        .maybeSingle();
+        if (adminErr) {
+          console.error(
+            "[daily-reminders] error fetching auth user",
+            uid,
+            adminErr
+          );
+          continue;
+        }
 
-      if (authErr) throw authErr;
+        const email = adminUser?.user?.email;
+        if (!email) {
+          console.warn(
+            "[daily-reminders] user without email, skipping",
+            uid
+          );
+          continue;
+        }
 
-      const email = (authUser as any)?.email;
-      if (!email) continue;
+        // Eventos de HOY
+        const { data: events, error: evErr } = await supabase
+          .from("events")
+          .select("title, start, end, group_id")
+          .eq("user_id", uid)
+          .gte("start", startISO)
+          .lt("start", endISO)
+          .order("start", { ascending: true });
 
-      // Eventos de HOY
-      const { data: events, error: evErr } = await supabase
-        .from("events")
-        .select("title, start, end, group_id")
-        .eq("user_id", uid)
-        .gte("start", startISO)
-        .lt("start", endISO)
-        .order("start", { ascending: true });
+        if (evErr) {
+          console.error(
+            "[daily-reminders] error fetching events",
+            uid,
+            evErr
+          );
+          continue;
+        }
+        if (!events || events.length === 0) {
+          continue;
+        }
 
-      if (evErr) throw evErr;
-      if (!events || events.length === 0) continue;
+        const payload = events.map((e) => ({
+          title: e.title || "Evento",
+          start: e.start,
+          end: e.end,
+          groupLabel: e.group_id ? "Compartido" : "Personal",
+        }));
 
-      // Payload para el email
-      const payload = events.map((e) => ({
-        title: e.title || "Evento",
-        start: e.start,
-        end: e.end,
-        groupLabel: e.group_id ? "Compartido" : "Personal",
-      }));
+        const listHtml = payload
+          .map(
+            (e) =>
+              `<li><strong>${formatTime(e.start)} – ${formatTime(
+                e.end
+              )}</strong> · ${e.title} <span style="color:#9ca3af;">(${e.groupLabel})</span></li>`
+          )
+          .join("");
 
-      const listHtml = payload
-        .map(
-          (e) =>
-            `<li><strong>${formatTime(e.start)} – ${formatTime(
-              e.end
-            )}</strong> · ${e.title} <span style="color:#9ca3af;">(${e.groupLabel})</span></li>`
-        )
-        .join("");
+        const html = `
+          <div style="font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;color:#0f172a;">
+            <h2 style="margin-bottom:4px;">Tus eventos de hoy</h2>
+            <p style="margin-top:0;margin-bottom:12px;color:#6b7280;">${label}</p>
+            <ul style="padding-left:20px;margin-top:0;margin-bottom:16px;">
+              ${listHtml}
+            </ul>
+            <p style="font-size:12px;color:#9ca3af;">
+              Enviado por SyncPlans · Organiza tu día sin choques de horario.
+            </p>
+          </div>
+        `;
 
-      const html = `
-        <div style="font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;color:#0f172a;">
-          <h2 style="margin-bottom:4px;">Tus eventos de hoy</h2>
-          <p style="margin-top:0;margin-bottom:12px;color:#6b7280;">${label}</p>
-          <ul style="padding-left:20px;margin-top:0;margin-bottom:16px;">
-            ${listHtml}
-          </ul>
-          <p style="font-size:12px;color:#9ca3af;">
-            Enviado por SyncPlans · Organiza tu día sin choques de horario.
-          </p>
-        </div>
-      `;
+        await resend.emails.send({
+          from: EMAIL_FROM,
+          to: email,
+          subject: "Tus eventos de hoy · SyncPlans",
+          html,
+        });
 
-      await resend.emails.send({
-        from: EMAIL_FROM,
-        to: email,
-        subject: "Tus eventos de hoy · SyncPlans",
-        html,
-      });
-
-      sent++;
+        sent++;
+      } catch (userErr) {
+        console.error(
+          "[daily-reminders] error processing user",
+          uid,
+          userErr
+        );
+        // seguimos con el siguiente usuario
+      }
     }
 
     return NextResponse.json({ ok: true, sent });
   } catch (err) {
-    console.error("[daily-reminders]", err);
+    console.error("[daily-reminders] cron failed", err);
     return NextResponse.json(
       { ok: false, message: "Cron failed" },
       { status: 500 }

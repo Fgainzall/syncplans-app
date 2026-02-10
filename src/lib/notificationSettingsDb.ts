@@ -1,3 +1,6 @@
+// src/lib/userNotificationSettings.ts
+"use client";
+
 import supabase from "@/lib/supabaseClient";
 
 export type NotificationSettings = {
@@ -16,14 +19,14 @@ const DEFAULTS = {
   notify_family: true,
 };
 
-export async function getMyNotificationSettings(): Promise<NotificationSettings> {
-  const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+export async function getMyNotificationSettings(): Promise<NotificationSettings | null> {
+  const { data: sessionData, error: sessionErr } =
+    await supabase.auth.getSession();
   if (sessionErr) throw sessionErr;
 
   const userId = sessionData.session?.user?.id;
-  if (!userId) throw new Error("No auth session");
+  if (!userId) return null;
 
-  // 1) intentamos leer
   const { data, error } = await supabase
     .from("user_notification_settings")
     .select("*")
@@ -32,32 +35,37 @@ export async function getMyNotificationSettings(): Promise<NotificationSettings>
 
   if (error) throw error;
 
-  // 2) si no existe, la creamos con defaults (UX: cero fricción)
   if (!data) {
-    const { data: created, error: insErr } = await supabase
-      .from("user_notification_settings")
-      .insert({ user_id: userId, ...DEFAULTS })
-      .select("*")
-      .single();
-
-    if (insErr) throw insErr;
-    return created as NotificationSettings;
+    // Si no hay fila, devolvemos defaults en memoria
+    return {
+      user_id: userId,
+      updated_at: new Date().toISOString(),
+      ...DEFAULTS,
+    };
   }
 
   return data as NotificationSettings;
 }
 
-export async function updateMyNotificationSettings(patch: Partial<Omit<NotificationSettings, "user_id" | "updated_at">>) {
-  const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+export async function upsertMyNotificationSettings(
+  patch: Partial<Omit<NotificationSettings, "user_id" | "updated_at">>
+): Promise<NotificationSettings> {
+  const { data: sessionData, error: sessionErr } =
+    await supabase.auth.getSession();
   if (sessionErr) throw sessionErr;
 
   const userId = sessionData.session?.user?.id;
   if (!userId) throw new Error("No auth session");
 
-  const { error } = await supabase
+  // Hacemos upsert con defaults si no existe
+  const insertPayload = { user_id: userId, ...DEFAULTS, ...patch };
+
+  const { data, error } = await supabase
     .from("user_notification_settings")
-    .update(patch)
-    .eq("user_id", userId);
+    .upsert(insertPayload, { onConflict: "user_id" })
+    .select("*")
+    .single();
 
   if (error) throw error;
+  return data as NotificationSettings;
 }

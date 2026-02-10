@@ -1,92 +1,125 @@
 // src/app/settings/notifications/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getUser } from "@/lib/auth";
+
 import {
   getSettingsFromDb,
   saveSettingsToDb,
-  resetSettingsToDb,
-  type NotificationSettings,
+  type NotificationSettings as AppNotificationSettings,
 } from "@/lib/settings";
+
+import {
+  getMyNotificationSettings,
+  updateMyNotificationSettings,
+  type NotificationSettings as UserNotificationSettings,
+} from "@/lib/userNotificationSettings";
 
 export default function NotificationsSettingsPage() {
   const router = useRouter();
 
-  const [ready, setReady] = useState(false);
+  const [appSettings, setAppSettings] =
+    useState<AppNotificationSettings | null>(null);
+  const [userNotif, setUserNotif] =
+    useState<UserNotificationSettings | null>(null);
+
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [s, setS] = useState<NotificationSettings | null>(null);
-  const [savedPulse, setSavedPulse] = useState(false);
+  const [toast, setToast] = useState<{ title: string; subtitle?: string } | null>(
+    null
+  );
 
   useEffect(() => {
     let alive = true;
 
     (async () => {
-      const u = getUser();
-      if (!u) {
-        router.push("/auth/login?next=/settings/notifications");
-        return;
-      }
-
       try {
-        const db = await getSettingsFromDb();
+        const [s, u] = await Promise.all([
+          getSettingsFromDb(),
+          getMyNotificationSettings(),
+        ]);
         if (!alive) return;
-        setS(db);
-        setReady(true);
-      } catch {
+        setAppSettings(s);
+        setUserNotif(u);
+      } catch (err) {
+        console.error("[NotificationsSettings] load error", err);
         if (!alive) return;
-        setReady(true);
+        setToast({
+          title: "No se pudieron cargar tus ajustes",
+          subtitle: "Refresca la página o intenta de nuevo en unos segundos.",
+        });
+      } finally {
+        if (alive) setLoading(false);
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, [router]);
+  }, []);
 
-  async function commit(next: NotificationSettings) {
-    setS(next);
-    setSaving(true);
+  // Autocerrar toast suave
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  function updateApp<K extends keyof AppNotificationSettings>(
+    key: K,
+    value: AppNotificationSettings[K]
+  ) {
+    setAppSettings((prev: AppNotificationSettings | null) =>
+      prev ? { ...prev, [key]: value } : prev
+    );
+  }
+
+  function updateUserNotif<K extends keyof UserNotificationSettings>(
+    key: K,
+    value: UserNotificationSettings[K]
+  ) {
+    setUserNotif((prev: UserNotificationSettings | null) =>
+      prev ? { ...prev, [key]: value } : prev
+    );
+  }
+
+  async function handleSave() {
+    if (!appSettings || !userNotif) return;
     try {
-      await saveSettingsToDb(next);
-      setSavedPulse(true);
-      setTimeout(() => setSavedPulse(false), 700);
+      setSaving(true);
+      setToast(null);
+
+      await Promise.all([
+        saveSettingsToDb(appSettings),
+        updateMyNotificationSettings({
+          notify_conflicts: userNotif.notify_conflicts,
+          notify_personal: userNotif.notify_personal,
+          notify_pair: userNotif.notify_pair,
+          notify_family: userNotif.notify_family,
+        }),
+      ]);
+
+      setToast({
+        title: "Ajustes guardados",
+        subtitle: "Tus notificaciones se actualizaron correctamente.",
+      });
+    } catch (err) {
+      console.error("[NotificationsSettings] save error", err);
+      setToast({
+        title: "No se pudieron guardar los cambios",
+        subtitle: "Inténtalo de nuevo en unos segundos.",
+      });
     } finally {
       setSaving(false);
     }
   }
 
-  const score = useMemo(() => {
-    if (!s) return { on: 0, total: 6 };
-    const toggles = [
-      s.eventReminders,
-      s.dailySummary,
-      s.weeklySummary,
-      s.conflictAlerts,
-      s.partnerUpdates,
-      s.familyUpdates,
-    ];
-    const on = toggles.filter(Boolean).length;
-    return { on, total: toggles.length };
-  }, [s]);
-
-  if (!ready) return null;
-
-  if (!s) {
+  if (loading || !appSettings || !userNotif) {
     return (
       <main className="min-h-screen bg-[#050816] text-white">
-        <div className="mx-auto max-w-3xl px-4 py-10">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-            No pude cargar tus ajustes todavía. Revisa que hayas corrido el SQL y que tu sesión esté activa.
-          </div>
-
-          <button
-            onClick={() => router.push("/calendar")}
-            className="mt-4 rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15"
-          >
-            Volver al calendario
-          </button>
+        <div className="mx-auto max-w-3xl px-4 py-10 text-sm text-white/70">
+          Cargando ajustes de notificaciones…
         </div>
       </main>
     );
@@ -96,259 +129,248 @@ export default function NotificationsSettingsPage() {
     <main className="min-h-screen bg-[#050816] text-white">
       <div className="mx-auto max-w-3xl px-4 py-10">
         {/* Header */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
-              <span className="h-2 w-2 rounded-full bg-cyan-400" />
-              SyncPlans · Ajustes
+        <div className="mb-6">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
+            <span className="h-2 w-2 rounded-full bg-cyan-400" />
+            SyncPlans · Notificaciones
+          </div>
+
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight">
+            Notificaciones y resúmenes
+          </h1>
+          <p className="mt-2 text-sm text-white/60">
+            Decide qué cosas quieres que SyncPlans te recuerde y qué prefieres
+            revisar tú cuando quieras.
+          </p>
+
+          <button
+            onClick={() => router.push("/settings")}
+            className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/80 hover:bg-white/10"
+          >
+            Volver a Settings
+          </button>
+        </div>
+
+        {/* Bloque: Email / resúmenes */}
+        <section className="mb-6 rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                <h2 className="text-sm font-semibold">
+                  Resumen diario por email
+                </h2>
+              </div>
+              <p className="mt-1 text-xs text-white/60">
+                Cada mañana te enviamos un correo con los eventos de tu día
+                (personales + compartidos) para que empieces con claridad.
+                Puedes apagarlo si prefieres revisar el calendario manualmente.
+              </p>
             </div>
 
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight">Notificaciones</h1>
+            <Toggle
+              checked={appSettings.dailySummary}
+              onChange={(v) => updateApp("dailySummary", v)}
+            />
+          </div>
 
-            <p className="mt-2 text-sm text-white/60">
-              Controla recordatorios, resúmenes por correo y modo silencioso.
+          <div className="mt-4 grid gap-3 text-xs text-white/70 sm:grid-cols-2">
+            <label className="flex items-center justify-between gap-3 rounded-2xl bg-black/40 px-3 py-2">
+              <div>
+                <div className="text-[11px] font-semibold">
+                  Recordatorios de eventos
+                </div>
+                <div className="mt-0.5 text-[11px] text-white/50">
+                  Notificaciones para eventos cercanos en el tiempo.
+                </div>
+              </div>
+              <Toggle
+                checked={appSettings.eventReminders}
+                onChange={(v) => updateApp("eventReminders", v)}
+              />
+            </label>
+
+            <label className="flex items-center justify-between gap-3 rounded-2xl bg-black/40 px-3 py-2">
+              <div>
+                <div className="text-[11px] font-semibold">
+                  Resumen semanal
+                </div>
+                <div className="mt-0.5 text-[11px] text-white/50">
+                  Un email con una vista general de la semana.
+                </div>
+              </div>
+              <Toggle
+                checked={appSettings.weeklySummary}
+                onChange={(v) => updateApp("weeklySummary", v)}
+              />
+            </label>
+          </div>
+        </section>
+
+        {/* Bloque: Alertas de conflictos */}
+        <section className="mb-6 rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
+                <h2 className="text-sm font-semibold">Alertas de conflictos</h2>
+              </div>
+              <p className="mt-1 text-xs text-white/60">
+                Te avisamos cuando un evento nuevo choca con algo que ya existe
+                en tu calendario, para que puedas decidir antes de guardar.
+              </p>
+            </div>
+
+            <Toggle
+              checked={appSettings.conflictAlerts}
+              onChange={(v) => updateApp("conflictAlerts", v)}
+            />
+          </div>
+
+          <div className="mt-4 rounded-2xl bg-black/40 p-3 text-[11px] text-white/60">
+            Las alertas de conflicto funcionan junto con tus preferencias de
+            resolución (en la sección de{" "}
+            <span className="font-semibold">Preferencias de conflictos</span>).
+          </div>
+        </section>
+
+        {/* Bloque: Notificaciones por tipo de grupo */}
+        <section className="mb-6 rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
+                <h2 className="text-sm font-semibold">
+                  Notificaciones por tipo de grupo
+                </h2>
+              </div>
+              <p className="mt-1 text-xs text-white/60">
+                Elige de qué espacios quieres recibir notificaciones dentro de
+                la app. Esto no apaga tus eventos, solo los avisos.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 text-xs text-white/70 sm:grid-cols-2">
+            <label className="flex items-center justify-between gap-3 rounded-2xl bg-black/40 px-3 py-2">
+              <div>
+                <div className="text-[11px] font-semibold">Personal</div>
+                <div className="mt-0.5 text-[11px] text-white/50">
+                  Actividad y cambios en tu espacio personal.
+                </div>
+              </div>
+              <Toggle
+                checked={userNotif.notify_personal}
+                onChange={(v) => updateUserNotif("notify_personal", v)}
+              />
+            </label>
+
+            <label className="flex items-center justify-between gap-3 rounded-2xl bg-black/40 px-3 py-2">
+              <div>
+                <div className="text-[11px] font-semibold">Pareja</div>
+                <div className="mt-0.5 text-[11px] text-white/50">
+                  Eventos, cambios y mensajes en grupos de pareja.
+                </div>
+              </div>
+              <Toggle
+                checked={userNotif.notify_pair}
+                onChange={(v) => updateUserNotif("notify_pair", v)}
+              />
+            </label>
+
+            <label className="flex items-center justify-between gap-3 rounded-2xl bg-black/40 px-3 py-2">
+              <div>
+                <div className="text-[11px] font-semibold">Familia</div>
+                <div className="mt-0.5 text-[11px] text-white/50">
+                  Actividad en grupos familiares (hijos, padres, etc.).
+                </div>
+              </div>
+              <Toggle
+                checked={userNotif.notify_family}
+                onChange={(v) => updateUserNotif("notify_family", v)}
+              />
+            </label>
+
+            <label className="flex items-center justify-between gap-3 rounded-2xl bg-black/40 px-3 py-2">
+              <div>
+                <div className="text-[11px] font-semibold">Conflictos</div>
+                <div className="mt-0.5 text-[11px] text-white/50">
+                  Notificaciones específicas cuando se detecten choques
+                  importantes.
+                </div>
+              </div>
+              <Toggle
+                checked={userNotif.notify_conflicts}
+                onChange={(v) => updateUserNotif("notify_conflicts", v)}
+              />
+            </label>
+          </div>
+        </section>
+
+        {/* Footer con acciones */}
+        <div className="mt-4 flex flex-col items-start justify-between gap-3 border-t border-white/10 pt-4 text-xs text-white/60 sm:flex-row sm:items-center">
+          <div>
+            <div className="font-semibold text-white">
+              Cómo usa SyncPlans tus notificaciones
+            </div>
+            <p className="mt-1 text-[11px] text-white/60">
+              Solo usamos estos ajustes para avisarte de cambios y resúmenes de
+              tu propio calendario. No compartimos esta información con nadie.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => router.push("/profile")}
-              className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
-            >
-              Volver a perfil
-            </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className={[
+              "inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition",
+              saving
+                ? "border-white/20 bg-white/10 text-white/60 cursor-default"
+                : "border-cyan-400/60 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25",
+            ].join(" ")}
+          >
+            {saving ? "Guardando…" : "Guardar cambios"}
+          </button>
+        </div>
 
-            <button
-              onClick={async () => {
-                setSaving(true);
-                try {
-                  const d = await resetSettingsToDb();
-                  setS(d);
-                  setSavedPulse(true);
-                  setTimeout(() => setSavedPulse(false), 700);
-                } finally {
-                  setSaving(false);
-                }
-              }}
-              className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/15"
-            >
-              Restaurar defaults
-            </button>
+        {toast && (
+          <div className="mt-4 rounded-2xl border border-white/10 bg-black/60 px-4 py-3 text-[11px]">
+            <div className="font-semibold text-white">{toast.title}</div>
+            {toast.subtitle && (
+              <div className="mt-1 text-white/70">{toast.subtitle}</div>
+            )}
           </div>
-        </div>
-
-        {/* Status banner */}
-        <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold">Estado</div>
-              <div className="mt-1 text-xs text-white/60">
-                {score.on}/{score.total} activadas ·{" "}
-                {s.quietHoursEnabled ? "Modo silencioso activo" : "Modo silencioso apagado"}
-                {saving ? " · Guardando…" : ""}
-              </div>
-            </div>
-
-            <div
-              className={[
-                "rounded-full border px-3 py-1 text-xs font-semibold transition",
-                savedPulse
-                  ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100/80"
-                  : "border-white/10 bg-white/5 text-white/60",
-              ].join(" ")}
-            >
-              {savedPulse ? "Guardado ✓" : "Auto-guardado"}
-            </div>
-          </div>
-        </div>
-
-        {/* Cards */}
-        <div className="grid gap-4">
-          <Card
-            title="Recordatorios y resúmenes"
-            desc="Tu foto diaria y semanal: antes de que algo se te pase."
-          >
-            <ToggleRow
-              title="Recordatorio de eventos"
-              subtitle="Te avisamos antes de que empiece un evento."
-              value={s.eventReminders}
-              onChange={(v) => commit({ ...s, eventReminders: v })}
-            />
-            <Divider />
-            <ToggleRow
-              title="Resumen diario por correo"
-              subtitle="Cada mañana: un correo con los eventos que tienes para ese día."
-              value={s.dailySummary}
-              onChange={(v) => commit({ ...s, dailySummary: v })}
-            />
-            <Divider />
-            <ToggleRow
-              title="Resumen semanal"
-              subtitle="Una vez a la semana: tus eventos y organización de los próximos días."
-              value={s.weeklySummary}
-              onChange={(v) => commit({ ...s, weeklySummary: v })}
-            />
-          </Card>
-
-          <Card
-            title="Alertas inteligentes"
-            desc="Tu feature estrella: choques de horario y actualizaciones del grupo."
-          >
-            <ToggleRow
-              title="Notificaciones de conflictos"
-              subtitle="Cuando detectamos solapamientos, te lo decimos al instante."
-              value={s.conflictAlerts}
-              onChange={(v) => commit({ ...s, conflictAlerts: v })}
-            />
-            <Divider />
-            <ToggleRow
-              title="Notificaciones de pareja"
-              subtitle="Cambios relevantes del grupo de pareja."
-              value={s.partnerUpdates}
-              onChange={(v) => commit({ ...s, partnerUpdates: v })}
-            />
-            <Divider />
-            <ToggleRow
-              title="Notificaciones de familia"
-              subtitle="Cambios relevantes del grupo familiar."
-              value={s.familyUpdates}
-              onChange={(v) => commit({ ...s, familyUpdates: v })}
-            />
-          </Card>
-
-          <Card
-            title="Modo silencioso"
-            desc="Bloquea notificaciones en horario de descanso (sin perder nada)."
-          >
-            <ToggleRow
-              title="Activar horario silencioso"
-              subtitle="Durante este rango, no enviamos alertas."
-              value={s.quietHoursEnabled}
-              onChange={(v) => commit({ ...s, quietHoursEnabled: v })}
-            />
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <TimeField
-                label="Desde"
-                value={s.quietFrom}
-                disabled={!s.quietHoursEnabled}
-                onChange={(v) => commit({ ...s, quietFrom: v })}
-              />
-              <TimeField
-                label="Hasta"
-                value={s.quietTo}
-                disabled={!s.quietHoursEnabled}
-                onChange={(v) => commit({ ...s, quietTo: v })}
-              />
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-white/60">
-              Tip: Activa modo silencioso para que se sienta “producto real”.
-            </div>
-          </Card>
-        </div>
-
-        <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-white/60">
-          Los resúmenes se envían automáticamente cuando están activados. No tienes que hacer nada más.
-        </div>
+        )}
       </div>
     </main>
   );
 }
 
-/* ---------------- UI ---------------- */
-
-function Card({
-  title,
-  desc,
-  children,
-}: {
-  title: string;
-  desc: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-      <div className="mb-4">
-        <div className="text-sm font-semibold">{title}</div>
-        <div className="mt-1 text-xs text-white/60">{desc}</div>
-      </div>
-      <div className="rounded-2xl border border-white/10 bg-black/30">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-function ToggleRow({
-  title,
-  subtitle,
-  value,
+function Toggle({
+  checked,
   onChange,
 }: {
-  title: string;
-  subtitle: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
+  checked: boolean;
+  onChange: (value: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 p-4">
-      <div className="min-w-0">
-        <div className="truncate text-sm font-semibold">{title}</div>
-        <div className="mt-1 text-xs text-white/60">{subtitle}</div>
-      </div>
-
-      <button
-        onClick={() => onChange(!value)}
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={[
+        "relative inline-flex h-6 w-11 items-center rounded-full border transition",
+        checked
+          ? "border-emerald-400 bg-emerald-500/40"
+          : "border-white/20 bg-white/10",
+      ].join(" ")}
+    >
+      <span
         className={[
-          "relative h-8 w-14 rounded-full border transition",
-          value
-            ? "border-emerald-400/30 bg-emerald-500/20"
-            : "border-white/10 bg-white/5",
-        ].join(" ")}
-        aria-label={title}
-      >
-        <span
-          className={[
-            "absolute top-1 h-6 w-6 rounded-full border bg-[#050816] transition",
-            value ? "left-7 border-emerald-400/30" : "left-1 border-white/10",
-          ].join(" ")}
-        />
-      </button>
-    </div>
-  );
-}
-
-function TimeField({
-  label,
-  value,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  disabled: boolean;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-      <div className="mb-2 text-xs font-semibold text-white/70">{label}</div>
-      <input
-        type="time"
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className={[
-          "w-full rounded-xl border px-3 py-2 text-sm outline-none",
-          disabled
-            ? "border-white/5 bg-black/20 text-white/30"
-            : "border-white/10 bg-black/30 text-white/90 focus:border-white/20",
+          "inline-block h-4 w-4 transform rounded-full bg-white shadow transition",
+          checked ? "translate-x-5" : "translate-x-1",
         ].join(" ")}
       />
-    </div>
+    </button>
   );
-}
-
-function Divider() {
-  return <div className="h-px w-full bg-white/10" />;
 }

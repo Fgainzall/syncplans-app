@@ -61,7 +61,11 @@ type DbGroup = {
 
 type NewType = "personal" | "group";
 
-type PreflightChoice = "edit" | "keep_existing" | "replace_with_new" | "keep_both";
+type PreflightChoice =
+  | "edit"
+  | "keep_existing"
+  | "replace_with_new"
+  | "keep_both";
 
 type PreflightConflict = {
   id: string;
@@ -73,7 +77,9 @@ type PreflightConflict = {
   overlapEnd: string;
 };
 
-function mapDefaultResolutionToChoice(s: NotificationSettings | null): PreflightChoice {
+function mapDefaultResolutionToChoice(
+  s: NotificationSettings | null
+): PreflightChoice {
   const def = (s as any)?.conflictDefaultResolution ?? "ask_me";
   if (def === "keep_existing") return "keep_existing";
   if (def === "replace_with_new") return "replace_with_new";
@@ -122,9 +128,10 @@ function NewEventDetailsInner() {
   );
 
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
-    null
-  );
+  const [toast, setToast] = useState<null | {
+    title: string;
+    subtitle?: string;
+  }>(null);
 
   // Settings
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
@@ -136,7 +143,9 @@ function NewEventDetailsInner() {
   // Groups
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [groups, setGroups] = useState<DbGroup[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>(groupIdParam || "");
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(
+    groupIdParam || ""
+  );
 
   // Boot de evento (modo edición)
   const [bootingEvent, setBootingEvent] = useState<boolean>(isEditing);
@@ -161,7 +170,9 @@ function NewEventDetailsInner() {
     startIso: string;
     endIso: string;
   }>(null);
-  const [existingIdsToReplace, setExistingIdsToReplace] = useState<string[]>([]);
+  const [existingIdsToReplace, setExistingIdsToReplace] = useState<string[]>(
+    []
+  );
 
   // Toast auto hide
   useEffect(() => {
@@ -195,7 +206,11 @@ function NewEventDetailsInner() {
     [uniqueGroups, selectedGroupId]
   );
 
-  function buildUrl(nextType: NewType, nextDateIso: string, nextGroupId?: string | null) {
+  function buildUrl(
+    nextType: NewType,
+    nextDateIso: string,
+    nextGroupId?: string | null
+  ) {
     const params = new URLSearchParams();
     params.set("type", nextType);
     params.set("date", nextDateIso);
@@ -235,7 +250,11 @@ function NewEventDetailsInner() {
 
         // ✅ Si URL dice group pero NO trae groupId, la arreglamos (replace)
         if (typeParam === "group" && !groupIdParam) {
-          const next = buildUrl("group", new Date(startDate).toISOString(), fallbackGroupId);
+          const next = buildUrl(
+            "group",
+            new Date(startDate).toISOString(),
+            fallbackGroupId
+          );
           router.replace(next);
         }
       } catch (err: any) {
@@ -316,7 +335,11 @@ function NewEventDetailsInner() {
   useEffect(() => {
     if (effectiveType !== "group") return;
     if (!selectedGroupId) return;
-    const next = buildUrl("group", new Date(startDate).toISOString(), selectedGroupId);
+    const next = buildUrl(
+      "group",
+      new Date(startDate).toISOString(),
+      selectedGroupId
+    );
     const current = `/events/new/details?${sp.toString()}`;
     if (current !== next) router.replace(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -333,7 +356,9 @@ function NewEventDetailsInner() {
   const theme = useMemo(() => {
     if (effectiveType === "group") {
       return {
-        label: lockedToActiveGroup ? `Evento compartido (${meta.label})` : "Evento de grupo",
+        label: lockedToActiveGroup
+          ? `Evento compartido (${meta.label})`
+          : "Evento de grupo",
         border:
           groupType === "family"
             ? "rgba(96,165,250,0.28)"
@@ -388,7 +413,8 @@ function NewEventDetailsInner() {
     const s = fromInputLocal(startLocal);
     const e = fromInputLocal(endLocal);
     if (isNaN(s.getTime()) || isNaN(e.getTime())) return;
-    if (e.getTime() <= s.getTime()) setEndLocal(toInputLocal(addMinutes(s, 60)));
+    if (e.getTime() <= s.getTime())
+      setEndLocal(toInputLocal(addMinutes(s, 60)));
   };
 
   const doSave = async (payload: {
@@ -517,7 +543,9 @@ function NewEventDetailsInner() {
       };
     });
 
-    setExistingIdsToReplace(Array.from(new Set(items.map((x) => x.existingId))));
+    setExistingIdsToReplace(
+      Array.from(new Set(items.map((x) => x.existingId)))
+    );
     setPreflightItems(items);
     setPreflightDefaultChoice(mapDefaultResolutionToChoice(settings));
     setPreflightOpen(true);
@@ -663,7 +691,8 @@ function NewEventDetailsInner() {
               </span>
             </div>
             <div style={styles.heroSub}>
-              Antes de guardar, SyncPlans revisa choques. Si hay conflicto, tú decides.
+              Antes de guardar, SyncPlans revisa choques. Si hay conflicto, tú
+              decides.
               {lockedToActiveGroup ? (
                 <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>
                   Este evento se compartirá automáticamente con tu grupo activo.
@@ -698,7 +727,11 @@ function NewEventDetailsInner() {
                 type="button"
                 onClick={() => {
                   router.push(
-                    buildUrl("personal", new Date(startDate).toISOString(), null)
+                    buildUrl(
+                      "personal",
+                      new Date(startDate).toISOString(),
+                      null
+                    )
                   );
                 }}
                 style={{
@@ -937,7 +970,9 @@ function ConflictPreflightModal({
                 key={it.id}
                 style={{
                   ...modalStyles.item,
-                  borderTop: idx ? "1px solid rgba(255,255,255,0.10)" : "none",
+                  borderTop: idx
+                    ? "1px solid rgba(255,255,255,0.10)"
+                    : "none",
                 }}
               >
                 <div style={modalStyles.itemTop}>

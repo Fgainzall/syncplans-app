@@ -1,4 +1,11 @@
+// src/lib/notificationsDb.ts
+"use client";
+
 import supabase from "@/lib/supabaseClient";
+import {
+  getMyNotificationSettings,
+  type NotificationSettings as UserNotificationSettings,
+} from "./userNotificationSettings";
 
 export type NotificationType =
   | "event_created"
@@ -30,19 +37,25 @@ async function requireUid(): Promise<string> {
 
 /**
  * 🔔 SOLO NOTIFICACIONES NO LEÍDAS (Inbox Zero)
- * y además respeta grupos silenciados (group_notification_settings.muted = true).
+ * - Respeta grupos silenciados (group_notification_settings.muted = true).
+ * - Respeta user_notification_settings (personal / pareja / familia / conflictos).
  */
 export async function getMyNotifications(
   limit = 20
 ): Promise<NotificationRow[]> {
   const uid = await requireUid();
 
-  // 1) Leer qué grupos tengo silenciados
-  const { data: mutedRows, error: mutedErr } = await supabase
-    .from("group_notification_settings")
-    .select("group_id, muted")
-    .eq("user_id", uid)
-    .eq("muted", true);
+  // 1) Leemos en paralelo:
+  //    - grupos silenciados
+  //    - preferencias globales de notificaciones del usuario
+  const [{ data: mutedRows, error: mutedErr }, userNotif] = await Promise.all([
+    supabase
+      .from("group_notification_settings")
+      .select("group_id, muted")
+      .eq("user_id", uid)
+      .eq("muted", true),
+    getMyNotificationSettings(),
+  ]);
 
   if (mutedErr) throw mutedErr;
 
@@ -62,16 +75,91 @@ export async function getMyNotifications(
   // 3) Si hay grupos silenciados, excluirlos por entity_id
   //    (para group_message, entity_id = group_id)
   if (mutedGroupIds.length > 0) {
-    // Supabase espera "(val1,val2,...)"
-    const list = `(${mutedGroupIds
-      .map((id) => `"${id}"`)
-      .join(",")})`;
+    // Supabase espera un string tipo ('id1','id2',...)
+    const list = `(${mutedGroupIds.map((id) => `"${id}"`).join(",")})`;
     query = query.not("entity_id", "in", list);
   }
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as NotificationRow[];
+
+  const rows = (data ?? []) as NotificationRow[];
+  if (!userNotif) return rows;
+
+  // 4) Para notificaciones de grupo, miramos el tipo de grupo (pair/family/solo/other)
+  const groupIdsFromNotifications = Array.from(
+    new Set(
+      rows
+        .filter(
+          (n) =>
+            String(n.type || "").toLowerCase() === "group_message" &&
+            n.entity_id
+        )
+        .map((n) => String(n.entity_id))
+    )
+  );
+
+  let groupTypeMap: Record<string, string | null> = {};
+
+  if (groupIdsFromNotifications.length > 0) {
+    const { data: groups, error: gErr } = await supabase
+      .from("groups")
+      .select("id, type")
+      .in("id", groupIdsFromNotifications);
+
+    if (gErr) throw gErr;
+
+    groupTypeMap = Object.fromEntries(
+      (groups ?? []).map((g: any) => [String(g.id), g.type as string | null])
+    );
+  }
+
+  // 5) Filtro final según preferencias del usuario
+  const filtered = rows.filter((n) =>
+    shouldKeepNotification(n, userNotif, groupTypeMap)
+  );
+
+  return filtered;
+}
+
+/**
+ * Lógica de filtrado por preferencias:
+ * - notify_conflicts → conflictos
+ * - notify_personal / notify_pair / notify_family → según tipo de grupo
+ */
+function shouldKeepNotification(
+  n: NotificationRow,
+  prefs: UserNotificationSettings,
+  groupTypeMap: Record<string, string | null>
+): boolean {
+  const t = String(n.type || "").toLowerCase();
+
+  // 1) Conflictos → notify_conflicts
+  if (t === "conflict" || t === "conflict_detected") {
+    if (!prefs.notify_conflicts) return false;
+    // Si sí quiere conflictos, la dejamos pasar
+    return true;
+  }
+
+  // 2) Mensajes de grupo → miramos el tipo de grupo
+  if (t === "group_message") {
+    const gid = n.entity_id ? String(n.entity_id) : null;
+    const gType = gid ? groupTypeMap[gid] : null;
+    const gt = (gType || "").toLowerCase();
+
+    if ((gt === "pair" || gt === "couple") && !prefs.notify_pair) return false;
+    if (gt === "family" && !prefs.notify_family) return false;
+    if ((gt === "solo" || gt === "personal") && !prefs.notify_personal)
+      return false;
+
+    // other / desconocido → por ahora la dejamos pasar
+    return true;
+  }
+
+  // 3) Todo lo demás lo tratamos como "personal"
+  if (!prefs.notify_personal) return false;
+
+  return true;
 }
 
 export async function markNotificationRead(id: string) {
