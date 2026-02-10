@@ -55,11 +55,17 @@ export default function RegisterClient() {
     }
 
     try {
+      // 👇 Usamos dominio de entorno (producción) y dejamos window como fallback
+      const APP_URL =
+        process.env.NEXT_PUBLIC_APP_URL ??
+        process.env.APP_URL ??
+        window.location.origin;
+
       const { error: signUpError } = await supabase.auth.signUp({
         email: trimmedEmail,
         password: trimmedPass,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${APP_URL}/auth/callback`,
           data: {
             full_name: trimmedName,
             display_name: trimmedName,

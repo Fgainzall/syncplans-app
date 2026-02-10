@@ -11,7 +11,9 @@ import { inviteToGroup } from "@/lib/invitationsDb";
 import { fetchMyGroups, type GroupRow } from "@/lib/groupsStore";
 
 function isUuid(x: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    x
+  );
 }
 
 function isValidEmail(email: string) {
@@ -49,7 +51,9 @@ export default function GroupInviteClient() {
   const [role, setRole] = useState<"member" | "admin">("member");
 
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
+  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
+    null
+  );
 
   // ✅ Premium: link visible + copiar manual
   const [inviteLink, setInviteLink] = useState<string | null>(null);
@@ -97,10 +101,7 @@ export default function GroupInviteClient() {
   const emailOk = useMemo(() => isValidEmail(email), [email]);
 
   const canInvite =
-    !busy &&
-    !!selectedGroupId &&
-    isUuid(selectedGroupId) &&
-    emailOk;
+    !busy && !!selectedGroupId && isUuid(selectedGroupId) && emailOk;
 
   async function copyLink(link: string) {
     setCopied(false);
@@ -150,7 +151,7 @@ export default function GroupInviteClient() {
         throw new Error(msg);
       }
 
-      const inviteId = res.invite_id;
+      const inviteId = res.invite_id || res.id;
       const invitedEmail = (res.invited_email || email.trim().toLowerCase()).toString();
 
       const link = inviteId
@@ -260,7 +261,9 @@ export default function GroupInviteClient() {
               Invitar a grupo
             </div>
 
-            <h1 style={{ margin: "10px 0 6px", fontSize: 26, letterSpacing: "-0.6px" }}>
+            <h1
+              style={{ margin: "10px 0 6px", fontSize: 26, letterSpacing: "-0.6px" }}
+            >
               Comparte tu calendario sin fricción
             </h1>
 
@@ -272,14 +275,16 @@ export default function GroupInviteClient() {
                 maxWidth: 650,
               }}
             >
-              Envía una invitación. La otra persona acepta y se vuelve miembro del
-              grupo automáticamente (con RLS seguro).
+              Envía una invitación. La otra persona acepta y se vuelve miembro
+              del grupo automáticamente (con RLS seguro).
             </div>
 
             <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
               {/* Grupo */}
               <div style={{ display: "grid", gap: 8 }}>
-                <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>Grupo</div>
+                <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>
+                  Grupo
+                </div>
 
                 {loadingGroups ? (
                   <div
@@ -346,7 +351,14 @@ export default function GroupInviteClient() {
                     >
                       {groups.map((g) => (
                         <option key={g.id} value={g.id}>
-                          {g.name} ({g.type === "family" ? "Familia" : "Pareja"})
+                          {g.name}{" "}
+                          (
+                          {g.type === "family"
+                            ? "Familia"
+                            : g.type === "pair"
+                            ? "Pareja"
+                            : g.type}
+                          )
                         </option>
                       ))}
                     </select>
@@ -354,7 +366,13 @@ export default function GroupInviteClient() {
                     {selected ? (
                       <div style={{ fontSize: 12, opacity: 0.72 }}>
                         Seleccionado: <b>{selected.name}</b> · tipo{" "}
-                        <b>{selected.type === "family" ? "Familia" : "Pareja"}</b>
+                        <b>
+                          {selected.type === "family"
+                            ? "Familia"
+                            : selected.type === "pair"
+                            ? "Pareja"
+                            : selected.type}
+                        </b>
                       </div>
                     ) : null}
                   </>
@@ -363,7 +381,9 @@ export default function GroupInviteClient() {
 
               {/* Email */}
               <div style={{ display: "grid", gap: 8 }}>
-                <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>Email</div>
+                <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>
+                  Email
+                </div>
                 <input
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -400,9 +420,12 @@ export default function GroupInviteClient() {
 
               {/* Rol */}
               <div style={{ display: "grid", gap: 8 }}>
-                <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>Rol</div>
+                <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>
+                  Rol
+                </div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <button
+                    type="button"
                     onClick={() => setRole("member")}
                     style={{
                       padding: "10px 12px",
@@ -420,6 +443,7 @@ export default function GroupInviteClient() {
                     Miembro
                   </button>
                   <button
+                    type="button"
                     onClick={() => setRole("admin")}
                     style={{
                       padding: "10px 12px",
@@ -449,6 +473,7 @@ export default function GroupInviteClient() {
                 }}
               >
                 <button
+                  type="button"
                   onClick={() => router.push("/groups")}
                   style={{
                     padding: "12px 14px",
@@ -465,6 +490,7 @@ export default function GroupInviteClient() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={onInvite}
                   disabled={!canInvite}
                   style={{
@@ -484,7 +510,7 @@ export default function GroupInviteClient() {
                 </button>
               </div>
 
-              {/* Premium: Link visible */}
+              {/* Link premium */}
               {inviteLink ? (
                 <div
                   style={{
@@ -526,6 +552,7 @@ export default function GroupInviteClient() {
                     }}
                   >
                     <button
+                      type="button"
                       onClick={() => copyLink(inviteLink)}
                       style={{
                         padding: "10px 12px",
@@ -541,6 +568,7 @@ export default function GroupInviteClient() {
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => {
                         setInviteLink(null);
                         setCopied(false);

@@ -1,4 +1,4 @@
-// src/app/invitations/page.tsx
+// src/app/invitations/accept/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";

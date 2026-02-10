@@ -62,12 +62,10 @@ export function getGroupTypeLabel(
   type: GroupType | string | null | undefined
 ): string {
   const t = String(type ?? "").toLowerCase();
-
   if (t === "pair" || t === "couple") return "Pareja";
   if (t === "family") return "Familia";
   if (t === "other") return "Compartido";
   if (t === "solo" || t === "personal") return "Personal";
-
   return "Grupo";
 }
 
@@ -91,8 +89,13 @@ export async function getMyGroups(): Promise<GroupRow[]> {
   if (mErr) throw mErr;
 
   const groupIds = Array.from(
-    new Set((ms ?? []).map((m: any) => m.group_id).filter(Boolean))
+    new Set(
+      (ms ?? [])
+        .map((m: any) => m.group_id)
+        .filter(Boolean)
+    )
   );
+
   if (groupIds.length === 0) return [];
 
   // 2) grupos por ids
@@ -144,7 +147,6 @@ export async function createGroup(input: {
   type: "pair" | "family" | "other";
 }): Promise<GroupRow> {
   const uid = await requireUid();
-
   const name = input.name.trim();
   if (!name) throw new Error("Ponle un nombre al grupo.");
 
@@ -191,11 +193,15 @@ export async function createGroup(input: {
 
   // asegurar membership owner (si tu trigger/RPC ya lo hace, esto puede fallar por duplicate; lo ignoramos si es duplicate)
   try {
-    await supabase
-      .from("group_members")
-      .insert([{ group_id: gRow.id, user_id: uid, role: "owner" }]);
+    await supabase.from("group_members").insert([
+      {
+        group_id: gRow.id,
+        user_id: uid,
+        role: "owner",
+      },
+    ]);
   } catch {
-    // ignore
+    // ignore duplicate
   }
 
   return {
@@ -211,7 +217,7 @@ export async function createGroup(input: {
 
 /**
  * Actualiza la metadata básica del grupo (nombre y/o tipo).
- * RLS en `groups` debe permitir UPDATE solo al owner.
+ * RLS en groups debe permitir UPDATE solo al owner.
  */
 export async function updateGroupMeta(
   groupId: string,
@@ -232,7 +238,6 @@ export async function updateGroupMeta(
     console.error("[updateGroupMeta] error", error);
     throw error;
   }
-
   if (!data) {
     throw new Error("No se pudo actualizar el grupo.");
   }
@@ -244,6 +249,42 @@ export async function updateGroupMeta(
     created_at: data.created_at ?? null,
     owner_id: data.owner_id ?? null,
   };
+}
+
+/* ─────────────────── Eliminar / salir de grupo ─────────────────── */
+
+/**
+ * Elimina por completo un grupo.
+ * - Llama al RPC delete_group(p_group_id uuid)
+ * - El RPC debe verificar que auth.uid() sea el owner.
+ */
+export async function deleteGroup(groupId: string): Promise<void> {
+  const { error } = await supabase.rpc("delete_group", {
+    p_group_id: groupId,
+  });
+
+  if (error) {
+    console.error("[deleteGroup] error", error);
+    throw error;
+  }
+}
+
+/**
+ * Sale del grupo el usuario actual (borra su fila en group_members).
+ */
+export async function leaveGroup(groupId: string): Promise<void> {
+  const uid = await requireUid();
+
+  const { error } = await supabase
+    .from("group_members")
+    .delete()
+    .eq("group_id", groupId)
+    .eq("user_id", uid);
+
+  if (error) {
+    console.error("[leaveGroup] error", error);
+    throw error;
+  }
 }
 
 /* ─────────────────── Mis memberships ─────────────────── */
@@ -262,21 +303,13 @@ export async function getMyGroupMemberships(): Promise<GroupMemberRow[]> {
   const { data, error } = await supabase
     .from("group_members")
     .select(
-      `
-      group_id,
-      user_id,
-      role,
-      display_name,
-      relationship_role,
-      coordination_prefs
-    `
+      "group_id,user_id,role,display_name,relationship_role,coordination_prefs"
     )
     .eq("user_id", uid);
 
   if (error) throw error;
 
   const rows = (data ?? []) as any[];
-
   return rows.map((row) => ({
     group_id: row.group_id,
     user_id: row.user_id,

@@ -1,3 +1,4 @@
+// src/app/invitations/accept/AcceptInviteClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -37,7 +38,11 @@ function StatusPill({ status }: { status: string }) {
       ? { label: "Aceptada", bg: "rgba(34,197,94,0.14)", bd: "rgba(34,197,94,0.28)" }
       : s === "declined"
       ? { label: "Rechazada", bg: "rgba(248,113,113,0.14)", bd: "rgba(248,113,113,0.28)" }
-      : { label: status || "Estado", bg: "rgba(255,255,255,0.08)", bd: "rgba(255,255,255,0.12)" };
+      : {
+          label: status || "Estado",
+          bg: "rgba(255,255,255,0.08)",
+          bd: "rgba(255,255,255,0.12)",
+        };
 
   const dot =
     s === "pending"
@@ -426,8 +431,7 @@ export default function AcceptInviteClient() {
                           fontSize: 13,
                         }}
                       >
-                        Tipo:{" "}
-                        <b>{labelType(inv.group_type)}</b> · Rol:{" "}
+                        Tipo: <b>{labelType(inv.group_type)}</b> · Rol:{" "}
                         <b>{inv.role || "member"}</b>
                       </div>
                     </div>
@@ -513,9 +517,7 @@ export default function AcceptInviteClient() {
                         : ""
                     }
                   >
-                    {busy === "decline"
-                      ? "Rechazando…"
-                      : "Rechazar"}
+                    {busy === "decline" ? "Rechazando…" : "Rechazar"}
                   </button>
 
                   <button
