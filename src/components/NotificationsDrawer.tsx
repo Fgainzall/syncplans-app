@@ -12,6 +12,10 @@ import {
   type NotificationRow,
   notificationHref,
 } from "@/lib/notificationsDb";
+import {
+  getMyInvitations,
+  type GroupInvitation,
+} from "@/lib/invitationsDb";
 
 export type NavigationMode = "push" | "replace";
 
@@ -41,7 +45,8 @@ export default function NotificationsDrawer({
   const lastOpenFetchAt = useRef(0);
   const busyIds = useRef<Set<string>>(new Set());
 
-  // ⚠️ Ahora getMyNotifications SOLO trae no leídas
+  // ⚠️ Ahora getMyNotifications SOLO trae no leídas.
+  // Además, añadimos las invitaciones pendientes como "group_invite".
   const unreadCount = useMemo(() => items.length, [items]);
 
   // Actualizar badge en el header premium
@@ -49,6 +54,48 @@ export default function NotificationsDrawer({
     if (!onUnreadChange) return;
     onUnreadChange(unreadCount);
   }, [unreadCount, onUnreadChange]);
+
+  // Helper: convertir invitación → notificación sintética
+  function inviteToNotificationRow(inv: GroupInvitation): NotificationRow {
+    const gt = (inv.group_type || "").toLowerCase();
+    const mapping: Record<string, string> = {
+      personal: "Personal",
+      solo: "Personal",
+      pair: "Pareja",
+      couple: "Pareja",
+      family: "Familia",
+    };
+    const groupLabel = mapping[gt] ?? "Grupo";
+
+    return {
+      id: `invite:${inv.id}`, // 👈 id sintético
+      user_id: "synthetic", // no se usa en el front
+      type: "group_invite",
+      title: inv.group_name
+        ? `Invitación a ${inv.group_name}`
+        : `Invitación a un ${groupLabel.toLowerCase()}`,
+      body: `Te invitaron a un grupo (${groupLabel}).`,
+      entity_id: inv.id, // aquí guardamos el id real de la invitación
+      payload: {
+        group_name: inv.group_name,
+        group_type: inv.group_type,
+      },
+      created_at: inv.created_at ?? new Date().toISOString(),
+      read_at: null,
+    };
+  }
+
+  async function fetchNotificationsAndInvites(): Promise<NotificationRow[]> {
+    const [notifs, invites] = await Promise.all([
+      getMyNotifications(limit),
+      getMyInvitations(),
+    ]);
+
+    const syntheticInvites = (invites ?? []).map(inviteToNotificationRow);
+
+    // Invitaciones primero, luego resto de notificaciones
+    return [...syntheticInvites, ...(notifs ?? [])];
+  }
 
   // Cargar notificaciones cuando se abre el drawer
   useEffect(() => {
@@ -63,7 +110,7 @@ export default function NotificationsDrawer({
     (async () => {
       try {
         setLoading(true);
-        const n = await getMyNotifications(limit);
+        const n = await fetchNotificationsAndInvites();
         if (!alive) return;
         setItems(n);
       } catch {
@@ -80,6 +127,7 @@ export default function NotificationsDrawer({
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, limit]);
 
   // Autocerrar toast suave
@@ -95,8 +143,10 @@ export default function NotificationsDrawer({
   }
 
   function titleFor(n: NotificationRow) {
+    const t = String(n.type || "").toLowerCase();
+
     // 💬 Notificaciones de mensajes de grupo (V2)
-    if (n.type === "group_message") {
+    if (t === "group_message") {
       const payload = (n.payload || {}) as any;
       const groupName =
         payload.group_name ||
@@ -112,18 +162,29 @@ export default function NotificationsDrawer({
       return `Nuevo mensaje en ${groupName}`;
     }
 
+    // 📩 Invitaciones de grupo
+    if (t === "group_invite") {
+      if (n.title) return n.title;
+      const payload = (n.payload || {}) as any;
+      const groupName: string | undefined = payload.group_name;
+      if (groupName) return `Invitación a ${groupName}`;
+      return "Nueva invitación a un grupo";
+    }
+
     // Resto de tipos (legacy)
     if (n.title) return n.title;
-    if (n.type === "conflict_detected" || n.type === "conflict")
+    if (t === "conflict_detected" || t === "conflict")
       return "Conflicto de horario";
-    if (n.type === "event_created") return "Nuevo evento creado";
-    if (n.type === "event_deleted") return "Evento eliminado";
+    if (t === "event_created") return "Nuevo evento creado";
+    if (t === "event_deleted") return "Evento eliminado";
     return "Notificación";
   }
 
   function subtitleFor(n: NotificationRow) {
+    const t = String(n.type || "").toLowerCase();
+
     // 💬 Mensaje de grupo: usamos snippet si viene en payload
-    if (n.type === "group_message") {
+    if (t === "group_message") {
       const payload = (n.payload || {}) as any;
       return (
         payload.message_snippet ||
@@ -132,13 +193,22 @@ export default function NotificationsDrawer({
       );
     }
 
+    // 📩 Invitación de grupo
+    if (t === "group_invite") {
+      if (n.body) return n.body;
+      const payload = (n.payload || {}) as any;
+      const groupName: string | undefined = payload.group_name;
+      if (groupName)
+        return `Te invitaron al grupo "${groupName}". Toca para ver detalles.`;
+      return "Toca para ver y aceptar o rechazar la invitación.";
+    }
+
     if (n.body) return n.body;
-    if (n.type === "conflict_detected" || n.type === "conflict")
+    if (t === "conflict_detected" || t === "conflict")
       return "Tu evento se cruza con otro. Revísalo antes de que se complique.";
-    if (n.type === "event_created")
+    if (t === "event_created")
       return "Tu evento se guardó correctamente.";
-    if (n.type === "event_deleted")
-      return "Tu evento fue eliminado.";
+    if (t === "event_deleted") return "Tu evento fue eliminado.";
     return "Toca para ver más.";
   }
 
@@ -147,6 +217,7 @@ export default function NotificationsDrawer({
     if (t === "conflict" || t === "conflict_detected") return "Conflicto";
     if (t === "event_created" || t === "event_deleted") return "Evento";
     if (t === "group_message") return "Mensaje de grupo";
+    if (t === "group_invite") return "Invitación";
     return "Notificación";
   }
 
@@ -165,7 +236,7 @@ export default function NotificationsDrawer({
     let alive = true;
     try {
       if (!silent) setLoading(true);
-      const n = await getMyNotifications(limit);
+      const n = await fetchNotificationsAndInvites();
       if (!alive) return;
       setItems(n);
     } catch {
@@ -180,15 +251,20 @@ export default function NotificationsDrawer({
     }
   }
 
-  // ✅ Ahora "Marcar todo leído" limpia la bandeja (solo muestra no leídas)
+  // ✅ "Marcar todo leído" solo limpia notificaciones reales,
+  //    pero mantiene las invitaciones pendientes.
   async function onMarkAll() {
     if (items.length === 0) return;
 
     try {
       setLoading(true);
 
-      // optimista: vaciamos la lista local
-      setItems([]);
+      // optimista: dejamos solo las invitaciones (group_invite)
+      setItems((prev) =>
+        prev.filter(
+          (n) => String(n.type || "").toLowerCase() === "group_invite"
+        )
+      );
 
       await markAllRead();
 
@@ -215,8 +291,12 @@ export default function NotificationsDrawer({
     try {
       setLoading(true);
 
-      // optimista: limpiamos lista
-      setItems([]);
+      // optimista: dejamos solo las invitaciones
+      setItems((prev) =>
+        prev.filter(
+          (n) => String(n.type || "").toLowerCase() === "group_invite"
+        )
+      );
 
       await deleteAllNotifications();
 
@@ -236,6 +316,17 @@ export default function NotificationsDrawer({
   }
 
   async function onOpenNotification(n: NotificationRow) {
+    const type = String(n.type || "").toLowerCase();
+
+    // 📩 Invitación de grupo: no marcamos como leída,
+    // solo redirigimos al flujo de invitaciones.
+    if (type === "group_invite") {
+      const href = notificationHref(n);
+      navTo(href);
+      onClose();
+      return;
+    }
+
     const href = notificationHref(n);
     const id = String(n.id);
 
@@ -261,6 +352,11 @@ export default function NotificationsDrawer({
   }
 
   async function onDeleteNotificationClick(n: NotificationRow) {
+    const type = String(n.type || "").toLowerCase();
+
+    // Para invitaciones no tenemos “Quitar” aquí; se maneja en /invitations
+    if (type === "group_invite") return;
+
     const id = String(n.id);
 
     try {
@@ -371,8 +467,8 @@ export default function NotificationsDrawer({
                 <div style={emptyBox}>
                   <div style={emptyTitle}>Nada nuevo por aquí</div>
                   <div style={emptySub}>
-                    Cuando tengas conflictos, eventos o mensajes en tus
-                    grupos, aparecerán en esta bandeja.
+                    Cuando tengas conflictos, eventos, mensajes o
+                    invitaciones a grupos, aparecerán en esta bandeja.
                   </div>
                 </div>
               ) : (
@@ -380,6 +476,7 @@ export default function NotificationsDrawer({
                   {items.map((n) => {
                     const isBusy = busyIds.current.has(String(n.id));
                     const payload = (n.payload || {}) as any;
+                    const type = String(n.type || "").toLowerCase();
 
                     return (
                       <button
@@ -441,22 +538,25 @@ export default function NotificationsDrawer({
                               <span style={metaPill}>
                                 {typeLabel(n)}
                               </span>
-                              {n.type === "group_message" &&
+                              {(type === "group_message" ||
+                                type === "group_invite") &&
                                 payload.group_name && (
                                   <span style={metaPill}>
                                     Grupo: {payload.group_name}
                                   </span>
                                 )}
                               <span style={metaPill}>Abrir</span>
-                              <span
-                                style={metaPillDanger}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDeleteNotificationClick(n);
-                                }}
-                              >
-                                Quitar
-                              </span>
+                              {type !== "group_invite" && (
+                                <span
+                                  style={metaPillDanger}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteNotificationClick(n);
+                                  }}
+                                >
+                                  Quitar
+                                </span>
+                              )}
                             </div>
                           </div>
 

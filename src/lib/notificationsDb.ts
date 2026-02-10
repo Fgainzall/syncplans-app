@@ -13,6 +13,7 @@ export type NotificationType =
   | "conflict"
   | "conflict_detected"
   | "group_message"
+  | "group_invite" // 👈 nuevo tipo para invitaciones
   | string;
 
 export type NotificationRow = {
@@ -223,6 +224,14 @@ export function notificationHref(n: NotificationRow): string {
       return `/groups/${encodeURIComponent(n.entity_id)}`;
     }
     return "/groups";
+  }
+
+  // Invitaciones de grupo → ir al flujo de aceptación
+  if (t === "group_invite") {
+    if (n.entity_id) {
+      return `/invitations/accept?invite=${encodeURIComponent(n.entity_id)}`;
+    }
+    return "/invitations";
   }
 
   // Fallback
