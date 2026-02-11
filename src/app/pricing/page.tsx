@@ -21,7 +21,7 @@ const featuresMonthly = [
 const featuresYearly = [
   "Todo lo del plan mensual",
   "Precio fundador garantizado mientras mantengas el plan",
-  "15% de descuento frente al pago mensual",
+  "Equivale a pagar ~10 meses y tener ~2 gratis",
 ];
 
 export default function PricingPage() {
@@ -62,7 +62,7 @@ export default function PricingPage() {
             <div style={S.recommendedPill}>
               <span style={S.recommendedTag}>RECOMENDADO</span>
               <span style={S.recommendedText}>
-                Plan anual: se ve más barato que un café al mes ☕
+                Plan anual: ~2 meses gratis frente al mensual ☕
               </span>
             </div>
             <div style={S.pricesHint}>
@@ -121,14 +121,14 @@ export default function PricingPage() {
 
               <div style={S.priceRow}>
                 <span style={{ ...S.priceMain, color: "#fee2e2" }}>
-                  US$4.90
+                  US$6.90
                 </span>
                 <span style={{ ...S.priceSuffix, color: "#fee2e2" }}>
                   / mes
                 </span>
               </div>
               <p style={S.priceNote}>
-                Menos que una hamburguesa al mes por tener paz con tu agenda
+                Menos que una salida simple al mes por tener paz con tu agenda
                 compartida.
               </p>
 
@@ -148,8 +148,8 @@ export default function PricingPage() {
                   Demo Premium activo
                 </button>
                 <p style={S.betaHint}>
-                  Durante la beta no se te cobrará nada. Más adelante podrás
-                  decidir si activas este plan.
+                  Durante la beta no se te cobrará nada. Cuando lancemos,
+                  este será el precio público mensual.
                 </p>
               </div>
             </article>
@@ -160,18 +160,20 @@ export default function PricingPage() {
                 <div style={{ ...S.cardHeaderLine, color: "#bae6fd" }}>
                   PREMIUM
                 </div>
-                <div style={S.cardBadgeSky}>AHORRA 15%</div>
+                <div style={S.cardBadgeSky}>~2 MESES GRATIS</div>
               </div>
 
-              <h2 style={{ ...S.cardTitle, color: "#e0f2fe" }}>Plan Anual</h2>
+              <h2 style={{ ...S.cardTitle, color: "#e0f2fe" }}>
+                Plan Anual
+              </h2>
               <p style={{ ...S.cardCopy, color: "rgba(224,242,254,0.90)" }}>
                 Para los que ya saben que SyncPlans encaja en su día a día y
-                prefieren pagar menos al año.
+                prefieren olvidarse del pago mes a mes.
               </p>
 
               <div style={S.priceRow}>
                 <span style={{ ...S.priceMain, color: "#e0f2fe" }}>
-                  US$49
+                  US$69
                 </span>
                 <span style={{ ...S.priceSuffix, color: "#e0f2fe" }}>
                   / año
@@ -179,8 +181,8 @@ export default function PricingPage() {
               </div>
 
               <p style={S.priceNoteSky}>
-                Equivalente a menos de US$4.10 al mes. Precio fundador
-                garantizado mientras mantengas el plan.
+                Equivalente a ~US$5.75 al mes. Aproximadamente 2 meses gratis
+                frente al plan mensual.
               </p>
 
               <ul style={{ ...S.featuresList, color: "rgba(224,242,254,0.92)" }}>
@@ -235,8 +237,10 @@ export default function PricingPage() {
               <p style={S.infoText}>
                 Durante la beta, usas SyncPlans con acceso Premium completo.
                 Cuando lancemos, podrás quedarte en el plan Gratis o pasar al
-                Premium. Tu feedback ahora define cuánto se parece la app a la
-                vida real de tus grupos.
+                Premium mensual (US$6.90) o anual (US$69). Si Fernando te invitó
+                como parte del grupo fundador, verás un precio especial de
+                aproximadamente US$3.90/mes o US$39/año mientras mantengas el
+                plan activo.
               </p>
             </div>
           </section>

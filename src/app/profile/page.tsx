@@ -15,6 +15,7 @@ import {
   updateMyCoordinationPrefs,
   normalizeCoordinationPrefs,
   updateDailyDigestSettings,
+  // ⛔️ OJO: aquí ya NO importamos isPremiumUser
   type CoordinationPrefs,
   type Profile,
 } from "@/lib/profilesDb";
@@ -29,7 +30,11 @@ import {
   type GroupMemberRow,
 } from "@/lib/groupsDb";
 
+// ✅ NUEVO import correcto
+import { isPremiumUser } from "@/lib/premium";
+
 import { computeVisibleConflicts } from "@/lib/conflicts";
+
 
 /* ─────────────────── Tipos UI ─────────────────── */
 
@@ -225,78 +230,75 @@ export default function ProfilePage() {
 
   /* ── 1) Cargar sesión + perfil ── */
   useEffect(() => {
-  let alive = true;
+    let alive = true;
 
-  (async () => {
-    try {
-      setBooting(true);
-      const { data, error } = await supabase.auth.getSession();
-      if (!alive) return;
-
-      if (error || !data.session?.user) {
-        router.replace("/auth/login?next=/profile");
-        return;
-      }
-
-      const u = data.session.user;
-      setEmail(u.email ?? "—");
-      setVerified(!!u.email_confirmed_at);
-
-      // 👇 1) Intentar leer perfil
-      let p = await getMyProfile();
-
-      // 👇 2) Si no hay perfil, creamos uno con nombre vacío
-if (!p) {
-  p = await createMyProfile({
-    first_name: "",
-    last_name: "",
-  });
-}
-
-
-      // 👇 3) Si aún así no hay perfil, salimos con error controlado
-      if (!p) {
+    (async () => {
+      try {
+        setBooting(true);
+        const { data, error } = await supabase.auth.getSession();
         if (!alive) return;
-        console.error("[ProfilePage] No se pudo obtener/crear perfil");
+
+        if (error || !data.session?.user) {
+          router.replace("/auth/login?next=/profile");
+          return;
+        }
+
+        const u = data.session.user;
+        setEmail(u.email ?? "—");
+        setVerified(!!u.email_confirmed_at);
+
+        // 👇 1) Intentar leer perfil
+        let p = await getMyProfile();
+
+        // 👇 2) Si no hay perfil, creamos uno con nombre vacío
+        if (!p) {
+          p = await createMyProfile({
+            first_name: "",
+            last_name: "",
+          });
+        }
+
+        // 👇 3) Si aún así no hay perfil, salimos con error controlado
+        if (!p) {
+          if (!alive) return;
+          console.error("[ProfilePage] No se pudo obtener/crear perfil");
+          setBooting(false);
+          return;
+        }
+
+        if (!alive) return;
+
+        // 👇 A partir de aquí TypeScript sabe que p NO es null
+        setProfile(p);
+
+        const f = (p.first_name ?? "").trim();
+        const l = (p.last_name ?? "").trim();
+        setFirstName(f);
+        setLastName(l);
+
+        setCoordPrefs(
+          normalizeCoordPrefs(p.coordination_prefs as CoordinationPrefs | null)
+        );
+
+        setInitials(
+          getInitials({
+            first_name: p.first_name ?? undefined,
+            last_name: p.last_name ?? undefined,
+            display_name: p.display_name ?? undefined,
+          })
+        );
+      } catch (e) {
+        console.error("[ProfilePage] Error cargando perfil:", e);
+      } finally {
+        if (!alive) return;
         setBooting(false);
-        return;
       }
+    })();
 
-      if (!alive) return;
-
-      // 👇 A partir de aquí TypeScript sabe que p NO es null
-      setProfile(p);
-
-      const f = (p.first_name ?? "").trim();
-      const l = (p.last_name ?? "").trim();
-      setFirstName(f);
-      setLastName(l);
-
-      setCoordPrefs(
-        normalizeCoordPrefs(
-          p.coordination_prefs as CoordinationPrefs | null
-        )
-      );
-
-      setInitials(
-        getInitials({
-          first_name: p.first_name ?? undefined,
-          last_name: p.last_name ?? undefined,
-          display_name: p.display_name ?? undefined,
-        })
-      );
-    } catch (e) {
-      console.error("[ProfilePage] Error cargando perfil:", e);
-    } finally {
-      if (!alive) return;
-      setBooting(false);
-    }
-  })();
-
-  return () => {
-    alive = false;
-  };
-}, [router]);
+    return () => {
+      alive = false;
+    };
+  }, [router]);
 
   /* ── 2) Cargar stats + grupos ── */
   useEffect(() => {
@@ -410,11 +412,6 @@ if (!p) {
       });
 
       setProfile(updated);
-
-      const display =
-        (updated.display_name ??
-          `${updated.first_name ?? ""} ${updated.last_name ?? ""}`) ||
-        "";
 
       setInitials(
         getInitials({
@@ -719,12 +716,66 @@ if (!p) {
   const digestHour = profile.daily_digest_hour_local ?? 7;
   const digestTz = profile.daily_digest_timezone ?? "America/Lima";
 
-  const planLabel =
-    profile.plan_tier === "premium"
-      ? "Plan Premium"
-      : profile.plan_tier === "free"
-      ? "Plan gratuito"
-      : "Demo Premium (beta)";
+  // ── Plan & Premium ──
+  const anyProfile = profile as any;
+  const planTierRaw: string = anyProfile.plan_tier ?? "free";
+  const subscriptionStatus: string = anyProfile.subscription_status ?? "inactive";
+  const trialEndsAt: string | null = anyProfile.trial_ends_at ?? null;
+
+  const trialActive =
+    trialEndsAt !== null ? new Date(trialEndsAt) > new Date() : false;
+  const premiumActive = isPremiumUser(anyProfile);
+
+  let planLabel = "";
+  let planHint = "";
+  let planCtaLabel = "";
+
+    const isFounderTier =
+    planTierRaw === "founder_monthly" || planTierRaw === "founder_yearly";
+
+  if (premiumActive) {
+    if (isFounderTier) {
+      if (planTierRaw === "founder_yearly") {
+        planLabel = "Founder anual";
+        planHint =
+          "Eres parte del grupo fundador de SyncPlans. Mantienes este precio mientras la suscripción siga activa.";
+      } else {
+        planLabel = "Founder mensual";
+        planHint =
+          "Eres parte del grupo fundador de SyncPlans. Mantienes este precio especial mientras sigas activo.";
+      }
+    } else if (planTierRaw === "premium_yearly") {
+      planLabel = "Premium anual";
+      planHint = "Tu suscripción anual Premium está activa.";
+    } else {
+      planLabel = "Premium mensual";
+      planHint = "Tu suscripción mensual Premium está activa.";
+    }
+    planCtaLabel = "Gestionar suscripción";
+  } else if (trialActive) {
+    planLabel = "Prueba Premium activa";
+    planHint =
+      "Estás probando las funciones Premium. Más adelante podrás elegir si continuar o volver al plan gratuito.";
+    planCtaLabel = "Upgrade a Premium";
+  } else if (planTierRaw === "free") {
+    planLabel = "Plan gratuito";
+    planHint =
+      "Usa SyncPlans en modo básico. Puedes pasar a Premium cuando quieras.";
+    planCtaLabel = "Upgrade a Premium";
+  } else if (planTierRaw.startsWith("premium")) {
+    planLabel = "Premium (pendiente)";
+    planHint =
+      subscriptionStatus === "canceled"
+        ? "Tu suscripción Premium se canceló. Puedes reactivarla en cualquier momento."
+        : "Tu suscripción Premium aún no está activa. Revisa tu método de pago o finaliza el proceso.";
+    planCtaLabel = "Revisar suscripción";
+  } else {
+    // demo / legacy
+    planLabel = "Demo Premium (beta)";
+    planHint =
+      "Estás en la beta privada de SyncPlans con acceso extendido a funciones Premium.";
+    planCtaLabel = "Ver opciones de plan";
+  }
 
   /* ── 10) Render principal ── */
 
@@ -782,7 +833,7 @@ if (!p) {
                 <InfoStat
                   label="Plan actual"
                   value={planLabel}
-                  hint="Acceso completo mientras pruebas SyncPlans."
+                  hint={planHint}
                 />
                 <InfoStat
                   label="Grupos activos"
@@ -801,6 +852,16 @@ if (!p) {
                       : "Crea un grupo para compartir calendario y conflictos."
                   }
                 />
+              </div>
+
+              <div style={styles.planCtaRow}>
+                <button
+                  type="button"
+                  onClick={() => router.push("/pricing")}
+                  style={styles.planPrimaryBtn}
+                >
+                  {planCtaLabel}
+                </button>
               </div>
             </section>
 
@@ -1526,6 +1587,7 @@ if (!p) {
     </main>
   );
 }
+
 /* ───────────────────── COMPONENTES DE APOYO ───────────────────── */
 
 function InfoStat(props: {
@@ -1775,6 +1837,25 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.96)",
     cursor: "pointer",
     fontWeight: 900,
+  },
+
+  // NUEVOS estilos CTA plan
+  planCtaRow: {
+    marginTop: 10,
+    display: "flex",
+    justifyContent: "flex-end",
+  },
+  planPrimaryBtn: {
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.7)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.35), rgba(124,58,237,0.35))",
+    color: "rgba(255,255,255,0.96)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   },
 
   accountStatusRow: {
