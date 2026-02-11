@@ -102,10 +102,11 @@ export default function PricingPage() {
                 <Link href="/register" style={S.cardGhostButton}>
                   Empezar gratis
                 </Link>
-                <p style={S.betaHintFree}>
-                  Durante la beta puedes usar SyncPlans gratis, sin tarjeta.
-                  Siempre podrás quedarte en este plan sin pagar nada.
-                </p>
+               <p style={S.betaHintFree}>
+  Durante la beta usas SyncPlans gratis, sin tarjeta. Luego puedes
+  quedarte en este plan sin pagar.
+</p>
+
               </div>
             </article>
 
@@ -156,9 +157,10 @@ export default function PricingPage() {
                   Demo Premium activo
                 </button>
                 <p style={S.betaHint}>
-                  Durante la beta no se te cobrará nada. Cuando lancemos, desde
-                  aquí podrás activar tu suscripción mensual con un clic.
-                </p>
+  Durante la beta no se te cobra. Después podrás activar o no tu
+  suscripción mensual desde aquí.
+</p>
+
               </div>
             </article>
 
@@ -207,10 +209,11 @@ export default function PricingPage() {
                 <button type="button" style={S.cardOutlineButton} disabled>
                   Disponible después de la beta
                 </button>
-                <p style={S.betaHintSky}>
-                  Cuando lancemos oficialmente, este será el plan recomendado
-                  para parejas y familias que usan SyncPlans todos los días.
-                </p>
+               <p style={S.betaHintSky}>
+  Cuando lancemos, este será el plan recomendado para parejas y
+  familias que usan SyncPlans todos los días.
+</p>
+
               </div>
             </article>
           </section>
