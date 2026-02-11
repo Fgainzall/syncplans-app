@@ -165,18 +165,18 @@ export default function PremiumHeader({
     };
   }, []);
 
-async function refreshBadge() {
-  try {
-    const { getMyNotifications } = await import("@/lib/notificationsDb");
-    const n = await getMyNotifications(50);
-    const unread = (n ?? []).filter(
-      (x: any) => !x.read_at || x.read_at === ""
-    ).length;
-    setUnreadCount(unread);
-  } catch {
-    setUnreadCount(0);
+  async function refreshBadge() {
+    try {
+      const { getMyNotifications } = await import("@/lib/notificationsDb");
+      const n = await getMyNotifications(50);
+      const unread = (n ?? []).filter(
+        (x: any) => !x.read_at || x.read_at === ""
+      ).length;
+      setUnreadCount(unread);
+    } catch {
+      setUnreadCount(0);
+    }
   }
-}
 
   useEffect(() => {
     refreshBadge();
@@ -342,6 +342,11 @@ async function refreshBadge() {
             active={pathname.startsWith("/profile")}
             onClick={() => router.push("/profile")}
           />
+          <NavPill
+            label="Planes"
+            active={pathname.startsWith("/pricing")}
+            onClick={() => router.push("/pricing")}
+          />
         </nav>
       </header>
 
@@ -388,7 +393,7 @@ const S: Record<string, React.CSSProperties> = {
   topRow: {
     display: "flex",
     gap: 14,
-    alignItems: "center", // ⬅️ antes: "flex-start"
+    alignItems: "center",
     justifyContent: "space-between",
   },
   left: { minWidth: 0 },
@@ -539,9 +544,9 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 11,
     opacity: 0.75,
     fontWeight: 650,
-    whiteSpace: "nowrap",      // ⬅️ evita salto de línea
-    overflow: "hidden",        // ⬅️ recorta si no entra
-    textOverflow: "ellipsis",  // ⬅️ añade "…" si se recorta
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
 
   nav: {

@@ -55,11 +55,11 @@ export default function RegisterClient() {
     }
 
     try {
-      // 👇 Usamos dominio de entorno (producción) y dejamos window como fallback
+      // 👇 Usamos dominio de entorno; fallback fijo a syncplansapp.com
       const APP_URL =
-        process.env.NEXT_PUBLIC_APP_URL ??
-        process.env.APP_URL ??
-        window.location.origin;
+        process.env.NEXT_PUBLIC_APP_URL ||
+        process.env.APP_URL ||
+        "https://syncplansapp.com";
 
       const { error: signUpError } = await supabase.auth.signUp({
         email: trimmedEmail,
@@ -494,9 +494,10 @@ export default function RegisterClient() {
                   <div style={{ fontSize: 11, lineHeight: 1.5 }}>
                     Te enviamos un correo para confirmar tu registro. Después de
                     hacer clic en <b>"Confirm your mail"</b> volverás
-                    automáticamente a <b>/auth/callback</b> y desde ahí podrás
-                    iniciar sesión. Al entrar, comenzarás en tu resumen de
-                    planes.
+                    automáticamente a{" "}
+                    <b>https://syncplansapp.com/auth/callback</b> y desde ahí
+                    podrás iniciar sesión. Al entrar, comenzarás en tu resumen
+                    de planes.
                   </div>
                 </div>
 
