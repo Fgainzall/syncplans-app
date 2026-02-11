@@ -98,16 +98,15 @@ export default function PricingPage() {
                 ))}
               </ul>
 
-<div style={S.cardFooter}>
-  <Link href="/register" style={S.cardGhostButton}>
-    Empezar gratis
-  </Link>
-  <p style={S.betaHintFree}>
-    Durante la beta puedes usar SyncPlans gratis, sin tarjeta. Siempre podrás
-    quedarte en este plan sin pagar nada.
-  </p>
-</div>
-
+              <div style={S.cardFooter}>
+                <Link href="/register" style={S.cardGhostButton}>
+                  Empezar gratis
+                </Link>
+                <p style={S.betaHintFree}>
+                  Durante la beta puedes usar SyncPlans gratis, sin tarjeta.
+                  Siempre podrás quedarte en este plan sin pagar nada.
+                </p>
+              </div>
             </article>
 
             {/* Mensual */}
@@ -205,7 +204,6 @@ export default function PricingPage() {
               </ul>
 
               <div style={S.cardFooter}>
-                {/* También listo para futuro Paddle / founder yearly */}
                 <button type="button" style={S.cardOutlineButton} disabled>
                   Disponible después de la beta
                 </button>
@@ -395,6 +393,7 @@ const S: Record<string, React.CSSProperties> = {
     padding: 16,
     display: "flex",
     flexDirection: "column",
+    height: "100%",
   },
   cardHighlight: {
     border: "1px solid rgba(248,113,113,0.85)",
@@ -551,6 +550,11 @@ const S: Record<string, React.CSSProperties> = {
     marginTop: 6,
     fontSize: 10,
     color: "rgba(224,242,254,0.9)",
+  },
+  betaHintFree: {
+    marginTop: 6,
+    fontSize: 10,
+    color: "rgba(209,213,219,0.9)",
   },
 
   // Info blocks
