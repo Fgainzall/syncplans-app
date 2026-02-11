@@ -26,18 +26,17 @@ const featuresYearly = [
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50">
-      {/* 🟦 misma shell que /profile y /events */}
-      <div className="mx-auto max-w-[1120px] px-[18px] pt-6 pb-16">
+    <main style={S.page}>
+      <div style={S.shell}>
         <PremiumHeader
           title="Planes"
           subtitle="El mismo SyncPlans, con distintos niveles de compromiso."
         />
 
-        <main className="mt-6 flex flex-col gap-10">
-          {/* Cinta de beta / demo */}
-          <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 shadow-lg shadow-amber-500/10">
-            <span className="font-semibold">Demo Premium activo · </span>
+        <div style={S.content}>
+          {/* Cinta demo premium */}
+          <div style={S.banner}>
+            <span style={S.bannerStrong}>Demo Premium activo · </span>
             <span>
               Mientras dure la beta, todos los usuarios tienen acceso a las
               funciones Premium sin costo. Más adelante podrás elegir si te
@@ -45,230 +44,565 @@ export default function PricingPage() {
             </span>
           </div>
 
-          {/* Hero */}
-          <section className="space-y-4 text-center">
-            <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">
-              PLANES DE SYNCPLANS
-            </p>
-            <h1 className="text-3xl font-semibold text-slate-50 sm:text-4xl">
+          {/* Hero centrado */}
+          <section style={S.hero}>
+            <p style={S.heroKicker}>PLANES DE SYNCPLANS</p>
+            <h1 style={S.heroTitle}>
               Coordinar horarios no debería ser un motivo de pelea.
             </h1>
-            <p className="mx-auto max-w-2xl text-sm text-slate-300 sm:text-base">
+            <p style={S.heroCopy}>
               SyncPlans no es “otro calendario más”. Es el lugar donde todos ven
               la misma versión de los planes compartidos y los choques se
               detectan antes de que explote el problema.
             </p>
           </section>
 
-          {/* Toggle conceptual centrado */}
-          <section className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
-            <div className="inline-flex items-center gap-2 rounded-full bg-slate-900/70 px-3 py-1 text-xs text-slate-200 ring-1 ring-slate-700/80">
-              <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-950">
-                Recomendado
+          {/* Etiquetas arriba de los precios */}
+          <section style={S.ribbonRow}>
+            <div style={S.recommendedPill}>
+              <span style={S.recommendedTag}>RECOMENDADO</span>
+              <span style={S.recommendedText}>
+                Plan anual: se ve más barato que un café al mes ☕
               </span>
-              <span>Plan anual: se ve más barato que un café al mes ☕</span>
             </div>
-            <div className="text-xs text-slate-400 sm:text-sm">
-              Precios en{" "}
-              <span className="font-semibold text-slate-200">USD</span> ·
-              impuestos pueden variar según tu país
+            <div style={S.pricesHint}>
+              Precios en <strong>USD</strong> · impuestos pueden variar según tu
+              país
             </div>
           </section>
 
-          {/* Cards de planes centradas */}
-          <section className="flex justify-center">
-            <div className="grid w-full max-w-4xl gap-6 md:grid-cols-3">
-              {/* Plan Gratis */}
-              <article className="relative flex flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm shadow-slate-950/40">
-                <div className="mb-4 text-xs font-medium uppercase tracking-[0.25em] text-slate-500">
-                  Gratis
+          {/* FILA DE PLANES, CENTRADA */}
+          <section style={S.plansRow}>
+            {/* Gratis */}
+            <article style={S.card}>
+              <div style={S.cardHeaderLine}>GRATIS</div>
+              <h2 style={S.cardTitle}>Plan Básico</h2>
+              <p style={S.cardCopy}>
+                Ideal para probar el concepto y coordinar los primeros planes
+                con tu pareja o familia.
+              </p>
+
+              <div style={S.priceRow}>
+                <span style={S.priceMain}>US$0</span>
+                <span style={S.priceSuffix}>/ mes</span>
+              </div>
+
+              <ul style={S.featuresList}>
+                {featuresFree.map((item) => (
+                  <li key={item} style={S.featureItem}>
+                    <span style={S.featureDot} />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div style={S.cardFooter}>
+                <Link href="/register" style={S.cardGhostButton}>
+                  Empezar gratis
+                </Link>
+              </div>
+            </article>
+
+            {/* Mensual */}
+            <article style={{ ...S.card, ...S.cardHighlight }}>
+              <div style={S.cardHeadRow}>
+                <div style={{ ...S.cardHeaderLine, color: "#fecaca" }}>
+                  PREMIUM
                 </div>
-                <h2 className="mb-2 text-lg font-semibold text-slate-50">
-                  Plan Básico
-                </h2>
-                <p className="mb-4 text-sm text-slate-300">
-                  Ideal para probar el concepto y coordinar los primeros planes
-                  con tu pareja o familia.
+                <div style={S.cardBadge}>PLAN PRINCIPAL</div>
+              </div>
+
+              <h2 style={{ ...S.cardTitle, color: "#fee2e2" }}>
+                Plan Mensual
+              </h2>
+              <p style={{ ...S.cardCopy, color: "rgba(254,226,226,0.85)" }}>
+                Para parejas, familias y grupos que de verdad se coordinan aquí.
+              </p>
+
+              <div style={S.priceRow}>
+                <span style={{ ...S.priceMain, color: "#fee2e2" }}>
+                  US$4.90
+                </span>
+                <span style={{ ...S.priceSuffix, color: "#fee2e2" }}>
+                  / mes
+                </span>
+              </div>
+              <p style={S.priceNote}>
+                Menos que una hamburguesa al mes por tener paz con tu agenda
+                compartida.
+              </p>
+
+              <ul style={{ ...S.featuresList, color: "rgba(254,226,226,0.92)" }}>
+                {featuresMonthly.map((item) => (
+                  <li key={item} style={S.featureItem}>
+                    <span
+                      style={{ ...S.featureDot, background: "#fecaca" }}
+                    />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div style={S.cardFooter}>
+                <button type="button" style={S.cardPrimaryButton} disabled>
+                  Demo Premium activo
+                </button>
+                <p style={S.betaHint}>
+                  Durante la beta no se te cobrará nada. Más adelante podrás
+                  decidir si activas este plan.
                 </p>
+              </div>
+            </article>
 
-                <div className="mb-4 flex items-baseline gap-1">
-                  <span className="text-3xl font-semibold text-slate-50">
-                    US$0
-                  </span>
-                  <span className="text-xs text-slate-400">/ mes</span>
+            {/* Anual */}
+            <article style={{ ...S.card, ...S.cardAnnual }}>
+              <div style={S.cardHeadRow}>
+                <div style={{ ...S.cardHeaderLine, color: "#bae6fd" }}>
+                  PREMIUM
                 </div>
+                <div style={S.cardBadgeSky}>AHORRA 15%</div>
+              </div>
 
-                <ul className="mb-6 space-y-2 text-sm text-slate-200">
-                  {featuresFree.map((item) => (
-                    <li key={item} className="flex gap-2">
-                      <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-slate-400" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
+              <h2 style={{ ...S.cardTitle, color: "#e0f2fe" }}>Plan Anual</h2>
+              <p style={{ ...S.cardCopy, color: "rgba(224,242,254,0.90)" }}>
+                Para los que ya saben que SyncPlans encaja en su día a día y
+                prefieren pagar menos al año.
+              </p>
 
-                <div className="mt-auto">
-                  <Link
-                    href="/register"
-                    className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-900"
-                  >
-                    Empezar gratis
-                  </Link>
-                </div>
-              </article>
+              <div style={S.priceRow}>
+                <span style={{ ...S.priceMain, color: "#e0f2fe" }}>
+                  US$49
+                </span>
+                <span style={{ ...S.priceSuffix, color: "#e0f2fe" }}>
+                  / año
+                </span>
+              </div>
 
-              {/* Plan Mensual */}
-              <article className="relative flex flex-col rounded-3xl border border-rose-500/60 bg-gradient-to-b from-rose-600/20 via-slate-950/60 to-slate-950/90 p-5 shadow-lg shadow-rose-900/40 md:-mt-4 md:mb-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="text-xs font-medium uppercase tracking-[0.25em] text-rose-300">
-                    Premium
-                  </div>
-                  <div className="rounded-full bg-rose-500/20 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-rose-100">
-                    Plan principal
-                  </div>
-                </div>
-                <h2 className="mb-2 text-lg font-semibold text-rose-50">
-                  Plan Mensual
-                </h2>
-                <p className="mb-4 text-sm text-rose-50/80">
-                  Para parejas, familias y grupos que de verdad se coordinan por
-                  aquí.
+              <p style={S.priceNoteSky}>
+                Equivalente a menos de US$4.10 al mes. Precio fundador
+                garantizado mientras mantengas el plan.
+              </p>
+
+              <ul style={{ ...S.featuresList, color: "rgba(224,242,254,0.92)" }}>
+                {featuresYearly.map((item) => (
+                  <li key={item} style={S.featureItem}>
+                    <span
+                      style={{ ...S.featureDot, background: "#7dd3fc" }}
+                    />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div style={S.cardFooter}>
+                <button type="button" style={S.cardOutlineButton} disabled>
+                  Disponible después de la beta
+                </button>
+                <p style={S.betaHintSky}>
+                  Cuando lancemos oficialmente, este será el plan recomendado
+                  para parejas y familias que usan SyncPlans todos los días.
                 </p>
+              </div>
+            </article>
+          </section>
 
-                <div className="mb-1 flex items-baseline gap-1">
-                  <span className="text-3xl font-semibold text-rose-50">
-                    US$4.90
-                  </span>
-                  <span className="text-xs text-rose-100/80">/ mes</span>
-                </div>
-                <p className="mb-4 text-xs text-rose-100/70">
-                  Menos que una hamburguesa al mes por tener paz con tu agenda
-                  compartida.
-                </p>
+          {/* Bloques cortos explicativos */}
+          <section style={S.infoGrid}>
+            <div style={S.infoCard}>
+              <h3 style={S.infoTitle}>¿Para quién es SyncPlans?</h3>
+              <p style={S.infoText}>
+                Para personas que coordinan con otros: parejas que ya no quieren
+                discusiones por horarios, familias que hacen malabares con
+                cole, trabajo y viajes, y grupos de amigos que quieren mantener
+                vivo el plan sin 200 mensajes.
+              </p>
+            </div>
 
-                <ul className="mb-6 space-y-2 text-sm text-rose-50/90">
-                  {featuresMonthly.map((item) => (
-                    <li key={item} className="flex gap-2">
-                      <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-rose-300" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
+            <div style={S.infoCard}>
+              <h3 style={S.infoTitle}>
+                ¿Por qué no basta con WhatsApp y un calendario normal?
+              </h3>
+              <p style={S.infoText}>
+                WhatsApp sirve para hablar, pero no para ver el impacto de un
+                cambio en todo el grupo. Un calendario solo te muestra tu agenda
+                individual. SyncPlans junta ambos mundos y detecta choques antes
+                de que el “yo pensé que era otro día” explote.
+              </p>
+            </div>
 
-                <div className="mt-auto">
-                  <button
-                    type="button"
-                    className="inline-flex w-full items-center justify-center rounded-2xl bg-rose-500 px-3 py-2 text-sm font-semibold text-rose-950 shadow-lg shadow-rose-900/40 transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-80"
-                    disabled
-                  >
-                    Demo Premium activo
-                  </button>
-                  <p className="mt-2 text-[11px] text-rose-100/70">
-                    Durante la beta no se te cobrará nada. Más adelante podrás
-                    decidir si activas este plan.
-                  </p>
-                </div>
-              </article>
-
-              {/* Plan Anual */}
-              <article className="relative flex flex-col rounded-3xl border border-sky-500/40 bg-slate-900/70 p-5 shadow-md shadow-sky-900/40">
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="text-xs font-medium uppercase tracking-[0.25em] text-sky-300">
-                    Premium
-                  </div>
-                  <div className="rounded-full bg-sky-500/20 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-sky-100">
-                    Ahorra 15%
-                  </div>
-                </div>
-                <h2 className="mb-2 text-lg font-semibold text-sky-50">
-                  Plan Anual
-                </h2>
-                <p className="mb-4 text-sm text-sky-50/80">
-                  Para los que ya saben que SyncPlans encaja en su día a día y
-                  prefieren pagar menos al año.
-                </p>
-
-                <div className="mb-1 flex items-baseline gap-2">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-semibold text-sky-50">
-                      US$49
-                    </span>
-                    <span className="text-xs text-sky-100/80">/ año</span>
-                  </div>
-                </div>
-                <p className="mb-4 text-xs text-sky-100/70">
-                  Equivalente a menos de US$4.10 al mes. Precio fundador
-                  garantizado mientras mantengas el plan.
-                </p>
-
-                <ul className="mb-6 space-y-2 text-sm text-sky-50/90">
-                  {featuresYearly.map((item) => (
-                    <li key={item} className="flex gap-2">
-                      <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-sky-300" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="mt-auto">
-                  <button
-                    type="button"
-                    className="inline-flex w-full items-center justify-center rounded-2xl border border-sky-500/60 bg-slate-950/60 px-3 py-2 text-sm font-semibold text-sky-50 transition hover:bg-slate-950 disabled:cursor-not-allowed disabled:opacity-80"
-                    disabled
-                  >
-                    Disponible después de la beta
-                  </button>
-                  <p className="mt-2 text-[11px] text-sky-100/70">
-                    Cuando lancemos oficialmente, este será el plan recomendado
-                    para parejas y familias que usan SyncPlans todos los días.
-                  </p>
-                </div>
-              </article>
+            <div style={S.infoCard}>
+              <h3 style={S.infoTitle}>Empieza ahora y decide después.</h3>
+              <p style={S.infoText}>
+                Durante la beta, usas SyncPlans con acceso Premium completo.
+                Cuando lancemos, podrás quedarte en el plan Gratis o pasar al
+                Premium. Tu feedback ahora define cuánto se parece la app a la
+                vida real de tus grupos.
+              </p>
             </div>
           </section>
 
-          {/* Bloques cortos explicativos centrados */}
-          <section className="flex justify-center">
-            <div className="grid w-full max-w-4xl gap-6 md:grid-cols-3">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
-                <h3 className="mb-2 text-sm font-semibold text-slate-50">
-                  ¿Para quién es SyncPlans?
-                </h3>
-                <p>
-                  Para personas que coordinan con otros: parejas que ya no
-                  quieren discusiones por horarios, familias que cruzan trabajo,
-                  niños y viajes, y grupos de amigos que quieren dejar de
-                  adivinar quién puede y quién no.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
-                <h3 className="mb-2 text-sm font-semibold text-slate-50">
-                  ¿Por qué no basta WhatsApp y un calendario normal?
-                </h3>
-                <p>
-                  WhatsApp sirve para hablar, pero no para ver el cuadro
-                  completo. SyncPlans junta tus planes en un solo lugar, detecta
-                  choques de horario y te obliga a decidir antes de que algo se
-                  caiga.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
-                <h3 className="mb-2 text-sm font-semibold text-slate-50">
-                  Empieza ahora y decide después.
-                </h3>
-                <p>
-                  Durante la beta, usas SyncPlans con acceso Premium completo.
-                  Cuando lancemos, podrás quedarte en el plan Gratis o pasar a
-                  Premium. Tu feedback ahora define cómo se ve el producto
-                  final.
-                </p>
-              </div>
+          {/* CTA final */}
+          <section style={S.cta}>
+            <div style={S.ctaTextCol}>
+              <h3 style={S.ctaTitle}>Empieza ahora, sin tarjeta.</h3>
+              <p style={S.ctaCopy}>
+                Crea tu cuenta, invita a tu pareja o familia y mete los planes
+                reales de las próximas semanas. El valor se siente cuando
+                aparece el primer conflicto que ves a tiempo.
+              </p>
+            </div>
+            <div style={S.ctaActions}>
+              <Link href="/register" style={S.ctaPrimary}>
+                Crear cuenta gratis
+              </Link>
             </div>
           </section>
-        </main>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }
+
+const S: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    background: "#050816",
+    color: "rgba(248,250,252,0.98)",
+    fontFamily:
+      "system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+  },
+  shell: {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: "22px 18px 48px",
+  },
+  content: {
+    marginTop: 18,
+    display: "flex",
+    flexDirection: "column",
+    gap: 22,
+  },
+
+  // Banner
+  banner: {
+    borderRadius: 18,
+    padding: "10px 14px",
+    border: "1px solid rgba(251,191,36,0.45)",
+    background:
+      "linear-gradient(90deg, rgba(245,158,11,0.18), rgba(15,23,42,0.95))",
+    fontSize: 12,
+    color: "#fef3c7",
+  },
+  bannerStrong: {
+    fontWeight: 800,
+  },
+
+  // Hero
+  hero: {
+    textAlign: "center",
+    maxWidth: 640,
+    margin: "4px auto 0",
+  },
+  heroKicker: {
+    fontSize: 11,
+    letterSpacing: "0.3em",
+    textTransform: "uppercase",
+    color: "#94a3b8",
+    marginBottom: 8,
+  },
+  heroTitle: {
+    fontSize: 26,
+    lineHeight: 1.24,
+    fontWeight: 900,
+    margin: 0,
+  },
+  heroCopy: {
+    marginTop: 8,
+    fontSize: 13,
+    color: "#cbd5f5",
+    fontWeight: 500,
+  },
+
+  // Ribbons
+  ribbonRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  recommendedPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "5px 10px",
+    borderRadius: 999,
+    background: "rgba(15,23,42,0.95)",
+    border: "1px solid rgba(148,163,184,0.7)",
+  },
+  recommendedTag: {
+    padding: "3px 8px",
+    borderRadius: 999,
+    background: "rgba(16,185,129,0.9)",
+    color: "#022c22",
+    fontSize: 10,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+  },
+  recommendedText: {
+    fontSize: 11,
+    color: "#e5e7eb",
+    fontWeight: 600,
+  },
+  pricesHint: {
+    fontSize: 11,
+    color: "#9ca3af",
+  },
+
+  // Planes
+  plansRow: {
+    marginTop: 10,
+    display: "flex",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    alignItems: "stretch",
+    gap: 16,
+  },
+  card: {
+    flex: "1 1 260px",
+    maxWidth: 340,
+    borderRadius: 22,
+    border: "1px solid rgba(148,163,184,0.35)",
+    background: "rgba(15,23,42,0.95)",
+    padding: 16,
+    display: "flex",
+    flexDirection: "column",
+  },
+  cardHighlight: {
+    border: "1px solid rgba(248,113,113,0.85)",
+    background:
+      "linear-gradient(145deg, rgba(248,113,113,0.25), rgba(15,23,42,0.98))",
+    boxShadow: "0 18px 45px rgba(127,29,29,0.55)",
+  },
+  cardAnnual: {
+    border: "1px solid rgba(56,189,248,0.75)",
+    background:
+      "linear-gradient(145deg, rgba(56,189,248,0.18), rgba(15,23,42,0.98))",
+    boxShadow: "0 18px 45px rgba(12,74,110,0.55)",
+  },
+  cardHeaderLine: {
+    fontSize: 11,
+    letterSpacing: "0.24em",
+    textTransform: "uppercase",
+    color: "#9ca3af",
+    marginBottom: 6,
+    fontWeight: 700,
+  },
+  cardHeadRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  cardBadge: {
+    padding: "3px 8px",
+    borderRadius: 999,
+    background: "rgba(248,113,113,0.25)",
+    color: "#fee2e2",
+    fontSize: 10,
+    fontWeight: 800,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+  },
+  cardBadgeSky: {
+    padding: "3px 8px",
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.25)",
+    color: "#e0f2fe",
+    fontSize: 10,
+    fontWeight: 800,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: 800,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  cardCopy: {
+    fontSize: 12,
+    color: "#cbd5f5",
+    marginBottom: 10,
+  },
+  priceRow: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: 4,
+    marginBottom: 4,
+  },
+  priceMain: {
+    fontSize: 24,
+    fontWeight: 900,
+  },
+  priceSuffix: {
+    fontSize: 11,
+    color: "#9ca3af",
+  },
+  priceNote: {
+    fontSize: 11,
+    color: "rgba(254,226,226,0.92)",
+    marginBottom: 10,
+  },
+  priceNoteSky: {
+    fontSize: 11,
+    color: "rgba(224,242,254,0.95)",
+    marginBottom: 10,
+  },
+  featuresList: {
+    listStyle: "none",
+    padding: 0,
+    margin: "4px 0 12px",
+    fontSize: 12,
+  },
+  featureItem: {
+    display: "flex",
+    gap: 8,
+    alignItems: "flex-start",
+    marginBottom: 4,
+  },
+  featureDot: {
+    marginTop: 5,
+    width: 5,
+    height: 5,
+    borderRadius: 999,
+    background: "#9ca3af",
+  },
+  cardFooter: {
+    marginTop: "auto",
+  },
+  cardGhostButton: {
+    display: "inline-flex",
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: "8px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(148,163,184,0.8)",
+    background: "rgba(15,23,42,0.95)",
+    color: "#e5e7eb",
+    fontSize: 13,
+    fontWeight: 800,
+    textDecoration: "none",
+    cursor: "pointer",
+  },
+  cardPrimaryButton: {
+    display: "inline-flex",
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: "8px 12px",
+    borderRadius: 14,
+    border: "none",
+    background: "rgba(248,113,113,1)",
+    color: "#111827",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "not-allowed",
+  },
+  cardOutlineButton: {
+    display: "inline-flex",
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: "8px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(56,189,248,0.9)",
+    background: "rgba(15,23,42,0.98)",
+    color: "#e0f2fe",
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: "not-allowed",
+  },
+  betaHint: {
+    marginTop: 6,
+    fontSize: 10,
+    color: "rgba(254,226,226,0.85)",
+  },
+  betaHintSky: {
+    marginTop: 6,
+    fontSize: 10,
+    color: "rgba(224,242,254,0.9)",
+  },
+
+  // Info blocks
+  infoGrid: {
+    marginTop: 6,
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gap: 14,
+  },
+  infoCard: {
+    borderRadius: 18,
+    border: "1px solid rgba(148,163,184,0.35)",
+    background: "rgba(15,23,42,0.96)",
+    padding: 14,
+  },
+  infoTitle: {
+    fontSize: 14,
+    fontWeight: 800,
+    marginBottom: 6,
+  },
+  infoText: {
+    fontSize: 12,
+    color: "#cbd5f5",
+  },
+
+  // CTA final
+  cta: {
+    marginTop: 10,
+    borderRadius: 20,
+    border: "1px solid rgba(96,165,250,0.7)",
+    background:
+      "radial-gradient(circle at 0 0, rgba(59,130,246,0.35), transparent 55%), rgba(15,23,42,0.98)",
+    padding: 16,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  ctaTextCol: {
+    flex: "1 1 260px",
+    minWidth: 0,
+  },
+  ctaTitle: {
+    fontSize: 16,
+    fontWeight: 900,
+    marginBottom: 6,
+  },
+  ctaCopy: {
+    fontSize: 12,
+    color: "#dbeafe",
+  },
+  ctaActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flex: "0 0 auto",
+  },
+  ctaPrimary: {
+    display: "inline-flex",
+    padding: "8px 16px",
+    borderRadius: 999,
+    border: "1px solid rgba(191,219,254,0.9)",
+    background: "#f97316",
+    color: "#111827",
+    fontSize: 13,
+    fontWeight: 900,
+    textDecoration: "none",
+    cursor: "pointer",
+  },
+};
