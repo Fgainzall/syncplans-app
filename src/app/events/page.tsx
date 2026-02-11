@@ -39,14 +39,12 @@ export default function EventsPage() {
     (async () => {
       try {
         setLoading(true);
-        // ✅ Cargamos ambas cosas (igual que CalendarClient)
         const [myGroups, rawEvents] = await Promise.all([
           getMyGroups(),
           getMyEvents(),
         ]);
         if (!alive) return;
 
-        // ✅ Map group_id -> type ("pair" | "family")
         const groupTypeById = new Map<string, "pair" | "family">(
           (myGroups || []).map((g: any) => {
             const id = String(g.id);
@@ -253,26 +251,33 @@ export default function EventsPage() {
     <main style={S.page}>
       {toast && <div style={S.toast}>{toast}</div>}
       <div style={S.shell}>
-        <div style={S.topRow}>
-          <PremiumHeader />
-          <div style={S.topActions}>
-            <button
-              style={S.secondary}
-              onClick={sendTodayDigest}
-              disabled={sendingDigest}
-            >
-              {sendingDigest ? "Enviando…" : "Recordatorio de hoy"}
-            </button>
+        {/* 👇 PremiumHeader con rightSlot alineado igual que en Calendar */}
+        <PremiumHeader
+          title="Eventos"
+          subtitle="Organiza tu día sin choques de horario."
+          rightSlot={
+            <div style={S.topActions}>
+              <button
+                style={S.secondary}
+                onClick={sendTodayDigest}
+                disabled={sendingDigest}
+              >
+                {sendingDigest ? "Enviando…" : "Recordatorio de hoy"}
+              </button>
 
-            <button
-              style={S.primary}
-              onClick={() => router.push("/events/new/details?type=personal")}
-            >
-              + Evento
-            </button>
-            <LogoutButton />
-          </div>
-        </div>
+              <button
+                style={S.primary}
+                onClick={() =>
+                  router.push("/events/new/details?type=personal")
+                }
+              >
+                + Evento
+              </button>
+
+              <LogoutButton />
+            </div>
+          }
+        />
 
         <section style={S.card}>
           <div style={S.titleRow}>
@@ -347,7 +352,6 @@ export default function EventsPage() {
                     <div style={{ ...S.bar, background: meta.dot }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={S.rowTop}>
-                        {/* Título clickeable para editar */}
                         <div
                           style={{ ...S.rowTitle, cursor: "pointer" }}
                           title="Editar evento"
@@ -360,7 +364,6 @@ export default function EventsPage() {
                           {e.title}
                         </div>
 
-                        {/* Botones Editar + Eliminar */}
                         <div style={{ display: "flex", gap: 8 }}>
                           <button
                             style={S.edit}
@@ -410,13 +413,6 @@ const S: Record<string, React.CSSProperties> = {
     margin: "0 auto",
     padding: "22px 18px 48px",
   },
-  topRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    marginBottom: 14,
-  },
   topActions: {
     display: "flex",
     gap: 10,
@@ -449,6 +445,7 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.03)",
     padding: 16,
+    marginTop: 14,
   },
   titleRow: {
     display: "flex",
