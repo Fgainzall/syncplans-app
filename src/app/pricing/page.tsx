@@ -387,17 +387,18 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: "stretch",
     gap: 16,
   },
-  card: {
-    flex: "1 1 260px",
-    maxWidth: 340,
-    borderRadius: 22,
-    border: "1px solid rgba(148,163,184,0.35)",
-    background: "rgba(15,23,42,0.95)",
-    padding: 16,
-    display: "flex",
-    flexDirection: "column",
-    height: "100%",
-  },
+card: {
+  flex: "1 1 260px",
+  maxWidth: 340,
+  minHeight: 360, // 👈 NUEVO: todas las tarjetas como mínimo del mismo alto
+  borderRadius: 22,
+  border: "1px solid rgba(148,163,184,0.35)",
+  background: "rgba(15,23,42,0.95)",
+  padding: 16,
+  display: "flex",
+  flexDirection: "column",
+},
+
   cardHighlight: {
     border: "1px solid rgba(248,113,113,0.85)",
     background:
@@ -546,33 +547,25 @@ const S: Record<string, React.CSSProperties> = {
   },
 betaHint: {
   marginTop: 6,
-  fontSize: 9,
-  lineHeight: 1.4,
+  fontSize: 10,
+  lineHeight: 1.3,
   color: "rgba(254,226,226,0.85)",
-  minHeight: 40,          // 👈 altura fija
-  maxHeight: 40,
-  overflow: "hidden",
 },
 
 betaHintSky: {
   marginTop: 6,
-  fontSize: 9,
-  lineHeight: 1.4,
+  fontSize: 10,
+  lineHeight: 1.3,
   color: "rgba(224,242,254,0.9)",
-  minHeight: 40,          // 👈 misma altura en las 3
-  maxHeight: 40,
-  overflow: "hidden",
 },
 
 betaHintFree: {
   marginTop: 6,
-  fontSize: 9,
-  lineHeight: 1.4,
+  fontSize: 10,
+  lineHeight: 1.3,
   color: "rgba(209,213,219,0.9)",
-  minHeight: 40,          // 👈 clave para que el botón suba
-  maxHeight: 40,
-  overflow: "hidden",
 },
+
 
   // Info blocks
   infoGrid: {
