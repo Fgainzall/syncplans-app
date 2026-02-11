@@ -99,8 +99,8 @@ type HeaderUser = {
 };
 
 export default function PremiumHeader({
-  title = "Calendario",
-  subtitle = "Organiza tu día sin choques de horario",
+  title,
+  subtitle,
   rightSlot,
 }: {
   title?: string;
@@ -117,6 +117,7 @@ export default function PremiumHeader({
   const [unreadCount, setUnreadCount] = useState(0);
   const [headerUser, setHeaderUser] = useState<HeaderUser | null>(null);
 
+  // Estado de grupos / modo activo
   useEffect(() => {
     const g = getGroupState();
     setGroup(g);
@@ -129,6 +130,7 @@ export default function PremiumHeader({
     applyThemeVars(activeMode);
   }, [activeMode]);
 
+  // Perfil para chip de usuario
   useEffect(() => {
     let alive = true;
 
@@ -165,6 +167,7 @@ export default function PremiumHeader({
     };
   }, []);
 
+  // Badge de notificaciones
   async function refreshBadge() {
     try {
       const { getMyNotifications } = await import("@/lib/notificationsDb");
@@ -192,6 +195,24 @@ export default function PremiumHeader({
     () => TABS.find((t) => t.key === activeMode) ?? TABS[0],
     [activeMode]
   );
+
+  // Título automático según ruta si no pasas title
+  const autoTitle = useMemo(() => {
+    if (pathname.startsWith("/pricing")) return "Planes";
+    if (pathname.startsWith("/profile")) return "Panel";
+    if (pathname.startsWith("/conflicts")) return "Conflictos";
+    if (pathname.startsWith("/groups")) return "Grupos";
+    if (pathname.startsWith("/members")) return "Miembros";
+    if (pathname.startsWith("/invitations")) return "Invitaciones";
+    if (pathname.startsWith("/events")) return "Eventos";
+    if (pathname.startsWith("/summary")) return "Resumen";
+    if (pathname.startsWith("/calendar")) return "Calendario";
+    return "Calendario";
+  }, [pathname]);
+
+  const finalTitle = title ?? autoTitle;
+  const finalSubtitle =
+    subtitle ?? "Organiza tu día sin choques de horario.";
 
   async function onNewEvent() {
     try {
@@ -239,11 +260,12 @@ export default function PremiumHeader({
               </span>
             </div>
 
-            <h1 style={S.title}>{title}</h1>
-            <p style={S.subtitle}>{subtitle}</p>
+            <h1 style={S.title}>{finalTitle}</h1>
+            <p style={S.subtitle}>{finalSubtitle}</p>
           </div>
 
           <div style={S.right}>
+            {/* Notificaciones */}
             <div style={S.bellWrap}>
               <button
                 style={S.bellBtn}
@@ -261,6 +283,7 @@ export default function PremiumHeader({
               )}
             </div>
 
+            {/* Usuario */}
             {headerUser && (
               <button
                 type="button"
@@ -273,6 +296,7 @@ export default function PremiumHeader({
               </button>
             )}
 
+            {/* Slot derecho o botón + Evento */}
             {rightSlot ?? (
               <button style={S.iconBtn} onClick={onNewEvent}>
                 + Evento
@@ -281,6 +305,7 @@ export default function PremiumHeader({
           </div>
         </div>
 
+        {/* Tabs de modo: Personal / Pareja / Familia / Compartido */}
         <div style={S.tabs}>
           <div style={S.tabsBg} />
           <div style={S.tabsInner}>
@@ -301,6 +326,7 @@ export default function PremiumHeader({
           </div>
         </div>
 
+        {/* Navegación secciones */}
         <nav style={S.nav}>
           <NavPill
             label="Resumen"
@@ -342,6 +368,7 @@ export default function PremiumHeader({
             active={pathname.startsWith("/profile")}
             onClick={() => router.push("/profile")}
           />
+          {/* 👇 Nuevo pill para pricing */}
           <NavPill
             label="Planes"
             active={pathname.startsWith("/pricing")}
