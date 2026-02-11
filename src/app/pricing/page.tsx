@@ -541,21 +541,35 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     cursor: "not-allowed",
   },
-  betaHint: {
-    marginTop: 6,
-    fontSize: 10,
-    color: "rgba(254,226,226,0.85)",
-  },
-  betaHintSky: {
-    marginTop: 6,
-    fontSize: 10,
-    color: "rgba(224,242,254,0.9)",
-  },
-  betaHintFree: {
-    marginTop: 6,
-    fontSize: 10,
-    color: "rgba(209,213,219,0.9)",
-  },
+betaHint: {
+  marginTop: 6,
+  fontSize: 9,
+  lineHeight: 1.4,
+  color: "rgba(254,226,226,0.85)",
+  minHeight: 40,          // 👈 altura fija
+  maxHeight: 40,
+  overflow: "hidden",
+},
+
+betaHintSky: {
+  marginTop: 6,
+  fontSize: 9,
+  lineHeight: 1.4,
+  color: "rgba(224,242,254,0.9)",
+  minHeight: 40,          // 👈 misma altura en las 3
+  maxHeight: 40,
+  overflow: "hidden",
+},
+
+betaHintFree: {
+  marginTop: 6,
+  fontSize: 9,
+  lineHeight: 1.4,
+  color: "rgba(209,213,219,0.9)",
+  minHeight: 40,          // 👈 clave para que el botón suba
+  maxHeight: 40,
+  overflow: "hidden",
+},
 
   // Info blocks
   infoGrid: {
