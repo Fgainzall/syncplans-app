@@ -98,11 +98,16 @@ export default function PricingPage() {
                 ))}
               </ul>
 
-              <div style={S.cardFooter}>
-                <Link href="/register" style={S.cardGhostButton}>
-                  Empezar gratis
-                </Link>
-              </div>
+<div style={S.cardFooter}>
+  <Link href="/register" style={S.cardGhostButton}>
+    Empezar gratis
+  </Link>
+  <p style={S.betaHintFree}>
+    Durante la beta puedes usar SyncPlans gratis, sin tarjeta. Siempre podrás
+    quedarte en este plan sin pagar nada.
+  </p>
+</div>
+
             </article>
 
             {/* Mensual */}
