@@ -716,7 +716,7 @@ export default function ProfilePage() {
   const digestHour = profile.daily_digest_hour_local ?? 7;
   const digestTz = profile.daily_digest_timezone ?? "America/Lima";
 
-  // ── Plan & Premium ──
+   // ── Plan & Premium ──
   const anyProfile = profile as any;
   const planTierRaw: string = anyProfile.plan_tier ?? "free";
   const subscriptionStatus: string = anyProfile.subscription_status ?? "inactive";
@@ -725,33 +725,34 @@ export default function ProfilePage() {
   const trialActive =
     trialEndsAt !== null ? new Date(trialEndsAt) > new Date() : false;
   const premiumActive = isPremiumUser(anyProfile);
+  const isFounderTier = planTierRaw.startsWith("founder");
 
   let planLabel = "";
   let planHint = "";
   let planCtaLabel = "";
 
-    const isFounderTier =
-    planTierRaw === "founder_monthly" || planTierRaw === "founder_yearly";
-
   if (premiumActive) {
     if (isFounderTier) {
+      // Founder visible en el panel
       if (planTierRaw === "founder_yearly") {
         planLabel = "Founder anual";
         planHint =
-          "Eres parte del grupo fundador de SyncPlans. Mantienes este precio mientras la suscripción siga activa.";
+          "Eres parte del grupo fundador de SyncPlans con plan anual. Mientras mantengas este plan, conservas el precio especial.";
       } else {
         planLabel = "Founder mensual";
         planHint =
-          "Eres parte del grupo fundador de SyncPlans. Mantienes este precio especial mientras sigas activo.";
+          "Eres parte del grupo fundador de SyncPlans. Mientras mantengas este plan, conservas el precio especial.";
       }
+      planCtaLabel = "Gestionar plan Founder";
     } else if (planTierRaw === "premium_yearly") {
       planLabel = "Premium anual";
       planHint = "Tu suscripción anual Premium está activa.";
+      planCtaLabel = "Gestionar suscripción";
     } else {
       planLabel = "Premium mensual";
       planHint = "Tu suscripción mensual Premium está activa.";
+      planCtaLabel = "Gestionar suscripción";
     }
-    planCtaLabel = "Gestionar suscripción";
   } else if (trialActive) {
     planLabel = "Prueba Premium activa";
     planHint =
