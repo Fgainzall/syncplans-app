@@ -29,7 +29,7 @@ import {
   type GroupMemberRow,
 } from "@/lib/groupsDb";
 
-import { isPremiumUser } from "@/lib/premium";
+import { isPremiumUser, isTrialActive } from "@/lib/premium";
 
 import { computeVisibleConflicts } from "@/lib/conflicts";
 
@@ -58,6 +58,12 @@ type Recommendation = {
 };
 
 type GroupFilter = "all" | "pair" | "family" | "other";
+
+type AnyProfile = {
+  plan_tier?: string | null;
+  subscription_status?: string | null;
+  trial_ends_at?: string | null;
+};
 
 /* ─────────────────── Helpers ─────────────────── */
 
@@ -177,6 +183,69 @@ function buildRecommendation(
     ctaLabel: "Invitar a alguien",
     ctaTarget: "invitations",
   };
+}
+
+/**
+ * Lógica central de plan actual (free / trial / premium / founder / fallback demo).
+ */
+function getPlanInfo(profile: AnyProfile | null) {
+  const tierRaw = profile?.plan_tier ?? "free";
+  const tier = tierRaw.toLowerCase();
+  const premiumActive = isPremiumUser(profile);
+  const trialActive = isTrialActive(profile);
+
+  let planLabel = "";
+  let planHint = "";
+  let planCtaLabel = "";
+
+  // 1) Founder (tu caso actual)
+  if (premiumActive && tier.startsWith("founder_")) {
+    planLabel = "Plan fundador (mensual)";
+    planHint =
+      "Formas parte de la beta privada con un precio especial mientras mantengas el plan.";
+    planCtaLabel = "Pronto podrás gestionar tu suscripción";
+    return { planLabel, planHint, planCtaLabel };
+  }
+
+  // 2) Premium anual
+  if (premiumActive && tier === "premium_yearly") {
+    planLabel = "Premium anual";
+    planHint = "Renueva una vez al año con precio preferencial.";
+    planCtaLabel = "Pronto podrás gestionar tu suscripción";
+    return { planLabel, planHint, planCtaLabel };
+  }
+
+  // 3) Cualquier otro premium activo (mensual, etc.)
+  if (premiumActive) {
+    planLabel = "Premium mensual";
+    planHint = "Tienes todas las funciones activas con renovación mensual.";
+    planCtaLabel = "Pronto podrás gestionar tu suscripción";
+    return { planLabel, planHint, planCtaLabel };
+  }
+
+  // 4) Trial activo
+  if (trialActive) {
+    planLabel = "Prueba Premium";
+    planHint = "Estás probando todas las funciones Premium por tiempo limitado.";
+    planCtaLabel = "Ver opciones de Premium";
+    return { planLabel, planHint, planCtaLabel };
+  }
+
+  // 5) Plan gratis
+  if (tier === "free") {
+    planLabel = "Plan gratis";
+    planHint =
+      "Usa SyncPlans sin costo. Puedes subir a Premium cuando quieras.";
+    planCtaLabel = "Ver planes Premium";
+    return { planLabel, planHint, planCtaLabel };
+  }
+
+  // 6) Fallback legacy: Demo Premium (beta)
+  planLabel = "Demo Premium (beta)";
+  planHint =
+    "Estás en la beta privada de SyncPlans con acceso extendido a funciones Premium.";
+  planCtaLabel = "Te avisaremos cuando lancemos los planes oficiales";
+  return { planLabel, planHint, planCtaLabel };
 }
 
 /* ─────────────────── Componente principal ─────────────────── */
@@ -712,67 +781,10 @@ export default function ProfilePage() {
   const digestEnabled = profile.daily_digest_enabled ?? false;
   const digestHour = profile.daily_digest_hour_local ?? 7;
   const digestTz = profile.daily_digest_timezone ?? "America/Lima";
+
   // ── Plan & Premium ──
-  const anyProfile = profile as any;
-  const planTierRaw: string = anyProfile.plan_tier ?? "free";
-  const subscriptionStatus: string = anyProfile.subscription_status ?? "inactive";
-  const trialEndsAt: string | null = anyProfile.trial_ends_at ?? null;
-
-  const trialActive =
-    trialEndsAt !== null ? new Date(trialEndsAt) > new Date() : false;
-  const premiumActive = isPremiumUser(anyProfile);
-  const isFounderTier = planTierRaw.startsWith("founder");
-
-  let planLabel = "";
-  let planHint = "";
-  let planCtaLabel = "";
-
-  if (premiumActive) {
-    if (isFounderTier) {
-      // Founder visible en el panel
-      if (planTierRaw === "founder_yearly") {
-        planLabel = "Founder anual";
-        planHint =
-          "Eres parte del grupo fundador de SyncPlans con plan anual. Mientras mantengas este plan, conservas el precio especial.";
-      } else {
-        planLabel = "Founder mensual";
-        planHint =
-          "Eres parte del grupo fundador de SyncPlans. Mientras mantengas este plan, conservas el precio especial.";
-      }
-      planCtaLabel = "Gestionar plan Founder";
-    } else if (planTierRaw === "premium_yearly") {
-      planLabel = "Premium anual";
-      planHint = "Tu suscripción anual Premium está activa.";
-      planCtaLabel = "Gestionar suscripción";
-    } else {
-      planLabel = "Premium mensual";
-      planHint = "Tu suscripción mensual Premium está activa.";
-      planCtaLabel = "Gestionar suscripción";
-    }
-  } else if (trialActive) {
-    planLabel = "Prueba Premium activa";
-    planHint =
-      "Estás probando las funciones Premium. Más adelante podrás elegir si continuar o volver al plan gratuito.";
-    planCtaLabel = "Upgrade a Premium";
-  } else if (planTierRaw === "free") {
-    planLabel = "Plan gratuito";
-    planHint =
-      "Usa SyncPlans en modo básico. Puedes pasar a Premium cuando quieras.";
-    planCtaLabel = "Upgrade a Premium";
-  } else if (planTierRaw.startsWith("premium")) {
-    planLabel = "Premium (pendiente)";
-    planHint =
-      subscriptionStatus === "canceled"
-        ? "Tu suscripción Premium se canceló. Puedes reactivarla en cualquier momento."
-        : "Tu suscripción Premium aún no está activa. Revisa tu método de pago o finaliza el proceso.";
-    planCtaLabel = "Revisar suscripción";
-  } else {
-    // demo / legacy
-    planLabel = "Demo Premium (beta)";
-    planHint =
-      "Estás en la beta privada de SyncPlans con acceso extendido a funciones Premium.";
-    planCtaLabel = "Ver opciones de plan";
-  }
+  const anyProfile = profile as AnyProfile;
+  const { planLabel, planHint, planCtaLabel } = getPlanInfo(anyProfile);
 
   /* ── 10) Render principal ── */
 
