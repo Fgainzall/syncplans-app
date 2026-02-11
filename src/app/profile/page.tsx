@@ -15,7 +15,6 @@ import {
   updateMyCoordinationPrefs,
   normalizeCoordinationPrefs,
   updateDailyDigestSettings,
-  // ⛔️ OJO: aquí ya NO importamos isPremiumUser
   type CoordinationPrefs,
   type Profile,
 } from "@/lib/profilesDb";
@@ -30,11 +29,9 @@ import {
   type GroupMemberRow,
 } from "@/lib/groupsDb";
 
-// ✅ NUEVO import correcto
 import { isPremiumUser } from "@/lib/premium";
 
 import { computeVisibleConflicts } from "@/lib/conflicts";
-
 
 /* ─────────────────── Tipos UI ─────────────────── */
 
@@ -715,8 +712,7 @@ export default function ProfilePage() {
   const digestEnabled = profile.daily_digest_enabled ?? false;
   const digestHour = profile.daily_digest_hour_local ?? 7;
   const digestTz = profile.daily_digest_timezone ?? "America/Lima";
-
-   // ── Plan & Premium ──
+  // ── Plan & Premium ──
   const anyProfile = profile as any;
   const planTierRaw: string = anyProfile.plan_tier ?? "free";
   const subscriptionStatus: string = anyProfile.subscription_status ?? "inactive";
