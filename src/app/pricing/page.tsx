@@ -27,7 +27,7 @@ const featuresYearly = [
 export default function PricingPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50">
-      {/* 👇 misma “caja” que /profile y /events */}
+      {/* 👇 misma shell que /profile y /events */}
       <div className="mx-auto max-w-[1120px] px-[18px] pt-6 pb-16">
         <PremiumHeader
           title="Planes"
@@ -60,7 +60,7 @@ export default function PricingPage() {
             </p>
           </section>
 
-          {/* Toggle conceptual (texto, sin lógica de estado por ahora) */}
+          {/* Toggle conceptual */}
           <section className="flex flex-wrap items-center justify-between gap-3">
             <div className="inline-flex items-center gap-2 rounded-full bg-slate-900/70 px-3 py-1 text-xs text-slate-200 ring-1 ring-slate-700/80">
               <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-950">
@@ -225,7 +225,7 @@ export default function PricingPage() {
             </article>
           </section>
 
-          {/* Bloques cortos (menos texto, pero claros) */}
+          {/* Bloques cortos explicativos */}
           <section className="grid gap-6 md:grid-cols-3">
             <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
               <h3 className="mb-2 text-sm font-semibold text-slate-50">
@@ -241,7 +241,7 @@ export default function PricingPage() {
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
               <h3 className="mb-2 text-sm font-semibold text-slate-50">
-                ¿Por qué no basta WhatsApp + calendario?
+                ¿Por qué no basta WhatsApp y un calendario normal?
               </h3>
               <p>
                 WhatsApp sirve para hablar, pero no para ver el cuadro completo.
