@@ -5,17 +5,17 @@ import PremiumHeader from "@/components/PremiumHeader";
 
 const featuresFree = [
   "Calendario personal básico",
-  "Grupos limitados para probar (pareja / familia / otros)",
-  "Detección de algunos conflictos entre planes",
-  "Sin tarjetas ni pagos durante la beta",
+  "Uno o pocos grupos para probar (pareja / familia / otros)",
+  "Detección de conflictos al guardar planes",
+  "Sin tarjeta ni pagos durante la beta",
 ];
 
 const featuresMonthly = [
   "Todos los grupos que necesites (pareja, familia, amigos, equipos)",
-  "Detección avanzada de conflictos entre calendarios",
+  "Detección avanzada de conflictos entre calendarios compartidos",
   "Resumen diario por email con tus planes del día",
   "Resumen semanal con próximos planes importantes",
-  "Notificaciones de cambios relevantes de tu pareja / familia",
+  "Notificaciones de cambios relevantes en tu pareja / familia",
 ];
 
 const featuresYearly = [
@@ -30,7 +30,7 @@ export default function PricingPage() {
       <div style={S.shell}>
         <PremiumHeader
           title="Planes"
-          subtitle="El mismo SyncPlans, con distintos niveles de compromiso."
+          subtitle="SyncPlans no es otro calendario: es el árbitro neutral de tu tiempo compartido."
         />
 
         <div style={S.content}>
@@ -38,9 +38,10 @@ export default function PricingPage() {
           <div style={S.banner}>
             <span style={S.bannerStrong}>Demo Premium activo · </span>
             <span>
-              Mientras dure la beta, todos los usuarios tienen acceso a las
-              funciones Premium sin costo. Más adelante podrás elegir si te
-              quedas en el plan Gratis o haces upgrade.
+              Estás en la beta privada de SyncPlans. Hoy todos los usuarios
+              tienen acceso a funciones Premium sin costo ni tarjeta. Cuando
+              activemos los pagos, podrás elegir si quedarte en el plan Gratis
+              o pasar a Premium (mensual o anual) con total claridad de precios.
             </span>
           </div>
 
@@ -51,9 +52,10 @@ export default function PricingPage() {
               Coordinar horarios no debería ser un motivo de pelea.
             </h1>
             <p style={S.heroCopy}>
-              SyncPlans no es “otro calendario más”. Es el lugar donde todos ven
-              la misma versión de los planes compartidos y los choques se
-              detectan antes de que explote el problema.
+              SyncPlans no compite con tu calendario de siempre. Lo que hace es
+              poner en un solo lugar los planes compartidos y mostrar los
+              choques antes de que se transformen en un “yo pensé que era otro
+              día” o “nunca vi ese mensaje”.
             </p>
           </section>
 
@@ -78,8 +80,8 @@ export default function PricingPage() {
               <div style={S.cardHeaderLine}>GRATIS</div>
               <h2 style={S.cardTitle}>Plan Básico</h2>
               <p style={S.cardCopy}>
-                Ideal para probar el concepto y coordinar los primeros planes
-                con tu pareja o familia.
+                Para probar la idea con tu pareja o familia, sin compromiso y
+                usando tus planes reales del día a día.
               </p>
 
               <div style={S.priceRow}>
@@ -116,7 +118,8 @@ export default function PricingPage() {
                 Plan Mensual
               </h2>
               <p style={{ ...S.cardCopy, color: "rgba(254,226,226,0.85)" }}>
-                Para parejas, familias y grupos que de verdad se coordinan aquí.
+                Para parejas, familias y grupos que de verdad usan SyncPlans
+                como su lugar oficial para coordinar.
               </p>
 
               <div style={S.priceRow}>
@@ -128,8 +131,8 @@ export default function PricingPage() {
                 </span>
               </div>
               <p style={S.priceNote}>
-                Menos que una salida simple al mes por tener paz con tu agenda
-                compartida.
+                Menos que una salida simple al mes a cambio de tener paz con tu
+                agenda compartida y menos fricción en las conversaciones.
               </p>
 
               <ul style={{ ...S.featuresList, color: "rgba(254,226,226,0.92)" }}>
@@ -144,12 +147,13 @@ export default function PricingPage() {
               </ul>
 
               <div style={S.cardFooter}>
+                {/* CTA listo para futuro Paddle: de momento deshabilitado */}
                 <button type="button" style={S.cardPrimaryButton} disabled>
                   Demo Premium activo
                 </button>
                 <p style={S.betaHint}>
-                  Durante la beta no se te cobrará nada. Cuando lancemos,
-                  este será el precio público mensual.
+                  Durante la beta no se te cobrará nada. Cuando lancemos, desde
+                  aquí podrás activar tu suscripción mensual con un clic.
                 </p>
               </div>
             </article>
@@ -163,12 +167,10 @@ export default function PricingPage() {
                 <div style={S.cardBadgeSky}>~2 MESES GRATIS</div>
               </div>
 
-              <h2 style={{ ...S.cardTitle, color: "#e0f2fe" }}>
-                Plan Anual
-              </h2>
+              <h2 style={{ ...S.cardTitle, color: "#e0f2fe" }}>Plan Anual</h2>
               <p style={{ ...S.cardCopy, color: "rgba(224,242,254,0.90)" }}>
-                Para los que ya saben que SyncPlans encaja en su día a día y
-                prefieren olvidarse del pago mes a mes.
+                Para quienes ya vieron el valor y prefieren pagar una vez al
+                año, olvidarse del cobro mensual y asegurar el precio.
               </p>
 
               <div style={S.priceRow}>
@@ -182,7 +184,8 @@ export default function PricingPage() {
 
               <p style={S.priceNoteSky}>
                 Equivalente a ~US$5.75 al mes. Aproximadamente 2 meses gratis
-                frente al plan mensual.
+                frente al plan mensual y un compromiso claro con cómo coordinas
+                tu tiempo.
               </p>
 
               <ul style={{ ...S.featuresList, color: "rgba(224,242,254,0.92)" }}>
@@ -197,6 +200,7 @@ export default function PricingPage() {
               </ul>
 
               <div style={S.cardFooter}>
+                {/* También listo para futuro Paddle / founder yearly */}
                 <button type="button" style={S.cardOutlineButton} disabled>
                   Disponible después de la beta
                 </button>
@@ -214,9 +218,9 @@ export default function PricingPage() {
               <h3 style={S.infoTitle}>¿Para quién es SyncPlans?</h3>
               <p style={S.infoText}>
                 Para personas que coordinan con otros: parejas que ya no quieren
-                discusiones por horarios, familias que hacen malabares con
-                cole, trabajo y viajes, y grupos de amigos que quieren mantener
-                vivo el plan sin 200 mensajes.
+                discusiones por horarios, familias que hacen malabares con cole,
+                trabajo y viajes, y grupos de amigos o equipos que quieren
+                mantener vivos los planes sin 200 mensajes cruzados.
               </p>
             </div>
 
@@ -226,21 +230,23 @@ export default function PricingPage() {
               </h3>
               <p style={S.infoText}>
                 WhatsApp sirve para hablar, pero no para ver el impacto de un
-                cambio en todo el grupo. Un calendario solo te muestra tu agenda
-                individual. SyncPlans junta ambos mundos y detecta choques antes
-                de que el “yo pensé que era otro día” explote.
+                cambio en todo el grupo. Un calendario individual solo ve tu
+                agenda. SyncPlans cruza las agendas compartidas, detecta choques
+                al guardar y te obliga a decidir antes de que el problema llegue
+                a la conversación.
               </p>
             </div>
 
             <div style={S.infoCard}>
-              <h3 style={S.infoTitle}>Empieza ahora y decide después.</h3>
+              <h3 style={S.infoTitle}>Beta, Premium y grupo fundador</h3>
               <p style={S.infoText}>
-                Durante la beta, usas SyncPlans con acceso Premium completo.
-                Cuando lancemos, podrás quedarte en el plan Gratis o pasar al
-                Premium mensual (US$6.90) o anual (US$69). Si Fernando te invitó
-                como parte del grupo fundador, verás un precio especial de
-                aproximadamente US$3.90/mes o US$39/año mientras mantengas el
-                plan activo.
+                Durante la beta, usas SyncPlans con acceso Premium completo y
+                precio US$0. Cuando lancemos, podrás quedarte en el plan Gratis
+                o pasar al Premium mensual (US$6.90) o anual (US$69). Si
+                Fernando te invitó como parte del grupo fundador, verás un
+                precio especial de aproximadamente US$3.90/mes o US$39/año
+                mientras mantengas el plan activo: es nuestra forma de agradecer
+                a quienes ayudaron a construir la versión real del producto.
               </p>
             </div>
           </section>
@@ -251,8 +257,10 @@ export default function PricingPage() {
               <h3 style={S.ctaTitle}>Empieza ahora, sin tarjeta.</h3>
               <p style={S.ctaCopy}>
                 Crea tu cuenta, invita a tu pareja o familia y mete los planes
-                reales de las próximas semanas. El valor se siente cuando
-                aparece el primer conflicto que ves a tiempo.
+                reales de las próximas semanas. El verdadero valor se siente
+                cuando aparece el primer conflicto que ves a tiempo y la
+                conversación cambia de “por qué no me avisaste” a “qué hacemos
+                con esto”.
               </p>
             </div>
             <div style={S.ctaActions}>

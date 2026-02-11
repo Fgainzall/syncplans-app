@@ -217,35 +217,36 @@ function getPlanInfo(profile: AnyProfile | null) {
   if (premiumActive) {
     if (tier === "premium_yearly") {
       planLabel = "Premium anual";
-      planHint = "Tu suscripción anual Premium está activa.";
+     planHint = "Tu suscripción anual Premium (US$69) está activa.";
       planCtaLabel = "Gestionar suscripción";
       return { planLabel, planHint, planCtaLabel };
     }
 
     // premium_monthly u otro premium activo
     planLabel = "Premium mensual";
-    planHint = "Tu suscripción mensual Premium está activa.";
+    planHint = "Tu suscripción mensual Premium (US$6.90) está activa.";
     planCtaLabel = "Gestionar suscripción";
     return { planLabel, planHint, planCtaLabel };
   }
 
   // 3) Trial activo
   if (trialActive) {
-    planLabel = "Prueba Premium activa";
-    planHint =
-      "Estás probando las funciones Premium. Más adelante podrás elegir si continuar o volver al plan gratuito.";
-    planCtaLabel = "Upgrade a Premium";
+    planLabel = "Demo Premium activa";
+planHint =
+  "Estás usando todas las funciones Premium sin costo como parte de la beta privada. El precio público será US$6.90/mes o US$69/año.";
+planCtaLabel = "Ver planes y precios";
     return { planLabel, planHint, planCtaLabel };
   }
 
   // 4) Plan gratuito
   if (tier === "free") {
-    planLabel = "Plan gratuito";
-    planHint =
-      "Usa SyncPlans en modo básico. Puedes pasar a Premium cuando quieras.";
-    planCtaLabel = "Upgrade a Premium";
-    return { planLabel, planHint, planCtaLabel };
-  }
+  planLabel = "Plan gratuito";
+  planHint =
+    "Estás usando SyncPlans en modo básico. Puedes pasar a Premium mensual (US$6.90) o anual (US$69) cuando quieras. Durante la beta no se te cobrará nada.";
+  planCtaLabel = "Ver planes Premium";
+  return { planLabel, planHint, planCtaLabel };
+}
+
 
   // 5) Casos en los que hay un tier premium pero no activo (pendiente / cancelado)
   if (tier.includes("premium")) {
