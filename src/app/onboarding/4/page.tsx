@@ -1,21 +1,26 @@
 // src/app/onboarding/4/page.tsx
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function Onboarding4Page() {
   const router = useRouter();
+  const sp = useSearchParams();
+
+  const nextRaw = sp.get("next");
+  const nextFinal = nextRaw && nextRaw.startsWith("/") ? nextRaw : "/summary";
+  const qsNext = `?next=${encodeURIComponent(nextFinal)}`;
 
   function handleLogin() {
-    router.push("/auth/login");
+    router.push(`/auth/login${qsNext}`);
   }
 
   function handleCreateAccount() {
-    router.push("/auth/register");
+    router.push(`/auth/register${qsNext}`);
   }
 
   function handleBack() {
-    router.push("/onboarding/3");
+    router.push(`/onboarding/3${qsNext}`);
   }
 
   return (
@@ -123,11 +128,9 @@ export default function Onboarding4Page() {
               lineHeight: 1.6,
             }}
           >
-            Cuando dos planes se cruzan, SyncPlans no se queda callado. Marca el
-            conflicto, te muestra todo lo que está en juego y te pide una
-            decisión clara, para que haya{" "}
-            <strong>una sola versión de la verdad</strong> y nadie se lleve la
-            sorpresa a último minuto.
+            Cuando dos planes se cruzan, SyncPlans no se queda callado. Te muestra
+            el choque y te pide una decisión clara, para que exista{" "}
+            <strong>una sola versión de la verdad</strong> para ambos.
           </p>
 
           {/* Opciones de resolución */}
@@ -148,7 +151,7 @@ export default function Onboarding4Page() {
               status="Decisión"
               statusBg="#DCFCE7"
               statusBorder="#BBF7D0"
-              copy="Eliges qué plan se queda y cuál se mueve o se cancela. Una decisión, una sola historia que todos comparten."
+              copy="Eliges qué plan se queda. El otro se mueve o se cancela. Simple, claro."
             />
             <OptionRow
               index="2"
@@ -156,7 +159,7 @@ export default function Onboarding4Page() {
               status="Acordado"
               statusBg="#DBEAFE"
               statusBorder="#BFDBFE"
-              copy="Aceptas que convivan (por ejemplo, ver un partido mientras cocinan en familia). El conflicto se mantiene visible para todos, sin engaños."
+              copy="Aceptas que convivan. El choque queda visible, sin autoengaños."
             />
             <OptionRow
               index="3"
@@ -164,11 +167,11 @@ export default function Onboarding4Page() {
               status="Pendiente"
               statusBg="#FEF9C3"
               statusBorder="#FEF08A"
-              copy="Dejas marcado que hay un tema pendiente. No se borra nada, y todos ven que hay algo por resolver más adelante."
+              copy="Lo dejas marcado como tema pendiente. Nada se borra. Ambos lo ven."
             />
           </div>
 
-          {/* CTA PRINCIPAL: crear cuenta */}
+          {/* CTA PRINCIPAL */}
           <button
             style={{
               marginTop: 16,
@@ -178,16 +181,16 @@ export default function Onboarding4Page() {
               border: "none",
               background: "linear-gradient(90deg, #3B82F6, #22C55E)",
               color: "white",
-              fontWeight: 600,
+              fontWeight: 800,
               fontSize: 15,
               cursor: "pointer",
             }}
             onClick={handleCreateAccount}
           >
-            Crear mi espacio en SyncPlans
+            Crear cuenta
           </button>
 
-          {/* CTA SECUNDARIA: login */}
+          {/* CTA SECUNDARIA */}
           <button
             style={{
               marginTop: 10,
@@ -197,13 +200,13 @@ export default function Onboarding4Page() {
               border: "1px solid #E5E7EB",
               background: "#FFFFFF",
               color: "#4B5563",
-              fontWeight: 600,
+              fontWeight: 800,
               fontSize: 14,
               cursor: "pointer",
             }}
             onClick={handleLogin}
           >
-            Ya tengo cuenta, iniciar sesión
+            Ya tengo cuenta
           </button>
 
           <button
@@ -215,7 +218,7 @@ export default function Onboarding4Page() {
               border: "1px solid #E5E7EB",
               background: "#F9FAFB",
               color: "#4B5563",
-              fontWeight: 500,
+              fontWeight: 700,
               fontSize: 13,
               cursor: "pointer",
             }}
@@ -232,10 +235,9 @@ export default function Onboarding4Page() {
               color: "#6B7280",
             }}
           >
-            Después de crear tu cuenta verás un{" "}
-            <strong>resumen claro de tus próximos planes</strong> y de los
-            conflictos que podrías tener. Luego podrás invitar a tu pareja o
-            familia para compartir la misma verdad sobre la agenda.
+            Después de crear tu cuenta podrás{" "}
+            <strong>crear un grupo de pareja</strong> e invitar a tu persona.
+            (Familia y grupos también existen, pero lo potente empieza en pareja.)
           </div>
         </section>
       </div>
@@ -273,7 +275,7 @@ function OptionRow(props: {
           placeItems: "center",
           background: "#E5E7EB",
           color: "#111827",
-          fontWeight: 700,
+          fontWeight: 800,
           fontSize: 13,
         }}
       >
@@ -281,7 +283,7 @@ function OptionRow(props: {
       </div>
 
       <div style={{ display: "grid", gap: 2 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>
           {props.title}
         </div>
         <div style={{ fontSize: 12, color: "#4B5563" }}>{props.copy}</div>
@@ -290,7 +292,7 @@ function OptionRow(props: {
       <div
         style={{
           fontSize: 12,
-          fontWeight: 600,
+          fontWeight: 800,
           padding: "6px 10px",
           borderRadius: 999,
           border: `1px solid ${props.statusBorder}`,

@@ -1,10 +1,15 @@
 // src/app/onboarding/2/page.tsx
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function Onboarding2() {
   const router = useRouter();
+  const sp = useSearchParams();
+
+  const nextRaw = sp.get("next");
+  const nextFinal = nextRaw && nextRaw.startsWith("/") ? nextRaw : "/summary";
+  const qsNext = `?next=${encodeURIComponent(nextFinal)}`;
 
   return (
     <main
@@ -78,7 +83,8 @@ export default function Onboarding2() {
             >
               calendario
             </span>
-            . Es la coordinación.
+            .<br />
+            Es la coordinación.
           </h1>
 
           {/* Subtitle */}
@@ -91,7 +97,7 @@ export default function Onboarding2() {
             }}
           >
             Los choques casi nunca son por mala intención. Pasa porque cada uno
-            tiene su versión de la agenda en la cabeza, en WhatsApp o en apps
+            termina con su versión del día: en la cabeza, en WhatsApp o en apps
             distintas.
           </p>
 
@@ -128,7 +134,7 @@ export default function Onboarding2() {
             )}
           </div>
 
-          {/* Conflict preview (soft) */}
+          {/* Conflict preview */}
           <div
             style={{
               borderRadius: 18,
@@ -148,7 +154,7 @@ export default function Onboarding2() {
                 marginBottom: 10,
               }}
             >
-              <span>Ejemplo real</span>
+              <span style={{ fontWeight: 700 }}>Ejemplo real</span>
               <span style={{ color: "#6B7280" }}>Dos planes, misma hora</span>
             </div>
 
@@ -162,7 +168,7 @@ export default function Onboarding2() {
                 time="20:00 – 21:30"
               />
               <EventRow
-                pill="Personal"
+                pill="Tu agenda"
                 pillBg="#FFFBEB"
                 pillBorder="#FDE68A"
                 dot="#F59E0B"
@@ -200,7 +206,7 @@ export default function Onboarding2() {
                 <div style={{ flex: 1 }}>
                   <div
                     style={{
-                      fontWeight: 700,
+                      fontWeight: 800,
                       fontSize: 13,
                       color: "#1F2933",
                     }}
@@ -214,18 +220,33 @@ export default function Onboarding2() {
                       lineHeight: 1.45,
                     }}
                   >
-                    Uno lo apuntó en el calendario. El otro lo tenía en la cabeza
-                    o en un chat. Resultado:{" "}
-                    <b style={{ color: "#111827" }}>choque asegurado</b>.
+                    Uno lo apuntó. El otro lo tenía en la cabeza o en un chat.
+                    Resultado: <b style={{ color: "#111827" }}>choque asegurado</b>.
                   </div>
                 </div>
+              </div>
+
+              <div
+                style={{
+                  borderRadius: 14,
+                  padding: 12,
+                  background: "#ECFDF5",
+                  border: "1px solid #BBF7D0",
+                  color: "#374151",
+                  fontSize: 12,
+                  lineHeight: 1.45,
+                }}
+              >
+                SyncPlans existe para que esos choques{" "}
+                <b style={{ color: "#111827" }}>se vean antes</b> y se resuelvan
+                con una decisión clara.
               </div>
             </div>
           </div>
 
           {/* CTA */}
           <button
-            onClick={() => router.push("/onboarding/3")}
+            onClick={() => router.push(`/onboarding/3${qsNext}`)}
             style={{
               width: "100%",
               padding: "13px 18px",
@@ -234,15 +255,15 @@ export default function Onboarding2() {
               background: "linear-gradient(135deg, #3B82F6, #6366F1)",
               color: "#F9FAFB",
               fontSize: 15,
-              fontWeight: 600,
+              fontWeight: 800,
               cursor: "pointer",
             }}
           >
-            Siguiente
+            Seguir
           </button>
 
           <button
-            onClick={() => router.push("/onboarding")}
+            onClick={() => router.push(`/onboarding/1${qsNext}`)}
             style={{
               width: "100%",
               padding: "11px 18px",
@@ -251,7 +272,7 @@ export default function Onboarding2() {
               background: "#FFFFFF",
               color: "#4B5563",
               fontSize: 14,
-              fontWeight: 600,
+              fontWeight: 700,
               cursor: "pointer",
               marginTop: 10,
             }}
@@ -267,8 +288,8 @@ export default function Onboarding2() {
               marginTop: 10,
             }}
           >
-            Estas frases no son raras. Son normales. SyncPlans existe para que
-            dejen de aparecer tan seguido.
+            Esto pasa en parejas ocupadas todo el tiempo. SyncPlans existe para
+            que pase menos.
           </div>
         </section>
       </div>
@@ -307,7 +328,7 @@ function EventRow(props: {
           }}
         />
         <div>
-          <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>
+          <div style={{ fontWeight: 800, fontSize: 13, color: "#111827" }}>
             {props.title}
           </div>
           <div style={{ color: "#6B7280", fontSize: 12 }}>{props.time}</div>
@@ -322,7 +343,7 @@ function EventRow(props: {
           border: `1px solid ${props.pillBorder}`,
           color: "#374151",
           fontSize: 12,
-          fontWeight: 600,
+          fontWeight: 800,
           whiteSpace: "nowrap",
         }}
       >

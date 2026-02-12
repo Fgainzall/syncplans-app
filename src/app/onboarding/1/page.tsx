@@ -1,10 +1,15 @@
 // src/app/onboarding/1/page.tsx
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function OnboardingIntro() {
   const router = useRouter();
+  const sp = useSearchParams();
+
+  const nextRaw = sp.get("next");
+  const nextFinal = nextRaw && nextRaw.startsWith("/") ? nextRaw : "/summary";
+  const qsNext = `?next=${encodeURIComponent(nextFinal)}`;
 
   return (
     <main
@@ -66,7 +71,7 @@ export default function OnboardingIntro() {
             </div>
 
             <button
-              onClick={() => router.push("/auth/login")}
+              onClick={() => router.push(`/auth/login${qsNext}`)}
               style={{
                 height: 32,
                 padding: "0 12px",
@@ -75,7 +80,7 @@ export default function OnboardingIntro() {
                 background: "#FFFFFF",
                 color: "#4B5563",
                 fontSize: 12,
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor: "pointer",
               }}
             >
@@ -93,7 +98,7 @@ export default function OnboardingIntro() {
               color: "#0F172A",
             }}
           >
-            Coordinar horarios{" "}
+            Coordinar con tu pareja{" "}
             <span
               style={{
                 background: "linear-gradient(90deg, #0EA5E9, #22C55E)",
@@ -101,7 +106,7 @@ export default function OnboardingIntro() {
                 color: "transparent",
               }}
             >
-              no debería ser complicado
+              no debería ser un problema
             </span>
           </h1>
 
@@ -114,9 +119,8 @@ export default function OnboardingIntro() {
               marginBottom: 16,
             }}
           >
-            Cuando se mezclan tus planes personales, los de pareja y los de
-            familia, los malentendidos aparecen: alguien no vio el mensaje,
-            pensó que era otro día o ya tenía algo agendado.
+            El caos no es “el calendario”. Es la coordinación: alguien no vio el
+            mensaje, pensó que era otro día… o ya tenía algo encima.
           </p>
 
           {/* Mini calendar preview (soft) */}
@@ -139,7 +143,7 @@ export default function OnboardingIntro() {
                 marginBottom: 10,
               }}
             >
-              <span>Semana típica</span>
+              <span style={{ fontWeight: 700 }}>Semana real</span>
               <span style={{ color: "#6B7280" }}>Todo mezclado</span>
             </div>
 
@@ -164,7 +168,7 @@ export default function OnboardingIntro() {
                     justifyContent: "center",
                     color: "#6B7280",
                     fontSize: 12,
-                    fontWeight: 600,
+                    fontWeight: 700,
                   }}
                 >
                   {d}
@@ -174,21 +178,21 @@ export default function OnboardingIntro() {
 
             <div style={{ display: "grid", gap: 8 }}>
               <QuickEvent
-                title="Reunión de trabajo"
+                title="Reunión (trabajo)"
                 time="09:30"
                 dot="#F59E0B"
                 bg="#FFFBEB"
                 border="#FDE68A"
               />
               <QuickEvent
-                title="Cena con pareja"
+                title="Cena (pareja)"
                 time="20:00"
                 dot="#EF4444"
                 bg="#FEF2F2"
                 border="#FECACA"
               />
               <QuickEvent
-                title="Cumpleaños familiar"
+                title="Plan compartido"
                 time="19:30"
                 dot="#3B82F6"
                 bg="#EFF6FF"
@@ -208,16 +212,18 @@ export default function OnboardingIntro() {
                 lineHeight: 1.45,
               }}
             >
-              💬{" "}
-              <b style={{ color: "#111827" }}>Hoy se ve así:</b> un poco en el
-              calendario, un poco en WhatsApp, un poco en notas. SyncPlans nace
-              para poner <b>una sola versión de la verdad</b> en el centro.
+              💬 <b style={{ color: "#111827" }}>Hoy suele verse así:</b> un poco
+              en el calendario, un poco en WhatsApp, un poco en notas.
+              <br />
+              SyncPlans pone{" "}
+              <b style={{ color: "#111827" }}>una sola versión de la verdad</b>{" "}
+              en el centro.
             </div>
           </div>
 
           {/* CTA */}
           <button
-            onClick={() => router.push("/onboarding/2")}
+            onClick={() => router.push(`/onboarding/2${qsNext}`)}
             style={{
               width: "100%",
               padding: "13px 18px",
@@ -226,11 +232,11 @@ export default function OnboardingIntro() {
               background: "linear-gradient(135deg, #3B82F6, #22C55E)",
               color: "#F9FAFB",
               fontSize: 15,
-              fontWeight: 600,
+              fontWeight: 800,
               cursor: "pointer",
             }}
           >
-            Empezar
+            Seguir
           </button>
 
           <div
@@ -241,8 +247,8 @@ export default function OnboardingIntro() {
               marginTop: 10,
             }}
           >
-            En las siguientes pantallas verás cómo SyncPlans actúa como
-            árbitro neutral del tiempo compartido.
+            En 60 segundos verás cómo SyncPlans actúa como{" "}
+            <b>árbitro neutral</b> del tiempo compartido.
           </div>
         </section>
       </div>
@@ -279,7 +285,7 @@ function QuickEvent(props: {
             background: props.dot,
           }}
         />
-        <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>
+        <div style={{ fontWeight: 800, fontSize: 13, color: "#111827" }}>
           {props.title}
         </div>
       </div>
@@ -288,7 +294,7 @@ function QuickEvent(props: {
         style={{
           color: "#111827",
           fontSize: 12,
-          fontWeight: 600,
+          fontWeight: 800,
           padding: "5px 10px",
           borderRadius: 999,
           background: "#FFFFFF",

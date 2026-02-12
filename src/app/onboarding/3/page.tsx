@@ -1,10 +1,15 @@
 // src/app/onboarding/3/page.tsx
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function Onboarding3() {
   const router = useRouter();
+  const sp = useSearchParams();
+
+  const nextRaw = sp.get("next");
+  const nextFinal = nextRaw && nextRaw.startsWith("/") ? nextRaw : "/summary";
+  const qsNext = `?next=${encodeURIComponent(nextFinal)}`;
 
   return (
     <main
@@ -68,7 +73,7 @@ export default function Onboarding3() {
               color: "#0F172A",
             }}
           >
-            SyncPlans pone{" "}
+            Una sola{" "}
             <span
               style={{
                 background: "linear-gradient(90deg, #0EA5E9, #22C55E)",
@@ -76,9 +81,8 @@ export default function Onboarding3() {
                 color: "transparent",
               }}
             >
-              una sola verdad
-            </span>{" "}
-            en el centro
+              versión de la verdad
+            </span>
           </h1>
 
           {/* Subtitle */}
@@ -90,9 +94,9 @@ export default function Onboarding3() {
               marginBottom: 10,
             }}
           >
-            En vez de tener versiones distintas en la cabeza, en chats o en
-            capturas, todos miran el mismo calendario. SyncPlans detecta
-            conflictos y te obliga a decidir antes, no cuando ya es tarde.
+            En vez de versiones en la cabeza, en chats o en capturas, ambos miran
+            lo mismo. SyncPlans detecta choques y te empuja a decidir{" "}
+            <b style={{ color: "#111827" }}>antes</b>.
           </p>
 
           {/* Layers preview */}
@@ -114,13 +118,13 @@ export default function Onboarding3() {
                 marginBottom: 10,
               }}
             >
-              <span>Hoy · Vista compartida</span>
-              <span style={{ color: "#6B7280" }}>Capas sobre la misma agenda</span>
+              <span style={{ fontWeight: 700 }}>Hoy · Vista compartida</span>
+              <span style={{ color: "#6B7280" }}>Todo en el mismo lugar</span>
             </div>
 
             <div style={{ display: "grid", gap: 8 }}>
               <LayerCard
-                title="Personal"
+                title="Tu agenda"
                 subtitle="Tus cosas"
                 dot="#F59E0B"
                 bg="#FFFBEB"
@@ -136,12 +140,12 @@ export default function Onboarding3() {
                 icon="❤️"
               />
               <LayerCard
-                title="Familia"
-                subtitle="Todos alineados"
+                title="Compartido"
+                subtitle="Familia o grupos (si lo necesitas)"
                 dot="#3B82F6"
                 bg="#EFF6FF"
                 border="#BFDBFE"
-                icon="👨‍👩‍👧‍👦"
+                icon="👥"
               />
             </div>
 
@@ -157,18 +161,15 @@ export default function Onboarding3() {
                 lineHeight: 1.45,
               }}
             >
-              ⚖️{" "}
-              <b style={{ color: "#111827" }}>
-                Piensa en SyncPlans como un árbitro neutral:
-              </b>{" "}
-              todos juegan en el mismo campo, con las mismas líneas y las mismas
-              reglas de tiempo.
+              ⚖️ <b style={{ color: "#111827" }}>SyncPlans es el árbitro neutral</b>{" "}
+              del tiempo compartido: te muestra el choque y te pide una decisión
+              clara.
             </div>
           </div>
 
           {/* CTA */}
           <button
-            onClick={() => router.push("/onboarding/4")}
+            onClick={() => router.push(`/onboarding/4${qsNext}`)}
             style={{
               width: "100%",
               padding: "13px 18px",
@@ -177,15 +178,15 @@ export default function Onboarding3() {
               background: "linear-gradient(135deg, #3B82F6, #22C55E)",
               color: "#F9FAFB",
               fontSize: 15,
-              fontWeight: 600,
+              fontWeight: 800,
               cursor: "pointer",
             }}
           >
-            Siguiente
+            Seguir
           </button>
 
           <button
-            onClick={() => router.push("/onboarding/2")}
+            onClick={() => router.push(`/onboarding/2${qsNext}`)}
             style={{
               width: "100%",
               padding: "11px 18px",
@@ -194,7 +195,7 @@ export default function Onboarding3() {
               background: "#FFFFFF",
               color: "#4B5563",
               fontSize: 14,
-              fontWeight: 600,
+              fontWeight: 700,
               cursor: "pointer",
               marginTop: 10,
             }}
@@ -210,8 +211,8 @@ export default function Onboarding3() {
               marginTop: 10,
             }}
           >
-            En la siguiente pantalla verás cómo SyncPlans te obliga a{" "}
-            <b>decidir</b> cuando hay conflicto, en vez de discutir después.
+            Siguiente: cómo SyncPlans te hace <b>decidir</b> cuando hay choque,
+            en vez de discutir después.
           </div>
         </section>
       </div>
@@ -258,12 +259,10 @@ function LayerCard(props: {
         </div>
 
         <div>
-          <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>
+          <div style={{ fontWeight: 800, fontSize: 14, color: "#111827" }}>
             {props.title}
           </div>
-          <div style={{ color: "#6B7280", fontSize: 12 }}>
-            {props.subtitle}
-          </div>
+          <div style={{ color: "#6B7280", fontSize: 12 }}>{props.subtitle}</div>
         </div>
       </div>
 
@@ -274,6 +273,7 @@ function LayerCard(props: {
           gap: 8,
           color: "#6B7280",
           fontSize: 12,
+          fontWeight: 700,
         }}
       >
         <span
