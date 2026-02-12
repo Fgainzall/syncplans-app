@@ -10,9 +10,7 @@ import {
   type UsageMode,
   type GroupState,
 } from "@/lib/groups";
-import NotificationsDrawer, {
-  type NavigationMode,
-} from "./NotificationsDrawer";
+import NotificationsDrawer, { type NavigationMode } from "./NotificationsDrawer";
 
 import {
   getMyProfile,
@@ -33,12 +31,7 @@ const TABS: Tab[] = [
   { key: "solo", label: "Personal", hint: "Solo tú", dot: "#FBBF24" },
   { key: "pair", label: "Pareja", hint: "2 personas", dot: "#F87171" },
   { key: "family", label: "Familia", hint: "Varios", dot: "#60A5FA" },
-  {
-    key: "other",
-    label: "Compartido",
-    hint: "Amigos, equipos",
-    dot: "#A855F7",
-  },
+  { key: "other", label: "Compartido", hint: "Amigos, equipos", dot: "#A855F7" },
 ];
 
 function applyThemeVars(mode: UsageMode | "other") {
@@ -52,16 +45,10 @@ function applyThemeVars(mode: UsageMode | "other") {
 
   let active: string;
 
-  if (mode === "solo") {
-    active = "var(--sp-personal)";
-  } else if (mode === "pair") {
-    active = "var(--sp-pair)";
-  } else if (mode === "family") {
-    active = "var(--sp-family)";
-  } else {
-    // "other"
-    active = "var(--sp-other)";
-  }
+  if (mode === "solo") active = "var(--sp-personal)";
+  else if (mode === "pair") active = "var(--sp-pair)";
+  else if (mode === "family") active = "var(--sp-family)";
+  else active = "var(--sp-other)";
 
   root.style.setProperty("--sp-active", active);
 }
@@ -97,6 +84,21 @@ type HeaderUser = {
   name: string;
   initials: string;
 };
+
+// ✅ Normaliza el label para eliminar "Activo" del UI
+function normalizeGroupLabel(input?: string | null) {
+  const raw = (input ?? "").trim();
+  if (!raw) return null;
+
+  // "Activo" / "ACTIVO" / "Activo: Familia" / "Activo - Familia"
+  if (/^activo$/i.test(raw)) return "Grupo actual";
+  if (/^activo\s*[:\-–]\s*/i.test(raw)) {
+    const cleaned = raw.replace(/^activo\s*[:\-–]\s*/i, "").trim();
+    return cleaned || "Grupo actual";
+  }
+
+  return raw;
+}
 
 export default function PremiumHeader({
   title,
@@ -196,6 +198,12 @@ export default function PremiumHeader({
     [activeMode]
   );
 
+  // ✅ Label final del chip (aquí se eliminaba “Activo”)
+  const kickerLabel = useMemo(() => {
+    const cleaned = normalizeGroupLabel((group as any)?.groupName ?? null);
+    return cleaned ?? active.label;
+  }, [group, active.label]);
+
   // Título automático según ruta si no pasas title
   const autoTitle = useMemo(() => {
     if (pathname.startsWith("/pricing")) return "Planes";
@@ -211,8 +219,7 @@ export default function PremiumHeader({
   }, [pathname]);
 
   const finalTitle = title ?? autoTitle;
-  const finalSubtitle =
-    subtitle ?? "Organiza tu día sin choques de horario.";
+  const finalSubtitle = subtitle ?? "Organiza tu día sin choques de horario.";
 
   async function onNewEvent() {
     try {
@@ -255,9 +262,7 @@ export default function PremiumHeader({
           <div style={S.left}>
             <div style={S.kicker}>
               <span style={{ ...S.dot, background: active.dot }} />
-              <span style={S.kickerText}>
-                {group?.groupName ?? active.label}
-              </span>
+              <span style={S.kickerText}>{kickerLabel}</span>
             </div>
 
             <h1 style={S.title}>{finalTitle}</h1>
@@ -305,7 +310,7 @@ export default function PremiumHeader({
           </div>
         </div>
 
-        {/* Tabs de modo: Personal / Pareja / Familia / Compartido */}
+        {/* Tabs de modo */}
         <div style={S.tabs}>
           <div style={S.tabsBg} />
           <div style={S.tabsInner}>
@@ -326,7 +331,7 @@ export default function PremiumHeader({
           </div>
         </div>
 
-        {/* Navegación secciones */}
+        {/* Navegación */}
         <nav style={S.nav}>
           <NavPill
             label="Resumen"
@@ -368,7 +373,6 @@ export default function PremiumHeader({
             active={pathname.startsWith("/profile")}
             onClick={() => router.push("/profile")}
           />
-          {/* 👇 Nuevo pill para pricing */}
           <NavPill
             label="Planes"
             active={pathname.startsWith("/pricing")}
