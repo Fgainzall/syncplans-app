@@ -59,6 +59,16 @@ function addDays(d: Date, n: number) {
   x.setDate(x.getDate() + n);
   return x;
 }
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function endOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
 function sameDay(a: Date, b: Date) {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -541,14 +551,23 @@ export default function CalendarClient(props: {
     return map;
   }, [visibleEvents]);
 
-  const agendaEvents = useMemo(() => {
-    const list = [...visibleEvents];
-    list.sort(
-      (a, b) =>
-        new Date(a.start).getTime() - new Date(b.start).getTime()
-    );
-    return list;
-  }, [visibleEvents]);
+const agendaEvents = useMemo(() => {
+  const from = startOfDay(new Date());
+  const to = endOfDay(addDays(from, 30));
+
+  const list = (filteredEvents || []).filter((e) => {
+    const s = new Date(e.start).getTime();
+    const en = new Date(e.end).getTime();
+    return en >= from.getTime() && s <= to.getTime();
+  });
+
+  list.sort(
+    (a, b) =>
+      new Date(a.start).getTime() - new Date(b.start).getTime()
+  );
+
+  return list;
+}, [filteredEvents]);
 
   const highlightedEvent = useMemo(() => {
     if (!highlightId) return null;
@@ -850,11 +869,12 @@ export default function CalendarClient(props: {
               )}
             </div>
 
-            <div style={styles.sub}>
-              Vista {tab === "month" ? "mensual" : "agenda"} ·{" "}
-              {prettyMonthRange(monthStart, monthEnd)}
-            </div>
-
+         <div style={styles.sub}>
+  Vista {tab === "month" ? "mensual" : "agenda"} ·{" "}
+  {tab === "month"
+    ? prettyMonthRange(monthStart, monthEnd)
+    : "Próximos 30 días"}
+</div>
             {error ? (
               <div
                 style={{
@@ -927,17 +947,15 @@ export default function CalendarClient(props: {
             </div>
 
             <div style={styles.segment}>
-              <button
-                onClick={() => setScope("active")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "active"
-                    ? styles.segmentOn
-                    : {}),
-                }}
-              >
-                Activo
-              </button>
+<button
+  onClick={() => setScope("active")}
+  style={{
+    ...styles.segmentBtn,
+    ...(scope === "active" ? styles.segmentOn : {}),
+  }}
+>
+  Grupo
+</button>
               <button
                 onClick={() => setScope("personal")}
                 style={{
