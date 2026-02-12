@@ -1,3 +1,4 @@
+// src/lib/activeGroup.ts
 "use client";
 
 import supabase from "@/lib/supabaseClient";
@@ -5,14 +6,14 @@ import supabase from "@/lib/supabaseClient";
 /**
  * Active Group (DEMO + producción temprana)
  *
- * Orden de lectura (rápido y seguro):
- * 1) localStorage: "sp_active_group_id" (cache)
- * 2) DB: user_settings (key="active_group_id") (si existe y RLS ok)
- * 3) fallback: heurística (último group_members)
+ * Lectura (rápido y robusto):
+ * 1) localStorage: "sp_active_group_id"
+ * 2) DB: user_settings (key="active_group_id") (best-effort)
+ * 3) fallback: último group_members
  *
- * Orden de escritura:
+ * Escritura:
  * 1) localStorage (siempre)
- * 2) DB user_settings (best-effort, sin romper demo)
+ * 2) DB user_settings (best-effort, no rompe demo)
  */
 
 const LS_KEY = "sp_active_group_id";
@@ -45,12 +46,21 @@ async function requireUid(): Promise<string> {
   return uid;
 }
 
+function normalizeGroupId(v: any): string | null {
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+  // no validamos UUID hard para no romper ambientes/seed raros,
+  // pero evitamos basura obvia
+  if (s.length < 10) return null;
+  return s;
+}
+
 export async function getActiveGroupIdFromDb(): Promise<string | null> {
-  // 1) cache local (rápido)
-  const cached = safeGetLocal();
+  // 1) cache local
+  const cached = normalizeGroupId(safeGetLocal());
   if (cached) return cached;
 
-  // 2) auth
+  // 2) auth (best-effort)
   const userId = await requireUid().catch(() => null);
   if (!userId) return null;
 
@@ -63,13 +73,15 @@ export async function getActiveGroupIdFromDb(): Promise<string | null> {
       .eq("key", DB_KEY)
       .maybeSingle();
 
-    if (!sErr && s?.value) {
-      const gid = String(s.value);
-      safeSetLocal(gid);
-      return gid;
+    if (!sErr) {
+      const gid = normalizeGroupId((s as any)?.value);
+      if (gid) {
+        safeSetLocal(gid);
+        return gid;
+      }
     }
   } catch {
-    // ignore
+    // ignore (tabla/policy no existe, etc.)
   }
 
   // 4) fallback: último group_members
@@ -82,44 +94,47 @@ export async function getActiveGroupIdFromDb(): Promise<string | null> {
 
   if (error) throw error;
 
-  const gid = data?.[0]?.group_id ?? null;
+  const gid = normalizeGroupId(data?.[0]?.group_id);
   if (gid) safeSetLocal(gid);
   return gid;
 }
 
 export async function setActiveGroupIdInDb(groupId: string | null): Promise<void> {
-  // siempre guardamos local (demo fluida)
-  safeSetLocal(groupId);
+  const normalized = normalizeGroupId(groupId);
+  safeSetLocal(normalized);
 
   const userId = await requireUid();
 
-  // borrar setting si null
-  if (!groupId) {
+  // Si null → intentamos borrar en DB (best-effort)
+  if (!normalized) {
     try {
-      await supabase.from("user_settings").delete().eq("user_id", userId).eq("key", DB_KEY);
+      await supabase
+        .from("user_settings")
+        .delete()
+        .eq("user_id", userId)
+        .eq("key", DB_KEY);
     } catch {
       // ignore
     }
     return;
   }
 
-  // upsert best-effort
+  // Upsert best-effort sin asumir columnas extra (ej: updated_at)
   try {
-    const payload: any = {
-      user_id: userId,
-      key: DB_KEY,
-      value: groupId,
-    };
-
-    // si existe updated_at, ok; si no, lo ignora en error
-    payload.updated_at = new Date().toISOString();
-
-    const { error } = await supabase
-      .from("user_settings")
-      .upsert(payload, { onConflict: "user_id,key" });
+    const { error } = await supabase.from("user_settings").upsert(
+      {
+        user_id: userId,
+        key: DB_KEY,
+        value: normalized,
+      },
+      { onConflict: "user_id,key" }
+    );
 
     if (error) {
-      console.warn("setActiveGroupIdInDb: user_settings upsert failed:", error.message);
+      console.warn(
+        "setActiveGroupIdInDb: user_settings upsert failed:",
+        error.message
+      );
     }
   } catch (e: any) {
     console.warn("setActiveGroupIdInDb: user_settings error:", e?.message ?? e);

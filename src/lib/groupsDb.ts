@@ -54,6 +54,8 @@ async function requireUid(): Promise<string> {
   return uid;
 }
 
+/* ─────────────────── Labels / nombres ─────────────────── */
+
 /**
  * Helper centralizado para convertir el tipo técnico de grupo
  * en una etiqueta humana consistente en toda la app.
@@ -67,6 +69,41 @@ export function getGroupTypeLabel(
   if (t === "other") return "Compartido";
   if (t === "solo" || t === "personal") return "Personal";
   return "Grupo";
+}
+
+function cleanName(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
+}
+
+function defaultGroupNameForType(type: GroupType | string): string {
+  const t = String(type ?? "").toLowerCase();
+  if (t === "pair" || t === "couple") return "Pareja";
+  if (t === "family") return "Familia";
+  if (t === "other") return "Compartido";
+  if (t === "solo" || t === "personal") return "Personal";
+  return "Grupo";
+}
+
+/**
+ * Nombre “para mostrar” SIEMPRE consistente (selector, headers, etc.)
+ * - Si el grupo tiene name -> lo usamos (limpio).
+ * - Si no -> fallback por tipo ("Pareja", "Familia", ...).
+ */
+export function getGroupDisplayName(group: Pick<GroupRow, "name" | "type">): string {
+  const n = cleanName(String(group?.name ?? ""));
+  if (n) return n;
+  return defaultGroupNameForType(group?.type ?? "group");
+}
+
+/**
+ * Formatea un nombre de pareja tipo “Fernando & Ara”.
+ * Úsalo cuando tú controles ambos nombres (ej. en UI al crear/renombrar).
+ */
+export function formatPairGroupName(a: string, b: string): string {
+  const A = cleanName(a);
+  const B = cleanName(b);
+  if (A && B) return `${A} & ${B}`;
+  return A || B || "Pareja";
 }
 
 /* ─────────────────── Mis grupos ─────────────────── */
@@ -89,11 +126,7 @@ export async function getMyGroups(): Promise<GroupRow[]> {
   if (mErr) throw mErr;
 
   const groupIds = Array.from(
-    new Set(
-      (ms ?? [])
-        .map((m: any) => m.group_id)
-        .filter(Boolean)
-    )
+    new Set((ms ?? []).map((m: any) => m.group_id).filter(Boolean))
   );
 
   if (groupIds.length === 0) return [];
@@ -147,8 +180,10 @@ export async function createGroup(input: {
   type: "pair" | "family" | "other";
 }): Promise<GroupRow> {
   const uid = await requireUid();
-  const name = input.name.trim();
-  if (!name) throw new Error("Ponle un nombre al grupo.");
+
+  // ✅ Permitimos vacío pero lo normalizamos a un default potente por tipo.
+  const rawName = cleanName(input.name ?? "");
+  const name = rawName || defaultGroupNameForType(input.type);
 
   // 1) RPC (si existe)
   try {
@@ -227,9 +262,17 @@ export async function updateGroupMeta(
     throw new Error("No hay cambios para guardar.");
   }
 
+  const payload: any = {};
+  if (patch.type) payload.type = patch.type;
+
+  if (patch.name !== undefined) {
+    const n = cleanName(String(patch.name ?? ""));
+    payload.name = n ? n : null;
+  }
+
   const { data, error } = await supabase
     .from("groups")
-    .update(patch)
+    .update(payload)
     .eq("id", groupId)
     .select("id,name,type,created_at,owner_id")
     .single();
@@ -336,10 +379,12 @@ export async function updateMyGroupMeta(
 ): Promise<void> {
   const uid = await requireUid();
 
-  // 🔑 Normalización mínima
+  const displayName = cleanName(String(patch.display_name ?? ""));
+  const rel = cleanName(String(patch.relationship_role ?? ""));
+
   const payload: Record<string, any> = {
-    display_name: patch.display_name?.trim() || "Miembro",
-    relationship_role: patch.relationship_role ?? null,
+    display_name: displayName ? displayName : null,
+    relationship_role: rel ? rel : null,
     coordination_prefs: patch.coordination_prefs ?? null,
   };
 

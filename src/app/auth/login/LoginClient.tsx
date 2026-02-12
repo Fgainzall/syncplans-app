@@ -42,13 +42,24 @@ export default function LoginClient() {
       });
 
       if (signInError) {
-        if (signInError.message.toLowerCase().includes("email")) {
+        const msg = String(signInError.message || "").toLowerCase();
+
+        // ✅ Mensajes más “humanos” sin perder tu potencia
+        if (
+          msg.includes("email not confirmed") ||
+          msg.includes("not confirmed") ||
+          msg.includes("confirm") ||
+          msg.includes("confirmation")
+        ) {
           setError(
-            "Debes confirmar tu correo antes de iniciar sesión. Revisa tu bandeja de entrada."
+            "Debes confirmar tu correo antes de iniciar sesión. Revisa tu bandeja (y spam) y entra desde el link."
           );
+        } else if (msg.includes("invalid login") || msg.includes("invalid")) {
+          setError("Correo o contraseña incorrectos.");
         } else {
           setError(signInError.message);
         }
+
         setLoading(false);
         return;
       }
@@ -340,7 +351,9 @@ export default function LoginClient() {
           <button
             type="button"
             style={linkTop}
-            onClick={() => router.push("/auth/register?next=/summary")}
+            onClick={() =>
+              router.push(`/auth/register?next=${encodeURIComponent(nextTarget)}`)
+            }
           >
             ¿Nuevo aquí? Crear cuenta →
           </button>
@@ -358,7 +371,9 @@ export default function LoginClient() {
 
               <h1 style={heroTitle}>
                 Inicia sesión y deja que{" "}
-                <span style={heroGradientWord}>SyncPlans arbitre el tiempo.</span>
+                <span style={heroGradientWord}>
+                  SyncPlans arbitre el tiempo.
+                </span>
               </h1>
 
               <p style={heroSub}>
@@ -392,9 +407,7 @@ export default function LoginClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>
-                    Menos “pensé que era otro día”.
-                  </div>
+                  <div style={pillSub}>Menos “pensé que era otro día”.</div>
                 </div>
                 <div style={pill}>
                   <div style={pillRow}>
@@ -429,7 +442,9 @@ export default function LoginClient() {
               <button
                 type="button"
                 style={subtleLink}
-                onClick={() => router.push("/auth/register?next=/summary")}
+                onClick={() =>
+                  router.push(`/auth/register?next=${encodeURIComponent(nextTarget)}`)
+                }
               >
                 Crear cuenta nueva
               </button>
@@ -481,7 +496,9 @@ export default function LoginClient() {
             <button
               type="button"
               style={secondaryBtn}
-              onClick={() => router.push("/auth/register?next=/summary")}
+              onClick={() =>
+                router.push(`/auth/register?next=${encodeURIComponent(nextTarget)}`)
+              }
             >
               Crear cuenta
             </button>

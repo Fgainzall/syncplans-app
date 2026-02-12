@@ -2,11 +2,18 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 
 export default function RegisterClient() {
   const router = useRouter();
+  const sp = useSearchParams();
+
+  const nextParam = sp.get("next");
+  const nextTarget = useMemo(
+    () => (nextParam && nextParam.startsWith("/") ? nextParam : "/summary"),
+    [nextParam]
+  );
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -55,17 +62,20 @@ export default function RegisterClient() {
     }
 
     try {
-      // 👇 Usamos dominio de entorno; fallback fijo a syncplansapp.com
       const APP_URL =
         process.env.NEXT_PUBLIC_APP_URL ||
         process.env.APP_URL ||
         "https://syncplansapp.com";
 
+      // ✅ Importante: preservamos next para que después del callback caiga donde toca
+      const redirectTo =
+        `${APP_URL}/auth/callback?next=` + encodeURIComponent(nextTarget);
+
       const { error: signUpError } = await supabase.auth.signUp({
         email: trimmedEmail,
         password: trimmedPass,
         options: {
-          emailRedirectTo: `${APP_URL}/auth/callback`,
+          emailRedirectTo: redirectTo,
           data: {
             full_name: trimmedName,
             display_name: trimmedName,
@@ -375,7 +385,7 @@ export default function RegisterClient() {
           <button
             type="button"
             style={linkTop}
-            onClick={() => router.push("/auth/login")}
+            onClick={() => router.push(`/auth/login?next=${encodeURIComponent(nextTarget)}`)}
           >
             Ya tengo cuenta →
           </button>
@@ -427,9 +437,7 @@ export default function RegisterClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>
-                    Un solo lugar para los planes juntos.
-                  </div>
+                  <div style={pillSub}>Un solo lugar para los planes juntos.</div>
                 </div>
                 <div style={pill}>
                   <div style={pillRow}>
@@ -441,9 +449,7 @@ export default function RegisterClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>
-                    Todos alineados con la misma agenda.
-                  </div>
+                  <div style={pillSub}>Todos alineados con la misma agenda.</div>
                 </div>
               </div>
 
@@ -468,11 +474,12 @@ export default function RegisterClient() {
               <button
                 type="button"
                 style={subtleLink}
-                onClick={() => router.push("/auth/login")}
+                onClick={() => router.push(`/auth/login?next=${encodeURIComponent(nextTarget)}`)}
               >
                 Ya tengo cuenta
               </button>
             </div>
+
             <div
               style={{
                 fontSize: 12,
@@ -504,7 +511,9 @@ export default function RegisterClient() {
                 <button
                   type="button"
                   style={secondaryBtn}
-                  onClick={() => router.push("/auth/login?next=/summary")}
+                  onClick={() =>
+                    router.push(`/auth/login?next=${encodeURIComponent(nextTarget)}`)
+                  }
                 >
                   Ir a iniciar sesión
                 </button>
@@ -581,21 +590,17 @@ export default function RegisterClient() {
 
                   {error && <div style={errorBox}>{error}</div>}
 
-                  <button
-                    type="submit"
-                    disabled={!canSubmit}
-                    style={primaryBtn}
-                  >
-                    {loading
-                      ? "Creando cuenta…"
-                      : "Crear mi calendario compartido"}
+                  <button type="submit" disabled={!canSubmit} style={primaryBtn}>
+                    {loading ? "Creando cuenta…" : "Crear mi calendario compartido"}
                   </button>
                 </form>
 
                 <button
                   type="button"
                   style={secondaryBtn}
-                  onClick={() => router.push("/auth/login")}
+                  onClick={() =>
+                    router.push(`/auth/login?next=${encodeURIComponent(nextTarget)}`)
+                  }
                 >
                   Ya tengo cuenta
                 </button>
