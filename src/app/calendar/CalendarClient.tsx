@@ -27,7 +27,7 @@ import {
   groupMeta,
 } from "@/lib/conflicts";
 
-type Scope = "personal" | "active" | "all";
+type Scope = "personal" | "group" | "all";
 type Tab = "month" | "agenda";
 
 /* =========================
@@ -167,7 +167,7 @@ export default function CalendarClient(props: {
   const router = useRouter();
   const pathname = usePathname();
 
-  const eventRefs = useRef<Record<string, HTMLDivElement | null>>({ });
+  const eventRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const setEventRef = (id: string) => (el: HTMLDivElement | null) => {
     eventRefs.current[String(id)] = el;
   };
@@ -242,8 +242,7 @@ export default function CalendarClient(props: {
         if (showToast) {
           setToast({
             title: opts?.toastTitle ?? "Sincronizando…",
-            subtitle:
-              opts?.toastSubtitle ?? "Actualizando desde tus grupos",
+            subtitle: opts?.toastSubtitle ?? "Actualizando desde tus grupos",
           });
         }
 
@@ -257,21 +256,27 @@ export default function CalendarClient(props: {
         setUserEmail(user?.email ?? null);
 
         const active = await getActiveGroupIdFromDb();
-        setActiveGroupId(active ? String(active) : null);
 
         const myGroups = await getMyGroups();
         setGroups(myGroups);
 
-        if (!active && (myGroups?.length ?? 0) > 0) {
-          setActiveGroupId(String(myGroups[0].id));
+        // ✅ Definir/persistir group activo si falta (esto es lo que hacía que "Grupo" parezca no hacer nada)
+        let effectiveActive = active ? String(active) : null;
+        if (!effectiveActive && (myGroups?.length ?? 0) > 0) {
+          effectiveActive = String(myGroups[0].id);
+          try {
+            const { setActiveGroupIdInDb } = await import("@/lib/activeGroup");
+            await setActiveGroupIdInDb(effectiveActive);
+          } catch {
+            // no bloquear UI
+          }
         }
+        setActiveGroupId(effectiveActive);
 
         const groupIds = (myGroups || []).map((g: any) => String(g.id));
 
-        // ✅ ahora getEventsForGroups(groupIds) funciona (y siempre incluye personal)
-        const rawEvents: any[] = (await getEventsForGroups(
-          groupIds
-        )) as any[];
+        // ✅ getEventsForGroups(groupIds) (y siempre incluye personal)
+        const rawEvents: any[] = (await getEventsForGroups(groupIds)) as any[];
 
         const groupTypeByIdLocal = new Map<string, "family" | "pair">(
           (myGroups || []).map((g: any) => {
@@ -298,8 +303,7 @@ export default function CalendarClient(props: {
             const startRaw = ev.start;
             const endRaw = ev.end;
 
-            if (!isValidIsoish(startRaw) || !isValidIsoish(endRaw))
-              return null;
+            if (!isValidIsoish(startRaw) || !isValidIsoish(endRaw)) return null;
 
             return {
               id: String(ev.id),
@@ -380,21 +384,21 @@ export default function CalendarClient(props: {
     const parts: string[] = [];
     if (appliedCount > 0)
       parts.push(
-        `${appliedCount} decisión${
-          appliedCount === 1 ? "" : "es"
-        } aplicada${appliedCount === 1 ? "" : "s"}`
+        `${appliedCount} decisión${appliedCount === 1 ? "" : "es"} aplicada${
+          appliedCount === 1 ? "" : "s"
+        }`
       );
     if (deleted > 0)
       parts.push(
-        `${deleted} evento${
+        `${deleted} evento${deleted === 1 ? "" : "s"} eliminado${
           deleted === 1 ? "" : "s"
-        } eliminado${deleted === 1 ? "" : "s"}`
+        }`
       );
     if (skipped > 0)
       parts.push(
-        `${skipped} conflicto${
+        `${skipped} conflicto${skipped === 1 ? "" : "s"} saltado${
           skipped === 1 ? "" : "s"
-        } saltado${skipped === 1 ? "" : "s"}`
+        }`
       );
 
     const subtitle =
@@ -445,13 +449,12 @@ export default function CalendarClient(props: {
      Conflictos
      ========================= */
   const conflicts = useMemo(() => {
-    const normalized: CalendarEvent[] = (Array.isArray(events)
-      ? events
-      : []
-    ).map((e) => ({
-      ...e,
-      groupType: normalizeForConflicts(e.groupType),
-    }));
+    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
+      (e) => ({
+        ...e,
+        groupType: normalizeForConflicts(e.groupType),
+      })
+    );
 
     const all = computeVisibleConflicts(normalized);
     return filterIgnoredConflicts(all);
@@ -511,15 +514,12 @@ export default function CalendarClient(props: {
         return gt === "personal";
       }
 
-      // scope === "active"
-      const inConflict = conflictEventIdsInGrid.has(String(e.id));
-      if (inConflict) return true;
-
-      if (gt === "personal") return true;
-      if (!activeGroupId) return true;
+      // scope === "group" (solo grupo activo, sin personales)
+      if (!activeGroupId) return false;
+      if (gt === "personal") return false;
       return String(e.groupId ?? "") === String(activeGroupId);
     });
-  }, [events, scope, enabledGroups, activeGroupId, conflictEventIdsInGrid]);
+  }, [events, scope, enabledGroups, activeGroupId]);
 
   const visibleEvents = useMemo(() => {
     const a = gridStart.getTime();
@@ -542,40 +542,30 @@ export default function CalendarClient(props: {
       map.set(key, arr);
     }
     for (const [k, arr] of map.entries()) {
-      arr.sort(
-        (a, b) =>
-          new Date(a.start).getTime() - new Date(b.start).getTime()
-      );
+      arr.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
       map.set(k, arr);
     }
     return map;
   }, [visibleEvents]);
 
-const agendaEvents = useMemo(() => {
-  const from = startOfDay(new Date());
-  const to = endOfDay(addDays(from, 30));
+  // Agenda: próximos 30 días (desde hoy), respetando scope + chips
+  const agendaEvents = useMemo(() => {
+    const from = startOfDay(new Date());
+    const to = endOfDay(addDays(from, 30));
 
-  const list = (filteredEvents || []).filter((e) => {
-    const s = new Date(e.start).getTime();
-    const en = new Date(e.end).getTime();
-    return en >= from.getTime() && s <= to.getTime();
-  });
+    const list = (filteredEvents || []).filter((e) => {
+      const s = new Date(e.start).getTime();
+      const en = new Date(e.end).getTime();
+      return en >= from.getTime() && s <= to.getTime();
+    });
 
-  list.sort(
-    (a, b) =>
-      new Date(a.start).getTime() - new Date(b.start).getTime()
-  );
-
-  return list;
-}, [filteredEvents]);
+    list.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    return list;
+  }, [filteredEvents]);
 
   const highlightedEvent = useMemo(() => {
     if (!highlightId) return null;
-    return (
-      filteredEvents.find(
-        (e) => String(e.id) === String(highlightId)
-      ) ?? null
-    );
+    return filteredEvents.find((e) => String(e.id) === String(highlightId)) ?? null;
   }, [highlightId, filteredEvents]);
 
   useEffect(() => {
@@ -584,9 +574,7 @@ const agendaEvents = useMemo(() => {
     const d = new Date(highlightedEvent.start);
 
     setAnchor(new Date(d.getFullYear(), d.getMonth(), 1));
-    setSelectedDay(
-      new Date(d.getFullYear(), d.getMonth(), d.getDate())
-    );
+    setSelectedDay(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
     setTab("agenda");
 
     setToast({
@@ -624,9 +612,7 @@ const agendaEvents = useMemo(() => {
   /* 📅 Eventos de HOY para el botón de recordatorio */
   const hasEventsToday = useMemo(() => {
     const today = new Date();
-    return (events || []).some((e) =>
-      sameDay(new Date(e.start), today)
-    );
+    return (events || []).some((e) => sameDay(new Date(e.start), today));
   }, [events]);
 
   const handleSendTodayDigest = useCallback(async () => {
@@ -635,8 +621,7 @@ const agendaEvents = useMemo(() => {
     if (!userEmail) {
       setToast({
         title: "No encontramos tu correo",
-        subtitle:
-          "Vuelve a iniciar sesión e inténtalo otra vez.",
+        subtitle: "Vuelve a iniciar sesión e inténtalo otra vez.",
       });
       window.setTimeout(() => setToast(null), 3200);
       return;
@@ -644,17 +629,12 @@ const agendaEvents = useMemo(() => {
 
     const todaysEvents = (events || [])
       .filter((e) => sameDay(new Date(e.start), today))
-      .sort(
-        (a, b) =>
-          new Date(a.start).getTime() -
-          new Date(b.start).getTime()
-      );
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
     if (todaysEvents.length === 0) {
       setToast({
         title: "No tienes eventos hoy",
-        subtitle:
-          "Cuando tu día tenga algo agendado, podrás enviarte el resumen.",
+        subtitle: "Cuando tu día tenga algo agendado, podrás enviarte el resumen.",
       });
       window.setTimeout(() => setToast(null), 3200);
       return;
@@ -662,8 +642,7 @@ const agendaEvents = useMemo(() => {
 
     const payloadEvents = todaysEvents.map((e) => {
       const resolvedType: GroupType = e.groupId
-        ? ((groupTypeById.get(String(e.groupId)) ??
-            "pair") as any)
+        ? ((groupTypeById.get(String(e.groupId)) ?? "pair") as any)
         : ("personal" as any);
       const meta = groupMeta(resolvedType);
 
@@ -705,16 +684,13 @@ const agendaEvents = useMemo(() => {
 
       setToast({
         title: "Te envié un resumen de hoy ✉️",
-        subtitle:
-          "Revisa tu inbox (y spam por si acaso).",
+        subtitle: "Revisa tu inbox (y spam por si acaso).",
       });
       window.setTimeout(() => setToast(null), 3800);
     } catch (e: any) {
       setToast({
         title: "No se pudo enviar el resumen",
-        subtitle:
-          e?.message ??
-          "Inténtalo de nuevo en unos minutos.",
+        subtitle: e?.message ?? "Inténtalo de nuevo en unos minutos.",
       });
       window.setTimeout(() => setToast(null), 3800);
     } finally {
@@ -726,13 +702,9 @@ const agendaEvents = useMemo(() => {
      Navegación y acciones
      ========================= */
   const goPrevMonth = () =>
-    setAnchor(
-      (d) => new Date(d.getFullYear(), d.getMonth() - 1, 1)
-    );
+    setAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
   const goNextMonth = () =>
-    setAnchor(
-      (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1)
-    );
+    setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
   const goToday = () => {
     const t = new Date();
     setAnchor(t);
@@ -749,27 +721,32 @@ const agendaEvents = useMemo(() => {
   const openNewEventPersonal = (date?: Date) => {
     const d = date ?? selectedDay ?? new Date();
     router.push(
-      `/events/new/details?type=personal&date=${encodeURIComponent(
-        d.toISOString()
-      )}`
+      `/events/new/details?type=personal&date=${encodeURIComponent(d.toISOString())}`
     );
   };
 
   const openNewEventGroup = (date?: Date) => {
     const d = date ?? selectedDay ?? new Date();
     router.push(
-      `/events/new/details?type=group&date=${encodeURIComponent(
-        d.toISOString()
-      )}`
+      `/events/new/details?type=group&date=${encodeURIComponent(d.toISOString())}`
     );
   };
 
-  const openConflicts = () =>
-    router.push("/conflicts/detected");
-  const resolveNow = () =>
-    router.push(
-      `/conflicts/compare?i=${firstRelevantConflictIndex}`
-    );
+  const openConflicts = () => router.push("/conflicts/detected");
+  const resolveNow = () => router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`);
+
+  const setScopeGroup = () => {
+    if (!activeGroupId) {
+      setToast({
+        title: "No hay grupo activo",
+        subtitle: "Crea/únete a un grupo para ver su calendario.",
+      });
+      window.setTimeout(() => setToast(null), 2400);
+      setScope("all");
+      return;
+    }
+    setScope("group");
+  };
 
   /* =========================
      RENDER
@@ -782,12 +759,8 @@ const agendaEvents = useMemo(() => {
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
-              <div style={styles.loadingTitle}>
-                Cargando tu calendario…
-              </div>
-              <div style={styles.loadingSub}>
-                Preparando tus eventos y grupos
-              </div>
+              <div style={styles.loadingTitle}>Cargando tu calendario…</div>
+              <div style={styles.loadingSub}>Preparando tus eventos y grupos</div>
             </div>
           </div>
         </div>
@@ -809,11 +782,7 @@ const agendaEvents = useMemo(() => {
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
             <div style={styles.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? (
-              <div style={styles.toastSub}>
-                {toast.subtitle}
-              </div>
-            ) : null}
+            {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
           </div>
         </div>
       )}
@@ -822,10 +791,7 @@ const agendaEvents = useMemo(() => {
         <div style={styles.topRow}>
           <PremiumHeader />
           <div style={styles.topActions}>
-            <button
-              onClick={handleSync}
-              style={styles.ghostBtn}
-            >
+            <button onClick={handleSync} style={styles.ghostBtn}>
               Sync
             </button>
             <LogoutButton />
@@ -844,20 +810,13 @@ const agendaEvents = useMemo(() => {
                 </div>
               ) : conflictCount > 0 ? (
                 <div style={styles.conflictCluster}>
-                  <button
-                    onClick={openConflicts}
-                    style={styles.conflictPill}
-                  >
+                  <button onClick={openConflicts} style={styles.conflictPill}>
                     <span style={styles.conflictDot} />
-                    {conflictCount} conflicto
-                    {conflictCount === 1 ? "" : "s"}
+                    {conflictCount} conflicto{conflictCount === 1 ? "" : "s"}
                     <span style={styles.conflictArrow}>→</span>
                   </button>
 
-                  <button
-                    onClick={resolveNow}
-                    style={styles.resolvePill}
-                  >
+                  <button onClick={resolveNow} style={styles.resolvePill}>
                     Resolver ahora ✨
                   </button>
                 </div>
@@ -869,35 +828,21 @@ const agendaEvents = useMemo(() => {
               )}
             </div>
 
-         <div style={styles.sub}>
-  Vista {tab === "month" ? "mensual" : "agenda"} ·{" "}
-  {tab === "month"
-    ? prettyMonthRange(monthStart, monthEnd)
-    : "Próximos 30 días"}
-</div>
+            <div style={styles.sub}>
+              Vista {tab === "month" ? "mensual" : "agenda"} ·{" "}
+              {tab === "month" ? prettyMonthRange(monthStart, monthEnd) : "Próximos 30 días"}
+            </div>
+
             {error ? (
-              <div
-                style={{
-                  ...styles.emptyHint,
-                  borderStyle: "solid",
-                }}
-              >
-                {error}
-              </div>
+              <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>{error}</div>
             ) : null}
           </div>
 
           <div style={styles.heroRight}>
-            <button
-              onClick={() => openNewEventPersonal()}
-              style={styles.primaryBtnPersonal}
-            >
+            <button onClick={() => openNewEventPersonal()} style={styles.primaryBtnPersonal}>
               + Personal
             </button>
-            <button
-              onClick={() => openNewEventGroup()}
-              style={styles.primaryBtnGroup}
-            >
+            <button onClick={() => openNewEventGroup()} style={styles.primaryBtnGroup}>
               + Grupo
             </button>
 
@@ -911,9 +856,7 @@ const agendaEvents = useMemo(() => {
                 }}
                 disabled={sendingDigest}
               >
-                {sendingDigest
-                  ? "Enviando…"
-                  : "Recordatorio de hoy"}
+                {sendingDigest ? "Enviando…" : "Recordatorio de hoy"}
               </button>
             )}
           </div>
@@ -926,9 +869,7 @@ const agendaEvents = useMemo(() => {
                 onClick={() => setTab("month")}
                 style={{
                   ...styles.segmentBtn,
-                  ...(tab === "month"
-                    ? styles.segmentOn
-                    : {}),
+                  ...(tab === "month" ? styles.segmentOn : {}),
                 }}
               >
                 Mes
@@ -937,9 +878,7 @@ const agendaEvents = useMemo(() => {
                 onClick={() => setTab("agenda")}
                 style={{
                   ...styles.segmentBtn,
-                  ...(tab === "agenda"
-                    ? styles.segmentOn
-                    : {}),
+                  ...(tab === "agenda" ? styles.segmentOn : {}),
                 }}
               >
                 Agenda
@@ -947,22 +886,20 @@ const agendaEvents = useMemo(() => {
             </div>
 
             <div style={styles.segment}>
-<button
-  onClick={() => setScope("active")}
-  style={{
-    ...styles.segmentBtn,
-    ...(scope === "active" ? styles.segmentOn : {}),
-  }}
->
-  Grupo
-</button>
+              <button
+                onClick={setScopeGroup}
+                style={{
+                  ...styles.segmentBtn,
+                  ...(scope === "group" ? styles.segmentOn : {}),
+                }}
+              >
+                Grupo
+              </button>
               <button
                 onClick={() => setScope("personal")}
                 style={{
                   ...styles.segmentBtn,
-                  ...(scope === "personal"
-                    ? styles.segmentOn
-                    : {}),
+                  ...(scope === "personal" ? styles.segmentOn : {}),
                 }}
               >
                 Personal
@@ -971,9 +908,7 @@ const agendaEvents = useMemo(() => {
                 onClick={() => setScope("all")}
                 style={{
                   ...styles.segmentBtn,
-                  ...(scope === "all"
-                    ? styles.segmentOn
-                    : {}),
+                  ...(scope === "all" ? styles.segmentOn : {}),
                 }}
               >
                 Todo
@@ -981,33 +916,20 @@ const agendaEvents = useMemo(() => {
             </div>
 
             <div style={styles.navRow}>
-              <button
-                onClick={goPrevMonth}
-                style={styles.iconBtn}
-                aria-label="Mes anterior"
-              >
+              <button onClick={goPrevMonth} style={styles.iconBtn} aria-label="Mes anterior">
                 ‹
               </button>
-              <button
-                onClick={goToday}
-                style={styles.ghostBtnSmall}
-              >
+              <button onClick={goToday} style={styles.ghostBtnSmall}>
                 Hoy
               </button>
-              <button
-                onClick={goNextMonth}
-                style={styles.iconBtn}
-                aria-label="Mes siguiente"
-              >
+              <button onClick={goNextMonth} style={styles.iconBtn} aria-label="Mes siguiente">
                 ›
               </button>
             </div>
           </div>
 
           <div style={styles.groupRow}>
-            {(
-              ["personal", "pair", "family"] as any as GroupType[]
-            ).map((g) => {
+            {(["personal", "pair", "family"] as any as GroupType[]).map((g) => {
               const meta = groupMeta(g);
               const on = (enabledGroups as any)[g];
               return (
@@ -1016,18 +938,11 @@ const agendaEvents = useMemo(() => {
                   onClick={() => toggleGroup(g)}
                   style={{
                     ...styles.groupChip,
-                    borderColor: on
-                      ? "rgba(255,255,255,0.18)"
-                      : "rgba(255,255,255,0.10)",
+                    borderColor: on ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)",
                     opacity: on ? 1 : 0.5,
                   }}
                 >
-                  <span
-                    style={{
-                      ...styles.groupDot,
-                      background: meta.dot,
-                    }}
-                  />
+                  <span style={{ ...styles.groupDot, background: meta.dot }} />
                   {meta.label}
                 </button>
               );
@@ -1038,13 +953,11 @@ const agendaEvents = useMemo(() => {
         {tab === "month" ? (
           <section style={styles.calendarCard}>
             <div style={styles.weekHeader}>
-              {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map(
-                (d) => (
-                  <div key={d} style={styles.weekDay}>
-                    {d}
-                  </div>
-                )
-              )}
+              {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
+                <div key={d} style={styles.weekDay}>
+                  {d}
+                </div>
+              ))}
             </div>
 
             <div style={styles.grid}>
@@ -1064,23 +977,17 @@ const agendaEvents = useMemo(() => {
 
             <div style={styles.dayPanel}>
               <div style={styles.dayPanelTop}>
-                <div style={styles.dayPanelTitle}>
-                  {prettyDay(selectedDay)}
-                </div>
+                <div style={styles.dayPanelTitle}>{prettyDay(selectedDay)}</div>
 
                 <div style={styles.dayPanelActions}>
                   <button
-                    onClick={() =>
-                      openNewEventPersonal(selectedDay)
-                    }
+                    onClick={() => openNewEventPersonal(selectedDay)}
                     style={styles.ghostBtnSmallPersonal}
                   >
                     + Personal
                   </button>
                   <button
-                    onClick={() =>
-                      openNewEventGroup(selectedDay)
-                    }
+                    onClick={() => openNewEventGroup(selectedDay)}
                     style={styles.ghostBtnSmallGroup}
                   >
                     + Grupo
@@ -1089,25 +996,20 @@ const agendaEvents = useMemo(() => {
               </div>
 
               <div style={styles.dayList}>
-                {(eventsByDay.get(ymd(selectedDay)) || [])
-                  .length === 0 ? (
-                  <div style={styles.emptyHint}>
-                    No hay eventos este día.
-                  </div>
+                {(eventsByDay.get(ymd(selectedDay)) || []).length === 0 ? (
+                  <div style={styles.emptyHint}>No hay eventos este día.</div>
                 ) : (
-                  (eventsByDay.get(ymd(selectedDay)) || []).map(
-                    (e) => (
-                      <EventRow
-                        key={e.id ?? `${e.start}_${e.end}`}
-                        e={e}
-                        highlightId={highlightId}
-                        setRef={setEventRef}
-                        onDelete={handleDeleteEvent}
-                        onEdit={handleEditEvent}
-                        groupTypeById={groupTypeById}
-                      />
-                    )
-                  )
+                  (eventsByDay.get(ymd(selectedDay)) || []).map((e) => (
+                    <EventRow
+                      key={e.id ?? `${e.start}_${e.end}`}
+                      e={e}
+                      highlightId={highlightId}
+                      setRef={setEventRef}
+                      onDelete={handleDeleteEvent}
+                      onEdit={handleEditEvent}
+                      groupTypeById={groupTypeById}
+                    />
+                  ))
                 )}
               </div>
             </div>
@@ -1115,20 +1017,15 @@ const agendaEvents = useMemo(() => {
         ) : (
           <section style={styles.agendaCard}>
             <div style={styles.agendaTop}>
-              <div style={styles.agendaTitle}>
-                Agenda del mes
-              </div>
+              <div style={styles.agendaTitle}>Próximos 30 días</div>
               <div style={styles.agendaSub}>
-                Mostrando {agendaEvents.length} evento
-                {agendaEvents.length === 1 ? "" : "s"}
+                Mostrando {agendaEvents.length} evento{agendaEvents.length === 1 ? "" : "s"}
               </div>
             </div>
 
             <div style={styles.agendaList}>
               {agendaEvents.length === 0 ? (
-                <div style={styles.emptyHint}>
-                  No hay eventos para mostrar con estos filtros.
-                </div>
+                <div style={styles.emptyHint}>No hay eventos para mostrar con estos filtros.</div>
               ) : (
                 agendaEvents.map((e) => (
                   <EventRow
@@ -1207,8 +1104,7 @@ function EventRow({
 
   const meta = groupMeta(resolvedType);
 
-  const isHighlighted =
-    highlightId && String(e.id) === String(highlightId);
+  const isHighlighted = highlightId && String(e.id) === String(highlightId);
 
   return (
     <div
@@ -1221,9 +1117,7 @@ function EventRow({
         background: isHighlighted
           ? "rgba(255,255,255,0.08)"
           : (styles.eventRow.background as any),
-        animation: isHighlighted
-          ? "spPulseGlow 2.6s ease-out"
-          : undefined,
+        animation: isHighlighted ? "spPulseGlow 2.6s ease-out" : undefined,
         cursor: "pointer",
       }}
       onClick={(ev) => {
@@ -1232,26 +1126,14 @@ function EventRow({
         onEdit?.(e);
       }}
     >
-      <div
-        style={{
-          ...styles.eventBar,
-          background: meta.dot,
-        }}
-      />
+      <div style={{ ...styles.eventBar, background: meta.dot }} />
       <div style={styles.eventBody}>
         <div style={styles.eventTop}>
-          <div style={styles.eventTitle}>
-            {e.title || "Sin título"}
-          </div>
+          <div style={styles.eventTitle}>{e.title || "Sin título"}</div>
 
           <div style={styles.eventRight}>
             <div style={styles.eventTag}>
-              <span
-                style={{
-                  ...styles.eventDot,
-                  background: meta.dot,
-                }}
-              />
+              <span style={{ ...styles.eventDot, background: meta.dot }} />
               {meta.label}
             </div>
 
@@ -1285,9 +1167,7 @@ function EventRow({
           </div>
         </div>
 
-        <div style={styles.eventTime}>
-          {prettyTimeRange(e.start, e.end)}
-        </div>
+        <div style={styles.eventTime}>{prettyTimeRange(e.start, e.end)}</div>
       </div>
     </div>
   );
@@ -1321,10 +1201,8 @@ function renderMonthCells(opts: {
 
   const cells: React.ReactNode[] = [];
   const totalDays =
-    Math.round(
-      (gridEnd.getTime() - gridStart.getTime()) /
-        (1000 * 60 * 60 * 24)
-    ) + 1;
+    Math.round((gridEnd.getTime() - gridStart.getTime()) / (1000 * 60 * 60 * 24)) +
+    1;
 
   for (let i = 0; i < totalDays; i++) {
     const day = addDays(gridStart, i);
@@ -1352,19 +1230,13 @@ function renderMonthCells(opts: {
           outline: isSelected
             ? "2px solid rgba(255,255,255,0.25)"
             : "1px solid rgba(255,255,255,0.08)",
-          background: isSelected
-            ? "rgba(255,255,255,0.06)"
-            : "rgba(255,255,255,0.03)",
+          background: isSelected ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.03)",
         }}
       >
         <div style={styles.cellTop}>
           <div style={styles.cellDay}>{day.getDate()}</div>
           <div style={styles.cellTopRight}>
-            {dayEvents.length > 0 ? (
-              <div style={styles.cellCount}>
-                {dayEvents.length}
-              </div>
-            ) : null}
+            {dayEvents.length > 0 ? <div style={styles.cellCount}>{dayEvents.length}</div> : null}
 
             <div style={styles.cellQuickAdd}>
               <button
@@ -1400,8 +1272,7 @@ function renderMonthCells(opts: {
         <div style={styles.cellEvents}>
           {top3.map((e) => {
             const resolvedType: GroupType = e.groupId
-              ? ((opts.groupTypeById.get(String(e.groupId)) ??
-                  "pair") as any)
+              ? ((opts.groupTypeById.get(String(e.groupId)) ?? "pair") as any)
               : ("personal" as any);
             const meta = groupMeta(resolvedType);
 
@@ -1413,28 +1284,16 @@ function renderMonthCells(opts: {
                   ev.stopPropagation();
                   opts.onEdit(e);
                 }}
-                style={{
-                  ...styles.cellEventLine,
-                  cursor: "pointer",
-                }}
+                style={{ ...styles.cellEventLine, cursor: "pointer" }}
               >
-                <span
-                  style={{
-                    ...styles.miniDot,
-                    background: meta.dot,
-                  }}
-                />
-                <span style={styles.cellEventText}>
-                  {e.title || "Evento"}
-                </span>
+                <span style={{ ...styles.miniDot, background: meta.dot }} />
+                <span style={styles.cellEventText}>{e.title || "Evento"}</span>
               </div>
             );
           })}
 
           {dayEvents.length > 3 ? (
-            <div style={styles.moreHint}>
-              +{dayEvents.length - 3} más
-            </div>
+            <div style={styles.moreHint}>+{dayEvents.length - 3} más</div>
           ) : null}
         </div>
       </div>
@@ -1511,8 +1370,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "18px 16px",
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+    background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
     boxShadow: "0 18px 60px rgba(0, 0, 0, 0.35)",
     marginBottom: 12,
   },
