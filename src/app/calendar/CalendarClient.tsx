@@ -11,10 +11,7 @@ import { EventEditModal } from "@/components/EventEditModal";
 
 import { getMyGroups } from "@/lib/groupsDb";
 import { getEventsForGroups, deleteEventsByIds } from "@/lib/eventsDb";
-import {
-  getActiveGroupIdFromDb,
-  onActiveGroupChanged, // ✅ NEW: reactivo
-} from "@/lib/activeGroup";
+import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 
 import {
   type CalendarEvent,
@@ -24,7 +21,7 @@ import {
   groupMeta,
 } from "@/lib/conflicts";
 
-type Scope = "personal" | "group" | "all"; // ✅ FIX
+type Scope = "personal" | "group" | "all";
 type Tab = "month" | "agenda";
 
 /* =========================
@@ -57,11 +54,7 @@ function addDays(d: Date, n: number) {
   return x;
 }
 function sameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 function ymd(d: Date) {
   const yyyy = d.getFullYear();
@@ -70,45 +63,18 @@ function ymd(d: Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 function prettyMonthRange(a: Date, b: Date) {
-  const meses = [
-    "ene",
-    "feb",
-    "mar",
-    "abr",
-    "may",
-    "jun",
-    "jul",
-    "ago",
-    "sep",
-    "oct",
-    "nov",
-    "dic",
-  ];
+  const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
   return `${a.getDate()} ${meses[a.getMonth()]} ${a.getFullYear()} – ${b.getDate()} ${meses[b.getMonth()]} ${b.getFullYear()}`;
 }
 function prettyDay(d: Date) {
   const dias = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-  const meses = [
-    "enero",
-    "febrero",
-    "marzo",
-    "abril",
-    "mayo",
-    "junio",
-    "julio",
-    "agosto",
-    "septiembre",
-    "octubre",
-    "noviembre",
-    "diciembre",
-  ];
+  const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
   return `${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]} ${d.getFullYear()}`;
 }
 function prettyTimeRange(startIso: string, endIso: string) {
   const s = new Date(startIso);
   const e = new Date(endIso);
-  const hhmm = (x: Date) =>
-    `${String(x.getHours()).padStart(2, "0")}:${String(x.getMinutes()).padStart(2, "0")}`;
+  const hhmm = (x: Date) => `${String(x.getHours()).padStart(2, "0")}:${String(x.getMinutes()).padStart(2, "0")}`;
   const cross = !sameDay(s, e);
   if (cross) return `${s.toLocaleDateString()} ${hhmm(s)} → ${e.toLocaleDateString()} ${hhmm(e)}`;
   return `${hhmm(s)} – ${hhmm(e)}`;
@@ -149,7 +115,7 @@ export default function CalendarClient(props: {
   const [booting, setBooting] = useState(true);
 
   const [tab, setTab] = useState<Tab>("month");
-  const [scope, setScope] = useState<Scope>("all"); // ✅
+  const [scope, setScope] = useState<Scope>("all");
 
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
@@ -194,28 +160,6 @@ export default function CalendarClient(props: {
   const gridStart = useMemo(() => startOfWeek(monthStart), [monthStart]);
   const gridEnd = useMemo(() => endOfWeek(monthEnd), [monthEnd]);
 
-  /**
-   * ✅ Active group REACTIVO:
-   * - Event bus (cuando alguien llama setActiveGroupIdInDb)
-   * - Storage (otra pestaña)
-   */
-  useEffect(() => {
-    const off = onActiveGroupChanged((gid) => {
-      setActiveGroupId(gid ? String(gid) : null);
-    });
-
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== "sp_active_group_id") return;
-      setActiveGroupId(e.newValue ? String(e.newValue) : null);
-    };
-
-    window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      off?.();
-    };
-  }, []);
-
   /* =========================
      Carga de datos + sync
      ========================= */
@@ -243,17 +187,8 @@ export default function CalendarClient(props: {
         const myGroups = await getMyGroups();
         setGroups(myGroups);
 
-        // ✅ fallback si no hay active group: escoger el primero y persistir (best-effort)
         if (!active && (myGroups?.length ?? 0) > 0) {
-          const picked = String(myGroups[0].id);
-          setActiveGroupId(picked);
-
-          try {
-            const { setActiveGroupIdInDb } = await import("@/lib/activeGroup");
-            await setActiveGroupIdInDb(picked);
-          } catch {
-            // ignore
-          }
+          setActiveGroupId(String(myGroups[0].id));
         }
 
         const groupIds = (myGroups || []).map((g: any) => String(g.id));
@@ -359,13 +294,9 @@ export default function CalendarClient(props: {
     const { appliedCount, deleted, skipped } = appliedToast;
 
     const parts: string[] = [];
-    if (appliedCount > 0)
-      parts.push(
-        `${appliedCount} decisión${appliedCount === 1 ? "" : "es"} aplicada${appliedCount === 1 ? "" : "s"}`
-      );
+    if (appliedCount > 0) parts.push(`${appliedCount} decisión${appliedCount === 1 ? "" : "es"} aplicada${appliedCount === 1 ? "" : "s"}`);
     if (deleted > 0) parts.push(`${deleted} evento${deleted === 1 ? "" : "s"} eliminado${deleted === 1 ? "" : "s"}`);
-    if (skipped > 0)
-      parts.push(`${skipped} conflicto${skipped === 1 ? "" : "s"} saltado${skipped === 1 ? "" : "s"}`);
+    if (skipped > 0) parts.push(`${skipped} conflicto${skipped === 1 ? "" : "s"} saltado${skipped === 1 ? "" : "s"}`);
 
     const subtitle = parts.length > 0 ? parts.join(" · ") : "No hubo cambios que aplicar en los conflictos.";
 
@@ -471,22 +402,16 @@ export default function CalendarClient(props: {
 
       if (scope === "all") return true;
 
-      if (scope === "personal") return gt === "personal";
+      if (scope === "personal") {
+        return gt === "personal";
+      }
 
-      // ✅ scope === "group"
-      // Mantener visibles eventos en conflicto
-      const inConflict = conflictEventIdsInGrid.has(String(e.id));
-      if (inConflict) return true;
-
-      // Personal siempre visible dentro del scope Group
+      // scope === "group" (grupo activo + personal)
       if (gt === "personal") return true;
-
-      // 🔥 FIX REAL: si NO hay activeGroupId, NO muestres grupos (antes era true => parecía "Todo")
-      if (!activeGroupId) return false;
-
+      if (!activeGroupId) return true;
       return String(e.groupId ?? "") === String(activeGroupId);
     });
-  }, [events, scope, enabledGroups, activeGroupId, conflictEventIdsInGrid]);
+  }, [events, scope, enabledGroups, activeGroupId]);
 
   const visibleEvents = useMemo(() => {
     const a = gridStart.getTime();
@@ -702,7 +627,6 @@ export default function CalendarClient(props: {
             </div>
 
             <div style={styles.segment}>
-              {/* ✅ FIX: "Grupo" */}
               <button onClick={() => setScope("group")} style={{ ...styles.segmentBtn, ...(scope === "group" ? styles.segmentOn : {}) }}>
                 Grupo
               </button>
@@ -888,11 +812,10 @@ function EventRow({
   onEdit?: (e: CalendarEvent) => void;
   groupTypeById?: Map<string, "pair" | "family">;
 }) {
-  const resolvedType: GroupType = e.groupId
-    ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
-    : ("personal" as any);
+  const resolvedType: GroupType = e.groupId ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any) : ("personal" as any);
 
   const meta = groupMeta(resolvedType);
+
   const isHighlighted = highlightId && String(e.id) === String(highlightId);
 
   return (
@@ -973,16 +896,7 @@ function renderMonthCells(opts: {
   groupTypeById: Map<string, "pair" | "family">;
   onEdit: (e: CalendarEvent) => void;
 }) {
-  const {
-    gridStart,
-    gridEnd,
-    monthStart,
-    selectedDay,
-    setSelectedDay,
-    eventsByDay,
-    openNewEventPersonal,
-    openNewEventGroup,
-  } = opts;
+  const { gridStart, gridEnd, monthStart, selectedDay, setSelectedDay, eventsByDay, openNewEventPersonal, openNewEventGroup } = opts;
 
   const cells: React.ReactNode[] = [];
   const totalDays = Math.round((gridEnd.getTime() - gridStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -1052,9 +966,7 @@ function renderMonthCells(opts: {
 
         <div style={styles.cellEvents}>
           {top3.map((e) => {
-            const resolvedType: GroupType = e.groupId
-              ? ((opts.groupTypeById.get(String(e.groupId)) ?? "pair") as any)
-              : ("personal" as any);
+            const resolvedType: GroupType = e.groupId ? ((opts.groupTypeById.get(String(e.groupId)) ?? "pair") as any) : ("personal" as any);
             const meta = groupMeta(resolvedType);
 
             return (
@@ -1149,14 +1061,7 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: "hidden",
     background: "rgba(255,255,255,0.03)",
   },
-  segmentBtn: {
-    padding: "10px 12px",
-    fontSize: 13,
-    color: "rgba(255,255,255,0.86)",
-    background: "transparent",
-    border: "none",
-    cursor: "pointer",
-  },
+  segmentBtn: { padding: "10px 12px", fontSize: 13, color: "rgba(255,255,255,0.86)", background: "transparent", border: "none", cursor: "pointer" },
   segmentOn: { background: "rgba(255,255,255,0.08)" },
 
   navRow: { display: "flex", gap: 8, alignItems: "center" },
@@ -1186,62 +1091,20 @@ const styles: Record<string, React.CSSProperties> = {
   },
   groupDot: { width: 10, height: 10, borderRadius: 999 },
 
-  calendarCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    overflow: "hidden",
-  },
+  calendarCard: { borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", overflow: "hidden" },
   weekHeader: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: "10px 10px 0" },
   weekDay: { padding: "10px 10px", fontSize: 12, opacity: 0.75 },
 
   grid: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10, padding: 10 },
-  cell: {
-    minHeight: 108,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 10,
-    cursor: "pointer",
-    textAlign: "left",
-  },
+  cell: { minHeight: 108, borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", padding: 10, cursor: "pointer", textAlign: "left" },
   cellTop: { display: "flex", justifyContent: "space-between", alignItems: "center" },
   cellTopRight: { display: "flex", alignItems: "center", gap: 10 },
   cellDay: { fontSize: 14, fontWeight: 700 },
-  cellCount: {
-    fontSize: 12,
-    padding: "2px 8px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-    opacity: 0.9,
-  },
+  cellCount: { fontSize: 12, padding: "2px 8px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.04)", opacity: 0.9 },
 
   cellQuickAdd: { display: "flex", gap: 6, alignItems: "center" },
-  cellQuickBtnPersonal: {
-    width: 22,
-    height: 22,
-    borderRadius: 9,
-    border: "1px solid rgba(250,204,21,0.40)",
-    background: "rgba(250,204,21,0.12)",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 900,
-    lineHeight: "22px",
-    textAlign: "center",
-  },
-  cellQuickBtnGroup: {
-    width: 22,
-    height: 22,
-    borderRadius: 9,
-    border: "1px solid rgba(96,165,250,0.40)",
-    background: "rgba(96,165,250,0.12)",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 900,
-    lineHeight: "22px",
-    textAlign: "center",
-  },
+  cellQuickBtnPersonal: { width: 22, height: 22, borderRadius: 9, border: "1px solid rgba(250,204,21,0.40)", background: "rgba(250,204,21,0.12)", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900, lineHeight: "22px", textAlign: "center" },
+  cellQuickBtnGroup: { width: 22, height: 22, borderRadius: 9, border: "1px solid rgba(96,165,250,0.40)", background: "rgba(96,165,250,0.12)", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900, lineHeight: "22px", textAlign: "center" },
 
   cellEvents: { marginTop: 10, display: "flex", flexDirection: "column", gap: 6 },
   cellEventLine: { display: "flex", gap: 8, alignItems: "center" },
@@ -1262,186 +1125,40 @@ const styles: Record<string, React.CSSProperties> = {
   agendaSub: { marginTop: 4, fontSize: 12, opacity: 0.75 },
   agendaList: { padding: 12, display: "flex", flexDirection: "column", gap: 10 },
 
-  eventRow: {
-    display: "flex",
-    gap: 10,
-    padding: 12,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-  },
+  eventRow: { display: "flex", gap: 10, padding: 12, borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" },
   eventBar: { width: 6, borderRadius: 999 },
   eventBody: { flex: 1, display: "flex", flexDirection: "column", gap: 6 },
   eventTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 },
   eventRight: { display: "inline-flex", alignItems: "center", gap: 8 },
   eventTitle: { fontSize: 14, fontWeight: 800, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
   eventTime: { fontSize: 12, opacity: 0.78 },
-  eventTag: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    fontSize: 12,
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.03)",
-    opacity: 0.95,
-    whiteSpace: "nowrap",
-  },
+  eventTag: { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.03)", opacity: 0.95, whiteSpace: "nowrap" },
   eventDot: { width: 8, height: 8, borderRadius: 999 },
 
-  editBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    border: "1px solid rgba(59,130,246,0.45)",
-    background: "rgba(59,130,246,0.16)",
-    color: "rgba(255,255,255,0.94)",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 14,
-    fontWeight: 900,
-  },
-  deleteBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    border: "1px solid rgba(248,113,113,0.28)",
-    background: "rgba(248,113,113,0.10)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 14,
-    fontWeight: 900,
-  },
+  editBtn: { width: 34, height: 34, borderRadius: 12, border: "1px solid rgba(59,130,246,0.45)", background: "rgba(59,130,246,0.16)", color: "rgba(255,255,255,0.94)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 900 },
+  deleteBtn: { width: 34, height: 34, borderRadius: 12, border: "1px solid rgba(248,113,113,0.28)", background: "rgba(248,113,113,0.10)", color: "rgba(255,255,255,0.92)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 900 },
 
-  primaryBtnPersonal: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(250,204,21,0.30)",
-    background: "linear-gradient(135deg, rgba(250,204,21,0.22), rgba(250,204,21,0.08))",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  primaryBtnGroup: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(96,165,250,0.30)",
-    background: "linear-gradient(135deg, rgba(96,165,250,0.22), rgba(96,165,250,0.08))",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
+  primaryBtnPersonal: { padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(250,204,21,0.30)", background: "linear-gradient(135deg, rgba(250,204,21,0.22), rgba(250,204,21,0.08))", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900 },
+  primaryBtnGroup: { padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(96,165,250,0.30)", background: "linear-gradient(135deg, rgba(96,165,250,0.22), rgba(96,165,250,0.08))", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900 },
 
-  ghostBtn: {
-    padding: "10px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 700,
-  },
-  ghostBtnSmall: {
-    padding: "8px 10px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 700,
-    fontSize: 12,
-  },
+  ghostBtn: { padding: "10px 12px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 700 },
+  ghostBtnSmall: { padding: "8px 10px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 700, fontSize: 12 },
 
-  ghostBtnSmallPersonal: {
-    padding: "8px 10px",
-    borderRadius: 12,
-    border: "1px solid rgba(250,204,21,0.22)",
-    background: "rgba(250,204,21,0.08)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 800,
-    fontSize: 12,
-  },
-  ghostBtnSmallGroup: {
-    padding: "8px 10px",
-    borderRadius: 12,
-    border: "1px solid rgba(96,165,250,0.22)",
-    background: "rgba(96,165,250,0.08)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 800,
-    fontSize: 12,
-  },
+  ghostBtnSmallPersonal: { padding: "8px 10px", borderRadius: 12, border: "1px solid rgba(250,204,21,0.22)", background: "rgba(250,204,21,0.08)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 800, fontSize: 12 },
+  ghostBtnSmallGroup: { padding: "8px 10px", borderRadius: 12, border: "1px solid rgba(96,165,250,0.22)", background: "rgba(96,165,250,0.08)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 800, fontSize: 12 },
 
-  conflictPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "8px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(248,113,113,0.35)",
-    background: "rgba(248,113,113,0.12)",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 12,
-  },
+  conflictPill: { display: "inline-flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(248,113,113,0.35)", background: "rgba(248,113,113,0.12)", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900, fontSize: 12 },
   conflictDot: { width: 10, height: 10, borderRadius: 999, background: "rgba(248,113,113,0.95)" },
   conflictArrow: { opacity: 0.8 },
 
-  resolvePill: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "8px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 12,
-  },
+  resolvePill: { display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 900, fontSize: 12 },
 
-  okPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "8px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(34,197,94,0.30)",
-    background: "rgba(34,197,94,0.10)",
-    color: "rgba(255,255,255,0.92)",
-    fontWeight: 900,
-    fontSize: 12,
-  },
+  okPill: { display: "inline-flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(34,197,94,0.30)", background: "rgba(34,197,94,0.10)", color: "rgba(255,255,255,0.92)", fontWeight: 900, fontSize: 12 },
   okDot: { width: 10, height: 10, borderRadius: 999, background: "rgba(34,197,94,0.95)" },
 
-  emptyHint: {
-    padding: 14,
-    borderRadius: 14,
-    border: "1px dashed rgba(255,255,255,0.16)",
-    background: "rgba(255,255,255,0.02)",
-    opacity: 0.75,
-    fontSize: 13,
-  },
+  emptyHint: { padding: 14, borderRadius: 14, border: "1px dashed rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.02)", opacity: 0.75, fontSize: 13 },
 
-  loadingCard: {
-    marginTop: 18,
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-    padding: 16,
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-  },
+  loadingCard: { marginTop: 18, display: "flex", gap: 12, alignItems: "center", padding: 16, borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" },
   loadingDot: { width: 12, height: 12, borderRadius: 999, background: "rgba(56,189,248,0.95)", boxShadow: "0 0 24px rgba(56,189,248,0.55)" },
   loadingTitle: { fontWeight: 900 },
   loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
