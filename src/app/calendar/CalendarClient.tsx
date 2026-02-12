@@ -1,13 +1,7 @@
 // src/app/calendar/CalendarClient.tsx
 "use client";
 
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useCallback,
-} from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
@@ -17,7 +11,10 @@ import { EventEditModal } from "@/components/EventEditModal";
 
 import { getMyGroups } from "@/lib/groupsDb";
 import { getEventsForGroups, deleteEventsByIds } from "@/lib/eventsDb";
-import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
+import {
+  getActiveGroupIdFromDb,
+  onActiveGroupChanged, // ✅ NEW: reactivo
+} from "@/lib/activeGroup";
 
 import {
   type CalendarEvent,
@@ -27,7 +24,7 @@ import {
   groupMeta,
 } from "@/lib/conflicts";
 
-type Scope = "personal" | "group" | "all";
+type Scope = "personal" | "group" | "all"; // ✅ FIX
 type Tab = "month" | "agenda";
 
 /* =========================
@@ -59,16 +56,6 @@ function addDays(d: Date, n: number) {
   x.setDate(x.getDate() + n);
   return x;
 }
-function startOfDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-function endOfDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(23, 59, 59, 999);
-  return x;
-}
 function sameDay(a: Date, b: Date) {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -97,9 +84,7 @@ function prettyMonthRange(a: Date, b: Date) {
     "nov",
     "dic",
   ];
-  return `${a.getDate()} ${meses[a.getMonth()]} ${a.getFullYear()} – ${
-    b.getDate()
-  } ${meses[b.getMonth()]} ${b.getFullYear()}`;
+  return `${a.getDate()} ${meses[a.getMonth()]} ${a.getFullYear()} – ${b.getDate()} ${meses[b.getMonth()]} ${b.getFullYear()}`;
 }
 function prettyDay(d: Date) {
   const dias = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -117,22 +102,15 @@ function prettyDay(d: Date) {
     "noviembre",
     "diciembre",
   ];
-  return `${dias[d.getDay()]}, ${d.getDate()} de ${
-    meses[d.getMonth()]
-  } ${d.getFullYear()}`;
+  return `${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]} ${d.getFullYear()}`;
 }
 function prettyTimeRange(startIso: string, endIso: string) {
   const s = new Date(startIso);
   const e = new Date(endIso);
   const hhmm = (x: Date) =>
-    `${String(x.getHours()).padStart(2, "0")}:${String(
-      x.getMinutes()
-    ).padStart(2, "0")}`;
+    `${String(x.getHours()).padStart(2, "0")}:${String(x.getMinutes()).padStart(2, "0")}`;
   const cross = !sameDay(s, e);
-  if (cross)
-    return `${s.toLocaleDateString()} ${hhmm(s)} → ${e.toLocaleDateString()} ${hhmm(
-      e
-    )}`;
+  if (cross) return `${s.toLocaleDateString()} ${hhmm(s)} → ${e.toLocaleDateString()} ${hhmm(e)}`;
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
 function isValidIsoish(v: any) {
@@ -156,11 +134,7 @@ function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
    ========================= */
 export default function CalendarClient(props: {
   highlightId: string | null;
-  appliedToast: null | {
-    deleted: number;
-    skipped: number;
-    appliedCount: number;
-  };
+  appliedToast: null | { deleted: number; skipped: number; appliedCount: number };
 }) {
   const { highlightId, appliedToast } = props;
 
@@ -175,7 +149,7 @@ export default function CalendarClient(props: {
   const [booting, setBooting] = useState(true);
 
   const [tab, setTab] = useState<Tab>("month");
-  const [scope, setScope] = useState<Scope>("all");
+  const [scope, setScope] = useState<Scope>("all"); // ✅
 
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
@@ -204,18 +178,11 @@ export default function CalendarClient(props: {
     family: true,
   });
 
-  const [toast, setToast] = useState<null | {
-    title: string;
-    subtitle?: string;
-  }>(null);
+  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
 
   /* ✏️ ESTADO DEL MODAL DE EDICIÓN */
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
-
-  /* 📧 Estado para el recordatorio diario */
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [sendingDigest, setSendingDigest] = useState(false);
 
   const handleEditEvent = useCallback((e: CalendarEvent) => {
     setEditingEvent(e);
@@ -227,15 +194,33 @@ export default function CalendarClient(props: {
   const gridStart = useMemo(() => startOfWeek(monthStart), [monthStart]);
   const gridEnd = useMemo(() => endOfWeek(monthEnd), [monthEnd]);
 
+  /**
+   * ✅ Active group REACTIVO:
+   * - Event bus (cuando alguien llama setActiveGroupIdInDb)
+   * - Storage (otra pestaña)
+   */
+  useEffect(() => {
+    const off = onActiveGroupChanged((gid) => {
+      setActiveGroupId(gid ? String(gid) : null);
+    });
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== "sp_active_group_id") return;
+      setActiveGroupId(e.newValue ? String(e.newValue) : null);
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      off?.();
+    };
+  }, []);
+
   /* =========================
      Carga de datos + sync
      ========================= */
   const refreshCalendar = useCallback(
-    async (opts?: {
-      showToast?: boolean;
-      toastTitle?: string;
-      toastSubtitle?: string;
-    }) => {
+    async (opts?: { showToast?: boolean; toastTitle?: string; toastSubtitle?: string }) => {
       const showToast = opts?.showToast ?? false;
 
       try {
@@ -252,38 +237,35 @@ export default function CalendarClient(props: {
           return;
         }
 
-        const user = data.session.user;
-        setUserEmail(user?.email ?? null);
-
         const active = await getActiveGroupIdFromDb();
+        setActiveGroupId(active ? String(active) : null);
 
         const myGroups = await getMyGroups();
         setGroups(myGroups);
 
-        // ✅ Definir/persistir group activo si falta (esto es lo que hacía que "Grupo" parezca no hacer nada)
-        let effectiveActive = active ? String(active) : null;
-        if (!effectiveActive && (myGroups?.length ?? 0) > 0) {
-          effectiveActive = String(myGroups[0].id);
+        // ✅ fallback si no hay active group: escoger el primero y persistir (best-effort)
+        if (!active && (myGroups?.length ?? 0) > 0) {
+          const picked = String(myGroups[0].id);
+          setActiveGroupId(picked);
+
           try {
             const { setActiveGroupIdInDb } = await import("@/lib/activeGroup");
-            await setActiveGroupIdInDb(effectiveActive);
+            await setActiveGroupIdInDb(picked);
           } catch {
-            // no bloquear UI
+            // ignore
           }
         }
-        setActiveGroupId(effectiveActive);
 
         const groupIds = (myGroups || []).map((g: any) => String(g.id));
 
-        // ✅ getEventsForGroups(groupIds) (y siempre incluye personal)
+        // ✅ ahora getEventsForGroups(groupIds) funciona (y siempre incluye personal)
         const rawEvents: any[] = (await getEventsForGroups(groupIds)) as any[];
 
         const groupTypeByIdLocal = new Map<string, "family" | "pair">(
           (myGroups || []).map((g: any) => {
             const id = String(g.id);
             const rawType = String(g.type ?? "").toLowerCase();
-            const normalized: "family" | "pair" =
-              rawType === "family" ? "family" : "pair";
+            const normalized: "family" | "pair" = rawType === "family" ? "family" : "pair";
             return [id, normalized];
           })
         );
@@ -346,16 +328,11 @@ export default function CalendarClient(props: {
 
   const handleDeleteEvent = useCallback(
     async (eventId: string, title?: string) => {
-      const ok = confirm(
-        `¿Eliminar el evento${title ? ` "${title}"` : ""}?\nEsta acción no se puede deshacer.`
-      );
+      const ok = confirm(`¿Eliminar el evento${title ? ` "${title}"` : ""}?\nEsta acción no se puede deshacer.`);
       if (!ok) return;
 
       try {
-        setToast({
-          title: "Eliminando…",
-          subtitle: "Aplicando cambios",
-        });
+        setToast({ title: "Eliminando…", subtitle: "Aplicando cambios" });
 
         await deleteEventsByIds([eventId]);
 
@@ -384,27 +361,13 @@ export default function CalendarClient(props: {
     const parts: string[] = [];
     if (appliedCount > 0)
       parts.push(
-        `${appliedCount} decisión${appliedCount === 1 ? "" : "es"} aplicada${
-          appliedCount === 1 ? "" : "s"
-        }`
+        `${appliedCount} decisión${appliedCount === 1 ? "" : "es"} aplicada${appliedCount === 1 ? "" : "s"}`
       );
-    if (deleted > 0)
-      parts.push(
-        `${deleted} evento${deleted === 1 ? "" : "s"} eliminado${
-          deleted === 1 ? "" : "s"
-        }`
-      );
+    if (deleted > 0) parts.push(`${deleted} evento${deleted === 1 ? "" : "s"} eliminado${deleted === 1 ? "" : "s"}`);
     if (skipped > 0)
-      parts.push(
-        `${skipped} conflicto${skipped === 1 ? "" : "s"} saltado${
-          skipped === 1 ? "" : "s"
-        }`
-      );
+      parts.push(`${skipped} conflicto${skipped === 1 ? "" : "s"} saltado${skipped === 1 ? "" : "s"}`);
 
-    const subtitle =
-      parts.length > 0
-        ? parts.join(" · ")
-        : "No hubo cambios que aplicar en los conflictos.";
+    const subtitle = parts.length > 0 ? parts.join(" · ") : "No hubo cambios que aplicar en los conflictos.";
 
     setToast({ title: "Cambios aplicados ✅", subtitle });
 
@@ -449,12 +412,10 @@ export default function CalendarClient(props: {
      Conflictos
      ========================= */
   const conflicts = useMemo(() => {
-    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
-      (e) => ({
-        ...e,
-        groupType: normalizeForConflicts(e.groupType),
-      })
-    );
+    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map((e) => ({
+      ...e,
+      groupType: normalizeForConflicts(e.groupType),
+    }));
 
     const all = computeVisibleConflicts(normalized);
     return filterIgnoredConflicts(all);
@@ -510,16 +471,22 @@ export default function CalendarClient(props: {
 
       if (scope === "all") return true;
 
-      if (scope === "personal") {
-        return gt === "personal";
-      }
+      if (scope === "personal") return gt === "personal";
 
-      // scope === "group" (solo grupo activo, sin personales)
+      // ✅ scope === "group"
+      // Mantener visibles eventos en conflicto
+      const inConflict = conflictEventIdsInGrid.has(String(e.id));
+      if (inConflict) return true;
+
+      // Personal siempre visible dentro del scope Group
+      if (gt === "personal") return true;
+
+      // 🔥 FIX REAL: si NO hay activeGroupId, NO muestres grupos (antes era true => parecía "Todo")
       if (!activeGroupId) return false;
-      if (gt === "personal") return false;
+
       return String(e.groupId ?? "") === String(activeGroupId);
     });
-  }, [events, scope, enabledGroups, activeGroupId]);
+  }, [events, scope, enabledGroups, activeGroupId, conflictEventIdsInGrid]);
 
   const visibleEvents = useMemo(() => {
     const a = gridStart.getTime();
@@ -548,20 +515,11 @@ export default function CalendarClient(props: {
     return map;
   }, [visibleEvents]);
 
-  // Agenda: próximos 30 días (desde hoy), respetando scope + chips
   const agendaEvents = useMemo(() => {
-    const from = startOfDay(new Date());
-    const to = endOfDay(addDays(from, 30));
-
-    const list = (filteredEvents || []).filter((e) => {
-      const s = new Date(e.start).getTime();
-      const en = new Date(e.end).getTime();
-      return en >= from.getTime() && s <= to.getTime();
-    });
-
+    const list = [...visibleEvents];
     list.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
     return list;
-  }, [filteredEvents]);
+  }, [visibleEvents]);
 
   const highlightedEvent = useMemo(() => {
     if (!highlightId) return null;
@@ -591,11 +549,7 @@ export default function CalendarClient(props: {
 
     const t = window.setTimeout(() => {
       const el = eventRefs.current[String(highlightId)];
-      if (el)
-        el.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 140);
 
     return () => window.clearTimeout(t);
@@ -609,110 +563,18 @@ export default function CalendarClient(props: {
     return () => window.clearTimeout(t);
   }, [highlightId, pathname, router]);
 
-  /* 📅 Eventos de HOY para el botón de recordatorio */
-  const hasEventsToday = useMemo(() => {
-    const today = new Date();
-    return (events || []).some((e) => sameDay(new Date(e.start), today));
-  }, [events]);
-
-  const handleSendTodayDigest = useCallback(async () => {
-    const today = new Date();
-
-    if (!userEmail) {
-      setToast({
-        title: "No encontramos tu correo",
-        subtitle: "Vuelve a iniciar sesión e inténtalo otra vez.",
-      });
-      window.setTimeout(() => setToast(null), 3200);
-      return;
-    }
-
-    const todaysEvents = (events || [])
-      .filter((e) => sameDay(new Date(e.start), today))
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-
-    if (todaysEvents.length === 0) {
-      setToast({
-        title: "No tienes eventos hoy",
-        subtitle: "Cuando tu día tenga algo agendado, podrás enviarte el resumen.",
-      });
-      window.setTimeout(() => setToast(null), 3200);
-      return;
-    }
-
-    const payloadEvents = todaysEvents.map((e) => {
-      const resolvedType: GroupType = e.groupId
-        ? ((groupTypeById.get(String(e.groupId)) ?? "pair") as any)
-        : ("personal" as any);
-      const meta = groupMeta(resolvedType);
-
-      return {
-        title: e.title || "Evento",
-        start: e.start,
-        end: e.end,
-        groupLabel: meta.label,
-      };
-    });
-
-    try {
-      setSendingDigest(true);
-      setToast({
-        title: "Preparando tu resumen…",
-        subtitle: "Generando el correo de hoy.",
-      });
-
-      const res = await fetch("/api/daily-digest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: userEmail,
-          date: prettyDay(today),
-          events: payloadEvents,
-        }),
-      });
-
-      if (!res.ok) {
-        let msg = "Error al enviar el correo.";
-        try {
-          const data = await res.json();
-          if (data?.message) msg = data.message;
-        } catch {
-          // ignore
-        }
-        throw new Error(msg);
-      }
-
-      setToast({
-        title: "Te envié un resumen de hoy ✉️",
-        subtitle: "Revisa tu inbox (y spam por si acaso).",
-      });
-      window.setTimeout(() => setToast(null), 3800);
-    } catch (e: any) {
-      setToast({
-        title: "No se pudo enviar el resumen",
-        subtitle: e?.message ?? "Inténtalo de nuevo en unos minutos.",
-      });
-      window.setTimeout(() => setToast(null), 3800);
-    } finally {
-      setSendingDigest(false);
-    }
-  }, [events, groupTypeById, userEmail]);
-
   /* =========================
      Navegación y acciones
      ========================= */
-  const goPrevMonth = () =>
-    setAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
-  const goNextMonth = () =>
-    setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  const goPrevMonth = () => setAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  const goNextMonth = () => setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
   const goToday = () => {
     const t = new Date();
     setAnchor(t);
     setSelectedDay(t);
   };
 
-  const toggleGroup = (g: GroupType) =>
-    setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
+  const toggleGroup = (g: GroupType) => setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
 
   const handleSync = async () => {
     await refreshCalendar({ showToast: true });
@@ -720,33 +582,16 @@ export default function CalendarClient(props: {
 
   const openNewEventPersonal = (date?: Date) => {
     const d = date ?? selectedDay ?? new Date();
-    router.push(
-      `/events/new/details?type=personal&date=${encodeURIComponent(d.toISOString())}`
-    );
+    router.push(`/events/new/details?type=personal&date=${encodeURIComponent(d.toISOString())}`);
   };
 
   const openNewEventGroup = (date?: Date) => {
     const d = date ?? selectedDay ?? new Date();
-    router.push(
-      `/events/new/details?type=group&date=${encodeURIComponent(d.toISOString())}`
-    );
+    router.push(`/events/new/details?type=group&date=${encodeURIComponent(d.toISOString())}`);
   };
 
   const openConflicts = () => router.push("/conflicts/detected");
   const resolveNow = () => router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`);
-
-  const setScopeGroup = () => {
-    if (!activeGroupId) {
-      setToast({
-        title: "No hay grupo activo",
-        subtitle: "Crea/únete a un grupo para ver su calendario.",
-      });
-      window.setTimeout(() => setToast(null), 2400);
-      setScope("all");
-      return;
-    }
-    setScope("group");
-  };
 
   /* =========================
      RENDER
@@ -829,13 +674,10 @@ export default function CalendarClient(props: {
             </div>
 
             <div style={styles.sub}>
-              Vista {tab === "month" ? "mensual" : "agenda"} ·{" "}
-              {tab === "month" ? prettyMonthRange(monthStart, monthEnd) : "Próximos 30 días"}
+              Vista {tab === "month" ? "mensual" : "agenda"} · {prettyMonthRange(monthStart, monthEnd)}
             </div>
 
-            {error ? (
-              <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>{error}</div>
-            ) : null}
+            {error ? <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>{error}</div> : null}
           </div>
 
           <div style={styles.heroRight}>
@@ -845,72 +687,29 @@ export default function CalendarClient(props: {
             <button onClick={() => openNewEventGroup()} style={styles.primaryBtnGroup}>
               + Grupo
             </button>
-
-            {hasEventsToday && (
-              <button
-                onClick={handleSendTodayDigest}
-                style={{
-                  ...styles.ghostBtnSmall,
-                  opacity: sendingDigest ? 0.7 : 1,
-                  cursor: sendingDigest ? "wait" : "pointer",
-                }}
-                disabled={sendingDigest}
-              >
-                {sendingDigest ? "Enviando…" : "Recordatorio de hoy"}
-              </button>
-            )}
           </div>
         </section>
 
         <section style={styles.filtersCard}>
           <div style={styles.filtersRow}>
             <div style={styles.segment}>
-              <button
-                onClick={() => setTab("month")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(tab === "month" ? styles.segmentOn : {}),
-                }}
-              >
+              <button onClick={() => setTab("month")} style={{ ...styles.segmentBtn, ...(tab === "month" ? styles.segmentOn : {}) }}>
                 Mes
               </button>
-              <button
-                onClick={() => setTab("agenda")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(tab === "agenda" ? styles.segmentOn : {}),
-                }}
-              >
+              <button onClick={() => setTab("agenda")} style={{ ...styles.segmentBtn, ...(tab === "agenda" ? styles.segmentOn : {}) }}>
                 Agenda
               </button>
             </div>
 
             <div style={styles.segment}>
-              <button
-                onClick={setScopeGroup}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "group" ? styles.segmentOn : {}),
-                }}
-              >
+              {/* ✅ FIX: "Grupo" */}
+              <button onClick={() => setScope("group")} style={{ ...styles.segmentBtn, ...(scope === "group" ? styles.segmentOn : {}) }}>
                 Grupo
               </button>
-              <button
-                onClick={() => setScope("personal")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "personal" ? styles.segmentOn : {}),
-                }}
-              >
+              <button onClick={() => setScope("personal")} style={{ ...styles.segmentBtn, ...(scope === "personal" ? styles.segmentOn : {}) }}>
                 Personal
               </button>
-              <button
-                onClick={() => setScope("all")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "all" ? styles.segmentOn : {}),
-                }}
-              >
+              <button onClick={() => setScope("all")} style={{ ...styles.segmentBtn, ...(scope === "all" ? styles.segmentOn : {}) }}>
                 Todo
               </button>
             </div>
@@ -980,16 +779,10 @@ export default function CalendarClient(props: {
                 <div style={styles.dayPanelTitle}>{prettyDay(selectedDay)}</div>
 
                 <div style={styles.dayPanelActions}>
-                  <button
-                    onClick={() => openNewEventPersonal(selectedDay)}
-                    style={styles.ghostBtnSmallPersonal}
-                  >
+                  <button onClick={() => openNewEventPersonal(selectedDay)} style={styles.ghostBtnSmallPersonal}>
                     + Personal
                   </button>
-                  <button
-                    onClick={() => openNewEventGroup(selectedDay)}
-                    style={styles.ghostBtnSmallGroup}
-                  >
+                  <button onClick={() => openNewEventGroup(selectedDay)} style={styles.ghostBtnSmallGroup}>
                     + Grupo
                   </button>
                 </div>
@@ -1017,7 +810,7 @@ export default function CalendarClient(props: {
         ) : (
           <section style={styles.agendaCard}>
             <div style={styles.agendaTop}>
-              <div style={styles.agendaTitle}>Próximos 30 días</div>
+              <div style={styles.agendaTitle}>Agenda del mes</div>
               <div style={styles.agendaSub}>
                 Mostrando {agendaEvents.length} evento{agendaEvents.length === 1 ? "" : "s"}
               </div>
@@ -1058,10 +851,7 @@ export default function CalendarClient(props: {
                   start: editingEvent.start,
                   end: editingEvent.end,
                   description: editingEvent.notes,
-                  groupType:
-                    editingEvent.groupType === "pair"
-                      ? ("couple" as any)
-                      : editingEvent.groupType,
+                  groupType: editingEvent.groupType === "pair" ? ("couple" as any) : editingEvent.groupType,
                 }
               : undefined
           }
@@ -1103,7 +893,6 @@ function EventRow({
     : ("personal" as any);
 
   const meta = groupMeta(resolvedType);
-
   const isHighlighted = highlightId && String(e.id) === String(highlightId);
 
   return (
@@ -1111,12 +900,8 @@ function EventRow({
       ref={setRef ? setRef(String(e.id)) : undefined}
       style={{
         ...styles.eventRow,
-        border: isHighlighted
-          ? "1px solid rgba(56,189,248,0.55)"
-          : (styles.eventRow.border as any),
-        background: isHighlighted
-          ? "rgba(255,255,255,0.08)"
-          : (styles.eventRow.background as any),
+        border: isHighlighted ? "1px solid rgba(56,189,248,0.55)" : (styles.eventRow.border as any),
+        background: isHighlighted ? "rgba(255,255,255,0.08)" : (styles.eventRow.background as any),
         animation: isHighlighted ? "spPulseGlow 2.6s ease-out" : undefined,
         cursor: "pointer",
       }}
@@ -1200,9 +985,7 @@ function renderMonthCells(opts: {
   } = opts;
 
   const cells: React.ReactNode[] = [];
-  const totalDays =
-    Math.round((gridEnd.getTime() - gridStart.getTime()) / (1000 * 60 * 60 * 24)) +
-    1;
+  const totalDays = Math.round((gridEnd.getTime() - gridStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
   for (let i = 0; i < totalDays; i++) {
     const day = addDays(gridStart, i);
@@ -1227,9 +1010,7 @@ function renderMonthCells(opts: {
         style={{
           ...styles.cell,
           opacity: inMonth ? 1 : 0.35,
-          outline: isSelected
-            ? "2px solid rgba(255,255,255,0.25)"
-            : "1px solid rgba(255,255,255,0.08)",
+          outline: isSelected ? "2px solid rgba(255,255,255,0.25)" : "1px solid rgba(255,255,255,0.08)",
           background: isSelected ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.03)",
         }}
       >
@@ -1292,9 +1073,7 @@ function renderMonthCells(opts: {
             );
           })}
 
-          {dayEvents.length > 3 ? (
-            <div style={styles.moreHint}>+{dayEvents.length - 3} más</div>
-          ) : null}
+          {dayEvents.length > 3 ? <div style={styles.moreHint}>+{dayEvents.length - 3} más</div> : null}
         </div>
       </div>
     );
@@ -1313,19 +1092,9 @@ const styles: Record<string, React.CSSProperties> = {
       "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
   },
-  shell: {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: "22px 18px 48px",
-  },
+  shell: { maxWidth: 1120, margin: "0 auto", padding: "22px 18px 48px" },
 
-  toastWrap: {
-    position: "fixed",
-    top: 18,
-    right: 18,
-    zIndex: 50,
-    pointerEvents: "none",
-  },
+  toastWrap: { position: "fixed", top: 18, right: 18, zIndex: 50, pointerEvents: "none" },
   toastCard: {
     pointerEvents: "auto",
     minWidth: 260,
@@ -1337,30 +1106,11 @@ const styles: Record<string, React.CSSProperties> = {
     backdropFilter: "blur(14px)",
     padding: "12px 14px",
   },
-  toastTitle: {
-    fontWeight: 900,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.95)",
-  },
-  toastSub: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "rgba(255,255,255,0.70)",
-    fontWeight: 650,
-  },
+  toastTitle: { fontWeight: 900, fontSize: 13, color: "rgba(255,255,255,0.95)" },
+  toastSub: { marginTop: 4, fontSize: 12, color: "rgba(255,255,255,0.70)", fontWeight: 650 },
 
-  topRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    marginBottom: 14,
-  },
-  topActions: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-  },
+  topRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, marginBottom: 14 },
+  topActions: { display: "flex", gap: 10, alignItems: "center" },
 
   hero: {
     display: "flex",
@@ -1374,37 +1124,14 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 18px 60px rgba(0, 0, 0, 0.35)",
     marginBottom: 12,
   },
-  heroLeft: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  heroRight: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
+  heroLeft: { display: "flex", flexDirection: "column", gap: 6 },
+  heroRight: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
 
-  titleRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  h1: {
-    margin: 0,
-    fontSize: 30,
-    letterSpacing: "-0.5px",
-  },
+  titleRow: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  h1: { margin: 0, fontSize: 30, letterSpacing: "-0.5px" },
   sub: { fontSize: 13, opacity: 0.8 },
 
-  conflictCluster: {
-    display: "inline-flex",
-    gap: 8,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
+  conflictCluster: { display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" },
 
   filtersCard: {
     borderRadius: 18,
@@ -1413,13 +1140,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 12,
     marginBottom: 12,
   },
-  filtersRow: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-  },
+  filtersRow: { display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" },
 
   segment: {
     display: "flex",
@@ -1436,15 +1157,9 @@ const styles: Record<string, React.CSSProperties> = {
     border: "none",
     cursor: "pointer",
   },
-  segmentOn: {
-    background: "rgba(255,255,255,0.08)",
-  },
+  segmentOn: { background: "rgba(255,255,255,0.08)" },
 
-  navRow: {
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-  },
+  navRow: { display: "flex", gap: 8, alignItems: "center" },
   iconBtn: {
     width: 38,
     height: 38,
@@ -1456,12 +1171,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 18,
   },
 
-  groupRow: {
-    display: "flex",
-    gap: 10,
-    paddingTop: 10,
-    flexWrap: "wrap",
-  },
+  groupRow: { display: "flex", gap: 10, paddingTop: 10, flexWrap: "wrap" },
   groupChip: {
     display: "inline-flex",
     alignItems: "center",
@@ -1482,19 +1192,10 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.03)",
     overflow: "hidden",
   },
-  weekHeader: {
-    display: "grid",
-    gridTemplateColumns: "repeat(7, 1fr)",
-    padding: "10px 10px 0",
-  },
+  weekHeader: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: "10px 10px 0" },
   weekDay: { padding: "10px 10px", fontSize: 12, opacity: 0.75 },
 
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(7, 1fr)",
-    gap: 10,
-    padding: 10,
-  },
+  grid: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10, padding: 10 },
   cell: {
     minHeight: 108,
     borderRadius: 16,
@@ -1504,16 +1205,8 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     textAlign: "left",
   },
-  cellTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  cellTopRight: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-  },
+  cellTop: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  cellTopRight: { display: "flex", alignItems: "center", gap: 10 },
   cellDay: { fontSize: 14, fontWeight: 700 },
   cellCount: {
     fontSize: 12,
@@ -1524,11 +1217,7 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.9,
   },
 
-  cellQuickAdd: {
-    display: "flex",
-    gap: 6,
-    alignItems: "center",
-  },
+  cellQuickAdd: { display: "flex", gap: 6, alignItems: "center" },
   cellQuickBtnPersonal: {
     width: 22,
     height: 22,
@@ -1554,87 +1243,24 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: "center",
   },
 
-  cellEvents: {
-    marginTop: 10,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  cellEventLine: {
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-  },
-  miniDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    flex: "0 0 auto",
-  },
-  cellEventText: {
-    fontSize: 12,
-    opacity: 0.9,
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis",
-  },
-  moreHint: {
-    fontSize: 12,
-    opacity: 0.6,
-    marginTop: 4,
-  },
+  cellEvents: { marginTop: 10, display: "flex", flexDirection: "column", gap: 6 },
+  cellEventLine: { display: "flex", gap: 8, alignItems: "center" },
+  miniDot: { width: 8, height: 8, borderRadius: 999, flex: "0 0 auto" },
+  cellEventText: { fontSize: 12, opacity: 0.9, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
+  moreHint: { fontSize: 12, opacity: 0.6, marginTop: 4 },
 
-  dayPanel: {
-    borderTop: "1px solid rgba(255,255,255,0.08)",
-    padding: 12,
-  },
-  dayPanelTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  dayPanelTitle: {
-    fontSize: 14,
-    fontWeight: 700,
-    opacity: 0.95,
-  },
-  dayPanelActions: {
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-  },
+  dayPanel: { borderTop: "1px solid rgba(255,255,255,0.08)", padding: 12 },
+  dayPanelTop: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  dayPanelTitle: { fontSize: 14, fontWeight: 700, opacity: 0.95 },
+  dayPanelActions: { display: "flex", gap: 8, alignItems: "center" },
 
-  dayList: {
-    marginTop: 10,
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
+  dayList: { marginTop: 10, display: "flex", flexDirection: "column", gap: 10 },
 
-  agendaCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    overflow: "hidden",
-  },
-  agendaTop: {
-    padding: 14,
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-  },
+  agendaCard: { borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", overflow: "hidden" },
+  agendaTop: { padding: 14, borderBottom: "1px solid rgba(255,255,255,0.08)" },
   agendaTitle: { fontSize: 16, fontWeight: 800 },
-  agendaSub: {
-    marginTop: 4,
-    fontSize: 12,
-    opacity: 0.75,
-  },
-  agendaList: {
-    padding: 12,
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
+  agendaSub: { marginTop: 4, fontSize: 12, opacity: 0.75 },
+  agendaList: { padding: 12, display: "flex", flexDirection: "column", gap: 10 },
 
   eventRow: {
     display: "flex",
@@ -1645,30 +1271,10 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.03)",
   },
   eventBar: { width: 6, borderRadius: 999 },
-  eventBody: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  eventTop: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  eventRight: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-  },
-  eventTitle: {
-    fontSize: 14,
-    fontWeight: 800,
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis",
-  },
+  eventBody: { flex: 1, display: "flex", flexDirection: "column", gap: 6 },
+  eventTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  eventRight: { display: "inline-flex", alignItems: "center", gap: 8 },
+  eventTitle: { fontSize: 14, fontWeight: 800, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
   eventTime: { fontSize: 12, opacity: 0.78 },
   eventTag: {
     display: "inline-flex",
@@ -1717,8 +1323,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "12px 14px",
     borderRadius: 14,
     border: "1px solid rgba(250,204,21,0.30)",
-    background:
-      "linear-gradient(135deg, rgba(250,204,21,0.22), rgba(250,204,21,0.08))",
+    background: "linear-gradient(135deg, rgba(250,204,21,0.22), rgba(250,204,21,0.08))",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 900,
@@ -1727,8 +1332,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "12px 14px",
     borderRadius: 14,
     border: "1px solid rgba(96,165,250,0.30)",
-    background:
-      "linear-gradient(135deg, rgba(96,165,250,0.22), rgba(96,165,250,0.08))",
+    background: "linear-gradient(135deg, rgba(96,165,250,0.22), rgba(96,165,250,0.08))",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 900,
@@ -1788,12 +1392,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     fontSize: 12,
   },
-  conflictDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    background: "rgba(248,113,113,0.95)",
-  },
+  conflictDot: { width: 10, height: 10, borderRadius: 999, background: "rgba(248,113,113,0.95)" },
   conflictArrow: { opacity: 0.8 },
 
   resolvePill: {
@@ -1822,12 +1421,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     fontSize: 12,
   },
-  okDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    background: "rgba(34,197,94,0.95)",
-  },
+  okDot: { width: 10, height: 10, borderRadius: 999, background: "rgba(34,197,94,0.95)" },
 
   emptyHint: {
     padding: 14,
@@ -1848,17 +1442,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
   },
-  loadingDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 999,
-    background: "rgba(56,189,248,0.95)",
-    boxShadow: "0 0 24px rgba(56,189,248,0.55)",
-  },
+  loadingDot: { width: 12, height: 12, borderRadius: 999, background: "rgba(56,189,248,0.95)", boxShadow: "0 0 24px rgba(56,189,248,0.55)" },
   loadingTitle: { fontWeight: 900 },
-  loadingSub: {
-    fontSize: 12,
-    opacity: 0.75,
-    marginTop: 2,
-  },
+  loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
 };
