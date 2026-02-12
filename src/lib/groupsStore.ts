@@ -2,8 +2,19 @@
 "use client";
 
 import { create, type StateCreator } from "zustand";
-import { getMyGroups, type GroupRow as DbGroupRow, type GroupType as DbGroupType } from "@/lib/groupsDb";
-import { getActiveGroupIdFromDb, setActiveGroupIdInDb } from "@/lib/activeGroup";
+import {
+  getMyGroups,
+  type GroupRow as DbGroupRow,
+  type GroupType as DbGroupType,
+} from "@/lib/groupsDb";
+import {
+  getActiveGroupIdFromDb,
+  setActiveGroupIdInDb,
+} from "@/lib/activeGroup";
+
+// ✅ Compatibilidad (para no romper imports viejos en la UI)
+export const fetchMyGroups = getMyGroups;
+export type GroupRow = DbGroupRow;
 
 export type GroupType = DbGroupType;
 
@@ -33,7 +44,14 @@ type GroupsState = {
 
 function normalizeGroupType(t: DbGroupRow["type"]): GroupType {
   const v = String(t ?? "other");
-  if (v === "pair" || v === "family" || v === "other" || v === "solo" || v === "personal") return v;
+  if (
+    v === "pair" ||
+    v === "family" ||
+    v === "other" ||
+    v === "solo" ||
+    v === "personal"
+  )
+    return v;
   return "other";
 }
 
