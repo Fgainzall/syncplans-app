@@ -4,8 +4,13 @@
 import supabase from "@/lib/supabaseClient";
 
 /**
- * ✅ Interfaz que usa tu UI / settings / notificationsDb
- * La mantenemos IGUAL (notify_*) para no tocar 20 archivos.
+ * 👇 Esta es la "API" que usa tu UI (lo que tú quieres mostrar)
+ * Internamente la mapeamos a las columnas reales de la DB:
+ *
+ * notify_personal  -> event_reminders
+ * notify_pair      -> partner_updates
+ * notify_family    -> family_updates
+ * notify_conflicts -> conflict_alerts
  */
 export type NotificationSettings = {
   user_id?: string;
@@ -19,10 +24,8 @@ export type NotificationSettings = {
   updated_at?: string | null;
 };
 
-/**
- * ✅ Defaults "lógicos" para la app.
- */
-const DEFAULT_USER_NOTIF: Omit<
+// Defaults UI
+const DEFAULT_UI: Omit<
   NotificationSettings,
   "user_id" | "created_at" | "updated_at"
 > = {
@@ -32,31 +35,21 @@ const DEFAULT_USER_NOTIF: Omit<
   notify_family: true,
 };
 
-/**
- * ✅ Columnas REALES en la tabla public.user_notification_settings (según tu screenshot).
- * - event_reminders (bool)
- * - conflict_alerts (bool)
- * - partner_updates (bool)
- * - family_updates (bool)
- * - weekly_summary (bool)
- * - quiet_hours_enabled (bool)
- * - quiet_from (text)
- * - quiet_to (text)
- */
+// Tipado mínimo del row real en DB (según tu screenshot)
 type DbUserNotifRow = {
   user_id: string;
-
-  updated_at?: string | null;
-
-  event_reminders?: boolean | null;
-  conflict_alerts?: boolean | null;
-  partner_updates?: boolean | null;
-  family_updates?: boolean | null;
+  event_reminders: boolean | null;
+  conflict_alerts: boolean | null;
+  partner_updates: boolean | null;
+  family_updates: boolean | null;
+  // existen en tu tabla, pero aquí no los usamos todavía:
   weekly_summary?: boolean | null;
-
   quiet_hours_enabled?: boolean | null;
   quiet_from?: string | null;
   quiet_to?: string | null;
+
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 async function requireUid(): Promise<string> {
@@ -67,71 +60,51 @@ async function requireUid(): Promise<string> {
   return uid;
 }
 
-/**
- * ✅ Mapeo DB -> UI (notify_*)
- */
-function mapDbToUi(row: DbUserNotifRow): NotificationSettings {
+function fromDb(row: DbUserNotifRow, uid: string): NotificationSettings {
   return {
-    user_id: row.user_id,
-
-    // ✅ conflictos -> conflict_alerts
-    notify_conflicts:
-      row.conflict_alerts ?? DEFAULT_USER_NOTIF.notify_conflicts,
-
-    // ✅ personal -> event_reminders (lo más cercano)
-    notify_personal:
-      row.event_reminders ?? DEFAULT_USER_NOTIF.notify_personal,
-
-    // ✅ pareja -> partner_updates
-    notify_pair: row.partner_updates ?? DEFAULT_USER_NOTIF.notify_pair,
-
-    // ✅ familia -> family_updates
-    notify_family: row.family_updates ?? DEFAULT_USER_NOTIF.notify_family,
-
+    user_id: uid,
+    notify_personal: row.event_reminders ?? DEFAULT_UI.notify_personal,
+    notify_conflicts: row.conflict_alerts ?? DEFAULT_UI.notify_conflicts,
+    notify_pair: row.partner_updates ?? DEFAULT_UI.notify_pair,
+    notify_family: row.family_updates ?? DEFAULT_UI.notify_family,
+    created_at: row.created_at ?? null,
     updated_at: row.updated_at ?? null,
-    created_at: null, // tu tabla no muestra created_at en screenshot; no lo asumimos
   };
 }
 
-/**
- * ✅ Mapeo UI (notify_*) -> DB (columnas reales)
- * Nota: NO tocamos weekly_summary aquí porque tú lo manejas por appSettings (settings.ts)
- */
-function mapUiPatchToDb(
+function toDbPatch(
   patch: Partial<
     Omit<NotificationSettings, "user_id" | "created_at" | "updated_at">
   >
 ): Partial<DbUserNotifRow> {
-  const out: Partial<DbUserNotifRow> = {};
+  const db: Partial<DbUserNotifRow> = {};
 
-  if (typeof patch.notify_conflicts !== "undefined") {
-    out.conflict_alerts = patch.notify_conflicts;
-  }
-  if (typeof patch.notify_personal !== "undefined") {
-    out.event_reminders = patch.notify_personal;
-  }
-  if (typeof patch.notify_pair !== "undefined") {
-    out.partner_updates = patch.notify_pair;
-  }
-  if (typeof patch.notify_family !== "undefined") {
-    out.family_updates = patch.notify_family;
-  }
+  if (typeof patch.notify_personal !== "undefined")
+    db.event_reminders = patch.notify_personal;
 
-  return out;
+  if (typeof patch.notify_conflicts !== "undefined")
+    db.conflict_alerts = patch.notify_conflicts;
+
+  if (typeof patch.notify_pair !== "undefined")
+    db.partner_updates = patch.notify_pair;
+
+  if (typeof patch.notify_family !== "undefined")
+    db.family_updates = patch.notify_family;
+
+  return db;
 }
 
 /**
  * Devuelve settings de notificaciones del usuario.
- * Si no existe fila en user_notification_settings, la crea con defaults (en columnas REALES).
+ * Si no existe fila en user_notification_settings, la crea con defaults.
  */
 export async function getMyNotificationSettings(): Promise<NotificationSettings> {
   const uid = await requireUid();
 
   const { data, error } = await supabase
     .from("user_notification_settings")
-    // ✅ pedimos SOLO columnas reales (evita select * raro + TS)
     .select(
-      "user_id, updated_at, event_reminders, conflict_alerts, partner_updates, family_updates, weekly_summary, quiet_hours_enabled, quiet_from, quiet_to"
+      "user_id, event_reminders, conflict_alerts, partner_updates, family_updates, created_at, updated_at"
     )
     .eq("user_id", uid)
     .maybeSingle();
@@ -139,36 +112,33 @@ export async function getMyNotificationSettings(): Promise<NotificationSettings>
   if (error) throw error;
 
   if (!data) {
-    // ✅ crear defaults usando columnas reales
+    // crear defaults usando columnas reales
     const insertPayload: DbUserNotifRow = {
       user_id: uid,
-      event_reminders: DEFAULT_USER_NOTIF.notify_personal,
-      conflict_alerts: DEFAULT_USER_NOTIF.notify_conflicts,
-      partner_updates: DEFAULT_USER_NOTIF.notify_pair,
-      family_updates: DEFAULT_USER_NOTIF.notify_family,
-      // weekly_summary lo dejamos tal cual (si existe lógica aparte)
-      updated_at: new Date().toISOString(),
+      event_reminders: DEFAULT_UI.notify_personal,
+      conflict_alerts: DEFAULT_UI.notify_conflicts,
+      partner_updates: DEFAULT_UI.notify_pair,
+      family_updates: DEFAULT_UI.notify_family,
     };
 
     const { data: created, error: insErr } = await supabase
       .from("user_notification_settings")
       .insert([insertPayload])
       .select(
-        "user_id, updated_at, event_reminders, conflict_alerts, partner_updates, family_updates, weekly_summary, quiet_hours_enabled, quiet_from, quiet_to"
+        "user_id, event_reminders, conflict_alerts, partner_updates, family_updates, created_at, updated_at"
       )
       .single();
 
     if (insErr) throw insErr;
 
-    return mapDbToUi(created as DbUserNotifRow);
+    return fromDb(created as DbUserNotifRow, uid);
   }
 
-  return mapDbToUi(data as DbUserNotifRow);
+  return fromDb(data as DbUserNotifRow, uid);
 }
 
 /**
  * Update (patch) de settings del usuario actual (upsert por user_id).
- * ✅ Sigue recibiendo notify_* (UI), pero guarda en columnas reales.
  */
 export async function updateMyNotificationSettings(
   patch: Partial<
@@ -177,12 +147,9 @@ export async function updateMyNotificationSettings(
 ): Promise<void> {
   const uid = await requireUid();
 
-  const dbPatch = mapUiPatchToDb(patch);
-
   const payload: Partial<DbUserNotifRow> = {
     user_id: uid,
-    ...dbPatch,
-    updated_at: new Date().toISOString(),
+    ...toDbPatch(patch),
   };
 
   const { error } = await supabase
@@ -190,16 +157,4 @@ export async function updateMyNotificationSettings(
     .upsert(payload, { onConflict: "user_id" });
 
   if (error) throw error;
-}
-
-/**
- * ✅ Alias de compatibilidad (por si algún archivo llama "upsertMyNotificationSettings")
- * No rompe nada si ya lo tenías en otro lugar.
- */
-export async function upsertMyNotificationSettings(
-  patch: Partial<
-    Omit<NotificationSettings, "user_id" | "created_at" | "updated_at">
-  >
-): Promise<void> {
-  return updateMyNotificationSettings(patch);
 }
