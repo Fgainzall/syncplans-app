@@ -119,6 +119,9 @@ export default function PremiumHeader({
   const [unreadCount, setUnreadCount] = useState(0);
   const [headerUser, setHeaderUser] = useState<HeaderUser | null>(null);
 
+  // ✅ Estado interno del sync Google (UI)
+  const [syncing, setSyncing] = useState(false);
+
   // Estado de grupos / modo activo
   useEffect(() => {
     const g = getGroupState();
@@ -251,6 +254,32 @@ export default function PremiumHeader({
     }
   }
 
+  // ✅ Botón Sync Google (llama a /api/google/sync)
+  async function onSyncGoogle() {
+    if (syncing) return;
+
+    try {
+      setSyncing(true);
+
+      const res = await fetch("/api/google/sync", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        console.error("Google sync failed", data);
+        alert(data?.error || "Falló el sync con Google");
+        return;
+      }
+
+      alert(`Sync OK ✅ Importados: ${data.imported ?? 0}`);
+      window.location.reload();
+    } catch (e) {
+      console.error(e);
+      alert("Error llamando al sync");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <>
       <header style={S.wrap}>
@@ -296,6 +325,21 @@ export default function PremiumHeader({
                 <span style={S.userLabel}>{headerUser.name}</span>
               </button>
             )}
+
+            {/* ✅ Sync Google (siempre visible) */}
+            <button
+              type="button"
+              style={{
+                ...S.ghostBtn,
+                opacity: syncing ? 0.75 : 1,
+                cursor: syncing ? "progress" : "pointer",
+              }}
+              onClick={onSyncGoogle}
+              disabled={syncing}
+              title="Sincronizar eventos desde Google Calendar"
+            >
+              {syncing ? "Sync…" : "Sync"}
+            </button>
 
             {/* Slot derecho o botón + Evento */}
             {rightSlot ?? (
@@ -464,6 +508,17 @@ const S: Record<string, React.CSSProperties> = {
     color: "#fff",
     fontWeight: 900,
     cursor: "pointer",
+  },
+
+  // ✅ Botón neutro (para Sync)
+  ghostBtn: {
+    height: 40,
+    padding: "0 14px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#fff",
+    fontWeight: 900,
   },
 
   bellWrap: { position: "relative" },
