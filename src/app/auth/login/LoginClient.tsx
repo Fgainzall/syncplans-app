@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 
@@ -18,16 +18,57 @@ export default function LoginClient() {
     [nextParam]
   );
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+const [email, setEmail] = useState("");
+const [password, setPassword] = useState("");
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = useMemo(() => {
-    const e = email.trim();
-    return e.includes("@") && password.trim().length >= 6 && !loading;
-  }, [email, password, loading]);
+// 🔥 AQUI VA EL BLOQUE NUEVO
+useEffect(() => {
+  let alive = true;
+
+  async function go() {
+    try {
+      if (typeof window !== "undefined") {
+        const h = window.location.hash || "";
+        if (h.includes("access_token=") || h.includes("provider_token=")) {
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname + window.location.search
+          );
+        }
+      }
+
+      const { data } = await supabase.auth.getSession();
+      if (!alive) return;
+
+      if (data?.session) {
+        router.replace(nextTarget);
+      }
+    } catch {}
+  }
+
+  go();
+
+  const { data: sub } = supabase.auth.onAuthStateChange(
+    (_event, session) => {
+      if (session) router.replace(nextTarget);
+    }
+  );
+
+  return () => {
+    alive = false;
+    sub?.subscription?.unsubscribe();
+  };
+}, [router, nextTarget]);
+
+// 🔽 Luego sigue tu canSubmit normal
+const canSubmit = useMemo(() => {
+  const e = email.trim();
+  return e.includes("@") && password.trim().length >= 6 && !loading;
+}, [email, password, loading]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
