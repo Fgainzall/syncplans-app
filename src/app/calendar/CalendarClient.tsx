@@ -588,10 +588,32 @@ export default function CalendarClient(props: {
   const toggleGroup = (g: GroupType) =>
     setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
 
-  const handleSync = async () => {
-    await refreshCalendar({ showToast: true });
-  };
+const handleSync = async () => {
+  try {
+    setToast({ title: "Sincronizando…", subtitle: "Importando desde Google Calendar" });
 
+    const res = await fetch("/api/google/sync", { method: "POST" });
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok || !json?.ok) {
+      setToast({
+        title: "No se pudo sincronizar",
+        subtitle: json?.error ?? "Revisa tu conexión o vuelve a conectar Google.",
+      });
+      window.setTimeout(() => setToast(null), 3200);
+      return;
+    }
+
+    await refreshCalendar({
+      showToast: true,
+      toastTitle: "Sincronizado ✅",
+      toastSubtitle: `Importados/actualizados: ${json.imported ?? 0}`,
+    });
+  } catch (e: any) {
+    setToast({ title: "Error sincronizando", subtitle: e?.message ?? "Intenta de nuevo." });
+    window.setTimeout(() => setToast(null), 3200);
+  }
+};
   const openNewEventPersonal = (date?: Date) => {
     const d = date ?? selectedDay ?? new Date();
     router.push(
