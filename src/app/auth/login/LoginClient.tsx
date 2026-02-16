@@ -70,46 +70,50 @@ export default function LoginClient() {
     }
   }
 
-  async function onGoogle() {
-    setError(null);
-    setLoading(true);
+async function onGoogle() {
+  setError(null);
+  setLoading(true);
 
-    try {
-      const redirectTo =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(
-              nextTarget
-            )}`
-          : undefined;
+  try {
+    const redirectTo =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+            nextTarget
+          )}`
+        : undefined;
 
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo,
-          scopes: "https://www.googleapis.com/auth/calendar.readonly",
-          queryParams: {
-            access_type: "offline",
-            prompt: "consent",
-          },
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+        scopes: "https://www.googleapis.com/auth/calendar.readonly",
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
         },
-      });
+      },
+    });
 
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-        return;
-      }
-
-      if (!data?.url) {
-        setError("No se pudo iniciar el login con Google.");
-        setLoading(false);
-      }
-    } catch (e: any) {
-      setError(e?.message ?? "Error iniciando sesión con Google.");
+    if (error) {
+      setError(error.message);
       setLoading(false);
+      return;
     }
-  }
 
+    // Normalmente Supabase te redirige solo; esto es un guardrail.
+    if (!data?.url) {
+      setError("No se pudo iniciar el login con Google.");
+      setLoading(false);
+      return;
+    }
+
+    // Por si en algún browser no redirige automáticamente:
+    window.location.href = data.url;
+  } catch (e: any) {
+    setError(e?.message ?? "Error iniciando sesión con Google.");
+    setLoading(false);
+  }
+}
   // 🎨 Estilos compartidos con register para que queden alineados
   const page: React.CSSProperties = {
     minHeight: "100vh",
@@ -535,15 +539,14 @@ export default function LoginClient() {
             </form>
 
             {/* ✅ Google OAuth Calendar Readonly */}
-            <button
-              type="button"
-              style={secondaryBtn}
-              onClick={onGoogle}
-              disabled={loading}
-            >
-              Continuar con Google (Calendar)
-            </button>
-
+<button
+  type="button"
+  style={secondaryBtn}
+  onClick={onGoogle}
+  disabled={loading}
+>
+  {loading ? "Conectando…" : "Continuar con Google (Calendar)"}
+</button>
             <button
               type="button"
               style={secondaryBtn}
