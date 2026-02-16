@@ -11,7 +11,7 @@ import { EventEditModal } from "@/components/EventEditModal";
 
 import { getMyGroups } from "@/lib/groupsDb";
 import { getEventsForGroups, deleteEventsByIds } from "@/lib/eventsDb";
-import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
+import { getActiveGroupIdFromDb, setActiveGroupIdInDb } from "@/lib/activeGroup";
 
 import {
   type CalendarEvent,
@@ -21,7 +21,7 @@ import {
   groupMeta,
 } from "@/lib/conflicts";
 
-type Scope = "personal" | "group" | "all";
+type Scope = "personal" | "active" | "all";
 type Tab = "month" | "agenda";
 
 /* =========================
@@ -54,7 +54,11 @@ function addDays(d: Date, n: number) {
   return x;
 }
 function sameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 function ymd(d: Date) {
   const yyyy = d.getFullYear();
@@ -63,20 +67,55 @@ function ymd(d: Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 function prettyMonthRange(a: Date, b: Date) {
-  const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const meses = [
+    "ene",
+    "feb",
+    "mar",
+    "abr",
+    "may",
+    "jun",
+    "jul",
+    "ago",
+    "sep",
+    "oct",
+    "nov",
+    "dic",
+  ];
   return `${a.getDate()} ${meses[a.getMonth()]} ${a.getFullYear()} – ${b.getDate()} ${meses[b.getMonth()]} ${b.getFullYear()}`;
 }
 function prettyDay(d: Date) {
   const dias = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-  const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-  return `${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]} ${d.getFullYear()}`;
+  const meses = [
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+  ];
+  return `${dias[d.getDay()]}, ${d.getDate()} de ${
+    meses[d.getMonth()]
+  } ${d.getFullYear()}`;
 }
 function prettyTimeRange(startIso: string, endIso: string) {
   const s = new Date(startIso);
   const e = new Date(endIso);
-  const hhmm = (x: Date) => `${String(x.getHours()).padStart(2, "0")}:${String(x.getMinutes()).padStart(2, "0")}`;
+  const hhmm = (x: Date) =>
+    `${String(x.getHours()).padStart(2, "0")}:${String(x.getMinutes()).padStart(
+      2,
+      "0"
+    )}`;
   const cross = !sameDay(s, e);
-  if (cross) return `${s.toLocaleDateString()} ${hhmm(s)} → ${e.toLocaleDateString()} ${hhmm(e)}`;
+  if (cross)
+    return `${s.toLocaleDateString()} ${hhmm(
+      s
+    )} → ${e.toLocaleDateString()} ${hhmm(e)}`;
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
 function isValidIsoish(v: any) {
@@ -144,7 +183,9 @@ export default function CalendarClient(props: {
     family: true,
   });
 
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
+  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
+    null
+  );
 
   /* ✏️ ESTADO DEL MODAL DE EDICIÓN */
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
@@ -164,7 +205,11 @@ export default function CalendarClient(props: {
      Carga de datos + sync
      ========================= */
   const refreshCalendar = useCallback(
-    async (opts?: { showToast?: boolean; toastTitle?: string; toastSubtitle?: string }) => {
+    async (opts?: {
+      showToast?: boolean;
+      toastTitle?: string;
+      toastSubtitle?: string;
+    }) => {
       const showToast = opts?.showToast ?? false;
 
       try {
@@ -187,8 +232,19 @@ export default function CalendarClient(props: {
         const myGroups = await getMyGroups();
         setGroups(myGroups);
 
+        // ✅ FIX DEFINITIVO:
+        // Si NO hay active_group_id en DB pero sí hay grupos,
+        // elegimos el primero y lo PERSISTIMOS en DB para que
+        // Summary y otras pantallas lean exactamente lo mismo.
         if (!active && (myGroups?.length ?? 0) > 0) {
-          setActiveGroupId(String(myGroups[0].id));
+          const firstId = String(myGroups[0].id);
+          setActiveGroupId(firstId);
+
+          try {
+            await setActiveGroupIdInDb(firstId);
+          } catch {
+            // no-op (igual queda en state)
+          }
         }
 
         const groupIds = (myGroups || []).map((g: any) => String(g.id));
@@ -200,7 +256,8 @@ export default function CalendarClient(props: {
           (myGroups || []).map((g: any) => {
             const id = String(g.id);
             const rawType = String(g.type ?? "").toLowerCase();
-            const normalized: "family" | "pair" = rawType === "family" ? "family" : "pair";
+            const normalized: "family" | "pair" =
+              rawType === "family" ? "family" : "pair";
             return [id, normalized];
           })
         );
@@ -263,7 +320,9 @@ export default function CalendarClient(props: {
 
   const handleDeleteEvent = useCallback(
     async (eventId: string, title?: string) => {
-      const ok = confirm(`¿Eliminar el evento${title ? ` "${title}"` : ""}?\nEsta acción no se puede deshacer.`);
+      const ok = confirm(
+        `¿Eliminar el evento${title ? ` "${title}"` : ""}?\nEsta acción no se puede deshacer.`
+      );
       if (!ok) return;
 
       try {
@@ -294,11 +353,29 @@ export default function CalendarClient(props: {
     const { appliedCount, deleted, skipped } = appliedToast;
 
     const parts: string[] = [];
-    if (appliedCount > 0) parts.push(`${appliedCount} decisión${appliedCount === 1 ? "" : "es"} aplicada${appliedCount === 1 ? "" : "s"}`);
-    if (deleted > 0) parts.push(`${deleted} evento${deleted === 1 ? "" : "s"} eliminado${deleted === 1 ? "" : "s"}`);
-    if (skipped > 0) parts.push(`${skipped} conflicto${skipped === 1 ? "" : "s"} saltado${skipped === 1 ? "" : "s"}`);
+    if (appliedCount > 0)
+      parts.push(
+        `${appliedCount} decisión${appliedCount === 1 ? "" : "es"} aplicada${
+          appliedCount === 1 ? "" : "s"
+        }`
+      );
+    if (deleted > 0)
+      parts.push(
+        `${deleted} evento${deleted === 1 ? "" : "s"} eliminado${
+          deleted === 1 ? "" : "s"
+        }`
+      );
+    if (skipped > 0)
+      parts.push(
+        `${skipped} conflicto${skipped === 1 ? "" : "s"} saltado${
+          skipped === 1 ? "" : "s"
+        }`
+      );
 
-    const subtitle = parts.length > 0 ? parts.join(" · ") : "No hubo cambios que aplicar en los conflictos.";
+    const subtitle =
+      parts.length > 0
+        ? parts.join(" · ")
+        : "No hubo cambios que aplicar en los conflictos.";
 
     setToast({ title: "Cambios aplicados ✅", subtitle });
 
@@ -343,10 +420,12 @@ export default function CalendarClient(props: {
      Conflictos
      ========================= */
   const conflicts = useMemo(() => {
-    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map((e) => ({
-      ...e,
-      groupType: normalizeForConflicts(e.groupType),
-    }));
+    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
+      (e) => ({
+        ...e,
+        groupType: normalizeForConflicts(e.groupType),
+      })
+    );
 
     const all = computeVisibleConflicts(normalized);
     return filterIgnoredConflicts(all);
@@ -406,12 +485,15 @@ export default function CalendarClient(props: {
         return gt === "personal";
       }
 
-      // scope === "group" (grupo activo + personal)
+      // scope === "active"
+      const inConflict = conflictEventIdsInGrid.has(String(e.id));
+      if (inConflict) return true;
+
       if (gt === "personal") return true;
       if (!activeGroupId) return true;
       return String(e.groupId ?? "") === String(activeGroupId);
     });
-  }, [events, scope, enabledGroups, activeGroupId]);
+  }, [events, scope, enabledGroups, activeGroupId, conflictEventIdsInGrid]);
 
   const visibleEvents = useMemo(() => {
     const a = gridStart.getTime();
@@ -434,7 +516,9 @@ export default function CalendarClient(props: {
       map.set(key, arr);
     }
     for (const [k, arr] of map.entries()) {
-      arr.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+      arr.sort(
+        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+      );
       map.set(k, arr);
     }
     return map;
@@ -491,15 +575,18 @@ export default function CalendarClient(props: {
   /* =========================
      Navegación y acciones
      ========================= */
-  const goPrevMonth = () => setAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
-  const goNextMonth = () => setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  const goPrevMonth = () =>
+    setAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  const goNextMonth = () =>
+    setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
   const goToday = () => {
     const t = new Date();
     setAnchor(t);
     setSelectedDay(t);
   };
 
-  const toggleGroup = (g: GroupType) => setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
+  const toggleGroup = (g: GroupType) =>
+    setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
 
   const handleSync = async () => {
     await refreshCalendar({ showToast: true });
@@ -507,16 +594,21 @@ export default function CalendarClient(props: {
 
   const openNewEventPersonal = (date?: Date) => {
     const d = date ?? selectedDay ?? new Date();
-    router.push(`/events/new/details?type=personal&date=${encodeURIComponent(d.toISOString())}`);
+    router.push(
+      `/events/new/details?type=personal&date=${encodeURIComponent(d.toISOString())}`
+    );
   };
 
   const openNewEventGroup = (date?: Date) => {
     const d = date ?? selectedDay ?? new Date();
-    router.push(`/events/new/details?type=group&date=${encodeURIComponent(d.toISOString())}`);
+    router.push(
+      `/events/new/details?type=group&date=${encodeURIComponent(d.toISOString())}`
+    );
   };
 
   const openConflicts = () => router.push("/conflicts/detected");
-  const resolveNow = () => router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`);
+  const resolveNow = () =>
+    router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`);
 
   /* =========================
      RENDER
@@ -530,7 +622,9 @@ export default function CalendarClient(props: {
             <div style={styles.loadingDot} />
             <div>
               <div style={styles.loadingTitle}>Cargando tu calendario…</div>
-              <div style={styles.loadingSub}>Preparando tus eventos y grupos</div>
+              <div style={styles.loadingSub}>
+                Preparando tus eventos y grupos
+              </div>
             </div>
           </div>
         </div>
@@ -552,7 +646,9 @@ export default function CalendarClient(props: {
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
             <div style={styles.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
+            {toast.subtitle ? (
+              <div style={styles.toastSub}>{toast.subtitle}</div>
+            ) : null}
           </div>
         </div>
       )}
@@ -599,17 +695,28 @@ export default function CalendarClient(props: {
             </div>
 
             <div style={styles.sub}>
-              Vista {tab === "month" ? "mensual" : "agenda"} · {prettyMonthRange(monthStart, monthEnd)}
+              Vista {tab === "month" ? "mensual" : "agenda"} ·{" "}
+              {prettyMonthRange(monthStart, monthEnd)}
             </div>
 
-            {error ? <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>{error}</div> : null}
+            {error ? (
+              <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>
+                {error}
+              </div>
+            ) : null}
           </div>
 
           <div style={styles.heroRight}>
-            <button onClick={() => openNewEventPersonal()} style={styles.primaryBtnPersonal}>
+            <button
+              onClick={() => openNewEventPersonal()}
+              style={styles.primaryBtnPersonal}
+            >
               + Personal
             </button>
-            <button onClick={() => openNewEventGroup()} style={styles.primaryBtnGroup}>
+            <button
+              onClick={() => openNewEventGroup()}
+              style={styles.primaryBtnGroup}
+            >
               + Grupo
             </button>
           </div>
@@ -618,34 +725,72 @@ export default function CalendarClient(props: {
         <section style={styles.filtersCard}>
           <div style={styles.filtersRow}>
             <div style={styles.segment}>
-              <button onClick={() => setTab("month")} style={{ ...styles.segmentBtn, ...(tab === "month" ? styles.segmentOn : {}) }}>
+              <button
+                onClick={() => setTab("month")}
+                style={{
+                  ...styles.segmentBtn,
+                  ...(tab === "month" ? styles.segmentOn : {}),
+                }}
+              >
                 Mes
               </button>
-              <button onClick={() => setTab("agenda")} style={{ ...styles.segmentBtn, ...(tab === "agenda" ? styles.segmentOn : {}) }}>
+              <button
+                onClick={() => setTab("agenda")}
+                style={{
+                  ...styles.segmentBtn,
+                  ...(tab === "agenda" ? styles.segmentOn : {}),
+                }}
+              >
                 Agenda
               </button>
             </div>
 
             <div style={styles.segment}>
-              <button onClick={() => setScope("group")} style={{ ...styles.segmentBtn, ...(scope === "group" ? styles.segmentOn : {}) }}>
-                Grupo
+              <button
+                onClick={() => setScope("active")}
+                style={{
+                  ...styles.segmentBtn,
+                  ...(scope === "active" ? styles.segmentOn : {}),
+                }}
+              >
+                Activo
               </button>
-              <button onClick={() => setScope("personal")} style={{ ...styles.segmentBtn, ...(scope === "personal" ? styles.segmentOn : {}) }}>
+              <button
+                onClick={() => setScope("personal")}
+                style={{
+                  ...styles.segmentBtn,
+                  ...(scope === "personal" ? styles.segmentOn : {}),
+                }}
+              >
                 Personal
               </button>
-              <button onClick={() => setScope("all")} style={{ ...styles.segmentBtn, ...(scope === "all" ? styles.segmentOn : {}) }}>
+              <button
+                onClick={() => setScope("all")}
+                style={{
+                  ...styles.segmentBtn,
+                  ...(scope === "all" ? styles.segmentOn : {}),
+                }}
+              >
                 Todo
               </button>
             </div>
 
             <div style={styles.navRow}>
-              <button onClick={goPrevMonth} style={styles.iconBtn} aria-label="Mes anterior">
+              <button
+                onClick={goPrevMonth}
+                style={styles.iconBtn}
+                aria-label="Mes anterior"
+              >
                 ‹
               </button>
               <button onClick={goToday} style={styles.ghostBtnSmall}>
                 Hoy
               </button>
-              <button onClick={goNextMonth} style={styles.iconBtn} aria-label="Mes siguiente">
+              <button
+                onClick={goNextMonth}
+                style={styles.iconBtn}
+                aria-label="Mes siguiente"
+              >
                 ›
               </button>
             </div>
@@ -661,7 +806,9 @@ export default function CalendarClient(props: {
                   onClick={() => toggleGroup(g)}
                   style={{
                     ...styles.groupChip,
-                    borderColor: on ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)",
+                    borderColor: on
+                      ? "rgba(255,255,255,0.18)"
+                      : "rgba(255,255,255,0.10)",
                     opacity: on ? 1 : 0.5,
                   }}
                 >
@@ -703,10 +850,16 @@ export default function CalendarClient(props: {
                 <div style={styles.dayPanelTitle}>{prettyDay(selectedDay)}</div>
 
                 <div style={styles.dayPanelActions}>
-                  <button onClick={() => openNewEventPersonal(selectedDay)} style={styles.ghostBtnSmallPersonal}>
+                  <button
+                    onClick={() => openNewEventPersonal(selectedDay)}
+                    style={styles.ghostBtnSmallPersonal}
+                  >
                     + Personal
                   </button>
-                  <button onClick={() => openNewEventGroup(selectedDay)} style={styles.ghostBtnSmallGroup}>
+                  <button
+                    onClick={() => openNewEventGroup(selectedDay)}
+                    style={styles.ghostBtnSmallGroup}
+                  >
                     + Grupo
                   </button>
                 </div>
@@ -736,13 +889,16 @@ export default function CalendarClient(props: {
             <div style={styles.agendaTop}>
               <div style={styles.agendaTitle}>Agenda del mes</div>
               <div style={styles.agendaSub}>
-                Mostrando {agendaEvents.length} evento{agendaEvents.length === 1 ? "" : "s"}
+                Mostrando {agendaEvents.length} evento
+                {agendaEvents.length === 1 ? "" : "s"}
               </div>
             </div>
 
             <div style={styles.agendaList}>
               {agendaEvents.length === 0 ? (
-                <div style={styles.emptyHint}>No hay eventos para mostrar con estos filtros.</div>
+                <div style={styles.emptyHint}>
+                  No hay eventos para mostrar con estos filtros.
+                </div>
               ) : (
                 agendaEvents.map((e) => (
                   <EventRow
@@ -775,7 +931,10 @@ export default function CalendarClient(props: {
                   start: editingEvent.start,
                   end: editingEvent.end,
                   description: editingEvent.notes,
-                  groupType: editingEvent.groupType === "pair" ? ("couple" as any) : editingEvent.groupType,
+                  groupType:
+                    editingEvent.groupType === "pair"
+                      ? ("couple" as any)
+                      : editingEvent.groupType,
                 }
               : undefined
           }
@@ -812,7 +971,9 @@ function EventRow({
   onEdit?: (e: CalendarEvent) => void;
   groupTypeById?: Map<string, "pair" | "family">;
 }) {
-  const resolvedType: GroupType = e.groupId ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any) : ("personal" as any);
+  const resolvedType: GroupType = e.groupId
+    ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
+    : ("personal" as any);
 
   const meta = groupMeta(resolvedType);
 
@@ -823,8 +984,12 @@ function EventRow({
       ref={setRef ? setRef(String(e.id)) : undefined}
       style={{
         ...styles.eventRow,
-        border: isHighlighted ? "1px solid rgba(56,189,248,0.55)" : (styles.eventRow.border as any),
-        background: isHighlighted ? "rgba(255,255,255,0.08)" : (styles.eventRow.background as any),
+        border: isHighlighted
+          ? "1px solid rgba(56,189,248,0.55)"
+          : (styles.eventRow.border as any),
+        background: isHighlighted
+          ? "rgba(255,255,255,0.08)"
+          : (styles.eventRow.background as any),
         animation: isHighlighted ? "spPulseGlow 2.6s ease-out" : undefined,
         cursor: "pointer",
       }}
@@ -896,10 +1061,22 @@ function renderMonthCells(opts: {
   groupTypeById: Map<string, "pair" | "family">;
   onEdit: (e: CalendarEvent) => void;
 }) {
-  const { gridStart, gridEnd, monthStart, selectedDay, setSelectedDay, eventsByDay, openNewEventPersonal, openNewEventGroup } = opts;
+  const {
+    gridStart,
+    gridEnd,
+    monthStart,
+    selectedDay,
+    setSelectedDay,
+    eventsByDay,
+    openNewEventPersonal,
+    openNewEventGroup,
+  } = opts;
 
   const cells: React.ReactNode[] = [];
-  const totalDays = Math.round((gridEnd.getTime() - gridStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const totalDays =
+    Math.round(
+      (gridEnd.getTime() - gridStart.getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1;
 
   for (let i = 0; i < totalDays; i++) {
     const day = addDays(gridStart, i);
@@ -924,14 +1101,20 @@ function renderMonthCells(opts: {
         style={{
           ...styles.cell,
           opacity: inMonth ? 1 : 0.35,
-          outline: isSelected ? "2px solid rgba(255,255,255,0.25)" : "1px solid rgba(255,255,255,0.08)",
-          background: isSelected ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.03)",
+          outline: isSelected
+            ? "2px solid rgba(255,255,255,0.25)"
+            : "1px solid rgba(255,255,255,0.08)",
+          background: isSelected
+            ? "rgba(255,255,255,0.06)"
+            : "rgba(255,255,255,0.03)",
         }}
       >
         <div style={styles.cellTop}>
           <div style={styles.cellDay}>{day.getDate()}</div>
           <div style={styles.cellTopRight}>
-            {dayEvents.length > 0 ? <div style={styles.cellCount}>{dayEvents.length}</div> : null}
+            {dayEvents.length > 0 ? (
+              <div style={styles.cellCount}>{dayEvents.length}</div>
+            ) : null}
 
             <div style={styles.cellQuickAdd}>
               <button
@@ -966,7 +1149,9 @@ function renderMonthCells(opts: {
 
         <div style={styles.cellEvents}>
           {top3.map((e) => {
-            const resolvedType: GroupType = e.groupId ? ((opts.groupTypeById.get(String(e.groupId)) ?? "pair") as any) : ("personal" as any);
+            const resolvedType: GroupType = e.groupId
+              ? ((opts.groupTypeById.get(String(e.groupId)) ?? "pair") as any)
+              : ("personal" as any);
             const meta = groupMeta(resolvedType);
 
             return (
@@ -985,7 +1170,9 @@ function renderMonthCells(opts: {
             );
           })}
 
-          {dayEvents.length > 3 ? <div style={styles.moreHint}>+{dayEvents.length - 3} más</div> : null}
+          {dayEvents.length > 3 ? (
+            <div style={styles.moreHint}>+{dayEvents.length - 3} más</div>
+          ) : null}
         </div>
       </div>
     );
@@ -1006,7 +1193,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   shell: { maxWidth: 1120, margin: "0 auto", padding: "22px 18px 48px" },
 
-  toastWrap: { position: "fixed", top: 18, right: 18, zIndex: 50, pointerEvents: "none" },
+  toastWrap: {
+    position: "fixed",
+    top: 18,
+    right: 18,
+    zIndex: 50,
+    pointerEvents: "none",
+  },
   toastCard: {
     pointerEvents: "auto",
     minWidth: 260,
@@ -1018,10 +1211,25 @@ const styles: Record<string, React.CSSProperties> = {
     backdropFilter: "blur(14px)",
     padding: "12px 14px",
   },
-  toastTitle: { fontWeight: 900, fontSize: 13, color: "rgba(255,255,255,0.95)" },
-  toastSub: { marginTop: 4, fontSize: 12, color: "rgba(255,255,255,0.70)", fontWeight: 650 },
+  toastTitle: {
+    fontWeight: 900,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.95)",
+  },
+  toastSub: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.70)",
+    fontWeight: 650,
+  },
 
-  topRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, marginBottom: 14 },
+  topRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    marginBottom: 14,
+  },
   topActions: { display: "flex", gap: 10, alignItems: "center" },
 
   hero: {
@@ -1032,7 +1240,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "18px 16px",
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
     boxShadow: "0 18px 60px rgba(0, 0, 0, 0.35)",
     marginBottom: 12,
   },
@@ -1052,7 +1261,13 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 12,
     marginBottom: 12,
   },
-  filtersRow: { display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" },
+  filtersRow: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+  },
 
   segment: {
     display: "flex",
@@ -1061,7 +1276,14 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: "hidden",
     background: "rgba(255,255,255,0.03)",
   },
-  segmentBtn: { padding: "10px 12px", fontSize: 13, color: "rgba(255,255,255,0.86)", background: "transparent", border: "none", cursor: "pointer" },
+  segmentBtn: {
+    padding: "10px 12px",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.86)",
+    background: "transparent",
+    border: "none",
+    cursor: "pointer",
+  },
   segmentOn: { background: "rgba(255,255,255,0.08)" },
 
   navRow: { display: "flex", gap: 8, alignItems: "center" },
@@ -1091,20 +1313,66 @@ const styles: Record<string, React.CSSProperties> = {
   },
   groupDot: { width: 10, height: 10, borderRadius: 999 },
 
-  calendarCard: { borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", overflow: "hidden" },
-  weekHeader: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: "10px 10px 0" },
+  calendarCard: {
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    overflow: "hidden",
+  },
+  weekHeader: {
+    display: "grid",
+    gridTemplateColumns: "repeat(7, 1fr)",
+    padding: "10px 10px 0",
+  },
   weekDay: { padding: "10px 10px", fontSize: 12, opacity: 0.75 },
 
   grid: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10, padding: 10 },
-  cell: { minHeight: 108, borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", padding: 10, cursor: "pointer", textAlign: "left" },
+  cell: {
+    minHeight: 108,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: 10,
+    cursor: "pointer",
+    textAlign: "left",
+  },
   cellTop: { display: "flex", justifyContent: "space-between", alignItems: "center" },
   cellTopRight: { display: "flex", alignItems: "center", gap: 10 },
   cellDay: { fontSize: 14, fontWeight: 700 },
-  cellCount: { fontSize: 12, padding: "2px 8px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.04)", opacity: 0.9 },
+  cellCount: {
+    fontSize: 12,
+    padding: "2px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    opacity: 0.9,
+  },
 
   cellQuickAdd: { display: "flex", gap: 6, alignItems: "center" },
-  cellQuickBtnPersonal: { width: 22, height: 22, borderRadius: 9, border: "1px solid rgba(250,204,21,0.40)", background: "rgba(250,204,21,0.12)", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900, lineHeight: "22px", textAlign: "center" },
-  cellQuickBtnGroup: { width: 22, height: 22, borderRadius: 9, border: "1px solid rgba(96,165,250,0.40)", background: "rgba(96,165,250,0.12)", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900, lineHeight: "22px", textAlign: "center" },
+  cellQuickBtnPersonal: {
+    width: 22,
+    height: 22,
+    borderRadius: 9,
+    border: "1px solid rgba(250,204,21,0.40)",
+    background: "rgba(250,204,21,0.12)",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    fontWeight: 900,
+    lineHeight: "22px",
+    textAlign: "center",
+  },
+  cellQuickBtnGroup: {
+    width: 22,
+    height: 22,
+    borderRadius: 9,
+    border: "1px solid rgba(96,165,250,0.40)",
+    background: "rgba(96,165,250,0.12)",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    fontWeight: 900,
+    lineHeight: "22px",
+    textAlign: "center",
+  },
 
   cellEvents: { marginTop: 10, display: "flex", flexDirection: "column", gap: 6 },
   cellEventLine: { display: "flex", gap: 8, alignItems: "center" },

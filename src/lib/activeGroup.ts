@@ -15,21 +15,18 @@ import supabase from "@/lib/supabaseClient";
  * 1) localStorage (siempre)
  * 2) DB user_settings (best-effort, no rompe demo)
  *
- * ✅ NUEVO:
- * - Event bus: "sp:active-group-changed" para que Calendar/Summary reaccionen sin reload.
+ * ✅ Event bus:
+ * - "sp:active-group-changed" para que Calendar/Summary reaccionen sin reload.
  */
 
 const LS_KEY = "sp_active_group_id";
 const DB_KEY = "active_group_id";
-
 const EVENT_NAME = "sp:active-group-changed";
 
 function emitActiveGroupChanged(groupId: string | null) {
   if (typeof window === "undefined") return;
   try {
-    window.dispatchEvent(
-      new CustomEvent(EVENT_NAME, { detail: { groupId } })
-    );
+    window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { groupId } }));
   } catch {
     // ignore
   }
@@ -76,12 +73,21 @@ async function requireUid(): Promise<string> {
 function normalizeGroupId(v: any): string | null {
   const s = String(v ?? "").trim();
   if (!s) return null;
-  // no validamos UUID hard para no romper ambientes/seed raros,
-  // pero evitamos basura obvia
+
+  // No validamos UUID hard para no romper ambientes/seed raros,
+  // pero evitamos basura obvia.
   if (s.length < 10) return null;
+
+  // Evitar strings tipo "null" / "undefined"
+  if (s === "null" || s === "undefined") return null;
+
   return s;
 }
 
+/**
+ * Lee el active group siguiendo el orden:
+ * localStorage → user_settings → último group_members
+ */
 export async function getActiveGroupIdFromDb(): Promise<string | null> {
   // 1) cache local
   const cached = normalizeGroupId(safeGetLocal());
@@ -112,28 +118,43 @@ export async function getActiveGroupIdFromDb(): Promise<string | null> {
   }
 
   // 4) fallback: último group_members
-  const { data, error } = await supabase
-    .from("group_members")
-    .select("group_id, created_at")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(1);
+  try {
+    const { data, error } = await supabase
+      .from("group_members")
+      .select("group_id, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1);
 
-  if (error) throw error;
+    if (error) throw error;
 
-  const gid = normalizeGroupId(data?.[0]?.group_id);
-  if (gid) safeSetLocal(gid);
-  return gid;
+    const gid = normalizeGroupId(data?.[0]?.group_id);
+    if (gid) safeSetLocal(gid);
+    return gid;
+  } catch {
+    // Si ni siquiera podemos leer memberships, devolvemos null
+    return null;
+  }
 }
 
-export async function setActiveGroupIdInDb(groupId: string | null): Promise<void> {
+/**
+ * Guarda el active group:
+ * - siempre en localStorage
+ * - best-effort en user_settings
+ * - emite evento para que otras pantallas refresquen sin reload
+ */
+export async function setActiveGroupIdInDb(
+  groupId: string | null
+): Promise<void> {
   const normalized = normalizeGroupId(groupId);
 
-  // 1) local cache siempre
+  // 1) local cache siempre + evento
   safeSetLocal(normalized);
   emitActiveGroupChanged(normalized);
 
-  const userId = await requireUid();
+  // 2) DB (best-effort)
+  const userId = await requireUid().catch(() => null);
+  if (!userId) return;
 
   // Si null → intentamos borrar en DB (best-effort)
   if (!normalized) {
@@ -146,8 +167,6 @@ export async function setActiveGroupIdInDb(groupId: string | null): Promise<void
     } catch {
       // ignore
     }
-
-    emitActiveGroupChanged(null);
     return;
   }
 
