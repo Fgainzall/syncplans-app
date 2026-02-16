@@ -1,4 +1,3 @@
-// src/app/auth/login/LoginClient.tsx
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -67,6 +66,46 @@ export default function LoginClient() {
       router.replace(nextTarget);
     } catch (err: any) {
       setError(err?.message ?? "Error inesperado. Intenta otra vez.");
+      setLoading(false);
+    }
+  }
+
+  async function onGoogle() {
+    setError(null);
+    setLoading(true);
+
+    try {
+      const redirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+              nextTarget
+            )}`
+          : undefined;
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+          scopes: "https://www.googleapis.com/auth/calendar.readonly",
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
+        },
+      });
+
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      if (!data?.url) {
+        setError("No se pudo iniciar el login con Google.");
+        setLoading(false);
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "Error iniciando sesión con Google.");
       setLoading(false);
     }
   }
@@ -443,7 +482,9 @@ export default function LoginClient() {
                 type="button"
                 style={subtleLink}
                 onClick={() =>
-                  router.push(`/auth/register?next=${encodeURIComponent(nextTarget)}`)
+                  router.push(
+                    `/auth/register?next=${encodeURIComponent(nextTarget)}`
+                  )
                 }
               >
                 Crear cuenta nueva
@@ -492,6 +533,16 @@ export default function LoginClient() {
                 {loading ? "Ingresando…" : "Ingresar"}
               </button>
             </form>
+
+            {/* ✅ Google OAuth Calendar Readonly */}
+            <button
+              type="button"
+              style={secondaryBtn}
+              onClick={onGoogle}
+              disabled={loading}
+            >
+              Continuar con Google (Calendar)
+            </button>
 
             <button
               type="button"
