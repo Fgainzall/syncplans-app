@@ -1,39 +1,25 @@
 // src/lib/supabaseClient.ts
-import { createClient } from "@supabase/supabase-js";
+"use client";
 
-// ✅ IMPORTANT: NO usar process.env[name] dinámico en Next.js (browser)
-// porque no inyecta NEXT_PUBLIC_* en el bundle.
-const supabaseUrl =
-  (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim() ||
-  (process.env.SUPABASE_URL ?? "").trim();
+import { createBrowserClient } from "@supabase/ssr";
 
-const supabaseAnonKey =
-  (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim() ||
-  (process.env.SUPABASE_ANON_KEY ?? "").trim();
+// En el browser SOLO uses NEXT_PUBLIC_*
+const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
+const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
 
-// ✅ En producción, si falta algo, lo vemos claro
-if (process.env.NODE_ENV === "production") {
-  if (!supabaseUrl || !supabaseUrl.startsWith("https://")) {
-    throw new Error(
-      "Missing/invalid NEXT_PUBLIC_SUPABASE_URL in production. Check Vercel Environment Variables (Production) and redeploy."
-    );
-  }
-  if (!supabaseAnonKey || supabaseAnonKey.length < 20) {
-    throw new Error(
-      "Missing/invalid NEXT_PUBLIC_SUPABASE_ANON_KEY in production. Check Vercel Environment Variables (Production) and redeploy."
-    );
-  }
+if (!supabaseUrl || !supabaseAnonKey) {
+  // Ojo: no tires el app abajo en runtime, pero deja señal clara.
+  // (En prod, esto debería estar siempre presente)
+  console.error("Missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY");
 }
 
-// ✅ Cliente único
-const supabase = createClient(
+// ✅ Singleton (importado en toda la app)
+const supabase = createBrowserClient(
   supabaseUrl || "https://placeholder.supabase.co",
   supabaseAnonKey || "public-anon-key-placeholder",
   {
     auth: {
-      // ✅ CLAVE para que Google vuelva con ?code=... (y NO con #access_token=...)
       flowType: "pkce",
-
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,

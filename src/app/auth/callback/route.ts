@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+// src/app/auth/callback/route.ts
+import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ function getCanonicalOrigin(requestOrigin: string) {
   }
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const url = new URL(request.url);
 
   const code = url.searchParams.get("code");
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
 
   const canonicalOrigin = getCanonicalOrigin(url.origin);
 
+  // Si no hay code, vuelve al login
   if (!code) {
     return NextResponse.redirect(new URL("/auth/login", canonicalOrigin));
   }
@@ -34,10 +36,7 @@ export async function GET(request: Request) {
   const supabaseAnon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
 
   if (!supabaseUrl || !supabaseAnon) {
-    console.error("Missing env vars:", {
-      NEXT_PUBLIC_SUPABASE_URL: !!supabaseUrl,
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: !!supabaseAnon,
-    });
+    console.error("Missing env vars for Supabase in callback");
     return NextResponse.redirect(new URL("/auth/login", canonicalOrigin));
   }
 
@@ -47,16 +46,7 @@ export async function GET(request: Request) {
   const supabase = createServerClient(supabaseUrl, supabaseAnon, {
     cookies: {
       get(name: string) {
-        return (
-          request.headers
-            .get("cookie")
-            ?.split(";")
-            .map((c) => c.trim())
-            .find((c) => c.startsWith(`${name}=`))
-            ?.split("=")
-            ?.slice(1)
-            ?.join("=") ?? undefined
-        );
+        return request.cookies.get(name)?.value;
       },
       set(name: string, value: string, options: any) {
         response.cookies.set({ name, value, ...options });
@@ -73,17 +63,18 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/auth/login", canonicalOrigin));
   }
 
+  // Confirmar usuario
   const { data: userData, error: userErr } = await supabase.auth.getUser();
   if (userErr || !userData?.user) {
     console.error("getUser error:", userErr?.message);
     return NextResponse.redirect(new URL("/auth/login", canonicalOrigin));
   }
 
-  const { data: sessionData } = await supabase.auth.getSession();
-  const session = sessionData?.session;
-
   // Guardar tokens si vienen (Google OAuth)
   try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const session = sessionData?.session;
+
     const accessToken = (session as any)?.provider_token as string | undefined;
     const refreshToken = (session as any)?.provider_refresh_token as string | undefined;
 

@@ -25,25 +25,25 @@ export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
   const host = request.headers.get("host") ?? url.host;
 
-  // ✅ IMPORTANTÍSIMO:
-  // Para que Google OAuth no se rompa, NO hagas canonical redirect dentro de /auth/*
-  // (porque puede venir de www/preview y necesita ejecutar el callback sin tocar el host)
+  // ✅ 0) Canonical (pero nunca dentro de /auth/*)
   if (!url.pathname.startsWith("/auth/")) {
     const canon = canonicalHost();
     if (canon && host !== canon) {
-      url.host = canon;
-      url.protocol = "https:";
-      return NextResponse.redirect(url);
+      const redirectUrl = url.clone();
+      redirectUrl.host = canon;
+      redirectUrl.protocol = "https:";
+      return NextResponse.redirect(redirectUrl);
     }
   }
 
-  // ✅ 2) Auth protection
+  // ✅ 1) Dejar pasar público
   if (isPublicPath(url.pathname)) return NextResponse.next();
 
   const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
   const supabaseAnon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
   if (!supabaseUrl || !supabaseAnon) return NextResponse.next();
 
+  // ✅ 2) Importante: crear response primero, porque Supabase puede necesitar setear cookies (refresh)
   const response = NextResponse.next();
 
   const supabase = createServerClient(supabaseUrl, supabaseAnon, {
@@ -60,13 +60,17 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // 🔥 En middleware es mejor getUser() (no getSession) para evitar casos raros de refresh
+  // ✅ getUser() (bien)
   const { data } = await supabase.auth.getUser();
 
   if (!data?.user) {
-    const login = new URL("/auth/login", url.origin);
-    login.searchParams.set("next", url.pathname + url.search);
-    return NextResponse.redirect(login);
+    const loginUrl = new URL("/auth/login", url.origin);
+    loginUrl.searchParams.set("next", url.pathname + url.search);
+
+    // ✅ Si supabase intentó setear cookies (refresh), no las pierdas al redirigir.
+    const redirectResponse = NextResponse.redirect(loginUrl);
+    response.cookies.getAll().forEach((c) => redirectResponse.cookies.set(c));
+    return redirectResponse;
   }
 
   return response;
