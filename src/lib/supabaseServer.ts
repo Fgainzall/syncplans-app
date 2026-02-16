@@ -3,7 +3,6 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export async function supabaseServer() {
-  // Next puede devolver cookies() sync o async según versión.
   const cookieStore: any = await Promise.resolve(cookies());
 
   const url =
@@ -26,10 +25,18 @@ export async function supabaseServer() {
         return cookieStore.get(name)?.value;
       },
       set(name: string, value: string, options: any) {
-        cookieStore.set({ name, value, ...options });
+        try {
+          cookieStore.set({ name, value, ...options });
+        } catch {
+          // En Server Components, cookies() puede ser read-only. No romper.
+        }
       },
       remove(name: string, options: any) {
-        cookieStore.set({ name, value: "", ...options, maxAge: 0 });
+        try {
+          cookieStore.set({ name, value: "", ...options, maxAge: 0 });
+        } catch {
+          // no-op
+        }
       },
     },
   });

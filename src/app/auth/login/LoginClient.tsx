@@ -4,6 +4,25 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 
+/** ✅ Canonical origin helper (evita mismatch entre vercel y dominio propio) */
+function getAppOrigin() {
+  const env =
+    (process.env.NEXT_PUBLIC_APP_URL ??
+      process.env.NEXT_PUBLIC_SITE_URL ??
+      "").trim();
+
+  if (env) {
+    try {
+      return new URL(env).origin;
+    } catch {
+      // ignore
+    }
+  }
+
+  if (typeof window !== "undefined") return window.location.origin;
+  return "";
+}
+
 export default function LoginClient() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -118,11 +137,13 @@ export default function LoginClient() {
     setLoading(true);
 
     try {
+      const origin = getAppOrigin();
+
+      // ✅ CLAVE: SIEMPRE volver al dominio canónico (no al origin “accidental”)
+      // Ej: https://syncplansapp.com/auth/callback?next=/summary
       const redirectTo =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(
-              nextTarget
-            )}`
+        origin
+          ? `${origin}/auth/callback?next=${encodeURIComponent(nextTarget)}`
           : undefined;
 
       const { data, error } = await supabase.auth.signInWithOAuth({
