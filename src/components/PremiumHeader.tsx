@@ -174,9 +174,7 @@ export default function PremiumHeader({
     try {
       const { getMyNotifications } = await import("@/lib/notificationsDb");
       const n = await getMyNotifications(50);
-      const unread = (n ?? []).filter(
-        (x: any) => !x.read_at || x.read_at === ""
-      ).length;
+      const unread = (n ?? []).filter((x: any) => !x.read_at || x.read_at === "").length;
       setUnreadCount(unread);
     } catch {
       setUnreadCount(0);
@@ -234,9 +232,7 @@ export default function PremiumHeader({
         return;
       }
 
-      router.push(
-        `/events/new/details?type=group&groupId=${encodeURIComponent(gid)}`
-      );
+      router.push(`/events/new/details?type=group&groupId=${encodeURIComponent(gid)}`);
     } catch {
       router.push("/events/new/details?type=personal");
     }

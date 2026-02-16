@@ -1,64 +1,73 @@
 // src/lib/auth.ts
+"use client";
+
+import supabase from "@/lib/supabaseClient";
+
 export type AuthUser = {
-  name: string;
+  id: string;
   email: string;
+  name?: string | null;
   verified?: boolean;
 };
 
-const KEY = "syncplans_auth_v1";
+export async function getUser(): Promise<AuthUser | null> {
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
 
-function hasWindow() {
-  return typeof window !== "undefined";
-}
+  if (error || !user) return null;
 
-export function getUser(): AuthUser | null {
-  try {
-    if (!hasWindow()) return null;
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return null;
-    const u = JSON.parse(raw);
-    if (!u || typeof u !== "object") return null;
-    if (!u.email) return null;
-    return u as AuthUser;
-  } catch {
-    return null;
-  }
-}
-
-export function isAuthed() {
-  return !!getUser();
-}
-
-export function signIn(params: { email: string; password?: string; name?: string }) {
-  const email = (params.email ?? "").trim().toLowerCase();
-  if (!email.includes("@")) throw new Error("Correo inválido");
-
-  const user: AuthUser = {
-    email,
-    name: params.name?.trim() || email.split("@")[0] || "Fernando",
-    verified: true,
+  return {
+    id: user.id,
+    email: user.email ?? "",
+    name:
+      (user.user_metadata?.full_name as string | undefined) ??
+      (user.user_metadata?.name as string | undefined) ??
+      null,
+    verified: !!user.email_confirmed_at,
   };
-
-  if (hasWindow()) localStorage.setItem(KEY, JSON.stringify(user));
-  return user;
 }
 
-export function signUp(params: { name: string; email: string; password?: string }) {
+export async function isAuthed(): Promise<boolean> {
+  const u = await getUser();
+  return !!u;
+}
+
+export async function signIn(params: { email: string; password: string }) {
+  const email = (params.email ?? "").trim().toLowerCase();
+  const password = params.password ?? "";
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function signUp(params: { name: string; email: string; password: string }) {
   const name = (params.name ?? "").trim();
   const email = (params.email ?? "").trim().toLowerCase();
-  if (!name) throw new Error("Nombre requerido");
-  if (!email.includes("@")) throw new Error("Correo inválido");
+  const password = params.password ?? "";
 
-  const user: AuthUser = { name, email, verified: true };
-  if (hasWindow()) localStorage.setItem(KEY, JSON.stringify(user));
-  return user;
+  const emailRedirectTo =
+    `${(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "")}/auth/callback`;
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { full_name: name },
+      emailRedirectTo,
+    },
+  });
+
+  if (error) throw new Error(error.message);
+  return data;
 }
 
-export function signOut() {
-  try {
-    if (!hasWindow()) return;
-    localStorage.removeItem(KEY);
-  } catch {
-    // ignore
-  }
+export async function signOut() {
+  await supabase.auth.signOut();
 }

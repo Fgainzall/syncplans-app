@@ -14,10 +14,37 @@ import supabase from "@/lib/supabaseClient";
  * Escritura:
  * 1) localStorage (siempre)
  * 2) DB user_settings (best-effort, no rompe demo)
+ *
+ * ✅ NUEVO:
+ * - Event bus: "sp:active-group-changed" para que Calendar/Summary reaccionen sin reload.
  */
 
 const LS_KEY = "sp_active_group_id";
 const DB_KEY = "active_group_id";
+
+const EVENT_NAME = "sp:active-group-changed";
+
+function emitActiveGroupChanged(groupId: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(
+      new CustomEvent(EVENT_NAME, { detail: { groupId } })
+    );
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * ✅ Suscripción a cambios de active group (runtime).
+ * Retorna un cleanup.
+ */
+export function onActiveGroupChanged(cb: (groupId: string | null) => void) {
+  if (typeof window === "undefined") return () => {};
+  const handler = (ev: any) => cb(ev?.detail?.groupId ?? null);
+  window.addEventListener(EVENT_NAME as any, handler as any);
+  return () => window.removeEventListener(EVENT_NAME as any, handler as any);
+}
 
 function safeGetLocal(): string | null {
   if (typeof window === "undefined") return null;
@@ -101,7 +128,10 @@ export async function getActiveGroupIdFromDb(): Promise<string | null> {
 
 export async function setActiveGroupIdInDb(groupId: string | null): Promise<void> {
   const normalized = normalizeGroupId(groupId);
+
+  // 1) local cache siempre
   safeSetLocal(normalized);
+  emitActiveGroupChanged(normalized);
 
   const userId = await requireUid();
 
@@ -116,6 +146,8 @@ export async function setActiveGroupIdInDb(groupId: string | null): Promise<void
     } catch {
       // ignore
     }
+
+    emitActiveGroupChanged(null);
     return;
   }
 

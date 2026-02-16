@@ -1,8 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
-// ✅ IMPORTANT: NO usar process.env[name] dinámico en Next.js
-// porque no inyecta NEXT_PUBLIC_* en el bundle del browser.
-
+// ✅ IMPORTANT: NO usar process.env[name] dinámico en Next.js (browser)
+// porque no inyecta NEXT_PUBLIC_* en el bundle.
 const supabaseUrl =
   (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim() ||
   (process.env.SUPABASE_URL ?? "").trim();
