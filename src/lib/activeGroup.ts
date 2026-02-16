@@ -6,22 +6,22 @@ import supabase from "@/lib/supabaseClient";
 /**
  * Active Group (DEMO + producción temprana)
  *
- * Lectura (rápido y robusto):
+ * Lectura:
  * 1) localStorage: "sp_active_group_id"
- * 2) DB: user_settings (key="active_group_id") (best-effort)
+ * 2) DB: user_settings.active_group_id (best-effort, si existe)
  * 3) fallback: último group_members
  *
  * Escritura:
  * 1) localStorage (siempre)
- * 2) DB user_settings (best-effort, no rompe demo)
+ * 2) DB user_settings.active_group_id (best-effort, si existe)
  *
  * ✅ Event bus:
- * - "sp:active-group-changed" para que Calendar/Summary reaccionen sin reload.
+ * - "sp:active-group-changed"
  */
 
 const LS_KEY = "sp_active_group_id";
-const DB_KEY = "active_group_id";
 const EVENT_NAME = "sp:active-group-changed";
+const DB_DISABLED_KEY = "sp_active_group_db_disabled"; // si falta columna, lo desactivamos
 
 function emitActiveGroupChanged(groupId: string | null) {
   if (typeof window === "undefined") return;
@@ -32,10 +32,6 @@ function emitActiveGroupChanged(groupId: string | null) {
   }
 }
 
-/**
- * ✅ Suscripción a cambios de active group (runtime).
- * Retorna un cleanup.
- */
 export function onActiveGroupChanged(cb: (groupId: string | null) => void) {
   if (typeof window === "undefined") return () => {};
   const handler = (ev: any) => cb(ev?.detail?.groupId ?? null);
@@ -62,6 +58,24 @@ function safeSetLocal(v: string | null) {
   }
 }
 
+function isDbDisabled(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(DB_DISABLED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function disableDbForever() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(DB_DISABLED_KEY, "1");
+  } catch {
+    // ignore
+  }
+}
+
 async function requireUid(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
   if (error) throw error;
@@ -73,48 +87,42 @@ async function requireUid(): Promise<string> {
 function normalizeGroupId(v: any): string | null {
   const s = String(v ?? "").trim();
   if (!s) return null;
-
-  // No validamos UUID hard para no romper ambientes/seed raros,
-  // pero evitamos basura obvia.
-  if (s.length < 10) return null;
-
-  // Evitar strings tipo "null" / "undefined"
   if (s === "null" || s === "undefined") return null;
-
+  if (s.length < 10) return null;
   return s;
 }
 
-/**
- * Lee el active group siguiendo el orden:
- * localStorage → user_settings → último group_members
- */
 export async function getActiveGroupIdFromDb(): Promise<string | null> {
   // 1) cache local
   const cached = normalizeGroupId(safeGetLocal());
   if (cached) return cached;
 
-  // 2) auth (best-effort)
+  // 2) auth best-effort
   const userId = await requireUid().catch(() => null);
   if (!userId) return null;
 
-  // 3) DB user_settings (best-effort)
-  try {
-    const { data: s, error: sErr } = await supabase
-      .from("user_settings")
-      .select("value")
-      .eq("user_id", userId)
-      .eq("key", DB_KEY)
-      .maybeSingle();
+  // 3) DB best-effort (solo si no fue deshabilitado por error previo)
+  if (!isDbDisabled()) {
+    try {
+      const { data, error } = await supabase
+        .from("user_settings")
+        .select("active_group_id")
+        .eq("user_id", userId)
+        .maybeSingle();
 
-    if (!sErr) {
-      const gid = normalizeGroupId((s as any)?.value);
-      if (gid) {
-        safeSetLocal(gid);
-        return gid;
+      if (error) {
+        // si la columna no existe / schema mismatch -> deshabilitamos DB para no spammear 400
+        disableDbForever();
+      } else {
+        const gid = normalizeGroupId((data as any)?.active_group_id);
+        if (gid) {
+          safeSetLocal(gid);
+          return gid;
+        }
       }
+    } catch {
+      disableDbForever();
     }
-  } catch {
-    // ignore (tabla/policy no existe, etc.)
   }
 
   // 4) fallback: último group_members
@@ -132,62 +140,36 @@ export async function getActiveGroupIdFromDb(): Promise<string | null> {
     if (gid) safeSetLocal(gid);
     return gid;
   } catch {
-    // Si ni siquiera podemos leer memberships, devolvemos null
     return null;
   }
 }
 
-/**
- * Guarda el active group:
- * - siempre en localStorage
- * - best-effort en user_settings
- * - emite evento para que otras pantallas refresquen sin reload
- */
-export async function setActiveGroupIdInDb(
-  groupId: string | null
-): Promise<void> {
+export async function setActiveGroupIdInDb(groupId: string | null): Promise<void> {
   const normalized = normalizeGroupId(groupId);
 
-  // 1) local cache siempre + evento
+  // 1) local siempre + evento
   safeSetLocal(normalized);
   emitActiveGroupChanged(normalized);
 
-  // 2) DB (best-effort)
+  // 2) DB best-effort (solo si no está deshabilitado)
+  if (isDbDisabled()) return;
+
   const userId = await requireUid().catch(() => null);
   if (!userId) return;
 
-  // Si null → intentamos borrar en DB (best-effort)
-  if (!normalized) {
-    try {
-      await supabase
-        .from("user_settings")
-        .delete()
-        .eq("user_id", userId)
-        .eq("key", DB_KEY);
-    } catch {
-      // ignore
-    }
-    return;
-  }
-
-  // Upsert best-effort sin asumir columnas extra (ej: updated_at)
   try {
-    const { error } = await supabase.from("user_settings").upsert(
-      {
-        user_id: userId,
-        key: DB_KEY,
-        value: normalized,
-      },
-      { onConflict: "user_id,key" }
-    );
+    // upsert en user_settings usando columna active_group_id
+    const { error } = await supabase
+      .from("user_settings")
+      .upsert(
+        { user_id: userId, active_group_id: normalized },
+        { onConflict: "user_id" }
+      );
 
     if (error) {
-      console.warn(
-        "setActiveGroupIdInDb: user_settings upsert failed:",
-        error.message
-      );
+      disableDbForever();
     }
-  } catch (e: any) {
-    console.warn("setActiveGroupIdInDb: user_settings error:", e?.message ?? e);
+  } catch {
+    disableDbForever();
   }
 }

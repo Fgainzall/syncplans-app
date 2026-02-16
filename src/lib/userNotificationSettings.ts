@@ -4,20 +4,24 @@
 import supabase from "@/lib/supabaseClient";
 
 export type NotificationSettings = {
+  user_id?: string;
+
   notify_conflicts: boolean;
   notify_personal: boolean;
   notify_pair: boolean;
   notify_family: boolean;
-  created_at?: string;
-  updated_at?: string;
+
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
-const DEFAULT_USER_NOTIF: NotificationSettings = {
-  notify_conflicts: true,
-  notify_personal: true,
-  notify_pair: true,
-  notify_family: true,
-};
+const DEFAULT_USER_NOTIF: Omit<NotificationSettings, "user_id" | "created_at" | "updated_at"> =
+  {
+    notify_conflicts: true,
+    notify_personal: true,
+    notify_pair: true,
+    notify_family: true,
+  };
 
 async function requireUid(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
@@ -28,15 +32,12 @@ async function requireUid(): Promise<string> {
 }
 
 /**
- * Devuelve los ajustes de notificaciones por tipo de grupo
- * (personal / pareja / familia / conflictos).
- *
+ * Devuelve settings de notificaciones del usuario.
  * Si no existe fila en user_notification_settings, la crea con defaults.
  */
 export async function getMyNotificationSettings(): Promise<NotificationSettings> {
   const uid = await requireUid();
 
-  // Intentar leer fila existente
   const { data, error } = await supabase
     .from("user_notification_settings")
     .select("*")
@@ -46,7 +47,7 @@ export async function getMyNotificationSettings(): Promise<NotificationSettings>
   if (error) throw error;
 
   if (!data) {
-    // Crear fila por defecto
+    // crear defaults
     const insertPayload = {
       user_id: uid,
       ...DEFAULT_USER_NOTIF,
@@ -59,36 +60,35 @@ export async function getMyNotificationSettings(): Promise<NotificationSettings>
       .single();
 
     if (insErr) throw insErr;
+
     return {
-      notify_conflicts: created.notify_conflicts,
-      notify_personal: created.notify_personal,
-      notify_pair: created.notify_pair,
-      notify_family: created.notify_family,
-      created_at: created.created_at,
-      updated_at: created.updated_at,
-    } as NotificationSettings;
+      user_id: uid,
+      notify_conflicts: created.notify_conflicts ?? DEFAULT_USER_NOTIF.notify_conflicts,
+      notify_personal: created.notify_personal ?? DEFAULT_USER_NOTIF.notify_personal,
+      notify_pair: created.notify_pair ?? DEFAULT_USER_NOTIF.notify_pair,
+      notify_family: created.notify_family ?? DEFAULT_USER_NOTIF.notify_family,
+      created_at: created.created_at ?? null,
+      updated_at: created.updated_at ?? null,
+    };
   }
 
-  // Normalizar por si hay nulls
+  // normalizar nulls
   return {
-    notify_conflicts:
-      (data as any).notify_conflicts ?? DEFAULT_USER_NOTIF.notify_conflicts,
-    notify_personal:
-      (data as any).notify_personal ?? DEFAULT_USER_NOTIF.notify_personal,
+    user_id: uid,
+    notify_conflicts: (data as any).notify_conflicts ?? DEFAULT_USER_NOTIF.notify_conflicts,
+    notify_personal: (data as any).notify_personal ?? DEFAULT_USER_NOTIF.notify_personal,
     notify_pair: (data as any).notify_pair ?? DEFAULT_USER_NOTIF.notify_pair,
-    notify_family:
-      (data as any).notify_family ?? DEFAULT_USER_NOTIF.notify_family,
-    created_at: (data as any).created_at,
-    updated_at: (data as any).updated_at,
+    notify_family: (data as any).notify_family ?? DEFAULT_USER_NOTIF.notify_family,
+    created_at: (data as any).created_at ?? null,
+    updated_at: (data as any).updated_at ?? null,
   };
 }
 
 /**
- * Actualiza los ajustes del usuario actual.
- * Recibe solo un patch parcial (como lo usas desde settings/notifications).
+ * Update (patch) de settings del usuario actual (upsert por user_id).
  */
 export async function updateMyNotificationSettings(
-  patch: Partial<NotificationSettings>
+  patch: Partial<Omit<NotificationSettings, "user_id" | "created_at" | "updated_at">>
 ): Promise<void> {
   const uid = await requireUid();
 
@@ -99,9 +99,7 @@ export async function updateMyNotificationSettings(
 
   const { error } = await supabase
     .from("user_notification_settings")
-    .upsert(payload, {
-      onConflict: "user_id",
-    });
+    .upsert(payload, { onConflict: "user_id" });
 
   if (error) throw error;
 }
