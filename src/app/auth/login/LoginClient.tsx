@@ -18,57 +18,60 @@ export default function LoginClient() {
     [nextParam]
   );
 
-const [email, setEmail] = useState("");
-const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-const [loading, setLoading] = useState(false);
-const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-// 🔥 AQUI VA EL BLOQUE NUEVO
-useEffect(() => {
-  let alive = true;
+  // 🔥 Guardrail anti-loop:
+  // - Si por algún motivo el navegador vuelve con #access_token=...
+  //   el servidor no lo ve. Limpiamos el hash para evitar que el usuario
+  //   se quede atrapado en /auth/login#...
+  // - Si ya hay sesión → nos vamos a nextTarget.
+  useEffect(() => {
+    let alive = true;
 
-  async function go() {
-    try {
-      if (typeof window !== "undefined") {
-        const h = window.location.hash || "";
-        if (h.includes("access_token=") || h.includes("provider_token=")) {
-          window.history.replaceState(
-            {},
-            document.title,
-            window.location.pathname + window.location.search
-          );
+    async function go() {
+      try {
+        if (typeof window !== "undefined") {
+          const h = window.location.hash || "";
+          if (h.includes("access_token=") || h.includes("provider_token=")) {
+            window.history.replaceState(
+              {},
+              document.title,
+              window.location.pathname + window.location.search
+            );
+          }
         }
+
+        const { data } = await supabase.auth.getSession();
+        if (!alive) return;
+
+        if (data?.session) {
+          router.replace(nextTarget);
+        }
+      } catch {
+        // no-op
       }
-
-      const { data } = await supabase.auth.getSession();
-      if (!alive) return;
-
-      if (data?.session) {
-        router.replace(nextTarget);
-      }
-    } catch {}
-  }
-
-  go();
-
-  const { data: sub } = supabase.auth.onAuthStateChange(
-    (_event, session) => {
-      if (session) router.replace(nextTarget);
     }
-  );
 
-  return () => {
-    alive = false;
-    sub?.subscription?.unsubscribe();
-  };
-}, [router, nextTarget]);
+    go();
 
-// 🔽 Luego sigue tu canSubmit normal
-const canSubmit = useMemo(() => {
-  const e = email.trim();
-  return e.includes("@") && password.trim().length >= 6 && !loading;
-}, [email, password, loading]);
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) router.replace(nextTarget);
+    });
+
+    return () => {
+      alive = false;
+      sub?.subscription?.unsubscribe();
+    };
+  }, [router, nextTarget]);
+
+  const canSubmit = useMemo(() => {
+    const e = email.trim();
+    return e.includes("@") && password.trim().length >= 6 && !loading;
+  }, [email, password, loading]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -84,7 +87,6 @@ const canSubmit = useMemo(() => {
       if (signInError) {
         const msg = String(signInError.message || "").toLowerCase();
 
-        // ✅ Mensajes más “humanos” sin perder tu potencia
         if (
           msg.includes("email not confirmed") ||
           msg.includes("not confirmed") ||
@@ -111,50 +113,50 @@ const canSubmit = useMemo(() => {
     }
   }
 
-async function onGoogle() {
-  setError(null);
-  setLoading(true);
+  async function onGoogle() {
+    setError(null);
+    setLoading(true);
 
-  try {
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(
-            nextTarget
-          )}`
-        : undefined;
+    try {
+      const redirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+              nextTarget
+            )}`
+          : undefined;
 
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo,
-        scopes: "https://www.googleapis.com/auth/calendar.readonly",
-        queryParams: {
-          access_type: "offline",
-          prompt: "consent",
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+          scopes: "https://www.googleapis.com/auth/calendar.readonly",
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
         },
-      },
-    });
+      });
 
-    if (error) {
-      setError(error.message);
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      // Guardrail: en algunos browsers, supabase no redirige solo
+      if (!data?.url) {
+        setError("No se pudo iniciar el login con Google.");
+        setLoading(false);
+        return;
+      }
+
+      window.location.href = data.url;
+    } catch (e: any) {
+      setError(e?.message ?? "Error iniciando sesión con Google.");
       setLoading(false);
-      return;
     }
-
-    // Normalmente Supabase te redirige solo; esto es un guardrail.
-    if (!data?.url) {
-      setError("No se pudo iniciar el login con Google.");
-      setLoading(false);
-      return;
-    }
-
-    // Por si en algún browser no redirige automáticamente:
-    window.location.href = data.url;
-  } catch (e: any) {
-    setError(e?.message ?? "Error iniciando sesión con Google.");
-    setLoading(false);
   }
-}
+
   // 🎨 Estilos compartidos con register para que queden alineados
   const page: React.CSSProperties = {
     minHeight: "100vh",
@@ -436,7 +438,9 @@ async function onGoogle() {
             type="button"
             style={linkTop}
             onClick={() =>
-              router.push(`/auth/register?next=${encodeURIComponent(nextTarget)}`)
+              router.push(
+                `/auth/register?next=${encodeURIComponent(nextTarget)}`
+              )
             }
           >
             ¿Nuevo aquí? Crear cuenta →
@@ -481,6 +485,7 @@ async function onGoogle() {
                   </div>
                   <div style={pillSub}>Tu agenda, clara y sin ruido.</div>
                 </div>
+
                 <div style={pill}>
                   <div style={pillRow}>
                     <span>Pareja</span>
@@ -493,6 +498,7 @@ async function onGoogle() {
                   </div>
                   <div style={pillSub}>Menos “pensé que era otro día”.</div>
                 </div>
+
                 <div style={pill}>
                   <div style={pillRow}>
                     <span>Familia</span>
@@ -580,19 +586,22 @@ async function onGoogle() {
             </form>
 
             {/* ✅ Google OAuth Calendar Readonly */}
-<button
-  type="button"
-  style={secondaryBtn}
-  onClick={onGoogle}
-  disabled={loading}
->
-  {loading ? "Conectando…" : "Continuar con Google (Calendar)"}
-</button>
+            <button
+              type="button"
+              style={secondaryBtn}
+              onClick={onGoogle}
+              disabled={loading}
+            >
+              {loading ? "Conectando…" : "Continuar con Google (Calendar)"}
+            </button>
+
             <button
               type="button"
               style={secondaryBtn}
               onClick={() =>
-                router.push(`/auth/register?next=${encodeURIComponent(nextTarget)}`)
+                router.push(
+                  `/auth/register?next=${encodeURIComponent(nextTarget)}`
+                )
               }
             >
               Crear cuenta
@@ -600,8 +609,8 @@ async function onGoogle() {
 
             <div style={legal}>
               Al entrar aceptas que esta es una beta privada pensada para pruebas
-              personales. Podrás borrar tu cuenta y datos cuando quieras desde el
-              panel de perfil.
+              personales. Podrás borrar tu cuenta y datos cuando quieras desde
+              el panel de perfil.
             </div>
           </article>
         </section>

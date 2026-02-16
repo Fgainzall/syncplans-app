@@ -1,6 +1,4 @@
 // src/lib/supabaseClient.ts
-"use client";
-
 import { createClient } from "@supabase/supabase-js";
 
 // ✅ IMPORTANT: NO usar process.env[name] dinámico en Next.js (browser)
@@ -33,7 +31,7 @@ const supabase = createClient(
   supabaseAnonKey || "public-anon-key-placeholder",
   {
     auth: {
-      // ✅ CLAVE: fuerza OAuth con ?code=... (PKCE) en vez de #access_token=...
+      // ✅ CLAVE para que Google vuelva con ?code=... (y NO con #access_token=...)
       flowType: "pkce",
 
       persistSession: true,
