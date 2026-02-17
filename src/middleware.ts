@@ -13,11 +13,25 @@ function canonicalHost() {
 }
 
 function isPublicPath(pathname: string) {
+  // ✅ Auth pages
   if (pathname.startsWith("/auth/")) return true;
+
+  // ✅ Next internals
   if (pathname.startsWith("/_next/")) return true;
+
+  // ✅ Static assets / public files (PWA needs these unauthenticated)
+  if (pathname === "/manifest.webmanifest") return true;
+  if (pathname.startsWith("/icons/")) return true;
   if (pathname.startsWith("/favicon")) return true;
+  if (pathname === "/robots.txt") return true;
+  if (pathname === "/sitemap.xml") return true;
+
+  // ✅ APIs must remain reachable (they handle auth internally if needed)
   if (pathname.startsWith("/api/")) return true;
+
+  // ✅ Landing
   if (pathname === "/") return true;
+
   return false;
 }
 
@@ -26,7 +40,6 @@ export async function middleware(request: NextRequest) {
   const host = request.headers.get("host") ?? url.host;
 
   // ✅ 0) Canonical SIEMPRE (incluye /auth/*)
-  // Esto evita que el callback o login ocurra en www y la cookie se “quede” en www.
   const canon = canonicalHost();
   if (canon && host !== canon) {
     const redirectUrl = url.clone();
@@ -74,5 +87,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|icons|manifest.webmanifest).*)",
+  ],
 };

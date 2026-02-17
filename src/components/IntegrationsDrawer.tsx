@@ -1,7 +1,7 @@
 // src/components/IntegrationsDrawer.tsx
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import supabase from "@/lib/supabaseClient";
 
 type GoogleStatus = {
@@ -28,7 +28,26 @@ export default function IntegrationsDrawer({
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [status, setStatus] = useState<GoogleStatus | null>(null);
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
+  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
+    null
+  );
+
+  const toastTimerRef = useRef<number | null>(null);
+
+  const clearToastTimer = useCallback(() => {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleToastClear = useCallback(
+    (ms: number) => {
+      clearToastTimer();
+      toastTimerRef.current = window.setTimeout(() => setToast(null), ms);
+    },
+    [clearToastTimer]
+  );
 
   const close = useCallback(() => {
     if (loading || syncing) return;
@@ -44,6 +63,7 @@ export default function IntegrationsDrawer({
       const res = await fetch("/api/google/status", {
         method: "GET",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
+        cache: "no-store",
       });
 
       const json = (await res.json().catch(() => null)) as GoogleStatus | null;
@@ -73,12 +93,64 @@ export default function IntegrationsDrawer({
     fetchStatus();
   }, [open, fetchStatus]);
 
+  // UX: ESC para cerrar + bloquear scroll
+  useEffect(() => {
+    if (!open) return;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open, close]);
+
+  useEffect(() => {
+    return () => {
+      clearToastTimer();
+    };
+  }, [clearToastTimer]);
+
+  const connected = !!status?.connected;
+  const email = status?.account?.email ?? null;
+
+  const googlePill = useMemo(() => {
+    if (loading) return { label: "Revisando…", tone: "muted" as const };
+    if (connected) return { label: "Conectado ✅", tone: "ok" as const };
+    if (status && !status.ok) return { label: "Error", tone: "bad" as const };
+    return { label: "No conectado", tone: "muted" as const };
+  }, [connected, loading, status]);
+
+  const onConnect = useCallback(() => {
+    // Flujo estándar: te manda a Google OAuth y vuelve por /api/google/callback
+    window.location.href = "/api/google/connect";
+  }, []);
+
   const onSyncNow = useCallback(async () => {
     if (syncing) return;
 
+    // 🔒 No sincronizar si no está conectado
+    if (!connected) {
+      setToast({
+        title: "Primero conecta Google",
+        subtitle: "Conecta tu cuenta para poder importar tus eventos.",
+      });
+      scheduleToastClear(3200);
+      return;
+    }
+
     try {
       setSyncing(true);
-      setToast({ title: "Sincronizando…", subtitle: "Importando desde Google Calendar" });
+      setToast({
+        title: "Sincronizando…",
+        subtitle: "Importando desde Google Calendar",
+      });
 
       const res = await fetch("/api/google/sync", { method: "POST" });
       const json = await res.json().catch(() => ({}));
@@ -88,7 +160,7 @@ export default function IntegrationsDrawer({
           title: "No se pudo sincronizar",
           subtitle: json?.error ?? "Revisa tu conexión o vuelve a conectar Google.",
         });
-        window.setTimeout(() => setToast(null), 3200);
+        scheduleToastClear(3200);
         return;
       }
 
@@ -105,27 +177,17 @@ export default function IntegrationsDrawer({
       // avisar a quien lo abrió para que refresque Calendar/Summary sin reload
       onSynced?.(imported);
 
-      window.setTimeout(() => setToast(null), 2600);
+      scheduleToastClear(2600);
     } catch (e: any) {
       setToast({
         title: "Error sincronizando",
         subtitle: e?.message ?? "Intenta de nuevo.",
       });
-      window.setTimeout(() => setToast(null), 3200);
+      scheduleToastClear(3200);
     } finally {
       setSyncing(false);
     }
-  }, [fetchStatus, onSynced, syncing]);
-
-  const connected = !!status?.connected;
-  const email = status?.account?.email ?? null;
-
-  const googlePill = useMemo(() => {
-    if (loading) return { label: "Revisando…", tone: "muted" as const };
-    if (connected) return { label: "Conectado ✅", tone: "ok" as const };
-    if (status && !status.ok) return { label: "Error", tone: "bad" as const };
-    return { label: "No conectado", tone: "muted" as const };
-  }, [connected, loading, status]);
+  }, [connected, fetchStatus, onSynced, scheduleToastClear, syncing]);
 
   if (!open) return null;
 
@@ -158,7 +220,7 @@ export default function IntegrationsDrawer({
             <div style={S.cardLeft}>
               <div style={S.cardTitleRow}>
                 <div style={S.appIcon}>G</div>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div style={S.cardTitle}>Google Calendar</div>
                   <div style={S.cardSub}>
                     {email ? `Cuenta: ${email}` : "Importa eventos a tu calendario SyncPlans"}
@@ -173,19 +235,15 @@ export default function IntegrationsDrawer({
                 ...(googlePill.tone === "ok"
                   ? S.pillOk
                   : googlePill.tone === "bad"
-                    ? S.pillBad
-                    : S.pillMuted),
+                  ? S.pillBad
+                  : S.pillMuted),
               }}
             >
               {googlePill.label}
             </div>
           </div>
 
-          {status?.error ? (
-            <div style={S.errorBox}>
-              {status.error}
-            </div>
-          ) : null}
+          {status?.error ? <div style={S.errorBox}>{status.error}</div> : null}
 
           <div style={S.actions}>
             <button
@@ -197,16 +255,31 @@ export default function IntegrationsDrawer({
               {loading ? "Revisando…" : "Revisar estado"}
             </button>
 
+            {/* ✅ NUEVO: Conectar / Reconectar */}
+            <button
+              type="button"
+              onClick={onConnect}
+              style={S.secondaryBtn}
+              disabled={loading || syncing}
+              title="Conectar Google Calendar"
+            >
+              {connected ? "Reconectar" : "Conectar"}
+            </button>
+
             <button
               type="button"
               onClick={onSyncNow}
               style={{
                 ...S.primaryBtn,
-                opacity: syncing ? 0.78 : 1,
-                cursor: syncing ? "progress" : "pointer",
+                opacity: syncing || !connected ? 0.55 : 1,
+                cursor: syncing ? "progress" : !connected ? "not-allowed" : "pointer",
               }}
-              disabled={syncing}
-              title="Importar eventos desde Google Calendar"
+              disabled={syncing || !connected}
+              title={
+                !connected
+                  ? "Conecta Google para importar eventos."
+                  : "Importar eventos desde Google Calendar"
+              }
             >
               {syncing ? "Sincronizando…" : "Sincronizar ahora"}
             </button>
@@ -214,13 +287,14 @@ export default function IntegrationsDrawer({
 
           <div style={S.note}>
             <b>Tip:</b> “Sincronizar ahora” importa desde Google → SyncPlans.
-            <span style={{ opacity: 0.75 }}> En tu calendario, “Actualizar” solo recarga desde la DB.</span>
+            <span style={{ opacity: 0.75 }}>
+              {" "}
+              En tu calendario, “Actualizar” solo recarga desde la DB.
+            </span>
           </div>
         </div>
 
-        <div style={S.footerHint}>
-          Outlook (próximamente)
-        </div>
+        <div style={S.footerHint}>Outlook (próximamente)</div>
       </div>
     </div>
   );
@@ -265,7 +339,12 @@ const S: Record<string, React.CSSProperties> = {
     padding: "12px 14px",
   },
   toastTitle: { fontWeight: 900, fontSize: 13, color: "rgba(255,255,255,0.95)" },
-  toastSub: { marginTop: 4, fontSize: 12, color: "rgba(255,255,255,0.70)", fontWeight: 650 },
+  toastSub: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.70)",
+    fontWeight: 650,
+  },
 
   topRow: {
     display: "flex",
@@ -339,9 +418,21 @@ const S: Record<string, React.CSSProperties> = {
     whiteSpace: "nowrap",
     border: "1px solid rgba(255,255,255,0.12)",
   },
-  pillOk: { background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)", color: "rgba(255,255,255,0.92)" },
-  pillBad: { background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.25)", color: "rgba(255,255,255,0.92)" },
-  pillMuted: { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.86)" },
+  pillOk: {
+    background: "rgba(34,197,94,0.12)",
+    border: "1px solid rgba(34,197,94,0.25)",
+    color: "rgba(255,255,255,0.92)",
+  },
+  pillBad: {
+    background: "rgba(248,113,113,0.12)",
+    border: "1px solid rgba(248,113,113,0.25)",
+    color: "rgba(255,255,255,0.92)",
+  },
+  pillMuted: {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    color: "rgba(255,255,255,0.86)",
+  },
 
   errorBox: {
     marginTop: 12,
@@ -376,7 +467,8 @@ const S: Record<string, React.CSSProperties> = {
     padding: "0 14px",
     borderRadius: 12,
     border: "1px solid rgba(37,99,235,0.35)",
-    background: "linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.55))",
+    background:
+      "linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.55))",
     color: "#fff",
     cursor: "pointer",
     fontWeight: 950,

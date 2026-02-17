@@ -176,7 +176,7 @@ export default function PremiumHeader({
   // Badge de notificaciones
   async function refreshBadge() {
     try {
-      const { getMyNotifications } = await import("@/lib/notificationsDb");
+     const { getMyNotifications } = await import("@/lib/notificationsDb");
       const n = await getMyNotifications(50);
       const unread = (n ?? []).filter((x: any) => !x.read_at || x.read_at === "").length;
       setUnreadCount(unread);
