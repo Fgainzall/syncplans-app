@@ -207,7 +207,6 @@ export default function SettingsHubPage() {
   }
 
   useEffect(() => {
-    // cargamos el estado de Google al abrir settings
     refreshGoogleStatus().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -256,7 +255,7 @@ export default function SettingsHubPage() {
   }
 
   /* ─────────────────────────────────────────────
-     Resumen diario manual (ya lo tenías)
+     Resumen diario manual
   ───────────────────────────────────────────── */
 
   async function handleSendTodayDigestFromSettings() {
@@ -277,7 +276,6 @@ export default function SettingsHubPage() {
         return;
       }
 
-      // Fecha “hoy” en Lima (cliente)
       const now = new Date();
       const y = now.getFullYear();
       const m = now.getMonth() + 1;
@@ -298,14 +296,12 @@ export default function SettingsHubPage() {
       const baseMs = base.getTime();
       const endMs = end.getTime();
 
-      // Filtrar por día
       const filteredByDay = (rawEvents ?? []).filter((r: DbEventRow) => {
         const startMs = new Date(r.start).getTime();
         if (Number.isNaN(startMs)) return false;
         return startMs >= baseMs && startMs < endMs;
       });
 
-      // Personales + grupo activo (si hay)
       const filtered = filteredByDay.filter((r) => {
         if (!activeGroupId) return !r.group_id;
         return !r.group_id || String(r.group_id) === String(activeGroupId);
@@ -366,255 +362,248 @@ export default function SettingsHubPage() {
 
   return (
     <main className="min-h-screen bg-[#050816] text-white">
-      <div className="mx-auto max-w-5xl px-4 py-6">
+      <div className="mx-auto max-w-5xl px-4 py-10">
         <PremiumHeader
           title="Settings"
           subtitle="Notificaciones, permisos por grupo y conexiones de calendario."
           rightSlot={<LogoutButton />}
         />
 
-        <div className="mx-auto mt-6 max-w-3xl">
-          {/* Tiles principales */}
-          <div className="grid gap-4">
-            <Tile
-              title="Notificaciones"
-              desc={
-                notifScore
-                  ? `${notifScore.on}/${notifScore.total} activadas · ${
-                      notifScore.quiet ? "Silencioso ON" : "Silencioso OFF"
-                    }`
-                  : "Controla recordatorios, resúmenes y modo silencioso."
-              }
-              cta="Abrir"
-              onClick={() => router.push("/settings/notifications")}
-              dotClass="bg-cyan-400"
-            />
+        {/* ✅ Layout tipo Summary: grid balanceado */}
+        <div className="mt-6 grid gap-6 lg:grid-cols-12">
+          {/* Columna izquierda */}
+          <div className="lg:col-span-7">
+            <div className="grid gap-4">
+              <Tile
+                title="Notificaciones"
+                desc={
+                  notifScore
+                    ? `${notifScore.on}/${notifScore.total} activadas · ${
+                        notifScore.quiet ? "Silencioso ON" : "Silencioso OFF"
+                      }`
+                    : "Controla recordatorios, resúmenes y modo silencioso."
+                }
+                cta="Abrir"
+                onClick={() => router.push("/settings/notifications")}
+                dotClass="bg-cyan-400"
+              />
 
-            <Tile
-              title="Permisos por grupo"
-              desc="Personal / Pareja / Familia: cómo quieres que se comporte tu experiencia."
-              cta="Configurar"
-              onClick={() => router.push("/settings/groups")}
-              dotClass="bg-amber-300"
-            />
+              <Tile
+                title="Permisos por grupo"
+                desc="Personal / Pareja / Familia: cómo quieres que se comporte tu experiencia."
+                cta="Configurar"
+                onClick={() => router.push("/settings/groups")}
+                dotClass="bg-amber-300"
+              />
 
-            <Tile
-              title="Preferencias de conflictos"
-              desc="Tu estilo: avisar antes de guardar, default de resolución y más."
-              cta="Ajustar"
-              onClick={() => router.push("/settings/conflicts")}
-              dotClass="bg-rose-400"
-            />
+              <Tile
+                title="Preferencias de conflictos"
+                desc="Tu estilo: avisar antes de guardar, default de resolución y más."
+                cta="Ajustar"
+                onClick={() => router.push("/settings/conflicts")}
+                dotClass="bg-rose-400"
+              />
 
-            <Tile
-              title="Resumen semanal"
-              desc="Sección rápida para tu ‘valor diario’: mantenerlo ON/OFF."
-              cta="Ver"
-              onClick={() => router.push("/settings/notifications")}
-              dotClass="bg-emerald-400"
-            />
+              <Tile
+                title="Resumen semanal"
+                desc="Sección rápida para tu ‘valor diario’: mantenerlo ON/OFF."
+                cta="Ver"
+                onClick={() => router.push("/settings/notifications")}
+                dotClass="bg-emerald-400"
+              />
+            </div>
           </div>
 
-          {/* ✅ Conectar (Google + Microsoft) */}
-          <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs text-white/70">
-                  <span className="h-2 w-2 rounded-full bg-indigo-300" />
-                  Conectar
+          {/* Columna derecha */}
+          <div className="lg:col-span-5">
+            {/* Conectar */}
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs text-white/70">
+                    <span className="h-2 w-2 rounded-full bg-indigo-300" />
+                    Conectar
+                  </div>
+                  <h2 className="mt-3 text-lg font-semibold">
+                    Integraciones de calendario
+                  </h2>
+                  <p className="mt-1 text-xs text-white/60">
+                    Importa eventos <strong>read-only</strong> desde Google/Outlook
+                    como “externos”. Entran a conflictos, pero no rompen tu calendario.
+                  </p>
                 </div>
-                <h2 className="mt-3 text-lg font-semibold">
-                  Integraciones de calendario
-                </h2>
-                <p className="mt-1 text-xs text-white/60">
-                  Importa eventos <strong>read-only</strong> desde Google/Outlook
-                  como “externos”. Entran a conflictos, pero no rompen tu
-                  calendario.
-                </p>
+
+                <button
+                  type="button"
+                  onClick={refreshGoogleStatus}
+                  disabled={googleLoading}
+                  className={[
+                    "mt-2 inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition sm:mt-0",
+                    googleLoading
+                      ? "border-white/20 bg-white/10 text-white/60 cursor-default"
+                      : "border-white/15 bg-black/30 text-white/80 hover:bg-black/40",
+                  ].join(" ")}
+                >
+                  {googleLoading ? "Actualizando…" : "Actualizar estado"}
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={refreshGoogleStatus}
-                disabled={googleLoading}
-                className={[
-                  "mt-2 inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition sm:mt-0",
-                  googleLoading
-                    ? "border-white/20 bg-white/10 text-white/60 cursor-default"
-                    : "border-white/15 bg-black/30 text-white/80 hover:bg-black/40",
-                ].join(" ")}
-              >
-                {googleLoading ? "Actualizando…" : "Actualizar estado"}
-              </button>
-            </div>
+              <div className="mt-4 grid gap-3">
+                {/* Google */}
+                <div className="rounded-2xl border border-white/10 bg-black/35 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold">Google Calendar</span>
+                        <span
+                          className={[
+                            "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                            googleConnected
+                              ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
+                              : "border-white/15 bg-white/5 text-white/70",
+                          ].join(" ")}
+                        >
+                          {googleConnected ? "Conectado" : "No conectado"}
+                        </span>
+                      </div>
 
-            <div className="mt-4 grid gap-3">
-              {/* Google */}
-              <div className="rounded-2xl border border-white/10 bg-black/35 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">
-                        Google Calendar
-                      </span>
-                      <span
-                        className={[
-                          "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                          googleConnected
-                            ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
-                            : "border-white/15 bg-white/5 text-white/70",
-                        ].join(" ")}
-                      >
-                        {googleConnected ? "Conectado" : "No conectado"}
-                      </span>
-                    </div>
+                      <div className="mt-1 text-xs text-white/60">
+                        {googleConnected ? (
+                          <>
+                            Cuenta:{" "}
+                            <span className="text-white/80">{googleEmail || "—"}</span>
+                            <span className="text-white/40"> · Import read-only</span>
+                          </>
+                        ) : (
+                          "Conecta tu Google para importar tus eventos como externos."
+                        )}
+                      </div>
 
-                    <div className="mt-1 text-xs text-white/60">
-                      {googleConnected ? (
-                        <>
-                          Cuenta:{" "}
-                          <span className="text-white/80">
-                            {googleEmail || "—"}
-                          </span>
-                          <span className="text-white/40"> · Import read-only</span>
-                        </>
-                      ) : (
-                        "Conecta tu Google para importar tus eventos como externos."
+                      {!googleConnected && google?.error && (
+                        <div className="mt-2 text-[11px] text-rose-200/90">
+                          {google.error}
+                        </div>
                       )}
                     </div>
 
-                    {!googleConnected && google?.error && (
-                      <div className="mt-2 text-[11px] text-rose-200/90">
-                        {google.error}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleGoogleConnect}
+                        className="rounded-2xl border border-cyan-400/50 bg-cyan-500/15 px-4 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/25"
+                      >
+                        {googleConnected ? "Reconectar" : "Conectar Google"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleGoogleSyncNow}
+                        disabled={!googleConnected || googleSyncing}
+                        className={[
+                          "rounded-2xl border px-4 py-2 text-xs font-semibold transition",
+                          !googleConnected
+                            ? "border-white/10 bg-white/5 text-white/40 cursor-default"
+                            : googleSyncing
+                            ? "border-white/20 bg-white/10 text-white/60 cursor-default"
+                            : "border-emerald-400/45 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20",
+                        ].join(" ")}
+                        title={
+                          !googleConnected
+                            ? "Conecta Google para importar."
+                            : "Importa eventos Google a SyncPlans (externos)."
+                        }
+                      >
+                        {googleSyncing ? "Importando…" : "Importar ahora"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 text-[11px] text-white/50">
+                    Tip: si no ves eventos, revisa el rango: Sync trae 30 días atrás y
+                    120 días adelante.
+                  </div>
+                </div>
+
+                {/* Microsoft placeholder */}
+                <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold">
+                          Outlook / Microsoft 365
+                        </span>
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/60">
+                          Próximamente
+                        </span>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={handleGoogleConnect}
-                      className="rounded-2xl border border-cyan-400/50 bg-cyan-500/15 px-4 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/25"
-                    >
-                      {googleConnected ? "Reconectar" : "Conectar Google"}
-                    </button>
+                      <div className="mt-1 text-xs text-white/60">
+                        Misma lógica: importar como “externos” + conflictos. Lo activamos
+                        después de cerrar Google.
+                      </div>
+                    </div>
 
                     <button
                       type="button"
-                      onClick={handleGoogleSyncNow}
-                      disabled={!googleConnected || googleSyncing}
-                      className={[
-                        "rounded-2xl border px-4 py-2 text-xs font-semibold transition",
-                        !googleConnected
-                          ? "border-white/10 bg-white/5 text-white/40 cursor-default"
-                          : googleSyncing
-                          ? "border-white/20 bg-white/10 text-white/60 cursor-default"
-                          : "border-emerald-400/45 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20",
-                      ].join(" ")}
-                      title={
-                        !googleConnected
-                          ? "Conecta Google para importar."
-                          : "Importa eventos Google a SyncPlans (externos)."
-                      }
+                      disabled
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/40 cursor-default"
                     >
-                      {googleSyncing ? "Importando…" : "Importar ahora"}
+                      Conectar
                     </button>
                   </div>
                 </div>
-
-                <div className="mt-3 text-[11px] text-white/50">
-                  Tip: si no ves eventos, revisa el rango: Sync trae 30 días atrás
-                  y 120 días adelante.
-                </div>
               </div>
 
-              {/* Microsoft placeholder */}
-              <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">
-                        Outlook / Microsoft 365
-                      </span>
-                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/60">
-                        Próximamente
-                      </span>
-                    </div>
-                    <div className="mt-1 text-xs text-white/60">
-                      Misma lógica: importar como “externos” + conflictos. Lo
-                      activamos después de cerrar Google.
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled
-                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/40 cursor-default"
-                  >
-                    Conectar
-                  </button>
+              {connectToast && (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-[11px]">
+                  <div className="font-semibold text-white">{connectToast.title}</div>
+                  {connectToast.subtitle && (
+                    <div className="mt-1 text-white/70">{connectToast.subtitle}</div>
+                  )}
                 </div>
-              </div>
+              )}
             </div>
 
-            {connectToast && (
-              <div className="mt-3 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-[11px]">
-                <div className="font-semibold text-white">
-                  {connectToast.title}
-                </div>
-                {connectToast.subtitle && (
-                  <div className="mt-1 text-white/70">
-                    {connectToast.subtitle}
+            {/* Resumen diario manual */}
+            <div className="mt-6 rounded-3xl border border-white/10 bg-black/40 p-6 text-xs text-white/80">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <span className="h-2 w-2 rounded-full bg-cyan-400" />
+                    Enviarme el resumen de hoy
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Resumen diario manual */}
-          <div className="mt-6 rounded-2xl border border-white/10 bg-black/40 p-4 text-xs text-white/80">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <span className="h-2 w-2 rounded-full bg-cyan-400" />
-                  Enviarme el resumen de hoy
+                  <p className="mt-1 text-[11px] text-white/60">
+                    Te manda a tu correo los eventos de hoy (personales + del grupo activo).
+                  </p>
                 </div>
-                <p className="mt-1 text-[11px] text-white/60">
-                  Usa el mismo motor que el resumen diario automático: te mando a
-                  tu correo los eventos de hoy (personales + del grupo activo).
-                </p>
+
+                <button
+                  type="button"
+                  onClick={handleSendTodayDigestFromSettings}
+                  disabled={digestSending}
+                  className={[
+                    "mt-1 inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition sm:mt-0",
+                    digestSending
+                      ? "border-white/20 bg-white/10 text-white/60 cursor-default"
+                      : "border-cyan-400/60 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25",
+                  ].join(" ")}
+                >
+                  {digestSending ? "Enviando resumen…" : "Probar resumen de hoy"}
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={handleSendTodayDigestFromSettings}
-                disabled={digestSending}
-                className={[
-                  "mt-1 inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition sm:mt-0",
-                  digestSending
-                    ? "border-white/20 bg-white/10 text-white/60 cursor-default"
-                    : "border-cyan-400/60 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25",
-                ].join(" ")}
-              >
-                {digestSending ? "Enviando resumen…" : "Probar resumen de hoy"}
-              </button>
+              {digestToast && (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-[11px]">
+                  <div className="font-semibold text-white">{digestToast.title}</div>
+                  {digestToast.subtitle && (
+                    <div className="mt-1 text-white/70">{digestToast.subtitle}</div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {digestToast && (
-              <div className="mt-3 rounded-xl border border-white/10 bg-black/50 px-3 py-2 text-[11px]">
-                <div className="font-semibold text-white">{digestToast.title}</div>
-                {digestToast.subtitle && (
-                  <div className="mt-1 text-[10px] text-white/70">
-                    {digestToast.subtitle}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-white/60">
-            Pro tip: este hub hace que SyncPlans se sienta “producto real” (y te
-            ordena el roadmap).
+            <div className="mt-6 rounded-3xl border border-white/10 bg-black/30 p-6 text-xs text-white/60">
+              Pro tip: este hub hace que SyncPlans se sienta “producto real” y te ordena el roadmap.
+            </div>
           </div>
         </div>
       </div>
