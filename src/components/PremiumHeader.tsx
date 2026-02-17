@@ -389,6 +389,11 @@ export default function PremiumHeader({
             onClick={() => router.push("/profile")}
           />
           <NavPill
+  label="Settings"
+  active={pathname.startsWith("/settings")}
+  onClick={() => router.push("/settings")}
+/>
+          <NavPill
             label="Planes"
             active={pathname.startsWith("/pricing")}
             onClick={() => router.push("/pricing")}
