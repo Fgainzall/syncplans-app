@@ -87,39 +87,6 @@ export default function SettingsHubPage() {
     window.setTimeout(() => setToast(null), 3200);
   }, []);
 
-  useEffect(() => {
-    let alive = true;
-
-    (async () => {
-      try {
-        setBooting(true);
-
-        const u = getUser();
-        if (!u) {
-          router.push("/auth/login?next=/settings");
-          return;
-        }
-
-        try {
-          const db = await getSettingsFromDb();
-          if (alive) setS(db);
-        } catch {
-          // ok
-        }
-
-        // refrescar google status al entrar
-        await refreshGoogleStatus();
-      } finally {
-        if (alive) setBooting(false);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const notifScore = useMemo(() => {
     if (!s) return null;
     const toggles = [
@@ -188,14 +155,20 @@ export default function SettingsHubPage() {
     window.location.href = "/api/google/connect";
   }
 
+  // ✅ FIX CLAVE: /api/google/sync necesita Authorization (mismo patrón que status)
   async function handleGoogleSyncNow() {
     try {
       setGoogleSyncing(true);
       showToast("Sincronizando…", "Importando desde Google Calendar");
 
+      const token = await getAccessTokenOrNull();
+
       const res = await fetch("/api/google/sync", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       });
 
       const json = await res.json().catch(() => ({} as any));
@@ -235,6 +208,7 @@ export default function SettingsHubPage() {
         return;
       }
 
+      // Fecha “hoy” (cliente)
       const now = new Date();
       const y = now.getFullYear();
       const m = now.getMonth() + 1;
@@ -259,6 +233,7 @@ export default function SettingsHubPage() {
         return startMs >= baseMs && startMs < endMs;
       });
 
+      // Personales + grupo activo (si hay)
       const filtered = filteredByDay.filter((r) => {
         if (!activeGroupId) return !r.group_id;
         return !r.group_id || String(r.group_id) === String(activeGroupId);
@@ -303,6 +278,38 @@ export default function SettingsHubPage() {
     }
   }
 
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        setBooting(true);
+
+        const u = getUser();
+        if (!u) {
+          router.push("/auth/login?next=/settings");
+          return;
+        }
+
+        try {
+          const db = await getSettingsFromDb();
+          if (alive) setS(db);
+        } catch {
+          // ok
+        }
+
+        await refreshGoogleStatus();
+      } finally {
+        if (alive) setBooting(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const title = "Settings";
 
   return (
@@ -328,18 +335,14 @@ export default function SettingsHubPage() {
           <div>
             <div style={styles.kicker}>Panel</div>
             <h1 style={styles.h1}>{title}</h1>
-            <div style={styles.sub}>
-              Notificaciones, permisos por grupo y conexiones de calendario.
-            </div>
+            <div style={styles.sub}>Notificaciones, permisos por grupo y conexiones de calendario.</div>
 
             {notifScore ? (
               <div style={styles.heroMeta}>
                 <span style={styles.pillSoft}>
                   {notifScore.on}/{notifScore.total} activas
                 </span>
-                <span style={styles.pillSoft}>
-                  {notifScore.quiet ? "Silencioso ON" : "Silencioso OFF"}
-                </span>
+                <span style={styles.pillSoft}>{notifScore.quiet ? "Silencioso ON" : "Silencioso OFF"}</span>
               </div>
             ) : null}
           </div>
@@ -357,9 +360,7 @@ export default function SettingsHubPage() {
         {/* CONFIG */}
         <section style={styles.card}>
           <div style={styles.sectionTitle}>Ajustes de tu experiencia</div>
-          <div style={styles.smallNote}>
-            Configura cómo se comporta SyncPlans para ti.
-          </div>
+          <div style={styles.smallNote}>Configura cómo se comporta SyncPlans para ti.</div>
 
           <div style={styles.list}>
             <Row
@@ -405,7 +406,11 @@ export default function SettingsHubPage() {
 
             <button
               onClick={refreshGoogleStatus}
-              style={styles.secondaryBtn}
+              style={{
+                ...styles.secondaryBtn,
+                opacity: googleLoading || googleSyncing ? 0.7 : 1,
+                cursor: googleLoading || googleSyncing ? "progress" : "pointer",
+              }}
               disabled={googleLoading || googleSyncing}
               title="Revisar estado de conexión"
             >
@@ -429,18 +434,11 @@ export default function SettingsHubPage() {
                   </div>
                 </div>
 
-                {!googleConnected && google?.error ? (
-                  <div style={styles.errorBox}>{google.error}</div>
-                ) : null}
+                {!googleConnected && google?.error ? <div style={styles.errorBox}>{google.error}</div> : null}
               </div>
 
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <span
-                  style={{
-                    ...styles.pill,
-                    ...(googleConnected ? styles.pillOk : styles.pillMuted),
-                  }}
-                >
+                <span style={{ ...styles.pill, ...(googleConnected ? styles.pillOk : styles.pillMuted) }}>
                   {googleConnected ? "Conectado ✅" : "No conectado"}
                 </span>
 
@@ -472,7 +470,13 @@ export default function SettingsHubPage() {
           <div style={{ ...styles.innerCard, opacity: 0.9 }}>
             <div style={styles.innerTop}>
               <div style={styles.innerTitleRow}>
-                <div style={{ ...styles.appIcon, border: "1px solid rgba(148,163,184,0.35)", background: "rgba(148,163,184,0.10)" }}>
+                <div
+                  style={{
+                    ...styles.appIcon,
+                    border: "1px solid rgba(148,163,184,0.35)",
+                    background: "rgba(148,163,184,0.10)",
+                  }}
+                >
                   O
                 </div>
                 <div>
@@ -491,14 +495,16 @@ export default function SettingsHubPage() {
           <div style={styles.sectionTitleRow}>
             <div>
               <div style={styles.sectionTitle}>Enviarme el resumen de hoy</div>
-              <div style={styles.smallNote}>
-                Te mando a tu correo los eventos de hoy (personales + del grupo activo).
-              </div>
+              <div style={styles.smallNote}>Te mando a tu correo los eventos de hoy (personales + del grupo activo).</div>
             </div>
 
             <button
               onClick={handleSendTodayDigestFromSettings}
-              style={styles.primaryBtn}
+              style={{
+                ...styles.primaryBtn,
+                opacity: digestSending ? 0.7 : 1,
+                cursor: digestSending ? "progress" : "pointer",
+              }}
               disabled={digestSending}
               title="Enviar resumen de hoy"
             >
