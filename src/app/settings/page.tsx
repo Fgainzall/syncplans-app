@@ -23,15 +23,7 @@ function prettyDateLabelFromISO(dateISO: string): string {
   const [y, m, d] = dateISO.split("-").map(Number);
   const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
 
-  const dias = [
-    "Domingo",
-    "Lunes",
-    "Martes",
-    "Miércoles",
-    "Jueves",
-    "Viernes",
-    "Sábado",
-  ];
+  const dias = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
   const meses = [
     "enero",
     "febrero",
@@ -54,10 +46,6 @@ function labelForGroup(row: DbEventRow): string {
   if (!row.group_id) return "Personal";
   return "Grupo";
 }
-
-/* ─────────────────────────────────────────────
-   Integraciones: helpers
-───────────────────────────────────────────── */
 
 type GoogleStatus = {
   ok: boolean;
@@ -83,19 +71,13 @@ export default function SettingsHubPage() {
 
   // Resumen diario manual
   const [digestSending, setDigestSending] = useState(false);
-  const [digestToast, setDigestToast] = useState<{
-    title: string;
-    subtitle?: string;
-  } | null>(null);
+  const [digestToast, setDigestToast] = useState<{ title: string; subtitle?: string } | null>(null);
 
   // Integraciones
   const [googleLoading, setGoogleLoading] = useState(false);
   const [google, setGoogle] = useState<GoogleStatus | null>(null);
   const [googleSyncing, setGoogleSyncing] = useState(false);
-  const [connectToast, setConnectToast] = useState<{
-    title: string;
-    subtitle?: string;
-  } | null>(null);
+  const [connectToast, setConnectToast] = useState<{ title: string; subtitle?: string } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -137,7 +119,6 @@ export default function SettingsHubPage() {
     return { on, total: toggles.length, quiet: s.quietHoursEnabled };
   }, [s]);
 
-  // Auto-hide toasts
   useEffect(() => {
     if (!digestToast) return;
     const t = setTimeout(() => setDigestToast(null), 3600);
@@ -149,10 +130,6 @@ export default function SettingsHubPage() {
     const t = setTimeout(() => setConnectToast(null), 4200);
     return () => clearTimeout(t);
   }, [connectToast]);
-
-  /* ─────────────────────────────────────────────
-     Google status
-  ───────────────────────────────────────────── */
 
   async function refreshGoogleStatus() {
     try {
@@ -222,12 +199,9 @@ export default function SettingsHubPage() {
       const json = await res.json().catch(() => ({} as any));
 
       if (!res.ok || !json.ok) {
-        console.error("[SettingsHub] google sync error", json);
         setConnectToast({
           title: "No se pudo importar desde Google",
-          subtitle:
-            json?.error ||
-            "Intenta de nuevo. Si persiste, desconecta y vuelve a conectar.",
+          subtitle: json?.error || "Intenta de nuevo. Si persiste, desconecta y vuelve a conectar.",
         });
         return;
       }
@@ -249,10 +223,6 @@ export default function SettingsHubPage() {
     }
   }
 
-  /* ─────────────────────────────────────────────
-     Resumen diario manual
-  ───────────────────────────────────────────── */
-
   async function handleSendTodayDigestFromSettings() {
     try {
       setDigestSending(true);
@@ -264,10 +234,7 @@ export default function SettingsHubPage() {
         (u as any)?.user_metadata?.preferred_email;
 
       if (!email) {
-        setDigestToast({
-          title: "No encontramos tu correo",
-          subtitle: "Revisa tu sesión o tu perfil.",
-        });
+        setDigestToast({ title: "No encontramos tu correo", subtitle: "Revisa tu sesión o tu perfil." });
         return;
       }
 
@@ -301,10 +268,7 @@ export default function SettingsHubPage() {
       });
 
       if (!filtered.length) {
-        setDigestToast({
-          title: "Hoy no tienes eventos 🙌",
-          subtitle: "Cuando tengas algo agendado, te mando el resumen.",
-        });
+        setDigestToast({ title: "Hoy no tienes eventos 🙌", subtitle: "Cuando tengas algo agendado, te mando el resumen." });
         return;
       }
 
@@ -320,11 +284,7 @@ export default function SettingsHubPage() {
       const res = await fetch("/api/daily-digest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: email,
-          date: dateLabel,
-          events: eventsPayload,
-        }),
+        body: JSON.stringify({ to: email, date: dateLabel, events: eventsPayload }),
       });
 
       const json = await res.json().catch(() => ({} as any));
@@ -336,10 +296,7 @@ export default function SettingsHubPage() {
       });
     } catch (err: any) {
       console.error("[SettingsHub] daily digest error", err);
-      setDigestToast({
-        title: "No se pudo enviar el resumen",
-        subtitle: "Inténtalo de nuevo en unos segundos.",
-      });
+      setDigestToast({ title: "No se pudo enviar el resumen", subtitle: "Inténtalo de nuevo en unos segundos." });
     } finally {
       setDigestSending(false);
     }
@@ -352,59 +309,63 @@ export default function SettingsHubPage() {
 
   return (
     <main className="min-h-screen bg-[#050816] text-white">
-      {/* ✅ Contenedor único centrado (como Summary) */}
-      <div className="mx-auto w-full max-w-[860px] px-4 py-6">
+      {/* ✅ MISMO PATRÓN QUE SUMMARY: ancho grande + stack centrado */}
+      <div className="mx-auto max-w-5xl px-4 py-6">
         <PremiumHeader
           title="Settings"
           subtitle="Notificaciones, permisos por grupo y conexiones de calendario."
           rightSlot={<LogoutButton />}
         />
 
-        <div className="mt-6 space-y-6">
-          {/* CONFIG */}
-          <section className="rounded-3xl border border-white/10 bg-black/35 p-5">
-            <div className="mb-4">
-              <div className="text-[11px] font-extrabold tracking-wide text-white/55">
-                CONFIGURACIÓN
+        {/* ✅ MISMO: contenido en columna centrada */}
+        <div className="mx-auto mt-6 max-w-3xl space-y-5">
+          {/* Card: Configuración */}
+          <div className="rounded-3xl border border-white/10 bg-black/35 p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-[11px] font-extrabold tracking-wide text-white/55">CONFIGURACIÓN</div>
+                <div className="mt-1 text-xl font-semibold text-white">Ajustes de tu experiencia</div>
+                <div className="mt-1 text-xs text-white/60">
+                  {notifScore
+                    ? `${notifScore.on}/${notifScore.total} notificaciones activas · ${
+                        notifScore.quiet ? "Silencioso ON" : "Silencioso OFF"
+                      }`
+                    : "Controla notificaciones, permisos por grupo y conflictos."}
+                </div>
               </div>
-              <div className="mt-1 text-lg font-semibold text-white">
-                Ajustes de tu experiencia
-              </div>
-              <div className="mt-1 text-xs text-white/60">
-                {notifScore
-                  ? `${notifScore.on}/${notifScore.total} notificaciones activas · ${
-                      notifScore.quiet ? "Silencioso ON" : "Silencioso OFF"
-                    }`
-                  : "Controla notificaciones, permisos por grupo y conflictos."}
-              </div>
+
+              <button
+                type="button"
+                onClick={() => router.push("/calendar")}
+                className="hidden sm:inline-flex rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/80 hover:bg-white/10"
+              >
+                Volver
+              </button>
             </div>
 
-            <div className="grid gap-3">
-              <Tile
+            <div className="mt-5 grid gap-3">
+              <RowTile
                 title="Notificaciones"
                 desc="Recordatorios, resúmenes y modo silencioso."
                 cta="Abrir"
                 onClick={() => router.push("/settings/notifications")}
                 dotClass="bg-cyan-400"
               />
-
-              <Tile
+              <RowTile
                 title="Permisos por grupo"
                 desc="Personal / Pareja / Familia: cómo se comporta SyncPlans."
                 cta="Configurar"
                 onClick={() => router.push("/settings/groups")}
                 dotClass="bg-amber-300"
               />
-
-              <Tile
+              <RowTile
                 title="Preferencias de conflictos"
                 desc="Avisos, defaults y reglas de coordinación."
                 cta="Ajustar"
                 onClick={() => router.push("/settings/conflicts")}
                 dotClass="bg-rose-400"
               />
-
-              <Tile
+              <RowTile
                 title="Resumen semanal"
                 desc="Mantén tu valor semanal ON/OFF."
                 cta="Ver"
@@ -412,18 +373,14 @@ export default function SettingsHubPage() {
                 dotClass="bg-emerald-400"
               />
             </div>
-          </section>
+          </div>
 
-          {/* CONECTAR */}
-          <section className="rounded-3xl border border-white/10 bg-black/35 p-5">
+          {/* Card: Conectar */}
+          <div className="rounded-3xl border border-white/10 bg-black/35 p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="text-[11px] font-extrabold tracking-wide text-white/55">
-                  CONECTAR
-                </div>
-                <div className="mt-1 text-lg font-semibold text-white">
-                  Integraciones de calendario
-                </div>
+              <div>
+                <div className="text-[11px] font-extrabold tracking-wide text-white/55">CONECTAR</div>
+                <div className="mt-1 text-xl font-semibold text-white">Integraciones de calendario</div>
                 <div className="mt-1 text-xs text-white/60">
                   Importa eventos <b>read-only</b> desde Google/Outlook como “externos”.
                   Entran a conflictos, pero no rompen tu calendario.
@@ -438,15 +395,14 @@ export default function SettingsHubPage() {
                   "inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition",
                   googleLoading
                     ? "border-white/20 bg-white/10 text-white/60 cursor-default"
-                    : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10",
+                    : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10",
                 ].join(" ")}
               >
                 {googleLoading ? "Actualizando…" : "Actualizar estado"}
               </button>
             </div>
 
-            <div className="mt-4 grid gap-3">
-              {/* Google */}
+            <div className="mt-5 grid gap-3">
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
@@ -501,7 +457,6 @@ export default function SettingsHubPage() {
                             ? "border-white/20 bg-white/10 text-white/60 cursor-default"
                             : "border-emerald-400/45 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20",
                       ].join(" ")}
-                      title={!googleConnected ? "Conecta Google para importar." : "Importa eventos ahora."}
                     >
                       {googleSyncing ? "Importando…" : "Importar ahora"}
                     </button>
@@ -513,7 +468,6 @@ export default function SettingsHubPage() {
                 </div>
               </div>
 
-              {/* Microsoft placeholder */}
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -545,16 +499,14 @@ export default function SettingsHubPage() {
                 {connectToast.subtitle && <div className="mt-1 text-white/70">{connectToast.subtitle}</div>}
               </div>
             )}
-          </section>
+          </div>
 
-          {/* RESUMEN HOY */}
-          <section className="rounded-3xl border border-white/10 bg-black/35 p-5">
+          {/* Card: correo */}
+          <div className="rounded-3xl border border-white/10 bg-black/35 p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="text-[11px] font-extrabold tracking-wide text-white/55">
-                  CORREO
-                </div>
-                <div className="mt-1 text-lg font-semibold text-white">Enviarme el resumen de hoy</div>
+                <div className="text-[11px] font-extrabold tracking-wide text-white/55">CORREO</div>
+                <div className="mt-1 text-xl font-semibold text-white">Enviarme el resumen de hoy</div>
                 <div className="mt-1 text-xs text-white/60">
                   Te mando a tu correo los eventos de hoy (personales + del grupo activo).
                 </div>
@@ -581,7 +533,7 @@ export default function SettingsHubPage() {
                 {digestToast.subtitle && <div className="mt-1 text-white/70">{digestToast.subtitle}</div>}
               </div>
             )}
-          </section>
+          </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/55">
             Pro tip: este hub hace que SyncPlans se sienta “producto real” y te ordena el roadmap.
@@ -592,7 +544,7 @@ export default function SettingsHubPage() {
   );
 }
 
-function Tile({
+function RowTile({
   title,
   desc,
   cta,
@@ -608,18 +560,18 @@ function Tile({
   return (
     <button
       onClick={onClick}
-      className="group w-full text-left rounded-2xl border border-white/10 bg-white/5 px-4 py-3 transition hover:bg-white/10"
+      className="group w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-left transition hover:bg-white/10"
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={["h-2.5 w-2.5 rounded-full", dotClass].join(" ")} />
             <div className="text-sm font-semibold text-white">{title}</div>
           </div>
-          <div className="mt-1 text-xs text-white/60">{desc}</div>
+          <div className="mt-1 text-xs text-white/65">{desc}</div>
         </div>
 
-        <div className="shrink-0 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white/75 group-hover:bg-black/40">
+        <div className="shrink-0 rounded-xl border border-white/10 bg-black/30 px-4 py-2 text-xs font-semibold text-white/80 group-hover:bg-black/40">
           {cta}
         </div>
       </div>
