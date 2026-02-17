@@ -1,6 +1,7 @@
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 import type { Metadata, Viewport } from "next";
+import SWRegister from "./sw-register";
 
 export const metadata: Metadata = {
   title: "SyncPlans",
@@ -25,6 +26,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#0B0F19" />
       </head>
       <body>
+        <SWRegister />
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
