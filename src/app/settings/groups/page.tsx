@@ -1,9 +1,18 @@
+// src/app/settings/groups/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
+import PremiumHeader from "@/components/PremiumHeader";
+import LogoutButton from "@/components/LogoutButton";
+
 import { getUser } from "@/lib/auth";
-import { getSettingsFromDb, saveSettingsToDb, type NotificationSettings } from "@/lib/settings";
+import {
+  getSettingsFromDb,
+  saveSettingsToDb,
+  type NotificationSettings,
+} from "@/lib/settings";
 
 type PermMode = "owner_only" | "shared_read" | "shared_write";
 
@@ -56,7 +65,12 @@ export default function GroupPermsSettingsPage() {
 
   return (
     <main className="min-h-screen bg-[#050816] text-white">
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <PremiumHeader />
+          <LogoutButton />
+        </div>
+
         <Header
           title="Permisos por grupo"
           subtitle="Define tus defaults para Personal / Pareja / Familia."
@@ -91,7 +105,8 @@ export default function GroupPermsSettingsPage() {
           </div>
 
           <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-white/60">
-            Esto guarda tus preferencias. En el siguiente upgrade conectamos esto a tu RLS / roles por grupo para que no sea solo UI.
+            Esto guarda tus preferencias. En el siguiente upgrade conectamos
+            esto a tu RLS / roles por grupo para que no sea solo UI.
           </div>
         </section>
       </div>

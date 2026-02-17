@@ -4,11 +4,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import PremiumHeader from "@/components/PremiumHeader";
+import LogoutButton from "@/components/LogoutButton";
+
 import {
   getSettingsFromDb,
   saveSettingsToDb,
   type NotificationSettings,
-  type ConflictDefaultResolution,
 } from "@/lib/settings";
 
 export default function ConflictsSettingsPage() {
@@ -66,7 +68,9 @@ export default function ConflictsSettingsPage() {
     try {
       setSaving(true);
       setToast(null);
+
       await saveSettingsToDb(settings);
+
       setToast({
         title: "Ajustes guardados",
         subtitle: "Tus preferencias de conflictos se actualizaron correctamente.",
@@ -96,7 +100,13 @@ export default function ConflictsSettingsPage() {
 
   return (
     <main className="min-h-screen bg-[#050816] text-white">
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        {/* ✅ Top shell premium */}
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <PremiumHeader />
+          <LogoutButton />
+        </div>
+
         {/* Header */}
         <div className="mb-6">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
@@ -127,14 +137,12 @@ export default function ConflictsSettingsPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
-                <h2 className="text-sm font-semibold">
-                  Avisarme antes de guardar
-                </h2>
+                <h2 className="text-sm font-semibold">Avisarme antes de guardar</h2>
               </div>
               <p className="mt-1 text-xs text-white/60">
-                Si esto está activado, cuando haya un choque verás una pantalla
-                previa para decidir qué hacer con los eventos. Si lo apagas,
-                SyncPlans usará directamente tu decisión por defecto.
+                Si esto está activado, cuando haya un choque verás una pantalla previa
+                para decidir qué hacer con los eventos. Si lo apagas, SyncPlans usará
+                directamente tu decisión por defecto.
               </p>
             </div>
 
@@ -153,9 +161,9 @@ export default function ConflictsSettingsPage() {
               <h2 className="text-sm font-semibold">Decisión por defecto</h2>
             </div>
             <p className="mt-1 text-xs text-white/60">
-              Esto se usa cuando hay conflictos y eliges aplicar tu decisión
-              rápida (o cuando el aviso previo está apagado). Siempre podrás
-              cambiar de idea caso por caso.
+              Esto se usa cuando hay conflictos y eliges aplicar tu decisión rápida
+              (o cuando el aviso previo está apagado). Siempre podrás cambiar de idea
+              caso por caso.
             </p>
           </div>
 
@@ -171,9 +179,7 @@ export default function ConflictsSettingsPage() {
               title="Mantener existente"
               description="Si hay choque, por defecto se conserva el evento que ya estaba y el nuevo no se guarda."
               selected={currentResolution === "keep_existing"}
-              onSelect={() =>
-                update("conflictDefaultResolution", "keep_existing")
-              }
+              onSelect={() => update("conflictDefaultResolution", "keep_existing")}
             />
 
             <ResolutionCard
@@ -201,9 +207,9 @@ export default function ConflictsSettingsPage() {
               Cómo se conecta esto con el calendario
             </div>
             <p className="mt-1 text-[11px] text-white/60">
-              Estas preferencias se aplican cuando creas o editas eventos desde
-              el calendario y SyncPlans detecta choques. Nada se borra sin que
-              lo confirmes directa o indirectamente con estas reglas.
+              Estas preferencias se aplican cuando creas o editas eventos desde el calendario
+              y SyncPlans detecta choques. Nada se borra sin que lo confirmes directa o
+              indirectamente con estas reglas.
             </p>
           </div>
 
