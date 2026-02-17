@@ -1,12 +1,16 @@
 {
+  "id": "/",
   "name": "SyncPlans",
   "short_name": "SyncPlans",
-  "description": "El árbitro neutral del tiempo compartido.",
+  "description": "El calendario que evita discusiones innecesarias cuando compartes tu tiempo.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0B0B0C",
-  "theme_color": "#0B0B0C",
+  "display_override": ["standalone", "window-controls-overlay"],
+  "background_color": "#0B0F19",
+  "theme_color": "#0B0F19",
+  "categories": ["productivity", "utilities"],
+
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -23,6 +27,15 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+
+  "screenshots": [
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide"
     }
   ]
 }
