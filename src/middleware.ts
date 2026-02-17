@@ -6,7 +6,7 @@ function canonicalHost() {
   const env = (process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? "").trim();
   if (!env) return null;
   try {
-    return new URL(env).host;
+    return new URL(env).host; // => syncplansapp.com
   } catch {
     return null;
   }
@@ -25,25 +25,24 @@ export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
   const host = request.headers.get("host") ?? url.host;
 
-  // ✅ 0) Canonical (pero nunca dentro de /auth/*)
-  if (!url.pathname.startsWith("/auth/")) {
-    const canon = canonicalHost();
-    if (canon && host !== canon) {
-      const redirectUrl = url.clone();
-      redirectUrl.host = canon;
-      redirectUrl.protocol = "https:";
-      return NextResponse.redirect(redirectUrl);
-    }
+  // ✅ 0) Canonical SIEMPRE (incluye /auth/*)
+  // Esto evita que el callback o login ocurra en www y la cookie se “quede” en www.
+  const canon = canonicalHost();
+  if (canon && host !== canon) {
+    const redirectUrl = url.clone();
+    redirectUrl.host = canon;
+    redirectUrl.protocol = "https:";
+    return NextResponse.redirect(redirectUrl);
   }
 
-  // ✅ 1) Dejar pasar público
+  // ✅ 1) Público: pasa sin chequear sesión
   if (isPublicPath(url.pathname)) return NextResponse.next();
 
   const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
   const supabaseAnon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
   if (!supabaseUrl || !supabaseAnon) return NextResponse.next();
 
-  // ✅ 2) Importante: crear response primero, porque Supabase puede necesitar setear cookies (refresh)
+  // ✅ 2) Crear response primero para permitir set-cookie si hay refresh
   const response = NextResponse.next();
 
   const supabase = createServerClient(supabaseUrl, supabaseAnon, {
@@ -60,14 +59,12 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // ✅ getUser() (bien)
   const { data } = await supabase.auth.getUser();
 
   if (!data?.user) {
     const loginUrl = new URL("/auth/login", url.origin);
     loginUrl.searchParams.set("next", url.pathname + url.search);
 
-    // ✅ Si supabase intentó setear cookies (refresh), no las pierdas al redirigir.
     const redirectResponse = NextResponse.redirect(loginUrl);
     response.cookies.getAll().forEach((c) => redirectResponse.cookies.set(c));
     return redirectResponse;

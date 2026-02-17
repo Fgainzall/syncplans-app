@@ -9,27 +9,19 @@ function safeNext(nextRaw: string | null) {
   return n.startsWith("/") ? n : "/summary";
 }
 
-function getCanonicalOrigin(requestOrigin: string) {
-  const env = (process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? "").trim();
-  if (!env) return requestOrigin;
-  try {
-    return new URL(env).origin;
-  } catch {
-    return requestOrigin;
-  }
-}
-
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
 
   const code = url.searchParams.get("code");
   const next = safeNext(url.searchParams.get("next"));
 
-  const canonicalOrigin = getCanonicalOrigin(url.origin);
+  // ✅ IMPORTANTE:
+  // Usamos el ORIGIN REAL del request (ya canónico gracias al middleware).
+  // Así la cookie se setea en el mismo host donde luego se va a leer.
+  const origin = url.origin;
 
-  // Si no hay code, vuelve al login
   if (!code) {
-    return NextResponse.redirect(new URL("/auth/login", canonicalOrigin));
+    return NextResponse.redirect(new URL("/auth/login", origin));
   }
 
   const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
@@ -37,11 +29,11 @@ export async function GET(request: NextRequest) {
 
   if (!supabaseUrl || !supabaseAnon) {
     console.error("Missing env vars for Supabase in callback");
-    return NextResponse.redirect(new URL("/auth/login", canonicalOrigin));
+    return NextResponse.redirect(new URL("/auth/login", origin));
   }
 
-  // ✅ Response final SIEMPRE en origen canónico
-  const response = NextResponse.redirect(new URL(next, canonicalOrigin));
+  // ✅ Response final dentro del MISMO origin
+  const response = NextResponse.redirect(new URL(next, origin));
 
   const supabase = createServerClient(supabaseUrl, supabaseAnon, {
     cookies: {
@@ -58,19 +50,20 @@ export async function GET(request: NextRequest) {
   });
 
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+
   if (exchangeError) {
     console.error("Exchange error:", exchangeError.message);
-    return NextResponse.redirect(new URL("/auth/login", canonicalOrigin));
+    return NextResponse.redirect(new URL("/auth/login", origin));
   }
 
   // Confirmar usuario
   const { data: userData, error: userErr } = await supabase.auth.getUser();
   if (userErr || !userData?.user) {
     console.error("getUser error:", userErr?.message);
-    return NextResponse.redirect(new URL("/auth/login", canonicalOrigin));
+    return NextResponse.redirect(new URL("/auth/login", origin));
   }
 
-  // Guardar tokens si vienen (Google OAuth)
+  // Guardar tokens (Google OAuth) si vienen
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const session = sessionData?.session;
