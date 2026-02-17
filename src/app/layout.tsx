@@ -6,10 +6,22 @@ export const metadata: Metadata = {
   title: "SyncPlans",
   description:
     "El calendario que evita discusiones innecesarias cuando compartes tu tiempo.",
+
+  manifest: "/manifest.webmanifest",
+
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png" }],
   },
-  manifest: "/manifest.webmanifest", // 👈 ESTO ES CLAVE
+
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "SyncPlans",
+  },
 };
 
 export const viewport: Viewport = {
