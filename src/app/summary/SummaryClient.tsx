@@ -115,7 +115,10 @@ export default function CalendarClient(props: {
   const [booting, setBooting] = useState(true);
 
   const [tab, setTab] = useState<Tab>("month");
-  const [scope, setScope] = useState<Scope>("all");
+
+  // ✅ PATCH: por defecto "active" (si quieres que se sienta el grupo activo)
+  // Si prefieres mantenerlo como antes, vuelve a "all".
+  const [scope, setScope] = useState<Scope>("active");
 
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
@@ -260,6 +263,34 @@ export default function CalendarClient(props: {
     },
     [router]
   );
+
+  // ✅ PATCH: escuchar cambios de grupo activo (sin reload)
+  useEffect(() => {
+    const onActiveGroupChanged = async (ev: any) => {
+      try {
+        const nextId = ev?.detail?.groupId ? String(ev.detail.groupId) : null;
+        if (!nextId) {
+          // best-effort: recargar desde DB por si detail viene vacío
+          const active = await getActiveGroupIdFromDb();
+          setActiveGroupId(active ? String(active) : null);
+        } else {
+          setActiveGroupId(nextId);
+        }
+
+        // refresco suave para que "Activo" se sienta inmediato
+        await refreshCalendar({
+          showToast: true,
+          toastTitle: "Grupo actualizado ✅",
+          toastSubtitle: "Filtrando según tu grupo activo.",
+        });
+      } catch {
+        // no-op
+      }
+    };
+
+    window.addEventListener("sp:active-group-changed", onActiveGroupChanged as any);
+    return () => window.removeEventListener("sp:active-group-changed", onActiveGroupChanged as any);
+  }, [refreshCalendar]);
 
   const handleDeleteEvent = useCallback(
     async (eventId: string, title?: string) => {
@@ -565,7 +596,8 @@ export default function CalendarClient(props: {
           <PremiumHeader />
           <div style={styles.topActions}>
             <button onClick={handleSync} style={styles.ghostBtn}>
-              Sync
+              {/* ✅ PATCH: este botón es refresh local, NO “Conectar Google” */}
+              Actualizar
             </button>
             <LogoutButton />
           </div>

@@ -11,8 +11,7 @@ function SummaryFallback() {
         minHeight: "100vh",
         background: "#050816",
         color: "rgba(248,250,252,0.96)",
-        fontFamily:
-          "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
       <div

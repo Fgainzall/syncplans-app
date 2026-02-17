@@ -1,7 +1,7 @@
 // src/components/PremiumHeader.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import {
@@ -17,6 +17,8 @@ import {
   getInitials,
   type Profile as UserProfile,
 } from "@/lib/profilesDb";
+
+import IntegrationsDrawer from "@/components/IntegrationsDrawer";
 
 type TabKey = UsageMode | "other";
 
@@ -90,7 +92,6 @@ function normalizeGroupLabel(input?: string | null) {
   const raw = (input ?? "").trim();
   if (!raw) return null;
 
-  // "Activo" / "ACTIVO" / "Activo: Familia" / "Activo - Familia"
   if (/^activo$/i.test(raw)) return "Grupo actual";
   if (/^activo\s*[:\-–]\s*/i.test(raw)) {
     const cleaned = raw.replace(/^activo\s*[:\-–]\s*/i, "").trim();
@@ -119,8 +120,8 @@ export default function PremiumHeader({
   const [unreadCount, setUnreadCount] = useState(0);
   const [headerUser, setHeaderUser] = useState<HeaderUser | null>(null);
 
-  // ✅ Estado interno del sync Google (UI)
-  const [syncing, setSyncing] = useState(false);
+  // ✅ Drawer Conectar
+  const [openIntegrations, setOpenIntegrations] = useState(false);
 
   // Estado de grupos / modo activo
   useEffect(() => {
@@ -199,13 +200,11 @@ export default function PremiumHeader({
     [activeMode]
   );
 
-  // ✅ Label final del chip (aquí se eliminaba “Activo”)
   const kickerLabel = useMemo(() => {
     const cleaned = normalizeGroupLabel((group as any)?.groupName ?? null);
     return cleaned ?? active.label;
   }, [group, active.label]);
 
-  // Título automático según ruta si no pasas title
   const autoTitle = useMemo(() => {
     if (pathname.startsWith("/pricing")) return "Planes";
     if (pathname.startsWith("/profile")) return "Panel";
@@ -254,31 +253,12 @@ export default function PremiumHeader({
     }
   }
 
-  // ✅ Botón Sync Google (llama a /api/google/sync)
-  async function onSyncGoogle() {
-    if (syncing) return;
-
-    try {
-      setSyncing(true);
-
-      const res = await fetch("/api/google/sync", { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        console.error("Google sync failed", data);
-        alert(data?.error || "Falló el sync con Google");
-        return;
-      }
-
-      alert(`Sync OK ✅ Importados: ${data.imported ?? 0}`);
-      window.location.reload();
-    } catch (e) {
-      console.error(e);
-      alert("Error llamando al sync");
-    } finally {
-      setSyncing(false);
-    }
-  }
+  const onSyncedFromDrawer = useCallback((imported: number) => {
+    // 🔔 Evento global para que Calendar/Summary (si quieren) refresquen sin reload.
+    window.dispatchEvent(
+      new CustomEvent("sp:google-synced", { detail: { imported } })
+    );
+  }, []);
 
   return (
     <>
@@ -326,19 +306,14 @@ export default function PremiumHeader({
               </button>
             )}
 
-            {/* ✅ Sync Google (siempre visible) */}
+            {/* ✅ Conectar (nuevo) */}
             <button
               type="button"
-              style={{
-                ...S.ghostBtn,
-                opacity: syncing ? 0.75 : 1,
-                cursor: syncing ? "progress" : "pointer",
-              }}
-              onClick={onSyncGoogle}
-              disabled={syncing}
-              title="Sincronizar eventos desde Google Calendar"
+              style={S.ghostBtn}
+              onClick={() => setOpenIntegrations(true)}
+              title="Conectar y sincronizar calendarios externos"
             >
-              {syncing ? "Sync…" : "Sync"}
+              Conectar
             </button>
 
             {/* Slot derecho o botón + Evento */}
@@ -427,6 +402,12 @@ export default function PremiumHeader({
         navigationMode={NAV_MODE}
         onUnreadChange={(n) => setUnreadCount(n)}
       />
+
+      <IntegrationsDrawer
+        open={openIntegrations}
+        onClose={() => setOpenIntegrations(false)}
+        onSynced={onSyncedFromDrawer}
+      />
     </>
   );
 }
@@ -510,7 +491,6 @@ const S: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
 
-  // ✅ Botón neutro (para Sync)
   ghostBtn: {
     height: 40,
     padding: "0 14px",
@@ -519,6 +499,7 @@ const S: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.04)",
     color: "#fff",
     fontWeight: 900,
+    cursor: "pointer",
   },
 
   bellWrap: { position: "relative" },

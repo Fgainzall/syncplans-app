@@ -202,7 +202,7 @@ export default function CalendarClient(props: {
   const gridEnd = useMemo(() => endOfWeek(monthEnd), [monthEnd]);
 
   /* =========================
-     Carga de datos + sync
+     Carga de datos (DB) — “Actualizar”
      ========================= */
   const refreshCalendar = useCallback(
     async (opts?: {
@@ -215,8 +215,8 @@ export default function CalendarClient(props: {
       try {
         if (showToast) {
           setToast({
-            title: opts?.toastTitle ?? "Sincronizando…",
-            subtitle: opts?.toastSubtitle ?? "Actualizando desde tus grupos",
+            title: opts?.toastTitle ?? "Actualizando…",
+            subtitle: opts?.toastSubtitle ?? "Recargando desde SyncPlans",
           });
         }
 
@@ -232,24 +232,20 @@ export default function CalendarClient(props: {
         const myGroups = await getMyGroups();
         setGroups(myGroups);
 
-        // ✅ FIX DEFINITIVO:
-        // Si NO hay active_group_id en DB pero sí hay grupos,
-        // elegimos el primero y lo PERSISTIMOS en DB para que
-        // Summary y otras pantallas lean exactamente lo mismo.
+        // ✅ FIX definitivo: si no hay active en DB pero sí grupos, persistimos el primero
         if (!active && (myGroups?.length ?? 0) > 0) {
           const firstId = String(myGroups[0].id);
           setActiveGroupId(firstId);
-
           try {
             await setActiveGroupIdInDb(firstId);
           } catch {
-            // no-op (igual queda en state)
+            // no-op
           }
         }
 
         const groupIds = (myGroups || []).map((g: any) => String(g.id));
 
-        // ✅ ahora getEventsForGroups(groupIds) funciona (y siempre incluye personal)
+        // ✅ getEventsForGroups(groupIds) incluye personal
         const rawEvents: any[] = (await getEventsForGroups(groupIds)) as any[];
 
         const groupTypeByIdLocal = new Map<string, "family" | "pair">(
@@ -297,8 +293,8 @@ export default function CalendarClient(props: {
 
         if (showToast) {
           setToast({
-            title: "Sincronizado ✅",
-            subtitle: "Eventos actualizados con permisos reales.",
+            title: "Actualizado ✅",
+            subtitle: "Tu calendario ya está al día.",
           });
           window.setTimeout(() => setToast(null), 2400);
         }
@@ -308,7 +304,7 @@ export default function CalendarClient(props: {
 
         if (showToast) {
           setToast({
-            title: "No se pudo sincronizar",
+            title: "No se pudo actualizar",
             subtitle: e?.message ?? "Revisa tu sesión o conexión.",
           });
           window.setTimeout(() => setToast(null), 2800);
@@ -588,32 +584,16 @@ export default function CalendarClient(props: {
   const toggleGroup = (g: GroupType) =>
     setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
 
-const handleSync = async () => {
-  try {
-    setToast({ title: "Sincronizando…", subtitle: "Importando desde Google Calendar" });
-
-    const res = await fetch("/api/google/sync", { method: "POST" });
-    const json = await res.json().catch(() => ({}));
-
-    if (!res.ok || !json?.ok) {
-      setToast({
-        title: "No se pudo sincronizar",
-        subtitle: json?.error ?? "Revisa tu conexión o vuelve a conectar Google.",
-      });
-      window.setTimeout(() => setToast(null), 3200);
-      return;
-    }
-
+  // ✅ ÚNICO significado aquí:
+  // “Actualizar” = recargar desde DB (Supabase)
+  const handleRefresh = async () => {
     await refreshCalendar({
       showToast: true,
-      toastTitle: "Sincronizado ✅",
-      toastSubtitle: `Importados/actualizados: ${json.imported ?? 0}`,
+      toastTitle: "Actualizando…",
+      toastSubtitle: "Recargando desde SyncPlans",
     });
-  } catch (e: any) {
-    setToast({ title: "Error sincronizando", subtitle: e?.message ?? "Intenta de nuevo." });
-    window.setTimeout(() => setToast(null), 3200);
-  }
-};
+  };
+
   const openNewEventPersonal = (date?: Date) => {
     const d = date ?? selectedDay ?? new Date();
     router.push(
@@ -644,9 +624,7 @@ const handleSync = async () => {
             <div style={styles.loadingDot} />
             <div>
               <div style={styles.loadingTitle}>Cargando tu calendario…</div>
-              <div style={styles.loadingSub}>
-                Preparando tus eventos y grupos
-              </div>
+              <div style={styles.loadingSub}>Preparando tus eventos y grupos</div>
             </div>
           </div>
         </div>
@@ -668,9 +646,7 @@ const handleSync = async () => {
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
             <div style={styles.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? (
-              <div style={styles.toastSub}>{toast.subtitle}</div>
-            ) : null}
+            {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
           </div>
         </div>
       )}
@@ -679,8 +655,8 @@ const handleSync = async () => {
         <div style={styles.topRow}>
           <PremiumHeader />
           <div style={styles.topActions}>
-            <button onClick={handleSync} style={styles.ghostBtn}>
-              Sync
+            <button onClick={handleRefresh} style={styles.ghostBtn}>
+              Actualizar
             </button>
             <LogoutButton />
           </div>
@@ -721,24 +697,14 @@ const handleSync = async () => {
               {prettyMonthRange(monthStart, monthEnd)}
             </div>
 
-            {error ? (
-              <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>
-                {error}
-              </div>
-            ) : null}
+            {error ? <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>{error}</div> : null}
           </div>
 
           <div style={styles.heroRight}>
-            <button
-              onClick={() => openNewEventPersonal()}
-              style={styles.primaryBtnPersonal}
-            >
+            <button onClick={() => openNewEventPersonal()} style={styles.primaryBtnPersonal}>
               + Personal
             </button>
-            <button
-              onClick={() => openNewEventGroup()}
-              style={styles.primaryBtnGroup}
-            >
+            <button onClick={() => openNewEventGroup()} style={styles.primaryBtnGroup}>
               + Grupo
             </button>
           </div>
@@ -798,21 +764,13 @@ const handleSync = async () => {
             </div>
 
             <div style={styles.navRow}>
-              <button
-                onClick={goPrevMonth}
-                style={styles.iconBtn}
-                aria-label="Mes anterior"
-              >
+              <button onClick={goPrevMonth} style={styles.iconBtn} aria-label="Mes anterior">
                 ‹
               </button>
               <button onClick={goToday} style={styles.ghostBtnSmall}>
                 Hoy
               </button>
-              <button
-                onClick={goNextMonth}
-                style={styles.iconBtn}
-                aria-label="Mes siguiente"
-              >
+              <button onClick={goNextMonth} style={styles.iconBtn} aria-label="Mes siguiente">
                 ›
               </button>
             </div>
@@ -828,9 +786,7 @@ const handleSync = async () => {
                   onClick={() => toggleGroup(g)}
                   style={{
                     ...styles.groupChip,
-                    borderColor: on
-                      ? "rgba(255,255,255,0.18)"
-                      : "rgba(255,255,255,0.10)",
+                    borderColor: on ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)",
                     opacity: on ? 1 : 0.5,
                   }}
                 >
@@ -872,16 +828,10 @@ const handleSync = async () => {
                 <div style={styles.dayPanelTitle}>{prettyDay(selectedDay)}</div>
 
                 <div style={styles.dayPanelActions}>
-                  <button
-                    onClick={() => openNewEventPersonal(selectedDay)}
-                    style={styles.ghostBtnSmallPersonal}
-                  >
+                  <button onClick={() => openNewEventPersonal(selectedDay)} style={styles.ghostBtnSmallPersonal}>
                     + Personal
                   </button>
-                  <button
-                    onClick={() => openNewEventGroup(selectedDay)}
-                    style={styles.ghostBtnSmallGroup}
-                  >
+                  <button onClick={() => openNewEventGroup(selectedDay)} style={styles.ghostBtnSmallGroup}>
                     + Grupo
                   </button>
                 </div>
@@ -911,16 +861,13 @@ const handleSync = async () => {
             <div style={styles.agendaTop}>
               <div style={styles.agendaTitle}>Agenda del mes</div>
               <div style={styles.agendaSub}>
-                Mostrando {agendaEvents.length} evento
-                {agendaEvents.length === 1 ? "" : "s"}
+                Mostrando {agendaEvents.length} evento{agendaEvents.length === 1 ? "" : "s"}
               </div>
             </div>
 
             <div style={styles.agendaList}>
               {agendaEvents.length === 0 ? (
-                <div style={styles.emptyHint}>
-                  No hay eventos para mostrar con estos filtros.
-                </div>
+                <div style={styles.emptyHint}>No hay eventos para mostrar con estos filtros.</div>
               ) : (
                 agendaEvents.map((e) => (
                   <EventRow
@@ -1431,7 +1378,7 @@ const styles: Record<string, React.CSSProperties> = {
   primaryBtnPersonal: { padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(250,204,21,0.30)", background: "linear-gradient(135deg, rgba(250,204,21,0.22), rgba(250,204,21,0.08))", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900 },
   primaryBtnGroup: { padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(96,165,250,0.30)", background: "linear-gradient(135deg, rgba(96,165,250,0.22), rgba(96,165,250,0.08))", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900 },
 
-  ghostBtn: { padding: "10px 12px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 700 },
+  ghostBtn: { padding: "10px 12px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 800 },
   ghostBtnSmall: { padding: "8px 10px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 700, fontSize: 12 },
 
   ghostBtnSmallPersonal: { padding: "8px 10px", borderRadius: 12, border: "1px solid rgba(250,204,21,0.22)", background: "rgba(250,204,21,0.08)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 800, fontSize: 12 },
