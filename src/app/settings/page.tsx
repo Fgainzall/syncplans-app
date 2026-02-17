@@ -47,9 +47,7 @@ function prettyDateLabelFromISO(dateISO: string): string {
     "diciembre",
   ];
 
-  return `${dias[dt.getDay()]}, ${dt.getDate()} de ${
-    meses[dt.getMonth()]
-  } ${dt.getFullYear()}`;
+  return `${dias[dt.getDay()]}, ${dt.getDate()} de ${meses[dt.getMonth()]} ${dt.getFullYear()}`;
 }
 
 function labelForGroup(row: DbEventRow): string {
@@ -75,8 +73,7 @@ type GoogleStatus = {
 
 async function getAccessTokenOrNull(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token ?? null;
-  return token;
+  return data.session?.access_token ?? null;
 }
 
 export default function SettingsHubPage() {
@@ -84,14 +81,14 @@ export default function SettingsHubPage() {
   const [ready, setReady] = useState(false);
   const [s, setS] = useState<NotificationSettings | null>(null);
 
-  // 🔔 Estado V2 – resumen diario desde settings
+  // Resumen diario manual
   const [digestSending, setDigestSending] = useState(false);
   const [digestToast, setDigestToast] = useState<{
     title: string;
     subtitle?: string;
   } | null>(null);
 
-  // 🔌 Integraciones
+  // Integraciones
   const [googleLoading, setGoogleLoading] = useState(false);
   const [google, setGoogle] = useState<GoogleStatus | null>(null);
   const [googleSyncing, setGoogleSyncing] = useState(false);
@@ -109,12 +106,13 @@ export default function SettingsHubPage() {
         router.push("/auth/login?next=/settings");
         return;
       }
+
       try {
         const db = await getSettingsFromDb();
         if (!alive) return;
         setS(db);
       } catch {
-        // ok: igual mostramos hub
+        // ok
       } finally {
         if (alive) setReady(true);
       }
@@ -139,14 +137,13 @@ export default function SettingsHubPage() {
     return { on, total: toggles.length, quiet: s.quietHoursEnabled };
   }, [s]);
 
-  // Auto-esconder toast del resumen
+  // Auto-hide toasts
   useEffect(() => {
     if (!digestToast) return;
     const t = setTimeout(() => setDigestToast(null), 3600);
     return () => clearTimeout(t);
   }, [digestToast]);
 
-  // Auto-esconder toast conectores
   useEffect(() => {
     if (!connectToast) return;
     const t = setTimeout(() => setConnectToast(null), 4200);
@@ -154,7 +151,7 @@ export default function SettingsHubPage() {
   }, [connectToast]);
 
   /* ─────────────────────────────────────────────
-     Integraciones: cargar status (Google)
+     Google status
   ───────────────────────────────────────────── */
 
   async function refreshGoogleStatus() {
@@ -209,7 +206,7 @@ export default function SettingsHubPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleGoogleConnect() {
+  function handleGoogleConnect() {
     window.location.href = "/api/google/connect";
   }
 
@@ -236,7 +233,7 @@ export default function SettingsHubPage() {
       }
 
       setConnectToast({
-        title: `Importación lista ✅`,
+        title: "Importación lista ✅",
         subtitle: `Trajimos ${json?.imported ?? 0} evento(s). Ya entran a conflictos.`,
       });
 
@@ -278,9 +275,7 @@ export default function SettingsHubPage() {
       const y = now.getFullYear();
       const m = now.getMonth() + 1;
       const d = now.getDate();
-      const todayISO = `${y}-${String(m).padStart(2, "0")}-${String(
-        d
-      ).padStart(2, "0")}`;
+      const todayISO = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
       const base = startOfDay(todayISO);
       const end = new Date(base);
@@ -333,10 +328,7 @@ export default function SettingsHubPage() {
       });
 
       const json = await res.json().catch(() => ({} as any));
-
-      if (!res.ok || !json.ok) {
-        throw new Error(json?.message || "Error enviando el correo");
-      }
+      if (!res.ok || !json.ok) throw new Error(json?.message || "Error enviando el correo");
 
       setDigestToast({
         title: "Te envié un resumen de hoy a tu correo ✉️",
@@ -360,31 +352,37 @@ export default function SettingsHubPage() {
 
   return (
     <main className="min-h-screen bg-[#050816] text-white">
-      <div className="mx-auto max-w-5xl px-4 py-10">
+      {/* ✅ Contenedor único centrado (como Summary) */}
+      <div className="mx-auto w-full max-w-[860px] px-4 py-6">
         <PremiumHeader
           title="Settings"
           subtitle="Notificaciones, permisos por grupo y conexiones de calendario."
           rightSlot={<LogoutButton />}
         />
 
-        {/* ✅ Más aire + más legibilidad */}
-        <div className="mt-7 grid gap-7 lg:grid-cols-12">
-          {/* IZQ */}
-          <div className="lg:col-span-7">
-            <div className="mb-3 text-xs font-semibold tracking-wide text-white/55">
-              CONFIGURACIÓN
+        <div className="mt-6 space-y-6">
+          {/* CONFIG */}
+          <section className="rounded-3xl border border-white/10 bg-black/35 p-5">
+            <div className="mb-4">
+              <div className="text-[11px] font-extrabold tracking-wide text-white/55">
+                CONFIGURACIÓN
+              </div>
+              <div className="mt-1 text-lg font-semibold text-white">
+                Ajustes de tu experiencia
+              </div>
+              <div className="mt-1 text-xs text-white/60">
+                {notifScore
+                  ? `${notifScore.on}/${notifScore.total} notificaciones activas · ${
+                      notifScore.quiet ? "Silencioso ON" : "Silencioso OFF"
+                    }`
+                  : "Controla notificaciones, permisos por grupo y conflictos."}
+              </div>
             </div>
 
-            <div className="grid gap-4">
+            <div className="grid gap-3">
               <Tile
                 title="Notificaciones"
-                desc={
-                  notifScore
-                    ? `${notifScore.on}/${notifScore.total} activadas · ${
-                        notifScore.quiet ? "Silencioso ON" : "Silencioso OFF"
-                      }`
-                    : "Controla recordatorios, resúmenes y modo silencioso."
-                }
+                desc="Recordatorios, resúmenes y modo silencioso."
                 cta="Abrir"
                 onClick={() => router.push("/settings/notifications")}
                 dotClass="bg-cyan-400"
@@ -392,7 +390,7 @@ export default function SettingsHubPage() {
 
               <Tile
                 title="Permisos por grupo"
-                desc="Personal / Pareja / Familia: cómo quieres que se comporte tu experiencia."
+                desc="Personal / Pareja / Familia: cómo se comporta SyncPlans."
                 cta="Configurar"
                 onClick={() => router.push("/settings/groups")}
                 dotClass="bg-amber-300"
@@ -400,7 +398,7 @@ export default function SettingsHubPage() {
 
               <Tile
                 title="Preferencias de conflictos"
-                desc="Tu estilo: avisar antes de guardar, default de resolución y más."
+                desc="Avisos, defaults y reglas de coordinación."
                 cta="Ajustar"
                 onClick={() => router.push("/settings/conflicts")}
                 dotClass="bg-rose-400"
@@ -408,208 +406,185 @@ export default function SettingsHubPage() {
 
               <Tile
                 title="Resumen semanal"
-                desc="Sección rápida para tu ‘valor diario’: mantenerlo ON/OFF."
+                desc="Mantén tu valor semanal ON/OFF."
                 cta="Ver"
                 onClick={() => router.push("/settings/notifications")}
                 dotClass="bg-emerald-400"
               />
             </div>
-          </div>
+          </section>
 
-          {/* DER */}
-          <div className="lg:col-span-5">
-            <div className="mb-3 text-xs font-semibold tracking-wide text-white/55">
-              CONECTAR
-            </div>
-
-            {/* Conectar */}
-            <div className="rounded-3xl border border-white/15 bg-white/[0.06] p-6 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/30 px-3 py-1 text-xs font-semibold text-white/75">
-                    <span className="h-2 w-2 rounded-full bg-indigo-300" />
-                    Conectar
-                  </div>
-                  <h2 className="mt-3 text-lg font-semibold text-white/95">
-                    Integraciones de calendario
-                  </h2>
-                  <p className="mt-1 text-sm leading-5 text-white/65">
-                    Importa eventos <strong>read-only</strong> desde Google/Outlook como
-                    “externos”. Entran a conflictos, pero no rompen tu calendario.
-                  </p>
+          {/* CONECTAR */}
+          <section className="rounded-3xl border border-white/10 bg-black/35 p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="text-[11px] font-extrabold tracking-wide text-white/55">
+                  CONECTAR
                 </div>
-
-                <button
-                  type="button"
-                  onClick={refreshGoogleStatus}
-                  disabled={googleLoading}
-                  className={[
-                    "mt-2 inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-sm font-semibold transition sm:mt-0",
-                    googleLoading
-                      ? "border-white/20 bg-white/10 text-white/60 cursor-default"
-                      : "border-white/20 bg-black/30 text-white/85 hover:bg-black/40",
-                  ].join(" ")}
-                >
-                  {googleLoading ? "Actualizando…" : "Actualizar"}
-                </button>
+                <div className="mt-1 text-lg font-semibold text-white">
+                  Integraciones de calendario
+                </div>
+                <div className="mt-1 text-xs text-white/60">
+                  Importa eventos <b>read-only</b> desde Google/Outlook como “externos”.
+                  Entran a conflictos, pero no rompen tu calendario.
+                </div>
               </div>
 
-              <div className="mt-5 grid gap-3">
-                {/* Google */}
-                <div className="rounded-2xl border border-white/15 bg-black/30 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base font-semibold text-white/95">
-                          Google Calendar
-                        </span>
-                        <span
-                          className={[
-                            "rounded-full border px-2 py-0.5 text-xs font-semibold",
-                            googleConnected
-                              ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
-                              : "border-white/20 bg-white/5 text-white/70",
-                          ].join(" ")}
-                        >
-                          {googleConnected ? "Conectado" : "No conectado"}
-                        </span>
-                      </div>
+              <button
+                type="button"
+                onClick={refreshGoogleStatus}
+                disabled={googleLoading}
+                className={[
+                  "inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition",
+                  googleLoading
+                    ? "border-white/20 bg-white/10 text-white/60 cursor-default"
+                    : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10",
+                ].join(" ")}
+              >
+                {googleLoading ? "Actualizando…" : "Actualizar estado"}
+              </button>
+            </div>
 
-                      <div className="mt-1 text-sm text-white/65">
-                        {googleConnected ? (
-                          <>
-                            Cuenta:{" "}
-                            <span className="text-white/85">{googleEmail || "—"}</span>
-                            <span className="text-white/40"> · Read-only</span>
-                          </>
-                        ) : (
-                          "Conecta tu Google para importar tus eventos como externos."
-                        )}
-                      </div>
+            <div className="mt-4 grid gap-3">
+              {/* Google */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">Google Calendar</span>
+                      <span
+                        className={[
+                          "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                          googleConnected
+                            ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
+                            : "border-white/15 bg-white/5 text-white/70",
+                        ].join(" ")}
+                      >
+                        {googleConnected ? "Conectado" : "No conectado"}
+                      </span>
+                    </div>
 
-                      {!googleConnected && google?.error && (
-                        <div className="mt-2 text-sm text-rose-200/90">
-                          {google.error}
-                        </div>
+                    <div className="mt-1 text-xs text-white/60">
+                      {googleConnected ? (
+                        <>
+                          Cuenta: <span className="text-white/85">{googleEmail || "—"}</span>
+                          <span className="text-white/40"> · Read-only import</span>
+                        </>
+                      ) : (
+                        "Conecta tu Google para importar tus eventos como externos."
                       )}
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={handleGoogleConnect}
-                        className="rounded-2xl border border-cyan-400/55 bg-cyan-500/15 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/25"
-                      >
-                        {googleConnected ? "Reconectar" : "Conectar"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleGoogleSyncNow}
-                        disabled={!googleConnected || googleSyncing}
-                        className={[
-                          "rounded-2xl border px-4 py-2 text-sm font-semibold transition",
-                          !googleConnected
-                            ? "border-white/15 bg-white/5 text-white/45 cursor-default"
-                            : googleSyncing
-                            ? "border-white/20 bg-white/10 text-white/60 cursor-default"
-                            : "border-emerald-400/45 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20",
-                        ].join(" ")}
-                        title={
-                          !googleConnected
-                            ? "Conecta Google para importar."
-                            : "Importa eventos Google a SyncPlans (externos)."
-                        }
-                      >
-                        {googleSyncing ? "Importando…" : "Importar"}
-                      </button>
-                    </div>
+                    {!googleConnected && google?.error && (
+                      <div className="mt-2 text-[11px] text-rose-200/90">{google.error}</div>
+                    )}
                   </div>
 
-                  <div className="mt-3 text-xs text-white/55">
-                    Tip: Sync trae 30 días atrás y 120 días adelante.
-                  </div>
-                </div>
-
-                {/* Microsoft */}
-                <div className="rounded-2xl border border-white/15 bg-black/20 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base font-semibold text-white/90">
-                          Outlook / Microsoft 365
-                        </span>
-                        <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-xs font-semibold text-white/65">
-                          Próximamente
-                        </span>
-                      </div>
-                      <div className="mt-1 text-sm text-white/65">
-                        Misma lógica: importar como “externos” + conflictos. Lo activamos después.
-                      </div>
-                    </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleGoogleConnect}
+                      className="rounded-2xl border border-cyan-400/50 bg-cyan-500/15 px-4 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/25"
+                    >
+                      {googleConnected ? "Reconectar" : "Conectar"}
+                    </button>
 
                     <button
                       type="button"
-                      disabled
-                      className="rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/40 cursor-default"
+                      onClick={handleGoogleSyncNow}
+                      disabled={!googleConnected || googleSyncing}
+                      className={[
+                        "rounded-2xl border px-4 py-2 text-xs font-semibold transition",
+                        !googleConnected
+                          ? "border-white/10 bg-white/5 text-white/40 cursor-default"
+                          : googleSyncing
+                            ? "border-white/20 bg-white/10 text-white/60 cursor-default"
+                            : "border-emerald-400/45 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20",
+                      ].join(" ")}
+                      title={!googleConnected ? "Conecta Google para importar." : "Importa eventos ahora."}
                     >
-                      Conectar
+                      {googleSyncing ? "Importando…" : "Importar ahora"}
                     </button>
                   </div>
                 </div>
+
+                <div className="mt-3 text-[11px] text-white/45">
+                  Tip: si no ves eventos, revisa el rango: Sync trae 30 días atrás y 120 días adelante.
+                </div>
               </div>
 
-              {connectToast && (
-                <div className="mt-4 rounded-2xl border border-white/15 bg-black/35 px-4 py-3 text-sm">
-                  <div className="font-semibold text-white/95">{connectToast.title}</div>
-                  {connectToast.subtitle && (
-                    <div className="mt-1 text-white/70">{connectToast.subtitle}</div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Resumen diario */}
-            <div className="mt-6 rounded-3xl border border-white/15 bg-black/35 p-6 shadow-[0_18px_60px_rgba(0,0,0,0.35)] backdrop-blur">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="flex items-center gap-2 text-base font-semibold text-white/95">
-                    <span className="h-2 w-2 rounded-full bg-cyan-400" />
-                    Enviarme el resumen de hoy
+              {/* Microsoft placeholder */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">Outlook / Microsoft 365</span>
+                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/60">
+                        Próximamente
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-white/60">
+                      Misma lógica: importar como “externos” + conflictos. Lo activamos después de cerrar Google.
+                    </div>
                   </div>
-                  <p className="mt-1 text-sm text-white/65">
-                    Te manda a tu correo los eventos de hoy (personales + del grupo activo).
-                  </p>
-                </div>
 
-                <button
-                  type="button"
-                  onClick={handleSendTodayDigestFromSettings}
-                  disabled={digestSending}
-                  className={[
-                    "mt-1 inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-sm font-semibold transition sm:mt-0",
-                    digestSending
-                      ? "border-white/20 bg-white/10 text-white/60 cursor-default"
-                      : "border-cyan-400/60 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25",
-                  ].join(" ")}
-                >
-                  {digestSending ? "Enviando…" : "Probar"}
-                </button>
+                  <button
+                    type="button"
+                    disabled
+                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/40 cursor-default"
+                  >
+                    Conectar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {connectToast && (
+              <div className="mt-3 rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-[11px]">
+                <div className="font-semibold text-white">{connectToast.title}</div>
+                {connectToast.subtitle && <div className="mt-1 text-white/70">{connectToast.subtitle}</div>}
+              </div>
+            )}
+          </section>
+
+          {/* RESUMEN HOY */}
+          <section className="rounded-3xl border border-white/10 bg-black/35 p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-[11px] font-extrabold tracking-wide text-white/55">
+                  CORREO
+                </div>
+                <div className="mt-1 text-lg font-semibold text-white">Enviarme el resumen de hoy</div>
+                <div className="mt-1 text-xs text-white/60">
+                  Te mando a tu correo los eventos de hoy (personales + del grupo activo).
+                </div>
               </div>
 
-              {digestToast && (
-                <div className="mt-4 rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm">
-                  <div className="font-semibold text-white/95">{digestToast.title}</div>
-                  {digestToast.subtitle && (
-                    <div className="mt-1 text-white/70">{digestToast.subtitle}</div>
-                  )}
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={handleSendTodayDigestFromSettings}
+                disabled={digestSending}
+                className={[
+                  "inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition",
+                  digestSending
+                    ? "border-white/20 bg-white/10 text-white/60 cursor-default"
+                    : "border-cyan-400/60 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25",
+                ].join(" ")}
+              >
+                {digestSending ? "Enviando…" : "Probar resumen de hoy"}
+              </button>
             </div>
 
-            <div className="mt-6 rounded-3xl border border-white/15 bg-black/25 p-6 text-sm text-white/65">
-              Pro tip: este hub hace que SyncPlans se sienta “producto real” y te ordena el roadmap.
-            </div>
+            {digestToast && (
+              <div className="mt-3 rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-[11px]">
+                <div className="font-semibold text-white">{digestToast.title}</div>
+                {digestToast.subtitle && <div className="mt-1 text-white/70">{digestToast.subtitle}</div>}
+              </div>
+            )}
+          </section>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/55">
+            Pro tip: este hub hace que SyncPlans se sienta “producto real” y te ordena el roadmap.
           </div>
         </div>
       </div>
@@ -633,18 +608,18 @@ function Tile({
   return (
     <button
       onClick={onClick}
-      className="group text-left rounded-3xl border border-white/15 bg-white/[0.06] p-6 shadow-[0_16px_55px_rgba(0,0,0,0.35)] backdrop-blur transition hover:bg-white/[0.09]"
+      className="group w-full text-left rounded-2xl border border-white/10 bg-white/5 px-4 py-3 transition hover:bg-white/10"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={["h-2.5 w-2.5 rounded-full", dotClass].join(" ")} />
-            <div className="text-base font-semibold text-white/95">{title}</div>
+            <div className="text-sm font-semibold text-white">{title}</div>
           </div>
-          <div className="mt-2 text-sm leading-5 text-white/65">{desc}</div>
+          <div className="mt-1 text-xs text-white/60">{desc}</div>
         </div>
 
-        <div className="shrink-0 rounded-xl border border-white/15 bg-black/25 px-3 py-2 text-sm font-semibold text-white/80 group-hover:bg-black/35">
+        <div className="shrink-0 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white/75 group-hover:bg-black/40">
           {cta}
         </div>
       </div>
