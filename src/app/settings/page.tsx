@@ -174,9 +174,7 @@ export default function SettingsHubPage() {
 
       const res = await fetch("/api/google/status", {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
       });
 
@@ -369,10 +367,14 @@ export default function SettingsHubPage() {
           rightSlot={<LogoutButton />}
         />
 
-        {/* ✅ Layout tipo Summary: grid balanceado */}
-        <div className="mt-6 grid gap-6 lg:grid-cols-12">
-          {/* Columna izquierda */}
+        {/* ✅ Más aire + más legibilidad */}
+        <div className="mt-7 grid gap-7 lg:grid-cols-12">
+          {/* IZQ */}
           <div className="lg:col-span-7">
+            <div className="mb-3 text-xs font-semibold tracking-wide text-white/55">
+              CONFIGURACIÓN
+            </div>
+
             <div className="grid gap-4">
               <Tile
                 title="Notificaciones"
@@ -414,22 +416,26 @@ export default function SettingsHubPage() {
             </div>
           </div>
 
-          {/* Columna derecha */}
+          {/* DER */}
           <div className="lg:col-span-5">
+            <div className="mb-3 text-xs font-semibold tracking-wide text-white/55">
+              CONECTAR
+            </div>
+
             {/* Conectar */}
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+            <div className="rounded-3xl border border-white/15 bg-white/[0.06] p-6 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs text-white/70">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/30 px-3 py-1 text-xs font-semibold text-white/75">
                     <span className="h-2 w-2 rounded-full bg-indigo-300" />
                     Conectar
                   </div>
-                  <h2 className="mt-3 text-lg font-semibold">
+                  <h2 className="mt-3 text-lg font-semibold text-white/95">
                     Integraciones de calendario
                   </h2>
-                  <p className="mt-1 text-xs text-white/60">
-                    Importa eventos <strong>read-only</strong> desde Google/Outlook
-                    como “externos”. Entran a conflictos, pero no rompen tu calendario.
+                  <p className="mt-1 text-sm leading-5 text-white/65">
+                    Importa eventos <strong>read-only</strong> desde Google/Outlook como
+                    “externos”. Entran a conflictos, pero no rompen tu calendario.
                   </p>
                 </div>
 
@@ -438,41 +444,43 @@ export default function SettingsHubPage() {
                   onClick={refreshGoogleStatus}
                   disabled={googleLoading}
                   className={[
-                    "mt-2 inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition sm:mt-0",
+                    "mt-2 inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-sm font-semibold transition sm:mt-0",
                     googleLoading
                       ? "border-white/20 bg-white/10 text-white/60 cursor-default"
-                      : "border-white/15 bg-black/30 text-white/80 hover:bg-black/40",
+                      : "border-white/20 bg-black/30 text-white/85 hover:bg-black/40",
                   ].join(" ")}
                 >
-                  {googleLoading ? "Actualizando…" : "Actualizar estado"}
+                  {googleLoading ? "Actualizando…" : "Actualizar"}
                 </button>
               </div>
 
-              <div className="mt-4 grid gap-3">
+              <div className="mt-5 grid gap-3">
                 {/* Google */}
-                <div className="rounded-2xl border border-white/10 bg-black/35 p-4">
+                <div className="rounded-2xl border border-white/15 bg-black/30 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold">Google Calendar</span>
+                        <span className="text-base font-semibold text-white/95">
+                          Google Calendar
+                        </span>
                         <span
                           className={[
-                            "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                            "rounded-full border px-2 py-0.5 text-xs font-semibold",
                             googleConnected
                               ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
-                              : "border-white/15 bg-white/5 text-white/70",
+                              : "border-white/20 bg-white/5 text-white/70",
                           ].join(" ")}
                         >
                           {googleConnected ? "Conectado" : "No conectado"}
                         </span>
                       </div>
 
-                      <div className="mt-1 text-xs text-white/60">
+                      <div className="mt-1 text-sm text-white/65">
                         {googleConnected ? (
                           <>
                             Cuenta:{" "}
-                            <span className="text-white/80">{googleEmail || "—"}</span>
-                            <span className="text-white/40"> · Import read-only</span>
+                            <span className="text-white/85">{googleEmail || "—"}</span>
+                            <span className="text-white/40"> · Read-only</span>
                           </>
                         ) : (
                           "Conecta tu Google para importar tus eventos como externos."
@@ -480,7 +488,7 @@ export default function SettingsHubPage() {
                       </div>
 
                       {!googleConnected && google?.error && (
-                        <div className="mt-2 text-[11px] text-rose-200/90">
+                        <div className="mt-2 text-sm text-rose-200/90">
                           {google.error}
                         </div>
                       )}
@@ -490,9 +498,9 @@ export default function SettingsHubPage() {
                       <button
                         type="button"
                         onClick={handleGoogleConnect}
-                        className="rounded-2xl border border-cyan-400/50 bg-cyan-500/15 px-4 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/25"
+                        className="rounded-2xl border border-cyan-400/55 bg-cyan-500/15 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/25"
                       >
-                        {googleConnected ? "Reconectar" : "Conectar Google"}
+                        {googleConnected ? "Reconectar" : "Conectar"}
                       </button>
 
                       <button
@@ -500,9 +508,9 @@ export default function SettingsHubPage() {
                         onClick={handleGoogleSyncNow}
                         disabled={!googleConnected || googleSyncing}
                         className={[
-                          "rounded-2xl border px-4 py-2 text-xs font-semibold transition",
+                          "rounded-2xl border px-4 py-2 text-sm font-semibold transition",
                           !googleConnected
-                            ? "border-white/10 bg-white/5 text-white/40 cursor-default"
+                            ? "border-white/15 bg-white/5 text-white/45 cursor-default"
                             : googleSyncing
                             ? "border-white/20 bg-white/10 text-white/60 cursor-default"
                             : "border-emerald-400/45 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20",
@@ -513,39 +521,37 @@ export default function SettingsHubPage() {
                             : "Importa eventos Google a SyncPlans (externos)."
                         }
                       >
-                        {googleSyncing ? "Importando…" : "Importar ahora"}
+                        {googleSyncing ? "Importando…" : "Importar"}
                       </button>
                     </div>
                   </div>
 
-                  <div className="mt-3 text-[11px] text-white/50">
-                    Tip: si no ves eventos, revisa el rango: Sync trae 30 días atrás y
-                    120 días adelante.
+                  <div className="mt-3 text-xs text-white/55">
+                    Tip: Sync trae 30 días atrás y 120 días adelante.
                   </div>
                 </div>
 
-                {/* Microsoft placeholder */}
-                <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+                {/* Microsoft */}
+                <div className="rounded-2xl border border-white/15 bg-black/20 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold">
+                        <span className="text-base font-semibold text-white/90">
                           Outlook / Microsoft 365
                         </span>
-                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/60">
+                        <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-xs font-semibold text-white/65">
                           Próximamente
                         </span>
                       </div>
-                      <div className="mt-1 text-xs text-white/60">
-                        Misma lógica: importar como “externos” + conflictos. Lo activamos
-                        después de cerrar Google.
+                      <div className="mt-1 text-sm text-white/65">
+                        Misma lógica: importar como “externos” + conflictos. Lo activamos después.
                       </div>
                     </div>
 
                     <button
                       type="button"
                       disabled
-                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/40 cursor-default"
+                      className="rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/40 cursor-default"
                     >
                       Conectar
                     </button>
@@ -554,8 +560,8 @@ export default function SettingsHubPage() {
               </div>
 
               {connectToast && (
-                <div className="mt-3 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-[11px]">
-                  <div className="font-semibold text-white">{connectToast.title}</div>
+                <div className="mt-4 rounded-2xl border border-white/15 bg-black/35 px-4 py-3 text-sm">
+                  <div className="font-semibold text-white/95">{connectToast.title}</div>
                   {connectToast.subtitle && (
                     <div className="mt-1 text-white/70">{connectToast.subtitle}</div>
                   )}
@@ -563,15 +569,15 @@ export default function SettingsHubPage() {
               )}
             </div>
 
-            {/* Resumen diario manual */}
-            <div className="mt-6 rounded-3xl border border-white/10 bg-black/40 p-6 text-xs text-white/80">
+            {/* Resumen diario */}
+            <div className="mt-6 rounded-3xl border border-white/15 bg-black/35 p-6 shadow-[0_18px_60px_rgba(0,0,0,0.35)] backdrop-blur">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <div className="flex items-center gap-2 text-sm font-semibold">
+                  <div className="flex items-center gap-2 text-base font-semibold text-white/95">
                     <span className="h-2 w-2 rounded-full bg-cyan-400" />
                     Enviarme el resumen de hoy
                   </div>
-                  <p className="mt-1 text-[11px] text-white/60">
+                  <p className="mt-1 text-sm text-white/65">
                     Te manda a tu correo los eventos de hoy (personales + del grupo activo).
                   </p>
                 </div>
@@ -581,19 +587,19 @@ export default function SettingsHubPage() {
                   onClick={handleSendTodayDigestFromSettings}
                   disabled={digestSending}
                   className={[
-                    "mt-1 inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition sm:mt-0",
+                    "mt-1 inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-sm font-semibold transition sm:mt-0",
                     digestSending
                       ? "border-white/20 bg-white/10 text-white/60 cursor-default"
                       : "border-cyan-400/60 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25",
                   ].join(" ")}
                 >
-                  {digestSending ? "Enviando resumen…" : "Probar resumen de hoy"}
+                  {digestSending ? "Enviando…" : "Probar"}
                 </button>
               </div>
 
               {digestToast && (
-                <div className="mt-3 rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-[11px]">
-                  <div className="font-semibold text-white">{digestToast.title}</div>
+                <div className="mt-4 rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm">
+                  <div className="font-semibold text-white/95">{digestToast.title}</div>
                   {digestToast.subtitle && (
                     <div className="mt-1 text-white/70">{digestToast.subtitle}</div>
                   )}
@@ -601,7 +607,7 @@ export default function SettingsHubPage() {
               )}
             </div>
 
-            <div className="mt-6 rounded-3xl border border-white/10 bg-black/30 p-6 text-xs text-white/60">
+            <div className="mt-6 rounded-3xl border border-white/15 bg-black/25 p-6 text-sm text-white/65">
               Pro tip: este hub hace que SyncPlans se sienta “producto real” y te ordena el roadmap.
             </div>
           </div>
@@ -627,18 +633,18 @@ function Tile({
   return (
     <button
       onClick={onClick}
-      className="group text-left rounded-3xl border border-white/10 bg-white/5 p-6 transition hover:bg-white/10"
+      className="group text-left rounded-3xl border border-white/15 bg-white/[0.06] p-6 shadow-[0_16px_55px_rgba(0,0,0,0.35)] backdrop-blur transition hover:bg-white/[0.09]"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={["h-2.5 w-2.5 rounded-full", dotClass].join(" ")} />
-            <div className="text-sm font-semibold">{title}</div>
+            <div className="text-base font-semibold text-white/95">{title}</div>
           </div>
-          <div className="mt-2 text-xs text-white/60">{desc}</div>
+          <div className="mt-2 text-sm leading-5 text-white/65">{desc}</div>
         </div>
 
-        <div className="shrink-0 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white/70 group-hover:bg-black/40">
+        <div className="shrink-0 rounded-xl border border-white/15 bg-black/25 px-3 py-2 text-sm font-semibold text-white/80 group-hover:bg-black/35">
           {cta}
         </div>
       </div>
