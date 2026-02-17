@@ -1,7 +1,7 @@
 // src/app/settings/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
@@ -47,6 +47,8 @@ function labelForGroup(row: DbEventRow): string {
   return "Grupo";
 }
 
+type UiToast = { title: string; subtitle?: string } | null;
+
 type GoogleStatus = {
   ok: boolean;
   connected: boolean;
@@ -66,44 +68,57 @@ async function getAccessTokenOrNull(): Promise<string | null> {
 
 export default function SettingsHubPage() {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
+
+  const [booting, setBooting] = useState(true);
+  const [toast, setToast] = useState<UiToast>(null);
+
   const [s, setS] = useState<NotificationSettings | null>(null);
 
-  // Resumen diario manual
+  // digest manual
   const [digestSending, setDigestSending] = useState(false);
-  const [digestToast, setDigestToast] = useState<{ title: string; subtitle?: string } | null>(null);
 
-  // Integraciones
+  // google status
   const [googleLoading, setGoogleLoading] = useState(false);
   const [google, setGoogle] = useState<GoogleStatus | null>(null);
   const [googleSyncing, setGoogleSyncing] = useState(false);
-  const [connectToast, setConnectToast] = useState<{ title: string; subtitle?: string } | null>(null);
+
+  const showToast = useCallback((title: string, subtitle?: string) => {
+    setToast({ title, subtitle });
+    window.setTimeout(() => setToast(null), 3200);
+  }, []);
 
   useEffect(() => {
     let alive = true;
 
     (async () => {
-      const u = getUser();
-      if (!u) {
-        router.push("/auth/login?next=/settings");
-        return;
-      }
-
       try {
-        const db = await getSettingsFromDb();
-        if (!alive) return;
-        setS(db);
-      } catch {
-        // ok
+        setBooting(true);
+
+        const u = getUser();
+        if (!u) {
+          router.push("/auth/login?next=/settings");
+          return;
+        }
+
+        try {
+          const db = await getSettingsFromDb();
+          if (alive) setS(db);
+        } catch {
+          // ok
+        }
+
+        // refrescar google status al entrar
+        await refreshGoogleStatus();
       } finally {
-        if (alive) setReady(true);
+        if (alive) setBooting(false);
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const notifScore = useMemo(() => {
     if (!s) return null;
@@ -119,17 +134,8 @@ export default function SettingsHubPage() {
     return { on, total: toggles.length, quiet: s.quietHoursEnabled };
   }, [s]);
 
-  useEffect(() => {
-    if (!digestToast) return;
-    const t = setTimeout(() => setDigestToast(null), 3600);
-    return () => clearTimeout(t);
-  }, [digestToast]);
-
-  useEffect(() => {
-    if (!connectToast) return;
-    const t = setTimeout(() => setConnectToast(null), 4200);
-    return () => clearTimeout(t);
-  }, [connectToast]);
+  const googleConnected = !!google?.connected;
+  const googleEmail = google?.account?.email ?? null;
 
   async function refreshGoogleStatus() {
     try {
@@ -178,11 +184,6 @@ export default function SettingsHubPage() {
     }
   }
 
-  useEffect(() => {
-    refreshGoogleStatus().catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   function handleGoogleConnect() {
     window.location.href = "/api/google/connect";
   }
@@ -190,6 +191,7 @@ export default function SettingsHubPage() {
   async function handleGoogleSyncNow() {
     try {
       setGoogleSyncing(true);
+      showToast("Sincronizando…", "Importando desde Google Calendar");
 
       const res = await fetch("/api/google/sync", {
         method: "POST",
@@ -199,25 +201,20 @@ export default function SettingsHubPage() {
       const json = await res.json().catch(() => ({} as any));
 
       if (!res.ok || !json.ok) {
-        setConnectToast({
-          title: "No se pudo importar desde Google",
-          subtitle: json?.error || "Intenta de nuevo. Si persiste, desconecta y vuelve a conectar.",
-        });
+        showToast(
+          "No se pudo importar desde Google",
+          json?.error || "Intenta de nuevo. Si persiste, reconecta Google."
+        );
         return;
       }
 
-      setConnectToast({
-        title: "Importación lista ✅",
-        subtitle: `Trajimos ${json?.imported ?? 0} evento(s). Ya entran a conflictos.`,
-      });
+      const imported = Number(json?.imported ?? 0);
+      showToast("Importación lista ✅", `Importados/actualizados: ${imported}`);
 
       refreshGoogleStatus().catch(() => {});
     } catch (e: any) {
       console.error("[SettingsHub] google sync exception", e);
-      setConnectToast({
-        title: "No se pudo importar desde Google",
-        subtitle: "Intenta de nuevo en unos segundos.",
-      });
+      showToast("No se pudo importar desde Google", "Intenta de nuevo en unos segundos.");
     } finally {
       setGoogleSyncing(false);
     }
@@ -234,7 +231,7 @@ export default function SettingsHubPage() {
         (u as any)?.user_metadata?.preferred_email;
 
       if (!email) {
-        setDigestToast({ title: "No encontramos tu correo", subtitle: "Revisa tu sesión o tu perfil." });
+        showToast("No encontramos tu correo", "Revisa tu sesión o tu perfil.");
         return;
       }
 
@@ -268,7 +265,7 @@ export default function SettingsHubPage() {
       });
 
       if (!filtered.length) {
-        setDigestToast({ title: "Hoy no tienes eventos 🙌", subtitle: "Cuando tengas algo agendado, te mando el resumen." });
+        showToast("Hoy no tienes eventos 🙌", "Cuando tengas algo agendado, te mando el resumen.");
         return;
       }
 
@@ -284,297 +281,520 @@ export default function SettingsHubPage() {
       const res = await fetch("/api/daily-digest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: email, date: dateLabel, events: eventsPayload }),
+        body: JSON.stringify({
+          to: email,
+          date: dateLabel,
+          events: eventsPayload,
+        }),
       });
 
       const json = await res.json().catch(() => ({} as any));
-      if (!res.ok || !json.ok) throw new Error(json?.message || "Error enviando el correo");
 
-      setDigestToast({
-        title: "Te envié un resumen de hoy a tu correo ✉️",
-        subtitle: "Si no lo ves, revisa Promociones o Spam.",
-      });
+      if (!res.ok || !json.ok) {
+        throw new Error(json?.message || "Error enviando el correo");
+      }
+
+      showToast("Te envié un resumen de hoy ✉️", "Si no lo ves, revisa Promociones o Spam.");
     } catch (err: any) {
       console.error("[SettingsHub] daily digest error", err);
-      setDigestToast({ title: "No se pudo enviar el resumen", subtitle: "Inténtalo de nuevo en unos segundos." });
+      showToast("No se pudo enviar el resumen", "Inténtalo de nuevo en unos segundos.");
     } finally {
       setDigestSending(false);
     }
   }
 
-  if (!ready) return null;
-
-  const googleConnected = !!google?.connected;
-  const googleEmail = google?.account?.email ?? null;
+  const title = "Settings";
 
   return (
-    <main className="min-h-screen bg-[#050816] text-white">
-      {/* ✅ MISMO PATRÓN QUE SUMMARY: ancho grande + stack centrado */}
-      <div className="mx-auto max-w-5xl px-4 py-6">
-        <PremiumHeader
-          title="Settings"
-          subtitle="Notificaciones, permisos por grupo y conexiones de calendario."
-          rightSlot={<LogoutButton />}
-        />
-
-        {/* ✅ MISMO: contenido en columna centrada */}
-        <div className="mx-auto mt-6 max-w-3xl space-y-5">
-          {/* Card: Configuración */}
-          <div className="rounded-3xl border border-white/10 bg-black/35 p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-[11px] font-extrabold tracking-wide text-white/55">CONFIGURACIÓN</div>
-                <div className="mt-1 text-xl font-semibold text-white">Ajustes de tu experiencia</div>
-                <div className="mt-1 text-xs text-white/60">
-                  {notifScore
-                    ? `${notifScore.on}/${notifScore.total} notificaciones activas · ${
-                        notifScore.quiet ? "Silencioso ON" : "Silencioso OFF"
-                      }`
-                    : "Controla notificaciones, permisos por grupo y conflictos."}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => router.push("/calendar")}
-                className="hidden sm:inline-flex rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/80 hover:bg-white/10"
-              >
-                Volver
-              </button>
-            </div>
-
-            <div className="mt-5 grid gap-3">
-              <RowTile
-                title="Notificaciones"
-                desc="Recordatorios, resúmenes y modo silencioso."
-                cta="Abrir"
-                onClick={() => router.push("/settings/notifications")}
-                dotClass="bg-cyan-400"
-              />
-              <RowTile
-                title="Permisos por grupo"
-                desc="Personal / Pareja / Familia: cómo se comporta SyncPlans."
-                cta="Configurar"
-                onClick={() => router.push("/settings/groups")}
-                dotClass="bg-amber-300"
-              />
-              <RowTile
-                title="Preferencias de conflictos"
-                desc="Avisos, defaults y reglas de coordinación."
-                cta="Ajustar"
-                onClick={() => router.push("/settings/conflicts")}
-                dotClass="bg-rose-400"
-              />
-              <RowTile
-                title="Resumen semanal"
-                desc="Mantén tu valor semanal ON/OFF."
-                cta="Ver"
-                onClick={() => router.push("/settings/notifications")}
-                dotClass="bg-emerald-400"
-              />
-            </div>
-          </div>
-
-          {/* Card: Conectar */}
-          <div className="rounded-3xl border border-white/10 bg-black/35 p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="text-[11px] font-extrabold tracking-wide text-white/55">CONECTAR</div>
-                <div className="mt-1 text-xl font-semibold text-white">Integraciones de calendario</div>
-                <div className="mt-1 text-xs text-white/60">
-                  Importa eventos <b>read-only</b> desde Google/Outlook como “externos”.
-                  Entran a conflictos, pero no rompen tu calendario.
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={refreshGoogleStatus}
-                disabled={googleLoading}
-                className={[
-                  "inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition",
-                  googleLoading
-                    ? "border-white/20 bg-white/10 text-white/60 cursor-default"
-                    : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10",
-                ].join(" ")}
-              >
-                {googleLoading ? "Actualizando…" : "Actualizar estado"}
-              </button>
-            </div>
-
-            <div className="mt-5 grid gap-3">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">Google Calendar</span>
-                      <span
-                        className={[
-                          "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                          googleConnected
-                            ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
-                            : "border-white/15 bg-white/5 text-white/70",
-                        ].join(" ")}
-                      >
-                        {googleConnected ? "Conectado" : "No conectado"}
-                      </span>
-                    </div>
-
-                    <div className="mt-1 text-xs text-white/60">
-                      {googleConnected ? (
-                        <>
-                          Cuenta: <span className="text-white/85">{googleEmail || "—"}</span>
-                          <span className="text-white/40"> · Read-only import</span>
-                        </>
-                      ) : (
-                        "Conecta tu Google para importar tus eventos como externos."
-                      )}
-                    </div>
-
-                    {!googleConnected && google?.error && (
-                      <div className="mt-2 text-[11px] text-rose-200/90">{google.error}</div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={handleGoogleConnect}
-                      className="rounded-2xl border border-cyan-400/50 bg-cyan-500/15 px-4 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/25"
-                    >
-                      {googleConnected ? "Reconectar" : "Conectar"}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleGoogleSyncNow}
-                      disabled={!googleConnected || googleSyncing}
-                      className={[
-                        "rounded-2xl border px-4 py-2 text-xs font-semibold transition",
-                        !googleConnected
-                          ? "border-white/10 bg-white/5 text-white/40 cursor-default"
-                          : googleSyncing
-                            ? "border-white/20 bg-white/10 text-white/60 cursor-default"
-                            : "border-emerald-400/45 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20",
-                      ].join(" ")}
-                    >
-                      {googleSyncing ? "Importando…" : "Importar ahora"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-3 text-[11px] text-white/45">
-                  Tip: si no ves eventos, revisa el rango: Sync trae 30 días atrás y 120 días adelante.
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">Outlook / Microsoft 365</span>
-                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/60">
-                        Próximamente
-                      </span>
-                    </div>
-                    <div className="mt-1 text-xs text-white/60">
-                      Misma lógica: importar como “externos” + conflictos. Lo activamos después de cerrar Google.
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled
-                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/40 cursor-default"
-                  >
-                    Conectar
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {connectToast && (
-              <div className="mt-3 rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-[11px]">
-                <div className="font-semibold text-white">{connectToast.title}</div>
-                {connectToast.subtitle && <div className="mt-1 text-white/70">{connectToast.subtitle}</div>}
-              </div>
-            )}
-          </div>
-
-          {/* Card: correo */}
-          <div className="rounded-3xl border border-white/10 bg-black/35 p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="text-[11px] font-extrabold tracking-wide text-white/55">CORREO</div>
-                <div className="mt-1 text-xl font-semibold text-white">Enviarme el resumen de hoy</div>
-                <div className="mt-1 text-xs text-white/60">
-                  Te mando a tu correo los eventos de hoy (personales + del grupo activo).
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleSendTodayDigestFromSettings}
-                disabled={digestSending}
-                className={[
-                  "inline-flex items-center justify-center rounded-2xl border px-4 py-2 text-xs font-semibold transition",
-                  digestSending
-                    ? "border-white/20 bg-white/10 text-white/60 cursor-default"
-                    : "border-cyan-400/60 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25",
-                ].join(" ")}
-              >
-                {digestSending ? "Enviando…" : "Probar resumen de hoy"}
-              </button>
-            </div>
-
-            {digestToast && (
-              <div className="mt-3 rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-[11px]">
-                <div className="font-semibold text-white">{digestToast.title}</div>
-                {digestToast.subtitle && <div className="mt-1 text-white/70">{digestToast.subtitle}</div>}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/55">
-            Pro tip: este hub hace que SyncPlans se sienta “producto real” y te ordena el roadmap.
+    <main style={styles.page}>
+      {toast && (
+        <div style={styles.toastWrap}>
+          <div style={styles.toastCard}>
+            <div style={styles.toastTitle}>{toast.title}</div>
+            {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
           </div>
         </div>
+      )}
+
+      <div style={styles.shell}>
+        <div style={styles.topRow}>
+          <PremiumHeader />
+          <div style={styles.topActions}>
+            <LogoutButton />
+          </div>
+        </div>
+
+        <section style={styles.hero}>
+          <div>
+            <div style={styles.kicker}>Panel</div>
+            <h1 style={styles.h1}>{title}</h1>
+            <div style={styles.sub}>
+              Notificaciones, permisos por grupo y conexiones de calendario.
+            </div>
+
+            {notifScore ? (
+              <div style={styles.heroMeta}>
+                <span style={styles.pillSoft}>
+                  {notifScore.on}/{notifScore.total} activas
+                </span>
+                <span style={styles.pillSoft}>
+                  {notifScore.quiet ? "Silencioso ON" : "Silencioso OFF"}
+                </span>
+              </div>
+            ) : null}
+          </div>
+
+          <div style={styles.heroBtns}>
+            <button onClick={() => router.push("/calendar")} style={styles.ghostBtn}>
+              Volver al calendario →
+            </button>
+            <button onClick={() => router.push("/profile")} style={styles.ghostBtn}>
+              Ir a perfil →
+            </button>
+          </div>
+        </section>
+
+        {/* CONFIG */}
+        <section style={styles.card}>
+          <div style={styles.sectionTitle}>Ajustes de tu experiencia</div>
+          <div style={styles.smallNote}>
+            Configura cómo se comporta SyncPlans para ti.
+          </div>
+
+          <div style={styles.list}>
+            <Row
+              dot="rgba(56,189,248,0.95)"
+              title="Notificaciones"
+              desc="Recordatorios, resúmenes y modo silencioso."
+              cta="Abrir"
+              onClick={() => router.push("/settings/notifications")}
+            />
+            <Row
+              dot="rgba(251,191,36,0.95)"
+              title="Permisos por grupo"
+              desc="Personal / Pareja / Familia: cómo se comporta tu experiencia."
+              cta="Configurar"
+              onClick={() => router.push("/settings/groups")}
+            />
+            <Row
+              dot="rgba(244,63,94,0.95)"
+              title="Preferencias de conflictos"
+              desc="Avisos, defaults y reglas de coordinación."
+              cta="Ajustar"
+              onClick={() => router.push("/settings/conflicts")}
+            />
+            <Row
+              dot="rgba(34,197,94,0.95)"
+              title="Resumen semanal"
+              desc="Mantén tu valor semanal ON/OFF."
+              cta="Ver"
+              onClick={() => router.push("/settings/notifications")}
+            />
+          </div>
+        </section>
+
+        {/* CONNECT */}
+        <section style={styles.card}>
+          <div style={styles.sectionTitleRow}>
+            <div>
+              <div style={styles.sectionTitle}>Integraciones de calendario</div>
+              <div style={styles.smallNote}>
+                Importa eventos <b>read-only</b> como “externos”. Entran a conflictos, no rompen tu calendario.
+              </div>
+            </div>
+
+            <button
+              onClick={refreshGoogleStatus}
+              style={styles.secondaryBtn}
+              disabled={googleLoading || googleSyncing}
+              title="Revisar estado de conexión"
+            >
+              {googleLoading ? "Actualizando…" : "Actualizar estado"}
+            </button>
+          </div>
+
+          {/* Google card */}
+          <div style={styles.innerCard}>
+            <div style={styles.innerTop}>
+              <div style={styles.innerLeft}>
+                <div style={styles.innerTitleRow}>
+                  <div style={styles.appIcon}>G</div>
+                  <div>
+                    <div style={styles.innerTitle}>Google Calendar</div>
+                    <div style={styles.innerSub}>
+                      {googleConnected
+                        ? `Cuenta: ${googleEmail || "—"} · Read-only import`
+                        : "Conecta tu Google para importar eventos como externos."}
+                    </div>
+                  </div>
+                </div>
+
+                {!googleConnected && google?.error ? (
+                  <div style={styles.errorBox}>{google.error}</div>
+                ) : null}
+              </div>
+
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <span
+                  style={{
+                    ...styles.pill,
+                    ...(googleConnected ? styles.pillOk : styles.pillMuted),
+                  }}
+                >
+                  {googleConnected ? "Conectado ✅" : "No conectado"}
+                </span>
+
+                <button onClick={handleGoogleConnect} style={styles.primaryBtn}>
+                  {googleConnected ? "Reconectar" : "Conectar"}
+                </button>
+
+                <button
+                  onClick={handleGoogleSyncNow}
+                  style={{
+                    ...styles.secondaryBtn,
+                    opacity: !googleConnected ? 0.45 : 1,
+                    cursor: !googleConnected ? "not-allowed" : googleSyncing ? "progress" : "pointer",
+                  }}
+                  disabled={!googleConnected || googleSyncing}
+                  title={!googleConnected ? "Conecta Google para importar." : "Importar eventos desde Google"}
+                >
+                  {googleSyncing ? "Importando…" : "Importar ahora"}
+                </button>
+              </div>
+            </div>
+
+            <div style={styles.note}>
+              <b>Tip:</b> Sync trae 30 días atrás y 120 días adelante.
+            </div>
+          </div>
+
+          {/* Microsoft card (placeholder) */}
+          <div style={{ ...styles.innerCard, opacity: 0.9 }}>
+            <div style={styles.innerTop}>
+              <div style={styles.innerTitleRow}>
+                <div style={{ ...styles.appIcon, border: "1px solid rgba(148,163,184,0.35)", background: "rgba(148,163,184,0.10)" }}>
+                  O
+                </div>
+                <div>
+                  <div style={styles.innerTitle}>Outlook / Microsoft 365</div>
+                  <div style={styles.innerSub}>Próximamente. Lo activamos después de cerrar Google.</div>
+                </div>
+              </div>
+
+              <span style={{ ...styles.pill, ...styles.pillSoftMuted }}>Próximamente</span>
+            </div>
+          </div>
+        </section>
+
+        {/* EMAIL */}
+        <section style={styles.card}>
+          <div style={styles.sectionTitleRow}>
+            <div>
+              <div style={styles.sectionTitle}>Enviarme el resumen de hoy</div>
+              <div style={styles.smallNote}>
+                Te mando a tu correo los eventos de hoy (personales + del grupo activo).
+              </div>
+            </div>
+
+            <button
+              onClick={handleSendTodayDigestFromSettings}
+              style={styles.primaryBtn}
+              disabled={digestSending}
+              title="Enviar resumen de hoy"
+            >
+              {digestSending ? "Enviando…" : "Probar resumen de hoy"}
+            </button>
+          </div>
+
+          <div style={styles.note}>
+            <b>Pro tip:</b> Esto te deja ver el valor “real” del producto sin depender del calendario.
+          </div>
+        </section>
+
+        {booting ? (
+          <div style={styles.loadingCard}>
+            <div style={styles.loadingDot} />
+            <div>
+              <div style={styles.loadingTitle}>Cargando settings…</div>
+              <div style={styles.loadingSub}>Preferencias + conectores</div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </main>
   );
 }
 
-function RowTile({
+function Row({
+  dot,
   title,
   desc,
   cta,
   onClick,
-  dotClass,
 }: {
+  dot: string;
   title: string;
   desc: string;
   cta: string;
   onClick: () => void;
-  dotClass: string;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className="group w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-left transition hover:bg-white/10"
-    >
-      <div className="flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={["h-2.5 w-2.5 rounded-full", dotClass].join(" ")} />
-            <div className="text-sm font-semibold text-white">{title}</div>
-          </div>
-          <div className="mt-1 text-xs text-white/65">{desc}</div>
+    <button onClick={onClick} style={styles.rowBtn}>
+      <div style={styles.rowLeft}>
+        <div style={styles.rowTitleLine}>
+          <span style={{ ...styles.dot, background: dot }} />
+          <div style={styles.rowTitle}>{title}</div>
         </div>
-
-        <div className="shrink-0 rounded-xl border border-white/10 bg-black/30 px-4 py-2 text-xs font-semibold text-white/80 group-hover:bg-black/40">
-          {cta}
-        </div>
+        <div style={styles.rowDesc}>{desc}</div>
       </div>
+
+      <div style={styles.rowCta}>{cta}</div>
     </button>
   );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    background:
+      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
+    color: "rgba(255,255,255,0.92)",
+  },
+  shell: {
+    maxWidth: 980,
+    margin: "0 auto",
+    padding: "22px 18px 48px",
+  },
+
+  toastWrap: {
+    position: "fixed",
+    top: 18,
+    right: 18,
+    zIndex: 50,
+    pointerEvents: "none",
+  },
+  toastCard: {
+    pointerEvents: "auto",
+    minWidth: 260,
+    maxWidth: 420,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(7,11,22,0.72)",
+    boxShadow: "0 24px 70px rgba(0,0,0,0.45)",
+    backdropFilter: "blur(14px)",
+    padding: "12px 14px",
+  },
+  toastTitle: { fontWeight: 900, fontSize: 13 },
+  toastSub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 },
+
+  topRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    marginBottom: 14,
+    flexWrap: "wrap",
+  },
+  topActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
+
+  hero: {
+    padding: "18px 16px",
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
+    marginBottom: 12,
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  kicker: {
+    alignSelf: "flex-start",
+    fontSize: 11,
+    letterSpacing: "0.10em",
+    textTransform: "uppercase",
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    opacity: 0.9,
+    fontWeight: 900,
+  },
+  h1: { margin: "10px 0 0", fontSize: 26, letterSpacing: "-0.6px" },
+  sub: { marginTop: 8, fontSize: 13, opacity: 0.75, maxWidth: 720 },
+  heroBtns: { display: "flex", gap: 10, flexWrap: "wrap" },
+  heroMeta: { marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" },
+
+  card: {
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: 14,
+    marginTop: 12,
+  },
+  sectionTitleRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  sectionTitle: { fontWeight: 950, fontSize: 14 },
+  smallNote: { marginTop: 6, fontSize: 12, opacity: 0.72, maxWidth: 760 },
+
+  list: { marginTop: 10, display: "flex", flexDirection: "column", gap: 10 },
+
+  rowBtn: {
+    width: "100%",
+    textAlign: "left",
+    cursor: "pointer",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(6,10,20,0.55)",
+    padding: "12px 14px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  rowLeft: { minWidth: 0, display: "flex", flexDirection: "column", gap: 4 },
+  rowTitleLine: { display: "flex", alignItems: "center", gap: 10 },
+  dot: { width: 10, height: 10, borderRadius: 999, boxShadow: "0 0 16px rgba(255,255,255,0.10)" },
+  rowTitle: { fontSize: 13, fontWeight: 950, letterSpacing: "-0.2px" },
+  rowDesc: { fontSize: 12, opacity: 0.75 },
+  rowCta: {
+    flexShrink: 0,
+    fontSize: 12,
+    fontWeight: 900,
+    padding: "8px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+  },
+
+  innerCard: {
+    marginTop: 12,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    padding: 14,
+  },
+  innerTop: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  innerLeft: { minWidth: 0, flex: 1 },
+  innerTitleRow: { display: "flex", gap: 12, alignItems: "center" },
+  appIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    border: "1px solid rgba(56,189,248,0.35)",
+    background: "rgba(56,189,248,0.12)",
+    color: "#E0F2FE",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 950,
+  },
+  innerTitle: { fontSize: 14, fontWeight: 950 },
+  innerSub: { marginTop: 4, fontSize: 12, fontWeight: 650, opacity: 0.75, maxWidth: 720 },
+
+  pill: {
+    fontSize: 10,
+    fontWeight: 900,
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    whiteSpace: "nowrap",
+  },
+  pillOk: { background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.25)" },
+  pillMuted: { background: "rgba(255,255,255,0.06)" },
+  pillSoftMuted: {
+    background: "rgba(148,163,184,0.08)",
+    border: "1px solid rgba(148,163,184,0.25)",
+    opacity: 0.9,
+  },
+  pillSoft: {
+    fontSize: 10,
+    fontWeight: 900,
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.35)",
+    background: "rgba(148,163,184,0.08)",
+    opacity: 0.9,
+    whiteSpace: "nowrap",
+  },
+
+  primaryBtn: {
+    padding: "12px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+  secondaryBtn: {
+    padding: "12px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+  ghostBtn: {
+    padding: "12px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+
+  errorBox: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 14,
+    border: "1px dashed rgba(248,113,113,0.28)",
+    background: "rgba(248,113,113,0.08)",
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
+    fontWeight: 650,
+  },
+
+  note: {
+    marginTop: 10,
+    fontSize: 12,
+    opacity: 0.78,
+    fontWeight: 650,
+    lineHeight: 1.4,
+  },
+
+  loadingCard: {
+    marginTop: 12,
+    display: "flex",
+    gap: 12,
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+  },
+  loadingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 24px rgba(56,189,248,0.55)",
+  },
+  loadingTitle: { fontWeight: 900 },
+  loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
+};
