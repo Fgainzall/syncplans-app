@@ -6,22 +6,6 @@ export const metadata: Metadata = {
   title: "SyncPlans",
   description:
     "El calendario que evita discusiones innecesarias cuando compartes tu tiempo.",
-
-  manifest: "/manifest.webmanifest",
-
-  icons: {
-    icon: [
-      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
-    ],
-    apple: [{ url: "/icons/apple-touch-icon.png" }],
-  },
-
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "SyncPlans",
-  },
 };
 
 export const viewport: Viewport = {
@@ -35,6 +19,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
+      <head>
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <meta name="theme-color" content="#0B0F19" />
+      </head>
       <body>
         <ToastProvider>{children}</ToastProvider>
       </body>
