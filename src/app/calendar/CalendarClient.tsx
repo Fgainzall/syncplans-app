@@ -383,6 +383,21 @@ export default function CalendarClient(props: {
     return () => window.clearTimeout(t);
   }, [appliedToast, pathname, refreshCalendar, router]);
 
+  // ✅ escucha cambio de grupo activo (PremiumHeader) sin recargar toda la página
+useEffect(() => {
+  const handler = async () => {
+    try {
+      const next = await getActiveGroupIdFromDb().catch(() => null);
+      setActiveGroupId(next ? String(next) : null);
+    } catch {
+      // no-op
+    }
+  };
+
+  window.addEventListener("sp:active-group-changed", handler as any);
+  return () =>
+    window.removeEventListener("sp:active-group-changed", handler as any);
+}, []);
   /* Boot inicial */
   useEffect(() => {
     let alive = true;
@@ -619,7 +634,7 @@ export default function CalendarClient(props: {
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-          <PremiumHeader />
+         <PremiumHeader mobileNav="bottom" />
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
