@@ -19,6 +19,7 @@ import {
 } from "@/lib/profilesDb";
 
 import IntegrationsDrawer from "@/components/IntegrationsDrawer";
+import BottomNav from "@/components/BottomNav";
 
 type TabKey = UsageMode | "other";
 
@@ -103,8 +104,6 @@ function normalizeGroupLabel(input?: string | null) {
 
 /**
  * ✅ Hook: detecta "mobile" por ancho (solo cambia UI en pantalla chica)
- * - No toca desktop normal
- * - En iPhone/PWA entra siempre en modo "app"
  */
 function useIsMobileWidth(maxWidth = 520) {
   const [isMobile, setIsMobile] = useState(false);
@@ -116,7 +115,6 @@ function useIsMobileWidth(maxWidth = 520) {
     const apply = () => setIsMobile(!!mq.matches);
 
     apply();
-    // Safari iOS usa addListener en algunos casos antiguos; probamos ambos.
     if (typeof mq.addEventListener === "function") {
       mq.addEventListener("change", apply);
       return () => mq.removeEventListener("change", apply);
@@ -133,14 +131,18 @@ function useIsMobileWidth(maxWidth = 520) {
   return isMobile;
 }
 
+type MobileNavVariant = "top" | "bottom" | "none";
+
 export default function PremiumHeader({
   title,
   subtitle,
   rightSlot,
+  mobileNav = "top", // ✅ por defecto NO cambia nada
 }: {
   title?: string;
   subtitle?: string;
   rightSlot?: React.ReactNode;
+  mobileNav?: MobileNavVariant;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -293,36 +295,22 @@ export default function PremiumHeader({
   }
 
   const onSyncedFromDrawer = useCallback((imported: number) => {
-    // 🔔 Evento global para que Calendar/Summary refresquen sin reload.
     window.dispatchEvent(
       new CustomEvent("sp:google-synced", { detail: { imported } })
     );
   }, []);
 
-  /**
-   * ✅ Overrides SOLO en móvil:
-   * - Evita recorte a la derecha
-   * - Header se apila como app
-   * - Tabs pasan a 2x2
-   * - Navegación: “chips” con wrap pero sin romper ancho
-   */
+  // ✅ Overrides SOLO en móvil
   const M = useMemo(() => {
     if (!isMobile) return null;
 
     return {
-      wrap: {
-        padding: 14,
-        borderRadius: 20,
-      } as React.CSSProperties,
+      wrap: { padding: 14, borderRadius: 20 } as React.CSSProperties,
 
       topRow: {
         flexDirection: "column",
         alignItems: "stretch",
         gap: 10,
-      } as React.CSSProperties,
-
-      left: {
-        minWidth: 0,
       } as React.CSSProperties,
 
       right: {
@@ -332,28 +320,20 @@ export default function PremiumHeader({
         gap: 8,
       } as React.CSSProperties,
 
-      title: {
-        fontSize: 22,
-      } as React.CSSProperties,
+      title: { fontSize: 22 } as React.CSSProperties,
+      subtitle: { fontSize: 12 } as React.CSSProperties,
 
-      subtitle: {
-        fontSize: 12,
-      } as React.CSSProperties,
-
-      // botones más compactos en móvil
       bellBtn: {
         width: 38,
         height: 38,
         borderRadius: 12,
       } as React.CSSProperties,
-
       ghostBtn: {
         height: 38,
         padding: "0 12px",
         borderRadius: 12,
         fontSize: 12,
       } as React.CSSProperties,
-
       iconBtn: {
         height: 38,
         padding: "0 12px",
@@ -362,13 +342,11 @@ export default function PremiumHeader({
       } as React.CSSProperties,
 
       userChip: {
-        maxWidth: 140,
-        padding: "6px 8px",
+        maxWidth: 70,
+        padding: 0,
+        justifyContent: "center",
       } as React.CSSProperties,
-
-      userLabel: {
-        display: "none", // 👈 clave: evita que el nombre corte el header en iPhone
-      } as React.CSSProperties,
+      userLabel: { display: "none" } as React.CSSProperties,
 
       tabsInner: {
         gridTemplateColumns: "repeat(2, 1fr)",
@@ -376,24 +354,11 @@ export default function PremiumHeader({
         padding: 8,
       } as React.CSSProperties,
 
-      tab: {
-        height: 50,
-        padding: "10px 10px",
-      } as React.CSSProperties,
+      tab: { height: 50, padding: "10px 10px" } as React.CSSProperties,
+      tabText: { fontSize: 12 } as React.CSSProperties,
+      tabHint: { fontSize: 10 } as React.CSSProperties,
 
-      tabText: {
-        fontSize: 12,
-      } as React.CSSProperties,
-
-      tabHint: {
-        fontSize: 10,
-      } as React.CSSProperties,
-
-      nav: {
-        gap: 8,
-        marginTop: 10,
-      } as React.CSSProperties,
-
+      nav: { gap: 8, marginTop: 10 } as React.CSSProperties,
       pill: {
         height: 32,
         padding: "0 10px",
@@ -402,7 +367,6 @@ export default function PremiumHeader({
     };
   }, [isMobile]);
 
-  // helper: merge seguro
   function ms<T extends React.CSSProperties>(
     base: T,
     mobile?: React.CSSProperties | null
@@ -410,11 +374,16 @@ export default function PremiumHeader({
     return mobile ? ({ ...base, ...mobile } as T) : base;
   }
 
+  const shouldShowTopNav =
+    !(isMobile && (mobileNav === "bottom" || mobileNav === "none"));
+
+  const shouldShowBottomNav = isMobile && mobileNav === "bottom";
+
   return (
     <>
       <header style={ms(S.wrap, M?.wrap)}>
         <div style={ms(S.topRow, M?.topRow)}>
-          <div style={ms(S.left, M?.left)}>
+          <div style={S.left}>
             <div style={S.kicker}>
               <span style={{ ...S.dot, background: active.dot }} />
               <span style={S.kickerText}>{kickerLabel}</span>
@@ -425,7 +394,6 @@ export default function PremiumHeader({
           </div>
 
           <div style={ms(S.right, M?.right)}>
-            {/* Notificaciones */}
             <div style={S.bellWrap}>
               <button
                 style={ms(S.bellBtn, M?.bellBtn)}
@@ -443,7 +411,6 @@ export default function PremiumHeader({
               )}
             </div>
 
-            {/* Usuario */}
             {headerUser && (
               <button
                 type="button"
@@ -458,7 +425,6 @@ export default function PremiumHeader({
               </button>
             )}
 
-            {/* Conectar */}
             <button
               type="button"
               style={ms(S.ghostBtn, M?.ghostBtn)}
@@ -468,7 +434,6 @@ export default function PremiumHeader({
               Conectar
             </button>
 
-            {/* Slot derecho o botón + Evento */}
             {rightSlot ?? (
               <button style={ms(S.iconBtn, M?.iconBtn)} onClick={onNewEvent}>
                 + Evento
@@ -486,7 +451,10 @@ export default function PremiumHeader({
               return (
                 <button
                   key={t.key}
-                  style={{ ...ms(S.tab, M?.tab), ...(isActive ? S.tabActive : {}) }}
+                  style={{
+                    ...ms(S.tab, M?.tab),
+                    ...(isActive ? S.tabActive : {}),
+                  }}
                   onClick={() => onPickMode(t.key)}
                 >
                   <span style={{ ...S.tabDot, background: t.dot }} />
@@ -498,80 +466,85 @@ export default function PremiumHeader({
           </div>
         </div>
 
-        {/* Navegación */}
-        <nav style={ms(S.nav, M?.nav)}>
-          <NavPill
-            label="Resumen"
-            active={pathname.startsWith("/summary")}
-            onClick={() => router.push("/summary")}
-            styleOverride={ms(S.pill, M?.pill)}
-            styleActive={S.pillActive}
-          />
-          <NavPill
-            label="Calendario"
-            active={pathname === "/calendar"}
-            onClick={() => router.push("/calendar")}
-            styleOverride={ms(S.pill, M?.pill)}
-            styleActive={S.pillActive}
-          />
-          <NavPill
-            label="Eventos"
-            active={pathname.startsWith("/events")}
-            onClick={() => router.push("/events")}
-            styleOverride={ms(S.pill, M?.pill)}
-            styleActive={S.pillActive}
-          />
-          <NavPill
-            label="Conflictos"
-            active={pathname.startsWith("/conflicts")}
-            onClick={() => router.push("/conflicts/detected")}
-            styleOverride={ms(S.pill, M?.pill)}
-            styleActive={S.pillActive}
-          />
-          <NavPill
-            label="Grupos"
-            active={pathname.startsWith("/groups")}
-            onClick={() => router.push("/groups")}
-            styleOverride={ms(S.pill, M?.pill)}
-            styleActive={S.pillActive}
-          />
-          <NavPill
-            label="Miembros"
-            active={pathname.startsWith("/members")}
-            onClick={() => router.push("/members")}
-            styleOverride={ms(S.pill, M?.pill)}
-            styleActive={S.pillActive}
-          />
-          <NavPill
-            label="Invitaciones"
-            active={pathname.startsWith("/invitations")}
-            onClick={() => router.push("/invitations")}
-            styleOverride={ms(S.pill, M?.pill)}
-            styleActive={S.pillActive}
-          />
-          <NavPill
-            label="Panel"
-            active={pathname.startsWith("/profile")}
-            onClick={() => router.push("/profile")}
-            styleOverride={ms(S.pill, M?.pill)}
-            styleActive={S.pillActive}
-          />
-          <NavPill
-            label="Settings"
-            active={pathname.startsWith("/settings")}
-            onClick={() => router.push("/settings")}
-            styleOverride={ms(S.pill, M?.pill)}
-            styleActive={S.pillActive}
-          />
-          <NavPill
-            label="Planes"
-            active={pathname.startsWith("/pricing")}
-            onClick={() => router.push("/pricing")}
-            styleOverride={ms(S.pill, M?.pill)}
-            styleActive={S.pillActive}
-          />
-        </nav>
+        {/* ✅ NAV SUPERIOR (solo si corresponde) */}
+        {shouldShowTopNav && (
+          <nav style={ms(S.nav, M?.nav)}>
+            <NavPill
+              label="Resumen"
+              active={pathname.startsWith("/summary")}
+              onClick={() => router.push("/summary")}
+              styleOverride={ms(S.pill, M?.pill)}
+              styleActive={S.pillActive}
+            />
+            <NavPill
+              label="Calendario"
+              active={pathname === "/calendar"}
+              onClick={() => router.push("/calendar")}
+              styleOverride={ms(S.pill, M?.pill)}
+              styleActive={S.pillActive}
+            />
+            <NavPill
+              label="Eventos"
+              active={pathname.startsWith("/events")}
+              onClick={() => router.push("/events")}
+              styleOverride={ms(S.pill, M?.pill)}
+              styleActive={S.pillActive}
+            />
+            <NavPill
+              label="Conflictos"
+              active={pathname.startsWith("/conflicts")}
+              onClick={() => router.push("/conflicts/detected")}
+              styleOverride={ms(S.pill, M?.pill)}
+              styleActive={S.pillActive}
+            />
+            <NavPill
+              label="Grupos"
+              active={pathname.startsWith("/groups")}
+              onClick={() => router.push("/groups")}
+              styleOverride={ms(S.pill, M?.pill)}
+              styleActive={S.pillActive}
+            />
+            <NavPill
+              label="Miembros"
+              active={pathname.startsWith("/members")}
+              onClick={() => router.push("/members")}
+              styleOverride={ms(S.pill, M?.pill)}
+              styleActive={S.pillActive}
+            />
+            <NavPill
+              label="Invitaciones"
+              active={pathname.startsWith("/invitations")}
+              onClick={() => router.push("/invitations")}
+              styleOverride={ms(S.pill, M?.pill)}
+              styleActive={S.pillActive}
+            />
+            <NavPill
+              label="Panel"
+              active={pathname.startsWith("/profile")}
+              onClick={() => router.push("/profile")}
+              styleOverride={ms(S.pill, M?.pill)}
+              styleActive={S.pillActive}
+            />
+            <NavPill
+              label="Settings"
+              active={pathname.startsWith("/settings")}
+              onClick={() => router.push("/settings")}
+              styleOverride={ms(S.pill, M?.pill)}
+              styleActive={S.pillActive}
+            />
+            <NavPill
+              label="Planes"
+              active={pathname.startsWith("/pricing")}
+              onClick={() => router.push("/pricing")}
+              styleOverride={ms(S.pill, M?.pill)}
+              styleActive={S.pillActive}
+            />
+          </nav>
+        )}
       </header>
+
+      {/* ✅ BOTTOM BAR (solo móvil + cuando mobileNav="bottom") */}
+      {shouldShowBottomNav && <BottomNav />}
 
       <NotificationsDrawer
         open={openNotif}
