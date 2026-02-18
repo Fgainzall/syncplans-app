@@ -10,10 +10,6 @@ import LogoutButton from "@/components/LogoutButton";
 
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
-
-// OJO: no sabemos tu API exacta de eventsDb en este chat.
-// Intentamos usar getMyEvents si existe (es lo más estándar en tu repo).
-// Si tu eventsDb no exporta getMyEvents, en el siguiente mensaje me pegas eventsDb.ts y lo alineo 1:1.
 import { getMyEvents } from "@/lib/eventsDb";
 
 type Props = {
@@ -53,8 +49,37 @@ function humanGroupName(g: GroupRow) {
   return "Grupo";
 }
 
+/** ✅ SOLO para Summary: detecta móvil por ancho (modo app iPhone entra aquí) */
+function useIsMobileWidth(maxWidth = 520) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
+    const apply = () => setIsMobile(!!mq.matches);
+
+    apply();
+
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", apply);
+      return () => mq.removeEventListener("change", apply);
+    } else {
+      // @ts-ignore
+      mq.addListener(apply);
+      return () => {
+        // @ts-ignore
+        mq.removeListener(apply);
+      };
+    }
+  }, [maxWidth]);
+
+  return isMobile;
+}
+
 export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const router = useRouter();
+  const isMobile = useIsMobileWidth(520);
 
   const [booting, setBooting] = useState(true);
   const [toast, setToast] = useState<UiToast>(null);
@@ -81,9 +106,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [activeGroupId, activeGroup]);
 
   const visibleEvents = useMemo(() => {
-    // Heurística flexible (porque tu schema exacto no está en este chat):
-    // - Si hay activeGroupId: mostramos eventos con group_id === activeGroupId
-    // - Si no: mostramos eventos sin group_id (personales)
     const gid = activeGroupId;
 
     return (events ?? [])
@@ -108,14 +130,23 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             "Evento",
         };
       })
-      .filter((e) => e._start) // solo los que tienen start parseable
-      .sort((a, b) => (a._start as Date).getTime() - (b._start as Date).getTime());
+      .filter((e) => e._start)
+      .sort(
+        (a, b) => (a._start as Date).getTime() - (b._start as Date).getTime()
+      );
   }, [events, activeGroupId]);
 
-  const upcoming = useMemo(() => {
+  const upcomingAll = useMemo(() => {
     const now = Date.now();
-    return visibleEvents.filter((e) => (e._start as Date).getTime() >= now).slice(0, 8);
+    return visibleEvents.filter((e) => (e._start as Date).getTime() >= now);
   }, [visibleEvents]);
+
+  // ✅ CLAVE: en móvil mostramos menos para evitar scroll infinito
+  const UPCOMING_LIMIT = isMobile ? 4 : 8;
+
+  const upcoming = useMemo(() => {
+    return upcomingAll.slice(0, UPCOMING_LIMIT);
+  }, [upcomingAll, UPCOMING_LIMIT]);
 
   async function requireSessionOrRedirect() {
     const { data, error } = await supabase.auth.getSession();
@@ -133,11 +164,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       const user = await requireSessionOrRedirect();
       if (!user) return;
 
-      // 1) Cargar grupos (para label + sanity del active group)
       const gs = await getMyGroups();
       setGroups(gs);
 
-      // 2) Leer active group id (DB/local fallback vive en activeGroup.ts)
       const activeId = await getActiveGroupIdFromDb().catch(() => null);
 
       const validActive =
@@ -147,13 +176,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
       setActiveGroupId(validActive);
 
-      // 3) Cargar eventos (tu eventsDb decide qué significa “mis eventos”)
-      // Si tu getMyEvents ya mezcla personales + grupos, perfecto.
-      // Si no, luego lo alineamos en eventsDb.ts (TANDA 3/3).
       const es = await getMyEvents();
       setEvents(Array.isArray(es) ? es : []);
     } catch (e: any) {
-      showToast("No se pudo cargar el resumen", e?.message || "Intenta nuevamente.");
+      showToast(
+        "No se pudo cargar el resumen",
+        e?.message || "Intenta nuevamente."
+      );
     } finally {
       setLoading(false);
     }
@@ -179,60 +208,86 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ FIX CLAVE: si cambia el grupo activo en otra pantalla, Summary se entera y refresca
+  // ✅ escucha cambio de grupo activo sin recargar
   useEffect(() => {
     const handler = () => {
       loadSummary();
     };
     window.addEventListener("sp:active-group-changed", handler as any);
-    return () => window.removeEventListener("sp:active-group-changed", handler as any);
+    return () =>
+      window.removeEventListener("sp:active-group-changed", handler as any);
   }, [loadSummary]);
 
   const title = activeGroupId ? `Resumen · ${activeLabel}` : "Resumen · Personal";
 
+  const showSeeMore = !booting && upcomingAll.length > UPCOMING_LIMIT;
+
   return (
-    <main style={styles.page}>
+    <main style={styles.page} className="spSum-page">
+      {/* Toast */}
       {toast && (
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
             <div style={styles.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
+            {toast.subtitle ? (
+              <div style={styles.toastSub}>{toast.subtitle}</div>
+            ) : null}
           </div>
         </div>
       )}
 
-      <div style={styles.shell}>
-        <div style={styles.topRow}>
+      <div style={styles.shell} className="spSum-shell">
+        <div style={styles.topRow} className="spSum-topRow">
           <PremiumHeader />
-          <div style={styles.topActions}>
+          <div style={styles.topActions} className="spSum-topActions">
             <LogoutButton />
           </div>
         </div>
 
-        <section style={styles.hero}>
+        {/* Hero compacto */}
+        <section style={styles.hero} className="spSum-hero">
           <div>
             <div style={styles.kicker}>Tu resumen</div>
-            <h1 style={styles.h1}>{title}</h1>
-            <div style={styles.sub}>
-              Vista rápida de lo importante. Si cambiaste el grupo activo en Calendario,
-              aquí se actualiza solo (sin recargar).
-            </div>
+            <h1 style={styles.h1} className="spSum-h1">
+              {title}
+            </h1>
+            {!isMobile && (
+              <div style={styles.sub}>
+                Vista rápida de lo importante. Si cambiaste el grupo activo en
+                Calendario, aquí se actualiza solo (sin recargar).
+              </div>
+            )}
+            {isMobile && (
+              <div style={styles.subMobile}>
+                Lo importante, rápido. Actualiza solo.
+              </div>
+            )}
           </div>
 
-          <div style={styles.heroBtns}>
-            <button onClick={() => router.push("/calendar")} style={styles.primaryBtn}>
-              Ir al calendario →
+          <div style={styles.heroBtns} className="spSum-heroBtns">
+            <button
+              onClick={() => router.push("/calendar")}
+              style={styles.primaryBtn}
+              className="spSum-btn"
+            >
+              Calendario →
             </button>
-            <button onClick={() => router.push("/conflicts/detected")} style={styles.ghostBtn}>
-              Ver conflictos →
+            <button
+              onClick={() => router.push("/conflicts/detected")}
+              style={styles.ghostBtn}
+              className="spSum-btn"
+            >
+              Conflictos →
             </button>
           </div>
         </section>
 
-        <section style={styles.card}>
+        {/* Próximos eventos */}
+        <section style={styles.card} className="spSum-card">
           <div style={styles.sectionTitle}>Próximos eventos</div>
           <div style={styles.smallNote}>
-            Mostrando: <b>{activeLabel}</b> · {loading ? "Actualizando…" : `${upcoming.length} visibles`}
+            Mostrando: <b>{activeLabel}</b> ·{" "}
+            {loading ? "Actualizando…" : `${upcoming.length} visibles`}
           </div>
 
           {booting ? (
@@ -245,63 +300,123 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             </div>
           ) : upcoming.length === 0 ? (
             <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
-              No hay eventos próximos para este contexto. Ve a Calendario para crear uno.
+              No hay eventos próximos para este contexto. Ve a Calendario para
+              crear uno.
             </div>
           ) : (
-            <div style={styles.eventsList}>
-              {upcoming.map((e: any) => {
-                const start = e._start as Date;
-                const end = e._end as Date | null;
-                const when = end ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}` : `${fmtDay(start)} · ${fmtTime(start)}`;
-                const isHighlighted =
-                  highlightId && String((e as any)?.id ?? "") === String(highlightId);
+            <>
+              <div style={styles.eventsList} className="spSum-eventsList">
+                {upcoming.map((e: any) => {
+                  const start = e._start as Date;
+                  const end = e._end as Date | null;
+                  const when = end
+                    ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
+                    : `${fmtDay(start)} · ${fmtTime(start)}`;
+                  const isHighlighted =
+                    highlightId &&
+                    String((e as any)?.id ?? "") === String(highlightId);
 
-                return (
-                  <button
-                    key={(e as any)?.id ?? `${e._title}-${start.toISOString()}`}
-                    onClick={() => router.push("/calendar")}
-                    style={{
-                      ...styles.eventRow,
-                      ...(isHighlighted ? styles.eventRowHighlight : {}),
-                    }}
-                  >
-                    <div style={styles.eventLeft}>
-                      <div style={styles.eventWhen}>{when}</div>
-                      <div style={styles.eventTitle}>{e._title}</div>
-                    </div>
-                    <div style={styles.eventMeta}>
-                      {(e as any)?.is_external ? (
-                        <span style={styles.pill}>Externo</span>
-                      ) : null}
-                      {(e as any)?.group_id ? <span style={styles.pillSoft}>Grupo</span> : <span style={styles.pillSoft}>Personal</span>}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                  return (
+                    <button
+                      key={(e as any)?.id ?? `${e._title}-${start.toISOString()}`}
+                      onClick={() => router.push("/calendar")}
+                      style={{
+                        ...styles.eventRow,
+                        ...(isHighlighted ? styles.eventRowHighlight : {}),
+                      }}
+                      className="spSum-eventRow"
+                    >
+                      <div style={styles.eventLeft}>
+                        <div style={styles.eventWhen}>{when}</div>
+                        <div style={styles.eventTitle}>{e._title}</div>
+                      </div>
+                      <div style={styles.eventMeta}>
+                        {(e as any)?.is_external ? (
+                          <span style={styles.pill}>Externo</span>
+                        ) : null}
+                        {(e as any)?.group_id ? (
+                          <span style={styles.pillSoft}>Grupo</span>
+                        ) : (
+                          <span style={styles.pillSoft}>Personal</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* ✅ En móvil: botón “ver más” para evitar scroll eterno */}
+              {showSeeMore && (
+                <button
+                  onClick={() => router.push("/calendar")}
+                  style={styles.seeMoreBtn}
+                  className="spSum-seeMore"
+                >
+                  Ver todos en Calendario ({upcomingAll.length}) →
+                </button>
+              )}
+            </>
           )}
         </section>
 
-        <section style={styles.card}>
+        {/* Acciones rápidas */}
+        <section style={styles.card} className="spSum-card">
           <div style={styles.sectionTitle}>Acciones rápidas</div>
-          <div style={styles.quickGrid}>
-            <button onClick={() => router.push("/events/new/details")} style={styles.quickCard}>
+          <div style={styles.quickGrid} className="spSum-quickGrid">
+            <button
+              onClick={() => router.push("/events/new/details")}
+              style={styles.quickCard}
+              className="spSum-quickCard"
+            >
               <div style={styles.quickTitle}>Crear evento</div>
               <div style={styles.quickSub}>Personal o para tu grupo activo</div>
             </button>
 
-            <button onClick={() => router.push("/groups")} style={styles.quickCard}>
+            <button
+              onClick={() => router.push("/groups")}
+              style={styles.quickCard}
+              className="spSum-quickCard"
+            >
               <div style={styles.quickTitle}>Ir a grupos</div>
               <div style={styles.quickSub}>Invita, configura, revisa miembros</div>
             </button>
 
-            <button onClick={() => router.push("/conflicts/detected")} style={styles.quickCard}>
+            <button
+              onClick={() => router.push("/conflicts/detected")}
+              style={styles.quickCard}
+              className="spSum-quickCard"
+            >
               <div style={styles.quickTitle}>Resolver choques</div>
               <div style={styles.quickSub}>Detectar → comparar → decidir</div>
             </button>
           </div>
         </section>
       </div>
+
+      {/* ✅ SOLO Summary: responsive premium (NO toca otras páginas) */}
+      <style>{`
+        @media (max-width: 520px) {
+          .spSum-shell { padding: 14px 12px 24px !important; }
+          .spSum-topRow { gap: 10px !important; margin-bottom: 10px !important; }
+          .spSum-topActions { width: 100% !important; justify-content: flex-end !important; }
+          
+          .spSum-hero { padding: 12px 12px !important; border-radius: 16px !important; }
+          .spSum-h1 { font-size: 20px !important; letter-spacing: -0.4px !important; margin-top: 8px !important; }
+          .spSum-heroBtns { width: 100% !important; }
+          .spSum-btn { padding: 10px 12px !important; border-radius: 12px !important; flex: 1 1 auto !important; }
+
+          .spSum-card { padding: 12px !important; border-radius: 16px !important; margin-top: 10px !important; }
+
+          .spSum-eventRow { padding: 10px 10px !important; border-radius: 12px !important; }
+          .spSum-eventsList { gap: 8px !important; }
+
+          /* Acciones rápidas: 1 columna en iPhone para que no “crezca raro” */
+          .spSum-quickGrid { grid-template-columns: 1fr !important; gap: 10px !important; }
+          .spSum-quickCard { padding: 12px !important; border-radius: 14px !important; }
+
+          .spSum-seeMore { width: 100% !important; }
+        }
+      `}</style>
     </main>
   );
 }
@@ -318,6 +433,7 @@ const styles: Record<string, React.CSSProperties> = {
     margin: "0 auto",
     padding: "22px 18px 48px",
   },
+
   toastWrap: {
     position: "fixed",
     top: 18,
@@ -347,13 +463,19 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 14,
     flexWrap: "wrap",
   },
-  topActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
+  topActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
 
   hero: {
     padding: "18px 16px",
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
     boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
     marginBottom: 12,
     display: "flex",
@@ -376,6 +498,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   h1: { margin: "10px 0 0", fontSize: 26, letterSpacing: "-0.6px" },
   sub: { marginTop: 8, fontSize: 13, opacity: 0.75, maxWidth: 720 },
+  subMobile: { marginTop: 8, fontSize: 12, opacity: 0.75, maxWidth: 420 },
+
   heroBtns: { display: "flex", gap: 10, flexWrap: "wrap" },
 
   card: {
@@ -392,7 +516,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "12px 14px",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.14)",
-    background: "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 900,
@@ -473,6 +598,19 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(148,163,184,0.08)",
     opacity: 0.9,
     whiteSpace: "nowrap",
+  },
+
+  seeMoreBtn: {
+    marginTop: 10,
+    width: "fit-content",
+    padding: "10px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    fontWeight: 900,
+    fontSize: 12,
   },
 
   quickGrid: {
