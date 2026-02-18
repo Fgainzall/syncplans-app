@@ -163,4 +163,94 @@
       Carga de datos (DB) — “Actualizar”[m
       ========================= */[m
    const refreshCalendar = useCallback([m
-[31m-    async (opts?: { showToast
+[31m-    async (opts?: { showToast?: boolean; toastTitle?: string; toastSubtitle?: string }) => {[m
+[32m+[m[32m  async ([m
+[32m+[m[32m    opts: { showToast?: boolean; toastTitle?: string; toastSubtitle?: string } = {}[m
+[32m+[m[32m  ) => {[m
+[32m+[m
+       const showToastFlag = opts?.showToast ?? false;[m
+ [m
+       try {[m
+[36m@@ -710,6 +709,16 @@[m [mexport default function CalendarClient(props: {[m
+     <main style={styles.page}>[m
+       <style>{`[m
+         ...tu CSS actual...[m
+[32m+[m[32m/* ✅ FIT dinámico: NO recortar el contenido */[m
+[32m+[m[32m.spCal-fitOuter {[m
+[32m+[m[32m  overflow: hidden;[m
+[32m+[m[32m  width: 100%;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m/* performance */[m
+[32m+[m[32m.spCal-fitInner {[m
+[32m+[m[32m  will-change: transform;[m
+[32m+[m[32m}[m
+ [m
+    /* ✅ FIT dinámico: el scale ahora lo controla React (fitScale) */[m
+   .spCal-fitOuter {[m
+[36m@@ -718,13 +727,13 @@[m [mexport default function CalendarClient(props: {[m
+   }[m
+ [m
+   /* ✅ En móvil, si el dayPanel crece, lo hacemos scrolleable para que el MES entre completo */[m
+[31m-  @media (max-width: 520px) {[m
+[31m-    .spCal-dayPanel {[m
+[31m-      max-height: 220px;[m
+[31m-      overflow: auto;[m
+[31m-      -webkit-overflow-scrolling: touch;[m
+[31m-    }[m
+[32m+[m[32m @media (max-width: 520px) {[m
+[32m+[m[32m  .spCal-dayPanel {[m
+[32m+[m[32m    max-height: 120px !important;[m
+[32m+[m[32m    overflow: auto !important;[m
+[32m+[m[32m    -webkit-overflow-scrolling: touch;[m
+   }[m
+[32m+[m[32m}[m
+         @keyframes spPulseGlow {[m
+           0% { transform: translateZ(0) scale(1); box-shadow: none; }[m
+           35% { transform: translateZ(0) scale(1.01); box-shadow: 0 0 0 6px rgba(56,189,248,0.22), 0 18px 60px rgba(0,0,0,0.35); }[m
+[36m@@ -756,7 +765,7 @@[m [mexport default function CalendarClient(props: {[m
+ [m
+   /* 4) ✅ LA CLAVE: recuadros más bajos */[m
+   .spCal-cell {[m
+[31m-    min-height: 72px !important;      /* antes ~112 */[m
+[32m+[m[32m    min-height: 66px !important;     /* antes ~112 */[m
+     padding: 6px !important;          /* antes ~10 */[m
+     border-radius: 12px !important;   /* antes ~16 */[m
+   }[m
+[36m@@ -967,21 +976,21 @@[m [mexport default function CalendarClient(props: {[m
+       ))}[m
+     </div>[m
+ [m
+[31m-    <div style={styles.grid} className="spCal-grid">[m
+[31m-      {renderMonthCells({[m
+[31m-        gridStart,[m
+[31m-        gridEnd,[m
+[31m-        monthStart,[m
+[31m-        selectedDay,[m
+[31m-        setSelectedDay,[m
+[31m-        eventsByDay,[m
+[31m-        openNewEventPersonal,[m
+[31m-        openNewEventGroup,[m
+[31m-        groupTypeById,[m
+[31m-        onEdit: handleEditEvent,[m
+[31m-        today,[m
+[31m-      })}[m
+[31m-    </div>[m
+[32m+[m[32m  <div style={styles.grid} className="spCal-grid">[m
+[32m+[m[32m  {renderMonthCells({[m
+[32m+[m[32m    gridStart,[m
+[32m+[m[32m    gridEnd,[m
+[32m+[m[32m    monthStart,[m
+[32m+[m[32m    selectedDay,[m
+[32m+[m[32m    setSelectedDay,[m
+[32m+[m[32m    eventsByDay,[m
+[32m+[m[32m    openNewEventPersonal,[m
+[32m+[m[32m    openNewEventGroup,[m
+[32m+[m[32m    groupTypeById,[m
+[32m+[m[32m    onEdit: handleEditEvent,[m
+[32m+[m[32m    today,[m
+[32m+[m[32m  })}[m
+[32m+[m[32m</div>[m
+   </div>[m
+ </div>[m
+ [m

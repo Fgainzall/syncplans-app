@@ -707,87 +707,108 @@ useLayoutEffect(() => {
 
   return (
     <main style={styles.page}>
-      <style>{`
-        ...tu CSS actual...
-/* ✅ FIT dinámico: NO recortar el contenido */
+     <style>{`
+
+/* =========================================
+   ✅ FIX DEFINITIVO CALENDARIO MOBILE
+   ========================================= */
+
+/* ⚠️ IMPORTANTE:
+   - NO usar max-height en fitOuter
+   - NO usar overflow:hidden en fitOuter
+   - Eso era lo que cortaba días/filas
+*/
+
 .spCal-fitOuter {
-  overflow: hidden;
   width: 100%;
+  overflow: visible; /* ✅ clave: no recorta filas */
 }
 
-/* performance */
 .spCal-fitInner {
   will-change: transform;
 }
 
-   /* ✅ FIT dinámico: el scale ahora lo controla React (fitScale) */
-  .spCal-fitOuter {
-    overflow: hidden;
-    width: 100%;
-  }
-
-  /* ✅ En móvil, si el dayPanel crece, lo hacemos scrolleable para que el MES entre completo */
- @media (max-width: 520px) {
-  .spCal-dayPanel {
-    max-height: 120px !important;
-    overflow: auto !important;
-    -webkit-overflow-scrolling: touch;
+/* =====================================================
+   ✅ ESPACIO REAL PARA BOTTOM NAV (clave en vertical)
+   ===================================================== */
+@media (max-width: 520px) {
+  .spCal-shell {
+    padding-bottom: 200px !important; /* evita que el bottom nav tape la última fila */
   }
 }
-        @keyframes spPulseGlow {
-          0% { transform: translateZ(0) scale(1); box-shadow: none; }
-          35% { transform: translateZ(0) scale(1.01); box-shadow: 0 0 0 6px rgba(56,189,248,0.22), 0 18px 60px rgba(0,0,0,0.35); }
-          100% { transform: translateZ(0) scale(1); box-shadow: none; }
-        }
-        .spCal-chip:hover { transform: translateZ(0) scale(1.01); }
-        .spCal-cell:hover { transform: translateZ(0) translateY(-1px); border-color: rgba(255,255,255,0.16); }
-        @media (max-width: 820px) {
-          .spCal-shell { padding: 14px 12px 42px !important; }
-          .spCal-hero { padding: 12px 12px !important; border-radius: 16px !important; }
-          .spCal-title { font-size: 22px !important; }
-          .spCal-topRow { gap: 10px !important; }
-          .spCal-actions { width: 100% !important; justify-content: flex-end !important; }
-          .spCal-grid { gap: 8px !important; padding: 10px !important; }
-          .spCal-cell { min-height: 92px !important; border-radius: 14px !important; padding: 9px !important; }
-          .spCal-dayPanel { padding: 10px !important; }
-        }
- @media (max-width: 520px) {
-  /* 1) Mantener 7 columnas sí o sí */
+
+/* =====================================================
+   Animaciones
+   ===================================================== */
+@keyframes spPulseGlow {
+  0% { transform: translateZ(0) scale(1); box-shadow: none; }
+  35% { transform: translateZ(0) scale(1.01); box-shadow: 0 0 0 6px rgba(56,189,248,0.22), 0 18px 60px rgba(0,0,0,0.35); }
+  100% { transform: translateZ(0) scale(1); box-shadow: none; }
+}
+
+.spCal-chip:hover {
+  transform: translateZ(0) scale(1.01);
+}
+
+.spCal-cell:hover {
+  transform: translateZ(0) translateY(-1px);
+  border-color: rgba(255,255,255,0.16);
+}
+
+/* =====================================================
+   Responsive general tablet
+   ===================================================== */
+@media (max-width: 820px) {
+  .spCal-shell { padding: 14px 12px 42px !important; }
+  .spCal-hero { padding: 12px 12px !important; border-radius: 16px !important; }
+  .spCal-title { font-size: 22px !important; }
+  .spCal-topRow { gap: 10px !important; }
+  .spCal-actions { width: 100% !important; justify-content: flex-end !important; }
+  .spCal-grid { gap: 8px !important; padding: 10px !important; }
+  .spCal-cell { min-height: 92px !important; border-radius: 14px !important; padding: 9px !important; }
+  .spCal-dayPanel { padding: 10px !important; }
+}
+
+/* =====================================================
+   MOBILE PEQUEÑO (vertical real)
+   ===================================================== */
+@media (max-width: 520px) {
+
+  /* 1️⃣ Mantener 7 columnas */
   .spCal-weekHeader { display: grid !important; }
   .spCal-grid { grid-template-columns: repeat(7, 1fr) !important; }
 
-  /* 2) Compactar el “chrome” del calendario */
+  /* 2️⃣ Compactar header */
   .spCal-weekHeader { padding: 6px 6px 0 !important; }
   .spCal-weekHeader > div { padding: 6px 4px !important; font-size: 11px !important; }
 
-  /* 3) Menos separación entre celdas (esto da MUCHO alto) */
+  /* 3️⃣ Reducir separación */
   .spCal-grid { gap: 6px !important; padding: 6px !important; }
 
-  /* 4) ✅ LA CLAVE: recuadros más bajos */
+  /* 4️⃣ Celdas más bajas */
   .spCal-cell {
-    min-height: 66px !important;     /* antes ~112 */
-    padding: 6px !important;          /* antes ~10 */
-    border-radius: 12px !important;   /* antes ~16 */
+    min-height: 66px !important;
+    padding: 6px !important;
+    border-radius: 12px !important;
   }
 
-  /* 5) Tipografía más compacta */
-  .spCal-cell .spCal-chip { transform: none !important; } /* evita agrandar en hover raro */
-  .spCal-cellCount { font-size: 11px !important; padding: 1px 6px !important; }
+  /* 5️⃣ Contador compacto */
+  .spCal-cellCount {
+    font-size: 11px !important;
+    padding: 1px 6px !important;
+  }
 
-  /* 6) Día (número) más compacto */
+  /* 6️⃣ Número del día compacto */
   .spCal-cellDay,
   .spCal-cellDayToday {
     font-size: 12px !important;
   }
+
   .spCal-cellDayToday {
     padding: 1px 6px !important;
   }
 
-  /* 7) Botones “+” más chicos */
-  .spCal-cell button {
-    transform: none !important;
-  }
-  /* Los + tienen inline styles, así que atacamos por tamaño general del botón */
+  /* 7️⃣ Botones + más pequeños */
   .spCal-cellQuickAdd button {
     width: 18px !important;
     height: 18px !important;
@@ -796,14 +817,15 @@ useLayoutEffect(() => {
     font-size: 12px !important;
   }
 
-  /* 8) La lista del day panel NO debe comerse la pantalla */
+  /* 8️⃣ Day panel controlado */
   .spCal-dayPanel {
-    max-height: 150px !important;     /* antes 220, ahora libera alto para el mes */
+    max-height: 120px !important;
     overflow: auto !important;
     -webkit-overflow-scrolling: touch;
   }
 }
-      `}</style>
+
+`}</style>
 
       {toast && (
         <div style={styles.toastWrap}>
