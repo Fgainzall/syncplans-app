@@ -1,0 +1,166 @@
+[1mdiff --git a/src/app/calendar/CalendarClient.tsx b/src/app/calendar/CalendarClient.tsx[m
+[1mindex f56d225..96fa79e 100644[m
+[1m--- a/src/app/calendar/CalendarClient.tsx[m
+[1m+++ b/src/app/calendar/CalendarClient.tsx[m
+[36m@@ -136,93 +136,89 @@[m [mexport default function CalendarClient(props: {[m
+   const router = useRouter();[m
+   const pathname = usePathname();[m
+   const isMobile = useIsMobileWidth(820);[m
+[31m-  /* =========================[m
+[31m-     ✅ FIT dinámico: mes completo en vertical (móvil)[m
+[31m-     - Calcula scale por ANCHO y por ALTO disponible[m
+[31m-     - Reserva espacio para BottomNav + DayPanel para que no se corte la última fila[m
+[31m-     ========================= */[m
+[31m-  const fitOuterRef = useRef<HTMLDivElement | null>(null);[m
+[31m-  const fitInnerRef = useRef<HTMLDivElement | null>(null);[m
+[31m-  const [fitScale, setFitScale] = useState(1);[m
+[31m-[m
+[31m-  const computeFitScale = useCallback(() => {[m
+[31m-    if (typeof window === "undefined") return;[m
+[32m+[m[32m/* =========================[m
+[32m+[m[32m   ✅ FIT dinámico: mes completo en vertical (móvil)[m
+[32m+[m[32m   - Calcula scale por ANCHO y por ALTO disponible[m
+[32m+[m[32m   - Evita que se corte la última fila[m
+[32m+[m[32m   ========================= */[m
+[32m+[m[32mconst fitOuterRef = useRef<HTMLDivElement | null>(null);[m
+[32m+[m[32mconst fitInnerRef = useRef<HTMLDivElement | null>(null);[m
+[32m+[m[32mconst [fitScale, setFitScale] = useState(1);[m
+[32m+[m
+[32m+[m[32mconst computeFitScale = useCallback(() => {[m
+[32m+[m[32m  if (typeof window === "undefined") return;[m
+[32m+[m
+[32m+[m[32m  // Solo aplicamos fit fuerte en móviles pequeños[m
+[32m+[m[32m  const isSmallMobile = window.matchMedia("(max-width: 520px)").matches;[m
+[32m+[m[32m  if (!isSmallMobile) {[m
+[32m+[m[32m    setFitScale(1);[m
+[32m+[m[32m    return;[m
+[32m+[m[32m  }[m
+ [m
+[31m-    // Solo aplicamos fit fuerte en móviles pequeños[m
+[31m-    const isSmallMobile = window.matchMedia("(max-width: 520px)").matches;[m
+[31m-    if (!isSmallMobile) {[m
+[31m-      setFitScale(1);[m
+[31m-      return;[m
+[31m-    }[m
+[32m+[m[32m  const outer = fitOuterRef.current;[m
+[32m+[m[32m  const inner = fitInnerRef.current;[m
+[32m+[m[32m  if (!outer || !inner) return;[m
+ [m
+[31m-    const outer = fitOuterRef.current;[m
+[31m-    const inner = fitInnerRef.current;[m
+[31m-    if (!outer || !inner) return;[m
+[32m+[m[32m  const outerRect = outer.getBoundingClientRect();[m
+[32m+[m[32m  const availW = outerRect.width;[m
+ [m
+[31m-    // Medidas del contenedor visible (donde queremos que "quepa")[m
+[31m-    const outerRect = outer.getBoundingClientRect();[m
+[31m-    const availW = outerRect.width;[m
+[32m+[m[32m  // ✅ iOS friendly: usa visualViewport si existe (más real)[m
+[32m+[m[32m  const viewportH = (window as any).visualViewport?.height ?? window.innerHeight;[m
+ [m
+[31m-    // ✅ Altura disponible real: viewport - top del calendario - reserva inferior[m
+[31m-    // Reserva = BottomNav + safe-area + DayPanel (para que el mes entre completo)[m
+[31m-    const safeBottom =[m
+[31m-      (window as any).visualViewport?.offsetTop[m
+[31m-        ? 0[m
+[31m-        : 0; // no dependemos de esto, solo mantenemos compat[m
+[32m+[m[32m  // Reservas: BottomNav + márgenes + DayPanel (lo controlamos abajo por CSS)[m
+[32m+[m[32m  const bottomReserve = 92 /* BottomNav aprox */ + 140 /* DayPanel compacto */ + 14 /* margen */;[m
+[32m+[m[32m  const availH = Math.max(260, viewportH - outerRect.top - bottomReserve);[m
+ [m
+[31m-    const bottomReserve = 92 /* BottomNav approx */ + 220 /* DayPanel mínimo */ + 16 /* margen */;[m
+[31m-    const availH = Math.max(260, window.innerHeight - outerRect.top - bottomReserve - safeBottom);[m
+[32m+[m[32m  // Medimos tamaño natural (sin scale)[m
+[32m+[m[32m  const prevTransform = inner.style.transform;[m
+[32m+[m[32m  const prevWidth = inner.style.width;[m
+ [m
+[31m-    // Medimos tamaño "natural" del contenido (sin escala)[m
+[31m-    const prevTransform = inner.style.transform;[m
+[31m-    const prevWidth = inner.style.width;[m
+[32m+[m[32m  inner.style.transform = "scale(1)";[m
+[32m+[m[32m  inner.style.width = "max-content";[m
+ [m
+[31m-    inner.style.transform = "scale(1)";[m
+[31m-    inner.style.width = "max-content";[m
+[32m+[m[32m  const naturalW = inner.scrollWidth || inner.getBoundingClientRect().width;[m
+[32m+[m[32m  const naturalH = inner.scrollHeight || inner.getBoundingClientRect().height;[m
+ [m
+[31m-    const naturalW = inner.scrollWidth || inner.getBoundingClientRect().width;[m
+[31m-    const naturalH = inner.scrollHeight || inner.getBoundingClientRect().height;[m
+[32m+[m[32m  // Restaurar[m
+[32m+[m[32m  inner.style.transform = prevTransform;[m
+[32m+[m[32m  inner.style.width = prevWidth;[m
+ [m
+[31m-    // Restaurar[m
+[31m-    inner.style.transform = prevTransform;[m
+[31m-    inner.style.width = prevWidth;[m
+[32m+[m[32m  if (!naturalW || !naturalH || !availW || !availH) return;[m
+ [m
+[31m-    if (!naturalW || !naturalH || !availW || !availH) return;[m
+[32m+[m[32m  const sW = availW / naturalW;[m
+[32m+[m[32m  const sH = availH / naturalH;[m
+ [m
+[31m-    const sW = availW / naturalW;[m
+[31m-    const sH = availH / naturalH;[m
+[32m+[m[32m  // ✅ CLAVE: si falta una fila, esto lo baja lo suficiente[m
+[32m+[m[32m  const s = Math.max(0.52, Math.min(1, sW, sH));[m
+ [m
+[31m-    // Clamp para no hacerlo ilegible[m
+[31m-    const s = Math.max(0.58, Math.min(1, sW, sH));[m
+[32m+[m[32m  setFitScale(s);[m
+[32m+[m[32m}, []);[m
+ [m
+[31m-    setFitScale(s);[m
+[31m-  }, []);[m
+[32m+[m[32museLayoutEffect(() => {[m
+[32m+[m[32m  if (typeof window === "undefined") return;[m
+ [m
+[31m-  useLayoutEffect(() => {[m
+[31m-    if (typeof window === "undefined") return;[m
+[32m+[m[32m  computeFitScale();[m
+ [m
+[31m-    const outer = fitOuterRef.current;[m
+[31m-    const inner = fitInnerRef.current;[m
+[31m-    if (!outer || !inner) return;[m
+[32m+[m[32m  const onResize = () => requestAnimationFrame(computeFitScale);[m
+[32m+[m[32m  window.addEventListener("resize", onResize);[m
+[32m+[m[32m  window.addEventListener("orientationchange", onResize);[m
+ [m
+[31m-    computeFitScale();[m
+[31m-[m
+[31m-    const ro = new ResizeObserver(() => {[m
+[31m-      requestAnimationFrame(() => computeFitScale());[m
+[31m-    });[m
+[32m+[m[32m  const outer = fitOuterRef.current;[m
+[32m+[m[32m  const inner = fitInnerRef.current;[m
+ [m
+[32m+[m[32m  let ro: ResizeObserver | null = null;[m
+[32m+[m[32m  if (outer && inner && typeof ResizeObserver !== "undefined") {[m
+[32m+[m[32m    ro = new ResizeObserver(() => requestAnimationFrame(computeFitScale));[m
+     ro.observe(outer);[m
+     ro.observe(inner);[m
+[32m+[m[32m  }[m
+ [m
+[31m-    window.addEventListener("resize", computeFitScale);[m
+[31m-    window.addEventListener("orientationchange", computeFitScale);[m
+[31m-[m
+[31m-    return () => {[m
+[31m-      ro.disconnect();[m
+[31m-      window.removeEventListener("resize", computeFitScale);[m
+[31m-      window.removeEventListener("orientationchange", computeFitScale);[m
+[31m-    };[m
+[31m-  }, [computeFitScale]);[m
+[32m+[m[32m  return () => {[m
+[32m+[m[32m    window.removeEventListener("resize", onResize);[m
+[32m+[m[32m    window.removeEventListener("orientationchange", onResize);[m
+[32m+[m[32m    ro?.disconnect();[m
+[32m+[m[32m  };[m
+[32m+[m[32m}, [computeFitScale]);[m
+   const eventRefs = useRef<Record<string, HTMLDivElement | null>>({});[m
+   const setEventRef = (id: string) => (el: HTMLDivElement | null) => {[m
+     eventRefs.current[String(id)] = el;[m
+[36m@@ -286,7 +282,10 @@[m [mexport default function CalendarClient(props: {[m
+      Carga de datos (DB) — “Actualizar”[m
+      ========================= */[m
+   const refreshCalendar = useCallback([m
+[31m-    async (opts?: { showToast
