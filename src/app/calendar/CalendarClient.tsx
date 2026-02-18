@@ -743,8 +743,56 @@ export default function CalendarClient(props: {
           .spCal-dayPanel { padding: 10px !important; }
         }
  @media (max-width: 520px) {
+  /* 1) Mantener 7 columnas sí o sí */
   .spCal-weekHeader { display: grid !important; }
   .spCal-grid { grid-template-columns: repeat(7, 1fr) !important; }
+
+  /* 2) Compactar el “chrome” del calendario */
+  .spCal-weekHeader { padding: 6px 6px 0 !important; }
+  .spCal-weekHeader > div { padding: 6px 4px !important; font-size: 11px !important; }
+
+  /* 3) Menos separación entre celdas (esto da MUCHO alto) */
+  .spCal-grid { gap: 6px !important; padding: 6px !important; }
+
+  /* 4) ✅ LA CLAVE: recuadros más bajos */
+  .spCal-cell {
+    min-height: 72px !important;      /* antes ~112 */
+    padding: 6px !important;          /* antes ~10 */
+    border-radius: 12px !important;   /* antes ~16 */
+  }
+
+  /* 5) Tipografía más compacta */
+  .spCal-cell .spCal-chip { transform: none !important; } /* evita agrandar en hover raro */
+  .spCal-cellCount { font-size: 11px !important; padding: 1px 6px !important; }
+
+  /* 6) Día (número) más compacto */
+  .spCal-cellDay,
+  .spCal-cellDayToday {
+    font-size: 12px !important;
+  }
+  .spCal-cellDayToday {
+    padding: 1px 6px !important;
+  }
+
+  /* 7) Botones “+” más chicos */
+  .spCal-cell button {
+    transform: none !important;
+  }
+  /* Los + tienen inline styles, así que atacamos por tamaño general del botón */
+  .spCal-cellQuickAdd button {
+    width: 18px !important;
+    height: 18px !important;
+    line-height: 18px !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+  }
+
+  /* 8) La lista del day panel NO debe comerse la pantalla */
+  .spCal-dayPanel {
+    max-height: 150px !important;     /* antes 220, ahora libera alto para el mes */
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
 }
       `}</style>
 
