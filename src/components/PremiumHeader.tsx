@@ -101,6 +101,38 @@ function normalizeGroupLabel(input?: string | null) {
   return raw;
 }
 
+/**
+ * ✅ Hook: detecta "mobile" por ancho (solo cambia UI en pantalla chica)
+ * - No toca desktop normal
+ * - En iPhone/PWA entra siempre en modo "app"
+ */
+function useIsMobileWidth(maxWidth = 520) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
+    const apply = () => setIsMobile(!!mq.matches);
+
+    apply();
+    // Safari iOS usa addListener en algunos casos antiguos; probamos ambos.
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", apply);
+      return () => mq.removeEventListener("change", apply);
+    } else {
+      // @ts-ignore
+      mq.addListener(apply);
+      return () => {
+        // @ts-ignore
+        mq.removeListener(apply);
+      };
+    }
+  }, [maxWidth]);
+
+  return isMobile;
+}
+
 export default function PremiumHeader({
   title,
   subtitle,
@@ -122,6 +154,9 @@ export default function PremiumHeader({
 
   // ✅ Drawer Conectar
   const [openIntegrations, setOpenIntegrations] = useState(false);
+
+  // ✅ Detecta móvil (solo por ancho)
+  const isMobile = useIsMobileWidth(520);
 
   // Estado de grupos / modo activo
   useEffect(() => {
@@ -176,9 +211,11 @@ export default function PremiumHeader({
   // Badge de notificaciones
   async function refreshBadge() {
     try {
-     const { getMyNotifications } = await import("@/lib/notificationsDb");
+      const { getMyNotifications } = await import("@/lib/notificationsDb");
       const n = await getMyNotifications(50);
-      const unread = (n ?? []).filter((x: any) => !x.read_at || x.read_at === "").length;
+      const unread = (n ?? []).filter(
+        (x: any) => !x.read_at || x.read_at === ""
+      ).length;
       setUnreadCount(unread);
     } catch {
       setUnreadCount(0);
@@ -234,7 +271,9 @@ export default function PremiumHeader({
         return;
       }
 
-      router.push(`/events/new/details?type=group&groupId=${encodeURIComponent(gid)}`);
+      router.push(
+        `/events/new/details?type=group&groupId=${encodeURIComponent(gid)}`
+      );
     } catch {
       router.push("/events/new/details?type=personal");
     }
@@ -254,31 +293,142 @@ export default function PremiumHeader({
   }
 
   const onSyncedFromDrawer = useCallback((imported: number) => {
-    // 🔔 Evento global para que Calendar/Summary (si quieren) refresquen sin reload.
+    // 🔔 Evento global para que Calendar/Summary refresquen sin reload.
     window.dispatchEvent(
       new CustomEvent("sp:google-synced", { detail: { imported } })
     );
   }, []);
 
+  /**
+   * ✅ Overrides SOLO en móvil:
+   * - Evita recorte a la derecha
+   * - Header se apila como app
+   * - Tabs pasan a 2x2
+   * - Navegación: “chips” con wrap pero sin romper ancho
+   */
+  const M = useMemo(() => {
+    if (!isMobile) return null;
+
+    return {
+      wrap: {
+        padding: 14,
+        borderRadius: 20,
+      } as React.CSSProperties,
+
+      topRow: {
+        flexDirection: "column",
+        alignItems: "stretch",
+        gap: 10,
+      } as React.CSSProperties,
+
+      left: {
+        minWidth: 0,
+      } as React.CSSProperties,
+
+      right: {
+        width: "100%",
+        justifyContent: "space-between",
+        flexWrap: "wrap",
+        gap: 8,
+      } as React.CSSProperties,
+
+      title: {
+        fontSize: 22,
+      } as React.CSSProperties,
+
+      subtitle: {
+        fontSize: 12,
+      } as React.CSSProperties,
+
+      // botones más compactos en móvil
+      bellBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: 12,
+      } as React.CSSProperties,
+
+      ghostBtn: {
+        height: 38,
+        padding: "0 12px",
+        borderRadius: 12,
+        fontSize: 12,
+      } as React.CSSProperties,
+
+      iconBtn: {
+        height: 38,
+        padding: "0 12px",
+        borderRadius: 12,
+        fontSize: 12,
+      } as React.CSSProperties,
+
+      userChip: {
+        maxWidth: 140,
+        padding: "6px 8px",
+      } as React.CSSProperties,
+
+      userLabel: {
+        display: "none", // 👈 clave: evita que el nombre corte el header en iPhone
+      } as React.CSSProperties,
+
+      tabsInner: {
+        gridTemplateColumns: "repeat(2, 1fr)",
+        gap: 8,
+        padding: 8,
+      } as React.CSSProperties,
+
+      tab: {
+        height: 50,
+        padding: "10px 10px",
+      } as React.CSSProperties,
+
+      tabText: {
+        fontSize: 12,
+      } as React.CSSProperties,
+
+      tabHint: {
+        fontSize: 10,
+      } as React.CSSProperties,
+
+      nav: {
+        gap: 8,
+        marginTop: 10,
+      } as React.CSSProperties,
+
+      pill: {
+        height: 32,
+        padding: "0 10px",
+        fontSize: 12,
+      } as React.CSSProperties,
+    };
+  }, [isMobile]);
+
+  // helper: merge seguro
+  function ms<T extends React.CSSProperties>(
+    base: T,
+    mobile?: React.CSSProperties | null
+  ) {
+    return mobile ? ({ ...base, ...mobile } as T) : base;
+  }
+
   return (
     <>
-      <header style={S.wrap}>
-        <div style={S.topRow}>
-          <div style={S.left}>
+      <header style={ms(S.wrap, M?.wrap)}>
+        <div style={ms(S.topRow, M?.topRow)}>
+          <div style={ms(S.left, M?.left)}>
             <div style={S.kicker}>
               <span style={{ ...S.dot, background: active.dot }} />
               <span style={S.kickerText}>{kickerLabel}</span>
             </div>
 
-            <h1 style={S.title}>{finalTitle}</h1>
-            <p style={S.subtitle}>{finalSubtitle}</p>
+            <h1 style={ms(S.title, M?.title)}>{finalTitle}</h1>
+            <p style={ms(S.subtitle, M?.subtitle)}>{finalSubtitle}</p>
           </div>
 
-          <div style={S.right}>
+          <div style={ms(S.right, M?.right)}>
             {/* Notificaciones */}
             <div style={S.bellWrap}>
               <button
-                style={S.bellBtn}
+                style={ms(S.bellBtn, M?.bellBtn)}
                 aria-label="Notificaciones"
                 title="Notificaciones"
                 onClick={() => setOpenNotif(true)}
@@ -297,19 +447,21 @@ export default function PremiumHeader({
             {headerUser && (
               <button
                 type="button"
-                style={S.userChip}
+                style={ms(S.userChip, M?.userChip)}
                 onClick={() => router.push("/profile")}
                 title="Ver panel de cuenta"
               >
                 <div style={S.userAvatar}>{headerUser.initials}</div>
-                <span style={S.userLabel}>{headerUser.name}</span>
+                <span style={ms(S.userLabel, M?.userLabel)}>
+                  {headerUser.name}
+                </span>
               </button>
             )}
 
-            {/* ✅ Conectar (nuevo) */}
+            {/* Conectar */}
             <button
               type="button"
-              style={S.ghostBtn}
+              style={ms(S.ghostBtn, M?.ghostBtn)}
               onClick={() => setOpenIntegrations(true)}
               title="Conectar y sincronizar calendarios externos"
             >
@@ -318,7 +470,7 @@ export default function PremiumHeader({
 
             {/* Slot derecho o botón + Evento */}
             {rightSlot ?? (
-              <button style={S.iconBtn} onClick={onNewEvent}>
+              <button style={ms(S.iconBtn, M?.iconBtn)} onClick={onNewEvent}>
                 + Evento
               </button>
             )}
@@ -328,18 +480,18 @@ export default function PremiumHeader({
         {/* Tabs de modo */}
         <div style={S.tabs}>
           <div style={S.tabsBg} />
-          <div style={S.tabsInner}>
+          <div style={ms(S.tabsInner, M?.tabsInner)}>
             {TABS.map((t) => {
               const isActive = t.key === activeMode;
               return (
                 <button
                   key={t.key}
-                  style={{ ...S.tab, ...(isActive ? S.tabActive : {}) }}
+                  style={{ ...ms(S.tab, M?.tab), ...(isActive ? S.tabActive : {}) }}
                   onClick={() => onPickMode(t.key)}
                 >
                   <span style={{ ...S.tabDot, background: t.dot }} />
-                  <span style={S.tabText}>{t.label}</span>
-                  <span style={S.tabHint}>{t.hint}</span>
+                  <span style={ms(S.tabText, M?.tabText)}>{t.label}</span>
+                  <span style={ms(S.tabHint, M?.tabHint)}>{t.hint}</span>
                 </button>
               );
             })}
@@ -347,56 +499,76 @@ export default function PremiumHeader({
         </div>
 
         {/* Navegación */}
-        <nav style={S.nav}>
+        <nav style={ms(S.nav, M?.nav)}>
           <NavPill
             label="Resumen"
             active={pathname.startsWith("/summary")}
             onClick={() => router.push("/summary")}
+            styleOverride={ms(S.pill, M?.pill)}
+            styleActive={S.pillActive}
           />
           <NavPill
             label="Calendario"
             active={pathname === "/calendar"}
             onClick={() => router.push("/calendar")}
+            styleOverride={ms(S.pill, M?.pill)}
+            styleActive={S.pillActive}
           />
           <NavPill
             label="Eventos"
             active={pathname.startsWith("/events")}
             onClick={() => router.push("/events")}
+            styleOverride={ms(S.pill, M?.pill)}
+            styleActive={S.pillActive}
           />
           <NavPill
             label="Conflictos"
             active={pathname.startsWith("/conflicts")}
             onClick={() => router.push("/conflicts/detected")}
+            styleOverride={ms(S.pill, M?.pill)}
+            styleActive={S.pillActive}
           />
           <NavPill
             label="Grupos"
             active={pathname.startsWith("/groups")}
             onClick={() => router.push("/groups")}
+            styleOverride={ms(S.pill, M?.pill)}
+            styleActive={S.pillActive}
           />
           <NavPill
             label="Miembros"
             active={pathname.startsWith("/members")}
             onClick={() => router.push("/members")}
+            styleOverride={ms(S.pill, M?.pill)}
+            styleActive={S.pillActive}
           />
           <NavPill
             label="Invitaciones"
             active={pathname.startsWith("/invitations")}
             onClick={() => router.push("/invitations")}
+            styleOverride={ms(S.pill, M?.pill)}
+            styleActive={S.pillActive}
           />
           <NavPill
             label="Panel"
             active={pathname.startsWith("/profile")}
             onClick={() => router.push("/profile")}
+            styleOverride={ms(S.pill, M?.pill)}
+            styleActive={S.pillActive}
           />
           <NavPill
-  label="Settings"
-  active={pathname.startsWith("/settings")}
-  onClick={() => router.push("/settings")}
-/>
+            label="Settings"
+            active={pathname.startsWith("/settings")}
+            onClick={() => router.push("/settings")}
+            styleOverride={ms(S.pill, M?.pill)}
+            styleActive={S.pillActive}
+          />
           <NavPill
             label="Planes"
             active={pathname.startsWith("/pricing")}
             onClick={() => router.push("/pricing")}
+            styleOverride={ms(S.pill, M?.pill)}
+            styleActive={S.pillActive}
           />
         </nav>
       </header>
@@ -421,15 +593,19 @@ function NavPill({
   label,
   active,
   onClick,
+  styleOverride,
+  styleActive,
 }: {
   label: string;
   active: boolean;
   onClick: () => void;
+  styleOverride: React.CSSProperties;
+  styleActive: React.CSSProperties;
 }) {
   return (
     <button
       onClick={onClick}
-      style={{ ...S.pill, ...(active ? S.pillActive : {}) }}
+      style={{ ...styleOverride, ...(active ? styleActive : {}) }}
     >
       {label}
     </button>
