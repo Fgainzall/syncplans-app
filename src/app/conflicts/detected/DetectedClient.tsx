@@ -61,6 +61,34 @@ function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
   return (gt === ("pair" as any) ? ("couple" as any) : gt) as GroupType;
 }
 
+/** ✅ SOLO Detected: detecta móvil por ancho (modo app iPhone entra aquí) */
+function useIsMobileWidth(maxWidth = 520) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
+    const apply = () => setIsMobile(!!mq.matches);
+
+    apply();
+
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", apply);
+      return () => mq.removeEventListener("change", apply);
+    } else {
+      // @ts-ignore
+      mq.addListener(apply);
+      return () => {
+        // @ts-ignore
+        mq.removeListener(apply);
+      };
+    }
+  }, [maxWidth]);
+
+  return isMobile;
+}
+
 type AttachedConflict = {
   id: string;
   existingEventId: string;
@@ -74,6 +102,8 @@ type AttachedConflict = {
 export default function DetectedClient() {
   const router = useRouter();
   const sp = useSearchParams();
+
+  const isMobile = useIsMobileWidth(520);
 
   const groupIdFromUrl = sp.get("groupId");
   const focusEventId = sp.get("eventId");
@@ -98,7 +128,9 @@ export default function DetectedClient() {
       }
 
       try {
-        const { events: ev } = await loadEventsFromDb({ groupId: groupIdFromUrl });
+        const { events: ev } = await loadEventsFromDb({
+          groupId: groupIdFromUrl,
+        });
         if (!alive) return;
         setEvents(Array.isArray(ev) ? ev : []);
       } catch {
@@ -128,9 +160,7 @@ export default function DetectedClient() {
     const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
       (e) => ({
         ...e,
-        groupType: normalizeForConflicts(
-          (e.groupType ?? "personal") as any
-        ),
+        groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
       })
     );
 
@@ -154,6 +184,14 @@ export default function DetectedClient() {
     for (const c of conflicts) if (resMap[String(c.id)]) decided++;
     return { total, decided, pending: Math.max(0, total - decided) };
   }, [conflicts, resMap]);
+
+  // ✅ CLAVE: en móvil mostramos menos para evitar scroll infinito
+  const LIST_LIMIT = isMobile ? 5 : 50;
+  const visibleConflicts = useMemo(
+    () => conflicts.slice(0, LIST_LIMIT),
+    [conflicts, LIST_LIMIT]
+  );
+  const showSeeMore = !booting && conflicts.length > LIST_LIMIT;
 
   const openCompare = (idx: number) => {
     if (conflicts.length === 0) return;
@@ -182,15 +220,13 @@ export default function DetectedClient() {
   if (booting) {
     return (
       <main style={styles.page}>
-        <div style={styles.shell}>
-          <PremiumHeader />
+        <div style={styles.shell} className="spDet-shell">
+          <PremiumHeader mobileNav="bottom" />
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
               <div style={styles.loadingTitle}>Analizando tu agenda…</div>
-              <div style={styles.loadingSub}>
-                Buscando choques de horario
-              </div>
+              <div style={styles.loadingSub}>Buscando choques de horario</div>
             </div>
           </div>
         </div>
@@ -200,24 +236,29 @@ export default function DetectedClient() {
 
   return (
     <main style={styles.page}>
-      <div style={styles.shell}>
-        <div style={styles.topRow}>
-          <PremiumHeader />
+      <div style={styles.shell} className="spDet-shell">
+        <div style={styles.topRow} className="spDet-topRow">
+          <PremiumHeader mobileNav="bottom" />
           <LogoutButton />
         </div>
 
-        <section style={styles.hero}>
+        {/* ✅ 1 card principal (hero) */}
+        <section style={styles.hero} className="spDet-hero">
           <div style={styles.heroLeft}>
             <div style={styles.kicker}>Conflictos</div>
-            <h1 style={styles.h1}>Tranquilo, esto se soluciona en segundos</h1>
-            <div style={styles.sub}>
+            <h1 style={styles.h1} className="spDet-h1">
               {summary.total === 0
-                ? "Tu agenda está limpia y sincronizada."
+                ? "Todo está limpio ✅"
+                : "Tranquilo, esto se soluciona en segundos"}
+            </h1>
+            <div style={styles.sub} className="spDet-sub">
+              {summary.total === 0
+                ? "Tu agenda está sincronizada."
                 : `Detectamos ${summary.total} conflicto(s). Decide una vez y listo.`}
             </div>
           </div>
 
-          <div style={styles.heroRight}>
+          <div style={styles.heroRight} className="spDet-heroRight">
             {summary.total > 0 ? (
               <button onClick={resumeNext} style={styles.primaryBtn}>
                 Resolver ahora ✨
@@ -234,15 +275,15 @@ export default function DetectedClient() {
         </section>
 
         {summary.total === 0 ? (
-          <section style={styles.emptyCard}>
+          <section style={styles.emptyCard} className="spDet-card">
             <div style={styles.emptyTitle}>Todo en orden ✅</div>
             <div style={styles.emptySub}>
-              Cuando dos eventos choquen, aparecerán aquí con opciones claras
-              para resolverlos.
+              Cuando dos eventos choquen, aparecerán aquí con opciones claras para
+              resolverlos.
             </div>
           </section>
         ) : (
-          <section style={styles.listCard}>
+          <section style={styles.listCard} className="spDet-card">
             <div style={styles.listTop}>
               <div style={styles.listTitle}>Conflictos detectados</div>
               <div style={styles.listHint}>
@@ -251,21 +292,17 @@ export default function DetectedClient() {
             </div>
 
             <div style={styles.list}>
-              {conflicts.map((c, idx) => {
+              {visibleConflicts.map((c, idx) => {
                 const chosen = resMap[String(c.id)];
                 const a = c.existingEvent;
                 const b = c.incomingEvent;
 
                 // ✅ groupMeta también necesita couple
                 const aMeta = groupMeta(
-                  normalizeForConflicts(
-                    (a?.groupType ?? "personal") as any
-                  )
+                  normalizeForConflicts((a?.groupType ?? "personal") as any)
                 );
                 const bMeta = groupMeta(
-                  normalizeForConflicts(
-                    (b?.groupType ?? "personal") as any
-                  )
+                  normalizeForConflicts((b?.groupType ?? "personal") as any)
                 );
 
                 return (
@@ -273,6 +310,7 @@ export default function DetectedClient() {
                     key={c.id}
                     onClick={() => openCompare(idx)}
                     style={styles.rowBtn}
+                    className="spDet-row"
                   >
                     <div style={styles.rowLeft}>
                       <div style={styles.rowTop}>
@@ -289,36 +327,22 @@ export default function DetectedClient() {
 
                       <div style={styles.rowTwo}>
                         <div style={styles.miniLine}>
-                          <span
-                            style={{
-                              ...styles.dot,
-                              background: aMeta.dot,
-                            }}
-                          />
+                          <span style={{ ...styles.dot, background: aMeta.dot }} />
                           <span style={styles.miniTitle}>
                             {a?.title || "Evento A"}
                           </span>
                           <span style={styles.miniTime}>
-                            {a
-                              ? prettyTimeRange(a.start, a.end)
-                              : ""}
+                            {a ? prettyTimeRange(a.start, a.end) : ""}
                           </span>
                         </div>
 
                         <div style={styles.miniLine}>
-                          <span
-                            style={{
-                              ...styles.dot,
-                              background: bMeta.dot,
-                            }}
-                          />
+                          <span style={{ ...styles.dot, background: bMeta.dot }} />
                           <span style={styles.miniTitle}>
                             {b?.title || "Evento B"}
                           </span>
                           <span style={styles.miniTime}>
-                            {b
-                              ? prettyTimeRange(b.start, b.end)
-                              : ""}
+                            {b ? prettyTimeRange(b.start, b.end) : ""}
                           </span>
                         </div>
                       </div>
@@ -330,6 +354,19 @@ export default function DetectedClient() {
               })}
             </div>
 
+            {/* ✅ En móvil: botón “ver más” para evitar scroll eterno */}
+            {showSeeMore && (
+              <div style={styles.footerCta} className="spDet-footer">
+                <button
+                  onClick={() => openCompare(0)}
+                  style={styles.ghostBtnWide}
+                  className="spDet-seeMore"
+                >
+                  Ver todos en Comparar ({conflicts.length}) →
+                </button>
+              </div>
+            )}
+
             {summary.decided > 0 && (
               <div style={styles.footerCta}>
                 <button onClick={goActions} style={styles.ghostBtnWide}>
@@ -340,6 +377,20 @@ export default function DetectedClient() {
           </section>
         )}
       </div>
+
+      {/* ✅ SOLO Detected: responsive premium (NO toca otras páginas) */}
+      <style>{`
+        @media (max-width: 520px) {
+          .spDet-shell { padding: 14px 12px 110px !important; } /* deja espacio bottom bar */
+          .spDet-topRow { gap: 10px !important; margin-bottom: 10px !important; flex-wrap: wrap !important; }
+          .spDet-hero { padding: 12px !important; border-radius: 16px !important; }
+          .spDet-h1 { font-size: 20px !important; letter-spacing: -0.4px !important; }
+          .spDet-sub { font-size: 12px !important; }
+          .spDet-heroRight { width: 100% !important; }
+          .spDet-row { padding: 12px !important; }
+          .spDet-seeMore { width: 100% !important; min-width: unset !important; }
+        }
+      `}</style>
     </main>
   );
 }
@@ -363,6 +414,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     gap: 14,
     marginBottom: 14,
+    flexWrap: "wrap",
   },
   hero: {
     display: "flex",
@@ -376,6 +428,7 @@ const styles: Record<string, React.CSSProperties> = {
       "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
     boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
     marginBottom: 12,
+    flexWrap: "wrap",
   },
   heroLeft: { display: "flex", flexDirection: "column", gap: 6 },
   heroRight: { display: "flex", gap: 10, alignItems: "center" },
@@ -401,6 +454,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 900,
+    width: "fit-content",
   },
   ghostBtn: {
     padding: "12px 14px",
@@ -515,11 +569,7 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 0 24px rgba(56,189,248,0.55)",
   },
   loadingTitle: { fontWeight: 900 },
-  loadingSub: {
-    fontSize: 12,
-    opacity: 0.75,
-    marginTop: 2,
-  },
+  loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
   footerCta: {
     padding: 14,
     display: "flex",
