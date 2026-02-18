@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
@@ -136,7 +136,93 @@ export default function CalendarClient(props: {
   const router = useRouter();
   const pathname = usePathname();
   const isMobile = useIsMobileWidth(820);
+  /* =========================
+     ✅ FIT dinámico: mes completo en vertical (móvil)
+     - Calcula scale por ANCHO y por ALTO disponible
+     - Reserva espacio para BottomNav + DayPanel para que no se corte la última fila
+     ========================= */
+  const fitOuterRef = useRef<HTMLDivElement | null>(null);
+  const fitInnerRef = useRef<HTMLDivElement | null>(null);
+  const [fitScale, setFitScale] = useState(1);
 
+  const computeFitScale = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    // Solo aplicamos fit fuerte en móviles pequeños
+    const isSmallMobile = window.matchMedia("(max-width: 520px)").matches;
+    if (!isSmallMobile) {
+      setFitScale(1);
+      return;
+    }
+
+    const outer = fitOuterRef.current;
+    const inner = fitInnerRef.current;
+    if (!outer || !inner) return;
+
+    // Medidas del contenedor visible (donde queremos que "quepa")
+    const outerRect = outer.getBoundingClientRect();
+    const availW = outerRect.width;
+
+    // ✅ Altura disponible real: viewport - top del calendario - reserva inferior
+    // Reserva = BottomNav + safe-area + DayPanel (para que el mes entre completo)
+    const safeBottom =
+      (window as any).visualViewport?.offsetTop
+        ? 0
+        : 0; // no dependemos de esto, solo mantenemos compat
+
+    const bottomReserve = 92 /* BottomNav approx */ + 220 /* DayPanel mínimo */ + 16 /* margen */;
+    const availH = Math.max(260, window.innerHeight - outerRect.top - bottomReserve - safeBottom);
+
+    // Medimos tamaño "natural" del contenido (sin escala)
+    const prevTransform = inner.style.transform;
+    const prevWidth = inner.style.width;
+
+    inner.style.transform = "scale(1)";
+    inner.style.width = "max-content";
+
+    const naturalW = inner.scrollWidth || inner.getBoundingClientRect().width;
+    const naturalH = inner.scrollHeight || inner.getBoundingClientRect().height;
+
+    // Restaurar
+    inner.style.transform = prevTransform;
+    inner.style.width = prevWidth;
+
+    if (!naturalW || !naturalH || !availW || !availH) return;
+
+    const sW = availW / naturalW;
+    const sH = availH / naturalH;
+
+    // Clamp para no hacerlo ilegible
+    const s = Math.max(0.58, Math.min(1, sW, sH));
+
+    setFitScale(s);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const outer = fitOuterRef.current;
+    const inner = fitInnerRef.current;
+    if (!outer || !inner) return;
+
+    computeFitScale();
+
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(() => computeFitScale());
+    });
+
+    ro.observe(outer);
+    ro.observe(inner);
+
+    window.addEventListener("resize", computeFitScale);
+    window.addEventListener("orientationchange", computeFitScale);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", computeFitScale);
+      window.removeEventListener("orientationchange", computeFitScale);
+    };
+  }, [computeFitScale]);
   const eventRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const setEventRef = (id: string) => (el: HTMLDivElement | null) => {
     eventRefs.current[String(id)] = el;
@@ -625,14 +711,18 @@ export default function CalendarClient(props: {
       <style>{`
         ...tu CSS actual...
 
-  /* Desktop-fit en móvil: mantiene 7 columnas y lo escala para que "entre todo" */
-  .spCal-fitOuter { overflow: hidden; }
+   /* ✅ FIT dinámico: el scale ahora lo controla React (fitScale) */
+  .spCal-fitOuter {
+    overflow: hidden;
+    width: 100%;
+  }
 
+  /* ✅ En móvil, si el dayPanel crece, lo hacemos scrolleable para que el MES entre completo */
   @media (max-width: 520px) {
-    .spCal-fitInner {
-      transform-origin: top left;
-      transform: scale(0.72);
-      width: calc(100% / 0.72);
+    .spCal-dayPanel {
+      max-height: 220px;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
     }
   }
         @keyframes spPulseGlow {
@@ -811,33 +901,41 @@ export default function CalendarClient(props: {
         {tab === "month" ? (
          <section style={styles.calendarCard}>
   {/* ✅ Desktop-fit wrapper: solo envuelve weekHeader + grid */}
-  <div className="spCal-fitOuter">
-    <div className="spCal-fitInner">
-      <div style={styles.weekHeader} className="spCal-weekHeader">
-        {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
-          <div key={d} style={styles.weekDay}>
-            {d}
-          </div>
-        ))}
-      </div>
+<div className="spCal-fitOuter" ref={fitOuterRef}>
+  <div
+    className="spCal-fitInner"
+    ref={fitInnerRef}
+    style={{
+      transform: `scale(${fitScale})`,
+      width: `${100 / fitScale}%`,
+      transformOrigin: "top left",
+    }}
+  >
+    <div style={styles.weekHeader} className="spCal-weekHeader">
+      {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
+        <div key={d} style={styles.weekDay}>
+          {d}
+        </div>
+      ))}
+    </div>
 
-      <div style={styles.grid} className="spCal-grid">
-        {renderMonthCells({
-          gridStart,
-          gridEnd,
-          monthStart,
-          selectedDay,
-          setSelectedDay,
-          eventsByDay,
-          openNewEventPersonal,
-          openNewEventGroup,
-          groupTypeById,
-          onEdit: handleEditEvent,
-          today,
-        })}
-      </div>
+    <div style={styles.grid} className="spCal-grid">
+      {renderMonthCells({
+        gridStart,
+        gridEnd,
+        monthStart,
+        selectedDay,
+        setSelectedDay,
+        eventsByDay,
+        openNewEventPersonal,
+        openNewEventGroup,
+        groupTypeById,
+        onEdit: handleEditEvent,
+        today,
+      })}
     </div>
   </div>
+</div>
 
   {/* 👇 Esto queda NORMAL (sin scale) para que se lea bien */}
   <div style={styles.dayPanel} className="spCal-dayPanel">
