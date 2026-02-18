@@ -174,7 +174,7 @@ export default function AcceptInviteClient() {
         subtitle: "Ya eres parte del grupo.",
       });
       setInv((prev) => (prev ? { ...prev, status: "accepted" as any } : prev));
-      window.setTimeout(() => router.push("/groups"), 700);
+      window.setTimeout(() => router.push(`/groups?joined=${encodeURIComponent(inv.group_id)}`), 700);
     } catch (e: any) {
       showToast({
         title: "No se pudo aceptar",
@@ -199,7 +199,7 @@ export default function AcceptInviteClient() {
         subtitle: "No se agregó el grupo.",
       });
       setInv((prev) => (prev ? { ...prev, status: "declined" as any } : prev));
-      window.setTimeout(() => router.push("/groups"), 700);
+      window.setTimeout(() => router.push(`/groups?joined=${encodeURIComponent(inv.group_id)}`), 700);
     } catch (e: any) {
       showToast({
         title: "No se pudo rechazar",
