@@ -785,13 +785,31 @@ useLayoutEffect(() => {
   /* 3️⃣ Reducir separación */
   .spCal-grid { gap: 6px !important; padding: 6px !important; }
 
-  /* 4️⃣ Celdas más bajas */
-  .spCal-cell {
-    min-height: 66px !important;
-    padding: 6px !important;
-    border-radius: 12px !important;
-  }
+ /* 4) ✅ Celdas 100% simétricas */
+.spCal-cell {
+  aspect-ratio: 1 / 1;        /* 🔥 clave: siempre cuadradas */
+  min-height: unset !important;
+  height: auto !important;
+  padding: 6px !important;
+  border-radius: 12px !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  overflow: hidden;           /* evita que eventos expandan */
+}
 
+/* Máximo 2 eventos visibles dentro de cada día */
+.spCal-cell .spCal-chip {
+  font-size: 10px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Si tienes lista de eventos dentro */
+.spCal-cell > div:nth-child(n+4) {
+  display: none;
+}
   /* 5️⃣ Contador compacto */
   .spCal-cellCount {
     font-size: 11px !important;
