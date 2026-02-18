@@ -824,7 +824,64 @@ useLayoutEffect(() => {
     -webkit-overflow-scrolling: touch;
   }
 }
+/* ===========================
+   ✅ FIX REAL iPhone vertical:
+   - Mes scrolleable (NO se recortan días)
+   - WeekHeader sticky
+   - DayPanel limitado
+   =========================== */
 
+.spCal-calendarCard {
+  overflow: hidden; /* el scroll vive en monthScroller */
+}
+
+/* el “viewport” real del mes */
+.spCal-monthScroller {
+  overflow: visible;
+}
+
+/* iPhone vertical / móviles */
+@media (max-width: 520px) {
+  /* 1) El mes se vuelve scrolleable dentro de la tarjeta */
+  .spCal-monthScroller {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+
+    /* ✅ espacio para que la última fila no quede “debajo” del dayPanel/bottom nav */
+    padding-bottom: 140px;
+
+    /* ✅ altura disponible: ajusta este número si quieres más/menos mes visible */
+    max-height: calc(100dvh - 430px);
+  }
+
+  /* 2) Week header se queda pegado arriba mientras scrolleas el mes */
+  .spCal-weekHeader {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: rgba(5, 8, 22, 0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* 3) Day panel NO debe comerse la pantalla */
+  .spCal-dayPanel {
+    max-height: 140px;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 4) Compactación extra del grid para que se sienta premium */
+  .spCal-grid {
+    gap: 6px !important;
+    padding: 8px !important;
+  }
+  .spCal-cell {
+    min-height: 66px !important;
+    padding: 6px !important;
+    border-radius: 12px !important;
+  }
+}
 `}</style>
 
       {toast && (
@@ -977,85 +1034,75 @@ useLayoutEffect(() => {
           </div>
         </section>
 
-        {tab === "month" ? (
-         <section style={styles.calendarCard}>
-  {/* ✅ Desktop-fit wrapper: solo envuelve weekHeader + grid */}
-<div className="spCal-fitOuter" ref={fitOuterRef}>
-  <div
-    className="spCal-fitInner"
-    ref={fitInnerRef}
-    style={{
-      transform: `scale(${fitScale})`,
-      width: `${100 / fitScale}%`,
-      transformOrigin: "top left",
-    }}
-  >
-    <div style={styles.weekHeader} className="spCal-weekHeader">
-      {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
-        <div key={d} style={styles.weekDay}>
-          {d}
-        </div>
-      ))}
-    </div>
+{tab === "month" ? (
+  <section style={styles.calendarCard} className="spCal-calendarCard">
+    {/* ✅ SCROLLER del mes (en móvil vertical) */}
+    <div className="spCal-monthScroller">
+      <div style={styles.weekHeader} className="spCal-weekHeader">
+        {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
+          <div key={d} style={styles.weekDay}>
+            {d}
+          </div>
+        ))}
+      </div>
 
-  <div style={styles.grid} className="spCal-grid">
-  {renderMonthCells({
-    gridStart,
-    gridEnd,
-    monthStart,
-    selectedDay,
-    setSelectedDay,
-    eventsByDay,
-    openNewEventPersonal,
-    openNewEventGroup,
-    groupTypeById,
-    onEdit: handleEditEvent,
-    today,
-  })}
-</div>
-  </div>
-</div>
-
-  {/* 👇 Esto queda NORMAL (sin scale) para que se lea bien */}
-  <div style={styles.dayPanel} className="spCal-dayPanel">
-    <div style={styles.dayPanelTop}>
-      <div style={styles.dayPanelTitle}>{prettyDay(selectedDay)}</div>
-
-      <div style={styles.dayPanelActions}>
-        <button
-          onClick={() => openNewEventPersonal(selectedDay)}
-          style={styles.ghostBtnSmallPersonal}
-        >
-          + Personal
-        </button>
-        <button
-          onClick={() => openNewEventGroup(selectedDay)}
-          style={styles.ghostBtnSmallGroup}
-        >
-          + Grupo
-        </button>
+      <div style={styles.grid} className="spCal-grid">
+        {renderMonthCells({
+          gridStart,
+          gridEnd,
+          monthStart,
+          selectedDay,
+          setSelectedDay,
+          eventsByDay,
+          openNewEventPersonal,
+          openNewEventGroup,
+          groupTypeById,
+          onEdit: handleEditEvent,
+          today,
+        })}
       </div>
     </div>
 
-    <div style={styles.dayList}>
-      {(eventsByDay.get(ymd(selectedDay)) || []).length === 0 ? (
-        <div style={styles.emptyHint}>No hay eventos este día.</div>
-      ) : (
-        (eventsByDay.get(ymd(selectedDay)) || []).map((e) => (
-          <EventRow
-            key={e.id ?? `${e.start}_${e.end}`}
-            e={e}
-            highlightId={highlightId}
-            setRef={setEventRef}
-            onDelete={handleDeleteEvent}
-            onEdit={handleEditEvent}
-            groupTypeById={groupTypeById}
-          />
-        ))
-      )}
+    {/* 👇 Day panel aparte (limitado en móvil para no tapar el mes) */}
+    <div style={styles.dayPanel} className="spCal-dayPanel">
+      <div style={styles.dayPanelTop}>
+        <div style={styles.dayPanelTitle}>{prettyDay(selectedDay)}</div>
+
+        <div style={styles.dayPanelActions}>
+          <button
+            onClick={() => openNewEventPersonal(selectedDay)}
+            style={styles.ghostBtnSmallPersonal}
+          >
+            + Personal
+          </button>
+          <button
+            onClick={() => openNewEventGroup(selectedDay)}
+            style={styles.ghostBtnSmallGroup}
+          >
+            + Grupo
+          </button>
+        </div>
+      </div>
+
+      <div style={styles.dayList}>
+        {(eventsByDay.get(ymd(selectedDay)) || []).length === 0 ? (
+          <div style={styles.emptyHint}>No hay eventos este día.</div>
+        ) : (
+          (eventsByDay.get(ymd(selectedDay)) || []).map((e) => (
+            <EventRow
+              key={e.id ?? `${e.start}_${e.end}`}
+              e={e}
+              highlightId={highlightId}
+              setRef={setEventRef}
+              onDelete={handleDeleteEvent}
+              onEdit={handleEditEvent}
+              groupTypeById={groupTypeById}
+            />
+          ))
+        )}
+      </div>
     </div>
-  </div>
-</section>
+  </section>
         ) : (
           <section style={styles.agendaCard}>
             <div style={styles.agendaTop}>
