@@ -623,6 +623,18 @@ export default function CalendarClient(props: {
   return (
     <main style={styles.page}>
       <style>{`
+        ...tu CSS actual...
+
+  /* Desktop-fit en móvil: mantiene 7 columnas y lo escala para que "entre todo" */
+  .spCal-fitOuter { overflow: hidden; }
+
+  @media (max-width: 520px) {
+    .spCal-fitInner {
+      transform-origin: top left;
+      transform: scale(0.72);
+      width: calc(100% / 0.72);
+    }
+  }
         @keyframes spPulseGlow {
           0% { transform: translateZ(0) scale(1); box-shadow: none; }
           35% { transform: translateZ(0) scale(1.01); box-shadow: 0 0 0 6px rgba(56,189,248,0.22), 0 18px 60px rgba(0,0,0,0.35); }
@@ -640,10 +652,10 @@ export default function CalendarClient(props: {
           .spCal-cell { min-height: 92px !important; border-radius: 14px !important; padding: 9px !important; }
           .spCal-dayPanel { padding: 10px !important; }
         }
-        @media (max-width: 520px) {
-          .spCal-weekHeader { display: none !important; }
-          .spCal-grid { grid-template-columns: repeat(2, 1fr) !important; }
-        }
+ @media (max-width: 520px) {
+  .spCal-weekHeader { display: grid !important; }
+  .spCal-grid { grid-template-columns: repeat(7, 1fr) !important; }
+}
       `}</style>
 
       {toast && (
@@ -797,70 +809,76 @@ export default function CalendarClient(props: {
         </section>
 
         {tab === "month" ? (
-          <section style={styles.calendarCard}>
-            <div style={styles.weekHeader} className="spCal-weekHeader">
-              {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
-                <div key={d} style={styles.weekDay}>
-                  {d}
-                </div>
-              ))}
-            </div>
+         <section style={styles.calendarCard}>
+  {/* ✅ Desktop-fit wrapper: solo envuelve weekHeader + grid */}
+  <div className="spCal-fitOuter">
+    <div className="spCal-fitInner">
+      <div style={styles.weekHeader} className="spCal-weekHeader">
+        {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
+          <div key={d} style={styles.weekDay}>
+            {d}
+          </div>
+        ))}
+      </div>
 
-            <div style={styles.grid} className="spCal-grid">
-              {renderMonthCells({
-                gridStart,
-                gridEnd,
-                monthStart,
-                selectedDay,
-                setSelectedDay,
-                eventsByDay,
-                openNewEventPersonal,
-                openNewEventGroup,
-                groupTypeById,
-                onEdit: handleEditEvent,
-                today,
-              })}
-            </div>
+      <div style={styles.grid} className="spCal-grid">
+        {renderMonthCells({
+          gridStart,
+          gridEnd,
+          monthStart,
+          selectedDay,
+          setSelectedDay,
+          eventsByDay,
+          openNewEventPersonal,
+          openNewEventGroup,
+          groupTypeById,
+          onEdit: handleEditEvent,
+          today,
+        })}
+      </div>
+    </div>
+  </div>
 
-            <div style={styles.dayPanel} className="spCal-dayPanel">
-              <div style={styles.dayPanelTop}>
-                <div style={styles.dayPanelTitle}>{prettyDay(selectedDay)}</div>
+  {/* 👇 Esto queda NORMAL (sin scale) para que se lea bien */}
+  <div style={styles.dayPanel} className="spCal-dayPanel">
+    <div style={styles.dayPanelTop}>
+      <div style={styles.dayPanelTitle}>{prettyDay(selectedDay)}</div>
 
-                <div style={styles.dayPanelActions}>
-                  <button
-                    onClick={() => openNewEventPersonal(selectedDay)}
-                    style={styles.ghostBtnSmallPersonal}
-                  >
-                    + Personal
-                  </button>
-                  <button
-                    onClick={() => openNewEventGroup(selectedDay)}
-                    style={styles.ghostBtnSmallGroup}
-                  >
-                    + Grupo
-                  </button>
-                </div>
-              </div>
+      <div style={styles.dayPanelActions}>
+        <button
+          onClick={() => openNewEventPersonal(selectedDay)}
+          style={styles.ghostBtnSmallPersonal}
+        >
+          + Personal
+        </button>
+        <button
+          onClick={() => openNewEventGroup(selectedDay)}
+          style={styles.ghostBtnSmallGroup}
+        >
+          + Grupo
+        </button>
+      </div>
+    </div>
 
-              <div style={styles.dayList}>
-                {(eventsByDay.get(ymd(selectedDay)) || []).length === 0 ? (
-                  <div style={styles.emptyHint}>No hay eventos este día.</div>
-                ) : (
-                  (eventsByDay.get(ymd(selectedDay)) || []).map((e) => (
-                    <EventRow
-                      key={e.id ?? `${e.start}_${e.end}`}
-                      e={e}
-                      highlightId={highlightId}
-                      setRef={setEventRef}
-                      onDelete={handleDeleteEvent}
-                      onEdit={handleEditEvent}
-                      groupTypeById={groupTypeById}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          </section>
+    <div style={styles.dayList}>
+      {(eventsByDay.get(ymd(selectedDay)) || []).length === 0 ? (
+        <div style={styles.emptyHint}>No hay eventos este día.</div>
+      ) : (
+        (eventsByDay.get(ymd(selectedDay)) || []).map((e) => (
+          <EventRow
+            key={e.id ?? `${e.start}_${e.end}`}
+            e={e}
+            highlightId={highlightId}
+            setRef={setEventRef}
+            onDelete={handleDeleteEvent}
+            onEdit={handleEditEvent}
+            groupTypeById={groupTypeById}
+          />
+        ))
+      )}
+    </div>
+  </div>
+</section>
         ) : (
           <section style={styles.agendaCard}>
             <div style={styles.agendaTop}>

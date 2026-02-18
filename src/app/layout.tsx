@@ -1,8 +1,10 @@
 // src/app/layout.tsx
 import "./globals.css";
-import { ToastProvider } from "@/components/ui/Toast";
 import type { Metadata, Viewport } from "next";
 import SWRegister from "./sw-register";
+
+import { ToastProvider } from "@/components/ui/Toast";
+import BottomNav from "@/components/BottomNav";
 
 export const metadata: Metadata = {
   title: "SyncPlans",
@@ -27,7 +29,10 @@ export default function RootLayout({
         <meta name="theme-color" content="#0B0F19" />
 
         {/* ✅ iOS safe-area support */}
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
       </head>
 
       <body
@@ -43,7 +48,12 @@ export default function RootLayout({
         }}
       >
         <SWRegister />
-        <ToastProvider>{children}</ToastProvider>
+
+        <ToastProvider>
+          {children}
+          {/* ✅ BottomNav SIEMPRE al final (una sola vez, global) */}
+          <BottomNav />
+        </ToastProvider>
       </body>
     </html>
   );
