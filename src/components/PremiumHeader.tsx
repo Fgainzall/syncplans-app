@@ -19,7 +19,7 @@ import {
 } from "@/lib/profilesDb";
 
 import IntegrationsDrawer from "@/components/IntegrationsDrawer";
-import BottomNav from "@/components/BottomNav";
+
 
 type TabKey = UsageMode | "other";
 
@@ -407,7 +407,7 @@ async function onPickMode(nextMode: TabKey) {
    * - mobileNav = "none": sin nav
    */
   const shouldShowTopNav = !isMobile && true ? true : isMobile && mobileNav === "top";
-  const shouldShowBottomNav = isMobile && mobileNav === "bottom";
+  
 
   return (
     <>
@@ -574,7 +574,7 @@ async function onPickMode(nextMode: TabKey) {
       </header>
 
       {/* ✅ BOTTOM NAV (móvil) */}
-      {shouldShowBottomNav && <BottomNav />}
+ 
 
       <NotificationsDrawer
         open={openNotif}
