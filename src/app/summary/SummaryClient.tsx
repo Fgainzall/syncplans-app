@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+import MobileScaffold from "@/components/MobileScaffold";
 
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
@@ -49,7 +50,7 @@ function humanGroupName(g: GroupRow) {
   return "Grupo";
 }
 
-/** ✅ SOLO para Summary: detecta móvil por ancho (modo app iPhone entra aquí) */
+/** ✅ SOLO Summary: detecta móvil por ancho (modo app iPhone entra aquí) */
 function useIsMobileWidth(maxWidth = 520) {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -119,6 +120,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         const endIso = (e as any)?.end ?? (e as any)?.end_at ?? null;
         const start = safeDate(startIso);
         const end = safeDate(endIso);
+
         return {
           ...e,
           _start: start,
@@ -142,11 +144,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [visibleEvents]);
 
   // ✅ CLAVE: en móvil mostramos menos para evitar scroll infinito
-  const UPCOMING_LIMIT = isMobile ? 4 : 8;
+  const UPCOMING_LIMIT = isMobile ? 3 : 8;
 
   const upcoming = useMemo(() => {
     return upcomingAll.slice(0, UPCOMING_LIMIT);
   }, [upcomingAll, UPCOMING_LIMIT]);
+
+  const showSeeMore = !booting && upcomingAll.length > UPCOMING_LIMIT;
 
   async function requireSessionOrRedirect() {
     const { data, error } = await supabase.auth.getSession();
@@ -190,13 +194,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
       try {
         setBooting(true);
         await loadSummary();
-        if (appliedToast) {
-          showToast("Listo ✅", appliedToast);
-        }
+        if (appliedToast) showToast("Listo ✅", appliedToast);
       } finally {
         if (alive) setBooting(false);
       }
@@ -210,17 +213,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   // ✅ escucha cambio de grupo activo sin recargar
   useEffect(() => {
-    const handler = () => {
-      loadSummary();
-    };
+    const handler = () => loadSummary();
     window.addEventListener("sp:active-group-changed", handler as any);
     return () =>
       window.removeEventListener("sp:active-group-changed", handler as any);
   }, [loadSummary]);
 
   const title = activeGroupId ? `Resumen · ${activeLabel}` : "Resumen · Personal";
-
-  const showSeeMore = !booting && upcomingAll.length > UPCOMING_LIMIT;
 
   return (
     <main style={styles.page} className="spSum-page">
@@ -236,9 +235,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         </div>
       )}
 
-      <div style={styles.shell} className="spSum-shell">
+      <MobileScaffold className="spSum-shell">
         <div style={styles.topRow} className="spSum-topRow">
-          <PremiumHeader />
+          <PremiumHeader mobileNav="bottom" />
           <div style={styles.topActions} className="spSum-topActions">
             <LogoutButton />
           </div>
@@ -251,13 +250,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             <h1 style={styles.h1} className="spSum-h1">
               {title}
             </h1>
-            {!isMobile && (
+
+            {!isMobile ? (
               <div style={styles.sub}>
                 Vista rápida de lo importante. Si cambiaste el grupo activo en
                 Calendario, aquí se actualiza solo (sin recargar).
               </div>
-            )}
-            {isMobile && (
+            ) : (
               <div style={styles.subMobile}>
                 Lo importante, rápido. Actualiza solo.
               </div>
@@ -309,16 +308,20 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 {upcoming.map((e: any) => {
                   const start = e._start as Date;
                   const end = e._end as Date | null;
+
                   const when = end
                     ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
                     : `${fmtDay(start)} · ${fmtTime(start)}`;
+
                   const isHighlighted =
                     highlightId &&
                     String((e as any)?.id ?? "") === String(highlightId);
 
                   return (
                     <button
-                      key={(e as any)?.id ?? `${e._title}-${start.toISOString()}`}
+                      key={
+                        (e as any)?.id ?? `${e._title}-${start.toISOString()}`
+                      }
                       onClick={() => router.push("/calendar")}
                       style={{
                         ...styles.eventRow,
@@ -330,6 +333,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                         <div style={styles.eventWhen}>{when}</div>
                         <div style={styles.eventTitle}>{e._title}</div>
                       </div>
+
                       <div style={styles.eventMeta}>
                         {(e as any)?.is_external ? (
                           <span style={styles.pill}>Externo</span>
@@ -378,7 +382,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               className="spSum-quickCard"
             >
               <div style={styles.quickTitle}>Ir a grupos</div>
-              <div style={styles.quickSub}>Invita, configura, revisa miembros</div>
+              <div style={styles.quickSub}>
+                Invita, configura, revisa miembros
+              </div>
             </button>
 
             <button
@@ -391,15 +397,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             </button>
           </div>
         </section>
-      </div>
+      </MobileScaffold>
 
       {/* ✅ SOLO Summary: responsive premium (NO toca otras páginas) */}
       <style>{`
         @media (max-width: 520px) {
-          .spSum-shell { padding: 14px 12px 24px !important; }
           .spSum-topRow { gap: 10px !important; margin-bottom: 10px !important; }
           .spSum-topActions { width: 100% !important; justify-content: flex-end !important; }
-          
+
           .spSum-hero { padding: 12px 12px !important; border-radius: 16px !important; }
           .spSum-h1 { font-size: 20px !important; letter-spacing: -0.4px !important; margin-top: 8px !important; }
           .spSum-heroBtns { width: 100% !important; }
@@ -410,7 +415,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           .spSum-eventRow { padding: 10px 10px !important; border-radius: 12px !important; }
           .spSum-eventsList { gap: 8px !important; }
 
-          /* Acciones rápidas: 1 columna en iPhone para que no “crezca raro” */
+          /* Acciones rápidas: 1 columna en iPhone */
           .spSum-quickGrid { grid-template-columns: 1fr !important; gap: 10px !important; }
           .spSum-quickCard { padding: 12px !important; border-radius: 14px !important; }
 
@@ -427,11 +432,6 @@ const styles: Record<string, React.CSSProperties> = {
     background:
       "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
-  },
-  shell: {
-    maxWidth: 980,
-    margin: "0 auto",
-    padding: "22px 18px 48px",
   },
 
   toastWrap: {
@@ -579,7 +579,12 @@ const styles: Record<string, React.CSSProperties> = {
   eventLeft: { display: "flex", flexDirection: "column", gap: 3 },
   eventWhen: { fontSize: 11, opacity: 0.75, fontWeight: 800 },
   eventTitle: { fontSize: 13, fontWeight: 950, letterSpacing: "-0.2px" },
-  eventMeta: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" },
+  eventMeta: {
+    display: "flex",
+    gap: 6,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
   pill: {
     fontSize: 10,
     fontWeight: 900,
