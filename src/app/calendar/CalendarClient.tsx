@@ -1,4 +1,3 @@
-// src/app/calendar/CalendarClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
@@ -67,61 +66,52 @@ function ymd(d: Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 function prettyMonthRange(a: Date, b: Date) {
-  const meses = [
-    "ene",
-    "feb",
-    "mar",
-    "abr",
-    "may",
-    "jun",
-    "jul",
-    "ago",
-    "sep",
-    "oct",
-    "nov",
-    "dic",
-  ];
+  const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
   return `${a.getDate()} ${meses[a.getMonth()]} ${a.getFullYear()} – ${b.getDate()} ${meses[b.getMonth()]} ${b.getFullYear()}`;
 }
 function prettyDay(d: Date) {
   const dias = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-  const meses = [
-    "enero",
-    "febrero",
-    "marzo",
-    "abril",
-    "mayo",
-    "junio",
-    "julio",
-    "agosto",
-    "septiembre",
-    "octubre",
-    "noviembre",
-    "diciembre",
-  ];
-  return `${dias[d.getDay()]}, ${d.getDate()} de ${
-    meses[d.getMonth()]
-  } ${d.getFullYear()}`;
+  const meses = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  return `${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]} ${d.getFullYear()}`;
 }
 function prettyTimeRange(startIso: string, endIso: string) {
   const s = new Date(startIso);
   const e = new Date(endIso);
-  const hhmm = (x: Date) =>
-    `${String(x.getHours()).padStart(2, "0")}:${String(x.getMinutes()).padStart(
-      2,
-      "0"
-    )}`;
+  const hhmm = (x: Date) => `${String(x.getHours()).padStart(2, "0")}:${String(x.getMinutes()).padStart(2, "0")}`;
   const cross = !sameDay(s, e);
-  if (cross)
-    return `${s.toLocaleDateString()} ${hhmm(
-      s
-    )} → ${e.toLocaleDateString()} ${hhmm(e)}`;
+  if (cross) return `${s.toLocaleDateString()} ${hhmm(s)} → ${e.toLocaleDateString()} ${hhmm(e)}`;
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
 function isValidIsoish(v: any) {
   if (!v || typeof v !== "string") return false;
   const t = new Date(v).getTime();
   return !Number.isNaN(t);
+}
+
+/** ✅ detecta móvil por ancho (sin tocar otras páginas) */
+function useIsMobileWidth(maxWidth = 720) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
+    const apply = () => setIsMobile(!!mq.matches);
+    apply();
+
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", apply);
+      return () => mq.removeEventListener("change", apply);
+    } else {
+      // @ts-ignore
+      mq.addListener(apply);
+      return () => {
+        // @ts-ignore
+        mq.removeListener(apply);
+      };
+    }
+  }, [maxWidth]);
+
+  return isMobile;
 }
 
 /**
@@ -145,6 +135,7 @@ export default function CalendarClient(props: {
 
   const router = useRouter();
   const pathname = usePathname();
+  const isMobile = useIsMobileWidth(820);
 
   const eventRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const setEventRef = (id: string) => (el: HTMLDivElement | null) => {
@@ -183,9 +174,7 @@ export default function CalendarClient(props: {
     family: true,
   });
 
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
-    null
-  );
+  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
 
   /* ✏️ ESTADO DEL MODAL DE EDICIÓN */
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
@@ -201,19 +190,21 @@ export default function CalendarClient(props: {
   const gridStart = useMemo(() => startOfWeek(monthStart), [monthStart]);
   const gridEnd = useMemo(() => endOfWeek(monthEnd), [monthEnd]);
 
+  const today = useMemo(() => {
+    const t = new Date();
+    t.setHours(0, 0, 0, 0);
+    return t;
+  }, []);
+
   /* =========================
      Carga de datos (DB) — “Actualizar”
      ========================= */
   const refreshCalendar = useCallback(
-    async (opts?: {
-      showToast?: boolean;
-      toastTitle?: string;
-      toastSubtitle?: string;
-    }) => {
-      const showToast = opts?.showToast ?? false;
+    async (opts?: { showToast?: boolean; toastTitle?: string; toastSubtitle?: string }) => {
+      const showToastFlag = opts?.showToast ?? false;
 
       try {
-        if (showToast) {
+        if (showToastFlag) {
           setToast({
             title: opts?.toastTitle ?? "Actualizando…",
             subtitle: opts?.toastSubtitle ?? "Recargando desde SyncPlans",
@@ -252,8 +243,7 @@ export default function CalendarClient(props: {
           (myGroups || []).map((g: any) => {
             const id = String(g.id);
             const rawType = String(g.type ?? "").toLowerCase();
-            const normalized: "family" | "pair" =
-              rawType === "family" ? "family" : "pair";
+            const normalized: "family" | "pair" = rawType === "family" ? "family" : "pair";
             return [id, normalized];
           })
         );
@@ -291,18 +281,15 @@ export default function CalendarClient(props: {
         setEventsLoaded(true);
         setError(null);
 
-        if (showToast) {
-          setToast({
-            title: "Actualizado ✅",
-            subtitle: "Tu calendario ya está al día.",
-          });
+        if (showToastFlag) {
+          setToast({ title: "Actualizado ✅", subtitle: "Tu calendario ya está al día." });
           window.setTimeout(() => setToast(null), 2400);
         }
       } catch (e: any) {
         setError(e?.message ?? "Error cargando calendario");
         setEventsLoaded(true);
 
-        if (showToast) {
+        if (showToastFlag) {
           setToast({
             title: "No se pudo actualizar",
             subtitle: e?.message ?? "Revisa tu sesión o conexión.",
@@ -350,28 +337,14 @@ export default function CalendarClient(props: {
 
     const parts: string[] = [];
     if (appliedCount > 0)
-      parts.push(
-        `${appliedCount} decisión${appliedCount === 1 ? "" : "es"} aplicada${
-          appliedCount === 1 ? "" : "s"
-        }`
-      );
+      parts.push(`${appliedCount} decisión${appliedCount === 1 ? "" : "es"} aplicada${appliedCount === 1 ? "" : "s"}`);
     if (deleted > 0)
-      parts.push(
-        `${deleted} evento${deleted === 1 ? "" : "s"} eliminado${
-          deleted === 1 ? "" : "s"
-        }`
-      );
+      parts.push(`${deleted} evento${deleted === 1 ? "" : "s"} eliminado${deleted === 1 ? "" : "s"}`);
     if (skipped > 0)
-      parts.push(
-        `${skipped} conflicto${skipped === 1 ? "" : "s"} saltado${
-          skipped === 1 ? "" : "s"
-        }`
-      );
+      parts.push(`${skipped} conflicto${skipped === 1 ? "" : "s"} saltado${skipped === 1 ? "" : "s"}`);
 
     const subtitle =
-      parts.length > 0
-        ? parts.join(" · ")
-        : "No hubo cambios que aplicar en los conflictos.";
+      parts.length > 0 ? parts.join(" · ") : "No hubo cambios que aplicar en los conflictos.";
 
     setToast({ title: "Cambios aplicados ✅", subtitle });
 
@@ -384,20 +357,20 @@ export default function CalendarClient(props: {
   }, [appliedToast, pathname, refreshCalendar, router]);
 
   // ✅ escucha cambio de grupo activo (PremiumHeader) sin recargar toda la página
-useEffect(() => {
-  const handler = async () => {
-    try {
-      const next = await getActiveGroupIdFromDb().catch(() => null);
-      setActiveGroupId(next ? String(next) : null);
-    } catch {
-      // no-op
-    }
-  };
+  useEffect(() => {
+    const handler = async () => {
+      try {
+        const next = await getActiveGroupIdFromDb().catch(() => null);
+        setActiveGroupId(next ? String(next) : null);
+      } catch {
+        // no-op
+      }
+    };
 
-  window.addEventListener("sp:active-group-changed", handler as any);
-  return () =>
-    window.removeEventListener("sp:active-group-changed", handler as any);
-}, []);
+    window.addEventListener("sp:active-group-changed", handler as any);
+    return () => window.removeEventListener("sp:active-group-changed", handler as any);
+  }, []);
+
   /* Boot inicial */
   useEffect(() => {
     let alive = true;
@@ -431,12 +404,10 @@ useEffect(() => {
      Conflictos
      ========================= */
   const conflicts = useMemo(() => {
-    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
-      (e) => ({
-        ...e,
-        groupType: normalizeForConflicts(e.groupType),
-      })
-    );
+    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map((e) => ({
+      ...e,
+      groupType: normalizeForConflicts(e.groupType),
+    }));
 
     const all = computeVisibleConflicts(normalized);
     return filterIgnoredConflicts(all);
@@ -527,9 +498,7 @@ useEffect(() => {
       map.set(key, arr);
     }
     for (const [k, arr] of map.entries()) {
-      arr.sort(
-        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
-      );
+      arr.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
       map.set(k, arr);
     }
     return map;
@@ -584,23 +553,27 @@ useEffect(() => {
   }, [highlightId, pathname, router]);
 
   /* =========================
+     UX premium: en móvil, agenda se siente mejor (sin forzarte)
+     ========================= */
+  useEffect(() => {
+    if (!isMobile) return;
+    // Si el usuario ya eligió agenda, lo respetamos.
+    // Si está en month, lo dejamos (pero la UI se adapta).
+  }, [isMobile]);
+
+  /* =========================
      Navegación y acciones
      ========================= */
-  const goPrevMonth = () =>
-    setAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
-  const goNextMonth = () =>
-    setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  const goPrevMonth = () => setAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  const goNextMonth = () => setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
   const goToday = () => {
     const t = new Date();
     setAnchor(t);
     setSelectedDay(t);
   };
 
-  const toggleGroup = (g: GroupType) =>
-    setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
+  const toggleGroup = (g: GroupType) => setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
 
-  // ✅ ÚNICO significado aquí:
-  // “Actualizar” = recargar desde DB (Supabase)
   const handleRefresh = async () => {
     await refreshCalendar({
       showToast: true,
@@ -611,21 +584,16 @@ useEffect(() => {
 
   const openNewEventPersonal = (date?: Date) => {
     const d = date ?? selectedDay ?? new Date();
-    router.push(
-      `/events/new/details?type=personal&date=${encodeURIComponent(d.toISOString())}`
-    );
+    router.push(`/events/new/details?type=personal&date=${encodeURIComponent(d.toISOString())}`);
   };
 
   const openNewEventGroup = (date?: Date) => {
     const d = date ?? selectedDay ?? new Date();
-    router.push(
-      `/events/new/details?type=group&date=${encodeURIComponent(d.toISOString())}`
-    );
+    router.push(`/events/new/details?type=group&date=${encodeURIComponent(d.toISOString())}`);
   };
 
   const openConflicts = () => router.push("/conflicts/detected");
-  const resolveNow = () =>
-    router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`);
+  const resolveNow = () => router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`);
 
   /* =========================
      RENDER
@@ -634,7 +602,10 @@ useEffect(() => {
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-         <PremiumHeader mobileNav="bottom" />
+          <div style={styles.stickyTop}>
+            <PremiumHeader mobileNav="bottom" />
+          </div>
+
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
@@ -647,6 +618,8 @@ useEffect(() => {
     );
   }
 
+  const monthTitle = prettyMonthRange(monthStart, monthEnd);
+
   return (
     <main style={styles.page}>
       <style>{`
@@ -654,6 +627,22 @@ useEffect(() => {
           0% { transform: translateZ(0) scale(1); box-shadow: none; }
           35% { transform: translateZ(0) scale(1.01); box-shadow: 0 0 0 6px rgba(56,189,248,0.22), 0 18px 60px rgba(0,0,0,0.35); }
           100% { transform: translateZ(0) scale(1); box-shadow: none; }
+        }
+        .spCal-chip:hover { transform: translateZ(0) scale(1.01); }
+        .spCal-cell:hover { transform: translateZ(0) translateY(-1px); border-color: rgba(255,255,255,0.16); }
+        @media (max-width: 820px) {
+          .spCal-shell { padding: 14px 12px 42px !important; }
+          .spCal-hero { padding: 12px 12px !important; border-radius: 16px !important; }
+          .spCal-title { font-size: 22px !important; }
+          .spCal-topRow { gap: 10px !important; }
+          .spCal-actions { width: 100% !important; justify-content: flex-end !important; }
+          .spCal-grid { gap: 8px !important; padding: 10px !important; }
+          .spCal-cell { min-height: 92px !important; border-radius: 14px !important; padding: 9px !important; }
+          .spCal-dayPanel { padding: 10px !important; }
+        }
+        @media (max-width: 520px) {
+          .spCal-weekHeader { display: none !important; }
+          .spCal-grid { grid-template-columns: repeat(2, 1fr) !important; }
         }
       `}</style>
 
@@ -666,21 +655,27 @@ useEffect(() => {
         </div>
       )}
 
-      <div style={styles.shell}>
-        <div style={styles.topRow}>
-          <PremiumHeader />
-          <div style={styles.topActions}>
-            <button onClick={handleRefresh} style={styles.ghostBtn}>
-              Actualizar
-            </button>
-            <LogoutButton />
+      <div style={styles.shell} className="spCal-shell">
+        {/* ✅ Sticky top (sensación Microsoft/Google) */}
+        <div style={styles.stickyTop}>
+          <div style={styles.topRow} className="spCal-topRow">
+            <PremiumHeader mobileNav={isMobile ? "bottom" : undefined} />
+            <div style={styles.topActions} className="spCal-actions">
+              <button onClick={handleRefresh} style={styles.ghostBtn}>
+                Actualizar
+              </button>
+              <LogoutButton />
+            </div>
           </div>
         </div>
 
-        <section style={styles.hero}>
+        {/* HERO premium */}
+        <section style={styles.hero} className="spCal-hero">
           <div style={styles.heroLeft}>
             <div style={styles.titleRow}>
-              <h1 style={styles.h1}>Calendario</h1>
+              <h1 style={styles.h1} className="spCal-title">
+                Calendario
+              </h1>
 
               {!eventsLoaded ? (
                 <div style={styles.okPill}>
@@ -708,11 +703,12 @@ useEffect(() => {
             </div>
 
             <div style={styles.sub}>
-              Vista {tab === "month" ? "mensual" : "agenda"} ·{" "}
-              {prettyMonthRange(monthStart, monthEnd)}
+              Vista {tab === "month" ? "mensual" : "agenda"} · {monthTitle}
             </div>
 
-            {error ? <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>{error}</div> : null}
+            {error ? (
+              <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>{error}</div>
+            ) : null}
           </div>
 
           <div style={styles.heroRight}>
@@ -725,24 +721,19 @@ useEffect(() => {
           </div>
         </section>
 
+        {/* FILTROS */}
         <section style={styles.filtersCard}>
           <div style={styles.filtersRow}>
             <div style={styles.segment}>
               <button
                 onClick={() => setTab("month")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(tab === "month" ? styles.segmentOn : {}),
-                }}
+                style={{ ...styles.segmentBtn, ...(tab === "month" ? styles.segmentOn : {}) }}
               >
                 Mes
               </button>
               <button
                 onClick={() => setTab("agenda")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(tab === "agenda" ? styles.segmentOn : {}),
-                }}
+                style={{ ...styles.segmentBtn, ...(tab === "agenda" ? styles.segmentOn : {}) }}
               >
                 Agenda
               </button>
@@ -751,28 +742,20 @@ useEffect(() => {
             <div style={styles.segment}>
               <button
                 onClick={() => setScope("active")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "active" ? styles.segmentOn : {}),
-                }}
+                style={{ ...styles.segmentBtn, ...(scope === "active" ? styles.segmentOn : {}) }}
+                title="Personal + grupo activo + conflictos"
               >
                 Activo
               </button>
               <button
                 onClick={() => setScope("personal")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "personal" ? styles.segmentOn : {}),
-                }}
+                style={{ ...styles.segmentBtn, ...(scope === "personal" ? styles.segmentOn : {}) }}
               >
                 Personal
               </button>
               <button
                 onClick={() => setScope("all")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "all" ? styles.segmentOn : {}),
-                }}
+                style={{ ...styles.segmentBtn, ...(scope === "all" ? styles.segmentOn : {}) }}
               >
                 Todo
               </button>
@@ -802,7 +785,7 @@ useEffect(() => {
                   style={{
                     ...styles.groupChip,
                     borderColor: on ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)",
-                    opacity: on ? 1 : 0.5,
+                    opacity: on ? 1 : 0.55,
                   }}
                 >
                   <span style={{ ...styles.groupDot, background: meta.dot }} />
@@ -815,7 +798,7 @@ useEffect(() => {
 
         {tab === "month" ? (
           <section style={styles.calendarCard}>
-            <div style={styles.weekHeader}>
+            <div style={styles.weekHeader} className="spCal-weekHeader">
               {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
                 <div key={d} style={styles.weekDay}>
                   {d}
@@ -823,7 +806,7 @@ useEffect(() => {
               ))}
             </div>
 
-            <div style={styles.grid}>
+            <div style={styles.grid} className="spCal-grid">
               {renderMonthCells({
                 gridStart,
                 gridEnd,
@@ -835,18 +818,25 @@ useEffect(() => {
                 openNewEventGroup,
                 groupTypeById,
                 onEdit: handleEditEvent,
+                today,
               })}
             </div>
 
-            <div style={styles.dayPanel}>
+            <div style={styles.dayPanel} className="spCal-dayPanel">
               <div style={styles.dayPanelTop}>
                 <div style={styles.dayPanelTitle}>{prettyDay(selectedDay)}</div>
 
                 <div style={styles.dayPanelActions}>
-                  <button onClick={() => openNewEventPersonal(selectedDay)} style={styles.ghostBtnSmallPersonal}>
+                  <button
+                    onClick={() => openNewEventPersonal(selectedDay)}
+                    style={styles.ghostBtnSmallPersonal}
+                  >
                     + Personal
                   </button>
-                  <button onClick={() => openNewEventGroup(selectedDay)} style={styles.ghostBtnSmallGroup}>
+                  <button
+                    onClick={() => openNewEventGroup(selectedDay)}
+                    style={styles.ghostBtnSmallGroup}
+                  >
                     + Grupo
                   </button>
                 </div>
@@ -915,10 +905,7 @@ useEffect(() => {
                   start: editingEvent.start,
                   end: editingEvent.end,
                   description: editingEvent.notes,
-                  groupType:
-                    editingEvent.groupType === "pair"
-                      ? ("couple" as any)
-                      : editingEvent.groupType,
+                  groupType: editingEvent.groupType === "pair" ? ("couple" as any) : editingEvent.groupType,
                 }
               : undefined
           }
@@ -938,7 +925,7 @@ useEffect(() => {
 }
 
 /* =========================
-   EventRow (etiqueta + lápiz + 🗑️)
+   EventRow (chip premium)
    ========================= */
 function EventRow({
   e,
@@ -960,7 +947,6 @@ function EventRow({
     : ("personal" as any);
 
   const meta = groupMeta(resolvedType);
-
   const isHighlighted = highlightId && String(e.id) === String(highlightId);
 
   return (
@@ -968,15 +954,11 @@ function EventRow({
       ref={setRef ? setRef(String(e.id)) : undefined}
       style={{
         ...styles.eventRow,
-        border: isHighlighted
-          ? "1px solid rgba(56,189,248,0.55)"
-          : (styles.eventRow.border as any),
-        background: isHighlighted
-          ? "rgba(255,255,255,0.08)"
-          : (styles.eventRow.background as any),
+        border: isHighlighted ? "1px solid rgba(56,189,248,0.55)" : (styles.eventRow.border as any),
+        background: isHighlighted ? "rgba(255,255,255,0.08)" : (styles.eventRow.background as any),
         animation: isHighlighted ? "spPulseGlow 2.6s ease-out" : undefined,
-        cursor: "pointer",
       }}
+      className="spCal-chip"
       onClick={(ev) => {
         ev.preventDefault();
         ev.stopPropagation();
@@ -1031,7 +1013,7 @@ function EventRow({
 }
 
 /* =========================
-   Celdas del mes
+   Celdas del mes (tipo Google)
    ========================= */
 function renderMonthCells(opts: {
   gridStart: Date;
@@ -1044,6 +1026,7 @@ function renderMonthCells(opts: {
   openNewEventGroup: (date?: Date) => void;
   groupTypeById: Map<string, "pair" | "family">;
   onEdit: (e: CalendarEvent) => void;
+  today: Date;
 }) {
   const {
     gridStart,
@@ -1054,21 +1037,22 @@ function renderMonthCells(opts: {
     eventsByDay,
     openNewEventPersonal,
     openNewEventGroup,
+    today,
   } = opts;
 
   const cells: React.ReactNode[] = [];
-  const totalDays =
-    Math.round(
-      (gridEnd.getTime() - gridStart.getTime()) / (1000 * 60 * 60 * 24)
-    ) + 1;
+  const totalDays = Math.round((gridEnd.getTime() - gridStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
   for (let i = 0; i < totalDays; i++) {
     const day = addDays(gridStart, i);
     const inMonth = day.getMonth() === monthStart.getMonth();
     const isSelected = sameDay(day, selectedDay);
+    const isToday = sameDay(day, today);
 
     const dayEvents = eventsByDay.get(ymd(day)) || [];
     const top3 = dayEvents.slice(0, 3);
+
+    const isWeekend = day.getDay() === 0 || day.getDay() === 6; // Sun/Sat
 
     cells.push(
       <div
@@ -1084,21 +1068,24 @@ function renderMonthCells(opts: {
         }}
         style={{
           ...styles.cell,
-          opacity: inMonth ? 1 : 0.35,
-          outline: isSelected
-            ? "2px solid rgba(255,255,255,0.25)"
-            : "1px solid rgba(255,255,255,0.08)",
+          opacity: inMonth ? 1 : 0.38,
+          outline: isSelected ? "2px solid rgba(255,255,255,0.22)" : "1px solid rgba(255,255,255,0.08)",
           background: isSelected
             ? "rgba(255,255,255,0.06)"
+            : isWeekend
+            ? "rgba(148,163,184,0.05)"
             : "rgba(255,255,255,0.03)",
+          borderColor: isToday ? "rgba(56,189,248,0.35)" : "rgba(255,255,255,0.08)",
         }}
+        className="spCal-cell"
       >
         <div style={styles.cellTop}>
-          <div style={styles.cellDay}>{day.getDate()}</div>
+          <div style={{ ...styles.cellDay, ...(isToday ? styles.cellDayToday : {}) }}>
+            {day.getDate()}
+          </div>
+
           <div style={styles.cellTopRight}>
-            {dayEvents.length > 0 ? (
-              <div style={styles.cellCount}>{dayEvents.length}</div>
-            ) : null}
+            {dayEvents.length > 0 ? <div style={styles.cellCount}>{dayEvents.length}</div> : null}
 
             <div style={styles.cellQuickAdd}>
               <button
@@ -1147,6 +1134,7 @@ function renderMonthCells(opts: {
                   opts.onEdit(e);
                 }}
                 style={{ ...styles.cellEventLine, cursor: "pointer" }}
+                className="spCal-chip"
               >
                 <span style={{ ...styles.miniDot, background: meta.dot }} />
                 <span style={styles.cellEventText}>{e.title || "Evento"}</span>
@@ -1154,9 +1142,7 @@ function renderMonthCells(opts: {
             );
           })}
 
-          {dayEvents.length > 3 ? (
-            <div style={styles.moreHint}>+{dayEvents.length - 3} más</div>
-          ) : null}
+          {dayEvents.length > 3 ? <div style={styles.moreHint}>+{dayEvents.length - 3} más</div> : null}
         </div>
       </div>
     );
@@ -1166,16 +1152,27 @@ function renderMonthCells(opts: {
 }
 
 /* =========================
-   Styles (Premium)
+   Styles (Ultra premium)
    ========================= */
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
     background:
-      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
+      "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
   },
   shell: { maxWidth: 1120, margin: "0 auto", padding: "22px 18px 48px" },
+
+  stickyTop: {
+    position: "sticky",
+    top: 0,
+    zIndex: 20,
+    paddingTop: 10,
+    paddingBottom: 10,
+    backdropFilter: "blur(16px)",
+    background: "linear-gradient(180deg, rgba(5,8,22,0.82), rgba(5,8,22,0.48))",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
+  },
 
   toastWrap: {
     position: "fixed",
@@ -1195,26 +1192,16 @@ const styles: Record<string, React.CSSProperties> = {
     backdropFilter: "blur(14px)",
     padding: "12px 14px",
   },
-  toastTitle: {
-    fontWeight: 900,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.95)",
-  },
-  toastSub: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "rgba(255,255,255,0.70)",
-    fontWeight: 650,
-  },
+  toastTitle: { fontWeight: 900, fontSize: 13, color: "rgba(255,255,255,0.95)" },
+  toastSub: { marginTop: 4, fontSize: 12, color: "rgba(255,255,255,0.70)", fontWeight: 650 },
 
   topRow: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 14,
-    marginBottom: 14,
   },
-  topActions: { display: "flex", gap: 10, alignItems: "center" },
+  topActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
 
   hero: {
     display: "flex",
@@ -1225,7 +1212,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
     background:
-      "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+      "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))",
     boxShadow: "0 18px 60px rgba(0, 0, 0, 0.35)",
     marginBottom: 12,
   },
@@ -1233,8 +1220,8 @@ const styles: Record<string, React.CSSProperties> = {
   heroRight: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
 
   titleRow: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
-  h1: { margin: 0, fontSize: 30, letterSpacing: "-0.5px" },
-  sub: { fontSize: 13, opacity: 0.8 },
+  h1: { margin: 0, fontSize: 30, letterSpacing: "-0.6px", fontWeight: 950 },
+  sub: { fontSize: 13, opacity: 0.82 },
 
   conflictCluster: { display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" },
 
@@ -1267,6 +1254,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "transparent",
     border: "none",
     cursor: "pointer",
+    fontWeight: 850,
   },
   segmentOn: { background: "rgba(255,255,255,0.08)" },
 
@@ -1294,6 +1282,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     color: "rgba(255,255,255,0.90)",
     fontSize: 13,
+    fontWeight: 850,
   },
   groupDot: { width: 10, height: 10, borderRadius: 999 },
 
@@ -1302,27 +1291,36 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
     overflow: "hidden",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
   },
   weekHeader: {
     display: "grid",
     gridTemplateColumns: "repeat(7, 1fr)",
     padding: "10px 10px 0",
   },
-  weekDay: { padding: "10px 10px", fontSize: 12, opacity: 0.75 },
+  weekDay: { padding: "10px 10px", fontSize: 12, opacity: 0.75, fontWeight: 850 },
 
   grid: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10, padding: 10 },
+
   cell: {
-    minHeight: 108,
+    minHeight: 112,
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
     padding: 10,
     cursor: "pointer",
     textAlign: "left",
+    transition: "transform 160ms ease, border-color 160ms ease",
   },
   cellTop: { display: "flex", justifyContent: "space-between", alignItems: "center" },
   cellTopRight: { display: "flex", alignItems: "center", gap: 10 },
-  cellDay: { fontSize: 14, fontWeight: 700 },
+  cellDay: { fontSize: 13, fontWeight: 900, opacity: 0.92 },
+  cellDayToday: {
+    padding: "2px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.35)",
+    background: "rgba(56,189,248,0.12)",
+  },
   cellCount: {
     fontSize: 12,
     padding: "2px 8px",
@@ -1330,6 +1328,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.04)",
     opacity: 0.9,
+    fontWeight: 850,
   },
 
   cellQuickAdd: { display: "flex", gap: 6, alignItems: "center" },
@@ -1341,7 +1340,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(250,204,21,0.12)",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
-    fontWeight: 900,
+    fontWeight: 950,
     lineHeight: "22px",
     textAlign: "center",
   },
@@ -1353,7 +1352,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(96,165,250,0.12)",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
-    fontWeight: 900,
+    fontWeight: 950,
     lineHeight: "22px",
     textAlign: "center",
   },
@@ -1361,57 +1360,232 @@ const styles: Record<string, React.CSSProperties> = {
   cellEvents: { marginTop: 10, display: "flex", flexDirection: "column", gap: 6 },
   cellEventLine: { display: "flex", gap: 8, alignItems: "center" },
   miniDot: { width: 8, height: 8, borderRadius: 999, flex: "0 0 auto" },
-  cellEventText: { fontSize: 12, opacity: 0.9, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
-  moreHint: { fontSize: 12, opacity: 0.6, marginTop: 4 },
+  cellEventText: {
+    fontSize: 12,
+    opacity: 0.92,
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    textOverflow: "ellipsis",
+    fontWeight: 750,
+  },
+  moreHint: { fontSize: 12, opacity: 0.65, marginTop: 4, fontWeight: 750 },
 
   dayPanel: { borderTop: "1px solid rgba(255,255,255,0.08)", padding: 12 },
-  dayPanelTop: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" },
-  dayPanelTitle: { fontSize: 14, fontWeight: 700, opacity: 0.95 },
+  dayPanelTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  dayPanelTitle: { fontSize: 14, fontWeight: 900, opacity: 0.95 },
   dayPanelActions: { display: "flex", gap: 8, alignItems: "center" },
 
   dayList: { marginTop: 10, display: "flex", flexDirection: "column", gap: 10 },
 
-  agendaCard: { borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", overflow: "hidden" },
+  agendaCard: {
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    overflow: "hidden",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
+  },
   agendaTop: { padding: 14, borderBottom: "1px solid rgba(255,255,255,0.08)" },
-  agendaTitle: { fontSize: 16, fontWeight: 800 },
-  agendaSub: { marginTop: 4, fontSize: 12, opacity: 0.75 },
+  agendaTitle: { fontSize: 16, fontWeight: 950 },
+  agendaSub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 750 },
   agendaList: { padding: 12, display: "flex", flexDirection: "column", gap: 10 },
 
-  eventRow: { display: "flex", gap: 10, padding: 12, borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" },
+  eventRow: {
+    display: "flex",
+    gap: 10,
+    padding: 12,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(6,10,20,0.55)",
+    transition: "transform 160ms ease",
+  },
   eventBar: { width: 6, borderRadius: 999 },
   eventBody: { flex: 1, display: "flex", flexDirection: "column", gap: 6 },
   eventTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 },
   eventRight: { display: "inline-flex", alignItems: "center", gap: 8 },
-  eventTitle: { fontSize: 14, fontWeight: 800, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
-  eventTime: { fontSize: 12, opacity: 0.78 },
-  eventTag: { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.03)", opacity: 0.95, whiteSpace: "nowrap" },
+  eventTitle: { fontSize: 14, fontWeight: 950, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
+  eventTime: { fontSize: 12, opacity: 0.78, fontWeight: 700 },
+  eventTag: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 12,
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.03)",
+    opacity: 0.95,
+    whiteSpace: "nowrap",
+    fontWeight: 850,
+  },
   eventDot: { width: 8, height: 8, borderRadius: 999 },
 
-  editBtn: { width: 34, height: 34, borderRadius: 12, border: "1px solid rgba(59,130,246,0.45)", background: "rgba(59,130,246,0.16)", color: "rgba(255,255,255,0.94)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 900 },
-  deleteBtn: { width: 34, height: 34, borderRadius: 12, border: "1px solid rgba(248,113,113,0.28)", background: "rgba(248,113,113,0.10)", color: "rgba(255,255,255,0.92)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 900 },
+  editBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    border: "1px solid rgba(59,130,246,0.45)",
+    background: "rgba(59,130,246,0.16)",
+    color: "rgba(255,255,255,0.94)",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 14,
+    fontWeight: 950,
+  },
+  deleteBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    border: "1px solid rgba(248,113,113,0.28)",
+    background: "rgba(248,113,113,0.10)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 14,
+    fontWeight: 950,
+  },
 
-  primaryBtnPersonal: { padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(250,204,21,0.30)", background: "linear-gradient(135deg, rgba(250,204,21,0.22), rgba(250,204,21,0.08))", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900 },
-  primaryBtnGroup: { padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(96,165,250,0.30)", background: "linear-gradient(135deg, rgba(96,165,250,0.22), rgba(96,165,250,0.08))", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900 },
+  primaryBtnPersonal: {
+    padding: "12px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(250,204,21,0.30)",
+    background: "linear-gradient(135deg, rgba(250,204,21,0.22), rgba(250,204,21,0.08))",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    fontWeight: 950,
+  },
+  primaryBtnGroup: {
+    padding: "12px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(96,165,250,0.30)",
+    background: "linear-gradient(135deg, rgba(96,165,250,0.22), rgba(96,165,250,0.08))",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    fontWeight: 950,
+  },
 
-  ghostBtn: { padding: "10px 12px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 800 },
-  ghostBtnSmall: { padding: "8px 10px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 700, fontSize: 12 },
+  ghostBtn: {
+    padding: "10px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+  ghostBtnSmall: {
+    padding: "8px 10px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    fontWeight: 850,
+    fontSize: 12,
+  },
 
-  ghostBtnSmallPersonal: { padding: "8px 10px", borderRadius: 12, border: "1px solid rgba(250,204,21,0.22)", background: "rgba(250,204,21,0.08)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 800, fontSize: 12 },
-  ghostBtnSmallGroup: { padding: "8px 10px", borderRadius: 12, border: "1px solid rgba(96,165,250,0.22)", background: "rgba(96,165,250,0.08)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 800, fontSize: 12 },
+  ghostBtnSmallPersonal: {
+    padding: "8px 10px",
+    borderRadius: 12,
+    border: "1px solid rgba(250,204,21,0.22)",
+    background: "rgba(250,204,21,0.08)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    fontWeight: 900,
+    fontSize: 12,
+  },
+  ghostBtnSmallGroup: {
+    padding: "8px 10px",
+    borderRadius: 12,
+    border: "1px solid rgba(96,165,250,0.22)",
+    background: "rgba(96,165,250,0.08)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    fontWeight: 900,
+    fontSize: 12,
+  },
 
-  conflictPill: { display: "inline-flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(248,113,113,0.35)", background: "rgba(248,113,113,0.12)", color: "rgba(255,255,255,0.95)", cursor: "pointer", fontWeight: 900, fontSize: 12 },
+  conflictPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(248,113,113,0.35)",
+    background: "rgba(248,113,113,0.12)",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    fontWeight: 950,
+    fontSize: 12,
+  },
   conflictDot: { width: 10, height: 10, borderRadius: 999, background: "rgba(248,113,113,0.95)" },
   conflictArrow: { opacity: 0.8 },
 
-  resolvePill: { display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.92)", cursor: "pointer", fontWeight: 900, fontSize: 12 },
+  resolvePill: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.06)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    fontWeight: 950,
+    fontSize: 12,
+  },
 
-  okPill: { display: "inline-flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(34,197,94,0.30)", background: "rgba(34,197,94,0.10)", color: "rgba(255,255,255,0.92)", fontWeight: 900, fontSize: 12 },
+  okPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(34,197,94,0.30)",
+    background: "rgba(34,197,94,0.10)",
+    color: "rgba(255,255,255,0.92)",
+    fontWeight: 950,
+    fontSize: 12,
+  },
   okDot: { width: 10, height: 10, borderRadius: 999, background: "rgba(34,197,94,0.95)" },
 
-  emptyHint: { padding: 14, borderRadius: 14, border: "1px dashed rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.02)", opacity: 0.75, fontSize: 13 },
+  emptyHint: {
+    padding: 14,
+    borderRadius: 14,
+    border: "1px dashed rgba(255,255,255,0.16)",
+    background: "rgba(255,255,255,0.02)",
+    opacity: 0.8,
+    fontSize: 13,
+    fontWeight: 700,
+  },
 
-  loadingCard: { marginTop: 18, display: "flex", gap: 12, alignItems: "center", padding: 16, borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" },
-  loadingDot: { width: 12, height: 12, borderRadius: 999, background: "rgba(56,189,248,0.95)", boxShadow: "0 0 24px rgba(56,189,248,0.55)" },
-  loadingTitle: { fontWeight: 900 },
-  loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
+  loadingCard: {
+    marginTop: 18,
+    display: "flex",
+    gap: 12,
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.25)",
+  },
+  loadingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 24px rgba(56,189,248,0.55)",
+  },
+  loadingTitle: { fontWeight: 950 },
+  loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2, fontWeight: 700 },
 };

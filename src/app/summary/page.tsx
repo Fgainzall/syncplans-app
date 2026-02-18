@@ -1,9 +1,3 @@
-// src/app/summary/page.tsx
-import React, { Suspense } from "react";
-import SummaryClient from "./SummaryClient";
-
-export const dynamic = "force-dynamic";
-
 function SummaryFallback() {
   return (
     <main
@@ -18,31 +12,23 @@ function SummaryFallback() {
         style={{
           maxWidth: 1120,
           margin: "0 auto",
-          padding: "22px 18px 48px",
+          padding: "14px 12px calc(18px + 120px) 12px",
         }}
       >
         <div
           style={{
-            marginTop: 32,
-            padding: 16,
-            borderRadius: 18,
+            marginTop: 18,
+            padding: 14,
+            borderRadius: 16,
             border: "1px solid rgba(148,163,184,0.45)",
             background: "rgba(15,23,42,0.96)",
             fontSize: 13,
+            fontWeight: 750,
           }}
         >
           Cargando tu resumen…
         </div>
       </div>
     </main>
-  );
-}
-
-export default function SummaryPage() {
-  return (
-    <Suspense fallback={<SummaryFallback />}>
-      {/* Props requeridas por SummaryClient: las inicializamos en null */}
-      <SummaryClient highlightId={null} appliedToast={null} />
-    </Suspense>
   );
 }

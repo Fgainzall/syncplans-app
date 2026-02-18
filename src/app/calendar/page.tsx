@@ -1,4 +1,3 @@
-// src/app/calendar/page.tsx
 import { Suspense } from "react";
 import CalendarClient from "./CalendarClient";
 
@@ -16,18 +15,9 @@ function getSingle(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
-export default function CalendarPage({
-  searchParams,
-}: {
-  searchParams: SearchParams;
-}) {
-  // ✅ highlight: desde ?highlightEventId= o ?eventId=
-  const highlightId =
-    getSingle(searchParams.highlightEventId) ??
-    getSingle(searchParams.eventId) ??
-    null;
+export default function CalendarPage({ searchParams }: { searchParams: SearchParams }) {
+  const highlightId = getSingle(searchParams.highlightEventId) ?? getSingle(searchParams.eventId) ?? null;
 
-  // ✅ toast después de /conflicts/actions?applied=1&deleted=...&skipped=...
   const appliedFlag = getSingle(searchParams.applied);
   const hasApplied = appliedFlag === "1" || appliedFlag === "true";
 
@@ -35,8 +25,7 @@ export default function CalendarPage({
     ? {
         deleted: Number(getSingle(searchParams.deleted) ?? "0") || 0,
         skipped: Number(getSingle(searchParams.skipped) ?? "0") || 0,
-        appliedCount:
-          Number(getSingle(searchParams.appliedCount) ?? "0") || 0,
+        appliedCount: Number(getSingle(searchParams.appliedCount) ?? "0") || 0,
       }
     : null;
 
@@ -52,8 +41,7 @@ export default function CalendarPage({
             background:
               "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
             color: "rgba(255,255,255,0.85)",
-            fontFamily:
-              "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
           }}
         >
           <div
@@ -64,6 +52,7 @@ export default function CalendarPage({
               background: "rgba(5,8,22,0.86)",
               boxShadow: "0 24px 70px rgba(0,0,0,0.55)",
               fontSize: 14,
+              fontWeight: 800,
             }}
           >
             Cargando tu calendario…
@@ -71,10 +60,7 @@ export default function CalendarPage({
         </main>
       }
     >
-      <CalendarClient
-        highlightId={highlightId}
-        appliedToast={appliedToast}
-      />
+      <CalendarClient highlightId={highlightId} appliedToast={appliedToast} />
     </Suspense>
   );
 }

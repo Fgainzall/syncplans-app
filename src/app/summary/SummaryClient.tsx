@@ -235,13 +235,21 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         </div>
       )}
 
-      <MobileScaffold className="spSum-shell">
-        <div style={styles.topRow} className="spSum-topRow">
-          <PremiumHeader mobileNav="bottom" />
-          <div style={styles.topActions} className="spSum-topActions">
-            <LogoutButton />
-          </div>
-        </div>
+      <MobileScaffold
+  maxWidth={1120}
+  paddingDesktop="22px 18px 48px"
+  paddingMobile="14px 12px 18px"
+  mobileBottomSafe={120}
+  className="spSum-shell"
+>
+       <div style={styles.topRow} className="spSum-topRow">
+  <PremiumHeader
+    mobileNav="bottom"
+    title="Resumen"
+    subtitle="Lo importante, sin fricción."
+    rightSlot={<LogoutButton />}
+  />
+</div>
 
         {/* Hero compacto */}
         <section style={styles.hero} className="spSum-hero">
@@ -368,7 +376,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           <div style={styles.sectionTitle}>Acciones rápidas</div>
           <div style={styles.quickGrid} className="spSum-quickGrid">
             <button
-              onClick={() => router.push("/events/new/details")}
+              onClick={() => router.push("/events/new/details?type=personal")}
               style={styles.quickCard}
               className="spSum-quickCard"
             >
@@ -387,14 +395,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               </div>
             </button>
 
-            <button
-              onClick={() => router.push("/conflicts/detected")}
-              style={styles.quickCard}
-              className="spSum-quickCard"
-            >
-              <div style={styles.quickTitle}>Resolver choques</div>
-              <div style={styles.quickSub}>Detectar → comparar → decidir</div>
-            </button>
+           <button
+  onClick={() => router.push("/conflicts/detected")}
+  style={styles.quickCard}
+  className="spSum-quickCard"
+>
+  <div style={styles.quickTitle}>Resolver conflictos</div>
+  <div style={styles.quickSub}>Detectar → comparar → decidir</div>
+</button>
           </div>
         </section>
       </MobileScaffold>
@@ -496,11 +504,22 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.9,
     fontWeight: 900,
   },
-  h1: { margin: "10px 0 0", fontSize: 26, letterSpacing: "-0.6px" },
+  h1: {
+  margin: "10px 0 0",
+  fontSize: 26,
+  letterSpacing: "-0.6px",
+  fontWeight: 950,
+},
   sub: { marginTop: 8, fontSize: 13, opacity: 0.75, maxWidth: 720 },
   subMobile: { marginTop: 8, fontSize: 12, opacity: 0.75, maxWidth: 420 },
 
-  heroBtns: { display: "flex", gap: 10, flexWrap: "wrap" },
+  heroBtns: {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+  width: "100%",
+  justifyContent: "flex-end",
+},
 
   card: {
     borderRadius: 18,

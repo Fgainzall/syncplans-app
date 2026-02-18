@@ -66,18 +66,36 @@ async function ensureActiveGroupForMode(
   );
   const { getMyGroups } = await import("@/lib/groupsDb");
 
-  const existing = await getActiveGroupIdFromDb();
-  if (existing) return existing;
+  const existing = await getActiveGroupIdFromDb().catch(() => null);
 
+  // ✅ Declarar UNA sola vez
   const groups = await getMyGroups();
   if (!groups.length) return null;
 
-  const match = groups.find((g: any) => String(g.type) === mode);
+  const wantType = String(mode).toLowerCase();
+
+  // ✅ Si ya hay active, verificamos que exista y sea del tipo correcto
+  if (existing) {
+    const current = groups.find((g: any) => String(g.id) === String(existing));
+    const currentType = String(current?.type ?? "").toLowerCase();
+
+    if (current && currentType === wantType) {
+      return String(existing);
+    }
+    // si no coincide, seguimos y elegimos uno correcto
+  }
+
+  // ✅ Elegimos el primer grupo del tipo correcto (o fallback al primero)
+  const match = groups.find(
+    (g: any) => String(g.type ?? "").toLowerCase() === wantType
+  );
   const pick = match?.id ?? groups[0]?.id ?? null;
 
   if (pick) {
-    await setActiveGroupIdInDb(pick);
-    return pick;
+    await setActiveGroupIdInDb(String(pick));
+    // ✅ evento global para que Calendar/Summary reaccionen
+    window.dispatchEvent(new Event("sp:active-group-changed"));
+    return String(pick);
   }
 
   return null;
@@ -137,7 +155,7 @@ export default function PremiumHeader({
   title,
   subtitle,
   rightSlot,
-  mobileNav = "top", // ✅ por defecto NO cambia nada
+  mobileNav = "bottom", // ✅ CAMBIO CLAVE: en móvil la navegación principal es la barra inferior
 }: {
   title?: string;
   subtitle?: string;
@@ -258,7 +276,10 @@ export default function PremiumHeader({
   }, [pathname]);
 
   const finalTitle = title ?? autoTitle;
-  const finalSubtitle = subtitle ?? "Organiza tu día sin choques de horario.";
+
+  // ✅ Copy más pro (si quieres lo dejamos como antes)
+  const finalSubtitle =
+    subtitle ?? "Organiza tu día sin conflictos de horario.";
 
   async function onNewEvent() {
     try {
@@ -281,18 +302,30 @@ export default function PremiumHeader({
     }
   }
 
-  async function onPickMode(nextMode: TabKey) {
-    const next = setMode(nextMode as UsageMode);
-    setGroup(next);
+async function onPickMode(nextMode: TabKey) {
+  const next = setMode(nextMode as UsageMode);
+  setGroup(next);
 
-    if (nextMode !== "solo") {
-      try {
-        await ensureActiveGroupForMode(nextMode);
-      } catch {
-        // no bloquear UI
-      }
+  // Theme
+  applyThemeVars(nextMode);
+
+  if (nextMode === "solo") {
+    // Personal: no hay activeGroup
+    try {
+      // opcional: podrías limpiar active en DB si quieres, pero no es necesario
+    } finally {
+      window.dispatchEvent(new Event("sp:active-group-changed"));
     }
+    return;
   }
+
+  try {
+    await ensureActiveGroupForMode(nextMode);
+  } catch {
+    // no bloquear UI
+    window.dispatchEvent(new Event("sp:active-group-changed"));
+  }
+}
 
   const onSyncedFromDrawer = useCallback((imported: number) => {
     window.dispatchEvent(
@@ -357,13 +390,6 @@ export default function PremiumHeader({
       tab: { height: 50, padding: "10px 10px" } as React.CSSProperties,
       tabText: { fontSize: 12 } as React.CSSProperties,
       tabHint: { fontSize: 10 } as React.CSSProperties,
-
-      nav: { gap: 8, marginTop: 10 } as React.CSSProperties,
-      pill: {
-        height: 32,
-        padding: "0 10px",
-        fontSize: 12,
-      } as React.CSSProperties,
     };
   }, [isMobile]);
 
@@ -374,9 +400,13 @@ export default function PremiumHeader({
     return mobile ? ({ ...base, ...mobile } as T) : base;
   }
 
-  const shouldShowTopNav =
-    !(isMobile && (mobileNav === "bottom" || mobileNav === "none"));
-
+  /**
+   * ✅ REGLA: en móvil NO mostramos el nav superior por defecto.
+   * - mobileNav = "bottom" (default): solo bottom tabs
+   * - mobileNav = "top": permite nav superior (solo si lo necesitas en una pantalla puntual)
+   * - mobileNav = "none": sin nav
+   */
+  const shouldShowTopNav = !isMobile && true ? true : isMobile && mobileNav === "top";
   const shouldShowBottomNav = isMobile && mobileNav === "bottom";
 
   return (
@@ -466,84 +496,84 @@ export default function PremiumHeader({
           </div>
         </div>
 
-        {/* ✅ NAV SUPERIOR (solo si corresponde) */}
+        {/* ✅ NAV SUPERIOR (solo desktop o móvil si lo fuerzas con mobileNav="top") */}
         {shouldShowTopNav && (
-          <nav style={ms(S.nav, M?.nav)}>
+          <nav style={S.nav}>
             <NavPill
               label="Resumen"
               active={pathname.startsWith("/summary")}
               onClick={() => router.push("/summary")}
-              styleOverride={ms(S.pill, M?.pill)}
+              styleOverride={S.pill}
               styleActive={S.pillActive}
             />
             <NavPill
               label="Calendario"
-              active={pathname === "/calendar"}
+              active={pathname.startsWith("/calendar")}
               onClick={() => router.push("/calendar")}
-              styleOverride={ms(S.pill, M?.pill)}
+              styleOverride={S.pill}
               styleActive={S.pillActive}
             />
             <NavPill
               label="Eventos"
               active={pathname.startsWith("/events")}
               onClick={() => router.push("/events")}
-              styleOverride={ms(S.pill, M?.pill)}
+              styleOverride={S.pill}
               styleActive={S.pillActive}
             />
             <NavPill
               label="Conflictos"
               active={pathname.startsWith("/conflicts")}
               onClick={() => router.push("/conflicts/detected")}
-              styleOverride={ms(S.pill, M?.pill)}
+              styleOverride={S.pill}
               styleActive={S.pillActive}
             />
             <NavPill
               label="Grupos"
               active={pathname.startsWith("/groups")}
               onClick={() => router.push("/groups")}
-              styleOverride={ms(S.pill, M?.pill)}
+              styleOverride={S.pill}
               styleActive={S.pillActive}
             />
             <NavPill
               label="Miembros"
               active={pathname.startsWith("/members")}
               onClick={() => router.push("/members")}
-              styleOverride={ms(S.pill, M?.pill)}
+              styleOverride={S.pill}
               styleActive={S.pillActive}
             />
             <NavPill
               label="Invitaciones"
               active={pathname.startsWith("/invitations")}
               onClick={() => router.push("/invitations")}
-              styleOverride={ms(S.pill, M?.pill)}
+              styleOverride={S.pill}
               styleActive={S.pillActive}
             />
             <NavPill
               label="Panel"
               active={pathname.startsWith("/profile")}
               onClick={() => router.push("/profile")}
-              styleOverride={ms(S.pill, M?.pill)}
+              styleOverride={S.pill}
               styleActive={S.pillActive}
             />
             <NavPill
               label="Settings"
               active={pathname.startsWith("/settings")}
               onClick={() => router.push("/settings")}
-              styleOverride={ms(S.pill, M?.pill)}
+              styleOverride={S.pill}
               styleActive={S.pillActive}
             />
             <NavPill
               label="Planes"
               active={pathname.startsWith("/pricing")}
               onClick={() => router.push("/pricing")}
-              styleOverride={ms(S.pill, M?.pill)}
+              styleOverride={S.pill}
               styleActive={S.pillActive}
             />
           </nav>
         )}
       </header>
 
-      {/* ✅ BOTTOM BAR (solo móvil + cuando mobileNav="bottom") */}
+      {/* ✅ BOTTOM NAV (móvil) */}
       {shouldShowBottomNav && <BottomNav />}
 
       <NotificationsDrawer
@@ -577,6 +607,7 @@ function NavPill({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       style={{ ...styleOverride, ...(active ? styleActive : {}) }}
     >

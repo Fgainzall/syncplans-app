@@ -7,6 +7,7 @@ import supabase from "@/lib/supabaseClient";
 
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+import MobileScaffold from "@/components/MobileScaffold";
 
 import {
   getMyProfile,
@@ -164,7 +165,7 @@ function buildRecommendation(verified: boolean, stats: DashboardStats | null): R
   if (stats.conflictsNow > 0) {
     return {
       title: "Tienes conflictos activos",
-      hint: "Hay choques de horario detectados. Revísalos y decide qué conservar.",
+      hint: "Hay conflictos de horario detectados. Revísalos y decide qué conservar.",
       ctaLabel: "Revisar conflictos",
       ctaTarget: "conflicts",
     };
@@ -261,11 +262,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.92)",
     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
   },
-  shell: {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: "22px 18px 48px",
-  },
+ shell: {
+  // ✅ MobileScaffold ahora controla el padding y maxWidth
+  maxWidth: 1120,
+  margin: "0 auto",
+  padding: 0,
+},
   headerRow: { marginBottom: 16 },
 
   loadingRow: {
@@ -299,6 +301,31 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.03)",
     padding: 16,
   },
+
+    hubGrid: {
+    marginTop: 10,
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 10,
+  },
+
+  hubCard: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background:
+      "radial-gradient(700px 420px at 0% 0%, rgba(56,189,248,0.18), transparent 55%), rgba(15,23,42,0.92)",
+    padding: 12,
+    textAlign: "left",
+    cursor: "pointer",
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    gridTemplateRows: "auto auto",
+    gap: "4px 8px",
+  } as React.CSSProperties,
+
+  hubTitle: { fontSize: 13, fontWeight: 950 },
+  hubHint: { fontSize: 11, opacity: 0.8 },
+  hubChevron: { fontSize: 18, opacity: 0.85, alignSelf: "center" },
 
   sectionLabel: {
     fontSize: 13,
@@ -595,13 +622,13 @@ Object.assign(styles, {
 
   groupSummaryRow: { fontSize: 12, opacity: 0.85, marginBottom: 8 },
 
-  groupMasterDetail: {
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 0.95fr) minmax(0, 1.5fr)",
-    gap: 10,
-    alignItems: "stretch",
-    minHeight: 220,
-  },
+groupMasterDetail: {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 0.95fr) minmax(0, 1.5fr)",
+  gap: 10,
+  alignItems: "stretch",
+  minHeight: 220,
+},
   groupListCol: {
     borderRadius: 14,
     border: "1px solid rgba(148,163,184,0.35)",
@@ -647,14 +674,17 @@ Object.assign(styles, {
     outline: "none",
   } as React.CSSProperties,
 
-  groupListScroll: {
-    marginTop: 4,
-    maxHeight: 260,
-    overflowY: "auto",
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
+groupListScroll: {
+  marginTop: 4,
+  maxHeight: 260,
+  overflowY: "auto",
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+
+  // ✅ feel de app
+  WebkitOverflowScrolling: "touch",
+},
   groupListEmpty: { fontSize: 11, opacity: 0.7, padding: 6 },
 
   groupListItem: {
@@ -1227,7 +1257,13 @@ export default function ProfilePage() {
   if (booting) {
     return (
       <main style={styles.page}>
-        <div style={styles.shell} className="spProfileShell">
+  <MobileScaffold
+    maxWidth={1120}
+    paddingDesktop="22px 18px 48px"
+    paddingMobile="14px 12px 18px"
+    mobileBottomSafe={120} // ✅ un poco más para que jamás tape BottomNav
+    className="spProfileShell"
+  >
           <div style={styles.headerRow}>
             <PremiumHeader
               mobileNav="bottom"
@@ -1247,15 +1283,21 @@ export default function ProfilePage() {
               100% { background-position: -200% 0; }
             }
           `}</style>
-        </div>
-      </main>
+          </MobileScaffold>
+</main>
     );
   }
 
   if (!profile) {
     return (
       <main style={styles.page}>
-        <div style={styles.shell} className="spProfileShell">
+  <MobileScaffold
+    maxWidth={1120}
+    paddingDesktop="22px 18px 48px"
+    paddingMobile="14px 12px 18px"
+    mobileBottomSafe={120} // ✅ un poco más para que jamás tape BottomNav
+    className="spProfileShell"
+  >
           <div style={styles.headerRow}>
             <PremiumHeader
               mobileNav="bottom"
@@ -1267,8 +1309,8 @@ export default function ProfilePage() {
           <div style={styles.error}>
             No se pudo cargar tu perfil. Vuelve a iniciar sesión.
           </div>
-        </div>
-      </main>
+          </MobileScaffold>
+</main>
     );
   }
 
@@ -1345,19 +1387,25 @@ export default function ProfilePage() {
   const { planLabel, planHint, planCtaLabel } = getPlanInfo(anyProfile);
     return (
     <main style={styles.page}>
-      <div style={styles.shell} className="spProfileShell">
+  <MobileScaffold
+    maxWidth={1120}
+    paddingDesktop="22px 18px 48px"
+    paddingMobile="14px 12px 18px"
+    mobileBottomSafe={120} // ✅ un poco más para que jamás tape BottomNav
+    className="spProfileShell"
+  >
         <div style={styles.headerRow}>
-          <PremiumHeader
-            title="Panel"
-            subtitle="Tu estado de cuenta, identidad y atajos clave en un solo lugar."
-            rightSlot={<LogoutButton />}
-          />
+       <PremiumHeader
+  mobileNav="bottom"
+  title="Panel"
+  subtitle="Tu centro de control."
+/>
         </div>
 
         <div style={styles.mainGrid} className="spProfileMainGrid">
           {/* Columna izquierda */}
           <div style={styles.leftCol}>
-            <section style={styles.card}>
+            <section style={styles.card} className="spProfileHideMobile">
               <div style={styles.sectionLabel}>Identidad</div>
 
               <div style={styles.profileRow}>
@@ -1419,9 +1467,21 @@ export default function ProfilePage() {
                 </button>
               </div>
             </section>
+<section style={styles.card} className="spProfileHideMobile">
+  <div style={styles.sectionLabel}>Centro de control</div>
+  <div style={styles.sectionSub}>Accesos rápidos a lo importante.</div>
 
+  <div style={styles.hubGrid} className="spProfileHubGrid">
+    <HubCard title="Grupos" hint="Pareja, familia y compartidos." onClick={() => router.push("/groups")} />
+    <HubCard title="Miembros" hint="Quién está en tus grupos." onClick={() => router.push("/members")} />
+    <HubCard title="Invitaciones" hint="Invita y acepta accesos." onClick={() => router.push("/invitations")} />
+    <HubCard title="Settings" hint="Preferencias del producto." onClick={() => router.push("/settings")} />
+    <HubCard title="Planes" hint="Ver tu plan y upgrade." onClick={() => router.push("/pricing")} />
+    <HubCard title="Salir" hint="Cerrar sesión." onClick={async () => { await supabase.auth.signOut(); router.replace("/auth/login"); }} />
+  </div>
+</section>
             {/* Cómo te ve el resto */}
-            <section style={styles.card}>
+            <section style={styles.card} className="spProfileHideMobile">
               <div style={styles.sectionLabel}>Cómo te ve el resto</div>
               <div style={styles.sectionSub}>
                 Este nombre se usa en miembros, invitaciones y notificaciones compartidas.
@@ -1472,10 +1532,10 @@ export default function ProfilePage() {
             </section>
 
             {/* Preferencias */}
-            <section style={styles.card}>
+            <section style={styles.card} className="spProfileHideMobile">
               <div style={styles.sectionLabel}>Cómo sueles organizar tu tiempo</div>
               <div style={styles.sectionSub}>
-                Estas preferencias ayudan a SyncPlans a anticipar fricciones y mostrar mejores decisiones cuando hay choques de horario.
+                Estas preferencias ayudan a SyncPlans a anticipar fricciones y mostrar mejores decisiones cuando hay conflictos de horario.
               </div>
 
               <form onSubmit={handleSaveCoordPrefs} style={styles.coordForm}>
@@ -1592,7 +1652,7 @@ export default function ProfilePage() {
             </section>
 
             {/* Resumen diario */}
-            <section style={styles.card}>
+            <section style={styles.card} className="spProfileHideMobile">
               <div style={styles.sectionLabel}>Resumen diario por correo</div>
               <div style={styles.sectionSub}>
                 Si lo activas, te enviaremos cada mañana un correo con los eventos que tienes para el día, ordenados por hora.
@@ -1637,7 +1697,7 @@ export default function ProfilePage() {
 
           {/* Columna derecha */}
           <div style={styles.rightCol}>
-            <section style={styles.card}>
+           <section style={styles.card} className="spProfileHideMobile">
               <div style={styles.sectionLabel}>Estado general</div>
               <div style={styles.sectionSub}>Revisa de un vistazo cómo está tu cuenta en SyncPlans.</div>
 
@@ -1664,7 +1724,7 @@ export default function ProfilePage() {
                   value={statsLoading ? "—" : stats ? `${stats.conflictsNow}` : "—"}
                   hint={
                     stats && stats.conflictsNow > 0
-                      ? "Tienes choques activos listos para revisar."
+                      ? "Tienes conflictos activos listos para revisar."
                       : "Detectamos conflictos en el momento en que guardas eventos."
                   }
                 />
@@ -1712,7 +1772,7 @@ export default function ProfilePage() {
             </section>
 
             {/* Tu rol en los grupos (tu UI original) */}
-            <section style={styles.card}>
+            <section style={styles.card} className="spProfileHideMobile">
               <div style={styles.sectionLabel}>Tu rol en los grupos</div>
               <div style={styles.sectionSub}>
                 No eres la misma persona en todos tus calendarios. Aquí defines cómo te ve cada grupo.
@@ -1951,13 +2011,13 @@ export default function ProfilePage() {
             </section>
 
             {/* Acciones rápidas */}
-            <section style={styles.card}>
+            <section style={styles.card} className="spProfileHideMobile">
               <div style={styles.sectionLabel}>Uso y acciones rápidas</div>
               <div style={styles.sectionSub}>Atajos a lo que normalmente haces desde SyncPlans.</div>
 
               <div style={styles.quickActionsGrid} className="spProfileQuickGrid">
                 <QuickAction title="Ir al calendario" hint="Ver tu semana y crear nuevas actividades." onClick={() => router.push("/calendar")} />
-                <QuickAction title="Revisar conflictos" hint="Detectar choques y decidir qué hacer con ellos." onClick={() => router.push("/conflicts/detected")} />
+                <QuickAction title="Revisar conflictos" hint="Detectar conflictos y decidir qué hacer con ellos." onClick={() => router.push("/conflicts/detected")} />
                 <QuickAction title="Gestionar grupos" hint="Pareja, familia o grupos con los que organizas tu tiempo." onClick={() => router.push("/groups")} />
                 <QuickAction title="Invitar a alguien" hint="Envía invitaciones para compartir eventos y conflictos." onClick={() => router.push("/invitations")} />
               </div>
@@ -1969,24 +2029,52 @@ export default function ProfilePage() {
           SyncPlans está pensado para que tu calendario personal, de pareja, familia y grupos compartidos convivan sin fricciones. Este panel es tu centro de control.
         </div>
 
-<style jsx global>{`
+<style>{`
+  /* ✅ Mobile: Panel como app real */
   @media (max-width: 780px) {
-    .spProfileShell {
-      padding-bottom: 120px !important;
+    .spProfileMainGrid { grid-template-columns: 1fr !important; }
+/* En móvil, el hub manda: lo demás baja de prioridad */
+.spProfileHideMobile {
+  display: none !important;
+}
+    /* Master-detail (grupos) pasa a stack */
+    .spProfileMasterDetail {
+      grid-template-columns: 1fr !important;
+      min-height: auto !important;
     }
-    .spProfileMainGrid {
+
+    /* Lista de grupos: no “cuadro chico”, sino bloque cómodo */
+    .spProfileMasterDetail > div:first-child {
+      max-height: none !important;
+    }
+
+    /* Scroll natural y bonito */
+    .spProfileMasterDetail [style*="maxHeight: 260px"] {
+      max-height: 240px !important;
+    }
+
+    /* Quick actions: 1 columna en móvil chico (más pro) */
+    .spProfileQuickGrid {
       grid-template-columns: 1fr !important;
     }
   }
 `}</style>
-        <style>{`
-          @media (max-width: 780px) {
-            .spProfileShell { padding-bottom: 120px !important; }
-            .spProfileMainGrid { grid-template-columns: 1fr !important; }
-          }
-        `}</style>
-      </div>
-    </main>
+<style>{`
+  /* ✅ Mobile: Panel como app real */
+  @media (max-width: 780px) {
+    .spProfileMainGrid { grid-template-columns: 1fr !important; }
+    ...
+  }
+
+  /* ✅ Mobile pequeño: el hub pasa a 1 columna */
+  @media (max-width: 520px) {
+    .spProfileHubGrid {
+      grid-template-columns: 1fr !important;
+    }
+  }
+`}</style>
+        </MobileScaffold>
+</main>
   );
 } // ✅ IMPORTANTÍSIMO: aquí cerramos ProfilePage correctamente
 
@@ -2001,7 +2089,15 @@ function InfoStat(props: { label: string; value: string; hint?: string }) {
     </div>
   );
 }
-
+function HubCard(props: { title: string; hint: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={props.onClick} style={styles.hubCard}>
+      <div style={styles.hubTitle}>{props.title}</div>
+      <div style={styles.hubHint}>{props.hint}</div>
+      <div style={styles.hubChevron}>→</div>
+    </button>
+  );
+}
 function QuickAction(props: { title: string; hint: string; onClick: () => void }) {
   return (
     <button type="button" onClick={props.onClick} style={styles.quickAction}>

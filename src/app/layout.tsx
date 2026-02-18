@@ -1,3 +1,4 @@
+// src/app/layout.tsx
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 import type { Metadata, Viewport } from "next";
@@ -19,13 +20,28 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
+    <html lang="es" style={{ background: "#0B0F19" }}>
       <head>
         <link rel="manifest" href="/manifest.webmanifest" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         <meta name="theme-color" content="#0B0F19" />
+
+        {/* ✅ iOS safe-area support */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       </head>
-      <body>
+
+      <body
+        style={{
+          minHeight: "100dvh",
+          background: "#0B0F19",
+          color: "#E5E7EB",
+          overflowX: "hidden",
+
+          // ✅ safe-area padding base (no molesta en desktop)
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+      >
         <SWRegister />
         <ToastProvider>{children}</ToastProvider>
       </body>
