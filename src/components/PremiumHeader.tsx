@@ -177,7 +177,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
     title,
     subtitle,
     rightSlot,
-    mobileNav = "bottom",
+    mobileNav: _mobileNav = "bottom", // compat, pero ya no controla nav en móvil
     // highlightId y appliedToast quedan disponibles para futuro uso,
     // pero no son obligatorios en ninguna pantalla.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -223,7 +223,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
 
         if (profile) {
           const display = (
-            profile.display_name ??
+            profile.display_name ?? 
             `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
           ).trim();
 
@@ -347,8 +347,9 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
     );
   }, []);
 
-  const shouldShowTopNav: boolean =
-    !isMobile || (isMobile && mobileNav === "top");
+  // REGRA MADRE: en móvil la navegación principal es SOLO el bottom nav.
+  // Así que las píldoras de navegación solo se muestran en desktop.
+  const shouldShowTopNav: boolean = !isMobile;
 
   const closeUserMenu = () => setUserMenuOpen(false);
 
@@ -522,7 +523,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
               </div>
             </div>
 
-            {/* Nav superior opcional en móvil (solo si mobileNav="top") */}
+            {/* Nav superior OPCIONAL en móvil: AHORA SIEMPRE DESACTIVADA (solo desktop) */}
             {shouldShowTopNav && (
               <nav style={S.nav}>
                 <NavPill
