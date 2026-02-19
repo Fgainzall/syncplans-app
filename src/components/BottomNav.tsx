@@ -92,7 +92,7 @@ const NAV_ITEMS: NavItem[] = [
     key: "plans",
     label: "Planes",
     icon: "💎",
-    path: "/plans",
+    path: "/planes", // 👈 antes /plans
     aria: "Ir a Planes",
   },
 ];
@@ -111,7 +111,7 @@ export default function BottomNav() {
     if (key === "members") return pathname.startsWith("/members");
     if (key === "invitations") return pathname.startsWith("/invitations");
     if (key === "settings") return pathname.startsWith("/settings");
-    if (key === "plans") return pathname.startsWith("/plans");
+    if (key === "plans") return pathname.startsWith("/planes"); // 👈 antes /plans
     return false;
   };
 
