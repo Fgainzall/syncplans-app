@@ -183,7 +183,10 @@ type CalendarClientProps = {
    COMPONENTE PRINCIPAL
    ========================= */
 export default function CalendarClient(
-  { highlightId = null, appliedToast = null }: CalendarClientProps = {},
+  {
+    highlightId = null,
+    appliedToast = null,
+  }: CalendarClientProps = {}
 ) {
   const router = useRouter();
   const pathname = usePathname();
