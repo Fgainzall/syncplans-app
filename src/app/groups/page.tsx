@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+const AnyPremiumHeader = PremiumHeader as React.ComponentType<any>;
 import { getMyGroups, getGroupTypeLabel } from "@/lib/groupsDb";
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
 import { getMyInvitations } from "@/lib/invitationsDb";
@@ -116,7 +117,7 @@ export default function GroupsPage() {
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-          <PremiumHeader />
+          <AnyPremiumHeader />
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
@@ -209,7 +210,7 @@ export default function GroupsPage() {
 
       <div className="sp-groups-shell" style={styles.shell}>
         <div className="sp-groups-topRow" style={styles.topRow}>
-          <PremiumHeader />
+          <AnyPremiumHeader />
           <div className="sp-groups-topActions" style={styles.topActions}>
             <button
               className="sp-tap"
