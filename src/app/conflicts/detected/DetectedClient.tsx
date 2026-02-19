@@ -217,26 +217,27 @@ export default function DetectedClient() {
     router.push(`/conflicts/actions?${qp.toString()}`);
   };
 
-  if (booting) {
-    return (
-      <main style={styles.page}>
-        <div style={styles.shell} className="spDet-shell">
-          <div style={styles.topRow} className="spDet-topRow">
-            <AppHero mobileNav="bottom" />
-            <LogoutButton />
-          </div>
+ if (booting) {
+  return (
+    <main style={styles.page}>
+      <div style={styles.shell} className="spDet-shell">
+        <AppHero mobileNav="bottom" />
 
-          <div style={styles.loadingCard}>
-            <div style={styles.loadingDot} />
-            <div>
-              <div style={styles.loadingTitle}>Analizando tu agenda…</div>
-              <div style={styles.loadingSub}>Buscando choques de horario</div>
+        <div style={styles.loadingCard}>
+          <div style={styles.loadingDot} />
+          <div>
+            <div style={styles.loadingTitle}>
+              Analizando tu agenda…
+            </div>
+            <div style={styles.loadingSub}>
+              Buscando choques de horario
             </div>
           </div>
         </div>
-      </main>
-    );
-  }
+      </div>
+    </main>
+  );
+}
 
   return (
     <main style={styles.page}>
