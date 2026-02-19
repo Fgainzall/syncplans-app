@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
 import AppHero from "@/components/AppHero";
-import LogoutButton from "@/components/LogoutButton";
 import MobileScaffold from "@/components/MobileScaffold";
 
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
@@ -146,9 +145,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   // ✅ CLAVE: en móvil mostramos menos para evitar scroll infinito
   const UPCOMING_LIMIT = isMobile ? 3 : 8;
 
-  const upcoming = useMemo(() => {
-    return upcomingAll.slice(0, UPCOMING_LIMIT);
-  }, [upcomingAll, UPCOMING_LIMIT]);
+  const upcoming = useMemo(
+    () => upcomingAll.slice(0, UPCOMING_LIMIT),
+    [upcomingAll, UPCOMING_LIMIT]
+  );
 
   const showSeeMore = !booting && upcomingAll.length > UPCOMING_LIMIT;
 
@@ -236,20 +236,21 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       )}
 
       <MobileScaffold
-  maxWidth={1120}
-  paddingDesktop="22px 18px 48px"
-  paddingMobile="14px 12px 18px"
-  mobileBottomSafe={120}
-  className="spSum-shell"
->
-       <div style={styles.topRow} className="spSum-topRow">
-<AppHero
-  title="Eventos"
-  subtitle="Tus eventos, sin ruido."
-/>
-</div>
+        maxWidth={1120}
+        paddingDesktop="22px 18px 48px"
+        paddingMobile="14px 12px 18px"
+        mobileBottomSafe={120}
+        className="spSum-shell"
+      >
+        {/* Header unificado (AppHero) */}
+        <div style={styles.topRow} className="spSum-topRow">
+          <AppHero
+            title="Resumen"
+            subtitle="Lo importante, sin fricción."
+          />
+        </div>
 
-        {/* Hero compacto */}
+        {/* Hero compacto debajo del header */}
         <section style={styles.hero} className="spSum-hero">
           <div>
             <div style={styles.kicker}>Tu resumen</div>
@@ -379,7 +380,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               className="spSum-quickCard"
             >
               <div style={styles.quickTitle}>Crear evento</div>
-              <div style={styles.quickSub}>Personal o para tu grupo activo</div>
+              <div style={styles.quickSub}>
+                Personal o para tu grupo activo
+              </div>
             </button>
 
             <button
@@ -393,14 +396,16 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               </div>
             </button>
 
-           <button
-  onClick={() => router.push("/conflicts/detected")}
-  style={styles.quickCard}
-  className="spSum-quickCard"
->
-  <div style={styles.quickTitle}>Resolver conflictos</div>
-  <div style={styles.quickSub}>Detectar → comparar → decidir</div>
-</button>
+            <button
+              onClick={() => router.push("/conflicts/detected")}
+              style={styles.quickCard}
+              className="spSum-quickCard"
+            >
+              <div style={styles.quickTitle}>Resolver conflictos</div>
+              <div style={styles.quickSub}>
+                Detectar → comparar → decidir
+              </div>
+            </button>
           </div>
         </section>
       </MobileScaffold>
@@ -503,21 +508,21 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
   },
   h1: {
-  margin: "10px 0 0",
-  fontSize: 26,
-  letterSpacing: "-0.6px",
-  fontWeight: 950,
-},
+    margin: "10px 0 0",
+    fontSize: 26,
+    letterSpacing: "-0.6px",
+    fontWeight: 950,
+  },
   sub: { marginTop: 8, fontSize: 13, opacity: 0.75, maxWidth: 720 },
   subMobile: { marginTop: 8, fontSize: 12, opacity: 0.75, maxWidth: 420 },
 
   heroBtns: {
-  display: "flex",
-  gap: 10,
-  flexWrap: "wrap",
-  width: "100%",
-  justifyContent: "flex-end",
-},
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    width: "100%",
+    justifyContent: "flex-end",
+  },
 
   card: {
     borderRadius: 18,

@@ -13,7 +13,6 @@ import { usePathname, useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
 import AppHero from "@/components/AppHero";
-import LogoutButton from "@/components/LogoutButton";
 import { EventEditModal } from "@/components/EventEditModal";
 
 import { getMyGroups } from "@/lib/groupsDb";
@@ -963,21 +962,18 @@ export default function CalendarClient(props: {
       <div style={styles.shell} className="spCal-shell">
         {/* ✅ Sticky top */}
         <div style={styles.stickyTop}>
-          <div style={styles.topRow} className="spCal-topRow">
-            <AppHero
-  mobileNav={isMobile ? "bottom" : "top"}
-  title="Calendario"
-  subtitle="Organiza tu día sin conflictos de horario."
-/>
-            <div style={styles.topActions} className="spCal-actions">
-              <button onClick={handleRefresh} style={styles.ghostBtn}>
-                Actualizar
-              </button>
-              <LogoutButton />
-            </div>
-          </div>
-        </div>
-
+        <div style={styles.topRow} className="spCal-topRow">
+  <AppHero
+    mobileNav={isMobile ? "bottom" : "top"}
+    title="Calendario"
+    subtitle="Organiza tu tiempo sin fricción."
+  />
+  <div style={styles.topActions} className="spCal-actions">
+    <button onClick={handleRefresh} style={styles.ghostBtn}>
+      Actualizar
+    </button>
+  </div>
+</div>
         {/* HERO premium */}
         <section style={styles.hero} className="spCal-hero">
           <div style={styles.heroLeft}>
