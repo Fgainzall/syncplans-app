@@ -1,148 +1,142 @@
-// src/app/calendar/CalendarClient.tsx
+// src/components/PremiumHeader.tsx
 "use client";
 
 import React, {
   useEffect,
   useMemo,
-  useRef,
   useState,
   useCallback,
+  type CSSProperties,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-import supabase from "@/lib/supabaseClient";
-import AppHero from "@/components/AppHero";
-import { EventEditModal } from "@/components/EventEditModal";
-
-import { getMyGroups } from "@/lib/groupsDb";
-import { getEventsForGroups, deleteEventsByIds } from "@/lib/eventsDb";
 import {
-  getActiveGroupIdFromDb,
-  setActiveGroupIdInDb,
-} from "@/lib/activeGroup";
+  getGroupState,
+  setMode,
+  type UsageMode,
+  type GroupState,
+} from "@/lib/groups";
+import NotificationsDrawer, {
+  type NavigationMode,
+} from "./NotificationsDrawer";
 
 import {
-  type CalendarEvent,
-  type GroupType,
-  computeVisibleConflicts,
-  filterIgnoredConflicts,
-  groupMeta,
-} from "@/lib/conflicts";
+  getMyProfile,
+  getInitials,
+  type Profile as UserProfile,
+} from "@/lib/profilesDb";
 
-type Scope = "personal" | "active" | "all";
-type Tab = "month" | "agenda";
+import IntegrationsDrawer from "@/components/IntegrationsDrawer";
+import LogoutButton from "@/components/LogoutButton";
 
-/* =========================
-   Helpers de fecha y formato
-   ========================= */
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+type TabKey = UsageMode | "other";
+
+type Tab = {
+  key: TabKey;
+  label: string;
+  hint: string;
+  dot: string;
+};
+
+const TABS: Tab[] = [
+  { key: "solo", label: "Personal", hint: "Solo tú", dot: "#FBBF24" },
+  { key: "pair", label: "Pareja", hint: "2 personas", dot: "#F87171" },
+  { key: "family", label: "Familia", hint: "Varios", dot: "#60A5FA" },
+  {
+    key: "other",
+    label: "Compartido",
+    hint: "Amigos, equipos",
+    dot: "#A855F7",
+  },
+];
+
+function applyThemeVars(mode: UsageMode | "other") {
+  if (typeof document === "undefined") return;
+  const root = document.documentElement;
+
+  root.style.setProperty("--sp-personal", "#FBBF24");
+  root.style.setProperty("--sp-pair", "#F87171");
+  root.style.setProperty("--sp-family", "#60A5FA");
+  root.style.setProperty("--sp-other", "#A855F7");
+
+  let active: string;
+
+  if (mode === "solo") active = "var(--sp-personal)";
+  else if (mode === "pair") active = "var(--sp-pair)";
+  else if (mode === "family") active = "var(--sp-family)";
+  else active = "var(--sp-other)";
+
+  root.style.setProperty("--sp-active", active);
 }
-function endOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
-}
-function startOfWeek(d: Date) {
-  const day = d.getDay(); // 0=Sun
-  const diff = (day + 6) % 7; // Monday-start
-  const x = new Date(d);
-  x.setDate(d.getDate() - diff);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-function endOfWeek(d: Date) {
-  const s = startOfWeek(d);
-  const e = new Date(s);
-  e.setDate(s.getDate() + 6);
-  e.setHours(23, 59, 59, 999);
-  return e;
-}
-function addDays(d: Date, n: number) {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-}
-function sameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
+
+async function ensureActiveGroupForMode(
+  mode: UsageMode | "other"
+): Promise<string | null> {
+  if (mode === "solo") return null;
+
+  const { getActiveGroupIdFromDb, setActiveGroupIdInDb } = await import(
+    "@/lib/activeGroup"
   );
-}
-function ymd(d: Date) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-function prettyMonthRange(a: Date, b: Date) {
-  const meses = [
-    "ene",
-    "feb",
-    "mar",
-    "abr",
-    "may",
-    "jun",
-    "jul",
-    "ago",
-    "sep",
-    "oct",
-    "nov",
-    "dic",
-  ];
-  return `${a.getDate()} ${meses[a.getMonth()]} ${a.getFullYear()} – ${
-    b.getDate()
-  } ${meses[b.getMonth()]} ${b.getFullYear()}`;
-}
-function prettyDay(d: Date) {
-  const dias = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-  const meses = [
-    "enero",
-    "febrero",
-    "marzo",
-    "abril",
-    "mayo",
-    "junio",
-    "julio",
-    "agosto",
-    "septiembre",
-    "octubre",
-    "noviembre",
-    "diciembre",
-  ];
-  return `${dias[d.getDay()]}, ${d.getDate()} de ${
-    meses[d.getMonth()]
-  } ${d.getFullYear()}`;
-}
-function prettyTimeRange(startIso: string, endIso: string) {
-  const s = new Date(startIso);
-  const e = new Date(endIso);
-  const hhmm = (x: Date) =>
-    `${String(x.getHours()).padStart(2, "0")}:${String(
-      x.getMinutes(),
-    ).padStart(2, "0")}`;
-  const cross = !sameDay(s, e);
-  if (cross)
-    return `${s.toLocaleDateString()} ${hhmm(
-      s,
-    )} → ${e.toLocaleDateString()} ${hhmm(e)}`;
-  return `${hhmm(s)} – ${hhmm(e)}`;
-}
-function isValidIsoish(v: any) {
-  if (!v || typeof v !== "string") return false;
-  const t = new Date(v).getTime();
-  return !Number.isNaN(t);
+  const { getMyGroups } = await import("@/lib/groupsDb");
+
+  const existing = await getActiveGroupIdFromDb().catch(() => null);
+
+  const groups = await getMyGroups();
+  if (!groups.length) return null;
+
+  const wantType = String(mode).toLowerCase();
+
+  if (existing) {
+    const current = groups.find((g: any) => String(g.id) === String(existing));
+    const currentType = String(current?.type ?? "").toLowerCase();
+
+    if (current && currentType === wantType) {
+      return String(existing);
+    }
+  }
+
+  const match = groups.find(
+    (g: any) => String(g.type ?? "").toLowerCase() === wantType
+  );
+  const pick = match?.id ?? groups[0]?.id ?? null;
+
+  if (pick) {
+    await setActiveGroupIdInDb(String(pick));
+    window.dispatchEvent(new Event("sp:active-group-changed"));
+    return String(pick);
+  }
+
+  return null;
 }
 
-/** ✅ detecta móvil por ancho (sin tocar otras páginas) */
-function useIsMobileWidth(maxWidth = 720) {
+type HeaderUser = {
+  name: string;
+  initials: string;
+};
+
+function normalizeGroupLabel(input?: string | null) {
+  const raw = (input ?? "").trim();
+  if (!raw) return null;
+
+  if (/^activo$/i.test(raw)) return "Grupo actual";
+  if (/^activo\s*[:\-–]\s*/i.test(raw)) {
+    const cleaned = raw.replace(/^activo\s*[:\-–]\s*/i, "").trim();
+    return cleaned || "Grupo actual";
+  }
+
+  return raw;
+}
+
+function useIsMobileWidth(maxWidth = 520) {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
     const apply = () => setIsMobile(!!mq.matches);
-    apply();
 
+    apply();
     if (typeof mq.addEventListener === "function") {
       mq.addEventListener("change", apply);
       return () => mq.removeEventListener("change", apply);
@@ -159,1839 +153,1120 @@ function useIsMobileWidth(maxWidth = 720) {
   return isMobile;
 }
 
-/**
- * ✅ Normalización para conflictos:
- * El motor de conflictos trabaja con "couple" (no "pair").
- * En UI guardamos "pair"; SOLO aquí convertimos para el motor.
- */
-function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
-  if (!gt) return "personal" as GroupType;
-  return (gt === ("pair" as any) ? ("couple" as any) : gt) as GroupType;
-}
+type MobileNavVariant = "top" | "bottom" | "none";
 
-/* =========================
-   COMPONENTE PRINCIPAL
-   ========================= */
-export default function CalendarClient(props: {
-  highlightId: string | null;
-  appliedToast: null | {
-    deleted: number;
-    skipped: number;
-    appliedCount: number;
-  };
-}) {
-  const { highlightId, appliedToast } = props;
+/**
+ * Compatibilidad con antiguos usos de PremiumHeader:
+ * algunas pantallas le pasaban `highlightId` y `appliedToast`.
+ * Los dejamos como OPCIONALES para que `<PremiumHeader />` simple
+ * también sea válido.
+ */
+type UiToast = { deleted: number; skipped: number; appliedCount: number } | null;
+
+type PremiumHeaderProps = {
+  title?: string;
+  subtitle?: string;
+  rightSlot?: React.ReactNode;
+  mobileNav?: MobileNavVariant;
+  highlightId?: string | null;
+  appliedToast?: UiToast;
+};
+
+export default function PremiumHeader(props: PremiumHeaderProps) {
+  const {
+    title,
+    subtitle,
+    rightSlot,
+    mobileNav = "bottom",
+    // highlightId y appliedToast quedan disponibles para futuro uso,
+    // pero no son obligatorios en ninguna pantalla.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    highlightId,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    appliedToast,
+  } = props;
 
   const router = useRouter();
   const pathname = usePathname();
-  const isMobile = useIsMobileWidth(820);
 
-  const eventRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const setEventRef = (id: string) => (el: HTMLDivElement | null) => {
-    eventRefs.current[String(id)] = el;
-  };
+  const NAV_MODE: NavigationMode = "replace";
 
-  const [booting, setBooting] = useState(true);
+  const [group, setGroup] = useState<GroupState | null>(null);
+  const [openNotif, setOpenNotif] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [headerUser, setHeaderUser] = useState<HeaderUser | null>(null);
 
-  const [tab, setTab] = useState<Tab>("month");
-  const [scope, setScope] = useState<Scope>("all");
+  const [openIntegrations, setOpenIntegrations] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  const [anchor, setAnchor] = useState<Date>(() => new Date());
-  const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
+  const isMobile = useIsMobileWidth(520);
 
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [groups, setGroups] = useState<any[]>([]);
-
-  const groupTypeById = useMemo(() => {
-    const m = new Map<string, "pair" | "family">();
-    for (const g of groups || []) {
-      const id = String(g.id);
-      const rawType = String(g.type ?? "").toLowerCase();
-      m.set(id, rawType === "family" ? "family" : "pair");
-    }
-    return m;
-  }, [groups]);
-
-  const [error, setError] = useState<string | null>(null);
-  const [eventsLoaded, setEventsLoaded] = useState(false);
-
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
-
-  const [enabledGroups, setEnabledGroups] = useState({
-    personal: true,
-    pair: true,
-    family: true,
-  });
-
-  const [toast, setToast] =
-    useState<null | { title: string; subtitle?: string }>(null);
-
-  /* ✏️ ESTADO DEL MODAL DE EDICIÓN */
-  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-
-  const handleEditEvent = useCallback((e: CalendarEvent) => {
-    setEditingEvent(e);
-    setIsEditOpen(true);
-  }, []);
-
-  const monthStart = useMemo(() => startOfMonth(anchor), [anchor]);
-  const monthEnd = useMemo(() => endOfMonth(anchor), [anchor]);
-  const gridStart = useMemo(() => startOfWeek(monthStart), [monthStart]);
-  const gridEnd = useMemo(() => endOfWeek(monthEnd), [monthEnd]);
-
-  const today = useMemo(() => {
-    const t = new Date();
-    t.setHours(0, 0, 0, 0);
-    return t;
-  }, []);
-
-  /* =========================
-     Carga de datos (DB) — “Actualizar”
-     ========================= */
-  const refreshCalendar = useCallback(
-    async (
-      opts: {
-        showToast?: boolean;
-        toastTitle?: string;
-        toastSubtitle?: string;
-      } = {},
-    ) => {
-      const showToastFlag = opts?.showToast ?? false;
-
-      try {
-        if (showToastFlag) {
-          setToast({
-            title: opts?.toastTitle ?? "Actualizando…",
-            subtitle:
-              opts?.toastSubtitle ?? "Recargando desde SyncPlans",
-          });
-        }
-
-        const { data, error } = await supabase.auth.getSession();
-        if (error || !data.session?.user) {
-          router.replace("/auth/login");
-          return;
-        }
-
-        const active = await getActiveGroupIdFromDb();
-        setActiveGroupId(active ? String(active) : null);
-
-        const myGroups = await getMyGroups();
-        setGroups(myGroups);
-
-        // ✅ FIX definitivo: si no hay active en DB pero sí grupos, persistimos el primero
-        if (!active && (myGroups?.length ?? 0) > 0) {
-          const firstId = String(myGroups[0].id);
-          setActiveGroupId(firstId);
-          try {
-            await setActiveGroupIdInDb(firstId);
-          } catch {
-            // no-op
-          }
-        }
-
-        const groupIds = (myGroups || []).map((g: any) => String(g.id));
-
-        // ✅ getEventsForGroups(groupIds) incluye personal
-        const rawEvents: any[] =
-          (await getEventsForGroups(groupIds)) as any[];
-
-        const groupTypeByIdLocal = new Map<string, "family" | "pair">(
-          (myGroups || []).map((g: any) => {
-            const id = String(g.id);
-            const rawType = String(g.type ?? "").toLowerCase();
-            const normalized: "family" | "pair" =
-              rawType === "family" ? "family" : "pair";
-            return [id, normalized];
-          }),
-        );
-
-        const enriched: CalendarEvent[] = (rawEvents || [])
-          .map((ev: any) => {
-            const gid = ev.group_id ?? ev.groupId ?? null;
-
-            let gt: GroupType = "personal" as any;
-            if (gid) {
-              const t = groupTypeByIdLocal.get(String(gid));
-              gt = (t === "family" ? "family" : "pair") as any;
-            } else {
-              gt = "personal" as any;
-            }
-
-            const startRaw = ev.start;
-            const endRaw = ev.end;
-
-            if (!isValidIsoish(startRaw) || !isValidIsoish(endRaw))
-              return null;
-
-            return {
-              id: String(ev.id),
-              title: ev.title ?? "Evento",
-              start: String(startRaw),
-              end: String(endRaw),
-              notes: ev.notes ?? undefined,
-              groupId: gid ? String(gid) : null,
-              groupType: gt,
-            } as CalendarEvent;
-          })
-          .filter(Boolean) as CalendarEvent[];
-
-        setEvents(enriched);
-        setEventsLoaded(true);
-        setError(null);
-
-        if (showToastFlag) {
-          setToast({
-            title: "Actualizado ✅",
-            subtitle: "Tu calendario ya está al día.",
-          });
-          window.setTimeout(() => setToast(null), 2400);
-        }
-      } catch (e: any) {
-        setError(e?.message ?? "Error cargando calendario");
-        setEventsLoaded(true);
-
-        if (showToastFlag) {
-          setToast({
-            title: "No se pudo actualizar",
-            subtitle: e?.message ?? "Revisa tu sesión o conexión.",
-          });
-          window.setTimeout(() => setToast(null), 2800);
-        }
-      }
-    },
-    [router],
-  );
-
-  const handleDeleteEvent = useCallback(
-    async (eventId: string, title?: string) => {
-      const ok = confirm(
-        `¿Eliminar el evento${
-          title ? ` "${title}"` : ""
-        }?\nEsta acción no se puede deshacer.`,
-      );
-      if (!ok) return;
-
-      try {
-        setToast({ title: "Eliminando…", subtitle: "Aplicando cambios" });
-
-        await deleteEventsByIds([eventId]);
-
-        await refreshCalendar({
-          showToast: true,
-          toastTitle: "Evento eliminado ✅",
-          toastSubtitle: "Tu calendario ya está actualizado.",
-        });
-      } catch (e: any) {
-        setToast({
-          title: "No se pudo eliminar",
-          subtitle: e?.message ?? "Revisa permisos o conexión.",
-        });
-        window.setTimeout(() => setToast(null), 2600);
-      }
-    },
-    [refreshCalendar],
-  );
-
-  /* ✅ toast post-apply desde props (sin useSearchParams) */
   useEffect(() => {
-    if (!appliedToast) return;
-
-    const { appliedCount, deleted, skipped } = appliedToast;
-
-    const parts: string[] = [];
-    if (appliedCount > 0)
-      parts.push(
-        `${appliedCount} decisión${
-          appliedCount === 1 ? "" : "es"
-        } aplicada${appliedCount === 1 ? "" : "s"}`,
-      );
-    if (deleted > 0)
-      parts.push(
-        `${deleted} evento${
-          deleted === 1 ? "" : "s"
-        } eliminado${deleted === 1 ? "" : "s"}`,
-      );
-    if (skipped > 0)
-      parts.push(
-        `${skipped} conflicto${
-          skipped === 1 ? "" : "s"
-        } saltado${skipped === 1 ? "" : "s"}`,
-      );
-
-    const subtitle =
-      parts.length > 0
-        ? parts.join(" · ")
-        : "No hubo cambios que aplicar en los conflictos.";
-
-    setToast({ title: "Cambios aplicados ✅", subtitle });
-
-    refreshCalendar();
-
-    const t = window.setTimeout(() => setToast(null), 4200);
-    router.replace(pathname);
-
-    return () => window.clearTimeout(t);
-  }, [appliedToast, pathname, refreshCalendar, router]);
-
-  // ✅ escucha cambio de grupo activo (PremiumHeader) sin recargar toda la página
-  useEffect(() => {
-    const handler = async () => {
-      try {
-        const next = await getActiveGroupIdFromDb().catch(() => null);
-        setActiveGroupId(next ? String(next) : null);
-      } catch {
-        // no-op
-      }
-    };
-
-    window.addEventListener("sp:active-group-changed", handler as any);
-    return () =>
-      window.removeEventListener(
-        "sp:active-group-changed",
-        handler as any,
-      );
+    const g = getGroupState();
+    setGroup(g);
+    applyThemeVars((g.mode as TabKey) ?? "solo");
   }, []);
 
-  /* Boot inicial */
+  const activeMode: TabKey = (group?.mode as TabKey) ?? "solo";
+
+  useEffect(() => {
+    applyThemeVars(activeMode);
+  }, [activeMode]);
+
   useEffect(() => {
     let alive = true;
 
     (async () => {
-      setBooting(true);
-
-      const { data, error } = await supabase.auth.getSession();
-      if (!alive) return;
-
-      if (error || !data.session?.user) {
-        setBooting(false);
-        router.replace("/auth/login");
-        return;
-      }
-
       try {
-        await refreshCalendar();
-      } finally {
+        const profile: UserProfile | null = await getMyProfile();
         if (!alive) return;
-        setBooting(false);
+
+        if (profile) {
+          const display = (
+            profile.display_name ??
+            `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
+          ).trim();
+
+          const name = display || "Tú";
+          const initials = getInitials({
+            first_name: profile.first_name,
+            last_name: profile.last_name,
+            display_name: profile.display_name,
+          });
+
+          setHeaderUser({ name, initials });
+        } else {
+          setHeaderUser({ name: "Tú", initials: "T" });
+        }
+      } catch {
+        if (!alive) return;
+        setHeaderUser(null);
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, [router, refreshCalendar]);
+  }, []);
 
-  /* =========================
-     Conflictos
-     ========================= */
-  const conflicts = useMemo(() => {
-    const normalized: CalendarEvent[] = (Array.isArray(events)
-      ? events
-      : []
-    ).map((e) => ({
-      ...e,
-      groupType: normalizeForConflicts(e.groupType),
-    }));
-
-    const all = computeVisibleConflicts(normalized);
-    return filterIgnoredConflicts(all);
-  }, [events]);
-
-  const conflictCount = conflicts.length;
-
-  const conflictEventIdsInGrid = useMemo(() => {
-    const a = gridStart.getTime();
-    const b = gridEnd.getTime();
-
-    const set = new Set<string>();
-    for (const c of conflicts) {
-      const s = new Date(c.overlapStart).getTime();
-      const e = new Date(c.overlapEnd).getTime();
-      const intersects = e >= a && s <= b;
-      if (!intersects) continue;
-
-      set.add(String(c.existingEventId));
-      set.add(String(c.incomingEventId));
+  async function refreshBadge() {
+    try {
+      const { getMyNotifications } = await import("@/lib/notificationsDb");
+      const n = await getMyNotifications(50);
+      const unread = (n ?? []).filter(
+        (x: any) => !x.read_at || x.read_at === ""
+      ).length;
+      setUnreadCount(unread);
+    } catch {
+      setUnreadCount(0);
     }
-    return set;
-  }, [conflicts, gridStart, gridEnd]);
-
-  const firstRelevantConflictIndex = useMemo(() => {
-    if (conflicts.length === 0) return 0;
-
-    const a = gridStart.getTime();
-    const b = gridEnd.getTime();
-
-    const idx = conflicts.findIndex((c) => {
-      const s = new Date(c.overlapStart).getTime();
-      const e = new Date(c.overlapEnd).getTime();
-      return e >= a && s <= b;
-    });
-
-    return idx >= 0 ? idx : 0;
-  }, [conflicts, gridStart, gridEnd]);
-
-  /* =========================
-     Filtros y vistas
-     ========================= */
-  const filteredEvents = useMemo(() => {
-    const isEnabled = (g?: GroupType | null) => {
-      const key = (g ?? "personal") as any;
-      return !!(enabledGroups as any)[key];
-    };
-
-    return (Array.isArray(events) ? events : []).filter((e) => {
-      const gt = (e.groupType ?? "personal") as any;
-
-      if (!isEnabled(gt)) return false;
-
-      if (scope === "all") return true;
-
-      if (scope === "personal") {
-        return gt === "personal";
-      }
-
-      // scope === "active"
-      const inConflict = conflictEventIdsInGrid.has(String(e.id));
-      if (inConflict) return true;
-
-      if (gt === "personal") return true;
-      if (!activeGroupId) return true;
-      return String(e.groupId ?? "") === String(activeGroupId);
-    });
-  }, [
-    events,
-    scope,
-    enabledGroups,
-    activeGroupId,
-    conflictEventIdsInGrid,
-  ]);
-
-  const visibleEvents = useMemo(() => {
-    const a = gridStart.getTime();
-    const b = gridEnd.getTime();
-
-    return filteredEvents.filter((e) => {
-      const s = new Date(e.start).getTime();
-      const en = new Date(e.end).getTime();
-      return en >= a && s <= b;
-    });
-  }, [filteredEvents, gridStart, gridEnd]);
-
-  const eventsByDay = useMemo(() => {
-    const map = new Map<string, CalendarEvent[]>();
-
-    for (const e of visibleEvents) {
-      const key = ymd(new Date(e.start));
-      const arr = map.get(key) || [];
-      arr.push(e);
-      map.set(key, arr);
-    }
-    for (const [k, arr] of map.entries()) {
-      arr.sort(
-        (a, b) =>
-          new Date(a.start).getTime() - new Date(b.start).getTime(),
-      );
-      map.set(k, arr);
-    }
-    return map;
-  }, [visibleEvents]);
-
-  const agendaEvents = useMemo(() => {
-    const list = [...visibleEvents];
-    list.sort(
-      (a, b) =>
-        new Date(a.start).getTime() - new Date(b.start).getTime(),
-    );
-    return list;
-  }, [visibleEvents]);
-
-  const highlightedEvent = useMemo(() => {
-    if (!highlightId) return null;
-    return (
-      filteredEvents.find(
-        (e) => String(e.id) === String(highlightId),
-      ) ?? null
-    );
-  }, [highlightId, filteredEvents]);
-
-  useEffect(() => {
-    if (!highlightedEvent) return;
-
-    const d = new Date(highlightedEvent.start);
-
-    setAnchor(new Date(d.getFullYear(), d.getMonth(), 1));
-    setSelectedDay(
-      new Date(d.getFullYear(), d.getMonth(), d.getDate()),
-    );
-    setTab("agenda");
-
-    setToast({
-      title: "Evento encontrado ✨",
-      subtitle: "Te llevé directo al evento desde la notificación.",
-    });
-
-    const t = window.setTimeout(() => setToast(null), 2200);
-    return () => window.clearTimeout(t);
-  }, [highlightedEvent]);
-
-  useEffect(() => {
-    if (!highlightId) return;
-
-    const t = window.setTimeout(() => {
-      const el = eventRefs.current[String(highlightId)];
-      if (el)
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 140);
-
-    return () => window.clearTimeout(t);
-  }, [highlightId, tab, agendaEvents.length]);
-
-  useEffect(() => {
-    if (!highlightId) return;
-    const t = window.setTimeout(() => {
-      router.replace(pathname);
-    }, 3200);
-    return () => window.clearTimeout(t);
-  }, [highlightId, pathname, router]);
-
-  /* =========================
-     UX premium: en móvil, agenda se siente mejor (sin forzarte)
-     ========================= */
-  useEffect(() => {
-    if (!isMobile) return;
-    // Si el usuario ya eligió agenda, lo respetamos.
-  }, [isMobile]);
-
-  /* =========================
-     Navegación y acciones
-     ========================= */
-  const goPrevMonth = () =>
-    setAnchor(
-      (d) => new Date(d.getFullYear(), d.getMonth() - 1, 1),
-    );
-  const goNextMonth = () =>
-    setAnchor(
-      (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1),
-    );
-  const goToday = () => {
-    const t = new Date();
-    setAnchor(t);
-    setSelectedDay(t);
-  };
-
-  const toggleGroup = (g: GroupType) =>
-    setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
-
-  const handleRefresh = async () => {
-    await refreshCalendar({
-      showToast: true,
-      toastTitle: "Actualizando…",
-      toastSubtitle: "Recargando desde SyncPlans",
-    });
-  };
-
-  const openNewEventPersonal = (date?: Date) => {
-    const d = date ?? selectedDay ?? new Date();
-    router.push(
-      `/events/new/details?type=personal&date=${encodeURIComponent(
-        d.toISOString(),
-      )}`,
-    );
-  };
-
-  const openNewEventGroup = (date?: Date) => {
-    const d = date ?? selectedDay ?? new Date();
-    router.push(
-      `/events/new/details?type=group&date=${encodeURIComponent(
-        d.toISOString(),
-      )}`,
-    );
-  };
-
-  const openConflicts = () => router.push("/conflicts/detected");
-  const resolveNow = () =>
-    router.push(
-      `/conflicts/compare?i=${firstRelevantConflictIndex}`,
-    );
-
-  /* =========================
-     RENDER
-     ========================= */
-  if (booting) {
-    return (
-      <main style={styles.page}>
-        <div style={styles.shell}>
-          <div style={styles.stickyTop}>
-            <AppHero mobileNav="bottom" />
-          </div>
-
-          <div style={styles.loadingCard}>
-            <div style={styles.loadingDot} />
-            <div>
-              <div style={styles.loadingTitle}>
-                Cargando tu calendario…
-              </div>
-              <div style={styles.loadingSub}>
-                Preparando tus eventos y grupos
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-    );
   }
 
-  const monthTitle = prettyMonthRange(monthStart, monthEnd);
+  useEffect(() => {
+    refreshBadge();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    refreshBadge();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openNotif, pathname]);
+
+  const active = useMemo(
+    () => TABS.find((t) => t.key === activeMode) ?? TABS[0],
+    [activeMode]
+  );
+
+  const kickerLabel = useMemo(() => {
+    const cleaned = normalizeGroupLabel((group as any)?.groupName ?? null);
+    return cleaned ?? active.label;
+  }, [group, active.label]);
+
+  const autoTitle = useMemo(() => {
+    if (pathname.startsWith("/pricing")) return "Planes";
+    if (pathname.startsWith("/profile")) return "Panel";
+    if (pathname.startsWith("/conflicts")) return "Conflictos";
+    if (pathname.startsWith("/groups")) return "Grupos";
+    if (pathname.startsWith("/members")) return "Miembros";
+    if (pathname.startsWith("/invitations")) return "Invitaciones";
+    if (pathname.startsWith("/events")) return "Eventos";
+    if (pathname.startsWith("/summary")) return "Resumen";
+    if (pathname.startsWith("/calendar")) return "Calendario";
+    return "Calendario";
+  }, [pathname]);
+
+  const finalTitle = title ?? autoTitle;
+  const finalSubtitle =
+    subtitle ?? "Organiza tu día sin conflictos de horario.";
+
+  async function onNewEvent() {
+    try {
+      if (activeMode === "solo") {
+        router.push("/events/new/details?type=personal");
+        return;
+      }
+
+      const gid = await ensureActiveGroupForMode(activeMode);
+      if (!gid) {
+        router.push("/groups/new");
+        return;
+      }
+
+      router.push(
+        `/events/new/details?type=group&groupId=${encodeURIComponent(gid)}`
+      );
+    } catch {
+      router.push("/events/new/details?type=personal");
+    }
+  }
+
+  async function onPickMode(nextMode: TabKey) {
+    const next = setMode(nextMode as UsageMode);
+    setGroup(next);
+    applyThemeVars(nextMode);
+
+    if (nextMode === "solo") {
+      try {
+        // podrías limpiar activeGroup en DB si quisieras
+      } finally {
+        window.dispatchEvent(new Event("sp:active-group-changed"));
+      }
+      return;
+    }
+
+    try {
+      await ensureActiveGroupForMode(nextMode);
+    } catch {
+      window.dispatchEvent(new Event("sp:active-group-changed"));
+    }
+  }
+
+  const onSyncedFromDrawer = useCallback((imported: number) => {
+    window.dispatchEvent(
+      new CustomEvent("sp:google-synced", { detail: { imported } })
+    );
+  }, []);
+
+  const shouldShowTopNav: boolean =
+    !isMobile || (isMobile && mobileNav === "top");
+
+  const closeUserMenu = () => setUserMenuOpen(false);
 
   return (
-    <main style={styles.page}>
-      {toast && (
-        <div style={styles.toastWrap}>
-          <div style={styles.toastCard}>
-            <div style={styles.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? (
-              <div style={styles.toastSub}>{toast.subtitle}</div>
-            ) : null}
-          </div>
-        </div>
-      )}
-
-      <div style={styles.shell} className="spCal-shell">
-        {/* ✅ Sticky top */}
-        <div style={styles.stickyTop}>
-          <AppHero
-            mobileNav={isMobile ? "bottom" : "top"}
-            title="Calendario"
-            subtitle="Organiza tu tiempo sin fricción."
-            rightSlot={
-              <button onClick={handleRefresh} style={styles.ghostBtn}>
-                Actualizar
-              </button>
-            }
-          />
-        </div>
-
-        {/* HERO premium */}
-        <section style={styles.hero} className="spCal-hero">
-          <div style={styles.heroLeft}>
-            <div style={styles.titleRow}>
-              <h1 style={styles.h1} className="spCal-title">
-                Calendario
-              </h1>
-
-              {!eventsLoaded ? (
-                <div style={styles.okPill}>
-                  <span style={styles.okDot} />
-                  Revisando conflictos…
-                </div>
-              ) : conflictCount > 0 ? (
-                <div style={styles.conflictCluster}>
-                  <button
-                    onClick={openConflicts}
-                    style={styles.conflictPill}
-                  >
-                    <span style={styles.conflictDot} />
-                    {conflictCount} conflicto
-                    {conflictCount === 1 ? "" : "s"}
-                    <span style={styles.conflictArrow}>→</span>
-                  </button>
-
-                  <button
-                    onClick={resolveNow}
-                    style={styles.resolvePill}
-                  >
-                    Resolver ahora ✨
-                  </button>
-                </div>
-              ) : (
-                <div style={styles.okPill}>
-                  <span style={styles.okDot} />
-                  Sin conflictos
-                </div>
-              )}
-            </div>
-
-            <div style={styles.sub}>
-              Vista {tab === "month" ? "mensual" : "agenda"} ·{" "}
-              {monthTitle}
-            </div>
-
-            {error ? (
-              <div
-                style={{ ...styles.emptyHint, borderStyle: "solid" }}
-              >
-                {error}
-              </div>
-            ) : null}
-          </div>
-
-          <div style={styles.heroRight}>
-            <button
-              onClick={() => openNewEventPersonal()}
-              style={styles.primaryBtnPersonal}
-            >
-              + Personal
-            </button>
-            <button
-              onClick={() => openNewEventGroup()}
-              style={styles.primaryBtnGroup}
-            >
-              + Grupo
-            </button>
-          </div>
-        </section>
-
-        {/* FILTROS */}
-        <section style={styles.filtersCard}>
-          <div style={styles.filtersRow}>
-            <div style={styles.segment}>
-              <button
-                onClick={() => setTab("month")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(tab === "month" ? styles.segmentOn : {}),
-                }}
-              >
-                Mes
-              </button>
-              <button
-                onClick={() => setTab("agenda")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(tab === "agenda" ? styles.segmentOn : {}),
-                }}
-              >
-                Agenda
-              </button>
-            </div>
-
-            <div style={styles.segment}>
-              <button
-                onClick={() => setScope("active")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "active" ? styles.segmentOn : {}),
-                }}
-                title="Personal + grupo activo + conflictos"
-              >
-                Activo
-              </button>
-              <button
-                onClick={() => setScope("personal")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "personal" ? styles.segmentOn : {}),
-                }}
-              >
-                Personal
-              </button>
-              <button
-                onClick={() => setScope("all")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "all" ? styles.segmentOn : {}),
-                }}
-              >
-                Todo
-              </button>
-            </div>
-
-            <div style={styles.navRow}>
-              <button
-                onClick={goPrevMonth}
-                style={styles.iconBtn}
-                aria-label="Mes anterior"
-              >
-                ‹
-              </button>
-              <button
-                onClick={goToday}
-                style={styles.ghostBtnSmall}
-              >
-                Hoy
-              </button>
-              <button
-                onClick={goNextMonth}
-                style={styles.iconBtn}
-                aria-label="Mes siguiente"
-              >
-                ›
-              </button>
-            </div>
-          </div>
-
-          <div style={styles.groupRow}>
-            {(
-              ["personal", "pair", "family"] as any as GroupType[]
-            ).map((g) => {
-              const meta = groupMeta(g);
-              const on = (enabledGroups as any)[g];
-              return (
+    <>
+      <header style={S.wrap}>
+        {/* ========== MOBILE LAYOUT (APP BAR) ========== */}
+        {isMobile ? (
+          <>
+            {/* Top bar: bell · title · avatar */}
+            <div style={S.mTopBar}>
+              <div style={S.bellWrap}>
                 <button
-                  key={g}
-                  onClick={() => toggleGroup(g)}
-                  style={{
-                    ...styles.groupChip,
-                    borderColor: on
-                      ? "rgba(255,255,255,0.18)"
-                      : "rgba(255,255,255,0.10)",
-                    opacity: on ? 1 : 0.55,
-                  }}
+                  style={S.mBellBtn}
+                  aria-label="Notificaciones"
+                  title="Notificaciones"
+                  onClick={() => setOpenNotif(true)}
                 >
-                  <span
-                    style={{
-                      ...styles.groupDot,
-                      background: meta.dot,
-                    }}
-                  />
-                  {meta.label}
+                  🔔
                 </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {tab === "month" ? (
-          <section
-            style={styles.calendarCard}
-            className="spCal-calendarCard"
-          >
-            <div
-              className="spCal-monthScroller"
-              style={styles.monthScroller}
-            >
-              <div
-                style={styles.weekHeader}
-                className="spCal-weekHeader"
-              >
-                {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map(
-                  (d) => (
-                    <div key={d} style={styles.weekDay}>
-                      {d}
-                    </div>
-                  ),
+                {unreadCount > 0 && (
+                  <span style={S.badgeCount}>
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
                 )}
               </div>
 
-              <div
-                style={styles.grid}
-                className="spCal-grid"
+              <div style={S.mTitleBlock}>
+                <div style={S.mKickerRow}>
+                  <span
+                    style={{ ...S.dot, background: active.dot, marginBottom: 0 }}
+                  />
+                  <span style={S.mKickerText}>{kickerLabel}</span>
+                </div>
+                <div style={S.mTitle}>{finalTitle}</div>
+              </div>
+
+              <div style={S.userChipWrap}>
+                {headerUser && (
+                  <button
+                    type="button"
+                    style={S.mUserBtn}
+                    onClick={() => setUserMenuOpen((v) => !v)}
+                    title="Cuenta y más opciones"
+                  >
+                    <div style={S.userAvatar}>{headerUser.initials}</div>
+                  </button>
+                )}
+
+                {userMenuOpen && (
+                  <div style={S.userMenu}>
+                    <div style={S.userMenuHeader}>
+                      <div style={S.userMenuAvatar}>
+                        {headerUser?.initials ?? "T"}
+                      </div>
+                      <div style={S.userMenuName}>
+                        {headerUser?.name ?? "Tú"}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      style={S.userMenuItem}
+                      onClick={() => {
+                        closeUserMenu();
+                        router.push("/groups");
+                      }}
+                    >
+                      Grupos
+                    </button>
+                    <button
+                      type="button"
+                      style={S.userMenuItem}
+                      onClick={() => {
+                        closeUserMenu();
+                        router.push("/members");
+                      }}
+                    >
+                      Miembros
+                    </button>
+                    <button
+                      type="button"
+                      style={S.userMenuItem}
+                      onClick={() => {
+                        closeUserMenu();
+                        router.push("/invitations");
+                      }}
+                    >
+                      Invitaciones
+                    </button>
+                    <button
+                      type="button"
+                      style={S.userMenuItem}
+                      onClick={() => {
+                        closeUserMenu();
+                        router.push("/settings");
+                      }}
+                    >
+                      Settings
+                    </button>
+                    <button
+                      type="button"
+                      style={S.userMenuItem}
+                      onClick={() => {
+                        closeUserMenu();
+                        router.push("/pricing");
+                      }}
+                    >
+                      Planes
+                    </button>
+
+                    <div style={S.userMenuDivider} />
+
+                    <div style={S.userMenuLogout}>
+                      <LogoutButton />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Subtítulo debajo del app bar */}
+            <p style={S.mSubtitle}>{finalSubtitle}</p>
+
+            {/* Acciones principales en móvil: Conectar + CTA (+ Evento por defecto) */}
+            <div style={S.mActionsRow}>
+              <button
+                type="button"
+                style={S.mGhostBtn}
+                onClick={() => {
+                  closeUserMenu();
+                  setOpenIntegrations(true);
+                }}
+                title="Conectar y sincronizar calendarios externos"
               >
-                {renderMonthCells({
-                  gridStart,
-                  gridEnd,
-                  monthStart,
-                  selectedDay,
-                  setSelectedDay,
-                  eventsByDay,
-                  openNewEventPersonal,
-                  openNewEventGroup,
-                  groupTypeById,
-                  onEdit: handleEditEvent,
-                  today,
+                Conectar
+              </button>
+
+              {rightSlot ?? (
+                <button
+                  style={S.mPrimaryBtn}
+                  onClick={onNewEvent}
+                  type="button"
+                >
+                  + Evento
+                </button>
+              )}
+            </div>
+
+            {/* Tabs de modo en móvil (2x2) */}
+            <div style={S.tabs}>
+              <div style={S.tabsBg} />
+              <div style={S.mTabsInner}>
+                {TABS.map((t) => {
+                  const isActive = t.key === activeMode;
+                  return (
+                    <button
+                      key={t.key}
+                      style={{
+                        ...S.mTab,
+                        ...(isActive ? S.tabActive : {}),
+                      }}
+                      onClick={() => onPickMode(t.key)}
+                    >
+                      <span style={{ ...S.tabDot, background: t.dot }} />
+                      <span style={S.mTabText}>{t.label}</span>
+                      <span style={S.mTabHint}>{t.hint}</span>
+                    </button>
+                  );
                 })}
               </div>
             </div>
 
-            {/* Day panel */}
-            <div
-              style={styles.dayPanel}
-              className="spCal-dayPanel"
-            >
-              <div style={styles.dayPanelTop}>
-                <div style={styles.dayPanelTitle}>
-                  {prettyDay(selectedDay)}
+            {/* Nav superior opcional en móvil (solo si mobileNav="top") */}
+            {shouldShowTopNav && (
+              <nav style={S.nav}>
+                <NavPill
+                  label="Resumen"
+                  active={pathname.startsWith("/summary")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/summary");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Calendario"
+                  active={pathname.startsWith("/calendar")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/calendar");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Eventos"
+                  active={pathname.startsWith("/events")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/events");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Conflictos"
+                  active={pathname.startsWith("/conflicts")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/conflicts/detected");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Panel"
+                  active={pathname.startsWith("/profile")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/profile");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+              </nav>
+            )}
+          </>
+        ) : (
+          /* ========== DESKTOP LAYOUT (HERO COMPLETO) ========== */
+          <>
+            <div style={S.topRow}>
+              <div style={S.left}>
+                <div style={S.kicker}>
+                  <span style={{ ...S.dot, background: active.dot }} />
+                  <span style={S.kickerText}>{kickerLabel}</span>
                 </div>
 
-                <div style={styles.dayPanelActions}>
-                  <button
-                    onClick={() =>
-                      openNewEventPersonal(selectedDay)
-                    }
-                    style={styles.ghostBtnSmallPersonal}
-                  >
-                    + Personal
-                  </button>
-                  <button
-                    onClick={() =>
-                      openNewEventGroup(selectedDay)
-                    }
-                    style={styles.ghostBtnSmallGroup}
-                  >
-                    + Grupo
-                  </button>
-                </div>
+                <h1 style={S.title}>{finalTitle}</h1>
+                <p style={S.subtitle}>{finalSubtitle}</p>
               </div>
 
-              <div style={styles.dayList}>
-                {(eventsByDay.get(ymd(selectedDay)) || []).length ===
-                0 ? (
-                  <div style={styles.emptyHint}>
-                    No hay eventos este día.
-                  </div>
-                ) : (
-                  (eventsByDay.get(ymd(selectedDay)) || []).map(
-                    (e) => (
-                      <EventRow
-                        key={e.id ?? `${e.start}_${e.end}`}
-                        e={e}
-                        highlightId={highlightId}
-                        setRef={setEventRef}
-                        onDelete={handleDeleteEvent}
-                        onEdit={handleEditEvent}
-                        groupTypeById={groupTypeById}
-                      />
-                    ),
-                  )
+              <div style={S.right}>
+                <div style={S.bellWrap}>
+                  <button
+                    style={S.bellBtn}
+                    aria-label="Notificaciones"
+                    title="Notificaciones"
+                    onClick={() => setOpenNotif(true)}
+                  >
+                    🔔
+                  </button>
+
+                  {unreadCount > 0 && (
+                    <span style={S.badgeCount}>
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </div>
+
+                <div style={S.userChipWrap}>
+                  {headerUser && (
+                    <button
+                      type="button"
+                      style={S.userChip}
+                      onClick={() => setUserMenuOpen((v) => !v)}
+                      title="Ver panel de cuenta"
+                    >
+                      <div style={S.userAvatar}>{headerUser.initials}</div>
+                      <span style={S.userLabel}>{headerUser.name}</span>
+                    </button>
+                  )}
+
+                  {userMenuOpen && (
+                    <div style={S.userMenuDesktop}>
+                      <div style={S.userMenuHeader}>
+                        <div style={S.userMenuAvatar}>
+                          {headerUser?.initials ?? "T"}
+                        </div>
+                        <div style={S.userMenuName}>
+                          {headerUser?.name ?? "Tú"}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        style={S.userMenuItem}
+                        onClick={() => {
+                          closeUserMenu();
+                          router.push("/groups");
+                        }}
+                      >
+                        Grupos
+                      </button>
+                      <button
+                        type="button"
+                        style={S.userMenuItem}
+                        onClick={() => {
+                          closeUserMenu();
+                          router.push("/members");
+                        }}
+                      >
+                        Miembros
+                      </button>
+                      <button
+                        type="button"
+                        style={S.userMenuItem}
+                        onClick={() => {
+                          closeUserMenu();
+                          router.push("/invitations");
+                        }}
+                      >
+                        Invitaciones
+                      </button>
+                      <button
+                        type="button"
+                        style={S.userMenuItem}
+                        onClick={() => {
+                          closeUserMenu();
+                          router.push("/settings");
+                        }}
+                      >
+                        Settings
+                      </button>
+                      <button
+                        type="button"
+                        style={S.userMenuItem}
+                        onClick={() => {
+                          closeUserMenu();
+                          router.push("/pricing");
+                        }}
+                      >
+                        Planes
+                      </button>
+
+                      <div style={S.userMenuDivider} />
+
+                      <div style={S.userMenuLogout}>
+                        <LogoutButton />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  style={S.ghostBtn}
+                  onClick={() => setOpenIntegrations(true)}
+                  title="Conectar y sincronizar calendarios externos"
+                >
+                  Conectar
+                </button>
+
+                {rightSlot ?? (
+                  <button
+                    style={S.iconBtn}
+                    onClick={onNewEvent}
+                    type="button"
+                  >
+                    + Evento
+                  </button>
                 )}
               </div>
             </div>
-          </section>
-        ) : (
-          <section style={styles.agendaCard}>
-            <div style={styles.agendaTop}>
-              <div style={styles.agendaTitle}>Agenda del mes</div>
-              <div style={styles.agendaSub}>
-                Mostrando {agendaEvents.length} evento
-                {agendaEvents.length === 1 ? "" : "s"}
+
+            {/* Tabs de modo */}
+            <div style={S.tabs}>
+              <div style={S.tabsBg} />
+              <div style={S.tabsInner}>
+                {TABS.map((t) => {
+                  const isActive = t.key === activeMode;
+                  return (
+                    <button
+                      key={t.key}
+                      style={{
+                        ...S.tab,
+                        ...(isActive ? S.tabActive : {}),
+                      }}
+                      onClick={() => onPickMode(t.key)}
+                    >
+                      <span style={{ ...S.tabDot, background: t.dot }} />
+                      <span style={S.tabText}>{t.label}</span>
+                      <span style={S.tabHint}>{t.hint}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            <div style={styles.agendaList}>
-              {agendaEvents.length === 0 ? (
-                <div style={styles.emptyHint}>
-                  No hay eventos para mostrar con estos filtros.
-                </div>
-              ) : (
-                agendaEvents.map((e) => (
-                  <EventRow
-                    key={e.id ?? `${e.start}_${e.end}`}
-                    e={e}
-                    highlightId={highlightId}
-                    setRef={setEventRef}
-                    onDelete={handleDeleteEvent}
-                    onEdit={handleEditEvent}
-                    groupTypeById={groupTypeById}
-                  />
-                ))
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* ✏️ MODAL DE EDICIÓN */}
-        <EventEditModal
-          isOpen={isEditOpen}
-          onClose={() => {
-            setIsEditOpen(false);
-            setEditingEvent(null);
-          }}
-          initialEvent={
-            editingEvent
-              ? {
-                  id: editingEvent.id,
-                  title: editingEvent.title,
-                  start: editingEvent.start,
-                  end: editingEvent.end,
-                  description: editingEvent.notes,
-                  groupType:
-                    editingEvent.groupType === "pair"
-                      ? ("couple" as any)
-                      : editingEvent.groupType,
-                }
-              : undefined
-          }
-          onSaved={async () => {
-            setIsEditOpen(false);
-            setEditingEvent(null);
-            await refreshCalendar({
-              showToast: true,
-              toastTitle: "Evento actualizado ✅",
-              toastSubtitle:
-                "Tu calendario ya está al día.",
-            });
-          }}
-        />
-      </div>
-    </main>
-  );
-}
-
-/* =========================
-   EventRow (chip premium)
-   ========================= */
-function EventRow({
-  e,
-  highlightId,
-  setRef,
-  onDelete,
-  onEdit,
-  groupTypeById,
-}: {
-  e: CalendarEvent;
-  highlightId?: string | null;
-  setRef?: (id: string) => (el: HTMLDivElement | null) => void;
-  onDelete?: (id: string, title?: string) => void;
-  onEdit?: (e: CalendarEvent) => void;
-  groupTypeById?: Map<string, "pair" | "family">;
-}) {
-  const resolvedType: GroupType = e.groupId
-    ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
-    : ("personal" as any);
-
-  const meta = groupMeta(resolvedType);
-  const isHighlighted =
-    highlightId && String(e.id) === String(highlightId);
-
-  return (
-    <div
-      ref={setRef ? setRef(String(e.id)) : undefined}
-      style={{
-        ...styles.eventRow,
-        border: isHighlighted
-          ? "1px solid rgba(56,189,248,0.55)"
-          : (styles.eventRow.border as any),
-        background: isHighlighted
-          ? "rgba(255,255,255,0.08)"
-          : (styles.eventRow.background as any),
-      }}
-      className="spCal-chip"
-      onClick={(ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        onEdit?.(e);
-      }}
-    >
-      <div
-        style={{ ...styles.eventBar, background: meta.dot }}
-      />
-      <div style={styles.eventBody}>
-        <div style={styles.eventTop}>
-          <div style={styles.eventTitle}>
-            {e.title || "Sin título"}
-          </div>
-
-          <div style={styles.eventRight}>
-            <div style={styles.eventTag}>
-              <span
-                style={{
-                  ...styles.eventDot,
-                  background: meta.dot,
-                }}
-              />
-              {meta.label}
-            </div>
-
-            <button
-              type="button"
-              onClick={(ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-                onEdit?.(e);
-              }}
-              style={styles.editBtn}
-              aria-label="Editar evento"
-              title="Editar evento"
-            >
-              ✏️
-            </button>
-
-            <button
-              type="button"
-              onClick={(ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-                onDelete?.(String(e.id), e.title);
-              }}
-              style={styles.deleteBtn}
-              aria-label="Eliminar evento"
-              title="Eliminar evento"
-            >
-              🗑️
-            </button>
-          </div>
-        </div>
-
-        <div style={styles.eventTime}>
-          {prettyTimeRange(e.start, e.end)}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* =========================
-   Celdas del mes (tipo Google)
-   ========================= */
-function renderMonthCells(opts: {
-  gridStart: Date;
-  gridEnd: Date;
-  monthStart: Date;
-  selectedDay: Date;
-  setSelectedDay: (d: Date) => void;
-  eventsByDay: Map<string, CalendarEvent[]>;
-  openNewEventPersonal: (date?: Date) => void;
-  openNewEventGroup: (date?: Date) => void;
-  groupTypeById: Map<string, "pair" | "family">;
-  onEdit: (e: CalendarEvent) => void;
-  today: Date;
-}) {
-  const {
-    gridStart,
-    gridEnd,
-    monthStart,
-    selectedDay,
-    setSelectedDay,
-    eventsByDay,
-    openNewEventPersonal,
-    openNewEventGroup,
-    today,
-  } = opts;
-
-  const cells: React.ReactNode[] = [];
-  const totalDays =
-    Math.round(
-      (gridEnd.getTime() - gridStart.getTime()) /
-        (1000 * 60 * 60 * 24),
-    ) + 1;
-
-  for (let i = 0; i < totalDays; i++) {
-    const day = addDays(gridStart, i);
-    const inMonth = day.getMonth() === monthStart.getMonth();
-    const isSelected = sameDay(day, selectedDay);
-    const isToday = sameDay(day, today);
-
-    const dayEvents = eventsByDay.get(ymd(day)) || [];
-    const top3 = dayEvents.slice(0, 3);
-
-    const isWeekend = day.getDay() === 0 || day.getDay() === 6; // Sun/Sat
-
-    cells.push(
-      <div
-        key={day.toISOString()}
-        role="button"
-        tabIndex={0}
-        onClick={() => setSelectedDay(day)}
-        onKeyDown={(ev) => {
-          if (ev.key === "Enter" || ev.key === " ") {
-            ev.preventDefault();
-            setSelectedDay(day);
-          }
-        }}
-        style={{
-          ...styles.cell,
-          opacity: inMonth ? 1 : 0.38,
-          outline: isSelected
-            ? "2px solid rgba(255,255,255,0.22)"
-            : "1px solid rgba(255,255,255,0.08)",
-          background: isSelected
-            ? "rgba(255,255,255,0.06)"
-            : isWeekend
-            ? "rgba(148,163,184,0.05)"
-            : "rgba(255,255,255,0.03)",
-          borderColor: isToday
-            ? "rgba(56,189,248,0.35)"
-            : "rgba(255,255,255,0.08)",
-        }}
-        className="spCal-cell"
-      >
-        <div style={styles.cellTop} className="spCal-cellTop">
-          <div
-            style={{
-              ...styles.cellDay,
-              ...(isToday ? styles.cellDayToday : {}),
-            }}
-          >
-            {day.getDate()}
-          </div>
-
-          <div style={styles.cellTopRight}>
-            {dayEvents.length > 0 ? (
-              <div style={styles.cellCount}>
-                {dayEvents.length}
-              </div>
-            ) : null}
-
-            <div
-              style={styles.cellQuickAdd}
-              className="spCal-cellQuickAdd"
-            >
-              <button
-                type="button"
-                onClick={(ev) => {
-                  ev.preventDefault();
-                  ev.stopPropagation();
-                  openNewEventPersonal(day);
-                }}
-                style={styles.cellQuickBtnPersonal}
-                aria-label="Crear evento personal"
-                title="Crear evento personal"
-              >
-                +
-              </button>
-
-              <button
-                type="button"
-                onClick={(ev) => {
-                  ev.preventDefault();
-                  ev.stopPropagation();
-                  openNewEventGroup(day);
-                }}
-                style={styles.cellQuickBtnGroup}
-                aria-label="Crear evento de grupo"
-                title="Crear evento de grupo"
-              >
-                +
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={styles.cellEvents}
-          className="spCal-cellEvents"
-        >
-          {top3.map((e) => {
-            const resolvedType: GroupType = e.groupId
-              ? ((opts.groupTypeById.get(
-                  String(e.groupId),
-                ) ?? "pair") as any)
-              : ("personal" as any);
-
-            const meta = groupMeta(resolvedType);
-
-            return (
-              <div
-                key={e.id ?? `${e.start}_${e.end}`}
-                onClick={(ev) => {
-                  ev.preventDefault();
-                  ev.stopPropagation();
-                  opts.onEdit(e);
-                }}
-                style={{
-                  ...styles.cellEventLine,
-                  cursor: "pointer",
-                }}
-                className="spCal-chip"
-              >
-                <span
-                  style={{
-                    ...styles.miniDot,
-                    background: meta.dot,
-                  }}
+            {/* Nav superior en desktop */}
+            {shouldShowTopNav && (
+              <nav style={S.nav}>
+                <NavPill
+                  label="Resumen"
+                  active={pathname.startsWith("/summary")}
+                  onClick={() => router.push("/summary")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
                 />
-                <span style={styles.cellEventText}>
-                  {e.title || "Evento"}
-                </span>
-              </div>
-            );
-          })}
+                <NavPill
+                  label="Calendario"
+                  active={pathname.startsWith("/calendar")}
+                  onClick={() => router.push("/calendar")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Eventos"
+                  active={pathname.startsWith("/events")}
+                  onClick={() => router.push("/events")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Conflictos"
+                  active={pathname.startsWith("/conflicts")}
+                  onClick={() => router.push("/conflicts/detected")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Grupos"
+                  active={pathname.startsWith("/groups")}
+                  onClick={() => router.push("/groups")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Miembros"
+                  active={pathname.startsWith("/members")}
+                  onClick={() => router.push("/members")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Invitaciones"
+                  active={pathname.startsWith("/invitations")}
+                  onClick={() => router.push("/invitations")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Panel"
+                  active={pathname.startsWith("/profile")}
+                  onClick={() => router.push("/profile")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Settings"
+                  active={pathname.startsWith("/settings")}
+                  onClick={() => router.push("/settings")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Planes"
+                  active={pathname.startsWith("/pricing")}
+                  onClick={() => router.push("/pricing")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+              </nav>
+            )}
+          </>
+        )}
+      </header>
 
-          {dayEvents.length > 3 ? (
-            <div
-              style={styles.moreHint}
-              className="spCal-moreHint"
-            >
-              +{dayEvents.length - 3} más
-            </div>
-          ) : null}
-        </div>
-      </div>,
-    );
-  }
+      <NotificationsDrawer
+        open={openNotif}
+        onClose={() => setOpenNotif(false)}
+        navigationMode={NAV_MODE}
+        onUnreadChange={(n) => setUnreadCount(n)}
+      />
 
-  return cells;
+      <IntegrationsDrawer
+        open={openIntegrations}
+        onClose={() => setOpenIntegrations(false)}
+        onSynced={onSyncedFromDrawer}
+      />
+    </>
+  );
 }
 
-/* =========================
-   Styles (Ultra premium)
-   ========================= */
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background:
-      "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
-    color: "rgba(255,255,255,0.92)",
-  },
-  shell: { maxWidth: 1120, margin: "0 auto", padding: "22px 18px 48px" },
+function NavPill({
+  label,
+  active,
+  onClick,
+  styleOverride,
+  styleActive,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  styleOverride: CSSProperties;
+  styleActive: CSSProperties;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{ ...styleOverride, ...(active ? styleActive : {}) }}
+    >
+      {label}
+    </button>
+  );
+}
 
-  stickyTop: {
-    position: "sticky",
-    top: 0,
-    zIndex: 20,
-    paddingTop: 10,
-    paddingBottom: 10,
-    backdropFilter: "blur(16px)",
+const S: Record<string, CSSProperties> = {
+  wrap: {
+    borderRadius: 22,
+    padding: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
     background:
-      "linear-gradient(180deg, rgba(5,8,22,0.82), rgba(5,8,22,0.48))",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
-  },
-
-  toastWrap: {
-    position: "fixed",
-    top: 18,
-    right: 18,
-    zIndex: 50,
-    pointerEvents: "none",
-  },
-  toastCard: {
-    pointerEvents: "auto",
-    minWidth: 260,
-    maxWidth: 360,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(7,11,22,0.72)",
-    boxShadow: "0 24px 70px rgba(0,0,0,0.45)",
+      "radial-gradient(900px 400px at 10% 0%, rgba(37,99,235,0.20), transparent 55%), radial-gradient(900px 420px at 90% 0%, rgba(124,58,237,0.18), transparent 55%), rgba(2,6,23,0.65)",
+    boxShadow: "0 30px 90px rgba(0,0,0,0.45)",
     backdropFilter: "blur(14px)",
-    padding: "12px 14px",
+    position: "relative",
+    overflow: "visible",
   },
-  toastTitle: {
+
+  /* DESKTOP TOP ROW */
+  topRow: {
+    display: "flex",
+    gap: 14,
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  left: { minWidth: 0 },
+  right: { display: "flex", gap: 10, alignItems: "center" },
+
+  kicker: {
+    display: "inline-flex",
+    gap: 10,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    boxShadow: "0 0 0 4px rgba(255,255,255,0.06)",
+  },
+  kickerText: { fontSize: 12, fontWeight: 800, color: "#dbeafe" },
+
+  title: {
+    margin: 0,
+    fontSize: 26,
     fontWeight: 900,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.95)",
+    letterSpacing: -0.5,
+    color: "#fff",
   },
-  toastSub: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "rgba(255,255,255,0.70)",
+  subtitle: {
+    margin: "6px 0 0",
+    color: "#a8b3cf",
+    fontSize: 13,
     fontWeight: 650,
   },
 
-  hero: {
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    gap: 16,
-    padding: "18px 16px",
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))",
-    boxShadow: "0 18px 60px rgba(0, 0, 0, 0.35)",
-    marginBottom: 12,
-  },
-  heroLeft: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  heroRight: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-
-  titleRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  h1: {
-    margin: 0,
-    fontSize: 30,
-    letterSpacing: "-0.6px",
-    fontWeight: 950,
-  },
-  sub: { fontSize: 13, opacity: 0.82 },
-
-  conflictCluster: {
-    display: "inline-flex",
-    gap: 8,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-
-  filtersCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 12,
-    marginBottom: 12,
-  },
-  filtersRow: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-  },
-
-  segment: {
-    display: "flex",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.10)",
-    overflow: "hidden",
-    background: "rgba(255,255,255,0.03)",
-  },
-  segmentBtn: {
-    padding: "10px 12px",
-    fontSize: 13,
-    color: "rgba(255,255,255,0.86)",
-    background: "transparent",
-    border: "none",
-    cursor: "pointer",
-    fontWeight: 850,
-  },
-  segmentOn: { background: "rgba(255,255,255,0.08)" },
-
-  navRow: { display: "flex", gap: 8, alignItems: "center" },
   iconBtn: {
-    width: 38,
-    height: 38,
+    height: 40,
+    padding: "0 14px",
     borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontSize: 18,
-  },
-
-  groupRow: {
-    display: "flex",
-    gap: 10,
-    paddingTop: 10,
-    flexWrap: "wrap",
-  },
-  groupChip: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "10px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.03)",
-    cursor: "pointer",
-    color: "rgba(255,255,255,0.90)",
-    fontSize: 13,
-    fontWeight: 850,
-  },
-  groupDot: { width: 10, height: 10, borderRadius: 999 },
-
-  calendarCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    overflow: "hidden",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
-  },
-
-  // ✅ NUEVO: contenedor scroll horizontal del mes
-  monthScroller: {
-    overflowX: "auto",
-    overflowY: "hidden",
-    WebkitOverflowScrolling: "touch",
-  },
-
-  weekHeader: {
-    display: "grid",
-    gridTemplateColumns: "repeat(7, 1fr)",
-    padding: "10px 10px 0",
-    // ✅ MIN WIDTH para que en móvil sea más ancho que la pantalla
-    minWidth: 720,
-  },
-  weekDay: {
-    padding: "10px 10px",
-    fontSize: 12,
-    opacity: 0.75,
-    fontWeight: 850,
-  },
-
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(7, 1fr)",
-    gap: 10,
-    padding: 10,
-    // ✅ MIN WIDTH alineado con weekHeader
-    minWidth: 720,
-  },
-
-  cell: {
-    minHeight: 112,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 10,
-    cursor: "pointer",
-    textAlign: "left",
-    transition:
-      "transform 160ms ease, border-color 160ms ease",
-  },
-  cellTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  cellTopRight: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-  },
-  cellDay: { fontSize: 13, fontWeight: 900, opacity: 0.92 },
-  cellDayToday: {
-    padding: "2px 8px",
-    borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.35)",
-    background: "rgba(56,189,248,0.12)",
-  },
-  cellCount: {
-    fontSize: 12,
-    padding: "2px 8px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-    opacity: 0.9,
-    fontWeight: 850,
-  },
-
-  cellQuickAdd: { display: "flex", gap: 6, alignItems: "center" },
-  cellQuickBtnPersonal: {
-    width: 22,
-    height: 22,
-    borderRadius: 9,
-    border: "1px solid rgba(250,204,21,0.40)",
-    background: "rgba(250,204,21,0.12)",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 950,
-    lineHeight: "22px",
-    textAlign: "center",
-  },
-  cellQuickBtnGroup: {
-    width: 22,
-    height: 22,
-    borderRadius: 9,
-    border: "1px solid rgba(96,165,250,0.40)",
-    background: "rgba(96,165,250,0.12)",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 950,
-    lineHeight: "22px",
-    textAlign: "center",
-  },
-
-  cellEvents: {
-    marginTop: 10,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  cellEventLine: {
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-  },
-  miniDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    flex: "0 0 auto",
-  },
-  cellEventText: {
-    fontSize: 12,
-    opacity: 0.92,
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis",
-    fontWeight: 750,
-  },
-  moreHint: {
-    fontSize: 12,
-    opacity: 0.65,
-    marginTop: 4,
-    fontWeight: 750,
-  },
-
-  dayPanel: {
-    borderTop: "1px solid rgba(255,255,255,0.08)",
-    padding: 12,
-  },
-  dayPanelTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  dayPanelTitle: {
-    fontSize: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background:
+      "linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.55))",
+    color: "#fff",
     fontWeight: 900,
-    opacity: 0.95,
-  },
-  dayPanelActions: {
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-  },
-
-  dayList: {
-    marginTop: 10,
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
-
-  agendaCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    overflow: "hidden",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
-  },
-  agendaTop: {
-    padding: 14,
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-  },
-  agendaTitle: { fontSize: 16, fontWeight: 950 },
-  agendaSub: {
-    marginTop: 4,
-    fontSize: 12,
-    opacity: 0.75,
-    fontWeight: 750,
-  },
-  agendaList: {
-    padding: 12,
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
-
-  eventRow: {
-    display: "flex",
-    gap: 10,
-    padding: 12,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(6,10,20,0.55)",
-    transition: "transform 160ms ease",
-  },
-  eventBar: { width: 6, borderRadius: 999 },
-  eventBody: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  eventTop: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  eventRight: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-  },
-  eventTitle: {
-    fontSize: 14,
-    fontWeight: 950,
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis",
-  },
-  eventTime: {
-    fontSize: 12,
-    opacity: 0.78,
-    fontWeight: 700,
-  },
-  eventTag: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    fontSize: 12,
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.03)",
-    opacity: 0.95,
-    whiteSpace: "nowrap",
-    fontWeight: 850,
-  },
-  eventDot: { width: 8, height: 8, borderRadius: 999 },
-
-  editBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    border: "1px solid rgba(59,130,246,0.45)",
-    background: "rgba(59,130,246,0.16)",
-    color: "rgba(255,255,255,0.94)",
     cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 14,
-    fontWeight: 950,
-  },
-  deleteBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    border: "1px solid rgba(248,113,113,0.28)",
-    background: "rgba(248,113,113,0.10)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 14,
-    fontWeight: 950,
-  },
-
-  primaryBtnPersonal: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(250,204,21,0.30)",
-    background:
-      "linear-gradient(135deg, rgba(250,204,21,0.22), rgba(250,204,21,0.08))",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 950,
-  },
-  primaryBtnGroup: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(96,165,250,0.30)",
-    background:
-      "linear-gradient(135deg, rgba(96,165,250,0.22), rgba(96,165,250,0.08))",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 950,
   },
 
   ghostBtn: {
-    padding: "10px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  ghostBtnSmall: {
-    padding: "8px 10px",
+    height: 40,
+    padding: "0 14px",
     borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
+    color: "#fff",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  bellWrap: { position: "relative", flexShrink: 0 },
+  bellBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#fff",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+
+  badgeCount: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    minWidth: 20,
+    height: 20,
+    padding: "0 6px",
+    borderRadius: 999,
+    background: "rgba(99,102,241,0.95)",
+    color: "#fff",
+    fontWeight: 900,
+    fontSize: 11,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow:
+      "0 0 0 2px rgba(2,6,23,0.85), 0 10px 25px rgba(0,0,0,0.35)",
+  },
+
+  userChipWrap: {
+    position: "relative",
+    display: "inline-flex",
+  },
+
+  userChip: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(15,23,42,0.85)",
+    cursor: "pointer",
+    maxWidth: 210,
+  },
+  userAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.7)",
+    background: "rgba(8,47,73,0.9)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 11,
+    fontWeight: 900,
+    color: "#E0F2FE",
+  },
+  userLabel: {
+    fontSize: 12,
+    fontWeight: 750,
+    color: "#E5E7EB",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+
+  /* MODO TABS (DESKTOP) */
+  tabs: { position: "relative", marginTop: 14 },
+  tabsBg: {
+    position: "absolute",
+    inset: 0,
+    borderRadius: 18,
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.08)",
+  },
+  tabsInner: {
+    position: "relative",
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: 10,
+    padding: 10,
+  },
+
+  tab: {
+    height: 52,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(2,6,23,0.55)",
+    display: "grid",
+    gridTemplateColumns: "14px 1fr",
+    gridTemplateRows: "1fr 1fr",
+    alignItems: "center",
+    gap: "0 10px",
+    padding: "10px 12px",
+    cursor: "pointer",
+    color: "#fff",
+    textAlign: "left",
+  },
+  tabActive: {
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.16)",
+  },
+  tabDot: { width: 10, height: 10, borderRadius: 999, gridRow: "1 / span 2" },
+  tabText: { fontSize: 13, fontWeight: 900 },
+  tabHint: {
+    fontSize: 11,
+    opacity: 0.75,
+    fontWeight: 650,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+
+  /* NAV PILLS */
+  nav: {
+    display: "flex",
+    gap: 10,
+    marginTop: 12,
+    flexWrap: "wrap",
+  },
+  pill: {
+    height: 34,
+    padding: "0 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#fff",
     cursor: "pointer",
     fontWeight: 850,
     fontSize: 12,
   },
-
-  ghostBtnSmallPersonal: {
-    padding: "8px 10px",
-    borderRadius: 12,
-    border: "1px solid rgba(250,204,21,0.22)",
-    background: "rgba(250,204,21,0.08)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 12,
-  },
-  ghostBtnSmallGroup: {
-    padding: "8px 10px",
-    borderRadius: 12,
-    border: "1px solid rgba(96,165,250,0.22)",
-    background: "rgba(96,165,250,0.08)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 12,
+  pillActive: {
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "rgba(255,255,255,0.08)",
   },
 
-  conflictPill: {
+  /* ========== MOBILE-SPECÍFICO ========== */
+
+  mTopBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  mBellBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#fff",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+  mTitleBlock: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 2,
+    minWidth: 0,
+  },
+  mKickerRow: {
     display: "inline-flex",
     alignItems: "center",
-    gap: 10,
-    padding: "8px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(248,113,113,0.35)",
-    background: "rgba(248,113,113,0.12)",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 950,
+    gap: 6,
+    maxWidth: "100%",
+  },
+  mKickerText: {
+    fontSize: 11,
+    fontWeight: 800,
+    color: "#dbeafe",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  mTitle: {
+    fontSize: 18,
+    fontWeight: 900,
+    letterSpacing: -0.4,
+    color: "#fff",
+  },
+  mSubtitle: {
+    margin: "10px 0 10px",
     fontSize: 12,
+    color: "#a8b3cf",
+    fontWeight: 600,
   },
-  conflictDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    background: "rgba(248,113,113,0.95)",
-  },
-  conflictArrow: { opacity: 0.8 },
 
-  resolvePill: {
-    display: "inline-flex",
+  mUserBtn: {
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(15,23,42,0.85)",
+    borderRadius: 999,
+    padding: 4,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  mActionsRow: {
+    display: "flex",
     alignItems: "center",
     gap: 8,
-    padding: "8px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 950,
+    marginBottom: 10,
+  },
+  mGhostBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#fff",
+    fontWeight: 900,
     fontSize: 12,
+    cursor: "pointer",
+  },
+  mPrimaryBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.28), rgba(124,58,237,0.28))",
+    color: "#fff",
+    fontWeight: 900,
+    fontSize: 12,
+    cursor: "pointer",
   },
 
-  okPill: {
-    display: "inline-flex",
+  mTabsInner: {
+    position: "relative",
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 8,
+    padding: 8,
+  },
+  mTab: {
+    height: 50,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(2,6,23,0.55)",
+    display: "grid",
+    gridTemplateColumns: "14px 1fr",
+    gridTemplateRows: "1fr 1fr",
+    alignItems: "center",
+    gap: "0 8px",
+    padding: "8px 10px",
+    cursor: "pointer",
+    color: "#fff",
+    textAlign: "left",
+  },
+  mTabText: {
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  mTabHint: {
+    fontSize: 10,
+    opacity: 0.75,
+    fontWeight: 650,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+
+  /* USER MENU (MÓVIL + DESKTOP) */
+  userMenu: {
+    position: "absolute",
+    top: "115%",
+    right: 0,
+    minWidth: 190,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(15,23,42,0.96)",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.55)",
+    padding: 8,
+    zIndex: 80,
+  },
+  userMenuDesktop: {
+    position: "absolute",
+    top: "115%",
+    right: 0,
+    minWidth: 220,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(15,23,42,0.96)",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.55)",
+    padding: 8,
+    zIndex: 80,
+  },
+  userMenuHeader: {
+    display: "flex",
     alignItems: "center",
     gap: 10,
-    padding: "8px 12px",
+    padding: "6px 8px 8px",
+  },
+  userMenuAvatar: {
+    width: 26,
+    height: 26,
     borderRadius: 999,
-    border: "1px solid rgba(34,197,94,0.30)",
-    background: "rgba(34,197,94,0.10)",
-    color: "rgba(255,255,255,0.92)",
-    fontWeight: 950,
-    fontSize: 12,
-  },
-  okDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    background: "rgba(34,197,94,0.95)",
-  },
-
-  emptyHint: {
-    padding: 14,
-    borderRadius: 14,
-    border: "1px dashed rgba(255,255,255,0.16)",
-    background: "rgba(255,255,255,0.02)",
-    opacity: 0.8,
-    fontSize: 13,
-    fontWeight: 700,
-  },
-
-  loadingCard: {
-    marginTop: 18,
+    border: "1px solid rgba(56,189,248,0.7)",
+    background: "rgba(8,47,73,0.9)",
     display: "flex",
-    gap: 12,
     alignItems: "center",
-    padding: 16,
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.25)",
+    justifyContent: "center",
+    fontSize: 11,
+    fontWeight: 900,
+    color: "#E0F2FE",
   },
-  loadingDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 999,
-    background: "rgba(56,189,248,0.95)",
-    boxShadow: "0 0 24px rgba(56,189,248,0.55)",
-  },
-  loadingTitle: { fontWeight: 950 },
-  loadingSub: {
+  userMenuName: {
     fontSize: 12,
-    opacity: 0.75,
-    marginTop: 2,
-    fontWeight: 700,
+    fontWeight: 800,
+    color: "#E5E7EB",
+  },
+  userMenuItem: {
+    width: "100%",
+    textAlign: "left",
+    borderRadius: 10,
+    border: "none",
+    background: "transparent",
+    color: "#E5E7EB",
+    fontSize: 12,
+    fontWeight: 800,
+    padding: "6px 9px",
+    cursor: "pointer",
+  },
+  userMenuDivider: {
+    margin: "6px 0",
+    height: 1,
+    background: "rgba(148,163,184,0.35)",
+  },
+  userMenuLogout: {
+    padding: "4px 6px",
   },
 };
