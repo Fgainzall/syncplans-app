@@ -8,7 +8,11 @@ import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 
-import { getMyInvitations, declineInvitation, type GroupInvitation } from "@/lib/invitationsDb";
+import {
+  getMyInvitations,
+  declineInvitation,
+  type GroupInvitation,
+} from "@/lib/invitationsDb";
 
 type UiToast = { title: string; subtitle?: string } | null;
 
@@ -62,7 +66,9 @@ export default function InvitationsPage() {
   async function requireSessionOrRedirect() {
     const { data, error } = await supabase.auth.getSession();
     if (error || !data.session?.user) {
-      const next = encodeURIComponent(window.location.pathname + window.location.search);
+      const next = encodeURIComponent(
+        window.location.pathname + window.location.search
+      );
       router.replace(`/auth/login?next=${next}`);
       return null;
     }
@@ -111,7 +117,7 @@ export default function InvitationsPage() {
     router.push(`/invitations/accept?invite=${encodeURIComponent(id)}`);
   };
 
-  // ✅ rechazar: sin confirm(), con toast + botón "Deshacer" simple (recarga)
+  // ✅ rechazar: sin confirm(), con toast + recarga
   const onDecline = async (id: string) => {
     setActing(id);
     try {
@@ -121,7 +127,10 @@ export default function InvitationsPage() {
       const r = await declineInvitation(id);
       if (!r?.ok) throw new Error(r?.error || "No se pudo rechazar.");
 
-      showToast("Invitación rechazada", "Listo. Ya no aparecerá como pendiente.");
+      showToast(
+        "Invitación rechazada",
+        "Listo. Ya no aparecerá como pendiente."
+      );
       await load();
     } catch (e: any) {
       showToast("No se pudo rechazar", e?.message || "Intenta otra vez.");
@@ -131,7 +140,9 @@ export default function InvitationsPage() {
   };
 
   const pendingInvites = useMemo(() => {
-    return normalizedInvites.filter((i) => String(i.status ?? "").toLowerCase() === "pending");
+    return normalizedInvites.filter(
+      (i) => String(i.status ?? "").toLowerCase() === "pending"
+    );
   }, [normalizedInvites]);
 
   const title = "Invitaciones";
@@ -144,7 +155,9 @@ export default function InvitationsPage() {
         <div style={styles.toastWrap} className="spInv-toastWrap">
           <div style={styles.toastCard} className="spInv-toastCard">
             <div style={styles.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
+            {toast.subtitle ? (
+              <div style={styles.toastSub}>{toast.subtitle}</div>
+            ) : null}
           </div>
         </div>
       )}
@@ -163,15 +176,24 @@ export default function InvitationsPage() {
               {title}
             </h1>
             <div style={styles.sub} className="spInv-sub">
-              Grupos a los que te han invitado. Aceptar abre la pantalla premium para confirmarlo.
+              Grupos a los que te han invitado. Aceptar abre la pantalla
+              premium para confirmarlo.
             </div>
           </div>
 
           <div style={styles.heroActions} className="spInv-heroActions">
-            <button onClick={() => router.push("/groups")} style={styles.ghostBtn} disabled={loading}>
+            <button
+              onClick={() => router.push("/groups")}
+              style={styles.ghostBtn}
+              disabled={loading}
+            >
               ← Volver a grupos
             </button>
-            <button onClick={load} style={styles.primaryBtn} disabled={loading}>
+            <button
+              onClick={load}
+              style={styles.primaryBtn}
+              disabled={loading}
+            >
               {loading ? "Actualizando…" : "Actualizar"}
             </button>
           </div>
@@ -191,19 +213,42 @@ export default function InvitationsPage() {
             Cargando…
           </div>
         ) : error ? (
-          <div style={{ ...styles.card, border: "1px solid rgba(248,113,113,0.22)", background: "rgba(248,113,113,0.08)" }}>
+          <div
+            style={{
+              ...styles.card,
+              border: "1px solid rgba(248,113,113,0.22)",
+              background: "rgba(248,113,113,0.08)",
+            }}
+          >
             <div style={{ fontWeight: 900 }}>No se pudo cargar</div>
-            <div style={{ opacity: 0.75, marginTop: 6, fontSize: 12 }}>{error}</div>
-            <button onClick={load} style={{ ...styles.primaryBtn, marginTop: 10 }}>
+            <div
+              style={{ opacity: 0.75, marginTop: 6, fontSize: 12 }}
+            >
+              {error}
+            </div>
+            <button
+              onClick={load}
+              style={{ ...styles.primaryBtn, marginTop: 10 }}
+            >
               Reintentar
             </button>
           </div>
         ) : isEmpty ? (
           <div style={styles.empty} className="spInv-empty">
-            <div style={styles.emptyTitle}>No tienes invitaciones pendientes</div>
-            <div style={styles.emptySub}>Cuando alguien te invite a un grupo, aparecerá aquí.</div>
-            <div style={styles.emptyActions} className="spInv-emptyActions">
-              <button onClick={() => router.push("/groups")} style={styles.primaryBtn}>
+            <div style={styles.emptyTitle}>
+              No tienes invitaciones pendientes
+            </div>
+            <div style={styles.emptySub}>
+              Cuando alguien te invite a un grupo, aparecerá aquí.
+            </div>
+            <div
+              style={styles.emptyActions}
+              className="spInv-emptyActions"
+            >
+              <button
+                onClick={() => router.push("/groups")}
+                style={styles.primaryBtn}
+              >
                 Ir a grupos →
               </button>
             </div>
@@ -221,8 +266,15 @@ export default function InvitationsPage() {
                 const role = i.role ?? "member";
 
                 return (
-                  <div key={i.id} style={styles.card} className="spInv-card">
-                    <div style={styles.cardTop} className="spInv-cardTop">
+                  <div
+                    key={i.id}
+                    style={styles.card}
+                    className="spInv-card"
+                  >
+                    <div
+                      style={styles.cardTop}
+                      className="spInv-cardTop"
+                    >
                       <div>
                         <div style={styles.groupName}>{name}</div>
                         <div style={styles.groupType}>
@@ -231,12 +283,17 @@ export default function InvitationsPage() {
                       </div>
 
                       <div style={styles.metaRight}>
-                        <div style={styles.date}>{safeDateLabel(i.created_at)}</div>
+                        <div style={styles.date}>
+                          {safeDateLabel(i.created_at)}
+                        </div>
                         <span style={styles.pill}>Pendiente</span>
                       </div>
                     </div>
 
-                    <div style={styles.actions} className="spInv-actions">
+                    <div
+                      style={styles.actions}
+                      className="spInv-actions"
+                    >
                       <button
                         onClick={() => onDecline(i.id)}
                         disabled={acting === i.id}
@@ -349,7 +406,12 @@ const styles: Record<string, React.CSSProperties> = {
   h1: { margin: "10px 0 0", fontSize: 26, letterSpacing: "-0.6px" },
   sub: { marginTop: 8, fontSize: 13, opacity: 0.75, maxWidth: 640 },
 
-  heroActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
+  heroActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
 
   smallNote: { marginTop: 10, fontSize: 12, opacity: 0.72 },
 
@@ -373,7 +435,12 @@ const styles: Record<string, React.CSSProperties> = {
   groupName: { fontSize: 16, fontWeight: 950, letterSpacing: "-0.2px" },
   groupType: { fontSize: 13, opacity: 0.75, marginTop: 6 },
 
-  metaRight: { display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" },
+  metaRight: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    alignItems: "flex-end",
+  },
   date: { fontSize: 12, opacity: 0.6, whiteSpace: "nowrap" },
 
   pill: {
@@ -386,13 +453,19 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: "nowrap",
   },
 
-  actions: { display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" },
+  actions: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 10,
+    flexWrap: "wrap",
+  },
 
   primaryBtn: {
     padding: "10px 14px",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.14)",
-    background: "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 900,
@@ -418,7 +491,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   emptyTitle: { fontWeight: 950, fontSize: 16 },
   emptySub: { opacity: 0.75, marginTop: 6, fontSize: 12 },
-  emptyActions: { marginTop: 12, display: "flex", justifyContent: "center" },
+  emptyActions: {
+    marginTop: 12,
+    display: "flex",
+    justifyContent: "center",
+  },
 
   loadingCard: {
     marginTop: 12,
