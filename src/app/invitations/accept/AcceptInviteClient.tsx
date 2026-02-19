@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+const AnyPremiumHeader = PremiumHeader as React.ComponentType<any>;
 import supabase from "@/lib/supabaseClient";
 
 import {
