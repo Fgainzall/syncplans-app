@@ -707,126 +707,124 @@ useLayoutEffect(() => {
 
   return (
     <main style={styles.page}>
-     <style>{`
-
+    <style>{`
 /* =========================================
-   ✅ FIX DEFINITIVO CALENDARIO MOBILE
+   ✅ MOBILE CALENDAR (LIMPIO Y CONSISTENTE)
+   - Sin CSS duplicado
+   - Sin aspect-ratio (rompe UI)
+   - Celdas mismas dimensiones SIEMPRE
    ========================================= */
 
-/* ⚠️ IMPORTANTE:
-   - NO usar max-height en fitOuter
-   - NO usar overflow:hidden en fitOuter
-   - Eso era lo que cortaba días/filas
-*/
+/* Base */
+.spCal-calendarCard { overflow: hidden; }
 
-.spCal-fitOuter {
-  width: 100%;
-  overflow: visible; /* ✅ clave: no recorta filas */
-}
+/* Month scroller (en móvil lo hacemos scrollable dentro de la tarjeta) */
+.spCal-monthScroller { overflow: visible; }
 
-.spCal-fitInner {
-  will-change: transform;
-}
+/* Week header */
+.spCal-weekHeader { display: grid; grid-template-columns: repeat(7, 1fr); }
 
-/* =====================================================
-   ✅ ESPACIO REAL PARA BOTTOM NAV (clave en vertical)
-   ===================================================== */
-@media (max-width: 520px) {
-  .spCal-shell {
-    padding-bottom: 200px !important; /* evita que el bottom nav tape la última fila */
-  }
-}
+/* Performance */
+.spCal-fitInner { will-change: transform; }
 
-/* =====================================================
-   Animaciones
-   ===================================================== */
+/* Animaciones */
 @keyframes spPulseGlow {
   0% { transform: translateZ(0) scale(1); box-shadow: none; }
   35% { transform: translateZ(0) scale(1.01); box-shadow: 0 0 0 6px rgba(56,189,248,0.22), 0 18px 60px rgba(0,0,0,0.35); }
   100% { transform: translateZ(0) scale(1); box-shadow: none; }
 }
+.spCal-chip:hover { transform: translateZ(0) scale(1.01); }
+.spCal-cell:hover { transform: translateZ(0) translateY(-1px); border-color: rgba(255,255,255,0.16); }
 
-.spCal-chip:hover {
-  transform: translateZ(0) scale(1.01);
-}
-
-.spCal-cell:hover {
-  transform: translateZ(0) translateY(-1px);
-  border-color: rgba(255,255,255,0.16);
-}
-
-/* =====================================================
-   Responsive general tablet
-   ===================================================== */
+/* Tablet */
 @media (max-width: 820px) {
   .spCal-shell { padding: 14px 12px 42px !important; }
   .spCal-hero { padding: 12px 12px !important; border-radius: 16px !important; }
   .spCal-title { font-size: 22px !important; }
   .spCal-topRow { gap: 10px !important; }
   .spCal-actions { width: 100% !important; justify-content: flex-end !important; }
+
   .spCal-grid { gap: 8px !important; padding: 10px !important; }
   .spCal-cell { min-height: 92px !important; border-radius: 14px !important; padding: 9px !important; }
+
   .spCal-dayPanel { padding: 10px !important; }
 }
 
 /* =====================================================
-   MOBILE PEQUEÑO (vertical real)
+   ✅ iPhone / mobile vertical (max 520px)
+   - Mes scrolleable dentro de la tarjeta
+   - WeekHeader sticky
+   - DayPanel limitado
+   - Celdas SIMÉTRICAS (altura fija)
    ===================================================== */
 @media (max-width: 520px) {
 
-  /* 1️⃣ Mantener 7 columnas */
+  /* Para que el bottom nav NO tape nada */
+  .spCal-shell { padding-bottom: 200px !important; }
+
+  /* 7 columnas sí o sí */
   .spCal-weekHeader { display: grid !important; }
   .spCal-grid { grid-template-columns: repeat(7, 1fr) !important; }
 
-  /* 2️⃣ Compactar header */
-  .spCal-weekHeader { padding: 6px 6px 0 !important; }
+  /* Week header sticky */
+  .spCal-weekHeader {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: rgba(5, 8, 22, 0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding: 6px 6px 0 !important;
+  }
   .spCal-weekHeader > div { padding: 6px 4px !important; font-size: 11px !important; }
 
-  /* 3️⃣ Reducir separación */
-  .spCal-grid { gap: 6px !important; padding: 6px !important; }
-
- /* 4) ✅ Celdas 100% simétricas */
-.spCal-cell {
-  aspect-ratio: 1 / 1;        /* 🔥 clave: siempre cuadradas */
-  min-height: unset !important;
-  height: auto !important;
-  padding: 6px !important;
-  border-radius: 12px !important;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  overflow: hidden;           /* evita que eventos expandan */
-}
-
-/* Máximo 2 eventos visibles dentro de cada día */
-.spCal-cell .spCal-chip {
-  font-size: 10px !important;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Si tienes lista de eventos dentro */
-.spCal-cell > div:nth-child(n+4) {
-  display: none;
-}
-  /* 5️⃣ Contador compacto */
-  .spCal-cellCount {
-    font-size: 11px !important;
-    padding: 1px 6px !important;
+  /* El mes scrollea dentro de la tarjeta */
+  .spCal-monthScroller {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 140px;
+    max-height: calc(100dvh - 430px);
   }
 
-  /* 6️⃣ Número del día compacto */
-  .spCal-cellDay,
-  .spCal-cellDayToday {
-    font-size: 12px !important;
+  /* Grid más compacto */
+  .spCal-grid { gap: 6px !important; padding: 8px !important; }
+
+  /* ✅ Celdas SIMÉTRICAS: MISMO ALTO SIEMPRE */
+  .spCal-cell {
+    height: 74px !important;
+    min-height: 74px !important;
+    padding: 6px !important;
+    border-radius: 12px !important;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* nada expande */
   }
 
-  .spCal-cellDayToday {
-    padding: 1px 6px !important;
+  /* El top (día + contador + +) no se rompe */
+  .spCal-cellTop { flex: 0 0 auto; }
+
+  /* Zona de eventos clipea y no crece */
+  .spCal-cellEvents {
+    flex: 1 1 auto;
+    overflow: hidden;
+    margin-top: 6px !important;
+    display: flex;
+    flex-direction: column;
+    gap: 4px !important;
   }
 
-  /* 7️⃣ Botones + más pequeños */
+  /* Solo 1 línea de evento en móvil (para que NO cambie el alto) */
+  .spCal-cellEvents > .spCal-chip:nth-child(n+2) {
+    display: none !important;
+  }
+
+  /* Oculta "+X más" en móvil (si no, empuja) */
+  .spCal-moreHint,
+  .spCal-cellEvents .moreHint {
+    display: none !important;
+  }
+
+  /* Botones + más chicos */
   .spCal-cellQuickAdd button {
     width: 18px !important;
     height: 18px !important;
@@ -835,69 +833,11 @@ useLayoutEffect(() => {
     font-size: 12px !important;
   }
 
-  /* 8️⃣ Day panel controlado */
+  /* Day panel controlado */
   .spCal-dayPanel {
-    max-height: 120px !important;
+    max-height: 140px !important;
     overflow: auto !important;
     -webkit-overflow-scrolling: touch;
-  }
-}
-/* ===========================
-   ✅ FIX REAL iPhone vertical:
-   - Mes scrolleable (NO se recortan días)
-   - WeekHeader sticky
-   - DayPanel limitado
-   =========================== */
-
-.spCal-calendarCard {
-  overflow: hidden; /* el scroll vive en monthScroller */
-}
-
-/* el “viewport” real del mes */
-.spCal-monthScroller {
-  overflow: visible;
-}
-
-/* iPhone vertical / móviles */
-@media (max-width: 520px) {
-  /* 1) El mes se vuelve scrolleable dentro de la tarjeta */
-  .spCal-monthScroller {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-
-    /* ✅ espacio para que la última fila no quede “debajo” del dayPanel/bottom nav */
-    padding-bottom: 140px;
-
-    /* ✅ altura disponible: ajusta este número si quieres más/menos mes visible */
-    max-height: calc(100dvh - 430px);
-  }
-
-  /* 2) Week header se queda pegado arriba mientras scrolleas el mes */
-  .spCal-weekHeader {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    background: rgba(5, 8, 22, 0.92);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-  }
-
-  /* 3) Day panel NO debe comerse la pantalla */
-  .spCal-dayPanel {
-    max-height: 140px;
-    overflow: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* 4) Compactación extra del grid para que se sienta premium */
-  .spCal-grid {
-    gap: 6px !important;
-    padding: 8px !important;
-  }
-  .spCal-cell {
-    min-height: 66px !important;
-    padding: 6px !important;
-    border-radius: 12px !important;
   }
 }
 `}</style>
@@ -1301,7 +1241,8 @@ function renderMonthCells(opts: {
   } = opts;
 
   const cells: React.ReactNode[] = [];
-  const totalDays = Math.round((gridEnd.getTime() - gridStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const totalDays =
+    Math.round((gridEnd.getTime() - gridStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
   for (let i = 0; i < totalDays; i++) {
     const day = addDays(gridStart, i);
@@ -1329,7 +1270,9 @@ function renderMonthCells(opts: {
         style={{
           ...styles.cell,
           opacity: inMonth ? 1 : 0.38,
-          outline: isSelected ? "2px solid rgba(255,255,255,0.22)" : "1px solid rgba(255,255,255,0.08)",
+          outline: isSelected
+            ? "2px solid rgba(255,255,255,0.22)"
+            : "1px solid rgba(255,255,255,0.08)",
           background: isSelected
             ? "rgba(255,255,255,0.06)"
             : isWeekend
@@ -1339,7 +1282,8 @@ function renderMonthCells(opts: {
         }}
         className="spCal-cell"
       >
-        <div style={styles.cellTop}>
+        {/* ✅ className agregado para que el CSS controle simetría */}
+        <div style={styles.cellTop} className="spCal-cellTop">
           <div style={{ ...styles.cellDay, ...(isToday ? styles.cellDayToday : {}) }}>
             {day.getDate()}
           </div>
@@ -1347,7 +1291,7 @@ function renderMonthCells(opts: {
           <div style={styles.cellTopRight}>
             {dayEvents.length > 0 ? <div style={styles.cellCount}>{dayEvents.length}</div> : null}
 
-            <div style={styles.cellQuickAdd}>
+            <div style={styles.cellQuickAdd} className="spCal-cellQuickAdd">
               <button
                 type="button"
                 onClick={(ev) => {
@@ -1361,6 +1305,7 @@ function renderMonthCells(opts: {
               >
                 +
               </button>
+
               <button
                 type="button"
                 onClick={(ev) => {
@@ -1378,11 +1323,13 @@ function renderMonthCells(opts: {
           </div>
         </div>
 
-        <div style={styles.cellEvents}>
+        {/* ✅ className agregado para que el CSS recorte y NO cambie el alto */}
+        <div style={styles.cellEvents} className="spCal-cellEvents">
           {top3.map((e) => {
             const resolvedType: GroupType = e.groupId
               ? ((opts.groupTypeById.get(String(e.groupId)) ?? "pair") as any)
               : ("personal" as any);
+
             const meta = groupMeta(resolvedType);
 
             return (
@@ -1402,7 +1349,12 @@ function renderMonthCells(opts: {
             );
           })}
 
-          {dayEvents.length > 3 ? <div style={styles.moreHint}>+{dayEvents.length - 3} más</div> : null}
+          {/* ✅ className para ocultarlo en móvil */}
+          {dayEvents.length > 3 ? (
+            <div style={styles.moreHint} className="spCal-moreHint">
+              +{dayEvents.length - 3} más
+            </div>
+          ) : null}
         </div>
       </div>
     );
