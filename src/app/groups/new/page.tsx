@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+const AnyPremiumHeader = PremiumHeader as React.ComponentType<any>;
 import { createGroup } from "@/lib/groupsDb";
 
 type GType = "pair" | "family" | "other";
@@ -139,7 +140,7 @@ export default function NewGroupPage() {
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-          <PremiumHeader />
+          <AnyPremiumHeader />
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
@@ -167,7 +168,7 @@ export default function NewGroupPage() {
 
       <div style={styles.shell}>
         <div style={styles.topRow}>
-          <PremiumHeader />
+          <AnyPremiumHeader />
           <div style={styles.topActions}>
             <LogoutButton />
           </div>
