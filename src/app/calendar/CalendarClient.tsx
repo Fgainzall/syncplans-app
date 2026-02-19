@@ -3,7 +3,6 @@
 
 import React, {
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -17,7 +16,10 @@ import { EventEditModal } from "@/components/EventEditModal";
 
 import { getMyGroups } from "@/lib/groupsDb";
 import { getEventsForGroups, deleteEventsByIds } from "@/lib/eventsDb";
-import { getActiveGroupIdFromDb, setActiveGroupIdInDb } from "@/lib/activeGroup";
+import {
+  getActiveGroupIdFromDb,
+  setActiveGroupIdInDb,
+} from "@/lib/activeGroup";
 
 import {
   type CalendarEvent,
@@ -172,94 +174,17 @@ function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
    ========================= */
 export default function CalendarClient(props: {
   highlightId: string | null;
-  appliedToast: null | { deleted: number; skipped: number; appliedCount: number };
+  appliedToast: null | {
+    deleted: number;
+    skipped: number;
+    appliedCount: number;
+  };
 }) {
   const { highlightId, appliedToast } = props;
 
   const router = useRouter();
   const pathname = usePathname();
   const isMobile = useIsMobileWidth(820);
-
-  /* =========================
-     (Fit scale – queda sin usar, no afecta nada)
-     ========================= */
-  const fitOuterRef = useRef<HTMLDivElement | null>(null);
-  const fitInnerRef = useRef<HTMLDivElement | null>(null);
-  const [fitScale, setFitScale] = useState(1);
-
-  const computeFitScale = useCallback(() => {
-    if (typeof window === "undefined") return;
-
-    const isSmallMobile = window.matchMedia("(max-width: 520px)").matches;
-    if (!isSmallMobile) {
-      setFitScale(1);
-      return;
-    }
-
-    const outer = fitOuterRef.current;
-    const inner = fitInnerRef.current;
-    if (!outer || !inner) return;
-
-    const outerRect = outer.getBoundingClientRect();
-    const availW = outerRect.width;
-
-    const viewportH =
-      (window as any).visualViewport?.height ?? window.innerHeight;
-
-    const bottomReserve = 92 + 140 + 14;
-    const availH = Math.max(260, viewportH - outerRect.top - bottomReserve);
-
-    const prevTransform = inner.style.transform;
-    const prevWidth = inner.style.width;
-
-    inner.style.transform = "scale(1)";
-    inner.style.width = "max-content";
-
-    const naturalW =
-      inner.scrollWidth || inner.getBoundingClientRect().width;
-    const naturalH =
-      inner.scrollHeight || inner.getBoundingClientRect().height;
-
-    inner.style.transform = prevTransform;
-    inner.style.width = prevWidth;
-
-    if (!naturalW || !naturalH || !availW || !availH) return;
-
-    const sW = availW / naturalW;
-    const sH = availH / naturalH;
-
-    const s = Math.max(0.52, Math.min(1, sW, sH));
-
-    setFitScale(s);
-  }, []);
-
-  useLayoutEffect(() => {
-    if (typeof window === "undefined") return;
-
-    computeFitScale();
-
-    const onResize = () => requestAnimationFrame(computeFitScale);
-    window.addEventListener("resize", onResize);
-    window.addEventListener("orientationchange", onResize);
-
-    const outer = fitOuterRef.current;
-    const inner = fitInnerRef.current;
-
-    let ro: ResizeObserver | null = null;
-    if (outer && inner && typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(() =>
-        requestAnimationFrame(computeFitScale),
-      );
-      ro.observe(outer);
-      ro.observe(inner);
-    }
-
-    return () => {
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onResize);
-      ro?.disconnect();
-    };
-  }, [computeFitScale]);
 
   const eventRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const setEventRef = (id: string) => (el: HTMLDivElement | null) => {
@@ -825,129 +750,6 @@ export default function CalendarClient(props: {
 
   return (
     <main style={styles.page}>
-      <style>{`
-/* =========================================
-   ✅ MOBILE CALENDAR (LIMPIO Y CONSISTENTE)
-   ========================================= */
-
-/* Base */
-.spCal-calendarCard { overflow: hidden; }
-
-/* Month scroller */
-.spCal-monthScroller { overflow: visible; }
-
-/* Week header */
-.spCal-weekHeader { display: grid; grid-template-columns: repeat(7, 1fr); }
-
-/* Performance */
-.spCal-fitInner { will-change: transform; }
-
-/* Animaciones */
-@keyframes spPulseGlow {
-  0% { transform: translateZ(0) scale(1); box-shadow: none; }
-  35% { transform: translateZ(0) scale(1.01); box-shadow: 0 0 0 6px rgba(56,189,248,0.22), 0 18px 60px rgba(0,0,0,0.35); }
-  100% { transform: translateZ(0) scale(1); box-shadow: none; }
-}
-.spCal-chip:hover { transform: translateZ(0) scale(1.01); }
-.spCal-cell:hover { transform: translateZ(0) translateY(-1px); border-color: rgba(255,255,255,0.16); }
-
-/* Tablet */
-@media (max-width: 820px) {
-  .spCal-shell { padding: 14px 12px 42px !important; }
-  .spCal-hero { padding: 12px 12px !important; border-radius: 16px !important; }
-  .spCal-title { font-size: 22px !important; }
-  .spCal-topRow { gap: 10px !important; }
-  .spCal-actions { width: 100% !important; justify-content: flex-end !important; }
-
-  .spCal-grid { gap: 8px !important; padding: 10px !important; }
-  .spCal-cell { min-height: 92px !important; border-radius: 14px !important; padding: 9px !important; }
-
-  .spCal-dayPanel { padding: 10px !important; }
-}
-
-/* =====================================================
-   ✅ iPhone / mobile vertical (max 520px)
-   - Scroll HORIZONTAL en el mes
-   - Celdas SIMÉTRICAS (misma altura)
-   ===================================================== */
-@media (max-width: 520px) {
-
-  /* Para que el bottom nav NO tape nada */
-  .spCal-shell { padding-bottom: 200px !important; }
-
-  /* Week header */
-  .spCal-weekHeader {
-    display: grid !important;
-    grid-template-columns: repeat(7, 1fr) !important;
-    padding: 6px 6px 0 !important;
-  }
-  .spCal-weekHeader > div { padding: 6px 4px !important; font-size: 11px !important; }
-
-  /* El mes scrollea HORIZONTAL dentro de la tarjeta */
-  .spCal-monthScroller {
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 8px;
-  }
-
-  /* Obligamos a que el grid sea más ancho que la pantalla para poder "correr" a la derecha */
-  .spCal-grid {
-    gap: 6px !important;
-    padding: 8px !important;
-    min-width: 760px; /* aprox 7 columnas cómodas */
-  }
-
-  /* ✅ Celdas SIMÉTRICAS: MISMO ALTO SIEMPRE */
-  .spCal-cell {
-    height: 74px !important;
-    min-height: 74px !important;
-    padding: 6px !important;
-    border-radius: 12px !important;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden; /* nada expande */
-  }
-
-  .spCal-cellTop { flex: 0 0 auto; }
-
-  .spCal-cellEvents {
-    flex: 1 1 auto;
-    overflow: hidden;
-    margin-top: 6px !important;
-    display: flex;
-    flex-direction: column;
-    gap: 4px !important;
-  }
-
-  /* Solo 1 línea de evento en móvil (para que NO cambie el alto) */
-  .spCal-cellEvents > .spCal-chip:nth-child(n+2) {
-    display: none !important;
-  }
-
-  /* Oculta "+X más" en móvil (si no, empuja) */
-  .spCal-moreHint,
-  .spCal-cellEvents .moreHint {
-    display: none !important;
-  }
-
-  /* Botones + más chicos */
-  .spCal-cellQuickAdd button {
-    width: 18px !important;
-    height: 18px !important;
-    line-height: 18px !important;
-    border-radius: 8px !important;
-    font-size: 12px !important;
-  }
-
-  /* Day panel: lo dejamos más libre (scroll de la página, no interno raro) */
-  .spCal-dayPanel {
-    max-height: none !important;
-    overflow: visible !important;
-  }
-}
-`}</style>
-
       {toast && (
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
@@ -962,18 +764,20 @@ export default function CalendarClient(props: {
       <div style={styles.shell} className="spCal-shell">
         {/* ✅ Sticky top */}
         <div style={styles.stickyTop}>
-        <div style={styles.topRow} className="spCal-topRow">
-  <AppHero
-    mobileNav={isMobile ? "bottom" : "top"}
-    title="Calendario"
-    subtitle="Organiza tu tiempo sin fricción."
-  />
-  <div style={styles.topActions} className="spCal-actions">
-    <button onClick={handleRefresh} style={styles.ghostBtn}>
-      Actualizar
-    </button>
-  </div>
-</div>
+          <div style={styles.topRow} className="spCal-topRow">
+            <AppHero
+              mobileNav={isMobile ? "bottom" : "top"}
+              title="Calendario"
+              subtitle="Organiza tu tiempo sin fricción."
+            />
+            <div style={styles.topActions} className="spCal-actions">
+              <button onClick={handleRefresh} style={styles.ghostBtn}>
+                Actualizar
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* HERO premium */}
         <section style={styles.hero} className="spCal-hero">
           <div style={styles.heroLeft}>
@@ -1159,7 +963,6 @@ export default function CalendarClient(props: {
             style={styles.calendarCard}
             className="spCal-calendarCard"
           >
-            {/* ✅ SCROLLER del mes (en móvil horizontal) */}
             <div className="spCal-monthScroller">
               <div
                 style={styles.weekHeader}
@@ -1355,9 +1158,6 @@ function EventRow({
         background: isHighlighted
           ? "rgba(255,255,255,0.08)"
           : (styles.eventRow.background as any),
-        animation: isHighlighted
-          ? "spPulseGlow 2.6s ease-out"
-          : undefined,
       }}
       className="spCal-chip"
       onClick={(ev) => {
