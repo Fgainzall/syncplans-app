@@ -1,6 +1,14 @@
+// src/app/calendar/CalendarClient.tsx
 "use client";
 
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
@@ -66,20 +74,56 @@ function ymd(d: Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 function prettyMonthRange(a: Date, b: Date) {
-  const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-  return `${a.getDate()} ${meses[a.getMonth()]} ${a.getFullYear()} – ${b.getDate()} ${meses[b.getMonth()]} ${b.getFullYear()}`;
+  const meses = [
+    "ene",
+    "feb",
+    "mar",
+    "abr",
+    "may",
+    "jun",
+    "jul",
+    "ago",
+    "sep",
+    "oct",
+    "nov",
+    "dic",
+  ];
+  return `${a.getDate()} ${meses[a.getMonth()]} ${a.getFullYear()} – ${
+    b.getDate()
+  } ${meses[b.getMonth()]} ${b.getFullYear()}`;
 }
 function prettyDay(d: Date) {
   const dias = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-  const meses = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
-  return `${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]} ${d.getFullYear()}`;
+  const meses = [
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+  ];
+  return `${dias[d.getDay()]}, ${d.getDate()} de ${
+    meses[d.getMonth()]
+  } ${d.getFullYear()}`;
 }
 function prettyTimeRange(startIso: string, endIso: string) {
   const s = new Date(startIso);
   const e = new Date(endIso);
-  const hhmm = (x: Date) => `${String(x.getHours()).padStart(2, "0")}:${String(x.getMinutes()).padStart(2, "0")}`;
+  const hhmm = (x: Date) =>
+    `${String(x.getHours()).padStart(2, "0")}:${String(
+      x.getMinutes(),
+    ).padStart(2, "0")}`;
   const cross = !sameDay(s, e);
-  if (cross) return `${s.toLocaleDateString()} ${hhmm(s)} → ${e.toLocaleDateString()} ${hhmm(e)}`;
+  if (cross)
+    return `${s.toLocaleDateString()} ${hhmm(
+      s,
+    )} → ${e.toLocaleDateString()} ${hhmm(e)}`;
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
 function isValidIsoish(v: any) {
@@ -136,89 +180,88 @@ export default function CalendarClient(props: {
   const router = useRouter();
   const pathname = usePathname();
   const isMobile = useIsMobileWidth(820);
-/* =========================
-   ✅ FIT dinámico: mes completo en vertical (móvil)
-   - Calcula scale por ANCHO y por ALTO disponible
-   - Evita que se corte la última fila
-   ========================= */
-const fitOuterRef = useRef<HTMLDivElement | null>(null);
-const fitInnerRef = useRef<HTMLDivElement | null>(null);
-const [fitScale, setFitScale] = useState(1);
 
-const computeFitScale = useCallback(() => {
-  if (typeof window === "undefined") return;
+  /* =========================
+     (Fit scale – queda sin usar, no afecta nada)
+     ========================= */
+  const fitOuterRef = useRef<HTMLDivElement | null>(null);
+  const fitInnerRef = useRef<HTMLDivElement | null>(null);
+  const [fitScale, setFitScale] = useState(1);
 
-  // Solo aplicamos fit fuerte en móviles pequeños
-  const isSmallMobile = window.matchMedia("(max-width: 520px)").matches;
-  if (!isSmallMobile) {
-    setFitScale(1);
-    return;
-  }
+  const computeFitScale = useCallback(() => {
+    if (typeof window === "undefined") return;
 
-  const outer = fitOuterRef.current;
-  const inner = fitInnerRef.current;
-  if (!outer || !inner) return;
+    const isSmallMobile = window.matchMedia("(max-width: 520px)").matches;
+    if (!isSmallMobile) {
+      setFitScale(1);
+      return;
+    }
 
-  const outerRect = outer.getBoundingClientRect();
-  const availW = outerRect.width;
+    const outer = fitOuterRef.current;
+    const inner = fitInnerRef.current;
+    if (!outer || !inner) return;
 
-  // ✅ iOS friendly: usa visualViewport si existe (más real)
-  const viewportH = (window as any).visualViewport?.height ?? window.innerHeight;
+    const outerRect = outer.getBoundingClientRect();
+    const availW = outerRect.width;
 
-  // Reservas: BottomNav + márgenes + DayPanel (lo controlamos abajo por CSS)
-  const bottomReserve = 92 /* BottomNav aprox */ + 140 /* DayPanel compacto */ + 14 /* margen */;
-  const availH = Math.max(260, viewportH - outerRect.top - bottomReserve);
+    const viewportH =
+      (window as any).visualViewport?.height ?? window.innerHeight;
 
-  // Medimos tamaño natural (sin scale)
-  const prevTransform = inner.style.transform;
-  const prevWidth = inner.style.width;
+    const bottomReserve = 92 + 140 + 14;
+    const availH = Math.max(260, viewportH - outerRect.top - bottomReserve);
 
-  inner.style.transform = "scale(1)";
-  inner.style.width = "max-content";
+    const prevTransform = inner.style.transform;
+    const prevWidth = inner.style.width;
 
-  const naturalW = inner.scrollWidth || inner.getBoundingClientRect().width;
-  const naturalH = inner.scrollHeight || inner.getBoundingClientRect().height;
+    inner.style.transform = "scale(1)";
+    inner.style.width = "max-content";
 
-  // Restaurar
-  inner.style.transform = prevTransform;
-  inner.style.width = prevWidth;
+    const naturalW =
+      inner.scrollWidth || inner.getBoundingClientRect().width;
+    const naturalH =
+      inner.scrollHeight || inner.getBoundingClientRect().height;
 
-  if (!naturalW || !naturalH || !availW || !availH) return;
+    inner.style.transform = prevTransform;
+    inner.style.width = prevWidth;
 
-  const sW = availW / naturalW;
-  const sH = availH / naturalH;
+    if (!naturalW || !naturalH || !availW || !availH) return;
 
-  // ✅ CLAVE: si falta una fila, esto lo baja lo suficiente
-  const s = Math.max(0.52, Math.min(1, sW, sH));
+    const sW = availW / naturalW;
+    const sH = availH / naturalH;
 
-  setFitScale(s);
-}, []);
+    const s = Math.max(0.52, Math.min(1, sW, sH));
 
-useLayoutEffect(() => {
-  if (typeof window === "undefined") return;
+    setFitScale(s);
+  }, []);
 
-  computeFitScale();
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
 
-  const onResize = () => requestAnimationFrame(computeFitScale);
-  window.addEventListener("resize", onResize);
-  window.addEventListener("orientationchange", onResize);
+    computeFitScale();
 
-  const outer = fitOuterRef.current;
-  const inner = fitInnerRef.current;
+    const onResize = () => requestAnimationFrame(computeFitScale);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
 
-  let ro: ResizeObserver | null = null;
-  if (outer && inner && typeof ResizeObserver !== "undefined") {
-    ro = new ResizeObserver(() => requestAnimationFrame(computeFitScale));
-    ro.observe(outer);
-    ro.observe(inner);
-  }
+    const outer = fitOuterRef.current;
+    const inner = fitInnerRef.current;
 
-  return () => {
-    window.removeEventListener("resize", onResize);
-    window.removeEventListener("orientationchange", onResize);
-    ro?.disconnect();
-  };
-}, [computeFitScale]);
+    let ro: ResizeObserver | null = null;
+    if (outer && inner && typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() =>
+        requestAnimationFrame(computeFitScale),
+      );
+      ro.observe(outer);
+      ro.observe(inner);
+    }
+
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+      ro?.disconnect();
+    };
+  }, [computeFitScale]);
+
   const eventRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const setEventRef = (id: string) => (el: HTMLDivElement | null) => {
     eventRefs.current[String(id)] = el;
@@ -256,10 +299,13 @@ useLayoutEffect(() => {
     family: true,
   });
 
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
+  const [toast, setToast] =
+    useState<null | { title: string; subtitle?: string }>(null);
 
   /* ✏️ ESTADO DEL MODAL DE EDICIÓN */
-  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(
+    null,
+  );
   const [isEditOpen, setIsEditOpen] = useState(false);
 
   const handleEditEvent = useCallback((e: CalendarEvent) => {
@@ -282,17 +328,21 @@ useLayoutEffect(() => {
      Carga de datos (DB) — “Actualizar”
      ========================= */
   const refreshCalendar = useCallback(
-  async (
-    opts: { showToast?: boolean; toastTitle?: string; toastSubtitle?: string } = {}
-  ) => {
-
+    async (
+      opts: {
+        showToast?: boolean;
+        toastTitle?: string;
+        toastSubtitle?: string;
+      } = {},
+    ) => {
       const showToastFlag = opts?.showToast ?? false;
 
       try {
         if (showToastFlag) {
           setToast({
             title: opts?.toastTitle ?? "Actualizando…",
-            subtitle: opts?.toastSubtitle ?? "Recargando desde SyncPlans",
+            subtitle:
+              opts?.toastSubtitle ?? "Recargando desde SyncPlans",
           });
         }
 
@@ -322,15 +372,17 @@ useLayoutEffect(() => {
         const groupIds = (myGroups || []).map((g: any) => String(g.id));
 
         // ✅ getEventsForGroups(groupIds) incluye personal
-        const rawEvents: any[] = (await getEventsForGroups(groupIds)) as any[];
+        const rawEvents: any[] =
+          (await getEventsForGroups(groupIds)) as any[];
 
         const groupTypeByIdLocal = new Map<string, "family" | "pair">(
           (myGroups || []).map((g: any) => {
             const id = String(g.id);
             const rawType = String(g.type ?? "").toLowerCase();
-            const normalized: "family" | "pair" = rawType === "family" ? "family" : "pair";
+            const normalized: "family" | "pair" =
+              rawType === "family" ? "family" : "pair";
             return [id, normalized];
-          })
+          }),
         );
 
         const enriched: CalendarEvent[] = (rawEvents || [])
@@ -348,7 +400,8 @@ useLayoutEffect(() => {
             const startRaw = ev.start;
             const endRaw = ev.end;
 
-            if (!isValidIsoish(startRaw) || !isValidIsoish(endRaw)) return null;
+            if (!isValidIsoish(startRaw) || !isValidIsoish(endRaw))
+              return null;
 
             return {
               id: String(ev.id),
@@ -367,7 +420,10 @@ useLayoutEffect(() => {
         setError(null);
 
         if (showToastFlag) {
-          setToast({ title: "Actualizado ✅", subtitle: "Tu calendario ya está al día." });
+          setToast({
+            title: "Actualizado ✅",
+            subtitle: "Tu calendario ya está al día.",
+          });
           window.setTimeout(() => setToast(null), 2400);
         }
       } catch (e: any) {
@@ -383,13 +439,15 @@ useLayoutEffect(() => {
         }
       }
     },
-    [router]
+    [router],
   );
 
   const handleDeleteEvent = useCallback(
     async (eventId: string, title?: string) => {
       const ok = confirm(
-        `¿Eliminar el evento${title ? ` "${title}"` : ""}?\nEsta acción no se puede deshacer.`
+        `¿Eliminar el evento${
+          title ? ` "${title}"` : ""
+        }?\nEsta acción no se puede deshacer.`,
       );
       if (!ok) return;
 
@@ -411,7 +469,7 @@ useLayoutEffect(() => {
         window.setTimeout(() => setToast(null), 2600);
       }
     },
-    [refreshCalendar]
+    [refreshCalendar],
   );
 
   /* ✅ toast post-apply desde props (sin useSearchParams) */
@@ -422,14 +480,28 @@ useLayoutEffect(() => {
 
     const parts: string[] = [];
     if (appliedCount > 0)
-      parts.push(`${appliedCount} decisión${appliedCount === 1 ? "" : "es"} aplicada${appliedCount === 1 ? "" : "s"}`);
+      parts.push(
+        `${appliedCount} decisión${
+          appliedCount === 1 ? "" : "es"
+        } aplicada${appliedCount === 1 ? "" : "s"}`,
+      );
     if (deleted > 0)
-      parts.push(`${deleted} evento${deleted === 1 ? "" : "s"} eliminado${deleted === 1 ? "" : "s"}`);
+      parts.push(
+        `${deleted} evento${
+          deleted === 1 ? "" : "s"
+        } eliminado${deleted === 1 ? "" : "s"}`,
+      );
     if (skipped > 0)
-      parts.push(`${skipped} conflicto${skipped === 1 ? "" : "s"} saltado${skipped === 1 ? "" : "s"}`);
+      parts.push(
+        `${skipped} conflicto${
+          skipped === 1 ? "" : "s"
+        } saltado${skipped === 1 ? "" : "s"}`,
+      );
 
     const subtitle =
-      parts.length > 0 ? parts.join(" · ") : "No hubo cambios que aplicar en los conflictos.";
+      parts.length > 0
+        ? parts.join(" · ")
+        : "No hubo cambios que aplicar en los conflictos.";
 
     setToast({ title: "Cambios aplicados ✅", subtitle });
 
@@ -453,7 +525,11 @@ useLayoutEffect(() => {
     };
 
     window.addEventListener("sp:active-group-changed", handler as any);
-    return () => window.removeEventListener("sp:active-group-changed", handler as any);
+    return () =>
+      window.removeEventListener(
+        "sp:active-group-changed",
+        handler as any,
+      );
   }, []);
 
   /* Boot inicial */
@@ -489,7 +565,10 @@ useLayoutEffect(() => {
      Conflictos
      ========================= */
   const conflicts = useMemo(() => {
-    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map((e) => ({
+    const normalized: CalendarEvent[] = (Array.isArray(events)
+      ? events
+      : []
+    ).map((e) => ({
       ...e,
       groupType: normalizeForConflicts(e.groupType),
     }));
@@ -560,7 +639,13 @@ useLayoutEffect(() => {
       if (!activeGroupId) return true;
       return String(e.groupId ?? "") === String(activeGroupId);
     });
-  }, [events, scope, enabledGroups, activeGroupId, conflictEventIdsInGrid]);
+  }, [
+    events,
+    scope,
+    enabledGroups,
+    activeGroupId,
+    conflictEventIdsInGrid,
+  ]);
 
   const visibleEvents = useMemo(() => {
     const a = gridStart.getTime();
@@ -583,7 +668,10 @@ useLayoutEffect(() => {
       map.set(key, arr);
     }
     for (const [k, arr] of map.entries()) {
-      arr.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+      arr.sort(
+        (a, b) =>
+          new Date(a.start).getTime() - new Date(b.start).getTime(),
+      );
       map.set(k, arr);
     }
     return map;
@@ -591,13 +679,20 @@ useLayoutEffect(() => {
 
   const agendaEvents = useMemo(() => {
     const list = [...visibleEvents];
-    list.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    list.sort(
+      (a, b) =>
+        new Date(a.start).getTime() - new Date(b.start).getTime(),
+    );
     return list;
   }, [visibleEvents]);
 
   const highlightedEvent = useMemo(() => {
     if (!highlightId) return null;
-    return filteredEvents.find((e) => String(e.id) === String(highlightId)) ?? null;
+    return (
+      filteredEvents.find(
+        (e) => String(e.id) === String(highlightId),
+      ) ?? null
+    );
   }, [highlightId, filteredEvents]);
 
   useEffect(() => {
@@ -606,7 +701,9 @@ useLayoutEffect(() => {
     const d = new Date(highlightedEvent.start);
 
     setAnchor(new Date(d.getFullYear(), d.getMonth(), 1));
-    setSelectedDay(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+    setSelectedDay(
+      new Date(d.getFullYear(), d.getMonth(), d.getDate()),
+    );
     setTab("agenda");
 
     setToast({
@@ -623,7 +720,8 @@ useLayoutEffect(() => {
 
     const t = window.setTimeout(() => {
       const el = eventRefs.current[String(highlightId)];
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (el)
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 140);
 
     return () => window.clearTimeout(t);
@@ -643,21 +741,27 @@ useLayoutEffect(() => {
   useEffect(() => {
     if (!isMobile) return;
     // Si el usuario ya eligió agenda, lo respetamos.
-    // Si está en month, lo dejamos (pero la UI se adapta).
   }, [isMobile]);
 
   /* =========================
      Navegación y acciones
      ========================= */
-  const goPrevMonth = () => setAnchor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
-  const goNextMonth = () => setAnchor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  const goPrevMonth = () =>
+    setAnchor(
+      (d) => new Date(d.getFullYear(), d.getMonth() - 1, 1),
+    );
+  const goNextMonth = () =>
+    setAnchor(
+      (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1),
+    );
   const goToday = () => {
     const t = new Date();
     setAnchor(t);
     setSelectedDay(t);
   };
 
-  const toggleGroup = (g: GroupType) => setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
+  const toggleGroup = (g: GroupType) =>
+    setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
 
   const handleRefresh = async () => {
     await refreshCalendar({
@@ -669,16 +773,27 @@ useLayoutEffect(() => {
 
   const openNewEventPersonal = (date?: Date) => {
     const d = date ?? selectedDay ?? new Date();
-    router.push(`/events/new/details?type=personal&date=${encodeURIComponent(d.toISOString())}`);
+    router.push(
+      `/events/new/details?type=personal&date=${encodeURIComponent(
+        d.toISOString(),
+      )}`,
+    );
   };
 
   const openNewEventGroup = (date?: Date) => {
     const d = date ?? selectedDay ?? new Date();
-    router.push(`/events/new/details?type=group&date=${encodeURIComponent(d.toISOString())}`);
+    router.push(
+      `/events/new/details?type=group&date=${encodeURIComponent(
+        d.toISOString(),
+      )}`,
+    );
   };
 
   const openConflicts = () => router.push("/conflicts/detected");
-  const resolveNow = () => router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`);
+  const resolveNow = () =>
+    router.push(
+      `/conflicts/compare?i=${firstRelevantConflictIndex}`,
+    );
 
   /* =========================
      RENDER
@@ -694,8 +809,12 @@ useLayoutEffect(() => {
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
-              <div style={styles.loadingTitle}>Cargando tu calendario…</div>
-              <div style={styles.loadingSub}>Preparando tus eventos y grupos</div>
+              <div style={styles.loadingTitle}>
+                Cargando tu calendario…
+              </div>
+              <div style={styles.loadingSub}>
+                Preparando tus eventos y grupos
+              </div>
             </div>
           </div>
         </div>
@@ -707,18 +826,15 @@ useLayoutEffect(() => {
 
   return (
     <main style={styles.page}>
-    <style>{`
+      <style>{`
 /* =========================================
    ✅ MOBILE CALENDAR (LIMPIO Y CONSISTENTE)
-   - Sin CSS duplicado
-   - Sin aspect-ratio (rompe UI)
-   - Celdas mismas dimensiones SIEMPRE
    ========================================= */
 
 /* Base */
 .spCal-calendarCard { overflow: hidden; }
 
-/* Month scroller (en móvil lo hacemos scrollable dentro de la tarjeta) */
+/* Month scroller */
 .spCal-monthScroller { overflow: visible; }
 
 /* Week header */
@@ -752,42 +868,36 @@ useLayoutEffect(() => {
 
 /* =====================================================
    ✅ iPhone / mobile vertical (max 520px)
-   - Mes scrolleable dentro de la tarjeta
-   - WeekHeader sticky
-   - DayPanel limitado
-   - Celdas SIMÉTRICAS (altura fija)
+   - Scroll HORIZONTAL en el mes
+   - Celdas SIMÉTRICAS (misma altura)
    ===================================================== */
 @media (max-width: 520px) {
 
   /* Para que el bottom nav NO tape nada */
   .spCal-shell { padding-bottom: 200px !important; }
 
-  /* 7 columnas sí o sí */
-  .spCal-weekHeader { display: grid !important; }
-  .spCal-grid { grid-template-columns: repeat(7, 1fr) !important; }
-
-  /* Week header sticky */
+  /* Week header */
   .spCal-weekHeader {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    background: rgba(5, 8, 22, 0.92);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: grid !important;
+    grid-template-columns: repeat(7, 1fr) !important;
     padding: 6px 6px 0 !important;
   }
   .spCal-weekHeader > div { padding: 6px 4px !important; font-size: 11px !important; }
 
-  /* El mes scrollea dentro de la tarjeta */
+  /* El mes scrollea HORIZONTAL dentro de la tarjeta */
   .spCal-monthScroller {
-    overflow-y: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 140px;
-    max-height: calc(100dvh - 430px);
+    padding-bottom: 8px;
   }
 
-  /* Grid más compacto */
-  .spCal-grid { gap: 6px !important; padding: 8px !important; }
+  /* Obligamos a que el grid sea más ancho que la pantalla para poder "correr" a la derecha */
+  .spCal-grid {
+    gap: 6px !important;
+    padding: 8px !important;
+    min-width: 760px; /* aprox 7 columnas cómodas */
+  }
 
   /* ✅ Celdas SIMÉTRICAS: MISMO ALTO SIEMPRE */
   .spCal-cell {
@@ -800,10 +910,8 @@ useLayoutEffect(() => {
     overflow: hidden; /* nada expande */
   }
 
-  /* El top (día + contador + +) no se rompe */
   .spCal-cellTop { flex: 0 0 auto; }
 
-  /* Zona de eventos clipea y no crece */
   .spCal-cellEvents {
     flex: 1 1 auto;
     overflow: hidden;
@@ -833,11 +941,10 @@ useLayoutEffect(() => {
     font-size: 12px !important;
   }
 
-  /* Day panel controlado */
+  /* Day panel: lo dejamos más libre (scroll de la página, no interno raro) */
   .spCal-dayPanel {
-    max-height: 140px !important;
-    overflow: auto !important;
-    -webkit-overflow-scrolling: touch;
+    max-height: none !important;
+    overflow: visible !important;
   }
 }
 `}</style>
@@ -846,13 +953,15 @@ useLayoutEffect(() => {
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
             <div style={styles.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
+            {toast.subtitle ? (
+              <div style={styles.toastSub}>{toast.subtitle}</div>
+            ) : null}
           </div>
         </div>
       )}
 
       <div style={styles.shell} className="spCal-shell">
-        {/* ✅ Sticky top (sensación Microsoft/Google) */}
+        {/* ✅ Sticky top */}
         <div style={styles.stickyTop}>
           <div style={styles.topRow} className="spCal-topRow">
             <PremiumHeader mobileNav={isMobile ? "bottom" : undefined} />
@@ -880,13 +989,20 @@ useLayoutEffect(() => {
                 </div>
               ) : conflictCount > 0 ? (
                 <div style={styles.conflictCluster}>
-                  <button onClick={openConflicts} style={styles.conflictPill}>
+                  <button
+                    onClick={openConflicts}
+                    style={styles.conflictPill}
+                  >
                     <span style={styles.conflictDot} />
-                    {conflictCount} conflicto{conflictCount === 1 ? "" : "s"}
+                    {conflictCount} conflicto
+                    {conflictCount === 1 ? "" : "s"}
                     <span style={styles.conflictArrow}>→</span>
                   </button>
 
-                  <button onClick={resolveNow} style={styles.resolvePill}>
+                  <button
+                    onClick={resolveNow}
+                    style={styles.resolvePill}
+                  >
                     Resolver ahora ✨
                   </button>
                 </div>
@@ -899,19 +1015,30 @@ useLayoutEffect(() => {
             </div>
 
             <div style={styles.sub}>
-              Vista {tab === "month" ? "mensual" : "agenda"} · {monthTitle}
+              Vista {tab === "month" ? "mensual" : "agenda"} ·{" "}
+              {monthTitle}
             </div>
 
             {error ? (
-              <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>{error}</div>
+              <div
+                style={{ ...styles.emptyHint, borderStyle: "solid" }}
+              >
+                {error}
+              </div>
             ) : null}
           </div>
 
           <div style={styles.heroRight}>
-            <button onClick={() => openNewEventPersonal()} style={styles.primaryBtnPersonal}>
+            <button
+              onClick={() => openNewEventPersonal()}
+              style={styles.primaryBtnPersonal}
+            >
               + Personal
             </button>
-            <button onClick={() => openNewEventGroup()} style={styles.primaryBtnGroup}>
+            <button
+              onClick={() => openNewEventGroup()}
+              style={styles.primaryBtnGroup}
+            >
               + Grupo
             </button>
           </div>
@@ -923,13 +1050,19 @@ useLayoutEffect(() => {
             <div style={styles.segment}>
               <button
                 onClick={() => setTab("month")}
-                style={{ ...styles.segmentBtn, ...(tab === "month" ? styles.segmentOn : {}) }}
+                style={{
+                  ...styles.segmentBtn,
+                  ...(tab === "month" ? styles.segmentOn : {}),
+                }}
               >
                 Mes
               </button>
               <button
                 onClick={() => setTab("agenda")}
-                style={{ ...styles.segmentBtn, ...(tab === "agenda" ? styles.segmentOn : {}) }}
+                style={{
+                  ...styles.segmentBtn,
+                  ...(tab === "agenda" ? styles.segmentOn : {}),
+                }}
               >
                 Agenda
               </button>
@@ -938,40 +1071,62 @@ useLayoutEffect(() => {
             <div style={styles.segment}>
               <button
                 onClick={() => setScope("active")}
-                style={{ ...styles.segmentBtn, ...(scope === "active" ? styles.segmentOn : {}) }}
+                style={{
+                  ...styles.segmentBtn,
+                  ...(scope === "active" ? styles.segmentOn : {}),
+                }}
                 title="Personal + grupo activo + conflictos"
               >
                 Activo
               </button>
               <button
                 onClick={() => setScope("personal")}
-                style={{ ...styles.segmentBtn, ...(scope === "personal" ? styles.segmentOn : {}) }}
+                style={{
+                  ...styles.segmentBtn,
+                  ...(scope === "personal" ? styles.segmentOn : {}),
+                }}
               >
                 Personal
               </button>
               <button
                 onClick={() => setScope("all")}
-                style={{ ...styles.segmentBtn, ...(scope === "all" ? styles.segmentOn : {}) }}
+                style={{
+                  ...styles.segmentBtn,
+                  ...(scope === "all" ? styles.segmentOn : {}),
+                }}
               >
                 Todo
               </button>
             </div>
 
             <div style={styles.navRow}>
-              <button onClick={goPrevMonth} style={styles.iconBtn} aria-label="Mes anterior">
+              <button
+                onClick={goPrevMonth}
+                style={styles.iconBtn}
+                aria-label="Mes anterior"
+              >
                 ‹
               </button>
-              <button onClick={goToday} style={styles.ghostBtnSmall}>
+              <button
+                onClick={goToday}
+                style={styles.ghostBtnSmall}
+              >
                 Hoy
               </button>
-              <button onClick={goNextMonth} style={styles.iconBtn} aria-label="Mes siguiente">
+              <button
+                onClick={goNextMonth}
+                style={styles.iconBtn}
+                aria-label="Mes siguiente"
+              >
                 ›
               </button>
             </div>
           </div>
 
           <div style={styles.groupRow}>
-            {(["personal", "pair", "family"] as any as GroupType[]).map((g) => {
+            {(
+              ["personal", "pair", "family"] as any as GroupType[]
+            ).map((g) => {
               const meta = groupMeta(g);
               const on = (enabledGroups as any)[g];
               return (
@@ -980,11 +1135,18 @@ useLayoutEffect(() => {
                   onClick={() => toggleGroup(g)}
                   style={{
                     ...styles.groupChip,
-                    borderColor: on ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)",
+                    borderColor: on
+                      ? "rgba(255,255,255,0.18)"
+                      : "rgba(255,255,255,0.10)",
                     opacity: on ? 1 : 0.55,
                   }}
                 >
-                  <span style={{ ...styles.groupDot, background: meta.dot }} />
+                  <span
+                    style={{
+                      ...styles.groupDot,
+                      background: meta.dot,
+                    }}
+                  />
                   {meta.label}
                 </button>
               );
@@ -992,87 +1154,115 @@ useLayoutEffect(() => {
           </div>
         </section>
 
-{tab === "month" ? (
-  <section style={styles.calendarCard} className="spCal-calendarCard">
-    {/* ✅ SCROLLER del mes (en móvil vertical) */}
-    <div className="spCal-monthScroller">
-      <div style={styles.weekHeader} className="spCal-weekHeader">
-        {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
-          <div key={d} style={styles.weekDay}>
-            {d}
-          </div>
-        ))}
-      </div>
-
-      <div style={styles.grid} className="spCal-grid">
-        {renderMonthCells({
-          gridStart,
-          gridEnd,
-          monthStart,
-          selectedDay,
-          setSelectedDay,
-          eventsByDay,
-          openNewEventPersonal,
-          openNewEventGroup,
-          groupTypeById,
-          onEdit: handleEditEvent,
-          today,
-        })}
-      </div>
-    </div>
-
-    {/* 👇 Day panel aparte (limitado en móvil para no tapar el mes) */}
-    <div style={styles.dayPanel} className="spCal-dayPanel">
-      <div style={styles.dayPanelTop}>
-        <div style={styles.dayPanelTitle}>{prettyDay(selectedDay)}</div>
-
-        <div style={styles.dayPanelActions}>
-          <button
-            onClick={() => openNewEventPersonal(selectedDay)}
-            style={styles.ghostBtnSmallPersonal}
+        {tab === "month" ? (
+          <section
+            style={styles.calendarCard}
+            className="spCal-calendarCard"
           >
-            + Personal
-          </button>
-          <button
-            onClick={() => openNewEventGroup(selectedDay)}
-            style={styles.ghostBtnSmallGroup}
-          >
-            + Grupo
-          </button>
-        </div>
-      </div>
+            {/* ✅ SCROLLER del mes (en móvil horizontal) */}
+            <div className="spCal-monthScroller">
+              <div
+                style={styles.weekHeader}
+                className="spCal-weekHeader"
+              >
+                {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map(
+                  (d) => (
+                    <div key={d} style={styles.weekDay}>
+                      {d}
+                    </div>
+                  ),
+                )}
+              </div>
 
-      <div style={styles.dayList}>
-        {(eventsByDay.get(ymd(selectedDay)) || []).length === 0 ? (
-          <div style={styles.emptyHint}>No hay eventos este día.</div>
-        ) : (
-          (eventsByDay.get(ymd(selectedDay)) || []).map((e) => (
-            <EventRow
-              key={e.id ?? `${e.start}_${e.end}`}
-              e={e}
-              highlightId={highlightId}
-              setRef={setEventRef}
-              onDelete={handleDeleteEvent}
-              onEdit={handleEditEvent}
-              groupTypeById={groupTypeById}
-            />
-          ))
-        )}
-      </div>
-    </div>
-  </section>
+              <div
+                style={styles.grid}
+                className="spCal-grid"
+              >
+                {renderMonthCells({
+                  gridStart,
+                  gridEnd,
+                  monthStart,
+                  selectedDay,
+                  setSelectedDay,
+                  eventsByDay,
+                  openNewEventPersonal,
+                  openNewEventGroup,
+                  groupTypeById,
+                  onEdit: handleEditEvent,
+                  today,
+                })}
+              </div>
+            </div>
+
+            {/* Day panel */}
+            <div
+              style={styles.dayPanel}
+              className="spCal-dayPanel"
+            >
+              <div style={styles.dayPanelTop}>
+                <div style={styles.dayPanelTitle}>
+                  {prettyDay(selectedDay)}
+                </div>
+
+                <div style={styles.dayPanelActions}>
+                  <button
+                    onClick={() =>
+                      openNewEventPersonal(selectedDay)
+                    }
+                    style={styles.ghostBtnSmallPersonal}
+                  >
+                    + Personal
+                  </button>
+                  <button
+                    onClick={() =>
+                      openNewEventGroup(selectedDay)
+                    }
+                    style={styles.ghostBtnSmallGroup}
+                  >
+                    + Grupo
+                  </button>
+                </div>
+              </div>
+
+              <div style={styles.dayList}>
+                {(eventsByDay.get(ymd(selectedDay)) || []).length ===
+                0 ? (
+                  <div style={styles.emptyHint}>
+                    No hay eventos este día.
+                  </div>
+                ) : (
+                  (eventsByDay.get(ymd(selectedDay)) || []).map(
+                    (e) => (
+                      <EventRow
+                        key={e.id ?? `${e.start}_${e.end}`}
+                        e={e}
+                        highlightId={highlightId}
+                        setRef={setEventRef}
+                        onDelete={handleDeleteEvent}
+                        onEdit={handleEditEvent}
+                        groupTypeById={groupTypeById}
+                      />
+                    ),
+                  )
+                )}
+              </div>
+            </div>
+          </section>
         ) : (
           <section style={styles.agendaCard}>
             <div style={styles.agendaTop}>
               <div style={styles.agendaTitle}>Agenda del mes</div>
               <div style={styles.agendaSub}>
-                Mostrando {agendaEvents.length} evento{agendaEvents.length === 1 ? "" : "s"}
+                Mostrando {agendaEvents.length} evento
+                {agendaEvents.length === 1 ? "" : "s"}
               </div>
             </div>
 
             <div style={styles.agendaList}>
               {agendaEvents.length === 0 ? (
-                <div style={styles.emptyHint}>No hay eventos para mostrar con estos filtros.</div>
+                <div style={styles.emptyHint}>
+                  No hay eventos para mostrar con estos filtros.
+                </div>
               ) : (
                 agendaEvents.map((e) => (
                   <EventRow
@@ -1105,7 +1295,10 @@ useLayoutEffect(() => {
                   start: editingEvent.start,
                   end: editingEvent.end,
                   description: editingEvent.notes,
-                  groupType: editingEvent.groupType === "pair" ? ("couple" as any) : editingEvent.groupType,
+                  groupType:
+                    editingEvent.groupType === "pair"
+                      ? ("couple" as any)
+                      : editingEvent.groupType,
                 }
               : undefined
           }
@@ -1115,7 +1308,8 @@ useLayoutEffect(() => {
             await refreshCalendar({
               showToast: true,
               toastTitle: "Evento actualizado ✅",
-              toastSubtitle: "Tu calendario ya está al día.",
+              toastSubtitle:
+                "Tu calendario ya está al día.",
             });
           }}
         />
@@ -1147,16 +1341,23 @@ function EventRow({
     : ("personal" as any);
 
   const meta = groupMeta(resolvedType);
-  const isHighlighted = highlightId && String(e.id) === String(highlightId);
+  const isHighlighted =
+    highlightId && String(e.id) === String(highlightId);
 
   return (
     <div
       ref={setRef ? setRef(String(e.id)) : undefined}
       style={{
         ...styles.eventRow,
-        border: isHighlighted ? "1px solid rgba(56,189,248,0.55)" : (styles.eventRow.border as any),
-        background: isHighlighted ? "rgba(255,255,255,0.08)" : (styles.eventRow.background as any),
-        animation: isHighlighted ? "spPulseGlow 2.6s ease-out" : undefined,
+        border: isHighlighted
+          ? "1px solid rgba(56,189,248,0.55)"
+          : (styles.eventRow.border as any),
+        background: isHighlighted
+          ? "rgba(255,255,255,0.08)"
+          : (styles.eventRow.background as any),
+        animation: isHighlighted
+          ? "spPulseGlow 2.6s ease-out"
+          : undefined,
       }}
       className="spCal-chip"
       onClick={(ev) => {
@@ -1165,14 +1366,23 @@ function EventRow({
         onEdit?.(e);
       }}
     >
-      <div style={{ ...styles.eventBar, background: meta.dot }} />
+      <div
+        style={{ ...styles.eventBar, background: meta.dot }}
+      />
       <div style={styles.eventBody}>
         <div style={styles.eventTop}>
-          <div style={styles.eventTitle}>{e.title || "Sin título"}</div>
+          <div style={styles.eventTitle}>
+            {e.title || "Sin título"}
+          </div>
 
           <div style={styles.eventRight}>
             <div style={styles.eventTag}>
-              <span style={{ ...styles.eventDot, background: meta.dot }} />
+              <span
+                style={{
+                  ...styles.eventDot,
+                  background: meta.dot,
+                }}
+              />
               {meta.label}
             </div>
 
@@ -1206,7 +1416,9 @@ function EventRow({
           </div>
         </div>
 
-        <div style={styles.eventTime}>{prettyTimeRange(e.start, e.end)}</div>
+        <div style={styles.eventTime}>
+          {prettyTimeRange(e.start, e.end)}
+        </div>
       </div>
     </div>
   );
@@ -1242,7 +1454,10 @@ function renderMonthCells(opts: {
 
   const cells: React.ReactNode[] = [];
   const totalDays =
-    Math.round((gridEnd.getTime() - gridStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    Math.round(
+      (gridEnd.getTime() - gridStart.getTime()) /
+        (1000 * 60 * 60 * 24),
+    ) + 1;
 
   for (let i = 0; i < totalDays; i++) {
     const day = addDays(gridStart, i);
@@ -1278,20 +1493,33 @@ function renderMonthCells(opts: {
             : isWeekend
             ? "rgba(148,163,184,0.05)"
             : "rgba(255,255,255,0.03)",
-          borderColor: isToday ? "rgba(56,189,248,0.35)" : "rgba(255,255,255,0.08)",
+          borderColor: isToday
+            ? "rgba(56,189,248,0.35)"
+            : "rgba(255,255,255,0.08)",
         }}
         className="spCal-cell"
       >
-        {/* ✅ className agregado para que el CSS controle simetría */}
         <div style={styles.cellTop} className="spCal-cellTop">
-          <div style={{ ...styles.cellDay, ...(isToday ? styles.cellDayToday : {}) }}>
+          <div
+            style={{
+              ...styles.cellDay,
+              ...(isToday ? styles.cellDayToday : {}),
+            }}
+          >
             {day.getDate()}
           </div>
 
           <div style={styles.cellTopRight}>
-            {dayEvents.length > 0 ? <div style={styles.cellCount}>{dayEvents.length}</div> : null}
+            {dayEvents.length > 0 ? (
+              <div style={styles.cellCount}>
+                {dayEvents.length}
+              </div>
+            ) : null}
 
-            <div style={styles.cellQuickAdd} className="spCal-cellQuickAdd">
+            <div
+              style={styles.cellQuickAdd}
+              className="spCal-cellQuickAdd"
+            >
               <button
                 type="button"
                 onClick={(ev) => {
@@ -1323,11 +1551,15 @@ function renderMonthCells(opts: {
           </div>
         </div>
 
-        {/* ✅ className agregado para que el CSS recorte y NO cambie el alto */}
-        <div style={styles.cellEvents} className="spCal-cellEvents">
+        <div
+          style={styles.cellEvents}
+          className="spCal-cellEvents"
+        >
           {top3.map((e) => {
             const resolvedType: GroupType = e.groupId
-              ? ((opts.groupTypeById.get(String(e.groupId)) ?? "pair") as any)
+              ? ((opts.groupTypeById.get(
+                  String(e.groupId),
+                ) ?? "pair") as any)
               : ("personal" as any);
 
             const meta = groupMeta(resolvedType);
@@ -1340,23 +1572,35 @@ function renderMonthCells(opts: {
                   ev.stopPropagation();
                   opts.onEdit(e);
                 }}
-                style={{ ...styles.cellEventLine, cursor: "pointer" }}
+                style={{
+                  ...styles.cellEventLine,
+                  cursor: "pointer",
+                }}
                 className="spCal-chip"
               >
-                <span style={{ ...styles.miniDot, background: meta.dot }} />
-                <span style={styles.cellEventText}>{e.title || "Evento"}</span>
+                <span
+                  style={{
+                    ...styles.miniDot,
+                    background: meta.dot,
+                  }}
+                />
+                <span style={styles.cellEventText}>
+                  {e.title || "Evento"}
+                </span>
               </div>
             );
           })}
 
-          {/* ✅ className para ocultarlo en móvil */}
           {dayEvents.length > 3 ? (
-            <div style={styles.moreHint} className="spCal-moreHint">
+            <div
+              style={styles.moreHint}
+              className="spCal-moreHint"
+            >
               +{dayEvents.length - 3} más
             </div>
           ) : null}
         </div>
-      </div>
+      </div>,
     );
   }
 
@@ -1382,7 +1626,8 @@ const styles: Record<string, React.CSSProperties> = {
     paddingTop: 10,
     paddingBottom: 10,
     backdropFilter: "blur(16px)",
-    background: "linear-gradient(180deg, rgba(5,8,22,0.82), rgba(5,8,22,0.48))",
+    background:
+      "linear-gradient(180deg, rgba(5,8,22,0.82), rgba(5,8,22,0.48))",
     borderBottom: "1px solid rgba(255,255,255,0.06)",
   },
 
@@ -1404,8 +1649,17 @@ const styles: Record<string, React.CSSProperties> = {
     backdropFilter: "blur(14px)",
     padding: "12px 14px",
   },
-  toastTitle: { fontWeight: 900, fontSize: 13, color: "rgba(255,255,255,0.95)" },
-  toastSub: { marginTop: 4, fontSize: 12, color: "rgba(255,255,255,0.70)", fontWeight: 650 },
+  toastTitle: {
+    fontWeight: 900,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.95)",
+  },
+  toastSub: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.70)",
+    fontWeight: 650,
+  },
 
   topRow: {
     display: "flex",
@@ -1413,7 +1667,12 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     gap: 14,
   },
-  topActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
+  topActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
 
   hero: {
     display: "flex",
@@ -1428,14 +1687,38 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 18px 60px rgba(0, 0, 0, 0.35)",
     marginBottom: 12,
   },
-  heroLeft: { display: "flex", flexDirection: "column", gap: 6 },
-  heroRight: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  heroLeft: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  heroRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
 
-  titleRow: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
-  h1: { margin: 0, fontSize: 30, letterSpacing: "-0.6px", fontWeight: 950 },
+  titleRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  h1: {
+    margin: 0,
+    fontSize: 30,
+    letterSpacing: "-0.6px",
+    fontWeight: 950,
+  },
   sub: { fontSize: 13, opacity: 0.82 },
 
-  conflictCluster: { display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" },
+  conflictCluster: {
+    display: "inline-flex",
+    gap: 8,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
 
   filtersCard: {
     borderRadius: 18,
@@ -1482,7 +1765,12 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 18,
   },
 
-  groupRow: { display: "flex", gap: 10, paddingTop: 10, flexWrap: "wrap" },
+  groupRow: {
+    display: "flex",
+    gap: 10,
+    paddingTop: 10,
+    flexWrap: "wrap",
+  },
   groupChip: {
     display: "inline-flex",
     alignItems: "center",
@@ -1510,9 +1798,19 @@ const styles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: "repeat(7, 1fr)",
     padding: "10px 10px 0",
   },
-  weekDay: { padding: "10px 10px", fontSize: 12, opacity: 0.75, fontWeight: 850 },
+  weekDay: {
+    padding: "10px 10px",
+    fontSize: 12,
+    opacity: 0.75,
+    fontWeight: 850,
+  },
 
-  grid: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10, padding: 10 },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(7, 1fr)",
+    gap: 10,
+    padding: 10,
+  },
 
   cell: {
     minHeight: 112,
@@ -1522,10 +1820,19 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 10,
     cursor: "pointer",
     textAlign: "left",
-    transition: "transform 160ms ease, border-color 160ms ease",
+    transition:
+      "transform 160ms ease, border-color 160ms ease",
   },
-  cellTop: { display: "flex", justifyContent: "space-between", alignItems: "center" },
-  cellTopRight: { display: "flex", alignItems: "center", gap: 10 },
+  cellTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  cellTopRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+  },
   cellDay: { fontSize: 13, fontWeight: 900, opacity: 0.92 },
   cellDayToday: {
     padding: "2px 8px",
@@ -1569,9 +1876,23 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: "center",
   },
 
-  cellEvents: { marginTop: 10, display: "flex", flexDirection: "column", gap: 6 },
-  cellEventLine: { display: "flex", gap: 8, alignItems: "center" },
-  miniDot: { width: 8, height: 8, borderRadius: 999, flex: "0 0 auto" },
+  cellEvents: {
+    marginTop: 10,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  cellEventLine: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+  },
+  miniDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    flex: "0 0 auto",
+  },
   cellEventText: {
     fontSize: 12,
     opacity: 0.92,
@@ -1580,9 +1901,17 @@ const styles: Record<string, React.CSSProperties> = {
     textOverflow: "ellipsis",
     fontWeight: 750,
   },
-  moreHint: { fontSize: 12, opacity: 0.65, marginTop: 4, fontWeight: 750 },
+  moreHint: {
+    fontSize: 12,
+    opacity: 0.65,
+    marginTop: 4,
+    fontWeight: 750,
+  },
 
-  dayPanel: { borderTop: "1px solid rgba(255,255,255,0.08)", padding: 12 },
+  dayPanel: {
+    borderTop: "1px solid rgba(255,255,255,0.08)",
+    padding: 12,
+  },
   dayPanelTop: {
     display: "flex",
     justifyContent: "space-between",
@@ -1590,10 +1919,23 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     flexWrap: "wrap",
   },
-  dayPanelTitle: { fontSize: 14, fontWeight: 900, opacity: 0.95 },
-  dayPanelActions: { display: "flex", gap: 8, alignItems: "center" },
+  dayPanelTitle: {
+    fontSize: 14,
+    fontWeight: 900,
+    opacity: 0.95,
+  },
+  dayPanelActions: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+  },
 
-  dayList: { marginTop: 10, display: "flex", flexDirection: "column", gap: 10 },
+  dayList: {
+    marginTop: 10,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
 
   agendaCard: {
     borderRadius: 18,
@@ -1602,10 +1944,23 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: "hidden",
     boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
   },
-  agendaTop: { padding: 14, borderBottom: "1px solid rgba(255,255,255,0.08)" },
+  agendaTop: {
+    padding: 14,
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+  },
   agendaTitle: { fontSize: 16, fontWeight: 950 },
-  agendaSub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 750 },
-  agendaList: { padding: 12, display: "flex", flexDirection: "column", gap: 10 },
+  agendaSub: {
+    marginTop: 4,
+    fontSize: 12,
+    opacity: 0.75,
+    fontWeight: 750,
+  },
+  agendaList: {
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
 
   eventRow: {
     display: "flex",
@@ -1617,11 +1972,35 @@ const styles: Record<string, React.CSSProperties> = {
     transition: "transform 160ms ease",
   },
   eventBar: { width: 6, borderRadius: 999 },
-  eventBody: { flex: 1, display: "flex", flexDirection: "column", gap: 6 },
-  eventTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  eventRight: { display: "inline-flex", alignItems: "center", gap: 8 },
-  eventTitle: { fontSize: 14, fontWeight: 950, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
-  eventTime: { fontSize: 12, opacity: 0.78, fontWeight: 700 },
+  eventBody: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  eventTop: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  eventRight: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  eventTitle: {
+    fontSize: 14,
+    fontWeight: 950,
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    textOverflow: "ellipsis",
+  },
+  eventTime: {
+    fontSize: 12,
+    opacity: 0.78,
+    fontWeight: 700,
+  },
   eventTag: {
     display: "inline-flex",
     alignItems: "center",
@@ -1670,7 +2049,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "12px 14px",
     borderRadius: 14,
     border: "1px solid rgba(250,204,21,0.30)",
-    background: "linear-gradient(135deg, rgba(250,204,21,0.22), rgba(250,204,21,0.08))",
+    background:
+      "linear-gradient(135deg, rgba(250,204,21,0.22), rgba(250,204,21,0.08))",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 950,
@@ -1679,7 +2059,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "12px 14px",
     borderRadius: 14,
     border: "1px solid rgba(96,165,250,0.30)",
-    background: "linear-gradient(135deg, rgba(96,165,250,0.22), rgba(96,165,250,0.08))",
+    background:
+      "linear-gradient(135deg, rgba(96,165,250,0.22), rgba(96,165,250,0.08))",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 950,
@@ -1739,7 +2120,12 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 950,
     fontSize: 12,
   },
-  conflictDot: { width: 10, height: 10, borderRadius: 999, background: "rgba(248,113,113,0.95)" },
+  conflictDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    background: "rgba(248,113,113,0.95)",
+  },
   conflictArrow: { opacity: 0.8 },
 
   resolvePill: {
@@ -1768,7 +2154,12 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 950,
     fontSize: 12,
   },
-  okDot: { width: 10, height: 10, borderRadius: 999, background: "rgba(34,197,94,0.95)" },
+  okDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    background: "rgba(34,197,94,0.95)",
+  },
 
   emptyHint: {
     padding: 14,
@@ -1799,5 +2190,10 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 0 24px rgba(56,189,248,0.55)",
   },
   loadingTitle: { fontWeight: 950 },
-  loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2, fontWeight: 700 },
+  loadingSub: {
+    fontSize: 12,
+    opacity: 0.75,
+    marginTop: 2,
+    fontWeight: 700,
+  },
 };
