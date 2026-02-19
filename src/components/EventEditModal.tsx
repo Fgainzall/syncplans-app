@@ -348,7 +348,7 @@ export function EventEditModal({
                         {g.hint}
                       </div>
                     </div>
-                    {g.key === "couple" && (
+                    {on && (
                       <span
                         style={{
                           marginLeft: "auto",

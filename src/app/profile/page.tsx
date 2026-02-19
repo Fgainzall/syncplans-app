@@ -1405,7 +1405,7 @@ export default function ProfilePage() {
         <div style={styles.mainGrid} className="spProfileMainGrid">
           {/* Columna izquierda */}
           <div style={styles.leftCol}>
-            <section style={styles.card} className="spProfileHideMobile">
+            <section style={styles.card} className="spProfileHideMobileSecondary"
               <div style={styles.sectionLabel}>Identidad</div>
 
               <div style={styles.profileRow}>
@@ -2031,11 +2031,15 @@ export default function ProfilePage() {
 
 <style>{`
   /* ✅ Mobile: Panel como app real */
-  @media (max-width: 780px) {
-    .spProfileMainGrid { grid-template-columns: 1fr !important; }
-/* En móvil, el hub manda: lo demás baja de prioridad */
-.spProfileHideMobile {
-  display: none !important;
+@media (max-width: 780px) {
+  .spProfileMainGrid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Solo ocultamos secciones secundarias */
+  .spProfileHideMobileSecondary {
+    display: none !important;
+  }
 }
     /* Master-detail (grupos) pasa a stack */
     .spProfileMasterDetail {
