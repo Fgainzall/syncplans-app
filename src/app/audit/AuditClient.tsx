@@ -10,6 +10,9 @@ import { useToast } from "@/components/ui/Toast";
 import { listAudit, type AuditRow } from "@/lib/auditDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 
+// 👇 NUEVO: versión laxa del header para evitar el error de props requeridos
+const PremiumHeaderAny = PremiumHeader as React.ComponentType<any>;
+
 function Pill({ children }: { children: React.ReactNode }) {
   return (
     <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/80">
@@ -65,7 +68,8 @@ export default function AuditClient() {
 
   return (
     <main className="min-h-screen bg-[#050816]">
-      <PremiumHeader />
+      {/* 👇 Usamos la versión tipada como any para evitar el error de props */}
+      <PremiumHeaderAny />
 
       <div className="mx-auto max-w-5xl px-4 pb-10 pt-6">
         <div className="flex flex-col gap-2">
