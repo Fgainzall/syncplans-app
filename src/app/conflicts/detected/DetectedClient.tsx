@@ -4,7 +4,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
-import PremiumHeader from "@/components/PremiumHeader";
+import AppHero from "@/components/AppHero";
 import LogoutButton from "@/components/LogoutButton";
 
 import {
@@ -221,7 +221,7 @@ export default function DetectedClient() {
     return (
       <main style={styles.page}>
         <div style={styles.shell} className="spDet-shell">
-          <PremiumHeader mobileNav="bottom" />
+         <AppHero mobileNav="bottom" />
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
@@ -238,7 +238,7 @@ export default function DetectedClient() {
     <main style={styles.page}>
       <div style={styles.shell} className="spDet-shell">
         <div style={styles.topRow} className="spDet-topRow">
-          <PremiumHeader mobileNav="bottom" />
+          <AppHeromobileNav="bottom" />
           <LogoutButton />
         </div>
 

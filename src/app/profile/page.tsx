@@ -5,7 +5,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 
-import PremiumHeader from "@/components/PremiumHeader";
+import AppHero from "@/components/AppHero";
 import LogoutButton from "@/components/LogoutButton";
 import MobileScaffold from "@/components/MobileScaffold";
 
@@ -1265,7 +1265,7 @@ export default function ProfilePage() {
     className="spProfileShell"
   >
           <div style={styles.headerRow}>
-            <PremiumHeader
+            <AppHero
               mobileNav="bottom"
               title="Panel"
               subtitle="Tu panel de cuenta en SyncPlans."
@@ -1299,7 +1299,7 @@ export default function ProfilePage() {
     className="spProfileShell"
   >
           <div style={styles.headerRow}>
-            <PremiumHeader
+           <AppHero
               mobileNav="bottom"
               title="Panel"
               subtitle="Tu panel de cuenta en SyncPlans."
@@ -1395,7 +1395,7 @@ export default function ProfilePage() {
     className="spProfileShell"
   >
         <div style={styles.headerRow}>
-       <PremiumHeader
+      <AppHero
   mobileNav="bottom"
   title="Panel"
   subtitle="Tu centro de control."

@@ -12,7 +12,7 @@ import React, {
 import { usePathname, useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
-import PremiumHeader from "@/components/PremiumHeader";
+import AppHero from "@/components/AppHero";
 import LogoutButton from "@/components/LogoutButton";
 import { EventEditModal } from "@/components/EventEditModal";
 
@@ -803,7 +803,7 @@ export default function CalendarClient(props: {
       <main style={styles.page}>
         <div style={styles.shell}>
           <div style={styles.stickyTop}>
-            <PremiumHeader mobileNav="bottom" />
+            <AppHero mobileNav="bottom" />
           </div>
 
           <div style={styles.loadingCard}>
@@ -964,7 +964,11 @@ export default function CalendarClient(props: {
         {/* ✅ Sticky top */}
         <div style={styles.stickyTop}>
           <div style={styles.topRow} className="spCal-topRow">
-            <PremiumHeader mobileNav={isMobile ? "bottom" : undefined} />
+            <AppHero
+  mobileNav={isMobile ? "bottom" : "top"}
+  title="Calendario"
+  subtitle="Organiza tu día sin conflictos de horario."
+/>
             <div style={styles.topActions} className="spCal-actions">
               <button onClick={handleRefresh} style={styles.ghostBtn}>
                 Actualizar

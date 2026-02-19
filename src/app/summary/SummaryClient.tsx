@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
-import PremiumHeader from "@/components/PremiumHeader";
+import AppHero from "@/components/AppHero";
 import LogoutButton from "@/components/LogoutButton";
 import MobileScaffold from "@/components/MobileScaffold";
 
@@ -243,12 +243,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   className="spSum-shell"
 >
        <div style={styles.topRow} className="spSum-topRow">
-  <PremiumHeader
-    mobileNav="bottom"
-    title="Resumen"
-    subtitle="Lo importante, sin fricción."
-    rightSlot={<LogoutButton />}
-  />
+<AppHero
+  title="Eventos"
+  subtitle="Tus eventos, sin ruido."
+/>
 </div>
 
         {/* Hero compacto */}

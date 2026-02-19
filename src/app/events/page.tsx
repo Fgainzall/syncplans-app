@@ -4,7 +4,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import PremiumHeader from "@/components/PremiumHeader";
+import AppHero from "@/components/AppHero";
 import LogoutButton from "@/components/LogoutButton";
 
 import { getMyEvents, deleteEventsByIds } from "@/lib/eventsDb";
@@ -283,9 +283,9 @@ export default function EventsPage() {
 
       <div style={S.shell} className="spEvt-shell">
         {/* ✅ APP MODE en móvil: bottom bar + sin nav larga arriba */}
-        <PremiumHeader
-          title="Eventos"
-          subtitle={headerSubtitle}
+        <AppHero
+  title="Eventos"
+  subtitle="Tus eventos, sin ruido."
           mobileNav="bottom"
           rightSlot={
             <div style={S.topActions} className="spEvt-topActions">
