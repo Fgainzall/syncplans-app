@@ -1,7 +1,13 @@
 // src/components/PremiumHeader.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  type CSSProperties,
+} from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import {
@@ -10,7 +16,9 @@ import {
   type UsageMode,
   type GroupState,
 } from "@/lib/groups";
-import NotificationsDrawer, { type NavigationMode } from "./NotificationsDrawer";
+import NotificationsDrawer, {
+  type NavigationMode,
+} from "./NotificationsDrawer";
 
 import {
   getMyProfile,
@@ -19,7 +27,7 @@ import {
 } from "@/lib/profilesDb";
 
 import IntegrationsDrawer from "@/components/IntegrationsDrawer";
-
+import LogoutButton from "@/components/LogoutButton";
 
 type TabKey = UsageMode | "other";
 
@@ -34,7 +42,12 @@ const TABS: Tab[] = [
   { key: "solo", label: "Personal", hint: "Solo tú", dot: "#FBBF24" },
   { key: "pair", label: "Pareja", hint: "2 personas", dot: "#F87171" },
   { key: "family", label: "Familia", hint: "Varios", dot: "#60A5FA" },
-  { key: "other", label: "Compartido", hint: "Amigos, equipos", dot: "#A855F7" },
+  {
+    key: "other",
+    label: "Compartido",
+    hint: "Amigos, equipos",
+    dot: "#A855F7",
+  },
 ];
 
 function applyThemeVars(mode: UsageMode | "other") {
@@ -68,13 +81,11 @@ async function ensureActiveGroupForMode(
 
   const existing = await getActiveGroupIdFromDb().catch(() => null);
 
-  // ✅ Declarar UNA sola vez
   const groups = await getMyGroups();
   if (!groups.length) return null;
 
   const wantType = String(mode).toLowerCase();
 
-  // ✅ Si ya hay active, verificamos que exista y sea del tipo correcto
   if (existing) {
     const current = groups.find((g: any) => String(g.id) === String(existing));
     const currentType = String(current?.type ?? "").toLowerCase();
@@ -82,10 +93,8 @@ async function ensureActiveGroupForMode(
     if (current && currentType === wantType) {
       return String(existing);
     }
-    // si no coincide, seguimos y elegimos uno correcto
   }
 
-  // ✅ Elegimos el primer grupo del tipo correcto (o fallback al primero)
   const match = groups.find(
     (g: any) => String(g.type ?? "").toLowerCase() === wantType
   );
@@ -93,7 +102,6 @@ async function ensureActiveGroupForMode(
 
   if (pick) {
     await setActiveGroupIdInDb(String(pick));
-    // ✅ evento global para que Calendar/Summary reaccionen
     window.dispatchEvent(new Event("sp:active-group-changed"));
     return String(pick);
   }
@@ -106,7 +114,6 @@ type HeaderUser = {
   initials: string;
 };
 
-// ✅ Normaliza el label para eliminar "Activo" del UI
 function normalizeGroupLabel(input?: string | null) {
   const raw = (input ?? "").trim();
   if (!raw) return null;
@@ -120,9 +127,6 @@ function normalizeGroupLabel(input?: string | null) {
   return raw;
 }
 
-/**
- * ✅ Hook: detecta "mobile" por ancho (solo cambia UI en pantalla chica)
- */
 function useIsMobileWidth(maxWidth = 520) {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -155,7 +159,7 @@ export default function PremiumHeader({
   title,
   subtitle,
   rightSlot,
-  mobileNav = "bottom", // ✅ CAMBIO CLAVE: en móvil la navegación principal es la barra inferior
+  mobileNav = "bottom",
 }: {
   title?: string;
   subtitle?: string;
@@ -172,13 +176,11 @@ export default function PremiumHeader({
   const [unreadCount, setUnreadCount] = useState(0);
   const [headerUser, setHeaderUser] = useState<HeaderUser | null>(null);
 
-  // ✅ Drawer Conectar
   const [openIntegrations, setOpenIntegrations] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  // ✅ Detecta móvil (solo por ancho)
   const isMobile = useIsMobileWidth(520);
 
-  // Estado de grupos / modo activo
   useEffect(() => {
     const g = getGroupState();
     setGroup(g);
@@ -191,7 +193,6 @@ export default function PremiumHeader({
     applyThemeVars(activeMode);
   }, [activeMode]);
 
-  // Perfil para chip de usuario
   useEffect(() => {
     let alive = true;
 
@@ -228,7 +229,6 @@ export default function PremiumHeader({
     };
   }, []);
 
-  // Badge de notificaciones
   async function refreshBadge() {
     try {
       const { getMyNotifications } = await import("@/lib/notificationsDb");
@@ -276,8 +276,6 @@ export default function PremiumHeader({
   }, [pathname]);
 
   const finalTitle = title ?? autoTitle;
-
-  // ✅ Copy más pro (si quieres lo dejamos como antes)
   const finalSubtitle =
     subtitle ?? "Organiza tu día sin conflictos de horario.";
 
@@ -302,30 +300,26 @@ export default function PremiumHeader({
     }
   }
 
-async function onPickMode(nextMode: TabKey) {
-  const next = setMode(nextMode as UsageMode);
-  setGroup(next);
+  async function onPickMode(nextMode: TabKey) {
+    const next = setMode(nextMode as UsageMode);
+    setGroup(next);
+    applyThemeVars(nextMode);
 
-  // Theme
-  applyThemeVars(nextMode);
+    if (nextMode === "solo") {
+      try {
+        // podrías limpiar activeGroup en DB si quisieras
+      } finally {
+        window.dispatchEvent(new Event("sp:active-group-changed"));
+      }
+      return;
+    }
 
-  if (nextMode === "solo") {
-    // Personal: no hay activeGroup
     try {
-      // opcional: podrías limpiar active en DB si quieres, pero no es necesario
-    } finally {
+      await ensureActiveGroupForMode(nextMode);
+    } catch {
       window.dispatchEvent(new Event("sp:active-group-changed"));
     }
-    return;
   }
-
-  try {
-    await ensureActiveGroupForMode(nextMode);
-  } catch {
-    // no bloquear UI
-    window.dispatchEvent(new Event("sp:active-group-changed"));
-  }
-}
 
   const onSyncedFromDrawer = useCallback((imported: number) => {
     window.dispatchEvent(
@@ -333,248 +327,476 @@ async function onPickMode(nextMode: TabKey) {
     );
   }, []);
 
-  // ✅ Overrides SOLO en móvil
-  const M = useMemo(() => {
-    if (!isMobile) return null;
+  const shouldShowTopNav: boolean =
+    !isMobile || (isMobile && mobileNav === "top");
 
-    return {
-      wrap: { padding: 14, borderRadius: 20 } as React.CSSProperties,
-
-      topRow: {
-        flexDirection: "column",
-        alignItems: "stretch",
-        gap: 10,
-      } as React.CSSProperties,
-
-      right: {
-        width: "100%",
-        justifyContent: "space-between",
-        flexWrap: "wrap",
-        gap: 8,
-      } as React.CSSProperties,
-
-      title: { fontSize: 22 } as React.CSSProperties,
-      subtitle: { fontSize: 12 } as React.CSSProperties,
-
-      bellBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 12,
-      } as React.CSSProperties,
-      ghostBtn: {
-        height: 38,
-        padding: "0 12px",
-        borderRadius: 12,
-        fontSize: 12,
-      } as React.CSSProperties,
-      iconBtn: {
-        height: 38,
-        padding: "0 12px",
-        borderRadius: 12,
-        fontSize: 12,
-      } as React.CSSProperties,
-
-      userChip: {
-        maxWidth: 70,
-        padding: 0,
-        justifyContent: "center",
-      } as React.CSSProperties,
-      userLabel: { display: "none" } as React.CSSProperties,
-
-      tabsInner: {
-        gridTemplateColumns: "repeat(2, 1fr)",
-        gap: 8,
-        padding: 8,
-      } as React.CSSProperties,
-
-      tab: { height: 50, padding: "10px 10px" } as React.CSSProperties,
-      tabText: { fontSize: 12 } as React.CSSProperties,
-      tabHint: { fontSize: 10 } as React.CSSProperties,
-    };
-  }, [isMobile]);
-
-  function ms<T extends React.CSSProperties>(
-    base: T,
-    mobile?: React.CSSProperties | null
-  ) {
-    return mobile ? ({ ...base, ...mobile } as T) : base;
-  }
-
-  /**
-   * ✅ REGLA: en móvil NO mostramos el nav superior por defecto.
-   * - mobileNav = "bottom" (default): solo bottom tabs
-   * - mobileNav = "top": permite nav superior (solo si lo necesitas en una pantalla puntual)
-   * - mobileNav = "none": sin nav
-   */
-  const shouldShowTopNav = !isMobile && true ? true : isMobile && mobileNav === "top";
-  
+  const closeUserMenu = () => setUserMenuOpen(false);
 
   return (
     <>
-      <header style={ms(S.wrap, M?.wrap)}>
-        <div style={ms(S.topRow, M?.topRow)}>
-          <div style={S.left}>
-            <div style={S.kicker}>
-              <span style={{ ...S.dot, background: active.dot }} />
-              <span style={S.kickerText}>{kickerLabel}</span>
+      <header style={S.wrap}>
+        {/* ========== MOBILE LAYOUT (APP BAR) ========== */}
+        {isMobile ? (
+          <>
+            {/* Top bar: bell · title · avatar */}
+            <div style={S.mTopBar}>
+              <div style={S.bellWrap}>
+                <button
+                  style={S.mBellBtn}
+                  aria-label="Notificaciones"
+                  title="Notificaciones"
+                  onClick={() => setOpenNotif(true)}
+                >
+                  🔔
+                </button>
+                {unreadCount > 0 && (
+                  <span style={S.badgeCount}>
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </div>
+
+              <div style={S.mTitleBlock}>
+                <div style={S.mKickerRow}>
+                  <span
+                    style={{ ...S.dot, background: active.dot, marginBottom: 0 }}
+                  />
+                  <span style={S.mKickerText}>{kickerLabel}</span>
+                </div>
+                <div style={S.mTitle}>{finalTitle}</div>
+              </div>
+
+              <div style={S.userChipWrap}>
+                {headerUser && (
+                  <button
+                    type="button"
+                    style={S.mUserBtn}
+                    onClick={() => setUserMenuOpen((v) => !v)}
+                    title="Cuenta y más opciones"
+                  >
+                    <div style={S.userAvatar}>{headerUser.initials}</div>
+                  </button>
+                )}
+
+                {userMenuOpen && (
+                  <div style={S.userMenu}>
+                    <div style={S.userMenuHeader}>
+                      <div style={S.userMenuAvatar}>
+                        {headerUser?.initials ?? "T"}
+                      </div>
+                      <div style={S.userMenuName}>
+                        {headerUser?.name ?? "Tú"}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      style={S.userMenuItem}
+                      onClick={() => {
+                        closeUserMenu();
+                        router.push("/groups");
+                      }}
+                    >
+                      Grupos
+                    </button>
+                    <button
+                      type="button"
+                      style={S.userMenuItem}
+                      onClick={() => {
+                        closeUserMenu();
+                        router.push("/members");
+                      }}
+                    >
+                      Miembros
+                    </button>
+                    <button
+                      type="button"
+                      style={S.userMenuItem}
+                      onClick={() => {
+                        closeUserMenu();
+                        router.push("/invitations");
+                      }}
+                    >
+                      Invitaciones
+                    </button>
+                    <button
+                      type="button"
+                      style={S.userMenuItem}
+                      onClick={() => {
+                        closeUserMenu();
+                        router.push("/settings");
+                      }}
+                    >
+                      Settings
+                    </button>
+                    <button
+                      type="button"
+                      style={S.userMenuItem}
+                      onClick={() => {
+                        closeUserMenu();
+                        router.push("/pricing");
+                      }}
+                    >
+                      Planes
+                    </button>
+
+                    <div style={S.userMenuDivider} />
+
+                    <div style={S.userMenuLogout}>
+                      <LogoutButton />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <h1 style={ms(S.title, M?.title)}>{finalTitle}</h1>
-            <p style={ms(S.subtitle, M?.subtitle)}>{finalSubtitle}</p>
-          </div>
+            {/* Subtítulo debajo del app bar */}
+            <p style={S.mSubtitle}>{finalSubtitle}</p>
 
-          <div style={ms(S.right, M?.right)}>
-            <div style={S.bellWrap}>
+            {/* Acciones principales en móvil: Conectar + CTA (+ Evento por defecto) */}
+            <div style={S.mActionsRow}>
               <button
-                style={ms(S.bellBtn, M?.bellBtn)}
-                aria-label="Notificaciones"
-                title="Notificaciones"
-                onClick={() => setOpenNotif(true)}
+                type="button"
+                style={S.mGhostBtn}
+                onClick={() => {
+                  closeUserMenu();
+                  setOpenIntegrations(true);
+                }}
+                title="Conectar y sincronizar calendarios externos"
               >
-                🔔
+                Conectar
               </button>
 
-              {unreadCount > 0 && (
-                <span style={S.badgeCount}>
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
+              {rightSlot ?? (
+                <button
+                  style={S.mPrimaryBtn}
+                  onClick={onNewEvent}
+                  type="button"
+                >
+                  + Evento
+                </button>
               )}
             </div>
 
-            {headerUser && (
-              <button
-                type="button"
-                style={ms(S.userChip, M?.userChip)}
-                onClick={() => router.push("/profile")}
-                title="Ver panel de cuenta"
-              >
-                <div style={S.userAvatar}>{headerUser.initials}</div>
-                <span style={ms(S.userLabel, M?.userLabel)}>
-                  {headerUser.name}
-                </span>
-              </button>
-            )}
+            {/* Tabs de modo en móvil (2x2) */}
+            <div style={S.tabs}>
+              <div style={S.tabsBg} />
+              <div style={S.mTabsInner}>
+                {TABS.map((t) => {
+                  const isActive = t.key === activeMode;
+                  return (
+                    <button
+                      key={t.key}
+                      style={{
+                        ...S.mTab,
+                        ...(isActive ? S.tabActive : {}),
+                      }}
+                      onClick={() => onPickMode(t.key)}
+                    >
+                      <span style={{ ...S.tabDot, background: t.dot }} />
+                      <span style={S.mTabText}>{t.label}</span>
+                      <span style={S.mTabHint}>{t.hint}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-            <button
-              type="button"
-              style={ms(S.ghostBtn, M?.ghostBtn)}
-              onClick={() => setOpenIntegrations(true)}
-              title="Conectar y sincronizar calendarios externos"
-            >
-              Conectar
-            </button>
-
-            {rightSlot ?? (
-              <button style={ms(S.iconBtn, M?.iconBtn)} onClick={onNewEvent}>
-                + Evento
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Tabs de modo */}
-        <div style={S.tabs}>
-          <div style={S.tabsBg} />
-          <div style={ms(S.tabsInner, M?.tabsInner)}>
-            {TABS.map((t) => {
-              const isActive = t.key === activeMode;
-              return (
-                <button
-                  key={t.key}
-                  style={{
-                    ...ms(S.tab, M?.tab),
-                    ...(isActive ? S.tabActive : {}),
+            {/* Nav superior opcional en móvil (solo si mobileNav="top") */}
+            {shouldShowTopNav && (
+              <nav style={S.nav}>
+                <NavPill
+                  label="Resumen"
+                  active={pathname.startsWith("/summary")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/summary");
                   }}
-                  onClick={() => onPickMode(t.key)}
-                >
-                  <span style={{ ...S.tabDot, background: t.dot }} />
-                  <span style={ms(S.tabText, M?.tabText)}>{t.label}</span>
-                  <span style={ms(S.tabHint, M?.tabHint)}>{t.hint}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Calendario"
+                  active={pathname.startsWith("/calendar")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/calendar");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Eventos"
+                  active={pathname.startsWith("/events")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/events");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Conflictos"
+                  active={pathname.startsWith("/conflicts")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/conflicts/detected");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Panel"
+                  active={pathname.startsWith("/profile")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/profile");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+              </nav>
+            )}
+          </>
+        ) : (
+          /* ========== DESKTOP LAYOUT (HERO COMPLETO) ========== */
+          <>
+            <div style={S.topRow}>
+              <div style={S.left}>
+                <div style={S.kicker}>
+                  <span style={{ ...S.dot, background: active.dot }} />
+                  <span style={S.kickerText}>{kickerLabel}</span>
+                </div>
 
-        {/* ✅ NAV SUPERIOR (solo desktop o móvil si lo fuerzas con mobileNav="top") */}
-        {shouldShowTopNav && (
-          <nav style={S.nav}>
-            <NavPill
-              label="Resumen"
-              active={pathname.startsWith("/summary")}
-              onClick={() => router.push("/summary")}
-              styleOverride={S.pill}
-              styleActive={S.pillActive}
-            />
-            <NavPill
-              label="Calendario"
-              active={pathname.startsWith("/calendar")}
-              onClick={() => router.push("/calendar")}
-              styleOverride={S.pill}
-              styleActive={S.pillActive}
-            />
-            <NavPill
-              label="Eventos"
-              active={pathname.startsWith("/events")}
-              onClick={() => router.push("/events")}
-              styleOverride={S.pill}
-              styleActive={S.pillActive}
-            />
-            <NavPill
-              label="Conflictos"
-              active={pathname.startsWith("/conflicts")}
-              onClick={() => router.push("/conflicts/detected")}
-              styleOverride={S.pill}
-              styleActive={S.pillActive}
-            />
-            <NavPill
-              label="Grupos"
-              active={pathname.startsWith("/groups")}
-              onClick={() => router.push("/groups")}
-              styleOverride={S.pill}
-              styleActive={S.pillActive}
-            />
-            <NavPill
-              label="Miembros"
-              active={pathname.startsWith("/members")}
-              onClick={() => router.push("/members")}
-              styleOverride={S.pill}
-              styleActive={S.pillActive}
-            />
-            <NavPill
-              label="Invitaciones"
-              active={pathname.startsWith("/invitations")}
-              onClick={() => router.push("/invitations")}
-              styleOverride={S.pill}
-              styleActive={S.pillActive}
-            />
-            <NavPill
-              label="Panel"
-              active={pathname.startsWith("/profile")}
-              onClick={() => router.push("/profile")}
-              styleOverride={S.pill}
-              styleActive={S.pillActive}
-            />
-            <NavPill
-              label="Settings"
-              active={pathname.startsWith("/settings")}
-              onClick={() => router.push("/settings")}
-              styleOverride={S.pill}
-              styleActive={S.pillActive}
-            />
-            <NavPill
-              label="Planes"
-              active={pathname.startsWith("/pricing")}
-              onClick={() => router.push("/pricing")}
-              styleOverride={S.pill}
-              styleActive={S.pillActive}
-            />
-          </nav>
+                <h1 style={S.title}>{finalTitle}</h1>
+                <p style={S.subtitle}>{finalSubtitle}</p>
+              </div>
+
+              <div style={S.right}>
+                <div style={S.bellWrap}>
+                  <button
+                    style={S.bellBtn}
+                    aria-label="Notificaciones"
+                    title="Notificaciones"
+                    onClick={() => setOpenNotif(true)}
+                  >
+                    🔔
+                  </button>
+
+                  {unreadCount > 0 && (
+                    <span style={S.badgeCount}>
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </div>
+
+                <div style={S.userChipWrap}>
+                  {headerUser && (
+                    <button
+                      type="button"
+                      style={S.userChip}
+                      onClick={() => setUserMenuOpen((v) => !v)}
+                      title="Ver panel de cuenta"
+                    >
+                      <div style={S.userAvatar}>{headerUser.initials}</div>
+                      <span style={S.userLabel}>{headerUser.name}</span>
+                    </button>
+                  )}
+
+                  {userMenuOpen && (
+                    <div style={S.userMenuDesktop}>
+                      <div style={S.userMenuHeader}>
+                        <div style={S.userMenuAvatar}>
+                          {headerUser?.initials ?? "T"}
+                        </div>
+                        <div style={S.userMenuName}>
+                          {headerUser?.name ?? "Tú"}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        style={S.userMenuItem}
+                        onClick={() => {
+                          closeUserMenu();
+                          router.push("/groups");
+                        }}
+                      >
+                        Grupos
+                      </button>
+                      <button
+                        type="button"
+                        style={S.userMenuItem}
+                        onClick={() => {
+                          closeUserMenu();
+                          router.push("/members");
+                        }}
+                      >
+                        Miembros
+                      </button>
+                      <button
+                        type="button"
+                        style={S.userMenuItem}
+                        onClick={() => {
+                          closeUserMenu();
+                          router.push("/invitations");
+                        }}
+                      >
+                        Invitaciones
+                      </button>
+                      <button
+                        type="button"
+                        style={S.userMenuItem}
+                        onClick={() => {
+                          closeUserMenu();
+                          router.push("/settings");
+                        }}
+                      >
+                        Settings
+                      </button>
+                      <button
+                        type="button"
+                        style={S.userMenuItem}
+                        onClick={() => {
+                          closeUserMenu();
+                          router.push("/pricing");
+                        }}
+                      >
+                        Planes
+                      </button>
+
+                      <div style={S.userMenuDivider} />
+
+                      <div style={S.userMenuLogout}>
+                        <LogoutButton />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  style={S.ghostBtn}
+                  onClick={() => setOpenIntegrations(true)}
+                  title="Conectar y sincronizar calendarios externos"
+                >
+                  Conectar
+                </button>
+
+                {rightSlot ?? (
+                  <button
+                    style={S.iconBtn}
+                    onClick={onNewEvent}
+                    type="button"
+                  >
+                    + Evento
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Tabs de modo */}
+            <div style={S.tabs}>
+              <div style={S.tabsBg} />
+              <div style={S.tabsInner}>
+                {TABS.map((t) => {
+                  const isActive = t.key === activeMode;
+                  return (
+                    <button
+                      key={t.key}
+                      style={{
+                        ...S.tab,
+                        ...(isActive ? S.tabActive : {}),
+                      }}
+                      onClick={() => onPickMode(t.key)}
+                    >
+                      <span style={{ ...S.tabDot, background: t.dot }} />
+                      <span style={S.tabText}>{t.label}</span>
+                      <span style={S.tabHint}>{t.hint}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Nav superior en desktop */}
+            {shouldShowTopNav && (
+              <nav style={S.nav}>
+                <NavPill
+                  label="Resumen"
+                  active={pathname.startsWith("/summary")}
+                  onClick={() => router.push("/summary")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Calendario"
+                  active={pathname.startsWith("/calendar")}
+                  onClick={() => router.push("/calendar")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Eventos"
+                  active={pathname.startsWith("/events")}
+                  onClick={() => router.push("/events")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Conflictos"
+                  active={pathname.startsWith("/conflicts")}
+                  onClick={() => router.push("/conflicts/detected")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Grupos"
+                  active={pathname.startsWith("/groups")}
+                  onClick={() => router.push("/groups")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Miembros"
+                  active={pathname.startsWith("/members")}
+                  onClick={() => router.push("/members")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Invitaciones"
+                  active={pathname.startsWith("/invitations")}
+                  onClick={() => router.push("/invitations")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Panel"
+                  active={pathname.startsWith("/profile")}
+                  onClick={() => router.push("/profile")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Settings"
+                  active={pathname.startsWith("/settings")}
+                  onClick={() => router.push("/settings")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Planes"
+                  active={pathname.startsWith("/pricing")}
+                  onClick={() => router.push("/pricing")}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+              </nav>
+            )}
+          </>
         )}
       </header>
-
-      {/* ✅ BOTTOM NAV (móvil) */}
- 
 
       <NotificationsDrawer
         open={openNotif}
@@ -602,8 +824,8 @@ function NavPill({
   label: string;
   active: boolean;
   onClick: () => void;
-  styleOverride: React.CSSProperties;
-  styleActive: React.CSSProperties;
+  styleOverride: CSSProperties;
+  styleActive: CSSProperties;
 }) {
   return (
     <button
@@ -616,7 +838,7 @@ function NavPill({
   );
 }
 
-const S: Record<string, React.CSSProperties> = {
+const S: Record<string, CSSProperties> = {
   wrap: {
     borderRadius: 22,
     padding: 18,
@@ -625,8 +847,11 @@ const S: Record<string, React.CSSProperties> = {
       "radial-gradient(900px 400px at 10% 0%, rgba(37,99,235,0.20), transparent 55%), radial-gradient(900px 420px at 90% 0%, rgba(124,58,237,0.18), transparent 55%), rgba(2,6,23,0.65)",
     boxShadow: "0 30px 90px rgba(0,0,0,0.45)",
     backdropFilter: "blur(14px)",
+    position: "relative",
+    overflow: "visible",
   },
 
+  /* DESKTOP TOP ROW */
   topRow: {
     display: "flex",
     gap: 14,
@@ -687,7 +912,7 @@ const S: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
 
-  bellWrap: { position: "relative" },
+  bellWrap: { position: "relative", flexShrink: 0 },
   bellBtn: {
     width: 40,
     height: 40,
@@ -716,6 +941,11 @@ const S: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     boxShadow:
       "0 0 0 2px rgba(2,6,23,0.85), 0 10px 25px rgba(0,0,0,0.35)",
+  },
+
+  userChipWrap: {
+    position: "relative",
+    display: "inline-flex",
   },
 
   userChip: {
@@ -751,6 +981,7 @@ const S: Record<string, React.CSSProperties> = {
     textOverflow: "ellipsis",
   },
 
+  /* MODO TABS (DESKTOP) */
   tabs: { position: "relative", marginTop: 14 },
   tabsBg: {
     position: "absolute",
@@ -797,6 +1028,7 @@ const S: Record<string, React.CSSProperties> = {
     textOverflow: "ellipsis",
   },
 
+  /* NAV PILLS */
   nav: {
     display: "flex",
     gap: 10,
@@ -817,5 +1049,204 @@ const S: Record<string, React.CSSProperties> = {
   pillActive: {
     border: "1px solid rgba(255,255,255,0.18)",
     background: "rgba(255,255,255,0.08)",
+  },
+
+  /* ========== MOBILE-SPECÍFICO ========== */
+
+  mTopBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  mBellBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#fff",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+  mTitleBlock: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 2,
+    minWidth: 0,
+  },
+  mKickerRow: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: "100%",
+  },
+  mKickerText: {
+    fontSize: 11,
+    fontWeight: 800,
+    color: "#dbeafe",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  mTitle: {
+    fontSize: 18,
+    fontWeight: 900,
+    letterSpacing: -0.4,
+    color: "#fff",
+  },
+  mSubtitle: {
+    margin: "10px 0 10px",
+    fontSize: 12,
+    color: "#a8b3cf",
+    fontWeight: 600,
+  },
+
+  mUserBtn: {
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(15,23,42,0.85)",
+    borderRadius: 999,
+    padding: 4,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  mActionsRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  },
+  mGhostBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#fff",
+    fontWeight: 900,
+    fontSize: 12,
+    cursor: "pointer",
+  },
+  mPrimaryBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.28), rgba(124,58,237,0.28))",
+    color: "#fff",
+    fontWeight: 900,
+    fontSize: 12,
+    cursor: "pointer",
+  },
+
+  mTabsInner: {
+    position: "relative",
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 8,
+    padding: 8,
+  },
+  mTab: {
+    height: 50,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(2,6,23,0.55)",
+    display: "grid",
+    gridTemplateColumns: "14px 1fr",
+    gridTemplateRows: "1fr 1fr",
+    alignItems: "center",
+    gap: "0 8px",
+    padding: "8px 10px",
+    cursor: "pointer",
+    color: "#fff",
+    textAlign: "left",
+  },
+  mTabText: {
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  mTabHint: {
+    fontSize: 10,
+    opacity: 0.75,
+    fontWeight: 650,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+
+  /* USER MENU (MÓVIL + DESKTOP) */
+  userMenu: {
+    position: "absolute",
+    top: "115%",
+    right: 0,
+    minWidth: 190,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(15,23,42,0.96)",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.55)",
+    padding: 8,
+    zIndex: 80,
+  },
+  userMenuDesktop: {
+    position: "absolute",
+    top: "115%",
+    right: 0,
+    minWidth: 220,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(15,23,42,0.96)",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.55)",
+    padding: 8,
+    zIndex: 80,
+  },
+  userMenuHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "6px 8px 8px",
+  },
+  userMenuAvatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.7)",
+    background: "rgba(8,47,73,0.9)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 11,
+    fontWeight: 900,
+    color: "#E0F2FE",
+  },
+  userMenuName: {
+    fontSize: 12,
+    fontWeight: 800,
+    color: "#E5E7EB",
+  },
+  userMenuItem: {
+    width: "100%",
+    textAlign: "left",
+    borderRadius: 10,
+    border: "none",
+    background: "transparent",
+    color: "#E5E7EB",
+    fontSize: 12,
+    fontWeight: 800,
+    padding: "6px 9px",
+    cursor: "pointer",
+  },
+  userMenuDivider: {
+    margin: "6px 0",
+    height: 1,
+    background: "rgba(148,163,184,0.35)",
+  },
+  userMenuLogout: {
+    padding: "4px 6px",
   },
 };
