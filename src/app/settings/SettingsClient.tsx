@@ -12,6 +12,7 @@ import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+import MobileScaffold from "@/components/MobileScaffold";
 
 /* Helpers de fecha para el resumen */
 function startOfDay(dateISO: string) {
@@ -383,251 +384,275 @@ export default function SettingsHubPage() {
         </div>
       )}
 
-      <div style={styles.shell}>
-        <div style={styles.topRow}>
-          <PremiumHeader />
-          <div style={styles.topActions}>
-            <LogoutButton />
-          </div>
-        </div>
-
-        <section style={styles.hero}>
-          <div>
-            <div style={styles.kicker}>Panel</div>
-            <h1 style={styles.h1}>{title}</h1>
-            <div style={styles.sub}>
-              Notificaciones, permisos por grupo y conexiones de calendario.
+      {/* ✅ Shell de app: maneja padding, safe-area y espacio para la BottomNav */}
+      <MobileScaffold
+        maxWidth={980}
+        paddingDesktop="22px 18px 48px"
+        paddingMobile="18px 14px 64px"
+        mobileBottomSafe={96}
+      >
+        <div style={styles.shell}>
+          <div style={styles.topRow}>
+            <PremiumHeader />
+            <div style={styles.topActions}>
+              <LogoutButton />
             </div>
-
-            {notifScore ? (
-              <div style={styles.heroMeta}>
-                <span style={styles.pillSoft}>
-                  {notifScore.on}/{notifScore.total} activas
-                </span>
-                <span style={styles.pillSoft}>
-                  {notifScore.quiet ? "Silencioso ON" : "Silencioso OFF"}
-                </span>
-              </div>
-            ) : null}
           </div>
 
-          <div style={styles.heroBtns}>
-            <button
-              onClick={() => router.push("/calendar")}
-              style={styles.ghostBtn}
-            >
-              Volver al calendario →
-            </button>
-            <button onClick={() => router.push("/profile")} style={styles.ghostBtn}>
-              Ir a perfil →
-            </button>
-          </div>
-        </section>
-
-        {/* CONFIG */}
-        <section style={styles.card}>
-          <div style={styles.sectionTitle}>Ajustes de tu experiencia</div>
-          <div style={styles.smallNote}>
-            Configura cómo se comporta SyncPlans para ti.
-          </div>
-
-          <div style={styles.list}>
-            <Row
-              dot="rgba(56,189,248,0.95)"
-              title="Notificaciones"
-              desc="Recordatorios, resúmenes y modo silencioso."
-              cta="Abrir"
-              onClick={() => router.push("/settings/notifications")}
-            />
-            <Row
-              dot="rgba(251,191,36,0.95)"
-              title="Permisos por grupo"
-              desc="Personal / Pareja / Familia: cómo se comporta tu experiencia."
-              cta="Configurar"
-              onClick={() => router.push("/settings/groups")}
-            />
-            <Row
-              dot="rgba(244,63,94,0.95)"
-              title="Preferencias de conflictos"
-              desc="Avisos, defaults y reglas de coordinación."
-              cta="Ajustar"
-              onClick={() => router.push("/settings/conflicts")}
-            />
-            <Row
-              dot="rgba(34,197,94,0.95)"
-              title="Resumen semanal"
-              desc="Mantén tu valor semanal ON/OFF."
-              cta="Ver"
-              onClick={() => router.push("/settings/weekly")}
-            />
-          </div>
-        </section>
-
-        {/* CONNECT */}
-        <section style={styles.card}>
-          <div style={styles.sectionTitleRow}>
+          <section style={styles.hero}>
             <div>
-              <div style={styles.sectionTitle}>Integraciones de calendario</div>
-              <div style={styles.smallNote}>
-                Importa eventos <b>read-only</b> como “externos”. Entran a
-                conflictos, no rompen tu calendario.
+              <div style={styles.kicker}>Panel</div>
+              <h1 style={styles.h1}>{title}</h1>
+              <div style={styles.sub}>
+                Notificaciones, permisos por grupo y conexiones de calendario.
+              </div>
+
+              {notifScore ? (
+                <div style={styles.heroMeta}>
+                  <span style={styles.pillSoft}>
+                    {notifScore.on}/{notifScore.total} activas
+                  </span>
+                  <span style={styles.pillSoft}>
+                    {notifScore.quiet ? "Silencioso ON" : "Silencioso OFF"}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            <div style={styles.heroBtns}>
+              <button
+                onClick={() => router.push("/calendar")}
+                style={styles.ghostBtn}
+              >
+                Volver al calendario →
+              </button>
+              <button
+                onClick={() => router.push("/profile")}
+                style={styles.ghostBtn}
+              >
+                Ir a perfil →
+              </button>
+            </div>
+          </section>
+
+          {/* CONFIG */}
+          <section style={styles.card}>
+            <div style={styles.sectionTitle}>Ajustes de tu experiencia</div>
+            <div style={styles.smallNote}>
+              Configura cómo se comporta SyncPlans para ti.
+            </div>
+
+            <div style={styles.list}>
+              <Row
+                dot="rgba(56,189,248,0.95)"
+                title="Notificaciones"
+                desc="Recordatorios, resúmenes y modo silencioso."
+                cta="Abrir"
+                onClick={() => router.push("/settings/notifications")}
+              />
+              <Row
+                dot="rgba(251,191,36,0.95)"
+                title="Permisos por grupo"
+                desc="Personal / Pareja / Familia: cómo se comporta tu experiencia."
+                cta="Configurar"
+                onClick={() => router.push("/settings/groups")}
+              />
+              <Row
+                dot="rgba(244,63,94,0.95)"
+                title="Preferencias de conflictos"
+                desc="Avisos, defaults y reglas de coordinación."
+                cta="Ajustar"
+                onClick={() => router.push("/settings/conflicts")}
+              />
+              <Row
+                dot="rgba(34,197,94,0.95)"
+                title="Resumen semanal"
+                desc="Mantén tu valor semanal ON/OFF."
+                cta="Ver"
+                onClick={() => router.push("/settings/weekly")}
+              />
+            </div>
+          </section>
+
+          {/* CONNECT */}
+          <section style={styles.card}>
+            <div style={styles.sectionTitleRow}>
+              <div>
+                <div style={styles.sectionTitle}>
+                  Integraciones de calendario
+                </div>
+                <div style={styles.smallNote}>
+                  Importa eventos <b>read-only</b> como “externos”. Entran a
+                  conflictos, no rompen tu calendario.
+                </div>
+              </div>
+
+              <button
+                onClick={refreshGoogleStatusWithRetry}
+                style={{
+                  ...styles.secondaryBtn,
+                  opacity: googleLoading || googleSyncing ? 0.7 : 1,
+                  cursor:
+                    googleLoading || googleSyncing ? "progress" : "pointer",
+                }}
+                disabled={googleLoading || googleSyncing}
+                title="Revisar estado de conexión"
+              >
+                {googleLoading ? "Actualizando…" : "Actualizar estado"}
+              </button>
+            </div>
+
+            {/* Google card */}
+            <div style={styles.innerCard}>
+              <div style={styles.innerTop}>
+                <div style={styles.innerLeft}>
+                  <div style={styles.innerTitleRow}>
+                    <div style={styles.appIcon}>G</div>
+                    <div>
+                      <div style={styles.innerTitle}>Google Calendar</div>
+                      <div style={styles.innerSub}>
+                        {googleConnected
+                          ? `Cuenta: ${googleEmail || "—"} · Read-only import`
+                          : "Conecta tu Google para importar eventos como externos."}
+                      </div>
+                    </div>
+                  </div>
+
+                  {!googleConnected && google?.error ? (
+                    <div style={styles.errorBox}>{google.error}</div>
+                  ) : null}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span
+                    style={{
+                      ...styles.pill,
+                      ...(googleConnected
+                        ? styles.pillOk
+                        : styles.pillMuted),
+                    }}
+                  >
+                    {googleConnected ? "Conectado ✅" : "No conectado"}
+                  </span>
+
+                  <button
+                    onClick={handleGoogleConnect}
+                    style={styles.primaryBtn}
+                  >
+                    {googleConnected ? "Reconectar" : "Conectar"}
+                  </button>
+
+                  <button
+                    onClick={handleGoogleSyncNow}
+                    style={{
+                      ...styles.secondaryBtn,
+                      opacity: !googleConnected ? 0.45 : 1,
+                      cursor: !googleConnected
+                        ? "not-allowed"
+                        : googleSyncing
+                        ? "progress"
+                        : "pointer",
+                    }}
+                    disabled={!googleConnected || googleSyncing}
+                    title={
+                      !googleConnected
+                        ? "Conecta Google para importar."
+                        : "Importar eventos desde Google"
+                    }
+                  >
+                    {googleSyncing ? "Importando…" : "Importar ahora"}
+                  </button>
+                </div>
+              </div>
+
+              <div style={styles.note}>
+                <b>Tip:</b> Sync trae 30 días atrás y 120 días adelante.
               </div>
             </div>
 
-            <button
-              onClick={refreshGoogleStatusWithRetry}
-              style={{
-                ...styles.secondaryBtn,
-                opacity: googleLoading || googleSyncing ? 0.7 : 1,
-                cursor:
-                  googleLoading || googleSyncing ? "progress" : "pointer",
-              }}
-              disabled={googleLoading || googleSyncing}
-              title="Revisar estado de conexión"
-            >
-              {googleLoading ? "Actualizando…" : "Actualizar estado"}
-            </button>
-          </div>
-
-          {/* Google card */}
-          <div style={styles.innerCard}>
-            <div style={styles.innerTop}>
-              <div style={styles.innerLeft}>
+            {/* Microsoft card (placeholder) */}
+            <div style={{ ...styles.innerCard, opacity: 0.9 }}>
+              <div style={styles.innerTop}>
                 <div style={styles.innerTitleRow}>
-                  <div style={styles.appIcon}>G</div>
+                  <div
+                    style={{
+                      ...styles.appIcon,
+                      border: "1px solid rgba(148,163,184,0.35)",
+                      background: "rgba(148,163,184,0.10)",
+                    }}
+                  >
+                    O
+                  </div>
                   <div>
-                    <div style={styles.innerTitle}>Google Calendar</div>
+                    <div style={styles.innerTitle}>
+                      Outlook / Microsoft 365
+                    </div>
                     <div style={styles.innerSub}>
-                      {googleConnected
-                        ? `Cuenta: ${googleEmail || "—"} · Read-only import`
-                        : "Conecta tu Google para importar eventos como externos."}
+                      Próximamente. Lo activamos después de cerrar Google.
                     </div>
                   </div>
                 </div>
 
-                {!googleConnected && google?.error ? (
-                  <div style={styles.errorBox}>{google.error}</div>
-                ) : null}
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                }}
-              >
-                <span
-                  style={{
-                    ...styles.pill,
-                    ...(googleConnected ? styles.pillOk : styles.pillMuted),
-                  }}
-                >
-                  {googleConnected ? "Conectado ✅" : "No conectado"}
+                <span style={{ ...styles.pill, ...styles.pillSoftMuted }}>
+                  Próximamente
                 </span>
-
-                <button onClick={handleGoogleConnect} style={styles.primaryBtn}>
-                  {googleConnected ? "Reconectar" : "Conectar"}
-                </button>
-
-                <button
-                  onClick={handleGoogleSyncNow}
-                  style={{
-                    ...styles.secondaryBtn,
-                    opacity: !googleConnected ? 0.45 : 1,
-                    cursor: !googleConnected
-                      ? "not-allowed"
-                      : googleSyncing
-                      ? "progress"
-                      : "pointer",
-                  }}
-                  disabled={!googleConnected || googleSyncing}
-                  title={
-                    !googleConnected
-                      ? "Conecta Google para importar."
-                      : "Importar eventos desde Google"
-                  }
-                >
-                  {googleSyncing ? "Importando…" : "Importar ahora"}
-                </button>
               </div>
+            </div>
+          </section>
+
+          {/* EMAIL */}
+          <section style={styles.card}>
+            <div style={styles.sectionTitleRow}>
+              <div>
+                <div style={styles.sectionTitle}>
+                  Enviarme el resumen de hoy
+                </div>
+                <div style={styles.smallNote}>
+                  Te mando a tu correo los eventos de hoy (personales + del
+                  grupo activo).
+                </div>
+              </div>
+
+              <button
+                onClick={handleSendTodayDigestFromSettings}
+                style={{
+                  ...styles.primaryBtn,
+                  opacity: digestSending ? 0.7 : 1,
+                  cursor: digestSending ? "progress" : "pointer",
+                }}
+                disabled={digestSending}
+                title="Enviar resumen de hoy"
+              >
+                {digestSending ? "Enviando…" : "Probar resumen de hoy"}
+              </button>
             </div>
 
             <div style={styles.note}>
-              <b>Tip:</b> Sync trae 30 días atrás y 120 días adelante.
+              <b>Pro tip:</b> Esto te deja ver el valor “real” del producto sin
+              depender del calendario.
             </div>
-          </div>
+          </section>
 
-          {/* Microsoft card (placeholder) */}
-          <div style={{ ...styles.innerCard, opacity: 0.9 }}>
-            <div style={styles.innerTop}>
-              <div style={styles.innerTitleRow}>
-                <div
-                  style={{
-                    ...styles.appIcon,
-                    border: "1px solid rgba(148,163,184,0.35)",
-                    background: "rgba(148,163,184,0.10)",
-                  }}
-                >
-                  O
-                </div>
-                <div>
-                  <div style={styles.innerTitle}>Outlook / Microsoft 365</div>
-                  <div style={styles.innerSub}>
-                    Próximamente. Lo activamos después de cerrar Google.
-                  </div>
+          {booting ? (
+            <div style={styles.loadingCard}>
+              <div style={styles.loadingDot} />
+              <div>
+                <div style={styles.loadingTitle}>Cargando settings…</div>
+                <div style={styles.loadingSub}>
+                  Preferencias + conectores
                 </div>
               </div>
-
-              <span style={{ ...styles.pill, ...styles.pillSoftMuted }}>
-                Próximamente
-              </span>
             </div>
-          </div>
-        </section>
-
-        {/* EMAIL */}
-        <section style={styles.card}>
-          <div style={styles.sectionTitleRow}>
-            <div>
-              <div style={styles.sectionTitle}>Enviarme el resumen de hoy</div>
-              <div style={styles.smallNote}>
-                Te mando a tu correo los eventos de hoy (personales + del grupo
-                activo).
-              </div>
-            </div>
-
-            <button
-              onClick={handleSendTodayDigestFromSettings}
-              style={{
-                ...styles.primaryBtn,
-                opacity: digestSending ? 0.7 : 1,
-                cursor: digestSending ? "progress" : "pointer",
-              }}
-              disabled={digestSending}
-              title="Enviar resumen de hoy"
-            >
-              {digestSending ? "Enviando…" : "Probar resumen de hoy"}
-            </button>
-          </div>
-
-          <div style={styles.note}>
-            <b>Pro tip:</b> Esto te deja ver el valor “real” del producto sin
-            depender del calendario.
-          </div>
-        </section>
-
-        {booting ? (
-          <div style={styles.loadingCard}>
-            <div style={styles.loadingDot} />
-            <div>
-              <div style={styles.loadingTitle}>Cargando settings…</div>
-              <div style={styles.loadingSub}>Preferencias + conectores</div>
-            </div>
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
+      </MobileScaffold>
     </main>
   );
 }
@@ -668,9 +693,9 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.92)",
   },
   shell: {
-    maxWidth: 980,
-    margin: "0 auto",
-    padding: "22px 18px 48px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
   },
 
   toastWrap: {
