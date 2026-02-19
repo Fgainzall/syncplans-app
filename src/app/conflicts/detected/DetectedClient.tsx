@@ -5,7 +5,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import AppHero from "@/components/AppHero";
-import LogoutButton from "@/components/LogoutButton";
 
 import {
   CalendarEvent,
@@ -247,19 +246,17 @@ export default function DetectedClient() {
   return (
     <main style={styles.page}>
       <div style={styles.shell} className="spDet-shell">
-        <div style={styles.topRow} className="spDet-topRow">
-          <AppHero
-            mobileNav="bottom"
-            title="Conflictos"
-            subtitle={
-              summary.total === 0
-                ? "Tu agenda está sincronizada."
-                : "Detecta y resuelve choques de horario en segundos."
-            }
-          />
-          <LogoutButton />
-        </div>
-
+<div style={styles.topRow} className="spDet-topRow">
+  <AppHero
+    mobileNav="bottom"
+    title="Conflictos"
+    subtitle={
+      summary.total === 0
+        ? "Tu agenda está sincronizada."
+        : "Detecta y resuelve choques de horario en segundos."
+    }
+  />
+</div>
         {/* ✅ 1 card principal (hero) */}
         <section style={styles.hero} className="spDet-hero">
           <div style={styles.heroLeft}>
