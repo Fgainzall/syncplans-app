@@ -122,13 +122,17 @@ export default function EventsPage() {
   const upcomingAll = useMemo(() => {
     return [...events]
       .filter((e) => new Date(e.end).getTime() >= now)
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+      .sort(
+        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+      );
   }, [events, now]);
 
   const pastAll = useMemo(() => {
     return [...events]
       .filter((e) => new Date(e.end).getTime() < now)
-      .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
+      .sort(
+        (a, b) => new Date(b.start).getTime() - new Date(a.start).getTime()
+      );
   }, [events, now]);
 
   const baseAll = useMemo(() => {
@@ -192,7 +196,10 @@ export default function EventsPage() {
     };
 
     if (sameDay) {
-      return `${start.toLocaleDateString(undefined, optsDate)} · ${start.toLocaleTimeString(
+      return `${start.toLocaleDateString(
+        undefined,
+        optsDate
+      )} · ${start.toLocaleTimeString(
         undefined,
         optsTime
       )} — ${end.toLocaleTimeString(undefined, optsTime)}`;
@@ -222,7 +229,11 @@ export default function EventsPage() {
 
       const todaysEvents = events.filter((e) => {
         const s = new Date(e.start);
-        return s.getFullYear() === y && s.getMonth() === m && s.getDate() === d;
+        return (
+          s.getFullYear() === y &&
+          s.getMonth() === m &&
+          s.getDate() === d
+        );
       });
 
       if (todaysEvents.length === 0) {
@@ -265,7 +276,8 @@ export default function EventsPage() {
     } catch (err: any) {
       console.error("[sendTodayDigest] error", err);
       setToast(
-        err?.message || "No se pudo enviar el recordatorio. Intenta más tarde."
+        err?.message ||
+          "No se pudo enviar el recordatorio. Intenta más tarde."
       );
       window.setTimeout(() => setToast(null), 2600);
     } finally {
@@ -284,8 +296,8 @@ export default function EventsPage() {
       <div style={S.shell} className="spEvt-shell">
         {/* ✅ APP MODE en móvil: bottom bar + sin nav larga arriba */}
         <AppHero
-  title="Eventos"
-  subtitle="Tus eventos, sin ruido."
+          title="Eventos"
+          subtitle={headerSubtitle}
           mobileNav="bottom"
           rightSlot={
             <div style={S.topActions} className="spEvt-topActions">
@@ -299,7 +311,9 @@ export default function EventsPage() {
 
               <button
                 style={S.primary}
-                onClick={() => router.push("/events/new/details?type=personal")}
+                onClick={() =>
+                  router.push("/events/new/details?type=personal")
+                }
               >
                 + Evento
               </button>
@@ -391,7 +405,9 @@ export default function EventsPage() {
                             style={{ ...S.rowTitle, cursor: "pointer" }}
                             title="Editar evento"
                             onClick={() =>
-                              router.push(`/events/new/details?mode=edit&id=${e.id}`)
+                              router.push(
+                                `/events/new/details?mode=edit&id=${e.id}`
+                              )
                             }
                           >
                             {e.title}
@@ -401,7 +417,9 @@ export default function EventsPage() {
                             <button
                               style={S.edit}
                               onClick={() =>
-                                router.push(`/events/new/details?mode=edit&id=${e.id}`)
+                                router.push(
+                                  `/events/new/details?mode=edit&id=${e.id}`
+                                )
                               }
                               title="Editar"
                             >
@@ -431,7 +449,11 @@ export default function EventsPage() {
                 <button
                   style={S.seeMore}
                   className="spEvt-seeMore"
-                  onClick={() => setToast(`Mostrando solo ${LIST_LIMIT}. Usa buscar o cambia filtro.`)}
+                  onClick={() =>
+                    setToast(
+                      `Mostrando solo ${LIST_LIMIT}. Usa buscar o cambia filtro.`
+                    )
+                  }
                 >
                   Ver más ({visibleAll.length}) →
                 </button>
@@ -463,7 +485,8 @@ export default function EventsPage() {
 const S: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
-    background: "#050816",
+    background:
+      "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
   },
@@ -510,6 +533,7 @@ const S: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.03)",
     padding: 16,
     marginTop: 14,
+    boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
   },
 
   titleRow: {
@@ -661,7 +685,12 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 900,
   },
 
-  del: { border: "none", background: "transparent", cursor: "pointer", fontSize: 16 },
+  del: {
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    fontSize: 16,
+  },
   edit: {
     border: "none",
     background: "transparent",
