@@ -1,9 +1,11 @@
+// src/app/members/MembersClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import PremiumHeader from "@/components/PremiumHeader";
+import MobileScaffold from "@/components/MobileScaffold";
 import supabase from "@/lib/supabaseClient";
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import {
@@ -130,9 +132,7 @@ export default function MembersClient() {
         let enrichedRows: MemberRow[] = baseRows;
 
         try {
-          const userIds = Array.from(
-            new Set(baseRows.map((m) => m.user_id))
-          );
+          const userIds = Array.from(new Set(baseRows.map((m) => m.user_id)));
           if (userIds.length > 0) {
             const profiles: UserProfile[] = await getProfilesByIds(userIds);
             const mapById = new Map<string, UserProfile>(
@@ -195,95 +195,89 @@ export default function MembersClient() {
   const hasMembers = members.length > 0;
 
   return (
-    <main style={S.page}>
-      <div style={S.shell}>
-        <PremiumHeader
-          title="Miembros"
-          subtitle="Quién está dentro de tu grupo y qué rol tiene cada uno."
-        />
+    <MobileScaffold>
+      <PremiumHeader
+        title="Miembros"
+        subtitle="Quién está dentro de tu grupo y qué rol tiene cada uno."
+      />
 
-        {errorMsg && <div style={S.errorBox}>{errorMsg}</div>}
+      {errorMsg && <div style={S.errorBox}>{errorMsg}</div>}
 
-        {!hasAnyGroup ? (
-          <section style={S.emptyWrap}>
-            <div style={S.emptyCard}>
-              <div style={S.emptyTitle}>Aún no tienes grupos</div>
-              <div style={S.emptyText}>
-                Crea un grupo de <strong>Pareja</strong> o{" "}
-                <strong>Familia</strong> para empezar a invitar personas y
-                compartir tu calendario.
+      {!hasAnyGroup ? (
+        <section style={S.emptyWrap}>
+          <div style={S.emptyCard}>
+            <div style={S.emptyTitle}>Aún no tienes grupos</div>
+            <div style={S.emptyText}>
+              Crea un grupo de <strong>Pareja</strong> o{" "}
+              <strong>Familia</strong> para empezar a invitar personas y
+              compartir tu calendario.
+            </div>
+            <button
+              type="button"
+              style={S.primaryBtn}
+              onClick={() => router.push("/groups/new")}
+            >
+              Crear mi primer grupo
+            </button>
+          </div>
+        </section>
+      ) : (
+        <section style={S.card}>
+          <div style={S.cardHeader}>
+            <div>
+              <h2 style={S.cardTitle}>Miembros del grupo</h2>
+              <p style={S.cardSub}>
+                Gestiona quién forma parte de este grupo y revisa sus roles.
+              </p>
+            </div>
+
+            <div style={S.cardHeaderRight}>
+              <div style={S.selectWrap}>
+                <label style={S.selectLabel}>Grupo activo</label>
+                <select
+                  value={activeGroupId ?? ""}
+                  onChange={onChangeGroup}
+                  style={S.select}
+                >
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name || nombrePorTipo(g.type)}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <button
-                type="button"
-                style={S.primaryBtn}
-                onClick={() => router.push("/groups/new")}
-              >
-                Crear mi primer grupo
+
+              <button type="button" style={S.secondaryBtn} onClick={goToInvite}>
+                Invitar miembro
               </button>
             </div>
-          </section>
-        ) : (
-          <section style={S.card}>
-            <div style={S.cardHeader}>
-              <div>
-                <h2 style={S.cardTitle}>Miembros del grupo</h2>
-                <p style={S.cardSub}>
-                  Gestiona quién forma parte de este grupo y revisa sus roles.
-                </p>
-              </div>
+          </div>
 
-              <div style={S.cardHeaderRight}>
-                <div style={S.selectWrap}>
-                  <label style={S.selectLabel}>Grupo activo</label>
-                  <select
-                    value={activeGroupId ?? ""}
-                    onChange={onChangeGroup}
-                    style={S.select}
-                  >
-                    {groups.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name || nombrePorTipo(g.type)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <button type="button" style={S.secondaryBtn} onClick={goToInvite}>
-                  Invitar miembro
-                </button>
+          {loading && !hasMembers ? (
+            <div style={S.loadingText}>Cargando miembros…</div>
+          ) : !hasMembers ? (
+            <div style={S.membersEmpty}>
+              <div style={S.membersEmptyTitle}>
+                Aún no hay más miembros en este grupo
               </div>
+              <div style={S.membersEmptyText}>
+                En cuanto alguien acepte tu invitación, aparecerá aquí con su
+                rol asignado.
+              </div>
+              <button type="button" style={S.ghostBtn} onClick={goToInvite}>
+                Enviar primera invitación
+              </button>
             </div>
-
-            {loading && !hasMembers ? (
-              <div style={S.loadingText}>Cargando miembros…</div>
-            ) : !hasMembers ? (
-              <div style={S.membersEmpty}>
-                <div style={S.membersEmptyTitle}>
-                  Aún no hay más miembros en este grupo
-                </div>
-                <div style={S.membersEmptyText}>
-                  En cuanto alguien acepte tu invitación, aparecerá aquí con su
-                  rol asignado.
-                </div>
-                <button
-                  type="button"
-                  style={S.ghostBtn}
-                  onClick={goToInvite}
-                >
-                  Enviar primera invitación
-                </button>
-              </div>
-            ) : (
-              <div style={S.list}>
-                {members.map((m) => (
-                  <MemberRowView key={m.id} member={m} />
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-      </div>
-    </main>
+          ) : (
+            <div style={S.list}>
+              {members.map((m) => (
+                <MemberRowView key={m.id} member={m} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+    </MobileScaffold>
   );
 }
 
@@ -305,8 +299,7 @@ function memberDisplayName(member: MemberRow): string {
   if (member.isMe) return "Tú";
 
   const full = (
-    member.display_name ??
-    `${member.first_name ?? ""} ${member.last_name ?? ""}`
+    member.display_name ?? `${member.first_name ?? ""} ${member.last_name ?? ""}`
   ).trim();
 
   if (full) return full;
@@ -367,18 +360,6 @@ function nombrePorTipo(type: GroupRow["type"]): string {
 /* ────────────── Estilos ────────────── */
 
 const S: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#050816",
-    color: "rgba(248,250,252,0.98)",
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-  },
-  shell: {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: "22px 18px 48px",
-  },
-
   errorBox: {
     marginTop: 12,
     padding: 10,
