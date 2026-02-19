@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
-
+const AnyPremiumHeader = PremiumHeader as React.ComponentType<any>;
 import {
   CalendarEvent,
   GroupType,
@@ -275,7 +275,7 @@ export default function CompareClient() {
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-          <PremiumHeader />
+           <AnyPremiumHeader />
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
@@ -292,7 +292,7 @@ export default function CompareClient() {
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-          <PremiumHeader />
+          <AnyPremiumHeader />
           <section style={styles.emptyCard}>
             <div style={styles.emptyTitle}>No hay conflictos</div>
             <div style={styles.emptySub}>
@@ -318,7 +318,7 @@ export default function CompareClient() {
     <main style={styles.page}>
       <div style={styles.shell}>
         <div style={styles.topRow}>
-          <PremiumHeader />
+          <AnyPremiumHeader />
           <div style={styles.topActions}>
             <button onClick={goList} style={styles.ghostBtn}>
               ← Lista
