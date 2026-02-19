@@ -1,7 +1,10 @@
 // src/app/pricing/page.tsx
 import React from "react";
 import Link from "next/link";
+
 import PremiumHeader from "@/components/PremiumHeader";
+import LogoutButton from "@/components/LogoutButton";
+import MobileScaffold from "@/components/MobileScaffold";
 
 const featuresFree = [
   "Calendario personal básico",
@@ -27,256 +30,278 @@ const featuresYearly = [
 export default function PricingPage() {
   return (
     <main style={S.page}>
-      <div style={S.shell}>
-        <PremiumHeader
-          title="Planes"
-          subtitle="SyncPlans no es otro calendario: es el árbitro neutral de tu tiempo compartido."
-        />
-
-        <div style={S.content}>
-          {/* Cinta demo premium */}
-          <div style={S.banner}>
-            <span style={S.bannerStrong}>Demo Premium activo · </span>
-            <span>
-              Estás en la beta privada de SyncPlans. Hoy todos los usuarios
-              tienen acceso a funciones Premium sin costo ni tarjeta. Cuando
-              activemos los pagos, podrás elegir si quedarte en el plan Gratis
-              o pasar a Premium (mensual o anual) con total claridad de precios.
-            </span>
+      <MobileScaffold
+        maxWidth={1120}
+        paddingDesktop="22px 18px 48px"
+        paddingMobile="18px 14px 64px"
+        mobileBottomSafe={96}
+      >
+        <div style={S.shell}>
+          {/* Header premium + logout, como en el resto de la app */}
+          <div style={S.topRow}>
+            <PremiumHeader
+              title="Planes"
+              subtitle="SyncPlans no es otro calendario: es el árbitro neutral de tu tiempo compartido."
+            />
+            <LogoutButton />
           </div>
 
-          {/* Hero centrado */}
-          <section style={S.hero}>
-            <p style={S.heroKicker}>PLANES DE SYNCPLANS</p>
-            <h1 style={S.heroTitle}>
-              Coordinar horarios no debería ser un motivo de pelea.
-            </h1>
-            <p style={S.heroCopy}>
-              SyncPlans no compite con tu calendario de siempre. Lo que hace es
-              poner en un solo lugar los planes compartidos y mostrar los
-              choques antes de que se transformen en un “yo pensé que era otro
-              día” o “nunca vi ese mensaje”.
-            </p>
-          </section>
-
-          {/* Etiquetas arriba de los precios */}
-          <section style={S.ribbonRow}>
-            <div style={S.recommendedPill}>
-              <span style={S.recommendedTag}>RECOMENDADO</span>
-              <span style={S.recommendedText}>
-                Plan anual: ~2 meses gratis frente al mensual ☕
+          <div style={S.content}>
+            {/* Cinta demo premium */}
+            <div style={S.banner}>
+              <span style={S.bannerStrong}>Demo Premium activo · </span>
+              <span>
+                Estás en la beta privada de SyncPlans. Hoy todos los usuarios
+                tienen acceso a funciones Premium sin costo ni tarjeta. Cuando
+                activemos los pagos, podrás elegir si quedarte en el plan Gratis
+                o pasar a Premium (mensual o anual) con total claridad de
+                precios.
               </span>
             </div>
-            <div style={S.pricesHint}>
-              Precios en <strong>USD</strong> · impuestos pueden variar según tu
-              país
-            </div>
-          </section>
 
-          {/* FILA DE PLANES, CENTRADA */}
-          <section style={S.plansRow}>
-            {/* Gratis */}
-            <article style={S.card}>
-              <div style={S.cardHeaderLine}>GRATIS</div>
-              <h2 style={S.cardTitle}>Plan Básico</h2>
-              <p style={S.cardCopy}>
-                Para probar la idea con tu pareja o familia, sin compromiso y
-                usando tus planes reales del día a día.
+            {/* Hero centrado */}
+            <section style={S.hero}>
+              <p style={S.heroKicker}>PLANES DE SYNCPLANS</p>
+              <h1 style={S.heroTitle}>
+                Coordinar horarios no debería ser un motivo de pelea.
+              </h1>
+              <p style={S.heroCopy}>
+                SyncPlans no compite con tu calendario de siempre. Lo que hace
+                es poner en un solo lugar los planes compartidos y mostrar los
+                choques antes de que se transformen en un “yo pensé que era otro
+                día” o “nunca vi ese mensaje”.
               </p>
+            </section>
 
-              <div style={S.priceRow}>
-                <span style={S.priceMain}>US$0</span>
-                <span style={S.priceSuffix}>/ mes</span>
+            {/* Etiquetas arriba de los precios */}
+            <section style={S.ribbonRow}>
+              <div style={S.recommendedPill}>
+                <span style={S.recommendedTag}>RECOMENDADO</span>
+                <span style={S.recommendedText}>
+                  Plan anual: ~2 meses gratis frente al mensual ☕
+                </span>
+              </div>
+              <div style={S.pricesHint}>
+                Precios en <strong>USD</strong> · impuestos pueden variar según
+                tu país
+              </div>
+            </section>
+
+            {/* FILA DE PLANES, CENTRADA */}
+            <section style={S.plansRow}>
+              {/* Gratis */}
+              <article style={S.card}>
+                <div style={S.cardHeaderLine}>GRATIS</div>
+                <h2 style={S.cardTitle}>Plan Básico</h2>
+                <p style={S.cardCopy}>
+                  Para probar la idea con tu pareja o familia, sin compromiso y
+                  usando tus planes reales del día a día.
+                </p>
+
+                <div style={S.priceRow}>
+                  <span style={S.priceMain}>US$0</span>
+                  <span style={S.priceSuffix}>/ mes</span>
+                </div>
+
+                <ul style={S.featuresList}>
+                  {featuresFree.map((item) => (
+                    <li key={item} style={S.featureItem}>
+                      <span style={S.featureDot} />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div style={S.cardFooter}>
+                  <Link href="/register" style={S.cardGhostButton}>
+                    Empezar gratis
+                  </Link>
+                  <p style={S.betaHintFree}>
+                    Durante la beta usas SyncPlans gratis, sin tarjeta. Luego
+                    puedes quedarte en este plan sin pagar.
+                  </p>
+                </div>
+              </article>
+
+              {/* Mensual */}
+              <article style={{ ...S.card, ...S.cardHighlight }}>
+                <div style={S.cardHeadRow}>
+                  <div style={{ ...S.cardHeaderLine, color: "#fecaca" }}>
+                    PREMIUM
+                  </div>
+                  <div style={S.cardBadge}>PLAN PRINCIPAL</div>
+                </div>
+
+                <h2 style={{ ...S.cardTitle, color: "#fee2e2" }}>
+                  Plan Mensual
+                </h2>
+                <p style={{ ...S.cardCopy, color: "rgba(254,226,226,0.85)" }}>
+                  Para parejas, familias y grupos que de verdad usan SyncPlans
+                  como su lugar oficial para coordinar.
+                </p>
+
+                <div style={S.priceRow}>
+                  <span style={{ ...S.priceMain, color: "#fee2e2" }}>
+                    US$6.90
+                  </span>
+                  <span style={{ ...S.priceSuffix, color: "#fee2e2" }}>
+                    / mes
+                  </span>
+                </div>
+                <p style={S.priceNote}>
+                  Menos que una salida simple al mes a cambio de tener paz con
+                  tu agenda compartida y menos fricción en las conversaciones.
+                </p>
+
+                <ul
+                  style={{
+                    ...S.featuresList,
+                    color: "rgba(254,226,226,0.92)",
+                  }}
+                >
+                  {featuresMonthly.map((item) => (
+                    <li key={item} style={S.featureItem}>
+                      <span
+                        style={{ ...S.featureDot, background: "#fecaca" }}
+                      />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div style={S.cardFooter}>
+                  {/* CTA listo para futuro Paddle: de momento deshabilitado */}
+                  <button type="button" style={S.cardPrimaryButton} disabled>
+                    Demo Premium activo
+                  </button>
+                  <p style={S.betaHint}>
+                    Durante la beta no se te cobra. Después podrás activar o no
+                    tu suscripción mensual desde aquí.
+                  </p>
+                </div>
+              </article>
+
+              {/* Anual */}
+              <article style={{ ...S.card, ...S.cardAnnual }}>
+                <div style={S.cardHeadRow}>
+                  <div style={{ ...S.cardHeaderLine, color: "#bae6fd" }}>
+                    PREMIUM
+                  </div>
+                  <div style={S.cardBadgeSky}>~2 MESES GRATIS</div>
+                </div>
+
+                <h2 style={{ ...S.cardTitle, color: "#e0f2fe" }}>
+                  Plan Anual
+                </h2>
+                <p style={{ ...S.cardCopy, color: "rgba(224,242,254,0.90)" }}>
+                  Para quienes ya vieron el valor y prefieren pagar una vez al
+                  año, olvidarse del cobro mensual y asegurar el precio.
+                </p>
+
+                <div style={S.priceRow}>
+                  <span style={{ ...S.priceMain, color: "#e0f2fe" }}>
+                    US$69
+                  </span>
+                  <span style={{ ...S.priceSuffix, color: "#e0f2fe" }}>
+                    / año
+                  </span>
+                </div>
+
+                <p style={S.priceNoteSky}>
+                  Equivalente a ~US$5.75 al mes. Aproximadamente 2 meses gratis
+                  frente al plan mensual y un compromiso claro con cómo coordinas
+                  tu tiempo.
+                </p>
+
+                <ul
+                  style={{
+                    ...S.featuresList,
+                    color: "rgba(224,242,254,0.92)",
+                  }}
+                >
+                  {featuresYearly.map((item) => (
+                    <li key={item} style={S.featureItem}>
+                      <span
+                        style={{ ...S.featureDot, background: "#7dd3fc" }}
+                      />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div style={S.cardFooter}>
+                  <button type="button" style={S.cardOutlineButton} disabled>
+                    Disponible después de la beta
+                  </button>
+                  <p style={S.betaHintSky}>
+                    Cuando lancemos, este será el plan recomendado para parejas y
+                    familias que usan SyncPlans todos los días.
+                  </p>
+                </div>
+              </article>
+            </section>
+
+            {/* Bloques cortos explicativos */}
+            <section style={S.infoGrid}>
+              <div style={S.infoCard}>
+                <h3 style={S.infoTitle}>¿Para quién es SyncPlans?</h3>
+                <p style={S.infoText}>
+                  Para personas que coordinan con otros: parejas que ya no
+                  quieren discusiones por horarios, familias que hacen malabares
+                  con cole, trabajo y viajes, y grupos de amigos o equipos que
+                  quieren mantener vivos los planes sin 200 mensajes cruzados.
+                </p>
               </div>
 
-              <ul style={S.featuresList}>
-                {featuresFree.map((item) => (
-                  <li key={item} style={S.featureItem}>
-                    <span style={S.featureDot} />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+              <div style={S.infoCard}>
+                <h3 style={S.infoTitle}>
+                  ¿Por qué no basta con WhatsApp y un calendario normal?
+                </h3>
+                <p style={S.infoText}>
+                  WhatsApp sirve para hablar, pero no para ver el impacto de un
+                  cambio en todo el grupo. Un calendario individual solo ve tu
+                  agenda. SyncPlans cruza las agendas compartidas, detecta
+                  choques al guardar y te obliga a decidir antes de que el
+                  problema llegue a la conversación.
+                </p>
+              </div>
 
-              <div style={S.cardFooter}>
-                <Link href="/register" style={S.cardGhostButton}>
-                  Empezar gratis
+              <div style={S.infoCard}>
+                <h3 style={S.infoTitle}>Beta, Premium y grupo fundador</h3>
+                <p style={S.infoText}>
+                  Durante la beta, usas SyncPlans con acceso Premium completo y
+                  precio US$0. Cuando lancemos, podrás quedarte en el plan Gratis
+                  o pasar al Premium mensual (US$6.90) o anual (US$69). Si
+                  Fernando te invitó como parte del grupo fundador, verás un
+                  precio especial de aproximadamente US$3.90/mes o US$39/año
+                  mientras mantengas el plan activo: es nuestra forma de
+                  agradecer a quienes ayudaron a construir la versión real del
+                  producto.
+                </p>
+              </div>
+            </section>
+
+            {/* CTA final */}
+            <section style={S.cta}>
+              <div style={S.ctaTextCol}>
+                <h3 style={S.ctaTitle}>Empieza ahora, sin tarjeta.</h3>
+                <p style={S.ctaCopy}>
+                  Crea tu cuenta, invita a tu pareja o familia y mete los planes
+                  reales de las próximas semanas. El verdadero valor se siente
+                  cuando aparece el primer conflicto que ves a tiempo y la
+                  conversación cambia de “por qué no me avisaste” a “qué hacemos
+                  con esto”.
+                </p>
+              </div>
+              <div style={S.ctaActions}>
+                <Link href="/register" style={S.ctaPrimary}>
+                  Crear cuenta gratis
                 </Link>
-               <p style={S.betaHintFree}>
-  Durante la beta usas SyncPlans gratis, sin tarjeta. Luego puedes
-  quedarte en este plan sin pagar.
-</p>
-
               </div>
-            </article>
-
-            {/* Mensual */}
-            <article style={{ ...S.card, ...S.cardHighlight }}>
-              <div style={S.cardHeadRow}>
-                <div style={{ ...S.cardHeaderLine, color: "#fecaca" }}>
-                  PREMIUM
-                </div>
-                <div style={S.cardBadge}>PLAN PRINCIPAL</div>
-              </div>
-
-              <h2 style={{ ...S.cardTitle, color: "#fee2e2" }}>
-                Plan Mensual
-              </h2>
-              <p style={{ ...S.cardCopy, color: "rgba(254,226,226,0.85)" }}>
-                Para parejas, familias y grupos que de verdad usan SyncPlans
-                como su lugar oficial para coordinar.
-              </p>
-
-              <div style={S.priceRow}>
-                <span style={{ ...S.priceMain, color: "#fee2e2" }}>
-                  US$6.90
-                </span>
-                <span style={{ ...S.priceSuffix, color: "#fee2e2" }}>
-                  / mes
-                </span>
-              </div>
-              <p style={S.priceNote}>
-                Menos que una salida simple al mes a cambio de tener paz con tu
-                agenda compartida y menos fricción en las conversaciones.
-              </p>
-
-              <ul style={{ ...S.featuresList, color: "rgba(254,226,226,0.92)" }}>
-                {featuresMonthly.map((item) => (
-                  <li key={item} style={S.featureItem}>
-                    <span
-                      style={{ ...S.featureDot, background: "#fecaca" }}
-                    />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div style={S.cardFooter}>
-                {/* CTA listo para futuro Paddle: de momento deshabilitado */}
-                <button type="button" style={S.cardPrimaryButton} disabled>
-                  Demo Premium activo
-                </button>
-                <p style={S.betaHint}>
-  Durante la beta no se te cobra. Después podrás activar o no tu
-  suscripción mensual desde aquí.
-</p>
-
-              </div>
-            </article>
-
-            {/* Anual */}
-            <article style={{ ...S.card, ...S.cardAnnual }}>
-              <div style={S.cardHeadRow}>
-                <div style={{ ...S.cardHeaderLine, color: "#bae6fd" }}>
-                  PREMIUM
-                </div>
-                <div style={S.cardBadgeSky}>~2 MESES GRATIS</div>
-              </div>
-
-              <h2 style={{ ...S.cardTitle, color: "#e0f2fe" }}>Plan Anual</h2>
-              <p style={{ ...S.cardCopy, color: "rgba(224,242,254,0.90)" }}>
-                Para quienes ya vieron el valor y prefieren pagar una vez al
-                año, olvidarse del cobro mensual y asegurar el precio.
-              </p>
-
-              <div style={S.priceRow}>
-                <span style={{ ...S.priceMain, color: "#e0f2fe" }}>
-                  US$69
-                </span>
-                <span style={{ ...S.priceSuffix, color: "#e0f2fe" }}>
-                  / año
-                </span>
-              </div>
-
-              <p style={S.priceNoteSky}>
-                Equivalente a ~US$5.75 al mes. Aproximadamente 2 meses gratis
-                frente al plan mensual y un compromiso claro con cómo coordinas
-                tu tiempo.
-              </p>
-
-              <ul style={{ ...S.featuresList, color: "rgba(224,242,254,0.92)" }}>
-                {featuresYearly.map((item) => (
-                  <li key={item} style={S.featureItem}>
-                    <span
-                      style={{ ...S.featureDot, background: "#7dd3fc" }}
-                    />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div style={S.cardFooter}>
-                <button type="button" style={S.cardOutlineButton} disabled>
-                  Disponible después de la beta
-                </button>
-               <p style={S.betaHintSky}>
-  Cuando lancemos, este será el plan recomendado para parejas y
-  familias que usan SyncPlans todos los días.
-</p>
-
-              </div>
-            </article>
-          </section>
-
-          {/* Bloques cortos explicativos */}
-          <section style={S.infoGrid}>
-            <div style={S.infoCard}>
-              <h3 style={S.infoTitle}>¿Para quién es SyncPlans?</h3>
-              <p style={S.infoText}>
-                Para personas que coordinan con otros: parejas que ya no quieren
-                discusiones por horarios, familias que hacen malabares con cole,
-                trabajo y viajes, y grupos de amigos o equipos que quieren
-                mantener vivos los planes sin 200 mensajes cruzados.
-              </p>
-            </div>
-
-            <div style={S.infoCard}>
-              <h3 style={S.infoTitle}>
-                ¿Por qué no basta con WhatsApp y un calendario normal?
-              </h3>
-              <p style={S.infoText}>
-                WhatsApp sirve para hablar, pero no para ver el impacto de un
-                cambio en todo el grupo. Un calendario individual solo ve tu
-                agenda. SyncPlans cruza las agendas compartidas, detecta choques
-                al guardar y te obliga a decidir antes de que el problema llegue
-                a la conversación.
-              </p>
-            </div>
-
-            <div style={S.infoCard}>
-              <h3 style={S.infoTitle}>Beta, Premium y grupo fundador</h3>
-              <p style={S.infoText}>
-                Durante la beta, usas SyncPlans con acceso Premium completo y
-                precio US$0. Cuando lancemos, podrás quedarte en el plan Gratis
-                o pasar al Premium mensual (US$6.90) o anual (US$69). Si
-                Fernando te invitó como parte del grupo fundador, verás un
-                precio especial de aproximadamente US$3.90/mes o US$39/año
-                mientras mantengas el plan activo: es nuestra forma de agradecer
-                a quienes ayudaron a construir la versión real del producto.
-              </p>
-            </div>
-          </section>
-
-          {/* CTA final */}
-          <section style={S.cta}>
-            <div style={S.ctaTextCol}>
-              <h3 style={S.ctaTitle}>Empieza ahora, sin tarjeta.</h3>
-              <p style={S.ctaCopy}>
-                Crea tu cuenta, invita a tu pareja o familia y mete los planes
-                reales de las próximas semanas. El verdadero valor se siente
-                cuando aparece el primer conflicto que ves a tiempo y la
-                conversación cambia de “por qué no me avisaste” a “qué hacemos
-                con esto”.
-              </p>
-            </div>
-            <div style={S.ctaActions}>
-              <Link href="/register" style={S.ctaPrimary}>
-                Crear cuenta gratis
-              </Link>
-            </div>
-          </section>
+            </section>
+          </div>
         </div>
-      </div>
+      </MobileScaffold>
     </main>
   );
 }
@@ -290,12 +315,18 @@ const S: Record<string, React.CSSProperties> = {
       "system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
   },
   shell: {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: "22px 18px 48px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 18,
+  },
+  topRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
   },
   content: {
-    marginTop: 18,
     display: "flex",
     flexDirection: "column",
     gap: 22,
@@ -387,18 +418,17 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: "stretch",
     gap: 16,
   },
-card: {
-  flex: "1 1 260px",
-  maxWidth: 340,
-  minHeight: 360, // 👈 NUEVO: todas las tarjetas como mínimo del mismo alto
-  borderRadius: 22,
-  border: "1px solid rgba(148,163,184,0.35)",
-  background: "rgba(15,23,42,0.95)",
-  padding: 16,
-  display: "flex",
-  flexDirection: "column",
-},
-
+  card: {
+    flex: "1 1 260px",
+    maxWidth: 340,
+    minHeight: 360,
+    borderRadius: 22,
+    border: "1px solid rgba(148,163,184,0.35)",
+    background: "rgba(15,23,42,0.95)",
+    padding: 16,
+    display: "flex",
+    flexDirection: "column",
+  },
   cardHighlight: {
     border: "1px solid rgba(248,113,113,0.85)",
     background:
@@ -545,27 +575,24 @@ card: {
     fontWeight: 800,
     cursor: "not-allowed",
   },
-betaHint: {
-  marginTop: 6,
-  fontSize: 10,
-  lineHeight: 1.3,
-  color: "rgba(254,226,226,0.85)",
-},
-
-betaHintSky: {
-  marginTop: 6,
-  fontSize: 10,
-  lineHeight: 1.3,
-  color: "rgba(224,242,254,0.9)",
-},
-
-betaHintFree: {
-  marginTop: 6,
-  fontSize: 10,
-  lineHeight: 1.3,
-  color: "rgba(209,213,219,0.9)",
-},
-
+  betaHint: {
+    marginTop: 6,
+    fontSize: 10,
+    lineHeight: 1.3,
+    color: "rgba(254,226,226,0.85)",
+  },
+  betaHintSky: {
+    marginTop: 6,
+    fontSize: 10,
+    lineHeight: 1.3,
+    color: "rgba(224,242,254,0.9)",
+  },
+  betaHintFree: {
+    marginTop: 6,
+    fontSize: 10,
+    lineHeight: 1.3,
+    color: "rgba(209,213,219,0.9)",
+  },
 
   // Info blocks
   infoGrid: {
