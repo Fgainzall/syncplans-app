@@ -227,9 +227,7 @@ export default function CalendarClient(props: {
     useState<null | { title: string; subtitle?: string }>(null);
 
   /* ✏️ ESTADO DEL MODAL DE EDICIÓN */
-  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(
-    null,
-  );
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
 
   const handleEditEvent = useCallback((e: CalendarEvent) => {
@@ -762,19 +760,19 @@ export default function CalendarClient(props: {
       )}
 
       <div style={styles.shell} className="spCal-shell">
-{/* ✅ Sticky top */}
-<div style={styles.stickyTop}>
-  <AppHero
-    mobileNav={isMobile ? "bottom" : "top"}
-    title="Calendario"
-    subtitle="Organiza tu tiempo sin fricción."
-    rightSlot={
-      <button onClick={handleRefresh} style={styles.ghostBtn}>
-        Actualizar
-      </button>
-    }
-  />
-</div>
+        {/* ✅ Sticky top */}
+        <div style={styles.stickyTop}>
+          <AppHero
+            mobileNav={isMobile ? "bottom" : "top"}
+            title="Calendario"
+            subtitle="Organiza tu tiempo sin fricción."
+            rightSlot={
+              <button onClick={handleRefresh} style={styles.ghostBtn}>
+                Actualizar
+              </button>
+            }
+          />
+        </div>
 
         {/* HERO premium */}
         <section style={styles.hero} className="spCal-hero">
@@ -961,7 +959,10 @@ export default function CalendarClient(props: {
             style={styles.calendarCard}
             className="spCal-calendarCard"
           >
-            <div className="spCal-monthScroller">
+            <div
+              className="spCal-monthScroller"
+              style={styles.monthScroller}
+            >
               <div
                 style={styles.weekHeader}
                 className="spCal-weekHeader"
@@ -1578,10 +1579,20 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: "hidden",
     boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
   },
+
+  // ✅ NUEVO: contenedor scroll horizontal del mes
+  monthScroller: {
+    overflowX: "auto",
+    overflowY: "hidden",
+    WebkitOverflowScrolling: "touch",
+  },
+
   weekHeader: {
     display: "grid",
     gridTemplateColumns: "repeat(7, 1fr)",
     padding: "10px 10px 0",
+    // ✅ MIN WIDTH para que en móvil sea más ancho que la pantalla
+    minWidth: 720,
   },
   weekDay: {
     padding: "10px 10px",
@@ -1595,6 +1606,8 @@ const styles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: "repeat(7, 1fr)",
     gap: 10,
     padding: 10,
+    // ✅ MIN WIDTH alineado con weekHeader
+    minWidth: 720,
   },
 
   cell: {
