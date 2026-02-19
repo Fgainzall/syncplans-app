@@ -168,19 +168,21 @@ function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
   if (!gt) return "personal" as GroupType;
   return (gt === ("pair" as any) ? ("couple" as any) : gt) as GroupType;
 }
-
-/* =========================
-   COMPONENTE PRINCIPAL
-   ========================= */
-export default function CalendarClient(props: {
-  highlightId: string | null;
-  appliedToast: null | {
+type CalendarClientProps = {
+  highlightId?: string | null;
+  appliedToast?: {
     deleted: number;
     skipped: number;
     appliedCount: number;
-  };
-}) {
-  const { highlightId, appliedToast } = props;
+  } | null;
+};
+/* =========================
+   COMPONENTE PRINCIPAL
+   ========================= */
+export default function CalendarClient({
+  highlightId = null,
+  appliedToast = null,
+}: CalendarClientProps) {
 
   const router = useRouter();
   const pathname = usePathname();
