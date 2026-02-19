@@ -348,7 +348,7 @@ export function EventEditModal({
                         {g.hint}
                       </div>
                     </div>
-                    {on && (
+                    {on && ( 
                       <span
                         style={{
                           marginLeft: "auto",
