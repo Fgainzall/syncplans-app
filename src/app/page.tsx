@@ -44,9 +44,9 @@ export default function HomePage() {
       {/* Glow */}
       <div aria-hidden style={S.glow} />
 
-      <section style={S.shell}>
+      <section style={S.shell} className="sp-shell">
         {/* Top bar */}
-        <div style={S.topRow}>
+        <div style={S.topRow} className="sp-topRow">
           <div style={S.brandPill}>
             <span style={S.brandDot} />
             SyncPlans
@@ -54,26 +54,31 @@ export default function HomePage() {
           </div>
 
           <button
-            onClick={() => router.push(`/auth/login?next=${nextAfterAuth}`)}
+            onClick={() =>
+              router.push(`/auth/login?next=${nextAfterAuth}`)
+            }
             style={S.topBtn}
+            className="sp-topBtn"
           >
             Iniciar sesión
           </button>
         </div>
 
         {/* Responsive grid: 2 cols desktop / 1 col mobile */}
-        <div style={S.grid}>
+        <div style={S.grid} className="sp-grid">
           {/* Left: Hero */}
           <div style={S.leftCard}>
-            <h1 style={S.h1}>
+            <h1 style={S.h1} className="sp-h1">
               Compartan su tiempo{" "}
               <span style={S.h1Gradient}>sin discutir por él</span>.
             </h1>
 
-            <p style={S.lead}>
+            <p style={S.lead} className="sp-lead">
               SyncPlans detecta choques, organiza decisiones y mantiene{" "}
-              <b style={{ color: "#E5E7EB" }}>una sola versión de la verdad</b>.
-              Especialmente cuando tu agenda se cruza con la de tu pareja.
+              <b style={{ color: "#E5E7EB" }}>
+                una sola versión de la verdad
+              </b>
+              . Especialmente cuando tu agenda se cruza con la de tu pareja.
             </p>
 
             <div style={{ display: "grid", gap: 10, marginBottom: 16 }}>
@@ -92,35 +97,48 @@ export default function HomePage() {
             </div>
 
             {/* CTA */}
-            <div style={S.ctaRow}>
+            <div style={S.ctaRow} className="sp-ctaRow">
               <button
-                onClick={() => router.push(`/auth/register?next=${nextAfterAuth}`)}
+                onClick={() =>
+                  router.push(`/auth/register?next=${nextAfterAuth}`)
+                }
                 style={S.primaryCta}
+                className="sp-primaryCta"
               >
                 Crear cuenta
               </button>
 
               <button
-                onClick={() => router.push(`/onboarding/1?next=${nextAfterAuth}`)}
+                onClick={() =>
+                  router.push(`/onboarding/1?next=${nextAfterAuth}`)
+                }
                 style={S.secondaryCta}
+                className="sp-secondaryCta"
               >
                 Ver cómo funciona
               </button>
 
-              <div style={S.micro}>Toma 60 segundos.</div>
+              <div style={S.micro} className="sp-micro">
+                Toma 60 segundos.
+              </div>
             </div>
 
             <div style={S.note}>
-              También sirve para <b style={{ color: "#CBD5E1" }}>familia</b> y{" "}
-              <b style={{ color: "#CBD5E1" }}>grupos</b>. Pero primero: parejas
-              ocupadas.
+              También sirve para{" "}
+              <b style={{ color: "#CBD5E1" }}>familia</b> y{" "}
+              <b style={{ color: "#CBD5E1" }}>grupos</b>. Pero primero:
+              parejas ocupadas.
             </div>
           </div>
 
           {/* Right: Preview */}
           <PreviewCard
-            onPrimary={() => router.push(`/auth/register?next=${nextAfterAuth}`)}
-            onSecondary={() => router.push(`/auth/login?next=${nextAfterAuth}`)}
+            onPrimary={() =>
+              router.push(`/auth/register?next=${nextAfterAuth}`)
+            }
+            onSecondary={() =>
+              router.push(`/auth/login?next=${nextAfterAuth}`)
+            }
           />
         </div>
 
@@ -132,7 +150,9 @@ export default function HomePage() {
             <Chip>✅ Una sola verdad</Chip>
           </div>
 
-          <div style={S.quote}>“Yo pensé que era otro día” — nunca más.</div>
+          <div style={S.quote}>
+            “Yo pensé que era otro día” — nunca más.
+          </div>
         </div>
       </section>
 
@@ -140,20 +160,45 @@ export default function HomePage() {
       <style>{`
         /* Mobile first */
         @media (max-width: 860px) {
-          .sp-shell { padding: 20px 16px !important; border-radius: 22px !important; }
-          .sp-grid { grid-template-columns: 1fr !important; }
-          .sp-h1 { font-size: 34px !important; }
-          .sp-lead { font-size: 15px !important; max-width: 100% !important; }
-          .sp-topRow { flex-wrap: wrap !important; gap: 10px !important; }
-          .sp-topBtn { height: 36px !important; }
-          .sp-ctaRow { flex-direction: column !important; align-items: stretch !important; }
-          .sp-primaryCta, .sp-secondaryCta { width: 100% !important; }
-          .sp-micro { margin-left: 0 !important; }
+          .sp-shell {
+            padding: 20px 16px !important;
+            border-radius: 22px !important;
+          }
+          .sp-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .sp-h1 {
+            font-size: 34px !important;
+          }
+          .sp-lead {
+            font-size: 15px !important;
+            max-width: 100% !important;
+          }
+          .sp-topRow {
+            flex-wrap: wrap !important;
+            gap: 10px !important;
+          }
+          .sp-topBtn {
+            height: 36px !important;
+          }
+          .sp-ctaRow {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .sp-primaryCta,
+          .sp-secondaryCta {
+            width: 100% !important;
+          }
+          .sp-micro {
+            margin-left: 0 !important;
+          }
         }
 
         /* Very small phones */
         @media (max-width: 380px) {
-          .sp-h1 { font-size: 30px !important; }
+          .sp-h1 {
+            font-size: 30px !important;
+          }
         }
       `}</style>
     </main>
@@ -176,7 +221,10 @@ function Chip({ children }: { children: React.ReactNode }) {
   return <span style={S.chip}>{children}</span>;
 }
 
-function PreviewCard(props: { onPrimary: () => void; onSecondary: () => void }) {
+function PreviewCard(props: {
+  onPrimary: () => void;
+  onSecondary: () => void;
+}) {
   const days = useMemo(() => ["L", "M", "M", "J", "V", "S", "D"], []);
 
   return (
@@ -212,17 +260,26 @@ function PreviewCard(props: { onPrimary: () => void; onSecondary: () => void }) 
           border="rgba(250,204,21,0.20)"
         />
         <div style={S.conflictCard}>
-          ✨ <b style={{ color: "#E5E7EB" }}>SyncPlans detectó un choque</b> y te
-          pidió decidir antes de guardar.
+          ✨{" "}
+          <b style={{ color: "#E5E7EB" }}>
+            SyncPlans detectó un choque
+          </b>{" "}
+          y te pidió decidir antes de guardar.
         </div>
       </div>
 
       <div style={S.previewButtons}>
-        <button onClick={props.onPrimary} style={S.previewPrimary}>
+        <button
+          onClick={props.onPrimary}
+          style={S.previewPrimary}
+        >
           Empezar
         </button>
 
-        <button onClick={props.onSecondary} style={S.previewSecondary}>
+        <button
+          onClick={props.onSecondary}
+          style={S.previewSecondary}
+        >
           Ya tengo cuenta
         </button>
       </div>
@@ -252,7 +309,13 @@ function QuickEvent(props: {
         gap: 12,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
         <span
           style={{
             width: 10,
@@ -262,7 +325,13 @@ function QuickEvent(props: {
             boxShadow: `0 0 0 6px ${props.dot}22`,
           }}
         />
-        <div style={{ fontWeight: 900, fontSize: 13, color: "#E5E7EB" }}>
+        <div
+          style={{
+            fontWeight: 900,
+            fontSize: 13,
+            color: "#E5E7EB",
+          }}
+        >
           {props.title}
         </div>
       </div>
@@ -339,7 +408,10 @@ const S: Record<string, React.CSSProperties> = {
     boxShadow: "0 0 0 6px rgba(34,197,94,0.14)",
   },
 
-  brandHint: { color: "#94A3B8", fontWeight: 700 },
+  brandHint: {
+    color: "#94A3B8",
+    fontWeight: 700,
+  },
 
   topBtn: {
     height: 34,
@@ -408,9 +480,17 @@ const S: Record<string, React.CSSProperties> = {
     flex: "0 0 auto",
   },
 
-  valueTitle: { fontSize: 13, fontWeight: 900, color: "#E5E7EB" },
+  valueTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "#E5E7EB",
+  },
 
-  valueSub: { fontSize: 12, lineHeight: 1.55, color: "#9CA3AF" },
+  valueSub: {
+    fontSize: 12,
+    lineHeight: 1.55,
+    color: "#9CA3AF",
+  },
 
   ctaRow: {
     display: "flex",
@@ -474,7 +554,11 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 12,
   },
 
-  chipsRow: { display: "flex", gap: 10, flexWrap: "wrap" },
+  chipsRow: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  },
 
   chip: {
     display: "inline-flex",
@@ -487,7 +571,10 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 800,
   },
 
-  quote: { color: "#94A3B8", fontWeight: 700 },
+  quote: {
+    color: "#94A3B8",
+    fontWeight: 700,
+  },
 
   previewCard: {
     borderRadius: 22,
@@ -536,7 +623,11 @@ const S: Record<string, React.CSSProperties> = {
     lineHeight: 1.45,
   },
 
-  previewButtons: { display: "flex", gap: 10, flexWrap: "wrap" },
+  previewButtons: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  },
 
   previewPrimary: {
     flex: "1 1 160px",
@@ -584,16 +675,3 @@ const S: Record<string, React.CSSProperties> = {
     whiteSpace: "nowrap",
   },
 };
-
-// Mini “class hooks” for media queries
-// (No cambia nada visual por sí solo; es para el CSS del <style> arriba)
-(S.shell as any).className = "sp-shell";
-(S.grid as any).className = "sp-grid";
-(S.h1 as any).className = "sp-h1";
-(S.lead as any).className = "sp-lead";
-(S.topRow as any).className = "sp-topRow";
-(S.topBtn as any).className = "sp-topBtn";
-(S.ctaRow as any).className = "sp-ctaRow";
-(S.primaryCta as any).className = "sp-primaryCta";
-(S.secondaryCta as any).className = "sp-secondaryCta";
-(S.micro as any).className = "sp-micro";

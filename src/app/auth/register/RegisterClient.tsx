@@ -12,7 +12,7 @@ export default function RegisterClient() {
   const nextParam = sp.get("next");
   const nextTarget = useMemo(
     () => (nextParam && nextParam.startsWith("/") ? nextParam : "/summary"),
-    [nextParam]
+    [nextParam],
   );
 
   const [name, setName] = useState("");
@@ -97,6 +97,7 @@ export default function RegisterClient() {
     }
   }
 
+  // 🎨 Estilos: alineados con Login (centro, card, blur, responsive)
   const page: React.CSSProperties = {
     minHeight: "100vh",
     background:
@@ -104,16 +105,27 @@ export default function RegisterClient() {
       "radial-gradient(900px 500px at 90% 0%, rgba(37,99,235,0.18), transparent 60%)," +
       "#050816",
     color: "rgba(255,255,255,0.92)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
   };
 
   const shell: React.CSSProperties = {
     maxWidth: 1180,
+    width: "100%",
     margin: "0 auto",
     padding: "32px 24px 56px",
     display: "flex",
     flexDirection: "column",
     gap: 20,
     alignItems: "center",
+    borderRadius: 28,
+    border: "1px solid rgba(148,163,184,0.26)",
+    background:
+      "linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.90))",
+    boxShadow: "0 30px 80px rgba(15,23,42,0.75)",
+    backdropFilter: "blur(16px)",
   };
 
   const topRow: React.CSSProperties = {
@@ -373,10 +385,10 @@ export default function RegisterClient() {
   };
 
   return (
-    <main style={page}>
-      <div style={shell}>
+    <main style={page} className="spAuth-page">
+      <div style={shell} className="spAuth-shell">
         {/* TOP BAR */}
-        <div style={topRow}>
+        <div style={topRow} className="spAuth-topRow">
           <div style={badge}>
             <span style={badgeDot} />
             <span>SyncPlans · Registro beta</span>
@@ -385,14 +397,18 @@ export default function RegisterClient() {
           <button
             type="button"
             style={linkTop}
-            onClick={() => router.push(`/auth/login?next=${encodeURIComponent(nextTarget)}`)}
+            onClick={() =>
+              router.push(
+                `/auth/login?next=${encodeURIComponent(nextTarget)}`,
+              )
+            }
           >
             Ya tengo cuenta →
           </button>
         </div>
 
         {/* MAIN LAYOUT */}
-        <section style={layout}>
+        <section style={layout} className="spAuth-layout">
           {/* LEFT: HERO / PITCH */}
           <article style={heroCard}>
             <div style={heroInner}>
@@ -437,7 +453,9 @@ export default function RegisterClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Un solo lugar para los planes juntos.</div>
+                  <div style={pillSub}>
+                    Un solo lugar para los planes juntos.
+                  </div>
                 </div>
                 <div style={pill}>
                   <div style={pillRow}>
@@ -449,7 +467,9 @@ export default function RegisterClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Todos alineados con la misma agenda.</div>
+                  <div style={pillSub}>
+                    Todos alineados con la misma agenda.
+                  </div>
                 </div>
               </div>
 
@@ -474,7 +494,11 @@ export default function RegisterClient() {
               <button
                 type="button"
                 style={subtleLink}
-                onClick={() => router.push(`/auth/login?next=${encodeURIComponent(nextTarget)}`)}
+                onClick={() =>
+                  router.push(
+                    `/auth/login?next=${encodeURIComponent(nextTarget)}`,
+                  )
+                }
               >
                 Ya tengo cuenta
               </button>
@@ -512,7 +536,9 @@ export default function RegisterClient() {
                   type="button"
                   style={secondaryBtn}
                   onClick={() =>
-                    router.push(`/auth/login?next=${encodeURIComponent(nextTarget)}`)
+                    router.push(
+                      `/auth/login?next=${encodeURIComponent(nextTarget)}`,
+                    )
                   }
                 >
                   Ir a iniciar sesión
@@ -590,8 +616,14 @@ export default function RegisterClient() {
 
                   {error && <div style={errorBox}>{error}</div>}
 
-                  <button type="submit" disabled={!canSubmit} style={primaryBtn}>
-                    {loading ? "Creando cuenta…" : "Crear mi calendario compartido"}
+                  <button
+                    type="submit"
+                    disabled={!canSubmit}
+                    style={primaryBtn}
+                  >
+                    {loading
+                      ? "Creando cuenta…"
+                      : "Crear mi calendario compartido"}
                   </button>
                 </form>
 
@@ -599,7 +631,9 @@ export default function RegisterClient() {
                   type="button"
                   style={secondaryBtn}
                   onClick={() =>
-                    router.push(`/auth/login?next=${encodeURIComponent(nextTarget)}`)
+                    router.push(
+                      `/auth/login?next=${encodeURIComponent(nextTarget)}`,
+                    )
                   }
                 >
                   Ya tengo cuenta
@@ -615,6 +649,29 @@ export default function RegisterClient() {
           </article>
         </section>
       </div>
+
+      {/* Responsive sin tocar desktop */}
+      <style>{`
+        @media (max-width: 960px) {
+          .spAuth-shell {
+            padding: 22px 16px 36px !important;
+            border-radius: 22px !important;
+          }
+          .spAuth-layout {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 600px) {
+          .spAuth-page {
+            padding: 16px !important;
+          }
+          .spAuth-topRow {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }

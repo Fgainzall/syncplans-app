@@ -1,3 +1,4 @@
+// src/components/AuthGate.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -32,8 +33,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (!ok) {
     return (
-      <main className="min-h-screen bg-[#050816] text-white grid place-items-center">
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/80">
+      <main className="grid min-h-screen place-items-center bg-[#050816] text-white">
+        <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/80 shadow-xl backdrop-blur">
           Verificando sesión…
         </div>
       </main>

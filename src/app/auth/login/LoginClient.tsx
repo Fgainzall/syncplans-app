@@ -34,7 +34,7 @@ export default function LoginClient() {
   // Si no hay next válido → /summary (una sola verdad sobre tus planes).
   const nextTarget = useMemo(
     () => (nextParam && nextParam.startsWith("/") ? nextParam : "/summary"),
-    [nextParam]
+    [nextParam],
   );
 
   const [email, setEmail] = useState("");
@@ -59,7 +59,7 @@ export default function LoginClient() {
             window.history.replaceState(
               {},
               document.title,
-              window.location.pathname + window.location.search
+              window.location.pathname + window.location.search,
             );
           }
         }
@@ -113,7 +113,7 @@ export default function LoginClient() {
           msg.includes("confirmation")
         ) {
           setError(
-            "Debes confirmar tu correo antes de iniciar sesión. Revisa tu bandeja (y spam) y entra desde el link."
+            "Debes confirmar tu correo antes de iniciar sesión. Revisa tu bandeja (y spam) y entra desde el link.",
           );
         } else if (msg.includes("invalid login") || msg.includes("invalid")) {
           setError("Correo o contraseña incorrectos.");
@@ -178,7 +178,7 @@ export default function LoginClient() {
     }
   }
 
-  // 🎨 Estilos compartidos con register para que queden alineados
+  // 🎨 Estilos (alineados a Home + Calendar)
   const page: React.CSSProperties = {
     minHeight: "100vh",
     background:
@@ -186,16 +186,27 @@ export default function LoginClient() {
       "radial-gradient(900px 500px at 90% 0%, rgba(37,99,235,0.18), transparent 60%)," +
       "#050816",
     color: "rgba(255,255,255,0.92)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
   };
 
   const shell: React.CSSProperties = {
     maxWidth: 1180,
+    width: "100%",
     margin: "0 auto",
     padding: "32px 24px 56px",
     display: "flex",
     flexDirection: "column",
     gap: 20,
     alignItems: "center",
+    borderRadius: 28,
+    border: "1px solid rgba(148,163,184,0.26)",
+    background:
+      "linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.90))",
+    boxShadow: "0 30px 80px rgba(15,23,42,0.75)",
+    backdropFilter: "blur(16px)",
   };
 
   const topRow: React.CSSProperties = {
@@ -241,7 +252,7 @@ export default function LoginClient() {
     width: "100%",
     maxWidth: 1080,
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)",
+    gridTemplateColumns: "minmax(0, 1.05fr) minmax(0, 1fr)",
     gap: 20,
     marginTop: 10,
     alignItems: "stretch",
@@ -446,10 +457,10 @@ export default function LoginClient() {
   };
 
   return (
-    <main style={page}>
-      <div style={shell}>
+    <main style={page} className="spAuth-page">
+      <div style={shell} className="spAuth-shell">
         {/* TOP BAR */}
-        <div style={topRow}>
+        <div style={topRow} className="spAuth-topRow">
           <div style={badge}>
             <span style={badgeDot} />
             <span>SyncPlans · Beta privada</span>
@@ -460,7 +471,7 @@ export default function LoginClient() {
             style={linkTop}
             onClick={() =>
               router.push(
-                `/auth/register?next=${encodeURIComponent(nextTarget)}`
+                `/auth/register?next=${encodeURIComponent(nextTarget)}`,
               )
             }
           >
@@ -469,7 +480,7 @@ export default function LoginClient() {
         </div>
 
         {/* MAIN LAYOUT */}
-        <section style={layout}>
+        <section style={layout} className="spAuth-layout">
           {/* LEFT: HERO / PITCH */}
           <article style={heroCard}>
             <div style={heroInner}>
@@ -530,7 +541,9 @@ export default function LoginClient() {
                       }}
                     />
                   </div>
-                  <div style={pillSub}>Todos ven lo mismo, al mismo tiempo.</div>
+                  <div style={pillSub}>
+                    Todos ven lo mismo, al mismo tiempo.
+                  </div>
                 </div>
               </div>
 
@@ -555,7 +568,7 @@ export default function LoginClient() {
                 style={subtleLink}
                 onClick={() =>
                   router.push(
-                    `/auth/register?next=${encodeURIComponent(nextTarget)}`
+                    `/auth/register?next=${encodeURIComponent(nextTarget)}`,
                   )
                 }
               >
@@ -621,7 +634,7 @@ export default function LoginClient() {
               style={secondaryBtn}
               onClick={() =>
                 router.push(
-                  `/auth/register?next=${encodeURIComponent(nextTarget)}`
+                  `/auth/register?next=${encodeURIComponent(nextTarget)}`,
                 )
               }
             >
@@ -636,6 +649,29 @@ export default function LoginClient() {
           </article>
         </section>
       </div>
+
+      {/* Responsive sin tocar desktop */}
+      <style>{`
+        @media (max-width: 960px) {
+          .spAuth-shell {
+            padding: 22px 16px 36px !important;
+            border-radius: 22px !important;
+          }
+          .spAuth-layout {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 600px) {
+          .spAuth-page {
+            padding: 16px !important;
+          }
+          .spAuth-topRow {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }
