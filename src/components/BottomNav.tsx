@@ -9,7 +9,93 @@ export type BottomNavKey =
   | "calendar"
   | "events"
   | "conflicts"
-  | "panel";
+  | "panel"
+  | "groups"
+  | "members"
+  | "invitations"
+  | "settings"
+  | "plans";
+
+type NavItem = {
+  key: BottomNavKey;
+  label: string;
+  icon: string;
+  path: string;
+  aria: string;
+};
+
+const NAV_ITEMS: NavItem[] = [
+  {
+    key: "summary",
+    label: "Resumen",
+    icon: "🏠",
+    path: "/summary",
+    aria: "Ir a Resumen",
+  },
+  {
+    key: "calendar",
+    label: "Calendario",
+    icon: "🗓️",
+    path: "/calendar",
+    aria: "Ir a Calendario",
+  },
+  {
+    key: "events",
+    label: "Eventos",
+    icon: "✨",
+    path: "/events",
+    aria: "Ir a Eventos",
+  },
+  {
+    key: "conflicts",
+    label: "Conflictos",
+    icon: "⚡",
+    path: "/conflicts/detected",
+    aria: "Ir a Conflictos",
+  },
+  {
+    key: "groups",
+    label: "Grupos",
+    icon: "👥",
+    path: "/groups",
+    aria: "Ir a Grupos",
+  },
+  {
+    key: "members",
+    label: "Miembros",
+    icon: "🧑‍🤝‍🧑",
+    path: "/members",
+    aria: "Ir a Miembros",
+  },
+  {
+    key: "invitations",
+    label: "Invitaciones",
+    icon: "✉️",
+    path: "/invitations",
+    aria: "Ir a Invitaciones",
+  },
+  {
+    key: "panel",
+    label: "Panel",
+    icon: "👤",
+    path: "/profile",
+    aria: "Ir a Panel",
+  },
+  {
+    key: "settings",
+    label: "Settings",
+    icon: "⚙️",
+    path: "/settings",
+    aria: "Ir a Settings",
+  },
+  {
+    key: "plans",
+    label: "Planes",
+    icon: "💎",
+    path: "/plans",
+    aria: "Ir a Planes",
+  },
+];
 
 export default function BottomNav() {
   const router = useRouter();
@@ -21,6 +107,11 @@ export default function BottomNav() {
     if (key === "events") return pathname.startsWith("/events");
     if (key === "conflicts") return pathname.startsWith("/conflicts");
     if (key === "panel") return pathname.startsWith("/profile");
+    if (key === "groups") return pathname.startsWith("/groups");
+    if (key === "members") return pathname.startsWith("/members");
+    if (key === "invitations") return pathname.startsWith("/invitations");
+    if (key === "settings") return pathname.startsWith("/settings");
+    if (key === "plans") return pathname.startsWith("/plans");
     return false;
   };
 
@@ -28,65 +119,25 @@ export default function BottomNav() {
 
   return (
     <nav style={S.wrap} aria-label="Navegación principal">
-      <button
-        type="button"
-        style={{ ...S.item, ...(isActive("summary") ? S.itemActive : {}) }}
-        onClick={() => go("/summary")}
-        aria-label="Ir a Resumen"
-      >
-        <div style={S.icon} aria-hidden="true">
-          🏠
-        </div>
-        <div style={S.label}>Resumen</div>
-      </button>
-
-      <button
-        type="button"
-        style={{ ...S.item, ...(isActive("calendar") ? S.itemActive : {}) }}
-        onClick={() => go("/calendar")}
-        aria-label="Ir a Calendario"
-      >
-        <div style={S.icon} aria-hidden="true">
-          🗓️
-        </div>
-        <div style={S.label}>Calendario</div>
-      </button>
-
-      <button
-        type="button"
-        style={{ ...S.item, ...(isActive("events") ? S.itemActive : {}) }}
-        onClick={() => go("/events")}
-        aria-label="Ir a Eventos"
-      >
-        <div style={S.icon} aria-hidden="true">
-          ✨
-        </div>
-        <div style={S.label}>Eventos</div>
-      </button>
-
-      <button
-        type="button"
-        style={{ ...S.item, ...(isActive("conflicts") ? S.itemActive : {}) }}
-        onClick={() => go("/conflicts/detected")}
-        aria-label="Ir a Conflictos"
-      >
-        <div style={S.icon} aria-hidden="true">
-          ⚡
-        </div>
-        <div style={S.label}>Conflictos</div>
-      </button>
-
-      <button
-        type="button"
-        style={{ ...S.item, ...(isActive("panel") ? S.itemActive : {}) }}
-        onClick={() => go("/profile")}
-        aria-label="Ir a Panel"
-      >
-        <div style={S.icon} aria-hidden="true">
-          👤
-        </div>
-        <div style={S.label}>Panel</div>
-      </button>
+      <div style={S.inner}>
+        {NAV_ITEMS.map((item) => {
+          const active = isActive(item.key);
+          return (
+            <button
+              key={item.key}
+              type="button"
+              style={{ ...S.item, ...(active ? S.itemActive : {}) }}
+              onClick={() => go(item.path)}
+              aria-label={item.aria}
+            >
+              <div style={S.icon} aria-hidden="true">
+                {item.icon}
+              </div>
+              <div style={S.label}>{item.label}</div>
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 }
@@ -108,9 +159,22 @@ const S: Record<string, React.CSSProperties> = {
     // ✅ iPhone safe-area
     paddingBottom: "calc(8px + env(safe-area-inset-bottom))",
 
-    display: "grid",
-    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+    // Ahora el scroll lo maneja el contenedor interno
+    overflow: "hidden",
+  },
+
+  inner: {
+    display: "flex",
+    flexWrap: "nowrap",
     gap: 6,
+    overflowX: "auto",
+    paddingBottom: 2,
+    WebkitOverflowScrolling: "touch",
+    overscrollBehaviorX: "contain",
+
+    // Ocultar scrollbar en navegadores modernos (sin romper funcionalidad)
+    scrollbarWidth: "none" as any, // Firefox
+    msOverflowStyle: "none" as any, // IE/Edge legacy
   },
 
   item: {
@@ -118,7 +182,7 @@ const S: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.03)",
     color: "rgba(255,255,255,0.90)",
     borderRadius: 14,
-    padding: "9px 6px",
+    padding: "9px 10px",
     cursor: "pointer",
     display: "flex",
     flexDirection: "column",
@@ -126,6 +190,10 @@ const S: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     gap: 4,
     minHeight: 48,
+
+    // ✅ clave para carrusel: cada pill ocupa su propio ancho
+    flex: "0 0 auto",
+    minWidth: 76,
 
     // ✅ feel de app (tap)
     WebkitTapHighlightColor: "transparent",
@@ -147,5 +215,6 @@ const S: Record<string, React.CSSProperties> = {
     opacity: 0.92,
     letterSpacing: "0.01em",
     lineHeight: 1.1,
+    whiteSpace: "nowrap",
   },
 };
