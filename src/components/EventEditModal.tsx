@@ -10,17 +10,18 @@ type EditableGroupType = "personal" | "couple" | "family";
 type EditEventShape = {
   id?: string;
   title: string;
-  start: string; // ISO
-  end: string; // ISO
+  start: string;
+  end: string;
   description?: string;
   groupType?: EditableGroupType | GroupType | null;
+  groupId?: string | null; // 🔥 NUEVO
 };
-
 type EventEditModalProps = {
   isOpen: boolean;
   onClose: () => void;
   initialEvent?: EditEventShape;
   onSaved?: () => void | Promise<void>;
+  groups?: { id: string; type: string }[]; // 🔥 NUEVO
 };
 
 // Helpers para datetime-local
@@ -55,6 +56,7 @@ export function EventEditModal({
   onClose,
   initialEvent,
   onSaved,
+  groups, // 🔥 NUEVO
 }: EventEditModalProps) {
   const [title, setTitle] = useState("");
   const [startLocal, setStartLocal] = useState("");
@@ -170,16 +172,28 @@ export function EventEditModal({
         setSaving(false);
         return;
       }
+let newGroupId: string | null = null;
 
+if (groupType !== "personal" && groups?.length) {
+  const targetType =
+    groupType === "couple" ? "pair" : "family";
+
+  const match = groups.find(
+    (g: { id: string; type: string }) =>
+      g.type === targetType || g.type === groupType
+  );
+
+  newGroupId = match?.id ?? null;
+}
       const { error: dbError } = await supabase
         .from("events")
         .update({
-          title: title.trim(),
-          start: startIso,
-          end: endIso,
-          notes: description.trim() || null,
-          // groupType se maneja en otro lado (events ya tiene group_id)
-        })
+  title: title.trim(),
+  start: startIso,
+  end: endIso,
+  notes: description.trim() || null,
+  group_id: newGroupId,
+})
         .eq("id", initialEvent!.id);
 
       if (dbError) {

@@ -1107,20 +1107,22 @@ export default function CalendarClient(
                     editingEvent.groupType === "pair"
                       ? ("couple" as any)
                       : editingEvent.groupType,
+                  groupId: editingEvent.groupId ?? null,
                 }
               : undefined
           }
+          groups={groups?.map((g) => ({ id: g.id, type: g.type }))}
           onSaved={async () => {
             setIsEditOpen(false);
             setEditingEvent(null);
             await refreshCalendar({
               showToast: true,
               toastTitle: "Evento actualizado ✅",
-              toastSubtitle:
-                "Tu calendario ya está al día.",
+              toastSubtitle: "Tu calendario ya está al día.",
             });
           }}
         />
+
       </div>
     </main>
   );
@@ -1228,7 +1230,6 @@ function EventRow({
     </div>
   );
 }
-
 /* =========================
    Celdas del mes (tipo Google)
    ========================= */
