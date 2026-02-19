@@ -37,7 +37,7 @@ function prettyTimeRange(startIso: string, endIso: string) {
   const e = new Date(endIso);
   const hhmm = (x: Date) =>
     `${String(x.getHours()).padStart(2, "0")}:${String(
-      x.getMinutes()
+      x.getMinutes(),
     ).padStart(2, "0")}`;
 
   const sameDay =
@@ -47,7 +47,7 @@ function prettyTimeRange(startIso: string, endIso: string) {
 
   if (!sameDay)
     return `${s.toLocaleDateString()} ${hhmm(
-      s
+      s,
     )} → ${e.toLocaleDateString()} ${hhmm(e)}`;
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
@@ -129,7 +129,7 @@ export default function DetectedClient() {
 
       try {
         const { events: ev } = await loadEventsFromDb({
-          groupId: groupIdFromUrl,
+          groupId: groupIdFromUrl ?? undefined,
         });
         if (!alive) return;
         setEvents(Array.isArray(ev) ? ev : []);
@@ -157,12 +157,13 @@ export default function DetectedClient() {
 
   const conflicts = useMemo<AttachedConflict[]>(() => {
     // ✅ motor: normalizamos SOLO para detectar conflictos
-    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
-      (e) => ({
-        ...e,
-        groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
-      })
-    );
+    const normalized: CalendarEvent[] = (Array.isArray(events)
+      ? events
+      : []
+    ).map((e) => ({
+      ...e,
+      groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
+    }));
 
     const cx = computeVisibleConflicts(normalized);
 
@@ -174,7 +175,7 @@ export default function DetectedClient() {
     return attached.filter(
       (c) =>
         String(c.existingEventId) === String(focusEventId) ||
-        String(c.incomingEventId) === String(focusEventId)
+        String(c.incomingEventId) === String(focusEventId),
     );
   }, [events, focusEventId]);
 
@@ -189,7 +190,7 @@ export default function DetectedClient() {
   const LIST_LIMIT = isMobile ? 5 : 50;
   const visibleConflicts = useMemo(
     () => conflicts.slice(0, LIST_LIMIT),
-    [conflicts, LIST_LIMIT]
+    [conflicts, LIST_LIMIT],
   );
   const showSeeMore = !booting && conflicts.length > LIST_LIMIT;
 
@@ -217,33 +218,45 @@ export default function DetectedClient() {
     router.push(`/conflicts/actions?${qp.toString()}`);
   };
 
- if (booting) {
-  return (
-    <main style={styles.page}>
-      <div style={styles.shell} className="spDet-shell">
-        <AppHero mobileNav="bottom" />
+  if (booting) {
+    return (
+      <main style={styles.page}>
+        <div style={styles.shell} className="spDet-shell">
+          <AppHero
+            mobileNav="bottom"
+            title="Conflictos"
+            subtitle="Analizando tu agenda para encontrar choques de horario."
+          />
 
-        <div style={styles.loadingCard}>
-          <div style={styles.loadingDot} />
-          <div>
-            <div style={styles.loadingTitle}>
-              Analizando tu agenda…
-            </div>
-            <div style={styles.loadingSub}>
-              Buscando choques de horario
+          <div style={styles.loadingCard}>
+            <div style={styles.loadingDot} />
+            <div>
+              <div style={styles.loadingTitle}>
+                Analizando tu agenda…
+              </div>
+              <div style={styles.loadingSub}>
+                Buscando choques de horario
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </main>
-  );
-}
+      </main>
+    );
+  }
 
   return (
     <main style={styles.page}>
       <div style={styles.shell} className="spDet-shell">
         <div style={styles.topRow} className="spDet-topRow">
-          <AppHero mobileNav="bottom" />
+          <AppHero
+            mobileNav="bottom"
+            title="Conflictos"
+            subtitle={
+              summary.total === 0
+                ? "Tu agenda está sincronizada."
+                : "Detecta y resuelve choques de horario en segundos."
+            }
+          />
           <LogoutButton />
         </div>
 
@@ -283,8 +296,8 @@ export default function DetectedClient() {
           <section style={styles.emptyCard} className="spDet-card">
             <div style={styles.emptyTitle}>Todo en orden ✅</div>
             <div style={styles.emptySub}>
-              Cuando dos eventos choquen, aparecerán aquí con opciones claras para
-              resolverlos.
+              Cuando dos eventos choquen, aparecerán aquí con opciones claras
+              para resolverlos.
             </div>
           </section>
         ) : (
@@ -304,10 +317,10 @@ export default function DetectedClient() {
 
                 // ✅ groupMeta también necesita couple
                 const aMeta = groupMeta(
-                  normalizeForConflicts((a?.groupType ?? "personal") as any)
+                  normalizeForConflicts((a?.groupType ?? "personal") as any),
                 );
                 const bMeta = groupMeta(
-                  normalizeForConflicts((b?.groupType ?? "personal") as any)
+                  normalizeForConflicts((b?.groupType ?? "personal") as any),
                 );
 
                 return (
@@ -332,7 +345,12 @@ export default function DetectedClient() {
 
                       <div style={styles.rowTwo}>
                         <div style={styles.miniLine}>
-                          <span style={{ ...styles.dot, background: aMeta.dot }} />
+                          <span
+                            style={{
+                              ...styles.dot,
+                              background: aMeta.dot,
+                            }}
+                          />
                           <span style={styles.miniTitle}>
                             {a?.title || "Evento A"}
                           </span>
@@ -342,7 +360,12 @@ export default function DetectedClient() {
                         </div>
 
                         <div style={styles.miniLine}>
-                          <span style={{ ...styles.dot, background: bMeta.dot }} />
+                          <span
+                            style={{
+                              ...styles.dot,
+                              background: bMeta.dot,
+                            }}
+                          />
                           <span style={styles.miniTitle}>
                             {b?.title || "Evento B"}
                           </span>
@@ -391,7 +414,7 @@ export default function DetectedClient() {
           .spDet-hero { padding: 12px !important; border-radius: 16px !important; }
           .spDet-h1 { font-size: 20px !important; letter-spacing: -0.4px !important; }
           .spDet-sub { font-size: 12px !important; }
-          .spDet-heroRight { width: 100% !important; }
+          .spDet-heroRight { width: 100% !important; justify-content: flex-start !important; }
           .spDet-row { padding: 12px !important; }
           .spDet-seeMore { width: 100% !important; min-width: unset !important; }
         }
