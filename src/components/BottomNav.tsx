@@ -9,12 +9,7 @@ export type BottomNavKey =
   | "calendar"
   | "events"
   | "conflicts"
-  | "panel"
-  | "groups"
-  | "members"
-  | "invitations"
-  | "settings"
-  | "plans";
+  | "panel";
 
 type NavItem = {
   key: BottomNavKey;
@@ -54,46 +49,11 @@ const NAV_ITEMS: NavItem[] = [
     aria: "Ir a Conflictos",
   },
   {
-    key: "groups",
-    label: "Grupos",
-    icon: "👥",
-    path: "/groups",
-    aria: "Ir a Grupos",
-  },
-  {
-    key: "members",
-    label: "Miembros",
-    icon: "🧑‍🤝‍🧑",
-    path: "/members",
-    aria: "Ir a Miembros",
-  },
-  {
-    key: "invitations",
-    label: "Invitaciones",
-    icon: "✉️",
-    path: "/invitations",
-    aria: "Ir a Invitaciones",
-  },
-  {
     key: "panel",
     label: "Panel",
     icon: "👤",
     path: "/profile",
     aria: "Ir a Panel",
-  },
-  {
-    key: "settings",
-    label: "Settings",
-    icon: "⚙️",
-    path: "/settings",
-    aria: "Ir a Settings",
-  },
-  {
-    key: "plans",
-    label: "Planes",
-    icon: "💎",
-    path: "/planes", // 👈 antes /plans
-    aria: "Ir a Planes",
   },
 ];
 
@@ -107,11 +67,6 @@ export default function BottomNav() {
     if (key === "events") return pathname.startsWith("/events");
     if (key === "conflicts") return pathname.startsWith("/conflicts");
     if (key === "panel") return pathname.startsWith("/profile");
-    if (key === "groups") return pathname.startsWith("/groups");
-    if (key === "members") return pathname.startsWith("/members");
-    if (key === "invitations") return pathname.startsWith("/invitations");
-    if (key === "settings") return pathname.startsWith("/settings");
-    if (key === "plans") return pathname.startsWith("/planes"); // 👈 antes /plans
     return false;
   };
 
@@ -155,11 +110,7 @@ const S: Record<string, React.CSSProperties> = {
     boxShadow: "0 22px 60px rgba(0,0,0,0.55)",
     backdropFilter: "blur(16px)",
     padding: 8,
-
-    // ✅ iPhone safe-area
     paddingBottom: "calc(8px + env(safe-area-inset-bottom))",
-
-    // Ahora el scroll lo maneja el contenedor interno
     overflow: "hidden",
   },
 
@@ -171,10 +122,8 @@ const S: Record<string, React.CSSProperties> = {
     paddingBottom: 2,
     WebkitOverflowScrolling: "touch",
     overscrollBehaviorX: "contain",
-
-    // Ocultar scrollbar en navegadores modernos (sin romper funcionalidad)
-    scrollbarWidth: "none" as any, // Firefox
-    msOverflowStyle: "none" as any, // IE/Edge legacy
+    scrollbarWidth: "none" as any,
+    msOverflowStyle: "none" as any,
   },
 
   item: {
@@ -190,12 +139,8 @@ const S: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     gap: 4,
     minHeight: 48,
-
-    // ✅ clave para carrusel: cada pill ocupa su propio ancho
     flex: "0 0 auto",
     minWidth: 76,
-
-    // ✅ feel de app (tap)
     WebkitTapHighlightColor: "transparent",
     touchAction: "manipulation",
   },
