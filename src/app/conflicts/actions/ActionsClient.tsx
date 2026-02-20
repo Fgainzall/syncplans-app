@@ -25,7 +25,7 @@ import {
 } from "@/lib/conflictResolutionsDb";
 
 /** 🔁 Alias para evitar el problema de tipos de PremiumHeader en esta pantalla */
-const AnyPremiumHeader = PremiumHeader as React.ComponentType<any>;
+
 
 /** fallback: si el conflictId exacto no matchea, matcheamos por pareja de eventos */
 function resolutionForConflict(
@@ -219,7 +219,7 @@ export default function ActionsClient({
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-          <AnyPremiumHeader />
+          <PremiumHeader />
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
@@ -237,7 +237,7 @@ export default function ActionsClient({
     <main style={styles.page}>
       <div style={styles.shell}>
         <div style={styles.topRow}>
-          <AnyPremiumHeader />
+          <PremiumHeader />
           <div style={styles.topActions}>
             <button onClick={back} style={styles.ghostBtn}>
               ← Volver

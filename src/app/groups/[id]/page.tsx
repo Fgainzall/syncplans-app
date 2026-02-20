@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
-const AnyPremiumHeader = PremiumHeader as React.ComponentType<any>;
+
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
 import { inviteToGroup } from "@/lib/invitationsDb";
 import { getProfilesByIds, type Profile as UserProfile } from "@/lib/profilesDb";
@@ -591,7 +591,7 @@ export default function GroupDetailsPage() {
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-          <AnyPremiumHeader />
+          <PremiumHeader />
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
@@ -608,7 +608,7 @@ export default function GroupDetailsPage() {
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-          <AnyPremiumHeader />
+          <PremiumHeader />
           <div style={styles.card}>
             <div style={styles.h1}>Grupo no encontrado</div>
             <div style={styles.sub}>Puede ser que no seas miembro o que el grupo ya no exista.</div>
@@ -701,7 +701,7 @@ export default function GroupDetailsPage() {
 
       <div className="sp-group-shell" style={styles.shell}>
         <div style={styles.topRow}>
-          <AnyPremiumHeader />
+          <PremiumHeader />
           <div style={styles.topActions}>
             <LogoutButton />
           </div>

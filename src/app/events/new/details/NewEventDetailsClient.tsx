@@ -5,7 +5,7 @@ import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
-const AnyPremiumHeader = PremiumHeader as React.ComponentType<any>;
+
 import {
   GroupType,
   groupMeta,
@@ -668,7 +668,7 @@ function NewEventDetailsInner() {
 
       <div style={styles.shell}>
         <div style={styles.topRow}>
-           <AnyPremiumHeader />
+           <PremiumHeader />
           <div style={styles.topActions}>
             <LogoutButton />
           </div>

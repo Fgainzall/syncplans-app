@@ -26,7 +26,7 @@ type Scope = "personal" | "active" | "all";
 type Tab = "month" | "agenda";
 
 // 👇 Alias para evitar que TS exija highlightId/appliedToast en este archivo
-const AnyPremiumHeader = PremiumHeader as React.ComponentType<any>;
+
 
 /* =========================
    Helpers (local, seguros)
@@ -430,13 +430,13 @@ export default function CalendarDayClient(/* ... */) {
   const openConflicts = () => router.push("/conflicts/detected");
   const resolveNow = () => router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`);
 
-  if (booting) {
-    return (
-      <main style={styles.page}>
-        <div style={styles.shell}>
-          {/* 👇 Aquí usamos el alias que ignora el tipo exigente */}
-          <AnyPremiumHeader />
-          <div style={styles.loadingCard}>
+if (booting) {
+  return (
+    <main style={styles.page}>
+      <div style={styles.shell}>
+        <PremiumHeader />
+        <div style={styles.loadingCard}>
+          ...
             <div style={styles.loadingDot} />
             <div>
               <div style={styles.loadingTitle}>Cargando tu calendario…</div>
@@ -469,17 +469,17 @@ export default function CalendarDayClient(/* ... */) {
         </div>
       )}
 
-      <div style={styles.shell}>
-        <div style={styles.topRow}>
-          {/* 👇 Igual aquí usamos el alias */}
-          <AnyPremiumHeader />
-          <div style={styles.topActions}>
-            <button onClick={handleSync} style={styles.ghostBtn}>
-              Sync
-            </button>
-            <LogoutButton />
-          </div>
-        </div>
+ <div style={styles.shell}>
+  <div style={styles.topRow}>
+    <PremiumHeader />
+    <div style={styles.topActions}>
+      <button onClick={handleSync} style={styles.ghostBtn}>
+        Sync
+      </button>
+      <LogoutButton />
+    </div>
+  </div>
+  ...
 
         <section style={styles.hero}>
           <div style={styles.heroLeft}>
