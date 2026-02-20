@@ -455,7 +455,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                       style={S.userMenuItem}
                       onClick={() => {
                         closeUserMenu();
-                        router.push("/pricing");
+                        router.push("/planes");
                       }}
                     >
                       Planes
@@ -680,7 +680,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                         style={S.userMenuItem}
                         onClick={() => {
                           closeUserMenu();
-                          router.push("/pricing");
+                          router.push("/planes");
                         }}
                       >
                         Planes
@@ -808,8 +808,8 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                 />
                 <NavPill
                   label="Planes"
-                  active={pathname.startsWith("/pricing")}
-                  onClick={() => router.push("/pricing")}
+                  active={pathname.startsWith("/planes")}
+                  onClick={() => router.push("/")}
                   styleOverride={S.pill}
                   styleActive={S.pillActive}
                 />
