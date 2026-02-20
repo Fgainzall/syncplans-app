@@ -1,0 +1,61 @@
+-- =====================================================================
+--  SyncPlans – Supabase schema backup
+-- =====================================================================
+-- IMPORTANTE:
+-- Este archivo es solo un CONTENEDOR para el backup de tu base de datos.
+-- Ahora mismo NO contiene el schema real. Debes exportarlo desde Supabase
+-- y pegarlo aquí para tener un respaldo completo.
+--
+-- ¿Cómo exportar el schema desde Supabase?
+--
+-- Opción 1: Desde la CLI de Supabase (recomendado)
+--
+--   1) Instala la CLI si no la tienes:
+--        npm install -g supabase
+--
+--   2) En la carpeta del proyecto (donde está el archivo supabase/config.toml)
+--      ejecuta:
+--
+--        supabase db dump --schema-only > supabase_schema.sql
+--
+--      Eso sobrescribirá este archivo con todo el schema (tablas, índices,
+--      vistas, funciones, policies, etc.).
+--
+-- Opción 2: Desde el panel web de Supabase (menos ideal)
+--
+--   - Ve a "SQL editor" → "New query".
+--   - Usa la opción de "Generate types" / "Download schema" si está
+--     disponible (según versión) y pega aquí el contenido.
+--
+-- Recomendación:
+--   - Usa SIEMPRE la CLI para mantener este archivo actualizado cada vez
+--     que cierres un sprint grande de cambios en la BD.
+--
+-- Mientras no exportes el schema real, este archivo NO sirve como backup.
+-- =====================================================================
+
+-- Ejemplo orientativo (NO es tu schema real):
+
+-- CREATE TABLE public.profiles (
+--   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+--   email text UNIQUE,
+--   first_name text,
+--   last_name text,
+--   created_at timestamptz DEFAULT now()
+-- );
+
+-- CREATE TABLE public.groups (
+--   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+--   name text NOT NULL,
+--   type text NOT NULL CHECK (type IN ('solo', 'pair', 'family', 'other')),
+--   owner_id uuid NOT NULL,
+--   created_at timestamptz DEFAULT now()
+-- );
+
+-- ...
+-- A PARTIR DE AQUÍ, cuando ejecutes:
+--
+--   supabase db dump --schema-only > supabase_schema.sql
+--
+-- ESTE CONTENIDO SERÁ REEMPLAZADO POR EL SCHEMA REAL.
+-- =====================================================================

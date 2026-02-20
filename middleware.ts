@@ -1,4 +1,4 @@
-// src/middleware.ts
+// middleware.ts (debe estar en la raíz del repo, no dentro de src/)
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
@@ -39,7 +39,7 @@ export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
   const host = request.headers.get("host") ?? url.host;
 
-  // ✅ 0) Canonical SIEMPRE (incluye /auth/*)
+  // ✅ 0) Canonical SIEMPRE (incluye /auth/* y /api/*)
   const canon = canonicalHost();
   if (canon && host !== canon) {
     const redirectUrl = url.clone();
@@ -79,6 +79,7 @@ export async function middleware(request: NextRequest) {
     loginUrl.searchParams.set("next", url.pathname + url.search);
 
     const redirectResponse = NextResponse.redirect(loginUrl);
+    // Mantener cualquier cookie que se haya seteado (por ejemplo, refresh de sesión fallido)
     response.cookies.getAll().forEach((c) => redirectResponse.cookies.set(c));
     return redirectResponse;
   }
@@ -87,7 +88,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icons|manifest.webmanifest).*)",
-  ],
+  // Deja pasar todo por el middleware excepto assets internos de Next.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

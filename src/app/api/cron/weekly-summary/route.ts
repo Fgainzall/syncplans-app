@@ -16,6 +16,31 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const EMAIL_FROM =
   process.env.EMAIL_FROM || "SyncPlans <no-reply@syncplansapp.com>";
 
+// Autorización básica para llamadas de cron
+function isAuthorized(req: Request): boolean {
+  // Si no hay CRON_SECRET configurado, no bloqueamos (útil en desarrollo)
+  if (!CRON_SECRET) return true;
+
+  const url = new URL(req.url);
+  const token = url.searchParams.get("token");
+  const headerSecret = req.headers.get("x-cron-secret");
+  const authHeader = req.headers.get("authorization");
+
+  // Permitimos:
+  // - ?token=CRON_SECRET
+  // - x-cron-secret: CRON_SECRET
+  // - Authorization: Bearer CRON_SECRET
+  if (token && token === CRON_SECRET) return true;
+  if (headerSecret && headerSecret === CRON_SECRET) return true;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const bearer = authHeader.slice(7);
+    if (bearer === CRON_SECRET) return true;
+  }
+
+  return false;
+}
+
+// Lazy init para que el build no reviente si faltan envs en local
 function getAdminSupabase() {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
     throw new Error("Missing Supabase admin env vars");
@@ -35,10 +60,11 @@ function getResend() {
   return new Resend(RESEND_API_KEY);
 }
 
+// Timezone fijo (Lima)
 const TZ_OFFSET_HOURS = -5;
 
 // ─────────────────────────────────────────────
-// Helpers
+// Helpers de fechas
 // ─────────────────────────────────────────────
 function thisWeekRangeISO() {
   const now = new Date();
@@ -82,12 +108,132 @@ function toLocalDate(iso: string) {
 }
 
 // ─────────────────────────────────────────────
+// Tipos
+// ─────────────────────────────────────────────
+type WeeklyUserRow = {
+  user_id: string;
+};
+
+type WeeklyEventRow = {
+  title: string | null;
+  start: string;
+  end: string;
+  group_id: string | null;
+};
+
+// ─────────────────────────────────────────────
+// Render de correo
+// ─────────────────────────────────────────────
+function renderWeeklyHtml(opts: {
+  dateLabel: string;
+  events: WeeklyEventRow[];
+  busiestLabel: string | null;
+}) {
+  const { dateLabel, events, busiestLabel } = opts;
+  const total = events.length;
+  const shared = events.filter((e) => e.group_id).length;
+  const personal = total - shared;
+
+  const rows = events
+    .slice(0, 10) // top 10 para no hacer correos infinitos
+    .map((e) => {
+      const localStart = toLocalDate(e.start);
+      const dayLabel = localStart.toLocaleDateString("es-PE", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      });
+      const timeLabel = localStart.toLocaleTimeString("es-PE", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const title = e.title || "Evento sin título";
+      const scope = e.group_id ? "Compartido" : "Personal";
+
+      return `
+        <tr>
+          <td style="padding: 6px 10px; font-size: 12px; color: #9CA3AF; white-space: nowrap; vertical-align: top;">
+            ${dayLabel}<br />
+            <span style="font-size: 11px; color:#6B7280;">${timeLabel}</span>
+          </td>
+          <td style="padding: 6px 10px; font-size: 13px; color: #E5E7EB; vertical-align: top;">
+            ${title}
+            <div style="margin-top: 2px; font-size: 11px; color: #9CA3AF;">
+              ${scope}
+            </div>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  const busiestBlock = busiestLabel
+    ? `<p style="margin: 0 0 8px; font-size: 13px; color: #E5E7EB;">
+         <strong>Día más cargado:</strong> ${busiestLabel}
+       </p>`
+    : "";
+
+  return `
+    <div style="font-family:system-ui,-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;background:#020617;color:#E5E7EB;padding:24px;">
+      <div style="max-width:520px;margin:0 auto;background:#020617;border-radius:18px;border:1px solid rgba(148,163,184,0.25);box-shadow:0 18px 60px rgba(15,23,42,0.9);padding:20px 18px;">
+        <h1 style="font-size:18px;margin:0 0 4px;">Tu semana en SyncPlans</h1>
+        <p style="margin:0 0 12px;font-size:13px;color:#9CA3AF;">
+          ${dateLabel}
+        </p>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+          <div style="flex:1;min-width:120px;border-radius:999px;background:rgba(15,23,42,0.9);border:1px solid rgba(148,163,184,0.35);padding:8px 12px;">
+            <div style="font-size:11px;color:#9CA3AF;margin-bottom:2px;">Total</div>
+            <div style="font-size:16px;font-weight:600;color:#F9FAFB;">${total}</div>
+          </div>
+          <div style="flex:1;min-width:120px;border-radius:999px;background:rgba(15,23,42,0.9);border:1px solid rgba(148,163,184,0.35);padding:8px 12px;">
+            <div style="font-size:11px;color:#9CA3AF;margin-bottom:2px;">Compartidos</div>
+            <div style="font-size:16px;font-weight:600;color:#F9FAFB;">${shared}</div>
+          </div>
+          <div style="flex:1;min-width:120px;border-radius:999px;background:rgba(15,23,42,0.9);border:1px solid rgba(148,163,184,0.35);padding:8px 12px;">
+            <div style="font-size:11px;color:#9CA3AF;margin-bottom:2px;">Personales</div>
+            <div style="font-size:16px;font-weight:600;color:#F9FAFB;">${personal}</div>
+          </div>
+        </div>
+
+        ${busiestBlock}
+
+        ${
+          rows
+            ? `
+          <table style="width:100%;border-collapse:collapse;margin-top:12px;">
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        `
+            : ""
+        }
+
+        ${
+          events.length > 10
+            ? `<p style="margin:8px 0 0;font-size:11px;color:#6B7280;">
+                 Tienes más eventos en la semana. Solo mostramos los primeros 10 aquí.
+               </p>`
+            : ""
+        }
+
+        <p style="margin:16px 0 0;font-size:11px;color:#6B7280;line-height:1.5;">
+          Este correo no añade nada nuevo a tu agenda. Solo resume lo que ya está en SyncPlans 
+          para que tú decidas con calma qué conservar, qué mover y qué hablar.
+        </p>
+      </div>
+    </div>
+  `;
+}
+
+// ─────────────────────────────────────────────
 // POST
 // ─────────────────────────────────────────────
 export async function POST(req: Request) {
   try {
-    const secret = req.headers.get("x-cron-secret");
-    if (!secret || secret !== CRON_SECRET) {
+    // 1️⃣ Seguridad
+    if (!isAuthorized(req)) {
       return NextResponse.json(
         { ok: false, message: "Unauthorized" },
         { status: 401 }
@@ -96,10 +242,9 @@ export async function POST(req: Request) {
 
     const supabase = getAdminSupabase();
     const resend = getResend();
-
     const { startISO, endISO, label } = thisWeekRangeISO();
 
-    // Usuarios con resumen semanal activo
+    // 2️⃣ Usuarios con resumen semanal activo
     const { data: users, error: usersErr } = await supabase
       .from("user_settings")
       .select("user_id")
@@ -115,7 +260,8 @@ export async function POST(req: Request) {
 
     let sent = 0;
 
-    for (const u of users) {
+    // 3️⃣ Recorremos usuario por usuario
+    for (const u of users as WeeklyUserRow[]) {
       const uid = u.user_id;
       try {
         const { data: adminUser, error: adminErr } =
@@ -139,6 +285,7 @@ export async function POST(req: Request) {
           continue;
         }
 
+        // 4️⃣ Eventos de la semana para este usuario
         const { data: events, error: evErr } = await supabase
           .from("events")
           .select("title, start, end, group_id")
@@ -159,13 +306,12 @@ export async function POST(req: Request) {
           continue;
         }
 
-        const total = events.length;
-        const shared = events.filter((e) => e.group_id).length;
-        const personal = total - shared;
+        const typedEvents = events as WeeklyEventRow[];
+        const total = typedEvents.length;
 
         // Día más cargado
         const byDay: Record<string, number> = {};
-        for (const ev of events) {
+        for (const ev of typedEvents) {
           const local = toLocalDate(ev.start);
           const key = local.toISOString().slice(0, 10); // YYYY-MM-DD
           byDay[key] = (byDay[key] || 0) + 1;
@@ -180,7 +326,7 @@ export async function POST(req: Request) {
           }
         }
 
-        let busiestLabel = "";
+        let busiestLabel: string | null = null;
         if (busiestKey) {
           const [y, m, d] = busiestKey.split("-").map(Number);
           const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
@@ -191,55 +337,42 @@ export async function POST(req: Request) {
           });
         }
 
-        const html = `
-          <div style="font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;color:#0f172a;background-color:#020617;padding:24px;">
-            <div style="max-width:520px;margin:0 auto;background:#020617;border-radius:18px;border:1px solid #1f2937;padding:20px;">
-              <p style="font-size:11px;color:#9ca3af;margin:0 0 8px 0;">
-                SyncPlans · Resumen semanal
-              </p>
-              <h2 style="margin:0 0 4px 0;font-size:20px;color:#e5e7eb;">
-                Tu semana en SyncPlans
-              </h2>
-              <p style="margin:0 0 12px 0;color:#9ca3af;font-size:13px;">
-                ${label}
-              </p>
+        if (total === 0) {
+          continue;
+        }
 
-              <ul style="padding-left:18px;margin:0 0 14px 0;color:#e5e7eb;list-style-type:disc;">
-                <li><strong>${total}</strong> evento${
-          total > 1 ? "s" : ""
-        } organizados en esta semana.</li>
-                <li>${personal} personales · ${shared} compartidos.</li>
-                ${
-                  busiestLabel
-                    ? `<li>Día más cargado: <strong>${busiestLabel}</strong> (${busiestCount} evento${
-                        busiestCount > 1 ? "s" : ""
-                      }).</li>`
-                    : ""
-                }
-              </ul>
-
-              <p style="margin:0 0 4px 0;font-size:12px;color:#9ca3af;">
-                Usa este correo como “cheat sheet” rápido: abre SyncPlans si necesitas ajustar algo.
-              </p>
-              <p style="margin:0;font-size:11px;color:#6b7280;">
-                SyncPlans · Una sola verdad para los horarios compartidos.
-              </p>
-            </div>
-          </div>
-        `;
-
-        await resend.emails.send({
-          from: EMAIL_FROM,
-          to: email,
-          subject: "Tu semana con SyncPlans",
-          html,
+        const html = renderWeeklyHtml({
+          dateLabel: label,
+          events: typedEvents,
+          busiestLabel,
         });
 
-        sent++;
+        try {
+          const res = await resend.emails.send({
+            from: EMAIL_FROM,
+            to: email,
+            subject: `Tu semana en SyncPlans (${label})`,
+            html,
+          });
+
+          if (res.error) {
+            console.error(
+              `[weekly-summary] error sending email to ${email}`,
+              res.error
+            );
+          } else {
+            sent++;
+          }
+        } catch (sendErr) {
+          console.error(
+            `[weekly-summary] unexpected error sending email to ${email}`,
+            sendErr
+          );
+        }
       } catch (userErr) {
         console.error(
           "[weekly-summary] error processing user",
-          uid,
+          u.user_id,
           userErr
         );
         // seguimos con el siguiente usuario

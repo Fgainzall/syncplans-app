@@ -45,17 +45,20 @@ function getAdminClient(): AdminClient {
 // ───────────────────────────── helpers de auth ───────────────────────────────
 
 function isAuthorized(req: Request): boolean {
-  if (!CRON_SECRET) return false;
+  // Si no hay CRON_SECRET configurado, no bloqueamos (útil en desarrollo/local)
+  if (!CRON_SECRET) return true;
 
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
-
+  const headerSecret = req.headers.get("x-cron-secret");
   const authHeader = req.headers.get("authorization");
 
   // ✅ Permitimos:
-  // - ?token=CRON_SECRET
-  // - Authorization: Bearer CRON_SECRET
+  // - ?token=CRON_SECRET        (llamadas manuales tipo /api/daily-digest?token=...)
+  // - x-cron-secret: CRON_SECRET  (si algún día quieres usarlo desde otra infra)
+  // - Authorization: Bearer CRON_SECRET  (lo que envía Vercel Cron automáticamente)
   if (token && token === CRON_SECRET) return true;
+  if (headerSecret && headerSecret === CRON_SECRET) return true;
 
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const bearerToken = authHeader.slice(7);
