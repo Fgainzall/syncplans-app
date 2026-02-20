@@ -283,7 +283,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
   }, [group, active.label]);
 
   const autoTitle = useMemo(() => {
-    if (pathname.startsWith("/pricing")) return "Planes";
+    if (pathname.startsWith("/planes")) return "Planes";
     if (pathname.startsWith("/profile")) return "Panel";
     if (pathname.startsWith("/conflicts")) return "Conflictos";
     if (pathname.startsWith("/groups")) return "Grupos";
