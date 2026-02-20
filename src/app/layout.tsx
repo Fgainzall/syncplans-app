@@ -51,8 +51,10 @@ export default function RootLayout({
 
         <ToastProvider>
           {children}
-          {/* ✅ BottomNav SIEMPRE al final (una sola vez, global) */}
-          <BottomNav />
+          {/* ✅ BottomNav solo en móvil (oculto en md y arriba) */}
+          <div className="md:hidden">
+            <BottomNav />
+          </div>
         </ToastProvider>
       </body>
     </html>
