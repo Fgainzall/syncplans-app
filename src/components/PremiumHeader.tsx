@@ -9,7 +9,6 @@ import React, {
   type CSSProperties,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-
 import {
   getGroupState,
   setMode,
@@ -19,13 +18,11 @@ import {
 import NotificationsDrawer, {
   type NavigationMode,
 } from "./NotificationsDrawer";
-
 import {
   getMyProfile,
   getInitials,
   type Profile as UserProfile,
 } from "@/lib/profilesDb";
-
 import IntegrationsDrawer from "@/components/IntegrationsDrawer";
 import LogoutButton from "@/components/LogoutButton";
 
@@ -60,12 +57,10 @@ function applyThemeVars(mode: UsageMode | "other") {
   root.style.setProperty("--sp-other", "#A855F7");
 
   let active: string;
-
   if (mode === "solo") active = "var(--sp-personal)";
   else if (mode === "pair") active = "var(--sp-pair)";
   else if (mode === "family") active = "var(--sp-family)";
   else active = "var(--sp-other)";
-
   root.style.setProperty("--sp-active", active);
 }
 
@@ -80,7 +75,6 @@ async function ensureActiveGroupForMode(
   const { getMyGroups } = await import("@/lib/groupsDb");
 
   const existing = await getActiveGroupIdFromDb().catch(() => null);
-
   const groups = await getMyGroups();
   if (!groups.length) return null;
 
@@ -89,7 +83,6 @@ async function ensureActiveGroupForMode(
   if (existing) {
     const current = groups.find((g: any) => String(g.id) === String(existing));
     const currentType = String(current?.type ?? "").toLowerCase();
-
     if (current && currentType === wantType) {
       return String(existing);
     }
@@ -99,13 +92,11 @@ async function ensureActiveGroupForMode(
     (g: any) => String(g.type ?? "").toLowerCase() === wantType
   );
   const pick = match?.id ?? groups[0]?.id ?? null;
-
   if (pick) {
     await setActiveGroupIdInDb(String(pick));
     window.dispatchEvent(new Event("sp:active-group-changed"));
     return String(pick);
   }
-
   return null;
 }
 
@@ -123,7 +114,6 @@ function normalizeGroupLabel(input?: string | null) {
     const cleaned = raw.replace(/^activo\s*[:\-–]\s*/i, "").trim();
     return cleaned || "Grupo actual";
   }
-
   return raw;
 }
 
@@ -132,11 +122,11 @@ function useIsMobileWidth(maxWidth = 520) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
     const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
-    const apply = () => setIsMobile(!!mq.matches);
 
+    const apply = () => setIsMobile(!!mq.matches);
     apply();
+
     if (typeof mq.addEventListener === "function") {
       mq.addEventListener("change", apply);
       return () => mq.removeEventListener("change", apply);
@@ -155,12 +145,7 @@ function useIsMobileWidth(maxWidth = 520) {
 
 type MobileNavVariant = "top" | "bottom" | "none";
 
-/**
- * Compatibilidad con antiguos usos de PremiumHeader:
- * algunas pantallas le pasaban `highlightId` y `appliedToast`.
- * Los dejamos como OPCIONALES para que `<PremiumHeader />` simple
- * también sea válido.
- */
+/** Compat con usos antiguos de PremiumHeader */
 type UiToast = { deleted: number; skipped: number; appliedCount: number } | null;
 
 type PremiumHeaderProps = {
@@ -177,9 +162,8 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
     title,
     subtitle,
     rightSlot,
-    mobileNav: _mobileNav = "bottom", // compat, pero ya no controla nav en móvil
-    // highlightId y appliedToast quedan disponibles para futuro uso,
-    // pero no son obligatorios en ninguna pantalla.
+    mobileNav: _mobileNav = "bottom",
+    // highlightId y appliedToast quedan por si los quieres reutilizar luego
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     highlightId,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -188,14 +172,12 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
 
   const router = useRouter();
   const pathname = usePathname();
-
   const NAV_MODE: NavigationMode = "replace";
 
   const [group, setGroup] = useState<GroupState | null>(null);
   const [openNotif, setOpenNotif] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [headerUser, setHeaderUser] = useState<HeaderUser | null>(null);
-
   const [openIntegrations, setOpenIntegrations] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -215,25 +197,21 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
 
   useEffect(() => {
     let alive = true;
-
     (async () => {
       try {
         const profile: UserProfile | null = await getMyProfile();
         if (!alive) return;
-
         if (profile) {
           const display = (
-            profile.display_name ?? 
+            profile.display_name ??
             `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
           ).trim();
-
           const name = display || "Tú";
           const initials = getInitials({
             first_name: profile.first_name,
             last_name: profile.last_name,
             display_name: profile.display_name,
           });
-
           setHeaderUser({ name, initials });
         } else {
           setHeaderUser({ name: "Tú", initials: "T" });
@@ -243,7 +221,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
         setHeaderUser(null);
       }
     })();
-
     return () => {
       alive = false;
     };
@@ -305,13 +282,11 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
         router.push("/events/new/details?type=personal");
         return;
       }
-
       const gid = await ensureActiveGroupForMode(activeMode);
       if (!gid) {
         router.push("/groups/new");
         return;
       }
-
       router.push(
         `/events/new/details?type=group&groupId=${encodeURIComponent(gid)}`
       );
@@ -327,7 +302,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
 
     if (nextMode === "solo") {
       try {
-        // podrías limpiar activeGroup en DB si quisieras
+        // si quisieras, aquí podrías limpiar activeGroup en DB
       } finally {
         window.dispatchEvent(new Event("sp:active-group-changed"));
       }
@@ -347,19 +322,16 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
     );
   }, []);
 
-  // REGRA MADRE: en móvil la navegación principal es SOLO el bottom nav.
-  // Así que las píldoras de navegación solo se muestran en desktop.
+  // Regla madre: en móvil solo navegas con BottomNav.
   const shouldShowTopNav: boolean = !isMobile;
-
   const closeUserMenu = () => setUserMenuOpen(false);
 
   return (
     <>
       <header style={S.wrap}>
-        {/* ========== MOBILE LAYOUT (APP BAR) ========== */}
+        {/* ========== MOBILE ========== */}
         {isMobile ? (
           <>
-            {/* Top bar: bell · title · avatar */}
             <div style={S.mTopBar}>
               <div style={S.bellWrap}>
                 <button
@@ -398,7 +370,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                     <div style={S.userAvatar}>{headerUser.initials}</div>
                   </button>
                 )}
-
                 {userMenuOpen && (
                   <div style={S.userMenu}>
                     <div style={S.userMenuHeader}>
@@ -409,7 +380,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                         {headerUser?.name ?? "Tú"}
                       </div>
                     </div>
-
                     <button
                       type="button"
                       style={S.userMenuItem}
@@ -460,9 +430,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                     >
                       Planes
                     </button>
-
                     <div style={S.userMenuDivider} />
-
                     <div style={S.userMenuLogout}>
                       <LogoutButton />
                     </div>
@@ -471,10 +439,8 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
               </div>
             </div>
 
-            {/* Subtítulo debajo del app bar */}
             <p style={S.mSubtitle}>{finalSubtitle}</p>
 
-            {/* Acciones principales en móvil: Conectar + CTA (+ Evento por defecto) */}
             <div style={S.mActionsRow}>
               <button
                 type="button"
@@ -487,7 +453,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
               >
                 Conectar
               </button>
-
               {rightSlot ?? (
                 <button
                   style={S.mPrimaryBtn}
@@ -499,7 +464,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
               )}
             </div>
 
-            {/* Tabs de modo en móvil (2x2) */}
             <div style={S.tabs}>
               <div style={S.tabsBg} />
               <div style={S.mTabsInner}>
@@ -508,13 +472,12 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                   return (
                     <button
                       key={t.key}
-                      style={{
-                        ...S.mTab,
-                        ...(isActive ? S.tabActive : {}),
-                      }}
+                      style={{ ...S.mTab, ...(isActive ? S.tabActive : {}) }}
                       onClick={() => onPickMode(t.key)}
                     >
-                      <span style={{ ...S.tabDot, background: t.dot }} />
+                      <span
+                        style={{ ...S.tabDot, background: t.dot }}
+                      />
                       <span style={S.mTabText}>{t.label}</span>
                       <span style={S.mTabHint}>{t.hint}</span>
                     </button>
@@ -523,7 +486,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
               </div>
             </div>
 
-            {/* Nav superior OPCIONAL en móvil: AHORA SIEMPRE DESACTIVADA (solo desktop) */}
             {shouldShowTopNav && (
               <nav style={S.nav}>
                 <NavPill
@@ -580,7 +542,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
             )}
           </>
         ) : (
-          /* ========== DESKTOP LAYOUT (HERO COMPLETO) ========== */
+          /* ========== DESKTOP ========== */
           <>
             <div style={S.topRow}>
               <div style={S.left}>
@@ -588,11 +550,9 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                   <span style={{ ...S.dot, background: active.dot }} />
                   <span style={S.kickerText}>{kickerLabel}</span>
                 </div>
-
                 <h1 style={S.title}>{finalTitle}</h1>
                 <p style={S.subtitle}>{finalSubtitle}</p>
               </div>
-
               <div style={S.right}>
                 <div style={S.bellWrap}>
                   <button
@@ -603,14 +563,12 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                   >
                     🔔
                   </button>
-
                   {unreadCount > 0 && (
                     <span style={S.badgeCount}>
                       {unreadCount > 99 ? "99+" : unreadCount}
                     </span>
                   )}
                 </div>
-
                 <div style={S.userChipWrap}>
                   {headerUser && (
                     <button
@@ -623,7 +581,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                       <span style={S.userLabel}>{headerUser.name}</span>
                     </button>
                   )}
-
                   {userMenuOpen && (
                     <div style={S.userMenuDesktop}>
                       <div style={S.userMenuHeader}>
@@ -634,7 +591,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                           {headerUser?.name ?? "Tú"}
                         </div>
                       </div>
-
                       <button
                         type="button"
                         style={S.userMenuItem}
@@ -685,16 +641,13 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                       >
                         Planes
                       </button>
-
                       <div style={S.userMenuDivider} />
-
                       <div style={S.userMenuLogout}>
                         <LogoutButton />
                       </div>
                     </div>
                   )}
                 </div>
-
                 <button
                   type="button"
                   style={S.ghostBtn}
@@ -703,7 +656,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                 >
                   Conectar
                 </button>
-
                 {rightSlot ?? (
                   <button
                     style={S.iconBtn}
@@ -716,7 +668,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
               </div>
             </div>
 
-            {/* Tabs de modo */}
             <div style={S.tabs}>
               <div style={S.tabsBg} />
               <div style={S.tabsInner}>
@@ -725,13 +676,12 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                   return (
                     <button
                       key={t.key}
-                      style={{
-                        ...S.tab,
-                        ...(isActive ? S.tabActive : {}),
-                      }}
+                      style={{ ...S.tab, ...(isActive ? S.tabActive : {}) }}
                       onClick={() => onPickMode(t.key)}
                     >
-                      <span style={{ ...S.tabDot, background: t.dot }} />
+                      <span
+                        style={{ ...S.tabDot, background: t.dot }}
+                      />
                       <span style={S.tabText}>{t.label}</span>
                       <span style={S.tabHint}>{t.hint}</span>
                     </button>
@@ -740,7 +690,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
               </div>
             </div>
 
-            {/* Nav superior en desktop */}
             {shouldShowTopNav && (
               <nav style={S.nav}>
                 <NavPill
@@ -809,7 +758,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                 <NavPill
                   label="Planes"
                   active={pathname.startsWith("/planes")}
-                  onClick={() => router.push("/")}
+                  onClick={() => router.push("/planes")}
                   styleOverride={S.pill}
                   styleActive={S.pillActive}
                 />
@@ -825,7 +774,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
         navigationMode={NAV_MODE}
         onUnreadChange={(n) => setUnreadCount(n)}
       />
-
       <IntegrationsDrawer
         open={openIntegrations}
         onClose={() => setOpenIntegrations(false)}
@@ -871,8 +819,7 @@ const S: Record<string, CSSProperties> = {
     position: "relative",
     overflow: "visible",
   },
-
-  /* DESKTOP TOP ROW */
+  /* desktop */
   topRow: {
     display: "flex",
     gap: 14,
@@ -881,7 +828,6 @@ const S: Record<string, CSSProperties> = {
   },
   left: { minWidth: 0 },
   right: { display: "flex", gap: 10, alignItems: "center" },
-
   kicker: {
     display: "inline-flex",
     gap: 10,
@@ -894,8 +840,11 @@ const S: Record<string, CSSProperties> = {
     borderRadius: 999,
     boxShadow: "0 0 0 4px rgba(255,255,255,0.06)",
   },
-  kickerText: { fontSize: 12, fontWeight: 800, color: "#dbeafe" },
-
+  kickerText: {
+    fontSize: 12,
+    fontWeight: 800,
+    color: "#dbeafe",
+  },
   title: {
     margin: 0,
     fontSize: 26,
@@ -909,7 +858,6 @@ const S: Record<string, CSSProperties> = {
     fontSize: 13,
     fontWeight: 650,
   },
-
   iconBtn: {
     height: 40,
     padding: "0 14px",
@@ -921,7 +869,6 @@ const S: Record<string, CSSProperties> = {
     fontWeight: 900,
     cursor: "pointer",
   },
-
   ghostBtn: {
     height: 40,
     padding: "0 14px",
@@ -932,7 +879,6 @@ const S: Record<string, CSSProperties> = {
     fontWeight: 900,
     cursor: "pointer",
   },
-
   bellWrap: { position: "relative", flexShrink: 0 },
   bellBtn: {
     width: 40,
@@ -944,7 +890,6 @@ const S: Record<string, CSSProperties> = {
     cursor: "pointer",
     fontWeight: 900,
   },
-
   badgeCount: {
     position: "absolute",
     top: -6,
@@ -963,12 +908,10 @@ const S: Record<string, CSSProperties> = {
     boxShadow:
       "0 0 0 2px rgba(2,6,23,0.85), 0 10px 25px rgba(0,0,0,0.35)",
   },
-
   userChipWrap: {
     position: "relative",
     display: "inline-flex",
   },
-
   userChip: {
     display: "flex",
     alignItems: "center",
@@ -1001,8 +944,7 @@ const S: Record<string, CSSProperties> = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-
-  /* MODO TABS (DESKTOP) */
+  /* tabs */
   tabs: { position: "relative", marginTop: 14 },
   tabsBg: {
     position: "absolute",
@@ -1018,7 +960,6 @@ const S: Record<string, CSSProperties> = {
     gap: 10,
     padding: 10,
   },
-
   tab: {
     height: 52,
     borderRadius: 14,
@@ -1038,7 +979,12 @@ const S: Record<string, CSSProperties> = {
     background: "rgba(255,255,255,0.08)",
     border: "1px solid rgba(255,255,255,0.16)",
   },
-  tabDot: { width: 10, height: 10, borderRadius: 999, gridRow: "1 / span 2" },
+  tabDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    gridRow: "1 / span 2",
+  },
   tabText: { fontSize: 13, fontWeight: 900 },
   tabHint: {
     fontSize: 11,
@@ -1048,8 +994,7 @@ const S: Record<string, CSSProperties> = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-
-  /* NAV PILLS */
+  /* nav pills */
   nav: {
     display: "flex",
     gap: 10,
@@ -1071,9 +1016,7 @@ const S: Record<string, CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.18)",
     background: "rgba(255,255,255,0.08)",
   },
-
-  /* ========== MOBILE-SPECÍFICO ========== */
-
+  /* mobile */
   mTopBar: {
     display: "flex",
     alignItems: "center",
@@ -1124,7 +1067,6 @@ const S: Record<string, CSSProperties> = {
     color: "#a8b3cf",
     fontWeight: 600,
   },
-
   mUserBtn: {
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(15,23,42,0.85)",
@@ -1135,7 +1077,6 @@ const S: Record<string, CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
   },
-
   mActionsRow: {
     display: "flex",
     alignItems: "center",
@@ -1165,7 +1106,6 @@ const S: Record<string, CSSProperties> = {
     fontSize: 12,
     cursor: "pointer",
   },
-
   mTabsInner: {
     position: "relative",
     display: "grid",
@@ -1188,10 +1128,7 @@ const S: Record<string, CSSProperties> = {
     color: "#fff",
     textAlign: "left",
   },
-  mTabText: {
-    fontSize: 12,
-    fontWeight: 900,
-  },
+  mTabText: { fontSize: 12, fontWeight: 900 },
   mTabHint: {
     fontSize: 10,
     opacity: 0.75,
@@ -1200,8 +1137,7 @@ const S: Record<string, CSSProperties> = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-
-  /* USER MENU (MÓVIL + DESKTOP) */
+  /* user menu */
   userMenu: {
     position: "absolute",
     top: "115%",

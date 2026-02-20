@@ -1457,27 +1457,54 @@ export default function ProfilePage() {
                 />
               </div>
 
-              <div style={styles.planCtaRow}>
-                <button
-                  type="button"
-                  onClick={() => router.push("/pricing")}
-                  style={styles.planPrimaryBtn}
-                >
-                  {planCtaLabel}
-                </button>
-              </div>
+             <div style={styles.planCtaRow}>
+  <button
+    type="button"
+    onClick={() => router.push("/planes")}
+    style={styles.planPrimaryBtn}
+  >
+    {planCtaLabel}
+  </button>
+</div>
             </section>
 <section style={styles.card} className="spProfileHideMobile">
   <div style={styles.sectionLabel}>Centro de control</div>
   <div style={styles.sectionSub}>Accesos rápidos a lo importante.</div>
 
   <div style={styles.hubGrid} className="spProfileHubGrid">
-    <HubCard title="Grupos" hint="Pareja, familia y compartidos." onClick={() => router.push("/groups")} />
-    <HubCard title="Miembros" hint="Quién está en tus grupos." onClick={() => router.push("/members")} />
-    <HubCard title="Invitaciones" hint="Invita y acepta accesos." onClick={() => router.push("/invitations")} />
-    <HubCard title="Settings" hint="Preferencias del producto." onClick={() => router.push("/settings")} />
-    <HubCard title="Planes" hint="Ver tu plan y upgrade." onClick={() => router.push("/pricing")} />
-    <HubCard title="Salir" hint="Cerrar sesión." onClick={async () => { await supabase.auth.signOut(); router.replace("/auth/login"); }} />
+<HubCard
+  title="Grupos"
+  hint="Pareja, familia y compartidos."
+  onClick={() => router.push("/groups")}
+/>
+<HubCard
+  title="Miembros"
+  hint="Quién está en tus grupos."
+  onClick={() => router.push("/members")}
+/>
+<HubCard
+  title="Invitaciones"
+  hint="Invita y acepta accesos."
+  onClick={() => router.push("/invitations")}
+/>
+<HubCard
+  title="Settings"
+  hint="Preferencias del producto."
+  onClick={() => router.push("/settings")}
+/>
+<HubCard
+  title="Planes"
+  hint="Ver tu plan y upgrade."
+  onClick={() => router.push("/planes")}
+/>
+<HubCard
+  title="Salir"
+  hint="Cerrar sesión."
+  onClick={async () => {
+    await supabase.auth.signOut();
+    router.replace("/auth/login");
+  }}
+/>
   </div>
 </section>
             {/* Cómo te ve el resto */}
@@ -2055,20 +2082,7 @@ export default function ProfilePage() {
     }
   }
 `}</style>
-<style>{`
-  /* ✅ Mobile: Panel como app real */
-  @media (max-width: 780px) {
-    .spProfileMainGrid { grid-template-columns: 1fr !important; }
-    ...
-  }
 
-  /* ✅ Mobile pequeño: el hub pasa a 1 columna */
-  @media (max-width: 520px) {
-    .spProfileHubGrid {
-      grid-template-columns: 1fr !important;
-    }
-  }
-`}</style>
         </MobileScaffold>
 </main>
   );

@@ -1,4 +1,4 @@
-// src/app/pricing/page.tsx
+// src/app/planes/page.tsx
 import React from "react";
 import Link from "next/link";
 
@@ -37,7 +37,6 @@ export default function PricingPage() {
         mobileBottomSafe={96}
       >
         <div style={S.shell}>
-          {/* Header premium + logout, como en el resto de la app */}
           <div style={S.topRow}>
             <PremiumHeader
               title="Planes"
