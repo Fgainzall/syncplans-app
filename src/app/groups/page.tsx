@@ -154,19 +154,29 @@ export default function GroupsPage() {
   /* ============================
      Filtros derivados
      ============================ */
-  const filteredGroups = useMemo(() => {
-    if (filter === "all") return groups;
-    return groups.filter((g) => g.type === filter);
-  }, [groups, filter]);
+const filteredGroups = useMemo(() => {
+  if (filter === "all") return groups;
 
-  const summary = useMemo(() => {
-    const pair = groups.filter((g) => g.type === "pair").length;
-    const family = groups.filter((g) => g.type === "family").length;
-    const shared = groups.filter((g) => g.type === "shared").length;
-    const total = groups.length;
+  if (filter === "shared") {
+    // Todo lo que no sea pareja ni familia lo tratamos como compartido
+    return groups.filter(
+      (g) => g.type !== "pair" && g.type !== "family",
+    );
+  }
 
-    return { pair, family, shared, total };
-  }, [groups]);
+  return groups.filter((g) => g.type === filter);
+}, [groups, filter]);
+const summary = useMemo(() => {
+  const pair = groups.filter((g) => g.type === "pair").length;
+  const family = groups.filter((g) => g.type === "family").length;
+  // Todo lo demás lo consideramos compartido
+  const shared = groups.filter(
+    (g) => g.type !== "pair" && g.type !== "family",
+  ).length;
+  const total = groups.length;
+
+  return { pair, family, shared, total };
+}, [groups]);
 
   const headerSubtitle =
     summary.total === 0
