@@ -78,7 +78,7 @@ const NAV_ITEMS: NavItem[] = [
     key: "panel",
     label: "Panel",
     icon: "👤",
-    path: "/profile",
+    path: "/panel", // 🔁 antes era /profile
     aria: "Ir a Panel",
   },
   {
@@ -109,7 +109,7 @@ export default function BottomNav() {
     if (key === "groups") return pathname.startsWith("/groups");
     if (key === "members") return pathname.startsWith("/members");
     if (key === "invitations") return pathname.startsWith("/invitations");
-    if (key === "panel") return pathname.startsWith("/profile");
+    if (key === "panel") return pathname.startsWith("/panel"); // 🔁 antes miraba /profile
     if (key === "settings") return pathname.startsWith("/settings");
     if (key === "plans") return pathname.startsWith("/planes");
     return false;
@@ -156,8 +156,6 @@ const S: Record<string, React.CSSProperties> = {
     backdropFilter: "blur(16px)",
     padding: 8,
     paddingBottom: "calc(8px + env(safe-area-inset-bottom))",
-
-    // Ahora el scroll lo maneja el contenedor interno
     overflow: "hidden",
   },
 
@@ -169,8 +167,6 @@ const S: Record<string, React.CSSProperties> = {
     paddingBottom: 2,
     WebkitOverflowScrolling: "touch",
     overscrollBehaviorX: "contain",
-
-    // Ocultar scrollbar en navegadores modernos (sin romper usabilidad)
     scrollbarWidth: "none" as any,
     msOverflowStyle: "none" as any,
   },
@@ -188,11 +184,8 @@ const S: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     gap: 4,
     minHeight: 48,
-
-    // La clave para que se vean como “píldoras” en carrusel
     flex: "0 0 auto",
     minWidth: 76,
-
     WebkitTapHighlightColor: "transparent",
     touchAction: "manipulation",
   },
