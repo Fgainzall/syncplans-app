@@ -837,9 +837,10 @@ const styles: Record<string, React.CSSProperties> = {
 
   groupRight: {
     display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-end",
+    justifyContent: "center",
     gap: 8,
-    alignItems: "center",
-    flexWrap: "wrap",
   },
 
   activateBtn: {
@@ -851,6 +852,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     cursor: "pointer",
     fontWeight: 800,
+    minWidth: 130,
+    textAlign: "center",
   },
   activeBadge: {
     padding: "6px 10px",
@@ -870,6 +873,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     cursor: "pointer",
     fontWeight: 800,
+    minWidth: 130,
+    textAlign: "center",
   },
 
   emptyState: {
