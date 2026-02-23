@@ -9,6 +9,10 @@ import PremiumHeader from "@/components/PremiumHeader";
 import { getMyGroups, getGroupTypeLabel } from "@/lib/groupsDb";
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
 import { getMyInvitations } from "@/lib/invitationsDb";
+import {
+  buildGroupsSummary,
+  type GroupSummary,
+} from "@/lib/groupsSummary";
 
 type GroupRole = "owner" | "admin" | "member";
 
@@ -166,17 +170,11 @@ const filteredGroups = useMemo(() => {
 
   return groups.filter((g) => g.type === filter);
 }, [groups, filter]);
-const summary = useMemo(() => {
-  const pair = groups.filter((g) => g.type === "pair").length;
-  const family = groups.filter((g) => g.type === "family").length;
-  // Todo lo demás lo consideramos compartido
-  const shared = groups.filter(
-    (g) => g.type !== "pair" && g.type !== "family",
-  ).length;
-  const total = groups.length;
 
-  return { pair, family, shared, total };
-}, [groups]);
+const summary: GroupSummary = useMemo(
+  () => buildGroupsSummary(groups),
+  [groups],
+);
 
   const headerSubtitle =
     summary.total === 0
