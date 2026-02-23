@@ -270,6 +270,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
     if (pathname.startsWith("/events")) return "Eventos";
     if (pathname.startsWith("/summary")) return "Resumen";
     if (pathname.startsWith("/calendar")) return "Calendario";
+    if (pathname.startsWith("/settings")) return "Ajustes";
     return "Calendario";
   }, [pathname]);
 
@@ -419,7 +420,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                         router.push("/settings");
                       }}
                     >
-                      Settings
+                      Ajustes
                     </button>
                     <button
                       type="button"
@@ -628,7 +629,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                           router.push("/settings");
                         }}
                       >
-                        Settings
+                        Ajustes
                       </button>
                       <button
                         type="button"
@@ -748,7 +749,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                   styleActive={S.pillActive}
                 />
                 <NavPill
-                  label="Settings"
+                  label="Ajustes"
                   active={pathname.startsWith("/settings")}
                   onClick={() => router.push("/settings")}
                   styleOverride={S.pill}
