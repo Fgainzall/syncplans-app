@@ -4,345 +4,382 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import AppHero from "@/components/AppHero";
-import LogoutButton from "@/components/LogoutButton";
-
-import { getMyEvents, deleteEventsByIds } from "@/lib/eventsDb";
-import { getMyGroups } from "@/lib/groupsDb";
-import {
-  groupMeta,
-  type CalendarEvent,
-  type GroupType,
-} from "@/lib/conflicts";
-
 import supabase from "@/lib/supabaseClient";
+import AppHero from "@/components/AppHero";
+import MobileScaffold from "@/components/MobileScaffold";
 
-type DbEvent = {
-  id: string;
-  title?: string | null;
-  start: string;
-  end: string;
-  notes?: string | null;
-  group_id?: string | null;
-  groupId?: string | null;
+import {
+  getMyEvents,
+  deleteEventsByIds,
+  type DbEventRow,
+} from "@/lib/eventsDb";
+import {
+  getGroupTypeLabel,
+  getMyGroups,
+  type GroupRow,
+} from "@/lib/groupsDb";
+import { groupMeta } from "@/lib/conflicts";
+
+type ViewMode = "upcoming" | "history" | "all";
+type Scope = "personal" | "groups" | "all";
+
+type FilterState = {
+  view: ViewMode;
+  scope: Scope;
+  query: string;
 };
 
-type ViewMode = "upcoming" | "past" | "all";
-
-/** ✅ Detecta móvil por ancho */
-function useIsMobileWidth(maxWidth = 520) {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
-
-    const apply = () => setIsMobile(!!mq.matches);
-    apply();
-
-    if (typeof mq.addEventListener === "function") {
-      mq.addEventListener("change", apply);
-      return () => mq.removeEventListener("change", apply);
-    } else {
-      // @ts-ignore
-      mq.addListener(apply);
-      return () => {
-        // @ts-ignore
-        mq.removeListener(apply);
-      };
-    }
-  }, [maxWidth]);
-
-  return isMobile;
-}
+type EventWithGroup = DbEventRow & {
+  group?: GroupRow | null;
+};
 
 export default function EventsPage() {
   const router = useRouter();
-  const isMobile = useIsMobileWidth(520);
 
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [booting, setBooting] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState<string | null>(null);
-  const [view, setView] = useState<ViewMode>("upcoming");
-  const [query, setQuery] = useState("");
-  const [sendingDigest, setSendingDigest] = useState(false);
 
+  const [events, setEvents] = useState<EventWithGroup[]>([]);
+  const [groups, setGroups] = useState<GroupRow[]>([]);
+
+  const [filters, setFilters] = useState<FilterState>({
+    view: "upcoming",
+    scope: "all",
+    query: "",
+  });
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const [sendingDigest, setSendingDigest] = useState(false);
+  const [toast, setToast] = useState<
+    | null
+    | {
+        title: string;
+        subtitle?: string;
+      }
+  >(null);
+
+  /* ============================
+     Boot inicial y carga de datos
+     ============================ */
   useEffect(() => {
     let alive = true;
 
     (async () => {
+      setBooting(true);
+
+      const { data, error } = await supabase.auth.getSession();
+      if (!alive) return;
+
+      if (error || !data.session?.user) {
+        setBooting(false);
+        router.replace("/auth/login");
+        return;
+      }
+
       try {
-        setLoading(true);
-
-        const [myGroups, rawEvents] = await Promise.all([
-          getMyGroups(),
-          getMyEvents(),
-        ]);
-
-        if (!alive) return;
-
-        const groupTypeById = new Map<string, "pair" | "family">(
-          (myGroups || []).map((g: any) => {
-            const id = String(g.id);
-            const rawType = String(g.type ?? "").toLowerCase();
-            const normalized: "pair" | "family" =
-              rawType === "family" ? "family" : "pair";
-            return [id, normalized];
-          })
-        );
-
-        const list: CalendarEvent[] = ((rawEvents || []) as DbEvent[])
-          .map((ev) => {
-            const gid = ev.group_id ?? ev.groupId ?? null;
-
-            let gt: GroupType = "personal";
-
-            if (gid) {
-              const t = groupTypeById.get(String(gid));
-              gt = (t === "family" ? "family" : "pair") as GroupType;
-            }
-
-            return {
-              id: String(ev.id),
-              title: ev.title ?? "Evento",
-              start: String(ev.start),
-              end: String(ev.end),
-              notes: ev.notes ?? undefined,
-              groupId: gid ? String(gid) : null,
-              groupType: gt,
-            };
-          })
-          .filter(Boolean);
-
-        setEvents(list);
+        await refreshData(false);
       } finally {
         if (!alive) return;
-        setLoading(false);
+        setBooting(false);
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, []);
+  }, [router]);
 
-  const now = Date.now();
-
-  const upcomingAll = useMemo(() => {
-    return [...events]
-      .filter((e) => new Date(e.end).getTime() >= now)
-      .sort(
-        (a, b) =>
-          new Date(a.start).getTime() - new Date(b.start).getTime()
-      );
-  }, [events, now]);
-
-  const pastAll = useMemo(() => {
-    return [...events]
-      .filter((e) => new Date(e.end).getTime() < now)
-      .sort(
-        (a, b) =>
-          new Date(b.start).getTime() - new Date(a.start).getTime()
-      );
-  }, [events, now]);
-
-  const baseAll = useMemo(() => {
-    if (view === "upcoming") return upcomingAll;
-    if (view === "past") return pastAll;
-    return [...events].sort(
-      (a, b) =>
-        new Date(a.start).getTime() - new Date(b.start).getTime()
-    );
-  }, [view, upcomingAll, pastAll, events]);
-
-  const visibleAll = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return baseAll;
-
-    return baseAll.filter((e) => {
-      const t = (e.title ?? "").toLowerCase();
-      const n = (e.notes ?? "").toLowerCase();
-      return t.includes(q) || n.includes(q);
-    });
-  }, [baseAll, query]);
-
-  const LIST_LIMIT = isMobile ? 5 : 60;
-
-  const visible = useMemo(
-    () => visibleAll.slice(0, LIST_LIMIT),
-    [visibleAll, LIST_LIMIT]
-  );
-
-  const showSeeMore =
-    !loading && visibleAll.length > LIST_LIMIT;
-
-  async function onDelete(id: string) {
-    const ok = confirm(
-      "¿Eliminar este evento? Esta acción no se puede deshacer."
-    );
-    if (!ok) return;
-
-    const deleted = await deleteEventsByIds([id]);
-
-    if (deleted >= 0) {
-      setEvents((s) =>
-        s.filter((x) => String(x.id) !== String(id))
-      );
-      setToast("Evento eliminado ✅");
-      window.setTimeout(() => setToast(null), 1800);
-    }
-  }
-
-  function formatRange(e: CalendarEvent): string {
-    const start = new Date(e.start);
-    const end = new Date(e.end);
-
-    const sameDay =
-      start.getFullYear() === end.getFullYear() &&
-      start.getMonth() === end.getMonth() &&
-      start.getDate() === end.getDate();
-
-    const optsDate: Intl.DateTimeFormatOptions = {
-      weekday: "short",
-      day: "2-digit",
-      month: "short",
-    };
-
-    const optsTime: Intl.DateTimeFormatOptions = {
-      hour: "2-digit",
-      minute: "2-digit",
-    };
-
-    if (sameDay) {
-      return `${start.toLocaleDateString(
-        undefined,
-        optsDate
-      )} · ${start.toLocaleTimeString(
-        undefined,
-        optsTime
-      )} — ${end.toLocaleTimeString(undefined, optsTime)}`;
-    }
-
-    return `${start.toLocaleString()} — ${end.toLocaleString()}`;
-  }
-
-  async function sendTodayDigest() {
+  async function refreshData(withToast: boolean) {
     try {
-      setSendingDigest(true);
-
-      const { data, error } =
-        await supabase.auth.getUser();
-
-      if (error || !data.user) {
-        throw new Error(
-          "No pude leer tu sesión. Vuelve a iniciar sesión."
-        );
+      if (withToast) {
+        setToast({
+          title: "Actualizando…",
+          subtitle: "Cargando eventos y grupos",
+        });
       }
 
-      const email = data.user.email;
-      if (!email) {
-        throw new Error(
-          "No encontré tu correo en la cuenta."
-        );
+      setLoading(true);
+
+ const [eventsData, myGroups] = await Promise.all([
+  getMyEvents(), // ✅ devuelve DbEventRow[]
+  getMyGroups(), // ✅ devuelve grupos
+]);
+
+const groupsArray = (myGroups || []) as GroupRow[];
+
+const eventsWithGroup: EventWithGroup[] = ((eventsData || []) as DbEventRow[]).map(
+  (e: DbEventRow) => {
+    const group =
+      e.group_id != null
+        ? groupsArray.find(
+            (g) => String(g.id) === String(e.group_id),
+          ) || null
+        : null;
+
+    return { ...e, group };
+  },
+);
+      setGroups(groupsArray);
+      setEvents(eventsWithGroup);
+      setSelectedIds(new Set());
+
+      if (withToast) {
+        setToast({
+          title: "Eventos actualizados ✅",
+          subtitle: "Tu lista está al día.",
+        });
+        window.setTimeout(() => setToast(null), 2600);
       }
-
-      const today = new Date();
-      const y = today.getFullYear();
-      const m = today.getMonth();
-      const d = today.getDate();
-
-      const todaysEvents = events.filter((e) => {
-        const s = new Date(e.start);
-        return (
-          s.getFullYear() === y &&
-          s.getMonth() === m &&
-          s.getDate() === d
-        );
+    } catch (e: any) {
+      console.error("Error refrescando eventos", e);
+      setToast({
+        title: "No se pudo actualizar",
+        subtitle: e?.message ?? "Revisa tu conexión o sesión.",
       });
+      window.setTimeout(() => setToast(null), 2600);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-      if (todaysEvents.length === 0) {
-        setToast("Hoy no tienes eventos para recordar 🙂");
-        window.setTimeout(() => setToast(null), 2200);
+  /* ============================
+     Digest manual (recordatorio de hoy)
+     ============================ */
+  async function sendTodayDigest() {
+    if (sendingDigest) return;
+    setSendingDigest(true);
+
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+    const todayEvents = events.filter((e: EventWithGroup) => {
+  const start = new Date(e.start);
+  start.setHours(0, 0, 0, 0);
+  return (
+    start.getTime() === today.getTime() &&
+    (filters.scope === "all" ||
+      (filters.scope === "personal" && !e.group_id) ||
+      (filters.scope === "groups" && !!e.group_id))
+  );
+});
+      if (todayEvents.length === 0) {
+        setToast({
+          title: "Nada para hoy",
+          subtitle: "No hay eventos para enviar en el recordatorio.",
+        });
+        window.setTimeout(() => setToast(null), 2600);
         return;
       }
 
-      const payloadEvents = todaysEvents.map((e) => {
-        const meta = groupMeta(
-          (e.groupType ?? "personal") as any
-        );
-        return {
-          title: e.title ?? "Evento",
-          start: e.start,
-          end: e.end,
-          groupLabel: meta.label,
-        };
-      });
-
-      const dateLabel = `${String(d).padStart(
-        2,
-        "0"
-      )}/${String(m + 1).padStart(2, "0")}/${y}`;
-
-      const res = await fetch("/api/daily-digest", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const { error } = await supabase.functions.invoke(
+        "send-today-digest",
+        {
+          body: { events: todayEvents },
         },
-        body: JSON.stringify({
-          to: email,
-          date: dateLabel,
-          events: payloadEvents,
-        }),
-      });
+      );
 
-      if (!res.ok) {
-        throw new Error(
-          "No se pudo enviar el correo."
-        );
+      if (error) {
+        throw error;
       }
 
-      setToast(
-        "Te envié un resumen de hoy a tu correo ✉️"
-      );
-      window.setTimeout(() => setToast(null), 2200);
-    } catch (err: any) {
-      console.error("[sendTodayDigest] error", err);
-
-      setToast(
-        err?.message ||
-          "No se pudo enviar el recordatorio. Intenta más tarde."
-      );
-
+      setToast({
+        title: "Recordatorio enviado ✅",
+        subtitle: `Se envió un resumen con ${todayEvents.length} evento${
+          todayEvents.length === 1 ? "" : "s"
+        }.`,
+      });
+      window.setTimeout(() => setToast(null), 2600);
+    } catch (e: any) {
+      console.error("Error enviando digest", e);
+      setToast({
+        title: "No se pudo enviar",
+        subtitle: e?.message ?? "Inténtalo más tarde.",
+      });
       window.setTimeout(() => setToast(null), 2600);
     } finally {
       setSendingDigest(false);
     }
   }
 
-  const headerSubtitle = isMobile
-    ? "Tus eventos, sin ruido."
-    : "Organiza tu día sin choques de horario.";
-      return (
-    <main style={S.page} className="spEvt-page">
-      {toast && <div style={S.toast}>{toast}</div>}
+  /* ============================
+     Filtros y derivados
+     ============================ */
+const filteredEvents = useMemo(() => {
+  const now = new Date();
 
-      <div style={S.shell} className="spEvt-shell">
-        {/* ✅ APP MODE en móvil: bottom bar + sin nav larga arriba */}
-        <AppHero
-          title="Eventos"
-          subtitle={headerSubtitle}
-          mobileNav="bottom"
-          rightSlot={
-            <div style={S.topActions} className="spEvt-topActions">
-              <button
-                style={S.secondary}
-                onClick={sendTodayDigest}
-                disabled={sendingDigest}
-              >
-                {sendingDigest ? "Enviando…" : "Recordatorio de hoy"}
-              </button>
+  return events.filter((e: EventWithGroup) => {
+    const start = new Date(e.start);
 
+    if (filters.scope === "personal" && e.group_id) {
+      return false;
+    }
+    if (filters.scope === "groups" && !e.group_id) {
+      return false;
+    }
+
+    if (filters.view === "upcoming" && start < now) {
+      return false;
+    }
+    if (filters.view === "history" && start >= now) {
+      return false;
+    }
+
+    if (!filters.query.trim()) return true;
+
+    const q = filters.query.toLowerCase();
+    const target = `${e.title ?? ""} ${e.notes ?? ""} ${
+      e.group ? e.group.name ?? "" : ""
+    }`.toLowerCase();
+
+    return target.includes(q);
+  });
+}, [events, filters]);
+
+  const groupedByDate = useMemo(() => {
+    const map = new Map<string, EventWithGroup[]>();
+
+    for (const e of filteredEvents) {
+      const d = new Date(e.start);
+      const key = d.toISOString().slice(0, 10);
+
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)!.push(e);
+    }
+
+    for (const [key, arr] of map.entries()) {
+      arr.sort(
+        (a, b) =>
+          new Date(a.start).getTime() - new Date(b.start).getTime(),
+      );
+      map.set(key, arr);
+    }
+
+    const sortedKeys = [...map.keys()].sort();
+    return sortedKeys.map((k) => ({ dateKey: k, events: map.get(k)! }));
+  }, [filteredEvents]);
+
+  const hasSelection = selectedIds.size > 0;
+
+  async function handleDeleteSelected() {
+    if (!hasSelection) return;
+
+    const count = selectedIds.size;
+    const ok = confirm(
+      `¿Eliminar ${count} evento${
+        count === 1 ? "" : "s"
+      } seleccionado${count === 1 ? "" : "s"}?`,
+    );
+    if (!ok) return;
+
+    try {
+      setToast({
+        title: "Eliminando…",
+        subtitle: "Aplicando cambios",
+      });
+
+      await deleteEventsByIds([...selectedIds]);
+
+      setSelectedIds(new Set());
+
+      await refreshData(false);
+
+      setToast({
+        title: "Eventos eliminados ✅",
+        subtitle: "Tu lista está actualizada.",
+      });
+      window.setTimeout(() => setToast(null), 2600);
+    } catch (e: any) {
+      console.error("Error eliminando eventos", e);
+      setToast({
+        title: "No se pudo eliminar",
+        subtitle: e?.message ?? "Inténtalo más tarde.",
+      });
+      window.setTimeout(() => setToast(null), 2600);
+    }
+  }
+
+  function toggleSelection(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  const totalEvents = events.length;
+  const totalGroups = groups.length;
+
+  const headerSubtitle =
+    totalEvents === 0
+      ? "Tus eventos, sin ruido."
+      : `Tienes ${totalEvents} evento${
+          totalEvents === 1 ? "" : "s"
+        } en tu agenda.`;
+
+  /* ============================
+     RENDER
+     ============================ */
+  if (booting) {
+    return (
+      <MobileScaffold>
+        <main style={S.pageShell}>
+          <div style={S.stickyTop}>
+            <AppHero mobileNav="bottom" />
+          </div>
+
+          <section style={S.card}>
+            <div style={S.loadingRow}>
+              <div style={S.loadingDot} />
+              <div>
+                <div style={S.loadingTitle}>
+                  Cargando tus eventos…
+                </div>
+                <div style={S.loadingSub}>
+                  Preparando tu lista para hoy
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </MobileScaffold>
+    );
+  }
+
+  return (
+    <MobileScaffold>
+      {toast && (
+        <div style={S.toastWrap}>
+          <div style={S.toastCard}>
+            <div style={S.toastTitle}>{toast.title}</div>
+            {toast.subtitle ? (
+              <div style={S.toastSub}>{toast.subtitle}</div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      <main style={S.pageShell}>
+        <div style={S.stickyTop}>
+          {/* ✅ APP MODE en móvil: bottom bar + sin nav larga arriba */}
+          <AppHero
+            title="Eventos"
+            subtitle={headerSubtitle}
+            mobileNav="bottom"
+            rightSlot={
               <button
                 style={S.primary}
                 onClick={() =>
@@ -351,434 +388,814 @@ export default function EventsPage() {
               >
                 + Evento
               </button>
-
-              <LogoutButton />
-            </div>
-          }
-        />
+            }
+          />
+        </div>
 
         {/* ✅ 1 card principal */}
         <section style={S.card} className="spEvt-card">
-          <div style={S.titleRow} className="spEvt-titleRow">
+          <div style={S.titleRow}>
             <div>
-              <div style={S.title}>Lista</div>
-              <div style={S.sub} className="spEvt-sub">
-                {events.length === 0
-                  ? "Aún no tienes eventos registrados."
-                  : isMobile
-                  ? `Mostrando ${visible.length} · Total ${events.length}`
-                  : `Total: ${events.length} · Próximos: ${upcomingAll.length} · Historial: ${pastAll.length}`}
-              </div>
+              <div style={S.kicker}>Tu agenda, capa por capa</div>
+              <h1 style={S.h1}>Lista de eventos</h1>
+              <p style={S.sub}>
+                Mira tus próximos eventos personales y de grupos en un
+                solo lugar. Desde aquí puedes editar, filtrar y eliminar
+                sin perder claridad.
+              </p>
             </div>
 
-            <div style={S.filters} className="spEvt-filters">
-              <div style={S.tabs} className="spEvt-tabs">
+            <div style={S.factBox} className="spEvt-factBox">
+              <div style={S.factLabel}>Resumen rápido</div>
+              <div style={S.factRow}>
+                <span style={S.factDotPersonal} />
+                <span>
+                  {events.filter((e) => !e.group_id).length} personales
+                </span>
+              </div>
+              <div style={S.factRow}>
+                <span style={S.factDotGroup} />
+                <span>
+                  {events.filter((e) => !!e.group_id).length} en grupos
+                </span>
+              </div>
+
+              {totalGroups > 0 && (
+                <div style={S.factHint}>
+                  Tienes {totalGroups} grupo
+                  {totalGroups === 1 ? "" : "s"} conectado
+                  {totalGroups === 1 ? "" : "s"} a tu agenda.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Filtros y acciones */}
+          <div style={S.filters} className="spEvt-filters">
+            <div style={S.tabs}>
+              <div style={S.segment}>
                 <button
                   type="button"
                   style={{
-                    ...S.tab,
-                    ...(view === "upcoming" ? S.tabActive : null),
+                    ...S.segmentBtn,
+                    ...(filters.view === "upcoming"
+                      ? S.segmentBtnActive
+                      : {}),
                   }}
-                  onClick={() => setView("upcoming")}
+                  onClick={() =>
+                    setFilters((f) => ({
+                      ...f,
+                      view: "upcoming",
+                    }))
+                  }
                 >
                   Próximos
                 </button>
                 <button
                   type="button"
                   style={{
-                    ...S.tab,
-                    ...(view === "past" ? S.tabActive : null),
+                    ...S.segmentBtn,
+                    ...(filters.view === "history"
+                      ? S.segmentBtnActive
+                      : {}),
                   }}
-                  onClick={() => setView("past")}
+                  onClick={() =>
+                    setFilters((f) => ({
+                      ...f,
+                      view: "history",
+                    }))
+                  }
                 >
                   Historial
                 </button>
                 <button
                   type="button"
                   style={{
-                    ...S.tab,
-                    ...(view === "all" ? S.tabActive : null),
+                    ...S.segmentBtn,
+                    ...(filters.view === "all"
+                      ? S.segmentBtnActive
+                      : {}),
                   }}
-                  onClick={() => setView("all")}
+                  onClick={() =>
+                    setFilters((f) => ({ ...f, view: "all" }))
+                  }
                 >
                   Todos
                 </button>
               </div>
 
-              <input
-                placeholder="Buscar…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                style={S.search}
-                className="spEvt-search"
-              />
-            </div>
-          </div>
-
-          {loading ? (
-            <div style={S.empty}>Cargando…</div>
-          ) : visibleAll.length === 0 ? (
-            <div style={S.empty}>
-              {view === "past"
-                ? "Aún no tienes historial de eventos."
-                : view === "upcoming"
-                ? "No tienes eventos futuros."
-                : "No hay eventos que coincidan con la búsqueda."}
-            </div>
-          ) : (
-            <>
-              <div style={S.list} className="spEvt-list">
-                {visible.map((e) => {
-                  const meta = groupMeta(
-                    (e.groupType ?? "personal") as any
-                  );
-
-                  return (
-                    <div
-                      key={e.id}
-                      style={S.row}
-                      className="spEvt-row"
-                    >
-                      <div
-                        style={{
-                          ...S.bar,
-                          background: meta.dot,
-                        }}
-                      />
-
-                      <div
-                        style={{ flex: 1, minWidth: 0 }}
-                      >
-                        <div style={S.rowTop}>
-                          <div
-                            style={{
-                              ...S.rowTitle,
-                              cursor: "pointer",
-                            }}
-                            title="Editar evento"
-                            onClick={() =>
-                              router.push(
-                                `/events/new/details?mode=edit&id=${e.id}`
-                              )
-                            }
-                          >
-                            {e.title}
-                          </div>
-
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 8,
-                            }}
-                          >
-                            <button
-                              style={S.edit}
-                              onClick={() =>
-                                router.push(
-                                  `/events/new/details?mode=edit&id=${e.id}`
-                                )
-                              }
-                              title="Editar"
-                            >
-                              ✏️
-                            </button>
-
-                            <button
-                              style={S.del}
-                              onClick={() =>
-                                onDelete(String(e.id))
-                              }
-                              title="Eliminar"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </div>
-
-                        <div style={S.rowSub}>
-                          {formatRange(e)}
-                        </div>
-
-                        <div style={S.badge}>
-                          {meta.label}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* ✅ En móvil: “ver más” en vez de scroll eterno */}
-              {showSeeMore && (
+              <div style={S.segment}>
                 <button
-                  style={S.seeMore}
-                  className="spEvt-seeMore"
+                  type="button"
+                  style={{
+                    ...S.segmentBtn,
+                    ...(filters.scope === "all"
+                      ? S.segmentBtnActive
+                      : {}),
+                  }}
                   onClick={() =>
-                    setToast(
-                      `Mostrando solo ${LIST_LIMIT}. Usa buscar o cambia filtro.`
-                    )
+                    setFilters((f) => ({ ...f, scope: "all" }))
                   }
                 >
-                  Ver más ({visibleAll.length}) →
+                  Todo
                 </button>
+                <button
+                  type="button"
+                  style={{
+                    ...S.segmentBtn,
+                    ...(filters.scope === "personal"
+                      ? S.segmentBtnActive
+                      : {}),
+                  }}
+                  onClick={() =>
+                    setFilters((f) => ({
+                      ...f,
+                      scope: "personal",
+                    }))
+                  }
+                >
+                  Personal
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    ...S.segmentBtn,
+                    ...(filters.scope === "groups"
+                      ? S.segmentBtnActive
+                      : {}),
+                  }}
+                  onClick={() =>
+                    setFilters((f) => ({
+                      ...f,
+                      scope: "groups",
+                    }))
+                  }
+                >
+                  Grupos
+                </button>
+              </div>
+            </div>
+
+            <input
+              style={S.search}
+              className="spEvt-search"
+              placeholder="Buscar por título, notas o grupo…"
+              value={filters.query}
+              onChange={(e) =>
+                setFilters((f) => ({
+                  ...f,
+                  query: e.target.value,
+                }))
+              }
+            />
+          </div>
+
+          {events.length > 0 && (
+            <button
+              type="button"
+              onClick={sendTodayDigest}
+              disabled={sendingDigest}
+              style={{
+                ...S.digestChip,
+                ...(sendingDigest
+                  ? { opacity: 0.6, cursor: "default" }
+                  : null),
+              }}
+              className="spEvt-digestChip"
+            >
+              {sendingDigest
+                ? "Enviando recordatorio…"
+                : "Enviar recordatorio de hoy"}
+            </button>
+          )}
+
+          {/* Herramientas de selección */}
+          <div style={S.toolsRow}>
+            <div style={S.toolsLeft}>
+              {hasSelection ? (
+                <>
+                  <button
+                    type="button"
+                    style={S.toolBtn}
+                    onClick={clearSelection}
+                  >
+                    Limpiar selección
+                  </button>
+                  <button
+                    type="button"
+                    style={S.toolBtnDanger}
+                    onClick={handleDeleteSelected}
+                  >
+                    Eliminar seleccionados
+                  </button>
+                </>
+              ) : (
+                <span style={S.toolsHint}>
+                  Toca el icono de casilla para seleccionar varios
+                  eventos y aplicar acciones en bloque.
+                </span>
               )}
-            </>
+            </div>
+
+            <button
+              type="button"
+              style={S.toolBtnGhost}
+              onClick={() => refreshData(true)}
+            >
+              Actualizar lista
+            </button>
+          </div>
+
+          {/* Lista de eventos */}
+          {loading ? (
+            <div style={S.loadingList}>
+              <div style={S.loadingRow}>
+                <div style={S.loadingDot} />
+                <div>
+                  <div style={S.loadingTitle}>
+                    Cargando eventos…
+                  </div>
+                  <div style={S.loadingSub}>
+                    Un momento, por favor.
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : groupedByDate.length === 0 ? (
+            <div style={S.emptyState} className="spEvt-empty">
+              <h2 style={S.emptyTitle}>No hay eventos aquí aún</h2>
+              <p style={S.emptySub}>
+                Empieza creando tu primer evento. Más adelante podrás
+                verlos por fecha, editar y detectar conflictos.
+              </p>
+              <button
+                type="button"
+                style={S.primary}
+                onClick={() =>
+                  router.push("/events/new/details?type=personal")
+                }
+              >
+                Crear evento
+              </button>
+            </div>
+          ) : (
+            <div style={S.list} className="spEvt-list">
+              {groupedByDate.map(({ dateKey, events }) => (
+                <div
+                  key={dateKey}
+                  style={S.section}
+                  className="spEvt-section"
+                >
+                  <div style={S.sectionHeader}>
+                    <div style={S.sectionDate}>
+                      {formatDateNice(dateKey)}
+                    </div>
+                    <div style={S.sectionCount}>
+                      {events.length} evento
+                      {events.length === 1 ? "" : "s"}
+                    </div>
+                  </div>
+
+                  <div style={S.sectionBody}>
+                    {events.map((e) => (
+                      <EventRow
+                        key={e.id}
+                        e={e}
+                        selected={selectedIds.has(String(e.id))}
+                        toggleSelection={toggleSelection}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </section>
-      </div>
-
-      {/* ✅ Responsive SOLO Events (no toca desktop global) */}
-      <style>{`
-        @media (max-width: 520px) {
-          .spEvt-shell {
-            padding: 14px 12px 110px !important; /* espacio para bottom bar */
-          }
-
-          .spEvt-card {
-            padding: 12px !important;
-            border-radius: 16px !important;
-            margin-top: 10px !important;
-          }
-
-          .spEvt-titleRow {
-            gap: 10px !important;
-          }
-
-          .spEvt-sub {
-            display: none !important; /* menos ruido */
-          }
-
-          .spEvt-filters {
-            width: 100% !important;
-            justify-content: space-between !important;
-          }
-
-          .spEvt-tabs {
-            width: 100% !important;
-            justify-content: space-between !important;
-          }
-
-          .spEvt-search {
-            width: 100% !important;
-            min-width: 0 !important;
-          }
-
-          .spEvt-row {
-            padding: 10px !important;
-            border-radius: 14px !important;
-          }
-
-          .spEvt-list {
-            gap: 8px !important;
-          }
-
-          .spEvt-seeMore {
-            width: 100% !important;
-          }
-        }
-      `}</style>
-    </main>
+      </main>
+    </MobileScaffold>
   );
 }
 
+function EventRow({
+  e,
+  selected,
+  toggleSelection,
+}: {
+  e: EventWithGroup;
+  selected: boolean;
+  toggleSelection: (id: string) => void;
+}) {
+  const meta = groupMeta(
+    e.group_id ? (e.group?.type as any) ?? "pair" : "personal",
+  );
+
+  const start = new Date(e.start);
+  const end = new Date(e.end);
+
+  const timeLabel =
+    start.toDateString() === end.toDateString()
+      ? `${formatTime(start)} — ${formatTime(end)}`
+      : `${formatDateShort(start)} ${formatTime(
+          start,
+        )} → ${formatDateShort(end)} ${formatTime(end)}`;
+
+  return (
+    <div style={S.eventRow} className="spEvt-row">
+      <button
+        type="button"
+        onClick={() => toggleSelection(String(e.id))}
+        style={{
+          ...S.checkbox,
+          ...(selected ? S.checkboxOn : {}),
+        }}
+        aria-pressed={selected}
+      >
+        {selected ? "✓" : ""}
+      </button>
+
+      <div
+        style={{
+          ...S.eventCard,
+          borderColor: selected
+            ? "rgba(56,189,248,0.55)"
+            : (S.eventCard.border as string),
+          boxShadow: selected
+            ? "0 0 0 1px rgba(56,189,248,0.35)"
+            : (S.eventCard.boxShadow as string),
+        }}
+      >
+        <div style={S.eventTop}>
+          <div style={S.eventTitleRow}>
+            <div style={S.eventDotWrap}>
+              <span
+                style={{
+                  ...S.eventDot,
+                  background: meta.dot,
+                }}
+              />
+            </div>
+            <div>
+              <div style={S.eventTitle}>
+                {e.title || "Sin título"}
+              </div>
+              <div style={S.eventGroup}>
+                {e.group_id
+                  ? getGroupTypeLabel(e.group?.type as any)
+                  : "Personal"}
+                {e.group?.name ? ` • ${e.group.name}` : ""}
+              </div>
+            </div>
+          </div>
+
+          <div style={S.eventTime}>{timeLabel}</div>
+        </div>
+
+        {e.notes && (
+          <div style={S.eventNotes}>{e.notes}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================
+   Helpers de formato
+   ============================ */
+function formatDateNice(isoDateKey: string) {
+  const d = new Date(isoDateKey);
+  const formatter = new Intl.DateTimeFormat("es-PE", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  return formatter.format(d);
+}
+
+function formatDateShort(d: Date) {
+  const formatter = new Intl.DateTimeFormat("es-PE", {
+    day: "2-digit",
+    month: "short",
+  });
+  return formatter.format(d);
+}
+
+function formatTime(d: Date) {
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+/* ============================
+   Styles
+   ============================ */
 const S: Record<string, React.CSSProperties> = {
-  page: {
+  pageShell: {
     minHeight: "100vh",
     background:
       "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
-    fontFamily:
-      "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-  },
-  shell: {
     maxWidth: 1120,
     margin: "0 auto",
-    padding: "22px 18px 48px",
+    padding: "22px 18px 56px",
   },
-  topActions: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  primary: {
-    height: 40,
-    padding: "0 14px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
+
+  stickyTop: {
+    position: "sticky",
+    top: 0,
+    zIndex: 20,
+    paddingTop: 10,
+    paddingBottom: 10,
+    backdropFilter: "blur(16px)",
     background:
-      "linear-gradient(135deg, rgba(56,189,248,0.20), rgba(124,58,237,0.20))",
-    color: "#fff",
-    fontWeight: 950,
-    cursor: "pointer",
+      "linear-gradient(180deg, rgba(5,8,22,0.92), rgba(5,8,22,0.78))",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
   },
-  secondary: {
-    height: 40,
-    padding: "0 14px",
-    borderRadius: 12,
-    border: "1px solid rgba(148,163,184,0.55)",
-    background: "rgba(15,23,42,0.9)",
-    color: "#e5e7eb",
-    fontWeight: 800,
-    cursor: "pointer",
+
+  toastWrap: {
+    position: "fixed",
+    top: 18,
+    right: 18,
+    zIndex: 50,
+    pointerEvents: "none",
+  },
+  toastCard: {
+    pointerEvents: "auto",
+    minWidth: 260,
+    maxWidth: 360,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(7,11,22,0.92)",
+    boxShadow: "0 24px 70px rgba(0,0,0,0.45)",
+    backdropFilter: "blur(14px)",
+    padding: "12px 14px",
+  },
+  toastTitle: {
+    fontWeight: 900,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.95)",
+  },
+  toastSub: {
+    marginTop: 4,
     fontSize: 12,
+    color: "rgba(255,255,255,0.70)",
+    fontWeight: 650,
   },
+
   card: {
-    borderRadius: 22,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 16,
     marginTop: 14,
-    boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
+    borderRadius: 20,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(6,10,25,0.90)",
+    boxShadow:
+      "0 22px 70px rgba(0,0,0,0.55), 0 0 0 1px rgba(15,23,42,0.60)",
+    padding: "18px 16px 18px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
   },
+
   titleRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: 16,
-    marginBottom: 12,
+    gap: 18,
     flexWrap: "wrap",
   },
-  title: {
-    fontSize: 16,
+  kicker: {
+    fontSize: 11,
+    letterSpacing: "0.14em",
+    textTransform: "uppercase",
+    color: "rgba(148,163,184,0.95)",
+    fontWeight: 800,
+    marginBottom: 6,
+  },
+  h1: {
+    margin: 0,
+    fontSize: 22,
+    letterSpacing: "-0.03em",
     fontWeight: 950,
   },
   sub: {
-    marginTop: 4,
-    fontSize: 12,
-    opacity: 0.75,
-    fontWeight: 650,
+    marginTop: 6,
+    fontSize: 13,
+    color: "rgba(209,213,219,0.96)",
+    maxWidth: 420,
   },
-  filters: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-  },
-  tabs: {
-    display: "flex",
-    gap: 6,
-    padding: 2,
-    borderRadius: 999,
-    background: "rgba(15,23,42,0.85)",
-    border: "1px solid rgba(255,255,255,0.08)",
-  },
-  tab: {
-    border: "none",
-    outline: "none",
-    padding: "4px 10px",
-    borderRadius: 999,
-    fontSize: 11,
-    fontWeight: 700,
-    background: "transparent",
-    color: "rgba(255,255,255,0.70)",
-    cursor: "pointer",
-  } as React.CSSProperties,
-  tabActive: {
+
+  factBox: {
+    padding: "10px 12px",
+    borderRadius: 16,
+    border: "1px solid rgba(148,163,184,0.55)",
     background:
-      "linear-gradient(135deg, rgba(56,189,248,0.40), rgba(124,58,237,0.40))",
-    color: "#fff",
+      "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.28), transparent 55%), radial-gradient(circle at 100% 100%, rgba(16,185,129,0.20), transparent 55%), rgba(15,23,42,0.95)",
+    minWidth: 220,
   },
-  search: {
-    minWidth: 160,
-    padding: "5px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.5)",
-    background: "rgba(15,23,42,0.9)",
-    color: "#e5e7eb",
+  factLabel: {
     fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: "0.16em",
+    color: "rgba(226,232,240,0.9)",
+    marginBottom: 6,
+    fontWeight: 800,
   },
-  list: {
-    marginTop: 10,
+  factRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 13,
+    color: "rgba(241,245,249,0.95)",
+    marginBottom: 4,
+  },
+  factDotPersonal: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(250,204,21,0.98)",
+  },
+  factDotGroup: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(96,165,250,0.98)",
+  },
+  factHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "rgba(226,232,240,0.9)",
+  },
+
+  filters: {
     display: "flex",
     flexDirection: "column",
     gap: 10,
   },
-  row: {
+  tabs: {
     display: "flex",
-    gap: 10,
-    padding: 12,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
+    flexWrap: "wrap",
+    gap: 8,
   },
-  bar: {
-    width: 6,
+  segment: {
+    display: "inline-flex",
     borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.55)",
+    background: "rgba(15,23,42,0.96)",
+    overflow: "hidden",
   },
-  rowTop: {
+  segmentBtn: {
+    padding: "8px 11px",
+    fontSize: 12,
+    background: "transparent",
+    border: "none",
+    color: "rgba(209,213,219,0.9)",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  segmentBtnActive: {
+    background:
+      "linear-gradient(135deg, rgba(59,130,246,0.55), rgba(56,189,248,0.55))",
+    color: "white",
+  },
+
+  search: {
+    width: "100%",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.60)",
+    background: "rgba(15,23,42,0.96)",
+    padding: "9px 12px",
+    color: "rgba(248,250,252,0.98)",
+    fontSize: 13,
+    outline: "none",
+  },
+
+  digestChip: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.55)",
+    background: "rgba(15,23,42,0.96)",
+    color: "#e5e7eb",
+    fontWeight: 800,
+    fontSize: 12,
+    cursor: "pointer",
+  },
+
+  toolsRow: {
+    marginTop: 6,
     display: "flex",
     justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  toolsLeft: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  toolsHint: {
+    fontSize: 12,
+    color: "rgba(148,163,184,0.96)",
+  },
+
+  toolBtn: {
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.75)",
+    background: "rgba(15,23,42,0.96)",
+    color: "rgba(226,232,240,0.98)",
+    fontSize: 12,
+    cursor: "pointer",
+    fontWeight: 800,
+  },
+  toolBtnDanger: {
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(248,113,113,0.75)",
+    background: "rgba(15,23,42,0.96)",
+    color: "rgba(254,242,242,0.98)",
+    fontSize: 12,
+    cursor: "pointer",
+    fontWeight: 800,
+  },
+  toolBtnGhost: {
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.55)",
+    background: "rgba(15,23,42,0.96)",
+    color: "rgba(226,232,240,0.98)",
+    fontSize: 12,
+    cursor: "pointer",
+    fontWeight: 800,
+  },
+
+  list: {
+    marginTop: 10,
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  },
+  section: {
+    borderRadius: 18,
+    border: "1px solid rgba(31,41,55,0.95)",
+    background: "rgba(17,24,39,0.96)",
+    padding: 10,
+  },
+  sectionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 8,
+  },
+  sectionDate: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "rgba(243,244,246,0.98)",
+  },
+  sectionCount: {
+    fontSize: 12,
+    color: "rgba(156,163,175,0.96)",
+  },
+  sectionBody: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+
+  eventRow: {
+    display: "flex",
+    gap: 8,
+    alignItems: "stretch",
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    border: "1px solid rgba(148,163,184,0.75)",
+    background: "rgba(15,23,42,0.96)",
+    color: "white",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 900,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  checkboxOn: {
+    background:
+      "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95))",
+    borderColor: "transparent",
+  },
+
+  eventCard: {
+    flex: 1,
+    borderRadius: 14,
+    border: "1px solid rgba(31,41,55,0.98)",
+    background:
+      "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.16), transparent 55%), rgba(15,23,42,0.98)",
+    padding: "10px 11px",
+    boxShadow: "0 12px 30px rgba(0,0,0,0.45)",
+  },
+  eventTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  eventTitleRow: {
+    display: "flex",
+    gap: 8,
+    alignItems: "flex-start",
+  },
+  eventDotWrap: {
+    marginTop: 3,
+  },
+  eventDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 999,
+  },
+  eventTitle: {
+    fontSize: 14,
+    fontWeight: 900,
+  },
+  eventGroup: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "rgba(156,163,175,0.96)",
+  },
+  eventTime: {
+    fontSize: 12,
+    color: "rgba(209,213,219,0.96)",
+    fontWeight: 700,
+  },
+  eventNotes: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "rgba(209,213,219,0.96)",
+  },
+
+  emptyState: {
+    marginTop: 12,
+    borderRadius: 18,
+    border: "1px dashed rgba(148,163,184,0.75)",
+    background: "rgba(15,23,42,0.92)",
+    padding: 16,
+    textAlign: "center",
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: 950,
+  },
+  emptySub: {
+    marginTop: 4,
+    fontSize: 13,
+    color: "rgba(209,213,219,0.96)",
+    marginBottom: 10,
+  },
+
+  loadingList: {
+    marginTop: 12,
+    borderRadius: 18,
+    border: "1px solid rgba(30,64,175,0.8)",
+    background:
+      "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.22), transparent 55%), rgba(15,23,42,0.96)",
+    padding: 14,
+  },
+  loadingRow: {
+    display: "flex",
     gap: 10,
     alignItems: "center",
   },
-  rowTitle: {
-    fontWeight: 950,
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis",
-  },
-  rowSub: {
-    marginTop: 6,
-    fontSize: 12,
-    opacity: 0.75,
-    fontWeight: 650,
-  },
-  badge: {
-    marginTop: 8,
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "2px 8px",
-    fontSize: 11,
-    fontWeight: 700,
+  loadingDot: {
+    width: 12,
+    height: 12,
     borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.16)",
-    background: "rgba(15,23,42,0.9)",
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 20px rgba(56,189,248,0.70)",
   },
-  empty: {
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 16,
-    border: "1px dashed rgba(255,255,255,0.16)",
+  loadingTitle: {
     fontSize: 13,
-    opacity: 0.8,
-  },
-  seeMore: {
-    marginTop: 10,
-    width: "fit-content",
-    padding: "10px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
     fontWeight: 900,
+  },
+  loadingSub: {
+    marginTop: 2,
     fontSize: 12,
+    color: "rgba(209,213,219,0.96)",
   },
-  toast: {
-    position: "fixed",
-    top: 16,
-    right: 16,
-    zIndex: 60,
-    padding: "10px 12px",
+
+  primary: {
+    padding: "9px 12px",
     borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(7,11,22,0.75)",
-    backdropFilter: "blur(12px)",
+    border: "1px solid rgba(96,165,250,0.85)",
+    background:
+      "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95))",
+    color: "white",
+    cursor: "pointer",
     fontWeight: 900,
-  },
-  del: {
-    border: "none",
-    background: "transparent",
-    cursor: "pointer",
-    fontSize: 16,
-  },
-  edit: {
-    border: "none",
-    background: "transparent",
-    cursor: "pointer",
-    fontSize: 16,
-    opacity: 0.85,
+    fontSize: 13,
   },
 };

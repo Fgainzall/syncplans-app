@@ -1623,16 +1623,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   cell: {
-    // ✅ Ocupa toda la altura fija que define gridAutoRows
-    height: "100%",
+    height: 104, // ✅ altura fija: todos los días iguales
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
     padding: 10,
     cursor: "pointer",
     textAlign: "left",
-    display: "flex",
-    flexDirection: "column",
+    overflow: "hidden", // ✅ si se llena mucho, recorta dentro del recuadro
     transition:
       "transform 160ms ease, border-color 160ms ease",
   },
