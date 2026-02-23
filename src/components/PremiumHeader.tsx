@@ -260,8 +260,9 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
   }, [group, active.label]);
 
   const autoTitle = useMemo(() => {
+    if (pathname.startsWith("/panel")) return "Panel";
     if (pathname.startsWith("/planes")) return "Planes";
-    if (pathname.startsWith("/profile")) return "Panel";
+    if (pathname.startsWith("/profile")) return "Perfil";
     if (pathname.startsWith("/conflicts")) return "Conflictos";
     if (pathname.startsWith("/groups")) return "Grupos";
     if (pathname.startsWith("/members")) return "Miembros";
@@ -475,9 +476,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                       style={{ ...S.mTab, ...(isActive ? S.tabActive : {}) }}
                       onClick={() => onPickMode(t.key)}
                     >
-                      <span
-                        style={{ ...S.tabDot, background: t.dot }}
-                      />
+                      <span style={{ ...S.tabDot, background: t.dot }} />
                       <span style={S.mTabText}>{t.label}</span>
                       <span style={S.mTabHint}>{t.hint}</span>
                     </button>
@@ -530,10 +529,10 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                 />
                 <NavPill
                   label="Panel"
-                  active={pathname.startsWith("/profile")}
+                  active={pathname.startsWith("/panel")}
                   onClick={() => {
                     closeUserMenu();
-                    router.push("/profile");
+                    router.push("/panel");
                   }}
                   styleOverride={S.pill}
                   styleActive={S.pillActive}
@@ -679,9 +678,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                       style={{ ...S.tab, ...(isActive ? S.tabActive : {}) }}
                       onClick={() => onPickMode(t.key)}
                     >
-                      <span
-                        style={{ ...S.tabDot, background: t.dot }}
-                      />
+                      <span style={{ ...S.tabDot, background: t.dot }} />
                       <span style={S.tabText}>{t.label}</span>
                       <span style={S.tabHint}>{t.hint}</span>
                     </button>
@@ -716,7 +713,16 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                 <NavPill
                   label="Conflictos"
                   active={pathname.startsWith("/conflicts")}
-                  onClick={() => router.push("/conflicts/detected")}
+                  onClick={() =>
+                    router.push("/conflicts/detected")
+                  }
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Panel"
+                  active={pathname.startsWith("/panel")}
+                  onClick={() => router.push("/panel")}
                   styleOverride={S.pill}
                   styleActive={S.pillActive}
                 />
@@ -738,13 +744,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                   label="Invitaciones"
                   active={pathname.startsWith("/invitations")}
                   onClick={() => router.push("/invitations")}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Panel"
-                  active={pathname.startsWith("/profile")}
-                  onClick={() => router.push("/profile")}
                   styleOverride={S.pill}
                   styleActive={S.pillActive}
                 />

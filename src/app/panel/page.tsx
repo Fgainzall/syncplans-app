@@ -14,7 +14,7 @@ export default function PanelPage() {
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(1000px 600px at 20% -10%, rgba(56,189,248,0.15), transparent 60%), #050816",
+          "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
         color: "rgba(255,255,255,0.92)",
         fontFamily:
           "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
@@ -31,12 +31,12 @@ export default function PanelPage() {
           subtitle="Tu centro de control en SyncPlans."
         />
 
-        {/* GRID PRINCIPAL */}
-        <div
+        {/* GRID PRINCIPAL (HUB) */}
+        <section
           style={{
             marginTop: 24,
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
             gap: 16,
           }}
         >
@@ -48,13 +48,13 @@ export default function PanelPage() {
 
           <HubCard
             title="Miembros"
-            hint="Gestiona quién está en cada grupo."
+            hint="Quién está en cada grupo."
             onClick={() => router.push("/members")}
           />
 
           <HubCard
             title="Invitaciones"
-            hint="Envía y acepta accesos."
+            hint="Enviar y aceptar accesos."
             onClick={() => router.push("/invitations")}
           />
 
@@ -65,6 +65,12 @@ export default function PanelPage() {
           />
 
           <HubCard
+            title="Settings"
+            hint="Notificaciones, zonas horarias y más."
+            onClick={() => router.push("/settings")}
+          />
+
+          <HubCard
             title="Planes"
             hint="Ver tu plan actual y opciones Premium."
             onClick={() => router.push("/planes")}
@@ -72,10 +78,10 @@ export default function PanelPage() {
 
           <HubCard
             title="Perfil"
-            hint="Preferencias y configuración personal."
+            hint="Datos de cuenta y preferencias."
             onClick={() => router.push("/profile")}
           />
-        </div>
+        </section>
       </MobileScaffold>
     </main>
   );
@@ -90,21 +96,38 @@ function HubCard(props: {
     <button
       onClick={props.onClick}
       style={{
-        borderRadius: 18,
+        borderRadius: 20,
         border: "1px solid rgba(255,255,255,0.12)",
         background:
-          "radial-gradient(600px 400px at 0% 0%, rgba(56,189,248,0.20), transparent 55%), rgba(15,23,42,0.92)",
-        padding: 16,
+          "radial-gradient(600px 400px at 0% 0%, rgba(56,189,248,0.20), transparent 55%), rgba(15,23,42,0.94)",
+        padding: 18,
         textAlign: "left",
         cursor: "pointer",
-        transition: "all 0.15s ease",
+        transition: "transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease",
+        boxShadow: "0 18px 50px rgba(0,0,0,0.40)",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.transform =
+          "translateY(-2px)";
+        (e.currentTarget as HTMLButtonElement).style.boxShadow =
+          "0 22px 60px rgba(0,0,0,0.55)";
+        (e.currentTarget as HTMLButtonElement).style.borderColor =
+          "rgba(255,255,255,0.22)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.transform =
+          "translateY(0px)";
+        (e.currentTarget as HTMLButtonElement).style.boxShadow =
+          "0 18px 50px rgba(0,0,0,0.40)";
+        (e.currentTarget as HTMLButtonElement).style.borderColor =
+          "rgba(255,255,255,0.12)";
       }}
     >
       <div
         style={{
-          fontSize: 16,
+          fontSize: 15,
           fontWeight: 900,
-          marginBottom: 4,
+          marginBottom: 6,
         }}
       >
         {props.title}
@@ -114,6 +137,7 @@ function HubCard(props: {
         style={{
           fontSize: 13,
           opacity: 0.8,
+          fontWeight: 650,
         }}
       >
         {props.hint}
