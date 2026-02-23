@@ -12,6 +12,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
 import AppHero from "@/components/AppHero";
+import MobileScaffold from "@/components/MobileScaffold";
 import { EventEditModal } from "@/components/EventEditModal";
 
 import { getMyGroups } from "@/lib/groupsDb";
@@ -186,7 +187,7 @@ export default function CalendarClient(
   {
     highlightId = null,
     appliedToast = null,
-  }: CalendarClientProps = {}
+  }: CalendarClientProps = {},
 ) {
   const router = useRouter();
   const pathname = usePathname();
@@ -269,8 +270,7 @@ export default function CalendarClient(
         if (showToastFlag) {
           setToast({
             title: opts?.toastTitle ?? "Actualizando…",
-            subtitle:
-              opts?.toastSubtitle ?? "Recargando desde SyncPlans",
+            subtitle: opts?.toastSubtitle ?? "Recargando desde SyncPlans",
           });
         }
 
@@ -723,13 +723,14 @@ export default function CalendarClient(
       `/conflicts/compare?i=${firstRelevantConflictIndex}`,
     );
 
-  /* =========================
+  // 👇 la parte de RENDER viene en la Parte 2/3
+    /* =========================
      RENDER
      ========================= */
   if (booting) {
     return (
-      <main style={styles.page}>
-        <div style={styles.shell}>
+      <MobileScaffold>
+        <main style={styles.page}>
           <div style={styles.stickyTop}>
             <AppHero mobileNav="bottom" />
           </div>
@@ -745,15 +746,15 @@ export default function CalendarClient(
               </div>
             </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </MobileScaffold>
     );
   }
 
   const monthTitle = prettyMonthRange(monthStart, monthEnd);
 
   return (
-    <main style={styles.page}>
+    <MobileScaffold>
       {toast && (
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
@@ -765,7 +766,7 @@ export default function CalendarClient(
         </div>
       )}
 
-      <div style={styles.shell} className="spCal-shell">
+      <main style={styles.page} className="spCal-shell">
         {/* ✅ Sticky top */}
         <div style={styles.stickyTop}>
           <AppHero
@@ -773,7 +774,10 @@ export default function CalendarClient(
             title="Calendario"
             subtitle="Organiza tu tiempo sin fricción."
             rightSlot={
-              <button onClick={handleRefresh} style={styles.ghostBtn}>
+              <button
+                onClick={handleRefresh}
+                style={styles.ghostBtn}
+              >
                 Actualizar
               </button>
             }
@@ -1122,12 +1126,10 @@ export default function CalendarClient(
             });
           }}
         />
-
-      </div>
-    </main>
+      </main>
+    </MobileScaffold>
   );
 }
-
 /* =========================
    EventRow (chip premium)
    ========================= */
@@ -1230,6 +1232,7 @@ function EventRow({
     </div>
   );
 }
+
 /* =========================
    Celdas del mes (tipo Google)
    ========================= */
@@ -1422,8 +1425,10 @@ const styles: Record<string, React.CSSProperties> = {
     background:
       "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: "22px 18px 48px",
   },
-  shell: { maxWidth: 1120, margin: "0 auto", padding: "22px 18px 48px" },
 
   stickyTop: {
     position: "sticky",
@@ -1587,7 +1592,7 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
   },
 
-  // ✅ NUEVO: contenedor scroll horizontal del mes
+  // ✅ contenedor scroll horizontal del mes
   monthScroller: {
     overflowX: "auto",
     overflowY: "hidden",
@@ -1598,7 +1603,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: "grid",
     gridTemplateColumns: "repeat(7, 1fr)",
     padding: "10px 10px 0",
-    // ✅ MIN WIDTH para que en móvil sea más ancho que la pantalla
     minWidth: 720,
   },
   weekDay: {
@@ -1613,7 +1617,6 @@ const styles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: "repeat(7, 1fr)",
     gap: 10,
     padding: 10,
-    // ✅ MIN WIDTH alineado con weekHeader
     minWidth: 720,
   },
 
