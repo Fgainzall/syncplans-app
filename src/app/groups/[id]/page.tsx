@@ -701,7 +701,10 @@ export default function GroupDetailsPage() {
 
       <div className="sp-group-shell" style={styles.shell}>
         <div style={styles.topRow}>
-          <PremiumHeader />
+          <PremiumHeader
+            title={group.name || typeLabel}
+            subtitle={`Grupo ${typeLabel.toLowerCase()} para coordinar horarios compartidos.`}
+          />
           <div style={styles.topActions}>
             <LogoutButton />
           </div>
