@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
-const AnyPremiumHeader = PremiumHeader as React.ComponentType<any>;
+
 import { getMyGroups, getGroupTypeLabel } from "@/lib/groupsDb";
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
 import { getMyInvitations } from "@/lib/invitationsDb";
@@ -93,7 +93,9 @@ export default function GroupsPage() {
 
   const grouped = useMemo(() => {
     const pair = groups.filter((g) => (g.type || "").toLowerCase() === "pair");
-    const family = groups.filter((g) => (g.type || "").toLowerCase() === "family");
+    const family = groups.filter(
+      (g) => (g.type || "").toLowerCase() === "family"
+    );
     const other = groups.filter((g) => {
       const t = (g.type || "").toLowerCase();
       return !["pair", "family"].includes(t);
@@ -116,8 +118,31 @@ export default function GroupsPage() {
   if (booting) {
     return (
       <main style={styles.page}>
-        <div style={styles.shell}>
-          <AnyPremiumHeader />
+        <div className="sp-groups-shell" style={styles.shell}>
+          <PremiumHeader
+            title="Grupos"
+            subtitle="Personas con las que te organizas."
+            rightSlot={
+              <div className="sp-groups-topActions" style={styles.topActions}>
+                <button
+                  className="sp-tap"
+                  onClick={() => router.push("/invitations")}
+                  style={styles.secondaryBtn}
+                >
+                  {invitationsLabel}
+                </button>
+                <button
+                  className="sp-tap"
+                  onClick={() => router.push("/groups/new")}
+                  style={styles.primaryBtn}
+                >
+                  + Nuevo grupo
+                </button>
+                <LogoutButton />
+              </div>
+            }
+          />
+
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
@@ -130,6 +155,9 @@ export default function GroupsPage() {
         {/* Mobile polish */}
         <style jsx global>{`
           @media (max-width: 680px) {
+            .sp-groups-shell {
+              padding: 16px 14px 44px !important;
+            }
             .sp-groups-topActions {
               width: 100%;
               display: grid !important;
@@ -140,6 +168,17 @@ export default function GroupsPage() {
             .sp-groups-topActions > a {
               width: 100% !important;
             }
+          }
+
+          @media (hover: hover) {
+            .sp-groups-cardBtn:hover {
+              border-color: rgba(255, 255, 255, 0.18) !important;
+              background: rgba(255, 255, 255, 0.05) !important;
+            }
+          }
+
+          .sp-tap:active {
+            transform: translateY(1px);
           }
         `}</style>
       </main>
@@ -153,10 +192,6 @@ export default function GroupsPage() {
         @media (max-width: 680px) {
           .sp-groups-shell {
             padding: 16px 14px 44px !important;
-          }
-
-          .sp-groups-topRow {
-            gap: 10px !important;
           }
 
           .sp-groups-topActions {
@@ -203,51 +238,57 @@ export default function GroupsPage() {
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
             <div style={styles.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
+            {toast.subtitle ? (
+              <div style={styles.toastSub}>{toast.subtitle}</div>
+            ) : null}
           </div>
         </div>
       )}
 
       <div className="sp-groups-shell" style={styles.shell}>
-        <div className="sp-groups-topRow" style={styles.topRow}>
-          <AnyPremiumHeader />
-          <div className="sp-groups-topActions" style={styles.topActions}>
-            <button
-              className="sp-tap"
-              onClick={() => router.push("/invitations")}
-              style={styles.secondaryBtn}
-            >
-              {invitationsLabel}
-            </button>
+        <PremiumHeader
+          title="Grupos"
+          subtitle="Personas con las que te organizas."
+          rightSlot={
+            <div className="sp-groups-topActions" style={styles.topActions}>
+              <button
+                className="sp-tap"
+                onClick={() => router.push("/invitations")}
+                style={styles.secondaryBtn}
+              >
+                {invitationsLabel}
+              </button>
 
-            <button
-              className="sp-tap"
-              onClick={() => router.push("/groups/new")}
-              style={styles.primaryBtn}
-            >
-              + Nuevo grupo
-            </button>
+              <button
+                className="sp-tap"
+                onClick={() => router.push("/groups/new")}
+                style={styles.primaryBtn}
+              >
+                + Nuevo grupo
+              </button>
 
-            <LogoutButton />
-          </div>
-        </div>
+              <LogoutButton />
+            </div>
+          }
+        />
 
         <section className="sp-groups-hero" style={styles.hero}>
           <div>
             <div style={styles.heroKicker}>Personas con las que te organizas</div>
             <h1 style={styles.heroTitle}>Grupos para coordinar sin fricciones</h1>
             <p style={styles.heroSub}>
-              Cada grupo tiene su propio calendario compartido. Aquí decides con quién se cruzan
-              tus planes: pareja, familia o grupos compartidos como amigos y equipos.
+              Cada grupo tiene su propio calendario compartido. Aquí decides con
+              quién se cruzan tus planes: pareja, familia o grupos compartidos
+              como amigos y equipos.
             </p>
           </div>
 
           <div className="sp-groups-heroTip" style={styles.heroTip}>
             <div style={styles.heroTipTitle}>Tip</div>
             <p style={styles.heroTipBody}>
-              Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>. Después puedes sumar grupos
-              compartidos (amigos, pádel, trabajo) y dejar que SyncPlans señale los choques por
-              ustedes.
+              Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>. Después
+              puedes sumar grupos compartidos (amigos, pádel, trabajo) y dejar
+              que SyncPlans señale los choques por ustedes.
             </p>
           </div>
         </section>
@@ -257,8 +298,8 @@ export default function GroupsPage() {
             <div>
               <div style={styles.sectionTitle}>Tus grupos</div>
               <div style={styles.sectionSub}>
-                Elige un grupo para ver miembros, enviar invitaciones o saltar directo al calendario
-                compartido.
+                Elige un grupo para ver miembros, enviar invitaciones o saltar
+                directo al calendario compartido.
               </div>
             </div>
           </div>
@@ -267,8 +308,8 @@ export default function GroupsPage() {
             <>
               <div style={styles.emptyTitle}>Todavía no tienes grupos</div>
               <div style={styles.emptySub}>
-                Crea un grupo de <b>pareja</b>, <b>familia</b> o un grupo <b>compartido</b> para
-                amigos o equipos.
+                Crea un grupo de <b>pareja</b>, <b>familia</b> o un grupo{" "}
+                <b>compartido</b> para amigos o equipos.
               </div>
 
               <div style={{ marginTop: 12 }}>
@@ -294,7 +335,9 @@ export default function GroupsPage() {
                         onClick={() => openGroup(g.id)}
                         style={styles.groupCard}
                       >
-                        <div style={styles.groupName}>{g.name || "Pareja"}</div>
+                        <div style={styles.groupName}>
+                          {g.name || "Pareja"}
+                        </div>
                         <div style={styles.groupMeta}>
                           {labelType(g.type)} · Calendario compartido de pareja
                         </div>
@@ -315,7 +358,9 @@ export default function GroupsPage() {
                         onClick={() => openGroup(g.id)}
                         style={styles.groupCard}
                       >
-                        <div style={styles.groupName}>{g.name || "Familia"}</div>
+                        <div style={styles.groupName}>
+                          {g.name || "Familia"}
+                          </div>
                         <div style={styles.groupMeta}>
                           {labelType(g.type)} · Agenda donde todos ven todo
                         </div>
@@ -360,9 +405,15 @@ const styles: Record<string, React.CSSProperties> = {
       "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
   },
-  shell: { maxWidth: 980, margin: "0 auto", padding: "22px 18px 48px" },
+  shell: { maxWidth: 1120, margin: "0 auto", padding: "22px 18px 48px" },
 
-  toastWrap: { position: "fixed", top: 18, right: 18, zIndex: 50, pointerEvents: "none" },
+  toastWrap: {
+    position: "fixed",
+    top: 18,
+    right: 18,
+    zIndex: 50,
+    pointerEvents: "none",
+  },
   toastCard: {
     pointerEvents: "auto",
     minWidth: 260,
@@ -377,15 +428,12 @@ const styles: Record<string, React.CSSProperties> = {
   toastTitle: { fontWeight: 900, fontSize: 13 },
   toastSub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 },
 
-  topRow: {
+  topActions: {
     display: "flex",
+    gap: 10,
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    marginBottom: 14,
     flexWrap: "wrap",
   },
-  topActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
 
   hero: {
     marginBottom: 14,
@@ -433,7 +481,11 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(15,23,42,0.9)",
     padding: 10,
   },
-  heroTipTitle: { fontSize: 12, fontWeight: 800, color: "rgba(226,232,240,0.96)" },
+  heroTipTitle: {
+    fontSize: 12,
+    fontWeight: 800,
+    color: "rgba(226,232,240,0.96)",
+  },
   heroTipBody: { marginTop: 4, fontSize: 12, color: "rgba(148,163,184,0.96)" },
 
   card: {
@@ -490,7 +542,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "10px 14px",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.14)",
-    background: "linear-gradient(135deg, rgba(56,189,248,0.20), rgba(124,58,237,0.20))",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.20), rgba(124,58,237,0.20))",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 900,
@@ -509,7 +562,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "12px 14px",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.14)",
-    background: "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 900,
