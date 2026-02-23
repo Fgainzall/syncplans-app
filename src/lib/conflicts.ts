@@ -19,7 +19,11 @@ export type CalendarEvent = {
   notes?: string;
 };
 
-export type ConflictResolution = "keep_existing" | "replace_with_new" | "ignore";
+export type ConflictResolution =
+  | "keep_existing"
+  | "replace_with_new"
+  | "ignore"
+  | "none";
 
 export type ConflictItem = {
   id: string; // ✅ estable (determinístico)
