@@ -41,10 +41,7 @@ export default function RootLayout({
           background: "#0B0F19",
           color: "#E5E7EB",
           overflowX: "hidden",
-
-          // ✅ safe-area padding base (no molesta en desktop)
-          paddingTop: "env(safe-area-inset-top)",
-          paddingBottom: "env(safe-area-inset-bottom)",
+          // 👇 sin safe-area aquí; lo maneja MobileScaffold
         }}
       >
         <SWRegister />

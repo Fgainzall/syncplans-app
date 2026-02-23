@@ -92,8 +92,14 @@ export default function MobileScaffold({
 }: Props) {
   const isMobile = useIsMobileWidth(520);
 
-  const desktopPad = useMemo(() => parsePadding(paddingDesktop), [paddingDesktop]);
-  const mobilePad = useMemo(() => parsePadding(paddingMobile), [paddingMobile]);
+  const desktopPad = useMemo(
+    () => parsePadding(paddingDesktop),
+    [paddingDesktop]
+  );
+  const mobilePad = useMemo(
+    () => parsePadding(paddingMobile),
+    [paddingMobile]
+  );
 
   // ✅ En móvil: el bottom padding SIEMPRE incluye:
   // - padding base
