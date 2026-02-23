@@ -83,10 +83,10 @@ export default function GroupsPage() {
 
       setLoading(true);
 
-    const [groupsData, invitesData] = await Promise.all([
-  getMyGroups(),
-  getMyInvitations(), // ✅ sin argumentos
-]);
+      const [groupsData, invitesData] = await Promise.all([
+        getMyGroups(),
+        getMyInvitations(), // ✅ sin argumentos
+      ]);
 
       const rawGroups = (groupsData || []) as any[];
       const enriched: GroupWithRole[] = rawGroups.map((g) => ({
@@ -99,7 +99,7 @@ export default function GroupsPage() {
       }));
 
       setGroups(enriched);
-     setPendingInvites(((invitesData as any[]) ?? []).length);
+      setPendingInvites(((invitesData as any[]) ?? []).length);
 
       if (withToast) {
         setToast({
@@ -127,9 +127,7 @@ export default function GroupsPage() {
     try {
       await setActiveGroupIdInDb(groupId);
 
-      window.dispatchEvent(
-        new CustomEvent("sp:active-group-changed"),
-      );
+      window.dispatchEvent(new CustomEvent("sp:active-group-changed"));
 
       setGroups((prev) =>
         prev.map((g) => ({
@@ -789,7 +787,7 @@ const styles: Record<string, React.CSSProperties> = {
   groupRow: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "stretch",
     gap: 12,
     borderRadius: 16,
     border: "1px solid rgba(31,41,55,0.95)",
@@ -800,6 +798,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     gap: 10,
     alignItems: "center",
+    flex: 1,
+    minWidth: 0,
   },
   groupAvatar: {
     width: 32,
@@ -810,6 +810,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     background: "rgba(15,23,42,0.96)",
+    flexShrink: 0,
   },
   groupAvatarDot: {
     width: 10,
@@ -827,6 +828,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     gap: 4,
+    flexWrap: "wrap",
   },
   dotSeparator: {
     opacity: 0.7,
@@ -841,6 +843,8 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "flex-end",
     justifyContent: "center",
     gap: 8,
+    flexShrink: 0,
+    minWidth: 140,
   },
 
   activateBtn: {
