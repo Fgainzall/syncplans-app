@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
-const AnyPremiumHeader = PremiumHeader as React.ComponentType<any>;
+
 import { inviteToGroup } from "@/lib/invitationsDb";
 import { fetchMyGroups, type GroupRow } from "@/lib/groupsStore";
 
@@ -222,6 +222,7 @@ export default function GroupInviteClient() {
       )}
 
       <div style={{ maxWidth: 920, margin: "0 auto", padding: "22px 18px 56px" }}>
+        {/* 🔹 Header premium consistente con el resto de la app */}
         <div
           style={{
             display: "flex",
@@ -230,7 +231,10 @@ export default function GroupInviteClient() {
             gap: 14,
           }}
         >
-          <AnyPremiumHeader />
+          <PremiumHeader
+            title="Invitar a grupo"
+            subtitle="Envía una invitación para que alguien se una al grupo correcto."
+          />
           <LogoutButton />
         </div>
 
