@@ -28,57 +28,114 @@ export default function PanelPage() {
       >
         <PremiumHeader
           title="Panel"
-          subtitle="Tu centro de control en SyncPlans."
+          subtitle="Tu centro de control: grupos, miembros, invitaciones y cuenta en un solo lugar."
         />
+
+        {/* Descripción breve del HUB */}
+        <section
+          style={{
+            marginTop: 18,
+            marginBottom: 4,
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+            alignItems: "flex-end",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              color: "rgba(148,163,184,0.96)",
+              maxWidth: 520,
+              fontWeight: 500,
+            }}
+          >
+            Piensa en el panel como la consola de SyncPlans: desde aquí
+            gestionas <b>con quién compartes</b>, cómo se ve tu cuenta y
+            qué plan tienes activo.
+          </div>
+
+          <div
+            style={{
+              fontSize: 11,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              padding: "6px 10px",
+              borderRadius: 999,
+              border: "1px solid rgba(148,163,184,0.42)",
+              background: "rgba(15,23,42,0.88)",
+              color: "rgba(226,232,240,0.96)",
+              fontWeight: 800,
+              whiteSpace: "nowrap",
+            }}
+          >
+            HUB · Administración
+          </div>
+        </section>
 
         {/* GRID PRINCIPAL (HUB) */}
         <section
           style={{
-            marginTop: 24,
+            marginTop: 10,
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
             gap: 16,
           }}
         >
           <HubCard
+            icon="👥"
+            tag="Relaciones"
             title="Grupos"
             hint="Pareja, familia y grupos compartidos."
             onClick={() => router.push("/groups")}
           />
 
           <HubCard
+            icon="🧑‍🤝‍🧑"
+            tag="Personas"
             title="Miembros"
-            hint="Quién está en cada grupo."
+            hint="Quién está en cada grupo y qué rol tiene."
             onClick={() => router.push("/members")}
           />
 
           <HubCard
+            icon="✉️"
+            tag="Invitaciones"
             title="Invitaciones"
-            hint="Enviar y aceptar accesos."
+            hint="Bandeja y envíos de invitación."
             onClick={() => router.push("/invitations")}
           />
 
           <HubCard
+            icon="🗓️"
+            tag="Agenda"
             title="Calendario"
             hint="Ver tu agenda y crear eventos."
             onClick={() => router.push("/calendar")}
           />
 
           <HubCard
+            icon="⚙️"
+            tag="Preferencias"
             title="Settings"
             hint="Notificaciones, zonas horarias y más."
             onClick={() => router.push("/settings")}
           />
 
           <HubCard
+            icon="💎"
+            tag="Suscripción"
             title="Planes"
-            hint="Ver tu plan actual y opciones Premium."
+            hint="Tu plan actual y opciones Premium."
             onClick={() => router.push("/planes")}
           />
 
           <HubCard
+            icon="👤"
+            tag="Cuenta"
             title="Perfil"
-            hint="Datos de cuenta y preferencias."
+            hint="Datos de cuenta y preferencias personales."
             onClick={() => router.push("/profile")}
           />
         </section>
@@ -87,15 +144,21 @@ export default function PanelPage() {
   );
 }
 
-function HubCard(props: {
+type HubCardProps = {
+  icon: string;
+  tag: string;
   title: string;
   hint: string;
   onClick: () => void;
-}) {
+};
+
+function HubCard({ icon, tag, title, hint, onClick }: HubCardProps) {
   return (
     <button
-      onClick={props.onClick}
+      type="button"
+      onClick={onClick}
       style={{
+        position: "relative",
         borderRadius: 20,
         border: "1px solid rgba(255,255,255,0.12)",
         background:
@@ -103,44 +166,112 @@ function HubCard(props: {
         padding: 18,
         textAlign: "left",
         cursor: "pointer",
-        transition: "transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease",
+        transition:
+          "transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease, background 0.14s ease",
         boxShadow: "0 18px 50px rgba(0,0,0,0.40)",
+        overflow: "hidden",
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.transform =
-          "translateY(-2px)";
-        (e.currentTarget as HTMLButtonElement).style.boxShadow =
-          "0 22px 60px rgba(0,0,0,0.55)";
-        (e.currentTarget as HTMLButtonElement).style.borderColor =
-          "rgba(255,255,255,0.22)";
+        const el = e.currentTarget as HTMLButtonElement;
+        el.style.transform = "translateY(-2px)";
+        el.style.boxShadow = "0 22px 60px rgba(0,0,0,0.55)";
+        el.style.borderColor = "rgba(255,255,255,0.22)";
+        el.style.background =
+          "radial-gradient(640px 420px at 4% 0%, rgba(56,189,248,0.30), transparent 55%), radial-gradient(640px 420px at 100% 0%, rgba(124,58,237,0.20), transparent 55%), rgba(15,23,42,0.96)";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.transform =
-          "translateY(0px)";
-        (e.currentTarget as HTMLButtonElement).style.boxShadow =
-          "0 18px 50px rgba(0,0,0,0.40)";
-        (e.currentTarget as HTMLButtonElement).style.borderColor =
-          "rgba(255,255,255,0.12)";
+        const el = e.currentTarget as HTMLButtonElement;
+        el.style.transform = "translateY(0px)";
+        el.style.boxShadow = "0 18px 50px rgba(0,0,0,0.40)";
+        el.style.borderColor = "rgba(255,255,255,0.12)";
+        el.style.background =
+          "radial-gradient(600px 400px at 0% 0%, rgba(56,189,248,0.20), transparent 55%), rgba(15,23,42,0.94)";
       }}
     >
+      {/* icono + pill superior */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          marginBottom: 10,
+        }}
+      >
+        <div
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 999,
+            border: "1px solid rgba(56,189,248,0.55)",
+            background:
+              "radial-gradient(circle at 30% 0%, rgba(56,189,248,0.32), transparent 55%), rgba(15,23,42,0.95)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 18,
+          }}
+        >
+          {icon}
+        </div>
+
+        <div
+          style={{
+            padding: "4px 10px",
+            borderRadius: 999,
+            border: "1px solid rgba(148,163,184,0.55)",
+            background: "rgba(15,23,42,0.95)",
+            fontSize: 10,
+            fontWeight: 800,
+            letterSpacing: "0.09em",
+            textTransform: "uppercase",
+            color: "rgba(226,232,240,0.9)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {tag}
+        </div>
+      </div>
+
       <div
         style={{
           fontSize: 15,
           fontWeight: 900,
           marginBottom: 6,
+          letterSpacing: "-0.1px",
+          color: "#F9FAFB",
         }}
       >
-        {props.title}
+        {title}
       </div>
 
       <div
         style={{
           fontSize: 13,
-          opacity: 0.8,
+          opacity: 0.82,
           fontWeight: 650,
+          color: "rgba(209,213,219,0.96)",
         }}
       >
-        {props.hint}
+        {hint}
+      </div>
+
+      {/* micro “flecha” inferior derecha */}
+      <div
+        style={{
+          position: "absolute",
+          right: 16,
+          bottom: 14,
+          fontSize: 11,
+          opacity: 0.72,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          fontWeight: 800,
+        }}
+      >
+        <span>Ir</span>
+        <span>↗</span>
       </div>
     </button>
   );
