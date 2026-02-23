@@ -9,7 +9,12 @@ import LogoutButton from "@/components/LogoutButton";
 
 import { getMyEvents, deleteEventsByIds } from "@/lib/eventsDb";
 import { getMyGroups } from "@/lib/groupsDb";
-import { groupMeta, type CalendarEvent, type GroupType } from "@/lib/conflicts";
+import {
+  groupMeta,
+  type CalendarEvent,
+  type GroupType,
+} from "@/lib/conflicts";
+
 import supabase from "@/lib/supabaseClient";
 
 type DbEvent = {
@@ -19,12 +24,12 @@ type DbEvent = {
   end: string;
   notes?: string | null;
   group_id?: string | null;
-  groupId?: string | null; // fallback si viene con otro nombre
+  groupId?: string | null;
 };
 
 type ViewMode = "upcoming" | "past" | "all";
 
-/** ✅ detecta móvil por ancho (igual que Summary/PremiumHeader) */
+/** ✅ Detecta móvil por ancho */
 function useIsMobileWidth(maxWidth = 520) {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -32,9 +37,10 @@ function useIsMobileWidth(maxWidth = 520) {
     if (typeof window === "undefined") return;
 
     const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
-    const apply = () => setIsMobile(!!mq.matches);
 
+    const apply = () => setIsMobile(!!mq.matches);
     apply();
+
     if (typeof mq.addEventListener === "function") {
       mq.addEventListener("change", apply);
       return () => mq.removeEventListener("change", apply);
@@ -68,10 +74,12 @@ export default function EventsPage() {
     (async () => {
       try {
         setLoading(true);
+
         const [myGroups, rawEvents] = await Promise.all([
           getMyGroups(),
           getMyEvents(),
         ]);
+
         if (!alive) return;
 
         const groupTypeById = new Map<string, "pair" | "family">(
@@ -87,7 +95,9 @@ export default function EventsPage() {
         const list: CalendarEvent[] = ((rawEvents || []) as DbEvent[])
           .map((ev) => {
             const gid = ev.group_id ?? ev.groupId ?? null;
+
             let gt: GroupType = "personal";
+
             if (gid) {
               const t = groupTypeById.get(String(gid));
               gt = (t === "family" ? "family" : "pair") as GroupType;
@@ -123,7 +133,8 @@ export default function EventsPage() {
     return [...events]
       .filter((e) => new Date(e.end).getTime() >= now)
       .sort(
-        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+        (a, b) =>
+          new Date(a.start).getTime() - new Date(b.start).getTime()
       );
   }, [events, now]);
 
@@ -131,7 +142,8 @@ export default function EventsPage() {
     return [...events]
       .filter((e) => new Date(e.end).getTime() < now)
       .sort(
-        (a, b) => new Date(b.start).getTime() - new Date(a.start).getTime()
+        (a, b) =>
+          new Date(b.start).getTime() - new Date(a.start).getTime()
       );
   }, [events, now]);
 
@@ -139,7 +151,8 @@ export default function EventsPage() {
     if (view === "upcoming") return upcomingAll;
     if (view === "past") return pastAll;
     return [...events].sort(
-      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+      (a, b) =>
+        new Date(a.start).getTime() - new Date(b.start).getTime()
     );
   }, [view, upcomingAll, pastAll, events]);
 
@@ -154,13 +167,15 @@ export default function EventsPage() {
     });
   }, [baseAll, query]);
 
-  // ✅ En móvil limitamos para que se sienta “app” (sin scroll eterno)
   const LIST_LIMIT = isMobile ? 5 : 60;
+
   const visible = useMemo(
     () => visibleAll.slice(0, LIST_LIMIT),
     [visibleAll, LIST_LIMIT]
   );
-  const showSeeMore = !loading && visibleAll.length > LIST_LIMIT;
+
+  const showSeeMore =
+    !loading && visibleAll.length > LIST_LIMIT;
 
   async function onDelete(id: string) {
     const ok = confirm(
@@ -169,8 +184,11 @@ export default function EventsPage() {
     if (!ok) return;
 
     const deleted = await deleteEventsByIds([id]);
+
     if (deleted >= 0) {
-      setEvents((s) => s.filter((x) => String(x.id) !== String(id)));
+      setEvents((s) =>
+        s.filter((x) => String(x.id) !== String(id))
+      );
       setToast("Evento eliminado ✅");
       window.setTimeout(() => setToast(null), 1800);
     }
@@ -190,6 +208,7 @@ export default function EventsPage() {
       day: "2-digit",
       month: "short",
     };
+
     const optsTime: Intl.DateTimeFormatOptions = {
       hour: "2-digit",
       minute: "2-digit",
@@ -212,14 +231,20 @@ export default function EventsPage() {
     try {
       setSendingDigest(true);
 
-      const { data, error } = await supabase.auth.getUser();
+      const { data, error } =
+        await supabase.auth.getUser();
+
       if (error || !data.user) {
-        throw new Error("No pude leer tu sesión. Vuelve a iniciar sesión.");
+        throw new Error(
+          "No pude leer tu sesión. Vuelve a iniciar sesión."
+        );
       }
 
       const email = data.user.email;
       if (!email) {
-        throw new Error("No encontré tu correo en la cuenta.");
+        throw new Error(
+          "No encontré tu correo en la cuenta."
+        );
       }
 
       const today = new Date();
@@ -243,7 +268,9 @@ export default function EventsPage() {
       }
 
       const payloadEvents = todaysEvents.map((e) => {
-        const meta = groupMeta((e.groupType ?? "personal") as any);
+        const meta = groupMeta(
+          (e.groupType ?? "personal") as any
+        );
         return {
           title: e.title ?? "Evento",
           start: e.start,
@@ -252,14 +279,16 @@ export default function EventsPage() {
         };
       });
 
-      const dateLabel = `${String(d).padStart(2, "0")}/${String(m + 1).padStart(
+      const dateLabel = `${String(d).padStart(
         2,
         "0"
-      )}/${y}`;
+      )}/${String(m + 1).padStart(2, "0")}/${y}`;
 
       const res = await fetch("/api/daily-digest", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           to: email,
           date: dateLabel,
@@ -268,17 +297,23 @@ export default function EventsPage() {
       });
 
       if (!res.ok) {
-        throw new Error("No se pudo enviar el correo.");
+        throw new Error(
+          "No se pudo enviar el correo."
+        );
       }
 
-      setToast("Te envié un resumen de hoy a tu correo ✉️");
+      setToast(
+        "Te envié un resumen de hoy a tu correo ✉️"
+      );
       window.setTimeout(() => setToast(null), 2200);
     } catch (err: any) {
       console.error("[sendTodayDigest] error", err);
+
       setToast(
         err?.message ||
           "No se pudo enviar el recordatorio. Intenta más tarde."
       );
+
       window.setTimeout(() => setToast(null), 2600);
     } finally {
       setSendingDigest(false);
@@ -288,8 +323,7 @@ export default function EventsPage() {
   const headerSubtitle = isMobile
     ? "Tus eventos, sin ruido."
     : "Organiza tu día sin choques de horario.";
-
-  return (
+      return (
     <main style={S.page} className="spEvt-page">
       {toast && <div style={S.toast}>{toast}</div>}
 
@@ -395,14 +429,32 @@ export default function EventsPage() {
             <>
               <div style={S.list} className="spEvt-list">
                 {visible.map((e) => {
-                  const meta = groupMeta((e.groupType ?? "personal") as any);
+                  const meta = groupMeta(
+                    (e.groupType ?? "personal") as any
+                  );
+
                   return (
-                    <div key={e.id} style={S.row} className="spEvt-row">
-                      <div style={{ ...S.bar, background: meta.dot }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      key={e.id}
+                      style={S.row}
+                      className="spEvt-row"
+                    >
+                      <div
+                        style={{
+                          ...S.bar,
+                          background: meta.dot,
+                        }}
+                      />
+
+                      <div
+                        style={{ flex: 1, minWidth: 0 }}
+                      >
                         <div style={S.rowTop}>
                           <div
-                            style={{ ...S.rowTitle, cursor: "pointer" }}
+                            style={{
+                              ...S.rowTitle,
+                              cursor: "pointer",
+                            }}
                             title="Editar evento"
                             onClick={() =>
                               router.push(
@@ -413,7 +465,12 @@ export default function EventsPage() {
                             {e.title}
                           </div>
 
-                          <div style={{ display: "flex", gap: 8 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 8,
+                            }}
+                          >
                             <button
                               style={S.edit}
                               onClick={() =>
@@ -428,7 +485,9 @@ export default function EventsPage() {
 
                             <button
                               style={S.del}
-                              onClick={() => onDelete(String(e.id))}
+                              onClick={() =>
+                                onDelete(String(e.id))
+                              }
                               title="Eliminar"
                             >
                               🗑️
@@ -436,8 +495,13 @@ export default function EventsPage() {
                           </div>
                         </div>
 
-                        <div style={S.rowSub}>{formatRange(e)}</div>
-                        <div style={S.badge}>{meta.label}</div>
+                        <div style={S.rowSub}>
+                          {formatRange(e)}
+                        </div>
+
+                        <div style={S.badge}>
+                          {meta.label}
+                        </div>
                       </div>
                     </div>
                   );
@@ -466,16 +530,51 @@ export default function EventsPage() {
       {/* ✅ Responsive SOLO Events (no toca desktop global) */}
       <style>{`
         @media (max-width: 520px) {
-          .spEvt-shell { padding: 14px 12px 110px !important; } /* espacio para bottom bar */
-          .spEvt-card { padding: 12px !important; border-radius: 16px !important; margin-top: 10px !important; }
-          .spEvt-titleRow { gap: 10px !important; }
-          .spEvt-sub { display: none !important; } /* menos ruido */
-          .spEvt-filters { width: 100% !important; justify-content: space-between !important; }
-          .spEvt-tabs { width: 100% !important; justify-content: space-between !important; }
-          .spEvt-search { width: 100% !important; min-width: 0 !important; }
-          .spEvt-row { padding: 10px !important; border-radius: 14px !important; }
-          .spEvt-list { gap: 8px !important; }
-          .spEvt-seeMore { width: 100% !important; }
+          .spEvt-shell {
+            padding: 14px 12px 110px !important; /* espacio para bottom bar */
+          }
+
+          .spEvt-card {
+            padding: 12px !important;
+            border-radius: 16px !important;
+            margin-top: 10px !important;
+          }
+
+          .spEvt-titleRow {
+            gap: 10px !important;
+          }
+
+          .spEvt-sub {
+            display: none !important; /* menos ruido */
+          }
+
+          .spEvt-filters {
+            width: 100% !important;
+            justify-content: space-between !important;
+          }
+
+          .spEvt-tabs {
+            width: 100% !important;
+            justify-content: space-between !important;
+          }
+
+          .spEvt-search {
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+
+          .spEvt-row {
+            padding: 10px !important;
+            border-radius: 14px !important;
+          }
+
+          .spEvt-list {
+            gap: 8px !important;
+          }
+
+          .spEvt-seeMore {
+            width: 100% !important;
+          }
         }
       `}</style>
     </main>
@@ -488,21 +587,20 @@ const S: Record<string, React.CSSProperties> = {
     background:
       "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+    fontFamily:
+      "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
   },
   shell: {
     maxWidth: 1120,
     margin: "0 auto",
     padding: "22px 18px 48px",
   },
-
   topActions: {
     display: "flex",
     gap: 10,
     alignItems: "center",
     flexWrap: "wrap",
   },
-
   primary: {
     height: 40,
     padding: "0 14px",
@@ -514,7 +612,6 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 950,
     cursor: "pointer",
   },
-
   secondary: {
     height: 40,
     padding: "0 14px",
@@ -526,7 +623,6 @@ const S: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     fontSize: 12,
   },
-
   card: {
     borderRadius: 22,
     border: "1px solid rgba(255,255,255,0.10)",
@@ -535,7 +631,6 @@ const S: Record<string, React.CSSProperties> = {
     marginTop: 14,
     boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
   },
-
   titleRow: {
     display: "flex",
     justifyContent: "space-between",
@@ -544,16 +639,16 @@ const S: Record<string, React.CSSProperties> = {
     marginBottom: 12,
     flexWrap: "wrap",
   },
-
-  title: { fontSize: 16, fontWeight: 950 },
-
+  title: {
+    fontSize: 16,
+    fontWeight: 950,
+  },
   sub: {
     marginTop: 4,
     fontSize: 12,
     opacity: 0.75,
     fontWeight: 650,
   },
-
   filters: {
     display: "flex",
     gap: 10,
@@ -561,7 +656,6 @@ const S: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
     justifyContent: "flex-end",
   },
-
   tabs: {
     display: "flex",
     gap: 6,
@@ -570,7 +664,6 @@ const S: Record<string, React.CSSProperties> = {
     background: "rgba(15,23,42,0.85)",
     border: "1px solid rgba(255,255,255,0.08)",
   },
-
   tab: {
     border: "none",
     outline: "none",
@@ -582,13 +675,11 @@ const S: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.70)",
     cursor: "pointer",
   } as React.CSSProperties,
-
   tabActive: {
     background:
       "linear-gradient(135deg, rgba(56,189,248,0.40), rgba(124,58,237,0.40))",
     color: "#fff",
   },
-
   search: {
     minWidth: 160,
     padding: "5px 10px",
@@ -598,14 +689,12 @@ const S: Record<string, React.CSSProperties> = {
     color: "#e5e7eb",
     fontSize: 11,
   },
-
   list: {
     marginTop: 10,
     display: "flex",
     flexDirection: "column",
     gap: 10,
   },
-
   row: {
     display: "flex",
     gap: 10,
@@ -614,30 +703,28 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
   },
-
-  bar: { width: 6, borderRadius: 999 },
-
+  bar: {
+    width: 6,
+    borderRadius: 999,
+  },
   rowTop: {
     display: "flex",
     justifyContent: "space-between",
     gap: 10,
     alignItems: "center",
   },
-
   rowTitle: {
     fontWeight: 950,
     overflow: "hidden",
     whiteSpace: "nowrap",
     textOverflow: "ellipsis",
   },
-
   rowSub: {
     marginTop: 6,
     fontSize: 12,
     opacity: 0.75,
     fontWeight: 650,
   },
-
   badge: {
     marginTop: 8,
     display: "inline-flex",
@@ -649,7 +736,6 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.16)",
     background: "rgba(15,23,42,0.9)",
   },
-
   empty: {
     marginTop: 12,
     padding: 14,
@@ -658,7 +744,6 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 13,
     opacity: 0.8,
   },
-
   seeMore: {
     marginTop: 10,
     width: "fit-content",
@@ -671,7 +756,6 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     fontSize: 12,
   },
-
   toast: {
     position: "fixed",
     top: 16,
@@ -684,7 +768,6 @@ const S: Record<string, React.CSSProperties> = {
     backdropFilter: "blur(12px)",
     fontWeight: 900,
   },
-
   del: {
     border: "none",
     background: "transparent",
