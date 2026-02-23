@@ -1,4 +1,3 @@
-// src/app/layout.tsx
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import SWRegister from "./sw-register";

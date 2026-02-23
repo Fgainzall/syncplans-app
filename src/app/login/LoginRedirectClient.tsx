@@ -1,76 +1,75 @@
 // src/app/login/LoginRedirectClient.tsx
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import supabase from "@/lib/supabaseClient";
+import React, { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-type Props = {
-  next: string;
-};
-
-export default function LoginRedirectClient({ next }: Props) {
+export default function LoginRedirectClient() {
   const router = useRouter();
-  const [msg, setMsg] = useState("Comprobando tu sesión…");
+  const sp = useSearchParams();
 
   useEffect(() => {
-    let alive = true;
+    const nextParam = sp.get("next");
+    const nextTarget =
+      nextParam && nextParam.startsWith("/") ? nextParam : "/summary";
 
-    (async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
+    // 🚀 Redirigimos todo el tráfico de /login → /auth/login
+    router.replace(`/auth/login?next=${encodeURIComponent(nextTarget)}`);
+  }, [router, sp]);
 
-        if (!alive) return;
+  const page: React.CSSProperties = {
+    minHeight: "100vh",
+    background:
+      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%)," +
+      "radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%)," +
+      "#050816",
+    color: "rgba(255,255,255,0.9)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  };
 
-        if (error) {
-          console.error("Error al obtener sesión:", error);
-          setMsg("Error verificando sesión. Intenta de nuevo.");
-          return;
-        }
+  const box: React.CSSProperties = {
+    borderRadius: 24,
+    border: "1px solid rgba(148,163,184,0.4)",
+    background: "rgba(15,23,42,0.96)",
+    padding: "18px 20px",
+    maxWidth: 360,
+    width: "100%",
+    textAlign: "center",
+    boxShadow: "0 28px 80px rgba(0,0,0,0.6)",
+    fontSize: 13,
+  };
 
-        if (data?.session) {
-          // ✅ Ya está logueado → lo mando a la ruta deseada
-          router.replace(next);
-          return;
-        }
+  const dot: React.CSSProperties = {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    margin: "0 auto 10px",
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 18px rgba(56,189,248,0.8)",
+  };
 
-        // ❌ No logueado → mando a /auth/login con next=
-        const encodedNext = encodeURIComponent(next);
-        router.replace(`/auth/login?next=${encodedNext}`);
-      } catch (e: any) {
-        if (!alive) return;
-        console.error("Excepción en LoginRedirectClient:", e);
-        setMsg("Ocurrió un error verificando tu sesión.");
-      }
-    })();
+  const title: React.CSSProperties = {
+    fontSize: 16,
+    fontWeight: 800,
+    marginBottom: 4,
+  };
 
-    return () => {
-      alive = false;
-    };
-  }, [next, router]);
+  const text: React.CSSProperties = {
+    opacity: 0.8,
+    lineHeight: 1.5,
+  };
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "#050816",
-        color: "#e5e7eb",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-      }}
-    >
-      <div
-        style={{
-          padding: "16px 20px",
-          borderRadius: 16,
-          border: "1px solid rgba(148,163,184,0.45)",
-          background: "rgba(15,23,42,0.95)",
-          fontSize: 14,
-        }}
-      >
-        {msg}
+    <main style={page}>
+      <div style={box}>
+        <div style={dot} />
+        <div style={title}>Redirigiendo al inicio de sesión…</div>
+        <p style={text}>
+          Estamos llevándote a la pantalla principal de acceso de SyncPlans.
+        </p>
       </div>
     </main>
   );
