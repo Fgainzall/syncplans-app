@@ -14,7 +14,7 @@ import supabase from "@/lib/supabaseClient";
 import AppHero from "@/components/AppHero";
 import MobileScaffold from "@/components/MobileScaffold";
 import { EventEditModal } from "@/components/EventEditModal";
-
+import { CalendarFilters } from "./CalendarFilters";
 import { getMyGroups } from "@/lib/groupsDb";
 import { getEventsForGroups, deleteEventsByIds } from "@/lib/eventsDb";
 import {
@@ -858,115 +858,18 @@ export default function CalendarClient(
           </div>
         </section>
 
-        {/* FILTROS */}
-        <section style={styles.filtersCard}>
-          <div style={styles.filtersRow}>
-            <div style={styles.segment}>
-              <button
-                onClick={() => setTab("month")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(tab === "month" ? styles.segmentOn : {}),
-                }}
-              >
-                Mes
-              </button>
-              <button
-                onClick={() => setTab("agenda")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(tab === "agenda" ? styles.segmentOn : {}),
-                }}
-              >
-                Agenda
-              </button>
-            </div>
-
-            <div style={styles.segment}>
-              <button
-                onClick={() => setScope("active")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "active" ? styles.segmentOn : {}),
-                }}
-                title="Personal + grupo activo + conflictos"
-              >
-                Activo
-              </button>
-              <button
-                onClick={() => setScope("personal")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "personal" ? styles.segmentOn : {}),
-                }}
-              >
-                Personal
-              </button>
-              <button
-                onClick={() => setScope("all")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "all" ? styles.segmentOn : {}),
-                }}
-              >
-                Todo
-              </button>
-            </div>
-
-            <div style={styles.navRow}>
-              <button
-                onClick={goPrevMonth}
-                style={styles.iconBtn}
-                aria-label="Mes anterior"
-              >
-                ‹
-              </button>
-              <button
-                onClick={goToday}
-                style={styles.ghostBtnSmall}
-              >
-                Hoy
-              </button>
-              <button
-                onClick={goNextMonth}
-                style={styles.iconBtn}
-                aria-label="Mes siguiente"
-              >
-                ›
-              </button>
-            </div>
-          </div>
-
-          <div style={styles.groupRow}>
-            {(
-              ["personal", "pair", "family"] as any as GroupType[]
-            ).map((g) => {
-              const meta = groupMeta(g);
-              const on = (enabledGroups as any)[g];
-              return (
-                <button
-                  key={g}
-                  onClick={() => toggleGroup(g)}
-                  style={{
-                    ...styles.groupChip,
-                    borderColor: on
-                      ? "rgba(255,255,255,0.18)"
-                      : "rgba(255,255,255,0.10)",
-                    opacity: on ? 1 : 0.55,
-                  }}
-                >
-                  <span
-                    style={{
-                      ...styles.groupDot,
-                      background: meta.dot,
-                    }}
-                  />
-                  {meta.label}
-                </button>
-              );
-            })}
-          </div>
-        </section>
+               {/* FILTROS */}
+        <CalendarFilters
+          tab={tab}
+          scope={scope}
+          onChangeTab={setTab}
+          onChangeScope={setScope}
+          enabledGroups={enabledGroups}
+          onToggleGroup={toggleGroup}
+          onPrevMonth={goPrevMonth}
+          onNextMonth={goNextMonth}
+          onToday={goToday}
+        />
 
         {tab === "month" ? (
           <section
