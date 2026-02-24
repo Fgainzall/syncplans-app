@@ -732,7 +732,11 @@ export default function CalendarClient(
       <MobileScaffold>
         <main style={styles.page}>
           <div style={styles.stickyTop}>
-            <AppHero mobileNav="bottom" />
+            <AppHero
+  title="Calendario"
+  subtitle="Una sola vista para tus eventos personales, de pareja y familia."
+  mobileNav="bottom"
+/>
           </div>
 
           <div style={styles.loadingCard}>

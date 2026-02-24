@@ -338,7 +338,11 @@ const filteredEvents = useMemo(() => {
       <MobileScaffold>
         <main style={S.pageShell}>
           <div style={S.stickyTop}>
-            <AppHero mobileNav="bottom" />
+          <AppHero
+  title="Eventos"
+  subtitle="Mira y gestiona tu lista de eventos personales y compartidos."
+  mobileNav="bottom"
+/>
           </div>
 
           <section style={S.card}>
