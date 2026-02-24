@@ -1,20 +1,76 @@
 // src/app/panel/page.tsx
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
 import MobileScaffold from "@/components/MobileScaffold";
 import PremiumHeader from "@/components/PremiumHeader";
 
+import { getMyEvents } from "@/lib/eventsDb";
+import { getMyGroups } from "@/lib/groupsDb";
+import {
+  buildDashboardStats,
+  type DashboardStats,
+} from "@/lib/profileDashboard";
+
+type HubCardProps = {
+  icon: string;
+  tag: string;
+  title: string;
+  hint: string;
+  onClick: () => void;
+};
+
 export default function PanelPage() {
   const router = useRouter();
+
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+
+    async function load() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const [events, groups] = await Promise.all([
+          getMyEvents(),
+          getMyGroups(),
+        ]);
+
+        if (!alive) return;
+
+        const dashboard = buildDashboardStats(events ?? [], groups ?? []);
+        setStats(dashboard);
+      } catch (err: any) {
+        console.error("Error cargando Panel HUB:", err);
+        if (alive) {
+          setError("No se pudieron cargar los datos del panel.");
+        }
+      } finally {
+        if (alive) {
+          setLoading(false);
+        }
+      }
+    }
+
+    load();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   return (
     <main
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
+          "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.35), transparent 55%), radial-gradient(1200px 700px at 90% 10%, rgba(124,58,237,0.18), transparent 60%), #050816",
         color: "rgba(255,255,255,0.92)",
         fontFamily:
           "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
@@ -25,52 +81,309 @@ export default function PanelPage() {
         paddingDesktop="22px 18px 48px"
         paddingMobile="18px 14px 90px"
         mobileBottomSafe={120}
+        className="spPanelShell"
       >
-        <PremiumHeader
-          title="Panel"
-          subtitle="Tu centro de control: grupos, miembros, invitaciones y cuenta en un solo lugar."
-        />
-
-        {/* Descripción breve del HUB */}
+        {/* HEADER SUPERIOR (PremiumHeader + contexto) */}
         <section
           style={{
-            marginTop: 18,
-            marginBottom: 4,
+            marginBottom: 18,
             display: "flex",
-            justifyContent: "space-between",
+            flexDirection: "column",
+            gap: 16,
+          }}
+        >
+          <PremiumHeader />
+
+          <div
+            style={{
+              borderRadius: 22,
+              border: "1px solid rgba(148,163,184,0.32)",
+              background:
+                "radial-gradient(680px 460px at 0% 0%, rgba(56,189,248,0.32), transparent 55%), rgba(15,23,42,0.96)",
+              padding: 18,
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: "rgba(148,163,184,0.92)",
+              }}
+            >
+              Panel · Centro de control
+            </div>
+
+            <div
+              style={{
+                fontSize: 22,
+                fontWeight: 700,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              Todo lo importante de SyncPlans, en un solo lugar.
+            </div>
+
+            <div
+              style={{
+                fontSize: 13,
+                color: "rgba(226,232,240,0.88)",
+                maxWidth: 620,
+                lineHeight: 1.5,
+              }}
+            >
+              Piensa en el panel como la consola de SyncPlans: desde aquí
+              gestionas <b>con quién compartes</b>, cómo se ve tu cuenta y
+              qué plan tienes activo.
+            </div>
+
+            <div
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                padding: "6px 10px",
+                borderRadius: 999,
+                border: "1px solid rgba(148,163,184,0.42)",
+                background: "rgba(15,23,42,0.88)",
+                color: "rgba(226,232,240,0.96)",
+                fontWeight: 800,
+                whiteSpace: "nowrap",
+              }}
+            >
+              HUB · Administración
+            </div>
+          </div>
+        </section>
+
+        {/* MÉTRICAS RESUMEN (HUB VIVO) */}
+        <section
+          style={{
+            marginTop: 4,
+            marginBottom: 10,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
             gap: 12,
+          }}
+        >
+          {/* Card: Grupos */}
+          <div
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(148,163,184,0.30)",
+              background:
+                "radial-gradient(480px 380px at 0% 0%, rgba(56,189,248,0.25), transparent 55%), rgba(15,23,42,0.96)",
+              padding: 14,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: "rgba(148,163,184,0.96)",
+                marginBottom: 2,
+              }}
+            >
+              Grupos
+            </div>
+            <div
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                lineHeight: 1.2,
+              }}
+            >
+              {stats ? stats.totalGroups : loading ? "…" : "0"}
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: "rgba(226,232,240,0.88)",
+              }}
+            >
+              grupos activos donde compartes tu calendario.
+            </div>
+          </div>
+
+          {/* Card: Eventos últimos 7 días */}
+          <div
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(148,163,184,0.30)",
+              background:
+                "radial-gradient(480px 380px at 8% 0%, rgba(129,140,248,0.30), transparent 55%), rgba(15,23,42,0.96)",
+              padding: 14,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: "rgba(148,163,184,0.96)",
+                marginBottom: 2,
+              }}
+            >
+              Movimiento reciente
+            </div>
+            <div
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                lineHeight: 1.2,
+              }}
+            >
+              {stats ? stats.eventsLast7 : loading ? "…" : "0"}
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: "rgba(226,232,240,0.88)",
+              }}
+            >
+              eventos en los últimos 7 días
+              {stats ? ` · ${stats.totalEvents} en total` : ""}.
+            </div>
+          </div>
+
+          {/* Card: Conflictos ahora */}
+          <div
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(148,163,184,0.30)",
+              background:
+                "radial-gradient(520px 360px at 6% -10%, rgba(244,114,182,0.40), transparent 55%), rgba(15,23,42,0.98)",
+              padding: 14,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: "rgba(248,250,252,0.80)",
+                marginBottom: 2,
+              }}
+            >
+              Conflictos
+            </div>
+            <div
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                lineHeight: 1.2,
+              }}
+            >
+              {stats ? stats.conflictsNow : loading ? "…" : "0"}
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: "rgba(226,232,240,0.90)",
+              }}
+            >
+              choques detectados ahora mismo entre tus eventos.
+            </div>
+
+            <div
+              style={{
+                marginTop: 10,
+                fontSize: 11,
+                padding: "6px 9px",
+                borderRadius: 999,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                background: "rgba(15,23,42,0.96)",
+                border: "1px solid rgba(148,163,184,0.45)",
+              }}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 999,
+                  backgroundColor:
+                    stats && stats.conflictsNow > 0 ? "#fb7185" : "#22c55e",
+                  boxShadow:
+                    stats && stats.conflictsNow > 0
+                      ? "0 0 0 4px rgba(248,113,113,0.25)"
+                      : "0 0 0 4px rgba(34,197,94,0.25)",
+                }}
+              />
+              <span>
+                {stats
+                  ? stats.conflictsNow > 0
+                    ? "Tienes conflictos para revisar."
+                    : "Sin conflictos ahora mismo."
+                  : loading
+                  ? "Revisando tus eventos..."
+                  : "Sin datos suficientes."}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {error && (
+          <div
+            style={{
+              marginTop: 4,
+              marginBottom: 8,
+              fontSize: 12,
+              color: "rgba(248,113,113,0.92)",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* HUB · Administración (texto de contexto) */}
+        <section
+          style={{
+            marginTop: 4,
+            marginBottom: 10,
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+            gap: 8,
             flexWrap: "wrap",
-            alignItems: "flex-end",
           }}
         >
           <div
             style={{
-              fontSize: 13,
+              fontSize: 11,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
               color: "rgba(148,163,184,0.96)",
-              maxWidth: 520,
-              fontWeight: 500,
+              whiteSpace: "nowrap",
             }}
           >
-            Piensa en el panel como la consola de SyncPlans: desde aquí
-            gestionas <b>con quién compartes</b>, cómo se ve tu cuenta y
-            qué plan tienes activo.
+            HUB · Administración
           </div>
 
           <div
             style={{
               fontSize: 11,
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              padding: "6px 10px",
-              borderRadius: 999,
-              border: "1px solid rgba(148,163,184,0.42)",
-              background: "rgba(15,23,42,0.88)",
-              color: "rgba(226,232,240,0.96)",
-              fontWeight: 800,
-              whiteSpace: "nowrap",
+              color: "rgba(148,163,184,0.86)",
+              maxWidth: 520,
+              fontWeight: 500,
             }}
           >
-            HUB · Administración
+            Aquí organizas la parte “administrativa” de SyncPlans: grupos,
+            miembros, invitaciones, ajustes y planes.
           </div>
         </section>
 
@@ -92,26 +405,34 @@ export default function PanelPage() {
           />
 
           <HubCard
-            icon="🧑‍🤝‍🧑"
+            icon="👤"
             tag="Personas"
             title="Miembros"
-            hint="Quién está en cada grupo y qué rol tiene."
+            hint="Quién tiene acceso a qué grupo."
             onClick={() => router.push("/members")}
           />
 
           <HubCard
             icon="✉️"
-            tag="Invitaciones"
+            tag="Coordinar mejor"
             title="Invitaciones"
-            hint="Bandeja y envíos de invitación."
+            hint="Invita a tu pareja, familia o amigos a probar SyncPlans."
             onClick={() => router.push("/invitations")}
           />
 
           <HubCard
-            icon="🗓️"
-            tag="Agenda"
+            icon="⚠️"
+            tag="Revisar choques"
+            title="Conflictos"
+            hint="Detecta y resuelve eventos que se pisan."
+            onClick={() => router.push("/conflicts/detected")}
+          />
+
+          <HubCard
+            icon="📆"
+            tag="Visión general"
             title="Calendario"
-            hint="Ver tu agenda y crear eventos."
+            hint="Salta directo a tu calendario compartido."
             onClick={() => router.push("/calendar")}
           />
 
@@ -144,14 +465,6 @@ export default function PanelPage() {
   );
 }
 
-type HubCardProps = {
-  icon: string;
-  tag: string;
-  title: string;
-  hint: string;
-  onClick: () => void;
-};
-
 function HubCard({ icon, tag, title, hint, onClick }: HubCardProps) {
   return (
     <button
@@ -177,7 +490,7 @@ function HubCard({ icon, tag, title, hint, onClick }: HubCardProps) {
         el.style.boxShadow = "0 22px 60px rgba(0,0,0,0.55)";
         el.style.borderColor = "rgba(255,255,255,0.22)";
         el.style.background =
-          "radial-gradient(640px 420px at 4% 0%, rgba(56,189,248,0.30), transparent 55%), radial-gradient(640px 420px at 100% 0%, rgba(124,58,237,0.20), transparent 55%), rgba(15,23,42,0.96)";
+          "radial-gradient(640px 420px at 4% 0%, rgba(56,189,248,0.26), transparent 55%), radial-gradient(640px 420px at 90% 0%, rgba(124,58,237,0.26), transparent 55%), rgba(15,23,42,0.96)";
       }}
       onMouseLeave={(e) => {
         const el = e.currentTarget as HTMLButtonElement;
@@ -188,11 +501,10 @@ function HubCard({ icon, tag, title, hint, onClick }: HubCardProps) {
           "radial-gradient(600px 400px at 0% 0%, rgba(56,189,248,0.20), transparent 55%), rgba(15,23,42,0.94)";
       }}
     >
-      {/* icono + pill superior */}
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "space-between",
           gap: 10,
           marginBottom: 10,
@@ -200,15 +512,14 @@ function HubCard({ icon, tag, title, hint, onClick }: HubCardProps) {
       >
         <div
           style={{
-            width: 34,
-            height: 34,
+            width: 32,
+            height: 32,
             borderRadius: 999,
-            border: "1px solid rgba(56,189,248,0.55)",
-            background:
-              "radial-gradient(circle at 30% 0%, rgba(56,189,248,0.32), transparent 55%), rgba(15,23,42,0.95)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            background:
+              "radial-gradient(120px 120px at 0% 0%, rgba(56,189,248,0.60), transparent 60%), rgba(15,23,42,0.96)",
             fontSize: 18,
           }}
         >
@@ -217,15 +528,11 @@ function HubCard({ icon, tag, title, hint, onClick }: HubCardProps) {
 
         <div
           style={{
-            padding: "4px 10px",
-            borderRadius: 999,
-            border: "1px solid rgba(148,163,184,0.55)",
-            background: "rgba(15,23,42,0.95)",
-            fontSize: 10,
-            fontWeight: 800,
-            letterSpacing: "0.09em",
+            fontSize: 11,
+            letterSpacing: "0.14em",
             textTransform: "uppercase",
-            color: "rgba(226,232,240,0.9)",
+            color: "rgba(148,163,184,0.96)",
+            marginTop: 4,
             whiteSpace: "nowrap",
           }}
         >
@@ -235,11 +542,10 @@ function HubCard({ icon, tag, title, hint, onClick }: HubCardProps) {
 
       <div
         style={{
-          fontSize: 15,
-          fontWeight: 900,
+          fontSize: 17,
+          fontWeight: 600,
+          letterSpacing: "-0.01em",
           marginBottom: 6,
-          letterSpacing: "-0.1px",
-          color: "#F9FAFB",
         }}
       >
         {title}
@@ -248,9 +554,9 @@ function HubCard({ icon, tag, title, hint, onClick }: HubCardProps) {
       <div
         style={{
           fontSize: 13,
-          opacity: 0.82,
-          fontWeight: 650,
-          color: "rgba(209,213,219,0.96)",
+          color: "rgba(226,232,240,0.86)",
+          lineHeight: 1.45,
+          maxWidth: 260,
         }}
       >
         {hint}
