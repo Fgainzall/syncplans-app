@@ -1,30 +1,35 @@
 // src/app/panel/page.tsx
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 
 import MobileScaffold from "@/components/MobileScaffold";
 import PremiumHeader from "@/components/PremiumHeader";
 
-import { getMyEvents } from "@/lib/eventsDb";
-import { getMyGroups } from "@/lib/groupsDb";
+import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
+import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import {
   buildDashboardStats,
   type DashboardStats,
 } from "@/lib/profileDashboard";
 
-type HubCardProps = {
-  icon: string;
-  tag: string;
-  title: string;
+import {
+  colors,
+  radii,
+  shadows,
+  spacing,
+} from "@/styles/design-tokens";
+
+type QuickLink = {
+  id: string;
+  label: string;
   hint: string;
-  onClick: () => void;
+  href: string;
 };
 
 export default function PanelPage() {
   const router = useRouter();
-
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,547 +43,412 @@ export default function PanelPage() {
         setError(null);
 
         const [events, groups] = await Promise.all([
-          getMyEvents(),
-          getMyGroups(),
+          getMyEvents().catch((err) => {
+            console.error("getMyEvents in /panel failed:", err);
+            return [] as DbEventRow[];
+          }),
+          getMyGroups().catch((err) => {
+            console.error("getMyGroups in /panel failed:", err);
+            return [] as GroupRow[];
+          }),
         ]);
 
         if (!alive) return;
 
-        const dashboard = buildDashboardStats(events ?? [], groups ?? []);
-        setStats(dashboard);
-      } catch (err: any) {
-        console.error("Error cargando Panel HUB:", err);
-        if (alive) {
-          setError("No se pudieron cargar los datos del panel.");
-        }
+        const nextStats = buildDashboardStats(events, groups);
+        setStats(nextStats);
+      } catch (e: any) {
+        console.error("PanelPage load error:", e);
+        if (!alive) return;
+        setError("No pudimos cargar tu resumen. Intenta de nuevo.");
       } finally {
-        if (alive) {
-          setLoading(false);
-        }
+        if (alive) setLoading(false);
       }
     }
 
     load();
-
     return () => {
       alive = false;
     };
   }, []);
 
+  const quickLinks: QuickLink[] = [
+    {
+      id: "calendar",
+      label: "Calendario",
+      hint: "Revisa tu mes y los choques con tus grupos.",
+      href: "/calendar",
+    },
+    {
+      id: "events",
+      label: "Eventos",
+      hint: "Crea, edita o limpia tus eventos personales.",
+      href: "/events",
+    },
+    {
+      id: "conflicts",
+      label: "Conflictos",
+      hint: "Resuelve choques pendientes antes del fin de semana.",
+      href: "/conflicts",
+    },
+    {
+      id: "groups",
+      label: "Grupos",
+      hint: "Ve tus grupos de pareja, familia y compartidos.",
+      href: "/groups",
+    },
+    {
+      id: "members",
+      label: "Miembros",
+      hint: "Gestiona quién está en qué grupo.",
+      href: "/members",
+    },
+    {
+      id: "invitations",
+      label: "Invitaciones",
+      hint: "Envía y revisa invitaciones pendientes.",
+      href: "/invitations",
+    },
+    {
+      id: "settings",
+      label: "Ajustes",
+      hint: "Preferencias de cuenta y notificaciones.",
+      href: "/settings",
+    },
+    {
+      id: "plans",
+      label: "Planes",
+      hint: "Tu plan actual y futuras mejoras.",
+      href: "/planes",
+    },
+  ];
+
+  const totalEvents = stats?.totalEvents ?? 0;
+  const eventsLast7 = stats?.eventsLast7 ?? 0;
+  const totalGroups = stats?.totalGroups ?? 0;
+  const pairGroups = stats?.pairGroups ?? 0;
+  const familyGroups = stats?.familyGroups ?? 0;
+  const otherGroups = stats?.otherGroups ?? 0;
+  const conflictsNow = stats?.conflictsNow ?? 0;
+
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background:
-          "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.35), transparent 55%), radial-gradient(1200px 700px at 90% 10%, rgba(124,58,237,0.18), transparent 60%), #050816",
-        color: "rgba(255,255,255,0.92)",
-        fontFamily:
-          "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-      }}
-    >
-      <MobileScaffold
-        maxWidth={1120}
-        paddingDesktop="22px 18px 48px"
-        paddingMobile="18px 14px 90px"
-        mobileBottomSafe={120}
-        className="spPanelShell"
-      >
-        {/* HEADER SUPERIOR (PremiumHeader + contexto) */}
-        <section
-          style={{
-            marginBottom: 18,
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-          }}
-        >
-          <PremiumHeader />
+    <MobileScaffold>
+      <PremiumHeader
+        title="Panel"
+        subtitle="Tu centro de control de SyncPlans: grupos, eventos y conflictos en un solo lugar."
+      />
 
-          <div
-            style={{
-              borderRadius: 22,
-              border: "1px solid rgba(148,163,184,0.32)",
-              background:
-                "radial-gradient(680px 460px at 0% 0%, rgba(56,189,248,0.32), transparent 55%), rgba(15,23,42,0.96)",
-              padding: 18,
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 11,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "rgba(148,163,184,0.92)",
-              }}
-            >
-              Panel · Centro de control
+      <div style={sectionWrapperStyle}>
+        {/* Bloque principal de métricas */}
+        <section style={metricsCardStyle}>
+          <div style={metricsHeaderRowStyle}>
+            <div>
+              <h2 style={metricsTitleStyle}>Resumen rápido</h2>
+              <p style={metricsSubtitleStyle}>
+                Un vistazo a cómo va tu semana y tus grupos compartidos.
+              </p>
             </div>
 
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                letterSpacing: "-0.02em",
-              }}
-            >
-              Todo lo importante de SyncPlans, en un solo lugar.
+            <div style={metricsBadgeStyle}>
+              {loading ? "Actualizando…" : "Actualizado"}
+            </div>
+          </div>
+
+          {error && (
+            <div style={errorBannerStyle}>
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div style={metricsGridStyle}>
+            <div style={metricItemStyle}>
+              <div style={metricLabelStyle}>Eventos totales</div>
+              <div style={metricValueStyle}>{totalEvents}</div>
+              <div style={metricHintStyle}>
+                Toda tu actividad registrada en SyncPlans.
+              </div>
             </div>
 
-            <div
-              style={{
-                fontSize: 13,
-                color: "rgba(226,232,240,0.88)",
-                maxWidth: 620,
-                lineHeight: 1.5,
-              }}
-            >
-              Piensa en el panel como la consola de SyncPlans: desde aquí
-              gestionas <b>con quién compartes</b>, cómo se ve tu cuenta y
-              qué plan tienes activo.
+            <div style={metricItemStyle}>
+              <div style={metricLabelStyle}>Últimos 7 días</div>
+              <div style={metricValueStyle}>{eventsLast7}</div>
+              <div style={metricHintStyle}>
+                Eventos creados o que caen en esta semana.
+              </div>
             </div>
 
-            <div
-              style={{
-                fontSize: 11,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                padding: "6px 10px",
-                borderRadius: 999,
-                border: "1px solid rgba(148,163,184,0.42)",
-                background: "rgba(15,23,42,0.88)",
-                color: "rgba(226,232,240,0.96)",
-                fontWeight: 800,
-                whiteSpace: "nowrap",
-              }}
-            >
-              HUB · Administración
+            <div style={metricItemStyle}>
+              <div style={metricLabelStyle}>Grupos</div>
+              <div style={metricValueStyle}>{totalGroups}</div>
+              <div style={metricHintStyle}>
+                Pareja, familia y otros grupos con los que compartes tiempo.
+              </div>
+              <div style={metricTagRowStyle}>
+                <span style={metricTagStyle}>Pareja: {pairGroups}</span>
+                <span style={metricTagStyle}>Familia: {familyGroups}</span>
+                <span style={metricTagStyle}>Otros: {otherGroups}</span>
+              </div>
+            </div>
+
+            <div style={metricItemStyle}>
+              <div style={metricLabelStyle}>Conflictos</div>
+              <div style={metricValueStyle}>{conflictsNow}</div>
+              <div style={metricHintStyle}>
+                Choques detectados ahora mismo entre tus calendarios.
+              </div>
+              <button
+                type="button"
+                style={metricButtonStyle}
+                onClick={() => router.push("/conflicts")}
+              >
+                Revisar conflictos
+              </button>
             </div>
           </div>
         </section>
 
-        {/* MÉTRICAS RESUMEN (HUB VIVO) */}
-        <section
-          style={{
-            marginTop: 4,
-            marginBottom: 10,
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-            gap: 12,
-          }}
-        >
-          {/* Card: Grupos */}
-          <div
-            style={{
-              borderRadius: 18,
-              border: "1px solid rgba(148,163,184,0.30)",
-              background:
-                "radial-gradient(480px 380px at 0% 0%, rgba(56,189,248,0.25), transparent 55%), rgba(15,23,42,0.96)",
-              padding: 14,
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 11,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "rgba(148,163,184,0.96)",
-                marginBottom: 2,
-              }}
-            >
-              Grupos
-            </div>
-            <div
-              style={{
-                fontSize: 24,
-                fontWeight: 700,
-                lineHeight: 1.2,
-              }}
-            >
-              {stats ? stats.totalGroups : loading ? "…" : "0"}
-            </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: "rgba(226,232,240,0.88)",
-              }}
-            >
-              grupos activos donde compartes tu calendario.
-            </div>
+        {/* Bloque de accesos rápidos */}
+        <section style={quickLinksSectionStyle}>
+          <div style={quickLinksHeaderRowStyle}>
+            <h3 style={quickLinksTitleStyle}>Accesos rápidos</h3>
+            <p style={quickLinksSubtitleStyle}>
+              Entra directo a las vistas que más usas.
+            </p>
           </div>
 
-          {/* Card: Eventos últimos 7 días */}
-          <div
-            style={{
-              borderRadius: 18,
-              border: "1px solid rgba(148,163,184,0.30)",
-              background:
-                "radial-gradient(480px 380px at 8% 0%, rgba(129,140,248,0.30), transparent 55%), rgba(15,23,42,0.96)",
-              padding: 14,
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 11,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "rgba(148,163,184,0.96)",
-                marginBottom: 2,
-              }}
-            >
-              Movimiento reciente
-            </div>
-            <div
-              style={{
-                fontSize: 24,
-                fontWeight: 700,
-                lineHeight: 1.2,
-              }}
-            >
-              {stats ? stats.eventsLast7 : loading ? "…" : "0"}
-            </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: "rgba(226,232,240,0.88)",
-              }}
-            >
-              eventos en los últimos 7 días
-              {stats ? ` · ${stats.totalEvents} en total` : ""}.
-            </div>
-          </div>
-
-          {/* Card: Conflictos ahora */}
-          <div
-            style={{
-              borderRadius: 18,
-              border: "1px solid rgba(148,163,184,0.30)",
-              background:
-                "radial-gradient(520px 360px at 6% -10%, rgba(244,114,182,0.40), transparent 55%), rgba(15,23,42,0.98)",
-              padding: 14,
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 11,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "rgba(248,250,252,0.80)",
-                marginBottom: 2,
-              }}
-            >
-              Conflictos
-            </div>
-            <div
-              style={{
-                fontSize: 24,
-                fontWeight: 700,
-                lineHeight: 1.2,
-              }}
-            >
-              {stats ? stats.conflictsNow : loading ? "…" : "0"}
-            </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: "rgba(226,232,240,0.90)",
-              }}
-            >
-              choques detectados ahora mismo entre tus eventos.
-            </div>
-
-            <div
-              style={{
-                marginTop: 10,
-                fontSize: 11,
-                padding: "6px 9px",
-                borderRadius: 999,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                background: "rgba(15,23,42,0.96)",
-                border: "1px solid rgba(148,163,184,0.45)",
-              }}
-            >
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 999,
-                  backgroundColor:
-                    stats && stats.conflictsNow > 0 ? "#fb7185" : "#22c55e",
-                  boxShadow:
-                    stats && stats.conflictsNow > 0
-                      ? "0 0 0 4px rgba(248,113,113,0.25)"
-                      : "0 0 0 4px rgba(34,197,94,0.25)",
-                }}
-              />
-              <span>
-                {stats
-                  ? stats.conflictsNow > 0
-                    ? "Tienes conflictos para revisar."
-                    : "Sin conflictos ahora mismo."
-                  : loading
-                  ? "Revisando tus eventos..."
-                  : "Sin datos suficientes."}
-              </span>
-            </div>
+          <div style={quickLinksGridStyle}>
+            {quickLinks.map((link) => (
+              <button
+                key={link.id}
+                type="button"
+                style={quickLinkButtonStyle}
+                onClick={() => router.push(link.href)}
+              >
+                <div style={quickLinkTopRowStyle}>
+                  <span style={quickLinkLabelStyle}>{link.label}</span>
+                  <span style={quickLinkIconStyle}>↗</span>
+                </div>
+                <p style={quickLinkHintStyle}>{link.hint}</p>
+              </button>
+            ))}
           </div>
         </section>
-
-        {error && (
-          <div
-            style={{
-              marginTop: 4,
-              marginBottom: 8,
-              fontSize: 12,
-              color: "rgba(248,113,113,0.92)",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {/* HUB · Administración (texto de contexto) */}
-        <section
-          style={{
-            marginTop: 4,
-            marginBottom: 10,
-            display: "flex",
-            alignItems: "baseline",
-            justifyContent: "space-between",
-            gap: 8,
-            flexWrap: "wrap",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "rgba(148,163,184,0.96)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            HUB · Administración
-          </div>
-
-          <div
-            style={{
-              fontSize: 11,
-              color: "rgba(148,163,184,0.86)",
-              maxWidth: 520,
-              fontWeight: 500,
-            }}
-          >
-            Aquí organizas la parte “administrativa” de SyncPlans: grupos,
-            miembros, invitaciones, ajustes y planes.
-          </div>
-        </section>
-
-        {/* GRID PRINCIPAL (HUB) */}
-        <section
-          style={{
-            marginTop: 10,
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
-            gap: 16,
-          }}
-        >
-          <HubCard
-            icon="👥"
-            tag="Relaciones"
-            title="Grupos"
-            hint="Pareja, familia y grupos compartidos."
-            onClick={() => router.push("/groups")}
-          />
-
-          <HubCard
-            icon="👤"
-            tag="Personas"
-            title="Miembros"
-            hint="Quién tiene acceso a qué grupo."
-            onClick={() => router.push("/members")}
-          />
-
-          <HubCard
-            icon="✉️"
-            tag="Coordinar mejor"
-            title="Invitaciones"
-            hint="Invita a tu pareja, familia o amigos a probar SyncPlans."
-            onClick={() => router.push("/invitations")}
-          />
-
-          <HubCard
-            icon="⚠️"
-            tag="Revisar choques"
-            title="Conflictos"
-            hint="Detecta y resuelve eventos que se pisan."
-            onClick={() => router.push("/conflicts/detected")}
-          />
-
-          <HubCard
-            icon="📆"
-            tag="Visión general"
-            title="Calendario"
-            hint="Salta directo a tu calendario compartido."
-            onClick={() => router.push("/calendar")}
-          />
-
-          <HubCard
-            icon="⚙️"
-            tag="Preferencias"
-            title="Settings"
-            hint="Notificaciones, zonas horarias y más."
-            onClick={() => router.push("/settings")}
-          />
-
-          <HubCard
-            icon="💎"
-            tag="Suscripción"
-            title="Planes"
-            hint="Tu plan actual y opciones Premium."
-            onClick={() => router.push("/planes")}
-          />
-
-          <HubCard
-            icon="👤"
-            tag="Cuenta"
-            title="Perfil"
-            hint="Datos de cuenta y preferencias personales."
-            onClick={() => router.push("/profile")}
-          />
-        </section>
-      </MobileScaffold>
-    </main>
+      </div>
+    </MobileScaffold>
   );
 }
 
-function HubCard({ icon, tag, title, hint, onClick }: HubCardProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        position: "relative",
-        borderRadius: 20,
-        border: "1px solid rgba(255,255,255,0.12)",
-        background:
-          "radial-gradient(600px 400px at 0% 0%, rgba(56,189,248,0.20), transparent 55%), rgba(15,23,42,0.94)",
-        padding: 18,
-        textAlign: "left",
-        cursor: "pointer",
-        transition:
-          "transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease, background 0.14s ease",
-        boxShadow: "0 18px 50px rgba(0,0,0,0.40)",
-        overflow: "hidden",
-      }}
-      onMouseEnter={(e) => {
-        const el = e.currentTarget as HTMLButtonElement;
-        el.style.transform = "translateY(-2px)";
-        el.style.boxShadow = "0 22px 60px rgba(0,0,0,0.55)";
-        el.style.borderColor = "rgba(255,255,255,0.22)";
-        el.style.background =
-          "radial-gradient(640px 420px at 4% 0%, rgba(56,189,248,0.26), transparent 55%), radial-gradient(640px 420px at 90% 0%, rgba(124,58,237,0.26), transparent 55%), rgba(15,23,42,0.96)";
-      }}
-      onMouseLeave={(e) => {
-        const el = e.currentTarget as HTMLButtonElement;
-        el.style.transform = "translateY(0px)";
-        el.style.boxShadow = "0 18px 50px rgba(0,0,0,0.40)";
-        el.style.borderColor = "rgba(255,255,255,0.12)";
-        el.style.background =
-          "radial-gradient(600px 400px at 0% 0%, rgba(56,189,248,0.20), transparent 55%), rgba(15,23,42,0.94)";
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 10,
-          marginBottom: 10,
-        }}
-      >
-        <div
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background:
-              "radial-gradient(120px 120px at 0% 0%, rgba(56,189,248,0.60), transparent 60%), rgba(15,23,42,0.96)",
-            fontSize: 18,
-          }}
-        >
-          {icon}
-        </div>
+/* ============================
+   Estilos con design tokens
+============================ */
 
-        <div
-          style={{
-            fontSize: 11,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: "rgba(148,163,184,0.96)",
-            marginTop: 4,
-            whiteSpace: "nowrap",
-          }}
-        >
-          {tag}
-        </div>
-      </div>
+const sectionWrapperStyle: CSSProperties = {
+  marginTop: spacing.lg,
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing.lg,
+};
 
-      <div
-        style={{
-          fontSize: 17,
-          fontWeight: 600,
-          letterSpacing: "-0.01em",
-          marginBottom: 6,
-        }}
-      >
-        {title}
-      </div>
+const metricsCardStyle: CSSProperties = {
+  borderRadius: radii.xl,
+  background: colors.surfaceRaised,
+  border: `1px solid ${colors.borderStrong}`,
+  boxShadow: shadows.card,
+  padding: `${spacing.lg}px ${spacing.lg}px ${spacing.lg}px`,
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing.lg,
+};
 
-      <div
-        style={{
-          fontSize: 13,
-          color: "rgba(226,232,240,0.86)",
-          lineHeight: 1.45,
-          maxWidth: 260,
-        }}
-      >
-        {hint}
-      </div>
+const metricsHeaderRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: spacing.md,
+};
 
-      {/* micro “flecha” inferior derecha */}
-      <div
-        style={{
-          position: "absolute",
-          right: 16,
-          bottom: 14,
-          fontSize: 11,
-          opacity: 0.72,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          fontWeight: 800,
-        }}
-      >
-        <span>Ir</span>
-        <span>↗</span>
-      </div>
-    </button>
-  );
-}
+const metricsTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 18,
+  fontWeight: 700,
+  letterSpacing: "-0.02em",
+  color: colors.textPrimary,
+};
+
+const metricsSubtitleStyle: CSSProperties = {
+  margin: 0,
+  marginTop: 4,
+  fontSize: 13,
+  lineHeight: 1.5,
+  color: colors.textSecondary,
+};
+
+const metricsBadgeStyle: CSSProperties = {
+  padding: "4px 10px",
+  borderRadius: radii.full,
+  fontSize: 11,
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
+  background: colors.surfaceLow,
+  border: `1px solid ${colors.borderSubtle}`,
+  color: colors.textMuted,
+  whiteSpace: "nowrap",
+};
+
+const errorBannerStyle: CSSProperties = {
+  fontSize: 12,
+  color: colors.accentDanger,
+  background: "rgba(248,113,113,0.08)",
+  borderRadius: radii.md,
+  border: `1px solid rgba(248,113,113,0.35)`,
+  padding: `${spacing.sm}px ${spacing.md}px`,
+};
+
+const metricsGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: spacing.lg,
+};
+
+const metricItemStyle: CSSProperties = {
+  padding: `${spacing.md}px ${spacing.md}px`,
+  borderRadius: radii.lg,
+  background: colors.surfaceLow,
+  border: `1px solid ${colors.borderSubtle}`,
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+};
+
+const metricLabelStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
+  color: colors.textMuted,
+};
+
+const metricValueStyle: CSSProperties = {
+  fontSize: 22,
+  fontWeight: 700,
+  letterSpacing: "-0.03em",
+  color: colors.textPrimary,
+};
+
+const metricHintStyle: CSSProperties = {
+  fontSize: 12,
+  lineHeight: 1.5,
+  color: colors.textSecondary,
+};
+
+const metricTagRowStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 6,
+  marginTop: 6,
+};
+
+const metricTagStyle: CSSProperties = {
+  fontSize: 11,
+  padding: "3px 8px",
+  borderRadius: radii.full,
+  background: "rgba(15,23,42,0.85)",
+  border: `1px solid ${colors.borderSubtle}`,
+  color: colors.textMuted,
+};
+
+const metricButtonStyle: CSSProperties = {
+  marginTop: spacing.sm,
+  alignSelf: "flex-start",
+  padding: "6px 10px",
+  borderRadius: radii.full,
+  border: "none",
+  background:
+    "linear-gradient(135deg, rgba(56,189,248,0.16), rgba(180,83,249,0.22))",
+  color: colors.textPrimary,
+  fontSize: 11,
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
+  fontWeight: 600,
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+};
+
+/* Quick links */
+
+const quickLinksSectionStyle: CSSProperties = {
+  borderRadius: radii.xl,
+  background: colors.surfaceRaised,
+  border: `1px solid ${colors.borderStrong}`,
+  boxShadow: shadows.soft,
+  padding: `${spacing.lg}px ${spacing.lg}px`,
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing.md,
+};
+
+const quickLinksHeaderRowStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+};
+
+const quickLinksTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 16,
+  fontWeight: 700,
+  letterSpacing: "-0.01em",
+  color: colors.textPrimary,
+};
+
+const quickLinksSubtitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 12,
+  color: colors.textSecondary,
+};
+
+const quickLinksGridStyle: CSSProperties = {
+  marginTop: spacing.md,
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gap: spacing.md,
+};
+
+const quickLinkButtonStyle: CSSProperties = {
+  borderRadius: radii.lg,
+  border: `1px solid ${colors.borderSubtle}`,
+  background: colors.surfaceLow,
+  padding: `${spacing.md}px ${spacing.md}px`,
+  textAlign: "left",
+  cursor: "pointer",
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  boxShadow: "0 10px 25px rgba(15,23,42,0.55)",
+};
+
+const quickLinkTopRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: spacing.sm,
+};
+
+const quickLinkLabelStyle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: colors.textPrimary,
+};
+
+const quickLinkIconStyle: CSSProperties = {
+  fontSize: 14,
+  opacity: 0.72,
+};
+
+const quickLinkHintStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 12,
+  lineHeight: 1.5,
+  color: colors.textSecondary,
+};

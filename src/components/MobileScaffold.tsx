@@ -1,172 +1,83 @@
 // src/components/MobileScaffold.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { colors, layout, spacing } from "@/styles/design-tokens";
 
 type Props = {
   children: React.ReactNode;
-
-  /** ancho máximo del contenedor */
   maxWidth?: number;
-
-  /** padding desktop (ej: "22px 18px 24px") */
   paddingDesktop?: string;
-
-  /** padding móvil (ej: "14px 12px 18px") */
   paddingMobile?: string;
-
-  /**
-   * Espacio reservado en móvil para BottomNav.
-   * (altura aproximada de la barra inferior + aire)
-   */
   mobileBottomSafe?: number;
-
   className?: string;
-  style?: React.CSSProperties;
-
-  /**
-   * Si quieres forzar que el scaffold maneje el scroll (modo app).
-   * Déjalo en true (default).
-   */
-  scroll?: boolean;
+  style?: CSSProperties;
 };
 
-function useIsMobileWidth(maxWidth = 520) {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
-    const apply = () => setIsMobile(!!mq.matches);
-
-    apply();
-
-    if (typeof mq.addEventListener === "function") {
-      mq.addEventListener("change", apply);
-      return () => mq.removeEventListener("change", apply);
-    } else {
-      // @ts-ignore
-      mq.addListener(apply);
-      return () => {
-        // @ts-ignore
-        mq.removeListener(apply);
-      };
-    }
-  }, [maxWidth]);
-
-  return isMobile;
-}
-
-function parsePadding(padding: string) {
-  const parts = String(padding).trim().split(/\s+/);
-
-  const top = parts[0] ?? "14px";
-  const right = parts[1] ?? parts[0] ?? "12px";
-  const bottom = parts[2] ?? parts[0] ?? "18px";
-  const left = parts[3] ?? right;
-
-  return { top, right, bottom, left };
-}
-
 /**
- * MobileScaffold (App Shell)
+ * MobileScaffold
  *
- * ✅ Objetivo: "móvil = app real"
- * - 100dvh real (iPhone)
- * - 1 solo scroll (interno)
- * - safe-area top/bottom
- * - reserva espacio para BottomNav
- *
- * Desktop: mantiene tu layout premium normal.
+ * Shell base para todas las pantallas principales.
+ * Maneja:
+ * - Fondo global
+ * - Safe-area iOS
+ * - Espacio reservado para BottomNav
+ * - Centrado + ancho máximo
  */
 export default function MobileScaffold({
   children,
-  maxWidth = 980,
+  maxWidth = layout.maxWidthMobile,
   paddingDesktop = "22px 18px 24px",
   paddingMobile = "14px 12px 18px",
-  mobileBottomSafe = 96,
+  mobileBottomSafe = layout.mobileBottomSafe,
   className,
   style,
-  scroll = true,
 }: Props) {
-  const isMobile = useIsMobileWidth(520);
+  const isMobile = useIsMobileWidth(layout.mobileBreakpoint);
 
-  const desktopPad = useMemo(
-    () => parsePadding(paddingDesktop),
-    [paddingDesktop]
-  );
-  const mobilePad = useMemo(
-    () => parsePadding(paddingMobile),
-    [paddingMobile]
-  );
-
-  // ✅ En móvil: el bottom padding SIEMPRE incluye:
-  // - padding base
-  // - espacio para BottomNav
-  // - safe-area iOS (home bar)
-  const mobilePadding = useMemo(() => {
-    const safeBottom = `calc(${mobilePad.bottom} + ${mobileBottomSafe}px + env(safe-area-inset-bottom))`;
-    const safeTop = `calc(${mobilePad.top} + env(safe-area-inset-top))`;
+  const shellStyle = useMemo<CSSProperties>(() => {
     return {
-      paddingTop: safeTop,
-      paddingRight: mobilePad.right,
-      paddingBottom: safeBottom,
-      paddingLeft: mobilePad.left,
-    } as React.CSSProperties;
-  }, [mobilePad, mobileBottomSafe]);
-
-  const desktopPadding = useMemo(() => {
-    return {
-      paddingTop: desktopPad.top,
-      paddingRight: desktopPad.right,
-      paddingBottom: desktopPad.bottom,
-      paddingLeft: desktopPad.left,
-    } as React.CSSProperties;
-  }, [desktopPad]);
-
-  // ✅ Shell: en móvil controlamos altura + scroll interno.
-  // Evita “cortes” y doble scroll raro.
-  const shellStyle: React.CSSProperties = useMemo(() => {
-    if (!isMobile || !scroll) {
-      return {
-        width: "100%",
-      };
-    }
-
-    return {
-      width: "100%",
+      minHeight: "100vh",
       height: "100dvh",
-      minHeight: "100dvh",
-      overflow: "hidden", // ✅ no scroll del wrapper
-    };
-  }, [isMobile, scroll]);
-
-  const scrollAreaStyle: React.CSSProperties = useMemo(() => {
-    if (!isMobile || !scroll) {
-      return {
-        width: "100%",
-      };
-    }
-
-    return {
       width: "100%",
-      height: "100%",
+      background: colors.appBackground,
+      color: colors.textPrimary,
+      paddingTop: "env(safe-area-inset-top)",
+      paddingBottom: `calc(env(safe-area-inset-bottom) + ${mobileBottomSafe}px)`,
+      boxSizing: "border-box",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "stretch",
+      justifyContent: "flex-start",
+    };
+  }, [mobileBottomSafe]);
+
+  const scrollAreaStyle = useMemo<CSSProperties>(() => {
+    return {
+      flex: 1,
+      width: "100%",
+      overflowX: "hidden",
       overflowY: "auto",
       WebkitOverflowScrolling: "touch",
-      overscrollBehaviorY: "contain",
     };
-  }, [isMobile, scroll]);
+  }, []);
 
-  const containerStyle: React.CSSProperties = useMemo(() => {
-    const base: React.CSSProperties = {
+  const containerStyle = useMemo<CSSProperties>(() => {
+    const desktopPadding = parsePadding(paddingDesktop);
+    const mobilePadding = parsePadding(paddingMobile);
+
+    return {
       maxWidth,
+      width: "100%",
       margin: "0 auto",
-      ...(!isMobile ? desktopPadding : mobilePadding),
+      boxSizing: "border-box",
+      ...(isMobile ? mobilePadding : desktopPadding),
+      paddingTop:
+        (isMobile
+          ? mobilePadding.paddingTop
+          : desktopPadding.paddingTop) ?? spacing.lg,
     };
-
-    return base;
-  }, [maxWidth, isMobile, desktopPadding, mobilePadding]);
+  }, [maxWidth, isMobile, paddingDesktop, paddingMobile]);
 
   return (
     <div className={className} style={{ ...shellStyle, ...style }}>
@@ -175,4 +86,71 @@ export default function MobileScaffold({
       </div>
     </div>
   );
+}
+
+function useIsMobileWidth(breakpoint: number) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const apply = () => setIsMobile(mq.matches);
+
+    apply();
+
+    if (mq.addEventListener) {
+      mq.addEventListener("change", apply);
+      return () => mq.removeEventListener("change", apply);
+    } else {
+      // @ts-ignore
+      mq.addListener?.(apply);
+      // @ts-ignore
+      return () => mq.removeListener?.(apply);
+    }
+  }, [breakpoint]);
+
+  return isMobile;
+}
+
+function parsePadding(value: string): CSSProperties {
+  if (!value) return {};
+
+  const parts = value.trim().split(/\s+/);
+
+  if (parts.length === 1) {
+    return { padding: value };
+  }
+
+  if (parts.length === 2) {
+    const [vertical, horizontal] = parts;
+    return {
+      paddingTop: vertical,
+      paddingBottom: vertical,
+      paddingLeft: horizontal,
+      paddingRight: horizontal,
+    };
+  }
+
+  if (parts.length === 3) {
+    const [top, horizontal, bottom] = parts;
+    return {
+      paddingTop: top,
+      paddingBottom: bottom,
+      paddingLeft: horizontal,
+      paddingRight: horizontal,
+    };
+  }
+
+  if (parts.length >= 4) {
+    const [top, right, bottom, left] = parts;
+    return {
+      paddingTop: top,
+      paddingRight: right,
+      paddingBottom: bottom,
+      paddingLeft: left,
+    };
+  }
+
+  return {};
 }
