@@ -1,11 +1,17 @@
 // src/components/MobileScaffold.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react";
 import { colors, layout, spacing } from "@/styles/design-tokens";
 
 type Props = {
   children: React.ReactNode;
+  /** Ancho máximo deseado en escritorio (en móvil siempre usamos maxWidthMobile) */
   maxWidth?: number;
   paddingDesktop?: string;
   paddingMobile?: string;
@@ -13,6 +19,36 @@ type Props = {
   className?: string;
   style?: CSSProperties;
 };
+
+/**
+ * Parsea un string tipo "22px 18px 24px" a un objeto CSS.
+ */
+function parsePadding(pad: string): CSSProperties {
+  const parts = pad.split(" ").map((p) => p.trim());
+  if (parts.length === 1) {
+    return { padding: parts[0] };
+  }
+  if (parts.length === 2) {
+    return { padding: `${parts[0]} ${parts[1]}` };
+  }
+  if (parts.length === 3) {
+    return {
+      paddingTop: parts[0],
+      paddingLeft: parts[1],
+      paddingRight: parts[1],
+      paddingBottom: parts[2],
+    };
+  }
+  if (parts.length >= 4) {
+    return {
+      paddingTop: parts[0],
+      paddingRight: parts[1],
+      paddingBottom: parts[2],
+      paddingLeft: parts[3],
+    };
+  }
+  return {};
+}
 
 /**
  * MobileScaffold
@@ -26,7 +62,8 @@ type Props = {
  */
 export default function MobileScaffold({
   children,
-  maxWidth = layout.maxWidthMobile,
+  // 🆕: por defecto desktop es ancho dashboard, móvil se maneja aparte
+  maxWidth = layout.maxWidthDesktop,
   paddingDesktop = "22px 18px 24px",
   paddingMobile = "14px 12px 18px",
   mobileBottomSafe = layout.mobileBottomSafe,
@@ -66,18 +103,19 @@ export default function MobileScaffold({
     const desktopPadding = parsePadding(paddingDesktop);
     const mobilePadding = parsePadding(paddingMobile);
 
+    // 🆕: en móvil usamos siempre maxWidthMobile; en desktop usamos maxWidth (prop)
+    const effectiveMaxWidth = isMobile
+      ? layout.maxWidthMobile
+      : maxWidth;
+
     return {
-      maxWidth,
+      maxWidth: effectiveMaxWidth,
       width: "100%",
       margin: "0 auto",
       boxSizing: "border-box",
       ...(isMobile ? mobilePadding : desktopPadding),
-      paddingTop:
-        (isMobile
-          ? mobilePadding.paddingTop
-          : desktopPadding.paddingTop) ?? spacing.lg,
     };
-  }, [maxWidth, isMobile, paddingDesktop, paddingMobile]);
+  }, [isMobile, maxWidth, paddingDesktop, paddingMobile]);
 
   return (
     <div className={className} style={{ ...shellStyle, ...style }}>
@@ -95,62 +133,26 @@ function useIsMobileWidth(breakpoint: number) {
     if (typeof window === "undefined") return;
 
     const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
-    const apply = () => setIsMobile(mq.matches);
+
+    const apply = () => {
+      setIsMobile(mq.matches);
+    };
 
     apply();
 
-    if (mq.addEventListener) {
+    if (typeof mq.addEventListener === "function") {
       mq.addEventListener("change", apply);
       return () => mq.removeEventListener("change", apply);
     } else {
+      // Safari viejo
       // @ts-ignore
-      mq.addListener?.(apply);
-      // @ts-ignore
-      return () => mq.removeListener?.(apply);
+      mq.addListener(apply);
+      return () => {
+        // @ts-ignore
+        mq.removeListener(apply);
+      };
     }
   }, [breakpoint]);
 
   return isMobile;
-}
-
-function parsePadding(value: string): CSSProperties {
-  if (!value) return {};
-
-  const parts = value.trim().split(/\s+/);
-
-  if (parts.length === 1) {
-    return { padding: value };
-  }
-
-  if (parts.length === 2) {
-    const [vertical, horizontal] = parts;
-    return {
-      paddingTop: vertical,
-      paddingBottom: vertical,
-      paddingLeft: horizontal,
-      paddingRight: horizontal,
-    };
-  }
-
-  if (parts.length === 3) {
-    const [top, horizontal, bottom] = parts;
-    return {
-      paddingTop: top,
-      paddingBottom: bottom,
-      paddingLeft: horizontal,
-      paddingRight: horizontal,
-    };
-  }
-
-  if (parts.length >= 4) {
-    const [top, right, bottom, left] = parts;
-    return {
-      paddingTop: top,
-      paddingRight: right,
-      paddingBottom: bottom,
-      paddingLeft: left,
-    };
-  }
-
-  return {};
 }

@@ -63,6 +63,7 @@ export const spacing = {
 // 📐 Layout global
 export const layout = {
   maxWidthMobile: 520,
+  maxWidthDesktop: 1120, // 🆕 ancho “dashboard” para escritorio
   mobileBreakpoint: 768,
   mobileBottomSafe: 72,
 };
