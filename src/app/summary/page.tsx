@@ -1,5 +1,8 @@
+"use client";
+
 // src/app/summary/page.tsx
-import { Suspense } from "react";
+
+import React, { Suspense } from "react";
 import SummaryClient from "./SummaryClient";
 
 import MobileScaffold from "@/components/MobileScaffold";
@@ -15,127 +18,194 @@ function SummaryFallback() {
     <MobileScaffold>
       <div
         style={{
+          minHeight: "100vh",
           display: "flex",
-          alignItems: "center",
+          alignItems: "stretch",
           justifyContent: "center",
-          minHeight: "60vh",
+          padding: `${spacing.lg}px ${spacing.md}px ${spacing.xl}px`,
+          background:
+            "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
         }}
       >
         <div
           style={{
             width: "100%",
-            maxWidth: 520,
-            borderRadius: radii.xl,
-            background: colors.surfaceRaised,
-            border: `1px solid ${colors.borderStrong}`,
-            boxShadow: shadows.card,
-            padding: `${spacing.lg}px ${spacing.lg}px`,
+            maxWidth: 540,
+            margin: "0 auto",
             display: "flex",
             flexDirection: "column",
-            gap: spacing.md,
+            gap: spacing.lg,
           }}
         >
+          {/* Header skeleton */}
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              gap: spacing.sm,
+              flexDirection: "column",
+              gap: 6,
             }}
           >
             <div
               style={{
-                width: 10,
+                width: 120,
                 height: 10,
-                borderRadius: radii.full,
-                background:
-                  "conic-gradient(from 180deg, #38BDF8, #A855F7, #FBBF24, #38BDF8)",
-                boxShadow: "0 0 24px rgba(56,189,248,0.55)",
+                borderRadius: 999,
+                background: "rgba(148,163,184,0.35)",
               }}
             />
-            <span
+            <div
               style={{
-                fontSize: 11,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: colors.textMuted,
+                width: 220,
+                height: 18,
+                borderRadius: 999,
+                background: "rgba(248,250,252,0.80)",
               }}
-            >
-              Preparando tu resumen
-            </span>
+            />
+            <div
+              style={{
+                width: 260,
+                height: 12,
+                borderRadius: 999,
+                background: "rgba(148,163,184,0.45)",
+              }}
+            />
           </div>
 
-          <h1
-            style={{
-              margin: 0,
-              fontSize: 20,
-              lineHeight: 1.3,
-              fontWeight: 800,
-              letterSpacing: "-0.03em",
-              color: colors.textPrimary,
-            }}
-          >
-            Cargando tu resumen…
-          </h1>
-
-          <p
-            style={{
-              margin: 0,
-              fontSize: 13,
-              lineHeight: 1.6,
-              color: colors.textSecondary,
-            }}
-          >
-            Estamos trayendo tus eventos, grupos y conflictos para mostrarte una
-            vista clara de cómo viene tu semana.
-          </p>
-
+          {/* Card skeleton */}
           <div
             style={{
-              marginTop: spacing.md,
+              borderRadius: radii.xl,
+              background: colors.surfaceRaised,
+              border: `1px solid ${colors.borderStrong}`,
+              boxShadow: shadows.card,
+              padding: `${spacing.lg}px ${spacing.lg}px`,
               display: "flex",
               flexDirection: "column",
-              gap: spacing.sm,
+              gap: spacing.md,
             }}
           >
-            {[1, 2, 3].map((i) => (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: spacing.md,
+              }}
+            >
               <div
-                key={i}
                 style={{
-                  height: 32,
-                  borderRadius: radii.lg,
-                  background: "rgba(15,23,42,0.9)",
-                  border: `1px solid ${colors.borderSubtle}`,
-                  overflow: "hidden",
-                  position: "relative",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
                 }}
               >
                 <div
                   style={{
-                    position: "absolute",
-                    inset: 0,
-                    background:
-                      "linear-gradient(90deg, rgba(148,163,184,0.08), rgba(148,163,184,0.25), rgba(148,163,184,0.08))",
-                    transform: "translateX(-40%)",
-                    animation: "spSummarySkeleton 1.4s ease-in-out infinite",
+                    width: 180,
+                    height: 14,
+                    borderRadius: 999,
+                    background: "rgba(248,250,252,0.90)",
+                  }}
+                />
+                <div
+                  style={{
+                    width: 220,
+                    height: 11,
+                    borderRadius: 999,
+                    background: "rgba(148,163,184,0.55)",
                   }}
                 />
               </div>
-            ))}
-          </div>
 
-          <style jsx>{`
-            @keyframes spSummarySkeleton {
-              0% {
-                transform: translateX(-40%);
-              }
-              50% {
-                transform: translateX(40%);
-              }
-              100% {
-                transform: translateX(110%);
-              }
-            }
-          `}</style>
+              <div
+                style={{
+                  width: 90,
+                  height: 28,
+                  borderRadius: 999,
+                  background: "rgba(15,23,42,0.85)",
+                  border: `1px solid ${colors.borderSubtle}`,
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                marginTop: spacing.sm,
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                gap: spacing.sm,
+              }}
+            >
+              {Array.from({ length: 3 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    borderRadius: radii.lg,
+                    padding: `${spacing.sm}px ${spacing.sm}px`,
+                    border: `1px solid ${colors.borderSubtle}`,
+                    background: colors.surfaceLow,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 70,
+                      height: 11,
+                      borderRadius: 999,
+                      background: "rgba(248,250,252,0.90)",
+                    }}
+                  />
+                  <div
+                    style={{
+                      width: 40,
+                      height: 18,
+                      borderRadius: 999,
+                      background: "rgba(56,189,248,0.85)",
+                    }}
+                  />
+                  <div
+                    style={{
+                      width: "100%",
+                      height: 10,
+                      borderRadius: 999,
+                      background: "rgba(148,163,184,0.45)",
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div
+              style={{
+                marginTop: spacing.md,
+                borderRadius: radii.lg,
+                border: `1px dashed ${colors.borderSubtle}`,
+                padding: `${spacing.sm}px ${spacing.md}px`,
+                display: "flex",
+                alignItems: "center",
+                gap: spacing.sm,
+              }}
+            >
+              <div
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 999,
+                  background: "rgba(56,189,248,0.95)",
+                }}
+              />
+              <div
+                style={{
+                  flex: 1,
+                  height: 10,
+                  borderRadius: 999,
+                  background: "rgba(148,163,184,0.45)",
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
     </MobileScaffold>
