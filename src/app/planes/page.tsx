@@ -152,17 +152,32 @@ export default function PlanesPage() {
 
   const isFreeTier = normalizedTier === "free";
   const isFounderTier = normalizedTier.startsWith("founder");
-  const isAnyPremium = premiumActive || trialActive || isFounderTier;
+
+  const statusPillText = isFounderTier
+    ? "Founder activo"
+    : trialActive
+    ? "Prueba Premium activa"
+    : premiumActive
+    ? "Premium activo"
+    : "Modo Free";
 
   const resolveIsCurrent = (id: PlanCardId): boolean => {
+    // Founder es un plan especial, no coincide 1:1 con estos cards
     if (isFounderTier) {
-      // Conceptualmente Founder es un Premium “especial”
-      return id === "premium_monthly";
+      return false;
     }
     if (isFreeTier) return id === "free";
-    if (premiumActive || trialActive) {
+
+    // Premium pagado (sin trial) → marcamos ambos Premium como “actuales”
+    if (premiumActive && !trialActive) {
       return id === "premium_monthly" || id === "premium_yearly";
     }
+
+    // Trial activo → marcamos solo el mensual como referencia
+    if (trialActive) {
+      return id === "premium_monthly";
+    }
+
     return false;
   };
 
@@ -195,7 +210,7 @@ export default function PlanesPage() {
             </div>
             <div style={planActionsColumnStyle}>
               <div style={planStatusPillStyle}>
-                {isAnyPremium ? "Premium activo / Founder" : "Modo Free"}
+                {loading ? "Leyendo estado..." : statusPillText}
               </div>
             </div>
           </div>
@@ -446,6 +461,7 @@ const betaNoteBodyStyle: CSSProperties = {
   color: colors.textSecondary,
 };
 
+// Sección de grid de planes
 const plansSectionStyle: CSSProperties = {
   borderRadius: radii.xl,
   background: colors.surfaceRaised,
