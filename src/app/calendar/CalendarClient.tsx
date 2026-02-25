@@ -1507,12 +1507,18 @@ const styles: Record<string, React.CSSProperties> = {
     WebkitOverflowScrolling: "touch",
   },
 
-  weekHeader: {
-    display: "grid",
-    gridTemplateColumns: "repeat(7, 1fr)",
-    padding: "10px 10px 0",
-    minWidth: 720,
-  },
+weekHeader: {
+  display: "grid",
+  gridTemplateColumns: "repeat(7, 1fr)",
+  padding: "10px 10px 0",
+  minWidth: 720,
+
+  position: "sticky",
+  top: 0,
+  zIndex: 5,
+  background: "rgba(5,8,22,0.95)",
+  backdropFilter: "blur(10px)",
+},
   weekDay: {
     padding: "10px 10px",
     fontSize: 12,
