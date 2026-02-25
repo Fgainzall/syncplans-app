@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import MobileScaffold from "@/components/MobileScaffold";
 import EventsHero from "@/components/events/EventsHero";
-
+import EventsFiltersBar from "@/components/events/EventsFiltersBar";
 import {
   getMyEvents,
   deleteEventsByIds,
@@ -418,125 +418,30 @@ const filteredEvents = useMemo(() => {
             </div>
           </div>
 
-          {/* Filtros y acciones */}
-          <div style={S.filters} className="spEvt-filters">
-            <div style={S.tabs}>
-              <div style={S.segment}>
-                <button
-                  type="button"
-                  style={{
-                    ...S.segmentBtn,
-                    ...(filters.view === "upcoming"
-                      ? S.segmentBtnActive
-                      : {}),
-                  }}
-                  onClick={() =>
-                    setFilters((f) => ({
-                      ...f,
-                      view: "upcoming",
-                    }))
-                  }
-                >
-                  Próximos
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    ...S.segmentBtn,
-                    ...(filters.view === "history"
-                      ? S.segmentBtnActive
-                      : {}),
-                  }}
-                  onClick={() =>
-                    setFilters((f) => ({
-                      ...f,
-                      view: "history",
-                    }))
-                  }
-                >
-                  Historial
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    ...S.segmentBtn,
-                    ...(filters.view === "all"
-                      ? S.segmentBtnActive
-                      : {}),
-                  }}
-                  onClick={() =>
-                    setFilters((f) => ({ ...f, view: "all" }))
-                  }
-                >
-                  Todos
-                </button>
-              </div>
-
-              <div style={S.segment}>
-                <button
-                  type="button"
-                  style={{
-                    ...S.segmentBtn,
-                    ...(filters.scope === "all"
-                      ? S.segmentBtnActive
-                      : {}),
-                  }}
-                  onClick={() =>
-                    setFilters((f) => ({ ...f, scope: "all" }))
-                  }
-                >
-                  Todo
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    ...S.segmentBtn,
-                    ...(filters.scope === "personal"
-                      ? S.segmentBtnActive
-                      : {}),
-                  }}
-                  onClick={() =>
-                    setFilters((f) => ({
-                      ...f,
-                      scope: "personal",
-                    }))
-                  }
-                >
-                  Personal
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    ...S.segmentBtn,
-                    ...(filters.scope === "groups"
-                      ? S.segmentBtnActive
-                      : {}),
-                  }}
-                  onClick={() =>
-                    setFilters((f) => ({
-                      ...f,
-                      scope: "groups",
-                    }))
-                  }
-                >
-                  Grupos
-                </button>
-              </div>
-            </div>
-
-            <input
-              style={S.search}
-              className="spEvt-search"
-              placeholder="Buscar por título, notas o grupo…"
-              value={filters.query}
-              onChange={(e) =>
-                setFilters((f) => ({
-                  ...f,
-                  query: e.target.value,
-                }))
-              }
-            />
-          </div>
+{/* Filtros y acciones */}
+<EventsFiltersBar
+  view={filters.view}
+  scope={filters.scope}
+  query={filters.query}
+  onChangeView={(view) =>
+    setFilters((f) => ({
+      ...f,
+      view,
+    }))
+  }
+  onChangeScope={(scope) =>
+    setFilters((f) => ({
+      ...f,
+      scope,
+    }))
+  }
+  onChangeQuery={(query) =>
+    setFilters((f) => ({
+      ...f,
+      query,
+    }))
+  }
+/>
 
           {events.length > 0 && (
             <button
