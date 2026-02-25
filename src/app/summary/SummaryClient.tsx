@@ -133,7 +133,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       })
       .filter((e) => e._start)
       .sort(
-        (a, b) => (a._start as Date).getTime() - (b._start as Date).getTime(),
+        (a, b) => (a._start as Date).getTime() - (b._start as Date).getTime()
       );
   }, [events, activeGroupId]);
 
@@ -142,7 +142,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return visibleEvents.filter((e) => (e._start as Date).getTime() >= now);
   }, [visibleEvents]);
 
-  // 🆕 Stats mixtos: centro de verdad para este contexto
   const upcomingStats = useMemo(() => {
     let personal = 0;
     let group = 0;
@@ -154,8 +153,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
       if (isExternal) {
         external += 1;
-      }
-      if (hasGroup) {
+      } else if (hasGroup) {
         group += 1;
       } else {
         personal += 1;
@@ -175,10 +173,46 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const upcoming = useMemo(
     () => upcomingAll.slice(0, UPCOMING_LIMIT),
-    [upcomingAll, UPCOMING_LIMIT],
+    [upcomingAll, UPCOMING_LIMIT]
   );
 
+  const nextEvent = upcoming.length > 0 ? upcoming[0] : null;
+  const remainingUpcoming =
+    upcoming.length > 1 ? upcoming.slice(1) : ([] as any[]);
+
   const showSeeMore = !booting && upcomingAll.length > UPCOMING_LIMIT;
+
+  const mood = useMemo(() => {
+    if (booting) {
+      return {
+        title: "Cargando tu resumen…",
+        subtitle: "Revisando eventos y grupos activos.",
+        tone: "neutral" as const,
+      };
+    }
+
+    if (upcomingStats.total === 0) {
+      return {
+        title: "Agenda despejada",
+        subtitle: "No hay eventos próximos para este contexto.",
+        tone: "clear" as const,
+      };
+    }
+
+    if (upcomingStats.total <= 3) {
+      return {
+        title: "Todo bajo control",
+        subtitle: "Pocos eventos próximos. Tienes margen para decidir.",
+        tone: "calm" as const,
+      };
+    }
+
+    return {
+      title: "Semana movida",
+      subtitle: "Varios eventos por delante. SyncPlans mantiene el orden.",
+      tone: "busy" as const,
+    };
+  }, [booting, upcomingStats]);
 
   async function requireSessionOrRedirect() {
     const { data, error } = await supabase.auth.getSession();
@@ -213,7 +247,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     } catch (e: any) {
       showToast(
         "No se pudo cargar el resumen",
-        e?.message || "Intenta nuevamente.",
+        e?.message || "Intenta nuevamente."
       );
     } finally {
       setLoading(false);
@@ -249,6 +283,20 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const title = activeGroupId ? `Resumen · ${activeLabel}` : "Resumen · Personal";
 
+  const moodAccentBorder =
+    mood.tone === "clear"
+      ? "rgba(34,197,94,0.85)"
+      : mood.tone === "busy"
+      ? "rgba(251,191,36,0.9)"
+      : "rgba(56,189,248,0.9)";
+
+  const moodAccentGlow =
+    mood.tone === "clear"
+      ? "rgba(34,197,94,0.35)"
+      : mood.tone === "busy"
+      ? "rgba(251,191,36,0.35)"
+      : "rgba(56,189,248,0.35)";
+
   return (
     <main style={styles.page} className="spSum-page">
       {/* Toast */}
@@ -278,52 +326,97 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         {/* Hero compacto debajo del header */}
         <section style={styles.hero} className="spSum-hero">
           <div>
-            <div style={styles.kicker}>Tu resumen</div>
+            <div style={styles.kicker}>Centro de verdad</div>
             <h1 style={styles.h1} className="spSum-h1">
               {title}
             </h1>
 
             {!isMobile ? (
               <div style={styles.sub}>
-                Vista rápida de lo importante. Si cambiaste el grupo activo en
-                Calendario, aquí se actualiza solo (sin recargar).
+                Una sola verdad sobre tu tiempo compartido. Cambia el grupo
+                activo en Calendario y aquí se actualiza solo.
               </div>
             ) : (
               <div style={styles.subMobile}>
-                Lo importante, rápido. Se actualiza solo.
+                Tu tiempo en un solo lugar. Se actualiza solo.
               </div>
             )}
           </div>
 
-          <div style={styles.heroRight}>
-            <div style={styles.heroKpiCard}>
-              <div style={styles.heroKpiLabel}>Próximos en este contexto</div>
-              <div style={styles.heroKpiNumber}>{upcomingStats.total}</div>
-              <div style={styles.heroKpiSub}>
-                {upcomingStats.personal} personales · {upcomingStats.group} en
-                grupos · {upcomingStats.external} externos
-              </div>
-            </div>
+          <div style={styles.heroBtns} className="spSum-heroBtns">
+            <button
+              onClick={() => router.push("/calendar")}
+              style={styles.primaryBtn}
+              className="spSum-btn"
+            >
+              Abrir Calendario →
+            </button>
+            <button
+              onClick={() => router.push("/conflicts/detected")}
+              style={styles.ghostBtn}
+              className="spSum-btn"
+            >
+              Ver conflictos →
+            </button>
           </div>
         </section>
 
-        {/* Próximos eventos */}
+        {/* ESTADO GENERAL + SIGUIENTE EVENTO */}
         <section style={styles.card} className="spSum-card">
-          <div style={styles.sectionHeader}>
-            <div>
-              <div style={styles.sectionTitle}>Próximos eventos</div>
-              <div style={styles.smallNote}>
-                Mostrando: <b>{activeLabel}</b> ·{" "}
-                {loading ? "Actualizando…" : `${upcoming.length} visibles`}
+          {/* Estado general */}
+          <div
+            style={{
+              ...styles.stateRow,
+              boxShadow: `0 0 32px ${moodAccentGlow}`,
+              borderColor: moodAccentBorder,
+            }}
+          >
+            <div style={styles.stateLeft}>
+              <div style={styles.stateLabelRow}>
+                <span style={styles.statePill}>
+                  Contexto: <b>{activeLabel}</b>
+                </span>
+                {loading && !booting ? (
+                  <span style={styles.stateLoadingBadge}>Actualizando…</span>
+                ) : null}
               </div>
-              <div style={styles.smallNoteStats}>
-                {upcomingStats.total} en total · {upcomingStats.personal}{" "}
-                personales · {upcomingStats.group} en grupos ·{" "}
-                {upcomingStats.external} externos
+              <div style={styles.stateMoodTitle}>{mood.title}</div>
+              <div style={styles.stateMoodSub}>{mood.subtitle}</div>
+
+              <div style={styles.stateStatsRow}>
+                <span style={styles.stateStat}>
+                  {upcomingStats.total} próximo
+                  {upcomingStats.total === 1 ? "" : "s"}
+                </span>
+                <span style={styles.stateStatDot}>·</span>
+                <span style={styles.stateStat}>
+                  {upcomingStats.personal} personales
+                </span>
+                <span style={styles.stateStatDot}>·</span>
+                <span style={styles.stateStat}>
+                  {upcomingStats.group} en grupos
+                </span>
+                {upcomingStats.external > 0 ? (
+                  <>
+                    <span style={styles.stateStatDot}>·</span>
+                    <span style={styles.stateStat}>
+                      {upcomingStats.external} externos
+                    </span>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div style={styles.stateKpi}>
+              <div style={styles.stateKpiLabel}>Próximos</div>
+              <div style={styles.stateKpiNumber}>{upcomingStats.total}</div>
+              <div style={styles.stateKpiHint}>
+                Hoy y los siguientes días en este contexto.
               </div>
             </div>
           </div>
 
+          {/* Próximo evento destacado */}
           {booting ? (
             <div style={styles.loadingCard}>
               <div style={styles.loadingDot} />
@@ -332,59 +425,111 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 <div style={styles.loadingSub}>Eventos y contexto</div>
               </div>
             </div>
-          ) : upcoming.length === 0 ? (
-            <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
-              No hay eventos próximos para este contexto. Ve a Calendario para
-              crear uno.
+          ) : !nextEvent ? (
+            <div style={styles.emptyBlock}>
+              <div style={styles.emptyTitle}>No hay nada por delante</div>
+              <div style={styles.emptySub}>
+                En este contexto no tienes eventos próximos. Crea uno nuevo
+                desde Calendario o desde Eventos.
+              </div>
+              <button
+                onClick={() =>
+                  router.push("/events/new/details?type=personal")
+                }
+                style={styles.emptyBtn}
+              >
+                Crear primer evento →
+              </button>
             </div>
           ) : (
             <>
-              <div style={styles.eventsList} className="spSum-eventsList">
-                {upcoming.map((e: any) => {
-                  const start = e._start as Date;
-                  const end = e._end as Date | null;
+              {/* Próximo grande */}
+              <div style={styles.nextBlock}>
+                <div style={styles.nextLabel}>Siguiente evento</div>
+                <button
+                  onClick={() => router.push("/calendar")}
+                  style={styles.nextCard}
+                  className="spSum-eventRow"
+                >
+                  {(() => {
+                    const start = nextEvent._start as Date;
+                    const end = nextEvent._end as Date | null;
 
-                  const when = end
-                    ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
-                    : `${fmtDay(start)} · ${fmtTime(start)}`;
+                    const when = end
+                      ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
+                      : `${fmtDay(start)} · ${fmtTime(start)}`;
 
-                  const isHighlighted =
-                    highlightId &&
-                    String((e as any)?.id ?? "") === String(highlightId);
-
-                  return (
-                    <button
-                      key={
-                        (e as any)?.id ?? `${e._title}-${start.toISOString()}`
-                      }
-                      onClick={() => router.push("/calendar")}
-                      style={{
-                        ...styles.eventRow,
-                        ...(isHighlighted ? styles.eventRowHighlight : {}),
-                      }}
-                      className="spSum-eventRow"
-                    >
-                      <div style={styles.eventLeft}>
-                        <div style={styles.eventWhen}>{when}</div>
-                        <div style={styles.eventTitle}>{e._title}</div>
-                      </div>
-
-                      <div style={styles.eventMeta}>
-                        {(e as any)?.is_external ? (
-                          <span style={styles.pill}>Externo</span>
-                        ) : null}
-                        {(e as any)?.group_id ? (
-                          <span style={styles.pillSoft}>Grupo</span>
-                        ) : (
-                          <span style={styles.pillSoft}>Personal</span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
+                    return (
+                      <>
+                        <div style={styles.eventLeft}>
+                          <div style={styles.eventWhen}>{when}</div>
+                          <div style={styles.eventTitle}>{nextEvent._title}</div>
+                        </div>
+                        <div style={styles.eventMeta}>
+                          {(nextEvent as any)?.is_external ? (
+                            <span style={styles.pill}>Externo</span>
+                          ) : null}
+                          {(nextEvent as any)?.group_id ? (
+                            <span style={styles.pillSoft}>Grupo</span>
+                          ) : (
+                            <span style={styles.pillSoft}>Personal</span>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </button>
               </div>
 
-              {/* ✅ En móvil: botón “ver más” para evitar scroll eterno */}
+              {/* Lista corta del resto */}
+              {remainingUpcoming.length > 0 && (
+                <div style={styles.eventsList} className="spSum-eventsList">
+                  {remainingUpcoming.map((e: any) => {
+                    const start = e._start as Date;
+                    const end = e._end as Date | null;
+
+                    const when = end
+                      ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
+                      : `${fmtDay(start)} · ${fmtTime(start)}`;
+
+                    const isHighlighted =
+                      highlightId &&
+                      String((e as any)?.id ?? "") === String(highlightId);
+
+                    return (
+                      <button
+                        key={
+                          (e as any)?.id ?? `${e._title}-${start.toISOString()}`
+                        }
+                        onClick={() => router.push("/calendar")}
+                        style={{
+                          ...styles.eventRow,
+                          ...(isHighlighted ? styles.eventRowHighlight : {}),
+                        }}
+                        className="spSum-eventRow"
+                      >
+                        <div style={styles.eventLeft}>
+                          <div style={styles.eventWhen}>{when}</div>
+                          <div style={styles.eventTitle}>{e._title}</div>
+                        </div>
+
+                        <div style={styles.eventMeta}>
+                          {(e as any)?.is_external ? (
+                            <span style={styles.pill}>Externo</span>
+                          ) : null}
+                          {(e as any)?.group_id ? (
+                            <span style={styles.pillSoft}>Grupo</span>
+                          ) : (
+                            <span style={styles.pillSoft}>Personal</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Ver más */}
               {showSeeMore && (
                 <button
                   onClick={() => router.push("/calendar")}
@@ -401,6 +546,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         {/* Acciones rápidas */}
         <section style={styles.card} className="spSum-card">
           <div style={styles.sectionTitle}>Acciones rápidas</div>
+          <div style={styles.smallNote}>
+            Lo que más vas a usar cuando entras solo a “ver cómo están las
+            cosas”.
+          </div>
           <div style={styles.quickGrid} className="spSum-quickGrid">
             <button
               onClick={() => router.push("/events/new/details?type=personal")}
@@ -409,7 +558,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             >
               <div style={styles.quickTitle}>Crear evento</div>
               <div style={styles.quickSub}>
-                Personal o para tu grupo activo
+                Personal o para tu grupo activo, en segundos.
               </div>
             </button>
 
@@ -420,7 +569,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             >
               <div style={styles.quickTitle}>Ir a grupos</div>
               <div style={styles.quickSub}>
-                Invita, configura, revisa miembros
+                Invita, configura y revisa quién ve qué.
               </div>
             </button>
 
@@ -431,7 +580,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             >
               <div style={styles.quickTitle}>Resolver conflictos</div>
               <div style={styles.quickSub}>
-                Detectar → comparar → decidir
+                Detectar → comparar → decidir sin pelear.
               </div>
             </button>
           </div>
@@ -518,46 +667,11 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
     marginBottom: 12,
     display: "flex",
-    alignItems: "stretch",
+    alignItems: "flex-end",
     justifyContent: "space-between",
     gap: 14,
     flexWrap: "wrap",
   },
-  heroRight: {
-    minWidth: 0,
-    display: "flex",
-    alignItems: "stretch",
-    justifyContent: "flex-end",
-  },
-  heroKpiCard: {
-    borderRadius: 16,
-    padding: "10px 12px",
-    border: "1px solid rgba(56,189,248,0.35)",
-    background:
-      "radial-gradient(circle at 0% 0%, rgba(56,189,248,0.18), transparent 60%), rgba(3,7,18,0.85)",
-    minWidth: 170,
-    maxWidth: 220,
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
-  heroKpiLabel: {
-    fontSize: 11,
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    opacity: 0.8,
-    fontWeight: 700,
-  },
-  heroKpiNumber: {
-    fontSize: 24,
-    fontWeight: 950,
-    letterSpacing: "-0.6px",
-  },
-  heroKpiSub: {
-    fontSize: 11,
-    opacity: 0.8,
-  },
-
   kicker: {
     alignSelf: "flex-start",
     fontSize: 11,
@@ -579,6 +693,14 @@ const styles: Record<string, React.CSSProperties> = {
   sub: { marginTop: 8, fontSize: 13, opacity: 0.75, maxWidth: 720 },
   subMobile: { marginTop: 8, fontSize: 12, opacity: 0.75, maxWidth: 420 },
 
+  heroBtns: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    width: "100%",
+    justifyContent: "flex-end",
+  },
+
   card: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
@@ -586,19 +708,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 14,
     marginTop: 12,
   },
-  sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 8,
-  },
   sectionTitle: { fontWeight: 950, fontSize: 14 },
   smallNote: { marginTop: 6, fontSize: 12, opacity: 0.72 },
-  smallNoteStats: {
-    marginTop: 2,
-    fontSize: 11,
-    opacity: 0.8,
-  },
 
   primaryBtn: {
     padding: "12px 14px",
@@ -621,7 +732,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   loadingCard: {
-    marginTop: 12,
+    marginTop: 16,
     display: "flex",
     gap: 12,
     alignItems: "center",
@@ -639,6 +750,120 @@ const styles: Record<string, React.CSSProperties> = {
   },
   loadingTitle: { fontWeight: 900 },
   loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
+
+  // Estado general
+  stateRow: {
+    display: "flex",
+    gap: 14,
+    padding: 14,
+    borderRadius: 16,
+    border: "1px solid rgba(56,189,248,0.85)",
+    background:
+      "radial-gradient(circle at 0% 0%, rgba(56,189,248,0.20), transparent 55%), rgba(6,10,20,0.85)",
+    marginBottom: 14,
+  },
+  stateLeft: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  stateLabelRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  statePill: {
+    fontSize: 11,
+    padding: "4px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.55)",
+    background: "rgba(15,23,42,0.96)",
+  },
+  stateLoadingBadge: {
+    fontSize: 11,
+    padding: "4px 8px",
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.18)",
+    border: "1px solid rgba(56,189,248,0.65)",
+  },
+  stateMoodTitle: {
+    fontSize: 15,
+    fontWeight: 900,
+    letterSpacing: "-0.2px",
+  },
+  stateMoodSub: {
+    fontSize: 12,
+    opacity: 0.78,
+  },
+  stateStatsRow: {
+    marginTop: 6,
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 4,
+    fontSize: 11,
+    opacity: 0.86,
+  },
+  stateStat: { fontWeight: 700 },
+  stateStatDot: { opacity: 0.6 },
+
+  stateKpi: {
+    width: 120,
+    minWidth: 100,
+    borderRadius: 14,
+    border: "1px solid rgba(15,23,42,0.85)",
+    background:
+      "radial-gradient(circle at 100% 0%, rgba(56,189,248,0.25), transparent 55%), rgba(15,23,42,0.96)",
+    padding: "10px 10px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-end",
+    gap: 4,
+  },
+  stateKpiLabel: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    opacity: 0.7,
+  },
+  stateKpiNumber: {
+    fontSize: 26,
+    fontWeight: 950,
+    letterSpacing: "-0.6px",
+  },
+  stateKpiHint: {
+    fontSize: 11,
+    opacity: 0.72,
+    textAlign: "right",
+  },
+
+  // Próximo evento
+  nextBlock: {
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  nextLabel: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    opacity: 0.78,
+    marginBottom: 6,
+  },
+  nextCard: {
+    width: "100%",
+    textAlign: "left",
+    cursor: "pointer",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.16)",
+    background:
+      "radial-gradient(circle at 0% 0%, rgba(56,189,248,0.20), transparent 55%), rgba(6,10,20,0.85)",
+    padding: "12px 14px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
 
   eventsList: {
     marginTop: 10,
@@ -704,6 +929,38 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     fontWeight: 900,
     fontSize: 12,
+  },
+
+  // Empty state
+  emptyBlock: {
+    marginTop: 8,
+    borderRadius: 16,
+    border: "1px dashed rgba(148,163,184,0.6)",
+    background: "rgba(15,23,42,0.9)",
+    padding: "12px 14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  emptyTitle: {
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  emptySub: {
+    fontSize: 12,
+    opacity: 0.8,
+  },
+  emptyBtn: {
+    marginTop: 4,
+    alignSelf: "flex-start",
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.75)",
+    background: "rgba(8,47,73,0.9)",
+    color: "rgba(239,246,255,0.98)",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
   },
 
   quickGrid: {
