@@ -15,7 +15,6 @@ import AppHero from "@/components/AppHero";
 import MobileScaffold from "@/components/MobileScaffold";
 import { EventEditModal } from "@/components/EventEditModal";
 import { CalendarFilters } from "./CalendarFilters";
-import { MonthGrid } from "./MonthGrid";
 import { getMyGroups } from "@/lib/groupsDb";
 import { getEventsForGroups, deleteEventsByIds } from "@/lib/eventsDb";
 import {
