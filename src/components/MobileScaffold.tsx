@@ -7,7 +7,7 @@ import React, {
   useState,
   type CSSProperties,
 } from "react";
-import { colors, layout, spacing } from "@/styles/design-tokens";
+import { colors, layout } from "@/styles/design-tokens";
 
 type Props = {
   children: React.ReactNode;
@@ -62,7 +62,6 @@ function parsePadding(pad: string): CSSProperties {
  */
 export default function MobileScaffold({
   children,
-  // 🆕: por defecto desktop es ancho dashboard, móvil se maneja aparte
   maxWidth = layout.maxWidthDesktop,
   paddingDesktop = "22px 18px 24px",
   paddingMobile = "14px 12px 18px",
@@ -103,7 +102,6 @@ export default function MobileScaffold({
     const desktopPadding = parsePadding(paddingDesktop);
     const mobilePadding = parsePadding(paddingMobile);
 
-    // 🆕: en móvil usamos siempre maxWidthMobile; en desktop usamos maxWidth (prop)
     const effectiveMaxWidth = isMobile
       ? layout.maxWidthMobile
       : maxWidth;

@@ -12,7 +12,7 @@ export type PlanTier =
 type AnyProfile = {
   plan_tier?: string | null;
   subscription_status?: string | null; // opcional, por si mañana lo usas con Stripe/Paddle
-  plan_status?: string | null; // legacy: "active" | "inactive" | "canceled" | ...
+  plan_status?: string | null; // legacy: "active" | "inactive" | "canceled" | "cancelled" | ...
   trial_ends_at?: string | null;
 };
 
@@ -61,7 +61,7 @@ export function isTrialActive(profile: AnyProfile | null | undefined): boolean {
  * Determina si el usuario es "premium" a ojos de producto.
  *
  * Regla:
- * 1) Si tiene un tier de pago Y el status NO es "inactive"/"canceled" => premium.
+ * 1) Si tiene un tier de pago Y el status NO es "inactive"/"canceled"/"cancelled" => premium.
  * 2) Si tiene trial activo => también premium.
  *
  * Todo lo que no cumpla esto => no premium.
@@ -80,13 +80,10 @@ export function isPremiumUser(
 
   const trialActive = isTrialActive(profile);
 
+  const inactiveStatuses = ["inactive", "canceled", "cancelled"];
+
   // Caso 1: plan de pago + status OK
-  if (
-    paidTier &&
-    status &&
-    status !== "inactive" &&
-    status !== "canceled"
-  ) {
+  if (paidTier && status && !inactiveStatuses.includes(status)) {
     return true;
   }
 

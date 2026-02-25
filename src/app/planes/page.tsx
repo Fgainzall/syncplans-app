@@ -237,7 +237,6 @@ export default function PlanesPage() {
                     border: isCurrent
                       ? `1px solid ${colors.accentPrimary}`
                       : `1px solid ${colors.borderSubtle}`,
-                    // 👇 aquí el fix: solo usamos shadows.card
                     boxShadow: shadows.card,
                     background: card.highlight
                       ? "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(37,99,235,0.20))"
@@ -447,7 +446,6 @@ const betaNoteBodyStyle: CSSProperties = {
   color: colors.textSecondary,
 };
 
-// Sección de grid de planes
 const plansSectionStyle: CSSProperties = {
   borderRadius: radii.xl,
   background: colors.surfaceRaised,

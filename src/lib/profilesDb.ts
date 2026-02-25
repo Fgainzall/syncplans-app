@@ -23,8 +23,8 @@ export type Profile = {
   coordination_prefs?: CoordinationPrefs | null;
 
   // 👇 Info básica de plan / monetización
-  plan_tier?: string | null; // 'demo_premium', 'free', 'premium', etc.
-  plan_status?: string | null; // 'trial', 'active', 'cancelled', etc.
+  plan_tier?: string | null; // 'demo_premium', 'free', 'premium_monthly', etc.
+  plan_status?: string | null; // 'trial', 'active', 'canceled', 'cancelled', etc.
   trial_ends_at?: string | null; // ISO string o null
 
   // 👇 NUEVO: Resumen diario por correo
