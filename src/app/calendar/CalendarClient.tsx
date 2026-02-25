@@ -15,6 +15,7 @@ import AppHero from "@/components/AppHero";
 import MobileScaffold from "@/components/MobileScaffold";
 import { EventEditModal } from "@/components/EventEditModal";
 import { CalendarFilters } from "./CalendarFilters";
+import { MonthGrid } from "./MonthGrid";
 import { getMyGroups } from "@/lib/groupsDb";
 import { getEventsForGroups, deleteEventsByIds } from "@/lib/eventsDb";
 import {
@@ -723,8 +724,7 @@ export default function CalendarClient(
       `/conflicts/compare?i=${firstRelevantConflictIndex}`,
     );
 
-  // 👇 la parte de RENDER viene en la Parte 2/3
-    /* =========================
+  /* =========================
      RENDER
      ========================= */
   if (booting) {
@@ -733,10 +733,10 @@ export default function CalendarClient(
         <main style={styles.page}>
           <div style={styles.stickyTop}>
             <AppHero
-  title="Calendario"
-  subtitle="Una sola vista para tus eventos personales, de pareja y familia."
-  mobileNav="bottom"
-/>
+              title="Calendario"
+              subtitle="Una sola vista para tus eventos personales, de pareja y familia."
+              mobileNav="bottom"
+            />
           </div>
 
           <div style={styles.loadingCard}>
@@ -858,7 +858,7 @@ export default function CalendarClient(
           </div>
         </section>
 
-               {/* FILTROS */}
+        {/* FILTROS */}
         <CalendarFilters
           tab={tab}
           scope={scope}
@@ -1037,6 +1037,7 @@ export default function CalendarClient(
     </MobileScaffold>
   );
 }
+
 /* =========================
    EventRow (chip premium)
    ========================= */
@@ -1594,7 +1595,7 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: "center",
   },
 
-   cellEvents: {
+  cellEvents: {
     marginTop: 10,
     display: "flex",
     flexDirection: "column",
