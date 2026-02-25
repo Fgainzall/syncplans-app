@@ -1492,13 +1492,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   groupDot: { width: 10, height: 10, borderRadius: 999 },
 
-  calendarCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    overflow: "hidden",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
-  },
+calendarCard: {
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.03)",
+  // 👇 IMPORTANTE: no cortar el sticky header
+  overflow: "visible",
+  boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
+},
 
   // ✅ contenedor scroll horizontal del mes
   monthScroller: {
@@ -1507,7 +1508,7 @@ const styles: Record<string, React.CSSProperties> = {
     WebkitOverflowScrolling: "touch",
   },
 
-weekHeader: {
+wweekHeader: {
   display: "grid",
   gridTemplateColumns: "repeat(7, 1fr)",
   padding: "10px 10px 0",
@@ -1516,7 +1517,8 @@ weekHeader: {
   position: "sticky",
   top: 0,
   zIndex: 5,
-  background: "rgba(5,8,22,0.95)",
+  background:
+    "linear-gradient(180deg, rgba(5,8,22,0.96), rgba(5,8,22,0.90))",
   backdropFilter: "blur(10px)",
 },
   weekDay: {
