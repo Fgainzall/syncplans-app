@@ -8,6 +8,9 @@ import supabase from "@/lib/supabaseClient";
 import MobileScaffold from "@/components/MobileScaffold";
 import EventsHero from "@/components/events/EventsHero";
 import EventsFiltersBar from "@/components/events/EventsFiltersBar";
+import EventsEmptyState from "@/components/events/EventsEmptyState";
+import EventsTimelineList from "@/components/events/EventsTimelineList";
+
 import {
   getMyEvents,
   deleteEventsByIds,
@@ -48,261 +51,150 @@ export default function EventsPage() {
     query: "",
   });
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const [sendingDigest, setSendingDigest] = useState(false);
-  const [toast, setToast] = useState<
-    | null
-    | {
-        title: string;
-        subtitle?: string;
-      }
-  >(null);
+  const [deleting, setDeleting] = useState(false);
 
-  /* ============================
-     Boot inicial y carga de datos
-     ============================ */
+  const [toast, setToast] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  // ===== CARGA INICIAL =====
+
   useEffect(() => {
     let alive = true;
 
-    (async () => {
-      setBooting(true);
-
-      const { data, error } = await supabase.auth.getSession();
-      if (!alive) return;
-
-      if (error || !data.session?.user) {
-        setBooting(false);
-        router.replace("/auth/login");
-        return;
-      }
-
+    async function boot() {
       try {
-        await refreshData(false);
+        const { data } = await supabase.auth.getSession();
+        if (!data.session?.user) {
+          router.replace("/auth/login");
+          return;
+        }
+
+        const [eventsRes, groupsRes] = await Promise.all([
+          getMyEvents().catch((err) => {
+            console.error("Error getMyEvents en /events:", err);
+            return [] as DbEventRow[];
+          }),
+          getMyGroups().catch((err) => {
+            console.error("Error getMyGroups en /events:", err);
+            return [] as GroupRow[];
+          }),
+        ]);
+
+        if (!alive) return;
+
+        const groupsById = new Map(
+          groupsRes.map((g) => [String(g.id), g]),
+        );
+
+        const withGroup: EventWithGroup[] = eventsRes.map((e) => ({
+          ...e,
+          group: e.group_id
+            ? groupsById.get(String(e.group_id)) ?? null
+            : null,
+        }));
+
+        setEvents(withGroup);
+        setGroups(groupsRes);
+      } catch (err) {
+        console.error("Error booting events:", err);
       } finally {
         if (!alive) return;
         setBooting(false);
+        setLoading(false);
       }
-    })();
+    }
+
+    void boot();
 
     return () => {
       alive = false;
     };
   }, [router]);
 
-  async function refreshData(withToast: boolean) {
-    try {
-      if (withToast) {
-        setToast({
-          title: "Actualizando…",
-          subtitle: "Cargando eventos y grupos",
-        });
-      }
+  // ===== DERIVADOS =====
 
-      setLoading(true);
+  const totalGroups = groups.length;
 
- const [eventsData, myGroups] = await Promise.all([
-  getMyEvents(), // ✅ devuelve DbEventRow[]
-  getMyGroups(), // ✅ devuelve grupos
-]);
+  const filteredEvents = useMemo(() => {
+    let list = [...events];
 
-const groupsArray = (myGroups || []) as GroupRow[];
+    const now = new Date();
 
-const eventsWithGroup: EventWithGroup[] = ((eventsData || []) as DbEventRow[]).map(
-  (e: DbEventRow) => {
-    const group =
-      e.group_id != null
-        ? groupsArray.find(
-            (g) => String(g.id) === String(e.group_id),
-          ) || null
-        : null;
+    if (filters.view === "upcoming") {
+      list = list.filter((e) => new Date(e.start) >= now);
+      list.sort((a, b) => +new Date(a.start) - +new Date(b.start));
+    } else if (filters.view === "history") {
+      list = list.filter((e) => new Date(e.end) < now);
+      list.sort((a, b) => +new Date(b.start) - +new Date(a.start));
+    } else {
+      list.sort((a, b) => +new Date(a.start) - +new Date(b.start));
+    }
 
-    return { ...e, group };
-  },
-);
-      setGroups(groupsArray);
-      setEvents(eventsWithGroup);
-      setSelectedIds(new Set());
+    if (filters.scope === "personal") {
+      list = list.filter((e) => !e.group_id);
+    } else if (filters.scope === "groups") {
+      list = list.filter((e) => !!e.group_id);
+    }
 
-      if (withToast) {
-        setToast({
-          title: "Eventos actualizados ✅",
-          subtitle: "Tu lista está al día.",
-        });
-        window.setTimeout(() => setToast(null), 2600);
-      }
-    } catch (e: any) {
-      console.error("Error refrescando eventos", e);
-      setToast({
-        title: "No se pudo actualizar",
-        subtitle: e?.message ?? "Revisa tu conexión o sesión.",
+    const q = filters.query.trim().toLowerCase();
+    if (q) {
+      list = list.filter((e) => {
+        const title = (e.title ?? "").toLowerCase();
+        const notes = (e.notes ?? "").toLowerCase();
+        const groupName = (e.group?.name ?? "").toLowerCase();
+        return (
+          title.includes(q) ||
+          notes.includes(q) ||
+          groupName.includes(q)
+        );
       });
-      window.setTimeout(() => setToast(null), 2600);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  /* ============================
-     Digest manual (recordatorio de hoy)
-     ============================ */
-  async function sendTodayDigest() {
-    if (sendingDigest) return;
-    setSendingDigest(true);
-
-    try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-    const todayEvents = events.filter((e: EventWithGroup) => {
-  const start = new Date(e.start);
-  start.setHours(0, 0, 0, 0);
-  return (
-    start.getTime() === today.getTime() &&
-    (filters.scope === "all" ||
-      (filters.scope === "personal" && !e.group_id) ||
-      (filters.scope === "groups" && !!e.group_id))
-  );
-});
-      if (todayEvents.length === 0) {
-        setToast({
-          title: "Nada para hoy",
-          subtitle: "No hay eventos para enviar en el recordatorio.",
-        });
-        window.setTimeout(() => setToast(null), 2600);
-        return;
-      }
-
-      const { error } = await supabase.functions.invoke(
-        "send-today-digest",
-        {
-          body: { events: todayEvents },
-        },
-      );
-
-      if (error) {
-        throw error;
-      }
-
-      setToast({
-        title: "Recordatorio enviado ✅",
-        subtitle: `Se envió un resumen con ${todayEvents.length} evento${
-          todayEvents.length === 1 ? "" : "s"
-        }.`,
-      });
-      window.setTimeout(() => setToast(null), 2600);
-    } catch (e: any) {
-      console.error("Error enviando digest", e);
-      setToast({
-        title: "No se pudo enviar",
-        subtitle: e?.message ?? "Inténtalo más tarde.",
-      });
-      window.setTimeout(() => setToast(null), 2600);
-    } finally {
-      setSendingDigest(false);
-    }
-  }
-
-  /* ============================
-     Filtros y derivados
-     ============================ */
-const filteredEvents = useMemo(() => {
-  const now = new Date();
-
-  return events.filter((e: EventWithGroup) => {
-    const start = new Date(e.start);
-
-    if (filters.scope === "personal" && e.group_id) {
-      return false;
-    }
-    if (filters.scope === "groups" && !e.group_id) {
-      return false;
     }
 
-    if (filters.view === "upcoming" && start < now) {
-      return false;
-    }
-    if (filters.view === "history" && start >= now) {
-      return false;
-    }
-
-    if (!filters.query.trim()) return true;
-
-    const q = filters.query.toLowerCase();
-    const target = `${e.title ?? ""} ${e.notes ?? ""} ${
-      e.group ? e.group.name ?? "" : ""
-    }`.toLowerCase();
-
-    return target.includes(q);
-  });
-}, [events, filters]);
+    return list;
+  }, [events, filters]);
 
   const groupedByDate = useMemo(() => {
-    const map = new Map<string, EventWithGroup[]>();
+    const groupsMap = new Map<string, EventWithGroup[]>();
 
     for (const e of filteredEvents) {
-      const d = new Date(e.start);
-      const key = d.toISOString().slice(0, 10);
-
-      if (!map.has(key)) {
-        map.set(key, []);
-      }
-      map.get(key)!.push(e);
+      const start = new Date(e.start);
+      const key = start.toISOString().slice(0, 10);
+      if (!groupsMap.has(key)) groupsMap.set(key, []);
+      groupsMap.get(key)!.push(e);
     }
 
-    for (const [key, arr] of map.entries()) {
-      arr.sort(
-        (a, b) =>
-          new Date(a.start).getTime() - new Date(b.start).getTime(),
-      );
-      map.set(key, arr);
-    }
+    const entries = Array.from(groupsMap.entries()).sort(
+      ([a], [b]) => (a < b ? -1 : 1),
+    );
 
-    const sortedKeys = [...map.keys()].sort();
-    return sortedKeys.map((k) => ({ dateKey: k, events: map.get(k)! }));
+    return entries.map(([dateKey, list]) => ({
+      dateKey,
+      events: list,
+    }));
   }, [filteredEvents]);
 
-  const hasSelection = selectedIds.size > 0;
-
-  async function handleDeleteSelected() {
-    if (!hasSelection) return;
-
-    const count = selectedIds.size;
-    const ok = confirm(
-      `¿Eliminar ${count} evento${
-        count === 1 ? "" : "s"
-      } seleccionado${count === 1 ? "" : "s"}?`,
-    );
-    if (!ok) return;
-
-    try {
-      setToast({
-        title: "Eliminando…",
-        subtitle: "Aplicando cambios",
-      });
-
-      await deleteEventsByIds([...selectedIds]);
-
-      setSelectedIds(new Set());
-
-      await refreshData(false);
-
-      setToast({
-        title: "Eventos eliminados ✅",
-        subtitle: "Tu lista está actualizada.",
-      });
-      window.setTimeout(() => setToast(null), 2600);
-    } catch (e: any) {
-      console.error("Error eliminando eventos", e);
-      setToast({
-        title: "No se pudo eliminar",
-        subtitle: e?.message ?? "Inténtalo más tarde.",
-      });
-      window.setTimeout(() => setToast(null), 2600);
+  const headerSubtitle = useMemo(() => {
+    if (events.length === 0) {
+      return "Mira y gestiona tu lista de eventos personales y compartidos.";
     }
-  }
+
+    const personal = events.filter((e) => !e.group_id).length;
+    const groupEvents = events.filter((e) => !!e.group_id).length;
+
+    return `Tu lista combina ${personal} evento${
+      personal === 1 ? "" : "s"
+    } personales y ${groupEvents} en grupos. Filtra, revisa y limpia sin perder contexto.`;
+  }, [events]);
+
+  // Podríamos tener un conteo de conflictos detectados en el futuro
+  const conflictsNow = 0;
+
+  // ===== HANDLERS =====
 
   function toggleSelection(id: string) {
     setSelectedIds((prev) => {
@@ -316,33 +208,129 @@ const filteredEvents = useMemo(() => {
     });
   }
 
-  function clearSelection() {
-    setSelectedIds(new Set());
+  async function refreshData() {
+    try {
+      setLoading(true);
+
+      const [eventsRes, groupsRes] = await Promise.all([
+        getMyEvents().catch((err) => {
+          console.error("Error refrescando getMyEvents:", err);
+          return [] as DbEventRow[];
+        }),
+        getMyGroups().catch((err) => {
+          console.error("Error refrescando getMyGroups:", err);
+          return [] as GroupRow[];
+        }),
+      ]);
+
+      const groupsById = new Map(
+        groupsRes.map((g) => [String(g.id), g]),
+      );
+
+      const withGroup: EventWithGroup[] = eventsRes.map((e) => ({
+        ...e,
+        group: e.group_id
+          ? groupsById.get(String(e.group_id)) ?? null
+          : null,
+      }));
+
+      setEvents(withGroup);
+      setGroups(groupsRes);
+    } catch (err: any) {
+      console.error("Error refrescando eventos:", err);
+      setToast({
+        type: "error",
+        message:
+          err?.message ||
+          "No se pudieron refrescar los eventos. Intenta de nuevo.",
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
-  const totalEvents = events.length;
-  const totalGroups = groups.length;
+  async function handleDeleteSelected() {
+    if (selectedIds.size === 0) return;
 
-  const headerSubtitle =
-    totalEvents === 0
-      ? "Tus eventos, sin ruido."
-      : `Tienes ${totalEvents} evento${
-          totalEvents === 1 ? "" : "s"
-        } en tu agenda.`;
+    if (
+      !window.confirm(
+        `¿Eliminar ${selectedIds.size} evento${
+          selectedIds.size === 1 ? "" : "s"
+        } de tu lista? Esta acción no se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
 
-  /* ============================
-     RENDER
-     ============================ */
+    try {
+      setDeleting(true);
+
+      const idsArray = Array.from(selectedIds);
+      await deleteEventsByIds(idsArray);
+
+      setEvents((prev) =>
+        prev.filter((e) => !idsArray.includes(String(e.id))),
+      );
+      setSelectedIds(new Set());
+      setToast({
+        type: "success",
+        message: "Eventos eliminados correctamente.",
+      });
+    } catch (err: any) {
+      console.error("Error al eliminar eventos:", err);
+      setToast({
+        type: "error",
+        message:
+          err?.message ||
+          "No se pudieron eliminar esos eventos. Intenta de nuevo.",
+      });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function sendTodayDigest() {
+    try {
+      setSendingDigest(true);
+      // Aquí engancharías tu API real de digest diario si aplica
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      setToast({
+        type: "success",
+        message: "Se envió un resumen simulado de tus eventos de hoy.",
+      });
+    } catch (err: any) {
+      console.error("Error enviando digest:", err);
+      setToast({
+        type: "error",
+        message:
+          err?.message ||
+          "No se pudo enviar el resumen hoy. Intenta nuevamente.",
+      });
+    } finally {
+      setSendingDigest(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(id);
+  }, [toast]);
+
+  const anySelected = selectedIds.size > 0;
+
+  // ===== ESTADO BOOTING =====
+
   if (booting) {
     return (
       <MobileScaffold>
         <main style={S.pageShell}>
           <div style={S.stickyTop}>
-   <EventsHero
-            subtitle="Mira y gestiona tu lista de eventos personales y compartidos."
-            showCreateButton={false}
-          />
-        </div>
+          <EventsHero
+  subtitle="Mira y gestiona tu lista de eventos personales y compartidos."
+  showCreateButton={false}
+/>
+          </div>
 
           <section style={S.card}>
             <div style={S.loadingRow}>
@@ -362,15 +350,39 @@ const filteredEvents = useMemo(() => {
     );
   }
 
+  // ===== RENDER PRINCIPAL =====
+
   return (
     <MobileScaffold>
       {toast && (
-        <div style={S.toastWrap}>
-          <div style={S.toastCard}>
-            <div style={S.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? (
-              <div style={S.toastSub}>{toast.subtitle}</div>
-            ) : null}
+        <div
+          style={{
+            position: "fixed",
+            left: 0,
+            right: 0,
+            bottom: 80,
+            display: "flex",
+            justifyContent: "center",
+            pointerEvents: "none",
+            zIndex: 30,
+          }}
+        >
+          <div
+            style={{
+              pointerEvents: "auto",
+              borderRadius: 999,
+              padding: "10px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              background:
+                toast.type === "success"
+                  ? "rgba(34,197,94,0.95)"
+                  : "rgba(248,113,113,0.95)",
+              color: "white",
+              boxShadow: "0 18px 40px rgba(0,0,0,0.65)",
+            }}
+          >
+            {toast.message}
           </div>
         </div>
       )}
@@ -378,8 +390,9 @@ const filteredEvents = useMemo(() => {
       <main style={S.pageShell}>
         <div style={S.stickyTop}>
           {/* ✅ APP MODE en móvil: bottom bar + sin nav larga arriba */}
-            <EventsHero subtitle={headerSubtitle} />
-      </div>
+          <EventsHero subtitle={headerSubtitle} />
+        </div>
+
         {/* ✅ 1 card principal */}
         <section style={S.card} className="spEvt-card">
           <div style={S.titleRow}>
@@ -418,86 +431,65 @@ const filteredEvents = useMemo(() => {
             </div>
           </div>
 
-{/* Filtros y acciones */}
-<EventsFiltersBar
-  view={filters.view}
-  scope={filters.scope}
-  query={filters.query}
-  onChangeView={(view) =>
-    setFilters((f) => ({
-      ...f,
-      view,
-    }))
-  }
-  onChangeScope={(scope) =>
-    setFilters((f) => ({
-      ...f,
-      scope,
-    }))
-  }
-  onChangeQuery={(query) =>
-    setFilters((f) => ({
-      ...f,
-      query,
-    }))
-  }
+          {/* Filtros y acciones */}
+          <EventsFiltersBar
+          view={filters.view}
+          scope={filters.scope}
+          query={filters.query}
+          onChangeView={(view) =>
+            setFilters((f) => ({
+              ...f,
+              view,
+            }))
+          }
+          onChangeScope={(scope) =>
+            setFilters((f) => ({
+              ...f,
+              scope,
+            }))
+          }
+          onChangeQuery={(query) =>
+            setFilters((f) => ({
+              ...f,
+              query,
+            }))
+          }
 />
 
+          {/* Acciones masivas */}
           {events.length > 0 && (
             <button
               type="button"
               onClick={sendTodayDigest}
               disabled={sendingDigest}
               style={{
-                ...S.digestChip,
-                ...(sendingDigest
-                  ? { opacity: 0.6, cursor: "default" }
-                  : null),
+                ...S.digestBtn,
+                ...(sendingDigest ? S.digestBtnLoading : {}),
               }}
-              className="spEvt-digestChip"
             >
               {sendingDigest
-                ? "Enviando recordatorio…"
-                : "Enviar recordatorio de hoy"}
+                ? "Enviando resumen de hoy…"
+                : "Enviar resumen de hoy (demo)"}
             </button>
           )}
 
-          {/* Herramientas de selección */}
-          <div style={S.toolsRow}>
-            <div style={S.toolsLeft}>
-              {hasSelection ? (
-                <>
-                  <button
-                    type="button"
-                    style={S.toolBtn}
-                    onClick={clearSelection}
-                  >
-                    Limpiar selección
-                  </button>
-                  <button
-                    type="button"
-                    style={S.toolBtnDanger}
-                    onClick={handleDeleteSelected}
-                  >
-                    Eliminar seleccionados
-                  </button>
-                </>
-              ) : (
-                <span style={S.toolsHint}>
-                  Toca el icono de casilla para seleccionar varios
-                  eventos y aplicar acciones en bloque.
-                </span>
-              )}
+          {anySelected && (
+            <div style={S.bulkBar}>
+              <span style={S.bulkLabel}>
+                {selectedIds.size} evento
+                {selectedIds.size === 1 ? "" : "s"} seleccionado
+                {selectedIds.size === 1 ? "" : "s"}
+              </span>
+              <button
+                type="button"
+                onClick={handleDeleteSelected}
+                disabled={deleting}
+                style={S.bulkDelete}
+              >
+                {deleting ? "Eliminando…" : "Eliminar selección"}
+              </button>
             </div>
-
-            <button
-              type="button"
-              style={S.toolBtnGhost}
-              onClick={() => refreshData(true)}
-            >
-              Actualizar lista
-            </button>
-          </div>
+          )}
 
           {/* Lista de eventos */}
           {loading ? (
@@ -515,308 +507,140 @@ const filteredEvents = useMemo(() => {
               </div>
             </div>
           ) : groupedByDate.length === 0 ? (
-            <div style={S.emptyState} className="spEvt-empty">
-              <h2 style={S.emptyTitle}>No hay eventos aquí aún</h2>
-              <p style={S.emptySub}>
-                Empieza creando tu primer evento. Más adelante podrás
-                verlos por fecha, editar y detectar conflictos.
-              </p>
-              <button
-                type="button"
-                style={S.primary}
-                onClick={() =>
-                  router.push("/events/new/details?type=personal")
-                }
-              >
-                Crear evento
-              </button>
-            </div>
+            <EventsEmptyState
+              onCreateFirstEvent={() =>
+                router.push("/events/new/details?type=personal")
+              }
+            />
           ) : (
-            <div style={S.list} className="spEvt-list">
-              {groupedByDate.map(({ dateKey, events }) => (
-                <div
-                  key={dateKey}
-                  style={S.section}
-                  className="spEvt-section"
-                >
-                  <div style={S.sectionHeader}>
-                    <div style={S.sectionDate}>
-                      {formatDateNice(dateKey)}
-                    </div>
-                    <div style={S.sectionCount}>
-                      {events.length} evento
-                      {events.length === 1 ? "" : "s"}
-                    </div>
-                  </div>
-
-                  <div style={S.sectionBody}>
-                    {events.map((e) => (
-                      <EventRow
-                        key={e.id}
-                        e={e}
-                        selected={selectedIds.has(String(e.id))}
-                        toggleSelection={toggleSelection}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <EventsTimelineList
+              groupedByDate={groupedByDate as any}
+              selectedIds={selectedIds}
+              onToggleSelected={toggleSelection}
+            />
           )}
+        </section>
+
+        {/* Botón para refrescar datos */}
+        <section style={S.footerSection}>
+          <button
+            type="button"
+            onClick={refreshData}
+            disabled={loading}
+            style={S.refreshBtn}
+          >
+            {loading ? "Actualizando lista…" : "Actualizar lista"}
+          </button>
         </section>
       </main>
     </MobileScaffold>
   );
 }
 
-function EventRow({
-  e,
-  selected,
-  toggleSelection,
-}: {
-  e: EventWithGroup;
-  selected: boolean;
-  toggleSelection: (id: string) => void;
-}) {
-  const meta = groupMeta(
-    e.group_id ? (e.group?.type as any) ?? "pair" : "personal",
-  );
+// ===== ESTILOS =====
 
-  const start = new Date(e.start);
-  const end = new Date(e.end);
-
-  const timeLabel =
-    start.toDateString() === end.toDateString()
-      ? `${formatTime(start)} — ${formatTime(end)}`
-      : `${formatDateShort(start)} ${formatTime(
-          start,
-        )} → ${formatDateShort(end)} ${formatTime(end)}`;
-
-  return (
-    <div style={S.eventRow} className="spEvt-row">
-      <button
-        type="button"
-        onClick={() => toggleSelection(String(e.id))}
-        style={{
-          ...S.checkbox,
-          ...(selected ? S.checkboxOn : {}),
-        }}
-        aria-pressed={selected}
-      >
-        {selected ? "✓" : ""}
-      </button>
-
-      <div
-        style={{
-          ...S.eventCard,
-          borderColor: selected
-            ? "rgba(56,189,248,0.55)"
-            : (S.eventCard.border as string),
-          boxShadow: selected
-            ? "0 0 0 1px rgba(56,189,248,0.35)"
-            : (S.eventCard.boxShadow as string),
-        }}
-      >
-        <div style={S.eventTop}>
-          <div style={S.eventTitleRow}>
-            <div style={S.eventDotWrap}>
-              <span
-                style={{
-                  ...S.eventDot,
-                  background: meta.dot,
-                }}
-              />
-            </div>
-            <div>
-              <div style={S.eventTitle}>
-                {e.title || "Sin título"}
-              </div>
-              <div style={S.eventGroup}>
-                {e.group_id
-                  ? getGroupTypeLabel(e.group?.type as any)
-                  : "Personal"}
-                {e.group?.name ? ` • ${e.group.name}` : ""}
-              </div>
-            </div>
-          </div>
-
-          <div style={S.eventTime}>{timeLabel}</div>
-        </div>
-
-        {e.notes && (
-          <div style={S.eventNotes}>{e.notes}</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ============================
-   Helpers de formato
-   ============================ */
-function formatDateNice(isoDateKey: string) {
-  const d = new Date(isoDateKey);
-  const formatter = new Intl.DateTimeFormat("es-PE", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-  return formatter.format(d);
-}
-
-function formatDateShort(d: Date) {
-  const formatter = new Intl.DateTimeFormat("es-PE", {
-    day: "2-digit",
-    month: "short",
-  });
-  return formatter.format(d);
-}
-
-function formatTime(d: Date) {
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
-}
-
-/* ============================
-   Styles
-   ============================ */
 const S: Record<string, React.CSSProperties> = {
   pageShell: {
-    minHeight: "100vh",
-    background:
-      "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
-    color: "rgba(255,255,255,0.92)",
-    maxWidth: 1120,
+    maxWidth: 720,
     margin: "0 auto",
-    padding: "22px 18px 56px",
+    padding: "12px 14px 80px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
   },
-
   stickyTop: {
     position: "sticky",
     top: 0,
-    zIndex: 20,
-    paddingTop: 10,
-    paddingBottom: 10,
-    backdropFilter: "blur(16px)",
+    zIndex: 10,
+    paddingBottom: 8,
+    marginBottom: 4,
     background:
-      "linear-gradient(180deg, rgba(5,8,22,0.92), rgba(5,8,22,0.78))",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
-  },
-
-  toastWrap: {
-    position: "fixed",
-    top: 18,
-    right: 18,
-    zIndex: 50,
-    pointerEvents: "none",
-  },
-  toastCard: {
-    pointerEvents: "auto",
-    minWidth: 260,
-    maxWidth: 360,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(7,11,22,0.92)",
-    boxShadow: "0 24px 70px rgba(0,0,0,0.45)",
+      "linear-gradient(to bottom, rgba(8,15,28,1) 0%, rgba(8,15,28,0.88) 60%, rgba(8,15,28,0.0) 100%)",
     backdropFilter: "blur(14px)",
-    padding: "12px 14px",
-  },
-  toastTitle: {
-    fontWeight: 900,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.95)",
-  },
-  toastSub: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "rgba(255,255,255,0.70)",
-    fontWeight: 650,
   },
 
   card: {
-    marginTop: 14,
-    borderRadius: 20,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(6,10,25,0.90)",
-    boxShadow:
-      "0 22px 70px rgba(0,0,0,0.55), 0 0 0 1px rgba(15,23,42,0.60)",
-    padding: "18px 16px 18px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 16,
+    borderRadius: 24,
+    border: "1px solid rgba(31,41,55,0.95)",
+    background:
+      "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.28), transparent 55%), rgba(15,23,42,0.98)",
+    padding: 16,
+    boxShadow: "0 24px 60px rgba(0,0,0,0.85)",
   },
 
   titleRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: 18,
-    flexWrap: "wrap",
+    gap: 16,
+    marginBottom: 14,
   },
   kicker: {
     fontSize: 11,
-    letterSpacing: "0.14em",
-    textTransform: "uppercase",
-    color: "rgba(148,163,184,0.95)",
     fontWeight: 800,
-    marginBottom: 6,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: "rgba(96,165,250,0.98)",
   },
   h1: {
     margin: 0,
-    fontSize: 22,
-    letterSpacing: "-0.03em",
+    marginTop: 4,
+    fontSize: 20,
     fontWeight: 950,
+    color: "rgba(248,250,252,1)",
   },
   sub: {
-    marginTop: 6,
+    margin: 0,
+    marginTop: 4,
     fontSize: 13,
-    color: "rgba(209,213,219,0.96)",
-    maxWidth: 420,
+    color: "rgba(209,213,219,0.98)",
   },
 
   factBox: {
-    padding: "10px 12px",
-    borderRadius: 16,
-    border: "1px solid rgba(148,163,184,0.55)",
+    minWidth: 0,
+    borderRadius: 18,
+    border: "1px solid rgba(30,64,175,0.88)",
     background:
-      "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.28), transparent 55%), radial-gradient(circle at 100% 100%, rgba(16,185,129,0.20), transparent 55%), rgba(15,23,42,0.95)",
-    minWidth: 220,
+      "radial-gradient(circle at 100% 0%, rgba(59,130,246,0.35), transparent 55%), rgba(15,23,42,0.96)",
+    padding: 10,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
   },
   factLabel: {
     fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: "0.16em",
-    color: "rgba(226,232,240,0.9)",
-    marginBottom: 6,
     fontWeight: 800,
+    color: "rgba(191,219,254,0.96)",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
   },
   factRow: {
     display: "flex",
     alignItems: "center",
-    gap: 8,
-    fontSize: 13,
-    color: "rgba(241,245,249,0.95)",
-    marginBottom: 4,
+    gap: 6,
+    fontSize: 12,
+    color: "rgba(229,231,235,0.98)",
   },
   factDotPersonal: {
-    width: 8,
-    height: 8,
+    width: 7,
+    height: 7,
     borderRadius: 999,
-    background: "rgba(250,204,21,0.98)",
+    background: "rgba(56,189,248,0.98)",
   },
   factDotGroup: {
-    width: 8,
-    height: 8,
+    width: 7,
+    height: 7,
     borderRadius: 999,
-    background: "rgba(96,165,250,0.98)",
+    background: "rgba(239,68,68,0.98)",
   },
   factHint: {
-    marginTop: 6,
-    fontSize: 12,
-    color: "rgba(226,232,240,0.9)",
+    marginTop: 2,
+    fontSize: 11,
+    color: "rgba(148,163,184,0.96)",
   },
 
+  // Filtros, tabs y buscador antes estaban aquí (S.filters, S.tabs, etc.)
+  // Ahora los usamos desde EventsFiltersBar, pero mantenemos estilos si son compartidos.
   filters: {
     display: "flex",
     flexDirection: "column",
@@ -848,7 +672,6 @@ const S: Record<string, React.CSSProperties> = {
       "linear-gradient(135deg, rgba(59,130,246,0.55), rgba(56,189,248,0.55))",
     color: "white",
   },
-
   search: {
     width: "100%",
     borderRadius: 999,
@@ -860,67 +683,46 @@ const S: Record<string, React.CSSProperties> = {
     outline: "none",
   },
 
-  digestChip: {
+  digestBtn: {
     marginTop: 10,
-    alignSelf: "flex-start",
-    padding: "8px 12px",
+    padding: "8px 11px",
     borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.55)",
+    border: "1px solid rgba(59,130,246,0.85)",
     background: "rgba(15,23,42,0.96)",
-    color: "#e5e7eb",
-    fontWeight: 800,
+    color: "rgba(191,219,254,0.98)",
     fontSize: 12,
+    fontWeight: 700,
     cursor: "pointer",
   },
+  digestBtnLoading: {
+    opacity: 0.7,
+    cursor: "default",
+  },
 
-  toolsRow: {
-    marginTop: 6,
+  bulkBar: {
+    marginTop: 10,
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.75)",
+    background: "rgba(30,64,175,0.85)",
+    padding: "8px 11px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     gap: 10,
-    flexWrap: "wrap",
   },
-  toolsLeft: {
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  toolsHint: {
+  bulkLabel: {
     fontSize: 12,
-    color: "rgba(148,163,184,0.96)",
+    color: "rgba(219,234,254,0.98)",
   },
-
-  toolBtn: {
-    padding: "6px 10px",
+  bulkDelete: {
     borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.75)",
-    background: "rgba(15,23,42,0.96)",
-    color: "rgba(226,232,240,0.98)",
-    fontSize: 12,
-    cursor: "pointer",
-    fontWeight: 800,
-  },
-  toolBtnDanger: {
+    border: "1px solid rgba(248,113,113,0.95)",
+    background: "rgba(127,29,29,0.96)",
     padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(248,113,113,0.75)",
-    background: "rgba(15,23,42,0.96)",
-    color: "rgba(254,242,242,0.98)",
     fontSize: 12,
-    cursor: "pointer",
+    color: "white",
     fontWeight: 800,
-  },
-  toolBtnGhost: {
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.55)",
-    background: "rgba(15,23,42,0.96)",
-    color: "rgba(226,232,240,0.98)",
-    fontSize: 12,
     cursor: "pointer",
-    fontWeight: 800,
   },
 
   list: {
@@ -982,7 +784,6 @@ const S: Record<string, React.CSSProperties> = {
       "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95))",
     borderColor: "transparent",
   },
-
   eventCard: {
     flex: 1,
     borderRadius: 14,
@@ -1031,29 +832,10 @@ const S: Record<string, React.CSSProperties> = {
     color: "rgba(209,213,219,0.96)",
   },
 
-  emptyState: {
-    marginTop: 12,
-    borderRadius: 18,
-    border: "1px dashed rgba(148,163,184,0.75)",
-    background: "rgba(15,23,42,0.92)",
-    padding: 16,
-    textAlign: "center",
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: 950,
-  },
-  emptySub: {
-    marginTop: 4,
-    fontSize: 13,
-    color: "rgba(209,213,219,0.96)",
-    marginBottom: 10,
-  },
-
   loadingList: {
     marginTop: 12,
     borderRadius: 18,
-    border: "1px solid rgba(30,64,175,0.8)",
+    border: "1px solid rgba(30,64,175,0.95)",
     background:
       "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.22), transparent 55%), rgba(15,23,42,0.96)",
     padding: 14,
@@ -1072,12 +854,27 @@ const S: Record<string, React.CSSProperties> = {
   },
   loadingTitle: {
     fontSize: 13,
-    fontWeight: 900,
+    fontWeight: 800,
+    color: "rgba(248,250,252,0.98)",
   },
   loadingSub: {
-    marginTop: 2,
     fontSize: 12,
-    color: "rgba(209,213,219,0.96)",
+    color: "rgba(148,163,184,0.96)",
+  },
+
+  footerSection: {
+    marginTop: 16,
+    display: "flex",
+    justifyContent: "center",
+  },
+  refreshBtn: {
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.75)",
+    background: "rgba(15,23,42,0.96)",
+    padding: "8px 14px",
+    fontSize: 13,
+    color: "rgba(229,231,235,0.98)",
+    cursor: "pointer",
   },
 
   primary: {
