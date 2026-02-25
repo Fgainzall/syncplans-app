@@ -23,6 +23,8 @@ import {
   normalizeGoogleCalendarItems,
   type ExternalEvent,
 } from "@/lib/externalEvents";
+import { getMyProfile, type Profile } from "@/lib/profilesDb";
+import { isPremiumUser, isTrialActive, type PlanTier } from "@/lib/premium";
 
 import { colors, radii, shadows, spacing } from "@/styles/design-tokens";
 
@@ -44,13 +46,14 @@ type GoogleStatus = {
         updated_at?: string | null;
       }
     | null;
-  error?: string;
+  error?: string | null;
 };
 
 export default function PanelPage() {
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus | null>(null);
@@ -106,6 +109,7 @@ export default function PanelPage() {
   const fetchGoogleStatus = useCallback(async () => {
     try {
       setGoogleLoading(true);
+      setGoogleStatus(null);
 
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
@@ -122,36 +126,25 @@ export default function PanelPage() {
         setGoogleStatus({
           ok: false,
           connected: false,
-          error: json?.error || "No se pudo leer el estado de Google.",
+          error:
+            json?.error ||
+            "No se pudo leer el estado de la integración con Google.",
         });
-        setGoogleEvents(null);
         return;
       }
 
       setGoogleStatus(json);
-
-      if (json.connected) {
-        // Si está conectado, traemos una snapshot de eventos
-        fetchGoogleEvents();
-      } else {
-        setGoogleEvents(null);
-      }
     } catch (err: any) {
       console.error("Error leyendo estado de Google:", err);
       setGoogleStatus({
         ok: false,
         connected: false,
-        error: err?.message || "Error al leer el estado de Google.",
+        error:
+          err?.message ||
+          "Error inesperado al consultar el estado de Google Calendar.",
       });
-      setGoogleEvents(null);
     } finally {
       setGoogleLoading(false);
-    }
-  }, [fetchGoogleEvents]);
-
-  const handleConnectClick = useCallback(() => {
-    if (typeof window !== "undefined") {
-      window.location.href = "/api/google/connect";
     }
   }, []);
 
@@ -167,7 +160,7 @@ export default function PanelPage() {
         setLoading(true);
         setError(null);
 
-        const [events, groups] = await Promise.all([
+        const [events, groups, profile] = await Promise.all([
           getMyEvents().catch((err) => {
             console.error("Error cargando eventos en Panel:", err);
             return [] as DbEventRow[];
@@ -176,22 +169,32 @@ export default function PanelPage() {
             console.error("Error cargando grupos en Panel:", err);
             return [] as GroupRow[];
           }),
+          getMyProfile().catch((err) => {
+            console.error("Error cargando perfil en Panel:", err);
+            return null as Profile | null;
+          }),
         ]);
 
         if (!alive) return;
 
         const stats = buildDashboardStats(events, groups);
         setStats(stats);
+        setProfile(profile);
       } catch (e: any) {
         if (!alive) return;
         console.error("Error cargando Panel:", e);
-        setError(e?.message || "No se pudo cargar el panel.");
+        setError(
+          e?.message ||
+            "No se pudo cargar el Panel. Intenta recargar la página.",
+        );
       } finally {
-        if (alive) setLoading(false);
+        if (!alive) return;
+        setLoading(false);
       }
     }
 
     load();
+
     return () => {
       alive = false;
     };
@@ -213,19 +216,25 @@ export default function PanelPage() {
     {
       id: "conflicts",
       label: "Conflictos",
-      hint: "Resuelve choques pendientes antes del fin de semana.",
-      href: "/conflicts",
+      hint: "Ve y resuelve choques de agenda en un solo lugar.",
+      href: "/conflicts/detected",
+    },
+    {
+      id: "summary",
+      label: "Resumen",
+      hint: "Mira cómo se reparte tu tiempo esta semana.",
+      href: "/summary",
     },
     {
       id: "groups",
       label: "Grupos",
-      hint: "Ve tus grupos de pareja, familia y compartidos.",
+      hint: "Administra tus grupos de Pareja, Familia y más.",
       href: "/groups",
     },
     {
       id: "members",
       label: "Miembros",
-      hint: "Revisa quién tiene acceso a qué grupos.",
+      hint: "Quién tiene acceso a qué calendario.",
       href: "/members",
     },
     {
@@ -235,9 +244,15 @@ export default function PanelPage() {
       href: "/invitations",
     },
     {
+      id: "integrations",
+      label: "Integraciones",
+      hint: "Conecta Google Calendar y más.",
+      href: "/settings",
+    },
+    {
       id: "settings",
-      label: "Ajustes",
-      hint: "Preferencias de cuenta y notificaciones.",
+      label: "Cuenta",
+      hint: "Preferencias generales de tu cuenta.",
       href: "/settings",
     },
     {
@@ -256,10 +271,47 @@ export default function PanelPage() {
   const otherGroups = stats?.otherGroups ?? 0;
   const conflictsNow = stats?.conflictsNow ?? 0;
 
+  const tier = (profile?.plan_tier ?? "free") as PlanTier;
+  const trialActive = isTrialActive(profile);
+  const premiumActive = isPremiumUser(profile);
+  const normalizedTier = String(tier || "free").toLowerCase();
+
+  let planLabel = "Free";
+  let planTag = "Plan Free";
+  let planDescription =
+    "Todas las funciones básicas para organizar tu tiempo.";
+
+  if (normalizedTier.startsWith("founder")) {
+    planLabel = "Founder";
+    planTag = "Plan Founder";
+    planDescription =
+      "Mantienes un precio preferencial por ser de los primeros en probar SyncPlans.";
+  } else if (premiumActive && !trialActive) {
+    planLabel = "Premium";
+    planTag = "Plan Premium";
+    planDescription =
+      "Funciones avanzadas activas para coordinar mejor con tu pareja y familia.";
+  } else if (trialActive) {
+    planLabel = "Prueba Premium";
+    planTag = "Prueba Premium";
+    planDescription =
+      "Estás probando todas las funciones Premium por tiempo limitado.";
+  }
+
   const googleConnected = !!googleStatus?.connected;
   const googleEmail = googleStatus?.account?.email ?? null;
+  const hasGoogleEvents =
+    !!googleEvents && Array.isArray(googleEvents) && googleEvents.length > 0;
 
-  const hasGoogleEvents = (googleEvents ?? []).length > 0;
+  const handleConnectClick = () => {
+    router.push("/settings?tab=integrations");
+  };
+
+  const handleQuickLinkClick = (href: string) => {
+    router.push(href);
+  };
+
+  const isLoadingAny = loading || googleLoading;
 
   return (
     <MobileScaffold>
@@ -269,70 +321,100 @@ export default function PanelPage() {
       />
 
       <div style={sectionWrapperStyle}>
+        {/* Plan actual */}
+        <section style={planCardStyle}>
+          <div style={planHeaderRowStyle}>
+            <div style={planLabelColumnStyle}>
+              <div style={planPillStyle}>
+                <span style={planDotStyle} />
+                <span style={planPillTextStyle}>{planTag}</span>
+              </div>
+              <h2 style={planTitleStyle}>{planLabel}</h2>
+              <p style={planSubtitleStyle}>{planDescription}</p>
+            </div>
+            <div style={planActionsColumnStyle}>
+              <button
+                type="button"
+                style={planPrimaryButtonStyle}
+                onClick={() => router.push("/planes")}
+              >
+                Ver planes
+              </button>
+            </div>
+          </div>
+        </section>
+
         {/* Bloque principal de métricas */}
         <section style={metricsCardStyle}>
           <div style={metricsHeaderRowStyle}>
             <div>
               <h2 style={metricsTitleStyle}>Resumen rápido</h2>
               <p style={metricsSubtitleStyle}>
-                Un vistazo a cómo va tu semana y tus grupos compartidos.
+                Una foto rápida de cómo se está usando tu SyncPlans.
               </p>
             </div>
 
-            <div style={metricsBadgeStyle}>
-              {loading ? "Actualizando…" : "Actualizado"}
+            <div style={metricsStatusPillStyle}>
+              {isLoadingAny ? "Actualizando…" : "Al día"}
             </div>
           </div>
 
-          {error && (
-            <div style={errorBannerStyle}>
-              <span>{error}</span>
-            </div>
-          )}
+          {error && <div style={errorBannerStyle}>{error}</div>}
 
           <div style={metricsGridStyle}>
             <div style={metricItemStyle}>
-              <div style={metricLabelStyle}>Eventos totales</div>
+              <div style={metricLabelRowStyle}>
+                <span style={metricLabelStyle}>Eventos totales</span>
+              </div>
               <div style={metricValueStyle}>{totalEvents}</div>
-              <div style={metricHintStyle}>
-                Toda tu actividad registrada en SyncPlans.
-              </div>
+              <p style={metricHintStyle}>
+                Contando tus eventos personales y de grupo.
+              </p>
             </div>
 
             <div style={metricItemStyle}>
-              <div style={metricLabelStyle}>Últimos 7 días</div>
+              <div style={metricLabelRowStyle}>
+                <span style={metricLabelStyle}>Últimos 7 días</span>
+              </div>
               <div style={metricValueStyle}>{eventsLast7}</div>
-              <div style={metricHintStyle}>
-                Eventos creados o que caen en esta semana.
-              </div>
+              <p style={metricHintStyle}>
+                Eventos creados o editados en la última semana.
+              </p>
             </div>
 
             <div style={metricItemStyle}>
-              <div style={metricLabelStyle}>Grupos</div>
+              <div style={metricLabelRowStyle}>
+                <span style={metricLabelStyle}>Grupos activos</span>
+              </div>
               <div style={metricValueStyle}>{totalGroups}</div>
-              <div style={metricHintStyle}>
-                Pareja, familia y otros grupos con los que compartes tiempo.
-              </div>
-              <div style={metricTagRowStyle}>
-                <span style={metricTagStyle}>Pareja: {pairGroups}</span>
-                <span style={metricTagStyle}>Familia: {familyGroups}</span>
-                <span style={metricTagStyle}>Otros: {otherGroups}</span>
-              </div>
+              <p style={metricHintStyle}>
+                Entre Pareja, Familia y otros grupos que usas.
+              </p>
             </div>
 
             <div style={metricItemStyle}>
-              <div style={metricLabelStyle}>Conflictos</div>
-              <div style={metricValueStyle}>{conflictsNow}</div>
-              <div style={metricHintStyle}>
-                Choques detectados ahora mismo entre tus calendarios.
+              <div style={metricLabelRowStyle}>
+                <span style={metricLabelStyle}>Conflictos abiertos</span>
               </div>
-              <button
-                type="button"
-                style={metricButtonStyle}
-                onClick={() => router.push("/conflicts")}
-              >
-                Revisar conflictos
-              </button>
+              <div style={metricValueStyle}>{conflictsNow}</div>
+              <p style={metricHintStyle}>
+                Choques de agenda detectados y aún no resueltos.
+              </p>
+            </div>
+          </div>
+
+          <div style={groupsBreakdownRowStyle}>
+            <div style={groupsBreakdownItemStyle}>
+              <span style={groupsBreakdownLabelStyle}>Pareja</span>
+              <span style={groupsBreakdownValueStyle}>{pairGroups}</span>
+            </div>
+            <div style={groupsBreakdownItemStyle}>
+              <span style={groupsBreakdownLabelStyle}>Familia</span>
+              <span style={groupsBreakdownValueStyle}>{familyGroups}</span>
+            </div>
+            <div style={groupsBreakdownItemStyle}>
+              <span style={groupsBreakdownLabelStyle}>Otros</span>
+              <span style={groupsBreakdownValueStyle}>{otherGroups}</span>
             </div>
           </div>
         </section>
@@ -343,8 +425,8 @@ export default function PanelPage() {
             <div>
               <h3 style={googleTitleStyle}>Google Calendar</h3>
               <p style={googleSubtitleStyle}>
-                Conecta tu calendario de Google para que SyncPlans tenga una sola
-                verdad en el centro.
+                Conecta tu calendario de Google para que SyncPlans tenga una
+                sola verdad en el centro.
               </p>
             </div>
 
@@ -424,7 +506,9 @@ export default function PanelPage() {
                             {ev.title || "Evento sin título"}
                           </span>
                           {ev.allDay && (
-                            <span style={googleEventBadgeStyle}>Todo el día</span>
+                            <span style={googleEventBadgeStyle}>
+                              Todo el día
+                            </span>
                           )}
                         </div>
                         <div style={googleEventRangeStyle}>
@@ -440,11 +524,14 @@ export default function PanelPage() {
                 </ul>
               )}
 
-              {!googleEventsLoading && !hasGoogleEvents && !googleEventsError && (
-                <p style={googleEventsEmptyStyle}>
-                  Por ahora no vemos eventos próximos en tu calendario de Google.
-                </p>
-              )}
+              {!googleEventsLoading &&
+                !hasGoogleEvents &&
+                !googleEventsError && (
+                  <p style={googleEventsEmptyStyle}>
+                    Por ahora no vemos eventos próximos en tu calendario de
+                    Google.
+                  </p>
+                )}
             </div>
           )}
         </section>
@@ -463,10 +550,10 @@ export default function PanelPage() {
               <button
                 key={link.id}
                 type="button"
-                onClick={() => router.push(link.href)}
-                style={quickLinkBaseStyle}
+                style={quickLinkButtonStyle}
+                onClick={() => handleQuickLinkClick(link.href)}
               >
-                <div style={quickLinkTopRowStyle}>
+                <div style={quickLinkMainRowStyle}>
                   <span style={quickLinkLabelStyle}>{link.label}</span>
                   <span style={quickLinkIconStyle}>↗</span>
                 </div>
@@ -480,51 +567,7 @@ export default function PanelPage() {
   );
 }
 
-function formatExternalEventRange(ev: ExternalEvent): string {
-  const start = new Date(ev.start);
-  const end = new Date(ev.end);
-
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return "";
-  }
-
-  const sameDay =
-    start.getFullYear() === end.getFullYear() &&
-    start.getMonth() === end.getMonth() &&
-    start.getDate() === end.getDate();
-
-  const dayLabel = start.toLocaleDateString("es-PE", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-
-  const startTime = start.toLocaleTimeString("es-PE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  const endTime = end.toLocaleTimeString("es-PE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  if (ev.allDay) {
-    return dayLabel;
-  }
-
-  if (sameDay) {
-    return `${dayLabel} · ${startTime} – ${endTime}`;
-  }
-
-  const endDayLabel = end.toLocaleDateString("es-PE", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-
-  return `${dayLabel} ${startTime} → ${endDayLabel} ${endTime}`;
-}
+// ===== Estilos =====
 
 const sectionWrapperStyle: CSSProperties = {
   maxWidth: 720,
@@ -533,6 +576,89 @@ const sectionWrapperStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: spacing.lg,
+};
+
+const planCardStyle: CSSProperties = {
+  borderRadius: radii.xl,
+  background: colors.surfaceRaised,
+  border: `1px solid ${colors.borderStrong}`,
+  boxShadow: shadows.card,
+  padding: `${spacing.lg}px ${spacing.lg}px ${spacing.lg}px`,
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing.md,
+};
+
+const planHeaderRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: spacing.lg,
+  flexWrap: "wrap",
+};
+
+const planLabelColumnStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  flex: 1,
+};
+
+const planPillStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "6px 10px",
+  borderRadius: 999,
+  border: `1px solid ${colors.accentPrimary}`,
+  background: "rgba(56,189,248,0.10)",
+};
+
+const planDotStyle: CSSProperties = {
+  width: 8,
+  height: 8,
+  borderRadius: 999,
+  background: colors.accentPrimary,
+};
+
+const planPillTextStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 800,
+  letterSpacing: 0.4,
+  textTransform: "uppercase",
+  color: colors.textSecondary,
+};
+
+const planTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 20,
+  fontWeight: 900,
+  color: colors.textPrimary,
+};
+
+const planSubtitleStyle: CSSProperties = {
+  margin: 0,
+  marginTop: 4,
+  fontSize: 13,
+  color: colors.textSecondary,
+};
+
+const planActionsColumnStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-end",
+  justifyContent: "flex-end",
+  minWidth: 0,
+};
+
+const planPrimaryButtonStyle: CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: radii.lg,
+  border: `1px solid ${colors.borderStrong}`,
+  background: colors.accentPrimary,
+  color: "#0B0F19",
+  fontSize: 13,
+  fontWeight: 800,
+  cursor: "pointer",
 };
 
 const metricsCardStyle: CSSProperties = {
@@ -557,101 +683,104 @@ const metricsHeaderRowStyle: CSSProperties = {
 const metricsTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 18,
-  fontWeight: 700,
-  letterSpacing: "-0.02em",
+  fontWeight: 800,
   color: colors.textPrimary,
 };
 
 const metricsSubtitleStyle: CSSProperties = {
   margin: 0,
   marginTop: 4,
-  fontSize: 12,
+  fontSize: 13,
   color: colors.textSecondary,
 };
 
-const metricsBadgeStyle: CSSProperties = {
-  padding: "4px 10px",
-  borderRadius: radii.full,
-  fontSize: 11,
-  letterSpacing: "0.12em",
-  textTransform: "uppercase",
-  background: colors.surfaceLow,
+const metricsStatusPillStyle: CSSProperties = {
+  alignSelf: "flex-start",
+  padding: "6px 10px",
+  borderRadius: 999,
   border: `1px solid ${colors.borderSubtle}`,
-  color: colors.textMuted,
-  whiteSpace: "nowrap",
+  background: "rgba(148,163,184,0.08)",
+  fontSize: 11,
+  fontWeight: 700,
+  color: colors.textSecondary,
 };
 
 const errorBannerStyle: CSSProperties = {
+  marginTop: spacing.md,
+  padding: "10px 12px",
+  borderRadius: radii.lg,
+  border: `1px solid ${colors.accentDanger}`,
+  background: "rgba(248,113,113,0.08)",
   fontSize: 12,
   color: colors.accentDanger,
-  background: "rgba(248,113,113,0.08)",
-  borderRadius: radii.md,
-  border: `1px solid rgba(248,113,113,0.35)`,
-  padding: `${spacing.sm}px ${spacing.md}px`,
+  fontWeight: 500,
 };
 
 const metricsGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: spacing.lg,
-};
-
-const metricItemStyle: CSSProperties = {
-  padding: `${spacing.md}px ${spacing.md}px`,
-  borderRadius: radii.lg,
-  background: colors.surfaceLow,
-  border: `1px solid ${colors.borderSubtle}`,
-  display: "flex",
-  flexDirection: "column",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
   gap: spacing.md,
 };
 
+const metricItemStyle: CSSProperties = {
+  borderRadius: radii.lg,
+  border: `1px solid ${colors.borderSubtle}`,
+  background: colors.surfaceLow,
+  padding: spacing.md,
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+};
+
+const metricLabelRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+};
+
 const metricLabelStyle: CSSProperties = {
-  fontSize: 11,
-  letterSpacing: "0.12em",
-  textTransform: "uppercase",
-  color: colors.textMuted,
+  fontSize: 12,
+  fontWeight: 600,
+  color: colors.textSecondary,
 };
 
 const metricValueStyle: CSSProperties = {
   fontSize: 22,
-  fontWeight: 700,
-  letterSpacing: "-0.03em",
+  fontWeight: 900,
   color: colors.textPrimary,
 };
 
 const metricHintStyle: CSSProperties = {
-  fontSize: 12,
-  lineHeight: 1.5,
-  color: colors.textSecondary,
-};
-
-const metricTagRowStyle: CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 6,
-  marginTop: 6,
-};
-
-const metricTagStyle: CSSProperties = {
-  padding: "2px 8px",
-  borderRadius: radii.full,
-  border: `1px solid ${colors.borderSubtle}`,
+  margin: 0,
   fontSize: 11,
-  color: colors.textSecondary,
-  background: colors.surfaceLow,
+  color: colors.textMuted,
 };
 
-const metricButtonStyle: CSSProperties = {
-  marginTop: 8,
-  padding: "8px 12px",
-  borderRadius: radii.lg,
-  border: "none",
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: "pointer",
-  background: colors.accentPrimary,
-  color: "#FFFFFF",
+const groupsBreakdownRowStyle: CSSProperties = {
+  marginTop: spacing.md,
+  borderTop: `1px solid ${colors.borderSubtle}`,
+  paddingTop: spacing.md,
+  display: "flex",
+  gap: spacing.md,
+  justifyContent: "space-between",
+};
+
+const groupsBreakdownItemStyle: CSSProperties = {
+  flex: 1,
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  fontSize: 12,
+  color: colors.textSecondary,
+};
+
+const groupsBreakdownLabelStyle: CSSProperties = {
+  fontWeight: 500,
+};
+
+const groupsBreakdownValueStyle: CSSProperties = {
+  fontWeight: 800,
+  color: colors.textPrimary,
 };
 
 const googleSectionStyle: CSSProperties = {
@@ -659,7 +788,7 @@ const googleSectionStyle: CSSProperties = {
   background: colors.surfaceRaised,
   border: `1px solid ${colors.borderStrong}`,
   boxShadow: shadows.card,
-  padding: `${spacing.lg}px ${spacing.lg}px`,
+  padding: `${spacing.lg}px ${spacing.lg}px ${spacing.lg}px`,
   display: "flex",
   flexDirection: "column",
   gap: spacing.md,
@@ -670,92 +799,90 @@ const googleHeaderRowStyle: CSSProperties = {
   justifyContent: "space-between",
   alignItems: "flex-start",
   gap: spacing.md,
+  flexWrap: "wrap",
 };
 
 const googleTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 16,
-  fontWeight: 700,
-  letterSpacing: "-0.01em",
+  fontWeight: 800,
   color: colors.textPrimary,
 };
 
 const googleSubtitleStyle: CSSProperties = {
   margin: 0,
   marginTop: 4,
-  fontSize: 12,
-  lineHeight: 1.5,
+  fontSize: 13,
   color: colors.textSecondary,
 };
 
 const googlePillStyle: CSSProperties = {
-  padding: "4px 10px",
-  borderRadius: radii.full,
-  fontSize: 11,
-  letterSpacing: "0.12em",
-  textTransform: "uppercase",
-  background: colors.surfaceLow,
+  alignSelf: "flex-start",
+  padding: "6px 10px",
+  borderRadius: 999,
   border: `1px solid ${colors.borderSubtle}`,
-  color: colors.textMuted,
-  whiteSpace: "nowrap",
+  background: "rgba(148,163,184,0.08)",
+  fontSize: 11,
+  fontWeight: 700,
+  color: colors.textSecondary,
 };
 
 const googleBodyStyle: CSSProperties = {
-  marginTop: spacing.md,
   display: "flex",
-  flexDirection: "column",
-  gap: spacing.md,
+  gap: spacing.lg,
+  alignItems: "flex-start",
+  flexWrap: "wrap",
 };
 
 const googleStatusColumnStyle: CSSProperties = {
   flex: 1,
+  minWidth: 0,
 };
 
 const googleStatusLineStyle: CSSProperties = {
   margin: 0,
   fontSize: 13,
-  lineHeight: 1.6,
   color: colors.textPrimary,
 };
 
 const googleErrorTextStyle: CSSProperties = {
-  marginTop: 6,
+  marginTop: 4,
   fontSize: 12,
   color: colors.accentDanger,
 };
 
 const googleActionsColumnStyle: CSSProperties = {
   display: "flex",
-  flexWrap: "wrap",
-  gap: spacing.sm,
+  flexDirection: "column",
+  gap: 8,
 };
 
 const googlePrimaryButtonStyle: CSSProperties = {
-  padding: "8px 14px",
+  padding: "10px 14px",
   borderRadius: radii.lg,
-  border: "none",
-  fontSize: 13,
-  fontWeight: 600,
-  cursor: "pointer",
+  border: `1px solid ${colors.borderStrong}`,
   background: colors.accentPrimary,
-  color: "#FFFFFF",
+  color: "#0B0F19",
+  fontSize: 13,
+  fontWeight: 800,
+  cursor: "pointer",
 };
 
 const googleSecondaryButtonStyle: CSSProperties = {
-  padding: "8px 14px",
+  padding: "8px 12px",
   borderRadius: radii.lg,
   border: `1px solid ${colors.borderSubtle}`,
-  fontSize: 13,
-  fontWeight: 500,
+  background: "transparent",
+  color: colors.textSecondary,
+  fontSize: 12,
+  fontWeight: 600,
   cursor: "pointer",
-  background: colors.surfaceLow,
-  color: colors.textPrimary,
 };
 
 const googleEventsWrapperStyle: CSSProperties = {
   marginTop: spacing.md,
-  paddingTop: spacing.md,
   borderTop: `1px solid ${colors.borderSubtle}`,
+  paddingTop: spacing.md,
   display: "flex",
   flexDirection: "column",
   gap: spacing.sm,
@@ -764,27 +891,26 @@ const googleEventsWrapperStyle: CSSProperties = {
 const googleEventsHeaderRowStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
+  alignItems: "baseline",
   gap: spacing.sm,
-  flexWrap: "wrap",
 };
 
 const googleEventsTitleStyle: CSSProperties = {
   margin: 0,
-  fontSize: 13,
-  fontWeight: 600,
+  fontSize: 14,
+  fontWeight: 700,
   color: colors.textPrimary,
 };
 
 const googleEventsMetaStyle: CSSProperties = {
-  fontSize: 11,
-  color: colors.textMuted,
+  fontSize: 12,
+  color: colors.textSecondary,
 };
 
 const googleEventsListStyle: CSSProperties = {
   listStyle: "none",
-  margin: 0,
   padding: 0,
+  margin: 0,
   display: "flex",
   flexDirection: "column",
   gap: spacing.sm,
@@ -794,7 +920,7 @@ const googleEventItemStyle: CSSProperties = {
   borderRadius: radii.lg,
   border: `1px solid ${colors.borderSubtle}`,
   background: colors.surfaceLow,
-  padding: `${spacing.sm}px ${spacing.md}px`,
+  padding: spacing.sm,
   display: "flex",
   flexDirection: "column",
   gap: 4,
@@ -809,18 +935,17 @@ const googleEventMainRowStyle: CSSProperties = {
 
 const googleEventTitleStyle: CSSProperties = {
   fontSize: 13,
-  fontWeight: 500,
+  fontWeight: 600,
   color: colors.textPrimary,
 };
 
 const googleEventBadgeStyle: CSSProperties = {
-  padding: "2px 8px",
-  borderRadius: radii.full,
+  padding: "4px 8px",
+  borderRadius: 999,
   border: `1px solid ${colors.borderSubtle}`,
   fontSize: 10,
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-  color: colors.textMuted,
+  fontWeight: 700,
+  color: colors.textSecondary,
 };
 
 const googleEventRangeStyle: CSSProperties = {
@@ -829,7 +954,7 @@ const googleEventRangeStyle: CSSProperties = {
 };
 
 const googleEventLocationStyle: CSSProperties = {
-  fontSize: 11,
+  fontSize: 12,
   color: colors.textMuted,
 };
 
@@ -843,8 +968,8 @@ const quickLinksSectionStyle: CSSProperties = {
   borderRadius: radii.xl,
   background: colors.surfaceRaised,
   border: `1px solid ${colors.borderStrong}`,
-  boxShadow: shadows.soft,
-  padding: `${spacing.lg}px ${spacing.lg}px`,
+  boxShadow: shadows.card,
+  padding: `${spacing.lg}px ${spacing.lg}px ${spacing.lg}px`,
   display: "flex",
   flexDirection: "column",
   gap: spacing.md,
@@ -852,45 +977,44 @@ const quickLinksSectionStyle: CSSProperties = {
 
 const quickLinksHeaderRowStyle: CSSProperties = {
   display: "flex",
-  flexDirection: "column",
-  gap: 4,
+  justifyContent: "space-between",
+  alignItems: "baseline",
+  gap: spacing.sm,
 };
 
 const quickLinksTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 16,
-  fontWeight: 700,
-  letterSpacing: "-0.01em",
+  fontWeight: 800,
   color: colors.textPrimary,
 };
 
 const quickLinksSubtitleStyle: CSSProperties = {
   margin: 0,
-  fontSize: 12,
+  marginTop: 4,
+  fontSize: 13,
   color: colors.textSecondary,
 };
 
 const quickLinksGridStyle: CSSProperties = {
-  marginTop: spacing.md,
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-  gap: spacing.md,
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: spacing.sm,
 };
 
-const quickLinkBaseStyle: CSSProperties = {
+const quickLinkButtonStyle: CSSProperties = {
   borderRadius: radii.lg,
   border: `1px solid ${colors.borderSubtle}`,
   background: colors.surfaceLow,
-  padding: `${spacing.md}px`,
+  padding: spacing.md,
   display: "flex",
   flexDirection: "column",
-  alignItems: "flex-start",
   gap: 6,
   textAlign: "left",
   cursor: "pointer",
 };
 
-const quickLinkTopRowStyle: CSSProperties = {
+const quickLinkMainRowStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
@@ -915,3 +1039,42 @@ const quickLinkHintStyle: CSSProperties = {
   lineHeight: 1.5,
   color: colors.textSecondary,
 };
+
+// Helper para formato de rango de eventos externos
+function formatExternalEventRange(ev: ExternalEvent): string {
+  const start = new Date(ev.start);
+  const end = new Date(ev.end);
+
+  const sameDay =
+    start.getFullYear() === end.getFullYear() &&
+    start.getMonth() === end.getMonth() &&
+    start.getDate() === end.getDate();
+
+  const dayFormatter = new Intl.DateTimeFormat("es-PE", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+
+  const startTime = start.toLocaleTimeString("es-PE", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const endTime = end.toLocaleTimeString("es-PE", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  if (ev.allDay && sameDay) {
+    return `${dayFormatter.format(start)} · Todo el día`;
+  }
+
+  if (sameDay) {
+    return `${dayFormatter.format(start)} · ${startTime} – ${endTime}`;
+  }
+
+  return `${dayFormatter.format(start)} ${startTime} → ${dayFormatter.format(
+    end,
+  )} ${endTime}`;
+}
