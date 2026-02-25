@@ -1,665 +1,641 @@
 // src/app/planes/page.tsx
-import React from "react";
-import Link from "next/link";
+"use client";
 
-import PremiumHeader from "@/components/PremiumHeader";
-import LogoutButton from "@/components/LogoutButton";
+import React, { useEffect, useState, type CSSProperties } from "react";
+
 import MobileScaffold from "@/components/MobileScaffold";
+import PremiumHeader from "@/components/PremiumHeader";
 
-const featuresFree = [
-  "Calendario personal básico",
-  "Uno o pocos grupos para probar (pareja / familia / otros)",
-  "Detección de conflictos al guardar planes",
-  "Sin tarjeta ni pagos durante la beta",
+import { getMyProfile, type Profile } from "@/lib/profilesDb";
+import { isPremiumUser, isTrialActive, type PlanTier } from "@/lib/premium";
+
+import { colors, radii, shadows, spacing } from "@/styles/design-tokens";
+
+type PlanCardId = "free" | "premium_monthly" | "premium_yearly";
+
+type PlanCardConfig = {
+  id: PlanCardId;
+  label: string;
+  tag: string;
+  price: string;
+  priceSuffix: string;
+  description: string;
+  badge?: string;
+  highlight?: boolean;
+  features: string[];
+};
+
+const freeFeatures: string[] = [
+  "Calendario personal para organizar tu día a día.",
+  "Un par de grupos (pareja / familia) para probar la idea.",
+  "Detección básica de conflictos al guardar eventos.",
+  "Sin tarjeta ni pagos durante la beta privada.",
 ];
 
-const featuresMonthly = [
-  "Todos los grupos que necesites (pareja, familia, amigos, equipos)",
-  "Detección avanzada de conflictos entre calendarios compartidos",
-  "Resumen diario por email con tus planes del día",
-  "Resumen semanal con próximos planes importantes",
-  "Notificaciones de cambios relevantes en tu pareja / familia",
+const premiumCoreFeatures: string[] = [
+  "Detección avanzada de conflictos entre personas y grupos.",
+  "Panel con métricas de uso y conflictos abiertos.",
+  "Integración con Google Calendar (solo lectura, fase 1).",
+  "Resúmenes por correo para mantener a todos alineados.",
 ];
 
-const featuresYearly = [
-  "Todo lo del plan mensual",
-  "Precio fundador garantizado mientras mantengas el plan",
-  "Equivale a pagar ~10 meses y tener ~2 gratis",
+const premiumMonthlyFeatures: string[] = [
+  ...premiumCoreFeatures,
+  "Flexibilidad mes a mes para probar Premium sin compromiso.",
 ];
 
-export default function PricingPage() {
+const premiumYearlyFeatures: string[] = [
+  ...premiumCoreFeatures,
+  "Precio anual optimizado para uso constante con tu pareja o familia.",
+  "Mejor relación valor / precio si ya usas SyncPlans en serio.",
+];
+
+function buildPlanCards(): PlanCardConfig[] {
+  return [
+    {
+      id: "free",
+      label: "Free",
+      tag: "Plan Free",
+      price: "US$0",
+      priceSuffix: "/ mes",
+      description:
+        "Para empezar a probar SyncPlans con tu pareja o familia, sin fricción ni tarjetas.",
+      features: freeFeatures,
+    },
+    {
+      id: "premium_monthly",
+      label: "Premium Mensual",
+      tag: "Plan Premium",
+      price: "US$X",
+      priceSuffix: "/ mes",
+      description:
+        "Para cuando ya sabes que SyncPlans te ahorra discusiones, pero quieres flexibilidad mes a mes.",
+      badge: "Recomendado",
+      highlight: true,
+      features: premiumMonthlyFeatures,
+    },
+    {
+      id: "premium_yearly",
+      label: "Premium Anual",
+      tag: "Premium Anual",
+      price: "US$Y",
+      priceSuffix: "/ año",
+      description:
+        "Para parejas y familias que ya integraron SyncPlans en su rutina de coordinación.",
+      features: premiumYearlyFeatures,
+    },
+  ];
+}
+
+export default function PlanesPage() {
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let active = true;
+
+    const run = async () => {
+      try {
+        const p = await getMyProfile();
+        if (!active) return;
+        setProfile(p);
+      } catch (err) {
+        console.error("Error cargando perfil en /planes:", err);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void run();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const tier = (profile?.plan_tier ?? "free") as PlanTier;
+  const normalizedTier = String(tier || "free").toLowerCase();
+  const trialActive = isTrialActive(profile);
+  const premiumActive = isPremiumUser(profile);
+
+  let planLabel = "Free";
+  let planTag = "Plan Free";
+  let planDescription =
+    "Todas las funciones básicas para organizar tu tiempo sin pagar nada durante la beta.";
+  let planStatusHint = "Estás usando SyncPlans en modo Free.";
+
+  if (normalizedTier.startsWith("founder")) {
+    planLabel = "Founder";
+    planTag = "Plan Founder";
+    planDescription =
+      "Mantienes un precio preferencial por ser de las primeras personas en apostar por SyncPlans.";
+    planStatusHint =
+      "Tu plan Founder se conservará incluso cuando lancemos la versión pública.";
+  } else if (premiumActive && !trialActive) {
+    planLabel = "Premium";
+    planTag = "Plan Premium";
+    planDescription =
+      "Tienes activadas las funciones avanzadas para coordinar mejor con tu pareja y familia.";
+    planStatusHint = "Tu plan Premium está activo.";
+  } else if (trialActive) {
+    planLabel = "Prueba Premium";
+    planTag = "Prueba Premium";
+    planDescription =
+      "Estás probando todas las funciones Premium por tiempo limitado, sin riesgo.";
+    planStatusHint =
+      "Cuando termine tu prueba podrás decidir si continúas en Free o pasas a Premium.";
+  }
+
+  const cards = buildPlanCards();
+
+  const isFreeTier = normalizedTier === "free";
+  const isFounderTier = normalizedTier.startsWith("founder");
+  const isAnyPremium = premiumActive || trialActive || isFounderTier;
+
+  const resolveIsCurrent = (id: PlanCardId): boolean => {
+    if (isFounderTier) {
+      // Conceptualmente Founder es un Premium “especial”
+      return id === "premium_monthly";
+    }
+    if (isFreeTier) return id === "free";
+    if (premiumActive || trialActive) {
+      return id === "premium_monthly" || id === "premium_yearly";
+    }
+    return false;
+  };
+
   return (
-    <main style={S.page}>
-      <MobileScaffold
-        maxWidth={1120}
-        paddingDesktop="22px 18px 48px"
-        paddingMobile="18px 14px 64px"
-        mobileBottomSafe={96}
-      >
-        <div style={S.shell}>
-          <div style={S.topRow}>
-            <PremiumHeader
-              title="Planes"
-              subtitle="SyncPlans no es otro calendario: es el árbitro neutral de tu tiempo compartido."
-            />
-            <LogoutButton />
-          </div>
+    <MobileScaffold>
+      <PremiumHeader
+        title="Planes"
+        subtitle="Elige hasta dónde quieres llevar el árbitro neutral de tu tiempo compartido."
+      />
 
-          <div style={S.content}>
-            {/* Cinta demo premium */}
-            <div style={S.banner}>
-              <span style={S.bannerStrong}>Demo Premium activo · </span>
-              <span>
-                Estás en la beta privada de SyncPlans. Hoy todos los usuarios
-                tienen acceso a funciones Premium sin costo ni tarjeta. Cuando
-                activemos los pagos, podrás elegir si quedarte en el plan Gratis
-                o pasar a Premium (mensual o anual) con total claridad de
-                precios.
-              </span>
-            </div>
-
-            {/* Hero centrado */}
-            <section style={S.hero}>
-              <p style={S.heroKicker}>PLANES DE SYNCPLANS</p>
-              <h1 style={S.heroTitle}>
-                Coordinar horarios no debería ser un motivo de pelea.
-              </h1>
-              <p style={S.heroCopy}>
-                SyncPlans no compite con tu calendario de siempre. Lo que hace
-                es poner en un solo lugar los planes compartidos y mostrar los
-                choques antes de que se transformen en un “yo pensé que era otro
-                día” o “nunca vi ese mensaje”.
-              </p>
-            </section>
-
-            {/* Etiquetas arriba de los precios */}
-            <section style={S.ribbonRow}>
-              <div style={S.recommendedPill}>
-                <span style={S.recommendedTag}>RECOMENDADO</span>
-                <span style={S.recommendedText}>
-                  Plan anual: ~2 meses gratis frente al mensual ☕
+      <div style={sectionWrapperStyle}>
+        {/* BLOQUE: TU PLAN ACTUAL */}
+        <section style={planCardStyle}>
+          <div style={planHeaderRowStyle}>
+            <div style={planLabelColumnStyle}>
+              <div style={planPillStyle}>
+                <span style={planDotStyle} />
+                <span style={planPillTextStyle}>
+                  {loading ? "Cargando plan..." : planTag}
                 </span>
               </div>
-              <div style={S.pricesHint}>
-                Precios en <strong>USD</strong> · impuestos pueden variar según
-                tu país
+              <h2 style={planTitleStyle}>
+                {loading ? " " : `Tu plan: ${planLabel}`}
+              </h2>
+              <p style={planSubtitleStyle}>
+                {loading
+                  ? "Leyendo tu información de cuenta..."
+                  : planDescription}
+              </p>
+            </div>
+            <div style={planActionsColumnStyle}>
+              <div style={planStatusPillStyle}>
+                {isAnyPremium ? "Premium activo / Founder" : "Modo Free"}
               </div>
-            </section>
-
-            {/* FILA DE PLANES, CENTRADA */}
-            <section style={S.plansRow}>
-              {/* Gratis */}
-              <article style={S.card}>
-                <div style={S.cardHeaderLine}>GRATIS</div>
-                <h2 style={S.cardTitle}>Plan Básico</h2>
-                <p style={S.cardCopy}>
-                  Para probar la idea con tu pareja o familia, sin compromiso y
-                  usando tus planes reales del día a día.
-                </p>
-
-                <div style={S.priceRow}>
-                  <span style={S.priceMain}>US$0</span>
-                  <span style={S.priceSuffix}>/ mes</span>
-                </div>
-
-                <ul style={S.featuresList}>
-                  {featuresFree.map((item) => (
-                    <li key={item} style={S.featureItem}>
-                      <span style={S.featureDot} />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div style={S.cardFooter}>
-                  <Link href="/register" style={S.cardGhostButton}>
-                    Empezar gratis
-                  </Link>
-                  <p style={S.betaHintFree}>
-                    Durante la beta usas SyncPlans gratis, sin tarjeta. Luego
-                    puedes quedarte en este plan sin pagar.
-                  </p>
-                </div>
-              </article>
-
-              {/* Mensual */}
-              <article style={{ ...S.card, ...S.cardHighlight }}>
-                <div style={S.cardHeadRow}>
-                  <div style={{ ...S.cardHeaderLine, color: "#fecaca" }}>
-                    PREMIUM
-                  </div>
-                  <div style={S.cardBadge}>PLAN PRINCIPAL</div>
-                </div>
-
-                <h2 style={{ ...S.cardTitle, color: "#fee2e2" }}>
-                  Plan Mensual
-                </h2>
-                <p style={{ ...S.cardCopy, color: "rgba(254,226,226,0.85)" }}>
-                  Para parejas, familias y grupos que de verdad usan SyncPlans
-                  como su lugar oficial para coordinar.
-                </p>
-
-                <div style={S.priceRow}>
-                  <span style={{ ...S.priceMain, color: "#fee2e2" }}>
-                    US$6.90
-                  </span>
-                  <span style={{ ...S.priceSuffix, color: "#fee2e2" }}>
-                    / mes
-                  </span>
-                </div>
-                <p style={S.priceNote}>
-                  Menos que una salida simple al mes a cambio de tener paz con
-                  tu agenda compartida y menos fricción en las conversaciones.
-                </p>
-
-                <ul
-                  style={{
-                    ...S.featuresList,
-                    color: "rgba(254,226,226,0.92)",
-                  }}
-                >
-                  {featuresMonthly.map((item) => (
-                    <li key={item} style={S.featureItem}>
-                      <span
-                        style={{ ...S.featureDot, background: "#fecaca" }}
-                      />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div style={S.cardFooter}>
-                  {/* CTA listo para futuro Paddle: de momento deshabilitado */}
-                  <button type="button" style={S.cardPrimaryButton} disabled>
-                    Demo Premium activo
-                  </button>
-                  <p style={S.betaHint}>
-                    Durante la beta no se te cobra. Después podrás activar o no
-                    tu suscripción mensual desde aquí.
-                  </p>
-                </div>
-              </article>
-
-              {/* Anual */}
-              <article style={{ ...S.card, ...S.cardAnnual }}>
-                <div style={S.cardHeadRow}>
-                  <div style={{ ...S.cardHeaderLine, color: "#bae6fd" }}>
-                    PREMIUM
-                  </div>
-                  <div style={S.cardBadgeSky}>~2 MESES GRATIS</div>
-                </div>
-
-                <h2 style={{ ...S.cardTitle, color: "#e0f2fe" }}>
-                  Plan Anual
-                </h2>
-                <p style={{ ...S.cardCopy, color: "rgba(224,242,254,0.90)" }}>
-                  Para quienes ya vieron el valor y prefieren pagar una vez al
-                  año, olvidarse del cobro mensual y asegurar el precio.
-                </p>
-
-                <div style={S.priceRow}>
-                  <span style={{ ...S.priceMain, color: "#e0f2fe" }}>
-                    US$69
-                  </span>
-                  <span style={{ ...S.priceSuffix, color: "#e0f2fe" }}>
-                    / año
-                  </span>
-                </div>
-
-                <p style={S.priceNoteSky}>
-                  Equivalente a ~US$5.75 al mes. Aproximadamente 2 meses gratis
-                  frente al plan mensual y un compromiso claro con cómo coordinas
-                  tu tiempo.
-                </p>
-
-                <ul
-                  style={{
-                    ...S.featuresList,
-                    color: "rgba(224,242,254,0.92)",
-                  }}
-                >
-                  {featuresYearly.map((item) => (
-                    <li key={item} style={S.featureItem}>
-                      <span
-                        style={{ ...S.featureDot, background: "#7dd3fc" }}
-                      />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div style={S.cardFooter}>
-                  <button type="button" style={S.cardOutlineButton} disabled>
-                    Disponible después de la beta
-                  </button>
-                  <p style={S.betaHintSky}>
-                    Cuando lancemos, este será el plan recomendado para parejas y
-                    familias que usan SyncPlans todos los días.
-                  </p>
-                </div>
-              </article>
-            </section>
-
-            {/* Bloques cortos explicativos */}
-            <section style={S.infoGrid}>
-              <div style={S.infoCard}>
-                <h3 style={S.infoTitle}>¿Para quién es SyncPlans?</h3>
-                <p style={S.infoText}>
-                  Para personas que coordinan con otros: parejas que ya no
-                  quieren discusiones por horarios, familias que hacen malabares
-                  con cole, trabajo y viajes, y grupos de amigos o equipos que
-                  quieren mantener vivos los planes sin 200 mensajes cruzados.
-                </p>
-              </div>
-
-              <div style={S.infoCard}>
-                <h3 style={S.infoTitle}>
-                  ¿Por qué no basta con WhatsApp y un calendario normal?
-                </h3>
-                <p style={S.infoText}>
-                  WhatsApp sirve para hablar, pero no para ver el impacto de un
-                  cambio en todo el grupo. Un calendario individual solo ve tu
-                  agenda. SyncPlans cruza las agendas compartidas, detecta
-                  choques al guardar y te obliga a decidir antes de que el
-                  problema llegue a la conversación.
-                </p>
-              </div>
-
-              <div style={S.infoCard}>
-                <h3 style={S.infoTitle}>Beta, Premium y grupo fundador</h3>
-                <p style={S.infoText}>
-                  Durante la beta, usas SyncPlans con acceso Premium completo y
-                  precio US$0. Cuando lancemos, podrás quedarte en el plan Gratis
-                  o pasar al Premium mensual (US$6.90) o anual (US$69). Si
-                  Fernando te invitó como parte del grupo fundador, verás un
-                  precio especial de aproximadamente US$3.90/mes o US$39/año
-                  mientras mantengas el plan activo: es nuestra forma de
-                  agradecer a quienes ayudaron a construir la versión real del
-                  producto.
-                </p>
-              </div>
-            </section>
-
-            {/* CTA final */}
-            <section style={S.cta}>
-              <div style={S.ctaTextCol}>
-                <h3 style={S.ctaTitle}>Empieza ahora, sin tarjeta.</h3>
-                <p style={S.ctaCopy}>
-                  Crea tu cuenta, invita a tu pareja o familia y mete los planes
-                  reales de las próximas semanas. El verdadero valor se siente
-                  cuando aparece el primer conflicto que ves a tiempo y la
-                  conversación cambia de “por qué no me avisaste” a “qué hacemos
-                  con esto”.
-                </p>
-              </div>
-              <div style={S.ctaActions}>
-                <Link href="/register" style={S.ctaPrimary}>
-                  Crear cuenta gratis
-                </Link>
-              </div>
-            </section>
+            </div>
           </div>
-        </div>
-      </MobileScaffold>
-    </main>
+
+          <p style={planHintTextStyle}>{planStatusHint}</p>
+
+          <div style={betaNoteStyle}>
+            <p style={betaNoteTitleStyle}>Beta privada</p>
+            <p style={betaNoteBodyStyle}>
+              Durante esta etapa no se realizan cobros automáticos. Cualquier
+              cambio de plan se coordina directamente contigo para que tengas
+              control total.
+            </p>
+          </div>
+        </section>
+
+        {/* BLOQUE: PLANES DISPONIBLES */}
+        <section style={plansSectionStyle}>
+          <header style={plansHeaderRowStyle}>
+            <div>
+              <h3 style={plansTitleStyle}>Planes de SyncPlans</h3>
+              <p style={plansSubtitleStyle}>
+                Todos los planes comparten la misma idea: una sola verdad sobre
+                el tiempo compartido. Lo que cambia es cuánto quieres
+                automatizar y cuánta tranquilidad buscas.
+              </p>
+            </div>
+          </header>
+
+          <div style={plansGridStyle}>
+            {cards.map((card) => {
+              const isCurrent = resolveIsCurrent(card.id);
+
+              return (
+                <article
+                  key={card.id}
+                  style={{
+                    ...planOptionCardStyle,
+                    border: isCurrent
+                      ? `1px solid ${colors.accentPrimary}`
+                      : `1px solid ${colors.borderSubtle}`,
+                    // 👇 aquí el fix: solo usamos shadows.card
+                    boxShadow: shadows.card,
+                    background: card.highlight
+                      ? "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(37,99,235,0.20))"
+                      : colors.surfaceRaised,
+                  }}
+                >
+                  <div style={planOptionHeaderStyle}>
+                    <div style={planOptionTitleBlockStyle}>
+                      <div style={planOptionTagRowStyle}>
+                        <span style={planOptionTagStyle}>{card.tag}</span>
+                        {card.badge ? (
+                          <span style={planOptionBadgeStyle}>
+                            {card.badge}
+                          </span>
+                        ) : null}
+                      </div>
+                      <h4 style={planOptionTitleStyle}>{card.label}</h4>
+                      <p style={planOptionDescriptionStyle}>
+                        {card.description}
+                      </p>
+                    </div>
+
+                    <div style={planOptionPriceBlockStyle}>
+                      <div style={planOptionPriceRowStyle}>
+                        <span style={planOptionPriceStyle}>{card.price}</span>
+                        <span style={planOptionPriceSuffixStyle}>
+                          {card.priceSuffix}
+                        </span>
+                      </div>
+                      {isCurrent ? (
+                        <span style={planOptionCurrentChipStyle}>
+                          Tu plan actual
+                        </span>
+                      ) : isFounderTier && card.id !== "free" ? (
+                        <span style={planOptionCurrentChipStyle}>
+                          Beneficios similares a tu plan Founder
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <ul style={planFeaturesListStyle}>
+                    {card.features.map((feature) => (
+                      <li key={feature} style={planFeatureItemStyle}>
+                        <span style={planFeatureBulletStyle} />
+                        <span style={planFeatureTextStyle}>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div style={planCtaRowStyle}>
+                    <button
+                      type="button"
+                      style={{
+                        ...planPrimaryButtonStyle,
+                        opacity: isCurrent ? 0.8 : 1,
+                      }}
+                      disabled
+                    >
+                      {isCurrent
+                        ? "Ya estás en este plan"
+                        : card.id === "free"
+                        ? "Empezar en Free"
+                        : "Premium disponible pronto"}
+                    </button>
+                    <p style={planCtaHintStyle}>
+                      Los cambios de plan se habilitarán oficialmente al salir
+                      de la beta privada. Si quieres comentar tu caso, háblame
+                      directo.
+                    </p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+    </MobileScaffold>
   );
 }
 
-const S: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#050816",
-    color: "rgba(248,250,252,0.98)",
-    fontFamily:
-      "system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
-  },
-  shell: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 18,
-  },
-  topRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    flexWrap: "wrap",
-  },
-  content: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 22,
-  },
+// ===== Estilos =====
 
-  // Banner
-  banner: {
-    borderRadius: 18,
-    padding: "10px 14px",
-    border: "1px solid rgba(251,191,36,0.45)",
-    background:
-      "linear-gradient(90deg, rgba(245,158,11,0.18), rgba(15,23,42,0.95))",
-    fontSize: 12,
-    color: "#fef3c7",
-  },
-  bannerStrong: {
-    fontWeight: 800,
-  },
+const sectionWrapperStyle: CSSProperties = {
+  maxWidth: 720,
+  margin: "0 auto",
+  padding: `${spacing.lg}px ${spacing.md}px ${spacing.xl}px`,
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing.lg,
+};
 
-  // Hero
-  hero: {
-    textAlign: "center",
-    maxWidth: 640,
-    margin: "4px auto 0",
-  },
-  heroKicker: {
-    fontSize: 11,
-    letterSpacing: "0.3em",
-    textTransform: "uppercase",
-    color: "#94a3b8",
-    marginBottom: 8,
-  },
-  heroTitle: {
-    fontSize: 26,
-    lineHeight: 1.24,
-    fontWeight: 900,
-    margin: 0,
-  },
-  heroCopy: {
-    marginTop: 8,
-    fontSize: 13,
-    color: "#cbd5f5",
-    fontWeight: 500,
-  },
+const planCardStyle: CSSProperties = {
+  borderRadius: radii.xl,
+  background: colors.surfaceRaised,
+  border: `1px solid ${colors.borderStrong}`,
+  boxShadow: shadows.card,
+  padding: `${spacing.lg}px ${spacing.lg}px ${spacing.lg}px`,
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing.md,
+};
 
-  // Ribbons
-  ribbonRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  recommendedPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "5px 10px",
-    borderRadius: 999,
-    background: "rgba(15,23,42,0.95)",
-    border: "1px solid rgba(148,163,184,0.7)",
-  },
-  recommendedTag: {
-    padding: "3px 8px",
-    borderRadius: 999,
-    background: "rgba(16,185,129,0.9)",
-    color: "#022c22",
-    fontSize: 10,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-  },
-  recommendedText: {
-    fontSize: 11,
-    color: "#e5e7eb",
-    fontWeight: 600,
-  },
-  pricesHint: {
-    fontSize: 11,
-    color: "#9ca3af",
-  },
+const planHeaderRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: spacing.lg,
+  flexWrap: "wrap",
+};
 
-  // Planes
-  plansRow: {
-    marginTop: 10,
-    display: "flex",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    alignItems: "stretch",
-    gap: 16,
-  },
-  card: {
-    flex: "1 1 260px",
-    maxWidth: 340,
-    minHeight: 360,
-    borderRadius: 22,
-    border: "1px solid rgba(148,163,184,0.35)",
-    background: "rgba(15,23,42,0.95)",
-    padding: 16,
-    display: "flex",
-    flexDirection: "column",
-  },
-  cardHighlight: {
-    border: "1px solid rgba(248,113,113,0.85)",
-    background:
-      "linear-gradient(145deg, rgba(248,113,113,0.25), rgba(15,23,42,0.98))",
-    boxShadow: "0 18px 45px rgba(127,29,29,0.55)",
-  },
-  cardAnnual: {
-    border: "1px solid rgba(56,189,248,0.75)",
-    background:
-      "linear-gradient(145deg, rgba(56,189,248,0.18), rgba(15,23,42,0.98))",
-    boxShadow: "0 18px 45px rgba(12,74,110,0.55)",
-  },
-  cardHeaderLine: {
-    fontSize: 11,
-    letterSpacing: "0.24em",
-    textTransform: "uppercase",
-    color: "#9ca3af",
-    marginBottom: 6,
-    fontWeight: 700,
-  },
-  cardHeadRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 8,
-  },
-  cardBadge: {
-    padding: "3px 8px",
-    borderRadius: 999,
-    background: "rgba(248,113,113,0.25)",
-    color: "#fee2e2",
-    fontSize: 10,
-    fontWeight: 800,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-  },
-  cardBadgeSky: {
-    padding: "3px 8px",
-    borderRadius: 999,
-    background: "rgba(56,189,248,0.25)",
-    color: "#e0f2fe",
-    fontSize: 10,
-    fontWeight: 800,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: 800,
-    marginTop: 4,
-    marginBottom: 6,
-  },
-  cardCopy: {
-    fontSize: 12,
-    color: "#cbd5f5",
-    marginBottom: 10,
-  },
-  priceRow: {
-    display: "flex",
-    alignItems: "baseline",
-    gap: 4,
-    marginBottom: 4,
-  },
-  priceMain: {
-    fontSize: 24,
-    fontWeight: 900,
-  },
-  priceSuffix: {
-    fontSize: 11,
-    color: "#9ca3af",
-  },
-  priceNote: {
-    fontSize: 11,
-    color: "rgba(254,226,226,0.92)",
-    marginBottom: 10,
-  },
-  priceNoteSky: {
-    fontSize: 11,
-    color: "rgba(224,242,254,0.95)",
-    marginBottom: 10,
-  },
-  featuresList: {
-    listStyle: "none",
-    padding: 0,
-    margin: "4px 0 12px",
-    fontSize: 12,
-  },
-  featureItem: {
-    display: "flex",
-    gap: 8,
-    alignItems: "flex-start",
-    marginBottom: 4,
-  },
-  featureDot: {
-    marginTop: 5,
-    width: 5,
-    height: 5,
-    borderRadius: 999,
-    background: "#9ca3af",
-  },
-  cardFooter: {
-    marginTop: "auto",
-  },
-  cardGhostButton: {
-    display: "inline-flex",
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: "8px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(148,163,184,0.8)",
-    background: "rgba(15,23,42,0.95)",
-    color: "#e5e7eb",
-    fontSize: 13,
-    fontWeight: 800,
-    textDecoration: "none",
-    cursor: "pointer",
-  },
-  cardPrimaryButton: {
-    display: "inline-flex",
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: "8px 12px",
-    borderRadius: 14,
-    border: "none",
-    background: "rgba(248,113,113,1)",
-    color: "#111827",
-    fontSize: 13,
-    fontWeight: 900,
-    cursor: "not-allowed",
-  },
-  cardOutlineButton: {
-    display: "inline-flex",
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: "8px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(56,189,248,0.9)",
-    background: "rgba(15,23,42,0.98)",
-    color: "#e0f2fe",
-    fontSize: 13,
-    fontWeight: 800,
-    cursor: "not-allowed",
-  },
-  betaHint: {
-    marginTop: 6,
-    fontSize: 10,
-    lineHeight: 1.3,
-    color: "rgba(254,226,226,0.85)",
-  },
-  betaHintSky: {
-    marginTop: 6,
-    fontSize: 10,
-    lineHeight: 1.3,
-    color: "rgba(224,242,254,0.9)",
-  },
-  betaHintFree: {
-    marginTop: 6,
-    fontSize: 10,
-    lineHeight: 1.3,
-    color: "rgba(209,213,219,0.9)",
-  },
+const planLabelColumnStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  flex: 1,
+};
 
-  // Info blocks
-  infoGrid: {
-    marginTop: 6,
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-    gap: 14,
-  },
-  infoCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(148,163,184,0.35)",
-    background: "rgba(15,23,42,0.96)",
-    padding: 14,
-  },
-  infoTitle: {
-    fontSize: 14,
-    fontWeight: 800,
-    marginBottom: 6,
-  },
-  infoText: {
-    fontSize: 12,
-    color: "#cbd5f5",
-  },
+const planActionsColumnStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-end",
+  justifyContent: "flex-end",
+  minWidth: 0,
+};
 
-  // CTA final
-  cta: {
-    marginTop: 10,
-    borderRadius: 20,
-    border: "1px solid rgba(96,165,250,0.7)",
-    background:
-      "radial-gradient(circle at 0 0, rgba(59,130,246,0.35), transparent 55%), rgba(15,23,42,0.98)",
-    padding: 16,
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  ctaTextCol: {
-    flex: "1 1 260px",
-    minWidth: 0,
-  },
-  ctaTitle: {
-    fontSize: 16,
-    fontWeight: 900,
-    marginBottom: 6,
-  },
-  ctaCopy: {
-    fontSize: 12,
-    color: "#dbeafe",
-  },
-  ctaActions: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    justifyContent: "flex-end",
-    flex: "0 0 auto",
-  },
-  ctaPrimary: {
-    display: "inline-flex",
-    padding: "8px 16px",
-    borderRadius: 999,
-    border: "1px solid rgba(191,219,254,0.9)",
-    background: "#f97316",
-    color: "#111827",
-    fontSize: 13,
-    fontWeight: 900,
-    textDecoration: "none",
-    cursor: "pointer",
-  },
+const planPillStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "6px 10px",
+  borderRadius: 999,
+  border: `1px solid ${colors.accentPrimary}`,
+  background: "rgba(56,189,248,0.10)",
+};
+
+const planDotStyle: CSSProperties = {
+  width: 8,
+  height: 8,
+  borderRadius: 999,
+  background: colors.accentPrimary,
+};
+
+const planPillTextStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 800,
+  letterSpacing: 0.4,
+  textTransform: "uppercase",
+  color: colors.textSecondary,
+};
+
+const planTitleStyle: CSSProperties = {
+  margin: 0,
+  marginTop: 8,
+  fontSize: 20,
+  fontWeight: 900,
+  color: colors.textPrimary,
+};
+
+const planSubtitleStyle: CSSProperties = {
+  margin: 0,
+  marginTop: 4,
+  fontSize: 14,
+  lineHeight: 1.4,
+  color: colors.textSecondary,
+};
+
+const planStatusPillStyle: CSSProperties = {
+  padding: "6px 10px",
+  borderRadius: 999,
+  border: `1px solid ${colors.borderSubtle}`,
+  background: colors.surfaceLow,
+  fontSize: 11,
+  fontWeight: 600,
+  color: colors.textSecondary,
+};
+
+const planHintTextStyle: CSSProperties = {
+  margin: 0,
+  marginTop: spacing.sm,
+  fontSize: 13,
+  color: colors.textSecondary,
+};
+
+const betaNoteStyle: CSSProperties = {
+  marginTop: spacing.md,
+  borderRadius: radii.lg,
+  border: `1px dashed ${colors.borderSubtle}`,
+  background: colors.surfaceLow,
+  padding: `${spacing.sm}px ${spacing.md}px`,
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+};
+
+const betaNoteTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 12,
+  fontWeight: 700,
+  letterSpacing: 0.3,
+  textTransform: "uppercase",
+  color: colors.textSecondary,
+};
+
+const betaNoteBodyStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 13,
+  color: colors.textSecondary,
+};
+
+// Sección de grid de planes
+const plansSectionStyle: CSSProperties = {
+  borderRadius: radii.xl,
+  background: colors.surfaceRaised,
+  border: `1px solid ${colors.borderStrong}`,
+  boxShadow: shadows.card,
+  padding: `${spacing.lg}px ${spacing.lg}px ${spacing.lg}px`,
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing.md,
+};
+
+const plansHeaderRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: spacing.md,
+  flexWrap: "wrap",
+};
+
+const plansTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 16,
+  fontWeight: 800,
+  color: colors.textPrimary,
+};
+
+const plansSubtitleStyle: CSSProperties = {
+  margin: 0,
+  marginTop: 4,
+  fontSize: 13,
+  lineHeight: 1.5,
+  color: colors.textSecondary,
+};
+
+const plansGridStyle: CSSProperties = {
+  marginTop: spacing.md,
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: spacing.md,
+};
+
+const planOptionCardStyle: CSSProperties = {
+  borderRadius: radii.lg,
+  padding: `${spacing.md}px ${spacing.md}px ${spacing.md}px`,
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing.md,
+};
+
+const planOptionHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: spacing.md,
+  flexWrap: "wrap",
+};
+
+const planOptionTitleBlockStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  flex: 1,
+};
+
+const planOptionTagRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  flexWrap: "wrap",
+};
+
+const planOptionTagStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: 0.3,
+  textTransform: "uppercase",
+  color: colors.textSecondary,
+};
+
+const planOptionBadgeStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  padding: "4px 8px",
+  borderRadius: 999,
+  background: "rgba(56,189,248,0.22)",
+  border: `1px solid ${colors.accentPrimary}`,
+  color: colors.textPrimary,
+};
+
+const planOptionTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 16,
+  fontWeight: 800,
+  color: colors.textPrimary,
+};
+
+const planOptionDescriptionStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 13,
+  lineHeight: 1.5,
+  color: colors.textSecondary,
+};
+
+const planOptionPriceBlockStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-end",
+  gap: 6,
+};
+
+const planOptionPriceRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "baseline",
+  gap: 4,
+};
+
+const planOptionPriceStyle: CSSProperties = {
+  fontSize: 20,
+  fontWeight: 900,
+  color: colors.textPrimary,
+};
+
+const planOptionPriceSuffixStyle: CSSProperties = {
+  fontSize: 12,
+  color: colors.textSecondary,
+};
+
+const planOptionCurrentChipStyle: CSSProperties = {
+  alignSelf: "flex-end",
+  padding: "4px 8px",
+  borderRadius: 999,
+  border: `1px solid ${colors.borderSubtle}`,
+  background: colors.surfaceLow,
+  fontSize: 11,
+  fontWeight: 600,
+  color: colors.textSecondary,
+};
+
+const planFeaturesListStyle: CSSProperties = {
+  listStyle: "none",
+  margin: 0,
+  padding: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+};
+
+const planFeatureItemStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 8,
+};
+
+const planFeatureBulletStyle: CSSProperties = {
+  marginTop: 6,
+  width: 6,
+  height: 6,
+  borderRadius: 999,
+  background: colors.accentPrimary,
+  flexShrink: 0,
+};
+
+const planFeatureTextStyle: CSSProperties = {
+  fontSize: 13,
+  color: colors.textSecondary,
+};
+
+const planCtaRowStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  marginTop: spacing.sm,
+};
+
+const planPrimaryButtonStyle: CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: radii.lg,
+  border: `1px solid ${colors.borderStrong}`,
+  background: colors.surfaceLow,
+  color: colors.textPrimary,
+  fontSize: 13,
+  fontWeight: 800,
+  cursor: "not-allowed",
+};
+
+const planCtaHintStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 11,
+  lineHeight: 1.5,
+  color: colors.textMuted,
 };
