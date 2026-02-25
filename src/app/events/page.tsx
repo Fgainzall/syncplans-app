@@ -16,7 +16,12 @@ import {
   deleteEventsByIds,
   type DbEventRow,
 } from "@/lib/eventsDb";
-import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
+import {
+  getGroupTypeLabel,
+  getMyGroups,
+  type GroupRow,
+} from "@/lib/groupsDb";
+import { groupMeta } from "@/lib/conflicts";
 
 type ViewMode = "upcoming" | "history" | "all";
 type Scope = "personal" | "groups" | "all";
@@ -186,7 +191,6 @@ export default function EventsPage() {
     } personales y ${groupEvents} en grupos. Filtra, revisa y limpia sin perder contexto.`;
   }, [events]);
 
-  // Podríamos tener un conteo de conflictos detectados en el futuro
   const conflictsNow = 0;
 
   // ===== HANDLERS =====
@@ -287,7 +291,6 @@ export default function EventsPage() {
   async function sendTodayDigest() {
     try {
       setSendingDigest(true);
-      // Aquí engancharías tu API real de digest diario si aplica
       await new Promise((resolve) => setTimeout(resolve, 1200));
       setToast({
         type: "success",
@@ -384,11 +387,10 @@ export default function EventsPage() {
 
       <main style={S.pageShell}>
         <div style={S.stickyTop}>
-          {/* ✅ APP MODE en móvil: bottom bar + sin nav larga arriba */}
           <EventsHero subtitle={headerSubtitle} />
         </div>
 
-        {/* ✅ 1 card principal */}
+        {/* CARD PRINCIPAL */}
         <section style={S.card} className="spEvt-card">
           <div style={S.titleRow}>
             <div>
@@ -401,7 +403,7 @@ export default function EventsPage() {
               </p>
             </div>
 
-            <div style={S.factBox} className="spEvt-factBox">
+            <aside style={S.factBox} className="spEvt-factBox">
               <div style={S.factLabel}>Resumen rápido</div>
               <div style={S.factRow}>
                 <span style={S.factDotPersonal} />
@@ -423,7 +425,7 @@ export default function EventsPage() {
                   {totalGroups === 1 ? "" : "s"} a tu agenda.
                 </div>
               )}
-            </div>
+            </aside>
           </div>
 
           {/* Filtros y acciones */}
@@ -451,7 +453,7 @@ export default function EventsPage() {
             }
           />
 
-          {/* Acciones masivas */}
+          {/* Acciones masivas / digest demo */}
           {events.length > 0 && (
             <button
               type="button"
@@ -532,13 +534,13 @@ export default function EventsPage() {
   );
 }
 
-// ===== ESTILOS =====
+// ===== ESTILOS (solo diseño, sin lógica) =====
 
 const S: Record<string, React.CSSProperties> = {
   pageShell: {
     maxWidth: 720,
     margin: "0 auto",
-    padding: "12px 14px 80px",
+    padding: "10px 14px 80px",
     display: "flex",
     flexDirection: "column",
     gap: 12,
@@ -550,7 +552,7 @@ const S: Record<string, React.CSSProperties> = {
     paddingBottom: 8,
     marginBottom: 4,
     background:
-      "linear-gradient(to bottom, rgba(8,15,28,1) 0%, rgba(8,15,28,0.88) 60%, rgba(8,15,28,0.0) 100%)",
+      "linear-gradient(to bottom, rgba(8,15,28,1) 0%, rgba(8,15,28,0.92) 55%, rgba(8,15,28,0.0) 100%)",
     backdropFilter: "blur(14px)",
   },
 
@@ -558,7 +560,7 @@ const S: Record<string, React.CSSProperties> = {
     borderRadius: 24,
     border: "1px solid rgba(31,41,55,0.95)",
     background:
-      "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.28), transparent 55%), rgba(15,23,42,0.98)",
+      "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.25), transparent 55%), radial-gradient(circle at 100% 0%, rgba(56,189,248,0.18), transparent 55%), rgba(15,23,42,0.98)",
     padding: 16,
     boxShadow: "0 24px 60px rgba(0,0,0,0.85)",
   },
@@ -568,33 +570,37 @@ const S: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 16,
-    marginBottom: 14,
+    marginBottom: 16,
+    flexWrap: "wrap",
   },
   kicker: {
     fontSize: 11,
     fontWeight: 800,
     letterSpacing: 1,
     textTransform: "uppercase",
-    color: "rgba(96,165,250,0.98)",
+    color: "rgba(129,199,255,0.98)",
   },
   h1: {
     margin: 0,
     marginTop: 4,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 950,
     color: "rgba(248,250,252,1)",
   },
   sub: {
     margin: 0,
-    marginTop: 4,
+    marginTop: 6,
     fontSize: 13,
+    lineHeight: 1.5,
     color: "rgba(209,213,219,0.98)",
   },
 
   factBox: {
-    minWidth: 0,
+    minWidth: 160,
+    maxWidth: 210,
+    alignSelf: "stretch",
     borderRadius: 18,
-    border: "1px solid rgba(30,64,175,0.88)",
+    border: "1px solid rgba(30,64,175,0.9)",
     background:
       "radial-gradient(circle at 100% 0%, rgba(59,130,246,0.35), transparent 55%), rgba(15,23,42,0.96)",
     padding: 10,
@@ -654,7 +660,7 @@ const S: Record<string, React.CSSProperties> = {
     marginTop: 10,
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.75)",
-    background: "rgba(30,64,175,0.85)",
+    background: "rgba(30,64,175,0.88)",
     padding: "8px 11px",
     display: "flex",
     justifyContent: "space-between",
