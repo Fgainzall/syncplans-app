@@ -5,8 +5,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
-import AppHero from "@/components/AppHero";
 import MobileScaffold from "@/components/MobileScaffold";
+import EventsHero from "@/components/events/EventsHero";
 
 import {
   getMyEvents,
@@ -338,12 +338,11 @@ const filteredEvents = useMemo(() => {
       <MobileScaffold>
         <main style={S.pageShell}>
           <div style={S.stickyTop}>
-          <AppHero
-  title="Eventos"
-  subtitle="Mira y gestiona tu lista de eventos personales y compartidos."
-  mobileNav="bottom"
-/>
-          </div>
+   <EventsHero
+            subtitle="Mira y gestiona tu lista de eventos personales y compartidos."
+            showCreateButton={false}
+          />
+        </div>
 
           <section style={S.card}>
             <div style={S.loadingRow}>
@@ -379,23 +378,8 @@ const filteredEvents = useMemo(() => {
       <main style={S.pageShell}>
         <div style={S.stickyTop}>
           {/* ✅ APP MODE en móvil: bottom bar + sin nav larga arriba */}
-          <AppHero
-            title="Eventos"
-            subtitle={headerSubtitle}
-            mobileNav="bottom"
-            rightSlot={
-              <button
-                style={S.primary}
-                onClick={() =>
-                  router.push("/events/new/details?type=personal")
-                }
-              >
-                + Evento
-              </button>
-            }
-          />
-        </div>
-
+            <EventsHero subtitle={headerSubtitle} />
+      </div>
         {/* ✅ 1 card principal */}
         <section style={S.card} className="spEvt-card">
           <div style={S.titleRow}>
