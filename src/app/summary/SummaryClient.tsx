@@ -133,7 +133,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       })
       .filter((e) => e._start)
       .sort(
-        (a, b) => (a._start as Date).getTime() - (b._start as Date).getTime()
+        (a, b) => (a._start as Date).getTime() - (b._start as Date).getTime(),
       );
   }, [events, activeGroupId]);
 
@@ -142,44 +142,43 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return visibleEvents.filter((e) => (e._start as Date).getTime() >= now);
   }, [visibleEvents]);
 
+  // 🆕 Stats mixtos: centro de verdad para este contexto
+  const upcomingStats = useMemo(() => {
+    let personal = 0;
+    let group = 0;
+    let external = 0;
+
+    for (const e of upcomingAll) {
+      const isExternal = !!(e as any)?.is_external;
+      const hasGroup = !!(e as any)?.group_id;
+
+      if (isExternal) {
+        external += 1;
+      }
+      if (hasGroup) {
+        group += 1;
+      } else {
+        personal += 1;
+      }
+    }
+
+    return {
+      total: upcomingAll.length,
+      personal,
+      group,
+      external,
+    };
+  }, [upcomingAll]);
+
   // ✅ CLAVE: en móvil mostramos menos para evitar scroll infinito
   const UPCOMING_LIMIT = isMobile ? 3 : 8;
 
   const upcoming = useMemo(
     () => upcomingAll.slice(0, UPCOMING_LIMIT),
-    [upcomingAll, UPCOMING_LIMIT]
+    [upcomingAll, UPCOMING_LIMIT],
   );
 
   const showSeeMore = !booting && upcomingAll.length > UPCOMING_LIMIT;
-
-  const upcomingStats = useMemo(
-    () => {
-      const stats = {
-        total: upcomingAll.length,
-        personal: 0,
-        group: 0,
-        external: 0,
-      };
-
-      if (!upcomingAll.length) return stats;
-
-      for (const e of upcomingAll as any[]) {
-        const isExternal = Boolean((e as any)?.is_external);
-        const hasGroup = Boolean((e as any)?.group_id);
-
-        if (isExternal) {
-          stats.external++;
-        } else if (hasGroup) {
-          stats.group++;
-        } else {
-          stats.personal++;
-        }
-      }
-
-      return stats;
-    },
-    [upcomingAll]
-  );
 
   async function requireSessionOrRedirect() {
     const { data, error } = await supabase.auth.getSession();
@@ -214,7 +213,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     } catch (e: any) {
       showToast(
         "No se pudo cargar el resumen",
-        e?.message || "Intenta nuevamente."
+        e?.message || "Intenta nuevamente.",
       );
     } finally {
       setLoading(false);
@@ -273,10 +272,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       >
         {/* Header unificado (AppHero) */}
         <div style={styles.topRow} className="spSum-topRow">
-          <AppHero
-            title="Resumen"
-            subtitle="Lo importante, sin fricción."
-          />
+          <AppHero title="Resumen" subtitle="Lo importante, sin fricción." />
         </div>
 
         {/* Hero compacto debajo del header */}
@@ -294,41 +290,38 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               </div>
             ) : (
               <div style={styles.subMobile}>
-                Lo importante, rápido. Actualiza solo.
+                Lo importante, rápido. Se actualiza solo.
               </div>
             )}
           </div>
 
-          <div style={styles.heroBtns} className="spSum-heroBtns">
-            <button
-              onClick={() => router.push("/calendar")}
-              style={styles.primaryBtn}
-              className="spSum-btn"
-            >
-              Calendario →
-            </button>
-            <button
-              onClick={() => router.push("/conflicts/detected")}
-              style={styles.ghostBtn}
-              className="spSum-btn"
-            >
-              Conflictos →
-            </button>
+          <div style={styles.heroRight}>
+            <div style={styles.heroKpiCard}>
+              <div style={styles.heroKpiLabel}>Próximos en este contexto</div>
+              <div style={styles.heroKpiNumber}>{upcomingStats.total}</div>
+              <div style={styles.heroKpiSub}>
+                {upcomingStats.personal} personales · {upcomingStats.group} en
+                grupos · {upcomingStats.external} externos
+              </div>
+            </div>
           </div>
         </section>
 
         {/* Próximos eventos */}
         <section style={styles.card} className="spSum-card">
-          <div style={styles.sectionTitle}>Próximos eventos</div>
-          <div style={styles.smallNote}>
-            Mostrando: <b>{activeLabel}</b> ·{" "}
-            {loading ? "Actualizando…" : `${upcoming.length} visibles`}
-          </div>
-          <div style={styles.smallNote}>
-            {upcomingStats.total} en total ·{" "}
-            {upcomingStats.personal} personales ·{" "}
-            {upcomingStats.group} en grupo ·{" "}
-            {upcomingStats.external} externos
+          <div style={styles.sectionHeader}>
+            <div>
+              <div style={styles.sectionTitle}>Próximos eventos</div>
+              <div style={styles.smallNote}>
+                Mostrando: <b>{activeLabel}</b> ·{" "}
+                {loading ? "Actualizando…" : `${upcoming.length} visibles`}
+              </div>
+              <div style={styles.smallNoteStats}>
+                {upcomingStats.total} en total · {upcomingStats.personal}{" "}
+                personales · {upcomingStats.group} en grupos ·{" "}
+                {upcomingStats.external} externos
+              </div>
+            </div>
           </div>
 
           {booting ? (
@@ -525,11 +518,46 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
     marginBottom: 12,
     display: "flex",
-    alignItems: "flex-end",
+    alignItems: "stretch",
     justifyContent: "space-between",
     gap: 14,
     flexWrap: "wrap",
   },
+  heroRight: {
+    minWidth: 0,
+    display: "flex",
+    alignItems: "stretch",
+    justifyContent: "flex-end",
+  },
+  heroKpiCard: {
+    borderRadius: 16,
+    padding: "10px 12px",
+    border: "1px solid rgba(56,189,248,0.35)",
+    background:
+      "radial-gradient(circle at 0% 0%, rgba(56,189,248,0.18), transparent 60%), rgba(3,7,18,0.85)",
+    minWidth: 170,
+    maxWidth: 220,
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  heroKpiLabel: {
+    fontSize: 11,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    opacity: 0.8,
+    fontWeight: 700,
+  },
+  heroKpiNumber: {
+    fontSize: 24,
+    fontWeight: 950,
+    letterSpacing: "-0.6px",
+  },
+  heroKpiSub: {
+    fontSize: 11,
+    opacity: 0.8,
+  },
+
   kicker: {
     alignSelf: "flex-start",
     fontSize: 11,
@@ -551,14 +579,6 @@ const styles: Record<string, React.CSSProperties> = {
   sub: { marginTop: 8, fontSize: 13, opacity: 0.75, maxWidth: 720 },
   subMobile: { marginTop: 8, fontSize: 12, opacity: 0.75, maxWidth: 420 },
 
-  heroBtns: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    width: "100%",
-    justifyContent: "flex-end",
-  },
-
   card: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
@@ -566,8 +586,19 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 14,
     marginTop: 12,
   },
+  sectionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 8,
+  },
   sectionTitle: { fontWeight: 950, fontSize: 14 },
   smallNote: { marginTop: 6, fontSize: 12, opacity: 0.72 },
+  smallNoteStats: {
+    marginTop: 2,
+    fontSize: 11,
+    opacity: 0.8,
+  },
 
   primaryBtn: {
     padding: "12px 14px",
