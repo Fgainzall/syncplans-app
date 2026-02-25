@@ -16,12 +16,7 @@ import {
   deleteEventsByIds,
   type DbEventRow,
 } from "@/lib/eventsDb";
-import {
-  getGroupTypeLabel,
-  getMyGroups,
-  type GroupRow,
-} from "@/lib/groupsDb";
-import { groupMeta } from "@/lib/conflicts";
+import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 
 type ViewMode = "upcoming" | "history" | "all";
 type Scope = "personal" | "groups" | "all";
@@ -326,10 +321,10 @@ export default function EventsPage() {
       <MobileScaffold>
         <main style={S.pageShell}>
           <div style={S.stickyTop}>
-          <EventsHero
-  subtitle="Mira y gestiona tu lista de eventos personales y compartidos."
-  showCreateButton={false}
-/>
+            <EventsHero
+              subtitle="Mira y gestiona tu lista de eventos personales y compartidos."
+              showCreateButton={false}
+            />
           </div>
 
           <section style={S.card}>
@@ -433,28 +428,28 @@ export default function EventsPage() {
 
           {/* Filtros y acciones */}
           <EventsFiltersBar
-          view={filters.view}
-          scope={filters.scope}
-          query={filters.query}
-          onChangeView={(view) =>
-            setFilters((f) => ({
-              ...f,
-              view,
-            }))
-          }
-          onChangeScope={(scope) =>
-            setFilters((f) => ({
-              ...f,
-              scope,
-            }))
-          }
-          onChangeQuery={(query) =>
-            setFilters((f) => ({
-              ...f,
-              query,
-            }))
-          }
-/>
+            view={filters.view}
+            scope={filters.scope}
+            query={filters.query}
+            onChangeView={(view) =>
+              setFilters((f) => ({
+                ...f,
+                view,
+              }))
+            }
+            onChangeScope={(scope) =>
+              setFilters((f) => ({
+                ...f,
+                scope,
+              }))
+            }
+            onChangeQuery={(query) =>
+              setFilters((f) => ({
+                ...f,
+                query,
+              }))
+            }
+          />
 
           {/* Acciones masivas */}
           {events.length > 0 && (
@@ -639,50 +634,6 @@ const S: Record<string, React.CSSProperties> = {
     color: "rgba(148,163,184,0.96)",
   },
 
-  // Filtros, tabs y buscador antes estaban aquí (S.filters, S.tabs, etc.)
-  // Ahora los usamos desde EventsFiltersBar, pero mantenemos estilos si son compartidos.
-  filters: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
-  tabs: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  segment: {
-    display: "inline-flex",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.55)",
-    background: "rgba(15,23,42,0.96)",
-    overflow: "hidden",
-  },
-  segmentBtn: {
-    padding: "8px 11px",
-    fontSize: 12,
-    background: "transparent",
-    border: "none",
-    color: "rgba(209,213,219,0.9)",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  segmentBtnActive: {
-    background:
-      "linear-gradient(135deg, rgba(59,130,246,0.55), rgba(56,189,248,0.55))",
-    color: "white",
-  },
-  search: {
-    width: "100%",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.60)",
-    background: "rgba(15,23,42,0.96)",
-    padding: "9px 12px",
-    color: "rgba(248,250,252,0.98)",
-    fontSize: 13,
-    outline: "none",
-  },
-
   digestBtn: {
     marginTop: 10,
     padding: "8px 11px",
@@ -723,113 +674,6 @@ const S: Record<string, React.CSSProperties> = {
     color: "white",
     fontWeight: 800,
     cursor: "pointer",
-  },
-
-  list: {
-    marginTop: 10,
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-  section: {
-    borderRadius: 18,
-    border: "1px solid rgba(31,41,55,0.95)",
-    background: "rgba(17,24,39,0.96)",
-    padding: 10,
-  },
-  sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 8,
-  },
-  sectionDate: {
-    fontSize: 13,
-    fontWeight: 900,
-    color: "rgba(243,244,246,0.98)",
-  },
-  sectionCount: {
-    fontSize: 12,
-    color: "rgba(156,163,175,0.96)",
-  },
-  sectionBody: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-  },
-
-  eventRow: {
-    display: "flex",
-    gap: 8,
-    alignItems: "stretch",
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
-    border: "1px solid rgba(148,163,184,0.75)",
-    background: "rgba(15,23,42,0.96)",
-    color: "white",
-    cursor: "pointer",
-    fontSize: 13,
-    fontWeight: 900,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  checkboxOn: {
-    background:
-      "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95))",
-    borderColor: "transparent",
-  },
-  eventCard: {
-    flex: 1,
-    borderRadius: 14,
-    border: "1px solid rgba(31,41,55,0.98)",
-    background:
-      "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.16), transparent 55%), rgba(15,23,42,0.98)",
-    padding: "10px 11px",
-    boxShadow: "0 12px 30px rgba(0,0,0,0.45)",
-  },
-  eventTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 10,
-  },
-  eventTitleRow: {
-    display: "flex",
-    gap: 8,
-    alignItems: "flex-start",
-  },
-  eventDotWrap: {
-    marginTop: 3,
-  },
-  eventDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 999,
-  },
-  eventTitle: {
-    fontSize: 14,
-    fontWeight: 900,
-  },
-  eventGroup: {
-    marginTop: 2,
-    fontSize: 12,
-    color: "rgba(156,163,175,0.96)",
-  },
-  eventTime: {
-    fontSize: 12,
-    color: "rgba(209,213,219,0.96)",
-    fontWeight: 700,
-  },
-  eventNotes: {
-    marginTop: 6,
-    fontSize: 12,
-    color: "rgba(209,213,219,0.96)",
   },
 
   loadingList: {
@@ -875,17 +719,5 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 13,
     color: "rgba(229,231,235,0.98)",
     cursor: "pointer",
-  },
-
-  primary: {
-    padding: "9px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(96,165,250,0.85)",
-    background:
-      "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95))",
-    color: "white",
-    cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 13,
   },
 };

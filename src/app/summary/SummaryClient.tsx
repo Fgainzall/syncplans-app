@@ -1,19 +1,12 @@
 // src/app/summary/SummaryClient.tsx
 "use client";
 
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
 import AppHero from "@/components/AppHero";
 import MobileScaffold from "@/components/MobileScaffold";
-import SummaryOnboardingBanner from "@/components/SummaryOnboardingBanner";
 
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
@@ -159,6 +152,35 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const showSeeMore = !booting && upcomingAll.length > UPCOMING_LIMIT;
 
+  const upcomingStats = useMemo(
+    () => {
+      const stats = {
+        total: upcomingAll.length,
+        personal: 0,
+        group: 0,
+        external: 0,
+      };
+
+      if (!upcomingAll.length) return stats;
+
+      for (const e of upcomingAll as any[]) {
+        const isExternal = Boolean((e as any)?.is_external);
+        const hasGroup = Boolean((e as any)?.group_id);
+
+        if (isExternal) {
+          stats.external++;
+        } else if (hasGroup) {
+          stats.group++;
+        } else {
+          stats.personal++;
+        }
+      }
+
+      return stats;
+    },
+    [upcomingAll]
+  );
+
   async function requireSessionOrRedirect() {
     const { data, error } = await supabase.auth.getSession();
     if (error) throw error;
@@ -197,7 +219,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [showToast, router]);
+  }, [router, showToast]);
 
   useEffect(() => {
     let alive = true;
@@ -226,9 +248,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       window.removeEventListener("sp:active-group-changed", handler as any);
   }, [loadSummary]);
 
-  const title = activeGroupId
-    ? `Resumen · ${activeLabel}`
-    : "Resumen · Personal";
+  const title = activeGroupId ? `Resumen · ${activeLabel}` : "Resumen · Personal";
 
   return (
     <main style={styles.page} className="spSum-page">
@@ -255,7 +275,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         <div style={styles.topRow} className="spSum-topRow">
           <AppHero
             title="Resumen"
-            subtitle="El centro de verdad de tu tiempo compartido."
+            subtitle="Lo importante, sin fricción."
           />
         </div>
 
@@ -269,12 +289,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
             {!isMobile ? (
               <div style={styles.sub}>
-                Vista rápida de lo importante. Si cambias el grupo activo en
-                Calendario o Panel, aquí se actualiza solo (sin recargar).
+                Vista rápida de lo importante. Si cambiaste el grupo activo en
+                Calendario, aquí se actualiza solo (sin recargar).
               </div>
             ) : (
               <div style={styles.subMobile}>
-                Lo importante, rápido. Mismo grupo que ves en Calendario.
+                Lo importante, rápido. Actualiza solo.
               </div>
             )}
           </div>
@@ -285,20 +305,17 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               style={styles.primaryBtn}
               className="spSum-btn"
             >
-              Ver calendario →
+              Calendario →
             </button>
             <button
               onClick={() => router.push("/conflicts/detected")}
               style={styles.ghostBtn}
               className="spSum-btn"
             >
-              Ver conflictos →
+              Conflictos →
             </button>
           </div>
         </section>
-
-        {/* Banner de activación para usuarios sin eventos */}
-        <SummaryOnboardingBanner hasEvents={upcomingAll.length > 0} />
 
         {/* Próximos eventos */}
         <section style={styles.card} className="spSum-card">
@@ -306,6 +323,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           <div style={styles.smallNote}>
             Mostrando: <b>{activeLabel}</b> ·{" "}
             {loading ? "Actualizando…" : `${upcoming.length} visibles`}
+          </div>
+          <div style={styles.smallNote}>
+            {upcomingStats.total} en total ·{" "}
+            {upcomingStats.personal} personales ·{" "}
+            {upcomingStats.group} en grupo ·{" "}
+            {upcomingStats.external} externos
           </div>
 
           {booting ? (
@@ -449,11 +472,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   );
 }
 
-const styles: Record<string, CSSProperties> = {
+const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
     background:
-      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.20), transparent 60%), radial-gradient(1000px 520px at 90% 0%, rgba(129,140,248,0.18), transparent 60%), #050816",
+      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
   },
 
@@ -494,8 +517,9 @@ const styles: Record<string, CSSProperties> = {
   },
 
   hero: {
-    borderRadius: 20,
-    border: "1px solid rgba(255,255,255,0.12)",
+    padding: "18px 16px",
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
     background:
       "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
     boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
@@ -505,7 +529,6 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: "space-between",
     gap: 14,
     flexWrap: "wrap",
-    padding: 14,
   },
   kicker: {
     alignSelf: "flex-start",
@@ -559,7 +582,7 @@ const styles: Record<string, CSSProperties> = {
   ghostBtn: {
     padding: "12px 14px",
     borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.16)",
+    border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.04)",
     color: "rgba(255,255,255,0.92)",
     cursor: "pointer",
@@ -590,7 +613,7 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 10,
     display: "flex",
     flexDirection: "column",
-    gap: 10,
+    gap: 8,
   },
   eventRow: {
     width: "100%",
