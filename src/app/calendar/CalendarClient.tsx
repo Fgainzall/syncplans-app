@@ -1496,8 +1496,7 @@ calendarCard: {
   borderRadius: 18,
   border: "1px solid rgba(255,255,255,0.08)",
   background: "rgba(255,255,255,0.03)",
-  // 👇 IMPORTANTE: no cortar el sticky header
-  overflow: "visible",
+  overflow: "hidden",
   boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
 },
 
@@ -1508,18 +1507,11 @@ calendarCard: {
     WebkitOverflowScrolling: "touch",
   },
 
-wweekHeader: {
+weekHeader: {
   display: "grid",
   gridTemplateColumns: "repeat(7, 1fr)",
   padding: "10px 10px 0",
   minWidth: 720,
-
-  position: "sticky",
-  top: 0,
-  zIndex: 5,
-  background:
-    "linear-gradient(180deg, rgba(5,8,22,0.96), rgba(5,8,22,0.90))",
-  backdropFilter: "blur(10px)",
 },
   weekDay: {
     padding: "10px 10px",
