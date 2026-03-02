@@ -1,33 +1,42 @@
 // src/components/AppHero.tsx
 "use client";
 
-import React, { type ReactNode } from "react";
+import React from "react";
 import PremiumHeader from "./PremiumHeader";
-
-type MobileNavVariant = "top" | "bottom" | "none";
-
-type AppHeroProps = {
-  title: string;
-  subtitle: string;
-  rightSlot?: ReactNode;
-  /**
-   * Variante de navegación móvil para PremiumHeader:
-   * - "top": chips arriba
-   * - "bottom": chips abajo (por defecto)
-   * - "none": sin nav interna
-   */
-  mobileNav?: MobileNavVariant;
-};
 
 /**
  * AppHero
  *
  * Capa fina encima de PremiumHeader para usarlo como
- * “hero estándar” en todas las pantallas.
+ * "panel azul" estándar en todas las pantallas.
  *
- * - Mantiene mismo layout base (campana, usuario, Conectar, CTA).
- * - Cada pantalla cambia solo título, subtítulo y rightSlot.
+ * Regla:
+ * - Mismo layout en todas las vistas (campana, usuario, Conectar, CTA).
+ * - Cambian solo título, subtítulo y CTA contextual.
  */
+export type AppHeroProps = {
+  /** Título principal del panel (por defecto, se infiere por ruta) */
+  title?: string;
+  /** Subtítulo bajo el título (por defecto: "Organiza tu día sin conflictos de horario.") */
+  subtitle?: string;
+  /**
+   * Slot opcional para reemplazar el botón principal.
+   * Ej: un botón "Salir" en Resumen.
+   *
+   * Si no pasas nada, el header muestra "+ Evento" como CTA principal.
+   */
+  rightSlot?: React.ReactNode;
+  /**
+   * Control de navegación superior en móvil:
+   * - "bottom" (default): solo tabs inferiores
+   * - "none": sin nav (por si quieres una pantalla ultra-limpia)
+   *
+   * (Regla: la navegación móvil principal es el BottomNav.
+   *  No usamos "top" aquí.)
+   */
+  mobileNav?: "bottom" | "none";
+};
+
 export default function AppHero({
   title,
   subtitle,

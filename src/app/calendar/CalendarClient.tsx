@@ -688,12 +688,6 @@ export default function CalendarClient(
     setSelectedDay(t);
   };
 
-  const handleMonthYearChange = (year: number, monthIndex: number) => {
-    const next = new Date(year, monthIndex, 1);
-    setAnchor(next);
-    setSelectedDay(next);
-  };
-
   const toggleGroup = (g: GroupType) =>
     setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
 
@@ -779,7 +773,7 @@ export default function CalendarClient(
         {/* ✅ Sticky top */}
         <div style={styles.stickyTop}>
           <AppHero
-            mobileNav={isMobile ? "bottom" : "top"}
+            mobileNav="bottom"
             title="Calendario"
             subtitle="Organiza tu tiempo sin fricción."
             rightSlot={
@@ -864,20 +858,19 @@ export default function CalendarClient(
         </section>
 
         {/* FILTROS */}
-        <CalendarFilters
-          tab={tab}
-          scope={scope}
-          onChangeTab={setTab}
-          onChangeScope={setScope}
-          enabledGroups={enabledGroups}
-          onToggleGroup={toggleGroup}
-          onPrevMonth={goPrevMonth}
-          onNextMonth={goNextMonth}
-          onToday={goToday}
-          currentMonthIndex={monthStart.getMonth()}
-          currentYear={monthStart.getFullYear()}
-          onChangeMonthYear={handleMonthYearChange}
-        />
+  <CalendarFilters
+  {...({
+    tab,
+    scope,
+    onChangeTab: setTab,
+    onChangeScope: setScope,
+    enabledGroups,
+    onToggleGroup: toggleGroup,
+    onPrevMonth: goPrevMonth,
+    onNextMonth: goNextMonth,
+    onToday: goToday,
+  } as any)}
+/>
 
         {tab === "month" ? (
           <section
@@ -1434,6 +1427,72 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
   },
 
+  filtersCard: {
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: 12,
+    marginBottom: 12,
+  },
+  filtersRow: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+  },
+
+  segment: {
+    display: "flex",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    overflow: "hidden",
+    background: "rgba(255,255,255,0.03)",
+  },
+  segmentBtn: {
+    padding: "10px 12px",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.86)",
+    background: "transparent",
+    border: "none",
+    cursor: "pointer",
+    fontWeight: 850,
+  },
+  segmentOn: { background: "rgba(255,255,255,0.08)" },
+
+  navRow: { display: "flex", gap: 8, alignItems: "center" },
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    fontSize: 18,
+  },
+
+  groupRow: {
+    display: "flex",
+    gap: 10,
+    paddingTop: 10,
+    flexWrap: "wrap",
+  },
+  groupChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "10px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.03)",
+    cursor: "pointer",
+    color: "rgba(255,255,255,0.90)",
+    fontSize: 13,
+    fontWeight: 850,
+  },
+  groupDot: { width: 10, height: 10, borderRadius: 999 },
+
   calendarCard: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
@@ -1473,14 +1532,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   cell: {
-    height: 104, // ✅ altura fija: todos los días iguales
+    height: 104,
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
     padding: 10,
     cursor: "pointer",
     textAlign: "left",
-    overflow: "hidden", // ✅ si se llena mucho, recorta dentro del recuadro
+    overflow: "hidden",
     transition:
       "transform 160ms ease, border-color 160ms ease",
   },
@@ -1542,7 +1601,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     flexDirection: "column",
     gap: 6,
-    // ✅ Para que los eventos no hagan crecer la celda
     flex: 1,
     overflow: "hidden",
   },
