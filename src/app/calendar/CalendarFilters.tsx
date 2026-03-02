@@ -21,7 +21,28 @@ type CalendarFiltersProps = {
   onPrevMonth: () => void;
   onNextMonth: () => void;
   onToday: () => void;
+  /** índice de mes actual (0-11) basado en anchor */
+  currentMonthIndex: number;
+  /** año actual basado en anchor */
+  currentYear: number;
+  /** salta directo a un mes/año concreto */
+  onChangeMonthYear: (year: number, monthIndex: number) => void;
 };
+
+const MONTH_LABELS = [
+  "Ene",
+  "Feb",
+  "Mar",
+  "Abr",
+  "May",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dic",
+];
 
 export function CalendarFilters({
   tab,
@@ -33,7 +54,18 @@ export function CalendarFilters({
   onPrevMonth,
   onNextMonth,
   onToday,
+  currentMonthIndex,
+  currentYear,
+  onChangeMonthYear,
 }: CalendarFiltersProps) {
+  // Ventana de años alrededor del año actual (por ejemplo, -3 a +3)
+  const years: number[] = [];
+  const startYear = currentYear - 3;
+  const endYear = currentYear + 3;
+  for (let y = startYear; y <= endYear; y++) {
+    years.push(y);
+  }
+
   return (
     <section style={styles.filtersCard}>
       <div style={styles.filtersRow}>
@@ -91,28 +123,73 @@ export function CalendarFilters({
           </button>
         </div>
 
-        {/* Navegación de mes */}
-        <div style={styles.navRow}>
-          <button
-            onClick={onPrevMonth}
-            style={styles.iconBtn}
-            aria-label="Mes anterior"
-          >
-            ‹
-          </button>
-          <button
-            onClick={onToday}
-            style={styles.ghostBtnSmall}
-          >
-            Hoy
-          </button>
-          <button
-            onClick={onNextMonth}
-            style={styles.iconBtn}
-            aria-label="Mes siguiente"
-          >
-            ›
-          </button>
+        {/* Navegación + selector rápido de mes/año */}
+        <div style={styles.navCol}>
+          <div style={styles.navRow}>
+            <button
+              onClick={onPrevMonth}
+              style={styles.iconBtn}
+              aria-label="Mes anterior"
+            >
+              ‹
+            </button>
+            <button
+              onClick={onToday}
+              style={styles.ghostBtnSmall}
+            >
+              Hoy
+            </button>
+            <button
+              onClick={onNextMonth}
+              style={styles.iconBtn}
+              aria-label="Mes siguiente"
+            >
+              ›
+            </button>
+          </div>
+
+          {/* 🔽 Filtro directo de Mes / Año */}
+          <div style={styles.monthYearRow}>
+            <div style={styles.selectPill}>
+              <span style={styles.selectLabel}>Mes</span>
+              <select
+                value={currentMonthIndex}
+                onChange={(e) =>
+                  onChangeMonthYear(
+                    currentYear,
+                    Number(e.target.value),
+                  )
+                }
+                style={styles.selectNative}
+              >
+                {MONTH_LABELS.map((label, idx) => (
+                  <option key={idx} value={idx}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={styles.selectPill}>
+              <span style={styles.selectLabel}>Año</span>
+              <select
+                value={currentYear}
+                onChange={(e) =>
+                  onChangeMonthYear(
+                    Number(e.target.value),
+                    currentMonthIndex,
+                  )
+                }
+                style={styles.selectNative}
+              >
+                {years.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -182,6 +259,13 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 850,
   },
   segmentOn: { background: "rgba(255,255,255,0.08)" },
+
+  navCol: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    alignItems: "flex-end",
+  },
   navRow: { display: "flex", gap: 8, alignItems: "center" },
   iconBtn: {
     width: 38,
@@ -203,6 +287,40 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 850,
     fontSize: 12,
   },
+
+  monthYearRow: {
+    display: "flex",
+    gap: 8,
+    marginTop: 4,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  selectPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.26)",
+    background: "rgba(15,23,42,0.75)",
+  },
+  selectLabel: {
+    fontSize: 11,
+    fontWeight: 800,
+    color: "rgba(148,163,184,0.95)",
+  },
+  selectNative: {
+    background: "transparent",
+    border: "none",
+    color: "rgba(226,232,240,0.96)",
+    fontSize: 13,
+    fontWeight: 850,
+    outline: "none",
+    paddingRight: 4,
+    cursor: "pointer",
+    appearance: "none",
+  },
+
   groupRow: {
     display: "flex",
     gap: 10,

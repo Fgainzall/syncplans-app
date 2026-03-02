@@ -688,6 +688,12 @@ export default function CalendarClient(
     setSelectedDay(t);
   };
 
+  const handleMonthYearChange = (year: number, monthIndex: number) => {
+    const next = new Date(year, monthIndex, 1);
+    setAnchor(next);
+    setSelectedDay(next);
+  };
+
   const toggleGroup = (g: GroupType) =>
     setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
 
@@ -868,6 +874,9 @@ export default function CalendarClient(
           onPrevMonth={goPrevMonth}
           onNextMonth={goNextMonth}
           onToday={goToday}
+          currentMonthIndex={monthStart.getMonth()}
+          currentYear={monthStart.getFullYear()}
+          onChangeMonthYear={handleMonthYearChange}
         />
 
         {tab === "month" ? (
@@ -1425,79 +1434,13 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
   },
 
-  filtersCard: {
+  calendarCard: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
-    padding: 12,
-    marginBottom: 12,
-  },
-  filtersRow: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-  },
-
-  segment: {
-    display: "flex",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.10)",
     overflow: "hidden",
-    background: "rgba(255,255,255,0.03)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
   },
-  segmentBtn: {
-    padding: "10px 12px",
-    fontSize: 13,
-    color: "rgba(255,255,255,0.86)",
-    background: "transparent",
-    border: "none",
-    cursor: "pointer",
-    fontWeight: 850,
-  },
-  segmentOn: { background: "rgba(255,255,255,0.08)" },
-
-  navRow: { display: "flex", gap: 8, alignItems: "center" },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontSize: 18,
-  },
-
-  groupRow: {
-    display: "flex",
-    gap: 10,
-    paddingTop: 10,
-    flexWrap: "wrap",
-  },
-  groupChip: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "10px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.03)",
-    cursor: "pointer",
-    color: "rgba(255,255,255,0.90)",
-    fontSize: 13,
-    fontWeight: 850,
-  },
-  groupDot: { width: 10, height: 10, borderRadius: 999 },
-
-calendarCard: {
-  borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
-  overflow: "hidden",
-  boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
-},
 
   // ✅ contenedor scroll horizontal del mes
   monthScroller: {
@@ -1506,12 +1449,12 @@ calendarCard: {
     WebkitOverflowScrolling: "touch",
   },
 
-weekHeader: {
-  display: "grid",
-  gridTemplateColumns: "repeat(7, 1fr)",
-  padding: "10px 10px 0",
-  minWidth: 720,
-},
+  weekHeader: {
+    display: "grid",
+    gridTemplateColumns: "repeat(7, 1fr)",
+    padding: "10px 10px 0",
+    minWidth: 720,
+  },
   weekDay: {
     padding: "10px 10px",
     fontSize: 12,
