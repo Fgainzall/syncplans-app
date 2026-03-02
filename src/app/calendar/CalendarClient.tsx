@@ -119,12 +119,12 @@ function prettyTimeRange(startIso: string, endIso: string) {
   const e = new Date(endIso);
   const hhmm = (x: Date) =>
     `${String(x.getHours()).padStart(2, "0")}:${String(
-      x.getMinutes(),
+      x.getMinutes()
     ).padStart(2, "0")}`;
   const cross = !sameDay(s, e);
   if (cross)
     return `${s.toLocaleDateString()} ${hhmm(
-      s,
+      s
     )} → ${e.toLocaleDateString()} ${hhmm(e)}`;
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
@@ -187,7 +187,7 @@ export default function CalendarClient(
   {
     highlightId = null,
     appliedToast = null,
-  }: CalendarClientProps = {},
+  }: CalendarClientProps = {}
 ) {
   const router = useRouter();
   const pathname = usePathname();
@@ -262,7 +262,7 @@ export default function CalendarClient(
         showToast?: boolean;
         toastTitle?: string;
         toastSubtitle?: string;
-      } = {},
+      } = {}
     ) => {
       const showToastFlag = opts?.showToast ?? false;
 
@@ -310,7 +310,7 @@ export default function CalendarClient(
             const normalized: "family" | "pair" =
               rawType === "family" ? "family" : "pair";
             return [id, normalized];
-          }),
+          })
         );
 
         const enriched: CalendarEvent[] = (rawEvents || [])
@@ -367,7 +367,7 @@ export default function CalendarClient(
         }
       }
     },
-    [router],
+    [router]
   );
 
   const handleDeleteEvent = useCallback(
@@ -375,7 +375,7 @@ export default function CalendarClient(
       const ok = confirm(
         `¿Eliminar el evento${
           title ? ` "${title}"` : ""
-        }?\nEsta acción no se puede deshacer.`,
+        }?\nEsta acción no se puede deshacer.`
       );
       if (!ok) return;
 
@@ -397,7 +397,7 @@ export default function CalendarClient(
         window.setTimeout(() => setToast(null), 2600);
       }
     },
-    [refreshCalendar],
+    [refreshCalendar]
   );
 
   /* ✅ toast post-apply desde props (sin useSearchParams) */
@@ -411,19 +411,19 @@ export default function CalendarClient(
       parts.push(
         `${appliedCount} decisión${
           appliedCount === 1 ? "" : "es"
-        } aplicada${appliedCount === 1 ? "" : "s"}`,
+        } aplicada${appliedCount === 1 ? "" : "s"}`
       );
     if (deleted > 0)
       parts.push(
         `${deleted} evento${
           deleted === 1 ? "" : "s"
-        } eliminado${deleted === 1 ? "" : "s"}`,
+        } eliminado${deleted === 1 ? "" : "s"}`
       );
     if (skipped > 0)
       parts.push(
         `${skipped} conflicto${
           skipped === 1 ? "" : "s"
-        } saltado${skipped === 1 ? "" : "s"}`,
+        } saltado${skipped === 1 ? "" : "s"}`
       );
 
     const subtitle =
@@ -456,7 +456,7 @@ export default function CalendarClient(
     return () =>
       window.removeEventListener(
         "sp:active-group-changed",
-        handler as any,
+        handler as any
       );
   }, []);
 
@@ -598,7 +598,7 @@ export default function CalendarClient(
     for (const [k, arr] of map.entries()) {
       arr.sort(
         (a, b) =>
-          new Date(a.start).getTime() - new Date(b.start).getTime(),
+          new Date(a.start).getTime() - new Date(b.start).getTime()
       );
       map.set(k, arr);
     }
@@ -609,7 +609,7 @@ export default function CalendarClient(
     const list = [...visibleEvents];
     list.sort(
       (a, b) =>
-        new Date(a.start).getTime() - new Date(b.start).getTime(),
+        new Date(a.start).getTime() - new Date(b.start).getTime()
     );
     return list;
   }, [visibleEvents]);
@@ -618,7 +618,7 @@ export default function CalendarClient(
     if (!highlightId) return null;
     return (
       filteredEvents.find(
-        (e) => String(e.id) === String(highlightId),
+        (e) => String(e.id) === String(highlightId)
       ) ?? null
     );
   }, [highlightId, filteredEvents]);
@@ -630,7 +630,7 @@ export default function CalendarClient(
 
     setAnchor(new Date(d.getFullYear(), d.getMonth(), 1));
     setSelectedDay(
-      new Date(d.getFullYear(), d.getMonth(), d.getDate()),
+      new Date(d.getFullYear(), d.getMonth(), d.getDate())
     );
     setTab("agenda");
 
@@ -676,25 +676,16 @@ export default function CalendarClient(
      ========================= */
   const goPrevMonth = () =>
     setAnchor(
-      (d) => new Date(d.getFullYear(), d.getMonth() - 1, 1),
+      (d) => new Date(d.getFullYear(), d.getMonth() - 1, 1)
     );
   const goNextMonth = () =>
     setAnchor(
-      (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1),
+      (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1)
     );
   const goToday = () => {
     const t = new Date();
     setAnchor(t);
     setSelectedDay(t);
-  };
-
-  // 🔢 Datos de mes/año actuales + handler central de cambio
-  const currentMonthIndex = anchor.getMonth();
-  const currentYear = anchor.getFullYear();
-  const handleChangeMonthYear = (year: number, monthIndex: number) => {
-    const next = new Date(year, monthIndex, 1);
-    setAnchor(next);
-    setSelectedDay(next);
   };
 
   const toggleGroup = (g: GroupType) =>
@@ -712,8 +703,8 @@ export default function CalendarClient(
     const d = date ?? selectedDay ?? new Date();
     router.push(
       `/events/new/details?type=personal&date=${encodeURIComponent(
-        d.toISOString(),
-      )}`,
+        d.toISOString()
+      )}`
     );
   };
 
@@ -721,16 +712,22 @@ export default function CalendarClient(
     const d = date ?? selectedDay ?? new Date();
     router.push(
       `/events/new/details?type=group&date=${encodeURIComponent(
-        d.toISOString(),
-      )}`,
+        d.toISOString()
+      )}`
     );
   };
 
   const openConflicts = () => router.push("/conflicts/detected");
   const resolveNow = () =>
     router.push(
-      `/conflicts/compare?i=${firstRelevantConflictIndex}`,
+      `/conflicts/compare?i=${firstRelevantConflictIndex}`
     );
+
+  /* =========================
+     Datos para filtros Mes/Año
+     ========================= */
+  const currentMonthIndex = anchor.getMonth();
+  const currentYear = anchor.getFullYear();
 
   /* =========================
      RENDER
@@ -866,7 +863,7 @@ export default function CalendarClient(
           </div>
         </section>
 
-        {/* FILTROS SUPER PREMIUM */}
+        {/* FILTROS */}
         <CalendarFilters
           tab={tab}
           scope={scope}
@@ -879,7 +876,9 @@ export default function CalendarClient(
           onToday={goToday}
           currentMonthIndex={currentMonthIndex}
           currentYear={currentYear}
-          onChangeMonthYear={handleChangeMonthYear}
+          onChangeMonthYear={(year, monthIndex) => {
+            setAnchor(new Date(year, monthIndex, 1));
+          }}
         />
 
         {tab === "month" ? (
@@ -900,7 +899,7 @@ export default function CalendarClient(
                     <div key={d} style={styles.weekDay}>
                       {d}
                     </div>
-                  ),
+                  )
                 )}
               </div>
 
@@ -972,7 +971,7 @@ export default function CalendarClient(
                         onEdit={handleEditEvent}
                         groupTypeById={groupTypeById}
                       />
-                    ),
+                    )
                   )
                 )}
               </div>
@@ -1184,7 +1183,7 @@ function renderMonthCells(opts: {
   const totalDays =
     Math.round(
       (gridEnd.getTime() - gridStart.getTime()) /
-        (1000 * 60 * 60 * 24),
+        (1000 * 60 * 60 * 24)
     ) + 1;
 
   for (let i = 0; i < totalDays; i++) {
@@ -1196,7 +1195,7 @@ function renderMonthCells(opts: {
     const dayEvents = eventsByDay.get(ymd(day)) || [];
     const top3 = dayEvents.slice(0, 3);
 
-    const isWeekend = day.getDay() === 0 || day.getDay() === 6; // Dom/Sáb
+    const isWeekend = day.getDay() === 0 || day.getDay() === 6; // Sun/Sat
 
     cells.push(
       <div
@@ -1286,7 +1285,7 @@ function renderMonthCells(opts: {
           {top3.map((e) => {
             const resolvedType: GroupType = e.groupId
               ? ((opts.groupTypeById.get(
-                  String(e.groupId),
+                  String(e.groupId)
                 ) ?? "pair") as any)
               : ("personal" as any);
 
@@ -1328,7 +1327,7 @@ function renderMonthCells(opts: {
             </div>
           ) : null}
         </div>
-      </div>,
+      </div>
     );
   }
 
@@ -1440,8 +1439,7 @@ const styles: Record<string, React.CSSProperties> = {
   filtersCard: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
-    background:
-      "linear-gradient(135deg, rgba(15,23,42,0.96), rgba(15,23,42,0.78))",
+    background: "rgba(255,255,255,0.03)",
     padding: 12,
     marginBottom: 12,
   },
@@ -1452,6 +1450,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     flexWrap: "wrap",
   },
+
   segment: {
     display: "flex",
     borderRadius: 14,

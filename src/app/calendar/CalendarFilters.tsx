@@ -58,13 +58,26 @@ export function CalendarFilters({
   currentYear,
   onChangeMonthYear,
 }: CalendarFiltersProps) {
-  // Ventana de años alrededor del año actual (por ejemplo, -3 a +3)
-  const years: number[] = [];
-  const startYear = currentYear - 3;
-  const endYear = currentYear + 3;
-  for (let y = startYear; y <= endYear; y++) {
-    years.push(y);
-  }
+  // Helpers para mover mes / año sin dropdown feo
+  const handleMonthStep = (delta: number) => {
+    let newMonth = currentMonthIndex + delta;
+    let newYear = currentYear;
+
+    if (newMonth < 0) {
+      newMonth = 11;
+      newYear -= 1;
+    } else if (newMonth > 11) {
+      newMonth = 0;
+      newYear += 1;
+    }
+
+    onChangeMonthYear(newYear, newMonth);
+  };
+
+  const handleYearStep = (delta: number) => {
+    const newYear = currentYear + delta;
+    onChangeMonthYear(newYear, currentMonthIndex);
+  };
 
   return (
     <section style={styles.filtersCard}>
@@ -123,7 +136,7 @@ export function CalendarFilters({
           </button>
         </div>
 
-        {/* Navegación + selector rápido de mes/año */}
+        {/* Navegación + controles Mes / Año premium */}
         <div style={styles.navCol}>
           <div style={styles.navRow}>
             <button
@@ -148,46 +161,50 @@ export function CalendarFilters({
             </button>
           </div>
 
-          {/* 🔽 Filtro directo de Mes / Año */}
+          {/* 🔽 Controles Mes / Año tipo pill, sin dropdown nativo */}
           <div style={styles.monthYearRow}>
             <div style={styles.selectPill}>
               <span style={styles.selectLabel}>Mes</span>
-              <select
-                value={currentMonthIndex}
-                onChange={(e) =>
-                  onChangeMonthYear(
-                    currentYear,
-                    Number(e.target.value),
-                  )
-                }
-                style={styles.selectNative}
+              <button
+                type="button"
+                onClick={() => handleMonthStep(-1)}
+                style={styles.selectArrow}
+                aria-label="Mes anterior"
               >
-                {MONTH_LABELS.map((label, idx) => (
-                  <option key={idx} value={idx}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+                ‹
+              </button>
+              <span style={styles.selectValue}>
+                {MONTH_LABELS[currentMonthIndex] ?? "Mes"}
+              </span>
+              <button
+                type="button"
+                onClick={() => handleMonthStep(1)}
+                style={styles.selectArrow}
+                aria-label="Mes siguiente"
+              >
+                ›
+              </button>
             </div>
 
             <div style={styles.selectPill}>
               <span style={styles.selectLabel}>Año</span>
-              <select
-                value={currentYear}
-                onChange={(e) =>
-                  onChangeMonthYear(
-                    Number(e.target.value),
-                    currentMonthIndex,
-                  )
-                }
-                style={styles.selectNative}
+              <button
+                type="button"
+                onClick={() => handleYearStep(-1)}
+                style={styles.selectArrow}
+                aria-label="Año anterior"
               >
-                {years.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
+                ‹
+              </button>
+              <span style={styles.selectValue}>{currentYear}</span>
+              <button
+                type="button"
+                onClick={() => handleYearStep(1)}
+                style={styles.selectArrow}
+                aria-label="Año siguiente"
+              >
+                ›
+              </button>
             </div>
           </div>
         </div>
@@ -198,9 +215,7 @@ export function CalendarFilters({
         {(
           ["personal", "pair", "family"] as any as GroupType[]
         ).map((g) => {
-          const meta = groupMeta(
-            (g === "pair" ? ("couple" as any) : g) as GroupType,
-          );
+          const meta = groupMeta(g);
           const on = (enabledGroups as any)[g];
           return (
             <button
@@ -233,11 +248,9 @@ const styles: Record<string, React.CSSProperties> = {
   filtersCard: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
-    background:
-      "radial-gradient(600px 260px at 0% 0%, rgba(56,189,248,0.12), transparent 60%), radial-gradient(600px 260px at 100% 0%, rgba(129,140,248,0.16), transparent 60%), rgba(15,23,42,0.92)",
+    background: "rgba(255,255,255,0.03)",
     padding: 12,
     marginBottom: 12,
-    boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
   },
   filtersRow: {
     display: "flex",
@@ -251,21 +264,18 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.10)",
     overflow: "hidden",
-    background: "rgba(15,23,42,0.85)",
+    background: "rgba(255,255,255,0.03)",
   },
   segmentBtn: {
     padding: "10px 12px",
     fontSize: 13,
-    color: "rgba(226,232,240,0.96)",
+    color: "rgba(255,255,255,0.86)",
     background: "transparent",
     border: "none",
     cursor: "pointer",
     fontWeight: 850,
   },
-  segmentOn: {
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.35), rgba(129,140,248,0.30))",
-  },
+  segmentOn: { background: "rgba(255,255,255,0.08)" },
 
   navCol: {
     display: "flex",
@@ -279,7 +289,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: 38,
     borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(15,23,42,0.9)",
+    background: "rgba(255,255,255,0.04)",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontSize: 18,
@@ -287,8 +297,8 @@ const styles: Record<string, React.CSSProperties> = {
   ghostBtnSmall: {
     padding: "8px 10px",
     borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.16)",
-    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
     color: "rgba(255,255,255,0.92)",
     cursor: "pointer",
     fontWeight: 850,
@@ -309,23 +319,34 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "6px 10px",
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.26)",
-    background: "rgba(15,23,42,0.95)",
+    background:
+      "radial-gradient(220px 220px at 0% 0%, rgba(56,189,248,0.18), transparent 60%), rgba(15,23,42,0.85)",
   },
   selectLabel: {
     fontSize: 11,
     fontWeight: 800,
     color: "rgba(148,163,184,0.95)",
   },
-  selectNative: {
-    background: "transparent",
-    border: "none",
+  selectArrow: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.45)",
+    background: "rgba(15,23,42,0.95)",
     color: "rgba(226,232,240,0.96)",
-    fontSize: 13,
-    fontWeight: 850,
-    outline: "none",
-    paddingRight: 4,
     cursor: "pointer",
-    appearance: "none",
+    fontSize: 12,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 0,
+  },
+  selectValue: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "rgba(226,232,240,0.98)",
+    minWidth: 32,
+    textAlign: "center",
   },
 
   groupRow: {
@@ -341,7 +362,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "10px 12px",
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(15,23,42,0.95)",
+    background: "rgba(255,255,255,0.03)",
     cursor: "pointer",
     color: "rgba(255,255,255,0.90)",
     fontSize: 13,
