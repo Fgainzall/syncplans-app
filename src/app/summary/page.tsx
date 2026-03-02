@@ -1,6 +1,5 @@
-"use client";
-
 // src/app/summary/page.tsx
+"use client";
 
 import React, { Suspense } from "react";
 import SummaryClient from "./SummaryClient";

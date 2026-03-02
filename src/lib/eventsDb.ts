@@ -4,7 +4,7 @@
 import supabase from "@/lib/supabaseClient";
 
 /* ======================================================
-   Tipos base (DB)
+  Tipos base (DB)
 ====================================================== */
 
 export type DbEventRow = {
@@ -50,7 +50,7 @@ export type UpdateEventPayload = {
 };
 
 /* ======================================================
-   Helper interno: uid actual
+  Helper interno: uid actual
 ====================================================== */
 
 async function requireUid(): Promise<string> {
@@ -65,7 +65,7 @@ async function requireUid(): Promise<string> {
 }
 
 /* ======================================================
-   Lectura principal: getMyEvents
+  Lectura principal: getMyEvents
 ====================================================== */
 
 /**
@@ -104,7 +104,7 @@ export async function getMyEvents(_opts?: unknown): Promise<DbEventRow[]> {
 }
 
 /* ======================================================
-   Escritura: crear evento
+  Escritura: crear evento
 ====================================================== */
 
 export async function createEventForGroup(
@@ -159,7 +159,7 @@ export async function createPersonalEvent(
 }
 
 /* ======================================================
-   Borrado: uno o varios eventos
+  Borrado: uno o varios eventos
 ====================================================== */
 
 export async function deleteEventsByIds(ids: string[]): Promise<number> {
@@ -188,7 +188,7 @@ export async function deleteEventsByIds(ids: string[]): Promise<number> {
 }
 
 /* ======================================================
-   Lecturas auxiliares
+  Lecturas auxiliares
 ====================================================== */
 
 export async function getEventById(eventId: string): Promise<DbEvent> {
@@ -253,7 +253,9 @@ export async function updateEventTime(
  * - Fechas
  * - group_id
  */
-export async function updateEvent(payload: UpdateEventPayload): Promise<void> {
+export async function updateEvent(
+  payload: UpdateEventPayload
+): Promise<void> {
   await requireUid();
 
   const { id, title, notes, start, end, groupId } = payload;
@@ -281,7 +283,7 @@ export async function updateEvent(payload: UpdateEventPayload): Promise<void> {
 }
 
 /* ======================================================
-   Aliases de compatibilidad (para no romper imports antiguos)
+  Aliases de compatibilidad (para no romper imports antiguos)
 ====================================================== */
 
 /**

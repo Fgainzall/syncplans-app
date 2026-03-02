@@ -49,7 +49,7 @@ function humanGroupName(g: GroupRow) {
   return "Grupo";
 }
 
-/** ✅ SOLO Summary: detecta móvil por ancho (modo app iPhone entra aquí) */
+/** ✅ Solo Summary: detecta móvil por ancho (modo app iPhone entra aquí) */
 function useIsMobileWidth(maxWidth = 520) {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -75,6 +75,32 @@ function useIsMobileWidth(maxWidth = 520) {
   }, [maxWidth]);
 
   return isMobile;
+}
+
+/** 🕒 inicio de hoy en hora local (sin UTC raro) */
+function startOfTodayLocal() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function addDays(date: Date, days: number) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+/** 📊 Estado emocional de la semana (solo 7 días) */
+function getWeekMoodLabel(count: number): string {
+  if (count === 0) return "Semana libre";
+  if (count <= 3) return "Semana ligera";
+  if (count <= 6) return "Semana activa";
+  return "Semana movida";
+}
+
+function getWeekSubtitle(count: number): string {
+  if (count === 0) return "No hay eventos en los próximos 7 días.";
+  if (count === 1) return "1 evento en los próximos 7 días.";
+  return `${count} eventos en los próximos 7 días.`;
 }
 
 export default function SummaryClient({ highlightId, appliedToast }: Props) {
@@ -137,9 +163,22 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       );
   }, [events, activeGroupId]);
 
+  /**
+   * 🔵 Clave: próximos 7 días
+   * Ventana: [hoy 00:00 local, hoy + 7 días) → NO entra el día 8
+   */
   const upcomingAll = useMemo(() => {
-    const now = Date.now();
-    return visibleEvents.filter((e) => (e._start as Date).getTime() >= now);
+    const today = startOfTodayLocal();
+    const windowEnd = addDays(today, 7);
+
+    const startMs = today.getTime();
+    const endMs = windowEnd.getTime();
+
+    return visibleEvents.filter((e) => {
+      const start = e._start as Date;
+      const t = start.getTime();
+      return t >= startMs && t < endMs;
+    });
   }, [visibleEvents]);
 
   const upcomingStats = useMemo(() => {
@@ -168,7 +207,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [upcomingAll]);
 
-  // ✅ CLAVE: en móvil mostramos menos para evitar scroll infinito
+  // ✅ En móvil mostramos menos para evitar scroll infinito
   const UPCOMING_LIMIT = isMobile ? 3 : 8;
 
   const upcoming = useMemo(
@@ -182,6 +221,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const showSeeMore = !booting && upcomingAll.length > UPCOMING_LIMIT;
 
+  /**
+   * 🧠 Estado emocional de la semana
+   * Basado SOLO en eventos de los próximos 7 días.
+   */
   const mood = useMemo(() => {
     if (booting) {
       return {
@@ -191,25 +234,27 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       };
     }
 
-    if (upcomingStats.total === 0) {
+    const count = upcomingStats.total;
+
+    if (count === 0) {
       return {
-        title: "Agenda despejada",
-        subtitle: "No hay eventos próximos para este contexto.",
+        title: getWeekMoodLabel(count),
+        subtitle: getWeekSubtitle(count),
         tone: "clear" as const,
       };
     }
 
-    if (upcomingStats.total <= 3) {
+    if (count <= 3) {
       return {
-        title: "Todo bajo control",
-        subtitle: "Pocos eventos próximos. Tienes margen para decidir.",
+        title: getWeekMoodLabel(count),
+        subtitle: getWeekSubtitle(count),
         tone: "calm" as const,
       };
     }
 
     return {
-      title: "Semana movida",
-      subtitle: "Varios eventos por delante. SyncPlans mantiene el orden.",
+      title: getWeekMoodLabel(count),
+      subtitle: getWeekSubtitle(count),
       tone: "busy" as const,
     };
   }, [booting, upcomingStats]);
@@ -408,10 +453,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             </div>
 
             <div style={styles.stateKpi}>
-              <div style={styles.stateKpiLabel}>Próximos</div>
+              <div style={styles.stateKpiLabel}>Próximos 7 días</div>
               <div style={styles.stateKpiNumber}>{upcomingStats.total}</div>
               <div style={styles.stateKpiHint}>
-                Hoy y los siguientes días en este contexto.
+                Solo cuenta esta semana, no el mes entero.
               </div>
             </div>
           </div>
@@ -429,8 +474,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             <div style={styles.emptyBlock}>
               <div style={styles.emptyTitle}>No hay nada por delante</div>
               <div style={styles.emptySub}>
-                En este contexto no tienes eventos próximos. Crea uno nuevo
-                desde Calendario o desde Eventos.
+                En este contexto no tienes eventos en los próximos 7 días. Crea
+                uno nuevo desde Calendario o desde Eventos.
               </div>
               <button
                 onClick={() =>
@@ -463,7 +508,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                       <>
                         <div style={styles.eventLeft}>
                           <div style={styles.eventWhen}>{when}</div>
-                          <div style={styles.eventTitle}>{nextEvent._title}</div>
+                          <div style={styles.eventTitle}>
+                            {nextEvent._title}
+                          </div>
                         </div>
                         <div style={styles.eventMeta}>
                           {(nextEvent as any)?.is_external ? (
@@ -499,7 +546,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                     return (
                       <button
                         key={
-                          (e as any)?.id ?? `${e._title}-${start.toISOString()}`
+                          (e as any)?.id ??
+                          `${e._title}-${start.toISOString()}`
                         }
                         onClick={() => router.push("/calendar")}
                         style={{
@@ -529,7 +577,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 </div>
               )}
 
-              {/* Ver más */}
+              {/* Ver más (de esta misma semana) */}
               {showSeeMore && (
                 <button
                   onClick={() => router.push("/calendar")}
