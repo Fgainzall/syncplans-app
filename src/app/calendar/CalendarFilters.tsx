@@ -198,7 +198,9 @@ export function CalendarFilters({
         {(
           ["personal", "pair", "family"] as any as GroupType[]
         ).map((g) => {
-          const meta = groupMeta(g);
+          const meta = groupMeta(
+            (g === "pair" ? ("couple" as any) : g) as GroupType,
+          );
           const on = (enabledGroups as any)[g];
           return (
             <button
@@ -231,9 +233,11 @@ const styles: Record<string, React.CSSProperties> = {
   filtersCard: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
+    background:
+      "radial-gradient(600px 260px at 0% 0%, rgba(56,189,248,0.12), transparent 60%), radial-gradient(600px 260px at 100% 0%, rgba(129,140,248,0.16), transparent 60%), rgba(15,23,42,0.92)",
     padding: 12,
     marginBottom: 12,
+    boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
   },
   filtersRow: {
     display: "flex",
@@ -247,18 +251,21 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.10)",
     overflow: "hidden",
-    background: "rgba(255,255,255,0.03)",
+    background: "rgba(15,23,42,0.85)",
   },
   segmentBtn: {
     padding: "10px 12px",
     fontSize: 13,
-    color: "rgba(255,255,255,0.86)",
+    color: "rgba(226,232,240,0.96)",
     background: "transparent",
     border: "none",
     cursor: "pointer",
     fontWeight: 850,
   },
-  segmentOn: { background: "rgba(255,255,255,0.08)" },
+  segmentOn: {
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.35), rgba(129,140,248,0.30))",
+  },
 
   navCol: {
     display: "flex",
@@ -272,7 +279,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: 38,
     borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
+    background: "rgba(15,23,42,0.9)",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontSize: 18,
@@ -280,8 +287,8 @@ const styles: Record<string, React.CSSProperties> = {
   ghostBtnSmall: {
     padding: "8px 10px",
     borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.16)",
+    background: "rgba(255,255,255,0.06)",
     color: "rgba(255,255,255,0.92)",
     cursor: "pointer",
     fontWeight: 850,
@@ -302,7 +309,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "6px 10px",
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.26)",
-    background: "rgba(15,23,42,0.75)",
+    background: "rgba(15,23,42,0.95)",
   },
   selectLabel: {
     fontSize: 11,
@@ -334,7 +341,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "10px 12px",
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.03)",
+    background: "rgba(15,23,42,0.95)",
     cursor: "pointer",
     color: "rgba(255,255,255,0.90)",
     fontSize: 13,

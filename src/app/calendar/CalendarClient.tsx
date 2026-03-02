@@ -688,6 +688,15 @@ export default function CalendarClient(
     setSelectedDay(t);
   };
 
+  // 🔢 Datos de mes/año actuales + handler central de cambio
+  const currentMonthIndex = anchor.getMonth();
+  const currentYear = anchor.getFullYear();
+  const handleChangeMonthYear = (year: number, monthIndex: number) => {
+    const next = new Date(year, monthIndex, 1);
+    setAnchor(next);
+    setSelectedDay(next);
+  };
+
   const toggleGroup = (g: GroupType) =>
     setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
 
@@ -857,20 +866,21 @@ export default function CalendarClient(
           </div>
         </section>
 
-        {/* FILTROS */}
-  <CalendarFilters
-  {...({
-    tab,
-    scope,
-    onChangeTab: setTab,
-    onChangeScope: setScope,
-    enabledGroups,
-    onToggleGroup: toggleGroup,
-    onPrevMonth: goPrevMonth,
-    onNextMonth: goNextMonth,
-    onToday: goToday,
-  } as any)}
-/>
+        {/* FILTROS SUPER PREMIUM */}
+        <CalendarFilters
+          tab={tab}
+          scope={scope}
+          onChangeTab={setTab}
+          onChangeScope={setScope}
+          enabledGroups={enabledGroups}
+          onToggleGroup={toggleGroup}
+          onPrevMonth={goPrevMonth}
+          onNextMonth={goNextMonth}
+          onToday={goToday}
+          currentMonthIndex={currentMonthIndex}
+          currentYear={currentYear}
+          onChangeMonthYear={handleChangeMonthYear}
+        />
 
         {tab === "month" ? (
           <section
@@ -1186,7 +1196,7 @@ function renderMonthCells(opts: {
     const dayEvents = eventsByDay.get(ymd(day)) || [];
     const top3 = dayEvents.slice(0, 3);
 
-    const isWeekend = day.getDay() === 0 || day.getDay() === 6; // Sun/Sat
+    const isWeekend = day.getDay() === 0 || day.getDay() === 6; // Dom/Sáb
 
     cells.push(
       <div
@@ -1430,7 +1440,8 @@ const styles: Record<string, React.CSSProperties> = {
   filtersCard: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
+    background:
+      "linear-gradient(135deg, rgba(15,23,42,0.96), rgba(15,23,42,0.78))",
     padding: 12,
     marginBottom: 12,
   },
@@ -1441,7 +1452,6 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     flexWrap: "wrap",
   },
-
   segment: {
     display: "flex",
     borderRadius: 14,
