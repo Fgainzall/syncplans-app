@@ -1180,14 +1180,10 @@ function renderMonthCells(opts: {
   } = opts;
 
   const cells: React.ReactNode[] = [];
-  const totalDays =
-    Math.round(
-      (gridEnd.getTime() - gridStart.getTime()) /
-        (1000 * 60 * 60 * 24)
-    ) + 1;
+  let day = new Date(gridStart);
 
-  for (let i = 0; i < totalDays; i++) {
-    const day = addDays(gridStart, i);
+  // ✅ Recorremos día a día hasta gridEnd, sin depender de milisegundos/round
+  while (day <= gridEnd) {
     const inMonth = day.getMonth() === monthStart.getMonth();
     const isSelected = sameDay(day, selectedDay);
     const isToday = sameDay(day, today);
@@ -1197,16 +1193,18 @@ function renderMonthCells(opts: {
 
     const isWeekend = day.getDay() === 0 || day.getDay() === 6; // Sun/Sat
 
+    const dayKey = ymd(day);
+
     cells.push(
       <div
-        key={day.toISOString()}
+        key={dayKey}
         role="button"
         tabIndex={0}
-        onClick={() => setSelectedDay(day)}
+        onClick={() => setSelectedDay(new Date(day))}
         onKeyDown={(ev) => {
           if (ev.key === "Enter" || ev.key === " ") {
             ev.preventDefault();
-            setSelectedDay(day);
+            setSelectedDay(new Date(day));
           }
         }}
         style={{
@@ -1252,7 +1250,7 @@ function renderMonthCells(opts: {
                 onClick={(ev) => {
                   ev.preventDefault();
                   ev.stopPropagation();
-                  openNewEventPersonal(day);
+                  openNewEventPersonal(new Date(day));
                 }}
                 style={styles.cellQuickBtnPersonal}
                 aria-label="Crear evento personal"
@@ -1266,7 +1264,7 @@ function renderMonthCells(opts: {
                 onClick={(ev) => {
                   ev.preventDefault();
                   ev.stopPropagation();
-                  openNewEventGroup(day);
+                  openNewEventGroup(new Date(day));
                 }}
                 style={styles.cellQuickBtnGroup}
                 aria-label="Crear evento de grupo"
@@ -1329,6 +1327,8 @@ function renderMonthCells(opts: {
         </div>
       </div>
     );
+
+    day = addDays(day, 1);
   }
 
   return cells;
@@ -1541,7 +1541,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   cell: {
-    height: 104,
+    // usamos minHeight en vez de height fija para no cortar contenido en algunos móviles
+    minHeight: 104,
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
