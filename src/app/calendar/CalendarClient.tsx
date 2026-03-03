@@ -286,7 +286,7 @@ export default function CalendarClient(
         const myGroups = await getMyGroups();
         setGroups(myGroups);
 
-        // ✅ FIX definitivo: si no hay active en DB pero sí grupos, persistimos el primero
+        // ✅ Si no hay active en DB pero sí grupos, persistimos el primero
         if (!active && (myGroups?.length ?? 0) > 0) {
           const firstId = String(myGroups[0].id);
           setActiveGroupId(firstId);
@@ -300,8 +300,7 @@ export default function CalendarClient(
         const groupIds = (myGroups || []).map((g: any) => String(g.id));
 
         // ✅ getEventsForGroups(groupIds) incluye personal
-        const rawEvents: any[] =
-          (await getEventsForGroups(groupIds)) as any[];
+        const rawEvents: any[] = (await getEventsForGroups(groupIds)) as any[];
 
         const groupTypeByIdLocal = new Map<string, "family" | "pair">(
           (myGroups || []).map((g: any) => {
@@ -328,8 +327,7 @@ export default function CalendarClient(
             const startRaw = ev.start;
             const endRaw = ev.end;
 
-            if (!isValidIsoish(startRaw) || !isValidIsoish(endRaw))
-              return null;
+            if (!isValidIsoish(startRaw) || !isValidIsoish(endRaw)) return null;
 
             return {
               id: String(ev.id),
@@ -903,10 +901,7 @@ export default function CalendarClient(
                 )}
               </div>
 
-              <div
-                style={styles.grid}
-                className="spCal-grid"
-              >
+              <div style={styles.grid} className="spCal-grid">
                 {renderMonthCells({
                   gridStart,
                   gridEnd,
@@ -1093,9 +1088,7 @@ function EventRow({
         onEdit?.(e);
       }}
     >
-      <div
-        style={{ ...styles.eventBar, background: meta.dot }}
-      />
+      <div style={{ ...styles.eventBar, background: meta.dot }} />
       <div style={styles.eventBody}>
         <div style={styles.eventTop}>
           <div style={styles.eventTitle}>
@@ -1235,12 +1228,6 @@ function renderMonthCells(opts: {
           </div>
 
           <div style={styles.cellTopRight}>
-            {dayEvents.length > 0 ? (
-              <div style={styles.cellCount}>
-                {dayEvents.length}
-              </div>
-            ) : null}
-
             <div
               style={styles.cellQuickAdd}
               className="spCal-cellQuickAdd"
@@ -1250,7 +1237,7 @@ function renderMonthCells(opts: {
                 onClick={(ev) => {
                   ev.preventDefault();
                   ev.stopPropagation();
-                  openNewEventPersonal(new Date(day));
+                  openNewEventPersonal(day);
                 }}
                 style={styles.cellQuickBtnPersonal}
                 aria-label="Crear evento personal"
@@ -1264,7 +1251,7 @@ function renderMonthCells(opts: {
                 onClick={(ev) => {
                   ev.preventDefault();
                   ev.stopPropagation();
-                  openNewEventGroup(new Date(day));
+                  openNewEventGroup(day);
                 }}
                 style={styles.cellQuickBtnGroup}
                 aria-label="Crear evento de grupo"
@@ -1276,10 +1263,19 @@ function renderMonthCells(opts: {
           </div>
         </div>
 
+        {/* Zona de contador + eventos del día */}
         <div
           style={styles.cellEvents}
           className="spCal-cellEvents"
         >
+          {dayEvents.length > 0 && (
+            <div style={styles.cellCountRow}>
+              <span style={styles.cellCount}>
+                {dayEvents.length}
+              </span>
+            </div>
+          )}
+
           {top3.map((e) => {
             const resolvedType: GroupType = e.groupId
               ? ((opts.groupTypeById.get(
@@ -1536,11 +1532,9 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     padding: 10,
     minWidth: 720,
-    // ✅ Altura fija, suficiente para 1–2 eventos sin comprimir la celda
     gridAutoRows: "140px",
   },
   cell: {
-    // La altura la controla el grid (gridAutoRows), no la celda
     height: "100%",
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.08)",
@@ -1565,7 +1559,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "flex-end",
     gap: 6,
-    flexWrap: "wrap",       // ✅ si falta espacio, baja a 2 filas
+    flexWrap: "wrap",
   },
   cellDay: { fontSize: 13, fontWeight: 900, opacity: 0.92 },
   cellDayToday: {
@@ -1574,7 +1568,8 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(56,189,248,0.35)",
     background: "rgba(56,189,248,0.12)",
   },
-   cellCount: {
+
+  cellCount: {
     fontSize: 11,
     padding: "1px 6px",
     borderRadius: 999,
@@ -1582,13 +1577,20 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.04)",
     opacity: 0.9,
     fontWeight: 850,
-    flexShrink: 0,          // ✅ no se aplasta el chip
+    flexShrink: 0,
   },
-    cellQuickAdd: {
+  cellCountRow: {
+    marginBottom: 4,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+  },
+
+  cellQuickAdd: {
     display: "flex",
     alignItems: "center",
     gap: 4,
-    flexShrink: 0,          // ✅ no se aplasta aunque el contenedor sea angosto
+    flexShrink: 0,
   },
   cellQuickBtnPersonal: {
     width: 20,
@@ -1602,7 +1604,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     lineHeight: "20px",
     textAlign: "center",
-    flexShrink: 0,          // ✅ que no se esconda nunca
+    flexShrink: 0,
   },
   cellQuickBtnGroup: {
     width: 20,
@@ -1616,7 +1618,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     lineHeight: "20px",
     textAlign: "center",
-    flexShrink: 0,          // ✅ idem
+    flexShrink: 0,
   },
 
   cellEvents: {
@@ -1820,16 +1822,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.92)",
     cursor: "pointer",
     fontWeight: 900,
-  },
-  ghostBtnSmall: {
-    padding: "8px 10px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 850,
-    fontSize: 12,
   },
 
   ghostBtnSmallPersonal: {
