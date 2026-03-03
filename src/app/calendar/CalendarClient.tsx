@@ -1536,9 +1536,8 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     padding: 10,
     minWidth: 720,
-    // ✅ Todas las filas del mes tienen la misma altura en mobile,
-    // pero dejamos que el contenido respire un poquito
-    gridAutoRows: "minmax(120px, 1fr)",
+    // ✅ Altura fija, suficiente para 1–2 eventos sin comprimir la celda
+    gridAutoRows: "140px",
   },
   cell: {
     // La altura la controla el grid (gridAutoRows), no la celda
