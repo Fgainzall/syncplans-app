@@ -1563,7 +1563,9 @@ const styles: Record<string, React.CSSProperties> = {
   cellTopRight: {
     display: "flex",
     alignItems: "center",
-    gap: 10,
+    justifyContent: "flex-end",
+    gap: 6,
+    flexWrap: "wrap",       // ✅ si falta espacio, baja a 2 filas
   },
   cellDay: { fontSize: 13, fontWeight: 900, opacity: 0.92 },
   cellDayToday: {
@@ -1572,40 +1574,49 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(56,189,248,0.35)",
     background: "rgba(56,189,248,0.12)",
   },
-  cellCount: {
-    fontSize: 12,
-    padding: "2px 8px",
+   cellCount: {
+    fontSize: 11,
+    padding: "1px 6px",
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.04)",
     opacity: 0.9,
     fontWeight: 850,
+    flexShrink: 0,          // ✅ no se aplasta el chip
   },
-
-  cellQuickAdd: { display: "flex", gap: 6, alignItems: "center" },
+    cellQuickAdd: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    flexShrink: 0,          // ✅ no se aplasta aunque el contenedor sea angosto
+  },
   cellQuickBtnPersonal: {
-    width: 22,
-    height: 22,
-    borderRadius: 9,
+    width: 20,
+    height: 20,
+    borderRadius: 8,
     border: "1px solid rgba(250,204,21,0.40)",
     background: "rgba(250,204,21,0.12)",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
-    fontWeight: 950,
-    lineHeight: "22px",
+    fontWeight: 900,
+    fontSize: 11,
+    lineHeight: "20px",
     textAlign: "center",
+    flexShrink: 0,          // ✅ que no se esconda nunca
   },
   cellQuickBtnGroup: {
-    width: 22,
-    height: 22,
-    borderRadius: 9,
+    width: 20,
+    height: 20,
+    borderRadius: 8,
     border: "1px solid rgba(96,165,250,0.40)",
     background: "rgba(96,165,250,0.12)",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
-    fontWeight: 950,
-    lineHeight: "22px",
+    fontWeight: 900,
+    fontSize: 11,
+    lineHeight: "20px",
     textAlign: "center",
+    flexShrink: 0,          // ✅ idem
   },
 
   cellEvents: {
