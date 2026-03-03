@@ -14,7 +14,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const EMAIL_FROM =
-  process.env.EMAIL_FROM || "SyncPlans <no-reply@syncplansapp.com>";
+  process.env.EMAIL_FROM || "SyncPlans <onboarding@resend.dev>";
 
 // Autorización básica para llamadas de cron
 function isAuthorized(req: Request): boolean {
@@ -32,25 +32,19 @@ function isAuthorized(req: Request): boolean {
   // - Authorization: Bearer CRON_SECRET
   if (token && token === CRON_SECRET) return true;
   if (headerSecret && headerSecret === CRON_SECRET) return true;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    const bearer = authHeader.slice(7);
-    if (bearer === CRON_SECRET) return true;
-  }
+  if (authHeader && authHeader === `Bearer ${CRON_SECRET}`) return true;
 
   return false;
 }
 
-// Lazy init para que el build no reviente si faltan envs en local
 function getAdminSupabase() {
-  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-    throw new Error("Missing Supabase admin env vars");
+  if (!SUPABASE_URL) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL env var");
   }
-  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  if (!SERVICE_ROLE_KEY) {
+    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY env var");
+  }
+  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 }
 
 function getResend() {
@@ -67,39 +61,57 @@ const TZ_OFFSET_HOURS = -5;
 // Helpers
 // ─────────────────────────────────────────────
 function todayRangeISO() {
-  const now = new Date();
+  const nowUtc = new Date();
 
-  // Ajustamos a Lima (aprox)
-  const local = new Date(
-    now.getTime() + TZ_OFFSET_HOURS * 60 * 60 * 1000
-  );
+  // Convertimos a hora de Lima (UTC-5) sumando el offset en milisegundos
+  const localMs = nowUtc.getTime() + TZ_OFFSET_HOURS * 60 * 60 * 1000;
+  const local = new Date(localMs);
 
+  // Usamos siempre getters UTC para que no dependa del timezone del servidor
+  const year = local.getUTCFullYear();
+  const month = local.getUTCMonth();
+  const day = local.getUTCDate();
+
+  // Medianoche en Lima corresponde a -TZ_OFFSET_HOURS en UTC
   const start = new Date(
-    local.getFullYear(),
-    local.getMonth(),
-    local.getDate(),
-    0,
-    0,
-    0
+    Date.UTC(year, month, day, -TZ_OFFSET_HOURS, 0, 0, 0)
+  );
+  const end = new Date(
+    Date.UTC(year, month, day + 1, -TZ_OFFSET_HOURS, 0, 0, 0)
   );
 
-  const end = new Date(
-    local.getFullYear(),
-    local.getMonth(),
-    local.getDate() + 1,
-    0,
-    0,
-    0
-  );
+  const weekdays = [
+    "domingo",
+    "lunes",
+    "martes",
+    "miércoles",
+    "jueves",
+    "viernes",
+    "sábado",
+  ];
+  const months = [
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+  ];
+
+  const label = `${weekdays[local.getUTCDay()]}, ${day} de ${
+    months[month]
+  }`;
 
   return {
     startISO: start.toISOString(),
     endISO: end.toISOString(),
-    label: local.toLocaleDateString("es-PE", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    }),
+    label,
   };
 }
 
@@ -139,16 +151,17 @@ type DailyDigestEvent = {
 };
 
 function buildGroupLabel(e: DbEvent): string {
-  if (e.group_name) return e.group_name;
+  if (!e.group_id || !e.group_type) return "Solo tú";
+
   switch (e.group_type) {
     case "solo":
       return "Personal";
     case "pair":
-      return "Pareja";
+      return e.group_name ? `Pareja · ${e.group_name}` : "Pareja";
     case "family":
-      return "Familia";
+      return e.group_name ? `Familia · ${e.group_name}` : "Familia";
     case "other":
-      return "Compartido";
+      return e.group_name ? `Compartido · ${e.group_name}` : "Compartido";
     default:
       return "General";
   }
@@ -165,22 +178,26 @@ function mapEvents(events: DbEvent[]): DailyDigestEvent[] {
 
 function renderEmailHtml(
   dateLabel: string,
-  userName: string | null | undefined,
+  displayName: string | null,
   events: DailyDigestEvent[]
 ) {
-  const displayName = userName || "Hola";
+  const name = displayName || "Hoy";
+  const titleName = displayName || "Tu día de hoy";
 
   if (!events.length) {
     return `
-      <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; background: #020617; color: #E5E7EB; padding: 24px;">
-        <h1 style="font-size: 20px; margin: 0 0 12px;">${displayName}, hoy no tienes nada agendado 🎉</h1>
-        <p style="margin: 0 0 12px; color: #9CA3AF;">
-          Igual, si ya quedaste en algo por WhatsApp o por llamada, te conviene ponerlo en SyncPlans para evitar confusiones.
-        </p>
-        <p style="margin: 0; color: #9CA3AF; font-size: 13px;">
-          Este correo solo te recuerda lo que ya está en tu calendario compartido. Nada más, nada menos.
-        </p>
-      </div>
+    <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, -system-ui, sans-serif; background: #020617; color: #E5E7EB; padding: 24px;">
+      <h1 style="font-size: 20px; margin: 0 0 4px;">${titleName}, sin sorpresas</h1>
+      <p style="margin: 0 0 16px; color: #9CA3AF; font-size: 13px;">
+        ${dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1)}
+      </p>
+      <p style="margin: 0; color: #9CA3AF; font-size: 13px;">
+        Hoy no tienes eventos registrados en SyncPlans. Igual es buen momento para revisar juntos la agenda de la semana.
+      </p>
+      <p style="margin-top: 16px; color: #6B7280; font-size: 12px;">
+        SyncPlans solo resume lo que ya está en tu calendario compartido. No inventa planes, solo te evita discusiones por cosas que ya se habían coordinado.
+      </p>
+    </div>
     `;
   }
 
@@ -206,8 +223,8 @@ function renderEmailHtml(
     .join("");
 
   return `
-    <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif; background: #020617; color: #E5E7EB; padding: 24px;">
-      <h1 style="font-size: 20px; margin: 0 0 4px;">${displayName}, esto es lo que tienes hoy</h1>
+    <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, -system-ui, sans-serif; background: #020617; color: #E5E7EB; padding: 24px;">
+      <h1 style="font-size: 20px; margin: 0 0 4px;">${name}, esto es lo que tienes hoy</h1>
       <p style="margin: 0 0 16px; color: #9CA3AF; font-size: 13px;">
         ${dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1)}
       </p>
@@ -219,7 +236,7 @@ function renderEmailHtml(
       </table>
 
       <p style="margin: 0; color: #6B7280; font-size: 12px;">
-        Este correo solo resume lo que ya está en SyncPlans. No reemplaza tus decisiones, solo te evita discusiones por cosas que ya se habían coordinado.
+        Este correo solo resume lo que ya está en SyncPlans. No inventa decisiones ni planes nuevos, solo te evita discusiones por cosas que ya se habían coordinado.
       </p>
     </div>
   `;
@@ -275,16 +292,16 @@ export async function POST(req: Request) {
       );
     }
 
-    const profileByUser = new Map<string, DbProfile>();
-    (profiles || []).forEach((p: DbProfile) => {
-      profileByUser.set(p.user_id, p);
-    });
+    const profilesById = new Map<string, DbProfile>();
+    for (const p of (profiles || []) as DbProfile[]) {
+      profilesById.set(p.user_id, p);
+    }
 
     let sent = 0;
 
-    // 4️⃣ Para cada usuario, buscamos eventos del día y mandamos resumen
+    // 4️⃣ Por cada usuario, traemos eventos del día y mandamos mail
     for (const userId of userIds) {
-      const profile = profileByUser.get(userId);
+      const profile = profilesById.get(userId);
       const email = profile?.email;
       if (!email) continue;
 
@@ -326,9 +343,10 @@ export async function POST(req: Request) {
             `[daily-reminders] error sending email to ${email}`,
             res.error
           );
-        } else {
-          sent++;
+          continue;
         }
+
+        sent++;
       } catch (sendErr) {
         console.error(
           `[daily-reminders] unexpected error sending email to ${email}`,
