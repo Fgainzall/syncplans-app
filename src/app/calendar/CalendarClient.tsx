@@ -1536,13 +1536,13 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     padding: 10,
     minWidth: 720,
-    // ✅ Todas las filas del mes tienen la MISMA altura
-    gridAutoRows: "120px",
+    // ✅ Todas las filas del mes tienen la misma altura en mobile,
+    // pero dejamos que el contenido respire un poquito
+    gridAutoRows: "minmax(120px, 1fr)",
   },
-
   cell: {
-    // usamos minHeight en vez de height fija para no cortar contenido en algunos móviles
-    minHeight: 104,
+    // La altura la controla el grid (gridAutoRows), no la celda
+    height: "100%",
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
@@ -1550,6 +1550,9 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     textAlign: "left",
     overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "stretch",
     transition:
       "transform 160ms ease, border-color 160ms ease",
   },
@@ -1611,7 +1614,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     flexDirection: "column",
     gap: 6,
-    flex: 1,
+    flexGrow: 1,
+    minHeight: 0,
     overflow: "hidden",
   },
   cellEventLine: {
