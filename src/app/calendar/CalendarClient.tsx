@@ -46,7 +46,7 @@ function startOfWeek(d: Date) {
   const day = d.getDay(); // 0=Sun
   const diff = (day + 6) % 7; // Monday-start
   const x = new Date(d);
-  x.setDate(d.getDate() - diff);
+  x.setDate(x.getDate() - diff);
   x.setHours(0, 0, 0, 0);
   return x;
 }
@@ -457,6 +457,34 @@ export default function CalendarClient(
         handler as any
       );
   }, []);
+
+  // ✅ NUEVO: escucha cuando el drawer de integraciones termina una sync de Google
+  useEffect(() => {
+    const handler = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ imported?: number }>;
+      const imported = Number(customEvent?.detail?.imported ?? 0);
+
+      await refreshCalendar();
+
+      setToast({
+        title: "Google sincronizado ✅",
+        subtitle:
+          imported > 0
+            ? `${imported} evento${imported === 1 ? "" : "s"} importado${
+                imported === 1 ? "" : "s"
+              } desde Google`
+            : "Calendario actualizado con tus eventos de Google",
+      });
+
+      window.setTimeout(() => setToast(null), 2800);
+    };
+
+    window.addEventListener("sp:google-synced", handler as EventListener);
+
+    return () => {
+      window.removeEventListener("sp:google-synced", handler as EventListener);
+    };
+  }, [refreshCalendar]);
 
   /* Boot inicial */
   useEffect(() => {
