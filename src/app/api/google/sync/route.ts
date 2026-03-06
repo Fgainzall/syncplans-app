@@ -19,6 +19,7 @@ function safeIso(d: any): string | null {
 
 function toTimeMinMax() {
   const now = new Date();
+
   const min = new Date(now);
   min.setDate(min.getDate() - 30);
 
@@ -117,7 +118,10 @@ export async function POST(req: Request) {
 
     if (gaErr || !ga) {
       return NextResponse.json(
-        { ok: false, error: "No hay Google conectado (google_accounts no encontrado)." },
+        {
+          ok: false,
+          error: "No hay Google conectado (google_accounts no encontrado).",
+        },
         { status: 400 }
       );
     }
@@ -147,7 +151,11 @@ export async function POST(req: Request) {
 
       if (!refreshed.ok) {
         return NextResponse.json(
-          { ok: false, error: "No se pudo refrescar token Google", details: refreshed },
+          {
+            ok: false,
+            error: "No se pudo refrescar token Google",
+            details: refreshed,
+          },
           { status: 502 }
         );
       }

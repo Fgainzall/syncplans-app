@@ -1,4 +1,3 @@
-// src/components/IntegrationsDrawer.tsx
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -23,7 +22,7 @@ export default function IntegrationsDrawer({
 }: {
   open: boolean;
   onClose: () => void;
-  onSynced?: (imported: number) => void; // para refrescar Calendar/Summary
+  onSynced?: (imported: number) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -67,6 +66,7 @@ export default function IntegrationsDrawer({
       });
 
       const json = (await res.json().catch(() => null)) as GoogleStatus | null;
+
       if (!res.ok || !json?.ok) {
         setStatus({
           ok: false,
@@ -93,7 +93,6 @@ export default function IntegrationsDrawer({
     fetchStatus();
   }, [open, fetchStatus]);
 
-  // UX: ESC para cerrar + bloquear scroll
   useEffect(() => {
     if (!open) return;
 
@@ -105,6 +104,7 @@ export default function IntegrationsDrawer({
     };
 
     window.addEventListener("keydown", onKeyDown);
+
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = prevOverflow;
@@ -128,69 +128,70 @@ export default function IntegrationsDrawer({
   }, [connected, loading, status]);
 
   const onConnect = useCallback(() => {
-    // Flujo estándar: te manda a Google OAuth y vuelve por /api/google/callback
     window.location.href = "/api/google/connect";
   }, []);
 
- const onSyncNow = useCallback(async () => {
-  if (syncing) return;
+  const onSyncNow = useCallback(async () => {
+    if (syncing) return;
 
-  if (!connected) {
-    setToast({
-      title: "Primero conecta Google",
-      subtitle: "Conecta tu cuenta para poder importar tus eventos.",
-    });
-    scheduleToastClear(3200);
-    return;
-  }
-
-  try {
-    setSyncing(true);
-    setToast({
-      title: "Sincronizando…",
-      subtitle: "Importando desde Google Calendar",
-    });
-
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-
-    const res = await fetch("/api/google/sync", {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-
-    const json = await res.json().catch(() => ({}));
-
-    if (!res.ok || !json?.ok) {
+    if (!connected) {
       setToast({
-        title: "No se pudo sincronizar",
-        subtitle: json?.error ?? "Revisa tu conexión o vuelve a conectar Google.",
+        title: "Primero conecta Google",
+        subtitle: "Conecta tu cuenta para poder importar tus eventos.",
       });
       scheduleToastClear(3200);
       return;
     }
 
-    const imported = Number(json?.imported ?? 0);
+    try {
+      setSyncing(true);
+      setToast({
+        title: "Sincronizando…",
+        subtitle: "Importando desde Google Calendar",
+      });
 
-    setToast({
-      title: "Sincronizado ✅",
-      subtitle: `Importados/actualizados: ${imported}`,
-    });
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
 
-    fetchStatus();
-    onSynced?.(imported);
+      const res = await fetch("/api/google/sync", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
 
-    scheduleToastClear(2600);
-  } catch (e: any) {
-    setToast({
-      title: "Error sincronizando",
-      subtitle: e?.message ?? "Intenta de nuevo.",
-    });
-    scheduleToastClear(3200);
-  } finally {
-    setSyncing(false);
-  }
-}, [connected, fetchStatus, onSynced, scheduleToastClear, syncing]);
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok || !json?.ok) {
+        setToast({
+          title: "No se pudo sincronizar",
+          subtitle:
+            json?.error ?? "Revisa tu conexión o vuelve a conectar Google.",
+        });
+        scheduleToastClear(3200);
+        return;
+      }
+
+      const imported = Number(json?.imported ?? 0);
+
+      setToast({
+        title: "Sincronizado ✅",
+        subtitle: `Importados/actualizados: ${imported}`,
+      });
+
+      await fetchStatus();
+      onSynced?.(imported);
+
+      scheduleToastClear(2600);
+    } catch (e: any) {
+      setToast({
+        title: "Error sincronizando",
+        subtitle: e?.message ?? "Intenta de nuevo.",
+      });
+      scheduleToastClear(3200);
+    } finally {
+      setSyncing(false);
+    }
+  }, [connected, fetchStatus, onSynced, scheduleToastClear, syncing]);
+
   if (!open) return null;
 
   return (
@@ -209,7 +210,9 @@ export default function IntegrationsDrawer({
           <div>
             <div style={S.kicker}>Integraciones</div>
             <div style={S.title}>Conectar</div>
-            <div style={S.sub}>Importa tus eventos externos y mantenlos en SyncPlans.</div>
+            <div style={S.sub}>
+              Importa tus eventos externos y mantenlos en SyncPlans.
+            </div>
           </div>
 
           <button onClick={close} style={S.closeBtn} aria-label="Cerrar">
@@ -225,7 +228,9 @@ export default function IntegrationsDrawer({
                 <div style={{ minWidth: 0 }}>
                   <div style={S.cardTitle}>Google Calendar</div>
                   <div style={S.cardSub}>
-                    {email ? `Cuenta: ${email}` : "Importa eventos a tu calendario SyncPlans"}
+                    {email
+                      ? `Cuenta: ${email}`
+                      : "Importa eventos a tu calendario SyncPlans"}
                   </div>
                 </div>
               </div>
@@ -257,7 +262,6 @@ export default function IntegrationsDrawer({
               {loading ? "Revisando…" : "Revisar estado"}
             </button>
 
-            {/* ✅ NUEVO: Conectar / Reconectar */}
             <button
               type="button"
               onClick={onConnect}
@@ -274,7 +278,11 @@ export default function IntegrationsDrawer({
               style={{
                 ...S.primaryBtn,
                 opacity: syncing || !connected ? 0.55 : 1,
-                cursor: syncing ? "progress" : !connected ? "not-allowed" : "pointer",
+                cursor: syncing
+                  ? "progress"
+                  : !connected
+                  ? "not-allowed"
+                  : "pointer",
               }}
               disabled={syncing || !connected}
               title={
