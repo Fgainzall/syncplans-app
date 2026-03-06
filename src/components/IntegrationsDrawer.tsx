@@ -132,63 +132,65 @@ export default function IntegrationsDrawer({
     window.location.href = "/api/google/connect";
   }, []);
 
-  const onSyncNow = useCallback(async () => {
-    if (syncing) return;
+ const onSyncNow = useCallback(async () => {
+  if (syncing) return;
 
-    // 🔒 No sincronizar si no está conectado
-    if (!connected) {
+  if (!connected) {
+    setToast({
+      title: "Primero conecta Google",
+      subtitle: "Conecta tu cuenta para poder importar tus eventos.",
+    });
+    scheduleToastClear(3200);
+    return;
+  }
+
+  try {
+    setSyncing(true);
+    setToast({
+      title: "Sincronizando…",
+      subtitle: "Importando desde Google Calendar",
+    });
+
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+
+    const res = await fetch("/api/google/sync", {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok || !json?.ok) {
       setToast({
-        title: "Primero conecta Google",
-        subtitle: "Conecta tu cuenta para poder importar tus eventos.",
+        title: "No se pudo sincronizar",
+        subtitle: json?.error ?? "Revisa tu conexión o vuelve a conectar Google.",
       });
       scheduleToastClear(3200);
       return;
     }
 
-    try {
-      setSyncing(true);
-      setToast({
-        title: "Sincronizando…",
-        subtitle: "Importando desde Google Calendar",
-      });
+    const imported = Number(json?.imported ?? 0);
 
-      const res = await fetch("/api/google/sync", { method: "POST" });
-      const json = await res.json().catch(() => ({}));
+    setToast({
+      title: "Sincronizado ✅",
+      subtitle: `Importados/actualizados: ${imported}`,
+    });
 
-      if (!res.ok || !json?.ok) {
-        setToast({
-          title: "No se pudo sincronizar",
-          subtitle: json?.error ?? "Revisa tu conexión o vuelve a conectar Google.",
-        });
-        scheduleToastClear(3200);
-        return;
-      }
+    fetchStatus();
+    onSynced?.(imported);
 
-      const imported = Number(json?.imported ?? 0);
-
-      setToast({
-        title: "Sincronizado ✅",
-        subtitle: `Importados/actualizados: ${imported}`,
-      });
-
-      // refrescar estado del drawer (por si updated_at cambia)
-      fetchStatus();
-
-      // avisar a quien lo abrió para que refresque Calendar/Summary sin reload
-      onSynced?.(imported);
-
-      scheduleToastClear(2600);
-    } catch (e: any) {
-      setToast({
-        title: "Error sincronizando",
-        subtitle: e?.message ?? "Intenta de nuevo.",
-      });
-      scheduleToastClear(3200);
-    } finally {
-      setSyncing(false);
-    }
-  }, [connected, fetchStatus, onSynced, scheduleToastClear, syncing]);
-
+    scheduleToastClear(2600);
+  } catch (e: any) {
+    setToast({
+      title: "Error sincronizando",
+      subtitle: e?.message ?? "Intenta de nuevo.",
+    });
+    scheduleToastClear(3200);
+  } finally {
+    setSyncing(false);
+  }
+}, [connected, fetchStatus, onSynced, scheduleToastClear, syncing]);
   if (!open) return null;
 
   return (
