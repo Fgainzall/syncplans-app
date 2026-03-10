@@ -1,4 +1,3 @@
-// src/components/PremiumHeader.tsx
 "use client";
 
 import React, {
@@ -40,7 +39,7 @@ const TABS: Tab[] = [
   { key: "pair", label: "Pareja", hint: "2 personas", dot: "#F87171" },
   { key: "family", label: "Familia", hint: "Varios", dot: "#60A5FA" },
   {
-    key: "other",           // 👈 tiene que decir "other", NO "shared"
+    key: "other",
     label: "Compartido",
     hint: "Amigos, equipos",
     dot: "#A855F7",
@@ -61,6 +60,7 @@ function applyThemeVars(mode: UsageMode | "other") {
   else if (mode === "pair") active = "var(--sp-pair)";
   else if (mode === "family") active = "var(--sp-family)";
   else active = "var(--sp-other)";
+
   root.style.setProperty("--sp-active", active);
 }
 
@@ -92,11 +92,12 @@ async function ensureActiveGroupForMode(
     (g: any) => String(g.type ?? "").toLowerCase() === wantType
   );
   const pick = match?.id ?? groups[0]?.id ?? null;
+
   if (pick) {
     await setActiveGroupIdInDb(String(pick));
-    window.dispatchEvent(new Event("sp:active-group-changed"));
     return String(pick);
   }
+
   return null;
 }
 
@@ -114,6 +115,7 @@ function normalizeGroupLabel(input?: string | null) {
     const cleaned = raw.replace(/^activo\s*[:\-–]\s*/i, "").trim();
     return cleaned || "Grupo actual";
   }
+
   return raw;
 }
 
@@ -144,8 +146,6 @@ function useIsMobileWidth(maxWidth = 520) {
 }
 
 type MobileNavVariant = "top" | "bottom" | "none";
-
-/** Compat con usos antiguos de PremiumHeader */
 type UiToast = { deleted: number; skipped: number; appliedCount: number } | null;
 
 type PremiumHeaderProps = {
@@ -163,7 +163,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
     subtitle,
     rightSlot,
     mobileNav: _mobileNav = "bottom",
-    // highlightId y appliedToast quedan por si los quieres reutilizar luego
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     highlightId,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -197,21 +196,25 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
       try {
         const profile: UserProfile | null = await getMyProfile();
         if (!alive) return;
+
         if (profile) {
           const display = (
             profile.display_name ??
             `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
           ).trim();
+
           const name = display || "Tú";
           const initials = getInitials({
             first_name: profile.first_name,
             last_name: profile.last_name,
             display_name: profile.display_name,
           });
+
           setHeaderUser({ name, initials });
         } else {
           setHeaderUser({ name: "Tú", initials: "T" });
@@ -221,6 +224,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
         setHeaderUser(null);
       }
     })();
+
     return () => {
       alive = false;
     };
@@ -284,11 +288,13 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
         router.push("/events/new/details?type=personal");
         return;
       }
+
       const gid = await ensureActiveGroupForMode(activeMode);
       if (!gid) {
         router.push("/groups/new");
         return;
       }
+
       router.push(
         `/events/new/details?type=group&groupId=${encodeURIComponent(gid)}`
       );
@@ -303,35 +309,30 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
     applyThemeVars(nextMode);
 
     if (nextMode === "solo") {
-      try {
-        // si quisieras, aquí podrías limpiar activeGroup en DB
-      } finally {
-        window.dispatchEvent(new Event("sp:active-group-changed"));
-      }
       return;
     }
 
     try {
       await ensureActiveGroupForMode(nextMode);
     } catch {
-      window.dispatchEvent(new Event("sp:active-group-changed"));
+      // sin dispatch manual: el helper central ya emite el evento
     }
   }
 
   const onSyncedFromDrawer = useCallback((imported: number) => {
     window.dispatchEvent(
-      new CustomEvent("sp:google-synced", { detail: { imported } })
+      new CustomEvent("sp:google-synced", {
+        detail: { imported },
+      })
     );
   }, []);
 
-  // Regla madre: en móvil solo navegas con BottomNav.
   const shouldShowTopNav: boolean = !isMobile;
   const closeUserMenu = () => setUserMenuOpen(false);
 
   return (
     <>
       <header style={S.wrap}>
-        {/* ========== MOBILE ========== */}
         {isMobile ? (
           <>
             <div style={S.mTopBar}>
@@ -382,6 +383,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                         {headerUser?.name ?? "Tú"}
                       </div>
                     </div>
+
                     <button
                       type="button"
                       style={S.userMenuItem}
@@ -392,6 +394,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                     >
                       Grupos
                     </button>
+
                     <button
                       type="button"
                       style={S.userMenuItem}
@@ -402,6 +405,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                     >
                       Miembros
                     </button>
+
                     <button
                       type="button"
                       style={S.userMenuItem}
@@ -412,6 +416,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                     >
                       Invitaciones
                     </button>
+
                     <button
                       type="button"
                       style={S.userMenuItem}
@@ -422,6 +427,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                     >
                       Ajustes
                     </button>
+
                     <button
                       type="button"
                       style={S.userMenuItem}
@@ -432,6 +438,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                     >
                       Planes
                     </button>
+
                     <div style={S.userMenuDivider} />
                     <div style={S.userMenuLogout}>
                       <LogoutButton />
@@ -455,6 +462,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
               >
                 Conectar
               </button>
+
               {rightSlot ?? (
                 <button
                   style={S.mPrimaryBtn}
@@ -542,7 +550,6 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
             )}
           </>
         ) : (
-          /* ========== DESKTOP ========== */
           <>
             <div style={S.topRow}>
               <div style={S.left}>
@@ -553,6 +560,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                 <h1 style={S.title}>{finalTitle}</h1>
                 <p style={S.subtitle}>{finalSubtitle}</p>
               </div>
+
               <div style={S.right}>
                 <div style={S.bellWrap}>
                   <button
@@ -569,6 +577,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                     </span>
                   )}
                 </div>
+
                 <div style={S.userChipWrap}>
                   {headerUser && (
                     <button
@@ -581,6 +590,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                       <span style={S.userLabel}>{headerUser.name}</span>
                     </button>
                   )}
+
                   {userMenuOpen && (
                     <div style={S.userMenuDesktop}>
                       <div style={S.userMenuHeader}>
@@ -591,6 +601,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                           {headerUser?.name ?? "Tú"}
                         </div>
                       </div>
+
                       <button
                         type="button"
                         style={S.userMenuItem}
@@ -601,6 +612,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                       >
                         Grupos
                       </button>
+
                       <button
                         type="button"
                         style={S.userMenuItem}
@@ -611,6 +623,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                       >
                         Miembros
                       </button>
+
                       <button
                         type="button"
                         style={S.userMenuItem}
@@ -621,6 +634,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                       >
                         Invitaciones
                       </button>
+
                       <button
                         type="button"
                         style={S.userMenuItem}
@@ -631,6 +645,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                       >
                         Ajustes
                       </button>
+
                       <button
                         type="button"
                         style={S.userMenuItem}
@@ -641,6 +656,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                       >
                         Planes
                       </button>
+
                       <div style={S.userMenuDivider} />
                       <div style={S.userMenuLogout}>
                         <LogoutButton />
@@ -648,6 +664,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                     </div>
                   )}
                 </div>
+
                 <button
                   type="button"
                   style={S.ghostBtn}
@@ -656,6 +673,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                 >
                   Conectar
                 </button>
+
                 {rightSlot ?? (
                   <button
                     style={S.iconBtn}
@@ -714,9 +732,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                 <NavPill
                   label="Conflictos"
                   active={pathname.startsWith("/conflicts")}
-                  onClick={() =>
-                    router.push("/conflicts/detected")
-                  }
+                  onClick={() => router.push("/conflicts/detected")}
                   styleOverride={S.pill}
                   styleActive={S.pillActive}
                 />
@@ -774,6 +790,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
         navigationMode={NAV_MODE}
         onUnreadChange={(n) => setUnreadCount(n)}
       />
+
       <IntegrationsDrawer
         open={openIntegrations}
         onClose={() => setOpenIntegrations(false)}
@@ -819,7 +836,7 @@ const S: Record<string, CSSProperties> = {
     position: "relative",
     overflow: "visible",
   },
-  /* desktop */
+
   topRow: {
     display: "flex",
     gap: 14,
@@ -944,7 +961,7 @@ const S: Record<string, CSSProperties> = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  /* tabs */
+
   tabs: { position: "relative", marginTop: 14 },
   tabsBg: {
     position: "absolute",
@@ -994,7 +1011,7 @@ const S: Record<string, CSSProperties> = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  /* nav pills */
+
   nav: {
     display: "flex",
     gap: 10,
@@ -1016,7 +1033,7 @@ const S: Record<string, CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.18)",
     background: "rgba(255,255,255,0.08)",
   },
-  /* mobile */
+
   mTopBar: {
     display: "flex",
     alignItems: "center",
@@ -1137,7 +1154,7 @@ const S: Record<string, CSSProperties> = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  /* user menu */
+
   userMenu: {
     position: "absolute",
     top: "115%",

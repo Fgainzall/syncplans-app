@@ -1,4 +1,3 @@
-// src/app/groups/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -89,7 +88,7 @@ export default function GroupsPage() {
 
       const [groupsData, invitesData] = await Promise.all([
         getMyGroups(),
-        getMyInvitations(), // ✅ sin argumentos
+        getMyInvitations(),
       ]);
 
       const rawGroups = (groupsData || []) as any[];
@@ -131,13 +130,11 @@ export default function GroupsPage() {
     try {
       await setActiveGroupIdInDb(groupId);
 
-      window.dispatchEvent(new CustomEvent("sp:active-group-changed"));
-
       setGroups((prev) =>
         prev.map((g) => ({
           ...g,
           is_active: String(g.id) === String(groupId),
-        })),
+        }))
       );
 
       setToast({
@@ -158,23 +155,20 @@ export default function GroupsPage() {
   /* ============================
      Filtros derivados
      ============================ */
-const filteredGroups = useMemo(() => {
-  if (filter === "all") return groups;
+  const filteredGroups = useMemo(() => {
+    if (filter === "all") return groups;
 
-  if (filter === "shared") {
-    // Todo lo que no sea pareja ni familia lo tratamos como compartido
-    return groups.filter(
-      (g) => g.type !== "pair" && g.type !== "family",
-    );
-  }
+    if (filter === "shared") {
+      return groups.filter((g) => g.type !== "pair" && g.type !== "family");
+    }
 
-  return groups.filter((g) => g.type === filter);
-}, [groups, filter]);
+    return groups.filter((g) => g.type === filter);
+  }, [groups, filter]);
 
-const summary: GroupSummary = useMemo(
-  () => buildGroupsSummary(groups),
-  [groups],
-);
+  const summary: GroupSummary = useMemo(
+    () => buildGroupsSummary(groups),
+    [groups]
+  );
 
   const headerSubtitle =
     summary.total === 0
