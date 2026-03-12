@@ -16,18 +16,25 @@ import {
   conflictKey,
 } from "@/lib/conflicts";
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
-import { deleteEventsByIds } from "@/lib/eventsDb";
+import { deleteEventsByIds, getMyEvents, type DbEventRow } from "@/lib/eventsDb";
+import { getMyProfile } from "@/lib/profilesDb";
+import { createNotifications } from "@/lib/notificationsDb";
 
 import {
-  Resolution,
+  type Resolution,
   getMyConflictResolutionsMap,
   clearMyConflictResolutions,
 } from "@/lib/conflictResolutionsDb";
 
-/** 🔁 Alias para evitar el problema de tipos de PremiumHeader en esta pantalla */
+type RejectedTarget = {
+  id: string;
+  title: string;
+  creatorId: string;
+  groupId: string | null;
+  startsAt: string;
+  endsAt: string;
+};
 
-
-/** fallback: si el conflictId exacto no matchea, matcheamos por pareja de eventos */
 function resolutionForConflict(
   c: ConflictItem,
   resMap: Record<string, Resolution>
@@ -39,11 +46,9 @@ function resolutionForConflict(
   const b = String(c.incomingEventId ?? "");
   if (!a || !b) return undefined;
 
-  // ✅ clave estable (mismo generador que computeVisibleConflicts)
   const stableKey = conflictKey(a, b);
   if (resMap[stableKey]) return resMap[stableKey];
 
-  // ✅ compat: si en algún momento guardaste con formato viejo "cx::a::b::algo"
   const [x, y] = [a, b].sort();
   const legacyPrefix = `cx::${x}::${y}::`;
 
@@ -51,6 +56,76 @@ function resolutionForConflict(
     if (k.startsWith(legacyPrefix)) return resMap[k];
   }
   return undefined;
+}
+
+function safeTitle(value?: string | null) {
+  const v = String(value ?? "").trim();
+  return v || "Evento sin título";
+}
+
+function actorDisplayNameFromProfile(profile: Awaited<ReturnType<typeof getMyProfile>>) {
+  if (!profile) return "Alguien";
+
+  const display = String(profile.display_name ?? "").trim();
+  if (display) return display;
+
+  const full = `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim();
+  if (full) return full;
+
+  const first = String(profile.first_name ?? "").trim();
+  if (first) return first;
+
+  return "Alguien";
+}
+
+function formatRange(startIso?: string | null, endIso?: string | null) {
+  const start = startIso ? new Date(startIso) : null;
+  const end = endIso ? new Date(endIso) : null;
+
+  if (!start || Number.isNaN(start.getTime())) return "";
+
+  const sameDay =
+    !!end &&
+    !Number.isNaN(end.getTime()) &&
+    start.toDateString() === end.toDateString();
+
+  try {
+    if (end && !Number.isNaN(end.getTime()) && sameDay) {
+      return `${start.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+      })} · ${start.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+      })} – ${end.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+    }
+
+    if (end && !Number.isNaN(end.getTime())) {
+      return `${start.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })} → ${end.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+    }
+
+    return start.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
 }
 
 export default function ActionsClient({
@@ -63,51 +138,60 @@ export default function ActionsClient({
   const [booting, setBooting] = useState(true);
   const [busy, setBusy] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [dbEvents, setDbEvents] = useState<DbEventRow[]>([]);
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
+  const [currentUid, setCurrentUid] = useState<string | null>(null);
+  const [actorName, setActorName] = useState("Alguien");
+  const [commentsByEventId, setCommentsByEventId] = useState<
+    Record<string, string>
+  >({});
   const [toast, setToast] = useState<null | { title: string; sub?: string }>(
     null
   );
 
-  /* ========================= Toast auto-hide ========================= */
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2600);
     return () => clearTimeout(t);
   }, [toast]);
 
-  /* ========================= Boot ========================= */
   useEffect(() => {
     let alive = true;
+
     (async () => {
       setBooting(true);
 
       const { data, error } = await supabase.auth.getSession();
       if (!alive) return;
 
-      if (error || !data.session?.user) {
+      const uid = data.session?.user?.id ?? null;
+      if (error || !uid) {
         setBooting(false);
         router.replace("/auth/login");
         return;
       }
 
+      setCurrentUid(uid);
+
       try {
-        const { events: ev } = await loadEventsFromDb({
-          groupId: groupIdFromUrl,
-        });
+        const [eventsForConflicts, dbMap, rawDbEvents, profile] = await Promise.all([
+          loadEventsFromDb({ groupId: groupIdFromUrl }),
+          getMyConflictResolutionsMap(),
+          getMyEvents(),
+          getMyProfile(),
+        ]);
+
         if (!alive) return;
-        setEvents(Array.isArray(ev) ? ev : []);
+
+        setEvents(Array.isArray(eventsForConflicts?.events) ? eventsForConflicts.events : []);
+        setResMap(dbMap ?? {});
+        setDbEvents(Array.isArray(rawDbEvents) ? rawDbEvents : []);
+        setActorName(actorDisplayNameFromProfile(profile));
       } catch {
         if (!alive) return;
         setEvents([]);
-      }
-
-      try {
-        const dbMap = await getMyConflictResolutionsMap();
-        if (!alive) return;
-        setResMap(dbMap ?? {});
-      } catch {
-        if (!alive) return;
         setResMap({});
+        setDbEvents([]);
       }
 
       setBooting(false);
@@ -118,7 +202,6 @@ export default function ActionsClient({
     };
   }, [router, groupIdFromUrl]);
 
-  /* ========================= Conflicts + plan ========================= */
   const conflicts = useMemo<ConflictItem[]>(() => {
     const cx = computeVisibleConflicts(events);
     return attachEvents(cx, events);
@@ -136,14 +219,18 @@ export default function ActionsClient({
         pending++;
         continue;
       }
+
       decided++;
+
       if (r === "none") {
         skipped++;
         continue;
       }
+
       if (r === "keep_existing" && c.incomingEventId) {
         deleteIds.add(String(c.incomingEventId));
       }
+
       if (r === "replace_with_new" && c.existingEventId) {
         deleteIds.add(String(c.existingEventId));
       }
@@ -158,9 +245,47 @@ export default function ActionsClient({
     };
   }, [conflicts, resMap]);
 
+  const dbEventsById = useMemo(() => {
+    return new Map(dbEvents.map((ev) => [String(ev.id), ev]));
+  }, [dbEvents]);
+
+  const rejectedTargets = useMemo<RejectedTarget[]>(() => {
+    const out: RejectedTarget[] = [];
+    const seen = new Set<string>();
+
+    for (const eventId of plan.deleteIds) {
+      const row = dbEventsById.get(String(eventId));
+      if (!row) continue;
+
+      const creatorId = String(row.user_id ?? "").trim();
+      if (!creatorId) continue;
+      if (currentUid && creatorId === currentUid) continue;
+      if (seen.has(String(row.id))) continue;
+
+      seen.add(String(row.id));
+
+      out.push({
+        id: String(row.id),
+        title: safeTitle(row.title),
+        creatorId,
+        groupId: row.group_id ?? null,
+        startsAt: row.start,
+        endsAt: row.end,
+      });
+    }
+
+    return out;
+  }, [plan.deleteIds, dbEventsById, currentUid]);
+
   const disabledApply = plan.decided === 0 || busy;
 
-  /* ========================= Actions ========================= */
+  const updateComment = (eventId: string, value: string) => {
+    setCommentsByEventId((prev) => ({
+      ...prev,
+      [eventId]: value,
+    }));
+  };
+
   const apply = async () => {
     if (busy) return;
 
@@ -175,8 +300,35 @@ export default function ActionsClient({
     try {
       setBusy(true);
 
+      if (rejectedTargets.length > 0) {
+        const rows = rejectedTargets.map((target) => {
+          const comment = String(commentsByEventId[target.id] ?? "").trim();
+          const bodyBase = `Tu evento “${target.title}” no fue elegido al resolver un conflicto.`;
+          const body = comment ? `${bodyBase} Motivo: ${comment}` : bodyBase;
+
+          return {
+            user_id: target.creatorId,
+            type: "event_rejected" as const,
+            title: `${actorName} no aceptó tu evento`,
+            body,
+            entity_id: target.id,
+            payload: {
+              event_id: target.id,
+              event_title: target.title,
+              actor_name: actorName,
+              actor_user_id: currentUid,
+              comment: comment || null,
+              group_id: target.groupId,
+              start: target.startsAt,
+              end: target.endsAt,
+            },
+          };
+        });
+
+        await createNotifications(rows);
+      }
+
       if (plan.deleteIds.length > 0) {
-        // ✅ solo por id, RLS-safe (sin SELECT raros)
         await deleteEventsByIds(plan.deleteIds);
       }
 
@@ -186,14 +338,16 @@ export default function ActionsClient({
         // no bloquea la UX si falla limpiar
       }
 
-      // 🔁 Ahora redirigimos al resumen con contexto,
-      // para mostrar un feedback sutil post-conflictos
-      const resolved = plan.decided; // decisiones tomadas (incluye "none")
       const qp = new URLSearchParams();
       qp.set("from", "conflicts");
-      qp.set("resolved", String(resolved));
+      qp.set("resolved", String(plan.decided));
+
       if (plan.deleteIds.length > 0) {
         qp.set("deleted", String(plan.deleteIds.length));
+      }
+
+      if (rejectedTargets.length > 0) {
+        qp.set("notified", String(rejectedTargets.length));
       }
 
       router.replace(`/summary?${qp.toString()}`);
@@ -203,7 +357,7 @@ export default function ActionsClient({
         title: "No se pudo aplicar",
         sub:
           e?.message ??
-          "Inténtalo nuevamente en unos segundos (puede ser RLS/permiso).",
+          "Inténtalo nuevamente en unos segundos. Si falló el aviso al otro usuario, no aplicamos el cambio para no dejar el flujo incompleto.",
       });
     }
   };
@@ -214,7 +368,6 @@ export default function ActionsClient({
     router.push(`/conflicts/detected?${qp.toString()}`);
   };
 
-  /* ========================= Loading ========================= */
   if (booting) {
     return (
       <main style={styles.page}>
@@ -232,7 +385,6 @@ export default function ActionsClient({
     );
   }
 
-  /* ========================= UI ========================= */
   return (
     <main style={styles.page}>
       <div style={styles.shell}>
@@ -254,10 +406,18 @@ export default function ActionsClient({
               Esto actualizará tu calendario y resolverá los conflictos
               seleccionados.
             </div>
+
             {conflicts.length > 0 && plan.decided === 0 && (
               <div style={styles.helperText}>
                 No hay decisiones guardadas aún. Vuelve a “Comparar” y elige
-                Conservar A/B.
+                qué evento mantener.
+              </div>
+            )}
+
+            {rejectedTargets.length > 0 && (
+              <div style={styles.noticePill}>
+                Además, SyncPlans avisará automáticamente a la otra persona
+                cuando su evento no sea elegido.
               </div>
             )}
           </div>
@@ -296,6 +456,55 @@ export default function ActionsClient({
           </div>
         </section>
 
+        {rejectedTargets.length > 0 && (
+          <section style={styles.panelCard}>
+            <div style={styles.panelHeader}>
+              <div>
+                <div style={styles.panelKicker}>Comunicación automática</div>
+                <div style={styles.panelTitle}>Eventos rechazados de otras personas</div>
+              </div>
+              <div style={styles.panelMeta}>
+                {rejectedTargets.length} aviso{rejectedTargets.length === 1 ? "" : "s"}
+              </div>
+            </div>
+
+            <div style={styles.panelSub}>
+              Antes de aplicar, puedes dejar un comentario opcional para explicar
+              por qué ese evento no fue aceptado.
+            </div>
+
+            <div style={styles.cardsGrid}>
+              {rejectedTargets.map((target) => (
+                <div key={target.id} style={styles.rejectCard}>
+                  <div style={styles.rejectTop}>
+                    <div>
+                      <div style={styles.rejectTitle}>{target.title}</div>
+                      <div style={styles.rejectTime}>
+                        {formatRange(target.startsAt, target.endsAt)}
+                      </div>
+                    </div>
+                    <div style={styles.rejectBadge}>Se notificará</div>
+                  </div>
+
+                  <label style={styles.label}>
+                    Comentario opcional para el creador
+                  </label>
+                  <textarea
+                    value={commentsByEventId[target.id] ?? ""}
+                    onChange={(e) => updateComment(target.id, e.target.value)}
+                    placeholder="Ej.: Ya teníamos este otro plan confirmado / se cruza con algo familiar / lo vemos para otro momento."
+                    style={styles.textarea}
+                    maxLength={220}
+                  />
+                  <div style={styles.charHint}>
+                    {(commentsByEventId[target.id] ?? "").length}/220
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {conflicts.length === 0 && (
           <section style={styles.emptyCard}>
             <div style={styles.emptyTitle}>No hay conflictos abiertos</div>
@@ -322,8 +531,6 @@ export default function ActionsClient({
     </main>
   );
 }
-
-/* ========================= Styles ========================= */
 
 const styles: Record<string, React.CSSProperties> = {
   page: {
@@ -361,12 +568,14 @@ const styles: Record<string, React.CSSProperties> = {
       "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
     boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
     marginBottom: 14,
+    flexWrap: "wrap",
   },
   heroLeft: {
     display: "flex",
     flexDirection: "column",
     gap: 6,
     flex: 1,
+    minWidth: 280,
   },
   heroRight: {
     display: "flex",
@@ -374,6 +583,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     alignItems: "flex-end",
     minWidth: 260,
+    flex: "0 0 auto",
   },
   kicker: {
     fontSize: 11,
@@ -384,6 +594,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.04)",
+    width: "fit-content",
   },
   h1: {
     margin: 0,
@@ -399,6 +610,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     opacity: 0.82,
     lineHeight: 1.35,
+  },
+  noticePill: {
+    marginTop: 8,
+    width: "fit-content",
+    padding: "8px 10px",
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 800,
+    border: "1px solid rgba(56,189,248,0.18)",
+    background: "rgba(56,189,248,0.08)",
+    color: "rgba(255,255,255,0.9)",
   },
   ghostBtn: {
     padding: "10px 12px",
@@ -419,11 +641,24 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     fontWeight: 900,
   },
+  primaryBtnWide: {
+    marginTop: 12,
+    padding: "12px 16px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
+    color: "#fff",
+    cursor: "pointer",
+    fontWeight: 900,
+    minWidth: 240,
+  },
   statsGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(80px, 1fr))",
     gap: 8,
     marginBottom: 10,
+    width: "100%",
   },
   statCard: {
     padding: 8,
@@ -440,6 +675,115 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 16,
     fontWeight: 900,
   },
+  panelCard: {
+    marginTop: 14,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.025))",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
+    padding: 16,
+  },
+  panelHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  panelKicker: {
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    opacity: 0.72,
+  },
+  panelTitle: {
+    marginTop: 4,
+    fontSize: 18,
+    fontWeight: 900,
+    letterSpacing: "-0.2px",
+  },
+  panelMeta: {
+    fontSize: 12,
+    fontWeight: 800,
+    padding: "7px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+  },
+  panelSub: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 1.5,
+    opacity: 0.82,
+  },
+  cardsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: 12,
+    marginTop: 14,
+  },
+  rejectCard: {
+    padding: 14,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(5,8,22,0.74)",
+  },
+  rejectTop: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 12,
+  },
+  rejectTitle: {
+    fontSize: 15,
+    fontWeight: 900,
+    lineHeight: 1.2,
+  },
+  rejectTime: {
+    marginTop: 5,
+    fontSize: 12,
+    opacity: 0.72,
+  },
+  rejectBadge: {
+    flex: "0 0 auto",
+    fontSize: 11,
+    fontWeight: 900,
+    padding: "6px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(248,113,113,0.22)",
+    background: "rgba(248,113,113,0.10)",
+    color: "rgba(255,255,255,0.94)",
+  },
+  label: {
+    display: "block",
+    marginBottom: 8,
+    fontSize: 12,
+    fontWeight: 800,
+    opacity: 0.88,
+  },
+  textarea: {
+    width: "100%",
+    minHeight: 104,
+    resize: "vertical",
+    padding: 12,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#fff",
+    fontSize: 13,
+    lineHeight: 1.45,
+    outline: "none",
+    boxSizing: "border-box",
+  },
+  charHint: {
+    marginTop: 8,
+    fontSize: 11,
+    opacity: 0.62,
+    textAlign: "right",
+  },
   emptyCard: {
     marginTop: 12,
     borderRadius: 18,
@@ -455,18 +799,6 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 6,
     opacity: 0.78,
     fontSize: 13,
-  },
-  primaryBtnWide: {
-    marginTop: 12,
-    padding: "12px 16px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
-    color: "#fff",
-    cursor: "pointer",
-    fontWeight: 900,
-    minWidth: 240,
   },
   loadingCard: {
     marginTop: 18,
@@ -503,6 +835,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(16,18,26,0.92)",
     boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
+    zIndex: 100,
   },
   toastT: {
     fontSize: 13,

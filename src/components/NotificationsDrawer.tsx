@@ -142,84 +142,111 @@ export default function NotificationsDrawer({
     else router.push(href);
   }
 
-  function titleFor(n: NotificationRow) {
-    const t = String(n.type || "").toLowerCase();
+function titleFor(n: NotificationRow) {
+  const t = String(n.type || "").toLowerCase();
 
-    // 💬 Notificaciones de mensajes de grupo (V2)
-    if (t === "group_message") {
-      const payload = (n.payload || {}) as any;
-      const groupName =
-        payload.group_name ||
-        n.title?.replace(/^Nuevo mensaje en\s+/i, "") ||
-        "tu grupo";
-      const authorName: string | undefined = payload.author_name;
+  if (t === "group_message") {
+    const payload = (n.payload || {}) as any;
+    const groupName =
+      payload.group_name ||
+      n.title?.replace(/^Nuevo mensaje en\s+/i, "") ||
+      "tu grupo";
+    const authorName: string | undefined = payload.author_name;
 
-      if (authorName) {
-        return `${authorName} escribió en ${groupName}`;
-      }
-
-      if (n.title) return n.title;
-      return `Nuevo mensaje en ${groupName}`;
+    if (authorName) {
+      return `${authorName} escribió en ${groupName}`;
     }
 
-    // 📩 Invitaciones de grupo
-    if (t === "group_invite") {
-      if (n.title) return n.title;
-      const payload = (n.payload || {}) as any;
-      const groupName: string | undefined = payload.group_name;
-      if (groupName) return `Invitación a ${groupName}`;
-      return "Nueva invitación a un grupo";
-    }
-
-    // Resto de tipos (legacy)
     if (n.title) return n.title;
-    if (t === "conflict_detected" || t === "conflict")
-      return "Conflicto de horario";
-    if (t === "event_created") return "Nuevo evento creado";
-    if (t === "event_deleted") return "Evento eliminado";
-    return "Notificación";
+    return `Nuevo mensaje en ${groupName}`;
   }
 
-  function subtitleFor(n: NotificationRow) {
-    const t = String(n.type || "").toLowerCase();
+  if (t === "group_invite") {
+    if (n.title) return n.title;
+    const payload = (n.payload || {}) as any;
+    const groupName: string | undefined = payload.group_name;
+    if (groupName) return `Invitación a ${groupName}`;
+    return "Nueva invitación a un grupo";
+  }
 
-    // 💬 Mensaje de grupo: usamos snippet si viene en payload
-    if (t === "group_message") {
-      const payload = (n.payload || {}) as any;
-      return (
-        payload.message_snippet ||
-        n.body ||
-        "Toca para ver el mensaje en el grupo."
-      );
+  if (t === "event_rejected") {
+    const payload = (n.payload || {}) as any;
+    const actorName =
+      String(payload.actor_name ?? "").trim() || "Alguien";
+    const eventTitle = String(payload.event_title ?? "").trim();
+
+    if (eventTitle) {
+      return `${actorName} no aceptó “${eventTitle}”`;
     }
 
-    // 📩 Invitación de grupo
-    if (t === "group_invite") {
-      if (n.body) return n.body;
-      const payload = (n.payload || {}) as any;
-      const groupName: string | undefined = payload.group_name;
-      if (groupName)
-        return `Te invitaron al grupo "${groupName}". Toca para ver detalles.`;
-      return "Toca para ver y aceptar o rechazar la invitación.";
+    if (n.title) return n.title;
+    return `${actorName} no aceptó tu evento`;
+  }
+
+  if (n.title) return n.title;
+  if (t === "conflict_detected" || t === "conflict")
+    return "Conflicto de horario";
+  if (t === "event_created") return "Nuevo evento creado";
+  if (t === "event_deleted") return "Evento eliminado";
+  return "Notificación";
+}
+
+function subtitleFor(n: NotificationRow) {
+  const t = String(n.type || "").toLowerCase();
+
+  if (t === "group_message") {
+    const payload = (n.payload || {}) as any;
+    return (
+      payload.message_snippet ||
+      n.body ||
+      "Toca para ver el mensaje en el grupo."
+    );
+  }
+
+  if (t === "group_invite") {
+    if (n.body) return n.body;
+    const payload = (n.payload || {}) as any;
+    const groupName: string | undefined = payload.group_name;
+    if (groupName)
+      return `Te invitaron al grupo "${groupName}". Toca para ver detalles.`;
+    return "Toca para ver y aceptar o rechazar la invitación.";
+  }
+
+  if (t === "event_rejected") {
+    const payload = (n.payload || {}) as any;
+    const comment = String(payload.comment ?? "").trim();
+    const eventTitle = String(payload.event_title ?? "").trim();
+
+    if (comment) {
+      return `Motivo: ${comment}`;
+    }
+
+    if (eventTitle) {
+      return `Tu evento “${eventTitle}” no fue elegido al resolver un conflicto.`;
     }
 
     if (n.body) return n.body;
-    if (t === "conflict_detected" || t === "conflict")
-      return "Tu evento se cruza con otro. Revísalo antes de que se complique.";
-    if (t === "event_created")
-      return "Tu evento se guardó correctamente.";
-    if (t === "event_deleted") return "Tu evento fue eliminado.";
-    return "Toca para ver más.";
+    return "Tu evento no fue elegido al resolver un conflicto.";
   }
 
-  function typeLabel(n: NotificationRow): string {
-    const t = String(n.type || "").toLowerCase();
-    if (t === "conflict" || t === "conflict_detected") return "Conflicto";
-    if (t === "event_created" || t === "event_deleted") return "Evento";
-    if (t === "group_message") return "Mensaje de grupo";
-    if (t === "group_invite") return "Invitación";
-    return "Notificación";
-  }
+  if (n.body) return n.body;
+  if (t === "conflict_detected" || t === "conflict")
+    return "Tu evento se cruza con otro. Revísalo antes de que se complique.";
+  if (t === "event_created")
+    return "Tu evento se guardó correctamente.";
+  if (t === "event_deleted") return "Tu evento fue eliminado.";
+  return "Toca para ver más.";
+}
+
+function typeLabel(n: NotificationRow): string {
+  const t = String(n.type || "").toLowerCase();
+  if (t === "conflict" || t === "conflict_detected") return "Conflicto";
+  if (t === "event_created" || t === "event_deleted") return "Evento";
+  if (t === "event_rejected") return "Decisión";
+  if (t === "group_message") return "Mensaje de grupo";
+  if (t === "group_invite") return "Invitación";
+  return "Notificación";
+}
 
   function timeFor(n: NotificationRow) {
     const d = new Date(n.created_at);

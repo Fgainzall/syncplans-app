@@ -10,6 +10,7 @@ import {
 export type NotificationType =
   | "event_created"
   | "event_deleted"
+  | "event_rejected"
   | "conflict"
   | "conflict_detected"
   | "group_message"
@@ -28,12 +29,45 @@ export type NotificationRow = {
   read_at: string | null;
 };
 
+export type CreateNotificationInput = {
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  body?: string | null;
+  entity_id?: string | null;
+  payload?: any | null;
+};
+
 async function requireUid(): Promise<string> {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
   const uid = data.session?.user?.id;
   if (!uid) throw new Error("No auth session");
   return uid;
+}
+
+export async function createNotifications(
+  rows: CreateNotificationInput[]
+): Promise<number> {
+  await requireUid();
+
+  const cleaned = (rows ?? [])
+    .map((row) => ({
+      user_id: String(row.user_id ?? "").trim(),
+      type: String(row.type ?? "").trim(),
+      title: String(row.title ?? "").trim(),
+      body: row.body ?? null,
+      entity_id: row.entity_id ?? null,
+      payload: row.payload ?? null,
+    }))
+    .filter((row) => row.user_id && row.type && row.title);
+
+  if (cleaned.length === 0) return 0;
+
+  const { error } = await supabase.from("notifications").insert(cleaned);
+  if (error) throw error;
+
+  return cleaned.length;
 }
 
 export async function getMyNotifications(limit = 20): Promise<NotificationRow[]> {
@@ -63,8 +97,9 @@ export async function getMyNotifications(limit = 20): Promise<NotificationRow[]>
     .limit(limit);
 
   if (mutedGroupIds.length > 0) {
-    // PostgREST in() acepta: ('id1','id2',...)
-    const list = `(${mutedGroupIds.map((id) => `'${String(id).replace(/'/g, "''")}'`).join(",")})`;
+    const list = `(${mutedGroupIds
+      .map((id) => `'${String(id).replace(/'/g, "''")}'`)
+      .join(",")})`;
     query = query.not("entity_id", "in", list);
   }
 
@@ -187,6 +222,10 @@ export function notificationHref(n: NotificationRow): string {
       return `/invitations/accept?invite=${encodeURIComponent(n.entity_id)}`;
     }
     return "/invitations";
+  }
+
+  if (t === "event_rejected") {
+    return "/calendar";
   }
 
   return "/calendar";
