@@ -231,11 +231,12 @@ const groupTypeById = useMemo(() => {
 
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
-  const [enabledGroups, setEnabledGroups] = useState({
-    personal: true,
-    pair: true,
-    family: true,
-  });
+const [enabledGroups, setEnabledGroups] = useState({
+  personal: true,
+  pair: true,
+  family: true,
+  other: true,
+});
 
   const [toast, setToast] =
     useState<null | { title: string; subtitle?: string }>(null);
@@ -946,7 +947,7 @@ if (gid) {
     <div style={styles.conflictBannerCta}>Revisar ahora →</div>
   </button>
 ) : null}
-/* FILTROS */
+{/* FILTROS */}
         <CalendarFilters
           tab={tab}
           scope={scope}
