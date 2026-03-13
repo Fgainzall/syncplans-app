@@ -9,7 +9,6 @@ import React, {
   useCallback,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getUnreadConflictNotificationsSummary } from "@/lib/notificationsDb";
 import supabase from "@/lib/supabaseClient";
 import AppHero from "@/components/AppHero";
 import MobileScaffold from "@/components/MobileScaffold";
@@ -246,13 +245,6 @@ export default function CalendarClient(
   const [toast, setToast] =
     useState<null | { title: string; subtitle?: string }>(null);
 
-  const [conflictAlert, setConflictAlert] = useState<{
-    count: number;
-    latestEventId: string | null;
-  }>({
-    count: 0,
-    latestEventId: null,
-  });
 
   /* ✏️ ESTADO DEL MODAL DE EDICIÓN */
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
@@ -325,15 +317,8 @@ export default function CalendarClient(
 
         const groupIds = (myGroups || []).map((g: any) => String(g.id));
 
-        const [rawEvents, conflictInfo] = await Promise.all([
-          getEventsForGroups(groupIds),
-          getUnreadConflictNotificationsSummary().catch(() => ({
-            count: 0,
-            latestEventId: null,
-          })),
-        ]);
+    const rawEvents: any[] = (await getEventsForGroups(groupIds)) as any[];
 
-        setConflictAlert(conflictInfo);
 
         const groupTypeByIdLocal = new Map<string, "family" | "pair" | "other">(
           (myGroups || []).map((g: any) => {
@@ -816,17 +801,9 @@ export default function CalendarClient(
     );
   };
 
-  const openConflicts = () => {
-    if (conflictAlert.latestEventId) {
-      router.push(
-        `/conflicts/detected?eventId=${encodeURIComponent(
-          conflictAlert.latestEventId
-        )}`
-      );
-      return;
-    }
-    router.push("/conflicts/detected");
-  };
+const openConflicts = () => {
+  router.push("/conflicts/detected");
+};
 
   const resolveNow = () =>
     router.push(
@@ -956,28 +933,27 @@ export default function CalendarClient(
           </div>
         </section>
 
-        {conflictAlert.count > 0 ? (
-          <button
-            onClick={openConflicts}
-            style={styles.conflictBanner}
-            className="spCal-conflictBanner"
-          >
-            <div style={styles.conflictBannerLeft}>
-              <div style={styles.conflictBannerEyebrow}>Conflictos activos</div>
-              <div style={styles.conflictBannerTitle}>
-                Tienes {conflictAlert.count} conflicto
-                {conflictAlert.count === 1 ? "" : "s"} pendiente
-                {conflictAlert.count === 1 ? "" : "s"}
-              </div>
-              <div style={styles.conflictBannerSub}>
-                Hay eventos que siguen chocando. Entra y decide cuál se queda.
-              </div>
-            </div>
+       {conflicts.length > 0 ? (
+  <button
+    onClick={openConflicts}
+    style={styles.conflictBanner}
+    className="spCal-conflictBanner"
+  >
+    <div style={styles.conflictBannerLeft}>
+      <div style={styles.conflictBannerEyebrow}>Conflictos activos</div>
+      <div style={styles.conflictBannerTitle}>
+        Tienes {conflicts.length} conflicto
+        {conflicts.length === 1 ? "" : "s"} pendiente
+        {conflicts.length === 1 ? "" : "s"}
+      </div>
+      <div style={styles.conflictBannerSub}>
+        Hay eventos que siguen chocando. Entra y decide cuál se queda.
+      </div>
+    </div>
 
-            <div style={styles.conflictBannerCta}>Revisar ahora →</div>
-          </button>
-        ) : null}
-
+    <div style={styles.conflictBannerCta}>Revisar ahora →</div>
+  </button>
+) : null}
         <CalendarFilters
           tab={tab}
           scope={scope}
