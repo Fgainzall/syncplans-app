@@ -146,10 +146,7 @@ export default function NotificationsDrawer({
         "tu grupo";
       const authorName: string | undefined = payload.author_name;
 
-      if (authorName) {
-        return `${authorName} escribió en ${groupName}`;
-      }
-
+      if (authorName) return `${authorName} escribió en ${groupName}`;
       if (n.title) return n.title;
       return `Nuevo mensaje en ${groupName}`;
     }
@@ -167,10 +164,7 @@ export default function NotificationsDrawer({
       const actorName = String(payload.actor_name ?? "").trim() || "Alguien";
       const eventTitle = String(payload.event_title ?? "").trim();
 
-      if (eventTitle) {
-        return `${actorName} no aceptó “${eventTitle}”`;
-      }
-
+      if (eventTitle) return `${actorName} no aceptó “${eventTitle}”`;
       if (n.title) return n.title;
       return `${actorName} no aceptó tu evento`;
     }
@@ -228,9 +222,7 @@ export default function NotificationsDrawer({
     if (t === "conflict_detected" || t === "conflict") {
       return "Tu evento se cruza con otro. Revísalo antes de que se complique.";
     }
-    if (t === "event_created") {
-      return "Tu evento se guardó correctamente.";
-    }
+    if (t === "event_created") return "Tu evento se guardó correctamente.";
     if (t === "event_deleted") return "Tu evento fue eliminado.";
     return "Toca para ver más.";
   }
@@ -423,6 +415,27 @@ export default function NotificationsDrawer({
     }
   }
 
+  async function onMarkOneRead(n: NotificationRow) {
+    const type = String(n.type || "").toLowerCase();
+    if (type === "group_invite") return;
+
+    const id = String(n.id);
+
+    try {
+      busyIds.current.add(id);
+      setItems((prev) => prev.filter((x) => String(x.id) !== id));
+      await markNotificationRead(id);
+    } catch {
+      setToast({
+        title: "No pudimos marcarla como leída",
+        subtitle: "Intenta nuevamente.",
+      });
+      void refreshFromDb(true);
+    } finally {
+      busyIds.current.delete(id);
+    }
+  }
+
   async function onDeleteNotificationClick(n: NotificationRow) {
     const type = String(n.type || "").toLowerCase();
 
@@ -458,23 +471,16 @@ export default function NotificationsDrawer({
             }}
           >
             <div style={header}>
-              <div>
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={title}>Notificaciones</div>
                 <div style={sub}>
                   {unreadCount > 0
-                    ? `${unreadCount} sin leer`
+                    ? `${unreadCount} pendientes`
                     : "Estás al día ✨"}
                 </div>
-                <div
-                  style={{
-                    marginTop: 4,
-                    fontSize: 11,
-                    color: "rgba(148,163,184,0.85)",
-                  }}
-                >
+                <div style={subtleCopy}>
                   Solo mostramos notificaciones pendientes. Lo que marques como
-                  leído desaparecerá de aquí, pero se mantiene en el historial
-                  interno.
+                  leído saldrá de aquí.
                 </div>
               </div>
 
@@ -482,7 +488,7 @@ export default function NotificationsDrawer({
                 <button
                   type="button"
                   style={{
-                    ...iconBtn,
+                    ...softActionBtn,
                     opacity: loading ? 0.6 : 1,
                     cursor: loading ? "progress" : "pointer",
                   }}
@@ -490,7 +496,7 @@ export default function NotificationsDrawer({
                   disabled={loading}
                   title="Actualizar"
                 >
-                  ⟳
+                  Actualizar
                 </button>
 
                 {items.length > 0 && (
@@ -498,7 +504,7 @@ export default function NotificationsDrawer({
                     <button
                       type="button"
                       style={{
-                        ...ghostBtn,
+                        ...softActionBtn,
                         opacity: loading ? 0.6 : 1,
                         cursor: loading ? "progress" : "pointer",
                       }}
@@ -511,7 +517,7 @@ export default function NotificationsDrawer({
                     <button
                       type="button"
                       style={{
-                        ...ghostDangerBtn,
+                        ...dangerActionBtn,
                         opacity: loading ? 0.6 : 1,
                         cursor: loading ? "progress" : "pointer",
                       }}
@@ -547,92 +553,102 @@ export default function NotificationsDrawer({
                     const payload = (n.payload || {}) as any;
                     const type = String(n.type || "").toLowerCase();
                     const accent = accentFor(n);
+                    const isInvite = type === "group_invite";
 
                     return (
-                      <button
+                      <div
                         key={n.id}
-                        type="button"
-                        onClick={() => onOpenNotification(n)}
                         style={{
-                          ...rowBtn,
+                          ...rowCard,
                           borderColor: accent.border,
                           background: accent.background,
                           opacity: isBusy ? 0.7 : 1,
-                          cursor: isBusy ? "progress" : "pointer",
                         }}
-                        disabled={isBusy}
                       >
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 12,
-                            alignItems: "flex-start",
-                          }}
-                        >
-                          <div
-                            style={{
-                              ...dot,
-                              background: accent.dot,
-                              boxShadow: accent.ring,
-                            }}
-                          />
-
-                          <div
-                            style={{
-                              flex: 1,
-                              textAlign: "left",
-                            }}
-                          >
+                        <div style={rowTop}>
+                          <div style={rowTopLeft}>
                             <div
                               style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                gap: 10,
+                                ...dot,
+                                background: accent.dot,
+                                boxShadow: accent.ring,
                               }}
-                            >
-                              <div style={rowTitle}>{titleFor(n)}</div>
-                              <div style={rowTime}>{timeFor(n)}</div>
-                            </div>
+                            />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={rowTitleLine}>
+                                <div style={rowTitle}>{titleFor(n)}</div>
+                                <div style={rowTime}>{timeFor(n)}</div>
+                              </div>
 
-                            <div style={rowSub}>{subtitleFor(n)}</div>
+                              <div style={rowSub}>{subtitleFor(n)}</div>
 
-                            <div style={rowMeta}>
-                              <span style={metaPill}>{typeLabel(n)}</span>
+                              <div style={rowMeta}>
+                                <span style={metaPill}>{typeLabel(n)}</span>
 
-                              {(type === "group_message" ||
-                                type === "group_invite") &&
-                                payload.group_name && (
-                                  <span style={metaPill}>
-                                    Grupo: {payload.group_name}
-                                  </span>
-                                )}
+                                {(type === "group_message" ||
+                                  type === "group_invite") &&
+                                  payload.group_name && (
+                                    <span style={metaPill}>
+                                      Grupo: {payload.group_name}
+                                    </span>
+                                  )}
 
-                              {type === "event_rejected" &&
-                                payload.event_title && (
-                                  <span style={metaPill}>
-                                    Evento: {payload.event_title}
-                                  </span>
-                                )}
-
-                              <span style={metaPill}>Abrir</span>
-
-                              {type !== "group_invite" && (
-                                <span
-                                  style={metaPillDanger}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    void onDeleteNotificationClick(n);
-                                  }}
-                                >
-                                  Quitar
-                                </span>
-                              )}
+                                {type === "event_rejected" &&
+                                  payload.event_title && (
+                                    <span style={metaPill}>
+                                      Evento: {payload.event_title}
+                                    </span>
+                                  )}
+                              </div>
                             </div>
                           </div>
-
-                          <div style={{ marginTop: 2, opacity: 0.8 }}>›</div>
                         </div>
-                      </button>
+
+                        <div style={rowActions}>
+                          <button
+                            type="button"
+                            onClick={() => void onOpenNotification(n)}
+                            disabled={isBusy}
+                            style={{
+                              ...primaryRowBtn,
+                              opacity: isBusy ? 0.7 : 1,
+                              cursor: isBusy ? "progress" : "pointer",
+                            }}
+                          >
+                            {isInvite ? "Ver invitación" : "Abrir"}
+                          </button>
+
+                          {!isInvite && (
+                            <button
+                              type="button"
+                              onClick={() => void onMarkOneRead(n)}
+                              disabled={isBusy}
+                              style={{
+                                ...secondaryRowBtn,
+                                opacity: isBusy ? 0.7 : 1,
+                                cursor: isBusy ? "progress" : "pointer",
+                              }}
+                            >
+                              Marcar leída
+                            </button>
+                          )}
+
+                          {!isInvite && (
+                            <button
+                              type="button"
+                              onClick={() => void onDeleteNotificationClick(n)}
+                              disabled={isBusy}
+                              style={{
+                                ...dangerRowBtn,
+                                opacity: isBusy ? 0.7 : 1,
+                                cursor: isBusy ? "progress" : "pointer",
+                              }}
+                            >
+                              Quitar
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -654,7 +670,7 @@ export default function NotificationsDrawer({
 
 function SkeletonList() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {Array.from({ length: 4 }).map((_, idx) => (
         <div key={idx} style={skRow}>
           <div style={skDot} />
@@ -671,7 +687,7 @@ function SkeletonList() {
 const backdrop: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.30)",
+  background: "rgba(0,0,0,0.34)",
   backdropFilter: "blur(10px)",
   WebkitBackdropFilter: "blur(10px)",
   zIndex: 40,
@@ -680,45 +696,58 @@ const backdrop: React.CSSProperties = {
 };
 
 const drawer: React.CSSProperties = {
-  width: 360,
+  width: "min(620px, 100vw)",
+  minWidth: 420,
   maxWidth: "100%",
   height: "100%",
   background: "radial-gradient(circle at top, #0f172a 0, #020617 60%)",
   borderLeft: "1px solid rgba(148,163,184,0.45)",
-  padding: 16,
+  padding: 20,
   display: "flex",
   flexDirection: "column",
+  boxShadow: "-18px 0 60px rgba(0,0,0,0.42)",
 };
 
 const header: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: 12,
+  gap: 16,
   alignItems: "flex-start",
+  flexWrap: "wrap",
 };
 
 const title: React.CSSProperties = {
-  fontSize: 16,
+  fontSize: 24,
   fontWeight: 900,
   color: "rgba(248,250,252,0.98)",
+  letterSpacing: "-0.02em",
 };
 
 const sub: React.CSSProperties = {
-  marginTop: 4,
-  fontSize: 12,
+  marginTop: 6,
+  fontSize: 13,
   color: "rgba(148,163,184,0.95)",
+  fontWeight: 700,
+};
+
+const subtleCopy: React.CSSProperties = {
+  marginTop: 8,
+  fontSize: 12,
+  lineHeight: 1.45,
+  color: "rgba(148,163,184,0.86)",
+  maxWidth: 420,
 };
 
 const headerActions: React.CSSProperties = {
   display: "flex",
-  gap: 8,
+  gap: 10,
   alignItems: "center",
   flexWrap: "wrap",
   justifyContent: "flex-end",
 };
 
 const body: React.CSSProperties = {
-  marginTop: 14,
+  marginTop: 18,
   flex: 1,
   overflowY: "auto",
   paddingRight: 4,
@@ -727,56 +756,84 @@ const body: React.CSSProperties = {
 const list: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: 10,
+  gap: 12,
 };
 
-const rowBtn: React.CSSProperties = {
+const rowCard: React.CSSProperties = {
   width: "100%",
-  borderRadius: 16,
+  borderRadius: 18,
   border: "1px solid rgba(255,255,255,0.12)",
-  padding: 10,
+  padding: 14,
   background: "rgba(255,255,255,0.04)",
-  color: "inherit",
-  textAlign: "left",
+};
+
+const rowTop: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 12,
+};
+
+const rowTopLeft: React.CSSProperties = {
+  display: "flex",
+  gap: 12,
+  alignItems: "flex-start",
+  width: "100%",
 };
 
 const dot: React.CSSProperties = {
-  width: 10,
-  height: 10,
+  width: 11,
+  height: 11,
   borderRadius: 999,
-  marginTop: 6,
+  marginTop: 7,
   flex: "0 0 auto",
 };
 
+const rowTitleLine: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  alignItems: "flex-start",
+};
+
 const rowTitle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 800,
+  fontSize: 15,
+  fontWeight: 900,
+  color: "rgba(248,250,252,0.98)",
+  lineHeight: 1.25,
 };
 
 const rowTime: React.CSSProperties = {
   fontSize: 11,
   color: "rgba(255,255,255,0.55)",
   whiteSpace: "nowrap",
-  marginTop: 1,
+  marginTop: 2,
 };
 
 const rowSub: React.CSSProperties = {
-  marginTop: 6,
-  fontSize: 12,
-  color: "rgba(255,255,255,0.70)",
-  lineHeight: 1.35,
+  marginTop: 8,
+  fontSize: 13,
+  color: "rgba(255,255,255,0.74)",
+  lineHeight: 1.45,
 };
 
 const rowMeta: React.CSSProperties = {
-  marginTop: 10,
+  marginTop: 12,
   display: "flex",
   gap: 8,
   flexWrap: "wrap",
 };
 
+const rowActions: React.CSSProperties = {
+  marginTop: 14,
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+};
+
 const metaPill: React.CSSProperties = {
   fontSize: 11,
-  padding: "4px 8px",
+  padding: "5px 9px",
   borderRadius: 999,
   border: "1px solid rgba(255,255,255,0.12)",
   background: "rgba(255,255,255,0.04)",
@@ -784,115 +841,141 @@ const metaPill: React.CSSProperties = {
   cursor: "default",
 };
 
-const metaPillDanger: React.CSSProperties = {
-  ...metaPill,
-  borderColor: "rgba(248,113,113,0.6)",
-  background: "rgba(248,113,113,0.10)",
-  color: "rgba(254,242,242,0.96)",
-  cursor: "pointer",
-};
-
-const ghostBtn: React.CSSProperties = {
-  padding: "8px 10px",
-  borderRadius: 12,
+const softActionBtn: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: 14,
   border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.04)",
-  color: "rgba(255,255,255,0.86)",
-  fontSize: 12,
-  fontWeight: 600,
+  background: "rgba(255,255,255,0.05)",
+  color: "rgba(255,255,255,0.90)",
+  fontSize: 13,
+  fontWeight: 800,
 };
 
-const ghostDangerBtn: React.CSSProperties = {
-  ...ghostBtn,
+const dangerActionBtn: React.CSSProperties = {
+  ...softActionBtn,
   borderColor: "rgba(248,113,113,0.7)",
-  background: "rgba(127,29,29,0.70)",
+  background: "rgba(127,29,29,0.78)",
   color: "rgba(254,242,242,0.98)",
 };
 
-const iconBtn: React.CSSProperties = {
-  width: 34,
-  height: 34,
+const primaryRowBtn: React.CSSProperties = {
+  padding: "10px 14px",
   borderRadius: 12,
+  border: "1px solid rgba(56,189,248,0.35)",
+  background:
+    "linear-gradient(135deg, rgba(56,189,248,0.20), rgba(59,130,246,0.18))",
+  color: "rgba(255,255,255,0.98)",
+  fontSize: 13,
+  fontWeight: 800,
+};
+
+const secondaryRowBtn: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.05)",
+  color: "rgba(255,255,255,0.92)",
+  fontSize: 13,
+  fontWeight: 800,
+};
+
+const dangerRowBtn: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: 12,
+  border: "1px solid rgba(248,113,113,0.6)",
+  background: "rgba(127,29,29,0.72)",
+  color: "rgba(254,242,242,0.98)",
+  fontSize: 13,
+  fontWeight: 800,
+};
+
+const iconBtn: React.CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: 14,
   border: "1px solid rgba(255,255,255,0.12)",
   background: "rgba(15,23,42,0.85)",
   color: "rgba(248,250,252,0.96)",
-  fontSize: 16,
+  fontSize: 18,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
 };
 
 const emptyBox: React.CSSProperties = {
-  padding: 16,
-  borderRadius: 16,
+  padding: 18,
+  borderRadius: 18,
   border: "1px dashed rgba(148,163,184,0.55)",
   background: "rgba(15,23,42,0.75)",
 };
 
 const emptyTitle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 800,
+  fontSize: 15,
+  fontWeight: 900,
   color: "rgba(248,250,252,0.95)",
 };
 
 const emptySub: React.CSSProperties = {
-  marginTop: 4,
-  fontSize: 12,
+  marginTop: 6,
+  fontSize: 13,
+  lineHeight: 1.5,
   color: "rgba(148,163,184,0.95)",
 };
 
 const skRow: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 10,
-  padding: 10,
-  borderRadius: 14,
+  gap: 12,
+  padding: 14,
+  borderRadius: 16,
   border: "1px solid rgba(255,255,255,0.06)",
   background: "rgba(15,23,42,0.85)",
 };
 
 const skDot: React.CSSProperties = {
-  width: 10,
-  height: 10,
+  width: 11,
+  height: 11,
   borderRadius: 999,
   background: "rgba(148,163,184,0.8)",
 };
 
 const skLine1: React.CSSProperties = {
-  height: 10,
-  width: "55%",
+  height: 12,
+  width: "46%",
   borderRadius: 999,
-  background: "rgba(255,255,255,0.18)",
+  background: "rgba(148,163,184,0.22)",
 };
 
 const skLine2: React.CSSProperties = {
   height: 10,
-  width: "85%",
+  width: "72%",
   borderRadius: 999,
-  background: "rgba(255,255,255,0.12)",
-  marginTop: 10,
+  background: "rgba(148,163,184,0.14)",
+  marginTop: 8,
 };
 
 const toastBox: React.CSSProperties = {
   position: "fixed",
-  bottom: 18,
-  right: 18,
-  zIndex: 50,
-  padding: "10px 12px",
+  right: 20,
+  bottom: 20,
+  zIndex: 60,
+  minWidth: 240,
+  maxWidth: 340,
   borderRadius: 16,
   border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(16,18,26,0.92)",
-  boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
+  background: "rgba(2,6,23,0.95)",
+  padding: "12px 14px",
+  boxShadow: "0 18px 50px rgba(0,0,0,0.4)",
 };
 
 const toastTitle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 900,
-  color: "rgba(255,255,255,0.92)",
+  color: "rgba(248,250,252,0.98)",
 };
 
 const toastSub: React.CSSProperties = {
   marginTop: 4,
   fontSize: 12,
-  color: "rgba(209,213,219,0.95)",
+  color: "rgba(148,163,184,0.92)",
 };
