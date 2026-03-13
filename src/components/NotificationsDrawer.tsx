@@ -36,6 +36,7 @@ export default function NotificationsDrawer({
 
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [toast, setToast] = useState<{
     title: string;
     subtitle?: string;
@@ -50,6 +51,17 @@ export default function NotificationsDrawer({
     if (!onUnreadChange) return;
     onUnreadChange(unreadCount);
   }, [unreadCount, onUnreadChange]);
+
+  useEffect(() => {
+    const apply = () => {
+      if (typeof window === "undefined") return;
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, []);
 
   function inviteToNotificationRow(inv: GroupInvitation): NotificationRow {
     const gt = String(inv.group_type || "").toLowerCase();
@@ -89,7 +101,6 @@ export default function NotificationsDrawer({
     ]);
 
     const syntheticInvites = (invites ?? []).map(inviteToNotificationRow);
-
     return [...syntheticInvites, ...(notifs ?? [])];
   }
 
@@ -170,9 +181,7 @@ export default function NotificationsDrawer({
     }
 
     if (n.title) return n.title;
-    if (t === "conflict_detected" || t === "conflict") {
-      return "Conflicto de horario";
-    }
+    if (t === "conflict_detected" || t === "conflict") return "Conflicto de horario";
     if (t === "event_created") return "Nuevo evento creado";
     if (t === "event_deleted") return "Evento eliminado";
     return "Notificación";
@@ -195,9 +204,9 @@ export default function NotificationsDrawer({
       const payload = (n.payload || {}) as any;
       const groupName: string | undefined = payload.group_name;
       if (groupName) {
-        return `Te invitaron al grupo "${groupName}". Toca para ver detalles.`;
+        return `Te invitaron al grupo "${groupName}".`;
       }
-      return "Toca para ver y aceptar o rechazar la invitación.";
+      return "Toca para ver la invitación.";
     }
 
     if (t === "event_rejected") {
@@ -206,93 +215,67 @@ export default function NotificationsDrawer({
       const eventTitle = String(payload.event_title ?? "").trim();
       const actorName = String(payload.actor_name ?? "").trim() || "Alguien";
 
-      if (comment) {
-        return `${actorName} dejó este motivo: "${comment}"`;
-      }
-
+      if (comment) return `${actorName} dejó este motivo: "${comment}"`;
       if (eventTitle) {
         return `Tu evento “${eventTitle}” no fue elegido al resolver un conflicto.`;
       }
-
       if (n.body) return n.body;
       return "Tu evento no fue elegido al resolver un conflicto.";
     }
 
     if (n.body) return n.body;
-    if (t === "conflict_detected" || t === "conflict") {
-      return "Tu evento se cruza con otro. Revísalo antes de que se complique.";
-    }
-    if (t === "event_created") return "Tu evento se guardó correctamente.";
-    if (t === "event_deleted") return "Tu evento fue eliminado.";
     return "Toca para ver más.";
   }
 
   function typeLabel(n: NotificationRow): string {
     const t = String(n.type || "").toLowerCase();
-
     if (t === "conflict" || t === "conflict_detected") return "Conflicto";
     if (t === "event_created" || t === "event_deleted") return "Evento";
     if (t === "event_rejected") return "Decisión";
-    if (t === "group_message") return "Mensaje de grupo";
+    if (t === "group_message") return "Mensaje";
     if (t === "group_invite") return "Invitación";
-
     return "Notificación";
   }
 
-  function accentFor(n: NotificationRow): {
-    dot: string;
-    ring: string;
-    border: string;
-    background: string;
-  } {
+  function accentFor(n: NotificationRow) {
     const t = String(n.type || "").toLowerCase();
 
     if (t === "conflict" || t === "conflict_detected") {
       return {
         dot: "#FB7185",
-        ring: "0 0 0 4px rgba(251,113,133,0.12)",
-        border: "rgba(251,113,133,0.22)",
-        background:
-          "linear-gradient(180deg, rgba(127,29,29,0.28), rgba(255,255,255,0.05))",
+        border: "rgba(251,113,133,0.24)",
+        bg: "linear-gradient(180deg, rgba(127,29,29,0.24), rgba(255,255,255,0.04))",
       };
     }
 
     if (t === "event_rejected") {
       return {
         dot: "#F97316",
-        ring: "0 0 0 4px rgba(249,115,22,0.12)",
-        border: "rgba(249,115,22,0.22)",
-        background:
-          "linear-gradient(180deg, rgba(124,45,18,0.30), rgba(255,255,255,0.05))",
+        border: "rgba(249,115,22,0.24)",
+        bg: "linear-gradient(180deg, rgba(124,45,18,0.24), rgba(255,255,255,0.04))",
       };
     }
 
     if (t === "group_invite") {
       return {
         dot: "#38BDF8",
-        ring: "0 0 0 4px rgba(56,189,248,0.12)",
-        border: "rgba(56,189,248,0.22)",
-        background:
-          "linear-gradient(180deg, rgba(8,47,73,0.32), rgba(255,255,255,0.05))",
+        border: "rgba(56,189,248,0.24)",
+        bg: "linear-gradient(180deg, rgba(8,47,73,0.26), rgba(255,255,255,0.04))",
       };
     }
 
     if (t === "group_message") {
       return {
         dot: "#A78BFA",
-        ring: "0 0 0 4px rgba(167,139,250,0.12)",
-        border: "rgba(167,139,250,0.22)",
-        background:
-          "linear-gradient(180deg, rgba(76,29,149,0.28), rgba(255,255,255,0.05))",
+        border: "rgba(167,139,250,0.24)",
+        bg: "linear-gradient(180deg, rgba(76,29,149,0.24), rgba(255,255,255,0.04))",
       };
     }
 
     return {
       dot: "#FBBF24",
-      ring: "0 0 0 4px rgba(251,191,36,0.12)",
-      border: "rgba(255,255,255,0.16)",
-      background:
-        "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05))",
+      border: "rgba(255,255,255,0.14)",
+      bg: "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))",
     };
   }
 
@@ -329,19 +312,11 @@ export default function NotificationsDrawer({
 
     try {
       setLoading(true);
-
       setItems((prev) =>
-        prev.filter(
-          (n) => String(n.type || "").toLowerCase() === "group_invite"
-        )
+        prev.filter((n) => String(n.type || "").toLowerCase() === "group_invite")
       );
-
       await markAllRead();
-
-      setToast({
-        title: "Listo",
-        subtitle: "Marcaste todas como leídas.",
-      });
+      setToast({ title: "Listo", subtitle: "Marcaste todas como leídas." });
     } catch {
       setToast({
         title: "No pudimos marcar como leídas",
@@ -358,18 +333,13 @@ export default function NotificationsDrawer({
 
     try {
       setLoading(true);
-
       setItems((prev) =>
-        prev.filter(
-          (n) => String(n.type || "").toLowerCase() === "group_invite"
-        )
+        prev.filter((n) => String(n.type || "").toLowerCase() === "group_invite")
       );
-
       await deleteAllNotifications();
-
       setToast({
         title: "Notificaciones eliminadas",
-        subtitle: "Limpiaste tu bandeja de notificaciones.",
+        subtitle: "Limpiaste tu bandeja.",
       });
     } catch {
       setToast({
@@ -386,8 +356,7 @@ export default function NotificationsDrawer({
     const type = String(n.type || "").toLowerCase();
 
     if (type === "group_invite") {
-      const href = notificationHref(n);
-      navTo(href);
+      navTo(notificationHref(n));
       onClose();
       return;
     }
@@ -397,11 +366,8 @@ export default function NotificationsDrawer({
 
     try {
       busyIds.current.add(id);
-
       setItems((prev) => prev.filter((x) => String(x.id) !== id));
-
       await markNotificationRead(id);
-
       navTo(href);
       onClose();
     } catch {
@@ -438,7 +404,6 @@ export default function NotificationsDrawer({
 
   async function onDeleteNotificationClick(n: NotificationRow) {
     const type = String(n.type || "").toLowerCase();
-
     if (type === "group_invite") return;
 
     const id = String(n.id);
@@ -465,75 +430,64 @@ export default function NotificationsDrawer({
       {open && (
         <div style={backdrop} onClick={onClose}>
           <div
-            style={drawer}
-            onClick={(e) => {
-              e.stopPropagation();
+            style={{
+              ...drawer,
+              ...(isMobile ? drawerMobile : drawerDesktop),
             }}
+            onClick={(e) => e.stopPropagation()}
           >
             <div style={header}>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={title}>Notificaciones</div>
                 <div style={sub}>
-                  {unreadCount > 0
-                    ? `${unreadCount} pendientes`
-                    : "Estás al día ✨"}
+                  {unreadCount > 0 ? `${unreadCount} pendientes` : "Estás al día ✨"}
                 </div>
                 <div style={subtleCopy}>
-                  Solo mostramos notificaciones pendientes. Lo que marques como
-                  leído saldrá de aquí.
+                  Solo mostramos notificaciones pendientes. Lo que marques como leído
+                  saldrá de aquí.
                 </div>
               </div>
 
-              <div style={headerActions}>
+              <div style={headerTopActions}>
                 <button
                   type="button"
-                  style={{
-                    ...softActionBtn,
-                    opacity: loading ? 0.6 : 1,
-                    cursor: loading ? "progress" : "pointer",
-                  }}
+                  style={smallSoftBtn}
                   onClick={() => refreshFromDb()}
                   disabled={loading}
-                  title="Actualizar"
                 >
                   Actualizar
                 </button>
-
-                {items.length > 0 && (
-                  <>
-                    <button
-                      type="button"
-                      style={{
-                        ...softActionBtn,
-                        opacity: loading ? 0.6 : 1,
-                        cursor: loading ? "progress" : "pointer",
-                      }}
-                      onClick={onMarkAll}
-                      disabled={loading}
-                    >
-                      Marcar todo leído
-                    </button>
-
-                    <button
-                      type="button"
-                      style={{
-                        ...dangerActionBtn,
-                        opacity: loading ? 0.6 : 1,
-                        cursor: loading ? "progress" : "pointer",
-                      }}
-                      onClick={onDeleteAll}
-                      disabled={loading}
-                    >
-                      Limpiar bandeja
-                    </button>
-                  </>
-                )}
-
                 <button type="button" style={iconBtn} onClick={onClose}>
                   ✕
                 </button>
               </div>
             </div>
+
+            {items.length > 0 && (
+              <div
+                style={{
+                  ...bulkActionsRow,
+                  ...(isMobile ? bulkActionsRowMobile : null),
+                }}
+              >
+                <button
+                  type="button"
+                  style={secondaryHeaderBtn}
+                  onClick={onMarkAll}
+                  disabled={loading}
+                >
+                  Marcar todo leído
+                </button>
+                <button
+                  type="button"
+                  style={dangerHeaderBtn}
+                  onClick={onDeleteAll}
+                  disabled={loading}
+                >
+                  Limpiar bandeja
+                </button>
+              </div>
+            )}
 
             <div style={body}>
               {loading && items.length === 0 ? (
@@ -550,10 +504,10 @@ export default function NotificationsDrawer({
                 <div style={list}>
                   {items.map((n) => {
                     const isBusy = busyIds.current.has(String(n.id));
-                    const payload = (n.payload || {}) as any;
                     const type = String(n.type || "").toLowerCase();
-                    const accent = accentFor(n);
                     const isInvite = type === "group_invite";
+                    const payload = (n.payload || {}) as any;
+                    const accent = accentFor(n);
 
                     return (
                       <div
@@ -561,7 +515,7 @@ export default function NotificationsDrawer({
                         style={{
                           ...rowCard,
                           borderColor: accent.border,
-                          background: accent.background,
+                          background: accent.bg,
                           opacity: isBusy ? 0.7 : 1,
                         }}
                       >
@@ -571,7 +525,6 @@ export default function NotificationsDrawer({
                               style={{
                                 ...dot,
                                 background: accent.dot,
-                                boxShadow: accent.ring,
                               }}
                             />
                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -584,35 +537,31 @@ export default function NotificationsDrawer({
 
                               <div style={rowMeta}>
                                 <span style={metaPill}>{typeLabel(n)}</span>
-
-                                {(type === "group_message" ||
-                                  type === "group_invite") &&
+                                {(type === "group_message" || type === "group_invite") &&
                                   payload.group_name && (
-                                    <span style={metaPill}>
-                                      Grupo: {payload.group_name}
-                                    </span>
+                                    <span style={metaPill}>{payload.group_name}</span>
                                   )}
-
-                                {type === "event_rejected" &&
-                                  payload.event_title && (
-                                    <span style={metaPill}>
-                                      Evento: {payload.event_title}
-                                    </span>
-                                  )}
+                                {type === "event_rejected" && payload.event_title && (
+                                  <span style={metaPill}>{payload.event_title}</span>
+                                )}
                               </div>
                             </div>
                           </div>
                         </div>
 
-                        <div style={rowActions}>
+                        <div
+                          style={{
+                            ...rowActions,
+                            ...(isMobile ? rowActionsMobile : null),
+                          }}
+                        >
                           <button
                             type="button"
                             onClick={() => void onOpenNotification(n)}
                             disabled={isBusy}
                             style={{
                               ...primaryRowBtn,
-                              opacity: isBusy ? 0.7 : 1,
-                              cursor: isBusy ? "progress" : "pointer",
+                              ...(isMobile ? mobileActionBtn : null),
                             }}
                           >
                             {isInvite ? "Ver invitación" : "Abrir"}
@@ -625,8 +574,7 @@ export default function NotificationsDrawer({
                               disabled={isBusy}
                               style={{
                                 ...secondaryRowBtn,
-                                opacity: isBusy ? 0.7 : 1,
-                                cursor: isBusy ? "progress" : "pointer",
+                                ...(isMobile ? mobileActionBtn : null),
                               }}
                             >
                               Marcar leída
@@ -640,8 +588,7 @@ export default function NotificationsDrawer({
                               disabled={isBusy}
                               style={{
                                 ...dangerRowBtn,
-                                opacity: isBusy ? 0.7 : 1,
-                                cursor: isBusy ? "progress" : "pointer",
+                                ...(isMobile ? mobileActionBtn : null),
                               }}
                             >
                               Quitar
@@ -687,7 +634,7 @@ function SkeletonList() {
 const backdrop: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.34)",
+  background: "rgba(2,6,23,0.42)",
   backdropFilter: "blur(10px)",
   WebkitBackdropFilter: "blur(10px)",
   zIndex: 40,
@@ -696,16 +643,26 @@ const backdrop: React.CSSProperties = {
 };
 
 const drawer: React.CSSProperties = {
-  width: "min(620px, 100vw)",
-  minWidth: 420,
-  maxWidth: "100%",
-  height: "100%",
-  background: "radial-gradient(circle at top, #0f172a 0, #020617 60%)",
-  borderLeft: "1px solid rgba(148,163,184,0.45)",
-  padding: 20,
+  background: "radial-gradient(circle at top, #0f172a 0, #020617 62%)",
   display: "flex",
   flexDirection: "column",
   boxShadow: "-18px 0 60px rgba(0,0,0,0.42)",
+  borderLeft: "1px solid rgba(148,163,184,0.24)",
+};
+
+const drawerDesktop: React.CSSProperties = {
+  width: "min(480px, 92vw)",
+  height: "100%",
+  padding: 22,
+};
+
+const drawerMobile: React.CSSProperties = {
+  width: "100%",
+  height: "100%",
+  paddingTop: "max(18px, env(safe-area-inset-top))",
+  paddingRight: 16,
+  paddingBottom: "max(18px, env(safe-area-inset-bottom))",
+  paddingLeft: 16,
 };
 
 const header: React.CSSProperties = {
@@ -713,44 +670,55 @@ const header: React.CSSProperties = {
   justifyContent: "space-between",
   gap: 16,
   alignItems: "flex-start",
-  flexWrap: "wrap",
+};
+
+const headerTopActions: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  alignItems: "center",
+  flexShrink: 0,
 };
 
 const title: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 900,
+  fontSize: 30,
+  fontWeight: 950,
   color: "rgba(248,250,252,0.98)",
-  letterSpacing: "-0.02em",
+  letterSpacing: "-0.03em",
+  lineHeight: 1,
 };
 
 const sub: React.CSSProperties = {
-  marginTop: 6,
-  fontSize: 13,
+  marginTop: 8,
+  fontSize: 14,
   color: "rgba(148,163,184,0.95)",
   fontWeight: 700,
 };
 
 const subtleCopy: React.CSSProperties = {
-  marginTop: 8,
-  fontSize: 12,
+  marginTop: 10,
+  fontSize: 13,
   lineHeight: 1.45,
-  color: "rgba(148,163,184,0.86)",
-  maxWidth: 420,
+  color: "rgba(148,163,184,0.84)",
+  maxWidth: 360,
 };
 
-const headerActions: React.CSSProperties = {
+const bulkActionsRow: React.CSSProperties = {
+  marginTop: 16,
   display: "flex",
   gap: 10,
-  alignItems: "center",
   flexWrap: "wrap",
-  justifyContent: "flex-end",
+};
+
+const bulkActionsRowMobile: React.CSSProperties = {
+  flexDirection: "column",
 };
 
 const body: React.CSSProperties = {
   marginTop: 18,
   flex: 1,
   overflowY: "auto",
-  paddingRight: 4,
+  paddingRight: 2,
+  paddingBottom: 12,
 };
 
 const list: React.CSSProperties = {
@@ -764,7 +732,6 @@ const rowCard: React.CSSProperties = {
   borderRadius: 18,
   border: "1px solid rgba(255,255,255,0.12)",
   padding: 14,
-  background: "rgba(255,255,255,0.04)",
 };
 
 const rowTop: React.CSSProperties = {
@@ -782,8 +749,8 @@ const rowTopLeft: React.CSSProperties = {
 };
 
 const dot: React.CSSProperties = {
-  width: 11,
-  height: 11,
+  width: 10,
+  height: 10,
   borderRadius: 999,
   marginTop: 7,
   flex: "0 0 auto",
@@ -831,6 +798,10 @@ const rowActions: React.CSSProperties = {
   flexWrap: "wrap",
 };
 
+const rowActionsMobile: React.CSSProperties = {
+  flexDirection: "column",
+};
+
 const metaPill: React.CSSProperties = {
   fontSize: 11,
   padding: "5px 9px",
@@ -838,27 +809,43 @@ const metaPill: React.CSSProperties = {
   border: "1px solid rgba(255,255,255,0.12)",
   background: "rgba(255,255,255,0.04)",
   color: "rgba(255,255,255,0.78)",
-  cursor: "default",
 };
 
-const softActionBtn: React.CSSProperties = {
+const smallSoftBtn: React.CSSProperties = {
+  minHeight: 44,
   padding: "10px 14px",
   borderRadius: 14,
   border: "1px solid rgba(255,255,255,0.12)",
   background: "rgba(255,255,255,0.05)",
-  color: "rgba(255,255,255,0.90)",
+  color: "rgba(255,255,255,0.92)",
   fontSize: 13,
   fontWeight: 800,
 };
 
-const dangerActionBtn: React.CSSProperties = {
-  ...softActionBtn,
-  borderColor: "rgba(248,113,113,0.7)",
-  background: "rgba(127,29,29,0.78)",
+const secondaryHeaderBtn: React.CSSProperties = {
+  minHeight: 44,
+  padding: "11px 14px",
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.05)",
+  color: "rgba(255,255,255,0.94)",
+  fontSize: 13,
+  fontWeight: 800,
+};
+
+const dangerHeaderBtn: React.CSSProperties = {
+  minHeight: 44,
+  padding: "11px 14px",
+  borderRadius: 14,
+  border: "1px solid rgba(248,113,113,0.56)",
+  background: "rgba(127,29,29,0.72)",
   color: "rgba(254,242,242,0.98)",
+  fontSize: 13,
+  fontWeight: 800,
 };
 
 const primaryRowBtn: React.CSSProperties = {
+  minHeight: 42,
   padding: "10px 14px",
   borderRadius: 12,
   border: "1px solid rgba(56,189,248,0.35)",
@@ -870,6 +857,7 @@ const primaryRowBtn: React.CSSProperties = {
 };
 
 const secondaryRowBtn: React.CSSProperties = {
+  minHeight: 42,
   padding: "10px 14px",
   borderRadius: 12,
   border: "1px solid rgba(255,255,255,0.12)",
@@ -880,18 +868,24 @@ const secondaryRowBtn: React.CSSProperties = {
 };
 
 const dangerRowBtn: React.CSSProperties = {
+  minHeight: 42,
   padding: "10px 14px",
   borderRadius: 12,
-  border: "1px solid rgba(248,113,113,0.6)",
+  border: "1px solid rgba(248,113,113,0.56)",
   background: "rgba(127,29,29,0.72)",
   color: "rgba(254,242,242,0.98)",
   fontSize: 13,
   fontWeight: 800,
 };
 
+const mobileActionBtn: React.CSSProperties = {
+  width: "100%",
+  justifyContent: "center",
+};
+
 const iconBtn: React.CSSProperties = {
-  width: 40,
-  height: 40,
+  width: 44,
+  height: 44,
   borderRadius: 14,
   border: "1px solid rgba(255,255,255,0.12)",
   background: "rgba(15,23,42,0.85)",
@@ -905,7 +899,7 @@ const iconBtn: React.CSSProperties = {
 const emptyBox: React.CSSProperties = {
   padding: 18,
   borderRadius: 18,
-  border: "1px dashed rgba(148,163,184,0.55)",
+  border: "1px dashed rgba(148,163,184,0.48)",
   background: "rgba(15,23,42,0.75)",
 };
 
