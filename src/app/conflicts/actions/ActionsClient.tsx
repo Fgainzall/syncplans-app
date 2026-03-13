@@ -14,6 +14,7 @@ import {
   attachEvents,
   type ConflictItem,
   conflictKey,
+  ignoreConflictIds,
 } from "@/lib/conflicts";
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
 import {
@@ -311,7 +312,28 @@ export default function ActionsClient({
     const own = new Set(ownDeleteIds);
     return plan.deleteIds.filter((id) => !own.has(String(id)));
   }, [plan.deleteIds, ownDeleteIds]);
+  const blockedConflictIds = useMemo(() => {
+    const blocked = new Set(blockedDeleteIds.map(String));
+    if (!blocked.size) return [] as string[];
 
+    const ids = new Set<string>();
+
+    for (const c of conflicts) {
+      const r = resolutionForConflict(c, resMap);
+      if (!r || r === "none") continue;
+
+      const targetDeleteId =
+        r === "keep_existing"
+          ? String(c.incomingEventId ?? "")
+          : String(c.existingEventId ?? "");
+
+      if (targetDeleteId && blocked.has(targetDeleteId)) {
+        ids.add(String(c.id));
+      }
+    }
+
+    return Array.from(ids);
+  }, [blockedDeleteIds, conflicts, resMap]);
   const notificationRows = useMemo<CreateNotificationInput[]>(() => {
     return rejectedTargets
       .map((target) => {
@@ -366,19 +388,6 @@ export default function ActionsClient({
     try {
       setBusy(true);
 
-      /**
-       * Fase 1 de saneamiento:
-       * no permitimos que la UI finja que “eliminó” eventos que no son tuyos.
-       *
-       * Mientras no exista un modelo por-usuario (attendance / rejections / hidden),
-       * rechazar un evento creado por otra persona NO puede resolverse como delete global.
-       */
-      if (blockedDeleteIds.length > 0) {
-        throw new Error(
-          "Este cambio incluye eventos creados por otra persona. Todavía no podemos quitarlos solo de tu agenda sin borrarlos para todos. Primero cerremos el flujo correcto de rechazo por usuario."
-        );
-      }
-
       let notifiedCount = 0;
 
       if (notificationRows.length > 0) {
@@ -417,6 +426,21 @@ export default function ActionsClient({
         }
       }
 
+      /**
+       * Eventos ajenos rechazados:
+       * todavía no existe persistencia real por-usuario, así que por ahora:
+       * - NO intentamos borrarlos globalmente
+       * - SÍ notificamos al creador
+       * - SÍ cerramos localmente el conflicto para no dejar al usuario atrapado
+       */
+      if (blockedConflictIds.length > 0) {
+        try {
+          ignoreConflictIds(blockedConflictIds);
+        } catch {
+          // no rompemos el flujo si falla localStorage
+        }
+      }
+
       try {
         await clearMyConflictResolutions();
       } catch {
@@ -433,6 +457,10 @@ export default function ActionsClient({
 
       if (notifiedCount > 0) {
         qp.set("notified", String(notifiedCount));
+      }
+
+      if (blockedDeleteIds.length > 0) {
+        qp.set("softRejected", String(blockedDeleteIds.length));
       }
 
       router.replace(`/summary?${qp.toString()}`);
@@ -499,10 +527,11 @@ export default function ActionsClient({
               </div>
             )}
 
-            {blockedDeleteIds.length > 0 && (
+                       {blockedDeleteIds.length > 0 && (
               <div style={styles.warningPill}>
-                Uno o más eventos elegidos para salir no son tuyos. SyncPlans ya
-                no los marcará como eliminados si en realidad no puede borrarlos.
+                Uno o más eventos elegidos para salir no son tuyos. SyncPlans no
+                los borrará para todos, pero sí enviará el aviso al creador y
+                cerrará esta decisión localmente.
               </div>
             )}
 
