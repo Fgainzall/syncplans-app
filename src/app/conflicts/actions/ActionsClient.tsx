@@ -15,6 +15,7 @@ import {
   type ConflictItem,
   conflictKey,
   ignoreConflictIds,
+  hideEventIdsForCurrentUser,
 } from "@/lib/conflicts";
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
 import {
@@ -312,6 +313,7 @@ export default function ActionsClient({
     const own = new Set(ownDeleteIds);
     return plan.deleteIds.filter((id) => !own.has(String(id)));
   }, [plan.deleteIds, ownDeleteIds]);
+
   const blockedConflictIds = useMemo(() => {
     const blocked = new Set(blockedDeleteIds.map(String));
     if (!blocked.size) return [] as string[];
@@ -334,6 +336,7 @@ export default function ActionsClient({
 
     return Array.from(ids);
   }, [blockedDeleteIds, conflicts, resMap]);
+
   const notificationRows = useMemo<CreateNotificationInput[]>(() => {
     return rejectedTargets
       .map((target) => {
@@ -428,11 +431,19 @@ export default function ActionsClient({
 
       /**
        * Eventos ajenos rechazados:
-       * todavía no existe persistencia real por-usuario, así que por ahora:
-       * - NO intentamos borrarlos globalmente
-       * - SÍ notificamos al creador
-       * - SÍ cerramos localmente el conflicto para no dejar al usuario atrapado
+       * - NO se borran globalmente
+       * - SÍ se notifican al creador
+       * - SÍ se ocultan localmente para este usuario
+       * - SÍ se cierran localmente los conflictos relacionados
        */
+      if (blockedDeleteIds.length > 0) {
+        try {
+          hideEventIdsForCurrentUser(blockedDeleteIds);
+        } catch {
+          // no rompemos el flujo si falla localStorage
+        }
+      }
+
       if (blockedConflictIds.length > 0) {
         try {
           ignoreConflictIds(blockedConflictIds);
@@ -527,11 +538,11 @@ export default function ActionsClient({
               </div>
             )}
 
-                       {blockedDeleteIds.length > 0 && (
+            {blockedDeleteIds.length > 0 && (
               <div style={styles.warningPill}>
                 Uno o más eventos elegidos para salir no son tuyos. SyncPlans no
-                los borrará para todos, pero sí enviará el aviso al creador y
-                cerrará esta decisión localmente.
+                los borrará para todos, pero sí enviará el aviso al creador,
+                ocultará ese evento para ti y cerrará esta decisión localmente.
               </div>
             )}
 
