@@ -1,4 +1,3 @@
-// src/app/conflicts/compare/CompareClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -13,6 +12,9 @@ import {
   groupMeta,
   computeVisibleConflicts,
   attachEvents,
+  conflictKey,
+  filterIgnoredConflicts,
+  loadIgnoredConflictKeys,
   conflictResolutionLabel,
   conflictResolutionHint,
 } from "@/lib/conflicts";
@@ -42,10 +44,9 @@ function prettyTimeRange(startIso: string, endIso: string) {
   const s = new Date(startIso);
   const e = new Date(endIso);
   const hhmm = (x: Date) =>
-    `${String(x.getHours()).padStart(2, "0")}:${String(x.getMinutes()).padStart(
-      2,
-      "0"
-    )}`;
+    `${String(x.getHours()).padStart(2, "0")}:${String(
+      x.getMinutes()
+    ).padStart(2, "0")}`;
 
   const sameDay =
     s.getFullYear() === e.getFullYear() &&
@@ -62,6 +63,35 @@ function prettyTimeRange(startIso: string, endIso: string) {
 function safeNumber(x: string | null, fallback = 0) {
   const n = Number(x ?? "");
   return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
+  if (!gt) return "personal" as GroupType;
+  return (gt === ("pair" as any) ? ("couple" as any) : gt) as GroupType;
+}
+
+function resolutionForConflict(
+  c: AttachedConflict,
+  resMap: Record<string, Resolution>
+): Resolution | undefined {
+  const exact = resMap[String(c.id)];
+  if (exact) return exact;
+
+  const a = String(c.existingEventId ?? "");
+  const b = String(c.incomingEventId ?? "");
+  if (!a || !b) return undefined;
+
+  const stableKey = conflictKey(a, b);
+  if (resMap[stableKey]) return resMap[stableKey];
+
+  const [x, y] = [a, b].sort();
+  const legacyPrefix = `cx::${x}::${y}::`;
+
+  for (const k of Object.keys(resMap)) {
+    if (k.startsWith(legacyPrefix)) return resMap[k];
+  }
+
+  return undefined;
 }
 
 export default function CompareClient() {
@@ -83,19 +113,11 @@ export default function CompareClient() {
   const cardARef = useRef<HTMLDivElement | null>(null);
   const cardBRef = useRef<HTMLDivElement | null>(null);
 
-  /* =========================
-     Toast auto-hide
-     ========================= */
-
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2400);
     return () => clearTimeout(t);
   }, [toast]);
-
-  /* =========================
-     Boot
-     ========================= */
 
   useEffect(() => {
     let alive = true;
@@ -140,13 +162,19 @@ export default function CompareClient() {
     };
   }, [router, groupIdFromUrl]);
 
-  /* =========================
-     Conflicts
-     ========================= */
-
   const conflicts = useMemo<AttachedConflict[]>(() => {
-    const cx = computeVisibleConflicts(events);
-    return attachEvents(cx, events) as unknown as AttachedConflict[];
+    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
+      (e) => ({
+        ...e,
+        groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
+      })
+    );
+
+    const cx = computeVisibleConflicts(normalized);
+    const ignored = loadIgnoredConflictKeys();
+    const visible = filterIgnoredConflicts(cx, ignored);
+
+    return attachEvents(visible, events) as unknown as AttachedConflict[];
   }, [events]);
 
   useEffect(() => {
@@ -180,17 +208,16 @@ export default function CompareClient() {
   const a = c?.existingEvent;
   const b = c?.incomingEvent;
 
-  const aMeta = groupMeta((a?.groupType ?? "personal") as GroupType);
-  const bMeta = groupMeta((b?.groupType ?? "personal") as GroupType);
+  const aMeta = groupMeta(
+    normalizeForConflicts((a?.groupType ?? "personal") as GroupType)
+  );
+  const bMeta = groupMeta(
+    normalizeForConflicts((b?.groupType ?? "personal") as GroupType)
+  );
 
   const conflictId = c?.id ?? "";
-  const chosen: Resolution | undefined = conflictId
-    ? resMap[conflictId]
-    : undefined;
-
-  /* =========================
-     Focus (evento origen)
-     ========================= */
+  const chosen: Resolution | undefined =
+    c && conflictId ? resolutionForConflict(c, resMap) : undefined;
 
   const targetSide = useMemo<"A" | "B" | null>(() => {
     if (!eventIdFromUrl) return null;
@@ -211,14 +238,9 @@ export default function CompareClient() {
     return () => window.clearTimeout(t);
   }, [targetSide, safeIndex]);
 
-  /* =========================
-     Actions
-     ========================= */
-
   const setChoice = async (r: Resolution) => {
     if (!c || !conflictId) return;
 
-    // optimistic update
     setResMap((prev) => ({ ...prev, [conflictId]: r }));
 
     try {
@@ -226,7 +248,6 @@ export default function CompareClient() {
 
       setToast({ title: "Decisión guardada", sub: conflictResolutionHint(r) });
     } catch (e: any) {
-      // rollback: deja pendiente si no se guardó
       setResMap((prev) => {
         const next = { ...prev };
         delete next[conflictId];
@@ -267,15 +288,11 @@ export default function CompareClient() {
     router.push(`/conflicts/actions?${qp.toString()}`);
   };
 
-  /* =========================
-     Loading / empty
-     ========================= */
-
   if (booting) {
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-           <PremiumHeader />
+          <PremiumHeader />
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
@@ -309,10 +326,6 @@ export default function CompareClient() {
       </main>
     );
   }
-
-  /* =========================
-     UI
-     ========================= */
 
   return (
     <main style={styles.page}>
@@ -353,7 +366,6 @@ export default function CompareClient() {
         </section>
 
         <section style={styles.compareGrid}>
-          {/* EVENTO A */}
           <div
             ref={cardARef}
             style={{
@@ -364,9 +376,7 @@ export default function CompareClient() {
             <div style={styles.cardTop}>
               <span style={styles.badgeA}>Evento A</span>
               <span style={styles.pill}>
-                <span
-                  style={{ ...styles.pillDot, background: aMeta.dot }}
-                />
+                <span style={{ ...styles.pillDot, background: aMeta.dot }} />
                 {aMeta.label}
               </span>
             </div>
@@ -377,7 +387,6 @@ export default function CompareClient() {
             </div>
           </div>
 
-          {/* EVENTO B */}
           <div
             ref={cardBRef}
             style={{
@@ -388,9 +397,7 @@ export default function CompareClient() {
             <div style={styles.cardTop}>
               <span style={styles.badgeB}>Evento B</span>
               <span style={styles.pill}>
-                <span
-                  style={{ ...styles.pillDot, background: bMeta.dot }}
-                />
+                <span style={{ ...styles.pillDot, background: bMeta.dot }} />
                 {bMeta.label}
               </span>
             </div>
@@ -418,8 +425,7 @@ export default function CompareClient() {
                 ...(chosen === "keep_existing" ? styles.actionOn : {}),
               }}
             >
-              ✅ Conservar A
-              <div style={styles.actionHint}>Eliminar evento B</div>
+              Conservar A
             </button>
 
             <button
@@ -429,8 +435,7 @@ export default function CompareClient() {
                 ...(chosen === "replace_with_new" ? styles.actionOn : {}),
               }}
             >
-              ⭐ Conservar B
-              <div style={styles.actionHint}>Eliminar evento A</div>
+              Conservar B
             </button>
 
             <button
@@ -440,25 +445,29 @@ export default function CompareClient() {
                 ...(chosen === "none" ? styles.actionOn : {}),
               }}
             >
-              💤 Mantener ambos
-              <div style={styles.actionHint}>Ignorar este conflicto</div>
+              Mantener ambos
             </button>
           </div>
 
-          <div style={styles.bottomRow}>
-            <button onClick={goList} style={styles.ghostBtnWide}>
-              Volver a la lista
-            </button>
-            <button onClick={goApply} style={styles.primaryBtnWide}>
-              Aplicar cambios
-            </button>
-          </div>
+          <div style={styles.hintBox}>{conflictResolutionHint(chosen)}</div>
+        </section>
+
+        <section style={styles.footerBar}>
+          <button onClick={goList} style={styles.secondaryBtn}>
+            Volver a lista
+          </button>
+
+          <button onClick={goApply} style={styles.primaryBtnWide}>
+            Ir a aplicar decisiones
+          </button>
         </section>
 
         {toast && (
-          <div style={styles.toast}>
-            <div style={styles.toastT}>{toast.title}</div>
-            {toast.sub && <div style={styles.toastS}>{toast.sub}</div>}
+          <div style={styles.toastWrap}>
+            <div style={styles.toast}>
+              <div style={styles.toastTitle}>{toast.title}</div>
+              {toast.sub ? <div style={styles.toastSub}>{toast.sub}</div> : null}
+            </div>
           </div>
         )}
       </div>
@@ -466,83 +475,110 @@ export default function CompareClient() {
   );
 }
 
-/* =========================
-   Styles
-   ========================= */
-
 const styles: Record<string, React.CSSProperties> = {
   page: {
-    minHeight: "100vh",
+    minHeight: "100dvh",
     background:
-      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
-    color: "rgba(255,255,255,0.92)",
+      "radial-gradient(1000px 620px at 15% -10%, rgba(70,92,210,0.18), transparent 50%), linear-gradient(180deg, #071026 0%, #050914 100%)",
+    color: "#F7F9FF",
   },
-  shell: { maxWidth: 1120, margin: "0 auto", padding: "22px 18px 48px" },
+  shell: {
+    width: "min(1180px, calc(100% - 24px))",
+    margin: "0 auto",
+    padding: "24px 0 110px",
+  },
   topRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    marginBottom: 14,
-  },
-  topActions: { display: "flex", gap: 10, alignItems: "center" },
-  hero: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
     gap: 16,
-    padding: "18px 16px",
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
-    marginBottom: 12,
+    alignItems: "start",
   },
-  heroLeft: { display: "flex", flexDirection: "column", gap: 6 },
-  heroRight: { display: "flex", gap: 10, alignItems: "center" },
-  kicker: {
-    alignSelf: "flex-start",
-    fontSize: 11,
-    letterSpacing: "0.1em",
-    textTransform: "uppercase",
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.1)",
+  topActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+  },
+  ghostBtn: {
+    border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.04)",
-    fontWeight: 900,
+    color: "#EAF0FF",
+    borderRadius: 999,
+    padding: "10px 14px",
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: "pointer",
+    backdropFilter: "blur(14px)",
   },
-  h1: { margin: 0, fontSize: 26, letterSpacing: "-0.6px" },
-  sub: { fontSize: 13, opacity: 0.75 },
+  hero: {
+    marginTop: 18,
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    gap: 18,
+    alignItems: "stretch",
+    border: "1px solid rgba(110,138,255,0.18)",
+    background:
+      "linear-gradient(180deg, rgba(16,22,48,0.92), rgba(9,13,30,0.92))",
+    borderRadius: 28,
+    padding: 22,
+    boxShadow: "0 30px 90px rgba(0,0,0,0.34)",
+  },
+  heroLeft: {
+    display: "grid",
+    gap: 8,
+  },
+  heroRight: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+  },
+  kicker: {
+    fontSize: 12,
+    letterSpacing: 1.6,
+    textTransform: "uppercase",
+    color: "#AEBEFF",
+    fontWeight: 800,
+  },
+  h1: {
+    margin: 0,
+    fontSize: 34,
+    lineHeight: 1.05,
+    fontWeight: 900,
+    letterSpacing: "-0.03em",
+  },
+  sub: {
+    color: "rgba(235,241,255,0.76)",
+    fontSize: 15,
+    lineHeight: 1.6,
+    maxWidth: 760,
+  },
   iconBtn: {
     width: 42,
     height: 42,
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontSize: 20,
+    background: "rgba(255,255,255,0.05)",
+    color: "#EEF3FF",
+    fontSize: 24,
     fontWeight: 900,
+    cursor: "pointer",
   },
   compareGrid: {
+    marginTop: 18,
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-    gap: 12,
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 16,
   },
   card: {
-    position: "relative",
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 14,
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(10,14,30,0.90)",
+    padding: 18,
+    display: "grid",
+    gap: 12,
   },
   cardFocus: {
-    border: "1px solid rgba(255,255,255,0.16)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))",
-    boxShadow:
-      "0 16px 48px rgba(0,0,0,0.35), 0 0 0 3px rgba(56,189,248,0.10)",
+    border: "1px solid rgba(110,138,255,0.34)",
+    boxShadow: "0 0 0 3px rgba(110,138,255,0.12)",
   },
   cardTop: {
     display: "flex",
@@ -552,146 +588,198 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
   },
   badgeA: {
+    borderRadius: 999,
+    padding: "7px 10px",
     fontSize: 12,
     fontWeight: 900,
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(250,204,21,0.3)",
-    background: "rgba(250,204,21,0.1)",
+    background: "rgba(67,88,219,0.18)",
+    border: "1px solid rgba(114,140,255,0.24)",
+    color: "#E6ECFF",
   },
   badgeB: {
+    borderRadius: 999,
+    padding: "7px 10px",
     fontSize: 12,
     fontWeight: 900,
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(96,165,250,0.3)",
-    background: "rgba(96,165,250,0.1)",
+    background: "rgba(116,80,227,0.18)",
+    border: "1px solid rgba(164,132,255,0.24)",
+    color: "#F0E8FF",
   },
   pill: {
     display: "inline-flex",
     alignItems: "center",
     gap: 8,
-    padding: "8px 12px",
+    padding: "7px 10px",
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.03)",
+    background: "rgba(255,255,255,0.04)",
     fontSize: 12,
-    fontWeight: 900,
+    fontWeight: 800,
+    color: "#E9EEFF",
   },
-  pillDot: { width: 8, height: 8, borderRadius: 999 },
-  title: { marginTop: 10, fontSize: 16, fontWeight: 900 },
-  time: { marginTop: 6, fontSize: 13, opacity: 0.75 },
+  pillDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+  },
+  title: {
+    fontSize: 24,
+    lineHeight: 1.15,
+    fontWeight: 900,
+    letterSpacing: "-0.03em",
+  },
+  time: {
+    fontSize: 14,
+    color: "rgba(235,241,255,0.72)",
+  },
   actionsCard: {
-    marginTop: 12,
+    marginTop: 18,
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(10,14,30,0.90)",
+    padding: 18,
+    display: "grid",
+    gap: 14,
+  },
+  actionsTop: {
+    display: "grid",
+    gap: 4,
+  },
+  actionsTitle: {
+    fontSize: 18,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+  },
+  actionsSub: {
+    fontSize: 13,
+    color: "rgba(235,241,255,0.66)",
+    lineHeight: 1.5,
+  },
+  actionBtns: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 12,
+  },
+  actionBtn: {
+    borderRadius: 18,
+    padding: "14px 14px",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "#EEF3FF",
+    fontSize: 14,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  actionOn: {
+    background:
+      "linear-gradient(135deg, rgba(91,120,255,0.96), rgba(119,95,255,0.96))",
+    border: "1px solid rgba(103,133,255,0.28)",
+    boxShadow: "0 18px 44px rgba(63,93,227,0.22)",
+  },
+  hintBox: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
     padding: 14,
+    fontSize: 14,
+    color: "rgba(235,241,255,0.78)",
   },
-  actionsTop: {
+  footerBar: {
+    marginTop: 20,
     display: "flex",
-    flexDirection: "column",
-    gap: 6,
-    marginBottom: 10,
-  },
-  actionsTitle: { fontSize: 16, fontWeight: 900 },
-  actionsSub: { fontSize: 12, opacity: 0.75 },
-  actionBtns: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 10,
-  },
-  actionBtn: {
-    textAlign: "left",
-    padding: 12,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.03)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  actionHint: { marginTop: 6, fontSize: 12, opacity: 0.72, fontWeight: 700 },
-  actionOn: {
-    border: "1px solid rgba(255,255,255,0.18)",
-    background: "rgba(255,255,255,0.06)",
-  },
-  bottomRow: {
-    marginTop: 12,
-    display: "flex",
-    gap: 10,
     justifyContent: "space-between",
+    gap: 12,
     flexWrap: "wrap",
   },
-  ghostBtn: {
-    padding: "10px 12px",
-    borderRadius: 14,
+  secondaryBtn: {
+    borderRadius: 16,
+    padding: "12px 16px",
     border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
+    background: "rgba(255,255,255,0.05)",
+    color: "#EEF3FF",
+    fontSize: 14,
+    fontWeight: 800,
     cursor: "pointer",
-    fontWeight: 900,
-  },
-  ghostBtnWide: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-    minWidth: 240,
   },
   primaryBtnWide: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.14)",
+    borderRadius: 16,
+    padding: "12px 18px",
+    border: "1px solid rgba(103,133,255,0.28)",
     background:
-      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
+      "linear-gradient(135deg, rgba(91,120,255,0.96), rgba(119,95,255,0.96))",
+    color: "#FFFFFF",
+    fontSize: 14,
     fontWeight: 900,
-    minWidth: 240,
+    cursor: "pointer",
+    boxShadow: "0 18px 44px rgba(63,93,227,0.30)",
   },
   emptyCard: {
-    borderRadius: 18,
-    border: "1px dashed rgba(255,255,255,0.16)",
-    background: "rgba(255,255,255,0.02)",
-    padding: 18,
+    marginTop: 20,
+    borderRadius: 24,
+    padding: 24,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(11,16,35,0.82)",
+    display: "grid",
+    gap: 8,
   },
-  emptyTitle: { fontWeight: 900, fontSize: 16 },
-  emptySub: { marginTop: 6, opacity: 0.75, fontSize: 13 },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 900,
+  },
+  emptySub: {
+    fontSize: 14,
+    lineHeight: 1.6,
+    color: "rgba(235,241,255,0.72)",
+  },
   loadingCard: {
     marginTop: 18,
+    borderRadius: 24,
+    padding: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(11,16,35,0.84)",
     display: "flex",
-    gap: 12,
     alignItems: "center",
-    padding: 16,
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
+    gap: 12,
   },
   loadingDot: {
     width: 12,
     height: 12,
     borderRadius: 999,
-    background: "rgba(56,189,248,0.95)",
+    background:
+      "linear-gradient(135deg, rgba(115,145,255,1), rgba(144,119,255,1))",
+    boxShadow: "0 0 0 8px rgba(115,145,255,0.10)",
   },
-  loadingTitle: { fontWeight: 900 },
-  loadingSub: { fontSize: 12, opacity: 0.75 },
-  toast: {
+  loadingTitle: {
+    fontSize: 16,
+    fontWeight: 900,
+  },
+  loadingSub: {
+    fontSize: 13,
+    color: "rgba(235,241,255,0.68)",
+  },
+  toastWrap: {
     position: "fixed",
-    left: 18,
     right: 18,
     bottom: 18,
-    maxWidth: 560,
-    margin: "0 auto",
-    padding: 14,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(16,18,26,0.92)",
-    boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
+    zIndex: 100,
   },
-  toastT: { fontSize: 13, fontWeight: 900 },
-  toastS: { marginTop: 4, fontSize: 12, opacity: 0.75 },
+  toast: {
+    minWidth: 260,
+    maxWidth: 380,
+    borderRadius: 18,
+    padding: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(10,14,26,0.95)",
+    boxShadow: "0 20px 50px rgba(0,0,0,0.34)",
+  },
+  toastTitle: {
+    fontSize: 14,
+    fontWeight: 900,
+  },
+toastSub: {
+  marginTop: 6,
+  fontSize: 13,
+  color: "rgba(235,241,255,0.74)",
+  lineHeight: 1.5,
+},
 };

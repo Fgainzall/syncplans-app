@@ -9,10 +9,13 @@ import LogoutButton from "@/components/LogoutButton";
 
 import {
   CalendarEvent,
+  GroupType,
   computeVisibleConflicts,
   attachEvents,
   type ConflictItem,
   conflictKey,
+  filterIgnoredConflicts,
+  loadIgnoredConflictKeys,
   ignoreConflictIds,
   hideEventIdsForCurrentUser,
 } from "@/lib/conflicts";
@@ -85,6 +88,11 @@ function actorDisplayNameFromProfile(
   if (first) return first;
 
   return "Alguien";
+}
+
+function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
+  if (!gt) return "personal" as GroupType;
+  return (gt === ("pair" as any) ? ("couple" as any) : gt) as GroupType;
 }
 
 function formatRange(startIso?: string | null, endIso?: string | null) {
@@ -217,8 +225,18 @@ export default function ActionsClient({
   }, [router, groupIdFromUrl]);
 
   const conflicts = useMemo<ConflictItem[]>(() => {
-    const cx = computeVisibleConflicts(events);
-    return attachEvents(cx, events);
+    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
+      (e) => ({
+        ...e,
+        groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
+      })
+    );
+
+    const cx = computeVisibleConflicts(normalized);
+    const ignored = loadIgnoredConflictKeys();
+    const visible = filterIgnoredConflicts(cx, ignored);
+
+    return attachEvents(visible, events);
   }, [events]);
 
   const plan = useMemo(() => {
@@ -465,39 +483,7 @@ export default function ActionsClient({
         }
       }
 
-    
-
       const qp = new URLSearchParams();
-      qp.set("from", "conflicts");
-      qp.set("resolved", String(plan.decided));
-
-      if (deletedCount > 0) {
-        qp.set("deleted", String(deletedCount));
-      }
-
-      if (notifiedCount > 0) {
-        qp.set("notified", String(notifiedCount));
-      }
-
-      if (blockedDeleteIds.length > 0) {
-        qp.set("softRejected", String(blockedDeleteIds.length));
-      }
-      if (ignoredConflictIds.length > 0) {
-        try {
-          ignoreConflictIds(ignoredConflictIds);
-        } catch {
-          // no rompemos el flujo si falla localStorage
-        }
-      }
-
-        if (ignoredConflictIds.length > 0) {
-        try {
-          ignoreConflictIds(ignoredConflictIds);
-        } catch {
-          // no rompemos el flujo si falla localStorage
-        }
-      }
-
       qp.set("from", "conflicts");
       qp.set("resolved", String(plan.decided));
 
@@ -534,6 +520,7 @@ export default function ActionsClient({
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     router.push(`/conflicts/detected?${qp.toString()}`);
   };
+
   if (booting) {
     return (
       <main style={styles.page}>
@@ -543,7 +530,7 @@ export default function ActionsClient({
             <div style={styles.loadingDot} />
             <div>
               <div style={styles.loadingTitle}>Preparando cierre…</div>
-              <div style={styles.loadingSub}>Un último chequeo</div>
+              <div style={styles.loadingSub}>Un segundo</div>
             </div>
           </div>
         </div>
@@ -566,167 +553,191 @@ export default function ActionsClient({
 
         <section style={styles.hero}>
           <div style={styles.heroLeft}>
-            <div style={styles.kicker}>Último paso</div>
+            <div style={styles.kicker}>Cierre</div>
             <h1 style={styles.h1}>
-              {hasRejectedTargets ? "Cerrar y comunicar" : "Finalizar resolución"}
+              {hasRejectedTargets
+                ? "Enviar comentarios y cerrar"
+                : "Finalizar resolución"}
             </h1>
             <div style={styles.sub}>
               {hasRejectedTargets
-                ? "Ya elegiste qué hacer. En este último paso puedes avisarle a la otra persona por qué su evento no fue aceptado."
-                : "Ya elegiste qué hacer. Ahora solo falta cerrar esta resolución y actualizar tu calendario."}
+                ? "Antes de cerrar, puedes avisar al creador de cada evento que no fue elegido."
+                : "Revisamos todo y dejamos lista tu decisión sobre los conflictos."}
             </div>
-
-            {conflicts.length > 0 && plan.decided === 0 && (
-              <div style={styles.helperText}>
-                No hay decisiones guardadas aún. Vuelve a “Comparar” y elige qué
-                evento mantener.
-              </div>
-            )}
-
-            {blockedDeleteIds.length > 0 && (
-              <div style={styles.warningPill}>
-                Uno o más eventos elegidos para salir no son tuyos. SyncPlans no
-                los borrará para todos, pero sí enviará el aviso al creador,
-                ocultará ese evento para ti y cerrará esta decisión localmente.
-              </div>
-            )}
-
-            {hasRejectedTargets && (
-              <div style={styles.noticePill}>
-                Este paso ya no es para decidir otra vez. Aquí solo podrás
-                enviar el mensaje al creador y cerrar la resolución.
-              </div>
-            )}
           </div>
 
           <div style={styles.heroRight}>
-            <div style={styles.statsGrid}>
-              <div style={styles.statCard}>
-                <div style={styles.statLabel}>Conflictos</div>
-                <div style={styles.statValue}>{plan.total}</div>
-              </div>
-              <div style={styles.statCard}>
-                <div style={styles.statLabel}>Decididos</div>
-                <div style={styles.statValue}>{plan.decided}</div>
-              </div>
-              <div style={styles.statCard}>
-                <div style={styles.statLabel}>Pendientes</div>
-                <div style={styles.statValue}>{plan.pending}</div>
-              </div>
-              <div style={styles.statCard}>
-                <div style={styles.statLabel}>Por eliminar</div>
-                <div style={styles.statValue}>{plan.deleteIds.length}</div>
-              </div>
+            <div style={styles.statPill}>
+              <div style={styles.statLabel}>Resueltos</div>
+              <div style={styles.statValue}>{plan.decided}</div>
             </div>
-
-            {!hasRejectedTargets && (
-              <button
-                onClick={apply}
-                disabled={disabledApply}
-                style={{
-                  ...styles.primaryBtn,
-                  opacity: disabledApply ? 0.55 : 1,
-                  cursor: disabledApply ? "not-allowed" : "pointer",
-                }}
-              >
-                {busy ? "Finalizando…" : "Finalizar resolución"}
-              </button>
-            )}
+            <div style={styles.statPillMuted}>
+              <div style={styles.statLabel}>Pendientes</div>
+              <div style={styles.statValue}>{plan.pending}</div>
+            </div>
           </div>
         </section>
 
-        {hasRejectedTargets && (
-          <section style={styles.panelCard}>
-            <div style={styles.panelHeader}>
-              <div>
-                <div style={styles.panelKicker}>Comunicación final</div>
-                <div style={styles.panelTitle}>
-                  {rejectedTargets.length === 1
-                    ? "Mensaje para la otra persona"
-                    : "Mensajes para las otras personas"}
-                </div>
-              </div>
-              <div style={styles.panelMeta}>
-                {rejectedTargets.length} mensaje
-                {rejectedTargets.length === 1 ? "" : "s"}
+        <section style={styles.summaryCard}>
+          <div style={styles.summaryGrid}>
+            <div style={styles.summaryItem}>
+              <div style={styles.summaryLabel}>Conflictos analizados</div>
+              <div style={styles.summaryValue}>{plan.total}</div>
+            </div>
+
+            <div style={styles.summaryItem}>
+              <div style={styles.summaryLabel}>Decisiones guardadas</div>
+              <div style={styles.summaryValue}>{plan.decided}</div>
+            </div>
+
+            <div style={styles.summaryItem}>
+              <div style={styles.summaryLabel}>Eliminaciones reales</div>
+              <div style={styles.summaryValue}>{ownDeleteIds.length}</div>
+            </div>
+
+            <div style={styles.summaryItem}>
+              <div style={styles.summaryLabel}>Se mantienen ambos</div>
+              <div style={styles.summaryValue}>{plan.skipped}</div>
+            </div>
+
+            <div style={styles.summaryItem}>
+              <div style={styles.summaryLabel}>Soft reject / ocultados</div>
+              <div style={styles.summaryValue}>{blockedDeleteIds.length}</div>
+            </div>
+
+            <div style={styles.summaryItem}>
+              <div style={styles.summaryLabel}>Comentarios por enviar</div>
+              <div style={styles.summaryValue}>{rejectedTargets.length}</div>
+            </div>
+          </div>
+        </section>
+
+        {conflicts.length > 0 ? (
+          <section style={styles.conflictsCard}>
+            <div style={styles.blockTop}>
+              <div style={styles.blockTitle}>Decisiones detectadas</div>
+              <div style={styles.blockSub}>
+                Esto es lo que se aplicará al finalizar.
               </div>
             </div>
 
-            <div style={styles.panelSub}>
-              Ya tomaste la decisión arriba. Aquí solo puedes dejar un mensaje
-              opcional para explicar por qué ese evento no fue aceptado.
+            <div style={styles.conflictList}>
+              {conflicts.map((c) => {
+                const r = resolutionForConflict(c, resMap);
+                const existing = c.existingEvent;
+                const incoming = c.incomingEvent;
+
+                let statusLabel = "Pendiente";
+                let statusTone = styles.pillGray;
+
+                if (r === "keep_existing") {
+                  statusLabel = "Conservar A";
+                  statusTone = styles.pillGreen;
+                } else if (r === "replace_with_new") {
+                  statusLabel = "Conservar B";
+                  statusTone = styles.pillGreen;
+                } else if (r === "none") {
+                  statusLabel = "Mantener ambos";
+                  statusTone = styles.pillAmber;
+                }
+
+                return (
+                  <div key={c.id} style={styles.conflictRow}>
+                    <div style={styles.conflictHead}>
+                      <div style={styles.conflictTitle}>
+                        {safeTitle(existing?.title)} ↔ {safeTitle(incoming?.title)}
+                      </div>
+                      <span style={{ ...styles.pillStatus, ...statusTone }}>
+                        {statusLabel}
+                      </span>
+                    </div>
+
+                    <div style={styles.conflictMeta}>
+                      <div style={styles.metaLine}>
+                        <span style={styles.metaLabel}>A</span>
+                        <span>{formatRange(existing?.start, existing?.end)}</span>
+                      </div>
+                      <div style={styles.metaLine}>
+                        <span style={styles.metaLabel}>B</span>
+                        <span>{formatRange(incoming?.start, incoming?.end)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : (
+          <section style={styles.emptyCard}>
+            <div style={styles.emptyTitle}>No hay conflictos visibles</div>
+            <div style={styles.emptySub}>
+              No encontramos choques pendientes para este contexto.
+            </div>
+          </section>
+        )}
+
+        {rejectedTargets.length > 0 && (
+          <section style={styles.commentsCard}>
+            <div style={styles.blockTop}>
+              <div style={styles.blockTitle}>Comentario opcional</div>
+              <div style={styles.blockSub}>
+                Esto se enviará al creador del evento que no fue elegido.
+              </div>
             </div>
 
-            <div style={styles.cardsGrid}>
-              {rejectedTargets.map((target) => (
-                <div key={target.id} style={styles.rejectCard}>
-                  <div style={styles.rejectTop}>
-                    <div>
-                      <div style={styles.rejectTitle}>{target.title}</div>
-                      <div style={styles.rejectTime}>
+            <div style={styles.commentList}>
+              {rejectedTargets.map((target) => {
+                const current = String(commentsByEventId[target.id] ?? "");
+                return (
+                  <div key={target.id} style={styles.commentRow}>
+                    <div style={styles.commentHead}>
+                      <div style={styles.commentTitle}>{target.title}</div>
+                      <div style={styles.commentTime}>
                         {formatRange(target.startsAt, target.endsAt)}
                       </div>
                     </div>
-                    <div style={styles.rejectBadge}>Se notificará</div>
+
+                    <textarea
+                      value={current}
+                      onChange={(e) => updateComment(target.id, e.target.value)}
+                      placeholder="Ej.: Me chocaba con otro plan confirmado / ya tenía algo cerrado / no llego a esa hora."
+                      style={styles.textarea}
+                      rows={3}
+                    />
                   </div>
-
-                  <label style={styles.label}>
-                    Mensaje que se enviará al creador del evento
-                  </label>
-                  <textarea
-                    value={commentsByEventId[target.id] ?? ""}
-                    onChange={(e) => updateComment(target.id, e.target.value)}
-                    placeholder="Ej.: Ya teníamos este otro plan confirmado / se cruza con algo familiar / lo vemos para otro momento."
-                    style={styles.textarea}
-                    maxLength={220}
-                  />
-                  <div style={styles.charHint}>
-                    {(commentsByEventId[target.id] ?? "").length}/220
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={styles.panelFooter}>
-              <button onClick={back} style={styles.secondaryBtn}>
-                Volver a la lista
-              </button>
-
-              <button
-                onClick={apply}
-                disabled={disabledApply}
-                style={{
-                  ...styles.primaryBtn,
-                  opacity: disabledApply ? 0.55 : 1,
-                  cursor: disabledApply ? "not-allowed" : "pointer",
-                }}
-              >
-                {busy ? "Enviando…" : "Enviar comentarios"}
-              </button>
+                );
+              })}
             </div>
           </section>
         )}
 
-        {conflicts.length === 0 && (
-          <section style={styles.emptyCard}>
-            <div style={styles.emptyTitle}>No hay conflictos abiertos</div>
-            <div style={styles.emptySub}>
-              Tu calendario ya está limpio. Puedes volver al calendario o crear
-              nuevos eventos.
-            </div>
-            <button
-              onClick={() => router.push("/calendar")}
-              style={styles.primaryBtnWide}
-            >
-              Ir al calendario
-            </button>
-          </section>
-        )}
+        <section style={styles.footerBar}>
+          <button onClick={back} style={styles.secondaryBtn} disabled={busy}>
+            Volver
+          </button>
+
+          <button
+            onClick={apply}
+            style={{
+              ...styles.primaryBtn,
+              ...(disabledApply ? styles.primaryBtnDisabled : {}),
+            }}
+            disabled={disabledApply}
+          >
+            {busy
+              ? "Aplicando…"
+              : hasRejectedTargets
+                ? "Enviar comentarios"
+                : "Finalizar resolución"}
+          </button>
+        </section>
 
         {toast && (
-          <div style={styles.toast}>
-            <div style={styles.toastT}>{toast.title}</div>
-            {toast.sub && <div style={styles.toastS}>{toast.sub}</div>}
+          <div style={styles.toastWrap}>
+            <div style={styles.toast}>
+              <div style={styles.toastTitle}>{toast.title}</div>
+              {toast.sub ? <div style={styles.toastSub}>{toast.sub}</div> : null}
+            </div>
           </div>
         )}
       </div>
@@ -736,345 +747,374 @@ export default function ActionsClient({
 
 const styles: Record<string, React.CSSProperties> = {
   page: {
-    minHeight: "100vh",
+    minHeight: "100dvh",
     background:
-      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
-    color: "rgba(255,255,255,0.92)",
+      "radial-gradient(1200px 700px at 10% -10%, rgba(58,80,180,0.22), transparent 50%), linear-gradient(180deg, #071026 0%, #050914 100%)",
+    color: "#F6F8FC",
   },
   shell: {
-    maxWidth: 1120,
+    width: "min(1180px, calc(100% - 24px))",
     margin: "0 auto",
-    padding: "22px 18px 48px",
+    padding: "24px 0 110px",
   },
   topRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    marginBottom: 14,
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    gap: 16,
+    alignItems: "start",
   },
   topActions: {
     display: "flex",
     gap: 10,
     alignItems: "center",
   },
+  ghostBtn: {
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#EAF0FF",
+    borderRadius: 999,
+    padding: "10px 14px",
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: "pointer",
+    backdropFilter: "blur(14px)",
+  },
   hero: {
-    display: "flex",
-    justifyContent: "space-between",
+    marginTop: 18,
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    gap: 18,
     alignItems: "stretch",
-    gap: 16,
-    padding: "18px 16px",
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
+    border: "1px solid rgba(110,138,255,0.18)",
     background:
-      "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
-    marginBottom: 14,
-    flexWrap: "wrap",
+      "linear-gradient(180deg, rgba(16,22,48,0.92), rgba(9,13,30,0.92))",
+    borderRadius: 28,
+    padding: 22,
+    boxShadow: "0 30px 90px rgba(0,0,0,0.34)",
   },
   heroLeft: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-    flex: 1,
-    minWidth: 280,
+    display: "grid",
+    gap: 8,
   },
   heroRight: {
     display: "flex",
-    flexDirection: "column",
-    gap: 10,
-    alignItems: "flex-end",
-    minWidth: 260,
-    flex: "0 0 auto",
+    gap: 12,
+    alignItems: "stretch",
   },
   kicker: {
-    fontSize: 11,
-    fontWeight: 900,
-    letterSpacing: "0.08em",
+    fontSize: 12,
+    letterSpacing: 1.6,
     textTransform: "uppercase",
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    width: "fit-content",
+    color: "#AEBEFF",
+    fontWeight: 800,
   },
-  h1: {
-    margin: 0,
-    fontSize: 26,
-    letterSpacing: "-0.6px",
-  },
+h1: {
+  margin: 0,
+  fontSize: 34,
+  lineHeight: 1.05,
+  fontWeight: 900,
+  letterSpacing: "-0.03em",
+},
   sub: {
-    fontSize: 13,
-    opacity: 0.78,
-    lineHeight: 1.45,
+    color: "rgba(235,241,255,0.76)",
+    fontSize: 15,
+    lineHeight: 1.6,
+    maxWidth: 760,
   },
-  helperText: {
-    marginTop: 8,
-    fontSize: 12,
-    opacity: 0.82,
-    lineHeight: 1.35,
-  },
-  warningPill: {
-    marginTop: 8,
-    width: "fit-content",
-    padding: "8px 10px",
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 800,
-    border: "1px solid rgba(248,113,113,0.22)",
-    background: "rgba(248,113,113,0.10)",
-    color: "rgba(255,255,255,0.92)",
-  },
-  noticePill: {
-    marginTop: 8,
-    width: "fit-content",
-    padding: "8px 10px",
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 800,
-    border: "1px solid rgba(56,189,248,0.18)",
-    background: "rgba(56,189,248,0.08)",
-    color: "rgba(255,255,255,0.9)",
-  },
-  ghostBtn: {
-    padding: "10px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "#fff",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  primaryBtn: {
-    padding: "12px 16px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
-    color: "#fff",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  secondaryBtn: {
-    padding: "12px 16px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "#fff",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  primaryBtnWide: {
-    marginTop: 12,
-    padding: "12px 16px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
-    color: "#fff",
-    cursor: "pointer",
-    fontWeight: 900,
-    minWidth: 240,
-  },
-  statsGrid: {
+  statPill: {
+    minWidth: 118,
+    borderRadius: 22,
+    padding: "14px 16px",
+    border: "1px solid rgba(102,255,179,0.28)",
+    background: "rgba(22,38,28,0.76)",
     display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(80px, 1fr))",
-    gap: 8,
-    marginBottom: 10,
-    width: "100%",
+    gap: 6,
+    alignContent: "center",
   },
-  statCard: {
-    padding: 8,
-    borderRadius: 12,
+  statPillMuted: {
+    minWidth: 118,
+    borderRadius: 22,
+    padding: "14px 16px",
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(5,8,22,0.85)",
+    background: "rgba(255,255,255,0.04)",
+    display: "grid",
+    gap: 6,
+    alignContent: "center",
   },
   statLabel: {
-    fontSize: 11,
-    opacity: 0.75,
+    fontSize: 12,
+    color: "rgba(235,241,255,0.68)",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    fontWeight: 800,
   },
   statValue: {
-    marginTop: 2,
-    fontSize: 16,
+    fontSize: 24,
     fontWeight: 900,
+    lineHeight: 1,
   },
-  panelCard: {
-    marginTop: 14,
+  summaryCard: {
+    marginTop: 18,
+    borderRadius: 24,
+    padding: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(11,16,35,0.84)",
+    boxShadow: "0 24px 70px rgba(0,0,0,0.24)",
+  },
+  summaryGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 14,
+  },
+  summaryItem: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.025))",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
-    padding: 16,
+    background: "rgba(255,255,255,0.035)",
+    padding: 14,
+    display: "grid",
+    gap: 6,
   },
-  panelHeader: {
+  summaryLabel: {
+    fontSize: 12,
+    color: "rgba(235,241,255,0.66)",
+    fontWeight: 700,
+  },
+  summaryValue: {
+    fontSize: 24,
+    fontWeight: 900,
+  },
+  conflictsCard: {
+    marginTop: 18,
+    borderRadius: 24,
+    padding: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(10,14,30,0.90)",
+  },
+  commentsCard: {
+    marginTop: 18,
+    borderRadius: 24,
+    padding: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(10,14,30,0.90)",
+  },
+  blockTop: {
+    display: "grid",
+    gap: 4,
+    marginBottom: 14,
+  },
+blockTitle: {
+  fontSize: 18,
+  fontWeight: 900,
+  letterSpacing: "-0.02em",
+},
+  blockSub: {
+    fontSize: 13,
+    color: "rgba(235,241,255,0.66)",
+    lineHeight: 1.5,
+  },
+  conflictList: {
+    display: "grid",
+    gap: 12,
+  },
+  conflictRow: {
+    borderRadius: 20,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: 14,
+    display: "grid",
+    gap: 10,
+  },
+  conflictHead: {
     display: "flex",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
     flexWrap: "wrap",
   },
-  panelKicker: {
-    fontSize: 11,
-    fontWeight: 900,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    opacity: 0.72,
-  },
-  panelTitle: {
-    marginTop: 4,
-    fontSize: 18,
-    fontWeight: 900,
-    letterSpacing: "-0.2px",
-  },
-  panelMeta: {
-    fontSize: 12,
-    fontWeight: 800,
-    padding: "7px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-  },
-  panelSub: {
-    marginTop: 8,
-    fontSize: 13,
-    lineHeight: 1.5,
-    opacity: 0.82,
-  },
-  cardsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-    gap: 12,
-    marginTop: 14,
-  },
-  rejectCard: {
-    padding: 14,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(5,8,22,0.74)",
-  },
-  rejectTop: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 10,
-    marginBottom: 12,
-  },
-  rejectTitle: {
+  conflictTitle: {
     fontSize: 15,
-    fontWeight: 900,
-    lineHeight: 1.2,
+    fontWeight: 800,
   },
-  rejectTime: {
-    marginTop: 5,
-    fontSize: 12,
-    opacity: 0.72,
+  conflictMeta: {
+    display: "grid",
+    gap: 8,
   },
-  rejectBadge: {
-    flex: "0 0 auto",
+  metaLine: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    color: "rgba(235,241,255,0.82)",
+    fontSize: 13,
+  },
+  metaLabel: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 999,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
     fontSize: 11,
     fontWeight: 900,
-    padding: "6px 8px",
-    borderRadius: 999,
-    border: "1px solid rgba(248,113,113,0.22)",
-    background: "rgba(248,113,113,0.10)",
-    color: "rgba(255,255,255,0.94)",
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.06)",
   },
-  label: {
-    display: "block",
-    marginBottom: 8,
+  pillStatus: {
+    borderRadius: 999,
+    padding: "7px 11px",
     fontSize: 12,
+    fontWeight: 900,
+  },
+  pillGray: {
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    color: "#E8EEFF",
+  },
+  pillGreen: {
+    background: "rgba(19,61,35,0.78)",
+    border: "1px solid rgba(102,255,179,0.22)",
+    color: "#D6FFE8",
+  },
+  pillAmber: {
+    background: "rgba(74,55,18,0.80)",
+    border: "1px solid rgba(255,214,102,0.24)",
+    color: "#FFF0C7",
+  },
+  commentList: {
+    display: "grid",
+    gap: 14,
+  },
+  commentRow: {
+    borderRadius: 20,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: 14,
+    display: "grid",
+    gap: 10,
+  },
+  commentHead: {
+    display: "grid",
+    gap: 4,
+  },
+  commentTitle: {
+    fontSize: 15,
     fontWeight: 800,
-    opacity: 0.88,
+  },
+  commentTime: {
+    fontSize: 12,
+    color: "rgba(235,241,255,0.62)",
   },
   textarea: {
     width: "100%",
-    minHeight: 104,
-    resize: "vertical",
-    padding: 12,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "#fff",
-    fontSize: 13,
-    lineHeight: 1.45,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(4,8,20,0.80)",
+    color: "#F6F8FC",
+    padding: "12px 14px",
     outline: "none",
-    boxSizing: "border-box",
+    fontSize: 14,
+    lineHeight: 1.55,
+    resize: "vertical",
   },
-  charHint: {
-    marginTop: 8,
-    fontSize: 11,
-    opacity: 0.62,
-    textAlign: "right",
-  },
-  panelFooter: {
-    marginTop: 14,
+  footerBar: {
+    marginTop: 20,
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
+    justifyContent: "flex-end",
     gap: 12,
-    flexWrap: "wrap",
+  },
+  secondaryBtn: {
+    borderRadius: 16,
+    padding: "12px 16px",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "#EEF3FF",
+    fontSize: 14,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  primaryBtn: {
+    borderRadius: 16,
+    padding: "12px 18px",
+    border: "1px solid rgba(103,133,255,0.28)",
+    background:
+      "linear-gradient(135deg, rgba(91,120,255,0.96), rgba(119,95,255,0.96))",
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 18px 44px rgba(63,93,227,0.30)",
+  },
+  primaryBtnDisabled: {
+    opacity: 0.55,
+    cursor: "not-allowed",
+    boxShadow: "none",
   },
   emptyCard: {
-    marginTop: 12,
-    borderRadius: 18,
-    border: "1px dashed rgba(255,255,255,0.18)",
-    background: "rgba(255,255,255,0.02)",
-    padding: 18,
+    marginTop: 20,
+    borderRadius: 24,
+    padding: 24,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(11,16,35,0.82)",
+    display: "grid",
+    gap: 8,
   },
   emptyTitle: {
+    fontSize: 20,
     fontWeight: 900,
-    fontSize: 16,
   },
   emptySub: {
-    marginTop: 6,
-    opacity: 0.78,
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 1.6,
+    color: "rgba(235,241,255,0.72)",
   },
   loadingCard: {
     marginTop: 18,
+    borderRadius: 24,
+    padding: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(11,16,35,0.84)",
     display: "flex",
-    gap: 12,
     alignItems: "center",
-    padding: 16,
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
+    gap: 12,
   },
   loadingDot: {
     width: 12,
     height: 12,
     borderRadius: 999,
-    background: "rgba(56,189,248,0.95)",
+    background:
+      "linear-gradient(135deg, rgba(115,145,255,1), rgba(144,119,255,1))",
+    boxShadow: "0 0 0 8px rgba(115,145,255,0.10)",
   },
   loadingTitle: {
+    fontSize: 16,
     fontWeight: 900,
   },
   loadingSub: {
-    fontSize: 12,
-    opacity: 0.75,
+    fontSize: 13,
+    color: "rgba(235,241,255,0.68)",
   },
-  toast: {
+  toastWrap: {
     position: "fixed",
-    left: 18,
     right: 18,
     bottom: 18,
-    maxWidth: 560,
-    margin: "0 auto",
-    padding: 14,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(16,18,26,0.92)",
-    boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
     zIndex: 100,
   },
-  toastT: {
-    fontSize: 13,
+  toast: {
+    minWidth: 260,
+    maxWidth: 380,
+    borderRadius: 18,
+    padding: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(10,14,26,0.95)",
+    boxShadow: "0 20px 50px rgba(0,0,0,0.34)",
+  },
+  toastTitle: {
+    fontSize: 14,
     fontWeight: 900,
   },
-  toastS: {
-    marginTop: 4,
-    fontSize: 12,
-    opacity: 0.75,
+  toastSub: {
+    marginTop: 6,
+    fontSize: 13,
+    color: "rgba(235,241,255,0.74)",
+    lineHeight: 1.5,
   },
 };

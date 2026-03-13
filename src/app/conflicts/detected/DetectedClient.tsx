@@ -1,4 +1,3 @@
-// src/app/conflicts/detected/DetectedClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -12,6 +11,9 @@ import {
   groupMeta,
   computeVisibleConflicts,
   attachEvents,
+  conflictKey,
+  filterIgnoredConflicts,
+  loadIgnoredConflictKeys,
 } from "@/lib/conflicts";
 
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
@@ -36,7 +38,7 @@ function prettyTimeRange(startIso: string, endIso: string) {
   const e = new Date(endIso);
   const hhmm = (x: Date) =>
     `${String(x.getHours()).padStart(2, "0")}:${String(
-      x.getMinutes(),
+      x.getMinutes()
     ).padStart(2, "0")}`;
 
   const sameDay =
@@ -46,7 +48,7 @@ function prettyTimeRange(startIso: string, endIso: string) {
 
   if (!sameDay)
     return `${s.toLocaleDateString()} ${hhmm(
-      s,
+      s
     )} → ${e.toLocaleDateString()} ${hhmm(e)}`;
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
@@ -97,6 +99,30 @@ type AttachedConflict = {
   existingEvent?: CalendarEvent;
   incomingEvent?: CalendarEvent;
 };
+
+function resolutionForConflict(
+  c: AttachedConflict,
+  resMap: Record<string, Resolution>
+): Resolution | undefined {
+  const exact = resMap[String(c.id)];
+  if (exact) return exact;
+
+  const a = String(c.existingEventId ?? "");
+  const b = String(c.incomingEventId ?? "");
+  if (!a || !b) return undefined;
+
+  const stableKey = conflictKey(a, b);
+  if (resMap[stableKey]) return resMap[stableKey];
+
+  const [x, y] = [a, b].sort();
+  const legacyPrefix = `cx::${x}::${y}::`;
+
+  for (const k of Object.keys(resMap)) {
+    if (k.startsWith(legacyPrefix)) return resMap[k];
+  }
+
+  return undefined;
+}
 
 export default function DetectedClient() {
   const router = useRouter();
@@ -155,7 +181,6 @@ export default function DetectedClient() {
   }, [router, groupIdFromUrl]);
 
   const conflicts = useMemo<AttachedConflict[]>(() => {
-    // ✅ motor: normalizamos SOLO para detectar conflictos
     const normalized: CalendarEvent[] = (Array.isArray(events)
       ? events
       : []
@@ -165,31 +190,36 @@ export default function DetectedClient() {
     }));
 
     const cx = computeVisibleConflicts(normalized);
+    const ignored = loadIgnoredConflictKeys();
+    const visible = filterIgnoredConflicts(cx, ignored);
 
-    // ✅ attach con los eventos originales (para títulos / colores correctos)
-    const attached = attachEvents(cx, events) as unknown as AttachedConflict[];
+    const attached = attachEvents(
+      visible,
+      events
+    ) as unknown as AttachedConflict[];
 
     if (!focusEventId) return attached;
 
     return attached.filter(
       (c) =>
         String(c.existingEventId) === String(focusEventId) ||
-        String(c.incomingEventId) === String(focusEventId),
+        String(c.incomingEventId) === String(focusEventId)
     );
   }, [events, focusEventId]);
 
   const summary = useMemo(() => {
     const total = conflicts.length;
     let decided = 0;
-    for (const c of conflicts) if (resMap[String(c.id)]) decided++;
+    for (const c of conflicts) {
+      if (resolutionForConflict(c, resMap)) decided++;
+    }
     return { total, decided, pending: Math.max(0, total - decided) };
   }, [conflicts, resMap]);
 
-  // ✅ CLAVE: en móvil mostramos menos para evitar scroll infinito
   const LIST_LIMIT = isMobile ? 5 : 50;
   const visibleConflicts = useMemo(
     () => conflicts.slice(0, LIST_LIMIT),
-    [conflicts, LIST_LIMIT],
+    [conflicts, LIST_LIMIT]
   );
   const showSeeMore = !booting && conflicts.length > LIST_LIMIT;
 
@@ -207,7 +237,7 @@ export default function DetectedClient() {
 
   const resumeNext = () => {
     if (conflicts.length === 0) return;
-    const idx = conflicts.findIndex((c) => !resMap[String(c.id)]);
+    const idx = conflicts.findIndex((c) => !resolutionForConflict(c, resMap));
     openCompare(idx >= 0 ? idx : 0);
   };
 
@@ -230,12 +260,8 @@ export default function DetectedClient() {
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
-              <div style={styles.loadingTitle}>
-                Analizando tu agenda…
-              </div>
-              <div style={styles.loadingSub}>
-                Buscando choques de horario
-              </div>
+              <div style={styles.loadingTitle}>Analizando tu agenda…</div>
+              <div style={styles.loadingSub}>Buscando choques de horario</div>
             </div>
           </div>
         </div>
@@ -246,34 +272,34 @@ export default function DetectedClient() {
   return (
     <main style={styles.page}>
       <div style={styles.shell} className="spDet-shell">
-<div style={styles.topRow} className="spDet-topRow">
-  <AppHero
-    mobileNav="bottom"
-    title="Conflictos"
-    subtitle={
-      summary.total === 0
-        ? "Tu agenda está sincronizada."
-        : "Detecta y resuelve choques de horario en segundos."
-    }
-  />
-</div>
-        {/* ✅ 1 card principal (hero) */}
-        <section style={styles.hero} className="spDet-hero">
+        <div style={styles.topRow} className="spDet-topRow">
+          <AppHero
+            mobileNav="bottom"
+            title="Conflictos"
+            subtitle={
+              summary.total === 0
+                ? "Tu agenda está sincronizada."
+                : "Detecta y resuelve choques de horario en segundos."
+            }
+          />
+        </div>
+
+        <section style={styles.hero}>
           <div style={styles.heroLeft}>
             <div style={styles.kicker}>Conflictos</div>
-            <h1 style={styles.h1} className="spDet-h1">
+            <h1 style={styles.h1}>
               {summary.total === 0
-                ? "Todo está limpio ✅"
+                ? "Todo claro por aquí"
                 : "Tranquilo, esto se soluciona en segundos"}
             </h1>
-            <div style={styles.sub} className="spDet-sub">
+            <div style={styles.sub}>
               {summary.total === 0
-                ? "Tu agenda está sincronizada."
+                ? "No encontramos choques visibles para este contexto."
                 : `Detectamos ${summary.total} conflicto(s). Decide una vez y listo.`}
             </div>
           </div>
 
-          <div style={styles.heroRight} className="spDet-heroRight">
+          <div style={styles.heroRight}>
             {summary.total > 0 ? (
               <button onClick={resumeNext} style={styles.primaryBtn}>
                 Resolver ahora ✨
@@ -281,324 +307,345 @@ export default function DetectedClient() {
             ) : (
               <button
                 onClick={() => router.push("/calendar")}
-                style={styles.ghostBtn}
+                style={styles.secondaryBtn}
               >
-                Volver al calendario
+                Ir al calendario
               </button>
             )}
           </div>
         </section>
 
-        {summary.total === 0 ? (
-          <section style={styles.emptyCard} className="spDet-card">
-            <div style={styles.emptyTitle}>Todo en orden ✅</div>
-            <div style={styles.emptySub}>
-              Cuando dos eventos choquen, aparecerán aquí con opciones claras
-              para resolverlos.
-            </div>
-          </section>
-        ) : (
-          <section style={styles.listCard} className="spDet-card">
-            <div style={styles.listTop}>
+        <section style={styles.listCard}>
+          <div style={styles.listTop}>
+            <div>
               <div style={styles.listTitle}>Conflictos detectados</div>
-              <div style={styles.listHint}>
+              <div style={styles.listSub}>
                 Toca uno para compararlos y decidir.
               </div>
             </div>
 
-            <div style={styles.list}>
+            {summary.total > 0 && (
+              <button onClick={goActions} style={styles.secondaryBtn}>
+                Aplicar decisiones
+              </button>
+            )}
+          </div>
+
+          {visibleConflicts.length === 0 ? (
+            <div style={styles.emptyWrap}>
+              <div style={styles.emptyTitle}>No hay conflictos visibles</div>
+              <div style={styles.emptySub}>
+                Ya no quedan choques pendientes para este contexto.
+              </div>
+            </div>
+          ) : (
+            <div style={styles.items}>
               {visibleConflicts.map((c, idx) => {
-                const chosen = resMap[String(c.id)];
                 const a = c.existingEvent;
                 const b = c.incomingEvent;
 
-                // ✅ groupMeta también necesita couple
                 const aMeta = groupMeta(
-                  normalizeForConflicts((a?.groupType ?? "personal") as any),
+                  normalizeForConflicts((a?.groupType ?? "personal") as any)
                 );
                 const bMeta = groupMeta(
-                  normalizeForConflicts((b?.groupType ?? "personal") as any),
+                  normalizeForConflicts((b?.groupType ?? "personal") as any)
                 );
+
+                const chosen = resolutionForConflict(c, resMap);
 
                 return (
                   <button
                     key={c.id}
                     onClick={() => openCompare(idx)}
-                    style={styles.rowBtn}
-                    className="spDet-row"
+                    style={styles.item}
                   >
-                    <div style={styles.rowLeft}>
-                      <div style={styles.rowTop}>
+                    <div style={styles.itemHead}>
+                      <div style={styles.badges}>
                         <span style={styles.badgeDanger}>
                           Choque · {ymd(new Date(c.overlapStart))}
                         </span>
 
-                        {chosen ? (
-                          <span style={styles.badgeChosen}>Decidido</span>
-                        ) : (
-                          <span style={styles.badgePending}>Pendiente</span>
-                        )}
+                        <span
+                          style={
+                            chosen ? styles.badgeResolved : styles.badgePending
+                          }
+                        >
+                          {chosen ? "Decidido" : "Pendiente"}
+                        </span>
                       </div>
 
-                      <div style={styles.rowTwo}>
-                        <div style={styles.miniLine}>
-                          <span
-                            style={{
-                              ...styles.dot,
-                              background: aMeta.dot,
-                            }}
-                          />
-                          <span style={styles.miniTitle}>
-                            {a?.title || "Evento A"}
-                          </span>
-                          <span style={styles.miniTime}>
-                            {a ? prettyTimeRange(a.start, a.end) : ""}
-                          </span>
-                        </div>
-
-                        <div style={styles.miniLine}>
-                          <span
-                            style={{
-                              ...styles.dot,
-                              background: bMeta.dot,
-                            }}
-                          />
-                          <span style={styles.miniTitle}>
-                            {b?.title || "Evento B"}
-                          </span>
-                          <span style={styles.miniTime}>
-                            {b ? prettyTimeRange(b.start, b.end) : ""}
-                          </span>
-                        </div>
-                      </div>
+                      <span style={styles.arrow}>→</span>
                     </div>
 
-                    <div style={styles.rowRight}>→</div>
+                    <div style={styles.row}>
+                      <span style={{ ...styles.dot, background: aMeta.dot }} />
+                      <span style={styles.title}>
+                        {a?.title || "Evento A"}
+                      </span>
+                      <span style={styles.time}>
+                        {a ? prettyTimeRange(a.start, a.end) : ""}
+                      </span>
+                    </div>
+
+                    <div style={styles.row}>
+                      <span style={{ ...styles.dot, background: bMeta.dot }} />
+                      <span style={styles.title}>
+                        {b?.title || "Evento B"}
+                      </span>
+                      <span style={styles.time}>
+                        {b ? prettyTimeRange(b.start, b.end) : ""}
+                      </span>
+                    </div>
                   </button>
                 );
               })}
             </div>
+          )}
 
-            {/* ✅ En móvil: botón “ver más” para evitar scroll eterno */}
-            {showSeeMore && (
-              <div style={styles.footerCta} className="spDet-footer">
-                <button
-                  onClick={() => openCompare(0)}
-                  style={styles.ghostBtnWide}
-                  className="spDet-seeMore"
-                >
-                  Ver todos en Comparar ({conflicts.length}) →
-                </button>
+          {showSeeMore && (
+            <div style={styles.moreWrap}>
+              <div style={styles.moreText}>
+                Hay más conflictos, pero en móvil limitamos la lista para evitar
+                scroll infinito.
               </div>
-            )}
-
-            {summary.decided > 0 && (
-              <div style={styles.footerCta}>
-                <button onClick={goActions} style={styles.ghostBtnWide}>
-                  Aplicar decisiones
-                </button>
-              </div>
-            )}
-          </section>
-        )}
+            </div>
+          )}
+        </section>
       </div>
-
-      {/* ✅ SOLO Detected: responsive premium (NO toca otras páginas) */}
-      <style>{`
-        @media (max-width: 520px) {
-          .spDet-shell { padding: 14px 12px 110px !important; } /* deja espacio bottom bar */
-          .spDet-topRow { gap: 10px !important; margin-bottom: 10px !important; flex-wrap: wrap !important; }
-          .spDet-hero { padding: 12px !important; border-radius: 16px !important; }
-          .spDet-h1 { font-size: 20px !important; letter-spacing: -0.4px !important; }
-          .spDet-sub { font-size: 12px !important; }
-          .spDet-heroRight { width: 100% !important; justify-content: flex-start !important; }
-          .spDet-row { padding: 12px !important; }
-          .spDet-seeMore { width: 100% !important; min-width: unset !important; }
-        }
-      `}</style>
     </main>
   );
 }
 
-/* ===== styles ===== */
 const styles: Record<string, React.CSSProperties> = {
   page: {
-    minHeight: "100vh",
+    minHeight: "100dvh",
     background:
-      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
-    color: "rgba(255,255,255,0.92)",
+      "radial-gradient(1000px 600px at 15% -10%, rgba(70,92,210,0.18), transparent 50%), linear-gradient(180deg, #071026 0%, #050914 100%)",
+    color: "#F7F9FF",
   },
   shell: {
-    maxWidth: 1120,
+    width: "min(1180px, calc(100% - 24px))",
     margin: "0 auto",
-    padding: "22px 18px 48px",
+    padding: "18px 0 120px",
   },
   topRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    marginBottom: 14,
-    flexWrap: "wrap",
+    display: "grid",
+    gap: 16,
   },
   hero: {
+    marginTop: 16,
+    borderRadius: 26,
+    border: "1px solid rgba(113,141,255,0.18)",
+    background:
+      "linear-gradient(180deg, rgba(15,22,46,0.92), rgba(9,13,29,0.92))",
+    boxShadow: "0 26px 70px rgba(0,0,0,0.28)",
+    padding: 22,
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    gap: 18,
+    alignItems: "center",
+  },
+  heroLeft: {
+    display: "grid",
+    gap: 8,
+  },
+  heroRight: {
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    gap: 16,
-    padding: "18px 16px",
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
-    marginBottom: 12,
-    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "flex-end",
   },
-  heroLeft: { display: "flex", flexDirection: "column", gap: 6 },
-  heroRight: { display: "flex", gap: 10, alignItems: "center" },
   kicker: {
-    alignSelf: "flex-start",
-    fontSize: 11,
-    letterSpacing: "0.1em",
+    fontSize: 12,
+    letterSpacing: 1.6,
     textTransform: "uppercase",
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.1)",
-    background: "rgba(255,255,255,0.04)",
-    fontWeight: 900,
+    color: "#AFC1FF",
+    fontWeight: 800,
   },
-  h1: { margin: 0, fontSize: 26, letterSpacing: "-0.6px" },
-  sub: { fontSize: 13, opacity: 0.75 },
+  h1: {
+    margin: 0,
+    fontSize: 34,
+    lineHeight: 1.05,
+    fontWeight: 900,
+    letterSpacing: "-0.03em",
+  },
+  sub: {
+    fontSize: 15,
+    lineHeight: 1.6,
+    color: "rgba(235,241,255,0.74)",
+  },
   primaryBtn: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.14)",
+    borderRadius: 16,
+    padding: "12px 18px",
+    border: "1px solid rgba(103,133,255,0.28)",
     background:
-      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
+      "linear-gradient(135deg, rgba(91,120,255,0.96), rgba(119,95,255,0.96))",
+    color: "#FFFFFF",
+    fontSize: 14,
     fontWeight: 900,
-    width: "fit-content",
+    cursor: "pointer",
+    boxShadow: "0 18px 44px rgba(63,93,227,0.30)",
   },
-  ghostBtn: {
-    padding: "12px 14px",
-    borderRadius: 14,
+  secondaryBtn: {
+    borderRadius: 16,
+    padding: "12px 16px",
     border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
+    background: "rgba(255,255,255,0.05)",
+    color: "#EEF3FF",
+    fontSize: 14,
+    fontWeight: 800,
     cursor: "pointer",
-    fontWeight: 900,
-  },
-  ghostBtnWide: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-    minWidth: 220,
   },
   listCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
+    marginTop: 18,
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(10,14,30,0.90)",
     overflow: "hidden",
   },
   listTop: {
-    padding: 14,
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-  },
-  listTitle: { fontSize: 16, fontWeight: 900 },
-  listHint: { marginTop: 4, fontSize: 12, opacity: 0.75 },
-  list: { display: "flex", flexDirection: "column" },
-  rowBtn: {
-    textAlign: "left",
-    border: "none",
-    cursor: "pointer",
-    background: "transparent",
-    color: "inherit",
-    padding: 14,
+    padding: "18px 18px 14px",
     display: "flex",
-    gap: 12,
     alignItems: "center",
     justifyContent: "space-between",
-    borderTop: "1px solid rgba(255,255,255,0.06)",
-  },
-  rowLeft: { flex: 1, display: "flex", flexDirection: "column", gap: 10 },
-  rowTop: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
+    gap: 16,
     flexWrap: "wrap",
   },
-  rowTwo: { display: "flex", flexDirection: "column", gap: 8 },
+  listTitle: {
+    fontSize: 18,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+  },
+  listSub: {
+    marginTop: 4,
+    fontSize: 13,
+    color: "rgba(235,241,255,0.66)",
+    lineHeight: 1.5,
+  },
+  items: {
+    display: "grid",
+  },
+  item: {
+    border: 0,
+    borderTop: "1px solid rgba(255,255,255,0.08)",
+    background: "transparent",
+    color: "#F7F9FF",
+    padding: "16px 18px",
+    textAlign: "left",
+    display: "grid",
+    gap: 12,
+    cursor: "pointer",
+  },
+  itemHead: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  badges: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
   badgeDanger: {
+    borderRadius: 999,
+    padding: "7px 10px",
     fontSize: 12,
     fontWeight: 900,
-    padding: "6px 10px",
+    background: "rgba(94,37,42,0.82)",
+    border: "1px solid rgba(255,128,140,0.18)",
+    color: "#FFE2E7",
+  },
+  badgeResolved: {
     borderRadius: 999,
-    border: "1px solid rgba(248,113,113,0.35)",
-    background: "rgba(248,113,113,0.12)",
+    padding: "7px 10px",
+    fontSize: 12,
+    fontWeight: 900,
+    background: "rgba(19,61,35,0.78)",
+    border: "1px solid rgba(102,255,179,0.22)",
+    color: "#D6FFE8",
   },
   badgePending: {
+    borderRadius: 999,
+    padding: "7px 10px",
     fontSize: 12,
     fontWeight: 900,
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    color: "#E8EEFF",
   },
-  badgeChosen: {
-    fontSize: 12,
+  arrow: {
+    fontSize: 18,
+    color: "rgba(235,241,255,0.54)",
     fontWeight: 900,
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(34,197,94,0.28)",
-    background: "rgba(34,197,94,0.10)",
   },
-  miniLine: {
-    display: "flex",
+  row: {
+    display: "grid",
+    gridTemplateColumns: "12px minmax(0, 1fr) auto",
     gap: 10,
     alignItems: "center",
-    flexWrap: "wrap",
   },
-  dot: { width: 10, height: 10, borderRadius: 999 },
-  miniTitle: { fontSize: 13, fontWeight: 900, opacity: 0.95 },
-  miniTime: { fontSize: 12, opacity: 0.7 },
-  rowRight: { opacity: 0.7, fontWeight: 900 },
-  emptyCard: {
-    borderRadius: 18,
-    border: "1px dashed rgba(255,255,255,0.16)",
-    background: "rgba(255,255,255,0.02)",
-    padding: 18,
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
   },
-  emptyTitle: { fontWeight: 900, fontSize: 16 },
-  emptySub: { marginTop: 6, opacity: 0.75, fontSize: 13 },
+  title: {
+    fontSize: 14,
+    fontWeight: 800,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  time: {
+    fontSize: 12,
+    color: "rgba(235,241,255,0.66)",
+  },
+  emptyWrap: {
+    padding: 24,
+    display: "grid",
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 900,
+  },
+  emptySub: {
+    fontSize: 14,
+    lineHeight: 1.6,
+    color: "rgba(235,241,255,0.72)",
+  },
+  moreWrap: {
+    padding: "12px 18px 18px",
+  },
+  moreText: {
+    fontSize: 12,
+    color: "rgba(235,241,255,0.60)",
+  },
   loadingCard: {
     marginTop: 18,
+    borderRadius: 24,
+    padding: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(11,16,35,0.84)",
     display: "flex",
-    gap: 12,
     alignItems: "center",
-    padding: 16,
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
+    gap: 12,
   },
   loadingDot: {
     width: 12,
     height: 12,
     borderRadius: 999,
-    background: "rgba(56,189,248,0.95)",
-    boxShadow: "0 0 24px rgba(56,189,248,0.55)",
+    background:
+      "linear-gradient(135deg, rgba(115,145,255,1), rgba(144,119,255,1))",
+    boxShadow: "0 0 0 8px rgba(115,145,255,0.10)",
   },
-  loadingTitle: { fontWeight: 900 },
-  loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
-  footerCta: {
-    padding: 14,
-    display: "flex",
-    justifyContent: "flex-end",
-    borderTop: "1px solid rgba(255,255,255,0.08)",
+  loadingTitle: {
+    fontSize: 16,
+    fontWeight: 900,
+  },
+  loadingSub: {
+    fontSize: 13,
+    color: "rgba(235,241,255,0.68)",
   },
 };
