@@ -30,6 +30,7 @@ import {
   type GroupType,
   computeVisibleConflicts,
   filterIgnoredConflicts,
+  filterSoftRejectedEvents,
   groupMeta,
 } from "@/lib/conflicts";
 
@@ -137,7 +138,7 @@ function isValidIsoish(v: any) {
   return !Number.isNaN(t);
 }
 
-/** ✅ detecta móvil por ancho (sin tocar otras páginas) */
+/** ✅ detecta móvil por ancho */
 function useIsMobileWidth(maxWidth = 720) {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -165,15 +166,14 @@ function useIsMobileWidth(maxWidth = 720) {
 
 /**
  * ✅ Normalización para conflictos:
- * El motor de conflictos trabaja con "couple" (no "pair").
- * En UI guardamos "pair"; SOLO aquí convertimos para el motor.
+ * El motor de conflictos trabaja con "couple" para pareja.
  */
 function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
   if (!gt) return "personal" as GroupType;
   return (gt === ("pair" as any) ? ("couple" as any) : gt) as GroupType;
 }
 
-/** ✅ Props del Calendar: ahora todas OPCIONALES */
+/** ✅ Props del Calendar */
 type CalendarClientProps = {
   highlightId?: string | null;
   appliedToast?: {
@@ -212,46 +212,48 @@ export default function CalendarClient(
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
 
-const groupTypeById = useMemo(() => {
-  const m = new Map<string, "pair" | "family" | "other">();
+  const groupTypeById = useMemo(() => {
+    const m = new Map<string, "pair" | "family" | "other">();
 
-  for (const g of groups || []) {
-    const id = String(g.id);
-    const rawType = String(g.type ?? "").toLowerCase();
+    for (const g of groups || []) {
+      const id = String(g.id);
+      const rawType = String(g.type ?? "").toLowerCase();
 
-    if (rawType === "family") {
-      m.set(id, "family");
-    } else if (rawType === "other" || rawType === "shared") {
-      m.set(id, "other");
-    } else {
-      m.set(id, "pair");
+      if (rawType === "family") {
+        m.set(id, "family");
+      } else if (rawType === "other" || rawType === "shared") {
+        m.set(id, "other");
+      } else {
+        m.set(id, "pair");
+      }
     }
-  }
 
-  return m;
-}, [groups]);
+    return m;
+  }, [groups]);
 
   const [error, setError] = useState<string | null>(null);
   const [eventsLoaded, setEventsLoaded] = useState(false);
 
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
-const [enabledGroups, setEnabledGroups] = useState({
-  personal: true,
-  pair: true,
-  family: true,
-  other: true,
-});
+  const [enabledGroups, setEnabledGroups] = useState({
+    personal: true,
+    pair: true,
+    family: true,
+    other: true,
+  });
 
   const [toast, setToast] =
     useState<null | { title: string; subtitle?: string }>(null);
-const [conflictAlert, setConflictAlert] = useState<{
-  count: number;
-  latestEventId: string | null;
-}>({
-  count: 0,
-  latestEventId: null,
-});
+
+  const [conflictAlert, setConflictAlert] = useState<{
+    count: number;
+    latestEventId: string | null;
+  }>({
+    count: 0,
+    latestEventId: null,
+  });
+
   /* ✏️ ESTADO DEL MODAL DE EDICIÓN */
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -273,189 +275,191 @@ const [conflictAlert, setConflictAlert] = useState<{
   }, []);
 
   /* =========================
-     Carga de datos (DB) — “Actualizar”
+     Carga de datos (DB)
      ========================= */
-const refreshCalendar = useCallback(
-  async (
-    opts: {
-      showToast?: boolean;
-      toastTitle?: string;
-      toastSubtitle?: string;
-    } = {}
-  ) => {
-    const showToastFlag = opts?.showToast ?? false;
+  const refreshCalendar = useCallback(
+    async (
+      opts: {
+        showToast?: boolean;
+        toastTitle?: string;
+        toastSubtitle?: string;
+      } = {}
+    ) => {
+      const showToastFlag = opts?.showToast ?? false;
 
-    try {
-      if (showToastFlag) {
-        setToast({
-          title: opts?.toastTitle ?? "Actualizando…",
-          subtitle: opts?.toastSubtitle ?? "Recargando desde SyncPlans",
-        });
-      }
+      try {
+        if (showToastFlag) {
+          setToast({
+            title: opts?.toastTitle ?? "Actualizando…",
+            subtitle: opts?.toastSubtitle ?? "Recargando desde SyncPlans",
+          });
+        }
 
-      const { data, error } = await supabase.auth.getSession();
-      if (error || !data.session?.user) {
-        router.replace("/auth/login");
-        return;
-      }
+        const { data, error } = await supabase.auth.getSession();
+        if (error || !data.session?.user) {
+          router.replace("/auth/login");
+          return;
+        }
 
-      const myGroups = await getMyGroups();
-      setGroups(myGroups);
+        const myGroups = await getMyGroups();
+        setGroups(myGroups);
 
-      const persistedActive = await getActiveGroupIdFromDb().catch(() => null);
+        const persistedActive = await getActiveGroupIdFromDb().catch(() => null);
 
-      let nextActiveGroupId: string | null =
-        persistedActive &&
-        myGroups.some((g: any) => String(g.id) === String(persistedActive))
-          ? String(persistedActive)
-          : null;
+        let nextActiveGroupId: string | null =
+          persistedActive &&
+          myGroups.some((g: any) => String(g.id) === String(persistedActive))
+            ? String(persistedActive)
+            : null;
 
-      if (!nextActiveGroupId && (myGroups?.length ?? 0) > 0) {
-        nextActiveGroupId = String(myGroups[0].id);
-        try {
-          await setActiveGroupIdInDb(nextActiveGroupId);
-        } catch {
-          // no-op
+        if (!nextActiveGroupId && (myGroups?.length ?? 0) > 0) {
+          nextActiveGroupId = String(myGroups[0].id);
+          try {
+            await setActiveGroupIdInDb(nextActiveGroupId);
+          } catch {
+            // no-op
+          }
+        }
+
+        setActiveGroupId(nextActiveGroupId);
+
+        const groupIds = (myGroups || []).map((g: any) => String(g.id));
+
+        const [rawEvents, conflictInfo] = await Promise.all([
+          getEventsForGroups(groupIds),
+          getUnreadConflictNotificationsSummary().catch(() => ({
+            count: 0,
+            latestEventId: null,
+          })),
+        ]);
+
+        setConflictAlert(conflictInfo);
+
+        const groupTypeByIdLocal = new Map<string, "family" | "pair" | "other">(
+          (myGroups || []).map((g: any) => {
+            const id = String(g.id);
+            const rawType = String(g.type ?? "").toLowerCase();
+
+            const normalized: "family" | "pair" | "other" =
+              rawType === "family"
+                ? "family"
+                : rawType === "other" || rawType === "shared"
+                ? "other"
+                : "pair";
+
+            return [id, normalized];
+          })
+        );
+
+        const enriched: CalendarEvent[] = (rawEvents || [])
+          .map((ev: any) => {
+            const gid = ev.group_id ?? ev.groupId ?? null;
+
+            let gt: GroupType = "personal" as any;
+
+            if (gid) {
+              const t = groupTypeByIdLocal.get(String(gid));
+
+              if (t === "family") {
+                gt = "family" as any;
+              } else if (t === "other") {
+                gt = "other" as any;
+              } else {
+                gt = "pair" as any;
+              }
+            } else {
+              gt = "personal" as any;
+            }
+
+            const startRaw = ev.start ?? ev.start_at ?? null;
+            const endRaw = ev.end ?? ev.end_at ?? null;
+
+            if (!isValidIsoish(startRaw) || !isValidIsoish(endRaw)) return null;
+
+            return {
+              id: String(ev.id),
+              title: ev.title ?? "Evento",
+              start: String(startRaw),
+              end: String(endRaw),
+              notes: ev.notes ?? undefined,
+              groupId: gid ? String(gid) : null,
+              groupType: gt,
+            } as CalendarEvent;
+          })
+          .filter(Boolean) as CalendarEvent[];
+
+        const filtered = filterSoftRejectedEvents(enriched);
+
+        setEvents(filtered);
+        setEventsLoaded(true);
+        setError(null);
+
+        if (showToastFlag) {
+          setToast({
+            title: "Actualizado ✅",
+            subtitle: "Tu calendario ya está al día.",
+          });
+          window.setTimeout(() => setToast(null), 2400);
+        }
+      } catch (e: any) {
+        setError(e?.message ?? "Error cargando calendario");
+        setEventsLoaded(true);
+
+        if (showToastFlag) {
+          setToast({
+            title: "No se pudo actualizar",
+            subtitle: e?.message ?? "Revisa tu sesión o conexión.",
+          });
+          window.setTimeout(() => setToast(null), 2800);
         }
       }
+    },
+    [router]
+  );
 
-      setActiveGroupId(nextActiveGroupId);
-
-      const groupIds = (myGroups || []).map((g: any) => String(g.id));
-
-      const [rawEvents, conflictInfo] = await Promise.all([
-        getEventsForGroups(groupIds),
-        getUnreadConflictNotificationsSummary().catch(() => ({
-          count: 0,
-          latestEventId: null,
-        })),
-      ]);
-
-      setConflictAlert(conflictInfo);
-
-      const groupTypeByIdLocal = new Map<string, "family" | "pair" | "other">(
-        (myGroups || []).map((g: any) => {
-          const id = String(g.id);
-          const rawType = String(g.type ?? "").toLowerCase();
-
-          const normalized: "family" | "pair" | "other" =
-            rawType === "family"
-              ? "family"
-              : rawType === "other" || rawType === "shared"
-              ? "other"
-              : "pair";
-
-          return [id, normalized];
-        })
+  const handleDeleteEvent = useCallback(
+    async (eventId: string, title?: string) => {
+      const ok = confirm(
+        `¿Eliminar el evento${
+          title ? ` "${title}"` : ""
+        }?\nEsta acción no se puede deshacer.`
       );
+      if (!ok) return;
 
-      const enriched: CalendarEvent[] = (rawEvents || [])
-        .map((ev: any) => {
-          const gid = ev.group_id ?? ev.groupId ?? null;
+      try {
+        setToast({ title: "Eliminando…", subtitle: "Aplicando cambios" });
 
-          let gt: GroupType = "personal" as any;
+        const result = await deleteEventsByIdsDetailed([eventId]);
 
-          if (gid) {
-            const t = groupTypeByIdLocal.get(String(gid));
-
-            if (t === "family") {
-              gt = "family" as any;
-            } else if (t === "other") {
-              gt = "other" as any;
-            } else {
-              gt = "pair" as any;
-            }
-          } else {
-            gt = "personal" as any;
+        if (result.deletedCount !== 1) {
+          if (result.blockedIds.length > 0) {
+            throw new Error(
+              "No pudiste eliminar ese evento con tu sesión actual. Puede pertenecer a otra persona o no estar permitido por permisos."
+            );
           }
 
-          const startRaw = ev.start ?? ev.start_at ?? null;
-          const endRaw = ev.end ?? ev.end_at ?? null;
-
-          if (!isValidIsoish(startRaw) || !isValidIsoish(endRaw)) return null;
-
-          return {
-            id: String(ev.id),
-            title: ev.title ?? "Evento",
-            start: String(startRaw),
-            end: String(endRaw),
-            notes: ev.notes ?? undefined,
-            groupId: gid ? String(gid) : null,
-            groupType: gt,
-          } as CalendarEvent;
-        })
-        .filter(Boolean) as CalendarEvent[];
-
-      setEvents(enriched);
-      setEventsLoaded(true);
-      setError(null);
-
-      if (showToastFlag) {
-        setToast({
-          title: "Actualizado ✅",
-          subtitle: "Tu calendario ya está al día.",
-        });
-        window.setTimeout(() => setToast(null), 2400);
-      }
-    } catch (e: any) {
-      setError(e?.message ?? "Error cargando calendario");
-      setEventsLoaded(true);
-
-      if (showToastFlag) {
-        setToast({
-          title: "No se pudo actualizar",
-          subtitle: e?.message ?? "Revisa tu sesión o conexión.",
-        });
-        window.setTimeout(() => setToast(null), 2800);
-      }
-    }
-  },
-  [router]
-);
-
-const handleDeleteEvent = useCallback(
-  async (eventId: string, title?: string) => {
-    const ok = confirm(
-      `¿Eliminar el evento${
-        title ? ` "${title}"` : ""
-      }?\nEsta acción no se puede deshacer.`
-    );
-    if (!ok) return;
-
-    try {
-      setToast({ title: "Eliminando…", subtitle: "Aplicando cambios" });
-
-      const result = await deleteEventsByIdsDetailed([eventId]);
-
-      if (result.deletedCount !== 1) {
-        if (result.blockedIds.length > 0) {
           throw new Error(
-            "No pudiste eliminar ese evento con tu sesión actual. Puede pertenecer a otra persona o no estar permitido por permisos."
+            "El evento no se eliminó realmente. No actualizamos la UI como si hubiera salido bien."
           );
         }
 
-        throw new Error(
-          "El evento no se eliminó realmente. No actualizamos la UI como si hubiera salido bien."
-        );
+        await refreshCalendar({
+          showToast: true,
+          toastTitle: "Evento eliminado ✅",
+          toastSubtitle: "Tu calendario ya está actualizado.",
+        });
+      } catch (e: any) {
+        setToast({
+          title: "No se pudo eliminar",
+          subtitle: e?.message ?? "Revisa permisos o conexión.",
+        });
+        window.setTimeout(() => setToast(null), 2600);
       }
+    },
+    [refreshCalendar]
+  );
 
-      await refreshCalendar({
-        showToast: true,
-        toastTitle: "Evento eliminado ✅",
-        toastSubtitle: "Tu calendario ya está actualizado.",
-      });
-    } catch (e: any) {
-      setToast({
-        title: "No se pudo eliminar",
-        subtitle: e?.message ?? "Revisa permisos o conexión.",
-      });
-      window.setTimeout(() => setToast(null), 2600);
-    }
-  },
-  [refreshCalendar]
-);
-
-  /* ✅ toast post-apply desde props (sin useSearchParams) */
+  /* ✅ toast post-apply */
   useEffect(() => {
     if (!appliedToast) return;
 
@@ -496,21 +500,19 @@ const handleDeleteEvent = useCallback(
     return () => window.clearTimeout(t);
   }, [appliedToast, pathname, refreshCalendar, router]);
 
-  // ✅ escucha cambio de grupo activo (PremiumHeader) sin recargar toda la página
-useEffect(() => {
-  const handler = async () => {
-    await refreshCalendar();
-  };
+  useEffect(() => {
+    const handler = async () => {
+      await refreshCalendar();
+    };
 
-  window.addEventListener("sp:active-group-changed", handler as any);
-  return () =>
-    window.removeEventListener(
-      "sp:active-group-changed",
-      handler as any
-    );
-}, [refreshCalendar]);
+    window.addEventListener("sp:active-group-changed", handler as any);
+    return () =>
+      window.removeEventListener(
+        "sp:active-group-changed",
+        handler as any
+      );
+  }, [refreshCalendar]);
 
-  // ✅ NUEVO: escucha cuando el drawer de integraciones termina una sync de Google
   useEffect(() => {
     const handler = async (event: Event) => {
       const customEvent = event as CustomEvent<{ imported?: number }>;
@@ -539,24 +541,31 @@ useEffect(() => {
   }, [refreshCalendar]);
 
   useEffect(() => {
-  const onFocus = () => {
-    void refreshCalendar();
-  };
-
-  const onVisibility = () => {
-    if (document.visibilityState === "visible") {
+    const onFocus = () => {
       void refreshCalendar();
-    }
-  };
+    };
 
-  window.addEventListener("focus", onFocus);
-  document.addEventListener("visibilitychange", onVisibility);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void refreshCalendar();
+      }
+    };
 
-  return () => {
-    window.removeEventListener("focus", onFocus);
-    document.removeEventListener("visibilitychange", onVisibility);
-  };
-}, [refreshCalendar]);
+    const onStorage = () => {
+      void refreshCalendar();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("storage", onStorage);
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [refreshCalendar]);
+
   /* Boot inicial */
   useEffect(() => {
     let alive = true;
@@ -639,42 +648,43 @@ useEffect(() => {
   /* =========================
      Filtros y vistas
      ========================= */
-const filteredEvents = useMemo(() => {
-  const isEnabled = (g?: GroupType | null) => {
-    const key = (g ?? "personal") as any;
-    return !!(enabledGroups as any)[key];
-  };
+  const filteredEvents = useMemo(() => {
+    const isEnabled = (g?: GroupType | null) => {
+      const key = (g ?? "personal") as any;
+      return !!(enabledGroups as any)[key];
+    };
 
-  return (Array.isArray(events) ? events : []).filter((e) => {
-    const gt = (e.groupType ?? "personal") as any;
+    return (Array.isArray(events) ? events : []).filter((e) => {
+      const gt = (e.groupType ?? "personal") as any;
 
-    if (!isEnabled(gt)) return false;
+      if (!isEnabled(gt)) return false;
 
-    if (scope === "all") return true;
+      if (scope === "all") return true;
 
-    if (scope === "personal") {
-      return gt === "personal";
-    }
+      if (scope === "personal") {
+        return gt === "personal";
+      }
 
-    // scope === "active"
-    const inConflict = conflictEventIdsInGrid.has(String(e.id));
-    if (inConflict) return true;
+      // scope === "active"
+      const inConflict = conflictEventIdsInGrid.has(String(e.id));
+      if (inConflict) return true;
 
-    if (gt === "personal") return true;
+      if (gt === "personal") return true;
 
-    if (!activeGroupId) {
-      return false;
-    }
+      if (!activeGroupId) {
+        return false;
+      }
 
-    return String(e.groupId ?? "") === String(activeGroupId);
-  });
-}, [
-  events,
-  scope,
-  enabledGroups,
-  activeGroupId,
-  conflictEventIdsInGrid,
-]);
+      return String(e.groupId ?? "") === String(activeGroupId);
+    });
+  }, [
+    events,
+    scope,
+    enabledGroups,
+    activeGroupId,
+    conflictEventIdsInGrid,
+  ]);
+
   const visibleEvents = useMemo(() => {
     const a = gridStart.getTime();
     const b = gridEnd.getTime();
@@ -763,17 +773,6 @@ const filteredEvents = useMemo(() => {
     return () => window.clearTimeout(t);
   }, [highlightId, pathname, router]);
 
-  /* =========================
-     UX premium: en móvil, agenda se siente mejor (sin forzarte)
-     ========================= */
-  useEffect(() => {
-    if (!isMobile) return;
-    // Si el usuario ya eligió agenda, lo respetamos.
-  }, [isMobile]);
-
-  /* =========================
-     Navegación y acciones
-     ========================= */
   const goPrevMonth = () =>
     setAnchor(
       (d) => new Date(d.getFullYear(), d.getMonth() - 1, 1)
@@ -818,30 +817,25 @@ const filteredEvents = useMemo(() => {
   };
 
   const openConflicts = () => {
-  if (conflictAlert.latestEventId) {
-    router.push(
-      `/conflicts/detected?eventId=${encodeURIComponent(
-        conflictAlert.latestEventId
-      )}`
-    );
-    return;
-  }
-  router.push("/conflicts/detected");
-};
+    if (conflictAlert.latestEventId) {
+      router.push(
+        `/conflicts/detected?eventId=${encodeURIComponent(
+          conflictAlert.latestEventId
+        )}`
+      );
+      return;
+    }
+    router.push("/conflicts/detected");
+  };
+
   const resolveNow = () =>
     router.push(
       `/conflicts/compare?i=${firstRelevantConflictIndex}`
     );
 
-  /* =========================
-     Datos para filtros Mes/Año
-     ========================= */
   const currentMonthIndex = anchor.getMonth();
   const currentYear = anchor.getFullYear();
 
-  /* =========================
-     RENDER
-     ========================= */
   if (booting) {
     return (
       <MobileScaffold>
@@ -886,7 +880,6 @@ const filteredEvents = useMemo(() => {
       )}
 
       <main style={styles.page} className="spCal-shell">
-        {/* ✅ Sticky top */}
         <div style={styles.stickyTop}>
           <AppHero
             mobileNav="bottom"
@@ -903,90 +896,88 @@ const filteredEvents = useMemo(() => {
           />
         </div>
 
-        {/* HERO premium */}
-        {/* HERO premium */}
-<section style={styles.hero} className="spCal-hero">
-  <div style={styles.heroLeft}>
-    <div style={styles.titleRow}>
-      <h1 style={styles.h1} className="spCal-title">
-        Calendario
-      </h1>
+        <section style={styles.hero} className="spCal-hero">
+          <div style={styles.heroLeft}>
+            <div style={styles.titleRow}>
+              <h1 style={styles.h1} className="spCal-title">
+                Calendario
+              </h1>
 
-      {!eventsLoaded ? (
-        <div style={styles.okPill}>
-          <span style={styles.okDot} />
-          Revisando conflictos…
-        </div>
-      ) : conflictCount > 0 ? (
-        <div style={styles.conflictCluster}>
-          <button onClick={openConflicts} style={styles.conflictPill}>
-            <span style={styles.conflictDot} />
-            {conflictCount} conflicto
-            {conflictCount === 1 ? "" : "s"}
-            <span style={styles.conflictArrow}>→</span>
+              {!eventsLoaded ? (
+                <div style={styles.okPill}>
+                  <span style={styles.okDot} />
+                  Revisando conflictos…
+                </div>
+              ) : conflictCount > 0 ? (
+                <div style={styles.conflictCluster}>
+                  <button onClick={openConflicts} style={styles.conflictPill}>
+                    <span style={styles.conflictDot} />
+                    {conflictCount} conflicto
+                    {conflictCount === 1 ? "" : "s"}
+                    <span style={styles.conflictArrow}>→</span>
+                  </button>
+
+                  <button onClick={resolveNow} style={styles.resolvePill}>
+                    Resolver ahora ✨
+                  </button>
+                </div>
+              ) : (
+                <div style={styles.okPill}>
+                  <span style={styles.okDot} />
+                  Sin conflictos
+                </div>
+              )}
+            </div>
+
+            <div style={styles.sub}>
+              Vista {tab === "month" ? "mensual" : "agenda"} · {monthTitle}
+            </div>
+
+            {error ? (
+              <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>
+                {error}
+              </div>
+            ) : null}
+          </div>
+
+          <div style={styles.heroRight}>
+            <button
+              onClick={() => openNewEventPersonal()}
+              style={styles.primaryBtnPersonal}
+            >
+              + Personal
+            </button>
+            <button
+              onClick={() => openNewEventGroup()}
+              style={styles.primaryBtnGroup}
+            >
+              + Grupo
+            </button>
+          </div>
+        </section>
+
+        {conflictAlert.count > 0 ? (
+          <button
+            onClick={openConflicts}
+            style={styles.conflictBanner}
+            className="spCal-conflictBanner"
+          >
+            <div style={styles.conflictBannerLeft}>
+              <div style={styles.conflictBannerEyebrow}>Conflictos activos</div>
+              <div style={styles.conflictBannerTitle}>
+                Tienes {conflictAlert.count} conflicto
+                {conflictAlert.count === 1 ? "" : "s"} pendiente
+                {conflictAlert.count === 1 ? "" : "s"}
+              </div>
+              <div style={styles.conflictBannerSub}>
+                Hay eventos que siguen chocando. Entra y decide cuál se queda.
+              </div>
+            </div>
+
+            <div style={styles.conflictBannerCta}>Revisar ahora →</div>
           </button>
+        ) : null}
 
-          <button onClick={resolveNow} style={styles.resolvePill}>
-            Resolver ahora ✨
-          </button>
-        </div>
-      ) : (
-        <div style={styles.okPill}>
-          <span style={styles.okDot} />
-          Sin conflictos
-        </div>
-      )}
-    </div>
-
-    <div style={styles.sub}>
-      Vista {tab === "month" ? "mensual" : "agenda"} · {monthTitle}
-    </div>
-
-    {error ? (
-      <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>
-        {error}
-      </div>
-    ) : null}
-  </div>
-
-  <div style={styles.heroRight}>
-    <button
-      onClick={() => openNewEventPersonal()}
-      style={styles.primaryBtnPersonal}
-    >
-      + Personal
-    </button>
-    <button
-      onClick={() => openNewEventGroup()}
-      style={styles.primaryBtnGroup}
-    >
-      + Grupo
-    </button>
-  </div>
-</section>
-
-{conflictAlert.count > 0 ? (
-  <button
-    onClick={openConflicts}
-    style={styles.conflictBanner}
-    className="spCal-conflictBanner"
-  >
-    <div style={styles.conflictBannerLeft}>
-      <div style={styles.conflictBannerEyebrow}>Conflictos activos</div>
-      <div style={styles.conflictBannerTitle}>
-        Tienes {conflictAlert.count} conflicto
-        {conflictAlert.count === 1 ? "" : "s"} pendiente
-        {conflictAlert.count === 1 ? "" : "s"}
-      </div>
-      <div style={styles.conflictBannerSub}>
-        Hay eventos que siguen chocando. Entra y decide cuál se queda.
-      </div>
-    </div>
-
-    <div style={styles.conflictBannerCta}>Revisar ahora →</div>
-  </button>
-) : null}
-{/* FILTROS */}
         <CalendarFilters
           tab={tab}
           scope={scope}
@@ -1043,7 +1034,6 @@ const filteredEvents = useMemo(() => {
               </div>
             </div>
 
-            {/* Day panel */}
             <div
               style={styles.dayPanel}
               className="spCal-dayPanel"
@@ -1129,7 +1119,6 @@ const filteredEvents = useMemo(() => {
           </section>
         )}
 
-        {/* ✏️ MODAL DE EDICIÓN */}
         <EventEditModal
           isOpen={isEditOpen}
           onClose={() => {
@@ -1169,7 +1158,7 @@ const filteredEvents = useMemo(() => {
 }
 
 /* =========================
-   EventRow (chip premium)
+   EventRow
    ========================= */
 function EventRow({
   e,
@@ -1184,7 +1173,7 @@ function EventRow({
   setRef?: (id: string) => (el: HTMLDivElement | null) => void;
   onDelete?: (id: string, title?: string) => void;
   onEdit?: (e: CalendarEvent) => void;
- groupTypeById?: Map<string, "pair" | "family" | "other">;
+  groupTypeById?: Map<string, "pair" | "family" | "other">;
 }) {
   const resolvedType: GroupType = e.groupId
     ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
@@ -1270,7 +1259,7 @@ function EventRow({
 }
 
 /* =========================
-   Celdas del mes (tipo Google)
+   Celdas del mes
    ========================= */
 function renderMonthCells(opts: {
   gridStart: Date;
@@ -1300,7 +1289,6 @@ function renderMonthCells(opts: {
   const cells: React.ReactNode[] = [];
   let day = new Date(gridStart);
 
-  // ✅ Recorremos día a día hasta gridEnd, sin depender de milisegundos/round
   while (day <= gridEnd) {
     const inMonth = day.getMonth() === monthStart.getMonth();
     const isSelected = sameDay(day, selectedDay);
@@ -1309,8 +1297,7 @@ function renderMonthCells(opts: {
     const dayEvents = eventsByDay.get(ymd(day)) || [];
     const top3 = dayEvents.slice(0, 3);
 
-    const isWeekend = day.getDay() === 0 || day.getDay() === 6; // Sun/Sat
-
+    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
     const dayKey = ymd(day);
 
     cells.push(
@@ -1371,24 +1358,23 @@ function renderMonthCells(opts: {
                 +
               </button>
 
-             <button
-  type="button"
-  onClick={(ev) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    openNewEventGroup(day);
-  }}
-  style={styles.cellQuickBtnGroup}
-  aria-label="Crear evento de grupo"
-  title="Crear evento de grupo"
->
-  +
-</button>
+              <button
+                type="button"
+                onClick={(ev) => {
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                  openNewEventGroup(day);
+                }}
+                style={styles.cellQuickBtnGroup}
+                aria-label="Crear evento de grupo"
+                title="Crear evento de grupo"
+              >
+                +
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Zona de contador + eventos del día */}
         <div
           style={styles.cellEvents}
           className="spCal-cellEvents"
@@ -1456,7 +1442,7 @@ function renderMonthCells(opts: {
 }
 
 /* =========================
-   Styles (Ultra premium)
+   Styles
    ========================= */
 const styles: Record<string, React.CSSProperties> = {
   page: {
@@ -1631,7 +1617,6 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
   },
 
-  // ✅ contenedor scroll horizontal del mes
   monthScroller: {
     overflowX: "auto",
     overflowY: "hidden",
@@ -2052,62 +2037,62 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(56,189,248,0.95)",
     boxShadow: "0 0 24px rgba(56,189,248,0.55)",
   },
- loadingTitle: { fontWeight: 950 },
-loadingSub: {
-  fontSize: 12,
-  opacity: 0.75,
-  marginTop: 2,
-  fontWeight: 700,
-},
+  loadingTitle: { fontWeight: 950 },
+  loadingSub: {
+    fontSize: 12,
+    opacity: 0.75,
+    marginTop: 2,
+    fontWeight: 700,
+  },
 
-conflictBanner: {
-  width: "100%",
-  marginTop: 12,
-  marginBottom: 14,
-  borderRadius: 20,
-  border: "1px solid rgba(248,113,113,0.28)",
-  background:
-    "linear-gradient(180deg, rgba(248,113,113,0.14), rgba(244,63,94,0.08))",
-  padding: 16,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 14,
-  cursor: "pointer",
-  color: "rgba(255,255,255,0.94)",
-  textAlign: "left",
-  boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
-},
-conflictBannerLeft: {
-  minWidth: 0,
-  display: "flex",
-  flexDirection: "column",
-  gap: 6,
-},
-conflictBannerEyebrow: {
-  fontSize: 11,
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-  fontWeight: 900,
-  opacity: 0.72,
-},
-conflictBannerTitle: {
-  fontSize: 18,
-  fontWeight: 950,
-  letterSpacing: "-0.3px",
-},
-conflictBannerSub: {
-  fontSize: 12,
-  opacity: 0.8,
-  lineHeight: 1.45,
-},
-conflictBannerCta: {
-  flexShrink: 0,
-  padding: "10px 12px",
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.14)",
-  background: "rgba(255,255,255,0.06)",
-  fontSize: 12,
-  fontWeight: 900,
-},
+  conflictBanner: {
+    width: "100%",
+    marginTop: 12,
+    marginBottom: 14,
+    borderRadius: 20,
+    border: "1px solid rgba(248,113,113,0.28)",
+    background:
+      "linear-gradient(180deg, rgba(248,113,113,0.14), rgba(244,63,94,0.08))",
+    padding: 16,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    cursor: "pointer",
+    color: "rgba(255,255,255,0.94)",
+    textAlign: "left",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
+  },
+  conflictBannerLeft: {
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  conflictBannerEyebrow: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    fontWeight: 900,
+    opacity: 0.72,
+  },
+  conflictBannerTitle: {
+    fontSize: 18,
+    fontWeight: 950,
+    letterSpacing: "-0.3px",
+  },
+  conflictBannerSub: {
+    fontSize: 12,
+    opacity: 0.8,
+    lineHeight: 1.45,
+  },
+  conflictBannerCta: {
+    flexShrink: 0,
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.06)",
+    fontSize: 12,
+    fontWeight: 900,
+  },
 };

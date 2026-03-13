@@ -56,9 +56,10 @@ export type ConflictItem = {
 export const EVENTS_KEY = "syncplans_events_v1";
 export const RESOLUTIONS_KEY = "syncplans_conflict_resolutions_v1";
 export const IGNORED_CONFLICTS_KEY = "syncplans_conflicts_ignored_v1";
+export const SOFT_REJECTED_EVENTS_KEY = "syncplans_soft_rejected_events_v1";
 
 /* =========================
-   Ignorados
+   Ignorados (conflictos)
    ========================= */
 
 export function loadIgnoredConflictKeys(): Set<string> {
@@ -91,6 +92,21 @@ export function ignoreConflictIds(ids: string[]) {
   saveIgnoredConflictKeys(set);
 }
 
+export function unignoreConflictIds(ids: string[]) {
+  if (!ids || !ids.length) return;
+  const set = loadIgnoredConflictKeys();
+  for (const id of ids) {
+    if (!id) continue;
+    set.delete(String(id));
+  }
+  saveIgnoredConflictKeys(set);
+}
+
+export function clearIgnoredConflictKeys() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(IGNORED_CONFLICTS_KEY);
+}
+
 export function filterIgnoredConflicts(
   conflicts: ConflictItem[],
   ignored?: Set<string>
@@ -98,6 +114,76 @@ export function filterIgnoredConflicts(
   const set = ignored ?? loadIgnoredConflictKeys();
   if (!set.size) return conflicts;
   return conflicts.filter((c) => !set.has(String(c.id)));
+}
+
+/* =========================
+   Soft-rejected / hidden events
+   ========================= */
+
+export function loadSoftRejectedEventIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+
+  try {
+    const raw = localStorage.getItem(SOFT_REJECTED_EVENTS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.map((x) => String(x)).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveSoftRejectedEventIds(ids: Set<string>) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(
+    SOFT_REJECTED_EVENTS_KEY,
+    JSON.stringify(Array.from(ids))
+  );
+}
+
+export function hideEventIdsForCurrentUser(ids: string[]) {
+  if (!ids || !ids.length) return;
+  const set = loadSoftRejectedEventIds();
+  for (const id of ids) {
+    if (!id) continue;
+    set.add(String(id));
+  }
+  saveSoftRejectedEventIds(set);
+}
+
+export function unhideEventIdsForCurrentUser(ids: string[]) {
+  if (!ids || !ids.length) return;
+  const set = loadSoftRejectedEventIds();
+  for (const id of ids) {
+    if (!id) continue;
+    set.delete(String(id));
+  }
+  saveSoftRejectedEventIds(set);
+}
+
+export function clearSoftRejectedEventIds() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(SOFT_REJECTED_EVENTS_KEY);
+}
+
+export function isEventSoftRejected(
+  eventId: string | null | undefined,
+  hidden?: Set<string>
+) {
+  if (!eventId) return false;
+  const set = hidden ?? loadSoftRejectedEventIds();
+  return set.has(String(eventId));
+}
+
+export function filterSoftRejectedEvents<T extends { id?: string | null }>(
+  events: T[],
+  hidden?: Set<string>
+): T[] {
+  const set = hidden ?? loadSoftRejectedEventIds();
+  if (!set.size) return Array.isArray(events) ? events : [];
+  return (Array.isArray(events) ? events : []).filter(
+    (e) => !set.has(String(e?.id ?? ""))
+  );
 }
 
 /* =========================

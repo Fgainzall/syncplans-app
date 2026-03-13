@@ -16,6 +16,7 @@ import MobileScaffold from "@/components/MobileScaffold";
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { getMyEvents } from "@/lib/eventsDb";
+import { filterSoftRejectedEvents } from "@/lib/conflicts";
 
 type Props = {
   highlightId: string | null;
@@ -23,6 +24,18 @@ type Props = {
 };
 
 type UiToast = { title: string; subtitle?: string } | null;
+
+type SummaryEvent = {
+  id: string;
+  title: string;
+  start: Date | null;
+  end: Date | null;
+  startIso: string | null;
+  endIso: string | null;
+  groupId: string | null;
+  isExternal: boolean;
+  raw: any;
+};
 
 function safeDate(iso?: string | null) {
   if (!iso) return null;
@@ -113,6 +126,61 @@ function buildAppliedToastMessage(raw: string | null): string | null {
   return safe;
 }
 
+function normalizeEvent(e: any): SummaryEvent | null {
+  const id = String(e?.id ?? "").trim();
+  if (!id) return null;
+
+  const startIso = (e?.start ?? e?.start_at ?? null) as string | null;
+  const endIso = (e?.end ?? e?.end_at ?? null) as string | null;
+
+  const start = safeDate(startIso);
+  const end = safeDate(endIso);
+
+  if (!start) return null;
+
+  const groupIdRaw = e?.group_id ?? e?.groupId ?? null;
+  const groupId = groupIdRaw ? String(groupIdRaw) : null;
+
+  const title =
+    e?.title ??
+    e?.name ??
+    e?.summary ??
+    "Evento";
+
+  const isExternal =
+    !!e?.is_external ||
+    String(e?.source ?? "").toLowerCase() === "google" ||
+    String(e?.provider ?? "").toLowerCase() === "google";
+
+  return {
+    id,
+    title,
+    start,
+    end,
+    startIso: startIso ? String(startIso) : null,
+    endIso: endIso ? String(endIso) : null,
+    groupId,
+    isExternal,
+    raw: e,
+  };
+}
+
+function eventOverlapsWindow(
+  event: SummaryEvent,
+  windowStart: Date,
+  windowEndExclusive: Date
+) {
+  const start = event.start;
+  const end = event.end ?? event.start;
+
+  if (!start || !end) return false;
+
+  return (
+    start.getTime() < windowEndExclusive.getTime() &&
+    end.getTime() >= windowStart.getTime()
+  );
+}
+
 export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const router = useRouter();
   const isMobile = useIsMobileWidth(520);
@@ -170,6 +238,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return `Personal + ${activeLabel}`;
   }, [activeGroupId, activeLabel]);
 
+  const normalizedEvents = useMemo(() => {
+    const mapped = (events ?? [])
+      .map(normalizeEvent)
+      .filter(Boolean) as SummaryEvent[];
+
+    return filterSoftRejectedEvents(mapped);
+  }, [events]);
+
   /**
    * Regla correcta del resumen:
    * - sin grupo activo => solo personales
@@ -178,37 +254,18 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const visibleEvents = useMemo(() => {
     const gid = activeGroupId ? String(activeGroupId) : null;
 
-    return (events ?? [])
+    return normalizedEvents
       .filter((e) => {
-        const eg = (e as any)?.group_id ?? null;
-
-        if (!eg) return true;
+        if (!e.groupId) return true;
         if (!gid) return false;
-
-        return String(eg) === gid;
+        return String(e.groupId) === gid;
       })
-      .map((e) => {
-        const startIso = (e as any)?.start ?? (e as any)?.start_at ?? null;
-        const endIso = (e as any)?.end ?? (e as any)?.end_at ?? null;
-        const start = safeDate(startIso);
-        const end = safeDate(endIso);
-
-        return {
-          ...e,
-          _start: start,
-          _end: end,
-          _title:
-            (e as any)?.title ??
-            (e as any)?.name ??
-            (e as any)?.summary ??
-            "Evento",
-        };
-      })
-      .filter((e) => e._start)
-      .sort(
-        (a, b) => (a._start as Date).getTime() - (b._start as Date).getTime()
-      );
-  }, [events, activeGroupId]);
+      .sort((a, b) => {
+        const aMs = a.start?.getTime() ?? 0;
+        const bMs = b.start?.getTime() ?? 0;
+        return aMs - bMs;
+      });
+  }, [normalizedEvents, activeGroupId]);
 
   /**
    * Ventana correcta:
@@ -218,14 +275,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     const today = startOfTodayLocal();
     const windowEnd = addDays(today, 7);
 
-    const startMs = today.getTime();
-    const endMs = windowEnd.getTime();
-
-    return visibleEvents.filter((e) => {
-      const start = e._start as Date;
-      const t = start.getTime();
-      return t >= startMs && t < endMs;
-    });
+    return visibleEvents.filter((e) =>
+      eventOverlapsWindow(e, today, windowEnd)
+    );
   }, [visibleEvents]);
 
   const upcomingStats = useMemo(() => {
@@ -234,12 +286,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     let external = 0;
 
     for (const e of upcomingAll) {
-      const isExternal = !!(e as any)?.is_external;
-      const hasGroup = !!(e as any)?.group_id;
-
-      if (isExternal) {
+      if (e.isExternal) {
         external += 1;
-      } else if (hasGroup) {
+      }
+
+      if (e.groupId) {
         group += 1;
       } else {
         personal += 1;
@@ -263,7 +314,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const nextEvent = upcoming.length > 0 ? upcoming[0] : null;
   const remainingUpcoming =
-    upcoming.length > 1 ? upcoming.slice(1) : ([] as any[]);
+    upcoming.length > 1 ? upcoming.slice(1) : ([] as SummaryEvent[]);
 
   const showSeeMore = !booting && upcomingAll.length > UPCOMING_LIMIT;
 
@@ -395,12 +446,18 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       }
     };
 
+    const onStorage = () => {
+      void loadSummary();
+    };
+
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("storage", onStorage);
 
     return () => {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("storage", onStorage);
     };
   }, [loadSummary]);
 
@@ -595,15 +652,15 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                     style={{
                       ...styles.nextCard,
                       ...(highlightId &&
-                      String((nextEvent as any)?.id ?? "") === String(highlightId)
+                      String(nextEvent?.id ?? "") === String(highlightId)
                         ? styles.eventRowHighlight
                         : {}),
                     }}
                     className="spSum-eventRow"
                   >
                     {(() => {
-                      const start = nextEvent._start as Date;
-                      const end = nextEvent._end as Date | null;
+                      const start = nextEvent.start as Date;
+                      const end = nextEvent.end as Date | null;
 
                       const when = end
                         ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
@@ -614,15 +671,15 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                           <div style={styles.eventLeft}>
                             <div style={styles.eventWhen}>{when}</div>
                             <div style={styles.eventTitle}>
-                              {nextEvent._title}
+                              {nextEvent.title}
                             </div>
                           </div>
 
                           <div style={styles.eventMeta}>
-                            {(nextEvent as any)?.is_external ? (
+                            {nextEvent.isExternal ? (
                               <span style={styles.pill}>Externo</span>
                             ) : null}
-                            {(nextEvent as any)?.group_id ? (
+                            {nextEvent.groupId ? (
                               <span style={styles.pillSoft}>Grupo</span>
                             ) : (
                               <span style={styles.pillSoft}>Personal</span>
@@ -636,24 +693,20 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
                 {remainingUpcoming.length > 0 && (
                   <div style={styles.eventsList} className="spSum-eventsList">
-                    {remainingUpcoming.map((e: any) => {
-                      const start = e._start as Date;
-                      const end = e._end as Date | null;
+                    {remainingUpcoming.map((e) => {
+                      const start = e.start as Date;
+                      const end = e.end as Date | null;
 
                       const when = end
                         ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
                         : `${fmtDay(start)} · ${fmtTime(start)}`;
 
                       const isHighlighted =
-                        highlightId &&
-                        String((e as any)?.id ?? "") === String(highlightId);
+                        highlightId && String(e.id ?? "") === String(highlightId);
 
                       return (
                         <button
-                          key={
-                            (e as any)?.id ??
-                            `${e._title}-${start.toISOString()}`
-                          }
+                          key={e.id ?? `${e.title}-${start.toISOString()}`}
                           onClick={() => router.push("/calendar")}
                           style={{
                             ...styles.eventRow,
@@ -663,14 +716,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                         >
                           <div style={styles.eventLeft}>
                             <div style={styles.eventWhen}>{when}</div>
-                            <div style={styles.eventTitle}>{e._title}</div>
+                            <div style={styles.eventTitle}>{e.title}</div>
                           </div>
 
                           <div style={styles.eventMeta}>
-                            {(e as any)?.is_external ? (
+                            {e.isExternal ? (
                               <span style={styles.pill}>Externo</span>
                             ) : null}
-                            {(e as any)?.group_id ? (
+                            {e.groupId ? (
                               <span style={styles.pillSoft}>Grupo</span>
                             ) : (
                               <span style={styles.pillSoft}>Personal</span>
