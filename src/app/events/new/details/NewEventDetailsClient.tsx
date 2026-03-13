@@ -18,22 +18,19 @@ import {
 import { getSettingsFromDb, type NotificationSettings } from "@/lib/settings";
 
 // ✅ DB real (RLS)
-import {
-  getMyGroups,
-  getGroupTypeLabel,
-} from "@/lib/groupsDb";
+import { getMyGroups, getGroupTypeLabel } from "@/lib/groupsDb";
 
 // ✅ DB Source of Truth
 import {
   createEventForGroup,
-  deleteEventsByIds,
-  getMyEvents,
+  deleteEventsByIdsDetailed,
   getEventById,
   updateEvent,
 } from "@/lib/eventsDb";
 
 // ✅ active group desde DB
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
+import { loadEventsForConflictPreflight } from "@/lib/conflictsDbBridge";
 
 /* Helpers */
 function pad2(n: number) {
@@ -95,8 +92,7 @@ function mapDefaultResolutionToChoice(
   const def = (s as any)?.conflictDefaultResolution ?? "ask_me";
   if (def === "keep_existing") return "keep_existing";
   if (def === "replace_with_new") return "replace_with_new";
-  if (def === "none") return "keep_both"; // ← mantener ambos
-  // "ask_me" u otros → te mando a editar
+  if (def === "none") return "keep_both";
   return "edit";
 }
 
@@ -112,11 +108,9 @@ function NewEventDetailsInner() {
   const router = useRouter();
   const sp = useSearchParams();
 
-  // 🔑 Soporte edición: leemos eventId/id desde la URL
   const eventIdParam = sp.get("eventId") || sp.get("id");
   const isEditing = !!eventIdParam;
 
-  // URL params
   const typeParam = (sp.get("type") || "personal") as NewType;
   const dateParam = sp.get("date");
   const groupIdParam = sp.get("groupId");
@@ -145,31 +139,25 @@ function NewEventDetailsInner() {
     subtitle?: string;
   }>(null);
 
-  // Settings
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
 
-  // Active group desde DB
   const [booting, setBooting] = useState(true);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
-  // Groups
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [groups, setGroups] = useState<DbGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>(
     groupIdParam || ""
   );
 
-  // Boot de evento (modo edición)
   const [bootingEvent, setBootingEvent] = useState<boolean>(isEditing);
 
-  // ✅ DEDUPE: lista única de grupos por id
   const uniqueGroups = useMemo(() => {
     const map = new Map<string, DbGroup>();
     for (const g of groups || []) map.set(g.id, g);
     return Array.from(map.values());
   }, [groups]);
 
-  // Preflight modal
   const [preflightOpen, setPreflightOpen] = useState(false);
   const [preflightItems, setPreflightItems] = useState<PreflightConflict[]>([]);
   const [preflightDefaultChoice, setPreflightDefaultChoice] =
@@ -186,14 +174,12 @@ function NewEventDetailsInner() {
     []
   );
 
-  // Toast auto hide
   useEffect(() => {
     if (!toast) return;
     const t = window.setTimeout(() => setToast(null), 2600);
     return () => window.clearTimeout(t);
   }, [toast]);
 
-  // Load settings
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -230,12 +216,9 @@ function NewEventDetailsInner() {
       const gid = nextGroupId || selectedGroupId || activeGroupId || "";
       if (gid) params.set("groupId", gid);
     }
-    // No añadimos eventId aquí a propósito: ese param solo nos sirve
-    // para entrar en modo edición, no es necesario mantenerlo siempre.
     return `/events/new/details?${params.toString()}`;
   }
 
-  // Boot: active group + grupos (✅ DB real)
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -260,7 +243,6 @@ function NewEventDetailsInner() {
           groupIdParam || gid || (unique && unique.length ? unique[0].id : "");
         if (fallbackGroupId) setSelectedGroupId(fallbackGroupId);
 
-        // ✅ Si URL dice group pero NO trae groupId, la arreglamos (replace)
         if (typeParam === "group" && !groupIdParam) {
           const next = buildUrl(
             "group",
@@ -287,7 +269,6 @@ function NewEventDetailsInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 🆕 Boot del evento en modo edición
   useEffect(() => {
     if (!isEditing || !eventIdParam) return;
 
@@ -335,7 +316,6 @@ function NewEventDetailsInner() {
     return typeParam;
   }, [lockedToActiveGroup, typeParam]);
 
-  // Si estamos bloqueados, el grupo seleccionado debe ser el activo
   useEffect(() => {
     if (!lockedToActiveGroup) return;
     if (!activeGroupId) return;
@@ -343,7 +323,6 @@ function NewEventDetailsInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lockedToActiveGroup, activeGroupId]);
 
-  // ✅ Si cambia selectedGroupId estando en "group", mantenemos URL coherente
   useEffect(() => {
     if (effectiveType !== "group") return;
     if (!selectedGroupId) return;
@@ -357,40 +336,40 @@ function NewEventDetailsInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveType, selectedGroupId]);
 
-const groupType: GroupType = useMemo(() => {
-  if (effectiveType !== "group") return "personal";
-  if (!selectedGroup) return "pair";
-  return normalizeDbGroupType(selectedGroup.type);
-}, [effectiveType, selectedGroup]);
+  const groupType: GroupType = useMemo(() => {
+    if (effectiveType !== "group") return "personal";
+    if (!selectedGroup) return "pair";
+    return normalizeDbGroupType(selectedGroup.type);
+  }, [effectiveType, selectedGroup]);
 
   const meta = useMemo(() => groupMeta(groupType), [groupType]);
 
-const theme = useMemo(() => {
-  if (effectiveType === "group") {
+  const theme = useMemo(() => {
+    if (effectiveType === "group") {
+      return {
+        label: lockedToActiveGroup
+          ? `Evento compartido (${meta.label})`
+          : "Evento de grupo",
+        border:
+          groupType === "family"
+            ? "rgba(96,165,250,0.28)"
+            : groupType === ("other" as GroupType)
+            ? "rgba(168,85,247,0.28)"
+            : "rgba(248,113,113,0.28)",
+        soft:
+          groupType === "family"
+            ? "rgba(96,165,250,0.14)"
+            : groupType === ("other" as GroupType)
+            ? "rgba(168,85,247,0.14)"
+            : "rgba(248,113,113,0.12)",
+      };
+    }
     return {
-      label: lockedToActiveGroup
-        ? `Evento compartido (${meta.label})`
-        : "Evento de grupo",
-      border:
-        groupType === "family"
-          ? "rgba(96,165,250,0.28)"
-          : groupType === ("other" as GroupType)
-          ? "rgba(168,85,247,0.28)"
-          : "rgba(248,113,113,0.28)",
-      soft:
-        groupType === "family"
-          ? "rgba(96,165,250,0.14)"
-          : groupType === ("other" as GroupType)
-          ? "rgba(168,85,247,0.14)"
-          : "rgba(248,113,113,0.12)",
+      label: "Evento personal",
+      border: "rgba(250,204,21,0.28)",
+      soft: "rgba(250,204,21,0.14)",
     };
-  }
-  return {
-    label: "Evento personal",
-    border: "rgba(250,204,21,0.28)",
-    soft: "rgba(250,204,21,0.14)",
-  };
-}, [effectiveType, lockedToActiveGroup, meta.label, groupType]);
+  }, [effectiveType, lockedToActiveGroup, meta.label, groupType]);
 
   const errors = useMemo(() => {
     const e: string[] = [];
@@ -433,86 +412,97 @@ const theme = useMemo(() => {
       setEndLocal(toInputLocal(addMinutes(s, 60)));
   };
 
-const doSave = async (payload: {
-  groupType: GroupType;
-  groupId: string | null;
-  title: string;
-  notes?: string;
-  startIso: string;
-  endIso: string;
-}) => {
-  setSaving(true);
-  try {
-    let savedEventId: string | null = null;
+  const doSave = async (payload: {
+    groupType: GroupType;
+    groupId: string | null;
+    title: string;
+    notes?: string;
+    startIso: string;
+    endIso: string;
+  }) => {
+    setSaving(true);
 
-    if (isEditing && eventIdParam) {
-      await updateEvent({
-        id: eventIdParam,
-        title: payload.title,
-        notes: payload.notes,
-        start: payload.startIso,
-        end: payload.endIso,
-        groupId: payload.groupId,
-      });
-      savedEventId = eventIdParam;
-    } else {
-      const created = await createEventForGroup({
-        title: payload.title,
-        notes: payload.notes,
-        start: payload.startIso,
-        end: payload.endIso,
-        groupId: payload.groupId,
-      });
-      savedEventId = created?.id ? String(created.id) : null;
-    }
+    try {
+      let savedEventId: string | null = null;
 
-    const conflictResult = savedEventId
-      ? await createConflictNotificationForEvent(savedEventId).catch(() => ({
-          created: 0,
-          conflictCount: 0,
-          targetEventId: savedEventId,
-        }))
-      : {
-          created: 0,
-          conflictCount: 0,
-          targetEventId: null,
-        };
+      if (isEditing && eventIdParam) {
+        await updateEvent({
+          id: eventIdParam,
+          title: payload.title,
+          notes: payload.notes,
+          start: payload.startIso,
+          end: payload.endIso,
+          groupId: payload.groupId,
+        });
+        savedEventId = String(eventIdParam);
+      } else {
+        const created = await createEventForGroup({
+          title: payload.title,
+          notes: payload.notes,
+          start: payload.startIso,
+          end: payload.endIso,
+          groupId: payload.groupId,
+        });
+        savedEventId = created?.id ? String(created.id) : null;
+      }
 
-    if (conflictResult.conflictCount > 0) {
-      setToast({
-        title: "⚠️ Conflicto detectado",
-        subtitle: "Te llevo a revisarlo ahora…",
-      });
+      try {
+        window.dispatchEvent(new CustomEvent("sp:events-changed"));
+      } catch {
+        // no-op
+      }
 
-      const qp = new URLSearchParams();
-      if (conflictResult.targetEventId) {
-        qp.set("eventId", conflictResult.targetEventId);
+      const conflictResult = savedEventId
+        ? await createConflictNotificationForEvent(savedEventId).catch(() => ({
+            created: 0,
+            conflictCount: 0,
+            targetEventId: savedEventId,
+          }))
+        : {
+            created: 0,
+            conflictCount: 0,
+            targetEventId: null,
+          };
+
+      if (conflictResult.conflictCount > 0) {
+        setToast({
+          title: "⚠️ Conflicto detectado",
+          subtitle: "Te llevo a revisarlo ahora…",
+        });
+
+        const qp = new URLSearchParams();
+        if (conflictResult.targetEventId) {
+          qp.set("eventId", String(conflictResult.targetEventId));
+        }
+        if (payload.groupId) {
+          qp.set("groupId", String(payload.groupId));
+        }
+        qp.set("from", isEditing ? "event_edit" : "event_create");
+
         window.setTimeout(() => {
           router.push(`/conflicts/detected?${qp.toString()}`);
         }, 500);
-      } else {
-        window.setTimeout(() => {
-          router.push("/conflicts/detected");
-        }, 500);
+        return;
       }
-      return;
-    }
 
-    setToast({
-      title: isEditing ? "Evento actualizado ✅" : "Evento creado ✅",
-      subtitle: "Volviendo al calendario…",
-    });
-    window.setTimeout(() => router.push("/calendar"), 450);
-  } catch (err: any) {
-    setToast({
-      title: "No se pudo guardar",
-      subtitle: err?.message || "Intenta nuevamente.",
-    });
-    window.setTimeout(() => setToast(null), 2800);
-  } finally {
-    setSaving(false);
-  }
-};
+      setToast({
+        title: isEditing ? "Evento actualizado ✅" : "Evento creado ✅",
+        subtitle: "Volviendo al calendario…",
+      });
+
+      window.setTimeout(() => {
+        router.push("/calendar");
+      }, 450);
+    } catch (err: any) {
+      setToast({
+        title: "No se pudo guardar",
+        subtitle: err?.message || "Intenta nuevamente.",
+      });
+      window.setTimeout(() => setToast(null), 2800);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const preflight = async (payload: {
     groupType: GroupType;
@@ -525,90 +515,68 @@ const doSave = async (payload: {
     const warn = (settings as any)?.conflictWarnBeforeSave ?? true;
     if (!warn) return { ok: true };
 
-    // 1) Traemos eventos desde la DB (DbEventRow[])
-    let existing: CalendarEvent[] = [];
     try {
-      const raw = await getMyEvents(); // DbEventRow[]
+      const pf = await loadEventsForConflictPreflight({
+        candidate: {
+          id: isEditing && eventIdParam ? String(eventIdParam) : null,
+          title: payload.title,
+          start: payload.startIso,
+          end: payload.endIso,
+          groupId: payload.groupId,
+          groupType: payload.groupType,
+          notes: payload.notes,
+        },
+      });
 
-      // 2) Map → CalendarEvent (solo necesitamos lo básico + groupType)
- const typeByGroupId = new Map<string, GroupType>();
-for (const g of uniqueGroups) {
-  if (!g?.id) continue;
-  typeByGroupId.set(String(g.id), normalizeDbGroupType(g.type));
-}
+      const combined = [...pf.baseEvents, pf.candidateEvent];
+      const all = computeVisibleConflicts(combined);
 
-existing = (raw ?? []).map((e: any) => {
-  const gid = e.group_id ?? e.groupId ?? null;
-  const groupType: GroupType = gid
-    ? typeByGroupId.get(String(gid)) ?? ("other" as GroupType)
-    : "personal";
+      const incomingId = String(pf.candidateEvent.id);
 
-  return {
-    id: String(e.id),
-    title: e.title ?? "Evento",
-    start: String(e.start),
-    end: String(e.end),
-    notes: e.notes ?? undefined,
-    groupId: gid ? String(gid) : null,
-    groupType,
-  } as CalendarEvent;
-});
+      const conflicts = all.filter((c) => {
+        if (String(c.incomingEventId) !== incomingId) return false;
+
+        if (
+          isEditing &&
+          eventIdParam &&
+          String(c.existingEventId) === String(eventIdParam)
+        ) {
+          return false;
+        }
+
+        return true;
+      });
+
+      if (!conflicts.length) {
+        return { ok: true };
+      }
+
+      const items: PreflightConflict[] = conflicts.map((c) => {
+        const ex = c.existingEvent ?? c.existing ?? null;
+        const gm = groupMeta(ex?.groupType ?? "personal");
+
+        return {
+          id: c.id,
+          existingId: String(c.existingEventId),
+          title: ex?.title ?? "Evento existente",
+          groupLabel: gm.label,
+          range: ex ? fmtRange(ex.start, ex.end) : "—",
+          overlapStart: c.overlapStart,
+          overlapEnd: c.overlapEnd,
+        };
+      });
+
+      setExistingIdsToReplace(
+        Array.from(new Set(items.map((x) => String(x.existingId))))
+      );
+      setPreflightItems(items);
+      setPreflightDefaultChoice(mapDefaultResolutionToChoice(settings));
+      setPreflightOpen(true);
+
+      return { ok: false };
     } catch {
-      // Si algo falla cargando eventos, no bloqueamos el guardado
       return { ok: true };
     }
-
-    // 3) Inyectamos el evento "nuevo" como si ya existiera
-    const incomingId = `incoming_${Date.now().toString(16)}`;
-
-    const incoming: CalendarEvent = {
-      id: incomingId,
-      title: payload.title || "Nuevo evento",
-      start: payload.startIso,
-      end: payload.endIso,
-      groupType: payload.groupType,
-      groupId: payload.groupId ?? null,
-      notes: payload.notes,
-    } as any;
-
-    const combined = [...existing, incoming];
-
-    // 4) Calculamos conflictos visibles:
-    //    - relacionados con el "incoming"
-    //    - y, si estamos editando, ignoramos el conflicto contra el propio evento.
-    const all = computeVisibleConflicts(combined);
-    const conflicts = all.filter((c) => {
-      if (isEditing && eventIdParam && c.existingEventId === eventIdParam) {
-        return false;
-      }
-      return c.incomingEventId === incomingId;
-    });
-
-    if (!conflicts.length) return { ok: true };
-
-    const items: PreflightConflict[] = conflicts.map((c) => {
-      const ex = c.existing;
-      const gm = groupMeta(ex?.groupType ?? "personal");
-
-      return {
-        id: c.id,
-        existingId: c.existingEventId,
-        title: ex?.title ?? "Evento existente",
-        groupLabel: gm.label,
-        range: ex ? fmtRange(ex.start, ex.end) : "—",
-        overlapStart: c.overlapStart,
-        overlapEnd: c.overlapEnd,
-      };
-    });
-
-    setExistingIdsToReplace(
-      Array.from(new Set(items.map((x) => x.existingId)))
-    );
-    setPreflightItems(items);
-    setPreflightDefaultChoice(mapDefaultResolutionToChoice(settings));
-    setPreflightOpen(true);
-
-    return { ok: false };
   };
 
   const save = async () => {
@@ -639,7 +607,6 @@ existing = (raw ?? []).map((e: any) => {
   const onPreflightChoose = async (choice: PreflightChoice) => {
     setPreflightOpen(false);
 
-    // 👇 Opción "Editar antes"
     if (choice === "edit") {
       setToast({
         title: "Ok",
@@ -648,7 +615,6 @@ existing = (raw ?? []).map((e: any) => {
       return;
     }
 
-    // 👇 Opción "Conservar existente" → no guardamos el nuevo
     if (choice === "keep_existing") {
       setToast({
         title: "No se guardó",
@@ -665,32 +631,35 @@ existing = (raw ?? []).map((e: any) => {
       return;
     }
 
-    // 🆕 Opción "Conservar ambos": guardo el nuevo,
-    // NO borro nada, y marco estos conflictos como ignorados.
     if (choice === "keep_both") {
       try {
         const ids = preflightItems.map((it) => it.id).filter(Boolean);
         ignoreConflictIds(ids);
       } catch {
-        // si falla localStorage, igual seguimos
+        // ok
       }
       await doSave(pendingPayload);
       return;
     }
 
-    // 👇 Opción "Reemplazar por el nuevo"
     setSaving(true);
     try {
-      const deleted = await deleteEventsByIds(existingIdsToReplace);
+      const deleteResult = await deleteEventsByIdsDetailed(existingIdsToReplace);
+
+      if (deleteResult.blockedIds.length > 0) {
+        throw new Error(
+          "Uno o más eventos en conflicto no pudieron eliminarse porque no te pertenecen o tu sesión no tiene permisos para borrarlos."
+        );
+      }
+
+      if (deleteResult.deletedCount !== existingIdsToReplace.length) {
+        throw new Error(
+          "No se eliminaron todos los eventos que debían reemplazarse. No continuamos para evitar inconsistencias."
+        );
+      }
+
       await doSave(pendingPayload);
-      setToast({
-        title: "Listo ✅",
-        subtitle:
-          deleted > 0
-            ? `Reemplacé ${deleted} evento(s) en conflicto.`
-            : "Guardé el nuevo evento.",
-      });
-      window.setTimeout(() => router.push("/calendar"), 550);
+      return;
     } catch (err: any) {
       setToast({
         title: "No se pudo aplicar",
@@ -726,7 +695,7 @@ existing = (raw ?? []).map((e: any) => {
 
       <div style={styles.shell}>
         <div style={styles.topRow}>
-           <PremiumHeader />
+          <PremiumHeader />
           <div style={styles.topActions}>
             <LogoutButton />
           </div>
@@ -872,24 +841,24 @@ existing = (raw ?? []).map((e: any) => {
                     cursor: lockedToActiveGroup ? "not-allowed" : "pointer",
                   }}
                 >
-             {uniqueGroups.map((g) => (
-  <option key={g.id} value={g.id}>
-    {g.name ?? "Grupo"} ({getGroupTypeLabel(g.type)})
-  </option>
-))}
+                  {uniqueGroups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name ?? "Grupo"} ({getGroupTypeLabel(g.type)})
+                    </option>
+                  ))}
                 </select>
               )}
 
               {selectedGroup ? (
-          <div style={styles.hint}>
-  Seleccionado: <b>{selectedGroup.name ?? "Grupo"}</b> · tipo{" "}
-  <b>{getGroupTypeLabel(selectedGroup.type)}</b>
-  {lockedToActiveGroup ? (
-    <span style={{ marginLeft: 8, opacity: 0.9 }}>
-      · (grupo activo)
-    </span>
-  ) : null}
-</div>
+                <div style={styles.hint}>
+                  Seleccionado: <b>{selectedGroup.name ?? "Grupo"}</b> · tipo{" "}
+                  <b>{getGroupTypeLabel(selectedGroup.type)}</b>
+                  {lockedToActiveGroup ? (
+                    <span style={{ marginLeft: 8, opacity: 0.9 }}>
+                      · (grupo activo)
+                    </span>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           )}
@@ -1296,8 +1265,6 @@ const modalStyles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
   },
 };
-
-/* ===================== Styles (igual que tu versión) ===================== */
 
 const styles: Record<string, React.CSSProperties> = {
   page: {

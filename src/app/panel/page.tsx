@@ -8,7 +8,7 @@ import React, {
   type CSSProperties,
 } from "react";
 import { useRouter } from "next/navigation";
-
+import { IntentionsPanelSection } from "@/components/intentions/IntentionsPanelSection";
 import MobileScaffold from "@/components/MobileScaffold";
 import PremiumHeader from "@/components/PremiumHeader";
 import supabase from "@/lib/supabaseClient";

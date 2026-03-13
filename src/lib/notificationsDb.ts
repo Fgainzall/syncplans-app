@@ -67,33 +67,75 @@ type AttachedConflict = {
 async function requireUid(): Promise<string> {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
+
   const uid = data.session?.user?.id;
   if (!uid) throw new Error("No auth session");
+
   return uid;
 }
 
+function normalizeNotificationRow(row: CreateNotificationInput) {
+  return {
+    user_id: String(row.user_id ?? "").trim(),
+    type: String(row.type ?? "").trim(),
+    title: String(row.title ?? "").trim(),
+    body: row.body ?? null,
+    entity_id: row.entity_id ?? null,
+    payload: row.payload ?? null,
+  };
+}
+
+function uniqueNotificationKey(row: {
+  user_id: string;
+  type: string;
+  entity_id: string | null;
+  title: string;
+  body: string | null;
+}) {
+  return [
+    row.user_id,
+    row.type,
+    row.entity_id ?? "",
+    row.title,
+    row.body ?? "",
+  ].join("::");
+}
+
+/**
+ * Inserta notificaciones y devuelve cuántas se insertaron realmente.
+ *
+ * Mejora importante:
+ * - limpia y deduplica
+ * - usa insert + select("id") para confirmar inserción real
+ * - si RLS/constraint falla, lanza error y NO finge éxito
+ */
 export async function createNotifications(
   rows: CreateNotificationInput[]
 ): Promise<number> {
   await requireUid();
 
   const cleaned = (rows ?? [])
-    .map((row) => ({
-      user_id: String(row.user_id ?? "").trim(),
-      type: String(row.type ?? "").trim(),
-      title: String(row.title ?? "").trim(),
-      body: row.body ?? null,
-      entity_id: row.entity_id ?? null,
-      payload: row.payload ?? null,
-    }))
+    .map(normalizeNotificationRow)
     .filter((row) => row.user_id && row.type && row.title);
 
   if (cleaned.length === 0) return 0;
 
-  const { error } = await supabase.from("notifications").insert(cleaned);
-  if (error) throw error;
+  const deduped = Array.from(
+    new Map(cleaned.map((row) => [uniqueNotificationKey(row), row])).values()
+  );
 
-  return cleaned.length;
+  const { data, error } = await supabase
+    .from("notifications")
+    .insert(deduped)
+    .select("id");
+
+  if (error) {
+    console.error("[createNotifications] insert error", error);
+    throw error;
+  }
+
+  const insertedCount = Array.isArray(data) ? data.length : 0;
+  return insertedCount;
 }
 
 async function hasUnreadConflictNotificationForEvent(
@@ -115,9 +157,7 @@ async function hasUnreadConflictNotificationForEvent(
   return Array.isArray(data) && data.length > 0;
 }
 
-function buildAttachedConflicts(
-  events: any[]
-): AttachedConflict[] {
+function buildAttachedConflicts(events: any[]): AttachedConflict[] {
   const cx = computeVisibleConflicts(events);
   return attachEvents(cx, events) as unknown as AttachedConflict[];
 }
@@ -223,10 +263,14 @@ export async function createConflictNotificationForGroup(
 
   const targetEvent =
     related.find(
-      (c) => c.existingEvent?.groupId && String(c.existingEvent.groupId) === safeGroupId
+      (c) =>
+        c.existingEvent?.groupId &&
+        String(c.existingEvent.groupId) === safeGroupId
     )?.existingEvent ??
     related.find(
-      (c) => c.incomingEvent?.groupId && String(c.incomingEvent.groupId) === safeGroupId
+      (c) =>
+        c.incomingEvent?.groupId &&
+        String(c.incomingEvent.groupId) === safeGroupId
     )?.incomingEvent ??
     null;
 
@@ -281,7 +325,9 @@ export async function createConflictNotificationForGroup(
   };
 }
 
-export async function getMyNotifications(limit = 20): Promise<NotificationRow[]> {
+export async function getMyNotifications(
+  limit = 20
+): Promise<NotificationRow[]> {
   const uid = await requireUid();
 
   const [{ data: mutedRows, error: mutedErr }, userNotif] = await Promise.all([
@@ -358,8 +404,21 @@ function shouldKeepNotification(
   const t = String(n.type || "").toLowerCase();
 
   if (t === "conflict" || t === "conflict_detected") {
-    if (!prefs.notify_conflicts) return false;
-    return true;
+    return !!prefs.notify_conflicts;
+  }
+
+  if (t === "event_rejected") {
+    /**
+     * Importante:
+     * este tipo nace como consecuencia de un conflicto/resolución,
+     * así que NO debe perderse por el filtro genérico final.
+     *
+     * Lo hacemos visible si el usuario quiere notificaciones de conflictos
+     * o, en su defecto, personales.
+     */
+    if (prefs.notify_conflicts) return true;
+    if (prefs.notify_personal) return true;
+    return false;
   }
 
   if (t === "group_message") {
@@ -369,14 +428,25 @@ function shouldKeepNotification(
 
     if ((gt === "pair" || gt === "couple") && !prefs.notify_pair) return false;
     if (gt === "family" && !prefs.notify_family) return false;
-    if ((gt === "solo" || gt === "personal") && !prefs.notify_personal)
+    if (
+      (gt === "solo" || gt === "personal" || gt === "shared" || gt === "other") &&
+      !prefs.notify_personal
+    ) {
       return false;
+    }
 
     return true;
   }
 
-  if (!prefs.notify_personal) return false;
-  return true;
+  if (t === "group_invite") {
+    return true;
+  }
+
+  if (t === "event_created" || t === "event_deleted") {
+    return !!prefs.notify_personal;
+  }
+
+  return !!prefs.notify_personal;
 }
 
 export async function markNotificationRead(id: string) {
@@ -402,6 +472,7 @@ export async function markAllRead() {
 
   if (error) throw error;
 }
+
 export async function getUnreadConflictNotificationsSummary(): Promise<{
   count: number;
   latestEventId: string | null;
@@ -419,16 +490,16 @@ export async function getUnreadConflictNotificationsSummary(): Promise<{
   if (error) throw error;
 
   const rows = Array.isArray(data) ? data : [];
-  const latestEventId =
-    rows.find((r: any) => r?.entity_id)?.entity_id
-      ? String(rows.find((r: any) => r?.entity_id)?.entity_id)
-      : null;
+  const latestWithEntity = rows.find((r: any) => r?.entity_id);
 
   return {
     count: rows.length,
-    latestEventId,
+    latestEventId: latestWithEntity?.entity_id
+      ? String(latestWithEntity.entity_id)
+      : null,
   };
 }
+
 export async function deleteNotification(id: string) {
   await markNotificationRead(id);
 }
@@ -462,6 +533,13 @@ export function notificationHref(n: NotificationRow): string {
   }
 
   if (t === "event_rejected") {
+    const eventId =
+      n.payload?.event_id || n.entity_id || null;
+
+    if (eventId) {
+      return `/calendar?highlight=${encodeURIComponent(String(eventId))}`;
+    }
+
     return "/calendar";
   }
 

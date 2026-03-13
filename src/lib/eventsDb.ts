@@ -49,6 +49,13 @@ export type UpdateEventPayload = {
   groupId?: string | null;
 };
 
+export type DeleteEventsResult = {
+  requestedIds: string[];
+  ownIds: string[];
+  blockedIds: string[];
+  deletedCount: number;
+};
+
 /* ======================================================
   Helper interno: uid actual
 ====================================================== */
@@ -162,29 +169,97 @@ export async function createPersonalEvent(
   Borrado: uno o varios eventos
 ====================================================== */
 
-export async function deleteEventsByIds(ids: string[]): Promise<number> {
-  // Normalizamos y evitamos llamadas vacías
-  const cleaned = (ids ?? [])
-    .map((id) => String(id).trim())
-    .filter((id) => id.length > 0);
+function normalizeIds(ids: string[]): string[] {
+  return Array.from(
+    new Set(
+      (ids ?? [])
+        .map((id) => String(id ?? "").trim())
+        .filter((id) => id.length > 0)
+    )
+  );
+}
 
-  if (cleaned.length === 0) return 0;
+/**
+ * Devuelve un diagnóstico real del borrado.
+ *
+ * Regla importante:
+ * - solo borra eventos cuyo `user_id` sea el usuario actual
+ * - si el evento pertenece a otro usuario, queda en `blockedIds`
+ *
+ * Con esto evitamos el falso escenario de:
+ * - UI dice "deleted=1"
+ * - pero en realidad la BD borró 0
+ */
+export async function deleteEventsByIdsDetailed(
+  ids: string[]
+): Promise<DeleteEventsResult> {
+  const requestedIds = normalizeIds(ids);
 
-  await requireUid();
+  if (requestedIds.length === 0) {
+    return {
+      requestedIds: [],
+      ownIds: [],
+      blockedIds: [],
+      deletedCount: 0,
+    };
+  }
 
-  // ✅ SOLO borramos por `id` con un array de UUIDs plano
-  // ✅ NINGUNA subquery, nada de "select group_id from group_members"
-  const { error, count } = await supabase
+  const uid = await requireUid();
+
+  const { data, error } = await supabase
     .from("events")
-    .delete({ count: "exact" })
-    .in("id", cleaned);
+    .select("id, user_id")
+    .in("id", requestedIds);
 
   if (error) {
-    console.error("[deleteEventsByIds] error", error);
+    console.error("[deleteEventsByIdsDetailed] select error", error);
     throw error;
   }
 
-  return count ?? 0;
+  const rows = Array.isArray(data) ? data : [];
+
+  const ownIds = rows
+    .filter((row: any) => String(row.user_id ?? "") === uid)
+    .map((row: any) => String(row.id));
+
+  const visibleIds = new Set(rows.map((row: any) => String(row.id)));
+  const ownSet = new Set(ownIds);
+
+  const blockedIds = requestedIds.filter(
+    (id) => !visibleIds.has(id) || !ownSet.has(id)
+  );
+
+  let deletedCount = 0;
+
+  if (ownIds.length > 0) {
+    const { error: deleteError, count } = await supabase
+      .from("events")
+      .delete({ count: "exact" })
+      .in("id", ownIds);
+
+    if (deleteError) {
+      console.error("[deleteEventsByIdsDetailed] delete error", deleteError);
+      throw deleteError;
+    }
+
+    deletedCount = count ?? 0;
+  }
+
+  return {
+    requestedIds,
+    ownIds,
+    blockedIds,
+    deletedCount,
+  };
+}
+
+/**
+ * Compat vieja:
+ * devuelve solo el número realmente borrado.
+ */
+export async function deleteEventsByIds(ids: string[]): Promise<number> {
+  const result = await deleteEventsByIdsDetailed(ids);
+  return result.deletedCount;
 }
 
 /* ======================================================
@@ -220,10 +295,7 @@ export async function listEventsByGroup(groupId: string): Promise<DbEvent[]> {
 export async function deleteEventById(eventId: string): Promise<void> {
   await requireUid();
 
-  const { error } = await supabase
-    .from("events")
-    .delete()
-    .eq("id", eventId);
+  const { error } = await supabase.from("events").delete().eq("id", eventId);
 
   if (error) throw error;
 }
@@ -271,7 +343,6 @@ export async function updateEvent(
   if (typeof end !== "undefined") update.end = end;
   if (typeof groupId !== "undefined") update.group_id = groupId;
 
-  // Si por algún motivo llegó sin cambios, no disparamos nada.
   if (Object.keys(update).length === 0) return;
 
   const { error } = await supabase
@@ -295,12 +366,10 @@ export async function getEventsForGroups(
 ): Promise<DbEventRow[]> {
   const rows = await getMyEvents();
 
-  // Si no pasaron ids, devolvemos todo lo visible
   if (!groupIds || groupIds.length === 0) return rows;
 
   const set = new Set(groupIds.map(String));
 
-  // ✅ personal siempre incluido (group_id null)
   return rows.filter((r) => !r.group_id || set.has(String(r.group_id)));
 }
 

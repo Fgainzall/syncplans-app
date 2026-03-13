@@ -1,7 +1,16 @@
 // src/lib/conflicts.ts
 
-export type GroupType = "personal" | "pair" | "family" | "couple";
+export type GroupType =
+  | "personal"
+  | "pair"
+  | "family"
+  | "couple"
+  | "other"
+  | "shared";
+
 export type SyncPlansGroupType = GroupType;
+
+export type CanonicalGroupType = "personal" | "pair" | "family" | "other";
 
 export type CalendarEvent = {
   id: string;
@@ -26,7 +35,7 @@ export type ConflictResolution =
   | "none";
 
 export type ConflictItem = {
-  id: string; // ✅ estable (determinístico)
+  id: string; // estable (determinístico)
   kind: "overlap";
   existingEventId: string;
   incomingEventId: string;
@@ -46,9 +55,11 @@ export type ConflictItem = {
 
 export const EVENTS_KEY = "syncplans_events_v1";
 export const RESOLUTIONS_KEY = "syncplans_conflict_resolutions_v1";
-
-// 🆕 Conflictos ignorados a nivel local (para "Conservar ambos" del preflight)
 export const IGNORED_CONFLICTS_KEY = "syncplans_conflicts_ignored_v1";
+
+/* =========================
+   Ignorados
+   ========================= */
 
 export function loadIgnoredConflictKeys(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -70,7 +81,6 @@ export function saveIgnoredConflictKeys(keys: Set<string>) {
   );
 }
 
-/** Marcar una lista de conflictos como ignorados (por id) */
 export function ignoreConflictIds(ids: string[]) {
   if (!ids || !ids.length) return;
   const set = loadIgnoredConflictKeys();
@@ -81,7 +91,6 @@ export function ignoreConflictIds(ids: string[]) {
   saveIgnoredConflictKeys(set);
 }
 
-/** Filtro de conveniencia para quitar conflictos ignorados */
 export function filterIgnoredConflicts(
   conflicts: ConflictItem[],
   ignored?: Set<string>
@@ -133,7 +142,7 @@ export function conflictResolutionHint(r?: ConflictResolution) {
 }
 
 /* =========================
-   Date parsing (FIX REAL)
+   Date parsing
    ========================= */
 
 function hasTimezone(iso: string) {
@@ -221,25 +230,54 @@ export function fmtRange(startISO: string, endISO: string) {
    Groups
    ========================= */
 
-type GroupTypeLike = GroupType | "other" | "shared" | (string & {});
+type GroupTypeLike = GroupType | (string & {});
 
-export function normalizeGroupType(
-  gt: GroupTypeLike
-): "personal" | "pair" | "family" | "shared" {
+export function normalizeGroupType(gt: GroupTypeLike): CanonicalGroupType {
   const value = String(gt ?? "").toLowerCase();
 
-  if (value === "couple" || value === "pair") return "pair";
-  if (value === "family") return "family";
-  if (value === "other" || value === "shared") return "shared";
+  if (
+    value === "couple" ||
+    value === "pair"
+  ) {
+    return "pair";
+  }
+
+  if (value === "family") {
+    return "family";
+  }
+
+  if (value === "other" || value === "shared") {
+    return "other";
+  }
+
+  return "personal";
+}
+
+export function normalizeEventGroupType(gt: GroupTypeLike): GroupType {
+  const normalized = normalizeGroupType(gt);
+
+  if (normalized === "pair") return "pair";
+  if (normalized === "family") return "family";
+  if (normalized === "other") return "other";
   return "personal";
 }
 
 export function groupMeta(groupType: GroupTypeLike) {
   const gt = normalizeGroupType(groupType);
-  if (gt === "personal") return { label: "Personal", dot: "#FBBF24" };
-  if (gt === "pair") return { label: "Pareja", dot: "#F87171" };
-  if (gt === "family") return { label: "Familia", dot: "#60A5FA" };
-  return { label: "Compartido", dot: "#A855F7" };
+
+  if (gt === "personal") {
+    return { key: "personal" as const, label: "Personal", dot: "#FBBF24" };
+  }
+
+  if (gt === "pair") {
+    return { key: "pair" as const, label: "Pareja", dot: "#F87171" };
+  }
+
+  if (gt === "family") {
+    return { key: "family" as const, label: "Familia", dot: "#60A5FA" };
+  }
+
+  return { key: "other" as const, label: "Compartido", dot: "#A855F7" };
 }
 
 /* =========================
@@ -276,17 +314,11 @@ export function chooseExistingIncoming(a: CalendarEvent, b: CalendarEvent) {
     : { existing: b, incoming: a };
 }
 
-/**
- * ✅ NUEVO: ID estable SOLO por pareja de eventos
- */
 export function conflictKey(aId: string, bId: string) {
   const [x, y] = [String(aId), String(bId)].sort();
   return `cx::${x}::${y}`;
 }
 
-/**
- * ✅ Detector robusto
- */
 export function computeVisibleConflicts(events: unknown): ConflictItem[] {
   const list: CalendarEvent[] = Array.isArray(events)
     ? (events.filter(Boolean) as CalendarEvent[])
@@ -298,7 +330,15 @@ export function computeVisibleConflicts(events: unknown): ConflictItem[] {
       const en = toMs(e.end);
       if (!Number.isFinite(s) || !Number.isFinite(en)) return null;
       if (en <= s) return null;
-      return { e, s, en };
+
+      return {
+        e: {
+          ...e,
+          groupType: normalizeEventGroupType(e.groupType),
+        },
+        s,
+        en,
+      };
     })
     .filter(Boolean) as Array<{ e: CalendarEvent; s: number; en: number }>;
 
@@ -319,7 +359,6 @@ export function computeVisibleConflicts(events: unknown): ConflictItem[] {
       if (oStart >= oEnd) continue;
 
       const pick = chooseExistingIncoming(prev.e, cur.e);
-
       const id = conflictKey(pick.existing.id, pick.incoming.id);
 
       if (seen.has(id)) continue;
@@ -359,7 +398,13 @@ export function attachEvents(
   const list: CalendarEvent[] = Array.isArray(allEvents)
     ? (allEvents.filter(Boolean) as CalendarEvent[])
     : [];
-  const map = new Map(list.map((e) => [String(e.id), e]));
+
+  const normalizedList = list.map((e) => ({
+    ...e,
+    groupType: normalizeEventGroupType(e.groupType),
+  }));
+
+  const map = new Map(normalizedList.map((e) => [String(e.id), e]));
 
   return conflicts.map((c) => {
     const existing =
@@ -367,6 +412,7 @@ export function attachEvents(
       c.existing ??
       c.existingEvent ??
       null;
+
     const incoming =
       map.get(String(c.incomingEventId)) ??
       c.incoming ??

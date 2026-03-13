@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { getUnreadConflictNotificationsSummary } from "@/lib/notificationsDb";
 import supabase from "@/lib/supabaseClient";
@@ -40,15 +46,16 @@ function fmtTime(d: Date) {
 function humanGroupName(g: GroupRow) {
   const n = String(g.name ?? "").trim();
   if (n) return n;
+
   const t = String(g.type ?? "").toLowerCase();
   if (t === "pair" || t === "couple") return "Pareja";
   if (t === "family") return "Familia";
   if (t === "solo" || t === "personal") return "Personal";
   if (t === "other" || t === "shared") return "Compartido";
+
   return "Grupo";
 }
 
-/** ✅ Solo Summary: detecta móvil por ancho (modo app iPhone entra aquí) */
 function useIsMobileWidth(maxWidth = 520) {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -63,20 +70,19 @@ function useIsMobileWidth(maxWidth = 520) {
     if (typeof mq.addEventListener === "function") {
       mq.addEventListener("change", apply);
       return () => mq.removeEventListener("change", apply);
-    } else {
-      // @ts-ignore
-      mq.addListener(apply);
-      return () => {
-        // @ts-ignore
-        mq.removeListener(apply);
-      };
     }
+
+    // @ts-ignore
+    mq.addListener(apply);
+    return () => {
+      // @ts-ignore
+      mq.removeListener(apply);
+    };
   }, [maxWidth]);
 
   return isMobile;
 }
 
-/** 🕒 inicio de hoy en hora local (sin UTC raro) */
 function startOfTodayLocal() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -88,7 +94,6 @@ function addDays(date: Date, days: number) {
   return d;
 }
 
-/** 📊 Estado emocional de la semana (solo 7 días) */
 function getWeekMoodLabel(count: number): string {
   if (count === 0) return "Semana libre";
   if (count <= 3) return "Semana ligera";
@@ -102,6 +107,12 @@ function getWeekSubtitle(count: number): string {
   return `${count} eventos en los próximos 7 días.`;
 }
 
+function buildAppliedToastMessage(raw: string | null): string | null {
+  const safe = String(raw ?? "").trim();
+  if (!safe) return null;
+  return safe;
+}
+
 export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const router = useRouter();
   const isMobile = useIsMobileWidth(520);
@@ -111,21 +122,37 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-const [events, setEvents] = useState<any[]>([]);
-const [loading, setLoading] = useState(false);
+  const [conflictAlert, setConflictAlert] = useState<{
+    count: number;
+    latestEventId: string | null;
+  }>({
+    count: 0,
+    latestEventId: null,
+  });
 
-const [conflictAlert, setConflictAlert] = useState<{
-  count: number;
-  latestEventId: string | null;
-}>({
-  count: 0,
-  latestEventId: null,
-});
+  const toastTimeoutRef = useRef<number | null>(null);
+
+  const clearToastTimer = () => {
+    if (toastTimeoutRef.current) {
+      window.clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
+  };
 
   const showToast = useCallback((title: string, subtitle?: string) => {
+    clearToastTimer();
     setToast({ title, subtitle });
-    window.setTimeout(() => setToast(null), 3200);
+    toastTimeoutRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimeoutRef.current = null;
+    }, 3200);
+  }, []);
+
+  useEffect(() => {
+    return () => clearToastTimer();
   }, []);
 
   const activeGroup = useMemo(() => {
@@ -144,17 +171,9 @@ const [conflictAlert, setConflictAlert] = useState<{
   }, [activeGroupId, activeLabel]);
 
   /**
-   * ✅ FIX REAL DEL PROBLEMA 2
-   *
-   * Antes:
-   * - si había grupo activo, Summary mostraba SOLO ese grupo
-   * - dejaba fuera los personales
-   *
-   * Ahora:
-   * - sin grupo activo → solo personales
-   * - con grupo activo → personales + grupo activo
-   *
-   * Así queda alineado con la lógica esperada del producto.
+   * Regla correcta del resumen:
+   * - sin grupo activo => solo personales
+   * - con grupo activo => personales + grupo activo
    */
   const visibleEvents = useMemo(() => {
     const gid = activeGroupId ? String(activeGroupId) : null;
@@ -163,10 +182,7 @@ const [conflictAlert, setConflictAlert] = useState<{
       .filter((e) => {
         const eg = (e as any)?.group_id ?? null;
 
-        // Evento personal
         if (!eg) return true;
-
-        // Evento de grupo: solo entra si coincide con el grupo activo
         if (!gid) return false;
 
         return String(eg) === gid;
@@ -195,8 +211,8 @@ const [conflictAlert, setConflictAlert] = useState<{
   }, [events, activeGroupId]);
 
   /**
-   * 🔵 Clave: próximos 7 días
-   * Ventana: [hoy 00:00 local, hoy + 7 días) → NO entra el día 8
+   * Ventana correcta:
+   * [hoy 00:00 local, hoy + 7 días)
    */
   const upcomingAll = useMemo(() => {
     const today = startOfTodayLocal();
@@ -238,7 +254,6 @@ const [conflictAlert, setConflictAlert] = useState<{
     };
   }, [upcomingAll]);
 
-  // ✅ En móvil mostramos menos para evitar scroll infinito
   const UPCOMING_LIMIT = isMobile ? 3 : 8;
 
   const upcoming = useMemo(
@@ -252,10 +267,6 @@ const [conflictAlert, setConflictAlert] = useState<{
 
   const showSeeMore = !booting && upcomingAll.length > UPCOMING_LIMIT;
 
-  /**
-   * 🧠 Estado emocional de la semana
-   * Basado SOLO en eventos de los próximos 7 días.
-   */
   const mood = useMemo(() => {
     if (booting) {
       return {
@@ -302,6 +313,7 @@ const [conflictAlert, setConflictAlert] = useState<{
 
   const loadSummary = useCallback(async () => {
     setLoading(true);
+
     try {
       const user = await requireSessionOrRedirect();
       if (!user) return;
@@ -319,15 +331,15 @@ const [conflictAlert, setConflictAlert] = useState<{
       setActiveGroupId(validActive);
 
       const [es, conflictInfo] = await Promise.all([
-  getMyEvents(),
-  getUnreadConflictNotificationsSummary().catch(() => ({
-    count: 0,
-    latestEventId: null,
-  })),
-]);
+        getMyEvents(),
+        getUnreadConflictNotificationsSummary().catch(() => ({
+          count: 0,
+          latestEventId: null,
+        })),
+      ]);
 
-setEvents(Array.isArray(es) ? es : []);
-setConflictAlert(conflictInfo);
+      setEvents(Array.isArray(es) ? es : []);
+      setConflictAlert(conflictInfo);
     } catch (e: any) {
       showToast(
         "No se pudo cargar el resumen",
@@ -345,7 +357,11 @@ setConflictAlert(conflictInfo);
       try {
         setBooting(true);
         await loadSummary();
-        if (appliedToast) showToast("Listo ✅", appliedToast);
+
+        const cleanToast = buildAppliedToastMessage(appliedToast);
+        if (cleanToast) {
+          showToast("Listo ✅", cleanToast);
+        }
       } finally {
         if (alive) setBooting(false);
       }
@@ -354,15 +370,38 @@ setConflictAlert(conflictInfo);
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadSummary, appliedToast, showToast]);
 
-  // ✅ escucha cambio de grupo activo sin recargar
+  /**
+   * Refresca cuando cambia el grupo activo.
+   */
   useEffect(() => {
     const handler = () => loadSummary();
     window.addEventListener("sp:active-group-changed", handler as any);
     return () =>
       window.removeEventListener("sp:active-group-changed", handler as any);
+  }, [loadSummary]);
+
+  /**
+   * Refresca al volver a la pestaña o recuperar foco.
+   * Esto ayuda mucho después de volver desde Conflictos.
+   */
+  useEffect(() => {
+    const onFocus = () => loadSummary();
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void loadSummary();
+      }
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [loadSummary]);
 
   const title = activeGroupId
@@ -383,17 +422,19 @@ setConflictAlert(conflictInfo);
       ? "rgba(251,191,36,0.35)"
       : "rgba(56,189,248,0.35)";
 
-      const openConflictCenter = useCallback(() => {
-  if (conflictAlert.latestEventId) {
-    router.push(
-      `/conflicts/detected?eventId=${encodeURIComponent(
-        conflictAlert.latestEventId
-      )}`
-    );
-    return;
-  }
-  router.push("/conflicts/detected");
-}, [router, conflictAlert]);
+  const openConflictCenter = useCallback(() => {
+    if (conflictAlert.latestEventId) {
+      router.push(
+        `/conflicts/detected?eventId=${encodeURIComponent(
+          conflictAlert.latestEventId
+        )}`
+      );
+      return;
+    }
+
+    router.push("/conflicts/detected");
+  }, [router, conflictAlert]);
+
   return (
     <main style={styles.page} className="spSum-page">
       {toast && (
@@ -407,22 +448,22 @@ setConflictAlert(conflictInfo);
         </div>
       )}
 
- <MobileScaffold
-  maxWidth={1120}
-  paddingDesktop="10px 0 110px"
-  paddingMobile="10px 0 110px"
->
+      <MobileScaffold
+        maxWidth={1120}
+        paddingDesktop="10px 0 110px"
+        paddingMobile="10px 0 110px"
+      >
         <div style={styles.shell} className="spSum-shell">
           <section style={styles.hero} className="spSum-hero">
             <div style={styles.heroLeft}>
-         <AppHero
-  title={title}
-  subtitle={
-    !isMobile
-      ? "Una sola verdad sobre tu tiempo compartido. Cambia el grupo activo en Calendario y aquí se actualiza solo."
-      : "Tu tiempo en un solo lugar. Se actualiza solo."
-  }
-/>
+              <AppHero
+                title={title}
+                subtitle={
+                  !isMobile
+                    ? "Una sola verdad sobre tu tiempo compartido. Cambia el grupo activo en Calendario y aquí se actualiza solo."
+                    : "Tu tiempo en un solo lugar. Se actualiza solo."
+                }
+              />
             </div>
 
             <div style={styles.heroBtns} className="spSum-heroBtns">
@@ -444,31 +485,32 @@ setConflictAlert(conflictInfo);
           </section>
 
           <section style={styles.card} className="spSum-card">
-  {conflictAlert.count > 0 ? (
-    <button
-      onClick={openConflictCenter}
-      style={styles.conflictBanner}
-      className="spSum-conflictBanner"
-    >
-      <div style={styles.conflictBannerLeft}>
-        <div style={styles.conflictBannerEyebrow}>Atención</div>
-        <div style={styles.conflictBannerTitle}>
-          Tienes {conflictAlert.count} conflicto
-          {conflictAlert.count === 1 ? "" : "s"} pendiente
-          {conflictAlert.count === 1 ? "" : "s"}
-        </div>
-        <div style={styles.conflictBannerSub}>
-          No esperes a entrar manualmente a Conflictos. Revísalos ahora.
-        </div>
-      </div>
+            {conflictAlert.count > 0 ? (
+              <button
+                onClick={openConflictCenter}
+                style={styles.conflictBanner}
+                className="spSum-conflictBanner"
+              >
+                <div style={styles.conflictBannerLeft}>
+                  <div style={styles.conflictBannerEyebrow}>Atención</div>
+                  <div style={styles.conflictBannerTitle}>
+                    Tienes {conflictAlert.count} conflicto
+                    {conflictAlert.count === 1 ? "" : "s"} pendiente
+                    {conflictAlert.count === 1 ? "" : "s"}
+                  </div>
+                  <div style={styles.conflictBannerSub}>
+                    No esperes a entrar manualmente a Conflictos. Revísalos
+                    ahora.
+                  </div>
+                </div>
 
-      <div style={styles.conflictBannerCta}>Resolver ahora →</div>
-    </button>
-  ) : null}
+                <div style={styles.conflictBannerCta}>Resolver ahora →</div>
+              </button>
+            ) : null}
 
-  <div
-    style={{
-      ...styles.stateRow,
+            <div
+              style={{
+                ...styles.stateRow,
                 boxShadow: `0 0 32px ${moodAccentGlow}`,
                 borderColor: moodAccentBorder,
               }}
@@ -482,6 +524,7 @@ setConflictAlert(conflictInfo);
                     <span style={styles.stateLoadingBadge}>Actualizando…</span>
                   ) : null}
                 </div>
+
                 <div style={styles.stateMoodTitle}>{mood.title}</div>
                 <div style={styles.stateMoodSub}>{mood.subtitle}</div>
 
@@ -498,6 +541,7 @@ setConflictAlert(conflictInfo);
                   <span style={styles.stateStat}>
                     {upcomingStats.group} en grupos
                   </span>
+
                   {upcomingStats.external > 0 ? (
                     <>
                       <span style={styles.stateStatDot}>·</span>
@@ -530,8 +574,8 @@ setConflictAlert(conflictInfo);
               <div style={styles.emptyBlock}>
                 <div style={styles.emptyTitle}>No hay nada por delante</div>
                 <div style={styles.emptySub}>
-                  En este contexto no tienes eventos en los próximos 7 días. Crea
-                  uno nuevo desde Calendario o desde Eventos.
+                  En este contexto no tienes eventos en los próximos 7 días.
+                  Crea uno nuevo desde Calendario o desde Eventos.
                 </div>
                 <button
                   onClick={() =>
@@ -548,7 +592,13 @@ setConflictAlert(conflictInfo);
                   <div style={styles.nextLabel}>Siguiente evento</div>
                   <button
                     onClick={() => router.push("/calendar")}
-                    style={styles.nextCard}
+                    style={{
+                      ...styles.nextCard,
+                      ...(highlightId &&
+                      String((nextEvent as any)?.id ?? "") === String(highlightId)
+                        ? styles.eventRowHighlight
+                        : {}),
+                    }}
                     className="spSum-eventRow"
                   >
                     {(() => {
@@ -567,6 +617,7 @@ setConflictAlert(conflictInfo);
                               {nextEvent._title}
                             </div>
                           </div>
+
                           <div style={styles.eventMeta}>
                             {(nextEvent as any)?.is_external ? (
                               <span style={styles.pill}>Externo</span>
@@ -650,6 +701,7 @@ setConflictAlert(conflictInfo);
               Lo que más vas a usar cuando entras solo a “ver cómo están las
               cosas”.
             </div>
+
             <div style={styles.quickGrid} className="spSum-quickGrid">
               <button
                 onClick={() => router.push("/events/new/details?type=personal")}
@@ -1153,13 +1205,12 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 950,
     letterSpacing: "-0.2px",
   },
-   quickSub: {
+  quickSub: {
     marginTop: 8,
     fontSize: 12,
     opacity: 0.72,
     lineHeight: 1.45,
   },
-
   conflictBanner: {
     width: "100%",
     marginBottom: 14,

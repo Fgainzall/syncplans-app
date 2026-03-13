@@ -16,7 +16,11 @@ import {
   conflictKey,
 } from "@/lib/conflicts";
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
-import { deleteEventsByIds, getMyEvents, type DbEventRow } from "@/lib/eventsDb";
+import {
+  deleteEventsByIdsDetailed,
+  getMyEvents,
+  type DbEventRow,
+} from "@/lib/eventsDb";
 import { getMyProfile } from "@/lib/profilesDb";
 import {
   createNotifications,
@@ -259,6 +263,22 @@ export default function ActionsClient({
     return new Map(dbEvents.map((ev) => [String(ev.id), ev]));
   }, [dbEvents]);
 
+  const ownDeleteIds = useMemo(() => {
+    const out: string[] = [];
+
+    for (const eventId of plan.deleteIds) {
+      const row = dbEventsById.get(String(eventId));
+      if (!row) continue;
+
+      const ownerId = String(row.user_id ?? "").trim();
+      if (currentUid && ownerId === currentUid) {
+        out.push(String(row.id));
+      }
+    }
+
+    return out;
+  }, [plan.deleteIds, dbEventsById, currentUid]);
+
   const rejectedTargets = useMemo<RejectedTarget[]>(() => {
     const out: RejectedTarget[] = [];
     const seen = new Set<string>();
@@ -286,6 +306,11 @@ export default function ActionsClient({
 
     return out;
   }, [plan.deleteIds, dbEventsById, currentUid]);
+
+  const blockedDeleteIds = useMemo(() => {
+    const own = new Set(ownDeleteIds);
+    return plan.deleteIds.filter((id) => !own.has(String(id)));
+  }, [plan.deleteIds, ownDeleteIds]);
 
   const notificationRows = useMemo<CreateNotificationInput[]>(() => {
     return rejectedTargets
@@ -341,6 +366,19 @@ export default function ActionsClient({
     try {
       setBusy(true);
 
+      /**
+       * Fase 1 de saneamiento:
+       * no permitimos que la UI finja que “eliminó” eventos que no son tuyos.
+       *
+       * Mientras no exista un modelo por-usuario (attendance / rejections / hidden),
+       * rechazar un evento creado por otra persona NO puede resolverse como delete global.
+       */
+      if (blockedDeleteIds.length > 0) {
+        throw new Error(
+          "Este cambio incluye eventos creados por otra persona. Todavía no podemos quitarlos solo de tu agenda sin borrarlos para todos. Primero cerremos el flujo correcto de rechazo por usuario."
+        );
+      }
+
       let notifiedCount = 0;
 
       if (notificationRows.length > 0) {
@@ -353,15 +391,30 @@ export default function ActionsClient({
           );
         }
 
-        if (notifiedCount <= 0) {
+        if (notifiedCount !== notificationRows.length) {
           throw new Error(
-            "No se pudo registrar la notificación del evento rechazado."
+            "No se registraron todas las notificaciones esperadas del evento rechazado."
           );
         }
       }
 
-      if (plan.deleteIds.length > 0) {
-        await deleteEventsByIds(plan.deleteIds);
+      let deletedCount = 0;
+
+      if (ownDeleteIds.length > 0) {
+        const deleteResult = await deleteEventsByIdsDetailed(ownDeleteIds);
+        deletedCount = deleteResult.deletedCount;
+
+        if (deleteResult.blockedIds.length > 0) {
+          throw new Error(
+            "Algunos eventos no podían eliminarse con tu sesión actual."
+          );
+        }
+
+        if (deletedCount !== ownDeleteIds.length) {
+          throw new Error(
+            "No se eliminaron todos los eventos seleccionados. No aplicamos el cambio para evitar inconsistencias."
+          );
+        }
       }
 
       try {
@@ -374,8 +427,8 @@ export default function ActionsClient({
       qp.set("from", "conflicts");
       qp.set("resolved", String(plan.decided));
 
-      if (plan.deleteIds.length > 0) {
-        qp.set("deleted", String(plan.deleteIds.length));
+      if (deletedCount > 0) {
+        qp.set("deleted", String(deletedCount));
       }
 
       if (notifiedCount > 0) {
@@ -389,7 +442,7 @@ export default function ActionsClient({
         title: "No se pudo aplicar",
         sub:
           e?.message ??
-          "Inténtalo nuevamente en unos segundos. Si falló el aviso al otro usuario, no aplicamos el cambio para no dejar el flujo incompleto.",
+          "Inténtalo nuevamente en unos segundos. Si falló el aviso o el borrado real, no aplicamos el cambio para no dejar el flujo incompleto.",
       });
     }
   };
@@ -446,10 +499,17 @@ export default function ActionsClient({
               </div>
             )}
 
+            {blockedDeleteIds.length > 0 && (
+              <div style={styles.warningPill}>
+                Uno o más eventos elegidos para salir no son tuyos. SyncPlans ya
+                no los marcará como eliminados si en realidad no puede borrarlos.
+              </div>
+            )}
+
             {rejectedTargets.length > 0 && (
               <div style={styles.noticePill}>
-                Además, SyncPlans avisará automáticamente a la otra persona
-                cuando su evento no sea elegido.
+                Además, SyncPlans intentará avisar automáticamente a la otra
+                persona cuando su evento no sea elegido.
               </div>
             )}
           </div>
@@ -645,6 +705,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     opacity: 0.82,
     lineHeight: 1.35,
+  },
+  warningPill: {
+    marginTop: 8,
+    width: "fit-content",
+    padding: "8px 10px",
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 800,
+    border: "1px solid rgba(248,113,113,0.22)",
+    background: "rgba(248,113,113,0.10)",
+    color: "rgba(255,255,255,0.92)",
   },
   noticePill: {
     marginTop: 8,

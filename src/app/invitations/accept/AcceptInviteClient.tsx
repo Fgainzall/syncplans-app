@@ -1,13 +1,14 @@
 // src/app/invitations/accept/AcceptInviteClient.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createConflictNotificationForGroup } from "@/lib/notificationsDb";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 
 import supabase from "@/lib/supabaseClient";
+import { setActiveGroupIdInDb } from "@/lib/activeGroup";
 
 import {
   acceptInvitation,
@@ -35,11 +36,23 @@ function StatusPill({ status }: { status: string }) {
   const s = (status || "").toLowerCase();
   const meta =
     s === "pending"
-      ? { label: "Pendiente", bg: "rgba(251,191,36,0.16)", bd: "rgba(251,191,36,0.28)" }
+      ? {
+          label: "Pendiente",
+          bg: "rgba(251,191,36,0.16)",
+          bd: "rgba(251,191,36,0.28)",
+        }
       : s === "accepted"
-      ? { label: "Aceptada", bg: "rgba(34,197,94,0.14)", bd: "rgba(34,197,94,0.28)" }
+      ? {
+          label: "Aceptada",
+          bg: "rgba(34,197,94,0.14)",
+          bd: "rgba(34,197,94,0.28)",
+        }
       : s === "declined"
-      ? { label: "Rechazada", bg: "rgba(248,113,113,0.14)", bd: "rgba(248,113,113,0.28)" }
+      ? {
+          label: "Rechazada",
+          bg: "rgba(248,113,113,0.14)",
+          bd: "rgba(248,113,113,0.28)",
+        }
       : {
           label: status || "Estado",
           bg: "rgba(255,255,255,0.08)",
@@ -70,7 +83,9 @@ function StatusPill({ status }: { status: string }) {
         opacity: 0.95,
       }}
     >
-      <span style={{ width: 8, height: 8, borderRadius: 999, background: dot }} />
+      <span
+        style={{ width: 8, height: 8, borderRadius: 999, background: dot }}
+      />
       {meta.label}
     </span>
   );
@@ -97,7 +112,6 @@ export default function AcceptInviteClient() {
   const router = useRouter();
   const sp = useSearchParams();
 
-  // ✅ Leemos el parámetro ?invite=<uuid> de la URL
   const inviteId = useMemo(
     () => sp.get("invite") || sp.get("inviteId") || "",
     [sp]
@@ -105,18 +119,40 @@ export default function AcceptInviteClient() {
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<"accept" | "decline" | null>(null);
-
   const [inv, setInv] = useState<GroupInvitation | null>(null);
   const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
     null
   );
 
-  function showToast(t: { title: string; subtitle?: string }) {
-    setToast(t);
-    window.setTimeout(() => setToast(null), 2600);
+  const toastTimerRef = useRef<number | null>(null);
+  const navTimerRef = useRef<number | null>(null);
+
+  function clearTimers() {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    if (navTimerRef.current) {
+      window.clearTimeout(navTimerRef.current);
+      navTimerRef.current = null;
+    }
   }
 
-  // 🔹 Cargar invitación al montar
+  function showToast(t: { title: string; subtitle?: string }) {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    setToast(t);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 2600);
+  }
+
+  useEffect(() => {
+    return () => clearTimers();
+  }, []);
+
   useEffect(() => {
     let alive = true;
 
@@ -162,78 +198,103 @@ export default function AcceptInviteClient() {
   const status = String(inv?.status ?? "").toLowerCase();
   const pending = status === "pending";
 
-  // 🔹 Aceptar invitación → usa RPC acceptInvitation
-async function onAccept() {
-  if (!inviteId || !inv) return;
+  async function onAccept() {
+    if (!inviteId || !inv || busy) return;
 
-  setBusy("accept");
-  try {
-    const res = await acceptInvitation(inviteId);
-    if (!res?.ok) throw new Error(res?.error || "No se pudo aceptar.");
+    setBusy("accept");
 
-    const conflictResult = await createConflictNotificationForGroup(
-      inv.group_id
-    ).catch(() => ({
-      created: 0,
-      conflictCount: 0,
-      targetEventId: null,
-    }));
+    try {
+      const res = await acceptInvitation(inviteId);
+      if (!res?.ok) {
+        throw new Error(res?.error || "No se pudo aceptar.");
+      }
 
-    setInv((prev) => (prev ? { ...prev, status: "accepted" as any } : prev));
+      setInv((prev) => (prev ? { ...prev, status: "accepted" as any } : prev));
 
-    if (conflictResult.conflictCount > 0) {
-      showToast({
-        title: "⚠️ Hay conflictos por revisar",
-        subtitle: "Te llevo a resolverlos ahora.",
-      });
+      try {
+        await setActiveGroupIdInDb(inv.group_id);
+      } catch {
+        // best-effort
+      }
 
-      const qp = new URLSearchParams();
-      if (conflictResult.targetEventId) {
-        qp.set("eventId", conflictResult.targetEventId);
-        window.setTimeout(() => {
+      try {
+        window.dispatchEvent(
+          new CustomEvent("sp:invite-accepted", {
+            detail: { groupId: inv.group_id, inviteId },
+          })
+        );
+      } catch {
+        // ignore
+      }
+
+      const conflictResult = await createConflictNotificationForGroup(
+        inv.group_id
+      ).catch(() => ({
+        created: 0,
+        conflictCount: 0,
+        targetEventId: null,
+      }));
+
+      if (conflictResult.conflictCount > 0) {
+        showToast({
+          title: "⚠️ Hay conflictos por revisar",
+          subtitle: "Te llevo a resolverlos ahora.",
+        });
+
+        const qp = new URLSearchParams();
+        if (conflictResult.targetEventId) {
+          qp.set("eventId", conflictResult.targetEventId);
+        }
+        qp.set("from", "invite_accept");
+        qp.set("groupId", inv.group_id);
+
+        navTimerRef.current = window.setTimeout(() => {
           router.push(`/conflicts/detected?${qp.toString()}`);
         }, 700);
-      } else {
-        window.setTimeout(() => {
-          router.push("/conflicts/detected");
-        }, 700);
+
+        return;
       }
-      return;
+
+      showToast({
+        title: "✅ Invitación aceptada",
+        subtitle: "Ya eres parte del grupo.",
+      });
+
+      navTimerRef.current = window.setTimeout(() => {
+        router.push(
+          `/groups?joined=${encodeURIComponent(
+            inv.group_id
+          )}&accepted=1&activeGroup=${encodeURIComponent(inv.group_id)}`
+        );
+      }, 700);
+    } catch (e: any) {
+      showToast({
+        title: "No se pudo aceptar",
+        subtitle: e?.message || "Intenta otra vez.",
+      });
+    } finally {
+      setBusy(null);
     }
-
-    showToast({
-      title: "✅ Invitación aceptada",
-      subtitle: "Ya eres parte del grupo.",
-    });
-
-    window.setTimeout(() => {
-      router.push(`/groups?joined=${encodeURIComponent(inv.group_id)}`);
-    }, 700);
-  } catch (e: any) {
-    showToast({
-      title: "No se pudo aceptar",
-      subtitle: e?.message || "Intenta otra vez.",
-    });
-  } finally {
-    setBusy(null);
   }
-}
 
-  // 🔹 Rechazar invitación → usa RPC declineInvitation
   async function onDecline() {
-    if (!inviteId || !inv) return;
+    if (!inviteId || !inv || busy) return;
 
     setBusy("decline");
     try {
       const res = await declineInvitation(inviteId);
       if (!res?.ok) throw new Error(res?.error || "No se pudo rechazar.");
 
+      setInv((prev) => (prev ? { ...prev, status: "declined" as any } : prev));
+
       showToast({
         title: "Invitación rechazada",
         subtitle: "No se agregó el grupo.",
       });
-      setInv((prev) => (prev ? { ...prev, status: "declined" as any } : prev));
-      window.setTimeout(() => router.push(`/groups?joined=${encodeURIComponent(inv.group_id)}`), 700);
+
+      navTimerRef.current = window.setTimeout(() => {
+        router.push("/groups?declined=1");
+      }, 700);
     } catch (e: any) {
       showToast({
         title: "No se pudo rechazar",
@@ -350,9 +411,7 @@ async function onAccept() {
                 }}
               >
                 <div style={{ fontWeight: 900 }}>Link inválido</div>
-                <div
-                  style={{ opacity: 0.75, fontSize: 12, marginTop: 6 }}
-                >
+                <div style={{ opacity: 0.75, fontSize: 12, marginTop: 6 }}>
                   Falta el parámetro <b>?invite=UUID</b>.
                 </div>
 
@@ -395,11 +454,8 @@ async function onAccept() {
                 }}
               >
                 <div style={{ fontWeight: 900 }}>Invitación no encontrada</div>
-                <div
-                  style={{ opacity: 0.75, fontSize: 12, marginTop: 6 }}
-                >
-                  Puede que haya expirado, ya fue aceptada, o no tienes
-                  acceso.
+                <div style={{ opacity: 0.75, fontSize: 12, marginTop: 6 }}>
+                  Puede que haya expirado, ya fue aceptada, o no tienes acceso.
                 </div>
 
                 <button
@@ -489,8 +545,8 @@ async function onAccept() {
                         fontSize: 12,
                       }}
                     >
-                      Esta invitación ya no está pendiente. Puedes
-                      volver a tus grupos.
+                      Esta invitación ya no está pendiente. Puedes volver a tus
+                      grupos.
                     </div>
                   ) : (
                     <div
@@ -500,8 +556,8 @@ async function onAccept() {
                         fontSize: 12,
                       }}
                     >
-                      Al aceptar, el grupo aparecerá en <b>/groups</b> y
-                      podrás ver sus eventos en modo Pareja/Familia.
+                      Al aceptar, este grupo quedará activo y SyncPlans revisará
+                      si sus eventos chocan con tu agenda actual.
                     </div>
                   )}
                 </div>
@@ -539,17 +595,12 @@ async function onAccept() {
                       border: "1px solid rgba(255,255,255,0.14)",
                       background: "rgba(248,113,113,0.14)",
                       color: "rgba(255,255,255,0.95)",
-                      cursor:
-                        !!busy || !pending ? "not-allowed" : "pointer",
+                      cursor: !!busy || !pending ? "not-allowed" : "pointer",
                       fontWeight: 900,
                       minWidth: 220,
                       opacity: pending ? 1 : 0.55,
                     }}
-                    title={
-                      !pending
-                        ? "Esta invitación ya no está pendiente"
-                        : ""
-                    }
+                    title={!pending ? "Esta invitación ya no está pendiente" : ""}
                   >
                     {busy === "decline" ? "Rechazando…" : "Rechazar"}
                   </button>
@@ -564,21 +615,14 @@ async function onAccept() {
                       background:
                         "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
                       color: "rgba(255,255,255,0.95)",
-                      cursor:
-                        !!busy || !pending ? "not-allowed" : "pointer",
+                      cursor: !!busy || !pending ? "not-allowed" : "pointer",
                       fontWeight: 900,
                       minWidth: 220,
                       opacity: pending ? 1 : 0.55,
                     }}
-                    title={
-                      !pending
-                        ? "Esta invitación ya no está pendiente"
-                        : ""
-                    }
+                    title={!pending ? "Esta invitación ya no está pendiente" : ""}
                   >
-                    {busy === "accept"
-                      ? "Aceptando…"
-                      : "Aceptar invitación"}
+                    {busy === "accept" ? "Aceptando…" : "Aceptar invitación"}
                   </button>
                 </div>
               </>

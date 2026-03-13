@@ -22,7 +22,7 @@ export type NavigationMode = "push" | "replace";
 export default function NotificationsDrawer({
   open,
   onClose,
-  navigationMode = "replace", // app-like
+  navigationMode = "replace",
   onUnreadChange,
   limit = 30,
 }: {
@@ -41,41 +41,38 @@ export default function NotificationsDrawer({
     subtitle?: string;
   } | null>(null);
 
-  // guard para no hacer doble fetch cuando open parpadea
   const lastOpenFetchAt = useRef(0);
   const busyIds = useRef<Set<string>>(new Set());
 
-  // ⚠️ Ahora getMyNotifications SOLO trae no leídas.
-  // Además, añadimos las invitaciones pendientes como "group_invite".
   const unreadCount = useMemo(() => items.length, [items]);
 
-  // Actualizar badge en el header premium
   useEffect(() => {
     if (!onUnreadChange) return;
     onUnreadChange(unreadCount);
   }, [unreadCount, onUnreadChange]);
 
-  // Helper: convertir invitación → notificación sintética
   function inviteToNotificationRow(inv: GroupInvitation): NotificationRow {
-    const gt = (inv.group_type || "").toLowerCase();
+    const gt = String(inv.group_type || "").toLowerCase();
     const mapping: Record<string, string> = {
       personal: "Personal",
       solo: "Personal",
       pair: "Pareja",
       couple: "Pareja",
       family: "Familia",
+      shared: "Compartido",
+      other: "Compartido",
     };
     const groupLabel = mapping[gt] ?? "Grupo";
 
     return {
-      id: `invite:${inv.id}`, // 👈 id sintético
-      user_id: "synthetic", // no se usa en el front
+      id: `invite:${inv.id}`,
+      user_id: "synthetic",
       type: "group_invite",
       title: inv.group_name
         ? `Invitación a ${inv.group_name}`
-        : `Invitación a un ${groupLabel.toLowerCase()}`,
+        : `Invitación a un grupo ${groupLabel.toLowerCase()}`,
       body: `Te invitaron a un grupo (${groupLabel}).`,
-      entity_id: inv.id, // aquí guardamos el id real de la invitación
+      entity_id: inv.id,
       payload: {
         group_name: inv.group_name,
         group_type: inv.group_type,
@@ -93,16 +90,14 @@ export default function NotificationsDrawer({
 
     const syntheticInvites = (invites ?? []).map(inviteToNotificationRow);
 
-    // Invitaciones primero, luego resto de notificaciones
     return [...syntheticInvites, ...(notifs ?? [])];
   }
 
-  // Cargar notificaciones cuando se abre el drawer
   useEffect(() => {
     if (!open) return;
 
     const now = Date.now();
-    if (now - lastOpenFetchAt.current < 250) return; // anti doble-open
+    if (now - lastOpenFetchAt.current < 250) return;
     lastOpenFetchAt.current = now;
 
     let alive = true;
@@ -127,10 +122,8 @@ export default function NotificationsDrawer({
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, limit]);
 
-  // Autocerrar toast suave
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2400);
@@ -142,111 +135,174 @@ export default function NotificationsDrawer({
     else router.push(href);
   }
 
-function titleFor(n: NotificationRow) {
-  const t = String(n.type || "").toLowerCase();
+  function titleFor(n: NotificationRow) {
+    const t = String(n.type || "").toLowerCase();
 
-  if (t === "group_message") {
-    const payload = (n.payload || {}) as any;
-    const groupName =
-      payload.group_name ||
-      n.title?.replace(/^Nuevo mensaje en\s+/i, "") ||
-      "tu grupo";
-    const authorName: string | undefined = payload.author_name;
+    if (t === "group_message") {
+      const payload = (n.payload || {}) as any;
+      const groupName =
+        payload.group_name ||
+        n.title?.replace(/^Nuevo mensaje en\s+/i, "") ||
+        "tu grupo";
+      const authorName: string | undefined = payload.author_name;
 
-    if (authorName) {
-      return `${authorName} escribió en ${groupName}`;
+      if (authorName) {
+        return `${authorName} escribió en ${groupName}`;
+      }
+
+      if (n.title) return n.title;
+      return `Nuevo mensaje en ${groupName}`;
+    }
+
+    if (t === "group_invite") {
+      if (n.title) return n.title;
+      const payload = (n.payload || {}) as any;
+      const groupName: string | undefined = payload.group_name;
+      if (groupName) return `Invitación a ${groupName}`;
+      return "Nueva invitación a un grupo";
+    }
+
+    if (t === "event_rejected") {
+      const payload = (n.payload || {}) as any;
+      const actorName = String(payload.actor_name ?? "").trim() || "Alguien";
+      const eventTitle = String(payload.event_title ?? "").trim();
+
+      if (eventTitle) {
+        return `${actorName} no aceptó “${eventTitle}”`;
+      }
+
+      if (n.title) return n.title;
+      return `${actorName} no aceptó tu evento`;
     }
 
     if (n.title) return n.title;
-    return `Nuevo mensaje en ${groupName}`;
+    if (t === "conflict_detected" || t === "conflict") {
+      return "Conflicto de horario";
+    }
+    if (t === "event_created") return "Nuevo evento creado";
+    if (t === "event_deleted") return "Evento eliminado";
+    return "Notificación";
   }
 
-  if (t === "group_invite") {
-    if (n.title) return n.title;
-    const payload = (n.payload || {}) as any;
-    const groupName: string | undefined = payload.group_name;
-    if (groupName) return `Invitación a ${groupName}`;
-    return "Nueva invitación a un grupo";
-  }
+  function subtitleFor(n: NotificationRow) {
+    const t = String(n.type || "").toLowerCase();
 
-  if (t === "event_rejected") {
-    const payload = (n.payload || {}) as any;
-    const actorName =
-      String(payload.actor_name ?? "").trim() || "Alguien";
-    const eventTitle = String(payload.event_title ?? "").trim();
-
-    if (eventTitle) {
-      return `${actorName} no aceptó “${eventTitle}”`;
+    if (t === "group_message") {
+      const payload = (n.payload || {}) as any;
+      return (
+        payload.message_snippet ||
+        n.body ||
+        "Toca para ver el mensaje en el grupo."
+      );
     }
 
-    if (n.title) return n.title;
-    return `${actorName} no aceptó tu evento`;
-  }
+    if (t === "group_invite") {
+      if (n.body) return n.body;
+      const payload = (n.payload || {}) as any;
+      const groupName: string | undefined = payload.group_name;
+      if (groupName) {
+        return `Te invitaron al grupo "${groupName}". Toca para ver detalles.`;
+      }
+      return "Toca para ver y aceptar o rechazar la invitación.";
+    }
 
-  if (n.title) return n.title;
-  if (t === "conflict_detected" || t === "conflict")
-    return "Conflicto de horario";
-  if (t === "event_created") return "Nuevo evento creado";
-  if (t === "event_deleted") return "Evento eliminado";
-  return "Notificación";
-}
+    if (t === "event_rejected") {
+      const payload = (n.payload || {}) as any;
+      const comment = String(payload.comment ?? "").trim();
+      const eventTitle = String(payload.event_title ?? "").trim();
+      const actorName = String(payload.actor_name ?? "").trim() || "Alguien";
 
-function subtitleFor(n: NotificationRow) {
-  const t = String(n.type || "").toLowerCase();
+      if (comment) {
+        return `${actorName} dejó este motivo: "${comment}"`;
+      }
 
-  if (t === "group_message") {
-    const payload = (n.payload || {}) as any;
-    return (
-      payload.message_snippet ||
-      n.body ||
-      "Toca para ver el mensaje en el grupo."
-    );
-  }
+      if (eventTitle) {
+        return `Tu evento “${eventTitle}” no fue elegido al resolver un conflicto.`;
+      }
 
-  if (t === "group_invite") {
+      if (n.body) return n.body;
+      return "Tu evento no fue elegido al resolver un conflicto.";
+    }
+
     if (n.body) return n.body;
-    const payload = (n.payload || {}) as any;
-    const groupName: string | undefined = payload.group_name;
-    if (groupName)
-      return `Te invitaron al grupo "${groupName}". Toca para ver detalles.`;
-    return "Toca para ver y aceptar o rechazar la invitación.";
+    if (t === "conflict_detected" || t === "conflict") {
+      return "Tu evento se cruza con otro. Revísalo antes de que se complique.";
+    }
+    if (t === "event_created") {
+      return "Tu evento se guardó correctamente.";
+    }
+    if (t === "event_deleted") return "Tu evento fue eliminado.";
+    return "Toca para ver más.";
   }
 
-  if (t === "event_rejected") {
-    const payload = (n.payload || {}) as any;
-    const comment = String(payload.comment ?? "").trim();
-    const eventTitle = String(payload.event_title ?? "").trim();
+  function typeLabel(n: NotificationRow): string {
+    const t = String(n.type || "").toLowerCase();
 
-    if (comment) {
-      return `Motivo: ${comment}`;
-    }
+    if (t === "conflict" || t === "conflict_detected") return "Conflicto";
+    if (t === "event_created" || t === "event_deleted") return "Evento";
+    if (t === "event_rejected") return "Decisión";
+    if (t === "group_message") return "Mensaje de grupo";
+    if (t === "group_invite") return "Invitación";
 
-    if (eventTitle) {
-      return `Tu evento “${eventTitle}” no fue elegido al resolver un conflicto.`;
-    }
-
-    if (n.body) return n.body;
-    return "Tu evento no fue elegido al resolver un conflicto.";
+    return "Notificación";
   }
 
-  if (n.body) return n.body;
-  if (t === "conflict_detected" || t === "conflict")
-    return "Tu evento se cruza con otro. Revísalo antes de que se complique.";
-  if (t === "event_created")
-    return "Tu evento se guardó correctamente.";
-  if (t === "event_deleted") return "Tu evento fue eliminado.";
-  return "Toca para ver más.";
-}
+  function accentFor(n: NotificationRow): {
+    dot: string;
+    ring: string;
+    border: string;
+    background: string;
+  } {
+    const t = String(n.type || "").toLowerCase();
 
-function typeLabel(n: NotificationRow): string {
-  const t = String(n.type || "").toLowerCase();
-  if (t === "conflict" || t === "conflict_detected") return "Conflicto";
-  if (t === "event_created" || t === "event_deleted") return "Evento";
-  if (t === "event_rejected") return "Decisión";
-  if (t === "group_message") return "Mensaje de grupo";
-  if (t === "group_invite") return "Invitación";
-  return "Notificación";
-}
+    if (t === "conflict" || t === "conflict_detected") {
+      return {
+        dot: "#FB7185",
+        ring: "0 0 0 4px rgba(251,113,133,0.12)",
+        border: "rgba(251,113,133,0.22)",
+        background:
+          "linear-gradient(180deg, rgba(127,29,29,0.28), rgba(255,255,255,0.05))",
+      };
+    }
+
+    if (t === "event_rejected") {
+      return {
+        dot: "#F97316",
+        ring: "0 0 0 4px rgba(249,115,22,0.12)",
+        border: "rgba(249,115,22,0.22)",
+        background:
+          "linear-gradient(180deg, rgba(124,45,18,0.30), rgba(255,255,255,0.05))",
+      };
+    }
+
+    if (t === "group_invite") {
+      return {
+        dot: "#38BDF8",
+        ring: "0 0 0 4px rgba(56,189,248,0.12)",
+        border: "rgba(56,189,248,0.22)",
+        background:
+          "linear-gradient(180deg, rgba(8,47,73,0.32), rgba(255,255,255,0.05))",
+      };
+    }
+
+    if (t === "group_message") {
+      return {
+        dot: "#A78BFA",
+        ring: "0 0 0 4px rgba(167,139,250,0.12)",
+        border: "rgba(167,139,250,0.22)",
+        background:
+          "linear-gradient(180deg, rgba(76,29,149,0.28), rgba(255,255,255,0.05))",
+      };
+    }
+
+    return {
+      dot: "#FBBF24",
+      ring: "0 0 0 4px rgba(251,191,36,0.12)",
+      border: "rgba(255,255,255,0.16)",
+      background:
+        "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05))",
+    };
+  }
 
   function timeFor(n: NotificationRow) {
     const d = new Date(n.created_at);
@@ -260,11 +316,9 @@ function typeLabel(n: NotificationRow): string {
   }
 
   async function refreshFromDb(silent = false) {
-    let alive = true;
     try {
       if (!silent) setLoading(true);
       const n = await fetchNotificationsAndInvites();
-      if (!alive) return;
       setItems(n);
     } catch {
       if (!silent) {
@@ -274,19 +328,16 @@ function typeLabel(n: NotificationRow): string {
         });
       }
     } finally {
-      if (alive && !silent) setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
-  // ✅ "Marcar todo leído" solo limpia notificaciones reales,
-  //    pero mantiene las invitaciones pendientes.
   async function onMarkAll() {
     if (items.length === 0) return;
 
     try {
       setLoading(true);
 
-      // optimista: dejamos solo las invitaciones (group_invite)
       setItems((prev) =>
         prev.filter(
           (n) => String(n.type || "").toLowerCase() === "group_invite"
@@ -304,21 +355,18 @@ function typeLabel(n: NotificationRow): string {
         title: "No pudimos marcar como leídas",
         subtitle: "Intenta nuevamente.",
       });
-      // reintentar carga para no quedar desfasados
       void refreshFromDb(true);
     } finally {
       setLoading(false);
     }
   }
 
-  // Igual que marcar todo leído, pero semánticamente “borrar todo”
   async function onDeleteAll() {
     if (items.length === 0) return;
 
     try {
       setLoading(true);
 
-      // optimista: dejamos solo las invitaciones
       setItems((prev) =>
         prev.filter(
           (n) => String(n.type || "").toLowerCase() === "group_invite"
@@ -345,8 +393,6 @@ function typeLabel(n: NotificationRow): string {
   async function onOpenNotification(n: NotificationRow) {
     const type = String(n.type || "").toLowerCase();
 
-    // 📩 Invitación de grupo: no marcamos como leída,
-    // solo redirigimos al flujo de invitaciones.
     if (type === "group_invite") {
       const href = notificationHref(n);
       navTo(href);
@@ -360,10 +406,8 @@ function typeLabel(n: NotificationRow): string {
     try {
       busyIds.current.add(id);
 
-      // Cuando abres una notificación, la quitamos del listado inmediatamente.
       setItems((prev) => prev.filter((x) => String(x.id) !== id));
 
-      // La marcamos como leída en la BD
       await markNotificationRead(id);
 
       navTo(href);
@@ -373,6 +417,7 @@ function typeLabel(n: NotificationRow): string {
         title: "No pudimos abrir esa notificación",
         subtitle: "Intenta de nuevo.",
       });
+      void refreshFromDb(true);
     } finally {
       busyIds.current.delete(id);
     }
@@ -381,16 +426,13 @@ function typeLabel(n: NotificationRow): string {
   async function onDeleteNotificationClick(n: NotificationRow) {
     const type = String(n.type || "").toLowerCase();
 
-    // Para invitaciones no tenemos “Quitar” aquí; se maneja en /invitations
     if (type === "group_invite") return;
 
     const id = String(n.id);
 
     try {
       busyIds.current.add(id);
-      // optimista: sacamos esa notificación de la lista
       setItems((prev) => prev.filter((x) => String(x.id) !== id));
-
       await deleteNotification(id);
     } catch {
       setToast({
@@ -430,9 +472,9 @@ function typeLabel(n: NotificationRow): string {
                     color: "rgba(148,163,184,0.85)",
                   }}
                 >
-                  Solo mostramos notificaciones pendientes. Lo que
-                  marques como leído desaparecerá de aquí, pero se
-                  mantiene en el historial interno.
+                  Solo mostramos notificaciones pendientes. Lo que marques como
+                  leído desaparecerá de aquí, pero se mantiene en el historial
+                  interno.
                 </div>
               </div>
 
@@ -494,8 +536,8 @@ function typeLabel(n: NotificationRow): string {
                 <div style={emptyBox}>
                   <div style={emptyTitle}>Nada nuevo por aquí</div>
                   <div style={emptySub}>
-                    Cuando tengas conflictos, eventos, mensajes o
-                    invitaciones a grupos, aparecerán en esta bandeja.
+                    Cuando tengas conflictos, eventos, mensajes o invitaciones a
+                    grupos, aparecerán en esta bandeja.
                   </div>
                 </div>
               ) : (
@@ -504,6 +546,7 @@ function typeLabel(n: NotificationRow): string {
                     const isBusy = busyIds.current.has(String(n.id));
                     const payload = (n.payload || {}) as any;
                     const type = String(n.type || "").toLowerCase();
+                    const accent = accentFor(n);
 
                     return (
                       <button
@@ -512,9 +555,8 @@ function typeLabel(n: NotificationRow): string {
                         onClick={() => onOpenNotification(n)}
                         style={{
                           ...rowBtn,
-                          borderColor: "rgba(255,255,255,0.16)",
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05))",
+                          borderColor: accent.border,
+                          background: accent.background,
                           opacity: isBusy ? 0.7 : 1,
                           cursor: isBusy ? "progress" : "pointer",
                         }}
@@ -530,9 +572,8 @@ function typeLabel(n: NotificationRow): string {
                           <div
                             style={{
                               ...dot,
-                              background: "#FBBF24",
-                              boxShadow:
-                                "0 0 0 4px rgba(251,191,36,0.12)",
+                              background: accent.dot,
+                              boxShadow: accent.ring,
                             }}
                           />
 
@@ -549,22 +590,15 @@ function typeLabel(n: NotificationRow): string {
                                 gap: 10,
                               }}
                             >
-                              <div style={rowTitle}>
-                                {titleFor(n)}
-                              </div>
-                              <div style={rowTime}>
-                                {timeFor(n)}
-                              </div>
+                              <div style={rowTitle}>{titleFor(n)}</div>
+                              <div style={rowTime}>{timeFor(n)}</div>
                             </div>
 
-                            <div style={rowSub}>
-                              {subtitleFor(n)}
-                            </div>
+                            <div style={rowSub}>{subtitleFor(n)}</div>
 
                             <div style={rowMeta}>
-                              <span style={metaPill}>
-                                {typeLabel(n)}
-                              </span>
+                              <span style={metaPill}>{typeLabel(n)}</span>
+
                               {(type === "group_message" ||
                                 type === "group_invite") &&
                                 payload.group_name && (
@@ -572,13 +606,22 @@ function typeLabel(n: NotificationRow): string {
                                     Grupo: {payload.group_name}
                                   </span>
                                 )}
+
+                              {type === "event_rejected" &&
+                                payload.event_title && (
+                                  <span style={metaPill}>
+                                    Evento: {payload.event_title}
+                                  </span>
+                                )}
+
                               <span style={metaPill}>Abrir</span>
+
                               {type !== "group_invite" && (
                                 <span
                                   style={metaPillDanger}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onDeleteNotificationClick(n);
+                                    void onDeleteNotificationClick(n);
                                   }}
                                 >
                                   Quitar
@@ -587,11 +630,7 @@ function typeLabel(n: NotificationRow): string {
                             </div>
                           </div>
 
-                          <div
-                            style={{ marginTop: 2, opacity: 0.8 }}
-                          >
-                            ›
-                          </div>
+                          <div style={{ marginTop: 2, opacity: 0.8 }}>›</div>
                         </div>
                       </button>
                     );
@@ -606,9 +645,7 @@ function typeLabel(n: NotificationRow): string {
       {toast && (
         <div style={toastBox}>
           <div style={toastTitle}>{toast.title}</div>
-          {toast.subtitle && (
-            <div style={toastSub}>{toast.subtitle}</div>
-          )}
+          {toast.subtitle && <div style={toastSub}>{toast.subtitle}</div>}
         </div>
       )}
     </>
@@ -617,9 +654,7 @@ function typeLabel(n: NotificationRow): string {
 
 function SkeletonList() {
   return (
-    <div
-      style={{ display: "flex", flexDirection: "column", gap: 10 }}
-    >
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {Array.from({ length: 4 }).map((_, idx) => (
         <div key={idx} style={skRow}>
           <div style={skDot} />
@@ -632,8 +667,6 @@ function SkeletonList() {
     </div>
   );
 }
-
-// ───────────────── estilos ─────────────────
 
 const backdrop: React.CSSProperties = {
   position: "fixed",

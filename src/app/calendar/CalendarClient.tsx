@@ -16,7 +16,10 @@ import MobileScaffold from "@/components/MobileScaffold";
 import { EventEditModal } from "@/components/EventEditModal";
 import { CalendarFilters } from "./CalendarFilters";
 import { getMyGroups } from "@/lib/groupsDb";
-import { getEventsForGroups, deleteEventsByIds } from "@/lib/eventsDb";
+import {
+  getEventsForGroups,
+  deleteEventsByIdsDetailed,
+} from "@/lib/eventsDb";
 import {
   getActiveGroupIdFromDb,
   setActiveGroupIdInDb,
@@ -211,6 +214,7 @@ export default function CalendarClient(
 
 const groupTypeById = useMemo(() => {
   const m = new Map<string, "pair" | "family" | "other">();
+
   for (const g of groups || []) {
     const id = String(g.id);
     const rawType = String(g.type ?? "").toLowerCase();
@@ -223,6 +227,7 @@ const groupTypeById = useMemo(() => {
       m.set(id, "pair");
     }
   }
+
   return m;
 }, [groups]);
 
@@ -270,168 +275,185 @@ const [conflictAlert, setConflictAlert] = useState<{
   /* =========================
      Carga de datos (DB) — “Actualizar”
      ========================= */
-  const refreshCalendar = useCallback(
-    async (
-      opts: {
-        showToast?: boolean;
-        toastTitle?: string;
-        toastSubtitle?: string;
-      } = {}
-    ) => {
-      const showToastFlag = opts?.showToast ?? false;
+const refreshCalendar = useCallback(
+  async (
+    opts: {
+      showToast?: boolean;
+      toastTitle?: string;
+      toastSubtitle?: string;
+    } = {}
+  ) => {
+    const showToastFlag = opts?.showToast ?? false;
 
-      try {
-        if (showToastFlag) {
-          setToast({
-            title: opts?.toastTitle ?? "Actualizando…",
-            subtitle: opts?.toastSubtitle ?? "Recargando desde SyncPlans",
-          });
+    try {
+      if (showToastFlag) {
+        setToast({
+          title: opts?.toastTitle ?? "Actualizando…",
+          subtitle: opts?.toastSubtitle ?? "Recargando desde SyncPlans",
+        });
+      }
+
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session?.user) {
+        router.replace("/auth/login");
+        return;
+      }
+
+      const myGroups = await getMyGroups();
+      setGroups(myGroups);
+
+      const persistedActive = await getActiveGroupIdFromDb().catch(() => null);
+
+      let nextActiveGroupId: string | null =
+        persistedActive &&
+        myGroups.some((g: any) => String(g.id) === String(persistedActive))
+          ? String(persistedActive)
+          : null;
+
+      if (!nextActiveGroupId && (myGroups?.length ?? 0) > 0) {
+        nextActiveGroupId = String(myGroups[0].id);
+        try {
+          await setActiveGroupIdInDb(nextActiveGroupId);
+        } catch {
+          // no-op
         }
+      }
 
-        const { data, error } = await supabase.auth.getSession();
-        if (error || !data.session?.user) {
-          router.replace("/auth/login");
-          return;
-        }
+      setActiveGroupId(nextActiveGroupId);
 
-        const active = await getActiveGroupIdFromDb();
-        setActiveGroupId(active ? String(active) : null);
+      const groupIds = (myGroups || []).map((g: any) => String(g.id));
 
-        const myGroups = await getMyGroups();
-        setGroups(myGroups);
+      const [rawEvents, conflictInfo] = await Promise.all([
+        getEventsForGroups(groupIds),
+        getUnreadConflictNotificationsSummary().catch(() => ({
+          count: 0,
+          latestEventId: null,
+        })),
+      ]);
 
-        // ✅ Si no hay active en DB pero sí grupos, persistimos el primero
-        if (!active && (myGroups?.length ?? 0) > 0) {
-          const firstId = String(myGroups[0].id);
-          setActiveGroupId(firstId);
-          try {
-            await setActiveGroupIdInDb(firstId);
-          } catch {
-            // no-op
+      setConflictAlert(conflictInfo);
+
+      const groupTypeByIdLocal = new Map<string, "family" | "pair" | "other">(
+        (myGroups || []).map((g: any) => {
+          const id = String(g.id);
+          const rawType = String(g.type ?? "").toLowerCase();
+
+          const normalized: "family" | "pair" | "other" =
+            rawType === "family"
+              ? "family"
+              : rawType === "other" || rawType === "shared"
+              ? "other"
+              : "pair";
+
+          return [id, normalized];
+        })
+      );
+
+      const enriched: CalendarEvent[] = (rawEvents || [])
+        .map((ev: any) => {
+          const gid = ev.group_id ?? ev.groupId ?? null;
+
+          let gt: GroupType = "personal" as any;
+
+          if (gid) {
+            const t = groupTypeByIdLocal.get(String(gid));
+
+            if (t === "family") {
+              gt = "family" as any;
+            } else if (t === "other") {
+              gt = "other" as any;
+            } else {
+              gt = "pair" as any;
+            }
+          } else {
+            gt = "personal" as any;
           }
-        }
 
-        const groupIds = (myGroups || []).map((g: any) => String(g.id));
+          const startRaw = ev.start ?? ev.start_at ?? null;
+          const endRaw = ev.end ?? ev.end_at ?? null;
 
-        // ✅ getEventsForGroups(groupIds) incluye personal
-       const [rawEvents, conflictInfo] = await Promise.all([
-  getEventsForGroups(groupIds),
-  getUnreadConflictNotificationsSummary().catch(() => ({
-    count: 0,
-    latestEventId: null,
-  })),
-]);
+          if (!isValidIsoish(startRaw) || !isValidIsoish(endRaw)) return null;
 
-setConflictAlert(conflictInfo);
+          return {
+            id: String(ev.id),
+            title: ev.title ?? "Evento",
+            start: String(startRaw),
+            end: String(endRaw),
+            notes: ev.notes ?? undefined,
+            groupId: gid ? String(gid) : null,
+            groupType: gt,
+          } as CalendarEvent;
+        })
+        .filter(Boolean) as CalendarEvent[];
 
-const groupTypeByIdLocal = new Map<string, "family" | "pair" | "other">(
-  (myGroups || []).map((g: any) => {
-    const id = String(g.id);
-    const rawType = String(g.type ?? "").toLowerCase();
+      setEvents(enriched);
+      setEventsLoaded(true);
+      setError(null);
 
-    const normalized: "family" | "pair" | "other" =
-      rawType === "family"
-        ? "family"
-        : rawType === "other" || rawType === "shared"
-        ? "other"
-        : "pair";
+      if (showToastFlag) {
+        setToast({
+          title: "Actualizado ✅",
+          subtitle: "Tu calendario ya está al día.",
+        });
+        window.setTimeout(() => setToast(null), 2400);
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "Error cargando calendario");
+      setEventsLoaded(true);
 
-    return [id, normalized];
-  })
+      if (showToastFlag) {
+        setToast({
+          title: "No se pudo actualizar",
+          subtitle: e?.message ?? "Revisa tu sesión o conexión.",
+        });
+        window.setTimeout(() => setToast(null), 2800);
+      }
+    }
+  },
+  [router]
 );
 
-        const enriched: CalendarEvent[] = (rawEvents || [])
-          .map((ev: any) => {
-            const gid = ev.group_id ?? ev.groupId ?? null;
+const handleDeleteEvent = useCallback(
+  async (eventId: string, title?: string) => {
+    const ok = confirm(
+      `¿Eliminar el evento${
+        title ? ` "${title}"` : ""
+      }?\nEsta acción no se puede deshacer.`
+    );
+    if (!ok) return;
 
-            let gt: GroupType = "personal" as any;
-if (gid) {
-  const t = groupTypeByIdLocal.get(String(gid));
+    try {
+      setToast({ title: "Eliminando…", subtitle: "Aplicando cambios" });
 
-  if (t === "family") {
-    gt = "family" as any;
-  } else if (t === "other") {
-    gt = "other" as any;
-  } else {
-    gt = "pair" as any;
-  }
-} else {
-  gt = "personal" as any;
-}
+      const result = await deleteEventsByIdsDetailed([eventId]);
 
-            const startRaw = ev.start;
-            const endRaw = ev.end;
-
-            if (!isValidIsoish(startRaw) || !isValidIsoish(endRaw)) return null;
-
-            return {
-              id: String(ev.id),
-              title: ev.title ?? "Evento",
-              start: String(startRaw),
-              end: String(endRaw),
-              notes: ev.notes ?? undefined,
-              groupId: gid ? String(gid) : null,
-              groupType: gt,
-            } as CalendarEvent;
-          })
-          .filter(Boolean) as CalendarEvent[];
-
-        setEvents(enriched);
-        setEventsLoaded(true);
-        setError(null);
-
-        if (showToastFlag) {
-          setToast({
-            title: "Actualizado ✅",
-            subtitle: "Tu calendario ya está al día.",
-          });
-          window.setTimeout(() => setToast(null), 2400);
+      if (result.deletedCount !== 1) {
+        if (result.blockedIds.length > 0) {
+          throw new Error(
+            "No pudiste eliminar ese evento con tu sesión actual. Puede pertenecer a otra persona o no estar permitido por permisos."
+          );
         }
-      } catch (e: any) {
-        setError(e?.message ?? "Error cargando calendario");
-        setEventsLoaded(true);
 
-        if (showToastFlag) {
-          setToast({
-            title: "No se pudo actualizar",
-            subtitle: e?.message ?? "Revisa tu sesión o conexión.",
-          });
-          window.setTimeout(() => setToast(null), 2800);
-        }
+        throw new Error(
+          "El evento no se eliminó realmente. No actualizamos la UI como si hubiera salido bien."
+        );
       }
-    },
-    [router]
-  );
 
-  const handleDeleteEvent = useCallback(
-    async (eventId: string, title?: string) => {
-      const ok = confirm(
-        `¿Eliminar el evento${
-          title ? ` "${title}"` : ""
-        }?\nEsta acción no se puede deshacer.`
-      );
-      if (!ok) return;
-
-      try {
-        setToast({ title: "Eliminando…", subtitle: "Aplicando cambios" });
-
-        await deleteEventsByIds([eventId]);
-
-        await refreshCalendar({
-          showToast: true,
-          toastTitle: "Evento eliminado ✅",
-          toastSubtitle: "Tu calendario ya está actualizado.",
-        });
-      } catch (e: any) {
-        setToast({
-          title: "No se pudo eliminar",
-          subtitle: e?.message ?? "Revisa permisos o conexión.",
-        });
-        window.setTimeout(() => setToast(null), 2600);
-      }
-    },
-    [refreshCalendar]
-  );
+      await refreshCalendar({
+        showToast: true,
+        toastTitle: "Evento eliminado ✅",
+        toastSubtitle: "Tu calendario ya está actualizado.",
+      });
+    } catch (e: any) {
+      setToast({
+        title: "No se pudo eliminar",
+        subtitle: e?.message ?? "Revisa permisos o conexión.",
+      });
+      window.setTimeout(() => setToast(null), 2600);
+    }
+  },
+  [refreshCalendar]
+);
 
   /* ✅ toast post-apply desde props (sin useSearchParams) */
   useEffect(() => {
@@ -475,23 +497,18 @@ if (gid) {
   }, [appliedToast, pathname, refreshCalendar, router]);
 
   // ✅ escucha cambio de grupo activo (PremiumHeader) sin recargar toda la página
-  useEffect(() => {
-    const handler = async () => {
-      try {
-        const next = await getActiveGroupIdFromDb().catch(() => null);
-        setActiveGroupId(next ? String(next) : null);
-      } catch {
-        // no-op
-      }
-    };
+useEffect(() => {
+  const handler = async () => {
+    await refreshCalendar();
+  };
 
-    window.addEventListener("sp:active-group-changed", handler as any);
-    return () =>
-      window.removeEventListener(
-        "sp:active-group-changed",
-        handler as any
-      );
-  }, []);
+  window.addEventListener("sp:active-group-changed", handler as any);
+  return () =>
+    window.removeEventListener(
+      "sp:active-group-changed",
+      handler as any
+    );
+}, [refreshCalendar]);
 
   // ✅ NUEVO: escucha cuando el drawer de integraciones termina una sync de Google
   useEffect(() => {
@@ -521,6 +538,25 @@ if (gid) {
     };
   }, [refreshCalendar]);
 
+  useEffect(() => {
+  const onFocus = () => {
+    void refreshCalendar();
+  };
+
+  const onVisibility = () => {
+    if (document.visibilityState === "visible") {
+      void refreshCalendar();
+    }
+  };
+
+  window.addEventListener("focus", onFocus);
+  document.addEventListener("visibilitychange", onVisibility);
+
+  return () => {
+    window.removeEventListener("focus", onFocus);
+    document.removeEventListener("visibilitychange", onVisibility);
+  };
+}, [refreshCalendar]);
   /* Boot inicial */
   useEffect(() => {
     let alive = true;
@@ -603,39 +639,42 @@ if (gid) {
   /* =========================
      Filtros y vistas
      ========================= */
-  const filteredEvents = useMemo(() => {
-    const isEnabled = (g?: GroupType | null) => {
-      const key = (g ?? "personal") as any;
-      return !!(enabledGroups as any)[key];
-    };
+const filteredEvents = useMemo(() => {
+  const isEnabled = (g?: GroupType | null) => {
+    const key = (g ?? "personal") as any;
+    return !!(enabledGroups as any)[key];
+  };
 
-    return (Array.isArray(events) ? events : []).filter((e) => {
-      const gt = (e.groupType ?? "personal") as any;
+  return (Array.isArray(events) ? events : []).filter((e) => {
+    const gt = (e.groupType ?? "personal") as any;
 
-      if (!isEnabled(gt)) return false;
+    if (!isEnabled(gt)) return false;
 
-      if (scope === "all") return true;
+    if (scope === "all") return true;
 
-      if (scope === "personal") {
-        return gt === "personal";
-      }
+    if (scope === "personal") {
+      return gt === "personal";
+    }
 
-      // scope === "active"
-      const inConflict = conflictEventIdsInGrid.has(String(e.id));
-      if (inConflict) return true;
+    // scope === "active"
+    const inConflict = conflictEventIdsInGrid.has(String(e.id));
+    if (inConflict) return true;
 
-      if (gt === "personal") return true;
-      if (!activeGroupId) return true;
-      return String(e.groupId ?? "") === String(activeGroupId);
-    });
-  }, [
-    events,
-    scope,
-    enabledGroups,
-    activeGroupId,
-    conflictEventIdsInGrid,
-  ]);
+    if (gt === "personal") return true;
 
+    if (!activeGroupId) {
+      return false;
+    }
+
+    return String(e.groupId ?? "") === String(activeGroupId);
+  });
+}, [
+  events,
+  scope,
+  enabledGroups,
+  activeGroupId,
+  conflictEventIdsInGrid,
+]);
   const visibleEvents = useMemo(() => {
     const a = gridStart.getTime();
     const b = gridEnd.getTime();
@@ -1332,19 +1371,19 @@ function renderMonthCells(opts: {
                 +
               </button>
 
-              <button
-                type="button"
-                onClick={(ev) => {
-                  ev.preventDefault();
-                  ev.stopPropagation();
-                  openNewEventGroup(day);
-                }}
-                style={styles.cellQuickBtnGroup}
-                aria-label="Crear evento de grupo"
-                title="Crear evento de grupo"
-              >
-                +
-              </button>
+             <button
+  type="button"
+  onClick={(ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    openNewEventGroup(day);
+  }}
+  style={styles.cellQuickBtnGroup}
+  aria-label="Crear evento de grupo"
+  title="Crear evento de grupo"
+>
+  +
+</button>
             </div>
           </div>
         </div>
