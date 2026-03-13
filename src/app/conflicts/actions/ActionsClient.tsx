@@ -1,4 +1,3 @@
-// src/app/conflicts/actions/ActionsClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -369,6 +368,7 @@ export default function ActionsClient({
   }, [rejectedTargets, commentsByEventId, actorName, currentUid]);
 
   const disabledApply = plan.decided === 0 || busy;
+  const hasRejectedTargets = rejectedTargets.length > 0;
 
   const updateComment = (eventId: string, value: string) => {
     setCommentsByEventId((prev) => ({
@@ -382,7 +382,7 @@ export default function ActionsClient({
 
     if (plan.decided === 0) {
       setToast({
-        title: "Nada que aplicar",
+        title: "Nada que finalizar",
         sub: "Primero elige qué hacer con al menos un conflicto.",
       });
       return;
@@ -424,18 +424,11 @@ export default function ActionsClient({
 
         if (deletedCount !== ownDeleteIds.length) {
           throw new Error(
-            "No se eliminaron todos los eventos seleccionados. No aplicamos el cambio para evitar inconsistencias."
+            "No se eliminaron todos los eventos seleccionados. No cerramos el flujo para evitar inconsistencias."
           );
         }
       }
 
-      /**
-       * Eventos ajenos rechazados:
-       * - NO se borran globalmente
-       * - SÍ se notifican al creador
-       * - SÍ se ocultan localmente para este usuario
-       * - SÍ se cierran localmente los conflictos relacionados
-       */
       if (blockedDeleteIds.length > 0) {
         try {
           hideEventIdsForCurrentUser(blockedDeleteIds);
@@ -478,10 +471,10 @@ export default function ActionsClient({
     } catch (e: any) {
       setBusy(false);
       setToast({
-        title: "No se pudo aplicar",
+        title: "No se pudo finalizar",
         sub:
           e?.message ??
-          "Inténtalo nuevamente en unos segundos. Si falló el aviso o el borrado real, no aplicamos el cambio para no dejar el flujo incompleto.",
+          "Inténtalo nuevamente en unos segundos. Si falló el aviso o el borrado real, no cerramos el flujo para no dejarlo incompleto.",
       });
     }
   };
@@ -500,7 +493,7 @@ export default function ActionsClient({
           <div style={styles.loadingCard}>
             <div style={styles.loadingDot} />
             <div>
-              <div style={styles.loadingTitle}>Preparando cambios…</div>
+              <div style={styles.loadingTitle}>Preparando cierre…</div>
               <div style={styles.loadingSub}>Un último chequeo</div>
             </div>
           </div>
@@ -525,10 +518,13 @@ export default function ActionsClient({
         <section style={styles.hero}>
           <div style={styles.heroLeft}>
             <div style={styles.kicker}>Último paso</div>
-            <h1 style={styles.h1}>Aplicar decisiones</h1>
+            <h1 style={styles.h1}>
+              {hasRejectedTargets ? "Cerrar y comunicar" : "Finalizar resolución"}
+            </h1>
             <div style={styles.sub}>
-              Esto actualizará tu calendario y resolverá los conflictos
-              seleccionados.
+              {hasRejectedTargets
+                ? "Ya elegiste qué hacer. En este último paso puedes avisarle a la otra persona por qué su evento no fue aceptado."
+                : "Ya elegiste qué hacer. Ahora solo falta cerrar esta resolución y actualizar tu calendario."}
             </div>
 
             {conflicts.length > 0 && plan.decided === 0 && (
@@ -546,10 +542,10 @@ export default function ActionsClient({
               </div>
             )}
 
-            {rejectedTargets.length > 0 && (
+            {hasRejectedTargets && (
               <div style={styles.noticePill}>
-                Además, SyncPlans intentará avisar automáticamente a la otra
-                persona cuando su evento no sea elegido.
+                Este paso ya no es para decidir otra vez. Aquí solo podrás
+                enviar el mensaje al creador y cerrar la resolución.
               </div>
             )}
           </div>
@@ -574,38 +570,42 @@ export default function ActionsClient({
               </div>
             </div>
 
-            <button
-              onClick={apply}
-              disabled={disabledApply}
-              style={{
-                ...styles.primaryBtn,
-                opacity: disabledApply ? 0.55 : 1,
-                cursor: disabledApply ? "not-allowed" : "pointer",
-              }}
-            >
-              {busy ? "Aplicando…" : "Aplicar cambios ✅"}
-            </button>
+            {!hasRejectedTargets && (
+              <button
+                onClick={apply}
+                disabled={disabledApply}
+                style={{
+                  ...styles.primaryBtn,
+                  opacity: disabledApply ? 0.55 : 1,
+                  cursor: disabledApply ? "not-allowed" : "pointer",
+                }}
+              >
+                {busy ? "Finalizando…" : "Finalizar resolución"}
+              </button>
+            )}
           </div>
         </section>
 
-        {rejectedTargets.length > 0 && (
+        {hasRejectedTargets && (
           <section style={styles.panelCard}>
             <div style={styles.panelHeader}>
               <div>
-                <div style={styles.panelKicker}>Comunicación automática</div>
+                <div style={styles.panelKicker}>Comunicación final</div>
                 <div style={styles.panelTitle}>
-                  Eventos rechazados de otras personas
+                  {rejectedTargets.length === 1
+                    ? "Mensaje para la otra persona"
+                    : "Mensajes para las otras personas"}
                 </div>
               </div>
               <div style={styles.panelMeta}>
-                {rejectedTargets.length} aviso
+                {rejectedTargets.length} mensaje
                 {rejectedTargets.length === 1 ? "" : "s"}
               </div>
             </div>
 
             <div style={styles.panelSub}>
-              Antes de aplicar, puedes dejar un comentario opcional para
-              explicar por qué ese evento no fue aceptado.
+              Ya tomaste la decisión arriba. Aquí solo puedes dejar un mensaje
+              opcional para explicar por qué ese evento no fue aceptado.
             </div>
 
             <div style={styles.cardsGrid}>
@@ -622,7 +622,7 @@ export default function ActionsClient({
                   </div>
 
                   <label style={styles.label}>
-                    Comentario opcional para el creador
+                    Mensaje que se enviará al creador del evento
                   </label>
                   <textarea
                     value={commentsByEventId[target.id] ?? ""}
@@ -636,6 +636,24 @@ export default function ActionsClient({
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div style={styles.panelFooter}>
+              <button onClick={back} style={styles.secondaryBtn}>
+                Volver a la lista
+              </button>
+
+              <button
+                onClick={apply}
+                disabled={disabledApply}
+                style={{
+                  ...styles.primaryBtn,
+                  opacity: disabledApply ? 0.55 : 1,
+                  cursor: disabledApply ? "not-allowed" : "pointer",
+                }}
+              >
+                {busy ? "Enviando…" : "Enviar comentarios"}
+              </button>
             </div>
           </section>
         )}
@@ -739,6 +757,7 @@ const styles: Record<string, React.CSSProperties> = {
   sub: {
     fontSize: 13,
     opacity: 0.78,
+    lineHeight: 1.45,
   },
   helperText: {
     marginTop: 8,
@@ -783,6 +802,15 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.14)",
     background:
       "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
+    color: "#fff",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+  secondaryBtn: {
+    padding: "12px 16px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
     color: "#fff",
     cursor: "pointer",
     fontWeight: 900,
@@ -929,6 +957,14 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     opacity: 0.62,
     textAlign: "right",
+  },
+  panelFooter: {
+    marginTop: 14,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
   },
   emptyCard: {
     marginTop: 12,
