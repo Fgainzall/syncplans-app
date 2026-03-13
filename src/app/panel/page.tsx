@@ -8,7 +8,7 @@ import React, {
   type CSSProperties,
 } from "react";
 import { useRouter } from "next/navigation";
-import { IntentionsPanelSection } from "@/components/intentions/IntentionsPanelSection";
+
 import MobileScaffold from "@/components/MobileScaffold";
 import PremiumHeader from "@/components/PremiumHeader";
 import supabase from "@/lib/supabaseClient";
@@ -62,7 +62,7 @@ export default function PanelPage() {
   const [googleEvents, setGoogleEvents] = useState<ExternalEvent[] | null>(null);
   const [googleEventsLoading, setGoogleEventsLoading] = useState(false);
   const [googleEventsError, setGoogleEventsError] = useState<string | null>(
-    null,
+    null
   );
 
   const fetchGoogleEvents = useCallback(async () => {
@@ -86,7 +86,7 @@ export default function PanelPage() {
       if (!res.ok || !json?.ok) {
         setGoogleEvents([]);
         setGoogleEventsError(
-          json?.error || "No se pudieron leer los eventos de Google.",
+          json?.error || "No se pudieron leer los eventos de Google."
         );
         return;
       }
@@ -99,7 +99,7 @@ export default function PanelPage() {
       console.error("Error leyendo eventos de Google:", err);
       setGoogleEvents([]);
       setGoogleEventsError(
-        err?.message || "Error inesperado al leer eventos de Google.",
+        err?.message || "Error inesperado al leer eventos de Google."
       );
     } finally {
       setGoogleEventsLoading(false);
@@ -177,15 +177,15 @@ export default function PanelPage() {
 
         if (!alive) return;
 
-        const stats = buildDashboardStats(events, groups);
-        setStats(stats);
+        const nextStats = buildDashboardStats(events, groups);
+        setStats(nextStats);
         setProfile(profile);
       } catch (e: any) {
         if (!alive) return;
         console.error("Error cargando Panel:", e);
         setError(
           e?.message ||
-            "No se pudo cargar el Panel. Intenta recargar la página.",
+            "No se pudo cargar el Panel. Intenta recargar la página."
         );
       } finally {
         if (!alive) return;
@@ -321,7 +321,6 @@ export default function PanelPage() {
       />
 
       <div style={sectionWrapperStyle}>
-        {/* Plan actual */}
         <section style={planCardStyle}>
           <div style={planHeaderRowStyle}>
             <div style={planLabelColumnStyle}>
@@ -344,7 +343,6 @@ export default function PanelPage() {
           </div>
         </section>
 
-        {/* Bloque principal de métricas */}
         <section style={metricsCardStyle}>
           <div style={metricsHeaderRowStyle}>
             <div>
@@ -419,7 +417,6 @@ export default function PanelPage() {
           </div>
         </section>
 
-        {/* Bloque de integración con Google Calendar */}
         <section style={googleSectionStyle}>
           <div style={googleHeaderRowStyle}>
             <div>
@@ -475,7 +472,6 @@ export default function PanelPage() {
             </div>
           </div>
 
-          {/* Snapshot de próximos eventos de Google */}
           {googleConnected && (
             <div style={googleEventsWrapperStyle}>
               <div style={googleEventsHeaderRowStyle}>
@@ -497,30 +493,28 @@ export default function PanelPage() {
 
               {!googleEventsLoading && hasGoogleEvents && (
                 <ul style={googleEventsListStyle}>
-                  {(googleEvents ?? [])
-                    .slice(0, 3)
-                    .map((ev) => (
-                      <li key={ev.id} style={googleEventItemStyle}>
-                        <div style={googleEventMainRowStyle}>
-                          <span style={googleEventTitleStyle}>
-                            {ev.title || "Evento sin título"}
+                  {(googleEvents ?? []).slice(0, 3).map((ev) => (
+                    <li key={ev.id} style={googleEventItemStyle}>
+                      <div style={googleEventMainRowStyle}>
+                        <span style={googleEventTitleStyle}>
+                          {ev.title || "Evento sin título"}
+                        </span>
+                        {ev.allDay && (
+                          <span style={googleEventBadgeStyle}>
+                            Todo el día
                           </span>
-                          {ev.allDay && (
-                            <span style={googleEventBadgeStyle}>
-                              Todo el día
-                            </span>
-                          )}
-                        </div>
-                        <div style={googleEventRangeStyle}>
-                          {formatExternalEventRange(ev)}
-                        </div>
-                        {ev.location && (
-                          <div style={googleEventLocationStyle}>
-                            {ev.location}
-                          </div>
                         )}
-                      </li>
-                    ))}
+                      </div>
+                      <div style={googleEventRangeStyle}>
+                        {formatExternalEventRange(ev)}
+                      </div>
+                      {ev.location && (
+                        <div style={googleEventLocationStyle}>
+                          {ev.location}
+                        </div>
+                      )}
+                    </li>
+                  ))}
                 </ul>
               )}
 
@@ -536,7 +530,6 @@ export default function PanelPage() {
           )}
         </section>
 
-        {/* Bloque de accesos rápidos */}
         <section style={quickLinksSectionStyle}>
           <div style={quickLinksHeaderRowStyle}>
             <h3 style={quickLinksTitleStyle}>Accesos rápidos</h3>
@@ -566,8 +559,6 @@ export default function PanelPage() {
     </MobileScaffold>
   );
 }
-
-// ===== Estilos =====
 
 const sectionWrapperStyle: CSSProperties = {
   maxWidth: 720,
@@ -1040,7 +1031,6 @@ const quickLinkHintStyle: CSSProperties = {
   color: colors.textSecondary,
 };
 
-// Helper para formato de rango de eventos externos
 function formatExternalEventRange(ev: ExternalEvent): string {
   const start = new Date(ev.start);
   const end = new Date(ev.end);
@@ -1075,6 +1065,6 @@ function formatExternalEventRange(ev: ExternalEvent): string {
   }
 
   return `${dayFormatter.format(start)} ${startTime} → ${dayFormatter.format(
-    end,
+    end
   )} ${endTime}`;
 }
