@@ -1,4 +1,3 @@
-// src/app/events/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -16,12 +15,12 @@ import {
   deleteEventsByIds,
   type DbEventRow,
 } from "@/lib/eventsDb";
+import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import {
-  getGroupTypeLabel,
-  getMyGroups,
-  type GroupRow,
-} from "@/lib/groupsDb";
-import { groupMeta } from "@/lib/conflicts";
+  filterSoftRejectedEvents,
+  loadSoftRejectedEventIds,
+  SOFT_REJECTED_EVENTS_KEY,
+} from "@/lib/conflicts";
 
 type ViewMode = "upcoming" | "history" | "all";
 type Scope = "personal" | "groups" | "all";
@@ -36,6 +35,14 @@ type EventWithGroup = DbEventRow & {
   group?: GroupRow | null;
 };
 
+function localDateKey(value: string | Date) {
+  const d = value instanceof Date ? value : new Date(value);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export default function EventsPage() {
   const router = useRouter();
 
@@ -43,6 +50,9 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
 
   const [events, setEvents] = useState<EventWithGroup[]>([]);
+  const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(
+    () => loadSoftRejectedEventIds()
+  );
   const [groups, setGroups] = useState<GroupRow[]>([]);
 
   const [filters, setFilters] = useState<FilterState>({
@@ -87,19 +97,16 @@ export default function EventsPage() {
 
         if (!alive) return;
 
-        const groupsById = new Map(
-          groupsRes.map((g) => [String(g.id), g]),
-        );
+        const groupsById = new Map(groupsRes.map((g) => [String(g.id), g]));
 
         const withGroup: EventWithGroup[] = eventsRes.map((e) => ({
           ...e,
-          group: e.group_id
-            ? groupsById.get(String(e.group_id)) ?? null
-            : null,
+          group: e.group_id ? groupsById.get(String(e.group_id)) ?? null : null,
         }));
 
         setEvents(withGroup);
         setGroups(groupsRes);
+        setHiddenEventIds(loadSoftRejectedEventIds());
       } catch (err) {
         console.error("Error booting events:", err);
       } finally {
@@ -116,12 +123,56 @@ export default function EventsPage() {
     };
   }, [router]);
 
+  // ===== REFRESH DE SOFT REJECTED =====
+
+  useEffect(() => {
+    const refreshHidden = () => {
+      setHiddenEventIds(loadSoftRejectedEventIds());
+    };
+
+    const onFocus = () => refreshHidden();
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        refreshHidden();
+      }
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === SOFT_REJECTED_EVENTS_KEY) {
+        refreshHidden();
+      }
+    };
+
+    const onSoftRejectedChanged = () => {
+      refreshHidden();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(
+      "sp:soft-rejected-events-changed",
+      onSoftRejectedChanged as EventListener
+    );
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(
+        "sp:soft-rejected-events-changed",
+        onSoftRejectedChanged as EventListener
+      );
+    };
+  }, []);
+
   // ===== DERIVADOS =====
 
   const totalGroups = groups.length;
 
   const filteredEvents = useMemo(() => {
-    let list = [...events];
+    let list = filterSoftRejectedEvents(events, hiddenEventIds);
 
     const now = new Date();
 
@@ -144,61 +195,54 @@ export default function EventsPage() {
     const q = filters.query.trim().toLowerCase();
     if (q) {
       list = list.filter((e) => {
-        const title = (e.title ?? "").toLowerCase();
-        const notes = (e.notes ?? "").toLowerCase();
-        const groupName = (e.group?.name ?? "").toLowerCase();
+        const title = String(e.title ?? "").toLowerCase();
+        const notes = String(e.notes ?? "").toLowerCase();
+        const groupName = String(e.group?.name ?? "").toLowerCase();
+
         return (
-          title.includes(q) ||
-          notes.includes(q) ||
-          groupName.includes(q)
+          title.includes(q) || notes.includes(q) || groupName.includes(q)
         );
       });
     }
 
     return list;
-  }, [events, filters]);
+  }, [events, hiddenEventIds, filters]);
 
-const groupedByDate = useMemo(() => {
-  const groupsMap = new Map<string, EventWithGroup[]>();
+  const groupedByDate = useMemo(() => {
+    const groupsMap = new Map<string, EventWithGroup[]>();
 
-  for (const e of filteredEvents) {
-    const key = localDateKey(e.start);
-    if (!groupsMap.has(key)) groupsMap.set(key, []);
-    groupsMap.get(key)!.push(e);
-  }
+    for (const e of filteredEvents) {
+      const key = localDateKey(e.start);
+      if (!groupsMap.has(key)) groupsMap.set(key, []);
+      groupsMap.get(key)!.push(e);
+    }
 
-  const entries = Array.from(groupsMap.entries()).sort(
-    ([a], [b]) => (a < b ? -1 : 1),
-  );
+    const entries = Array.from(groupsMap.entries()).sort(([a], [b]) =>
+      a < b ? -1 : 1
+    );
 
-  return entries.map(([dateKey, list]) => ({
-    dateKey,
-    events: list,
-  }));
-}, [filteredEvents]);
+    return entries.map(([dateKey, list]) => ({
+      dateKey,
+      events: list,
+    }));
+  }, [filteredEvents]);
+
   const headerSubtitle = useMemo(() => {
-    if (events.length === 0) {
+    const visibleEvents = filterSoftRejectedEvents(events, hiddenEventIds);
+
+    if (visibleEvents.length === 0) {
       return "Mira y gestiona tu lista de eventos personales y compartidos.";
     }
 
-    const personal = events.filter((e) => !e.group_id).length;
-    const groupEvents = events.filter((e) => !!e.group_id).length;
+    const personal = visibleEvents.filter((e) => !e.group_id).length;
+    const groupEvents = visibleEvents.filter((e) => !!e.group_id).length;
 
     return `Tu lista combina ${personal} evento${
       personal === 1 ? "" : "s"
     } personales y ${groupEvents} en grupos. Filtra, revisa y limpia sin perder contexto.`;
-  }, [events]);
-
-  const conflictsNow = 0;
+  }, [events, hiddenEventIds]);
 
   // ===== HANDLERS =====
-function localDateKey(value: string | Date) {
-  const d = value instanceof Date ? value : new Date(value);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
 
   function toggleSelection(id: string) {
     setSelectedIds((prev) => {
@@ -227,19 +271,16 @@ function localDateKey(value: string | Date) {
         }),
       ]);
 
-      const groupsById = new Map(
-        groupsRes.map((g) => [String(g.id), g]),
-      );
+      const groupsById = new Map(groupsRes.map((g) => [String(g.id), g]));
 
       const withGroup: EventWithGroup[] = eventsRes.map((e) => ({
         ...e,
-        group: e.group_id
-          ? groupsById.get(String(e.group_id)) ?? null
-          : null,
+        group: e.group_id ? groupsById.get(String(e.group_id)) ?? null : null,
       }));
 
       setEvents(withGroup);
       setGroups(groupsRes);
+      setHiddenEventIds(loadSoftRejectedEventIds());
     } catch (err: any) {
       console.error("Error refrescando eventos:", err);
       setToast({
@@ -260,7 +301,7 @@ function localDateKey(value: string | Date) {
       !window.confirm(
         `¿Eliminar ${selectedIds.size} evento${
           selectedIds.size === 1 ? "" : "s"
-        } de tu lista? Esta acción no se puede deshacer.`,
+        } de tu lista? Esta acción no se puede deshacer.`
       )
     ) {
       return;
@@ -272,9 +313,7 @@ function localDateKey(value: string | Date) {
       const idsArray = Array.from(selectedIds);
       await deleteEventsByIds(idsArray);
 
-      setEvents((prev) =>
-        prev.filter((e) => !idsArray.includes(String(e.id))),
-      );
+      setEvents((prev) => prev.filter((e) => !idsArray.includes(String(e.id))));
       setSelectedIds(new Set());
       setToast({
         type: "success",
@@ -339,12 +378,8 @@ function localDateKey(value: string | Date) {
             <div style={S.loadingRow}>
               <div style={S.loadingDot} />
               <div>
-                <div style={S.loadingTitle}>
-                  Cargando tus eventos…
-                </div>
-                <div style={S.loadingSub}>
-                  Preparando tu lista para hoy
-                </div>
+                <div style={S.loadingTitle}>Cargando tus eventos…</div>
+                <div style={S.loadingSub}>Preparando tu lista para hoy</div>
               </div>
             </div>
           </section>
@@ -395,16 +430,15 @@ function localDateKey(value: string | Date) {
           <EventsHero subtitle={headerSubtitle} />
         </div>
 
-        {/* CARD PRINCIPAL */}
         <section style={S.card} className="spEvt-card">
           <div style={S.titleRow}>
             <div>
               <div style={S.kicker}>Tu agenda, capa por capa</div>
               <h1 style={S.h1}>Lista de eventos</h1>
               <p style={S.sub}>
-                Mira tus próximos eventos personales y de grupos en un
-                solo lugar. Desde aquí puedes editar, filtrar y eliminar
-                sin perder claridad.
+                Mira tus próximos eventos personales y de grupos en un solo
+                lugar. Desde aquí puedes editar, filtrar y eliminar sin perder
+                claridad.
               </p>
             </div>
 
@@ -413,27 +447,35 @@ function localDateKey(value: string | Date) {
               <div style={S.factRow}>
                 <span style={S.factDotPersonal} />
                 <span>
-                  {events.filter((e) => !e.group_id).length} personales
+                  {
+                    filterSoftRejectedEvents(events, hiddenEventIds).filter(
+                      (e) => !e.group_id
+                    ).length
+                  }{" "}
+                  personales
                 </span>
               </div>
               <div style={S.factRow}>
                 <span style={S.factDotGroup} />
                 <span>
-                  {events.filter((e) => !!e.group_id).length} en grupos
+                  {
+                    filterSoftRejectedEvents(events, hiddenEventIds).filter(
+                      (e) => !!e.group_id
+                    ).length
+                  }{" "}
+                  en grupos
                 </span>
               </div>
 
               {totalGroups > 0 && (
                 <div style={S.factHint}>
-                  Tienes {totalGroups} grupo
-                  {totalGroups === 1 ? "" : "s"} conectado
-                  {totalGroups === 1 ? "" : "s"} a tu agenda.
+                  Tienes {totalGroups} grupo{totalGroups === 1 ? "" : "s"}{" "}
+                  conectado{totalGroups === 1 ? "" : "s"} a tu agenda.
                 </div>
               )}
             </aside>
           </div>
 
-          {/* Filtros y acciones */}
           <EventsFiltersBar
             view={filters.view}
             scope={filters.scope}
@@ -458,7 +500,6 @@ function localDateKey(value: string | Date) {
             }
           />
 
-          {/* Acciones masivas / digest demo */}
           {events.length > 0 && (
             <button
               type="button"
@@ -493,18 +534,13 @@ function localDateKey(value: string | Date) {
             </div>
           )}
 
-          {/* Lista de eventos */}
           {loading ? (
             <div style={S.loadingList}>
               <div style={S.loadingRow}>
                 <div style={S.loadingDot} />
                 <div>
-                  <div style={S.loadingTitle}>
-                    Cargando eventos…
-                  </div>
-                  <div style={S.loadingSub}>
-                    Un momento, por favor.
-                  </div>
+                  <div style={S.loadingTitle}>Cargando eventos…</div>
+                  <div style={S.loadingSub}>Un momento, por favor.</div>
                 </div>
               </div>
             </div>
@@ -523,7 +559,6 @@ function localDateKey(value: string | Date) {
           )}
         </section>
 
-        {/* Botón para refrescar datos */}
         <section style={S.footerSection}>
           <button
             type="button"
@@ -538,8 +573,6 @@ function localDateKey(value: string | Date) {
     </MobileScaffold>
   );
 }
-
-// ===== ESTILOS (solo diseño, sin lógica) =====
 
 const S: Record<string, React.CSSProperties> = {
   pageShell: {
