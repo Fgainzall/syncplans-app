@@ -16,7 +16,11 @@ import MobileScaffold from "@/components/MobileScaffold";
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { getMyEvents } from "@/lib/eventsDb";
-import { filterSoftRejectedEvents } from "@/lib/conflicts";
+import {
+  filterSoftRejectedEvents,
+  loadSoftRejectedEventIds,
+  SOFT_REJECTED_EVENTS_KEY,
+} from "@/lib/conflicts";
 
 type Props = {
   highlightId: string | null;
@@ -141,11 +145,7 @@ function normalizeEvent(e: any): SummaryEvent | null {
   const groupIdRaw = e?.group_id ?? e?.groupId ?? null;
   const groupId = groupIdRaw ? String(groupIdRaw) : null;
 
-  const title =
-    e?.title ??
-    e?.name ??
-    e?.summary ??
-    "Evento";
+  const title = e?.title ?? e?.name ?? e?.summary ?? "Evento";
 
   const isExternal =
     !!e?.is_external ||
@@ -191,6 +191,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [events, setEvents] = useState<any[]>([]);
+  const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(() =>
+    loadSoftRejectedEventIds()
+  );
   const [loading, setLoading] = useState(false);
 
   const [conflictAlert, setConflictAlert] = useState<{
@@ -223,6 +226,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return () => clearToastTimer();
   }, []);
 
+  const refreshHiddenEventIds = useCallback(() => {
+    setHiddenEventIds(loadSoftRejectedEventIds());
+  }, []);
+
   const activeGroup = useMemo(() => {
     if (!activeGroupId) return null;
     return groups.find((g) => String(g.id) === String(activeGroupId)) ?? null;
@@ -243,8 +250,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       .map(normalizeEvent)
       .filter(Boolean) as SummaryEvent[];
 
-    return filterSoftRejectedEvents(mapped);
-  }, [events]);
+    return filterSoftRejectedEvents(mapped, hiddenEventIds);
+  }, [events, hiddenEventIds]);
 
   /**
    * Regla correcta del resumen:
@@ -364,6 +371,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const loadSummary = useCallback(async () => {
     setLoading(true);
+    refreshHiddenEventIds();
 
     try {
       const user = await requireSessionOrRedirect();
@@ -399,7 +407,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [router, showToast]);
+  }, [router, showToast, refreshHiddenEventIds]);
 
   useEffect(() => {
     let alive = true;
@@ -438,28 +446,48 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
    * Esto ayuda mucho después de volver desde Conflictos.
    */
   useEffect(() => {
-    const onFocus = () => loadSummary();
+    const onFocus = () => {
+      refreshHiddenEventIds();
+      void loadSummary();
+    };
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
+        refreshHiddenEventIds();
         void loadSummary();
       }
     };
 
-    const onStorage = () => {
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === SOFT_REJECTED_EVENTS_KEY) {
+        refreshHiddenEventIds();
+        void loadSummary();
+      }
+    };
+
+    const onSoftRejectedChanged = () => {
+      refreshHiddenEventIds();
       void loadSummary();
     };
 
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("storage", onStorage);
+    window.addEventListener(
+      "sp:soft-rejected-events-changed",
+      onSoftRejectedChanged as EventListener
+    );
 
     return () => {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("storage", onStorage);
+      window.removeEventListener(
+        "sp:soft-rejected-events-changed",
+        onSoftRejectedChanged as EventListener
+      );
     };
-  }, [loadSummary]);
+  }, [loadSummary, refreshHiddenEventIds]);
 
   const title = activeGroupId
     ? `Resumen · Personal + ${activeLabel}`
