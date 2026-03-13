@@ -124,18 +124,16 @@ export async function createNotifications(
     new Map(cleaned.map((row) => [uniqueNotificationKey(row), row])).values()
   );
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("notifications")
-    .insert(deduped)
-    .select("id");
+    .insert(deduped);
 
   if (error) {
-    console.error("[createNotifications] insert error", error);
+    console.error("[createNotifications] insert error", error, deduped);
     throw error;
   }
 
-  const insertedCount = Array.isArray(data) ? data.length : 0;
-  return insertedCount;
+  return deduped.length;
 }
 
 async function hasUnreadConflictNotificationForEvent(
