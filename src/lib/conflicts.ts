@@ -221,20 +221,25 @@ export function fmtRange(startISO: string, endISO: string) {
    Groups
    ========================= */
 
+type GroupTypeLike = GroupType | "other" | "shared" | (string & {});
+
 export function normalizeGroupType(
-  gt: GroupType
-): "personal" | "pair" | "family" {
-  if (gt === "couple") return "pair";
-  if (gt === "pair") return "pair";
-  if (gt === "family") return "family";
+  gt: GroupTypeLike
+): "personal" | "pair" | "family" | "shared" {
+  const value = String(gt ?? "").toLowerCase();
+
+  if (value === "couple" || value === "pair") return "pair";
+  if (value === "family") return "family";
+  if (value === "other" || value === "shared") return "shared";
   return "personal";
 }
 
-export function groupMeta(groupType: GroupType) {
+export function groupMeta(groupType: GroupTypeLike) {
   const gt = normalizeGroupType(groupType);
   if (gt === "personal") return { label: "Personal", dot: "#FBBF24" };
   if (gt === "pair") return { label: "Pareja", dot: "#F87171" };
-  return { label: "Familia", dot: "#60A5FA" };
+  if (gt === "family") return { label: "Familia", dot: "#60A5FA" };
+  return { label: "Compartido", dot: "#A855F7" };
 }
 
 /* =========================

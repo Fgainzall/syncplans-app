@@ -9,7 +9,7 @@ import React, {
   useCallback,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-
+import { getUnreadConflictNotificationsSummary } from "@/lib/notificationsDb";
 import supabase from "@/lib/supabaseClient";
 import AppHero from "@/components/AppHero";
 import MobileScaffold from "@/components/MobileScaffold";
@@ -209,15 +209,22 @@ export default function CalendarClient(
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
 
-  const groupTypeById = useMemo(() => {
-    const m = new Map<string, "pair" | "family">();
-    for (const g of groups || []) {
-      const id = String(g.id);
-      const rawType = String(g.type ?? "").toLowerCase();
-      m.set(id, rawType === "family" ? "family" : "pair");
+const groupTypeById = useMemo(() => {
+  const m = new Map<string, "pair" | "family" | "other">();
+  for (const g of groups || []) {
+    const id = String(g.id);
+    const rawType = String(g.type ?? "").toLowerCase();
+
+    if (rawType === "family") {
+      m.set(id, "family");
+    } else if (rawType === "other" || rawType === "shared") {
+      m.set(id, "other");
+    } else {
+      m.set(id, "pair");
     }
-    return m;
-  }, [groups]);
+  }
+  return m;
+}, [groups]);
 
   const [error, setError] = useState<string | null>(null);
   const [eventsLoaded, setEventsLoaded] = useState(false);
@@ -232,7 +239,13 @@ export default function CalendarClient(
 
   const [toast, setToast] =
     useState<null | { title: string; subtitle?: string }>(null);
-
+const [conflictAlert, setConflictAlert] = useState<{
+  count: number;
+  latestEventId: string | null;
+}>({
+  count: 0,
+  latestEventId: null,
+});
   /* ✏️ ESTADO DEL MODAL DE EDICIÓN */
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -300,29 +313,50 @@ export default function CalendarClient(
         const groupIds = (myGroups || []).map((g: any) => String(g.id));
 
         // ✅ getEventsForGroups(groupIds) incluye personal
-        const rawEvents: any[] = (await getEventsForGroups(groupIds)) as any[];
+       const [rawEvents, conflictInfo] = await Promise.all([
+  getEventsForGroups(groupIds),
+  getUnreadConflictNotificationsSummary().catch(() => ({
+    count: 0,
+    latestEventId: null,
+  })),
+]);
 
-        const groupTypeByIdLocal = new Map<string, "family" | "pair">(
-          (myGroups || []).map((g: any) => {
-            const id = String(g.id);
-            const rawType = String(g.type ?? "").toLowerCase();
-            const normalized: "family" | "pair" =
-              rawType === "family" ? "family" : "pair";
-            return [id, normalized];
-          })
-        );
+setConflictAlert(conflictInfo);
+
+const groupTypeByIdLocal = new Map<string, "family" | "pair" | "other">(
+  (myGroups || []).map((g: any) => {
+    const id = String(g.id);
+    const rawType = String(g.type ?? "").toLowerCase();
+
+    const normalized: "family" | "pair" | "other" =
+      rawType === "family"
+        ? "family"
+        : rawType === "other" || rawType === "shared"
+        ? "other"
+        : "pair";
+
+    return [id, normalized];
+  })
+);
 
         const enriched: CalendarEvent[] = (rawEvents || [])
           .map((ev: any) => {
             const gid = ev.group_id ?? ev.groupId ?? null;
 
             let gt: GroupType = "personal" as any;
-            if (gid) {
-              const t = groupTypeByIdLocal.get(String(gid));
-              gt = (t === "family" ? "family" : "pair") as any;
-            } else {
-              gt = "personal" as any;
-            }
+if (gid) {
+  const t = groupTypeByIdLocal.get(String(gid));
+
+  if (t === "family") {
+    gt = "family" as any;
+  } else if (t === "other") {
+    gt = "other" as any;
+  } else {
+    gt = "pair" as any;
+  }
+} else {
+  gt = "personal" as any;
+}
 
             const startRaw = ev.start;
             const endRaw = ev.end;
@@ -743,7 +777,17 @@ export default function CalendarClient(
     );
   };
 
-  const openConflicts = () => router.push("/conflicts/detected");
+  const openConflicts = () => {
+  if (conflictAlert.latestEventId) {
+    router.push(
+      `/conflicts/detected?eventId=${encodeURIComponent(
+        conflictAlert.latestEventId
+      )}`
+    );
+    return;
+  }
+  router.push("/conflicts/detected");
+};
   const resolveNow = () =>
     router.push(
       `/conflicts/compare?i=${firstRelevantConflictIndex}`
@@ -820,76 +864,89 @@ export default function CalendarClient(
         </div>
 
         {/* HERO premium */}
-        <section style={styles.hero} className="spCal-hero">
-          <div style={styles.heroLeft}>
-            <div style={styles.titleRow}>
-              <h1 style={styles.h1} className="spCal-title">
-                Calendario
-              </h1>
+        {/* HERO premium */}
+<section style={styles.hero} className="spCal-hero">
+  <div style={styles.heroLeft}>
+    <div style={styles.titleRow}>
+      <h1 style={styles.h1} className="spCal-title">
+        Calendario
+      </h1>
 
-              {!eventsLoaded ? (
-                <div style={styles.okPill}>
-                  <span style={styles.okDot} />
-                  Revisando conflictos…
-                </div>
-              ) : conflictCount > 0 ? (
-                <div style={styles.conflictCluster}>
-                  <button
-                    onClick={openConflicts}
-                    style={styles.conflictPill}
-                  >
-                    <span style={styles.conflictDot} />
-                    {conflictCount} conflicto
-                    {conflictCount === 1 ? "" : "s"}
-                    <span style={styles.conflictArrow}>→</span>
-                  </button>
+      {!eventsLoaded ? (
+        <div style={styles.okPill}>
+          <span style={styles.okDot} />
+          Revisando conflictos…
+        </div>
+      ) : conflictCount > 0 ? (
+        <div style={styles.conflictCluster}>
+          <button onClick={openConflicts} style={styles.conflictPill}>
+            <span style={styles.conflictDot} />
+            {conflictCount} conflicto
+            {conflictCount === 1 ? "" : "s"}
+            <span style={styles.conflictArrow}>→</span>
+          </button>
 
-                  <button
-                    onClick={resolveNow}
-                    style={styles.resolvePill}
-                  >
-                    Resolver ahora ✨
-                  </button>
-                </div>
-              ) : (
-                <div style={styles.okPill}>
-                  <span style={styles.okDot} />
-                  Sin conflictos
-                </div>
-              )}
-            </div>
+          <button onClick={resolveNow} style={styles.resolvePill}>
+            Resolver ahora ✨
+          </button>
+        </div>
+      ) : (
+        <div style={styles.okPill}>
+          <span style={styles.okDot} />
+          Sin conflictos
+        </div>
+      )}
+    </div>
 
-            <div style={styles.sub}>
-              Vista {tab === "month" ? "mensual" : "agenda"} ·{" "}
-              {monthTitle}
-            </div>
+    <div style={styles.sub}>
+      Vista {tab === "month" ? "mensual" : "agenda"} · {monthTitle}
+    </div>
 
-            {error ? (
-              <div
-                style={{ ...styles.emptyHint, borderStyle: "solid" }}
-              >
-                {error}
-              </div>
-            ) : null}
-          </div>
+    {error ? (
+      <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>
+        {error}
+      </div>
+    ) : null}
+  </div>
 
-          <div style={styles.heroRight}>
-            <button
-              onClick={() => openNewEventPersonal()}
-              style={styles.primaryBtnPersonal}
-            >
-              + Personal
-            </button>
-            <button
-              onClick={() => openNewEventGroup()}
-              style={styles.primaryBtnGroup}
-            >
-              + Grupo
-            </button>
-          </div>
-        </section>
+  <div style={styles.heroRight}>
+    <button
+      onClick={() => openNewEventPersonal()}
+      style={styles.primaryBtnPersonal}
+    >
+      + Personal
+    </button>
+    <button
+      onClick={() => openNewEventGroup()}
+      style={styles.primaryBtnGroup}
+    >
+      + Grupo
+    </button>
+  </div>
+</section>
 
-        {/* FILTROS */}
+{conflictAlert.count > 0 ? (
+  <button
+    onClick={openConflicts}
+    style={styles.conflictBanner}
+    className="spCal-conflictBanner"
+  >
+    <div style={styles.conflictBannerLeft}>
+      <div style={styles.conflictBannerEyebrow}>Conflictos activos</div>
+      <div style={styles.conflictBannerTitle}>
+        Tienes {conflictAlert.count} conflicto
+        {conflictAlert.count === 1 ? "" : "s"} pendiente
+        {conflictAlert.count === 1 ? "" : "s"}
+      </div>
+      <div style={styles.conflictBannerSub}>
+        Hay eventos que siguen chocando. Entra y decide cuál se queda.
+      </div>
+    </div>
+
+    <div style={styles.conflictBannerCta}>Revisar ahora →</div>
+  </button>
+) : null}
+/* FILTROS */
         <CalendarFilters
           tab={tab}
           scope={scope}
@@ -1087,7 +1144,7 @@ function EventRow({
   setRef?: (id: string) => (el: HTMLDivElement | null) => void;
   onDelete?: (id: string, title?: string) => void;
   onEdit?: (e: CalendarEvent) => void;
-  groupTypeById?: Map<string, "pair" | "family">;
+ groupTypeById?: Map<string, "pair" | "family" | "other">;
 }) {
   const resolvedType: GroupType = e.groupId
     ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
@@ -1184,7 +1241,7 @@ function renderMonthCells(opts: {
   eventsByDay: Map<string, CalendarEvent[]>;
   openNewEventPersonal: (date?: Date) => void;
   openNewEventGroup: (date?: Date) => void;
-  groupTypeById: Map<string, "pair" | "family">;
+  groupTypeById: Map<string, "pair" | "family" | "other">;
   onEdit: (e: CalendarEvent) => void;
   today: Date;
 }) {
@@ -1955,11 +2012,62 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(56,189,248,0.95)",
     boxShadow: "0 0 24px rgba(56,189,248,0.55)",
   },
-  loadingTitle: { fontWeight: 950 },
-  loadingSub: {
-    fontSize: 12,
-    opacity: 0.75,
-    marginTop: 2,
-    fontWeight: 700,
-  },
+ loadingTitle: { fontWeight: 950 },
+loadingSub: {
+  fontSize: 12,
+  opacity: 0.75,
+  marginTop: 2,
+  fontWeight: 700,
+},
+
+conflictBanner: {
+  width: "100%",
+  marginTop: 12,
+  marginBottom: 14,
+  borderRadius: 20,
+  border: "1px solid rgba(248,113,113,0.28)",
+  background:
+    "linear-gradient(180deg, rgba(248,113,113,0.14), rgba(244,63,94,0.08))",
+  padding: 16,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 14,
+  cursor: "pointer",
+  color: "rgba(255,255,255,0.94)",
+  textAlign: "left",
+  boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
+},
+conflictBannerLeft: {
+  minWidth: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+},
+conflictBannerEyebrow: {
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  fontWeight: 900,
+  opacity: 0.72,
+},
+conflictBannerTitle: {
+  fontSize: 18,
+  fontWeight: 950,
+  letterSpacing: "-0.3px",
+},
+conflictBannerSub: {
+  fontSize: 12,
+  opacity: 0.8,
+  lineHeight: 1.45,
+},
+conflictBannerCta: {
+  flexShrink: 0,
+  padding: "10px 12px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "rgba(255,255,255,0.06)",
+  fontSize: 12,
+  fontWeight: 900,
+},
 };

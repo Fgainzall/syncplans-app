@@ -3,10 +3,10 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-
+import { createConflictNotificationForGroup } from "@/lib/notificationsDb";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
-const AnyPremiumHeader = PremiumHeader as React.ComponentType<any>;
+
 import supabase from "@/lib/supabaseClient";
 
 import {
@@ -27,6 +27,7 @@ function labelType(t?: string | null) {
   if (s === "pair" || s === "couple") return "Pareja";
   if (s === "family") return "Familia";
   if (s === "solo" || s === "personal") return "Personal";
+  if (s === "other" || s === "shared") return "Compartido";
   return t ? String(t) : "Grupo";
 }
 
@@ -162,29 +163,61 @@ export default function AcceptInviteClient() {
   const pending = status === "pending";
 
   // 🔹 Aceptar invitación → usa RPC acceptInvitation
-  async function onAccept() {
-    if (!inviteId || !inv) return;
+async function onAccept() {
+  if (!inviteId || !inv) return;
 
-    setBusy("accept");
-    try {
-      const res = await acceptInvitation(inviteId);
-      if (!res?.ok) throw new Error(res?.error || "No se pudo aceptar.");
+  setBusy("accept");
+  try {
+    const res = await acceptInvitation(inviteId);
+    if (!res?.ok) throw new Error(res?.error || "No se pudo aceptar.");
 
+    const conflictResult = await createConflictNotificationForGroup(
+      inv.group_id
+    ).catch(() => ({
+      created: 0,
+      conflictCount: 0,
+      targetEventId: null,
+    }));
+
+    setInv((prev) => (prev ? { ...prev, status: "accepted" as any } : prev));
+
+    if (conflictResult.conflictCount > 0) {
       showToast({
-        title: "✅ Invitación aceptada",
-        subtitle: "Ya eres parte del grupo.",
+        title: "⚠️ Hay conflictos por revisar",
+        subtitle: "Te llevo a resolverlos ahora.",
       });
-      setInv((prev) => (prev ? { ...prev, status: "accepted" as any } : prev));
-      window.setTimeout(() => router.push(`/groups?joined=${encodeURIComponent(inv.group_id)}`), 700);
-    } catch (e: any) {
-      showToast({
-        title: "No se pudo aceptar",
-        subtitle: e?.message || "Intenta otra vez.",
-      });
-    } finally {
-      setBusy(null);
+
+      const qp = new URLSearchParams();
+      if (conflictResult.targetEventId) {
+        qp.set("eventId", conflictResult.targetEventId);
+        window.setTimeout(() => {
+          router.push(`/conflicts/detected?${qp.toString()}`);
+        }, 700);
+      } else {
+        window.setTimeout(() => {
+          router.push("/conflicts/detected");
+        }, 700);
+      }
+      return;
     }
+
+    showToast({
+      title: "✅ Invitación aceptada",
+      subtitle: "Ya eres parte del grupo.",
+    });
+
+    window.setTimeout(() => {
+      router.push(`/groups?joined=${encodeURIComponent(inv.group_id)}`);
+    }, 700);
+  } catch (e: any) {
+    showToast({
+      title: "No se pudo aceptar",
+      subtitle: e?.message || "Intenta otra vez.",
+    });
+  } finally {
+    setBusy(null);
   }
+}
 
   // 🔹 Rechazar invitación → usa RPC declineInvitation
   async function onDecline() {

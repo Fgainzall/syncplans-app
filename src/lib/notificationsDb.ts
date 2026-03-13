@@ -6,6 +6,8 @@ import {
   getMyNotificationSettings,
   type NotificationSettings as UserNotificationSettings,
 } from "@/lib/userNotificationSettings";
+import { computeVisibleConflicts, attachEvents } from "@/lib/conflicts";
+import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
 
 export type NotificationType =
   | "event_created"
@@ -38,6 +40,30 @@ export type CreateNotificationInput = {
   payload?: any | null;
 };
 
+export type ConflictNotificationResult = {
+  created: number;
+  conflictCount: number;
+  targetEventId: string | null;
+};
+
+type AttachedConflict = {
+  id: string;
+  existingEventId: string;
+  incomingEventId: string;
+  overlapStart: string;
+  overlapEnd: string;
+  existingEvent?: {
+    id: string;
+    title?: string;
+    groupId?: string | null;
+  } | null;
+  incomingEvent?: {
+    id: string;
+    title?: string;
+    groupId?: string | null;
+  } | null;
+};
+
 async function requireUid(): Promise<string> {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
@@ -68,6 +94,191 @@ export async function createNotifications(
   if (error) throw error;
 
   return cleaned.length;
+}
+
+async function hasUnreadConflictNotificationForEvent(
+  uid: string,
+  eventId: string
+): Promise<boolean> {
+  if (!eventId) return false;
+
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("id")
+    .eq("user_id", uid)
+    .eq("type", "conflict_detected")
+    .eq("entity_id", eventId)
+    .is("read_at", null)
+    .limit(1);
+
+  if (error) throw error;
+  return Array.isArray(data) && data.length > 0;
+}
+
+function buildAttachedConflicts(
+  events: any[]
+): AttachedConflict[] {
+  const cx = computeVisibleConflicts(events);
+  return attachEvents(cx, events) as unknown as AttachedConflict[];
+}
+
+export async function createConflictNotificationForEvent(
+  eventId: string
+): Promise<ConflictNotificationResult> {
+  const uid = await requireUid();
+  const safeEventId = String(eventId ?? "").trim();
+
+  if (!safeEventId) {
+    return { created: 0, conflictCount: 0, targetEventId: null };
+  }
+
+  const { events } = await loadEventsFromDb();
+  const attached = buildAttachedConflicts(events);
+
+  const related = attached.filter(
+    (c) =>
+      String(c.existingEventId) === safeEventId ||
+      String(c.incomingEventId) === safeEventId
+  );
+
+  if (related.length === 0) {
+    return { created: 0, conflictCount: 0, targetEventId: safeEventId };
+  }
+
+  const targetEvent =
+    events.find((e: any) => String(e.id) === safeEventId) ?? null;
+
+  const alreadyExists = await hasUnreadConflictNotificationForEvent(
+    uid,
+    safeEventId
+  );
+
+  if (alreadyExists) {
+    return {
+      created: 0,
+      conflictCount: related.length,
+      targetEventId: safeEventId,
+    };
+  }
+
+  const count = related.length;
+  const title =
+    count === 1
+      ? "Se detectó 1 conflicto nuevo"
+      : `Se detectaron ${count} conflictos nuevos`;
+
+  const body = targetEvent?.title
+    ? `“${targetEvent.title}” se cruza con otro horario. Revísalo ahora.`
+    : "Tu nuevo evento se cruza con otro horario. Revísalo ahora.";
+
+  const created = await createNotifications([
+    {
+      user_id: uid,
+      type: "conflict_detected",
+      title,
+      body,
+      entity_id: safeEventId,
+      payload: {
+        source: "event_save",
+        event_id: safeEventId,
+        conflict_count: count,
+        conflict_ids: related.map((c) => c.id),
+      },
+    },
+  ]);
+
+  return {
+    created,
+    conflictCount: count,
+    targetEventId: safeEventId,
+  };
+}
+
+export async function createConflictNotificationForGroup(
+  groupId: string
+): Promise<ConflictNotificationResult> {
+  const uid = await requireUid();
+  const safeGroupId = String(groupId ?? "").trim();
+
+  if (!safeGroupId) {
+    return { created: 0, conflictCount: 0, targetEventId: null };
+  }
+
+  const { events } = await loadEventsFromDb();
+  const attached = buildAttachedConflicts(events);
+
+  const related = attached.filter((c) => {
+    const aGroupId = c.existingEvent?.groupId ?? null;
+    const bGroupId = c.incomingEvent?.groupId ?? null;
+
+    return (
+      (aGroupId && String(aGroupId) === safeGroupId) ||
+      (bGroupId && String(bGroupId) === safeGroupId)
+    );
+  });
+
+  if (related.length === 0) {
+    return { created: 0, conflictCount: 0, targetEventId: null };
+  }
+
+  const targetEvent =
+    related.find(
+      (c) => c.existingEvent?.groupId && String(c.existingEvent.groupId) === safeGroupId
+    )?.existingEvent ??
+    related.find(
+      (c) => c.incomingEvent?.groupId && String(c.incomingEvent.groupId) === safeGroupId
+    )?.incomingEvent ??
+    null;
+
+  const targetEventId = targetEvent?.id ? String(targetEvent.id) : null;
+
+  if (targetEventId) {
+    const alreadyExists = await hasUnreadConflictNotificationForEvent(
+      uid,
+      targetEventId
+    );
+
+    if (alreadyExists) {
+      return {
+        created: 0,
+        conflictCount: related.length,
+        targetEventId,
+      };
+    }
+  }
+
+  const count = related.length;
+  const title =
+    count === 1
+      ? "Al unirte se detectó 1 conflicto"
+      : `Al unirte se detectaron ${count} conflictos`;
+
+  const body = targetEvent?.title
+    ? `“${targetEvent.title}” entra en conflicto con tu agenda actual. Revísalo ahora.`
+    : "Tu nuevo grupo trae eventos que chocan con tu agenda actual. Revísalo ahora.";
+
+  const created = await createNotifications([
+    {
+      user_id: uid,
+      type: "conflict_detected",
+      title,
+      body,
+      entity_id: targetEventId,
+      payload: {
+        source: "invite_accept",
+        group_id: safeGroupId,
+        event_id: targetEventId,
+        conflict_count: count,
+        conflict_ids: related.map((c) => c.id),
+      },
+    },
+  ]);
+
+  return {
+    created,
+    conflictCount: count,
+    targetEventId,
+  };
 }
 
 export async function getMyNotifications(limit = 20): Promise<NotificationRow[]> {
@@ -191,7 +402,33 @@ export async function markAllRead() {
 
   if (error) throw error;
 }
+export async function getUnreadConflictNotificationsSummary(): Promise<{
+  count: number;
+  latestEventId: string | null;
+}> {
+  const uid = await requireUid();
 
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("entity_id, created_at")
+    .eq("user_id", uid)
+    .in("type", ["conflict", "conflict_detected"])
+    .is("read_at", null)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  const rows = Array.isArray(data) ? data : [];
+  const latestEventId =
+    rows.find((r: any) => r?.entity_id)?.entity_id
+      ? String(rows.find((r: any) => r?.entity_id)?.entity_id)
+      : null;
+
+  return {
+    count: rows.length,
+    latestEventId,
+  };
+}
 export async function deleteNotification(id: string) {
   await markNotificationRead(id);
 }

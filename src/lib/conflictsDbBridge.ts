@@ -3,6 +3,16 @@
 
 import type { CalendarEvent, GroupType } from "@/lib/conflicts";
 import { getMyEvents } from "@/lib/eventsDb";
+import { getMyGroups } from "@/lib/groupsDb";
+
+function normalizeDbGroupType(value: unknown): GroupType {
+  const t = String(value ?? "").toLowerCase();
+
+  if (t === "family") return "family";
+  if (t === "other" || t === "shared") return "other" as GroupType;
+  if (t === "pair" || t === "couple") return "pair";
+  return "personal";
+}
 
 /**
  * Cargador único de eventos para TODOS los flujos de conflictos
@@ -10,47 +20,44 @@ import { getMyEvents } from "@/lib/eventsDb";
  *
  * ✅ Usa getMyEvents() como source of truth (igual que el calendario).
  * ✅ Opcionalmente filtra por groupId si viene en la URL.
- * ✅ Para conflictos, si hay group_id => usamos "couple" como groupType
- *    (el motor y groupMeta trabajan con "couple").
+ * ✅ Respeta el tipo real del grupo usando groupsDb en vez de asumir
+ *    que todo evento con group_id es "pair/couple".
  */
 export async function loadEventsFromDb(opts?: {
   groupId?: string | null;
 }): Promise<{ events: CalendarEvent[] }> {
   const groupId = opts?.groupId ?? null;
 
-  // 1) Traemos todos los eventos visibles para el usuario actual
-  const dbEvents: any[] = (await getMyEvents()) as any[];
+  const [dbEvents, dbGroups] = await Promise.all([
+    getMyEvents().catch(() => [] as any[]),
+    getMyGroups().catch(() => [] as any[]),
+  ]);
 
-  // 2) Si hay groupId en la URL, filtramos solo esos;
-  //    si NO hay groupId, usamos TODOS (personal + todos los grupos),
-  //    igual que el calendario.
+  const typeByGroupId = new Map<string, GroupType>();
+  for (const g of Array.isArray(dbGroups) ? dbGroups : []) {
+    const gid = g?.id ? String(g.id) : "";
+    if (!gid) continue;
+    typeByGroupId.set(gid, normalizeDbGroupType(g?.type));
+  }
+
   const filtered = groupId
-    ? dbEvents.filter((ev) => {
-        const gid = ev.group_id ?? ev.groupId ?? null;
+    ? (dbEvents ?? []).filter((ev: any) => {
+        const gid = ev?.group_id ?? ev?.groupId ?? null;
         return gid && String(gid) === String(groupId);
       })
-    : dbEvents;
+    : dbEvents ?? [];
 
-  // 3) Mapeamos a CalendarEvent (formato estándar de conflictos/calendario)
   const events: CalendarEvent[] = filtered
-    .map((ev) => {
-      const gid = ev.group_id ?? ev.groupId ?? null;
-
-      // Inferimos el tipo de grupo si no viene explícito
-      let gt: GroupType;
-      if (ev.groupType) {
-        gt = ev.groupType as GroupType;
-      } else if (gid) {
-        // 🔥 Para conflictos: si tiene group_id => "couple"
-        gt = "couple";
-      } else {
-        gt = "personal";
-      }
-
-      const start = String(ev.start ?? ev.start_at ?? "");
-      const end = String(ev.end ?? ev.end_at ?? "");
+    .map((ev: any) => {
+      const gid = ev?.group_id ?? ev?.groupId ?? null;
+      const start = String(ev?.start ?? ev?.start_at ?? "");
+      const end = String(ev?.end ?? ev?.end_at ?? "");
 
       if (!start || !end) return null;
+
+      const inferredGroupType: GroupType = gid
+        ? typeByGroupId.get(String(gid)) ?? ("other" as GroupType)
+        : "personal";
 
       return {
         id: String(ev.id),
@@ -60,7 +67,7 @@ export async function loadEventsFromDb(opts?: {
         notes: ev.notes ?? ev.description ?? undefined,
         description: ev.description ?? undefined,
         groupId: gid ? String(gid) : null,
-        groupType: gt,
+        groupType: (ev.groupType as GroupType | undefined) ?? inferredGroupType,
       } as CalendarEvent;
     })
     .filter(Boolean) as CalendarEvent[];

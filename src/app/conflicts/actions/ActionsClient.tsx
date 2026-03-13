@@ -18,7 +18,10 @@ import {
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
 import { deleteEventsByIds, getMyEvents, type DbEventRow } from "@/lib/eventsDb";
 import { getMyProfile } from "@/lib/profilesDb";
-import { createNotifications } from "@/lib/notificationsDb";
+import {
+  createNotifications,
+  type CreateNotificationInput,
+} from "@/lib/notificationsDb";
 
 import {
   type Resolution,
@@ -63,16 +66,18 @@ function safeTitle(value?: string | null) {
   return v || "Evento sin título";
 }
 
-function actorDisplayNameFromProfile(profile: Awaited<ReturnType<typeof getMyProfile>>) {
+function actorDisplayNameFromProfile(
+  profile: Awaited<ReturnType<typeof getMyProfile>>
+) {
   if (!profile) return "Alguien";
 
-  const display = String(profile.display_name ?? "").trim();
+  const display = String((profile as any).display_name ?? "").trim();
   if (display) return display;
 
-  const full = `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim();
+  const full = `${(profile as any).first_name ?? ""} ${(profile as any).last_name ?? ""}`.trim();
   if (full) return full;
 
-  const first = String(profile.first_name ?? "").trim();
+  const first = String((profile as any).first_name ?? "").trim();
   if (first) return first;
 
   return "Alguien";
@@ -174,16 +179,21 @@ export default function ActionsClient({
       setCurrentUid(uid);
 
       try {
-        const [eventsForConflicts, dbMap, rawDbEvents, profile] = await Promise.all([
-          loadEventsFromDb({ groupId: groupIdFromUrl }),
-          getMyConflictResolutionsMap(),
-          getMyEvents(),
-          getMyProfile(),
-        ]);
+        const [eventsForConflicts, dbMap, rawDbEvents, profile] =
+          await Promise.all([
+            loadEventsFromDb({ groupId: groupIdFromUrl }),
+            getMyConflictResolutionsMap(),
+            getMyEvents(),
+            getMyProfile(),
+          ]);
 
         if (!alive) return;
 
-        setEvents(Array.isArray(eventsForConflicts?.events) ? eventsForConflicts.events : []);
+        setEvents(
+          Array.isArray(eventsForConflicts?.events)
+            ? eventsForConflicts.events
+            : []
+        );
         setResMap(dbMap ?? {});
         setDbEvents(Array.isArray(rawDbEvents) ? rawDbEvents : []);
         setActorName(actorDisplayNameFromProfile(profile));
@@ -277,6 +287,37 @@ export default function ActionsClient({
     return out;
   }, [plan.deleteIds, dbEventsById, currentUid]);
 
+  const notificationRows = useMemo<CreateNotificationInput[]>(() => {
+    return rejectedTargets
+      .map((target) => {
+        const comment = String(commentsByEventId[target.id] ?? "").trim();
+        const bodyBase = `Tu evento “${target.title}” no fue elegido al resolver un conflicto.`;
+        const body = comment ? `${bodyBase} Motivo: ${comment}` : bodyBase;
+
+        const creatorId = String(target.creatorId ?? "").trim();
+        if (!creatorId) return null;
+
+        return {
+          user_id: creatorId,
+          type: "event_rejected",
+          title: `${actorName} no aceptó tu evento`,
+          body,
+          entity_id: target.id,
+          payload: {
+            event_id: target.id,
+            event_title: target.title,
+            actor_name: actorName,
+            actor_user_id: currentUid,
+            comment: comment || null,
+            group_id: target.groupId,
+            start: target.startsAt,
+            end: target.endsAt,
+          },
+        } satisfies CreateNotificationInput;
+      })
+      .filter(Boolean) as CreateNotificationInput[];
+  }, [rejectedTargets, commentsByEventId, actorName, currentUid]);
+
   const disabledApply = plan.decided === 0 || busy;
 
   const updateComment = (eventId: string, value: string) => {
@@ -300,32 +341,23 @@ export default function ActionsClient({
     try {
       setBusy(true);
 
-      if (rejectedTargets.length > 0) {
-        const rows = rejectedTargets.map((target) => {
-          const comment = String(commentsByEventId[target.id] ?? "").trim();
-          const bodyBase = `Tu evento “${target.title}” no fue elegido al resolver un conflicto.`;
-          const body = comment ? `${bodyBase} Motivo: ${comment}` : bodyBase;
+      let notifiedCount = 0;
 
-          return {
-            user_id: target.creatorId,
-            type: "event_rejected" as const,
-            title: `${actorName} no aceptó tu evento`,
-            body,
-            entity_id: target.id,
-            payload: {
-              event_id: target.id,
-              event_title: target.title,
-              actor_name: actorName,
-              actor_user_id: currentUid,
-              comment: comment || null,
-              group_id: target.groupId,
-              start: target.startsAt,
-              end: target.endsAt,
-            },
-          };
-        });
+      if (notificationRows.length > 0) {
+        try {
+          notifiedCount = await createNotifications(notificationRows);
+        } catch (e: any) {
+          throw new Error(
+            e?.message ||
+              "No se pudo crear la notificación para el otro usuario."
+          );
+        }
 
-        await createNotifications(rows);
+        if (notifiedCount <= 0) {
+          throw new Error(
+            "No se pudo registrar la notificación del evento rechazado."
+          );
+        }
       }
 
       if (plan.deleteIds.length > 0) {
@@ -346,8 +378,8 @@ export default function ActionsClient({
         qp.set("deleted", String(plan.deleteIds.length));
       }
 
-      if (rejectedTargets.length > 0) {
-        qp.set("notified", String(rejectedTargets.length));
+      if (notifiedCount > 0) {
+        qp.set("notified", String(notifiedCount));
       }
 
       router.replace(`/summary?${qp.toString()}`);
@@ -409,8 +441,8 @@ export default function ActionsClient({
 
             {conflicts.length > 0 && plan.decided === 0 && (
               <div style={styles.helperText}>
-                No hay decisiones guardadas aún. Vuelve a “Comparar” y elige
-                qué evento mantener.
+                No hay decisiones guardadas aún. Vuelve a “Comparar” y elige qué
+                evento mantener.
               </div>
             )}
 
@@ -461,16 +493,19 @@ export default function ActionsClient({
             <div style={styles.panelHeader}>
               <div>
                 <div style={styles.panelKicker}>Comunicación automática</div>
-                <div style={styles.panelTitle}>Eventos rechazados de otras personas</div>
+                <div style={styles.panelTitle}>
+                  Eventos rechazados de otras personas
+                </div>
               </div>
               <div style={styles.panelMeta}>
-                {rejectedTargets.length} aviso{rejectedTargets.length === 1 ? "" : "s"}
+                {rejectedTargets.length} aviso
+                {rejectedTargets.length === 1 ? "" : "s"}
               </div>
             </div>
 
             <div style={styles.panelSub}>
-              Antes de aplicar, puedes dejar un comentario opcional para explicar
-              por qué ese evento no fue aceptado.
+              Antes de aplicar, puedes dejar un comentario opcional para
+              explicar por qué ese evento no fue aceptado.
             </div>
 
             <div style={styles.cardsGrid}>

@@ -5,7 +5,7 @@ import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
-
+import { createConflictNotificationForEvent } from "@/lib/notificationsDb";
 import {
   GroupType,
   groupMeta,
@@ -18,7 +18,10 @@ import {
 import { getSettingsFromDb, type NotificationSettings } from "@/lib/settings";
 
 // ✅ DB real (RLS)
-import { getMyGroups } from "@/lib/groupsDb";
+import {
+  getMyGroups,
+  getGroupTypeLabel,
+} from "@/lib/groupsDb";
 
 // ✅ DB Source of Truth
 import {
@@ -56,8 +59,17 @@ function addMinutes(d: Date, mins: number) {
 type DbGroup = {
   id: string;
   name: string | null;
-  type: "family" | "pair" | string;
+  type: "family" | "pair" | "other" | string;
 };
+
+function normalizeDbGroupType(value: unknown): GroupType {
+  const t = String(value ?? "").toLowerCase();
+
+  if (t === "family") return "family";
+  if (t === "other" || t === "shared") return "other" as GroupType;
+  if (t === "pair" || t === "couple") return "pair";
+  return "personal";
+}
 
 type NewType = "personal" | "group";
 
@@ -345,36 +357,40 @@ function NewEventDetailsInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveType, selectedGroupId]);
 
-  const groupType: GroupType = useMemo(() => {
-    if (effectiveType !== "group") return "personal";
-    if (!selectedGroup) return "pair";
-    return selectedGroup.type === "family" ? "family" : "pair";
-  }, [effectiveType, selectedGroup]);
+const groupType: GroupType = useMemo(() => {
+  if (effectiveType !== "group") return "personal";
+  if (!selectedGroup) return "pair";
+  return normalizeDbGroupType(selectedGroup.type);
+}, [effectiveType, selectedGroup]);
 
   const meta = useMemo(() => groupMeta(groupType), [groupType]);
 
-  const theme = useMemo(() => {
-    if (effectiveType === "group") {
-      return {
-        label: lockedToActiveGroup
-          ? `Evento compartido (${meta.label})`
-          : "Evento de grupo",
-        border:
-          groupType === "family"
-            ? "rgba(96,165,250,0.28)"
-            : "rgba(248,113,113,0.28)",
-        soft:
-          groupType === "family"
-            ? "rgba(96,165,250,0.14)"
-            : "rgba(248,113,113,0.12)",
-      };
-    }
+const theme = useMemo(() => {
+  if (effectiveType === "group") {
     return {
-      label: "Evento personal",
-      border: "rgba(250,204,21,0.28)",
-      soft: "rgba(250,204,21,0.14)",
+      label: lockedToActiveGroup
+        ? `Evento compartido (${meta.label})`
+        : "Evento de grupo",
+      border:
+        groupType === "family"
+          ? "rgba(96,165,250,0.28)"
+          : groupType === ("other" as GroupType)
+          ? "rgba(168,85,247,0.28)"
+          : "rgba(248,113,113,0.28)",
+      soft:
+        groupType === "family"
+          ? "rgba(96,165,250,0.14)"
+          : groupType === ("other" as GroupType)
+          ? "rgba(168,85,247,0.14)"
+          : "rgba(248,113,113,0.12)",
     };
-  }, [effectiveType, lockedToActiveGroup, meta.label, groupType]);
+  }
+  return {
+    label: "Evento personal",
+    border: "rgba(250,204,21,0.28)",
+    soft: "rgba(250,204,21,0.14)",
+  };
+}, [effectiveType, lockedToActiveGroup, meta.label, groupType]);
 
   const errors = useMemo(() => {
     const e: string[] = [];
@@ -417,52 +433,86 @@ function NewEventDetailsInner() {
       setEndLocal(toInputLocal(addMinutes(s, 60)));
   };
 
-  const doSave = async (payload: {
-    groupType: GroupType;
-    groupId: string | null;
-    title: string;
-    notes?: string;
-    startIso: string;
-    endIso: string;
-  }) => {
-    setSaving(true);
-    try {
-      if (isEditing && eventIdParam) {
-        // 📝 MODO EDICIÓN
-        await updateEvent({
-          id: eventIdParam,
-          title: payload.title,
-          notes: payload.notes,
-          start: payload.startIso,
-          end: payload.endIso,
-          groupId: payload.groupId,
-        });
-      } else {
-        // 🆕 MODO CREACIÓN
-        await createEventForGroup({
-          title: payload.title,
-          notes: payload.notes,
-          start: payload.startIso,
-          end: payload.endIso,
-          groupId: payload.groupId,
-        });
-      }
+const doSave = async (payload: {
+  groupType: GroupType;
+  groupId: string | null;
+  title: string;
+  notes?: string;
+  startIso: string;
+  endIso: string;
+}) => {
+  setSaving(true);
+  try {
+    let savedEventId: string | null = null;
 
-      setToast({
-        title: isEditing ? "Evento actualizado ✅" : "Evento creado ✅",
-        subtitle: "Volviendo al calendario…",
+    if (isEditing && eventIdParam) {
+      await updateEvent({
+        id: eventIdParam,
+        title: payload.title,
+        notes: payload.notes,
+        start: payload.startIso,
+        end: payload.endIso,
+        groupId: payload.groupId,
       });
-      window.setTimeout(() => router.push("/calendar"), 450);
-    } catch (err: any) {
-      setToast({
-        title: "No se pudo guardar",
-        subtitle: err?.message || "Intenta nuevamente.",
+      savedEventId = eventIdParam;
+    } else {
+      const created = await createEventForGroup({
+        title: payload.title,
+        notes: payload.notes,
+        start: payload.startIso,
+        end: payload.endIso,
+        groupId: payload.groupId,
       });
-      window.setTimeout(() => setToast(null), 2800);
-    } finally {
-      setSaving(false);
+      savedEventId = created?.id ? String(created.id) : null;
     }
-  };
+
+    const conflictResult = savedEventId
+      ? await createConflictNotificationForEvent(savedEventId).catch(() => ({
+          created: 0,
+          conflictCount: 0,
+          targetEventId: savedEventId,
+        }))
+      : {
+          created: 0,
+          conflictCount: 0,
+          targetEventId: null,
+        };
+
+    if (conflictResult.conflictCount > 0) {
+      setToast({
+        title: "⚠️ Conflicto detectado",
+        subtitle: "Te llevo a revisarlo ahora…",
+      });
+
+      const qp = new URLSearchParams();
+      if (conflictResult.targetEventId) {
+        qp.set("eventId", conflictResult.targetEventId);
+        window.setTimeout(() => {
+          router.push(`/conflicts/detected?${qp.toString()}`);
+        }, 500);
+      } else {
+        window.setTimeout(() => {
+          router.push("/conflicts/detected");
+        }, 500);
+      }
+      return;
+    }
+
+    setToast({
+      title: isEditing ? "Evento actualizado ✅" : "Evento creado ✅",
+      subtitle: "Volviendo al calendario…",
+    });
+    window.setTimeout(() => router.push("/calendar"), 450);
+  } catch (err: any) {
+    setToast({
+      title: "No se pudo guardar",
+      subtitle: err?.message || "Intenta nuevamente.",
+    });
+    window.setTimeout(() => setToast(null), 2800);
+  } finally {
+    setSaving(false);
+  }
+};
 
   const preflight = async (payload: {
     groupType: GroupType;
@@ -481,20 +531,28 @@ function NewEventDetailsInner() {
       const raw = await getMyEvents(); // DbEventRow[]
 
       // 2) Map → CalendarEvent (solo necesitamos lo básico + groupType)
-      existing = (raw ?? []).map((e: any) => {
-        const gid = e.group_id ?? e.groupId ?? null;
-        const groupType: GroupType = gid ? "pair" : "personal";
+ const typeByGroupId = new Map<string, GroupType>();
+for (const g of uniqueGroups) {
+  if (!g?.id) continue;
+  typeByGroupId.set(String(g.id), normalizeDbGroupType(g.type));
+}
 
-        return {
-          id: String(e.id),
-          title: e.title ?? "Evento",
-          start: String(e.start),
-          end: String(e.end),
-          notes: e.notes ?? undefined,
-          groupId: gid ? String(gid) : null,
-          groupType,
-        } as CalendarEvent;
-      });
+existing = (raw ?? []).map((e: any) => {
+  const gid = e.group_id ?? e.groupId ?? null;
+  const groupType: GroupType = gid
+    ? typeByGroupId.get(String(gid)) ?? ("other" as GroupType)
+    : "personal";
+
+  return {
+    id: String(e.id),
+    title: e.title ?? "Evento",
+    start: String(e.start),
+    end: String(e.end),
+    notes: e.notes ?? undefined,
+    groupId: gid ? String(gid) : null,
+    groupType,
+  } as CalendarEvent;
+});
     } catch {
       // Si algo falla cargando eventos, no bloqueamos el guardado
       return { ok: true };
@@ -814,25 +872,24 @@ function NewEventDetailsInner() {
                     cursor: lockedToActiveGroup ? "not-allowed" : "pointer",
                   }}
                 >
-                  {uniqueGroups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name ?? "Grupo"} (
-                      {g.type === "family" ? "Familia" : "Pareja"})
-                    </option>
-                  ))}
+             {uniqueGroups.map((g) => (
+  <option key={g.id} value={g.id}>
+    {g.name ?? "Grupo"} ({getGroupTypeLabel(g.type)})
+  </option>
+))}
                 </select>
               )}
 
               {selectedGroup ? (
-                <div style={styles.hint}>
-                  Seleccionado: <b>{selectedGroup.name ?? "Grupo"}</b> · tipo{" "}
-                  <b>{selectedGroup.type === "family" ? "Familia" : "Pareja"}</b>
-                  {lockedToActiveGroup ? (
-                    <span style={{ marginLeft: 8, opacity: 0.9 }}>
-                      · (grupo activo)
-                    </span>
-                  ) : null}
-                </div>
+          <div style={styles.hint}>
+  Seleccionado: <b>{selectedGroup.name ?? "Grupo"}</b> · tipo{" "}
+  <b>{getGroupTypeLabel(selectedGroup.type)}</b>
+  {lockedToActiveGroup ? (
+    <span style={{ marginLeft: 8, opacity: 0.9 }}>
+      · (grupo activo)
+    </span>
+  ) : null}
+</div>
               ) : null}
             </div>
           )}
