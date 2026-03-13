@@ -146,8 +146,13 @@ function EventRow({
 
 // ========== Helpers de formato (copiados de /events) ==========
 
+function parseLocalDateKey(isoDateKey: string) {
+  const [y, m, d] = isoDateKey.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0);
+}
+
 function formatDateNice(isoDateKey: string) {
-  const d = new Date(isoDateKey);
+  const d = parseLocalDateKey(isoDateKey);
   const formatter = new Intl.DateTimeFormat("es-PE", {
     weekday: "long",
     day: "numeric",
