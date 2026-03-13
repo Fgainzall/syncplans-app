@@ -436,7 +436,18 @@ export default function NotificationsDrawer({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={header}>
+            <div
+  style={{
+    ...header,
+    ...(isMobile
+      ? {
+          flexDirection: "column",
+          alignItems: "stretch",
+          gap: 12,
+        }
+      : null),
+  }}
+>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={title}>Notificaciones</div>
                 <div style={sub}>
@@ -448,7 +459,17 @@ export default function NotificationsDrawer({
                 </div>
               </div>
 
-              <div style={headerTopActions}>
+              <div
+  style={{
+    ...headerTopActions,
+    ...(isMobile
+      ? {
+          width: "100%",
+          justifyContent: "flex-end",
+        }
+      : null),
+  }}
+>
                 <button
                   type="button"
                   style={smallSoftBtn}
@@ -687,6 +708,7 @@ const title: React.CSSProperties = {
   color: "rgba(248,250,252,0.98)",
   letterSpacing: "-0.03em",
   lineHeight: 1,
+  wordBreak: "break-word",
 };
 
 const sub: React.CSSProperties = {
