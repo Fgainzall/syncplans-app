@@ -670,6 +670,7 @@ const header: React.CSSProperties = {
   justifyContent: "space-between",
   gap: 16,
   alignItems: "flex-start",
+  flexWrap: "wrap",
 };
 
 const headerTopActions: React.CSSProperties = {
@@ -677,6 +678,7 @@ const headerTopActions: React.CSSProperties = {
   gap: 10,
   alignItems: "center",
   flexShrink: 0,
+  marginLeft: "auto",
 };
 
 const title: React.CSSProperties = {
