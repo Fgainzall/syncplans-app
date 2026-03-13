@@ -336,6 +336,19 @@ export default function ActionsClient({
     return Array.from(ids);
   }, [blockedDeleteIds, conflicts, resMap]);
 
+  const ignoredConflictIds = useMemo(() => {
+    const ids = new Set<string>();
+
+    for (const c of conflicts) {
+      const r = resolutionForConflict(c, resMap);
+      if (r === "none") {
+        ids.add(String(c.id));
+      }
+    }
+
+    return Array.from(ids);
+  }, [conflicts, resMap]);
+
   const notificationRows = useMemo<CreateNotificationInput[]>(() => {
     return rejectedTargets
       .map((target) => {
@@ -445,6 +458,14 @@ export default function ActionsClient({
         }
       }
 
+      if (ignoredConflictIds.length > 0) {
+        try {
+          ignoreConflictIds(ignoredConflictIds);
+        } catch {
+          // no rompemos el flujo si falla localStorage
+        }
+      }
+
       try {
         await clearMyConflictResolutions();
       } catch {
@@ -465,6 +486,10 @@ export default function ActionsClient({
 
       if (blockedDeleteIds.length > 0) {
         qp.set("softRejected", String(blockedDeleteIds.length));
+      }
+
+      if (ignoredConflictIds.length > 0) {
+        qp.set("ignored", String(ignoredConflictIds.length));
       }
 
       router.replace(`/summary?${qp.toString()}`);
