@@ -31,7 +31,6 @@ import {
 import {
   type Resolution,
   getMyConflictResolutionsMap,
-  clearMyConflictResolutions,
 } from "@/lib/conflictResolutionsDb";
 
 type RejectedTarget = {
@@ -466,13 +465,39 @@ export default function ActionsClient({
         }
       }
 
-      try {
-        await clearMyConflictResolutions();
-      } catch {
-        // no bloquea la UX si falla limpiar
-      }
+    
 
       const qp = new URLSearchParams();
+      qp.set("from", "conflicts");
+      qp.set("resolved", String(plan.decided));
+
+      if (deletedCount > 0) {
+        qp.set("deleted", String(deletedCount));
+      }
+
+      if (notifiedCount > 0) {
+        qp.set("notified", String(notifiedCount));
+      }
+
+      if (blockedDeleteIds.length > 0) {
+        qp.set("softRejected", String(blockedDeleteIds.length));
+      }
+      if (ignoredConflictIds.length > 0) {
+        try {
+          ignoreConflictIds(ignoredConflictIds);
+        } catch {
+          // no rompemos el flujo si falla localStorage
+        }
+      }
+
+        if (ignoredConflictIds.length > 0) {
+        try {
+          ignoreConflictIds(ignoredConflictIds);
+        } catch {
+          // no rompemos el flujo si falla localStorage
+        }
+      }
+
       qp.set("from", "conflicts");
       qp.set("resolved", String(plan.decided));
 
@@ -509,7 +534,6 @@ export default function ActionsClient({
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     router.push(`/conflicts/detected?${qp.toString()}`);
   };
-
   if (booting) {
     return (
       <main style={styles.page}>
