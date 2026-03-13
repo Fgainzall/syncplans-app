@@ -240,10 +240,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return activeGroup ? humanGroupName(activeGroup) : "Grupo";
   }, [activeGroupId, activeGroup]);
 
-  const contextLabel = useMemo(() => {
-    if (!activeGroupId) return "Personal";
-    return `Personal + ${activeLabel}`;
-  }, [activeGroupId, activeLabel]);
+const contextLabel = useMemo(() => {
+  if (!activeGroupId) return "Vista general";
+  return `Vista general · Grupo activo: ${activeLabel}`;
+}, [activeGroupId, activeLabel]);
 
   const normalizedEvents = useMemo(() => {
     const mapped = (events ?? [])
@@ -253,27 +253,18 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return filterSoftRejectedEvents(mapped, hiddenEventIds);
   }, [events, hiddenEventIds]);
 
-  /**
-   * Regla correcta del resumen:
-   * - sin grupo activo => solo personales
-   * - con grupo activo => personales + grupo activo
-   */
-  const visibleEvents = useMemo(() => {
-    const gid = activeGroupId ? String(activeGroupId) : null;
-
-    return normalizedEvents
-      .filter((e) => {
-        if (!e.groupId) return true;
-        if (!gid) return false;
-        return String(e.groupId) === gid;
-      })
-      .sort((a, b) => {
-        const aMs = a.start?.getTime() ?? 0;
-        const bMs = b.start?.getTime() ?? 0;
-        return aMs - bMs;
-      });
-  }, [normalizedEvents, activeGroupId]);
-
+/**
+ * Regla del resumen:
+ * - siempre muestra todos los eventos visibles del usuario
+ * - el grupo activo queda como contexto visual, no como filtro duro
+ */
+const visibleEvents = useMemo(() => {
+  return [...normalizedEvents].sort((a, b) => {
+    const aMs = a.start?.getTime() ?? 0;
+    const bMs = b.start?.getTime() ?? 0;
+    return aMs - bMs;
+  });
+}, [normalizedEvents]);
   /**
    * Ventana correcta:
    * [hoy 00:00 local, hoy + 7 días)
