@@ -124,12 +124,14 @@ export default function CalendarDayClient(/* ... */) {
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [enabledGroups, setEnabledGroups] = useState<Record<GroupType, boolean>>({
-    personal: true,
-    pair: true,
-    family: true,
-    couple: true, // compat
-  });
+const [enabledGroups, setEnabledGroups] = useState<Record<GroupType, boolean>>({
+  personal: true,
+  pair: true,
+  family: true,
+  couple: true,
+  other: true,
+  shared: true,
+});
 
   const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
 
