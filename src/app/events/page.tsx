@@ -158,26 +158,24 @@ export default function EventsPage() {
     return list;
   }, [events, filters]);
 
-  const groupedByDate = useMemo(() => {
-    const groupsMap = new Map<string, EventWithGroup[]>();
+const groupedByDate = useMemo(() => {
+  const groupsMap = new Map<string, EventWithGroup[]>();
 
-    for (const e of filteredEvents) {
-      const start = new Date(e.start);
-      const key = start.toISOString().slice(0, 10);
-      if (!groupsMap.has(key)) groupsMap.set(key, []);
-      groupsMap.get(key)!.push(e);
-    }
+  for (const e of filteredEvents) {
+    const key = localDateKey(e.start);
+    if (!groupsMap.has(key)) groupsMap.set(key, []);
+    groupsMap.get(key)!.push(e);
+  }
 
-    const entries = Array.from(groupsMap.entries()).sort(
-      ([a], [b]) => (a < b ? -1 : 1),
-    );
+  const entries = Array.from(groupsMap.entries()).sort(
+    ([a], [b]) => (a < b ? -1 : 1),
+  );
 
-    return entries.map(([dateKey, list]) => ({
-      dateKey,
-      events: list,
-    }));
-  }, [filteredEvents]);
-
+  return entries.map(([dateKey, list]) => ({
+    dateKey,
+    events: list,
+  }));
+}, [filteredEvents]);
   const headerSubtitle = useMemo(() => {
     if (events.length === 0) {
       return "Mira y gestiona tu lista de eventos personales y compartidos.";
@@ -194,6 +192,13 @@ export default function EventsPage() {
   const conflictsNow = 0;
 
   // ===== HANDLERS =====
+function localDateKey(value: string | Date) {
+  const d = value instanceof Date ? value : new Date(value);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
   function toggleSelection(id: string) {
     setSelectedIds((prev) => {
