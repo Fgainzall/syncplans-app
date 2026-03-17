@@ -95,8 +95,7 @@ function actorDisplayNameFromProfile(
 }
 
 function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
-  if (!gt) return "personal" as GroupType;
-  return (gt === ("pair" as any) ? ("couple" as any) : gt) as GroupType;
+  return (gt ?? "personal") as GroupType;
 }
 
 function formatRange(startIso?: string | null, endIso?: string | null) {
@@ -277,12 +276,12 @@ export default function ActionsClient({
   }, [events, hiddenEventIds]);
 
   const conflicts = useMemo<ConflictItem[]>(() => {
-    const normalized: CalendarEvent[] = (
-      Array.isArray(visibleEventsForConflicts) ? visibleEventsForConflicts : []
-    ).map((e) => ({
-      ...e,
-      groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
-    }));
+const normalized: CalendarEvent[] = (
+  Array.isArray(visibleEventsForConflicts) ? visibleEventsForConflicts : []
+).map((e) => ({
+  ...e,
+  groupType: normalizeForConflicts(e.groupType),
+}));
 
     const cx = computeVisibleConflicts(normalized);
     const ignored = loadIgnoredConflictKeys();
@@ -340,10 +339,13 @@ export default function ActionsClient({
       const row = dbEventsById.get(String(eventId));
       if (!row) continue;
 
-      const ownerId = String(row.user_id ?? "").trim();
-      if (currentUid && ownerId === currentUid) {
-        out.push(String(row.id));
-      }
+   const ownerId = String(
+  (row as any).owner_id ?? row.user_id ?? (row as any).created_by ?? ""
+).trim();
+
+if (currentUid && ownerId === currentUid) {
+  out.push(String(row.id));
+}
     }
 
     return out;
@@ -357,9 +359,12 @@ export default function ActionsClient({
       const row = dbEventsById.get(String(eventId));
       if (!row) continue;
 
-      const creatorId = String(row.user_id ?? "").trim();
-      if (!creatorId) continue;
-      if (currentUid && creatorId === currentUid) continue;
+      const creatorId = String(
+  (row as any).owner_id ?? row.user_id ?? (row as any).created_by ?? ""
+).trim();
+
+if (!creatorId) continue;
+if (currentUid && creatorId === currentUid) continue;
       if (seen.has(String(row.id))) continue;
 
       seen.add(String(row.id));
@@ -582,12 +587,13 @@ export default function ActionsClient({
       router.replace(`/summary?${qp.toString()}`);
     } catch (e: any) {
       setBusy(false);
-      setToast({
-        title: "No se pudo finalizar",
-        sub:
-          e?.message ??
-          "Inténtalo nuevamente en unos segundos. Si falló el aviso o el borrado real, no cerramos el flujo para no dejarlo incompleto.",
-      });
+setToast({
+  title: "No se pudo finalizar la resolución",
+  sub:
+    typeof e?.message === "string" && e.message.trim().length > 0
+      ? e.message
+      : "No pudimos cerrar la resolución completa. Para evitar inconsistencias, el flujo no se cerró.",
+});
     }
   };
 
@@ -677,7 +683,7 @@ export default function ActionsClient({
             </div>
 
             <div style={styles.summaryItem}>
-              <div style={styles.summaryLabel}>Soft reject / ocultados</div>
+            <div style={styles.summaryLabel}>No eliminados / ocultados localmente</div>
               <div style={styles.summaryValue}>{blockedDeleteIds.length}</div>
             </div>
 

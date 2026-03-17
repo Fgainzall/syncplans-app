@@ -10,6 +10,8 @@ import supabase from "@/lib/supabaseClient";
 export type DbEventRow = {
   id: string;
   user_id: string | null;
+  owner_id?: string | null;
+  created_by?: string | null;
   group_id: string | null;
   title: string | null;
   notes: string | null;
@@ -17,6 +19,8 @@ export type DbEventRow = {
   end: string; // ISO string (timestamptz)
   created_at?: string | null;
   updated_at?: string | null;
+  external_source?: string | null;
+  external_id?: string | null;
 };
 
 export type CreateEventPayload = {
@@ -29,11 +33,18 @@ export type CreateEventPayload = {
 
 export type DbEvent = {
   id: string;
+  user_id: string | null;
+  owner_id?: string | null;
+  created_by?: string | null;
   group_id: string | null;
   title: string | null;
   notes: string | null;
   start: string; // timestamptz ISO
   end: string; // timestamptz ISO
+  created_at?: string | null;
+  updated_at?: string | null;
+  external_source?: string | null;
+  external_id?: string | null;
 };
 
 /**
@@ -57,6 +68,13 @@ export type DeleteEventsResult = {
 };
 
 /* ======================================================
+  Select común
+====================================================== */
+
+const EVENT_SELECT =
+  "id, user_id, owner_id, created_by, group_id, title, notes, start, end, created_at, updated_at, external_source, external_id";
+
+/* ======================================================
   Helper interno: uid actual
 ====================================================== */
 
@@ -69,6 +87,53 @@ async function requireUid(): Promise<string> {
     throw new Error("No hay sesión activa. Inicia sesión nuevamente.");
   }
   return uid;
+}
+
+/* ======================================================
+  Helpers internos de mapeo / ownership
+====================================================== */
+
+function mapDbEventRow(row: any): DbEventRow {
+  return {
+    id: String(row.id),
+    user_id: row.user_id ?? null,
+    owner_id: row.owner_id ?? null,
+    created_by: row.created_by ?? null,
+    group_id: row.group_id ?? null,
+    title: row.title ?? null,
+    notes: row.notes ?? null,
+    start: String(row.start),
+    end: String(row.end),
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null,
+    external_source: row.external_source ?? null,
+    external_id: row.external_id ?? null,
+  };
+}
+
+function normalizeIds(ids: string[]): string[] {
+  return Array.from(
+    new Set(
+      (ids ?? [])
+        .map((id) => String(id ?? "").trim())
+        .filter((id) => id.length > 0)
+    )
+  );
+}
+
+/**
+ * Intenta resolver la "autoridad" del evento de la forma más robusta posible
+ * con el modelo actual de la BD.
+ *
+ * Prioridad:
+ * 1) owner_id
+ * 2) user_id
+ * 3) created_by
+ */
+function resolveEventOwnerId(row: any): string {
+  return String(
+    row?.owner_id ?? row?.user_id ?? row?.created_by ?? ""
+  ).trim();
 }
 
 /* ======================================================
@@ -90,24 +155,12 @@ export async function getMyEvents(_opts?: unknown): Promise<DbEventRow[]> {
 
   const { data, error } = await supabase
     .from("events")
-    .select(
-      "id, user_id, group_id, title, notes, start, end, created_at, updated_at"
-    )
+    .select(EVENT_SELECT)
     .order("start", { ascending: true });
 
   if (error) throw error;
 
-  return (data ?? []).map((e: any) => ({
-    id: String(e.id),
-    user_id: e.user_id ?? null,
-    group_id: e.group_id ?? null,
-    title: e.title ?? null,
-    notes: e.notes ?? null,
-    start: String(e.start),
-    end: String(e.end),
-    created_at: e.created_at ?? null,
-    updated_at: e.updated_at ?? null,
-  }));
+  return (data ?? []).map(mapDbEventRow);
 }
 
 /* ======================================================
@@ -121,6 +174,8 @@ export async function createEventForGroup(
 
   const insertPayload = {
     user_id: uid,
+    owner_id: uid,
+    created_by: uid,
     group_id: payload.groupId,
     title: payload.title,
     notes: payload.notes ?? null,
@@ -131,26 +186,12 @@ export async function createEventForGroup(
   const { data, error } = await supabase
     .from("events")
     .insert(insertPayload)
-    .select(
-      "id, user_id, group_id, title, notes, start, end, created_at, updated_at"
-    )
+    .select(EVENT_SELECT)
     .single();
 
   if (error) throw error;
 
-  const row: any = data;
-
-  return {
-    id: String(row.id),
-    user_id: row.user_id ?? null,
-    group_id: row.group_id ?? null,
-    title: row.title ?? null,
-    notes: row.notes ?? null,
-    start: String(row.start),
-    end: String(row.end),
-    created_at: row.created_at ?? null,
-    updated_at: row.updated_at ?? null,
-  };
+  return mapDbEventRow(data);
 }
 
 /**
@@ -169,22 +210,12 @@ export async function createPersonalEvent(
   Borrado: uno o varios eventos
 ====================================================== */
 
-function normalizeIds(ids: string[]): string[] {
-  return Array.from(
-    new Set(
-      (ids ?? [])
-        .map((id) => String(id ?? "").trim())
-        .filter((id) => id.length > 0)
-    )
-  );
-}
-
 /**
  * Devuelve un diagnóstico real del borrado.
  *
  * Regla importante:
- * - solo borra eventos cuyo `user_id` sea el usuario actual
- * - si el evento pertenece a otro usuario, queda en `blockedIds`
+ * - solo borra eventos cuyo owner efectivo sea el usuario actual
+ * - si el evento pertenece a otro usuario, queda en blockedIds
  *
  * Con esto evitamos el falso escenario de:
  * - UI dice "deleted=1"
@@ -208,7 +239,7 @@ export async function deleteEventsByIdsDetailed(
 
   const { data, error } = await supabase
     .from("events")
-    .select("id, user_id")
+    .select("id, user_id, owner_id, created_by")
     .in("id", requestedIds);
 
   if (error) {
@@ -219,7 +250,7 @@ export async function deleteEventsByIdsDetailed(
   const rows = Array.isArray(data) ? data : [];
 
   const ownIds = rows
-    .filter((row: any) => String(row.user_id ?? "") === uid)
+    .filter((row: any) => resolveEventOwnerId(row) === uid)
     .map((row: any) => String(row.id));
 
   const visibleIds = new Set(rows.map((row: any) => String(row.id)));
@@ -271,12 +302,12 @@ export async function getEventById(eventId: string): Promise<DbEvent> {
 
   const { data, error } = await supabase
     .from("events")
-    .select("id, group_id, title, notes, start, end")
+    .select(EVENT_SELECT)
     .eq("id", eventId)
     .single();
 
   if (error) throw error;
-  return data as DbEvent;
+  return mapDbEventRow(data);
 }
 
 export async function listEventsByGroup(groupId: string): Promise<DbEvent[]> {
@@ -284,12 +315,12 @@ export async function listEventsByGroup(groupId: string): Promise<DbEvent[]> {
 
   const { data, error } = await supabase
     .from("events")
-    .select("id, group_id, title, notes, start, end")
+    .select(EVENT_SELECT)
     .eq("group_id", groupId)
     .order("start", { ascending: true });
 
   if (error) throw error;
-  return (data ?? []) as DbEvent[];
+  return (data ?? []).map(mapDbEventRow);
 }
 
 export async function deleteEventById(eventId: string): Promise<void> {

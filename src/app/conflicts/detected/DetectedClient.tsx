@@ -57,13 +57,8 @@ function prettyTimeRange(startIso: string, endIso: string) {
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
 
-/**
- * Compat:
- * el motor viejo tolera "couple"; el producto ya usa "pair".
- */
 function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
-  if (!gt) return "personal" as GroupType;
-  return (gt === ("pair" as any) ? ("couple" as any) : gt) as GroupType;
+  return (gt ?? "personal") as GroupType;
 }
 
 /** móvil por ancho */
@@ -235,10 +230,10 @@ export default function DetectedClient() {
   }, [events, hiddenEventIds]);
 
   const allVisibleConflicts = useMemo<AttachedConflict[]>(() => {
-    const normalized: CalendarEvent[] = visibleEvents.map((e) => ({
-      ...e,
-      groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
-    }));
+  const normalized: CalendarEvent[] = visibleEvents.map((e) => ({
+  ...e,
+  groupType: normalizeForConflicts(e.groupType),
+}));
 
     const cx = computeVisibleConflicts(normalized);
     const ignored = loadIgnoredConflictKeys();
@@ -436,12 +431,8 @@ export default function DetectedClient() {
                 const a = c.existingEvent;
                 const b = c.incomingEvent;
 
-                const aMeta = groupMeta(
-                  normalizeForConflicts((a?.groupType ?? "personal") as any)
-                );
-                const bMeta = groupMeta(
-                  normalizeForConflicts((b?.groupType ?? "personal") as any)
-                );
+             const aMeta = groupMeta(normalizeForConflicts(a?.groupType));
+const bMeta = groupMeta(normalizeForConflicts(b?.groupType));
 
                 return (
                   <button

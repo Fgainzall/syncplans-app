@@ -88,7 +88,6 @@ function normalizeGroupId(v: any): string | null {
   const s = String(v ?? "").trim();
   if (!s) return null;
   if (s === "null" || s === "undefined") return null;
-  if (s.length < 10) return null;
   return s;
 }
 
@@ -110,16 +109,24 @@ export async function getActiveGroupIdFromDb(): Promise<string | null> {
         .eq("user_id", userId)
         .maybeSingle();
 
-      if (error) {
-        // si la columna no existe / schema mismatch -> deshabilitamos DB para no spammear 400
-        disableDbForever();
-      } else {
-        const gid = normalizeGroupId((data as any)?.active_group_id);
-        if (gid) {
-          safeSetLocal(gid);
-          return gid;
-        }
-      }
+  if (error) {
+  const msg = String(error.message ?? "").toLowerCase();
+  const schemaMismatch =
+    msg.includes("column") ||
+    msg.includes("active_group_id") ||
+    msg.includes("schema") ||
+    msg.includes("does not exist");
+
+  if (schemaMismatch) {
+    disableDbForever();
+  }
+} else {
+  const gid = normalizeGroupId((data as any)?.active_group_id);
+  if (gid) {
+    safeSetLocal(gid);
+    return gid;
+  }
+}
     } catch {
       disableDbForever();
     }
@@ -165,11 +172,19 @@ export async function setActiveGroupIdInDb(groupId: string | null): Promise<void
         { user_id: userId, active_group_id: normalized },
         { onConflict: "user_id" }
       );
+if (error) {
+  const msg = String(error.message ?? "").toLowerCase();
+  const schemaMismatch =
+    msg.includes("column") ||
+    msg.includes("active_group_id") ||
+    msg.includes("schema") ||
+    msg.includes("does not exist");
 
-    if (error) {
-      disableDbForever();
-    }
-  } catch {
+  if (schemaMismatch) {
     disableDbForever();
   }
+}
+} catch {
+  // error transitorio: no deshabilitamos DB permanentemente
+}
 }

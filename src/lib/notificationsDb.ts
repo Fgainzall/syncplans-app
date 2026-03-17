@@ -66,12 +66,18 @@ type AttachedConflict = {
 
 const CONFLICT_NOTIFICATION_TYPES = ["conflict", "conflict_detected"] as const;
 
+/* ======================================================
+  Auth / normalización base
+====================================================== */
+
 async function requireUid(): Promise<string> {
-  const { data, error } = await supabase.auth.getSession();
+  const { data, error } = await supabase.auth.getUser();
   if (error) throw error;
 
-  const uid = data.session?.user?.id;
-  if (!uid) throw new Error("No auth session");
+  const uid = data.user?.id;
+  if (!uid) {
+    throw new Error("No hay sesión activa. Inicia sesión nuevamente.");
+  }
 
   return uid;
 }
@@ -82,7 +88,7 @@ function normalizeNotificationRow(row: CreateNotificationInput) {
     type: String(row.type ?? "").trim(),
     title: String(row.title ?? "").trim(),
     body: row.body ?? null,
-    entity_id: row.entity_id ?? null,
+    entity_id: row.entity_id ? String(row.entity_id).trim() : null,
     payload: row.payload ?? null,
   };
 }
@@ -125,7 +131,20 @@ function normalizeNotificationRecord(row: any): NotificationRow {
   };
 }
 
-function extractEventIdsFromPayload(payload: any, entityId?: string | null): string[] {
+function normalizeGroupTypeForPrefs(value: unknown): string {
+  const gt = String(value ?? "").trim().toLowerCase();
+
+  if (gt === "couple") return "pair";
+  if (gt === "shared") return "other";
+  if (gt === "solo") return "personal";
+
+  return gt;
+}
+
+function extractEventIdsFromPayload(
+  payload: any,
+  entityId?: string | null
+): string[] {
   return Array.from(
     new Set(
       [
@@ -144,13 +163,16 @@ function extractEventIdsFromPayload(payload: any, entityId?: string | null): str
   );
 }
 
+/* ======================================================
+  Creación
+====================================================== */
+
 /**
- * Inserta notificaciones y devuelve cuántas se insertaron realmente.
+ * Inserta notificaciones limpias y deduplicadas.
  *
- * Mejora importante:
- * - limpia y deduplica
- * - usa insert + select("id") para confirmar inserción real
- * - si RLS/constraint falla, lanza error y NO finge éxito
+ * Nota:
+ * - seguimos usando inserción directa para no introducir más capas ahora
+ * - pero dejamos auth consistente, payload limpio y conteo honesto
  */
 export async function createNotifications(
   rows: CreateNotificationInput[]
@@ -167,9 +189,7 @@ export async function createNotifications(
     new Map(cleaned.map((row) => [uniqueNotificationKey(row), row])).values()
   );
 
-  const { error } = await supabase
-    .from("notifications")
-    .insert(deduped);
+  const { error } = await supabase.from("notifications").insert(deduped);
 
   if (error) {
     console.error("[createNotifications] insert error", error, deduped);
@@ -203,6 +223,13 @@ function buildAttachedConflicts(events: any[]): AttachedConflict[] {
   return attachEvents(cx, events) as unknown as AttachedConflict[];
 }
 
+/**
+ * Conflicto detectado por guardado/creación de un evento.
+ *
+ * Importante:
+ * esto sigue siendo frontend-driven por ahora,
+ * pero lo dejamos deduplicado y más coherente.
+ */
 export async function createConflictNotificationForEvent(
   eventId: string
 ): Promise<ConflictNotificationResult> {
@@ -275,6 +302,9 @@ export async function createConflictNotificationForEvent(
   };
 }
 
+/**
+ * Conflicto detectado al aceptar/unirse a un grupo.
+ */
 export async function createConflictNotificationForGroup(
   groupId: string
 ): Promise<ConflictNotificationResult> {
@@ -366,6 +396,10 @@ export async function createConflictNotificationForGroup(
   };
 }
 
+/* ======================================================
+  Lectura
+====================================================== */
+
 export async function getMyNotifications(
   limit = 20
 ): Promise<NotificationRow[]> {
@@ -383,7 +417,7 @@ export async function getMyNotifications(
   if (mutedErr) throw mutedErr;
 
   const mutedGroupIds = (mutedRows ?? [])
-    .map((r: any) => r.group_id as string)
+    .map((r: any) => String(r.group_id ?? "").trim())
     .filter(Boolean);
 
   let query = supabase
@@ -394,6 +428,14 @@ export async function getMyNotifications(
     .order("created_at", { ascending: false })
     .limit(limit);
 
+  /**
+   * Nota:
+   * aquí se sigue usando entity_id para excluir grupos muteados,
+   * lo cual sirve SOLO para tipos donde entity_id representa realmente group_id
+   * (ej. group_message).
+   *
+   * No lo expandimos ahora para no romper nada.
+   */
   if (mutedGroupIds.length > 0) {
     const list = `(${mutedGroupIds
       .map((id) => `'${String(id).replace(/'/g, "''")}'`)
@@ -404,7 +446,10 @@ export async function getMyNotifications(
   const { data, error } = await query;
   if (error) throw error;
 
-  const rows = (data ?? []) as NotificationRow[];
+  const rows = Array.isArray(data)
+    ? data.map(normalizeNotificationRecord)
+    : [];
+
   if (!userNotif) return rows;
 
   const groupIdsFromNotifications = Array.from(
@@ -430,7 +475,10 @@ export async function getMyNotifications(
     if (gErr) throw gErr;
 
     groupTypeMap = Object.fromEntries(
-      (groups ?? []).map((g: any) => [String(g.id), g.type as string | null])
+      (groups ?? []).map((g: any) => [
+        String(g.id),
+        normalizeGroupTypeForPrefs(g.type as string | null),
+      ])
     );
   }
 
@@ -452,10 +500,7 @@ function shouldKeepNotification(
     /**
      * Importante:
      * este tipo nace como consecuencia de un conflicto/resolución,
-     * así que NO debe perderse por el filtro genérico final.
-     *
-     * Lo hacemos visible si el usuario quiere notificaciones de conflictos
-     * o, en su defecto, personales.
+     * así que no debe perderse por el filtro genérico final.
      */
     if (prefs.notify_conflicts) return true;
     if (prefs.notify_personal) return true;
@@ -464,16 +509,13 @@ function shouldKeepNotification(
 
   if (t === "group_message") {
     const gid = n.entity_id ? String(n.entity_id) : null;
-    const gType = gid ? groupTypeMap[gid] : null;
-    const gt = (gType || "").toLowerCase();
+    const gt = gid ? normalizeGroupTypeForPrefs(groupTypeMap[gid]) : "";
 
-    if ((gt === "pair" || gt === "couple") && !prefs.notify_pair) return false;
+    if (gt === "pair" && !prefs.notify_pair) return false;
     if (gt === "family" && !prefs.notify_family) return false;
+
     if (
-      (gt === "solo" ||
-        gt === "personal" ||
-        gt === "shared" ||
-        gt === "other") &&
+      (gt === "personal" || gt === "other" || gt === "shared" || gt === "solo") &&
       !prefs.notify_personal
     ) {
       return false;
@@ -492,6 +534,10 @@ function shouldKeepNotification(
 
   return !!prefs.notify_personal;
 }
+
+/* ======================================================
+  Marcar leídas
+====================================================== */
 
 export async function markNotificationRead(id: string) {
   const uid = await requireUid();
@@ -540,7 +586,13 @@ export async function markAllRead() {
   if (error) throw error;
 }
 
-export async function getUnreadConflictNotifications(): Promise<NotificationRow[]> {
+/* ======================================================
+  Helpers de conflicto
+====================================================== */
+
+export async function getUnreadConflictNotifications(): Promise<
+  NotificationRow[]
+> {
   const uid = await requireUid();
 
   const { data, error } = await supabase
@@ -566,15 +618,19 @@ export async function getUnreadConflictNotificationsSummary(): Promise<{
     .from("notifications")
     .select("entity_id, payload, created_at")
     .eq("user_id", uid)
-    .in("type", ["conflict", "conflict_detected"])
+    .in("type", [...CONFLICT_NOTIFICATION_TYPES])
     .is("read_at", null)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
 
   const rows = Array.isArray(data) ? data : [];
+
   const latestWithEntity = rows.find((r: any) => {
-    const ids = extractEventIdsFromPayload(r?.payload ?? null, r?.entity_id ?? null);
+    const ids = extractEventIdsFromPayload(
+      r?.payload ?? null,
+      r?.entity_id ?? null
+    );
     return ids.length > 0;
   });
 
@@ -654,6 +710,10 @@ export function extractConflictEventIdsFromNotification(
   );
 }
 
+/* ======================================================
+  "Delete" UX = mark as read
+====================================================== */
+
 export async function deleteNotification(id: string) {
   await markNotificationRead(id);
 }
@@ -661,6 +721,10 @@ export async function deleteNotification(id: string) {
 export async function deleteAllNotifications() {
   await markAllRead();
 }
+
+/* ======================================================
+  Navegación
+====================================================== */
 
 export function notificationHref(n: NotificationRow): string {
   const t = String(n.type || "").toLowerCase();
@@ -687,8 +751,7 @@ export function notificationHref(n: NotificationRow): string {
   }
 
   if (t === "event_rejected") {
-    const eventId =
-      n.payload?.event_id || n.entity_id || null;
+    const eventId = n.payload?.event_id || n.entity_id || null;
 
     if (eventId) {
       return `/calendar?highlight=${encodeURIComponent(String(eventId))}`;

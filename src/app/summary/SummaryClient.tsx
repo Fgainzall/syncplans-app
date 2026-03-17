@@ -480,15 +480,18 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [booting, upcomingStats]);
 
-  async function requireSessionOrRedirect() {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) throw error;
-    if (!data.session?.user) {
-      router.replace("/auth/login");
-      return null;
-    }
-    return data.session.user;
+async function requireSessionOrRedirect() {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw error;
+
+  const user = data.user;
+  if (!user) {
+    router.replace("/auth/login");
+    return null;
   }
+
+  return user;
+}
 
   const loadSummary = useCallback(async () => {
     setLoading(true);

@@ -3,23 +3,23 @@
 
 import supabase from "@/lib/supabaseClient";
 
-/**
- * Fila base de invitación de grupo.
- */
+/* ======================================================
+  Tipos
+====================================================== */
+
 export type GroupInviteRow = {
   id: string;
   group_id: string;
   email: string | null;
   status: string | null;
   created_at: string | null;
+  accepted_at?: string | null;
   invited_email?: string | null;
   invited_user_id?: string | null;
   role?: string | null;
+  invited_by?: string | null;
 };
 
-/**
- * Invitación enriquecida con datos del grupo (para /invitations).
- */
 export type GroupInvitation = GroupInviteRow & {
   group_name: string | null;
   group_type: string | null;
@@ -28,47 +28,118 @@ export type GroupInvitation = GroupInviteRow & {
 type InviteResult = {
   ok: boolean;
   id?: string;
-  invite_id?: string; // alias para UI
+  invite_id?: string;
   invited_email?: string;
   email_sent?: boolean | null;
   email_error?: string | null;
   error?: string;
 };
 
-// 🔁 Alias de compatibilidad
 export type GroupInviteResult = InviteResult;
+
+/* ======================================================
+  Helpers base
+====================================================== */
 
 async function requireUser() {
   const { data, error } = await supabase.auth.getUser();
   if (error) throw error;
+
   const user = data.user;
   if (!user) throw new Error("No autenticado");
+
   return {
     id: user.id,
     email: user.email ?? null,
   };
 }
 
-function cleanEmail(x: string | null) {
-  return String(x ?? "")
-    .trim()
-    .toLowerCase();
+function cleanEmail(value: string | null | undefined) {
+  return String(value ?? "").trim().toLowerCase();
 }
 
-/* ─────────────────── Mis invitaciones ─────────────────── */
+function normalizeInviteRow(row: any): GroupInviteRow {
+  return {
+    id: String(row?.id ?? ""),
+    group_id: String(row?.group_id ?? ""),
+    email: row?.email ?? row?.invited_email ?? null,
+    status: row?.status ?? null,
+    created_at: row?.created_at ?? null,
+    accepted_at: row?.accepted_at ?? null,
+    invited_email: row?.invited_email ?? row?.email ?? null,
+    invited_user_id: row?.invited_user_id ?? null,
+    role: row?.role ?? null,
+    invited_by: row?.invited_by ?? null,
+  };
+}
+
+async function loadGroupsMeta(groupIds: string[]) {
+  const safeIds = Array.from(
+    new Set(
+      (groupIds ?? [])
+        .map((id) => String(id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  const map = new Map<string, { name: string | null; type: string | null }>();
+
+  if (safeIds.length === 0) return map;
+
+  const { data, error } = await supabase
+    .from("groups")
+    .select("id, name, type")
+    .in("id", safeIds);
+
+  if (error) {
+    console.error("[loadGroupsMeta] error", error);
+    return map;
+  }
+
+  for (const row of data ?? []) {
+    map.set(String((row as any).id), {
+      name: (row as any).name ?? null,
+      type: (row as any).type ?? null,
+    });
+  }
+
+  return map;
+}
+
+function enrichInvitation(
+  invite: GroupInviteRow,
+  groupsById: Map<string, { name: string | null; type: string | null }>
+): GroupInvitation {
+  const group = groupsById.get(String(invite.group_id)) ?? {
+    name: null,
+    type: null,
+  };
+
+  return {
+    ...invite,
+    email: invite.email ?? invite.invited_email ?? null,
+    invited_email: invite.invited_email ?? invite.email ?? null,
+    group_name: group.name,
+    group_type: group.type,
+  };
+}
+
+/* ======================================================
+  Lectura: mis invitaciones
+====================================================== */
 
 export async function getMyInvitations(): Promise<GroupInvitation[]> {
   const { email } = await requireUser();
-  const em = cleanEmail(email);
-  if (!em) return [];
+  const safeEmail = cleanEmail(email);
+
+  if (!safeEmail) return [];
 
   const { data, error } = await supabase
     .from("group_invites")
     .select(
-      "id, group_id, email, status, created_at, invited_email, invited_user_id, role"
+      "id, group_id, email, status, created_at, accepted_at, invited_email, invited_user_id, role, invited_by"
     )
-    // ⚠️ usamos OR porque tu tabla puede usar email o invited_email
-    .or(`email.eq.${em},invited_email.eq.${em}`)
+    .or(`email.eq.${safeEmail},invited_email.eq.${safeEmail}`)
     .eq("status", "pending")
     .order("created_at", { ascending: false });
 
@@ -77,129 +148,84 @@ export async function getMyInvitations(): Promise<GroupInvitation[]> {
     throw error;
   }
 
-  const rows = (data ?? []) as GroupInviteRow[];
-  if (rows.length === 0) return [];
+  const invites = (data ?? []).map(normalizeInviteRow);
+  if (invites.length === 0) return [];
 
-  const groupIds = Array.from(new Set(rows.map((r) => r.group_id).filter(Boolean)));
-
-  const groupsById = new Map<string, { name: string | null; type: string | null }>();
-
-  if (groupIds.length > 0) {
-    const { data: groupsData, error: groupsError } = await supabase
-      .from("groups")
-      .select("id, name, type")
-      .in("id", groupIds);
-
-    if (groupsError) {
-      console.error("[getMyInvitations] groups error", groupsError);
-    } else {
-      (groupsData ?? []).forEach((g: any) => {
-        groupsById.set(String(g.id), {
-          name: g.name ?? null,
-          type: g.type ?? null,
-        });
-      });
-    }
-  }
-
-  return rows.map((r) => {
-    const grp = groupsById.get(String(r.group_id)) ?? { name: null, type: null };
-    return {
-      ...r,
-      email: r.email ?? r.invited_email ?? null,
-      invited_email: r.invited_email ?? r.email ?? null,
-      group_name: grp.name,
-      group_type: grp.type,
-    };
-  });
+  const groupsById = await loadGroupsMeta(invites.map((r) => r.group_id));
+  return invites.map((invite) => enrichInvitation(invite, groupsById));
 }
 
-/* ─────────────────── Detalle de invitación ─────────────────── */
+/* ======================================================
+  Lectura: detalle
+====================================================== */
 
-export async function getInvitationById(inviteId: string): Promise<GroupInvitation | null> {
+export async function getInvitationById(
+  inviteId: string
+): Promise<GroupInvitation | null> {
   await requireUser();
+
+  const safeInviteId = String(inviteId ?? "").trim();
+  if (!safeInviteId) return null;
 
   const { data, error } = await supabase
     .from("group_invites")
     .select(
-      "id, group_id, email, status, created_at, invited_email, invited_user_id, role"
+      "id, group_id, email, status, created_at, accepted_at, invited_email, invited_user_id, role, invited_by"
     )
-    .eq("id", inviteId)
+    .eq("id", safeInviteId)
     .maybeSingle();
 
   if (error) {
     console.error("[getInvitationById] error", error);
     throw error;
   }
+
   if (!data) return null;
 
-  let group_name: string | null = null;
-  let group_type: string | null = null;
+  const invite = normalizeInviteRow(data);
+  const groupsById = await loadGroupsMeta([invite.group_id]);
 
-  if (data.group_id) {
-    const { data: g, error: gErr } = await supabase
-      .from("groups")
-      .select("name, type")
-      .eq("id", data.group_id)
-      .maybeSingle();
-
-    if (gErr) console.error("[getInvitationById] group error", gErr);
-    else if (g) {
-      group_name = g.name ?? null;
-      group_type = g.type ?? null;
-    }
-  }
-
-  return {
-    id: data.id,
-    group_id: data.group_id,
-    email: data.email ?? data.invited_email ?? null,
-    status: data.status ?? null,
-    created_at: data.created_at ?? null,
-    invited_email: data.invited_email ?? data.email ?? null,
-    invited_user_id: data.invited_user_id ?? null,
-    role: (data as any).role ?? null,
-    group_name,
-    group_type,
-  };
+  return enrichInvitation(invite, groupsById);
 }
 
-// Compat viejo (si alguien lo usa)
-export async function getInviteById(inviteId: string): Promise<GroupInviteRow | null> {
+/**
+ * Compat vieja
+ */
+export async function getInviteById(
+  inviteId: string
+): Promise<GroupInviteRow | null> {
+  const safeInviteId = String(inviteId ?? "").trim();
+  if (!safeInviteId) return null;
+
   const { data, error } = await supabase
     .from("group_invites")
     .select(
-      "id, group_id, email, status, created_at, invited_email, invited_user_id, role"
+      "id, group_id, email, status, created_at, accepted_at, invited_email, invited_user_id, role, invited_by"
     )
-    .eq("id", inviteId)
+    .eq("id", safeInviteId)
     .maybeSingle();
 
   if (error) {
     console.error("[getInviteById] error", error);
     throw error;
   }
-  if (!data) return null;
 
-  return {
-    id: data.id,
-    group_id: data.group_id,
-    email: data.email ?? data.invited_email ?? null,
-    status: data.status ?? null,
-    created_at: data.created_at ?? null,
-    invited_email: data.invited_email ?? data.email ?? null,
-    invited_user_id: data.invited_user_id ?? null,
-    role: (data as any).role ?? null,
-  };
+  if (!data) return null;
+  return normalizeInviteRow(data);
 }
 
-/* ─────────────────── Crear invitación ─────────────────── */
+/* ======================================================
+  Crear invitación
+====================================================== */
 
 export async function inviteToGroup(input: {
   groupId: string;
   email: string;
   role: string;
 }): Promise<InviteResult> {
-  const { groupId, email, role } = input;
+  const groupId = String(input.groupId ?? "").trim();
+  const invitedEmail = cleanEmail(input.email);
+  const role = String(input.role ?? "member").trim() || "member";
 
   try {
     await requireUser();
@@ -207,176 +233,278 @@ export async function inviteToGroup(input: {
     return { ok: false, error: e?.message || "No autenticado" };
   }
 
-  const trimmedEmail = cleanEmail(email);
-  if (!trimmedEmail) return { ok: false, error: "Escribe un email." };
+  if (!groupId) return { ok: false, error: "Falta el grupo." };
+  if (!invitedEmail) return { ok: false, error: "Escribe un email." };
 
-  // 1) Intentar RPC create_group_invite
+  /* ---------- 1) RPC invite_to_group (preferida) ---------- */
   try {
-    const { data, error } = await supabase.rpc("create_group_invite", {
+    const { data, error } = await supabase.rpc("invite_to_group", {
       p_group_id: groupId,
-      p_email: trimmedEmail,
+      p_email: invitedEmail,
       p_role: role,
     });
 
-    if (!error) {
-      const invite = Array.isArray(data) ? data[0] : data;
-      const id =
-        invite?.id || invite?.invite_id || invite?.invitation_id || null;
+    if (!error && data) {
+      const result = Array.isArray(data) ? data[0] : data;
+      const inviteId =
+        result?.invite_id ?? result?.id ?? result?.invitation_id ?? null;
 
       return {
         ok: true,
-        id: id ?? undefined,
-        invite_id: id ?? undefined,
-        invited_email: invite?.invited_email ?? invite?.email ?? trimmedEmail,
+        id: inviteId ?? undefined,
+        invite_id: inviteId ?? undefined,
+        invited_email:
+          result?.invited_email ?? result?.email ?? invitedEmail,
         email_sent:
-          typeof invite?.email_sent === "boolean" ? invite.email_sent : null,
-        email_error: invite?.email_error ?? null,
+          typeof result?.email_sent === "boolean" ? result.email_sent : null,
+        email_error: result?.email_error ?? null,
       };
     }
 
-    const msg = (error as any)?.message?.toLowerCase?.() ?? "";
-    if (!msg.includes("function") && !msg.includes("rpc")) {
-      console.error("[inviteToGroup] RPC error", error);
-      return { ok: false, error: error.message };
+    if (error) {
+      const msg = String(error.message ?? "").toLowerCase();
+      const missingFunction =
+        msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+
+      if (!missingFunction) {
+        console.error("[inviteToGroup] invite_to_group RPC error", error);
+        return { ok: false, error: error.message };
+      }
     }
   } catch (e: any) {
     const msg = String(e?.message ?? "").toLowerCase();
-    if (!msg.includes("function") && !msg.includes("rpc")) {
-      console.error("[inviteToGroup] exception RPC", e);
+    const missingFunction =
+      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+
+    if (!missingFunction) {
+      console.error("[inviteToGroup] invite_to_group RPC exception", e);
       return { ok: false, error: e?.message || "Error creando invitación" };
     }
   }
 
-  // 2) Fallback insert (sin email aquí)
+  /* ---------- 2) RPC create_group_invite (compat) ---------- */
+  try {
+    const { data, error } = await supabase.rpc("create_group_invite", {
+      p_group_id: groupId,
+      p_email: invitedEmail,
+      p_role: role,
+    });
+
+    if (!error && data) {
+      const result = Array.isArray(data) ? data[0] : data;
+      const inviteId =
+        result?.invite_id ?? result?.id ?? result?.invitation_id ?? null;
+
+      return {
+        ok: true,
+        id: inviteId ?? undefined,
+        invite_id: inviteId ?? undefined,
+        invited_email:
+          result?.invited_email ?? result?.email ?? invitedEmail,
+        email_sent:
+          typeof result?.email_sent === "boolean" ? result.email_sent : null,
+        email_error: result?.email_error ?? null,
+      };
+    }
+
+    if (error) {
+      const msg = String(error.message ?? "").toLowerCase();
+      const missingFunction =
+        msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+
+      if (!missingFunction) {
+        console.error("[inviteToGroup] create_group_invite RPC error", error);
+        return { ok: false, error: error.message };
+      }
+    }
+  } catch (e: any) {
+    const msg = String(e?.message ?? "").toLowerCase();
+    const missingFunction =
+      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+
+    if (!missingFunction) {
+      console.error("[inviteToGroup] create_group_invite RPC exception", e);
+      return { ok: false, error: e?.message || "Error creando invitación" };
+    }
+  }
+
+  /* ---------- 3) Fallback insert directo ---------- */
   try {
     const { data, error } = await supabase
       .from("group_invites")
       .insert([
         {
           group_id: groupId,
-          invited_email: trimmedEmail,
+          email: invitedEmail,
+          invited_email: invitedEmail,
           invited_user_id: null,
           role,
           status: "pending",
         },
       ])
-      .select("id, group_id, invited_email, status, created_at, role")
+      .select(
+        "id, group_id, email, invited_email, status, created_at, accepted_at, invited_user_id, role, invited_by"
+      )
       .single();
 
     if (error) {
-      console.error("[inviteToGroup] insert error", error);
+      console.error("[inviteToGroup] fallback insert error", error);
       return { ok: false, error: error.message };
     }
 
+    const row = normalizeInviteRow(data);
+
     return {
       ok: true,
-      id: data.id,
-      invite_id: data.id,
-      invited_email: data.invited_email ?? trimmedEmail,
+      id: row.id,
+      invite_id: row.id,
+      invited_email: row.invited_email ?? row.email ?? invitedEmail,
       email_sent: null,
       email_error: null,
     };
   } catch (e: any) {
-    console.error("[inviteToGroup] fallback exception", e);
-    return { ok: false, error: e?.message || "No se pudo crear la invitación" };
+    console.error("[inviteToGroup] fallback insert exception", e);
+    return {
+      ok: false,
+      error: e?.message || "No se pudo crear la invitación",
+    };
   }
 }
 
-/* ─────────────────── Aceptar / rechazar invitación ─────────────────── */
+/* ======================================================
+  Aceptar invitación
+====================================================== */
 
 export async function acceptInvitation(inviteId: string) {
-  // 1) RPC (ideal)
+  const safeInviteId = String(inviteId ?? "").trim();
+  if (!safeInviteId) {
+    return { ok: false, error: "Invitación inválida." };
+  }
+
+  /* ---------- 1) RPC preferida ---------- */
   try {
     const { data, error } = await supabase.rpc("accept_group_invite", {
-      p_invite_id: inviteId,
+      p_invite_id: safeInviteId,
     });
 
-    if (!error) return { ok: true, data };
+    if (!error) {
+      return { ok: true, data };
+    }
 
-    const msg = (error as any)?.message?.toLowerCase?.() ?? "";
-    if (!msg.includes("function") && !msg.includes("rpc")) {
+    const msg = String(error.message ?? "").toLowerCase();
+    const missingFunction =
+      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+
+    if (!missingFunction) {
       console.error("[acceptInvitation] RPC error", error);
       return { ok: false, error: error.message };
     }
   } catch (e: any) {
     const msg = String(e?.message ?? "").toLowerCase();
-    if (!msg.includes("function") && !msg.includes("rpc")) {
-      console.error("[acceptInvitation] exception RPC", e);
+    const missingFunction =
+      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+
+    if (!missingFunction) {
+      console.error("[acceptInvitation] RPC exception", e);
       return { ok: false, error: e?.message || "Error al aceptar invitación" };
     }
   }
 
-  // 2) Fallback PRO: crea membership + marca invite aceptada
+  /* ---------- 2) Fallback ---------- */
   try {
     const user = await requireUser();
+    const invite = await getInviteById(safeInviteId);
 
-    const inv = await getInviteById(inviteId);
-    if (!inv) return { ok: false, error: "Invitación no encontrada." };
+    if (!invite) {
+      return { ok: false, error: "Invitación no encontrada." };
+    }
 
-    const status = String(inv.status ?? "").toLowerCase();
+    const status = String(invite.status ?? "").toLowerCase();
     if (status && status !== "pending") {
       return { ok: true, data: { already: true, status } };
     }
 
-    // Insert membership (best-effort, depende de RLS)
-    const role = String(inv.role ?? "member");
-    const { error: insErr } = await supabase.from("group_members").insert([
+    const role = String(invite.role ?? "member").trim() || "member";
+
+    const { error: memberErr } = await supabase.from("group_members").insert([
       {
-        group_id: inv.group_id,
+        group_id: invite.group_id,
         user_id: user.id,
         role,
       },
     ]);
 
-    if (insErr) {
-      console.error("[acceptInvitation] fallback insert member error", insErr);
-      return { ok: false, error: insErr.message };
+    if (memberErr) {
+      console.error("[acceptInvitation] fallback insert member error", memberErr);
+      return { ok: false, error: memberErr.message };
     }
 
-    const { error: upErr } = await supabase
+    const { error: updateErr } = await supabase
       .from("group_invites")
       .update({
         status: "accepted",
+        accepted_at: new Date().toISOString(),
         invited_user_id: user.id,
-        invited_email: cleanEmail(inv.invited_email ?? inv.email ?? user.email),
+        invited_email: cleanEmail(invite.invited_email ?? invite.email ?? user.email),
+        email: cleanEmail(invite.email ?? invite.invited_email ?? user.email),
       })
-      .eq("id", inviteId);
+      .eq("id", safeInviteId);
 
-    if (upErr) {
-      console.error("[acceptInvitation] fallback update invite error", upErr);
-      // membership ya creado; igual lo consideramos ok
+    if (updateErr) {
+      console.error("[acceptInvitation] fallback update invite error", updateErr);
+      /**
+       * Ya insertamos membership.
+       * No devolvemos error duro para no dejar UX rota si la membresía ya quedó.
+       */
     }
 
-    return { ok: true, data: null };
+    return { ok: true, data: { invite_id: safeInviteId, status: "accepted" } };
   } catch (e: any) {
     console.error("[acceptInvitation] fallback exception", e);
     return { ok: false, error: e?.message || "Error al aceptar invitación" };
   }
 }
 
+/* ======================================================
+  Rechazar invitación
+====================================================== */
+
 export async function declineInvitation(inviteId: string) {
-  // 1) RPC
+  const safeInviteId = String(inviteId ?? "").trim();
+  if (!safeInviteId) {
+    return { ok: false, error: "Invitación inválida." };
+  }
+
+  /* ---------- 1) RPC preferida ---------- */
   try {
     const { data, error } = await supabase.rpc("decline_group_invite", {
-      p_invite_id: inviteId,
+      p_invite_id: safeInviteId,
     });
 
-    if (!error) return { ok: true, data };
+    if (!error) {
+      return { ok: true, data };
+    }
 
-    const msg = (error as any)?.message?.toLowerCase?.() ?? "";
-    if (!msg.includes("function") && !msg.includes("rpc")) {
+    const msg = String(error.message ?? "").toLowerCase();
+    const missingFunction =
+      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+
+    if (!missingFunction) {
       console.error("[declineInvitation] RPC error", error);
       return { ok: false, error: error.message };
     }
   } catch (e: any) {
     const msg = String(e?.message ?? "").toLowerCase();
-    if (!msg.includes("function") && !msg.includes("rpc")) {
-      console.error("[declineInvitation] exception RPC", e);
+    const missingFunction =
+      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+
+    if (!missingFunction) {
+      console.error("[declineInvitation] RPC exception", e);
       return { ok: false, error: e?.message || "Error al rechazar invitación" };
     }
   }
 
-  // 2) Fallback: solo status
+  /* ---------- 2) Fallback ---------- */
   try {
     const user = await requireUser().catch(() => null);
 
@@ -384,16 +512,17 @@ export async function declineInvitation(inviteId: string) {
       .from("group_invites")
       .update({
         status: "declined",
+        accepted_at: new Date().toISOString(),
         invited_user_id: user?.id ?? null,
       })
-      .eq("id", inviteId);
+      .eq("id", safeInviteId);
 
     if (error) {
       console.error("[declineInvitation] fallback update error", error);
       return { ok: false, error: error.message };
     }
 
-    return { ok: true, data: null };
+    return { ok: true, data: { invite_id: safeInviteId, status: "declined" } };
   } catch (e: any) {
     console.error("[declineInvitation] fallback exception", e);
     return { ok: false, error: e?.message || "Error al rechazar invitación" };

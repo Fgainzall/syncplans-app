@@ -707,17 +707,17 @@ export default function ProfilePage() {
     (async () => {
       try {
         setBooting(true);
-        const { data, error } = await supabase.auth.getSession();
-        if (!alive) return;
+const { data, error } = await supabase.auth.getUser();
+if (!alive) return;
 
-        if (error || !data.session?.user) {
-          router.replace("/auth/login?next=/profile");
-          return;
-        }
+if (error || !data.user) {
+  router.replace("/auth/login?next=/profile");
+  return;
+}
 
-        const u = data.session.user;
-        setEmail(u.email ?? "—");
-        setVerified(!!u.email_confirmed_at);
+const u = data.user;
+setEmail(u.email ?? "—");
+setVerified(!!u.email_confirmed_at);
 
         let p = await getMyProfile();
         if (!p) {

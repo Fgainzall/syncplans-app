@@ -66,8 +66,7 @@ function safeNumber(x: string | null, fallback = 0) {
 }
 
 function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
-  if (!gt) return "personal" as GroupType;
-  return (gt === ("pair" as any) ? ("couple" as any) : gt) as GroupType;
+  return (gt ?? "personal") as GroupType;
 }
 
 function resolutionForConflict(
@@ -163,12 +162,12 @@ export default function CompareClient() {
   }, [router, groupIdFromUrl]);
 
   const conflicts = useMemo<AttachedConflict[]>(() => {
-    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
-      (e) => ({
-        ...e,
-        groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
-      })
-    );
+   const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
+  (e) => ({
+    ...e,
+    groupType: normalizeForConflicts(e.groupType),
+  })
+);
 
     const cx = computeVisibleConflicts(normalized);
     const ignored = loadIgnoredConflictKeys();
@@ -208,12 +207,8 @@ export default function CompareClient() {
   const a = c?.existingEvent;
   const b = c?.incomingEvent;
 
-  const aMeta = groupMeta(
-    normalizeForConflicts((a?.groupType ?? "personal") as GroupType)
-  );
-  const bMeta = groupMeta(
-    normalizeForConflicts((b?.groupType ?? "personal") as GroupType)
-  );
+  const aMeta = groupMeta(normalizeForConflicts(a?.groupType));
+const bMeta = groupMeta(normalizeForConflicts(b?.groupType));
 
   const conflictId = c?.id ?? "";
   const chosen: Resolution | undefined =
@@ -254,13 +249,13 @@ export default function CompareClient() {
         return next;
       });
 
-      setToast({
-        title: "No se pudo guardar",
-        sub:
-          typeof e?.message === "string"
-            ? e.message
-            : "Revisa RLS/constraints y vuelve a intentar.",
-      });
+ setToast({
+  title: "No se pudo guardar la decisión",
+  sub:
+    typeof e?.message === "string" && e.message.trim().length > 0
+      ? e.message
+      : "Hubo un problema al guardar tu decisión. Intenta nuevamente.",
+});
     }
   };
 

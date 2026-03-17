@@ -348,9 +348,11 @@ export async function updateMyPlanDebug(input: {
  * Obtiene perfiles por un listado de ids (para Members, etc.)
  */
 export async function getProfilesByIds(ids: string[]): Promise<Profile[]> {
-  const uniqueIds = Array.from(new Set(ids.map((id) => String(id)))).filter(
-    Boolean
-  );
+ const uniqueIds = Array.from(
+  new Set(
+    ids.map((id) => String(id ?? "").trim()).filter(Boolean)
+  )
+);
   if (uniqueIds.length === 0) return [];
 
   const { data, error } = await supabase
@@ -401,14 +403,53 @@ export async function updateDailyDigestSettings(input: {
 }): Promise<void> {
   const uid = await requireUid();
 
+  let existing: Profile | null = null;
+  try {
+    existing = await getMyProfile();
+  } catch {
+    existing = null;
+  }
+
+  let displayName: string | null = null;
+
+  if (existing?.display_name && existing.display_name.trim()) {
+    displayName = existing.display_name.trim();
+  }
+
+  if (!displayName) {
+    const first = existing?.first_name?.trim() ?? "";
+    const last = existing?.last_name?.trim() ?? "";
+    const combined = `${first} ${last}`.trim();
+    if (combined) displayName = combined;
+  }
+
+  if (!displayName) {
+    const { data: userData } = await supabase.auth.getUser();
+    const u = userData?.user;
+
+    const metaName =
+      (u?.user_metadata?.full_name as string | undefined) ||
+      (u?.user_metadata?.name as string | undefined) ||
+      "";
+
+    const emailName =
+      (u?.email ? u.email.split("@")[0] : "") || "Usuario SyncPlans";
+
+    displayName = (metaName || emailName).trim() || "Usuario SyncPlans";
+  }
+
   const { error } = await supabase
     .from("profiles")
-    .update({
-      daily_digest_enabled: input.daily_digest_enabled,
-      daily_digest_hour_local: input.daily_digest_hour_local,
-      daily_digest_timezone: input.daily_digest_timezone,
-    })
-    .eq("id", uid);
+    .upsert(
+      {
+        id: uid,
+        display_name: displayName,
+        daily_digest_enabled: input.daily_digest_enabled,
+        daily_digest_hour_local: input.daily_digest_hour_local,
+        daily_digest_timezone: input.daily_digest_timezone,
+      },
+      { onConflict: "id" }
+    );
 
   if (error) throw error;
 }

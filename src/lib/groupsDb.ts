@@ -3,29 +3,32 @@
 
 import supabase from "@/lib/supabaseClient";
 
+/* ======================================================
+  Tipos
+====================================================== */
+
 /**
- * Tipos de grupo soportados por la app.
+ * Catálogo canónico de grupos que queremos sostener en la app.
+ * - pair
+ * - family
+ * - other
  *
- * - pair: grupos de pareja
- * - family: grupos familiares
- * - other: grupos compartidos genéricos (amigos, equipos, etc.)
- * - solo/personal: reservas para modos personales si la DB los usa
+ * Legacy tolerado al leer:
+ * - couple -> pair
+ * - shared -> other
+ * - solo/personal -> personal (solo para compat)
  */
-export type GroupType = "pair" | "family" | "other" | "solo" | "personal";
+export type CanonicalGroupType = "pair" | "family" | "other" | "personal";
+export type GroupType = CanonicalGroupType | "solo";
 
 export type GroupRow = {
   id: string;
   name: string | null;
-  // Dejamos string extra para no romper si la DB tiene otros valores legacy
   type: GroupType | string;
   created_at?: string | null;
   owner_id?: string | null;
 };
 
-/**
- * Metadata humana de la membresía de un usuario en un grupo.
- * No son permisos (owner/admin), es cómo se ve en ese grupo.
- */
 export type GroupMemberCoordinationPrefs = {
   group_note?: string;
   priority_hint?: "alta" | "media" | "baja";
@@ -34,7 +37,7 @@ export type GroupMemberCoordinationPrefs = {
 export type GroupMemberRow = {
   group_id: string;
   user_id: string;
-  role: string; // 'owner' | 'admin' | 'member'...
+  role: string;
   display_name: string | null;
   relationship_role: string | null;
   coordination_prefs: GroupMemberCoordinationPrefs | null;
@@ -49,131 +52,155 @@ export type GroupMemberMeta = {
 async function requireUid(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
   if (error) throw error;
+
   const uid = data.user?.id;
   if (!uid) throw new Error("Not authenticated");
+
   return uid;
 }
 
-/* ─────────────────── Labels / nombres ─────────────────── */
+/* ======================================================
+  Normalización / labels
+====================================================== */
+
+function cleanName(value: string): string {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+export function normalizeGroupType(
+  type: GroupType | string | null | undefined
+): CanonicalGroupType {
+  const t = String(type ?? "").trim().toLowerCase();
+
+  if (t === "pair" || t === "couple") return "pair";
+  if (t === "family") return "family";
+  if (t === "other" || t === "shared") return "other";
+  if (t === "solo" || t === "personal") return "personal";
+
+  return "other";
+}
 
 /**
- * Helper centralizado para convertir el tipo técnico de grupo
- * en una etiqueta humana consistente en toda la app.
+ * Helper centralizado para etiquetas humanas consistentes.
  */
 export function getGroupTypeLabel(
   type: GroupType | string | null | undefined
 ): string {
-  const t = String(type ?? "").toLowerCase();
-  if (t === "pair" || t === "couple") return "Pareja";
-  if (t === "family") return "Familia";
-  if (t === "other") return "Compartido";
-  if (t === "solo" || t === "personal") return "Personal";
-  return "Grupo";
+  const normalized = normalizeGroupType(type);
+
+  if (normalized === "pair") return "Pareja";
+  if (normalized === "family") return "Familia";
+  if (normalized === "other") return "Compartido";
+  return "Personal";
 }
 
-function cleanName(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
-}
+function defaultGroupNameForType(
+  type: GroupType | string | null | undefined
+): string {
+  const normalized = normalizeGroupType(type);
 
-function defaultGroupNameForType(type: GroupType | string): string {
-  const t = String(type ?? "").toLowerCase();
-  if (t === "pair" || t === "couple") return "Pareja";
-  if (t === "family") return "Familia";
-  if (t === "other") return "Compartido";
-  if (t === "solo" || t === "personal") return "Personal";
-  return "Grupo";
+  if (normalized === "pair") return "Pareja";
+  if (normalized === "family") return "Familia";
+  if (normalized === "other") return "Compartido";
+  return "Personal";
 }
 
 /**
- * Nombre “para mostrar” SIEMPRE consistente (selector, headers, etc.)
- * - Si el grupo tiene name -> lo usamos (limpio).
- * - Si no -> fallback por tipo ("Pareja", "Familia", ...).
+ * Nombre para mostrar:
+ * - usa name si existe y está limpio
+ * - si no, cae al fallback por tipo
  */
-export function getGroupDisplayName(group: Pick<GroupRow, "name" | "type">): string {
-  const n = cleanName(String(group?.name ?? ""));
-  if (n) return n;
-  return defaultGroupNameForType(group?.type ?? "group");
+export function getGroupDisplayName(
+  group: Pick<GroupRow, "name" | "type">
+): string {
+  const name = cleanName(String(group?.name ?? ""));
+  if (name) return name;
+  return defaultGroupNameForType(group?.type);
 }
 
 /**
- * Formatea un nombre de pareja tipo “Fernando & Ara”.
- * Úsalo cuando tú controles ambos nombres (ej. en UI al crear/renombrar).
+ * Formatea nombre de pareja tipo "Fernando & Ara".
  */
 export function formatPairGroupName(a: string, b: string): string {
   const A = cleanName(a);
   const B = cleanName(b);
+
   if (A && B) return `${A} & ${B}`;
   return A || B || "Pareja";
 }
 
-/* ─────────────────── Mis grupos ─────────────────── */
+function mapGroupRow(row: any): GroupRow {
+  return {
+    id: String(row?.id ?? ""),
+    name: row?.name ?? null,
+    type: row?.type ?? null,
+    created_at: row?.created_at ?? null,
+    owner_id: row?.owner_id ?? null,
+  };
+}
+
+/* ======================================================
+  Mis grupos
+====================================================== */
 
 /**
  * Devuelve los grupos a los que pertenezco, ordenados por
- * membresía más reciente. No incluye la metadata humana
- * de la membresía (display_name, relationship_role, etc.).
+ * membresía más reciente.
  */
 export async function getMyGroups(): Promise<GroupRow[]> {
   const uid = await requireUid();
 
-  // 1) memberships
-  const { data: ms, error: mErr } = await supabase
+  const { data: memberships, error: membershipError } = await supabase
     .from("group_members")
     .select("group_id, created_at")
     .eq("user_id", uid)
     .order("created_at", { ascending: false });
 
-  if (mErr) throw mErr;
+  if (membershipError) throw membershipError;
 
   const groupIds = Array.from(
-    new Set((ms ?? []).map((m: any) => m.group_id).filter(Boolean))
+    new Set(
+      (memberships ?? [])
+        .map((m: any) => String(m?.group_id ?? "").trim())
+        .filter(Boolean)
+    )
   );
 
   if (groupIds.length === 0) return [];
 
-  // 2) grupos por ids
-  const { data: gs, error: gErr } = await supabase
+  const { data: groups, error: groupsError } = await supabase
     .from("groups")
-    .select("id,name,type,created_at,owner_id")
+    .select("id, name, type, created_at, owner_id")
     .in("id", groupIds);
 
-  if (gErr) throw gErr;
+  if (groupsError) throw groupsError;
 
-  // 3) orden por “más reciente membership”
   const membershipRank = new Map<string, number>();
-  (ms ?? []).forEach((m: any, idx: number) => {
-    if (m.group_id && !membershipRank.has(m.group_id)) {
-      membershipRank.set(m.group_id, idx);
+  (memberships ?? []).forEach((m: any, idx: number) => {
+    const gid = String(m?.group_id ?? "").trim();
+    if (gid && !membershipRank.has(gid)) {
+      membershipRank.set(gid, idx);
     }
   });
 
-  const rows = (gs ?? []) as any[];
+  const rows = (groups ?? []).map(mapGroupRow);
+
   rows.sort((a, b) => {
-    const ra = membershipRank.get(a.id) ?? 999_999;
-    const rb = membershipRank.get(b.id) ?? 999_999;
+    const ra = membershipRank.get(String(a.id)) ?? 999_999;
+    const rb = membershipRank.get(String(b.id)) ?? 999_999;
     return ra - rb;
   });
 
-  return rows.map((g: any) => ({
-    id: g.id,
-    name: g.name ?? null,
-    type: g.type,
-    created_at: g.created_at ?? null,
-    owner_id: g.owner_id ?? null,
-  }));
+  return rows;
 }
 
-/* ─────────────────── Crear grupo ─────────────────── */
+/* ======================================================
+  Crear grupo
+====================================================== */
 
 /**
- * Crea un grupo.
- * - Preferencia: RPC create_group(p_name, p_type) si existe.
- * - Fallback: insert directo en groups + insert owner en group_members.
- *
- * Tipos permitidos aquí:
- * - "pair"   → grupo de pareja
- * - "family" → grupo familiar
- * - "other"  → grupo compartido genérico (amigos, equipos, etc.)
+ * Tipos permitidos para crear grupos reales compartidos.
+ * No promovemos "solo/personal" desde esta capa.
  */
 export async function createGroup(input: {
   name: string;
@@ -181,129 +208,158 @@ export async function createGroup(input: {
 }): Promise<GroupRow> {
   const uid = await requireUid();
 
-  // ✅ Permitimos vacío pero lo normalizamos a un default potente por tipo.
-  const rawName = cleanName(input.name ?? "");
-  const name = rawName || defaultGroupNameForType(input.type);
+  const normalizedType = normalizeGroupType(input.type);
+  const safeType: "pair" | "family" | "other" =
+    normalizedType === "pair" || normalizedType === "family"
+      ? normalizedType
+      : "other";
 
-  // 1) RPC (si existe)
+  const rawName = cleanName(input.name ?? "");
+  const name = rawName || defaultGroupNameForType(safeType);
+
+  /* ---------- 1) RPC preferida ---------- */
   try {
     const { data, error } = await supabase.rpc("create_group", {
       p_name: name,
-      p_type: input.type,
+      p_type: safeType,
     });
 
     if (!error) {
-      const g = Array.isArray(data) ? data[0] : data;
-      if (!g?.id) throw new Error("No se pudo crear el grupo.");
-      return {
-        id: g.id,
-        name: g.name ?? null,
-        type: g.type,
-        created_at: g.created_at ?? null,
-        owner_id: g.owner_id ?? null,
-      };
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row?.id) {
+        throw new Error("No se pudo crear el grupo.");
+      }
+      return mapGroupRow(row);
     }
 
-    // si el error no es “function missing”, lo lanzamos
-    const msg = (error as any)?.message?.toLowerCase?.() ?? "";
-    if (!msg.includes("function") && !msg.includes("rpc")) throw error;
-    // si es “function missing”, caemos al fallback
+    const msg = String((error as any)?.message ?? "").toLowerCase();
+    const missingFunction =
+      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+
+    if (!missingFunction) throw error;
   } catch (e: any) {
     const msg = String(e?.message ?? "").toLowerCase();
-    if (!msg.includes("function") && !msg.includes("rpc")) {
-      throw e;
-    }
+    const missingFunction =
+      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+
+    if (!missingFunction) throw e;
   }
 
-  // 2) fallback: insert directo
-  // Nota: requiere RLS correcto para insertar groups (owner_id = auth.uid()).
-  const { data: gRow, error: gErr } = await supabase
+  /* ---------- 2) Fallback insert directo ---------- */
+  const { data: groupRow, error: groupError } = await supabase
     .from("groups")
-    .insert([{ name, type: input.type, owner_id: uid }])
-    .select("id,name,type,created_at,owner_id")
+    .insert([
+      {
+        name,
+        type: safeType,
+        owner_id: uid,
+      },
+    ])
+    .select("id, name, type, created_at, owner_id")
     .single();
 
-  if (gErr) throw gErr;
-  if (!gRow?.id) throw new Error("No se pudo crear el grupo (insert).");
+  if (groupError) throw groupError;
+  if (!groupRow?.id) throw new Error("No se pudo crear el grupo.");
 
-  // asegurar membership owner (si tu trigger/RPC ya lo hace, esto puede fallar por duplicate; lo ignoramos si es duplicate)
-  try {
-    await supabase.from("group_members").insert([
+  /**
+   * Asegurar membership owner.
+   * Si ya existe por trigger/RPC, ignoramos el duplicado silenciosamente.
+   */
+  const { error: membershipInsertError } = await supabase
+    .from("group_members")
+    .insert([
       {
-        group_id: gRow.id,
+        group_id: groupRow.id,
         user_id: uid,
         role: "owner",
       },
     ]);
-  } catch {
-    // ignore duplicate
+
+  if (membershipInsertError) {
+    const msg = String(membershipInsertError.message ?? "").toLowerCase();
+    const duplicate =
+      msg.includes("duplicate") ||
+      msg.includes("unique") ||
+      msg.includes("already exists");
+
+    if (!duplicate) {
+      throw membershipInsertError;
+    }
   }
 
-  return {
-    id: gRow.id,
-    name: gRow.name ?? null,
-    type: gRow.type,
-    created_at: (gRow as any).created_at ?? null,
-    owner_id: (gRow as any).owner_id ?? null,
-  };
+  return mapGroupRow(groupRow);
 }
 
-/* ─────────────────── Editar grupo ─────────────────── */
+/* ======================================================
+  Editar grupo
+====================================================== */
 
 /**
- * Actualiza la metadata básica del grupo (nombre y/o tipo).
- * RLS en groups debe permitir UPDATE solo al owner.
+ * Actualiza metadata básica del grupo.
+ * Solo permitimos movernos dentro del catálogo canónico compartido:
+ * - pair
+ * - family
+ * - other
  */
 export async function updateGroupMeta(
   groupId: string,
-  patch: { name?: string | null; type?: GroupType }
+  patch: { name?: string | null; type?: "pair" | "family" | "other" }
 ): Promise<GroupRow> {
-  if (!patch.name && !patch.type) {
+  const safeGroupId = String(groupId ?? "").trim();
+  if (!safeGroupId) throw new Error("Group id inválido.");
+
+  if (typeof patch.name === "undefined" && typeof patch.type === "undefined") {
     throw new Error("No hay cambios para guardar.");
   }
 
-  const payload: any = {};
-  if (patch.type) payload.type = patch.type;
+  const payload: Record<string, any> = {};
 
-  if (patch.name !== undefined) {
-    const n = cleanName(String(patch.name ?? ""));
-    payload.name = n ? n : null;
+  if (typeof patch.type !== "undefined") {
+    const normalizedType = normalizeGroupType(patch.type);
+    payload.type =
+      normalizedType === "pair" || normalizedType === "family"
+        ? normalizedType
+        : "other";
+  }
+
+  if (typeof patch.name !== "undefined") {
+    const clean = cleanName(String(patch.name ?? ""));
+    payload.name = clean || null;
   }
 
   const { data, error } = await supabase
     .from("groups")
     .update(payload)
-    .eq("id", groupId)
-    .select("id,name,type,created_at,owner_id")
+    .eq("id", safeGroupId)
+    .select("id, name, type, created_at, owner_id")
     .single();
 
   if (error) {
     console.error("[updateGroupMeta] error", error);
     throw error;
   }
+
   if (!data) {
     throw new Error("No se pudo actualizar el grupo.");
   }
 
-  return {
-    id: data.id,
-    name: data.name ?? null,
-    type: data.type,
-    created_at: data.created_at ?? null,
-    owner_id: data.owner_id ?? null,
-  };
+  return mapGroupRow(data);
 }
 
-/* ─────────────────── Eliminar / salir de grupo ─────────────────── */
+/* ======================================================
+  Eliminar / salir de grupo
+====================================================== */
 
 /**
  * Elimina por completo un grupo.
- * - Llama al RPC delete_group(p_group_id uuid)
- * - El RPC debe verificar que auth.uid() sea el owner.
+ * Preferimos RPC delete_group().
  */
 export async function deleteGroup(groupId: string): Promise<void> {
+  const safeGroupId = String(groupId ?? "").trim();
+  if (!safeGroupId) throw new Error("Group id inválido.");
+
   const { error } = await supabase.rpc("delete_group", {
-    p_group_id: groupId,
+    p_group_id: safeGroupId,
   });
 
   if (error) {
@@ -313,50 +369,85 @@ export async function deleteGroup(groupId: string): Promise<void> {
 }
 
 /**
- * Sale del grupo el usuario actual (borra su fila en group_members).
+ * Sale del grupo el usuario actual.
+ * Preferimos RPC leave_group() para respetar reglas de owner/member.
+ * Fallback: delete directo de membership.
  */
 export async function leaveGroup(groupId: string): Promise<void> {
   const uid = await requireUid();
+  const safeGroupId = String(groupId ?? "").trim();
 
+  if (!safeGroupId) throw new Error("Group id inválido.");
+
+  /* ---------- 1) RPC preferida ---------- */
+  try {
+    const { data, error } = await supabase.rpc("leave_group", {
+      p_group_id: safeGroupId,
+    });
+
+    if (!error) {
+      const result = Array.isArray(data) ? data[0] : data;
+
+      if (result?.ok === false) {
+        throw new Error(result?.error || "No se pudo salir del grupo.");
+      }
+
+      return;
+    }
+
+    const msg = String(error.message ?? "").toLowerCase();
+    const missingFunction =
+      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+
+    if (!missingFunction) {
+      console.error("[leaveGroup] RPC error", error);
+      throw error;
+    }
+  } catch (e: any) {
+    const msg = String(e?.message ?? "").toLowerCase();
+    const missingFunction =
+      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+
+    if (!missingFunction) {
+      throw e;
+    }
+  }
+
+  /* ---------- 2) Fallback ---------- */
   const { error } = await supabase
     .from("group_members")
     .delete()
-    .eq("group_id", groupId)
+    .eq("group_id", safeGroupId)
     .eq("user_id", uid);
 
   if (error) {
-    console.error("[leaveGroup] error", error);
+    console.error("[leaveGroup] fallback error", error);
     throw error;
   }
 }
 
-/* ─────────────────── Mis memberships ─────────────────── */
+/* ======================================================
+  Mis memberships
+====================================================== */
 
-/**
- * Devuelve TODAS mis memberships con metadata humana:
- * - display_name (cómo quiero que me llamen en ese grupo)
- * - relationship_role (pareja, padre, hijo/a, etc.)
- * - coordination_prefs (nota contextual por grupo)
- *
- * Esto lo usaremos en el Panel para “Tu rol en los grupos”.
- */
 export async function getMyGroupMemberships(): Promise<GroupMemberRow[]> {
   const uid = await requireUid();
 
   const { data, error } = await supabase
     .from("group_members")
     .select(
-      "group_id,user_id,role,display_name,relationship_role,coordination_prefs"
+      "group_id, user_id, role, display_name, relationship_role, coordination_prefs"
     )
     .eq("user_id", uid);
 
   if (error) throw error;
 
   const rows = (data ?? []) as any[];
+
   return rows.map((row) => ({
-    group_id: row.group_id,
-    user_id: row.user_id,
-    role: row.role,
+    group_id: String(row.group_id),
+    user_id: String(row.user_id),
+    role: String(row.role ?? "member"),
     display_name: row.display_name ?? null,
     relationship_role: row.relationship_role ?? null,
     coordination_prefs:
@@ -365,9 +456,7 @@ export async function getMyGroupMemberships(): Promise<GroupMemberRow[]> {
 }
 
 /**
- * Actualiza MI metadata en un grupo concreto (fila en group_members).
- * - Solo toca display_name, relationship_role y coordination_prefs.
- * - Respeta RLS filtrando por group_id + user_id = auth.uid().
+ * Actualiza MI metadata en un grupo concreto.
  */
 export async function updateMyGroupMeta(
   groupId: string,
@@ -378,24 +467,27 @@ export async function updateMyGroupMeta(
   }
 ): Promise<void> {
   const uid = await requireUid();
+  const safeGroupId = String(groupId ?? "").trim();
+
+  if (!safeGroupId) throw new Error("Group id inválido.");
 
   const displayName = cleanName(String(patch.display_name ?? ""));
-  const rel = cleanName(String(patch.relationship_role ?? ""));
+  const relationshipRole = cleanName(String(patch.relationship_role ?? ""));
 
   const payload: Record<string, any> = {
-    display_name: displayName ? displayName : null,
-    relationship_role: rel ? rel : null,
+    display_name: displayName || null,
+    relationship_role: relationshipRole || null,
     coordination_prefs: patch.coordination_prefs ?? null,
   };
 
-  const { error: updError } = await supabase
+  const { error } = await supabase
     .from("group_members")
     .update(payload)
-    .eq("group_id", groupId)
+    .eq("group_id", safeGroupId)
     .eq("user_id", uid);
 
-  if (updError) {
-    console.error("[updateMyGroupMeta] error", updError);
-    throw updError;
+  if (error) {
+    console.error("[updateMyGroupMeta] error", error);
+    throw error;
   }
 }
