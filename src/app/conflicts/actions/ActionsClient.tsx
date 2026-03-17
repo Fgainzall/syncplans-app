@@ -19,15 +19,9 @@ import {
   loadIgnoredConflictKeys,
   loadSoftRejectedEventIds,
   SOFT_REJECTED_EVENTS_KEY,
-  ignoreConflictIds,
-  hideEventIdsForCurrentUser,
 } from "@/lib/conflicts";
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
-import {
-  deleteEventsByIdsDetailed,
-  getMyEvents,
-  type DbEventRow,
-} from "@/lib/eventsDb";
+import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
 import { getMyProfile } from "@/lib/profilesDb";
 import {
   createNotifications,
@@ -39,6 +33,17 @@ import {
   type Resolution,
   getMyConflictResolutionsMap,
 } from "@/lib/conflictResolutionsDb";
+
+type EventResponseStatus = "pending" | "accepted" | "declined";
+
+type ResponsePlan = {
+  total: number;
+  decided: number;
+  pending: number;
+  skipped: number;
+  acceptedEventIds: string[];
+  declinedEventIds: string[];
+};
 
 type RejectedTarget = {
   id: string;
@@ -184,10 +189,14 @@ export default function ActionsClient({
     (async () => {
       setBooting(true);
 
-      const { data, error } = await supabase.auth.getSession();
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+
       if (!alive) return;
 
-      const uid = data.session?.user?.id ?? null;
+      const uid = user?.id ?? null;
       if (error || !uid) {
         setBooting(false);
         router.replace("/auth/login");
@@ -276,12 +285,12 @@ export default function ActionsClient({
   }, [events, hiddenEventIds]);
 
   const conflicts = useMemo<ConflictItem[]>(() => {
-const normalized: CalendarEvent[] = (
-  Array.isArray(visibleEventsForConflicts) ? visibleEventsForConflicts : []
-).map((e) => ({
-  ...e,
-  groupType: normalizeForConflicts(e.groupType),
-}));
+    const normalized: CalendarEvent[] = (
+      Array.isArray(visibleEventsForConflicts) ? visibleEventsForConflicts : []
+    ).map((e) => ({
+      ...e,
+      groupType: normalizeForConflicts(e.groupType),
+    }));
 
     const cx = computeVisibleConflicts(normalized);
     const ignored = loadIgnoredConflictKeys();
@@ -290,14 +299,17 @@ const normalized: CalendarEvent[] = (
     return attachEvents(visible, visibleEventsForConflicts);
   }, [visibleEventsForConflicts]);
 
-  const plan = useMemo(() => {
+  const plan = useMemo<ResponsePlan>(() => {
     let decided = 0;
     let pending = 0;
     let skipped = 0;
-    const deleteIds = new Set<string>();
+
+    const acceptedIds = new Set<string>();
+    const declinedIds = new Set<string>();
 
     for (const c of conflicts) {
       const r = resolutionForConflict(c, resMap);
+
       if (!r) {
         pending++;
         continue;
@@ -305,18 +317,28 @@ const normalized: CalendarEvent[] = (
 
       decided++;
 
+      const existingId = String(c.existingEventId ?? "").trim();
+      const incomingId = String(c.incomingEventId ?? "").trim();
+
       if (r === "none") {
         skipped++;
         continue;
       }
 
-      if (r === "keep_existing" && c.incomingEventId) {
-        deleteIds.add(String(c.incomingEventId));
+      if (r === "keep_existing") {
+        if (existingId) acceptedIds.add(existingId);
+        if (incomingId) declinedIds.add(incomingId);
+        continue;
       }
 
-      if (r === "replace_with_new" && c.existingEventId) {
-        deleteIds.add(String(c.existingEventId));
+      if (r === "replace_with_new") {
+        if (incomingId) acceptedIds.add(incomingId);
+        if (existingId) declinedIds.add(existingId);
       }
+    }
+
+    for (const declinedId of declinedIds) {
+      acceptedIds.delete(declinedId);
     }
 
     return {
@@ -324,7 +346,8 @@ const normalized: CalendarEvent[] = (
       decided,
       pending,
       skipped,
-      deleteIds: Array.from(deleteIds),
+      acceptedEventIds: Array.from(acceptedIds),
+      declinedEventIds: Array.from(declinedIds),
     };
   }, [conflicts, resMap]);
 
@@ -332,39 +355,44 @@ const normalized: CalendarEvent[] = (
     return new Map(dbEvents.map((ev) => [String(ev.id), ev]));
   }, [dbEvents]);
 
-  const ownDeleteIds = useMemo(() => {
+  const ownDeclinedEventIds = useMemo(() => {
     const out: string[] = [];
 
-    for (const eventId of plan.deleteIds) {
+    for (const eventId of plan.declinedEventIds) {
       const row = dbEventsById.get(String(eventId));
       if (!row) continue;
 
-   const ownerId = String(
-  (row as any).owner_id ?? row.user_id ?? (row as any).created_by ?? ""
-).trim();
+      const ownerId = String(
+        (row as any).owner_id ?? row.user_id ?? (row as any).created_by ?? ""
+      ).trim();
 
-if (currentUid && ownerId === currentUid) {
-  out.push(String(row.id));
-}
+      if (currentUid && ownerId === currentUid) {
+        out.push(String(row.id));
+      }
     }
 
     return out;
-  }, [plan.deleteIds, dbEventsById, currentUid]);
+  }, [plan.declinedEventIds, dbEventsById, currentUid]);
+
+  const externalDeclinedEventIds = useMemo(() => {
+    const own = new Set(ownDeclinedEventIds.map(String));
+    return plan.declinedEventIds.filter((id) => !own.has(String(id)));
+  }, [plan.declinedEventIds, ownDeclinedEventIds]);
 
   const rejectedTargets = useMemo<RejectedTarget[]>(() => {
     const out: RejectedTarget[] = [];
     const seen = new Set<string>();
 
-    for (const eventId of plan.deleteIds) {
+    for (const eventId of plan.declinedEventIds) {
       const row = dbEventsById.get(String(eventId));
       if (!row) continue;
 
       const creatorId = String(
-  (row as any).owner_id ?? row.user_id ?? (row as any).created_by ?? ""
-).trim();
+        (row as any).owner_id ?? row.user_id ?? (row as any).created_by ?? ""
+      ).trim();
 
-if (!creatorId) continue;
-if (currentUid && creatorId === currentUid) continue;
+      if (!creatorId) continue;
+      if (currentUid && creatorId === currentUid) continue;
       if (seen.has(String(row.id))) continue;
 
       seen.add(String(row.id));
@@ -380,48 +408,7 @@ if (currentUid && creatorId === currentUid) continue;
     }
 
     return out;
-  }, [plan.deleteIds, dbEventsById, currentUid]);
-
-  const blockedDeleteIds = useMemo(() => {
-    const own = new Set(ownDeleteIds);
-    return plan.deleteIds.filter((id) => !own.has(String(id)));
-  }, [plan.deleteIds, ownDeleteIds]);
-
-  const blockedConflictIds = useMemo(() => {
-    const blocked = new Set(blockedDeleteIds.map(String));
-    if (!blocked.size) return [] as string[];
-
-    const ids = new Set<string>();
-
-    for (const c of conflicts) {
-      const r = resolutionForConflict(c, resMap);
-      if (!r || r === "none") continue;
-
-      const targetDeleteId =
-        r === "keep_existing"
-          ? String(c.incomingEventId ?? "")
-          : String(c.existingEventId ?? "");
-
-      if (targetDeleteId && blocked.has(targetDeleteId)) {
-        ids.add(String(c.id));
-      }
-    }
-
-    return Array.from(ids);
-  }, [blockedDeleteIds, conflicts, resMap]);
-
-  const ignoredConflictIds = useMemo(() => {
-    const ids = new Set<string>();
-
-    for (const c of conflicts) {
-      const r = resolutionForConflict(c, resMap);
-      if (r === "none") {
-        ids.add(String(c.id));
-      }
-    }
-
-    return Array.from(ids);
-  }, [conflicts, resMap]);
+  }, [plan.declinedEventIds, dbEventsById, currentUid]);
 
   const resolvedConflictEventIds = useMemo(() => {
     const ids = new Set<string>();
@@ -478,6 +465,26 @@ if (currentUid && creatorId === currentUid) continue;
     }));
   };
 
+  const respondToEvent = async (
+    eventId: string,
+    status: EventResponseStatus,
+    comment?: string | null
+  ) => {
+    const trimmedComment = String(comment ?? "").trim() || null;
+
+    const { error } = await supabase.rpc("respond_to_event", {
+      p_event_id: eventId,
+      p_response_status: status,
+      p_comment: trimmedComment,
+    });
+
+    if (error) {
+      throw new Error(
+        error.message || "No se pudo guardar la respuesta del evento."
+      );
+    }
+  };
+
   const apply = async () => {
     if (busy) return;
 
@@ -492,7 +499,20 @@ if (currentUid && creatorId === currentUid) continue;
     try {
       setBusy(true);
 
+      let acceptedCount = 0;
+      let declinedCount = 0;
       let notifiedCount = 0;
+
+      for (const eventId of plan.acceptedEventIds) {
+        await respondToEvent(eventId, "accepted", null);
+        acceptedCount++;
+      }
+
+      for (const eventId of plan.declinedEventIds) {
+        const comment = String(commentsByEventId[eventId] ?? "").trim() || null;
+        await respondToEvent(eventId, "declined", comment);
+        declinedCount++;
+      }
 
       if (notificationRows.length > 0) {
         try {
@@ -511,49 +531,6 @@ if (currentUid && creatorId === currentUid) continue;
         }
       }
 
-      let deletedCount = 0;
-
-      if (ownDeleteIds.length > 0) {
-        const deleteResult = await deleteEventsByIdsDetailed(ownDeleteIds);
-        deletedCount = deleteResult.deletedCount;
-
-        if (deleteResult.blockedIds.length > 0) {
-          throw new Error(
-            "Algunos eventos no podían eliminarse con tu sesión actual."
-          );
-        }
-
-        if (deletedCount !== ownDeleteIds.length) {
-          throw new Error(
-            "No se eliminaron todos los eventos seleccionados. No cerramos el flujo para evitar inconsistencias."
-          );
-        }
-      }
-
-      if (blockedDeleteIds.length > 0) {
-        try {
-          hideEventIdsForCurrentUser(blockedDeleteIds);
-        } catch {
-          // no rompemos el flujo si falla localStorage
-        }
-      }
-
-      if (blockedConflictIds.length > 0) {
-        try {
-          ignoreConflictIds(blockedConflictIds);
-        } catch {
-          // no rompemos el flujo si falla localStorage
-        }
-      }
-
-      if (ignoredConflictIds.length > 0) {
-        try {
-          ignoreConflictIds(ignoredConflictIds);
-        } catch {
-          // no rompemos el flujo si falla localStorage
-        }
-      }
-
       if (resolvedConflictEventIds.length > 0) {
         try {
           await markConflictNotificationsAsRead({
@@ -568,32 +545,28 @@ if (currentUid && creatorId === currentUid) continue;
       qp.set("from", "conflicts");
       qp.set("resolved", String(plan.decided));
 
-      if (deletedCount > 0) {
-        qp.set("deleted", String(deletedCount));
+      if (acceptedCount > 0) {
+        qp.set("accepted", String(acceptedCount));
+      }
+
+      if (declinedCount > 0) {
+        qp.set("declined", String(declinedCount));
       }
 
       if (notifiedCount > 0) {
         qp.set("notified", String(notifiedCount));
       }
 
-      if (blockedDeleteIds.length > 0) {
-        qp.set("softRejected", String(blockedDeleteIds.length));
-      }
-
-      if (ignoredConflictIds.length > 0) {
-        qp.set("ignored", String(ignoredConflictIds.length));
-      }
-
       router.replace(`/summary?${qp.toString()}`);
     } catch (e: any) {
       setBusy(false);
-setToast({
-  title: "No se pudo finalizar la resolución",
-  sub:
-    typeof e?.message === "string" && e.message.trim().length > 0
-      ? e.message
-      : "No pudimos cerrar la resolución completa. Para evitar inconsistencias, el flujo no se cerró.",
-});
+      setToast({
+        title: "No se pudo finalizar la resolución",
+        sub:
+          typeof e?.message === "string" && e.message.trim().length > 0
+            ? e.message
+            : "No pudimos cerrar la resolución completa. Para evitar inconsistencias, el flujo no se cerró.",
+      });
     }
   };
 
@@ -643,7 +616,7 @@ setToast({
             </h1>
             <div style={styles.sub}>
               {hasRejectedTargets
-                ? "Antes de cerrar, puedes avisar al creador de cada evento que no fue elegido."
+                ? "Antes de cerrar, puedes avisar al creador de cada evento que no fue elegido. La resolución ya no borra eventos: guarda tu respuesta real."
                 : "Revisamos todo y dejamos lista tu decisión sobre los conflictos."}
             </div>
           </div>
@@ -673,8 +646,23 @@ setToast({
             </div>
 
             <div style={styles.summaryItem}>
-              <div style={styles.summaryLabel}>Eliminaciones reales</div>
-              <div style={styles.summaryValue}>{ownDeleteIds.length}</div>
+              <div style={styles.summaryLabel}>Eventos aceptados</div>
+              <div style={styles.summaryValue}>{plan.acceptedEventIds.length}</div>
+            </div>
+
+            <div style={styles.summaryItem}>
+              <div style={styles.summaryLabel}>Eventos rechazados</div>
+              <div style={styles.summaryValue}>{plan.declinedEventIds.length}</div>
+            </div>
+
+            <div style={styles.summaryItem}>
+              <div style={styles.summaryLabel}>Rechazos a eventos propios</div>
+              <div style={styles.summaryValue}>{ownDeclinedEventIds.length}</div>
+            </div>
+
+            <div style={styles.summaryItem}>
+              <div style={styles.summaryLabel}>Comentarios por enviar</div>
+              <div style={styles.summaryValue}>{rejectedTargets.length}</div>
             </div>
 
             <div style={styles.summaryItem}>
@@ -683,13 +671,10 @@ setToast({
             </div>
 
             <div style={styles.summaryItem}>
-            <div style={styles.summaryLabel}>No eliminados / ocultados localmente</div>
-              <div style={styles.summaryValue}>{blockedDeleteIds.length}</div>
-            </div>
-
-            <div style={styles.summaryItem}>
-              <div style={styles.summaryLabel}>Comentarios por enviar</div>
-              <div style={styles.summaryValue}>{rejectedTargets.length}</div>
+              <div style={styles.summaryLabel}>Rechazos a eventos ajenos</div>
+              <div style={styles.summaryValue}>
+                {externalDeclinedEventIds.length}
+              </div>
             </div>
           </div>
         </section>
