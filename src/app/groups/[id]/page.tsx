@@ -14,7 +14,7 @@ import {
   updateGroupMeta,
   deleteGroup,
   leaveGroup,
-  type GroupType,
+  type CanonicalGroupType,
 } from "@/lib/groupsDb";
 
 type Group = {
@@ -24,6 +24,8 @@ type Group = {
   owner_id: string | null;
   created_at: string;
 };
+
+type EditableGroupType = "pair" | "family" | "other";
 
 type MemberRow = {
   user_id: string;
@@ -48,8 +50,11 @@ type GroupMessage = {
   isMe: boolean;
 };
 
-const groupTypeOptions: { value: GroupType; label: string; hint: string }[] = [
-  { value: "solo", label: "Personal", hint: "Solo tú" },
+const groupTypeOptions: {
+  value: EditableGroupType;
+  label: string;
+  hint: string;
+}[] = [
   { value: "pair", label: "Pareja", hint: "2 personas" },
   { value: "family", label: "Familia", hint: "Varios" },
   { value: "other", label: "Compartido", hint: "Amigos, equipos" },
@@ -60,8 +65,18 @@ function labelGroupType(t?: string | null) {
   if (x === "family") return "Familia";
   if (x === "pair" || x === "couple") return "Pareja";
   if (x === "solo" || x === "personal") return "Personal";
-  if (x === "other") return "Compartido";
+  if (x === "other" || x === "shared") return "Compartido";
   return t ? String(t) : "Grupo";
+}
+
+function normalizeEditableGroupType(
+  t?: string | null
+): EditableGroupType {
+  const x = String(t || "").toLowerCase();
+
+  if (x === "pair" || x === "couple") return "pair";
+  if (x === "family") return "family";
+  return "other";
 }
 
 function initials(name?: string | null) {
@@ -99,7 +114,7 @@ export default function GroupDetailsPage() {
 
   // Edición de grupo (nombre + tipo)
   const [editName, setEditName] = useState("");
-  const [editType, setEditType] = useState<GroupType>("family");
+  const [editType, setEditType] = useState<EditableGroupType>("family");
   const [savingMeta, setSavingMeta] = useState(false);
 
   // Mensajes del grupo
@@ -139,7 +154,7 @@ export default function GroupDetailsPage() {
   const hasGroupMetaChanges = useMemo(() => {
     if (!group) return false;
     const baseName = group.name ?? "";
-    const baseType = (group.type as GroupType) ?? "family";
+    const baseType = normalizeEditableGroupType(group.type);
     return baseName !== editName.trim() || baseType !== editType;
   }, [group, editName, editType]);
 
@@ -231,14 +246,14 @@ export default function GroupDetailsPage() {
   async function loadAll() {
     if (!groupId) throw new Error("Group id missing");
 
-    const { data: ses, error: sesErr } = await supabase.auth.getSession();
-    if (sesErr) throw sesErr;
-    if (!ses.session?.user) {
+    const { data: authData, error: authErr } = await supabase.auth.getUser();
+    if (authErr) throw authErr;
+    if (!authData.user) {
       router.replace("/auth/login");
       return;
     }
 
-    const userId = ses.session.user.id;
+    const userId = authData.user.id;
     setCurrentUserId(userId);
 
     // ✅ IMPORTANT: al entrar al detalle, seteamos este grupo como activo
@@ -260,7 +275,7 @@ export default function GroupDetailsPage() {
     setGroup(typedGroup);
 
     setEditName(typedGroup.name ?? "");
-    setEditType((typedGroup.type as GroupType) ?? "family");
+    setEditType(normalizeEditableGroupType(typedGroup.type));
 
     const { data: ns, error: nsErr } = await supabase
       .from("group_notification_settings")
@@ -319,7 +334,7 @@ export default function GroupDetailsPage() {
 
       if (!res?.ok) throw new Error(res?.error || "No se pudo invitar.");
 
-      const inviteId = res.id ?? null;
+      const inviteId = res.invite_id ?? res.id ?? null;
 
       let link: string | null = null;
       if (inviteId && typeof window !== "undefined") {
@@ -487,12 +502,12 @@ export default function GroupDetailsPage() {
     try {
       setSavingMeta(true);
 
-      const patch: { name?: string | null; type?: GroupType } = {};
+      const patch: { name?: string | null; type?: EditableGroupType } = {};
 
       const trimmedName = editName.trim();
       if (trimmedName !== (g.name ?? "")) patch.name = trimmedName || null;
 
-      const baseType = (g.type as GroupType) ?? "family";
+      const baseType = normalizeEditableGroupType(g.type);
       if (editType !== baseType) patch.type = editType;
 
       const updated = await updateGroupMeta(g.id, patch);
