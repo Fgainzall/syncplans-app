@@ -13,7 +13,10 @@ import {
   attachEvents,
   conflictKey,
   filterIgnoredConflicts,
+  filterSoftRejectedEvents,
   loadIgnoredConflictKeys,
+  loadSoftRejectedEventIds,
+  SOFT_REJECTED_EVENTS_KEY,
 } from "@/lib/conflicts";
 
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
@@ -21,6 +24,7 @@ import {
   Resolution,
   getMyConflictResolutionsMap,
 } from "@/lib/conflictResolutionsDb";
+import { markConflictNotificationsAsRead } from "@/lib/notificationsDb";
 
 /* =========================
    Helpers
@@ -54,15 +58,15 @@ function prettyTimeRange(startIso: string, endIso: string) {
 }
 
 /**
- * ✅ Normalización para conflictos:
- * El motor trabaja con "couple" (no "pair").
+ * Compat:
+ * el motor viejo tolera "couple"; el producto ya usa "pair".
  */
 function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
   if (!gt) return "personal" as GroupType;
   return (gt === ("pair" as any) ? ("couple" as any) : gt) as GroupType;
 }
 
-/** ✅ SOLO Detected: detecta móvil por ancho (modo app iPhone entra aquí) */
+/** móvil por ancho */
 function useIsMobileWidth(maxWidth = 520) {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -136,6 +140,9 @@ export default function DetectedClient() {
   const [booting, setBooting] = useState(true);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
+  const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(() =>
+    loadSoftRejectedEventIds()
+  );
 
   useEffect(() => {
     let alive = true;
@@ -172,7 +179,10 @@ export default function DetectedClient() {
         setResMap({});
       }
 
-      setBooting(false);
+      if (alive) {
+        setHiddenEventIds(loadSoftRejectedEventIds());
+        setBooting(false);
+      }
     })();
 
     return () => {
@@ -180,11 +190,52 @@ export default function DetectedClient() {
     };
   }, [router, groupIdFromUrl]);
 
-  const conflicts = useMemo<AttachedConflict[]>(() => {
-    const normalized: CalendarEvent[] = (Array.isArray(events)
-      ? events
-      : []
-    ).map((e) => ({
+  useEffect(() => {
+    const refreshHidden = () => {
+      setHiddenEventIds(loadSoftRejectedEventIds());
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === SOFT_REJECTED_EVENTS_KEY) {
+        refreshHidden();
+      }
+    };
+
+    const onFocus = () => refreshHidden();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        refreshHidden();
+      }
+    };
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener(
+      "sp:soft-rejected-events-changed",
+      refreshHidden as EventListener
+    );
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener(
+        "sp:soft-rejected-events-changed",
+        refreshHidden as EventListener
+      );
+    };
+  }, []);
+
+  const visibleEvents = useMemo<CalendarEvent[]>(() => {
+    return filterSoftRejectedEvents(
+      Array.isArray(events) ? events : [],
+      hiddenEventIds
+    );
+  }, [events, hiddenEventIds]);
+
+  const allVisibleConflicts = useMemo<AttachedConflict[]>(() => {
+    const normalized: CalendarEvent[] = visibleEvents.map((e) => ({
       ...e,
       groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
     }));
@@ -193,39 +244,81 @@ export default function DetectedClient() {
     const ignored = loadIgnoredConflictKeys();
     const visible = filterIgnoredConflicts(cx, ignored);
 
-    const attached = attachEvents(
+    return attachEvents(
       visible,
-      events
+      visibleEvents
     ) as unknown as AttachedConflict[];
+  }, [visibleEvents]);
 
-    if (!focusEventId) return attached;
+  /**
+   * Mantenemos solo conflictos pendientes reales,
+   * igual que el banner nuevo de Summary.
+   */
+  const pendingConflicts = useMemo<AttachedConflict[]>(() => {
+    const pending = allVisibleConflicts.filter(
+      (c) => !resolutionForConflict(c, resMap)
+    );
 
-    return attached.filter(
+    if (!focusEventId) return pending;
+
+    return pending.filter(
       (c) =>
         String(c.existingEventId) === String(focusEventId) ||
         String(c.incomingEventId) === String(focusEventId)
     );
-  }, [events, focusEventId]);
+  }, [allVisibleConflicts, resMap, focusEventId]);
 
   const summary = useMemo(() => {
-    const total = conflicts.length;
+    const totalVisible = allVisibleConflicts.length;
     let decided = 0;
-    for (const c of conflicts) {
+
+    for (const c of allVisibleConflicts) {
       if (resolutionForConflict(c, resMap)) decided++;
     }
-    return { total, decided, pending: Math.max(0, total - decided) };
-  }, [conflicts, resMap]);
+
+    const pending = pendingConflicts.length;
+
+    return {
+      totalVisible,
+      decided,
+      pending,
+    };
+  }, [allVisibleConflicts, pendingConflicts, resMap]);
+
+  /**
+   * Si entramos desde una notificación con eventId
+   * y ya no hay conflicto pendiente real para ese evento,
+   * limpiamos esa notificación fantasma.
+   */
+  useEffect(() => {
+    if (!focusEventId) return;
+    if (booting) return;
+
+    const hasPendingForFocus = pendingConflicts.some(
+      (c) =>
+        String(c.existingEventId) === String(focusEventId) ||
+        String(c.incomingEventId) === String(focusEventId)
+    );
+
+    if (hasPendingForFocus) return;
+
+    void markConflictNotificationsAsRead({
+      eventIds: [String(focusEventId)],
+    }).catch(() => {
+      // no rompemos la UI si falla esta limpieza
+    });
+  }, [focusEventId, pendingConflicts, booting]);
 
   const LIST_LIMIT = isMobile ? 5 : 50;
   const visibleConflicts = useMemo(
-    () => conflicts.slice(0, LIST_LIMIT),
-    [conflicts, LIST_LIMIT]
+    () => pendingConflicts.slice(0, LIST_LIMIT),
+    [pendingConflicts, LIST_LIMIT]
   );
-  const showSeeMore = !booting && conflicts.length > LIST_LIMIT;
+  const showSeeMore = !booting && pendingConflicts.length > LIST_LIMIT;
 
   const openCompare = (idx: number) => {
-    if (conflicts.length === 0) return;
-    const safe = Math.min(Math.max(idx, 0), conflicts.length - 1);
+    if (pendingConflicts.length === 0) return;
+    const safe = Math.min(Math.max(idx, 0), pendingConflicts.length - 1);
 
     const qp = new URLSearchParams();
     qp.set("i", String(safe));
@@ -236,9 +329,8 @@ export default function DetectedClient() {
   };
 
   const resumeNext = () => {
-    if (conflicts.length === 0) return;
-    const idx = conflicts.findIndex((c) => !resolutionForConflict(c, resMap));
-    openCompare(idx >= 0 ? idx : 0);
+    if (pendingConflicts.length === 0) return;
+    openCompare(0);
   };
 
   const goActions = () => {
@@ -277,7 +369,7 @@ export default function DetectedClient() {
             mobileNav="bottom"
             title="Conflictos"
             subtitle={
-              summary.total === 0
+              summary.pending === 0
                 ? "Tu agenda está sincronizada."
                 : "Detecta y resuelve choques de horario en segundos."
             }
@@ -288,19 +380,19 @@ export default function DetectedClient() {
           <div style={styles.heroLeft}>
             <div style={styles.kicker}>Conflictos</div>
             <h1 style={styles.h1}>
-              {summary.total === 0
+              {summary.pending === 0
                 ? "Todo claro por aquí"
                 : "Tranquilo, esto se soluciona en segundos"}
             </h1>
             <div style={styles.sub}>
-              {summary.total === 0
-                ? "No encontramos choques visibles para este contexto."
-                : `Detectamos ${summary.total} conflicto(s). Decide una vez y listo.`}
+              {summary.pending === 0
+                ? "No encontramos choques pendientes visibles para este contexto."
+                : `Detectamos ${summary.pending} conflicto(s) pendiente(s). Decide una vez y listo.`}
             </div>
           </div>
 
           <div style={styles.heroRight}>
-            {summary.total > 0 ? (
+            {summary.pending > 0 ? (
               <button onClick={resumeNext} style={styles.primaryBtn}>
                 Resolver ahora ✨
               </button>
@@ -324,7 +416,7 @@ export default function DetectedClient() {
               </div>
             </div>
 
-            {summary.total > 0 && (
+            {summary.pending > 0 && (
               <button onClick={goActions} style={styles.secondaryBtn}>
                 Aplicar decisiones
               </button>
@@ -351,8 +443,6 @@ export default function DetectedClient() {
                   normalizeForConflicts((b?.groupType ?? "personal") as any)
                 );
 
-                const chosen = resolutionForConflict(c, resMap);
-
                 return (
                   <button
                     key={c.id}
@@ -365,13 +455,7 @@ export default function DetectedClient() {
                           Choque · {ymd(new Date(c.overlapStart))}
                         </span>
 
-                        <span
-                          style={
-                            chosen ? styles.badgeResolved : styles.badgePending
-                          }
-                        >
-                          {chosen ? "Decidido" : "Pendiente"}
-                        </span>
+                        <span style={styles.badgePending}>Pendiente</span>
                       </div>
 
                       <span style={styles.arrow}>→</span>
@@ -555,15 +639,6 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(94,37,42,0.82)",
     border: "1px solid rgba(255,128,140,0.18)",
     color: "#FFE2E7",
-  },
-  badgeResolved: {
-    borderRadius: 999,
-    padding: "7px 10px",
-    fontSize: 12,
-    fontWeight: 900,
-    background: "rgba(19,61,35,0.78)",
-    border: "1px solid rgba(102,255,179,0.22)",
-    color: "#D6FFE8",
   },
   badgePending: {
     borderRadius: 999,

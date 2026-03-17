@@ -8,7 +8,6 @@ import React, {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { getUnreadConflictNotificationsSummary } from "@/lib/notificationsDb";
 import supabase from "@/lib/supabaseClient";
 import AppHero from "@/components/AppHero";
 import MobileScaffold from "@/components/MobileScaffold";
@@ -17,10 +16,21 @@ import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { getMyEvents } from "@/lib/eventsDb";
 import {
+  computeVisibleConflicts,
+  conflictKey,
+  filterIgnoredConflicts,
   filterSoftRejectedEvents,
+  loadIgnoredConflictKeys,
   loadSoftRejectedEventIds,
   SOFT_REJECTED_EVENTS_KEY,
+  type CalendarEvent,
+  type GroupType,
+  type ConflictItem,
 } from "@/lib/conflicts";
+import {
+  getMyConflictResolutionsMap,
+  type Resolution,
+} from "@/lib/conflictResolutionsDb";
 
 type Props = {
   highlightId: string | null;
@@ -39,6 +49,11 @@ type SummaryEvent = {
   groupId: string | null;
   isExternal: boolean;
   raw: any;
+};
+
+type ConflictAlert = {
+  count: number;
+  latestEventId: string | null;
 };
 
 function safeDate(iso?: string | null) {
@@ -71,6 +86,122 @@ function humanGroupName(g: GroupRow) {
   if (t === "other" || t === "shared") return "Compartido";
 
   return "Grupo";
+}
+
+function normalizeSummaryGroupType(
+  raw: string | null | undefined
+): GroupType {
+  const value = String(raw ?? "").trim().toLowerCase();
+
+  if (value === "pair" || value === "couple") return "pair";
+  if (value === "family") return "family";
+  if (value === "other" || value === "shared") return "other";
+  return "personal";
+}
+
+function resolutionForConflict(
+  conflict: ConflictItem,
+  resMap: Record<string, Resolution>
+): Resolution | undefined {
+  const exact = resMap[String(conflict.id)];
+  if (exact) return exact;
+
+  const a = String(conflict.existingEventId ?? "");
+  const b = String(conflict.incomingEventId ?? "");
+  if (!a || !b) return undefined;
+
+  const stableKey = conflictKey(a, b);
+  if (resMap[stableKey]) return resMap[stableKey];
+
+  const [x, y] = [a, b].sort();
+  const legacyPrefix = `cx::${x}::${y}::`;
+
+  for (const key of Object.keys(resMap)) {
+    if (key.startsWith(legacyPrefix)) return resMap[key];
+  }
+
+  return undefined;
+}
+
+function buildConflictAlert(
+  events: SummaryEvent[],
+  groups: GroupRow[],
+  resMap: Record<string, Resolution>
+): ConflictAlert {
+  if (!Array.isArray(events) || events.length === 0) {
+    return { count: 0, latestEventId: null };
+  }
+
+  const groupTypeById = new Map<string, string>();
+  for (const group of groups ?? []) {
+    const id = String(group?.id ?? "").trim();
+    if (!id) continue;
+    groupTypeById.set(id, String(group?.type ?? ""));
+  }
+
+  const conflictEvents: CalendarEvent[] = events
+    .map((event) => {
+      if (!event.startIso) return null;
+
+      const derivedGroupType = event.groupId
+        ? normalizeSummaryGroupType(groupTypeById.get(String(event.groupId)))
+        : ("personal" as GroupType);
+
+      return {
+        id: event.id,
+        title: event.title,
+        start: event.startIso,
+        end: event.endIso ?? event.startIso,
+        groupId: event.groupId,
+        groupType: derivedGroupType,
+        description:
+          typeof event.raw?.notes === "string" ? event.raw.notes : undefined,
+      } satisfies CalendarEvent;
+    })
+    .filter(Boolean) as CalendarEvent[];
+
+  if (conflictEvents.length === 0) {
+    return { count: 0, latestEventId: null };
+  }
+
+  const ignored = loadIgnoredConflictKeys();
+  const allConflicts = computeVisibleConflicts(conflictEvents);
+  const visibleConflicts = filterIgnoredConflicts(allConflicts, ignored);
+
+  const pendingConflicts = visibleConflicts.filter(
+    (conflict) => !resolutionForConflict(conflict, resMap)
+  );
+
+  if (pendingConflicts.length === 0) {
+    return { count: 0, latestEventId: null };
+  }
+
+  const eventsById = new Map(conflictEvents.map((event) => [String(event.id), event]));
+
+  let latestEventId: string | null = null;
+  let latestStartMs = -1;
+
+  for (const conflict of pendingConflicts) {
+    const candidates = [
+      eventsById.get(String(conflict.existingEventId)),
+      eventsById.get(String(conflict.incomingEventId)),
+    ].filter(Boolean) as CalendarEvent[];
+
+    for (const event of candidates) {
+      const ms = new Date(event.start).getTime();
+      if (Number.isNaN(ms)) continue;
+
+      if (ms > latestStartMs) {
+        latestStartMs = ms;
+        latestEventId = String(event.id);
+      }
+    }
+  }
+
+  return {
+    count: pendingConflicts.length,
+    latestEventId,
+  };
 }
 
 function useIsMobileWidth(maxWidth = 520) {
@@ -195,14 +326,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     loadSoftRejectedEventIds()
   );
   const [loading, setLoading] = useState(false);
-
-  const [conflictAlert, setConflictAlert] = useState<{
-    count: number;
-    latestEventId: string | null;
-  }>({
-    count: 0,
-    latestEventId: null,
-  });
+  const [resMap, setResMap] = useState<Record<string, Resolution>>({});
 
   const toastTimeoutRef = useRef<number | null>(null);
 
@@ -240,10 +364,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return activeGroup ? humanGroupName(activeGroup) : "Grupo";
   }, [activeGroupId, activeGroup]);
 
-const contextLabel = useMemo(() => {
-  if (!activeGroupId) return "Vista general";
-  return `Vista general · Grupo activo: ${activeLabel}`;
-}, [activeGroupId, activeLabel]);
+  const contextLabel = useMemo(() => {
+    if (!activeGroupId) return "Vista general";
+    return `Vista general · Grupo activo: ${activeLabel}`;
+  }, [activeGroupId, activeLabel]);
 
   const normalizedEvents = useMemo(() => {
     const mapped = (events ?? [])
@@ -253,18 +377,24 @@ const contextLabel = useMemo(() => {
     return filterSoftRejectedEvents(mapped, hiddenEventIds);
   }, [events, hiddenEventIds]);
 
-/**
- * Regla del resumen:
- * - siempre muestra todos los eventos visibles del usuario
- * - el grupo activo queda como contexto visual, no como filtro duro
- */
-const visibleEvents = useMemo(() => {
-  return [...normalizedEvents].sort((a, b) => {
-    const aMs = a.start?.getTime() ?? 0;
-    const bMs = b.start?.getTime() ?? 0;
-    return aMs - bMs;
-  });
-}, [normalizedEvents]);
+  /**
+   * Regla del resumen:
+   * - siempre muestra todos los eventos visibles del usuario
+   * - el grupo activo queda como contexto visual, no como filtro duro
+   */
+  const visibleEvents = useMemo(() => {
+    return [...normalizedEvents].sort((a, b) => {
+      const aMs = a.start?.getTime() ?? 0;
+      const bMs = b.start?.getTime() ?? 0;
+      return aMs - bMs;
+    });
+  }, [normalizedEvents]);
+
+  const conflictAlert = useMemo(
+    () => buildConflictAlert(visibleEvents, groups, resMap),
+    [visibleEvents, groups, resMap]
+  );
+
   /**
    * Ventana correcta:
    * [hoy 00:00 local, hoy + 7 días)
@@ -380,16 +510,13 @@ const visibleEvents = useMemo(() => {
 
       setActiveGroupId(validActive);
 
-      const [es, conflictInfo] = await Promise.all([
+      const [es, conflictResolutions] = await Promise.all([
         getMyEvents(),
-        getUnreadConflictNotificationsSummary().catch(() => ({
-          count: 0,
-          latestEventId: null,
-        })),
+        getMyConflictResolutionsMap().catch(() => ({})),
       ]);
 
       setEvents(Array.isArray(es) ? es : []);
-      setConflictAlert(conflictInfo);
+      setResMap(conflictResolutions ?? {});
     } catch (e: any) {
       showToast(
         "No se pudo cargar el resumen",

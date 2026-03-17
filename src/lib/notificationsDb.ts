@@ -64,6 +64,8 @@ type AttachedConflict = {
   } | null;
 };
 
+const CONFLICT_NOTIFICATION_TYPES = ["conflict", "conflict_detected"] as const;
+
 async function requireUid(): Promise<string> {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
@@ -99,6 +101,47 @@ function uniqueNotificationKey(row: {
     row.title,
     row.body ?? "",
   ].join("::");
+}
+
+function isConflictNotificationType(value: unknown): boolean {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return CONFLICT_NOTIFICATION_TYPES.includes(
+    normalized as (typeof CONFLICT_NOTIFICATION_TYPES)[number]
+  );
+}
+
+function normalizeNotificationRecord(row: any): NotificationRow {
+  return {
+    id: String(row?.id ?? ""),
+    user_id: String(row?.user_id ?? ""),
+    type: String(row?.type ?? "") as NotificationType,
+    title: String(row?.title ?? ""),
+    body: row?.body ?? null,
+    entity_id: row?.entity_id ? String(row.entity_id) : null,
+    payload:
+      row?.payload && typeof row.payload === "object" ? row.payload : null,
+    created_at: String(row?.created_at ?? ""),
+    read_at: row?.read_at ?? null,
+  };
+}
+
+function extractEventIdsFromPayload(payload: any, entityId?: string | null): string[] {
+  return Array.from(
+    new Set(
+      [
+        entityId ?? null,
+        payload?.event_id,
+        payload?.eventId,
+        payload?.incoming_event_id,
+        payload?.incomingEventId,
+        payload?.existing_event_id,
+        payload?.existingEventId,
+        ...(Array.isArray(payload?.event_ids) ? payload.event_ids : []),
+      ]
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+    )
+  );
 }
 
 /**
@@ -427,7 +470,10 @@ function shouldKeepNotification(
     if ((gt === "pair" || gt === "couple") && !prefs.notify_pair) return false;
     if (gt === "family" && !prefs.notify_family) return false;
     if (
-      (gt === "solo" || gt === "personal" || gt === "shared" || gt === "other") &&
+      (gt === "solo" ||
+        gt === "personal" ||
+        gt === "shared" ||
+        gt === "other") &&
       !prefs.notify_personal
     ) {
       return false;
@@ -459,6 +505,29 @@ export async function markNotificationRead(id: string) {
   if (error) throw error;
 }
 
+export async function markNotificationsRead(ids: string[]) {
+  const uid = await requireUid();
+
+  const safeIds = Array.from(
+    new Set(
+      (ids ?? [])
+        .map((id) => String(id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (safeIds.length === 0) return;
+
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("user_id", uid)
+    .in("id", safeIds)
+    .is("read_at", null);
+
+  if (error) throw error;
+}
+
 export async function markAllRead() {
   const uid = await requireUid();
 
@@ -471,6 +540,22 @@ export async function markAllRead() {
   if (error) throw error;
 }
 
+export async function getUnreadConflictNotifications(): Promise<NotificationRow[]> {
+  const uid = await requireUid();
+
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", uid)
+    .in("type", [...CONFLICT_NOTIFICATION_TYPES])
+    .is("read_at", null)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return Array.isArray(data) ? data.map(normalizeNotificationRecord) : [];
+}
+
 export async function getUnreadConflictNotificationsSummary(): Promise<{
   count: number;
   latestEventId: string | null;
@@ -479,7 +564,7 @@ export async function getUnreadConflictNotificationsSummary(): Promise<{
 
   const { data, error } = await supabase
     .from("notifications")
-    .select("entity_id, created_at")
+    .select("entity_id, payload, created_at")
     .eq("user_id", uid)
     .in("type", ["conflict", "conflict_detected"])
     .is("read_at", null)
@@ -488,14 +573,85 @@ export async function getUnreadConflictNotificationsSummary(): Promise<{
   if (error) throw error;
 
   const rows = Array.isArray(data) ? data : [];
-  const latestWithEntity = rows.find((r: any) => r?.entity_id);
+  const latestWithEntity = rows.find((r: any) => {
+    const ids = extractEventIdsFromPayload(r?.payload ?? null, r?.entity_id ?? null);
+    return ids.length > 0;
+  });
+
+  const latestEventIds = latestWithEntity
+    ? extractEventIdsFromPayload(
+        latestWithEntity?.payload ?? null,
+        latestWithEntity?.entity_id ?? null
+      )
+    : [];
 
   return {
     count: rows.length,
-    latestEventId: latestWithEntity?.entity_id
-      ? String(latestWithEntity.entity_id)
-      : null,
+    latestEventId: latestEventIds[0] ?? null,
   };
+}
+
+export async function markConflictNotificationsAsRead(options?: {
+  eventIds?: string[];
+  notificationIds?: string[];
+}) {
+  const explicitNotificationIds = Array.from(
+    new Set(
+      (options?.notificationIds ?? [])
+        .map((id) => String(id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (explicitNotificationIds.length > 0) {
+    await markNotificationsRead(explicitNotificationIds);
+    return;
+  }
+
+  const targetEventIds = Array.from(
+    new Set(
+      (options?.eventIds ?? [])
+        .map((id) => String(id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  const unread = await getUnreadConflictNotifications();
+  if (unread.length === 0) return;
+
+  if (targetEventIds.length === 0) {
+    await markNotificationsRead(unread.map((n) => n.id));
+    return;
+  }
+
+  const targetSet = new Set(targetEventIds);
+
+  const idsToMark = unread
+    .filter((notification) => {
+      const relatedEventIds = extractEventIdsFromPayload(
+        notification.payload ?? null,
+        notification.entity_id ?? null
+      );
+
+      return relatedEventIds.some((eventId) => targetSet.has(eventId));
+    })
+    .map((notification) => notification.id);
+
+  if (idsToMark.length === 0) return;
+
+  await markNotificationsRead(idsToMark);
+}
+
+export function extractConflictEventIdsFromNotification(
+  notification: NotificationRow | null | undefined
+): string[] {
+  if (!notification) return [];
+  if (!isConflictNotificationType(notification.type)) return [];
+
+  return extractEventIdsFromPayload(
+    notification.payload ?? null,
+    notification.entity_id ?? null
+  );
 }
 
 export async function deleteNotification(id: string) {

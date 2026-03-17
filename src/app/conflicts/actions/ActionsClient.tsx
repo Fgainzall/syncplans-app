@@ -15,7 +15,10 @@ import {
   type ConflictItem,
   conflictKey,
   filterIgnoredConflicts,
+  filterSoftRejectedEvents,
   loadIgnoredConflictKeys,
+  loadSoftRejectedEventIds,
+  SOFT_REJECTED_EVENTS_KEY,
   ignoreConflictIds,
   hideEventIdsForCurrentUser,
 } from "@/lib/conflicts";
@@ -28,6 +31,7 @@ import {
 import { getMyProfile } from "@/lib/profilesDb";
 import {
   createNotifications,
+  markConflictNotificationsAsRead,
   type CreateNotificationInput,
 } from "@/lib/notificationsDb";
 
@@ -159,6 +163,9 @@ export default function ActionsClient({
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
   const [currentUid, setCurrentUid] = useState<string | null>(null);
   const [actorName, setActorName] = useState("Alguien");
+  const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(() =>
+    loadSoftRejectedEventIds()
+  );
   const [commentsByEventId, setCommentsByEventId] = useState<
     Record<string, string>
   >({});
@@ -209,6 +216,7 @@ export default function ActionsClient({
         setResMap(dbMap ?? {});
         setDbEvents(Array.isArray(rawDbEvents) ? rawDbEvents : []);
         setActorName(actorDisplayNameFromProfile(profile));
+        setHiddenEventIds(loadSoftRejectedEventIds());
       } catch {
         if (!alive) return;
         setEvents([]);
@@ -224,20 +232,64 @@ export default function ActionsClient({
     };
   }, [router, groupIdFromUrl]);
 
-  const conflicts = useMemo<ConflictItem[]>(() => {
-    const normalized: CalendarEvent[] = (Array.isArray(events) ? events : []).map(
-      (e) => ({
-        ...e,
-        groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
-      })
+  useEffect(() => {
+    const refreshHidden = () => {
+      setHiddenEventIds(loadSoftRejectedEventIds());
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === SOFT_REJECTED_EVENTS_KEY) {
+        refreshHidden();
+      }
+    };
+
+    const onFocus = () => refreshHidden();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        refreshHidden();
+      }
+    };
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener(
+      "sp:soft-rejected-events-changed",
+      refreshHidden as EventListener
     );
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener(
+        "sp:soft-rejected-events-changed",
+        refreshHidden as EventListener
+      );
+    };
+  }, []);
+
+  const visibleEventsForConflicts = useMemo(() => {
+    return filterSoftRejectedEvents(
+      Array.isArray(events) ? events : [],
+      hiddenEventIds
+    );
+  }, [events, hiddenEventIds]);
+
+  const conflicts = useMemo<ConflictItem[]>(() => {
+    const normalized: CalendarEvent[] = (
+      Array.isArray(visibleEventsForConflicts) ? visibleEventsForConflicts : []
+    ).map((e) => ({
+      ...e,
+      groupType: normalizeForConflicts((e.groupType ?? "personal") as any),
+    }));
 
     const cx = computeVisibleConflicts(normalized);
     const ignored = loadIgnoredConflictKeys();
     const visible = filterIgnoredConflicts(cx, ignored);
 
-    return attachEvents(visible, events);
-  }, [events]);
+    return attachEvents(visible, visibleEventsForConflicts);
+  }, [visibleEventsForConflicts]);
 
   const plan = useMemo(() => {
     let decided = 0;
@@ -366,6 +418,20 @@ export default function ActionsClient({
     return Array.from(ids);
   }, [conflicts, resMap]);
 
+  const resolvedConflictEventIds = useMemo(() => {
+    const ids = new Set<string>();
+
+    for (const c of conflicts) {
+      const r = resolutionForConflict(c, resMap);
+      if (!r) continue;
+
+      if (c.existingEventId) ids.add(String(c.existingEventId));
+      if (c.incomingEventId) ids.add(String(c.incomingEventId));
+    }
+
+    return Array.from(ids);
+  }, [conflicts, resMap]);
+
   const notificationRows = useMemo<CreateNotificationInput[]>(() => {
     return rejectedTargets
       .map((target) => {
@@ -480,6 +546,16 @@ export default function ActionsClient({
           ignoreConflictIds(ignoredConflictIds);
         } catch {
           // no rompemos el flujo si falla localStorage
+        }
+      }
+
+      if (resolvedConflictEventIds.length > 0) {
+        try {
+          await markConflictNotificationsAsRead({
+            eventIds: resolvedConflictEventIds,
+          });
+        } catch {
+          // si falla la limpieza de notificaciones, no rompemos el cierre
         }
       }
 
@@ -808,13 +884,13 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#AEBEFF",
     fontWeight: 800,
   },
-h1: {
-  margin: 0,
-  fontSize: 34,
-  lineHeight: 1.05,
-  fontWeight: 900,
-  letterSpacing: "-0.03em",
-},
+  h1: {
+    margin: 0,
+    fontSize: 34,
+    lineHeight: 1.05,
+    fontWeight: 900,
+    letterSpacing: "-0.03em",
+  },
   sub: {
     color: "rgba(235,241,255,0.76)",
     fontSize: 15,
@@ -902,11 +978,11 @@ h1: {
     gap: 4,
     marginBottom: 14,
   },
-blockTitle: {
-  fontSize: 18,
-  fontWeight: 900,
-  letterSpacing: "-0.02em",
-},
+  blockTitle: {
+    fontSize: 18,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+  },
   blockSub: {
     fontSize: 13,
     color: "rgba(235,241,255,0.66)",
