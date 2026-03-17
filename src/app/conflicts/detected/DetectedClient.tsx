@@ -329,8 +329,14 @@ export default function DetectedClient() {
   };
 
   const goActions = () => {
+    if (summary.decided === 0 && summary.pending > 0) {
+      resumeNext();
+      return;
+    }
+
     const qp = new URLSearchParams();
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
+    if (focusEventId) qp.set("eventId", focusEventId);
     router.push(`/conflicts/actions?${qp.toString()}`);
   };
 
@@ -411,9 +417,9 @@ export default function DetectedClient() {
               </div>
             </div>
 
-            {summary.pending > 0 && (
+                     {(summary.pending > 0 || summary.decided > 0) && (
               <button onClick={goActions} style={styles.secondaryBtn}>
-                Aplicar decisiones
+                {summary.decided > 0 ? "Aplicar decisiones" : "Resolver conflicto"}
               </button>
             )}
           </div>
