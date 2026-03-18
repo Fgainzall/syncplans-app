@@ -1,4 +1,3 @@
-// src/lib/conflictResolutionsDb.ts
 "use client";
 
 import supabase from "@/lib/supabaseClient";
@@ -14,13 +13,15 @@ export type ConflictResolutionRow = {
 async function requireUserId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
   if (error) throw error;
+
   const uid = data.user?.id;
   if (!uid) throw new Error("Not authenticated");
+
   return uid;
 }
 
 /**
- * Devuelve un map conflictId -> resolution (solo del usuario actual)
+ * Devuelve un map conflictId -> resolution del usuario actual
  */
 export async function getMyConflictResolutionsMap(): Promise<
   Record<string, Resolution>
@@ -35,14 +36,17 @@ export async function getMyConflictResolutionsMap(): Promise<
   if (error) throw error;
 
   const map: Record<string, Resolution> = {};
+
   for (const row of data ?? []) {
+    if (!row?.conflict_id) continue;
     map[String(row.conflict_id)] = row.resolution as Resolution;
   }
+
   return map;
 }
 
 /**
- * ✅ Upsert robusto sin depender de onConflict (evita 400 PostgREST)
+ * Upsert robusto sin depender de onConflict
  */
 export async function upsertConflictResolution(
   conflictId: string,
@@ -56,7 +60,6 @@ export async function upsertConflictResolution(
     resolution,
   };
 
-  // 1) Intentar UPDATE
   const { data: updated, error: updateErr } = await supabase
     .from("conflict_resolutions")
     .update({ resolution })
@@ -65,14 +68,10 @@ export async function upsertConflictResolution(
     .select("conflict_id")
     .maybeSingle();
 
-  if (updateErr) {
-    throw updateErr;
-  }
+  if (updateErr) throw updateErr;
 
-  // Si actualizó, listo
   if (updated?.conflict_id) return;
 
-  // 2) Si no existía, INSERT
   const { error: insertErr } = await supabase
     .from("conflict_resolutions")
     .insert(payload);
@@ -81,7 +80,7 @@ export async function upsertConflictResolution(
 }
 
 /**
- * Borra todas las resoluciones del usuario (reset)
+ * Borra todas las resoluciones del usuario actual
  */
 export async function clearMyConflictResolutions() {
   const uid = await requireUserId();
