@@ -19,10 +19,7 @@ import {
   computeVisibleConflicts,
   conflictKey,
   filterIgnoredConflicts,
-  filterSoftRejectedEvents,
   loadIgnoredConflictKeys,
-  loadSoftRejectedEventIds,
-  SOFT_REJECTED_EVENTS_KEY,
   type CalendarEvent,
   type GroupType,
   type ConflictItem,
@@ -31,6 +28,10 @@ import {
   getMyConflictResolutionsMap,
   type Resolution,
 } from "@/lib/conflictResolutionsDb";
+import {
+  filterOutDeclinedEvents,
+  getMyDeclinedEventIds,
+} from "@/lib/eventResponsesDb";
 
 type Props = {
   highlightId: string | null;
@@ -176,7 +177,9 @@ function buildConflictAlert(
     return { count: 0, latestEventId: null };
   }
 
-  const eventsById = new Map(conflictEvents.map((event) => [String(event.id), event]));
+  const eventsById = new Map(
+    conflictEvents.map((event) => [String(event.id), event])
+  );
 
   let latestEventId: string | null = null;
   let latestStartMs = -1;
@@ -322,8 +325,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [events, setEvents] = useState<any[]>([]);
-  const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(() =>
-    loadSoftRejectedEventIds()
+  const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
+    () => new Set()
   );
   const [loading, setLoading] = useState(false);
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
@@ -350,10 +353,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return () => clearToastTimer();
   }, []);
 
-  const refreshHiddenEventIds = useCallback(() => {
-    setHiddenEventIds(loadSoftRejectedEventIds());
-  }, []);
-
   const activeGroup = useMemo(() => {
     if (!activeGroupId) return null;
     return groups.find((g) => String(g.id) === String(activeGroupId)) ?? null;
@@ -374,8 +373,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       .map(normalizeEvent)
       .filter(Boolean) as SummaryEvent[];
 
-    return filterSoftRejectedEvents(mapped, hiddenEventIds);
-  }, [events, hiddenEventIds]);
+    return filterOutDeclinedEvents(mapped, declinedEventIds);
+  }, [events, declinedEventIds]);
 
   /**
    * Regla del resumen:
@@ -480,22 +479,21 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [booting, upcomingStats]);
 
-async function requireSessionOrRedirect() {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) throw error;
+  async function requireSessionOrRedirect() {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
 
-  const user = data.user;
-  if (!user) {
-    router.replace("/auth/login");
-    return null;
+    const user = data.user;
+    if (!user) {
+      router.replace("/auth/login");
+      return null;
+    }
+
+    return user;
   }
-
-  return user;
-}
 
   const loadSummary = useCallback(async () => {
     setLoading(true);
-    refreshHiddenEventIds();
 
     try {
       const user = await requireSessionOrRedirect();
@@ -513,13 +511,15 @@ async function requireSessionOrRedirect() {
 
       setActiveGroupId(validActive);
 
-      const [es, conflictResolutions] = await Promise.all([
+      const [es, conflictResolutions, declined] = await Promise.all([
         getMyEvents(),
         getMyConflictResolutionsMap().catch(() => ({})),
+        getMyDeclinedEventIds().catch(() => new Set<string>()),
       ]);
 
       setEvents(Array.isArray(es) ? es : []);
       setResMap(conflictResolutions ?? {});
+      setDeclinedEventIds(declined ?? new Set());
     } catch (e: any) {
       showToast(
         "No se pudo cargar el resumen",
@@ -528,7 +528,7 @@ async function requireSessionOrRedirect() {
     } finally {
       setLoading(false);
     }
-  }, [router, showToast, refreshHiddenEventIds]);
+  }, [router, showToast]);
 
   useEffect(() => {
     let alive = true;
@@ -556,7 +556,10 @@ async function requireSessionOrRedirect() {
    * Refresca cuando cambia el grupo activo.
    */
   useEffect(() => {
-    const handler = () => loadSummary();
+    const handler = () => {
+      void loadSummary();
+    };
+
     window.addEventListener("sp:active-group-changed", handler as any);
     return () =>
       window.removeEventListener("sp:active-group-changed", handler as any);
@@ -565,50 +568,27 @@ async function requireSessionOrRedirect() {
   /**
    * Refresca al volver a la pestaña o recuperar foco.
    * Esto ayuda mucho después de volver desde Conflictos.
+   * La verdad viene desde BD, no desde localStorage legacy.
    */
   useEffect(() => {
     const onFocus = () => {
-      refreshHiddenEventIds();
       void loadSummary();
     };
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
-        refreshHiddenEventIds();
         void loadSummary();
       }
-    };
-
-    const onStorage = (event: StorageEvent) => {
-      if (!event.key || event.key === SOFT_REJECTED_EVENTS_KEY) {
-        refreshHiddenEventIds();
-        void loadSummary();
-      }
-    };
-
-    const onSoftRejectedChanged = () => {
-      refreshHiddenEventIds();
-      void loadSummary();
     };
 
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("storage", onStorage);
-    window.addEventListener(
-      "sp:soft-rejected-events-changed",
-      onSoftRejectedChanged as EventListener
-    );
 
     return () => {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener(
-        "sp:soft-rejected-events-changed",
-        onSoftRejectedChanged as EventListener
-      );
     };
-  }, [loadSummary, refreshHiddenEventIds]);
+  }, [loadSummary]);
 
   const title = activeGroupId
     ? `Resumen · Personal + ${activeLabel}`
@@ -1101,6 +1081,50 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
     backdropFilter: "blur(14px)",
   },
+  conflictBanner: {
+    width: "100%",
+    marginBottom: 14,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+    padding: "15px 16px",
+    borderRadius: 18,
+    border: "1px solid rgba(251,191,36,0.28)",
+    background:
+      "linear-gradient(135deg, rgba(251,191,36,0.14), rgba(239,68,68,0.10))",
+    color: "rgba(255,255,255,0.96)",
+    cursor: "pointer",
+    boxShadow: "0 18px 44px rgba(0,0,0,0.18)",
+  },
+  conflictBannerLeft: {
+    display: "grid",
+    gap: 4,
+    textAlign: "left",
+  },
+  conflictBannerEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(255,230,160,0.9)",
+  },
+  conflictBannerTitle: {
+    fontSize: 16,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+  },
+  conflictBannerSub: {
+    fontSize: 13,
+    lineHeight: 1.45,
+    color: "rgba(255,255,255,0.76)",
+  },
+  conflictBannerCta: {
+    fontSize: 13,
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+  },
   stateRow: {
     display: "flex",
     justifyContent: "space-between",
@@ -1200,142 +1224,142 @@ const styles: Record<string, React.CSSProperties> = {
   },
   stateKpiHint: {
     marginTop: 6,
-    fontSize: 11,
-    opacity: 0.58,
-    lineHeight: 1.35,
+    fontSize: 12,
+    opacity: 0.68,
+    lineHeight: 1.4,
   },
   loadingCard: {
-    marginTop: 16,
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 16,
+    marginTop: 14,
     display: "flex",
     alignItems: "center",
     gap: 12,
+    padding: "14px 12px",
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.03)",
   },
   loadingDot: {
-    width: 12,
-    height: 12,
+    width: 10,
+    height: 10,
     borderRadius: 999,
     background: "rgba(56,189,248,0.95)",
-    boxShadow: "0 0 18px rgba(56,189,248,0.5)",
+    boxShadow: "0 0 0 8px rgba(56,189,248,0.10)",
+    flexShrink: 0,
   },
   loadingTitle: {
+    fontSize: 14,
     fontWeight: 900,
-    fontSize: 13,
   },
   loadingSub: {
-    marginTop: 4,
     fontSize: 12,
     opacity: 0.68,
+    marginTop: 2,
   },
   emptyBlock: {
-    marginTop: 16,
+    marginTop: 14,
+    padding: "18px 16px",
     borderRadius: 18,
-    border: "1px dashed rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.025)",
-    padding: 18,
+    border: "1px dashed rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.03)",
   },
   emptyTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 900,
+    letterSpacing: "-0.02em",
   },
   emptySub: {
     marginTop: 8,
     fontSize: 13,
     opacity: 0.74,
-    lineHeight: 1.45,
-    maxWidth: 700,
+    lineHeight: 1.55,
+    maxWidth: 640,
   },
   emptyBtn: {
-    marginTop: 12,
+    marginTop: 14,
     padding: "11px 14px",
+    minHeight: 42,
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.14)",
     background:
-      "linear-gradient(135deg, rgba(56,189,248,0.20), rgba(124,58,237,0.20))",
-    color: "rgba(255,255,255,0.95)",
+      "linear-gradient(135deg, rgba(56,189,248,0.18), rgba(124,58,237,0.18))",
+    color: "rgba(255,255,255,0.96)",
     cursor: "pointer",
     fontWeight: 900,
     fontSize: 13,
   },
   nextBlock: {
     marginTop: 16,
+    display: "grid",
+    gap: 8,
   },
   nextLabel: {
     fontSize: 12,
     fontWeight: 900,
-    opacity: 0.7,
-    marginBottom: 10,
     textTransform: "uppercase",
     letterSpacing: "0.08em",
+    opacity: 0.7,
   },
   nextCard: {
     width: "100%",
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background:
-      "linear-gradient(180deg, rgba(56,189,248,0.10), rgba(124,58,237,0.08))",
-    padding: "16px 16px",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 14,
+    padding: "14px 14px",
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.035))",
+    color: "rgba(255,255,255,0.96)",
     cursor: "pointer",
-    color: "inherit",
     textAlign: "left",
   },
   eventsList: {
     marginTop: 12,
-    display: "flex",
-    flexDirection: "column",
+    display: "grid",
     gap: 10,
   },
   eventRow: {
     width: "100%",
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    padding: "13px 14px",
+    minHeight: 74,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 14,
+    padding: "12px 14px",
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.09)",
+    background: "rgba(255,255,255,0.03)",
+    color: "rgba(255,255,255,0.94)",
     cursor: "pointer",
-    color: "inherit",
     textAlign: "left",
-    transition: "all 160ms ease",
   },
   eventRowHighlight: {
-    border: "1px solid rgba(56,189,248,0.42)",
+    border: "1px solid rgba(56,189,248,0.45)",
     boxShadow: "0 0 0 1px rgba(56,189,248,0.22) inset",
     background:
-      "linear-gradient(180deg, rgba(56,189,248,0.10), rgba(255,255,255,0.04))",
+      "linear-gradient(135deg, rgba(56,189,248,0.12), rgba(124,58,237,0.10))",
   },
   eventLeft: {
     minWidth: 0,
-    display: "flex",
-    flexDirection: "column",
+    display: "grid",
     gap: 4,
   },
   eventWhen: {
     fontSize: 12,
-    fontWeight: 900,
+    fontWeight: 850,
     opacity: 0.72,
   },
   eventTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: 900,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
+    lineHeight: 1.3,
+    letterSpacing: "-0.01em",
   },
   eventMeta: {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    flexShrink: 0,
     flexWrap: "wrap",
     justifyContent: "flex-end",
   },
@@ -1344,21 +1368,20 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     padding: "6px 9px",
     borderRadius: 999,
+    background: "rgba(56,189,248,0.14)",
+    border: "1px solid rgba(56,189,248,0.22)",
     fontSize: 11,
     fontWeight: 900,
-    border: "1px solid rgba(56,189,248,0.20)",
-    background: "rgba(56,189,248,0.10)",
   },
   pillSoft: {
     display: "inline-flex",
     alignItems: "center",
     padding: "6px 9px",
     borderRadius: 999,
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.10)",
     fontSize: 11,
     fontWeight: 900,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.05)",
-    opacity: 0.92,
   },
   seeMoreBtn: {
     marginTop: 12,
@@ -1366,24 +1389,25 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 8,
     padding: "11px 14px",
+    minHeight: 42,
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
+    color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     fontWeight: 900,
     fontSize: 13,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: 950,
-    letterSpacing: "-0.2px",
+    letterSpacing: "-0.02em",
   },
   smallNote: {
     marginTop: 6,
-    fontSize: 12,
-    opacity: 0.68,
-    lineHeight: 1.4,
+    fontSize: 13,
+    opacity: 0.72,
+    lineHeight: 1.5,
   },
   quickGrid: {
     marginTop: 14,
@@ -1392,74 +1416,28 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
   },
   quickCard: {
+    minHeight: 108,
+    display: "grid",
+    alignContent: "start",
+    gap: 8,
+    padding: 16,
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.10)",
     background:
-      "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.03))",
-    padding: 16,
-    minHeight: 106,
+      "linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.025))",
+    color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
-    color: "inherit",
     textAlign: "left",
+    boxShadow: "0 12px 34px rgba(0,0,0,0.16)",
   },
   quickTitle: {
-    fontSize: 14,
-    fontWeight: 950,
-    letterSpacing: "-0.2px",
+    fontSize: 15,
+    fontWeight: 900,
+    letterSpacing: "-0.01em",
   },
   quickSub: {
-    marginTop: 8,
-    fontSize: 12,
-    opacity: 0.72,
-    lineHeight: 1.45,
-  },
-  conflictBanner: {
-    width: "100%",
-    marginBottom: 14,
-    borderRadius: 18,
-    border: "1px solid rgba(248,113,113,0.28)",
-    background:
-      "linear-gradient(180deg, rgba(248,113,113,0.14), rgba(244,63,94,0.08))",
-    padding: 16,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    cursor: "pointer",
-    color: "rgba(255,255,255,0.94)",
-    textAlign: "left",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
-  },
-  conflictBannerLeft: {
-    minWidth: 0,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  conflictBannerEyebrow: {
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    fontWeight: 900,
-    opacity: 0.72,
-  },
-  conflictBannerTitle: {
-    fontSize: 18,
-    fontWeight: 950,
-    letterSpacing: "-0.3px",
-  },
-  conflictBannerSub: {
-    fontSize: 12,
-    opacity: 0.8,
-    lineHeight: 1.45,
-  },
-  conflictBannerCta: {
-    flexShrink: 0,
-    padding: "10px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-    fontSize: 12,
-    fontWeight: 900,
+    fontSize: 13,
+    opacity: 0.74,
+    lineHeight: 1.5,
   },
 };

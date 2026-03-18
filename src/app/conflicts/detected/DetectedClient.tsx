@@ -13,10 +13,7 @@ import {
   attachEvents,
   conflictKey,
   filterIgnoredConflicts,
-  filterSoftRejectedEvents,
   loadIgnoredConflictKeys,
-  loadSoftRejectedEventIds,
-  SOFT_REJECTED_EVENTS_KEY,
 } from "@/lib/conflicts";
 
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
@@ -24,6 +21,10 @@ import {
   Resolution,
   getMyConflictResolutionsMap,
 } from "@/lib/conflictResolutionsDb";
+import {
+  filterOutDeclinedEvents,
+  getMyDeclinedEventIds,
+} from "@/lib/eventResponsesDb";
 import { markConflictNotificationsAsRead } from "@/lib/notificationsDb";
 
 /* =========================
@@ -40,6 +41,7 @@ function ymd(d: Date) {
 function prettyTimeRange(startIso: string, endIso: string) {
   const s = new Date(startIso);
   const e = new Date(endIso);
+
   const hhmm = (x: Date) =>
     `${String(x.getHours()).padStart(2, "0")}:${String(
       x.getMinutes()
@@ -50,10 +52,12 @@ function prettyTimeRange(startIso: string, endIso: string) {
     s.getMonth() === e.getMonth() &&
     s.getDate() === e.getDate();
 
-  if (!sameDay)
+  if (!sameDay) {
     return `${s.toLocaleDateString()} ${hhmm(
       s
     )} → ${e.toLocaleDateString()} ${hhmm(e)}`;
+  }
+
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
 
@@ -108,6 +112,7 @@ function resolutionForConflict(
 
   const a = String(c.existingEventId ?? "");
   const b = String(c.incomingEventId ?? "");
+
   if (!a || !b) return undefined;
 
   const stableKey = conflictKey(a, b);
@@ -135,8 +140,8 @@ export default function DetectedClient() {
   const [booting, setBooting] = useState(true);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
-  const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(() =>
-    loadSoftRejectedEventIds()
+  const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
+    () => new Set()
   );
 
   useEffect(() => {
@@ -155,28 +160,28 @@ export default function DetectedClient() {
       }
 
       try {
-        const { events: ev } = await loadEventsFromDb({
-          groupId: groupIdFromUrl ?? undefined,
-        });
+        const [{ events: ev }, dbMap, declined] = await Promise.all([
+          loadEventsFromDb({
+            groupId: groupIdFromUrl ?? undefined,
+          }),
+          getMyConflictResolutionsMap().catch(() => ({})),
+          getMyDeclinedEventIds().catch(() => new Set<string>()),
+        ]);
+
         if (!alive) return;
+
         setEvents(Array.isArray(ev) ? ev : []);
+        setResMap(dbMap ?? {});
+        setDeclinedEventIds(declined ?? new Set());
       } catch {
         if (!alive) return;
         setEvents([]);
-      }
-
-      try {
-        const dbMap = await getMyConflictResolutionsMap();
-        if (!alive) return;
-        setResMap(dbMap ?? {});
-      } catch {
-        if (!alive) return;
         setResMap({});
-      }
-
-      if (alive) {
-        setHiddenEventIds(loadSoftRejectedEventIds());
-        setBooting(false);
+        setDeclinedEventIds(new Set());
+      } finally {
+        if (alive) {
+          setBooting(false);
+        }
       }
     })();
 
@@ -186,54 +191,56 @@ export default function DetectedClient() {
   }, [router, groupIdFromUrl]);
 
   useEffect(() => {
-    const refreshHidden = () => {
-      setHiddenEventIds(loadSoftRejectedEventIds());
-    };
+    let alive = true;
 
-    const onStorage = (event: StorageEvent) => {
-      if (!event.key || event.key === SOFT_REJECTED_EVENTS_KEY) {
-        refreshHidden();
+    const refreshFromDb = async () => {
+      try {
+        const [nextResMap, nextDeclined] = await Promise.all([
+          getMyConflictResolutionsMap().catch(() => ({})),
+          getMyDeclinedEventIds().catch(() => new Set<string>()),
+        ]);
+
+        if (!alive) return;
+
+        setResMap(nextResMap ?? {});
+        setDeclinedEventIds(nextDeclined ?? new Set());
+      } catch {
+        // no rompemos UI por refresh fallido
       }
     };
 
-    const onFocus = () => refreshHidden();
+    const onFocus = () => {
+      void refreshFromDb();
+    };
+
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
-        refreshHidden();
+        void refreshFromDb();
       }
     };
 
-    window.addEventListener("storage", onStorage);
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener(
-      "sp:soft-rejected-events-changed",
-      refreshHidden as EventListener
-    );
 
     return () => {
-      window.removeEventListener("storage", onStorage);
+      alive = false;
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener(
-        "sp:soft-rejected-events-changed",
-        refreshHidden as EventListener
-      );
     };
   }, []);
 
   const visibleEvents = useMemo<CalendarEvent[]>(() => {
-    return filterSoftRejectedEvents(
+    return filterOutDeclinedEvents(
       Array.isArray(events) ? events : [],
-      hiddenEventIds
+      declinedEventIds
     );
-  }, [events, hiddenEventIds]);
+  }, [events, declinedEventIds]);
 
   const allVisibleConflicts = useMemo<AttachedConflict[]>(() => {
-  const normalized: CalendarEvent[] = visibleEvents.map((e) => ({
-  ...e,
-  groupType: normalizeForConflicts(e.groupType),
-}));
+    const normalized: CalendarEvent[] = visibleEvents.map((e) => ({
+      ...e,
+      groupType: normalizeForConflicts(e.groupType),
+    }));
 
     const cx = computeVisibleConflicts(normalized);
     const ignored = loadIgnoredConflictKeys();
@@ -246,8 +253,9 @@ export default function DetectedClient() {
   }, [visibleEvents]);
 
   /**
-   * Mantenemos solo conflictos pendientes reales,
-   * igual que el banner nuevo de Summary.
+   * Mantenemos solo conflictos pendientes reales:
+   * - el evento declined ya salió del universo por visibleEvents
+   * - aquí además ocultamos conflictos ya resueltos en conflict_resolutions
    */
   const pendingConflicts = useMemo<AttachedConflict[]>(() => {
     const pending = allVisibleConflicts.filter(
@@ -305,18 +313,22 @@ export default function DetectedClient() {
   }, [focusEventId, pendingConflicts, booting]);
 
   const LIST_LIMIT = isMobile ? 5 : 50;
+
   const visibleConflicts = useMemo(
     () => pendingConflicts.slice(0, LIST_LIMIT),
     [pendingConflicts, LIST_LIMIT]
   );
+
   const showSeeMore = !booting && pendingConflicts.length > LIST_LIMIT;
 
   const openCompare = (idx: number) => {
     if (pendingConflicts.length === 0) return;
+
     const safe = Math.min(Math.max(idx, 0), pendingConflicts.length - 1);
 
     const qp = new URLSearchParams();
     qp.set("i", String(safe));
+
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     if (focusEventId) qp.set("eventId", focusEventId);
 
@@ -337,6 +349,7 @@ export default function DetectedClient() {
     const qp = new URLSearchParams();
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     if (focusEventId) qp.set("eventId", focusEventId);
+
     router.push(`/conflicts/actions?${qp.toString()}`);
   };
 
@@ -417,9 +430,11 @@ export default function DetectedClient() {
               </div>
             </div>
 
-                     {(summary.pending > 0 || summary.decided > 0) && (
+            {(summary.pending > 0 || summary.decided > 0) && (
               <button onClick={goActions} style={styles.secondaryBtn}>
-                {summary.decided > 0 ? "Aplicar decisiones" : "Resolver conflicto"}
+                {summary.decided > 0
+                  ? "Aplicar decisiones"
+                  : "Resolver conflicto"}
               </button>
             )}
           </div>
@@ -437,8 +452,8 @@ export default function DetectedClient() {
                 const a = c.existingEvent;
                 const b = c.incomingEvent;
 
-             const aMeta = groupMeta(normalizeForConflicts(a?.groupType));
-const bMeta = groupMeta(normalizeForConflicts(b?.groupType));
+                const aMeta = groupMeta(normalizeForConflicts(a?.groupType));
+                const bMeta = groupMeta(normalizeForConflicts(b?.groupType));
 
                 return (
                   <button
@@ -460,9 +475,7 @@ const bMeta = groupMeta(normalizeForConflicts(b?.groupType));
 
                     <div style={styles.row}>
                       <span style={{ ...styles.dot, background: aMeta.dot }} />
-                      <span style={styles.title}>
-                        {a?.title || "Evento A"}
-                      </span>
+                      <span style={styles.title}>{a?.title || "Evento A"}</span>
                       <span style={styles.time}>
                         {a ? prettyTimeRange(a.start, a.end) : ""}
                       </span>
@@ -470,9 +483,7 @@ const bMeta = groupMeta(normalizeForConflicts(b?.groupType));
 
                     <div style={styles.row}>
                       <span style={{ ...styles.dot, background: bMeta.dot }} />
-                      <span style={styles.title}>
-                        {b?.title || "Evento B"}
-                      </span>
+                      <span style={styles.title}>{b?.title || "Evento B"}</span>
                       <span style={styles.time}>
                         {b ? prettyTimeRange(b.start, b.end) : ""}
                       </span>

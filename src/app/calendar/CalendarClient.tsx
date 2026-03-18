@@ -27,11 +27,20 @@ import {
 import {
   type CalendarEvent,
   type GroupType,
+  type ConflictItem,
   computeVisibleConflicts,
+  conflictKey,
   filterIgnoredConflicts,
-  filterSoftRejectedEvents,
   groupMeta,
 } from "@/lib/conflicts";
+import {
+  getMyConflictResolutionsMap,
+  type Resolution,
+} from "@/lib/conflictResolutionsDb";
+import {
+  getMyDeclinedEventIds,
+  filterOutDeclinedEvents,
+} from "@/lib/eventResponsesDb";
 
 type Scope = "personal" | "active" | "all";
 type Tab = "month" | "agenda";
@@ -171,7 +180,29 @@ function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
   if (!gt) return "personal" as GroupType;
   return (gt === ("pair" as any) ? ("couple" as any) : gt) as GroupType;
 }
+function resolutionForConflict(
+  conflict: ConflictItem,
+  resMap: Record<string, Resolution>
+): Resolution | undefined {
+  const exact = resMap[String(conflict.id)];
+  if (exact) return exact;
 
+  const a = String(conflict.existingEventId ?? "");
+  const b = String(conflict.incomingEventId ?? "");
+  if (!a || !b) return undefined;
+
+  const stableKey = conflictKey(a, b);
+  if (resMap[stableKey]) return resMap[stableKey];
+
+  const [x, y] = [a, b].sort();
+  const legacyPrefix = `cx::${x}::${y}::`;
+
+  for (const key of Object.keys(resMap)) {
+    if (key.startsWith(legacyPrefix)) return resMap[key];
+  }
+
+  return undefined;
+}
 /** ✅ Props del Calendar */
 type CalendarClientProps = {
   highlightId?: string | null;
@@ -208,8 +239,12 @@ export default function CalendarClient(
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
 
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
+  const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [resMap, setResMap] = useState<Record<string, Resolution>>({});
 
   const groupTypeById = useMemo(() => {
     const m = new Map<string, "pair" | "family" | "other">();
@@ -317,7 +352,14 @@ export default function CalendarClient(
 
         const groupIds = (myGroups || []).map((g: any) => String(g.id));
 
-    const rawEvents: any[] = (await getEventsForGroups(groupIds)) as any[];
+        const [rawEvents, nextResMap, nextDeclined] = await Promise.all([
+          getEventsForGroups(groupIds) as Promise<any[]>,
+          getMyConflictResolutionsMap().catch(() => ({})),
+          getMyDeclinedEventIds().catch(() => new Set<string>()),
+        ]);
+
+        setResMap(nextResMap ?? {});
+        setDeclinedEventIds(nextDeclined ?? new Set());
 
 
         const groupTypeByIdLocal = new Map<string, "family" | "pair" | "other">(
@@ -373,7 +415,10 @@ export default function CalendarClient(
           })
           .filter(Boolean) as CalendarEvent[];
 
-        const filtered = filterSoftRejectedEvents(enriched);
+        const filtered = filterOutDeclinedEvents(
+          enriched,
+          nextDeclined ?? new Set<string>()
+        );
 
         setEvents(filtered);
         setEventsLoaded(true);
@@ -536,18 +581,12 @@ export default function CalendarClient(
       }
     };
 
-    const onStorage = () => {
-      void refreshCalendar();
-    };
-
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("storage", onStorage);
 
     return () => {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("storage", onStorage);
     };
   }, [refreshCalendar]);
 
@@ -593,8 +632,10 @@ export default function CalendarClient(
     }));
 
     const all = computeVisibleConflicts(normalized);
-    return filterIgnoredConflicts(all);
-  }, [events]);
+    const visible = filterIgnoredConflicts(all);
+
+    return visible.filter((conflict) => !resolutionForConflict(conflict, resMap));
+  }, [events, resMap]);
 
   const conflictCount = conflicts.length;
 
