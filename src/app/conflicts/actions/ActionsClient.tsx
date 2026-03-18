@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
@@ -15,10 +15,7 @@ import {
   type ConflictItem,
   conflictKey,
   filterIgnoredConflicts,
-  filterSoftRejectedEvents,
   loadIgnoredConflictKeys,
-  loadSoftRejectedEventIds,
-  SOFT_REJECTED_EVENTS_KEY,
 } from "@/lib/conflicts";
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
 import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
@@ -28,11 +25,14 @@ import {
   markConflictNotificationsAsRead,
   type CreateNotificationInput,
 } from "@/lib/notificationsDb";
-
 import {
   type Resolution,
   getMyConflictResolutionsMap,
 } from "@/lib/conflictResolutionsDb";
+import {
+  filterOutDeclinedEvents,
+  getMyDeclinedEventIds,
+} from "@/lib/eventResponsesDb";
 
 type EventResponseStatus = "pending" | "accepted" | "declined";
 
@@ -165,16 +165,41 @@ export default function ActionsClient({
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [dbEvents, setDbEvents] = useState<DbEventRow[]>([]);
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
+  const [declinedIds, setDeclinedIds] = useState<Set<string>>(new Set());
   const [currentUid, setCurrentUid] = useState<string | null>(null);
   const [actorName, setActorName] = useState("Alguien");
-  const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(() =>
-    loadSoftRejectedEventIds()
-  );
   const [commentsByEventId, setCommentsByEventId] = useState<
     Record<string, string>
   >({});
   const [toast, setToast] = useState<null | { title: string; sub?: string }>(
     null
+  );
+
+  const loadScreenData = useCallback(
+    async (opts?: { includeProfile?: boolean }) => {
+      const includeProfile = opts?.includeProfile ?? false;
+
+      const [eventsForConflicts, dbMap, rawDbEvents, declinedSet, profile] =
+        await Promise.all([
+          loadEventsFromDb({ groupId: groupIdFromUrl }),
+          getMyConflictResolutionsMap(),
+          getMyEvents(),
+          getMyDeclinedEventIds(),
+          includeProfile ? getMyProfile() : Promise.resolve(null),
+        ]);
+
+      setEvents(
+        Array.isArray(eventsForConflicts?.events) ? eventsForConflicts.events : []
+      );
+      setResMap(dbMap ?? {});
+      setDbEvents(Array.isArray(rawDbEvents) ? rawDbEvents : []);
+      setDeclinedIds(declinedSet instanceof Set ? declinedSet : new Set());
+
+      if (includeProfile) {
+        setActorName(actorDisplayNameFromProfile(profile as any));
+      }
+    },
+    [groupIdFromUrl]
   );
 
   useEffect(() => {
@@ -206,83 +231,51 @@ export default function ActionsClient({
       setCurrentUid(uid);
 
       try {
-        const [eventsForConflicts, dbMap, rawDbEvents, profile] =
-          await Promise.all([
-            loadEventsFromDb({ groupId: groupIdFromUrl }),
-            getMyConflictResolutionsMap(),
-            getMyEvents(),
-            getMyProfile(),
-          ]);
-
-        if (!alive) return;
-
-        setEvents(
-          Array.isArray(eventsForConflicts?.events)
-            ? eventsForConflicts.events
-            : []
-        );
-        setResMap(dbMap ?? {});
-        setDbEvents(Array.isArray(rawDbEvents) ? rawDbEvents : []);
-        setActorName(actorDisplayNameFromProfile(profile));
-        setHiddenEventIds(loadSoftRejectedEventIds());
+        await loadScreenData({ includeProfile: true });
       } catch {
         if (!alive) return;
         setEvents([]);
         setResMap({});
         setDbEvents([]);
+        setDeclinedIds(new Set());
       }
 
+      if (!alive) return;
       setBooting(false);
     })();
 
     return () => {
       alive = false;
     };
-  }, [router, groupIdFromUrl]);
+  }, [router, loadScreenData]);
 
   useEffect(() => {
-    const refreshHidden = () => {
-      setHiddenEventIds(loadSoftRejectedEventIds());
+    const refreshFromDb = () => {
+      void loadScreenData();
     };
 
-    const onStorage = (event: StorageEvent) => {
-      if (!event.key || event.key === SOFT_REJECTED_EVENTS_KEY) {
-        refreshHidden();
-      }
-    };
-
-    const onFocus = () => refreshHidden();
+    const onFocus = () => refreshFromDb();
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
-        refreshHidden();
+        refreshFromDb();
       }
     };
 
-    window.addEventListener("storage", onStorage);
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener(
-      "sp:soft-rejected-events-changed",
-      refreshHidden as EventListener
-    );
 
     return () => {
-      window.removeEventListener("storage", onStorage);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener(
-        "sp:soft-rejected-events-changed",
-        refreshHidden as EventListener
-      );
     };
-  }, []);
+  }, [loadScreenData]);
 
   const visibleEventsForConflicts = useMemo(() => {
-    return filterSoftRejectedEvents(
+    return filterOutDeclinedEvents(
       Array.isArray(events) ? events : [],
-      hiddenEventIds
+      declinedIds
     );
-  }, [events, hiddenEventIds]);
+  }, [events, declinedIds]);
 
   const conflicts = useMemo<ConflictItem[]>(() => {
     const normalized: CalendarEvent[] = (
@@ -305,7 +298,7 @@ export default function ActionsClient({
     let skipped = 0;
 
     const acceptedIds = new Set<string>();
-    const declinedIds = new Set<string>();
+    const declinedIdsFromPlan = new Set<string>();
 
     for (const c of conflicts) {
       const r = resolutionForConflict(c, resMap);
@@ -327,17 +320,17 @@ export default function ActionsClient({
 
       if (r === "keep_existing") {
         if (existingId) acceptedIds.add(existingId);
-        if (incomingId) declinedIds.add(incomingId);
+        if (incomingId) declinedIdsFromPlan.add(incomingId);
         continue;
       }
 
       if (r === "replace_with_new") {
         if (incomingId) acceptedIds.add(incomingId);
-        if (existingId) declinedIds.add(existingId);
+        if (existingId) declinedIdsFromPlan.add(existingId);
       }
     }
 
-    for (const declinedId of declinedIds) {
+    for (const declinedId of declinedIdsFromPlan) {
       acceptedIds.delete(declinedId);
     }
 
@@ -347,7 +340,7 @@ export default function ActionsClient({
       pending,
       skipped,
       acceptedEventIds: Array.from(acceptedIds),
-      declinedEventIds: Array.from(declinedIds),
+      declinedEventIds: Array.from(declinedIdsFromPlan),
     };
   }, [conflicts, resMap]);
 
