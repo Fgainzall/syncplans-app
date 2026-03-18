@@ -9,8 +9,12 @@ export const metadata: Metadata = {
   title: "SyncPlans",
   description:
     "El calendario que evita discusiones innecesarias cuando compartes tu tiempo.",
+  icons: {
+  icon: "/icons/favicon.png",
+  shortcut: "/icons/favicon.png",
+  apple: "/icons/apple-touch-icon.png",
+},
 };
-
 export const viewport: Viewport = {
   themeColor: "#0B0F19",
 };
