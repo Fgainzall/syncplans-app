@@ -3,6 +3,13 @@
 
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import BrandLogo from "@/components/BrandLogo";
+import {
+  colors,
+  layout,
+  radii,
+  shadows,
+} from "@/styles/design-tokens";
 
 export default function Onboarding3Client() {
   const router = useRouter();
@@ -29,623 +36,694 @@ export default function Onboarding3Client() {
   }
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        padding: "18px 14px 24px",
-        background:
-          "radial-gradient(circle at top left, #1D2538 0, #020617 52%, #020617 100%)",
-        color: "#E5E7EB",
-        display: "flex",
-        justifyContent: "center",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 1120,
-          display: "flex",
-          flexDirection: "column",
-          gap: 24,
-        }}
-      >
-        {/* Top bar */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 999,
-                background:
-                  "radial-gradient(circle at 30% 20%, #22C55E 0, #10B981 35%, #064E3B 100%)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 0 0 1px rgba(16,185,129,0.65)",
-                fontSize: 16,
-                fontWeight: 800,
-                color: "#022C22",
-              }}
-            >
-              S
-            </div>
-            <div>
-              <div
-                style={{
-                  fontSize: 12,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  color: "#9CA3AF",
-                  fontWeight: 600,
-                }}
-              >
-                Paso 3 de 4
-              </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: "#E5E7EB",
-                  fontWeight: 500,
-                }}
-              >
-                Una sola verdad en el centro.
-              </div>
+    <main style={S.page}>
+      <div aria-hidden style={S.backgroundGlow} />
+
+      <section style={S.shell} className="ob-shell">
+        <header style={S.topBar} className="ob-topBar">
+          <div style={S.brandWrap}>
+            <BrandLogo variant="mark" size={30} />
+            <div style={S.brandMeta}>
+              <span style={S.stepLabel}>Paso 3 de 4</span>
+              <span style={S.stepTitle}>La propuesta de valor</span>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleLogin}
-            style={{
-              fontSize: 13,
-              fontWeight: 500,
-              color: "#E5E7EB",
-              background: "transparent",
-              border: "1px solid rgba(148,163,184,0.4)",
-              borderRadius: 999,
-              padding: "6px 14px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              cursor: "pointer",
-            }}
-          >
-            <span>Ya tengo cuenta</span>
-            <span
-              aria-hidden
-              style={{
-                fontSize: 14,
-                opacity: 0.9,
-              }}
+          <div style={S.topActions}>
+            <button
+              type="button"
+              onClick={handleLogin}
+              style={S.topGhostButton}
+              className="ob-topGhost"
             >
-              →
-            </span>
-          </button>
-        </div>
-
-        {/* Content card */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 18,
-            borderRadius: 24,
-            border: "1px solid rgba(148,163,184,0.3)",
-            background:
-              "radial-gradient(circle at top right, rgba(34,197,94,0.16) 0, rgba(15,23,42,0.98) 42%, #020617 100%)",
-            boxShadow:
-              "0 18px 40px rgba(15,23,42,0.85), 0 0 0 1px rgba(15,23,42,0.9)",
-            padding: "22px 18px 18px",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column-reverse",
-              gap: 24,
-            }}
-          >
-            {/* Left: text */}
-            <div
-              style={{
-                flex: 1,
-                minWidth: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: 14,
-              }}
-            >
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(148,163,184,0.55)",
-                  background:
-                    "linear-gradient(90deg, rgba(15,23,42,0.9), rgba(15,23,42,0.3))",
-                  width: "fit-content",
-                }}
-              >
-                <div
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 999,
-                    background:
-                      "radial-gradient(circle at 30% 20%, #22C55E 0, #4ADE80 50%, #15803D 100%)",
-                    boxShadow:
-                      "0 0 0 1px rgba(34,197,94,0.65), 0 0 12px rgba(34,197,94,0.45)",
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: 11,
-                    letterSpacing: "0.14em",
-                    textTransform: "uppercase",
-                    color: "#F9FAFB",
-                    opacity: 0.9,
-                    fontWeight: 600,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Propuesta de valor
-                </span>
-              </div>
-
-              <h1
-                style={{
-                  fontSize: 24,
-                  lineHeight: 1.2,
-                  fontWeight: 700,
-                  color: "#F9FAFB",
-                }}
-              >
-                SyncPlans pone una sola verdad en el centro para que decidir sea
-                más fácil que discutir.
-              </h1>
-
-              <p
-                style={{
-                  fontSize: 14,
-                  lineHeight: 1.6,
-                  color: "#D1D5DB",
-                  maxWidth: 520,
-                }}
-              >
-                En vez de que cada uno tenga su calendario y mil chats, todo
-                aterriza en un solo lugar que ambos pueden ver. Cuando aparece
-                un choque, lo ven juntos antes de que se convierta en problema.
-              </p>
-
-              <ul
-                style={{
-                  listStyle: "none",
-                  padding: 0,
-                  margin: "4px 0 0",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
-                  maxWidth: 520,
-                }}
-              >
-                <ValueBullet
-                  title="Detecta choques automáticamente"
-                  text="SyncPlans identifica cuándo dos planes compiten por el mismo tiempo y te lo muestra de forma visual."
-                />
-                <ValueBullet
-                  title="Nada se borra sin verlo antes"
-                  text="No hay agendas que desaparecen en el aire. Las decisiones se toman viendo las dos opciones."
-                />
-                <ValueBullet
-                  title="Todos ven lo mismo"
-                  text="Tu pareja, tu familia o tu grupo: todos miran la misma versión de la semana, no capturas de pantalla sueltas."
-                />
-              </ul>
-
-              <p
-                style={{
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                  color: "#9CA3AF",
-                  maxWidth: 480,
-                }}
-              >
-                SyncPlans no reemplaza tus calendarios. Se conecta a ellos y
-                actúa como un <span style={{ color: "#E5E7EB" }}>árbitro
-                neutral</span> del tiempo compartido.
-              </p>
-            </div>
-
-            {/* Right: visual */}
-            <div
-              style={{
-                flex: 1,
-                minWidth: 0,
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <div
-                style={{
-                  width: "100%",
-                  maxWidth: 360,
-                  borderRadius: 20,
-                  padding: 14,
-                  background:
-                    "linear-gradient(145deg, rgba(15,23,42,0.96), rgba(15,23,42,0.65))",
-                  border: "1px solid rgba(148,163,184,0.55)",
-                  boxShadow:
-                    "0 18px 40px rgba(15,23,42,0.9), 0 0 0 1px rgba(15,23,42,0.9)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 10,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 2,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "#9CA3AF",
-                      letterSpacing: "0.16em",
-                      textTransform: "uppercase",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Una sola vista compartida
-                  </div>
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      padding: "3px 8px",
-                      borderRadius: 999,
-                      background: "rgba(15,23,42,0.9)",
-                      border: "1px solid rgba(148,163,184,0.65)",
-                      fontSize: 11,
-                      color: "#E5E7EB",
-                      gap: 6,
-                      alignItems: "center",
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: 999,
-                        background:
-                          "radial-gradient(circle at 30% 20%, #22C55E 0, #4ADE80 45%, #16A34A 100%)",
-                      }}
-                    />
-                    Personal · Pareja · Familia
-                  </div>
-                </div>
-
-                <SharedRow
-                  scope="Personal"
-                  label="Tu calendario de trabajo"
-                  status="Conectado"
-                  accent="blue"
-                />
-                <SharedRow
-                  scope="Pareja"
-                  label="Plan de finde juntos"
-                  status="En revisión"
-                  accent="amber"
-                />
-                <SharedRow
-                  scope="Familia"
-                  label="Cumpleaños y eventos clave"
-                  status="Confirmado"
-                  accent="green"
-                />
-
-                <div
-                  style={{
-                    marginTop: 6,
-                    paddingTop: 8,
-                    borderTop: "1px dashed rgba(55,65,81,0.9)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 10,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "#9CA3AF",
-                      maxWidth: 190,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    Los choques no se esconden en ningún chat: aparecen aquí
-                    para que los decidan juntos.
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "#E5E7EB",
-                      padding: "4px 9px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(148,163,184,0.7)",
-                      background:
-                        "linear-gradient(135deg, rgba(15,23,42,0.96), rgba(22,163,74,0.65))",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Menos sorpresa, más acuerdos
-                  </div>
-                </div>
-              </div>
-            </div>
+              Ya tengo cuenta
+            </button>
           </div>
+        </header>
 
-          {/* Bottom actions */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-              marginTop: 10,
-            }}
-          >
-            <button
-              type="button"
-              onClick={handleNext}
-              style={{
-                width: "100%",
-                borderRadius: 999,
-                border: "none",
-                padding: "10px 16px",
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: "pointer",
-                background:
-                  "linear-gradient(135deg, #22C55E, #16A34A, #15803D)",
-                color: "#022C22",
-                boxShadow:
-                  "0 18px 32px rgba(22,163,74,0.65), 0 0 0 1px rgba(5,46,22,0.95)",
-              }}
-            >
-              Seguir
-            </button>
+        <div style={S.heroGrid} className="ob-heroGrid">
+          <section style={S.copyCard}>
+            <div style={S.kicker}>
+              Una sola verdad compartida
+            </div>
 
-            <button
-              type="button"
-              onClick={handleBack}
-              style={{
-                width: "100%",
-                borderRadius: 999,
-                border: "1px solid rgba(148,163,184,0.6)",
-                padding: "9px 16px",
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: "pointer",
-                background: "transparent",
-                color: "#D1D5DB",
-              }}
-            >
-              Volver al paso anterior
-            </button>
+            <h1 style={S.title} className="ob-title">
+              SyncPlans no agrega ruido.
+              <br />
+              <span style={S.titleAccent}>Pone orden.</span>
+            </h1>
 
-            <button
-              type="button"
-              onClick={handleSkip}
-              style={{
-                marginTop: 2,
-                width: "100%",
-                borderRadius: 999,
-                border: "none",
-                padding: "6px 16px",
-                fontSize: 12,
-                fontWeight: 400,
-                cursor: "pointer",
-                background: "transparent",
-                color: "#9CA3AF",
-                textDecoration: "underline",
-                textDecorationStyle: "dotted",
-              }}
-            >
-              Saltar y ver directamente mi resumen
-            </button>
+            <p style={S.lead}>
+              En vez de que cada uno tenga su agenda por su lado y el acuerdo
+              viva disperso entre chats, SyncPlans aterriza todo en un solo lugar
+              visible para ambos.
+            </p>
 
-            <div
-              style={{
-                marginTop: 2,
-                display: "flex",
-                justifyContent: "center",
-                gap: 6,
-                alignItems: "center",
-                fontSize: 11,
-                color: "#9CA3AF",
-              }}
-            >
-              <span>Pantalla 3 de 4</span>
-              <span
-                aria-hidden
-                style={{
-                  width: 4,
-                  height: 4,
-                  borderRadius: 999,
-                  background: "rgba(148,163,184,0.7)",
-                }}
+            <div style={S.valueGrid}>
+              <ValueCard
+                title="Detecta choques automáticamente"
+                text="Te muestra cuándo dos planes compiten por el mismo tiempo antes de que el conflicto explote."
               />
-              <span>Propuesta · ¿Qué hace diferente a SyncPlans?</span>
+              <ValueCard
+                title="Nada se borra sin verlo"
+                text="Las decisiones no desaparecen en el aire. Puedes comparar opciones antes de elegir."
+              />
+              <ValueCard
+                title="Todos ven lo mismo"
+                text="Pareja, familia o grupo: una sola versión de la semana, no versiones parciales."
+              />
             </div>
+
+            <p style={S.supportText}>
+              Por eso SyncPlans se siente menos como otro calendario y más como
+              una capa de claridad sobre el tiempo compartido.
+            </p>
+
+            <div style={S.footerActions} className="ob-footerActions">
+              <div style={S.leftActionGroup}>
+                <button type="button" onClick={handleBack} style={S.skipButton}>
+                  Atrás
+                </button>
+
+                <button type="button" onClick={handleSkip} style={S.skipButton}>
+                  Saltar
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleNext}
+                style={S.primaryButton}
+                className="ob-primary"
+              >
+                Seguir
+              </button>
+            </div>
+          </section>
+
+          <aside style={S.previewCard}>
+            <div style={S.previewHeader}>
+              <div style={S.previewHeaderMeta}>
+                <span style={S.previewEyebrow}>Producto</span>
+                <span style={S.previewTitle}>Todo aterriza en un mismo lugar</span>
+              </div>
+
+              <span style={S.previewBadge}>Claro</span>
+            </div>
+
+            <div style={S.previewBoard}>
+              <div style={S.boardSection}>
+                <div style={S.boardSectionTitle}>Semana compartida</div>
+
+                <div style={S.boardRows}>
+                  <BoardRow day="Mié" title="Cena familiar" tone="blue" />
+                  <BoardRow day="Vie" title="Entreno" tone="muted" />
+                  <BoardRow day="Vie" title="Reserva en restaurante" tone="pink" />
+                </div>
+              </div>
+
+              <div style={S.boardSection}>
+                <div style={S.boardSectionTitle}>Cuando aparece un choque</div>
+
+                <div style={S.compareCard}>
+                  <div style={S.compareOption}>
+                    <span style={S.compareDotBlue} />
+                    <div style={S.compareMeta}>
+                      <div style={S.compareTitle}>Entreno</div>
+                      <div style={S.compareTime}>19:00 · Personal</div>
+                    </div>
+                  </div>
+
+                  <div style={S.compareVs}>vs</div>
+
+                  <div style={S.compareOption}>
+                    <span style={S.compareDotPink} />
+                    <div style={S.compareMeta}>
+                      <div style={S.compareTitle}>Cena reservada</div>
+                      <div style={S.compareTime}>20:00 · Compartido</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={S.previewFoot}>
+              SyncPlans no reemplaza la conversación. La hace más clara.
+            </div>
+          </aside>
+        </div>
+
+        <div style={S.bottomMeta}>
+          <div style={S.progressDots}>
+            <Dot />
+            <Dot />
+            <Dot active />
+            <Dot />
+          </div>
+
+          <div style={S.bottomCaption}>
+            La promesa no es “más features”. Es menos ambigüedad.
           </div>
         </div>
-      </div>
+      </section>
+
+      <style>{responsiveCss}</style>
     </main>
   );
 }
 
-type ValueBulletProps = {
+function ValueCard({
+  title,
+  text,
+}: {
   title: string;
   text: string;
-};
-
-function ValueBullet({ title, text }: ValueBulletProps) {
+}) {
   return (
-    <li
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 8,
-      }}
-    >
-      <div
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: 999,
-          marginTop: 6,
-          background:
-            "radial-gradient(circle at 30% 20%, #22C55E 0, #4ADE80 50%, #15803D 100%)",
-        }}
-      />
-      <div>
-        <div
-          style={{
-            fontSize: 13,
-            color: "#E5E7EB",
-            fontWeight: 500,
-            marginBottom: 2,
-          }}
-        >
-          {title}
-        </div>
-        <div
-          style={{
-            fontSize: 12,
-            color: "#D1D5DB",
-            lineHeight: 1.5,
-          }}
-        >
-          {text}
-        </div>
-      </div>
-    </li>
+    <div style={S.valueCard}>
+      <div style={S.valueCardTitle}>{title}</div>
+      <div style={S.valueCardText}>{text}</div>
+    </div>
   );
 }
 
-type SharedRowProps = {
-  scope: string;
-  label: string;
-  status: string;
-  accent: "blue" | "amber" | "green";
-};
-
-function SharedRow({ scope, label, status, accent }: SharedRowProps) {
-  const map = {
-    blue: {
-      dot: "#60A5FA",
-      pillBg: "rgba(37,99,235,0.16)",
-      pillBorder: "rgba(59,130,246,0.7)",
-    },
-    amber: {
-      dot: "#FBBF24",
-      pillBg: "rgba(180,83,9,0.16)",
-      pillBorder: "rgba(245,158,11,0.7)",
-    },
-    green: {
-      dot: "#4ADE80",
-      pillBg: "rgba(22,101,52,0.18)",
-      pillBorder: "rgba(34,197,94,0.7)",
-    },
-  } as const;
-
-  const cfg = map[accent];
+function BoardRow({
+  day,
+  title,
+  tone,
+}: {
+  day: string;
+  title: string;
+  tone: "blue" | "muted" | "pink";
+}) {
+  const toneStyles =
+    tone === "blue"
+      ? { dot: "#38BDF8", bg: "rgba(56,189,248,0.10)", border: "rgba(56,189,248,0.16)" }
+      : tone === "pink"
+      ? { dot: "#F472B6", bg: "rgba(244,114,182,0.10)", border: "rgba(244,114,182,0.16)" }
+      : { dot: "#94A3B8", bg: "rgba(148,163,184,0.10)", border: "rgba(148,163,184,0.16)" };
 
   return (
     <div
       style={{
-        borderRadius: 12,
-        padding: "8px 10px",
-        border: "1px solid rgba(55,65,81,0.9)",
-        background:
-          "linear-gradient(135deg, rgba(15,23,42,0.96), rgba(15,23,42,0.8))",
-        display: "flex",
-        alignItems: "center",
+        borderRadius: 14,
+        padding: "10px 12px",
+        background: toneStyles.bg,
+        border: `1px solid ${toneStyles.border}`,
+        display: "grid",
+        gridTemplateColumns: "36px minmax(0, 1fr)",
         gap: 10,
+        alignItems: "center",
       }}
     >
-      <div
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: 999,
-          background: cfg.dot,
-          boxShadow: `0 0 10px ${cfg.dot}`,
-          flexShrink: 0,
-        }}
-      />
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-        }}
-      >
-        <div
+      <span style={S.boardDay}>{day}</span>
+      <div style={S.boardTitleRow}>
+        <span
           style={{
-            fontSize: 11,
-            color: "#9CA3AF",
+            width: 10,
+            height: 10,
+            borderRadius: radii.full,
+            background: toneStyles.dot,
+            boxShadow: `0 0 0 6px ${toneStyles.dot}22`,
+            flexShrink: 0,
           }}
-        >
-          {scope}
-        </div>
-        <div
-          style={{
-            fontSize: 12,
-            color: "#F9FAFB",
-            fontWeight: 500,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {label}
-        </div>
-      </div>
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 500,
-          padding: "4px 8px",
-          borderRadius: 999,
-          border: `1px solid ${cfg.pillBorder}`,
-          background: cfg.pillBg,
-          color: "#E5E7EB",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {status}
+        />
+        <span style={S.boardTitle}>{title}</span>
       </div>
     </div>
   );
 }
+
+function Dot({ active = false }: { active?: boolean }) {
+  return (
+    <span
+      style={{
+        ...S.dot,
+        opacity: active ? 1 : 0.38,
+        transform: active ? "scale(1)" : "scale(0.92)",
+      }}
+    />
+  );
+}
+
+const responsiveCss = `
+  @media (max-width: 980px) {
+    .ob-shell {
+      padding: 20px 16px 18px !important;
+      border-radius: 24px !important;
+    }
+
+    .ob-topBar {
+      gap: 12px !important;
+      align-items: center !important;
+    }
+
+    .ob-heroGrid {
+      grid-template-columns: 1fr !important;
+      gap: 16px !important;
+    }
+
+    .ob-title {
+      font-size: 34px !important;
+      line-height: 1.04 !important;
+    }
+
+    .ob-footerActions {
+      flex-direction: column !important;
+      align-items: stretch !important;
+    }
+
+    .ob-primary,
+    .ob-topGhost {
+      width: 100% !important;
+      justify-content: center !important;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .ob-topBar {
+      flex-wrap: wrap !important;
+    }
+
+    .ob-title {
+      font-size: 30px !important;
+    }
+  }
+`;
+
+const S: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    background: colors.appBackground,
+    color: colors.textPrimary,
+    position: "relative",
+    overflow: "hidden",
+    padding: "20px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  backgroundGlow: {
+    position: "absolute",
+    inset: 0,
+    background: `
+      radial-gradient(900px 520px at 10% 8%, rgba(56,189,248,0.14), transparent 58%),
+      radial-gradient(820px 460px at 88% 12%, rgba(168,85,247,0.11), transparent 60%),
+      radial-gradient(700px 420px at 54% 96%, rgba(244,114,182,0.06), transparent 60%)
+    `,
+    pointerEvents: "none",
+  },
+
+  shell: {
+    position: "relative",
+    zIndex: 1,
+    width: "100%",
+    maxWidth: layout.maxWidthDesktop,
+    borderRadius: 30,
+    border: `1px solid ${colors.borderSubtle}`,
+    background:
+      "linear-gradient(180deg, rgba(15,23,42,0.82) 0%, rgba(2,6,23,0.90) 100%)",
+    boxShadow: shadows.soft,
+    backdropFilter: "blur(18px)",
+    padding: "24px 24px 18px",
+    display: "grid",
+    gap: 18,
+  },
+
+  topBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+
+  brandWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    minWidth: 0,
+  },
+
+  brandMeta: {
+    display: "grid",
+    gap: 2,
+  },
+
+  stepLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+  },
+
+  stepTitle: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: 800,
+  },
+
+  topActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  topGhostButton: {
+    minHeight: 40,
+    padding: "0 16px",
+    borderRadius: radii.full,
+    border: `1px solid ${colors.borderSubtle}`,
+    background: "rgba(2,6,23,0.28)",
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: 800,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+  },
+
+  heroGrid: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1.1fr) minmax(320px, 420px)",
+    gap: 18,
+    alignItems: "stretch",
+  },
+
+  copyCard: {
+    borderRadius: 24,
+    border: "1px solid rgba(148,163,184,0.16)",
+    background:
+      "linear-gradient(180deg, rgba(15,23,42,0.52) 0%, rgba(2,6,23,0.26) 100%)",
+    padding: 28,
+    display: "grid",
+    gap: 16,
+  },
+
+  kicker: {
+    display: "inline-flex",
+    width: "fit-content",
+    alignItems: "center",
+    padding: "8px 12px",
+    borderRadius: radii.full,
+    border: "1px solid rgba(56,189,248,0.22)",
+    background: "rgba(56,189,248,0.10)",
+    color: "#CFF4FF",
+    fontSize: 12,
+    fontWeight: 800,
+  },
+
+  title: {
+    margin: 0,
+    fontSize: 44,
+    lineHeight: 1,
+    fontWeight: 900,
+    letterSpacing: "-0.03em",
+  },
+
+  titleAccent: {
+    background:
+      "linear-gradient(90deg, #E0F2FE 0%, #BAE6FD 34%, #DDD6FE 100%)",
+    WebkitBackgroundClip: "text",
+    color: "transparent",
+  },
+
+  lead: {
+    margin: 0,
+    color: "#CBD5E1",
+    fontSize: 16,
+    lineHeight: 1.68,
+    maxWidth: 650,
+  },
+
+  valueGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 12,
+  },
+
+  valueCard: {
+    borderRadius: 18,
+    border: "1px solid rgba(148,163,184,0.14)",
+    background: "rgba(15,23,42,0.52)",
+    padding: "14px 14px",
+    display: "grid",
+    gap: 8,
+  },
+
+  valueCardTitle: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: 900,
+    lineHeight: 1.35,
+  },
+
+  valueCardText: {
+    color: "#94A3B8",
+    fontSize: 13,
+    lineHeight: 1.55,
+  },
+
+  supportText: {
+    margin: 0,
+    color: "#94A3B8",
+    fontSize: 14,
+    lineHeight: 1.65,
+    maxWidth: 620,
+  },
+
+  footerActions: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 8,
+  },
+
+  leftActionGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+
+  skipButton: {
+    minHeight: 46,
+    padding: "0 16px",
+    borderRadius: radii.full,
+    background: "transparent",
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: 800,
+    border: "none",
+    cursor: "pointer",
+  },
+
+  primaryButton: {
+    minHeight: 46,
+    padding: "0 18px",
+    borderRadius: radii.full,
+    border: "none",
+    background:
+      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 46%, #A855F7 100%)",
+    color: "#06111D",
+    fontSize: 14,
+    fontWeight: 900,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    boxShadow: "0 16px 34px rgba(56,189,248,0.20)",
+  },
+
+  previewCard: {
+    borderRadius: 24,
+    border: `1px solid ${colors.borderSubtle}`,
+    background:
+      "linear-gradient(180deg, rgba(8,15,30,0.92) 0%, rgba(2,6,23,0.98) 100%)",
+    boxShadow: shadows.card,
+    padding: 18,
+    display: "grid",
+    gap: 14,
+  },
+
+  previewHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+
+  previewHeaderMeta: {
+    display: "grid",
+    gap: 3,
+  },
+
+  previewEyebrow: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: 800,
+    textTransform: "uppercase",
+    letterSpacing: "0.12em",
+  },
+
+  previewTitle: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: 900,
+  },
+
+  previewBadge: {
+    padding: "6px 10px",
+    borderRadius: radii.full,
+    border: "1px solid rgba(34,197,94,0.16)",
+    background: "rgba(34,197,94,0.10)",
+    color: "#BBF7D0",
+    fontSize: 11,
+    fontWeight: 900,
+  },
+
+  previewBoard: {
+    display: "grid",
+    gap: 12,
+  },
+
+  boardSection: {
+    borderRadius: 18,
+    padding: 14,
+    background: "rgba(15,23,42,0.52)",
+    border: "1px solid rgba(148,163,184,0.12)",
+    display: "grid",
+    gap: 12,
+  },
+
+  boardSectionTitle: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: 900,
+  },
+
+  boardRows: {
+    display: "grid",
+    gap: 10,
+  },
+
+  boardDay: {
+    color: "#CBD5E1",
+    fontSize: 12,
+    fontWeight: 900,
+  },
+
+  boardTitleRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    minWidth: 0,
+  },
+
+  boardTitle: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: 900,
+  },
+
+  compareCard: {
+    borderRadius: 16,
+    padding: "12px 12px",
+    background:
+      "linear-gradient(180deg, rgba(56,189,248,0.10) 0%, rgba(168,85,247,0.10) 100%)",
+    border: "1px solid rgba(148,163,184,0.16)",
+    display: "grid",
+    gap: 10,
+  },
+
+  compareOption: {
+    display: "grid",
+    gridTemplateColumns: "10px minmax(0, 1fr)",
+    gap: 10,
+    alignItems: "flex-start",
+  },
+
+  compareDotBlue: {
+    width: 10,
+    height: 10,
+    borderRadius: radii.full,
+    background: "#38BDF8",
+    marginTop: 4,
+    boxShadow: "0 0 0 6px rgba(56,189,248,0.12)",
+  },
+
+  compareDotPink: {
+    width: 10,
+    height: 10,
+    borderRadius: radii.full,
+    background: "#F472B6",
+    marginTop: 4,
+    boxShadow: "0 0 0 6px rgba(244,114,182,0.12)",
+  },
+
+  compareMeta: {
+    display: "grid",
+    gap: 2,
+  },
+
+  compareTitle: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: 900,
+  },
+
+  compareTime: {
+    color: "#CBD5E1",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+
+  compareVs: {
+    color: "#C4B5FD",
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    textAlign: "center",
+  },
+
+  previewFoot: {
+    color: "#94A3B8",
+    fontSize: 12,
+    lineHeight: 1.55,
+    textAlign: "center",
+    fontWeight: 700,
+  },
+
+  bottomMeta: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+
+  progressDots: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: radii.full,
+    background:
+      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 46%, #A855F7 100%)",
+    transition: "all 160ms ease",
+  },
+
+  bottomCaption: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+};
