@@ -10,6 +10,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import AuthCard from "@/components/AuthCard";
 
+function getAppOrigin() {
+  const env =
+    (process.env.NEXT_PUBLIC_APP_URL ??
+      process.env.APP_URL ??
+      "https://syncplansapp.com").trim();
+
+  try {
+    return new URL(env).origin;
+  } catch {
+    return "https://syncplansapp.com";
+  }
+}
+
 export default function RegisterClient() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -29,23 +42,28 @@ export default function RegisterClient() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const passwordsMatch = password.trim() === password2.trim();
+
   const canSubmit = useMemo(() => {
-    const e = email.trim();
-    const n = name.trim();
-    const p1 = password.trim();
-    const p2 = password2.trim();
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPass = password.trim();
+    const trimmedPass2 = password2.trim();
+
     return (
-      e.includes("@") &&
-      n.length > 0 &&
-      p1.length >= 6 &&
-      p2.length >= 6 &&
-      p1 === p2 &&
+      trimmedName.length > 0 &&
+      trimmedEmail.includes("@") &&
+      trimmedPass.length >= 6 &&
+      trimmedPass2.length >= 6 &&
+      trimmedPass === trimmedPass2 &&
       !loading
     );
-  }, [email, name, password, password2, loading]);
+  }, [name, email, password, password2, loading]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!canSubmit) return;
+
     setError(null);
     setLoading(true);
 
@@ -55,7 +73,7 @@ export default function RegisterClient() {
     const trimmedPass2 = password2.trim();
 
     if (!trimmedName) {
-      setError("Pon tu nombre. Lo usaremos dentro de SyncPlans.");
+      setError("Pon tu nombre para mostrarte bien dentro de SyncPlans.");
       setLoading(false);
       return;
     }
@@ -67,14 +85,10 @@ export default function RegisterClient() {
     }
 
     try {
-      const APP_URL =
-        process.env.NEXT_PUBLIC_APP_URL ||
-        process.env.APP_URL ||
-        "https://syncplansapp.com";
-
-      // ✅ Importante: preservamos next para que después del callback caiga donde toca
-      const redirectTo =
-        `${APP_URL}/auth/callback?next=` + encodeURIComponent(nextTarget);
+      const origin = getAppOrigin();
+      const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(
+        nextTarget,
+      )}`;
 
       const { error: signUpError } = await supabase.auth.signUp({
         email: trimmedEmail,
@@ -97,133 +111,45 @@ export default function RegisterClient() {
       setDone(true);
       setLoading(false);
     } catch (err: any) {
-      setError(err?.message ?? "Error inesperado. Intenta de nuevo.");
+      setError(err?.message ?? "Error inesperado. Intenta otra vez.");
       setLoading(false);
     }
   }
 
-  // 🎨 Estilos SOLO para el formulario (el layout general lo pone AuthCard)
-  const description: CSSProperties = {
-    fontSize: 12,
-    color: "rgba(148,163,184,0.96)",
-    marginBottom: 8,
-    lineHeight: 1.5,
-  };
-
-  const label: CSSProperties = {
-    fontSize: 11,
-    fontWeight: 800,
-    marginBottom: 4,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    opacity: 0.8,
-  };
-
-  const input: CSSProperties = {
-    width: "100%",
-    borderRadius: 16,
-    border: "1px solid rgba(148,163,184,0.55)",
-    background: "rgba(15,23,42,0.95)",
-    padding: "10px 12px",
-    fontSize: 13,
-    color: "rgba(248,250,252,0.96)",
-    outline: "none",
-  };
-
-  const infoBox: CSSProperties = {
-    borderRadius: 16,
-    border: "1px solid rgba(52,211,153,0.45)",
-    background: "rgba(16,185,129,0.12)",
-    padding: "8px 10px",
-    fontSize: 11,
-    color: "rgba(240,253,250,0.95)",
-    marginTop: 4,
-    marginBottom: 4,
-    lineHeight: 1.5,
-  };
-
-  const errorBox: CSSProperties = {
-    borderRadius: 16,
-    border: "1px solid rgba(248,113,113,0.45)",
-    background: "rgba(248,113,113,0.14)",
-    padding: "8px 10px",
-    fontSize: 12,
-    color: "rgba(254,242,242,0.95)",
-  };
-
-  const primaryBtn: CSSProperties = {
-    width: "100%",
-    borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.9)",
-    background:
-      "linear-gradient(90deg, rgba(56,189,248,0.97), rgba(16,185,129,0.97))",
-    padding: "11px 14px",
-    fontSize: 13,
-    fontWeight: 800,
-    cursor: canSubmit ? "pointer" : "not-allowed",
-    opacity: canSubmit ? 1 : 0.55,
-    marginTop: 4,
-  };
-
-  const secondaryBtn: CSSProperties = {
-    width: "100%",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.6)",
-    background: "rgba(15,23,42,0.95)",
-    padding: "10px 14px",
-    fontSize: 12,
-    fontWeight: 750,
-    cursor: loading ? "wait" : "pointer",
-    opacity: loading ? 0.6 : 0.9,
-    marginTop: 6,
-  };
-
-  const legal: CSSProperties = {
-    marginTop: 4,
-    fontSize: 10,
-    opacity: 0.6,
-    lineHeight: 1.6,
-  };
+  function resetForm() {
+    setDone(false);
+    setName("");
+    setEmail("");
+    setPassword("");
+    setPassword2("");
+    setError(null);
+  }
 
   return (
     <AuthCard
       mode="register"
-      title="Crear cuenta en SyncPlans"
-      subtitle="Empieza con tu cuenta personal. Después podrás invitar a tu pareja, familia o amigos para compartir el calendario."
+      title="Crea tu cuenta"
+      subtitle="Empieza con tu calendario personal y después invita a quien comparte tiempo contigo."
       onToggleMode={() =>
         router.push(`/auth/login?next=${encodeURIComponent(nextTarget)}`)
       }
     >
       <>
-        {!done && (
-          <p style={description}>
-            Con una sola cuenta tendrás tu calendario personal y el de tus
-            grupos de pareja y familia. SyncPlans detecta choques de horario
-            y te obliga a decidir antes, para evitar discusiones después.
-          </p>
-        )}
-
         {done ? (
           <>
-            <div style={infoBox}>
-              <div style={{ fontWeight: 800, marginBottom: 4 }}>
-                Cuenta creada ✅
-              </div>
-              <div>
-                Te enviamos un correo para confirmar tu registro. Después de
-                hacer clic en <b>&quot;Confirm your mail&quot;</b> volverás
-                automáticamente a <b>/auth/callback</b> y desde ahí podrás
-                iniciar sesión. Al entrar, comenzarás en tu resumen de planes.
-              </div>
+            <div style={successBoxStyle}>
+              <div style={successTitleStyle}>Cuenta creada ✅</div>
+              <p style={successTextStyle}>
+                Te enviamos un correo para confirmar tu registro. Apenas abras
+                ese link, volverás a SyncPlans y podrás entrar con normalidad.
+              </p>
             </div>
 
             <button
               type="button"
-              style={secondaryBtn}
+              style={secondaryButtonStyle}
               onClick={() =>
-                router.push(
-                  `/auth/login?next=${encodeURIComponent(nextTarget)}`,
-                )
+                router.push(`/auth/login?next=${encodeURIComponent(nextTarget)}`)
               }
               disabled={loading}
             >
@@ -232,112 +158,245 @@ export default function RegisterClient() {
 
             <button
               type="button"
-              style={secondaryBtn}
-              onClick={() => {
-                setDone(false);
-                setName("");
-                setEmail("");
-                setPassword("");
-                setPassword2("");
-                setError(null);
-              }}
+              style={ghostButtonStyle}
+              onClick={resetForm}
               disabled={loading}
             >
               Crear otra cuenta
             </button>
 
-            <div style={legal}>
-              Si no ves el correo, revisa tu bandeja de spam o busca por
-              &ldquo;Supabase Auth&rdquo;. Sin confirmar el correo no podrás
-              acceder a tu calendario.
-            </div>
+            <p style={helperTextStyle}>
+              No olvides revisar spam o promociones si el correo no aparece de
+              inmediato.
+            </p>
           </>
         ) : (
           <>
-            <form
-              onSubmit={onSubmit}
-              style={{ display: "grid", gap: 10, marginTop: 6 }}
-            >
-              <div>
-                <div style={label}>Nombre</div>
+            <p style={introTextStyle}>
+              SyncPlans te ayuda a ordenar tu agenda, compartir planes y detectar
+              choques antes de que se conviertan en discusión.
+            </p>
+
+            <form onSubmit={onSubmit} style={formStyle}>
+              <div style={fieldStyle}>
+                <label htmlFor="register-name" style={labelStyle}>
+                  Nombre
+                </label>
                 <input
-                  style={input}
+                  id="register-name"
+                  type="text"
+                  autoComplete="name"
+                  placeholder="Cómo quieres que te vean"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Cómo quieres que te vean en SyncPlans"
-                  autoComplete="name"
+                  style={inputStyle}
+                  disabled={loading}
                 />
               </div>
 
-              <div>
-                <div style={label}>Correo</div>
+              <div style={fieldStyle}>
+                <label htmlFor="register-email" style={labelStyle}>
+                  Correo
+                </label>
                 <input
-                  style={input}
+                  id="register-email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  placeholder="tu@correo.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="tu@correo.com"
-                  autoComplete="email"
+                  style={inputStyle}
+                  disabled={loading}
                 />
               </div>
 
-              <div>
-                <div style={label}>Contraseña</div>
+              <div style={fieldStyle}>
+                <label htmlFor="register-password" style={labelStyle}>
+                  Contraseña
+                </label>
                 <input
-                  style={input}
+                  id="register-password"
                   type="password"
+                  autoComplete="new-password"
+                  placeholder="Mínimo 6 caracteres"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="mínimo 6 caracteres"
-                  autoComplete="new-password"
+                  style={inputStyle}
+                  disabled={loading}
                 />
               </div>
 
-              <div>
-                <div style={label}>Confirmar contraseña</div>
+              <div style={fieldStyle}>
+                <label htmlFor="register-password-2" style={labelStyle}>
+                  Confirmar contraseña
+                </label>
                 <input
-                  style={input}
+                  id="register-password-2"
                   type="password"
+                  autoComplete="new-password"
+                  placeholder="Repite tu contraseña"
                   value={password2}
                   onChange={(e) => setPassword2(e.target.value)}
-                  placeholder="Repite tu contraseña para confirmar"
-                  autoComplete="new-password"
+                  style={inputStyle}
+                  disabled={loading}
                 />
               </div>
 
-              {error && <div style={errorBox}>{error}</div>}
+              {!passwordsMatch && password2.trim().length > 0 && (
+                <div style={warningBoxStyle}>
+                  Las contraseñas todavía no coinciden.
+                </div>
+              )}
 
-              <button
-                type="submit"
-                disabled={!canSubmit}
-                style={primaryBtn}
-              >
-                {loading
-                  ? "Creando cuenta…"
-                  : "Crear mi calendario compartido"}
+              {error && <div style={errorBoxStyle}>{error}</div>}
+
+              <button type="submit" disabled={!canSubmit} style={primaryButtonStyle}>
+                {loading ? "Creando cuenta…" : "Crear cuenta"}
               </button>
             </form>
 
             <button
               type="button"
-              style={secondaryBtn}
+              style={ghostButtonStyle}
               onClick={() =>
-                router.push(
-                  `/auth/login?next=${encodeURIComponent(nextTarget)}`,
-                )
+                router.push(`/auth/login?next=${encodeURIComponent(nextTarget)}`)
               }
               disabled={loading}
             >
               Ya tengo cuenta
             </button>
 
-            <div style={legal}>
-              Al crear una cuenta aceptas que esta es una beta privada
-              pensada para pruebas personales. Podrás borrar tu cuenta y
-              datos cuando quieras desde el panel de perfil.
-            </div>
+            <p style={helperTextStyle}>
+              Después podrás crear grupos, invitar personas y empezar a coordinar
+              eventos compartidos.
+            </p>
           </>
         )}
       </>
     </AuthCard>
   );
 }
+
+const introTextStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 13,
+  lineHeight: 1.65,
+  color: "rgba(203,213,225,0.92)",
+};
+
+const formStyle: CSSProperties = {
+  display: "grid",
+  gap: 14,
+};
+
+const fieldStyle: CSSProperties = {
+  display: "grid",
+  gap: 6,
+};
+
+const labelStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 800,
+  letterSpacing: "0.1em",
+  textTransform: "uppercase",
+  color: "rgba(148,163,184,0.95)",
+};
+
+const inputStyle: CSSProperties = {
+  width: "100%",
+  borderRadius: 16,
+  border: "1px solid rgba(148,163,184,0.36)",
+  background: "rgba(15,23,42,0.88)",
+  color: "rgba(248,250,252,0.98)",
+  padding: "13px 14px",
+  fontSize: 14,
+  outline: "none",
+  boxSizing: "border-box",
+};
+
+const primaryButtonStyle: CSSProperties = {
+  width: "100%",
+  borderRadius: 999,
+  border: "1px solid rgba(56,189,248,0.90)",
+  background:
+    "linear-gradient(90deg, rgba(56,189,248,0.98), rgba(16,185,129,0.96))",
+  color: "#06131F",
+  padding: "13px 16px",
+  fontSize: 14,
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const secondaryButtonStyle: CSSProperties = {
+  width: "100%",
+  borderRadius: 999,
+  border: "1px solid rgba(148,163,184,0.38)",
+  background: "rgba(15,23,42,0.62)",
+  color: "rgba(241,245,249,0.96)",
+  padding: "12px 16px",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const ghostButtonStyle: CSSProperties = {
+  width: "100%",
+  borderRadius: 999,
+  border: "1px solid rgba(71,85,105,0.32)",
+  background: "transparent",
+  color: "rgba(148,163,184,0.96)",
+  padding: "11px 16px",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const errorBoxStyle: CSSProperties = {
+  borderRadius: 16,
+  border: "1px solid rgba(248,113,113,0.35)",
+  background: "rgba(127,29,29,0.20)",
+  color: "rgba(254,226,226,0.96)",
+  padding: "11px 12px",
+  fontSize: 12,
+  lineHeight: 1.55,
+};
+
+const warningBoxStyle: CSSProperties = {
+  borderRadius: 16,
+  border: "1px solid rgba(250,204,21,0.30)",
+  background: "rgba(120,53,15,0.16)",
+  color: "rgba(254,243,199,0.96)",
+  padding: "10px 12px",
+  fontSize: 12,
+  lineHeight: 1.5,
+};
+
+const successBoxStyle: CSSProperties = {
+  borderRadius: 18,
+  border: "1px solid rgba(52,211,153,0.30)",
+  background: "rgba(6,95,70,0.18)",
+  padding: "14px 14px 13px",
+  display: "grid",
+  gap: 6,
+};
+
+const successTitleStyle: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 800,
+  color: "rgba(220,252,231,0.98)",
+};
+
+const successTextStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 12,
+  lineHeight: 1.6,
+  color: "rgba(220,252,231,0.92)",
+};
+
+const helperTextStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 11,
+  lineHeight: 1.6,
+  color: "rgba(148,163,184,0.82)",
+};

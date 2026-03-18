@@ -26,8 +26,6 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.webmanifest" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         <meta name="theme-color" content="#0B0F19" />
-
-        {/* ✅ iOS safe-area support */}
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover"
@@ -40,18 +38,23 @@ export default function RootLayout({
           background: "#0B0F19",
           color: "#E5E7EB",
           overflowX: "hidden",
-          // 👇 sin safe-area aquí; lo maneja MobileScaffold
         }}
       >
         <SWRegister />
 
         <ToastProvider>
           {children}
-          {/* ✅ BottomNav solo en móvil (oculto en md y arriba) */}
-          <div className="md:hidden">
+
+          <div className="sp-global-bottom-nav md:hidden">
             <BottomNav />
           </div>
         </ToastProvider>
+
+        <style>{`
+          body:has([data-auth-screen="true"]) .sp-global-bottom-nav {
+            display: none !important;
+          }
+        `}</style>
       </body>
     </html>
   );

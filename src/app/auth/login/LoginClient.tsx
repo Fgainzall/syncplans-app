@@ -11,7 +11,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import AuthCard from "@/components/AuthCard";
 
-/** ✅ Canonical origin helper (evita mismatch entre vercel y dominio propio) */
+/** Canonical origin helper */
 function getAppOrigin() {
   const env =
     (process.env.NEXT_PUBLIC_APP_URL ??
@@ -35,10 +35,6 @@ export default function LoginClient() {
   const sp = useSearchParams();
 
   const nextParam = sp.get("next");
-
-  // ✅ Regla:
-  // Si viene ?next=/algo lo respetamos.
-  // Si no hay next válido → /summary (una sola verdad sobre tus planes).
   const nextTarget = useMemo(
     () => (nextParam && nextParam.startsWith("/") ? nextParam : "/summary"),
     [nextParam],
@@ -47,14 +43,12 @@ export default function LoginClient() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [loading, setLoading] = useState(false);
+  const [loadingEmail, setLoadingEmail] = useState(false);
+  const [loadingGoogle, setLoadingGoogle] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 🔥 Guardrail anti-loop:
-  // - Si por algún motivo el navegador vuelve con #access_token=...
-  //   el servidor no lo ve. Limpiamos el hash para evitar que el usuario
-  //   se quede atrapado en /auth/login#...
-  // - Si ya hay sesión → nos vamos a nextTarget.
+  const isBusy = loadingEmail || loadingGoogle;
+
   useEffect(() => {
     let alive = true;
 
@@ -96,13 +90,15 @@ export default function LoginClient() {
 
   const canSubmit = useMemo(() => {
     const e = email.trim();
-    return e.includes("@") && password.trim().length >= 6 && !loading;
-  }, [email, password, loading]);
+    return e.includes("@") && password.trim().length >= 6 && !isBusy;
+  }, [email, password, isBusy]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!canSubmit) return;
+
     setError(null);
-    setLoading(true);
+    setLoadingEmail(true);
 
     try {
       const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -120,7 +116,7 @@ export default function LoginClient() {
           msg.includes("confirmation")
         ) {
           setError(
-            "Debes confirmar tu correo antes de iniciar sesión. Revisa tu bandeja (y spam) y entra desde el link.",
+            "Debes confirmar tu correo antes de iniciar sesión. Revisa tu bandeja o spam y entra desde el link.",
           );
         } else if (msg.includes("invalid login") || msg.includes("invalid")) {
           setError("Correo o contraseña incorrectos.");
@@ -128,30 +124,26 @@ export default function LoginClient() {
           setError(signInError.message);
         }
 
-        setLoading(false);
+        setLoadingEmail(false);
         return;
       }
 
       router.replace(nextTarget);
     } catch (err: any) {
       setError(err?.message ?? "Error inesperado. Intenta otra vez.");
-      setLoading(false);
+      setLoadingEmail(false);
     }
   }
 
   async function onGoogle() {
     setError(null);
-    setLoading(true);
+    setLoadingGoogle(true);
 
     try {
       const origin = getAppOrigin();
-
-      // ✅ CLAVE: SIEMPRE volver al dominio canónico (no al origin “accidental”)
-      // Ej: https://syncplansapp.com/auth/callback?next=/summary
-      const redirectTo =
-        origin
-          ? `${origin}/auth/callback?next=${encodeURIComponent(nextTarget)}`
-          : undefined;
+      const redirectTo = origin
+        ? `${origin}/auth/callback?next=${encodeURIComponent(nextTarget)}`
+        : undefined;
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -167,174 +159,221 @@ export default function LoginClient() {
 
       if (error) {
         setError(error.message);
-        setLoading(false);
+        setLoadingGoogle(false);
         return;
       }
 
-      // Guardrail: en algunos browsers, supabase no redirige solo
       if (!data?.url) {
-        setError("No se pudo iniciar el login con Google.");
-        setLoading(false);
+        setError("No se pudo iniciar el acceso con Google.");
+        setLoadingGoogle(false);
         return;
       }
 
       window.location.href = data.url;
     } catch (e: any) {
       setError(e?.message ?? "Error iniciando sesión con Google.");
-      setLoading(false);
+      setLoadingGoogle(false);
     }
   }
-
-  // 🎨 Estilos solo para la parte del formulario
-  const description: CSSProperties = {
-    fontSize: 12,
-    color: "rgba(148,163,184,0.96)",
-    marginBottom: 8,
-    lineHeight: 1.5,
-  };
-
-  const label: CSSProperties = {
-    fontSize: 11,
-    fontWeight: 800,
-    marginBottom: 4,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    opacity: 0.8,
-  };
-
-  const input: CSSProperties = {
-    width: "100%",
-    borderRadius: 16,
-    border: "1px solid rgba(148,163,184,0.55)",
-    background: "rgba(15,23,42,0.95)",
-    padding: "10px 12px",
-    fontSize: 13,
-    color: "rgba(248,250,252,0.96)",
-    outline: "none",
-  };
-
-  const errorBox: CSSProperties = {
-    borderRadius: 16,
-    border: "1px solid rgba(248,113,113,0.45)",
-    background: "rgba(248,113,113,0.14)",
-    padding: "8px 10px",
-    fontSize: 12,
-    color: "rgba(254,242,242,0.95)",
-  };
-
-  const primaryBtn: CSSProperties = {
-    width: "100%",
-    borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.9)",
-    background:
-      "linear-gradient(90deg, rgba(56,189,248,0.97), rgba(16,185,129,0.97))",
-    padding: "11px 14px",
-    fontSize: 13,
-    fontWeight: 800,
-    cursor: canSubmit ? "pointer" : "not-allowed",
-    opacity: canSubmit ? 1 : 0.55,
-    marginTop: 4,
-  };
-
-  const secondaryBtn: CSSProperties = {
-    width: "100%",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.6)",
-    background: "rgba(15,23,42,0.95)",
-    padding: "10px 14px",
-    fontSize: 12,
-    fontWeight: 750,
-    cursor: loading ? "wait" : "pointer",
-    opacity: loading ? 0.6 : 0.9,
-    marginTop: 6,
-  };
-
-  const legal: CSSProperties = {
-    marginTop: 4,
-    fontSize: 10,
-    opacity: 0.6,
-    lineHeight: 1.6,
-  };
 
   return (
     <AuthCard
       mode="login"
-      title="Iniciar sesión en SyncPlans"
-      subtitle="Accede a tu calendario compartido y deja que SyncPlans detecte los conflictos por ti."
+      title="Bienvenido de vuelta"
+      subtitle="Entra a SyncPlans y sigue coordinando tu tiempo compartido desde una sola verdad."
       onToggleMode={() =>
         router.push(`/auth/register?next=${encodeURIComponent(nextTarget)}`)
       }
     >
       <>
-        <p style={description}>
-          En lugar de tener cada plan en tu cabeza o perdido en distintos
-          chats, entra a SyncPlans y deja que el calendario compartido te
-          muestre qué viene, dónde hay choques y qué decisiones hay que tomar.
+        <p style={introTextStyle}>
+          Accede a tu calendario personal, tus grupos y los conflictos pendientes
+          sin perderte entre mensajes o planes cruzados.
         </p>
 
-        <form
-          onSubmit={onSubmit}
-          style={{ display: "grid", gap: 10, marginTop: 6 }}
-        >
-          <div>
-            <div style={label}>Correo</div>
+        <form onSubmit={onSubmit} style={formStyle}>
+          <div style={fieldStyle}>
+            <label htmlFor="login-email" style={labelStyle}>
+              Correo
+            </label>
             <input
-              style={input}
+              id="login-email"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="tu@correo.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu@correo.com"
-              autoComplete="email"
+              style={inputStyle}
+              disabled={isBusy}
             />
           </div>
 
-          <div>
-            <div style={label}>Contraseña</div>
+          <div style={fieldStyle}>
+            <label htmlFor="login-password" style={labelStyle}>
+              Contraseña
+            </label>
             <input
-              style={input}
+              id="login-password"
               type="password"
+              autoComplete="current-password"
+              placeholder="Mínimo 6 caracteres"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="mínimo 6 caracteres"
-              autoComplete="current-password"
+              style={inputStyle}
+              disabled={isBusy}
             />
           </div>
 
-          {error && <div style={errorBox}>{error}</div>}
+          {error && <div style={errorBoxStyle}>{error}</div>}
 
-          <button type="submit" disabled={!canSubmit} style={primaryBtn}>
-            {loading ? "Ingresando…" : "Ingresar"}
+          <button type="submit" disabled={!canSubmit} style={primaryButtonStyle}>
+            {loadingEmail ? "Ingresando…" : "Iniciar sesión"}
           </button>
         </form>
 
-        {/* ✅ Google OAuth Calendar Readonly */}
+        <div style={separatorRowStyle}>
+          <span style={separatorLineStyle} />
+          <span style={separatorTextStyle}>o</span>
+          <span style={separatorLineStyle} />
+        </div>
+
         <button
           type="button"
-          style={secondaryBtn}
+          style={secondaryButtonStyle}
           onClick={onGoogle}
-          disabled={loading}
+          disabled={isBusy}
         >
-          {loading ? "Conectando…" : "Continuar con Google (Calendar)"}
+          {loadingGoogle ? "Conectando…" : "Continuar con Google"}
         </button>
 
         <button
           type="button"
-          style={secondaryBtn}
+          style={ghostButtonStyle}
           onClick={() =>
-            router.push(
-              `/auth/register?next=${encodeURIComponent(nextTarget)}`,
-            )
+            router.push(`/auth/register?next=${encodeURIComponent(nextTarget)}`)
           }
-          disabled={loading}
+          disabled={isBusy}
         >
           Crear cuenta
         </button>
 
-        <div style={legal}>
-          Al entrar aceptas que esta es una beta privada pensada para pruebas
-          personales. Podrás borrar tu cuenta y datos cuando quieras desde el
-          panel de perfil.
-        </div>
+        <p style={helperTextStyle}>
+          Si ya habías entrado antes, volverás directo a tu resumen y a tus
+          próximos planes.
+        </p>
       </>
     </AuthCard>
   );
 }
+
+const introTextStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 13,
+  lineHeight: 1.65,
+  color: "rgba(203,213,225,0.92)",
+};
+
+const formStyle: CSSProperties = {
+  display: "grid",
+  gap: 14,
+};
+
+const fieldStyle: CSSProperties = {
+  display: "grid",
+  gap: 6,
+};
+
+const labelStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 800,
+  letterSpacing: "0.1em",
+  textTransform: "uppercase",
+  color: "rgba(148,163,184,0.95)",
+};
+
+const inputStyle: CSSProperties = {
+  width: "100%",
+  borderRadius: 16,
+  border: "1px solid rgba(148,163,184,0.36)",
+  background: "rgba(15,23,42,0.88)",
+  color: "rgba(248,250,252,0.98)",
+  padding: "13px 14px",
+  fontSize: 14,
+  outline: "none",
+  boxSizing: "border-box",
+};
+
+const errorBoxStyle: CSSProperties = {
+  borderRadius: 16,
+  border: "1px solid rgba(248,113,113,0.35)",
+  background: "rgba(127,29,29,0.20)",
+  color: "rgba(254,226,226,0.96)",
+  padding: "11px 12px",
+  fontSize: 12,
+  lineHeight: 1.55,
+};
+
+const primaryButtonStyle: CSSProperties = {
+  width: "100%",
+  borderRadius: 999,
+  border: "1px solid rgba(56,189,248,0.90)",
+  background:
+    "linear-gradient(90deg, rgba(56,189,248,0.98), rgba(16,185,129,0.96))",
+  color: "#06131F",
+  padding: "13px 16px",
+  fontSize: 14,
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const separatorRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+};
+
+const separatorLineStyle: CSSProperties = {
+  flex: 1,
+  height: 1,
+  background: "rgba(148,163,184,0.22)",
+};
+
+const separatorTextStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
+  color: "rgba(148,163,184,0.78)",
+};
+
+const secondaryButtonStyle: CSSProperties = {
+  width: "100%",
+  borderRadius: 999,
+  border: "1px solid rgba(148,163,184,0.38)",
+  background: "rgba(15,23,42,0.62)",
+  color: "rgba(241,245,249,0.96)",
+  padding: "12px 16px",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const ghostButtonStyle: CSSProperties = {
+  width: "100%",
+  borderRadius: 999,
+  border: "1px solid rgba(71,85,105,0.32)",
+  background: "transparent",
+  color: "rgba(148,163,184,0.96)",
+  padding: "11px 16px",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const helperTextStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 11,
+  lineHeight: 1.6,
+  color: "rgba(148,163,184,0.82)",
+};
