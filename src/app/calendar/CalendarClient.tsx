@@ -899,19 +899,23 @@ const openConflicts = () => {
 
       <main style={styles.page} className="spCal-shell">
         <div style={styles.stickyTop}>
-          <AppHero
-            mobileNav="bottom"
-            title="Calendario"
-            subtitle="Organiza tu tiempo sin fricción."
-            rightSlot={
-              <button
-                onClick={handleRefresh}
-                style={styles.ghostBtn}
-              >
-                Actualizar
-              </button>
-            }
-          />
+<AppHero
+  mobileNav="bottom"
+  title="Calendario"
+  subtitle={isMobile ? "" : "Organiza tu tiempo sin fricción."}
+  rightSlot={
+  <button
+    onClick={handleRefresh}
+    style={{
+      ...styles.ghostBtn,
+      padding: isMobile ? "6px 10px" : "10px 12px",
+      fontSize: isMobile ? 12 : 14,
+    }}
+  >
+    Actualizar
+  </button>
+}
+/>
         </div>
 
        <section style={styles.overviewCard} className="spCal-overviewCard">
@@ -1012,7 +1016,13 @@ const openConflicts = () => {
                 )}
               </div>
 
-              <div style={styles.grid} className="spCal-grid">
+             <div
+  style={{
+    ...styles.grid,
+    gridAutoRows: isMobile ? "110px" : "140px",
+  }}
+  className="spCal-grid"
+>
                 {renderMonthCells({
                   gridStart,
                   gridEnd,
@@ -1604,13 +1614,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   groupDot: { width: 10, height: 10, borderRadius: 999 },
 
-  calendarCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    overflow: "hidden",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
-  },
+calendarCard: {
+  borderRadius: 20,
+  border: "1px solid rgba(255,255,255,0.05)",
+  background: "rgba(255,255,255,0.02)",
+  overflow: "hidden",
+  boxShadow: "0 30px 80px rgba(0,0,0,0.35)",
+},
 
   monthScroller: {
     overflowX: "auto",
@@ -1631,29 +1641,32 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 850,
   },
 
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(7, 1fr)",
-    gap: 10,
-    padding: 10,
-    minWidth: 720,
-    gridAutoRows: "140px",
-  },
-  cell: {
-    height: "100%",
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 10,
-    cursor: "pointer",
-    textAlign: "left",
-    overflow: "hidden",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "stretch",
-    transition:
-      "transform 160ms ease, border-color 160ms ease",
-  },
+grid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(7, 1fr)",
+  gap: 12, // antes 10
+  padding: 12,
+  minWidth: 720,
+},
+
+cell: {
+  height: "100%",
+  borderRadius: 16,
+  border: "1px solid rgba(255,255,255,0.04)", // 🔥 menos ruido
+  background: "rgba(255,255,255,0.025)",
+  padding: "10px 10px 8px",
+  cursor: "pointer",
+  textAlign: "left",
+  overflow: "hidden",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+  transition: "all 160ms ease",
+},
+":hover": {
+  background: "rgba(255,255,255,0.05)",
+  transform: "translateY(-1px)",
+},
   cellTop: {
     display: "flex",
     justifyContent: "space-between",
@@ -1726,15 +1739,15 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
 
-  cellEvents: {
-    marginTop: 10,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-    flexGrow: 1,
-    minHeight: 0,
-    overflow: "hidden",
-  },
+ cellEvents: {
+  marginTop: 6,
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+  flexGrow: 1,
+  minHeight: 0,
+  overflow: "hidden",
+},
   cellEventLine: {
     display: "flex",
     gap: 8,
@@ -1746,14 +1759,14 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 999,
     flex: "0 0 auto",
   },
-  cellEventText: {
-    fontSize: 12,
-    opacity: 0.92,
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis",
-    fontWeight: 750,
-  },
+cellEventText: {
+  fontSize: 12,
+  opacity: 0.95,
+  fontWeight: 800, // 🔥 más peso
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+},
   moreHint: {
     fontSize: 12,
     opacity: 0.65,
@@ -1761,10 +1774,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 750,
   },
 
-  dayPanel: {
-    borderTop: "1px solid rgba(255,255,255,0.08)",
-    padding: 12,
-  },
+dayPanel: {
+  borderTop: "1px solid rgba(255,255,255,0.05)",
+  padding: 14,
+},
   dayPanelTop: {
     display: "flex",
     justifyContent: "space-between",
@@ -1815,15 +1828,15 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
   },
 
-  eventRow: {
-    display: "flex",
-    gap: 10,
-    padding: 12,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(6,10,20,0.55)",
-    transition: "transform 160ms ease",
-  },
+eventRow: {
+  display: "flex",
+  gap: 12,
+  padding: 14,
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.05)",
+  background: "rgba(255,255,255,0.03)",
+  transition: "all 160ms ease",
+},
   eventBar: { width: 6, borderRadius: 999 },
   eventBody: {
     flex: 1,
@@ -1842,13 +1855,14 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 8,
   },
-  eventTitle: {
-    fontSize: 14,
-    fontWeight: 950,
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis",
-  },
+eventTitle: {
+  fontSize: 15, // 🔥 sube un poco
+  fontWeight: 950,
+  letterSpacing: "-0.2px",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+},
   eventTime: {
     fontSize: 12,
     opacity: 0.78,
@@ -1919,15 +1933,15 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 950,
   },
 
-  ghostBtn: {
-    padding: "10px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
+ ghostBtn: {
+  padding: "8px 12px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.03)",
+  color: "rgba(255,255,255,0.9)",
+  cursor: "pointer",
+  fontWeight: 800,
+},
 
   ghostBtnSmallPersonal: {
     padding: "8px 10px",
@@ -2090,15 +2104,12 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontWeight: 900,
   },
-  overviewCard: {
-  borderRadius: 22,
-  border: "1px solid rgba(148,163,184,0.16)",
-  background:
-    "linear-gradient(180deg, rgba(15,23,42,0.88), rgba(15,23,42,0.72))",
-  boxShadow:
-    "0 20px 50px rgba(2,6,23,0.30), inset 0 1px 0 rgba(255,255,255,0.04)",
-  padding: 16,
-  marginBottom: 12,
+overviewCard: {
+  borderRadius: 16,
+  border: "1px solid rgba(255,255,255,0.04)",
+  background: "rgba(255,255,255,0.02)",
+  padding: "10px 12px",
+  marginBottom: 8,
 },
 
 overviewTop: {
@@ -2147,13 +2158,13 @@ overviewActions: {
 },
 
 overviewMetaRow: {
-  marginTop: 14,
-  paddingTop: 14,
-  borderTop: "1px solid rgba(148,163,184,0.12)",
+  marginTop: 10,
+  paddingTop: 10,
+  borderTop: "1px solid rgba(148,163,184,0.10)",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  gap: 12,
+  gap: 10,
   flexWrap: "wrap",
 },
 

@@ -1,71 +1,80 @@
-// src/lib/userNotificationSettings.ts
+// src/lib/groupNotificationSettings.ts
 "use client";
 
 import supabase from "@/lib/supabaseClient";
 
-export type NotificationSettings = {
+export type GroupNotificationSetting = {
   user_id: string;
-  notify_conflicts: boolean;
-  notify_personal: boolean;
-  notify_pair: boolean;
-  notify_family: boolean;
-  updated_at: string;
+  group_id: string;
+  muted: boolean;
+  created_at?: string | null;
 };
 
-const DEFAULTS = {
-  notify_conflicts: true,
-  notify_personal: true,
-  notify_pair: true,
-  notify_family: true,
-};
+async function requireUid(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw error;
 
-export async function getMyNotificationSettings(): Promise<NotificationSettings | null> {
-  const { data: sessionData, error: sessionErr } =
-    await supabase.auth.getSession();
-  if (sessionErr) throw sessionErr;
+  const uid = data.user?.id;
+  if (!uid) throw new Error("Not authenticated");
 
-  const userId = sessionData.session?.user?.id;
-  if (!userId) return null;
+  return uid;
+}
+
+function normalizeGroupId(groupId: string): string {
+  const safe = String(groupId ?? "").trim();
+  if (!safe) {
+    throw new Error("Group id inválido.");
+  }
+  return safe;
+}
+
+/**
+ * Devuelve si este grupo está silenciado para el usuario actual.
+ * Si no hay fila, asumimos muted = false.
+ */
+export async function getMyGroupMuteState(
+  groupId: string
+): Promise<boolean> {
+  const uid = await requireUid();
+  const safeGroupId = normalizeGroupId(groupId);
 
   const { data, error } = await supabase
-    .from("user_notification_settings")
-    .select("*")
-    .eq("user_id", userId)
+    .from("group_notification_settings")
+    .select("muted")
+    .eq("user_id", uid)
+    .eq("group_id", safeGroupId)
     .maybeSingle();
 
   if (error) throw error;
 
-  if (!data) {
-    // Si no hay fila, devolvemos defaults en memoria
-    return {
-      user_id: userId,
-      updated_at: new Date().toISOString(),
-      ...DEFAULTS,
-    };
-  }
+  if (!data) return false;
 
-  return data as NotificationSettings;
+  return Boolean((data as any).muted);
 }
 
-export async function upsertMyNotificationSettings(
-  patch: Partial<Omit<NotificationSettings, "user_id" | "updated_at">>
-): Promise<NotificationSettings> {
-  const { data: sessionData, error: sessionErr } =
-    await supabase.auth.getSession();
-  if (sessionErr) throw sessionErr;
+/**
+ * Marca un grupo como silenciado / no silenciado para el usuario actual.
+ * Si no existe fila, hace upsert.
+ */
+export async function setMyGroupMuteState(
+  groupId: string,
+  muted: boolean
+): Promise<void> {
+  const uid = await requireUid();
+  const safeGroupId = normalizeGroupId(groupId);
 
-  const userId = sessionData.session?.user?.id;
-  if (!userId) throw new Error("No auth session");
-
-  // Hacemos upsert con defaults si no existe
-  const insertPayload = { user_id: userId, ...DEFAULTS, ...patch };
-
-  const { data, error } = await supabase
-    .from("user_notification_settings")
-    .upsert(insertPayload, { onConflict: "user_id" })
-    .select("*")
-    .single();
+  const { error } = await supabase
+    .from("group_notification_settings")
+    .upsert(
+      {
+        user_id: uid,
+        group_id: safeGroupId,
+        muted,
+      },
+      {
+        onConflict: "user_id,group_id",
+      }
+    );
 
   if (error) throw error;
-  return data as NotificationSettings;
 }
