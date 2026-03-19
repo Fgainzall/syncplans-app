@@ -590,15 +590,15 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [loadSummary]);
 
- const title = "Resumen · Personal";
+  const title = "Resumen · Personal";
 
-const summarySubtitle = !isMobile
-  ? activeGroupId
-    ? `Vista general con grupo activo: ${activeLabel}. Cambia el grupo activo en Calendario y aquí se actualiza solo.`
-    : "Una sola verdad sobre tu tiempo compartido. Cambia el grupo activo en Calendario y aquí se actualiza solo."
-  : activeGroupId
-  ? `Grupo activo: ${activeLabel}`
-  : "Tu tiempo en un solo lugar. Se actualiza solo.";
+  const summarySubtitle = !isMobile
+    ? activeGroupId
+      ? `Vista general de tu agenda con contexto compartido: ${activeLabel}.`
+      : "Tu vista general del tiempo que ya tienes coordinado."
+    : activeGroupId
+    ? `Contexto compartido: ${activeLabel}`
+    : "Tu vista general de tiempo.";
 
   const moodAccentBorder =
     mood.tone === "clear"
