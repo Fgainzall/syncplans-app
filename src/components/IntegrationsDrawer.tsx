@@ -6,6 +6,7 @@ import supabase from "@/lib/supabaseClient";
 type GoogleStatus = {
   ok: boolean;
   connected: boolean;
+  connection_state?: "connected" | "needs_reauth" | "disconnected";
   account?: {
     provider?: string | null;
     email?: string | null;
@@ -117,15 +118,24 @@ export default function IntegrationsDrawer({
     };
   }, [clearToastTimer]);
 
-  const connected = !!status?.connected;
-  const email = status?.account?.email ?? null;
+const connected = !!status?.connected;
+const connectionState =
+  status?.connection_state ??
+  (connected ? "connected" : "disconnected");
 
-  const googlePill = useMemo(() => {
-    if (loading) return { label: "Revisando…", tone: "muted" as const };
-    if (connected) return { label: "Conectado ✅", tone: "ok" as const };
-    if (status && !status.ok) return { label: "Error", tone: "bad" as const };
-    return { label: "No conectado", tone: "muted" as const };
-  }, [connected, loading, status]);
+const email = status?.account?.email ?? null;
+
+const googlePill = useMemo(() => {
+  if (loading) return { label: "Revisando…", tone: "muted" as const };
+  if (connectionState === "connected") {
+    return { label: "Conectado ✅", tone: "ok" as const };
+  }
+  if (connectionState === "needs_reauth") {
+    return { label: "Requiere reconexión", tone: "warn" as const };
+  }
+  if (status && !status.ok) return { label: "Error", tone: "bad" as const };
+  return { label: "No conectado", tone: "muted" as const };
+}, [connectionState, loading, status]);
 
   const onConnect = useCallback(() => {
     window.location.href = "/api/google/connect";
@@ -237,14 +247,16 @@ export default function IntegrationsDrawer({
             </div>
 
             <div
-              style={{
-                ...S.pill,
-                ...(googlePill.tone === "ok"
-                  ? S.pillOk
-                  : googlePill.tone === "bad"
-                  ? S.pillBad
-                  : S.pillMuted),
-              }}
+style={{
+  ...S.pill,
+  ...(googlePill.tone === "ok"
+    ? S.pillOk
+    : googlePill.tone === "warn"
+    ? S.pillWarn
+    : googlePill.tone === "bad"
+    ? S.pillBad
+    : S.pillMuted),
+}}
             >
               {googlePill.label}
             </div>
@@ -262,15 +274,19 @@ export default function IntegrationsDrawer({
               {loading ? "Revisando…" : "Revisar estado"}
             </button>
 
-            <button
-              type="button"
-              onClick={onConnect}
-              style={S.secondaryBtn}
-              disabled={loading || syncing}
-              title="Conectar Google Calendar"
-            >
-              {connected ? "Reconectar" : "Conectar"}
-            </button>
+ <button
+  type="button"
+  onClick={onConnect}
+  style={S.secondaryBtn}
+  disabled={loading || syncing}
+  title="Conectar Google Calendar"
+>
+  {connectionState === "needs_reauth"
+    ? "Reconectar"
+    : connectionState === "connected"
+    ? "Gestionar"
+    : "Conectar"}
+</button>
 
             <button
               type="button"
@@ -355,7 +371,11 @@ const S: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.70)",
     fontWeight: 650,
   },
-
+pillWarn: {
+  background: "rgba(245,158,11,0.14)",
+  border: "1px solid rgba(245,158,11,0.34)",
+  color: "#FCD34D",
+},
   topRow: {
     display: "flex",
     alignItems: "flex-start",

@@ -85,13 +85,57 @@ function formatTime(iso: string) {
   });
 }
 
-function formatDateLabel(isoDayStart: string) {
-  const d = new Date(isoDayStart);
-  return d.toLocaleDateString("es-PE", {
+const LIMA_TZ = "America/Lima";
+const LIMA_UTC_OFFSET_HOURS = -5;
+
+function getLimaNowParts() {
+  const nowUtc = new Date();
+  const limaMs =
+    nowUtc.getTime() + LIMA_UTC_OFFSET_HOURS * 60 * 60 * 1000;
+  const lima = new Date(limaMs);
+
+  return {
+    year: lima.getUTCFullYear(),
+    monthIndex: lima.getUTCMonth(),
+    day: lima.getUTCDate(),
+  };
+}
+
+function buildLimaDayRange(dateParam: string | null) {
+  let year: number;
+  let monthIndex: number;
+  let day: number;
+
+  const safeParam = String(dateParam ?? "").trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(safeParam)) {
+    const [y, m, d] = safeParam.split("-").map(Number);
+    year = y;
+    monthIndex = m - 1;
+    day = d;
+  } else {
+    const now = getLimaNowParts();
+    year = now.year;
+    monthIndex = now.monthIndex;
+    day = now.day;
+  }
+
+  // Medianoche en Lima = 05:00 UTC
+  const dayStart = new Date(Date.UTC(year, monthIndex, day, 5, 0, 0, 0));
+  const dayEnd = new Date(Date.UTC(year, monthIndex, day + 1, 5, 0, 0, 0));
+
+  const dateLabel = new Intl.DateTimeFormat("es-PE", {
     weekday: "long",
     day: "numeric",
     month: "long",
-  });
+    timeZone: LIMA_TZ,
+  }).format(dayStart);
+
+  return {
+    dayStartIso: dayStart.toISOString(),
+    dayEndIso: dayEnd.toISOString(),
+    dateLabel,
+  };
 }
 
 function buildDailyDigestHtml(
@@ -291,16 +335,7 @@ async function runDailyDigest(dateParam: string | null) {
     const supabaseAdmin = getAdminClient();
     const resend = getResend();
 
-    // Día base (UTC) – puedes pasar ?date=2026-02-09 para testear
-    const todayIso = dateParam
-      ? `${dateParam}T00:00:00.000Z`
-      : new Date().toISOString().slice(0, 10) + "T00:00:00.000Z";
-
-    const dayStartIso = todayIso;
-    const dayEndIso =
-      new Date(new Date(dayStartIso).getTime() + 24 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 19) + "Z";
+const { dayStartIso, dayEndIso, dateLabel } = buildLimaDayRange(dateParam);
 
     // 1) usuarios que tienen daily_summary = true
     const { data: settings, error: settingsErr } = await supabaseAdmin
@@ -359,9 +394,7 @@ async function runDailyDigest(dateParam: string | null) {
           });
           continue;
         }
-
-        const dateLabel = formatDateLabel(dayStartIso);
-        const { html, subject } = buildDailyDigestHtml(dateLabel, events);
+const { html, subject } = buildDailyDigestHtml(dateLabel, events);
 
         await resend.emails.send({
           from: EMAIL_FROM,

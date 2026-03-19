@@ -590,9 +590,15 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [loadSummary]);
 
-  const title = activeGroupId
-    ? `Resumen · Personal + ${activeLabel}`
-    : "Resumen · Personal";
+ const title = "Resumen · Personal";
+
+const summarySubtitle = !isMobile
+  ? activeGroupId
+    ? `Vista general con grupo activo: ${activeLabel}. Cambia el grupo activo en Calendario y aquí se actualiza solo.`
+    : "Una sola verdad sobre tu tiempo compartido. Cambia el grupo activo en Calendario y aquí se actualiza solo."
+  : activeGroupId
+  ? `Grupo activo: ${activeLabel}`
+  : "Tu tiempo en un solo lugar. Se actualiza solo.";
 
   const moodAccentBorder =
     mood.tone === "clear"
@@ -642,14 +648,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         <div style={styles.shell} className="spSum-shell">
           <section style={styles.hero} className="spSum-hero">
             <div style={styles.heroLeft}>
-              <AppHero
-                title={title}
-                subtitle={
-                  !isMobile
-                    ? "Una sola verdad sobre tu tiempo compartido. Cambia el grupo activo en Calendario y aquí se actualiza solo."
-                    : "Tu tiempo en un solo lugar. Se actualiza solo."
-                }
-              />
+<AppHero
+  title={title}
+  subtitle={summarySubtitle}
+/>
             </div>
 
             <div style={styles.heroBtns} className="spSum-heroBtns">

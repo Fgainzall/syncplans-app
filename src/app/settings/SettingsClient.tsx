@@ -63,6 +63,7 @@ type UiToast = { title: string; subtitle?: string } | null;
 type GoogleStatus = {
   ok: boolean;
   connected: boolean;
+  connection_state?: "connected" | "needs_reauth" | "disconnected";
   account: null | {
     provider: string;
     email: string | null;
@@ -119,7 +120,23 @@ export default function SettingsHubPage() {
 
   const googleConnected = !!google?.connected;
   const googleEmail = google?.account?.email ?? null;
+const googleState =
+  google?.connection_state ??
+  (googleConnected ? "connected" : "disconnected");
 
+const googlePillLabel =
+  googleState === "connected"
+    ? "Conectado ✅"
+    : googleState === "needs_reauth"
+    ? "Requiere reconexión"
+    : "No conectado";
+
+const googleActionLabel =
+  googleState === "needs_reauth"
+    ? "Reconectar"
+    : googleState === "connected"
+    ? "Gestionar"
+    : "Conectar";
   async function refreshGoogleStatus() {
     try {
       setGoogleLoading(true);
@@ -531,23 +548,25 @@ export default function SettingsHubPage() {
                     flexWrap: "wrap",
                   }}
                 >
-                  <span
-                    style={{
-                      ...styles.pill,
-                      ...(googleConnected
-                        ? styles.pillOk
-                        : styles.pillMuted),
-                    }}
-                  >
-                    {googleConnected ? "Conectado ✅" : "No conectado"}
-                  </span>
+               <span
+  style={{
+    ...styles.pill,
+    ...(googleState === "connected"
+      ? styles.pillOk
+      : googleState === "needs_reauth"
+      ? styles.pillWarn
+      : styles.pillMuted),
+  }}
+>
+  {googlePillLabel}
+</span>
 
-                  <button
-                    onClick={handleGoogleConnect}
-                    style={styles.primaryBtn}
-                  >
-                    {googleConnected ? "Reconectar" : "Conectar"}
-                  </button>
+<button
+  onClick={handleGoogleConnect}
+  style={styles.primaryBtn}
+>
+  {googleActionLabel}
+</button>
 
                   <button
                     onClick={handleGoogleSyncNow}
@@ -697,7 +716,11 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     gap: 12,
   },
-
+pillWarn: {
+  background: "rgba(245, 158, 11, 0.16)",
+  color: "#FCD34D",
+  border: "1px solid rgba(245, 158, 11, 0.38)",
+},
   toastWrap: {
     position: "fixed",
     top: 18,
