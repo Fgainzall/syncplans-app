@@ -1,4 +1,3 @@
-// src/components/BottomNav.tsx
 "use client";
 
 import React from "react";
@@ -21,6 +20,7 @@ type NavItem = {
   label: string;
   path: string;
   aria: string;
+  icon: string;
 };
 
 const NAV_ITEMS: NavItem[] = [
@@ -29,60 +29,70 @@ const NAV_ITEMS: NavItem[] = [
     label: "Resumen",
     path: "/summary",
     aria: "Ir a Resumen",
+    icon: "⌂",
   },
   {
     key: "calendar",
     label: "Calendario",
     path: "/calendar",
     aria: "Ir a Calendario",
+    icon: "◴",
   },
   {
     key: "events",
     label: "Eventos",
     path: "/events",
     aria: "Ir a Eventos",
+    icon: "⊞",
   },
   {
     key: "conflicts",
     label: "Conflictos",
     path: "/conflicts/detected",
     aria: "Ir a Conflictos",
+    icon: "✦",
   },
   {
     key: "panel",
     label: "Panel",
     path: "/panel",
     aria: "Ir a Panel",
+    icon: "◫",
   },
   {
     key: "groups",
     label: "Grupos",
     path: "/groups",
     aria: "Ir a Grupos",
+    icon: "◎",
   },
   {
     key: "members",
     label: "Miembros",
     path: "/members",
     aria: "Ir a Miembros",
+    icon: "◌",
   },
   {
     key: "invitations",
     label: "Invitaciones",
     path: "/invitations",
     aria: "Ir a Invitaciones",
+    icon: "✉",
   },
   {
     key: "settings",
     label: "Ajustes",
     path: "/settings",
     aria: "Ir a Ajustes",
+    icon: "⚙",
   },
   {
     key: "planes",
     label: "Planes",
     path: "/planes",
     aria: "Ir a Planes",
+    icon: "⬒",
   },
 ];
 
@@ -100,9 +110,22 @@ function isActivePath(pathname: string, item: NavItem) {
   return false;
 }
 
+function shouldHideBottomNav(pathname: string) {
+  if (pathname === "/") return true;
+  if (pathname.startsWith("/login")) return true;
+  if (pathname.startsWith("/register")) return true;
+  if (pathname.startsWith("/onboarding")) return true;
+  if (pathname.startsWith("/auth")) return true;
+  return false;
+}
+
 export default function BottomNav() {
   const router = useRouter();
   const pathname = usePathname();
+
+  if (shouldHideBottomNav(pathname)) {
+    return null;
+  }
 
   return (
     <nav style={S.wrap} aria-label="Navegación principal">
@@ -122,6 +145,15 @@ export default function BottomNav() {
                 ...(active ? S.itemActive : {}),
               }}
             >
+              <span
+                style={{
+                  ...S.icon,
+                  ...(active ? S.iconActive : {}),
+                }}
+              >
+                {item.icon}
+              </span>
+
               <span
                 style={{
                   ...S.label,
@@ -166,6 +198,7 @@ const S: Record<string, React.CSSProperties> = {
     scrollbarWidth: "none",
     msOverflowStyle: "none",
     paddingBottom: 2,
+    scrollSnapType: "x proximity",
   },
 
   item: {
@@ -175,17 +208,21 @@ const S: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.03)",
     color: "rgba(255,255,255,0.78)",
     borderRadius: 14,
-    minHeight: 44,
-    padding: "0 14px",
+    minHeight: 52,
+    minWidth: 78,
+    padding: "8px 12px",
     cursor: "pointer",
     flex: "0 0 auto",
     display: "inline-flex",
+    flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
     whiteSpace: "nowrap",
     WebkitTapHighlightColor: "transparent",
     transition:
       "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease, transform 160ms ease",
+    scrollSnapAlign: "start",
   },
 
   itemActive: {
@@ -198,8 +235,19 @@ const S: Record<string, React.CSSProperties> = {
     transform: "translateY(-1px)",
   },
 
+  icon: {
+    fontSize: 16,
+    lineHeight: 1,
+    fontWeight: 900,
+    opacity: 0.95,
+  },
+
+  iconActive: {
+    opacity: 1,
+  },
+
   label: {
-    fontSize: 12,
+    fontSize: 11,
     lineHeight: 1,
     fontWeight: 800,
     letterSpacing: "0.01em",

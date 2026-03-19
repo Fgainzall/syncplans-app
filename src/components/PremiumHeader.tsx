@@ -327,7 +327,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
     );
   }, []);
 
-const shouldShowTopNav = true;
+const shouldShowTopNav = !isMobile;
   const closeUserMenu = () => setUserMenuOpen(false);
 
   return (
