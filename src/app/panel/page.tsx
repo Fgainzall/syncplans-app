@@ -271,49 +271,49 @@ export default function PanelPage() {
     };
   }, [premiumActive, tier, trialActive]);
 
-  const quickActions: QuickAction[] = [
-    {
-      id: "calendar",
-      title: "Abrir calendario",
-      hint: "Tu vista principal para revisar la semana y entrar rápido a lo importante.",
-      href: "/calendar",
-      featured: true,
-    },
-    {
-      id: "conflicts",
-      title: "Resolver conflictos",
-      hint: "Donde SyncPlans más se diferencia: ver choques y decidir con claridad.",
-      href: "/conflicts/detected",
-      badge: conflictsNow > 0 ? `${conflictsNow}` : undefined,
-      featured: true,
-    },
-    {
-      id: "events",
-      title: "Eventos",
-      hint: "Crea, revisa y ordena tu agenda personal y compartida.",
-      href: "/events",
-      badge: totalEvents > 0 ? `${totalEvents}` : undefined,
-    },
-    {
-      id: "groups",
-      title: "Grupos",
-      hint: "Administra pareja, familia o espacios compartidos.",
-      href: "/groups",
-      badge: totalGroups > 0 ? `${totalGroups}` : undefined,
-    },
-    {
-      id: "invitations",
-      title: "Invitaciones",
-      hint: "Revisa pendientes o suma a alguien más.",
-      href: "/invitations",
-    },
-    {
-      id: "settings",
-      title: "Cuenta e integraciones",
-      hint: "Perfil, preferencias y conexión con Google Calendar.",
-      href: "/settings",
-    },
-  ];
+ const quickActions: QuickAction[] = [
+  {
+    id: "calendar",
+    title: "Abrir calendario",
+    hint: "Tu vista principal para revisar agenda, contexto compartido y próximos movimientos.",
+    href: "/calendar",
+    featured: true,
+  },
+  {
+    id: "conflicts",
+    title: "Resolver conflictos",
+    hint: "El flujo más diferencial de SyncPlans: detectar choques y decidir con claridad.",
+    href: "/conflicts/detected",
+    badge: conflictsNow > 0 ? `${conflictsNow}` : undefined,
+    featured: true,
+  },
+  {
+    id: "events",
+    title: "Eventos",
+    hint: "Crea, revisa y ordena tu agenda personal y compartida.",
+    href: "/events",
+    badge: totalEvents > 0 ? `${totalEvents}` : undefined,
+  },
+  {
+    id: "groups",
+    title: "Grupos",
+    hint: "Gestiona pareja, familia y espacios compartidos desde un solo lugar.",
+    href: "/groups",
+    badge: totalGroups > 0 ? `${totalGroups}` : undefined,
+  },
+  {
+    id: "invitations",
+    title: "Invitaciones",
+    hint: "Revisa pendientes y suma a alguien más sin salir del flujo operativo.",
+    href: "/invitations",
+  },
+  {
+    id: "settings",
+    title: "Ajustes e integraciones",
+    hint: "Configura el producto y conecta herramientas como Google Calendar.",
+    href: "/settings",
+  },
+];
 
   const groupsPreview = useMemo(() => groups.slice(0, 3), [groups]);
 
@@ -402,16 +402,16 @@ export default function PanelPage() {
 
         <section style={styles.heroCard}>
           <div style={styles.heroTopRow}>
-            <div style={styles.heroTextWrap}>
-              <div style={styles.eyebrow}>Hub principal</div>
-              <h1 style={styles.heroTitle}>
-                Menos dashboard. Más claridad sobre qué hacer ahora.
-              </h1>
-              <p style={styles.heroCopy}>
-                El Panel debería orientarte en segundos: ver estado general,
-                entrar a tus flujos clave y seguir sin sentir peso innecesario.
-              </p>
-            </div>
+           <div style={styles.heroTextWrap}>
+  <div style={styles.eyebrow}>Operación</div>
+  <h1 style={styles.heroTitle}>
+    El lugar para operar SyncPlans, no para configurarte.
+  </h1>
+  <p style={styles.heroCopy}>
+    Desde aquí deberías entrar rápido a calendario, conflictos, eventos,
+    grupos e invitaciones. Tu identidad y preferencias personales viven en Cuenta.
+  </p>
+</div>
 
             <div style={styles.heroActionStack}>
               <button
@@ -421,13 +421,13 @@ export default function PanelPage() {
               >
                 Abrir calendario
               </button>
-              <button
-                type="button"
-                style={styles.secondaryHeroCta}
-                onClick={() => router.push("/events")}
-              >
-                Ver eventos
-              </button>
+         <button
+  type="button"
+  style={styles.secondaryHeroCta}
+  onClick={() => router.push("/conflicts/detected")}
+>
+  Ver conflictos
+</button>
             </div>
           </div>
 
@@ -465,11 +465,11 @@ export default function PanelPage() {
           <div style={styles.leftCol}>
             <section style={styles.sectionCard}>
               <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Acciones principales</div>
-                  <h2 style={styles.sectionTitle}>Empieza por lo importante</h2>
-                </div>
-              </div>
+  <div>
+    <div style={styles.sectionEyebrow}>Operación</div>
+    <h2 style={styles.sectionTitle}>Entradas rápidas al flujo real</h2>
+  </div>
+</div>
 
               <div style={styles.actionsGrid}>
                 {quickActions.map((action) => (
@@ -565,7 +565,10 @@ export default function PanelPage() {
                 <StatusPill label={googlePill.label} tone={googlePill.tone} />
               </div>
 
-              <p style={styles.bodyCopy}>{googleSupportCopy}</p>
+<p style={styles.bodyCopy}>
+  Google Calendar complementa tu operación en SyncPlans, pero no
+  reemplaza la lógica compartida ni el flujo de decisiones dentro de la app.
+</p>
 
               <div style={styles.integrationBox}>
                 <div style={styles.integrationCopyWrap}>

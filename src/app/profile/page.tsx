@@ -1,7 +1,7 @@
 // src/app/profile/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
+import React, { useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 
@@ -32,7 +32,6 @@ import {
 
 import {
   type DashboardStats,
-  type Recommendation,
   type AnyProfile,
   buildDashboardStats,
   buildRecommendation,
@@ -55,6 +54,25 @@ function normalizeCoordPrefs(
   return normalizeCoordinationPrefs(
     (prefs ?? null) as CoordinationPrefs | null | undefined
   );
+}
+
+function getRecommendationHref(
+  ctaTarget?: "groups_new" | "calendar" | "events_new" | "conflicts" | "invitations"
+) {
+  switch (ctaTarget) {
+    case "groups_new":
+      return "/groups";
+    case "calendar":
+      return "/calendar";
+    case "events_new":
+      return "/events";
+    case "conflicts":
+      return "/conflicts/detected";
+    case "invitations":
+      return "/invitations";
+    default:
+      return "/panel";
+  }
 }
 
 const styles: Record<string, CSSProperties> = {
@@ -404,16 +422,6 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
   },
 
-  ghostBtn: {
-    padding: "11px 13px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(15,23,42,0.9)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-
   primaryBtn: {
     padding: "11px 14px",
     borderRadius: 999,
@@ -423,18 +431,6 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(255,255,255,0.96)",
     cursor: "pointer",
     fontWeight: 900,
-  },
-
-  secondaryBtn: {
-    padding: "10px 14px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "transparent",
-    color: "rgba(226,232,240,0.95)",
-    fontSize: 12,
-    fontWeight: 900,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
   },
 
   planCtaRow: {
@@ -563,86 +559,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
-  },
-
-  hubGrid: {
-    marginTop: 8,
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 12,
-  },
-
-  hubCard: {
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background:
-      "radial-gradient(700px 420px at 0% 0%, rgba(56,189,248,0.16), transparent 55%), rgba(15,23,42,0.92)",
-    padding: 12,
-    textAlign: "left",
-    cursor: "pointer",
-    display: "grid",
-    gridTemplateColumns: "1fr auto",
-    gridTemplateRows: "auto auto",
-    gap: "4px 8px",
-  },
-
-  hubTitle: {
-    fontSize: 13,
-    fontWeight: 950,
-  },
-
-  hubHint: {
-    fontSize: 11,
-    opacity: 0.82,
-    lineHeight: 1.5,
-  },
-
-  hubChevron: {
-    fontSize: 18,
-    opacity: 0.85,
-    alignSelf: "center",
-  },
-
-  quickActionsGrid: {
-    marginTop: 8,
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 10,
-  },
-
-  quickAction: {
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background:
-      "radial-gradient(600px 400px at 0% 0%, rgba(56,189,248,0.16), transparent 55%), rgba(15,23,42,0.9)",
-    padding: 10,
-    textAlign: "left",
-    cursor: "pointer",
-    display: "grid",
-    gridTemplateColumns: "1fr auto",
-    gridTemplateRows: "auto auto",
-    gap: "4px 6px",
-  },
-
-  quickActionTitle: {
-    gridColumn: "1 / span 1",
-    fontSize: 13,
-    fontWeight: 900,
-  },
-
-  quickActionHint: {
-    gridColumn: "1 / span 1",
-    fontSize: 11,
-    opacity: 0.8,
-    lineHeight: 1.45,
-  },
-
-  quickActionChevron: {
-    gridColumn: "2 / span 1",
-    gridRow: "1 / span 2",
-    alignSelf: "center",
-    fontSize: 18,
-    opacity: 0.85,
   },
 
   coordForm: {
@@ -912,17 +828,6 @@ const styles: Record<string, CSSProperties> = {
   },
 
   groupMetaInput: {
-    width: "100%",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    padding: "10px 12px",
-    background: "rgba(5,8,22,0.9)",
-    color: "rgba(248,250,252,0.96)",
-    fontSize: 13,
-    outline: "none",
-  },
-
-  groupMetaSelect: {
     width: "100%",
     borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.14)",
@@ -1493,19 +1398,22 @@ export default function ProfilePage() {
     const g = groupsById.get(m.group_id);
     const typeStr = String(g?.type ?? "").toLowerCase();
 
-    if (groupFilter === "pair" && !(typeStr === "pair" || typeStr === "couple"))
+    if (groupFilter === "pair" && !(typeStr === "pair" || typeStr === "couple")) {
       return false;
+    }
     if (groupFilter === "family" && typeStr !== "family") return false;
     if (
       groupFilter === "other" &&
       (typeStr === "pair" || typeStr === "family" || typeStr === "couple")
-    )
+    ) {
       return false;
+    }
 
     if (!searchTerm) return true;
 
     const name = (g?.name ?? "").toLowerCase();
     const displayName = (m.display_name ?? "").toLowerCase();
+
     return (
       name.includes(searchTerm) ||
       displayName.includes(searchTerm) ||
@@ -1534,27 +1442,33 @@ export default function ProfilePage() {
   const anyProfile = profile as unknown as AnyProfile;
   const { planLabel, planHint, planCtaLabel } = getPlanInfo(anyProfile);
 
-  const heroSummary = useMemo(() => {
-    if (statsLoading || !stats) {
-      return "Estamos cargando tu cuenta para darte una lectura más clara de tu estado dentro de SyncPlans.";
-    }
+  let heroSummary =
+    "Estamos cargando tu cuenta para darte una lectura más clara de tu estado dentro de SyncPlans.";
 
+  if (!statsLoading && stats) {
     if (stats.conflictsNow > 0) {
-      return `Tienes ${stats.conflictsNow} conflicto${
+      heroSummary = `Tienes ${stats.conflictsNow} conflicto${
         stats.conflictsNow === 1 ? "" : "s"
       } visible${stats.conflictsNow === 1 ? "" : "s"} y ${stats.totalGroups} grupo${
         stats.totalGroups === 1 ? "" : "s"
       } activo${stats.totalGroups === 1 ? "" : "s"}.`;
-    }
-
-    if (stats.totalGroups > 0) {
-      return `Tu cuenta ya está conectada a ${stats.totalGroups} grupo${
+    } else if (stats.totalGroups > 0) {
+      heroSummary = `Tu cuenta ya está conectada a ${stats.totalGroups} grupo${
         stats.totalGroups === 1 ? "" : "s"
       } y SyncPlans está listo para coordinar con menos fricción.`;
+    } else {
+      heroSummary =
+        "Tu cuenta está lista para empezar. El siguiente salto real llega cuando sumas grupos y compartes tiempo con alguien más.";
     }
+  }
 
-    return "Tu cuenta está lista para empezar. El siguiente salto real llega cuando sumas grupos y compartes tiempo con alguien más.";
-  }, [stats, statsLoading]);
+  const recommendationTitle =
+    recommendation?.title ?? "Tu cuenta ya está bien encaminada";
+  const recommendationHint =
+    recommendation?.hint ??
+    "La base de tu cuenta está en orden. Cuando quieras operar, vuelve a Panel, Calendario o Conflictos.";
+  const recommendationCtaLabel = recommendation?.ctaLabel ?? "Ir al panel";
+  const recommendationHref = getRecommendationHref(recommendation?.ctaTarget);
 
   return (
     <main style={styles.page}>
@@ -1598,7 +1512,7 @@ export default function ProfilePage() {
                         : "rgba(250,204,21,0.12)",
                     }}
                   >
-                    {verified ? "Verificada" : "Por verificar"}
+                    {accountStatusLabel}
                   </span>
                 </div>
 
@@ -1609,17 +1523,18 @@ export default function ProfilePage() {
             <div style={styles.heroActionStack}>
               <button
                 type="button"
-                onClick={() => router.push("/planes")}
                 style={styles.heroPrimaryBtn}
+                onClick={() => router.push("/settings")}
               >
-                {planCtaLabel}
+                Abrir ajustes
               </button>
+
               <button
                 type="button"
-                onClick={() => router.push("/summary")}
                 style={styles.heroSecondaryBtn}
+                onClick={() => router.push("/panel")}
               >
-                Ver resumen
+                Volver al panel
               </button>
             </div>
           </div>
@@ -1629,63 +1544,70 @@ export default function ProfilePage() {
             <div style={styles.heroStripText}>{heroSummary}</div>
           </div>
 
-          <div style={styles.heroStats} className="spProfileHeroStats">
-            <InfoStat
-              label="Plan actual"
-              value={planLabel}
-              hint={planHint}
-            />
-            <InfoStat
-              label="Grupos activos"
-              value={
-                statsLoading
-                  ? "—"
-                  : stats
-                  ? `${stats.totalGroups}`
-                  : "—"
-              }
-              hint={
-                stats && stats.totalGroups > 0
-                  ? `Pareja ${stats.pairGroups} · Familia ${stats.familyGroups} · Compartidos ${stats.otherGroups}`
-                  : "Todavía no has creado grupos."
-              }
-            />
-            <InfoStat
-              label="Eventos"
-              value={statsLoading ? "—" : stats ? `${stats.totalEvents}` : "—"}
-              hint={
-                stats && stats.eventsLast7 > 0
-                  ? `${stats.eventsLast7} en los últimos 7 días`
-                  : "Sin actividad reciente"
-              }
-            />
-            <InfoStat
-              label="Conflictos"
-              value={statsLoading ? "—" : stats ? `${stats.conflictsNow}` : "—"}
-              hint={
-                stats && stats.conflictsNow > 0
-                  ? "Hay choques listos para revisar"
-                  : "Sin conflictos visibles ahora"
-              }
-            />
+          <div style={styles.heroStats}>
+            <div style={styles.stat}>
+              <div style={styles.statLabel}>Plan</div>
+              <div style={styles.statValue}>{planLabel}</div>
+              <div style={styles.statHint}>{planHint}</div>
+            </div>
+
+            <div style={styles.stat}>
+              <div style={styles.statLabel}>Grupos</div>
+              <div style={styles.statValue}>
+                {statsLoading ? "…" : stats?.totalGroups ?? 0}
+              </div>
+              <div style={styles.statHint}>Espacios compartidos donde ya participas.</div>
+            </div>
+
+            <div style={styles.stat}>
+              <div style={styles.statLabel}>Eventos recientes</div>
+              <div style={styles.statValue}>
+                {statsLoading ? "…" : stats?.eventsLast7 ?? 0}
+              </div>
+              <div style={styles.statHint}>Eventos visibles en los últimos 7 días.</div>
+            </div>
+
+            <div style={styles.stat}>
+              <div style={styles.statLabel}>Conflictos</div>
+              <div style={styles.statValue}>
+                {statsLoading ? "…" : stats?.conflictsNow ?? 0}
+              </div>
+              <div style={styles.statHint}>Choques activos que siguen pendientes.</div>
+            </div>
           </div>
         </section>
 
-        <div style={styles.mainGrid} className="spProfileMainGrid">
+        <div style={styles.mainGrid}>
           <div style={styles.leftCol}>
             <section style={styles.card}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionLabel}>Identidad visible</div>
-                  <h2 style={styles.sectionTitle}>Cómo te ve SyncPlans</h2>
+                  <div style={styles.sectionLabel}>Perfil</div>
+                  <h2 style={styles.sectionTitle}>Tu identidad en SyncPlans</h2>
                   <div style={styles.sectionSub}>
-                    Este nombre se usa en miembros, invitaciones y notificaciones compartidas.
+                    Mantén tu nombre y tu información básica al día para que la
+                    coordinación compartida se vea clara y consistente en toda la app.
                   </div>
                 </div>
+
+                <span
+                  style={{
+                    ...styles.badgeTiny,
+                    borderColor: hasNameCompleted
+                      ? "rgba(34,197,94,0.34)"
+                      : "rgba(250,204,21,0.34)",
+                    background: hasNameCompleted
+                      ? "rgba(34,197,94,0.10)"
+                      : "rgba(250,204,21,0.10)",
+                    color: hasNameCompleted ? "#DCFCE7" : "#FEF3C7",
+                  }}
+                >
+                  {hasNameCompleted ? "Completo" : "Pendiente"}
+                </span>
               </div>
 
-              <form onSubmit={handleSaveProfile} style={styles.form}>
-                <div style={styles.formRow} className="spProfileTwoCols">
+              <form style={styles.form} onSubmit={handleSaveProfile}>
+                <div style={styles.formRow}>
                   <div style={styles.field}>
                     <label style={styles.label}>Nombre</label>
                     <input
@@ -1702,33 +1624,30 @@ export default function ProfilePage() {
                       style={styles.input}
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      placeholder="Gainza Llosa"
+                      placeholder="Gainza"
                     />
                   </div>
                 </div>
 
-                {profileError && <div style={styles.error}>{profileError}</div>}
-                {profileOk && <div style={styles.ok}>{profileOk}</div>}
+                <div style={styles.field}>
+                  <label style={styles.label}>Correo</label>
+                  <input style={styles.input} value={email} disabled />
+                </div>
+
+                {profileError ? <div style={styles.error}>{profileError}</div> : null}
+                {profileOk ? <div style={styles.ok}>{profileOk}</div> : null}
 
                 <div style={styles.formActions}>
-                  <button
-                    type="button"
-                    onClick={() => router.push("/calendar")}
-                    style={styles.ghostBtn}
-                  >
-                    Ir al calendario
-                  </button>
+                  <div style={styles.smallInfo}>
+                    Este nombre se usa para representarte mejor dentro de SyncPlans.
+                  </div>
 
                   <button
                     type="submit"
+                    style={styles.primaryBtn}
                     disabled={savingProfile}
-                    style={{
-                      ...styles.primaryBtn,
-                      opacity: savingProfile ? 0.7 : 1,
-                      cursor: savingProfile ? "progress" : "pointer",
-                    }}
                   >
-                    {savingProfile ? "Guardando…" : "Guardar cambios"}
+                    {savingProfile ? "Guardando..." : "Guardar perfil"}
                   </button>
                 </div>
               </form>
@@ -1737,165 +1656,321 @@ export default function ProfilePage() {
             <section style={styles.card}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionLabel}>Tu rol en los grupos</div>
-                  <h2 style={styles.sectionTitle}>Cómo te ve cada grupo</h2>
+                  <div style={styles.sectionLabel}>Preferencias</div>
+                  <h2 style={styles.sectionTitle}>Cómo prefieres coordinar</h2>
                   <div style={styles.sectionSub}>
-                    No eres la misma persona en todos tus calendarios. Aquí defines cómo te representa cada espacio compartido.
+                    Estas señales ayudan a SyncPlans a entender mejor tu estilo
+                    cuando compartes decisiones, tiempos y disponibilidad.
                   </div>
                 </div>
+
+                <span
+                  style={{
+                    ...styles.badgeTiny,
+                    borderColor: hasCoordPrefsMeaningful
+                      ? "rgba(34,197,94,0.34)"
+                      : "rgba(148,163,184,0.28)",
+                    background: hasCoordPrefsMeaningful
+                      ? "rgba(34,197,94,0.10)"
+                      : "rgba(255,255,255,0.04)",
+                    color: hasCoordPrefsMeaningful
+                      ? "#DCFCE7"
+                      : "rgba(226,232,240,0.86)",
+                  }}
+                >
+                  {hasCoordPrefsMeaningful ? "Configurado" : "Base"}
+                </span>
               </div>
 
-              {membershipsLoading && (
-                <div style={styles.smallInfo}>Cargando tus grupos y roles…</div>
-              )}
+              <form style={styles.coordForm} onSubmit={handleSaveCoordPrefs}>
+                <div style={styles.coordGrid}>
+                  <div style={styles.coordCol}>
+                    <div style={styles.coordLabel}>Momentos preferidos</div>
 
-              {membershipsError && <div style={styles.error}>{membershipsError}</div>}
+                    <label style={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={coord.prefers_mornings}
+                        onChange={(e) =>
+                          setCoordPrefs({
+                            ...coord,
+                            prefers_mornings: e.target.checked,
+                          })
+                        }
+                      />
+                      Prefiero coordinar por la mañana
+                    </label>
 
-              {!membershipsLoading && (!memberships || memberships.length === 0) && (
-                <div style={styles.smallInfo}>
-                  Aún no perteneces a ningún grupo. Empieza creando uno desde la sección de grupos.
-                </div>
-              )}
+                    <label style={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={coord.prefers_evenings}
+                        onChange={(e) =>
+                          setCoordPrefs({
+                            ...coord,
+                            prefers_evenings: e.target.checked,
+                          })
+                        }
+                      />
+                      Prefiero coordinar por la tarde / noche
+                    </label>
 
-              {memberships && memberships.length > 0 && (
-                <>
-                  <div style={styles.groupSummaryRow}>
-                    Tienes <strong>{totalGroupsForRoles}</strong> grupo
-                    {totalGroupsForRoles === 1 ? "" : "s"} ·{" "}
-                    <strong>{configuredGroupsCount}</strong> con rol configurado ·{" "}
-                    <strong>{pendingGroupsCount}</strong> pendiente
-                    {pendingGroupsCount === 1 ? "" : "s"}
+                    <label style={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={coord.prefers_weekdays}
+                        onChange={(e) =>
+                          setCoordPrefs({
+                            ...coord,
+                            prefers_weekdays: e.target.checked,
+                          })
+                        }
+                      />
+                      Me acomodo mejor entre semana
+                    </label>
+
+                    <label style={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={coord.prefers_weekends}
+                        onChange={(e) =>
+                          setCoordPrefs({
+                            ...coord,
+                            prefers_weekends: e.target.checked,
+                          })
+                        }
+                      />
+                      Me acomodo mejor fines de semana
+                    </label>
                   </div>
 
-                  <div style={styles.groupMasterDetail} className="spProfileMasterDetail">
-                    <div style={styles.groupListCol}>
-                      <div style={styles.groupListHeader}>
-                        <div style={styles.groupFilterChips}>
-                          <button
-                            type="button"
-                            onClick={() => setGroupFilter("all")}
-                            style={{
-                              ...styles.groupFilterChip,
-                              ...(groupFilter === "all" ? styles.groupFilterChipActive : {}),
-                            }}
-                          >
-                            Todos
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setGroupFilter("pair")}
-                            style={{
-                              ...styles.groupFilterChip,
-                              ...(groupFilter === "pair" ? styles.groupFilterChipActive : {}),
-                            }}
-                          >
-                            Pareja
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setGroupFilter("family")}
-                            style={{
-                              ...styles.groupFilterChip,
-                              ...(groupFilter === "family" ? styles.groupFilterChipActive : {}),
-                            }}
-                          >
-                            Familia
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setGroupFilter("other")}
-                            style={{
-                              ...styles.groupFilterChip,
-                              ...(groupFilter === "other" ? styles.groupFilterChipActive : {}),
-                            }}
-                          >
-                            Compartidos
-                          </button>
-                        </div>
-
-                        <input
-                          style={styles.groupSearchInput}
-                          placeholder="Buscar grupo…"
-                          value={groupSearch}
-                          onChange={(e) => setGroupSearch(e.target.value)}
-                        />
-                      </div>
-
-                      <div style={styles.groupListScroll}>
-                        {membershipsFiltered.length === 0 && (
-                          <div style={styles.groupListEmpty}>
-                            No hay grupos que coincidan con el filtro.
-                          </div>
-                        )}
-
-                        {membershipsFiltered.map((m) => {
-                          const g = groupsById.get(m.group_id);
-                          const groupName = g?.name ?? "(Grupo sin nombre)";
-                          const typeLabel = getGroupTypeLabel(String(g?.type ?? "grupo"));
-                          const isSelected = m.group_id === selectedGroupId;
-                          const isDirty = dirtyGroups.has(m.group_id);
-
-                          return (
-                            <button
-                              key={m.group_id}
-                              type="button"
-                              onClick={() => setSelectedGroupId(m.group_id)}
-                              style={{
-                                ...styles.groupListItem,
-                                ...(isSelected ? styles.groupListItemActive : {}),
-                              }}
-                            >
-                              <div style={styles.groupListItemTitleRow}>
-                                <div style={styles.groupListItemName}>
-                                  <span style={styles.groupListItemDot} />
-                                  <span>{groupName}</span>
-                                </div>
-                                <span style={styles.badgeTiny}>{typeLabel}</span>
-                              </div>
-
-                              <div style={styles.groupListItemMeta}>
-                                <span>{hasGroupMeta(m) ? "Rol configurado" : "Sin rol todavía"}</span>
-                                {isDirty && (
-                                  <span style={styles.groupListItemDirty}>
-                                    · Cambios sin guardar
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
+                  <div style={styles.coordCol}>
+                    <div style={styles.coordFieldBlock}>
+                      <label style={styles.label}>Estilo para decidir</label>
+                      <select
+                        style={styles.select}
+                        value={coord.decision_style}
+                        onChange={(e) =>
+                          setCoordPrefs({
+                            ...coord,
+                            decision_style: e.target
+                              .value as CoordinationPrefs["decision_style"],
+                          })
+                        }
+                      >
+                        <option value="depends">Depende del caso</option>
+                        <option value="fast">Prefiero decidir rápido</option>
+                        <option value="balanced">Prefiero evaluar bien</option>
+                        <option value="careful">Prefiero decidir con calma</option>
+                      </select>
                     </div>
 
-                    <div style={styles.groupDetailCol}>
-                      {!selectedMembership ? (
-                        <div style={styles.smallInfo}>
-                          Selecciona un grupo de la lista de la izquierda para definir cómo te ven en ese calendario.
-                        </div>
-                      ) : (
+                    <div style={{ ...styles.coordFieldBlock, marginTop: 10 }}>
+                      <label style={styles.label}>Notas o límites importantes</label>
+                      <textarea
+                        style={{ ...styles.textarea, minHeight: 110 }}
+                        value={coord.blocked_note ?? ""}
+                        onChange={(e) =>
+                          setCoordPrefs({
+                            ...coord,
+                            blocked_note: e.target.value,
+                          })
+                        }
+                        placeholder="Ej. Prefiero evitar reuniones muy tarde entre semana."
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {coordError ? <div style={styles.error}>{coordError}</div> : null}
+                {coordOk ? <div style={styles.ok}>{coordOk}</div> : null}
+
+                <div style={styles.coordActions}>
+                  <button
+                    type="submit"
+                    style={styles.primaryBtn}
+                    disabled={savingCoord}
+                  >
+                    {savingCoord ? "Guardando..." : "Guardar preferencias"}
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <section style={styles.card}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionLabel}>Grupos</div>
+                  <h2 style={styles.sectionTitle}>Cómo te representas en cada grupo</h2>
+                  <div style={styles.sectionSub}>
+                    Ajusta tu nombre visible, tu rol y notas específicas para cada
+                    relación compartida, sin convertir esta pantalla en un segundo hub.
+                  </div>
+                </div>
+
+                <span
+                  style={{
+                    ...styles.badgeTiny,
+                    borderColor: hasGroupMetaGlobal
+                      ? "rgba(34,197,94,0.34)"
+                      : "rgba(148,163,184,0.28)",
+                    background: hasGroupMetaGlobal
+                      ? "rgba(34,197,94,0.10)"
+                      : "rgba(255,255,255,0.04)",
+                    color: hasGroupMetaGlobal
+                      ? "#DCFCE7"
+                      : "rgba(226,232,240,0.86)",
+                  }}
+                >
+                  {configuredGroupsCount}/{totalGroupsForRoles} configurados
+                </span>
+              </div>
+
+              <div style={styles.groupSummaryRow}>
+                {membershipsLoading
+                  ? "Estamos cargando tus grupos..."
+                  : membershipsError
+                  ? membershipsError
+                  : totalGroupsForRoles === 0
+                  ? "Todavía no formas parte de grupos compartidos."
+                  : pendingGroupsCount > 0
+                  ? `Tienes ${pendingGroupsCount} grupo${
+                      pendingGroupsCount === 1 ? "" : "s"
+                    } pendiente${pendingGroupsCount === 1 ? "" : "s"} de configurar.`
+                  : "Tu representación por grupo ya está configurada."}
+              </div>
+
+              <div style={styles.groupMasterDetail}>
+                <div style={styles.groupListCol}>
+                  <div style={styles.groupListHeader}>
+                    <div style={styles.groupFilterChips}>
+                      {[
+                        { key: "all", label: "Todos" },
+                        { key: "pair", label: "Pareja" },
+                        { key: "family", label: "Familia" },
+                        { key: "other", label: "Compartido" },
+                      ].map((item) => {
+                        const active = groupFilter === item.key;
+                        return (
+                          <button
+                            key={item.key}
+                            type="button"
+                            style={{
+                              ...styles.groupFilterChip,
+                              ...(active ? styles.groupFilterChipActive : {}),
+                            }}
+                            onClick={() => setGroupFilter(item.key as GroupFilter)}
+                          >
+                            {item.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <input
+                      style={styles.groupSearchInput}
+                      value={groupSearch}
+                      onChange={(e) => setGroupSearch(e.target.value)}
+                      placeholder="Buscar grupo..."
+                    />
+                  </div>
+
+                  <div style={styles.groupListScroll}>
+                    {membershipsFiltered.length === 0 ? (
+                      <div style={styles.groupListEmpty}>
+                        No encontramos grupos con ese filtro.
+                      </div>
+                    ) : (
+                      membershipsFiltered.map((m) => {
+                        const group = groupsById.get(m.group_id);
+                        const selected = selectedMembership?.group_id === m.group_id;
+                        const dirty = dirtyGroups.has(m.group_id);
+
+                        return (
+                          <button
+                            key={m.group_id}
+                            type="button"
+                            onClick={() => setSelectedGroupId(m.group_id)}
+                            style={{
+                              ...styles.groupListItem,
+                              ...(selected ? styles.groupListItemActive : {}),
+                            }}
+                          >
+                            <div style={styles.groupListItemTitleRow}>
+                              <div style={styles.groupListItemName}>
+                                <span style={styles.groupListItemDot} />
+                                <span
+                                  style={{
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {group?.name ?? "Grupo"}
+                                </span>
+                              </div>
+
+                              <span style={styles.badgeTiny}>
+                                {getGroupTypeLabel(group?.type)}
+                              </span>
+                            </div>
+
+                            <div style={styles.groupListItemMeta}>
+                              <span>{m.display_name?.trim() || "Sin nombre visible"}</span>
+                              <span>•</span>
+                              <span>{m.relationship_role?.trim() || "Sin rol definido"}</span>
+                              {dirty ? (
+                                <>
+                                  <span>•</span>
+                                  <span style={styles.groupListItemDirty}>
+                                    Cambios sin guardar
+                                  </span>
+                                </>
+                              ) : null}
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div style={styles.groupDetailCol}>
+                  {!selectedMembership ? (
+                    <div style={styles.smallInfo}>
+                      Selecciona un grupo para ajustar cómo te representas dentro de
+                      ese espacio compartido.
+                    </div>
+                  ) : (
+                    (() => {
+                      const group = groupsById.get(selectedMembership.group_id);
+
+                      return (
                         <>
                           <div style={styles.groupMetaHeader}>
                             <div>
                               <div style={styles.groupMetaTitle}>
-                                {groupsById.get(selectedMembership.group_id)?.name ??
-                                  "(Grupo sin nombre)"}
+                                {group?.name ?? "Grupo"}
                               </div>
                               <div style={styles.groupMetaSubtitle}>
-                                Define tu nombre visible, tu rol y un contexto rápido para coordinar contigo.
+                                {getGroupTypeLabel(group?.type)} · Ajustes visibles solo
+                                para mejorar cómo SyncPlans te presenta dentro de este grupo.
                               </div>
                             </div>
 
-                            <span style={styles.badgeTiny}>
-                              {getGroupTypeLabel(
-                                String(
-                                  groupsById.get(selectedMembership.group_id)?.type ?? "grupo"
-                                )
-                              )}
-                            </span>
+                            <button
+                              type="button"
+                              style={styles.groupMetaCalendarBtn}
+                              onClick={() => router.push(`/groups/${selectedMembership.group_id}`)}
+                            >
+                              Ver grupo
+                            </button>
                           </div>
 
-                          <div style={{ marginTop: 6 }}>
-                            <div style={styles.groupMetaLabel}>Nombre visible en este grupo</div>
+                          <div style={{ height: 12 }} />
+
+                          <div style={styles.field}>
+                            <label style={styles.groupMetaLabel}>Nombre visible</label>
                             <input
                               style={styles.groupMetaInput}
                               value={selectedMembership.display_name ?? ""}
@@ -1906,14 +1981,16 @@ export default function ProfilePage() {
                                   e.target.value
                                 )
                               }
-                              placeholder="Ej: Fer, Papá, Fernando"
+                              placeholder="Ej. Fer"
                             />
                           </div>
 
-                          <div style={{ marginTop: 10 }}>
-                            <div style={styles.groupMetaLabel}>Rol en este grupo</div>
-                            <select
-                              style={styles.groupMetaSelect}
+                          <div style={{ height: 10 }} />
+
+                          <div style={styles.field}>
+                            <label style={styles.groupMetaLabel}>Tu rol o vínculo</label>
+                            <input
+                              style={styles.groupMetaInput}
                               value={selectedMembership.relationship_role ?? ""}
                               onChange={(e) =>
                                 handleMembershipFieldChange(
@@ -1922,24 +1999,19 @@ export default function ProfilePage() {
                                   e.target.value
                                 )
                               }
-                            >
-                              <option value="">(Sin especificar)</option>
-                              <option value="pareja">Pareja</option>
-                              <option value="padre_madre">Padre / Madre</option>
-                              <option value="hijo_hija">Hijo / Hija</option>
-                              <option value="tutor">Tutor</option>
-                              <option value="otro">Otro</option>
-                            </select>
+                              placeholder="Ej. Pareja, hermano, organizador"
+                            />
                           </div>
 
-                          <div style={{ marginTop: 10 }}>
-                            <div style={styles.groupMetaLabel}>
-                              Algo que deberían saber al coordinar contigo
-                            </div>
+                          <div style={{ height: 10 }} />
+
+                          <div style={styles.field}>
+                            <label style={styles.groupMetaLabel}>Nota contextual</label>
                             <textarea
-                              style={styles.groupMetaTextarea}
-                              rows={2}
-                              value={selectedMembership.coordination_prefs?.group_note ?? ""}
+                              style={{ ...styles.groupMetaTextarea, minHeight: 130 }}
+                              value={
+                                selectedMembership.coordination_prefs?.group_note ?? ""
+                              }
                               onChange={(e) =>
                                 handleMembershipFieldChange(
                                   selectedMembership.group_id,
@@ -1947,213 +2019,170 @@ export default function ProfilePage() {
                                   e.target.value
                                 )
                               }
-                              placeholder="Ej: Los domingos casi siempre priorizo familia."
+                              placeholder="Ej. En este grupo suelo priorizar fines de semana o reuniones más cortas."
                             />
                           </div>
 
-                          {groupSaveError && <div style={styles.error}>{groupSaveError}</div>}
-                          {groupSaveMessage && <div style={styles.ok}>{groupSaveMessage}</div>}
+                          {groupSaveError ? (
+                            <div style={{ ...styles.error, marginTop: 10 }}>
+                              {groupSaveError}
+                            </div>
+                          ) : null}
+
+                          {groupSaveMessage && hasSelectedDirty === false ? (
+                            <div style={{ ...styles.ok, marginTop: 10 }}>
+                              {groupSaveMessage}
+                            </div>
+                          ) : null}
 
                           <div style={styles.groupMetaSaveRow}>
-                            <button
-                              type="button"
-                              onClick={() => handleSaveGroupMeta(selectedMembership.group_id)}
-                              disabled={
-                                savingGroupId === selectedMembership.group_id || !hasSelectedDirty
-                              }
-                              style={{
-                                ...styles.groupMetaSaveBtn,
-                                opacity:
-                                  savingGroupId === selectedMembership.group_id
-                                    ? 0.7
-                                    : hasSelectedDirty
-                                    ? 1
-                                    : 0.55,
-                                cursor:
-                                  savingGroupId === selectedMembership.group_id
-                                    ? "progress"
-                                    : hasSelectedDirty
-                                    ? "pointer"
-                                    : "default",
-                              }}
-                            >
-                              {savingGroupId === selectedMembership.group_id
-                                ? "Guardando…"
-                                : "Guardar cambios en este grupo"}
-                            </button>
+                            <div style={styles.smallInfo}>
+                              Estos ajustes refinan tu representación. La operación
+                              diaria de grupos sigue viviendo en Panel.
+                            </div>
 
                             <button
                               type="button"
+                              style={styles.groupMetaSaveBtn}
+                              disabled={savingGroupId === selectedMembership.group_id}
                               onClick={() =>
-                                router.push(`/calendar?group=${selectedMembership.group_id}`)
+                                handleSaveGroupMeta(selectedMembership.group_id)
                               }
-                              style={styles.groupMetaCalendarBtn}
                             >
-                              Ver calendario de este grupo
+                              {savingGroupId === selectedMembership.group_id
+                                ? "Guardando..."
+                                : "Guardar grupo"}
                             </button>
                           </div>
                         </>
-                      )}
+                      );
+                    })()
+                  )}
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div style={styles.rightCol}>
+            <section style={styles.card}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionLabel}>Cuenta</div>
+                  <h2 style={styles.sectionTitle}>Estado de tu cuenta</h2>
+                  <div style={styles.sectionSub}>
+                    Lo esencial para entender cómo está tu cuenta hoy, sin convertir
+                    esta pantalla en otro centro operativo.
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.smallGrid}>
+                <div style={styles.statusCard}>
+                  <div style={styles.accountStatusRow}>
+                    <div style={styles.statusIcon}>{verified ? "✓" : "!"}</div>
+                    <div>
+                      <div style={styles.statusTitle}>{accountStatusLabel}</div>
+                      <div style={styles.statusHint}>{accountStatusHint}</div>
                     </div>
                   </div>
-                </>
-              )}
+                </div>
+
+                <div style={styles.statusCard}>
+                  <div style={styles.accountStatusRow}>
+                    <div style={styles.statusIcon}>★</div>
+                    <div>
+                      <div style={styles.statusTitle}>{planLabel}</div>
+                      <div style={styles.statusHint}>{planHint}</div>
+                    </div>
+                  </div>
+
+                  <div style={styles.planCtaRow}>
+                    <button
+                      type="button"
+                      style={styles.planPrimaryBtn}
+                      onClick={() => router.push("/planes")}
+                    >
+                      {planCtaLabel}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ height: 12 }} />
+
+              <div style={styles.configStatusBox}>
+                <div style={styles.configStatusTitle}>Lectura rápida de configuración</div>
+
+                <div style={styles.configStatusItem}>
+                  <span style={styles.configStatusBullet}>
+                    {hasNameCompleted ? "✓" : "•"}
+                  </span>
+                  <span>
+                    Perfil {hasNameCompleted ? "completo" : "pendiente de completar"}
+                  </span>
+                </div>
+
+                <div style={styles.configStatusItem}>
+                  <span style={styles.configStatusBullet}>
+                    {hasCoordPrefsMeaningful ? "✓" : "•"}
+                  </span>
+                  <span>
+                    Preferencias{" "}
+                    {hasCoordPrefsMeaningful
+                      ? "configuradas"
+                      : "todavía en estado base"}
+                  </span>
+                </div>
+
+                <div style={styles.configStatusItem}>
+                  <span style={styles.configStatusBullet}>
+                    {configuredGroupsCount > 0 ? "✓" : "•"}
+                  </span>
+                  <span>
+                    Representación por grupos{" "}
+                    {configuredGroupsCount > 0
+                      ? `configurada en ${configuredGroupsCount}`
+                      : "sin configurar"}
+                  </span>
+                </div>
+              </div>
             </section>
 
             <section style={styles.card}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionLabel}>Preferencias personales</div>
-                  <h2 style={styles.sectionTitle}>Cómo sueles organizar tu tiempo</h2>
+                  <div style={styles.sectionLabel}>Recomendación</div>
+                  <h2 style={styles.sectionTitle}>Siguiente mejora sugerida</h2>
                   <div style={styles.sectionSub}>
-                    Estas preferencias ayudan a SyncPlans a anticipar fricciones y mostrar decisiones más claras cuando se cruzan horarios.
+                    Una recomendación concreta para mejorar tu cuenta sin distraerte
+                    del flujo principal del producto.
                   </div>
                 </div>
               </div>
 
-              <form onSubmit={handleSaveCoordPrefs} style={styles.coordForm}>
-                <div style={styles.coordGrid} className="spProfileTwoCols">
-                  <div style={styles.coordCol}>
-                    <div style={styles.coordLabel}>Ritmo del día</div>
+              <div style={styles.recoCard}>
+                <div style={styles.recoTitle}>{recommendationTitle}</div>
+                <div style={styles.recoMain}>{recommendationTitle}</div>
+                <div style={styles.recoHint}>{recommendationHint}</div>
 
-                    <label style={styles.checkboxRow}>
-                      <input
-                        type="checkbox"
-                        checked={coord.prefers_mornings}
-                        onChange={(e) =>
-                          setCoordPrefs((prev) =>
-                            normalizeCoordPrefs({
-                              ...(prev ?? {}),
-                              prefers_mornings: e.target.checked,
-                            })
-                          )
-                        }
-                      />
-                      <span>Soy más de madrugar</span>
-                    </label>
-
-                    <label style={styles.checkboxRow}>
-                      <input
-                        type="checkbox"
-                        checked={coord.prefers_evenings}
-                        onChange={(e) =>
-                          setCoordPrefs((prev) =>
-                            normalizeCoordPrefs({
-                              ...(prev ?? {}),
-                              prefers_evenings: e.target.checked,
-                            })
-                          )
-                        }
-                      />
-                      <span>Soy más nocturno</span>
-                    </label>
-                  </div>
-
-                  <div style={styles.coordCol}>
-                    <div style={styles.coordLabel}>Cuándo prefieres planear</div>
-
-                    <label style={styles.checkboxRow}>
-                      <input
-                        type="checkbox"
-                        checked={coord.prefers_weekdays}
-                        onChange={(e) =>
-                          setCoordPrefs((prev) =>
-                            normalizeCoordPrefs({
-                              ...(prev ?? {}),
-                              prefers_weekdays: e.target.checked,
-                            })
-                          )
-                        }
-                      />
-                      <span>Entre semana</span>
-                    </label>
-
-                    <label style={styles.checkboxRow}>
-                      <input
-                        type="checkbox"
-                        checked={coord.prefers_weekends}
-                        onChange={(e) =>
-                          setCoordPrefs((prev) =>
-                            normalizeCoordPrefs({
-                              ...(prev ?? {}),
-                              prefers_weekends: e.target.checked,
-                            })
-                          )
-                        }
-                      />
-                      <span>Fines de semana</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div style={styles.coordFieldBlock}>
-                  <div style={styles.coordLabel}>
-                    Horarios que casi siempre tienes ocupados
-                  </div>
-                  <textarea
-                    style={styles.textarea}
-                    rows={3}
-                    value={coord.blocked_note}
-                    onChange={(e) =>
-                      setCoordPrefs((prev) =>
-                        normalizeCoordPrefs({
-                          ...(prev ?? {}),
-                          blocked_note: e.target.value,
-                        })
-                      )
-                    }
-                    placeholder="Ej: Lunes y miércoles de 7 a 9 pm entreno."
-                  />
-                </div>
-
-                <div style={styles.coordFieldBlock}>
-                  <div style={styles.coordLabel}>
-                    Cuando hay conflictos de horario, normalmente prefieres…
-                  </div>
-                  <select
-                    style={styles.select}
-                    value={coord.decision_style ?? "depends"}
-                    onChange={(e) =>
-                      setCoordPrefs((prev) =>
-                        normalizeCoordPrefs({
-                          ...(prev ?? {}),
-                          decision_style: e.target.value as CoordinationPrefs["decision_style"],
-                        })
-                      )
-                    }
-                  >
-                    <option value="decide_fast">Decidir rápido y seguir</option>
-                    <option value="discuss">Hablarlo con calma</option>
-                    <option value="depends">Depende del evento</option>
-                  </select>
-                </div>
-
-                {coordError && <div style={styles.error}>{coordError}</div>}
-                {coordOk && <div style={styles.ok}>{coordOk}</div>}
-
-                <div style={styles.coordActions}>
-                  <button
-                    type="submit"
-                    disabled={savingCoord}
-                    style={{
-                      ...styles.primaryBtn,
-                      opacity: savingCoord ? 0.7 : 1,
-                      cursor: savingCoord ? "progress" : "pointer",
-                    }}
-                  >
-                    {savingCoord ? "Guardando…" : "Guardar preferencias"}
-                  </button>
-                </div>
-              </form>
+                <button
+                  type="button"
+                  style={styles.recoBtn}
+                  onClick={() => router.push(recommendationHref)}
+                >
+                  {recommendationCtaLabel}
+                </button>
+              </div>
             </section>
 
             <section style={styles.card}>
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionLabel}>Resumen diario</div>
-                  <h2 style={styles.sectionTitle}>Correo de arranque del día</h2>
+                  <h2 style={styles.sectionTitle}>Entrega automática por correo</h2>
                   <div style={styles.sectionSub}>
-                    Si lo activas, te enviaremos cada mañana un correo con los eventos del día ordenados por hora.
+                    Controla si quieres recibir un resumen diario de tu coordinación
+                    y a qué hora local prefieres recibirlo.
                   </div>
                 </div>
               </div>
@@ -2163,252 +2192,69 @@ export default function ProfilePage() {
                   <input
                     type="checkbox"
                     checked={digestEnabled}
-                    onChange={(e) => handleToggleDigest(e.target.checked)}
                     disabled={savingDigest}
+                    onChange={(e) => handleToggleDigest(e.target.checked)}
+                    style={{ marginRight: 8 }}
                   />
-                  <span style={{ marginLeft: 8 }}>Activar resumen diario</span>
+                  Activar resumen diario
                 </label>
 
                 <div style={styles.digestHourWrap}>
-                  <span style={styles.digestHourLabel}>Hora local:</span>
+                  <span style={styles.digestHourLabel}>Hora</span>
                   <select
-                    value={digestHour}
-                    disabled={!digestEnabled || savingDigest}
-                    onChange={(e) => handleChangeDigestHour(Number(e.target.value) || 7)}
                     style={styles.digestSelect}
+                    value={String(digestHour)}
+                    disabled={savingDigest}
+                    onChange={(e) => handleChangeDigestHour(Number(e.target.value))}
                   >
-                    <option value={6}>6:00</option>
-                    <option value={7}>7:00</option>
-                    <option value={8}>8:00</option>
-                    <option value={9}>9:00</option>
+                    {Array.from({ length: 24 }, (_, i) => i).map((hour) => (
+                      <option key={hour} value={hour}>
+                        {hour.toString().padStart(2, "0")}:00
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
 
               <div style={styles.digestHint}>
-                Zona horaria: <strong>{digestTz}</strong>
+                Zona horaria actual: <strong>{digestTz}</strong>
               </div>
 
-              {savingDigest && (
-                <div style={styles.digestSavingHint}>Guardando configuración…</div>
-              )}
-              {digestError && <div style={styles.error}>{digestError}</div>}
-              {digestOk && <div style={styles.ok}>{digestOk}</div>}
-            </section>
-          </div>
+              {savingDigest ? (
+                <div style={styles.digestSavingHint}>Guardando cambios...</div>
+              ) : null}
 
-          <div style={styles.rightCol}>
-            <section style={styles.card}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionLabel}>Estado de cuenta</div>
-                  <h2 style={styles.sectionTitle}>Lectura rápida</h2>
-                  <div style={styles.sectionSub}>
-                    Revisa en segundos cómo va tu configuración dentro de SyncPlans.
-                  </div>
-                </div>
-              </div>
-
-              <div style={styles.statusCard}>
-                <div style={styles.accountStatusRow}>
-                  <div style={styles.statusIcon}>{verified ? "✅" : "⚠️"}</div>
-                  <div>
-                    <div style={styles.statusTitle}>{accountStatusLabel}</div>
-                    <div style={styles.statusHint}>{accountStatusHint}</div>
-                  </div>
-                </div>
-
-                <div style={styles.configStatusBox}>
-                  <div style={styles.configStatusTitle}>Cómo vas con tu configuración</div>
-                  <div style={styles.configStatusItem}>
-                    <span style={styles.configStatusBullet}>
-                      {hasNameCompleted ? "✅" : "⏳"}
-                    </span>
-                    <span>Nombre y apellido definidos</span>
-                  </div>
-                  <div style={styles.configStatusItem}>
-                    <span style={styles.configStatusBullet}>
-                      {hasCoordPrefsMeaningful ? "✅" : "⏳"}
-                    </span>
-                    <span>Preferencias de tiempo configuradas</span>
-                  </div>
-                  <div style={styles.configStatusItem}>
-                    <span style={styles.configStatusBullet}>
-                      {hasGroupMetaGlobal ? "✅" : "⏳"}
-                    </span>
-                    <span>Roles y nombres en grupos configurados</span>
-                  </div>
-                </div>
-
-                {recommendation && (
-                  <div style={styles.recoCard}>
-                    <div style={styles.recoTitle}>Próximo paso recomendado</div>
-                    <div style={styles.recoMain}>{recommendation.title}</div>
-                    <div style={styles.recoHint}>{recommendation.hint}</div>
-
-                    {recommendation.ctaLabel && recommendation.ctaTarget && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const t = recommendation.ctaTarget!;
-                          if (t === "groups_new") router.push("/groups/new");
-                          else if (t === "calendar") router.push("/calendar");
-                          else if (t === "events_new")
-                            router.push("/events/new/details?type=personal");
-                          else if (t === "conflicts") router.push("/conflicts/detected");
-                          else if (t === "invitations") router.push("/invitations");
-                        }}
-                        style={styles.recoBtn}
-                      >
-                        {recommendation.ctaLabel}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+              {digestError ? <div style={styles.error}>{digestError}</div> : null}
+              {digestOk ? <div style={styles.ok}>{digestOk}</div> : null}
             </section>
 
             <section style={styles.card}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionLabel}>Centro de control</div>
-                  <h2 style={styles.sectionTitle}>Accesos rápidos</h2>
+                  <div style={styles.sectionLabel}>Sesión</div>
+                  <h2 style={styles.sectionTitle}>Control de acceso</h2>
                   <div style={styles.sectionSub}>
-                    Atajos a lo importante, sin convertir esta pantalla en un archivo interminable.
+                    Desde aquí puedes cerrar tu sesión actual. Para operar en la app,
+                    usa Resumen, Calendario, Conflictos o Panel.
                   </div>
                 </div>
               </div>
 
-              <div style={styles.hubGrid} className="spProfileHubGrid">
-                <HubCard
-                  title="Grupos"
-                  hint="Pareja, familia y compartidos."
-                  onClick={() => router.push("/groups")}
-                />
-                <HubCard
-                  title="Miembros"
-                  hint="Quién está en tus grupos."
-                  onClick={() => router.push("/members")}
-                />
-                <HubCard
-                  title="Invitaciones"
-                  hint="Invita y acepta accesos."
-                  onClick={() => router.push("/invitations")}
-                />
-                <HubCard
-                  title="Settings"
-                  hint="Preferencias del producto."
-                  onClick={() => router.push("/settings")}
-                />
-                <HubCard
-                  title="Planes"
-                  hint="Ver tu plan y upgrade."
-                  onClick={() => router.push("/planes")}
-                />
-                <HubCard
-                  title="Salir"
-                  hint="Cerrar sesión."
-                  onClick={async () => {
-                    await supabase.auth.signOut();
-                    router.replace("/auth/login");
-                  }}
-                />
-              </div>
-            </section>
-
-            <section style={styles.card}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionLabel}>Uso frecuente</div>
-                  <h2 style={styles.sectionTitle}>Lo que más haces</h2>
-                  <div style={styles.sectionSub}>
-                    Atajos directos a los flujos que más sentido tienen desde tu cuenta.
-                  </div>
-                </div>
-              </div>
-
-              <div style={styles.quickActionsGrid} className="spProfileQuickGrid">
-                <QuickAction
-                  title="Ir al calendario"
-                  hint="Ver tu semana y crear nuevas actividades."
-                  onClick={() => router.push("/calendar")}
-                />
-                <QuickAction
-                  title="Revisar conflictos"
-                  hint="Detectar conflictos y decidir qué hacer con ellos."
-                  onClick={() => router.push("/conflicts/detected")}
-                />
-                <QuickAction
-                  title="Gestionar grupos"
-                  hint="Pareja, familia o grupos con los que organizas tu tiempo."
-                  onClick={() => router.push("/groups")}
-                />
-                <QuickAction
-                  title="Invitar a alguien"
-                  hint="Envía invitaciones para compartir eventos y conflictos."
-                  onClick={() => router.push("/invitations")}
-                />
+              <div style={{ marginTop: 10 }}>
+                <LogoutButton />
               </div>
             </section>
           </div>
         </div>
 
-        <div style={styles.footer}>
-          SyncPlans está pensado para que tu calendario personal, de pareja, familia y grupos compartidos convivan con más claridad y menos fricción. Esta pantalla resume tu cuenta sin recargarla.
-        </div>
-
-        <style>{`
-          @media (max-width: 900px) {
-            .spProfileMainGrid {
-              grid-template-columns: 1fr !important;
-            }
-          }
-
-          @media (max-width: 780px) {
-            .spProfileMasterDetail {
-              grid-template-columns: 1fr !important;
-              min-height: auto !important;
-            }
-
-            .spProfileQuickGrid,
-            .spProfileHubGrid,
-            .spProfileHeroStats,
-            .spProfileTwoCols {
-              grid-template-columns: 1fr !important;
-            }
-          }
-        `}</style>
+        <section style={styles.footer}>
+          Tu cuenta define cómo apareces y cómo prefieres coordinar dentro de
+          SyncPlans. La operación diaria vive en <strong>Resumen</strong>,{" "}
+          <strong>Calendario</strong>, <strong>Conflictos</strong> y{" "}
+          <strong>Panel</strong>. Esta pantalla ya no compite con ese flujo: lo
+          complementa.
+        </section>
       </MobileScaffold>
     </main>
-  );
-}
-
-function InfoStat(props: { label: string; value: string; hint?: string }) {
-  return (
-    <div style={styles.stat}>
-      <div style={styles.statLabel}>{props.label}</div>
-      <div style={styles.statValue}>{props.value}</div>
-      {props.hint && <div style={styles.statHint}>{props.hint}</div>}
-    </div>
-  );
-}
-
-function HubCard(props: { title: string; hint: string; onClick: () => void }) {
-  return (
-    <button type="button" onClick={props.onClick} style={styles.hubCard}>
-      <div style={styles.hubTitle}>{props.title}</div>
-      <div style={styles.hubHint}>{props.hint}</div>
-      <div style={styles.hubChevron}>→</div>
-    </button>
-  );
-}
-
-function QuickAction(props: { title: string; hint: string; onClick: () => void }) {
-  return (
-    <button type="button" onClick={props.onClick} style={styles.quickAction}>
-      <div style={styles.quickActionTitle}>{props.title}</div>
-      <div style={styles.quickActionHint}>{props.hint}</div>
-      <div style={styles.quickActionChevron}>→</div>
-    </button>
   );
 }
