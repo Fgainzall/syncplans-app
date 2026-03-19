@@ -465,22 +465,11 @@ const S: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     gap: 6,
     WebkitTapHighlightColor: "transparent",
-    touchAction: "manipulation",
+    touchAction: "pan-x",
     transition:
       "background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease, color 160ms ease",
     scrollSnapAlign: "start",
   },
-
-  itemActive: {
-    color: "#F8FBFF",
-    border: "1px solid rgba(96,165,250,0.34)",
-    background:
-      "linear-gradient(180deg, rgba(59,130,246,0.16), rgba(124,58,237,0.12))",
-    boxShadow:
-      "0 10px 24px rgba(15,23,42,0.28), inset 0 1px 0 rgba(255,255,255,0.06)",
-    transform: "translateY(-1px)",
-  },
-
   iconWrap: {
     width: 30,
     height: 30,
