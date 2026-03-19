@@ -41,9 +41,12 @@ type QuickAction = {
   badge?: string;
 };
 
+type ConnectionState = "connected" | "needs_reauth" | "disconnected";
+
 type GoogleStatus = {
   ok: boolean;
   connected: boolean;
+  connection_state?: ConnectionState;
   account?:
     | {
         provider?: string | null;
@@ -117,6 +120,7 @@ export default function PanelPage() {
         setGoogleStatus({
           ok: false,
           connected: false,
+          connection_state: "disconnected",
           error:
             json?.error ||
             "No se pudo leer el estado de la integración con Google.",
@@ -130,6 +134,7 @@ export default function PanelPage() {
       setGoogleStatus({
         ok: false,
         connected: false,
+        connection_state: "disconnected",
         error:
           err?.message ||
           "Error inesperado al consultar el estado de Google Calendar.",
@@ -186,11 +191,19 @@ export default function PanelPage() {
     fetchGoogleStatus();
   }, [loadCore, fetchGoogleStatus]);
 
+  const connectionState: ConnectionState =
+    googleStatus?.connection_state ??
+    (googleStatus?.connected ? "connected" : "disconnected");
+
   useEffect(() => {
-    if (googleStatus?.connected) {
+    if (connectionState === "connected") {
       fetchGoogleEvents();
+      return;
     }
-  }, [googleStatus?.connected, fetchGoogleEvents]);
+
+    setGoogleEvents([]);
+    setGoogleEventsError(null);
+  }, [connectionState, fetchGoogleEvents]);
 
   const totalEvents = stats?.totalEvents ?? 0;
   const eventsLast7 = stats?.eventsLast7 ?? 0;
@@ -286,6 +299,66 @@ export default function PanelPage() {
   ];
 
   const groupsPreview = useMemo(() => groups.slice(0, 3), [groups]);
+
+  const googlePill = useMemo(() => {
+    if (googleLoading) {
+      return {
+        label: "Revisando",
+        tone: "neutral" as const,
+      };
+    }
+
+    if (connectionState === "connected") {
+      return {
+        label: "Conectado",
+        tone: "ok" as const,
+      };
+    }
+
+    if (connectionState === "needs_reauth") {
+      return {
+        label: "Requiere reconexión",
+        tone: "warn" as const,
+      };
+    }
+
+    if (googleStatus && !googleStatus.ok) {
+      return {
+        label: "Error",
+        tone: "bad" as const,
+      };
+    }
+
+    return {
+      label: "No conectado",
+      tone: "neutral" as const,
+    };
+  }, [connectionState, googleLoading, googleStatus]);
+
+  const googlePrimaryCta =
+    connectionState === "connected"
+      ? "Gestionar"
+      : connectionState === "needs_reauth"
+      ? "Reconectar"
+      : "Conectar";
+
+  const googleLine =
+    connectionState === "connected"
+      ? googleStatus?.account?.email
+        ? `Conectado con ${googleStatus.account.email}.`
+        : "Tu Google Calendar está conectado."
+      : connectionState === "needs_reauth"
+      ? googleStatus?.account?.email
+        ? `La cuenta ${googleStatus.account.email} necesita reconexión.`
+        : "La conexión existe, pero necesita reconexión."
+      : "Todavía no has conectado Google Calendar.";
+
+  const googleSupportCopy =
+    connectionState === "connected"
+      ? "La conexión está activa y lista para seguir trayendo contexto externo."
+      : connectionState === "needs_reauth"
+      ? "No está roto: solo falta renovar la conexión para que SyncPlans vuelva a leer Google con normalidad."
+      : "Es una integración de apoyo. Te sirve para sumar contexto externo sin recargar el Panel.";
 
   return (
     <MobileScaffold maxWidth={1120}>
@@ -438,32 +511,15 @@ export default function PanelPage() {
                   <div style={styles.sectionEyebrow}>Google Calendar</div>
                   <h2 style={styles.sectionTitle}>Integración secundaria</h2>
                 </div>
-                <StatusPill
-                  label={
-                    googleLoading
-                      ? "Revisando"
-                      : googleStatus?.connected
-                      ? "Conectado"
-                      : "No conectado"
-                  }
-                  active={!!googleStatus?.connected}
-                />
+
+                <StatusPill label={googlePill.label} tone={googlePill.tone} />
               </div>
 
-              <p style={styles.bodyCopy}>
-                Este bloque no debería dominar el Panel. Solo te confirma si la
-                conexión está viva y te deja entrar rápido a gestionarla.
-              </p>
+              <p style={styles.bodyCopy}>{googleSupportCopy}</p>
 
               <div style={styles.integrationBox}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={styles.integrationLine}>
-                    {googleStatus?.connected
-                      ? googleStatus?.account?.email
-                        ? `Conectado con ${googleStatus.account.email}.`
-                        : "Tu Google Calendar está conectado."
-                      : "Todavía no has conectado Google Calendar."}
-                  </div>
+                  <div style={styles.integrationLine}>{googleLine}</div>
 
                   {googleStatus?.error ? (
                     <div style={styles.errorText}>{googleStatus.error}</div>
@@ -476,7 +532,7 @@ export default function PanelPage() {
                     style={styles.primarySmallButton}
                     onClick={() => router.push("/settings?tab=integrations")}
                   >
-                    {googleStatus?.connected ? "Gestionar" : "Conectar"}
+                    {googlePrimaryCta}
                   </button>
                   <button
                     type="button"
@@ -489,7 +545,7 @@ export default function PanelPage() {
                 </div>
               </div>
 
-              {googleStatus?.connected ? (
+              {connectionState === "connected" ? (
                 <div style={styles.googleEventsWrap}>
                   <div style={styles.miniSectionHead}>
                     <span style={styles.miniSectionTitle}>
@@ -568,25 +624,48 @@ function MetricCard({
 
 function StatusPill({
   label,
-  active = false,
+  tone = "neutral",
 }: {
   label: string;
-  active?: boolean;
+  tone?: "ok" | "warn" | "bad" | "neutral";
 }) {
+  const toneStyles =
+    tone === "ok"
+      ? {
+          borderColor: "rgba(56,189,248,0.45)",
+          color: colors.textPrimary,
+          dot: colors.accentPrimary,
+        }
+      : tone === "warn"
+      ? {
+          borderColor: "rgba(251,191,36,0.38)",
+          color: "#fde68a",
+          dot: "#fbbf24",
+        }
+      : tone === "bad"
+      ? {
+          borderColor: "rgba(251,113,133,0.38)",
+          color: "#fecdd3",
+          dot: "#fb7185",
+        }
+      : {
+          borderColor: "rgba(148,163,184,0.28)",
+          color: colors.textSecondary,
+          dot: "rgba(148,163,184,0.85)",
+        };
+
   return (
     <span
       style={{
         ...styles.statusPill,
-        borderColor: active
-          ? "rgba(56,189,248,0.45)"
-          : "rgba(148,163,184,0.28)",
-        color: active ? colors.textPrimary : colors.textSecondary,
+        borderColor: toneStyles.borderColor,
+        color: toneStyles.color,
       }}
     >
       <span
         style={{
           ...styles.statusDot,
-          background: active ? colors.accentPrimary : "rgba(148,163,184,0.85)",
+          background: toneStyles.dot,
         }}
       />
       {label}
