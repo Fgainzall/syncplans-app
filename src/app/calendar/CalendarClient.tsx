@@ -914,87 +914,65 @@ const openConflicts = () => {
           />
         </div>
 
-        <section style={styles.hero} className="spCal-hero">
-          <div style={styles.heroLeft}>
-            <div style={styles.titleRow}>
-              <h1 style={styles.h1} className="spCal-title">
-                Calendario
-              </h1>
-
-              {!eventsLoaded ? (
-                <div style={styles.okPill}>
-                  <span style={styles.okDot} />
-                  Revisando conflictos…
-                </div>
-              ) : conflictCount > 0 ? (
-                <div style={styles.conflictCluster}>
-                  <button onClick={openConflicts} style={styles.conflictPill}>
-                    <span style={styles.conflictDot} />
-                    {conflictCount} conflicto
-                    {conflictCount === 1 ? "" : "s"}
-                    <span style={styles.conflictArrow}>→</span>
-                  </button>
-
-                  <button onClick={resolveNow} style={styles.resolvePill}>
-                    Resolver ahora ✨
-                  </button>
-                </div>
-              ) : (
-                <div style={styles.okPill}>
-                  <span style={styles.okDot} />
-                  Sin conflictos
-                </div>
-              )}
-            </div>
-
-            <div style={styles.sub}>
-              Vista {tab === "month" ? "mensual" : "agenda"} · {monthTitle}
-            </div>
-
-            {error ? (
-              <div style={{ ...styles.emptyHint, borderStyle: "solid" }}>
-                {error}
-              </div>
-            ) : null}
-          </div>
-
-          <div style={styles.heroRight}>
-            <button
-              onClick={() => openNewEventPersonal()}
-              style={styles.primaryBtnPersonal}
-            >
-              + Personal
-            </button>
-            <button
-              onClick={() => openNewEventGroup()}
-              style={styles.primaryBtnGroup}
-            >
-              + Grupo
-            </button>
-          </div>
-        </section>
-
-       {conflicts.length > 0 ? (
-  <button
-    onClick={openConflicts}
-    style={styles.conflictBanner}
-    className="spCal-conflictBanner"
-  >
-    <div style={styles.conflictBannerLeft}>
-      <div style={styles.conflictBannerEyebrow}>Conflictos activos</div>
-      <div style={styles.conflictBannerTitle}>
-        Tienes {conflicts.length} conflicto
-        {conflicts.length === 1 ? "" : "s"} pendiente
-        {conflicts.length === 1 ? "" : "s"}
-      </div>
-      <div style={styles.conflictBannerSub}>
-        Hay eventos que siguen chocando. Entra y decide cuál se queda.
+       <section style={styles.overviewCard} className="spCal-overviewCard">
+  <div style={styles.overviewTop}>
+    <div style={styles.overviewLeft}>
+      <div style={styles.overviewEyebrow}>Vista actual</div>
+      <h2 style={styles.overviewTitle}>
+        {tab === "month" ? "Vista mensual" : "Vista agenda"}
+      </h2>
+      <div style={styles.overviewSub}>
+        {monthTitle}
+        {error ? ` · ${error}` : ""}
       </div>
     </div>
 
-    <div style={styles.conflictBannerCta}>Revisar ahora →</div>
-  </button>
-) : null}
+    <div style={styles.overviewActions}>
+      <button
+        onClick={() => openNewEventPersonal()}
+        style={styles.primaryBtnPersonal}
+      >
+        + Personal
+      </button>
+      <button
+        onClick={() => openNewEventGroup()}
+        style={styles.primaryBtnGroup}
+      >
+        + Grupo
+      </button>
+    </div>
+  </div>
+
+  <div style={styles.overviewMetaRow}>
+    {!eventsLoaded ? (
+      <div style={styles.statusPillNeutral}>
+        <span style={styles.statusDotNeutral} />
+        Revisando conflictos…
+      </div>
+    ) : conflictCount > 0 ? (
+      <div style={styles.statusCluster}>
+        <button onClick={openConflicts} style={styles.statusPillDanger}>
+          <span style={styles.statusDotDanger} />
+          {conflictCount} conflicto{conflictCount === 1 ? "" : "s"} activo
+          {conflictCount === 1 ? "" : "s"}
+        </button>
+
+        <button onClick={resolveNow} style={styles.statusPillAction}>
+          Resolver ahora
+        </button>
+      </div>
+    ) : (
+      <div style={styles.statusPillSuccess}>
+        <span style={styles.statusDotSuccess} />
+        Sin conflictos activos
+      </div>
+    )}
+
+    <button onClick={handleRefresh} style={styles.overviewGhostBtn}>
+      Actualizar
+    </button>
+  </div>
+</section>
         <CalendarFilters
           tab={tab}
           scope={scope}
@@ -2112,4 +2090,165 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontWeight: 900,
   },
+  overviewCard: {
+  borderRadius: 22,
+  border: "1px solid rgba(148,163,184,0.16)",
+  background:
+    "linear-gradient(180deg, rgba(15,23,42,0.88), rgba(15,23,42,0.72))",
+  boxShadow:
+    "0 20px 50px rgba(2,6,23,0.30), inset 0 1px 0 rgba(255,255,255,0.04)",
+  padding: 16,
+  marginBottom: 12,
+},
+
+overviewTop: {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 14,
+  flexWrap: "wrap",
+},
+
+overviewLeft: {
+  minWidth: 0,
+  flex: "1 1 280px",
+},
+
+overviewEyebrow: {
+  fontSize: 11,
+  fontWeight: 900,
+  letterSpacing: 0.5,
+  textTransform: "uppercase",
+  color: "rgba(148,163,184,0.86)",
+  marginBottom: 6,
+},
+
+overviewTitle: {
+  margin: 0,
+  fontSize: "clamp(20px, 3vw, 28px)",
+  lineHeight: 1.08,
+  fontWeight: 950,
+  color: "#F8FAFC",
+  letterSpacing: -0.6,
+},
+
+overviewSub: {
+  marginTop: 8,
+  fontSize: 13,
+  lineHeight: 1.5,
+  color: "rgba(191,219,254,0.82)",
+},
+
+overviewActions: {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "wrap",
+},
+
+overviewMetaRow: {
+  marginTop: 14,
+  paddingTop: 14,
+  borderTop: "1px solid rgba(148,163,184,0.12)",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+},
+
+statusCluster: {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "wrap",
+},
+
+statusPillNeutral: {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  minHeight: 38,
+  padding: "0 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(148,163,184,0.18)",
+  background: "rgba(255,255,255,0.05)",
+  color: "#E2E8F0",
+  fontSize: 12,
+  fontWeight: 800,
+},
+
+statusPillSuccess: {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  minHeight: 38,
+  padding: "0 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(34,197,94,0.24)",
+  background: "rgba(34,197,94,0.10)",
+  color: "#DCFCE7",
+  fontSize: 12,
+  fontWeight: 900,
+},
+
+statusPillDanger: {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  minHeight: 38,
+  padding: "0 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(248,113,113,0.28)",
+  background: "rgba(248,113,113,0.12)",
+  color: "#FECACA",
+  fontSize: 12,
+  fontWeight: 900,
+  cursor: "pointer",
+},
+
+statusPillAction: {
+  minHeight: 38,
+  padding: "0 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(56,189,248,0.24)",
+  background: "rgba(56,189,248,0.12)",
+  color: "#E0F2FE",
+  fontSize: 12,
+  fontWeight: 900,
+  cursor: "pointer",
+},
+
+statusDotNeutral: {
+  width: 8,
+  height: 8,
+  borderRadius: 999,
+  background: "rgba(148,163,184,0.86)",
+},
+
+statusDotSuccess: {
+  width: 8,
+  height: 8,
+  borderRadius: 999,
+  background: "#22C55E",
+},
+
+statusDotDanger: {
+  width: 8,
+  height: 8,
+  borderRadius: 999,
+  background: "#F87171",
+},
+
+overviewGhostBtn: {
+  minHeight: 38,
+  padding: "0 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(148,163,184,0.18)",
+  background: "rgba(255,255,255,0.05)",
+  color: "#E2E8F0",
+  fontSize: 12,
+  fontWeight: 800,
+  cursor: "pointer",
+},
 };
