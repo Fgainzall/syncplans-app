@@ -372,44 +372,46 @@ export default function BottomNav() {
 
   return (
     <nav style={S.wrap} aria-label="Navegación principal">
-      <div style={S.scroll}>
-        {NAV_ITEMS.map((item) => {
-          const active =
-            item.key === "panel" ? isPanelRelatedPath(pathname) : isActive(item.key);
+      <div style={S.viewport}>
+        <div style={S.track}>
+          {NAV_ITEMS.map((item) => {
+            const active =
+              item.key === "panel" ? isPanelRelatedPath(pathname) : isActive(item.key);
 
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => router.push(item.path)}
-              aria-label={item.aria}
-              aria-current={active ? "page" : undefined}
-              style={{
-                ...S.item,
-                ...(active ? S.itemActive : {}),
-              }}
-            >
-              <div
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => router.push(item.path)}
+                aria-label={item.aria}
+                aria-current={active ? "page" : undefined}
                 style={{
-                  ...S.iconWrap,
-                  ...(active ? S.iconWrapActive : {}),
-                }}
-                aria-hidden="true"
-              >
-                {iconFor(item.key, active)}
-              </div>
-
-              <span
-                style={{
-                  ...S.label,
-                  ...(active ? S.labelActive : {}),
+                  ...S.item,
+                  ...(active ? S.itemActive : {}),
                 }}
               >
-                {item.label}
-              </span>
-            </button>
-          );
-        })}
+                <div
+                  style={{
+                    ...S.iconWrap,
+                    ...(active ? S.iconWrapActive : {}),
+                  }}
+                  aria-hidden="true"
+                >
+                  {iconFor(item.key, active)}
+                </div>
+
+                <span
+                  style={{
+                    ...S.label,
+                    ...(active ? S.labelActive : {}),
+                  }}
+                >
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );
@@ -434,17 +436,23 @@ const S: Record<string, React.CSSProperties> = {
     overflow: "hidden",
   },
 
-  scroll: {
-    display: "flex",
-    gap: 8,
+  viewport: {
+    width: "100%",
     overflowX: "auto",
     overflowY: "hidden",
     WebkitOverflowScrolling: "touch",
     scrollbarWidth: "none",
     msOverflowStyle: "none",
+    touchAction: "pan-x",
+    overscrollBehaviorX: "contain",
+  },
+
+  track: {
+    display: "inline-flex",
+    gap: 8,
+    minWidth: "max-content",
     paddingBottom: 2,
     scrollSnapType: "x proximity",
-    touchAction: "pan-x",
   },
 
   item: {
@@ -465,11 +473,22 @@ const S: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     gap: 6,
     WebkitTapHighlightColor: "transparent",
-    touchAction: "pan-x",
+    touchAction: "auto",
     transition:
       "background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease, color 160ms ease",
     scrollSnapAlign: "start",
   },
+
+  itemActive: {
+    color: "#F8FBFF",
+    border: "1px solid rgba(96,165,250,0.34)",
+    background:
+      "linear-gradient(180deg, rgba(59,130,246,0.16), rgba(124,58,237,0.12))",
+    boxShadow:
+      "0 10px 24px rgba(15,23,42,0.28), inset 0 1px 0 rgba(255,255,255,0.06)",
+    transform: "translateY(-1px)",
+  },
+
   iconWrap: {
     width: 30,
     height: 30,
