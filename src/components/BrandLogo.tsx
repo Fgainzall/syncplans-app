@@ -1,95 +1,72 @@
 // src/components/BrandLogo.tsx
-"use client";
-
 import React from "react";
+import Image from "next/image";
 
 type BrandLogoProps = {
-  /** "full" = ícono + texto, "mark" = solo ícono */
   variant?: "full" | "mark";
-  /** Tamaño del ícono en px (alto y ancho) */
   size?: number;
   className?: string;
+  textClassName?: string;
+  priority?: boolean;
 };
 
-const BrandLogo: React.FC<BrandLogoProps> = ({
+const BRAND_ICON_SRC = "/icons/icon-192.png";
+
+export default function BrandLogo({
   variant = "full",
   size = 28,
   className = "",
-}) => {
-  const iconSize = `${size}px`;
+  textClassName = "",
+  priority = false,
+}: BrandLogoProps) {
   const wrapperClass =
-    "inline-flex items-center gap-2 select-none" +
-    (className ? ` ${className}` : "");
+    "inline-flex items-center select-none" + (className ? ` ${className}` : "");
+
+  const labelClass =
+    "text-white font-semibold tracking-tight" +
+    (textClassName ? ` ${textClassName}` : "");
 
   return (
-    <div className={wrapperClass}>
-      {/* Ícono "S" futurista */}
-      <svg
-        width={iconSize}
-        height={iconSize}
-        viewBox="0 0 64 64"
+    <div className={wrapperClass} style={{ gap: variant === "full" ? 10 : 0 }}>
+      <div
         aria-hidden="true"
+        style={{
+          width: size,
+          height: size,
+          borderRadius: Math.max(10, Math.round(size * 0.32)),
+          overflow: "hidden",
+          boxShadow:
+            "0 10px 24px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06)",
+          background: "rgba(255,255,255,0.04)",
+          flexShrink: 0,
+        }}
       >
-        <defs>
-          {/* Degradado principal azul -> violeta */}
-          <linearGradient
-            id="syncplans-gradient"
-            x1="0%"
-            y1="0%"
-            x2="100%"
-            y2="100%"
-          >
-            <stop offset="0%" stopColor="#17D2FF" />
-            <stop offset="100%" stopColor="#7B3CFF" />
-          </linearGradient>
-
-          {/* Glow suave en el centro */}
-          <radialGradient id="syncplans-glow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
-            <stop offset="40%" stopColor="#FFFFFF" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-
-        {/* Trazo en forma de “S” gruesa */}
-        <path
-          d="
-            M 18 14
-            C 18 9 22 6 27 6
-            L 40 6
-            C 46 6 50 10 50 16
-            C 50 22 46 26 40 26
-            L 30 26
-            C 24 26 20 30 20 36
-            C 20 42 24 46 30 46
-            L 37 46
-            C 43 46 48 50 48 56
-            C 48 60 45 63 41 63
-            L 26 63
-            C 20 63 16 59 16 53
-          "
-          fill="none"
-          stroke="url(#syncplans-gradient)"
-          strokeWidth="10"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        <Image
+          src={BRAND_ICON_SRC}
+          alt="SyncPlans"
+          width={size}
+          height={size}
+          priority={priority}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
         />
+      </div>
 
-        {/* Glow central */}
-        <circle cx="32" cy="34" r="12" fill="url(#syncplans-glow)" />
-
-        {/* Punto central sólido */}
-        <circle cx="32" cy="34" r="3.2" fill="#FFFFFF" />
-      </svg>
-
-      {/* Texto SyncPlans solo en variante "full" */}
       {variant === "full" && (
-        <span className="text-white text-lg font-semibold tracking-tight">
+        <span
+          className={labelClass}
+          style={{
+            fontSize: Math.max(16, Math.round(size * 0.64)),
+            lineHeight: 1,
+          }}
+        >
           SyncPlans
         </span>
       )}
     </div>
   );
-};
-
-export default BrandLogo;
+}

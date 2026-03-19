@@ -1,7 +1,7 @@
 // src/components/BottomNav.tsx
 "use client";
 
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 export type BottomNavKey =
@@ -9,25 +9,25 @@ export type BottomNavKey =
   | "calendar"
   | "events"
   | "conflicts"
-  | "panel";
+  | "panel"
+  | "more";
 
 type NavItem = {
   key: BottomNavKey;
   label: string;
-  path: string;
+  path?: string;
   aria: string;
-  icon: React.ReactNode;
+};
+
+type MoreLink = {
+  label: string;
+  path: string;
+  description: string;
 };
 
 function SummaryIcon({ active }: { active: boolean }) {
   return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M4 11.5L12 5l8 6.5"
         stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
@@ -48,13 +48,7 @@ function SummaryIcon({ active }: { active: boolean }) {
 
 function CalendarIcon({ active }: { active: boolean }) {
   return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect
         x="4"
         y="5"
@@ -88,13 +82,7 @@ function CalendarIcon({ active }: { active: boolean }) {
 
 function EventsIcon({ active }: { active: boolean }) {
   return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect
         x="4.5"
         y="6"
@@ -122,13 +110,7 @@ function EventsIcon({ active }: { active: boolean }) {
 
 function ConflictsIcon({ active }: { active: boolean }) {
   return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M13.25 3.75L6.75 13H11L10.75 20.25L17.25 11H13L13.25 3.75Z"
         stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
@@ -142,13 +124,7 @@ function ConflictsIcon({ active }: { active: boolean }) {
 
 function PanelIcon({ active }: { active: boolean }) {
   return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect
         x="4"
         y="4"
@@ -189,7 +165,35 @@ function PanelIcon({ active }: { active: boolean }) {
   );
 }
 
-const NAV_ITEMS: Omit<NavItem, "icon">[] = [
+function MoreIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M5 12H5.01"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 12H12.01"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M19 12H19.01"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+const PRIMARY_NAV_ITEMS: NavItem[] = [
   {
     key: "summary",
     label: "Resumen",
@@ -220,30 +224,86 @@ const NAV_ITEMS: Omit<NavItem, "icon">[] = [
     path: "/panel",
     aria: "Ir a Panel",
   },
+  {
+    key: "more",
+    label: "Más",
+    aria: "Abrir más accesos",
+  },
+];
+
+const MORE_LINKS: MoreLink[] = [
+  {
+    label: "Grupos",
+    path: "/groups",
+    description: "Administra tus grupos y espacios compartidos.",
+  },
+  {
+    label: "Miembros",
+    path: "/members",
+    description: "Revisa quiénes forman parte de tu espacio.",
+  },
+  {
+    label: "Invitaciones",
+    path: "/invitations",
+    description: "Acepta y revisa invitaciones pendientes.",
+  },
+  {
+    label: "Ajustes",
+    path: "/settings",
+    description: "Controla preferencias, notificaciones e integraciones.",
+  },
+  {
+    label: "Planes",
+    path: "/planes",
+    description: "Consulta tu plan y opciones premium.",
+  },
+  {
+    label: "Perfil",
+    path: "/profile",
+    description: "Edita tus datos y tu cuenta.",
+  },
 ];
 
 export default function BottomNav() {
   const router = useRouter();
   const pathname = usePathname();
+  const [moreOpen, setMoreOpen] = useState(false);
 
-  const isPanelRelatedPath = (path: string) => {
+  const isMoreRelatedPath = useMemo(() => {
     return (
-      path.startsWith("/panel") ||
-      path.startsWith("/profile") ||
-      path.startsWith("/groups") ||
-      path.startsWith("/members") ||
-      path.startsWith("/invitations") ||
-      path.startsWith("/settings") ||
-      path.startsWith("/planes")
+      pathname.startsWith("/groups") ||
+      pathname.startsWith("/members") ||
+      pathname.startsWith("/invitations") ||
+      pathname.startsWith("/settings") ||
+      pathname.startsWith("/planes") ||
+      pathname.startsWith("/profile")
     );
-  };
+  }, [pathname]);
+
+  useEffect(() => {
+    setMoreOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMoreOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [moreOpen]);
 
   const isActive = (key: BottomNavKey) => {
     if (key === "summary") return pathname.startsWith("/summary");
     if (key === "calendar") return pathname.startsWith("/calendar");
     if (key === "events") return pathname.startsWith("/events");
     if (key === "conflicts") return pathname.startsWith("/conflicts");
-    if (key === "panel") return isPanelRelatedPath(pathname);
+    if (key === "panel") return pathname.startsWith("/panel");
+    if (key === "more") return moreOpen || isMoreRelatedPath;
     return false;
   };
 
@@ -259,61 +319,249 @@ export default function BottomNav() {
         return <ConflictsIcon active={active} />;
       case "panel":
         return <PanelIcon active={active} />;
+      case "more":
+        return <MoreIcon active={active} />;
       default:
         return null;
     }
   };
 
-  return (
-    <nav style={S.wrap} aria-label="Navegación principal">
-      <div style={S.inner}>
-        {NAV_ITEMS.map((item) => {
-          const active = isActive(item.key);
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => router.push(item.path)}
-              aria-label={item.aria}
-              aria-current={active ? "page" : undefined}
-              style={{
-                ...S.item,
-                ...(active ? S.itemActive : {}),
-              }}
-            >
-              <div
-                style={{
-                  ...S.iconWrap,
-                  ...(active ? S.iconWrapActive : {}),
-                }}
-                aria-hidden="true"
-              >
-                {iconFor(item.key, active)}
-              </div>
+  const handlePrimaryClick = (item: NavItem) => {
+    if (item.key === "more") {
+      setMoreOpen((prev) => !prev);
+      return;
+    }
 
-              <span
+    if (item.path) {
+      setMoreOpen(false);
+      router.push(item.path);
+    }
+  };
+
+  const handleMoreLink = (path: string) => {
+    setMoreOpen(false);
+    router.push(path);
+  };
+
+  return (
+    <>
+      {moreOpen && (
+        <div
+          style={S.backdrop}
+          onClick={() => setMoreOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {moreOpen && (
+        <div style={S.sheet} role="dialog" aria-modal="true" aria-label="Más accesos">
+          <div style={S.sheetHeader}>
+            <div>
+              <div style={S.sheetEyebrow}>Navegación</div>
+              <div style={S.sheetTitle}>Más accesos</div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMoreOpen(false)}
+              style={S.closeButton}
+              aria-label="Cerrar más accesos"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div style={S.sheetList}>
+            {MORE_LINKS.map((link) => {
+              const active = pathname.startsWith(link.path);
+              return (
+                <button
+                  key={link.path}
+                  type="button"
+                  onClick={() => handleMoreLink(link.path)}
+                  style={{
+                    ...S.moreItem,
+                    ...(active ? S.moreItemActive : {}),
+                  }}
+                  aria-current={active ? "page" : undefined}
+                >
+                  <div style={S.moreItemTopRow}>
+                    <span style={S.moreItemLabel}>{link.label}</span>
+                    <span style={S.moreItemArrow}>›</span>
+                  </div>
+                  <span style={S.moreItemDescription}>{link.description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <nav style={S.wrap} aria-label="Navegación principal">
+        <div style={S.inner}>
+          {PRIMARY_NAV_ITEMS.map((item) => {
+            const active = isActive(item.key);
+
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => handlePrimaryClick(item)}
+                aria-label={item.aria}
+                aria-current={active ? "page" : undefined}
+                aria-expanded={item.key === "more" ? moreOpen : undefined}
                 style={{
-                  ...S.label,
-                  ...(active ? S.labelActive : {}),
+                  ...S.item,
+                  ...(active ? S.itemActive : {}),
                 }}
               >
-                {item.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </nav>
+                <div
+                  style={{
+                    ...S.iconWrap,
+                    ...(active ? S.iconWrapActive : {}),
+                  }}
+                  aria-hidden="true"
+                >
+                  {iconFor(item.key, active)}
+                </div>
+
+                <span
+                  style={{
+                    ...S.label,
+                    ...(active ? S.labelActive : {}),
+                  }}
+                >
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    </>
   );
 }
 
 const S: Record<string, React.CSSProperties> = {
+  backdrop: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 78,
+    background: "rgba(2,6,23,0.48)",
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
+  },
+
+  sheet: {
+    position: "fixed",
+    left: 12,
+    right: 12,
+    bottom: 96,
+    zIndex: 79,
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "linear-gradient(180deg, rgba(9,14,25,0.97), rgba(7,11,20,0.97))",
+    boxShadow:
+      "0 24px 64px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05)",
+    padding: 14,
+  },
+
+  sheetHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 12,
+  },
+
+  sheetEyebrow: {
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    color: "rgba(147,197,253,0.78)",
+    marginBottom: 4,
+  },
+
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: 800,
+    lineHeight: 1.1,
+    color: "#F8FBFF",
+  },
+
+  closeButton: {
+    appearance: "none",
+    WebkitAppearance: "none",
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "#F8FBFF",
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    fontSize: 16,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+
+  sheetList: {
+    display: "grid",
+    gap: 10,
+  },
+
+  moreItem: {
+    appearance: "none",
+    WebkitAppearance: "none",
+    width: "100%",
+    textAlign: "left",
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    color: "#F8FBFF",
+    borderRadius: 18,
+    padding: "14px 14px 13px",
+    cursor: "pointer",
+    display: "grid",
+    gap: 6,
+  },
+
+  moreItemActive: {
+    border: "1px solid rgba(96,165,250,0.34)",
+    background:
+      "linear-gradient(180deg, rgba(59,130,246,0.15), rgba(124,58,237,0.10))",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
+  },
+
+  moreItemTopRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  moreItemLabel: {
+    fontSize: 15,
+    fontWeight: 800,
+    lineHeight: 1.15,
+  },
+
+  moreItemArrow: {
+    fontSize: 22,
+    lineHeight: 1,
+    color: "rgba(255,255,255,0.62)",
+  },
+
+  moreItemDescription: {
+    fontSize: 12.5,
+    lineHeight: 1.35,
+    color: "rgba(226,232,240,0.72)",
+  },
+
   wrap: {
     position: "fixed",
     left: 12,
     right: 12,
     bottom: 12,
-    zIndex: 70,
+    zIndex: 80,
     borderRadius: 20,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(8,12,20,0.84)",
@@ -327,8 +575,8 @@ const S: Record<string, React.CSSProperties> = {
 
   inner: {
     display: "grid",
-    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-    gap: 8,
+    gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
+    gap: 6,
     alignItems: "stretch",
   },
 
@@ -340,7 +588,7 @@ const S: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.76)",
     borderRadius: 16,
     minHeight: 62,
-    padding: "8px 6px 9px",
+    padding: "8px 4px 9px",
     cursor: "pointer",
     display: "flex",
     flexDirection: "column",
@@ -378,12 +626,12 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   label: {
-    fontSize: 10.5,
+    fontSize: 10,
     lineHeight: 1.1,
     fontWeight: 800,
     letterSpacing: "0.01em",
     whiteSpace: "nowrap",
-    opacity: 0.9,
+    opacity: 0.92,
   },
 
   labelActive: {
