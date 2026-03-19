@@ -609,18 +609,53 @@ export default function PremiumHeader({
             </div>
           </div>
 
-          {!isMobile ? (
-            <nav style={S.navRow}>
-              {desktopNav.map((item) => (
-                <NavPill
-                  key={item.href}
-                  label={item.label}
-                  active={item.active}
-                  onClick={() => router.push(item.href)}
-                />
-              ))}
-            </nav>
-          ) : null}
+             {!isMobile ? (
+            <>
+              <nav style={S.navRow}>
+                {desktopNav.map((item) => (
+                  <NavPill
+                    key={item.href}
+                    label={item.label}
+                    active={item.active}
+                    onClick={() => router.push(item.href)}
+                  />
+                ))}
+              </nav>
+
+              <div style={S.secondaryRow}>
+                {userMenuItems.map((item) => {
+                  const active = pathname.startsWith(item.href);
+
+                  return (
+                    <button
+                      key={item.href}
+                      type="button"
+                      style={{
+                        ...S.secondaryPill,
+                        ...(active ? S.secondaryPillActive : {}),
+                      }}
+                      onClick={() => router.push(item.href)}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  style={{
+                    ...S.secondaryPill,
+                    ...(pathname.startsWith("/profile")
+                      ? S.secondaryPillActive
+                      : {}),
+                  }}
+                  onClick={() => router.push("/profile")}
+                >
+                  Cuenta
+                </button>
+              </div>
+            </>
+          ) : null} 
         </div>
       </header>
 
@@ -646,7 +681,34 @@ const S: Record<string, CSSProperties> = {
     zIndex: 10,
     marginBottom: 14,
   },
+  secondaryRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    marginTop: 10,
+  },
 
+  secondaryPill: {
+    height: 32,
+    padding: "0 12px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.14)",
+    background: "rgba(255,255,255,0.025)",
+    color: "rgba(148,163,184,0.92)",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+
+  secondaryPillActive: {
+    border: "1px solid rgba(255,255,255,0.16)",
+    background: "rgba(255,255,255,0.07)",
+    color: "#F8FAFC",
+  },
   chrome: {
     borderRadius: 26,
     padding: "14px 14px 12px",
