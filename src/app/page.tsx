@@ -9,7 +9,7 @@ import {
   radii,
   shadows,
 } from "@/styles/design-tokens";
-
+import HomeSessionRedirect from "./HomeSessionRedirect";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -31,6 +31,7 @@ export default async function HomePage() {
 
   return (
     <main style={S.page}>
+          <HomeSessionRedirect />
       <div aria-hidden style={S.backgroundGlow} />
       <div aria-hidden style={S.backgroundGrid} />
 

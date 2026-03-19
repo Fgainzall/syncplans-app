@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from "next";
 import SWRegister from "./sw-register";
 
 import { ToastProvider } from "@/components/ui/Toast";
-import BottomNav from "@/components/BottomNav";
+import BottomNavVisibility from "@/components/BottomNavVisibility";
 
 export const metadata: Metadata = {
   title: "SyncPlans",
@@ -15,6 +15,7 @@ export const metadata: Metadata = {
     apple: "/icons/apple-touch-icon.png",
   },
 };
+
 export const viewport: Viewport = {
   themeColor: "#0B0F19",
 };
@@ -48,17 +49,8 @@ export default function RootLayout({
 
         <ToastProvider>
           {children}
-
-          <div className="sp-global-bottom-nav md:hidden">
-            <BottomNav />
-          </div>
+          <BottomNavVisibility />
         </ToastProvider>
-
-        <style>{`
-          body:has([data-auth-screen="true"]) .sp-global-bottom-nav {
-            display: none !important;
-          }
-        `}</style>
       </body>
     </html>
   );
