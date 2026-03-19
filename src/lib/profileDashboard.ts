@@ -3,7 +3,11 @@
 import { type DbEventRow } from "@/lib/eventsDb";
 import { type GroupRow } from "@/lib/groupsDb";
 import { isPremiumUser, isTrialActive } from "@/lib/premium";
-import { computeVisibleConflicts } from "@/lib/conflicts";
+import {
+  computeVisibleConflicts,
+  filterIgnoredConflicts,
+  loadIgnoredConflictKeys,
+} from "@/lib/conflicts";
 
 /* Tipos compartidos con la pantalla de Perfil */
 
@@ -38,39 +42,57 @@ export type AnyProfile = {
   daily_digest_timezone?: string | null;
 };
 
+type BuildDashboardStatsOptions = {
+  declinedEventIds?: Set<string>;
+  resolvedConflictMap?: Record<string, string>;
+  ignoredConflictIds?: Set<string>;
+};
+
 /* Helpers de dominio para el dashboard de perfil */
 
 export function buildDashboardStats(
   events: DbEventRow[],
-  groups: GroupRow[]
+  groups: GroupRow[],
+  opts: BuildDashboardStatsOptions = {}
 ): DashboardStats {
-  const totalEvents = events.length;
+  const declinedEventIds = opts.declinedEventIds ?? new Set<string>();
+  const resolvedConflictMap = opts.resolvedConflictMap ?? {};
+  const ignoredConflictIds =
+    opts.ignoredConflictIds ?? loadIgnoredConflictKeys();
+
+  const visibleEvents = (events ?? []).filter(
+    (e) => !declinedEventIds.has(String(e.id))
+  );
+
+  const totalEvents = visibleEvents.length;
 
   const now = Date.now();
   const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
 
-  const eventsLast7 = events.filter((e) => {
+  const eventsLast7 = visibleEvents.filter((e) => {
     const t = new Date(e.start).getTime();
     return Number.isFinite(t) && t >= sevenDaysAgo;
   }).length;
 
   const totalGroups = groups.length;
+
   const pairGroups = groups.filter((g) => {
     const t = String(g.type).toLowerCase();
     return t === "pair" || t === "couple";
   }).length;
+
   const familyGroups = groups.filter((g) => {
     const t = String(g.type).toLowerCase();
     return t === "family";
   }).length;
+
   const otherGroups = groups.filter((g) => {
     const t = String(g.type).toLowerCase();
     return t !== "pair" && t !== "couple" && t !== "family";
   }).length;
 
-  // ✅ FIX: groupType coherente con conflictos (group vs personal)
-  const eventsForConflicts = events.map((e) => ({
-    id: e.id,
+  const eventsForConflicts = visibleEvents.map((e) => ({
+    id: String(e.id),
     title: e.title ?? "(Sin título)",
     start: e.start,
     end: e.end,
@@ -78,7 +100,11 @@ export function buildDashboardStats(
     groupId: e.group_id ?? null,
   }));
 
-  const conflicts = computeVisibleConflicts(eventsForConflicts as any);
+  const rawConflicts = computeVisibleConflicts(eventsForConflicts as any);
+  const notIgnored = filterIgnoredConflicts(rawConflicts, ignoredConflictIds);
+  const pendingConflicts = notIgnored.filter(
+    (c) => !resolvedConflictMap[String(c.id)]
+  );
 
   return {
     totalEvents,
@@ -87,7 +113,7 @@ export function buildDashboardStats(
     pairGroups,
     familyGroups,
     otherGroups,
-    conflictsNow: conflicts.length,
+    conflictsNow: pendingConflicts.length,
   };
 }
 

@@ -9,11 +9,11 @@ import React, {
   type CSSProperties,
 } from "react";
 import { useRouter } from "next/navigation";
-
+import { getMyConflictResolutionsMap } from "@/lib/conflictResolutionsDb";
 import MobileScaffold from "@/components/MobileScaffold";
 import PremiumHeader from "@/components/PremiumHeader";
 import supabase from "@/lib/supabaseClient";
-
+import { getMyDeclinedEventIds } from "@/lib/eventResponsesDb";
 import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
 import {
   getMyGroups,
@@ -81,13 +81,28 @@ export default function PanelPage() {
       setLoading(true);
       setError(null);
 
-      const [events, fetchedGroups, fetchedProfile] = await Promise.all([
+      const [
+        events,
+        fetchedGroups,
+        fetchedProfile,
+        resolvedConflictMap,
+        declinedEventIds,
+      ] = await Promise.all([
         getMyEvents().catch(() => [] as DbEventRow[]),
         getMyGroups().catch(() => [] as GroupRow[]),
         getMyProfile().catch(() => null as Profile | null),
+        getMyConflictResolutionsMap().catch(
+          () => ({} as Record<string, string>)
+        ),
+        getMyDeclinedEventIds().catch(() => new Set<string>()),
       ]);
 
-      setStats(buildDashboardStats(events, fetchedGroups));
+      setStats(
+        buildDashboardStats(events, fetchedGroups, {
+          resolvedConflictMap,
+          declinedEventIds,
+        })
+      );
       setGroups(fetchedGroups);
       setProfile(fetchedProfile);
     } catch (err: any) {
@@ -100,7 +115,6 @@ export default function PanelPage() {
       setLoading(false);
     }
   }, []);
-
   const fetchGoogleStatus = useCallback(async () => {
     try {
       setGoogleLoading(true);
