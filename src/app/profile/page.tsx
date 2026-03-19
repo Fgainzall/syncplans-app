@@ -5,7 +5,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 
-import AppHero from "@/components/AppHero";
+import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 import MobileScaffold from "@/components/MobileScaffold";
 
@@ -71,16 +71,15 @@ const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
     background:
-      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
+      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.16), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.12), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
   },
- shell: {
-  // ✅ MobileScaffold ahora controla el padding y maxWidth
-  maxWidth: 1120,
-  margin: "0 auto",
-  padding: 0,
-},
+  shell: {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: 0,
+  },
   headerRow: { marginBottom: 16 },
 
   loadingRow: {
@@ -102,24 +101,25 @@ const styles: Record<string, React.CSSProperties> = {
   mainGrid: {
     display: "grid",
     gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1.6fr)",
-    gap: 14,
+    gap: 18,
     alignItems: "flex-start",
   },
-  leftCol: { display: "flex", flexDirection: "column", gap: 12 },
-  rightCol: { display: "flex", flexDirection: "column", gap: 12 },
+  leftCol: { display: "flex", flexDirection: "column", gap: 16 },
+  rightCol: { display: "flex", flexDirection: "column", gap: 16 },
 
   card: {
-    borderRadius: 22,
+    borderRadius: 24,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 16,
+    background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(15,23,42,0.94))",
+    boxShadow: "0 22px 54px rgba(2,6,23,0.26)",
+    padding: 18,
   },
 
-    hubGrid: {
+  hubGrid: {
     marginTop: 10,
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 10,
+    gap: 12,
   },
 
   hubCard: {
@@ -141,19 +141,19 @@ const styles: Record<string, React.CSSProperties> = {
   hubChevron: { fontSize: 18, opacity: 0.85, alignSelf: "center" },
 
   sectionLabel: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: 900,
-    letterSpacing: 0.4,
+    letterSpacing: 0.7,
     textTransform: "uppercase",
-    opacity: 0.8,
-    marginBottom: 4,
+    opacity: 0.78,
+    marginBottom: 6,
   },
-  sectionSub: { fontSize: 12, opacity: 0.75, marginBottom: 10 },
+  sectionSub: { fontSize: 13, opacity: 0.78, marginBottom: 12, lineHeight: 1.55 },
 
   profileRow: { display: "flex", gap: 14, alignItems: "center" },
   avatar: {
-    width: 56,
-    height: 56,
+    width: 64,
+    height: 64,
     borderRadius: 999,
     display: "grid",
     placeItems: "center",
@@ -161,18 +161,18 @@ const styles: Record<string, React.CSSProperties> = {
     background:
       "radial-gradient(circle at 30% 0%, rgba(250,204,21,0.85), transparent 60%), rgba(15,23,42,0.92)",
     fontWeight: 950,
-    fontSize: 18,
+    fontSize: 20,
   },
   nameRow: { display: "flex", gap: 8, alignItems: "center", minWidth: 0 },
   name: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: 950,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
   chip: {
-    padding: "4px 9px",
+    padding: "6px 10px",
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.12)",
     fontSize: 11,
@@ -182,7 +182,7 @@ const styles: Record<string, React.CSSProperties> = {
   email: {
     marginTop: 4,
     fontSize: 13,
-    opacity: 0.72,
+    opacity: 0.74,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
@@ -193,12 +193,12 @@ const styles: Record<string, React.CSSProperties> = {
   smallGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 10,
+    gap: 12,
   },
 
   stat: {
-    padding: 10,
-    borderRadius: 14,
+    padding: 12,
+    borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(15,23,42,0.85)",
   },
@@ -210,21 +210,21 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     marginBottom: 4,
   },
-  statValue: { fontSize: 13, fontWeight: 900, marginBottom: 2 },
+  statValue: { fontSize: 15, fontWeight: 900, marginBottom: 2 },
   statHint: { fontSize: 11, opacity: 0.75 },
 
   form: { marginTop: 8, display: "flex", flexDirection: "column", gap: 10 },
   formRow: {
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 10,
+    gap: 12,
   },
   field: { display: "flex", flexDirection: "column", gap: 4 },
   label: { fontSize: 12, opacity: 0.8, fontWeight: 700 },
   input: {
-    borderRadius: 10,
+    borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.18)",
-    padding: "8px 10px",
+    padding: "10px 12px",
     background: "rgba(15,23,42,0.85)",
     color: "rgba(248,250,252,0.96)",
     fontSize: 13,
@@ -242,8 +242,8 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
   },
   ghostBtn: {
-    padding: "10px 12px",
-    borderRadius: 14,
+    padding: "11px 13px",
+    borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(15,23,42,0.9)",
     color: "rgba(255,255,255,0.92)",
@@ -251,8 +251,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
   },
   primaryBtn: {
-    padding: "10px 14px",
-    borderRadius: 14,
+    padding: "11px 14px",
+    borderRadius: 999,
     border: "1px solid rgba(56,189,248,0.35)",
     background:
       "linear-gradient(135deg, rgba(56,189,248,0.25), rgba(124,58,237,0.25))",
@@ -263,7 +263,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   planCtaRow: { marginTop: 10, display: "flex", justifyContent: "flex-end" },
   planPrimaryBtn: {
-    padding: "8px 12px",
+    padding: "10px 14px",
     borderRadius: 999,
     border: "1px solid rgba(56,189,248,0.7)",
     background:
@@ -368,259 +368,309 @@ Object.assign(styles, {
     marginTop: 14,
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(0,0,0,0.25)",
-    padding: 12,
-    fontSize: 12,
-    opacity: 0.75,
-    fontWeight: 650,
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.03), rgba(15,23,42,0.92))",
+    padding: "14px 16px",
+    fontSize: 13,
+    lineHeight: 1.6,
+    opacity: 0.82,
   },
 
-  coordForm: { display: "flex", flexDirection: "column", gap: 10 },
+  coordForm: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    marginTop: 8,
+  },
   coordGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 10,
+    gap: 12,
   },
   coordCol: {
-    borderRadius: 12,
+    borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(15,23,42,0.85)",
-    padding: 10,
+    background: "rgba(15,23,42,0.75)",
+    padding: 12,
   },
-  coordLabel: { fontSize: 12, fontWeight: 700, opacity: 0.85, marginBottom: 6 },
+  coordLabel: {
+    fontSize: 12,
+    fontWeight: 900,
+    marginBottom: 8,
+    opacity: 0.86,
+  },
   checkboxRow: {
     display: "flex",
+    gap: 8,
     alignItems: "center",
-    gap: 6,
-    fontSize: 12,
-    opacity: 0.85,
-    marginBottom: 4,
-  } as React.CSSProperties,
-  coordFieldBlock: { marginTop: 8, display: "flex", flexDirection: "column", gap: 4 },
-  textarea: {
-    width: "100%",
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.18)",
-    padding: "8px 10px",
-    background: "rgba(15,23,42,0.85)",
-    color: "rgba(248,250,252,0.96)",
-    fontSize: 12,
-    resize: "vertical",
-    minHeight: 52,
-  } as React.CSSProperties,
-  select: {
-    width: "100%",
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.18)",
-    padding: "8px 10px",
-    background: "rgba(15,23,42,0.95)",
-    color: "rgba(248,250,252,0.96)",
-    fontSize: 12,
-  } as React.CSSProperties,
-  coordActions: { marginTop: 4, display: "flex", justifyContent: "flex-end" },
-
-  configStatusBox: {
-    marginTop: 10,
-    borderRadius: 14,
-    border: "1px solid rgba(148,163,184,0.45)",
-    background: "rgba(15,23,42,0.85)",
-    padding: 10,
-    fontSize: 12,
+    fontSize: 13,
+    marginBottom: 8,
   },
-  configStatusTitle: { fontWeight: 800, marginBottom: 4, opacity: 0.9 },
-  configStatusItem: { display: "flex", alignItems: "center", gap: 6, marginTop: 2 },
-  configStatusBullet: { fontSize: 13 },
-
-  smallInfo: { fontSize: 12, opacity: 0.8, marginBottom: 6 },
-
-  groupSummaryRow: { fontSize: 12, opacity: 0.85, marginBottom: 8 },
-
-groupMasterDetail: {
-  display: "grid",
-  gridTemplateColumns: "minmax(0, 0.95fr) minmax(0, 1.5fr)",
-  gap: 10,
-  alignItems: "stretch",
-  minHeight: 220,
-},
-  groupListCol: {
-    borderRadius: 14,
-    border: "1px solid rgba(148,163,184,0.35)",
-    background: "rgba(15,23,42,0.9)",
-    padding: 8,
+  coordFieldBlock: {
     display: "flex",
     flexDirection: "column",
     gap: 6,
   },
-  groupDetailCol: {
-    borderRadius: 14,
-    border: "1px solid rgba(148,163,184,0.35)",
-    background: "rgba(15,23,42,0.9)",
-    padding: 10,
+  textarea: {
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.18)",
+    padding: "10px 12px",
+    background: "rgba(15,23,42,0.85)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 13,
+    outline: "none",
+    resize: "vertical",
+  } as React.CSSProperties,
+  select: {
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.18)",
+    padding: "10px 12px",
+    background: "rgba(15,23,42,0.85)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 13,
+    outline: "none",
+  } as React.CSSProperties,
+  coordActions: {
+    display: "flex",
+    justifyContent: "flex-end",
   },
 
-  groupListHeader: { display: "flex", flexDirection: "column", gap: 6 },
-  groupFilterChips: { display: "flex", gap: 6, flexWrap: "wrap" },
-  groupFilterChip: {
-    padding: "4px 8px",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.6)",
-    background: "transparent",
-    fontSize: 10,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
+  configStatusBox: {
+    marginTop: 12,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(15,23,42,0.75)",
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  configStatusTitle: {
+    fontSize: 12,
+    fontWeight: 900,
+    opacity: 0.86,
+  },
+  configStatusItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 13,
+  },
+  configStatusBullet: {
+    width: 18,
+    textAlign: "center",
+    flexShrink: 0,
+  },
+
+  smallInfo: {
+    fontSize: 12,
     opacity: 0.8,
+    lineHeight: 1.55,
+  },
+
+  groupSummaryRow: {
+    marginBottom: 10,
+    fontSize: 12,
+    opacity: 0.84,
+  },
+  groupMasterDetail: {
+    display: "grid",
+    gridTemplateColumns: "minmax(260px, 0.95fr) minmax(0, 1.25fr)",
+    gap: 12,
+    minHeight: 360,
+  },
+  groupListCol: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    minWidth: 0,
+  },
+  groupListHeader: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  groupFilterChips: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  groupFilterChip: {
+    padding: "7px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(15,23,42,0.86)",
+    color: "rgba(226,232,240,0.9)",
+    fontSize: 11,
+    fontWeight: 900,
     cursor: "pointer",
   } as React.CSSProperties,
   groupFilterChipActive: {
-    borderColor: "rgba(56,189,248,0.9)",
-    background: "rgba(8,47,73,0.9)",
-    opacity: 1,
+    border: "1px solid rgba(56,189,248,0.48)",
+    background: "rgba(56,189,248,0.14)",
+    color: "#E0F2FE",
   } as React.CSSProperties,
   groupSearchInput: {
-    width: "100%",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.45)",
-    padding: "5px 9px",
-    fontSize: 11,
-    background: "rgba(15,23,42,0.95)",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    padding: "10px 12px",
+    background: "rgba(15,23,42,0.86)",
     color: "rgba(248,250,252,0.96)",
+    fontSize: 13,
     outline: "none",
   } as React.CSSProperties,
-
-groupListScroll: {
-  marginTop: 4,
-  maxHeight: 260,
-  overflowY: "auto",
-  display: "flex",
-  flexDirection: "column",
-  gap: 4,
-
-  // ✅ feel de app
-  WebkitOverflowScrolling: "touch",
-},
-  groupListEmpty: { fontSize: 11, opacity: 0.7, padding: 6 },
-
-  groupListItem: {
-    width: "100%",
-    textAlign: "left",
-    borderRadius: 10,
-    border: "1px solid rgba(51,65,85,0.9)",
-    background: "rgba(15,23,42,0.9)",
-    padding: "6px 8px",
-    cursor: "pointer",
+  groupListScroll: {
     display: "flex",
     flexDirection: "column",
-    gap: 2,
+    gap: 8,
+    maxHeight: 420,
+    overflowY: "auto",
+    paddingRight: 2,
+  },
+  groupListEmpty: {
+    fontSize: 12,
+    opacity: 0.8,
+    padding: "10px 4px",
+  },
+  groupListItem: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(15,23,42,0.80)",
+    padding: 12,
+    textAlign: "left",
+    cursor: "pointer",
   } as React.CSSProperties,
   groupListItemActive: {
-    borderColor: "rgba(56,189,248,0.9)",
-    boxShadow: "0 0 0 1px rgba(56,189,248,0.45)",
+    border: "1px solid rgba(56,189,248,0.42)",
+    background:
+      "radial-gradient(600px 300px at 0% 0%, rgba(56,189,248,0.12), transparent 55%), rgba(15,23,42,0.92)",
   } as React.CSSProperties,
-
   groupListItemTitleRow: {
     display: "flex",
-    alignItems: "center",
     justifyContent: "space-between",
-    gap: 6,
+    gap: 8,
+    alignItems: "center",
   },
   groupListItemName: {
     display: "flex",
     alignItems: "center",
-    gap: 6,
-    fontSize: 12,
-    fontWeight: 700,
-    overflow: "hidden",
+    gap: 8,
+    minWidth: 0,
+    fontSize: 13,
+    fontWeight: 900,
   },
   groupListItemDot: {
     width: 8,
     height: 8,
     borderRadius: 999,
-    background:
-      "radial-gradient(circle at 30% 30%, rgba(248,250,252,1), rgba(56,189,248,0.9))",
+    background: "rgba(56,189,248,0.95)",
     flexShrink: 0,
   },
   groupListItemMeta: {
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
+    marginTop: 6,
     fontSize: 11,
-    opacity: 0.8,
-  },
-  groupListItemDirty: { color: "rgba(251,191,36,0.95)" },
-
-  groupMetaHeader: {
+    opacity: 0.76,
     display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
     gap: 6,
-    marginBottom: 8,
-  },
-  groupMetaTitle: {
-    fontSize: 13,
-    fontWeight: 900,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-  groupMetaSubtitle: { fontSize: 11, opacity: 0.8, marginTop: 2 },
-
-  badgeTiny: {
-    padding: "3px 8px",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.6)",
-    fontSize: 10,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    opacity: 0.85,
-  } as React.CSSProperties,
-
-  groupMetaLabel: { fontSize: 11, opacity: 0.8, fontWeight: 700 },
-  groupMetaInput: {
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.18)",
-    padding: "7px 9px",
-    background: "rgba(15,23,42,0.85)",
-    color: "rgba(248,250,252,0.96)",
-    fontSize: 12,
-  } as React.CSSProperties,
-  groupMetaTextarea: {
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.18)",
-    padding: "7px 9px",
-    background: "rgba(15,23,42,0.85)",
-    color: "rgba(248,250,252,0.96)",
-    fontSize: 12,
-    resize: "vertical",
-    minHeight: 46,
-  } as React.CSSProperties,
-  groupMetaSelect: {
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.18)",
-    padding: "7px 9px",
-    background: "rgba(15,23,42,0.95)",
-    color: "rgba(248,250,252,0.96)",
-    fontSize: 12,
-  } as React.CSSProperties,
-
-  groupMetaSaveRow: {
-    marginTop: 10,
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 8,
     flexWrap: "wrap",
   },
-  groupMetaSaveBtn: {
-    padding: "7px 11px",
+  groupListItemDirty: {
+    color: "#FDE68A",
+  },
+
+  badgeTiny: {
+    padding: "4px 8px",
     borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.5)",
-    background: "rgba(8,47,73,0.95)",
-    color: "#E0F2FE",
-    fontSize: 11,
+    border: "1px solid rgba(255,255,255,0.12)",
+    fontSize: 10,
+    fontWeight: 800,
+    whiteSpace: "nowrap",
+  } as React.CSSProperties,
+
+  groupDetailCol: {
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.03), rgba(15,23,42,0.92))",
+    padding: 14,
+    minWidth: 0,
+  },
+  groupMetaHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
+  groupMetaTitle: {
+    fontSize: 16,
+    fontWeight: 950,
+    lineHeight: 1.2,
+  },
+  groupMetaSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    opacity: 0.78,
+    lineHeight: 1.55,
+  },
+  groupMetaLabel: {
+    fontSize: 12,
+    fontWeight: 800,
+    marginBottom: 6,
+    opacity: 0.84,
+  },
+  groupMetaInput: {
+    width: "100%",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    padding: "10px 12px",
+    background: "rgba(5,8,22,0.9)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 13,
+    outline: "none",
+  } as React.CSSProperties,
+  groupMetaSelect: {
+    width: "100%",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    padding: "10px 12px",
+    background: "rgba(5,8,22,0.9)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 13,
+    outline: "none",
+  } as React.CSSProperties,
+  groupMetaTextarea: {
+    width: "100%",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    padding: "10px 12px",
+    background: "rgba(5,8,22,0.9)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 13,
+    outline: "none",
+    resize: "vertical",
+  } as React.CSSProperties,
+  groupMetaSaveRow: {
+    marginTop: 12,
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  groupMetaSaveBtn: {
+    padding: "10px 14px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.45)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.28), rgba(124,58,237,0.24))",
+    color: "rgba(255,255,255,0.96)",
+    fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
+    whiteSpace: "nowrap",
   } as React.CSSProperties,
   groupMetaCalendarBtn: {
-    padding: "7px 11px",
+    padding: "10px 14px",
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.6)",
     background: "transparent",
@@ -643,7 +693,7 @@ groupListScroll: {
   digestHourLabel: { fontSize: 13, opacity: 0.8 },
   digestSelect: {
     padding: "6px 10px",
-    borderRadius: 10,
+    borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(5,8,22,0.9)",
     color: "rgba(255,255,255,0.95)",
@@ -707,17 +757,17 @@ export default function ProfilePage() {
     (async () => {
       try {
         setBooting(true);
-const { data, error } = await supabase.auth.getUser();
-if (!alive) return;
+        const { data, error } = await supabase.auth.getUser();
+        if (!alive) return;
 
-if (error || !data.user) {
-  router.replace("/auth/login?next=/profile");
-  return;
-}
+        if (error || !data.user) {
+          router.replace("/auth/login?next=/profile");
+          return;
+        }
 
-const u = data.user;
-setEmail(u.email ?? "—");
-setVerified(!!u.email_confirmed_at);
+        const u = data.user;
+        setEmail(u.email ?? "—");
+        setVerified(!!u.email_confirmed_at);
 
         let p = await getMyProfile();
         if (!p) {
@@ -871,7 +921,6 @@ setVerified(!!u.email_confirmed_at);
     try {
       setSavingProfile(true);
 
-      // ✅ Mantengo tu enfoque (createMyProfile actúa como upsert en tu proyecto)
       const updated = await createMyProfile({
         first_name: fn,
         last_name: ln,
@@ -1070,19 +1119,19 @@ setVerified(!!u.email_confirmed_at);
   if (booting) {
     return (
       <main style={styles.page}>
-  <MobileScaffold
-    maxWidth={1120}
-    paddingDesktop="22px 18px 48px"
-    paddingMobile="14px 12px 18px"
-    mobileBottomSafe={120} // ✅ un poco más para que jamás tape BottomNav
-    className="spProfileShell"
-  >
+        <MobileScaffold
+          maxWidth={1120}
+          paddingDesktop="22px 18px 48px"
+          paddingMobile="14px 12px 18px"
+          mobileBottomSafe={120}
+          className="spProfileShell"
+        >
           <div style={styles.headerRow}>
-            <AppHero
-              mobileNav="bottom"
-              title="Panel"
-              subtitle="Tu panel de cuenta en SyncPlans."
+            <PremiumHeader
+              title="Cuenta"
+              subtitle="Tu cuenta, tus preferencias y tu forma de coordinar dentro de SyncPlans."
               rightSlot={<LogoutButton />}
+              mobileNav="bottom"
             />
           </div>
           <div style={styles.loadingRow}>
@@ -1096,34 +1145,34 @@ setVerified(!!u.email_confirmed_at);
               100% { background-position: -200% 0; }
             }
           `}</style>
-          </MobileScaffold>
-</main>
+        </MobileScaffold>
+      </main>
     );
   }
 
   if (!profile) {
     return (
       <main style={styles.page}>
-  <MobileScaffold
-    maxWidth={1120}
-    paddingDesktop="22px 18px 48px"
-    paddingMobile="14px 12px 18px"
-    mobileBottomSafe={120} // ✅ un poco más para que jamás tape BottomNav
-    className="spProfileShell"
-  >
+        <MobileScaffold
+          maxWidth={1120}
+          paddingDesktop="22px 18px 48px"
+          paddingMobile="14px 12px 18px"
+          mobileBottomSafe={120}
+          className="spProfileShell"
+        >
           <div style={styles.headerRow}>
-           <AppHero
-              mobileNav="bottom"
-              title="Panel"
-              subtitle="Tu panel de cuenta en SyncPlans."
+            <PremiumHeader
+              title="Cuenta"
+              subtitle="Tu cuenta, tus preferencias y tu forma de coordinar dentro de SyncPlans."
               rightSlot={<LogoutButton />}
+              mobileNav="bottom"
             />
           </div>
           <div style={styles.error}>
             No se pudo cargar tu perfil. Vuelve a iniciar sesión.
           </div>
-          </MobileScaffold>
-</main>
+        </MobileScaffold>
+      </main>
     );
   }
 
@@ -1198,25 +1247,25 @@ setVerified(!!u.email_confirmed_at);
 
   const anyProfile = profile as unknown as AnyProfile;
   const { planLabel, planHint, planCtaLabel } = getPlanInfo(anyProfile);
-    return (
+
+  return (
     <main style={styles.page}>
-  <MobileScaffold
-    maxWidth={1120}
-    paddingDesktop="22px 18px 48px"
-    paddingMobile="14px 12px 18px"
-    mobileBottomSafe={120} // ✅ un poco más para que jamás tape BottomNav
-    className="spProfileShell"
-  >
+      <MobileScaffold
+        maxWidth={1120}
+        paddingDesktop="22px 18px 48px"
+        paddingMobile="14px 12px 18px"
+        mobileBottomSafe={120}
+        className="spProfileShell"
+      >
         <div style={styles.headerRow}>
-      <AppHero
-  mobileNav="bottom"
-  title="Panel"
-  subtitle="Tu centro de control."
-/>
+          <PremiumHeader
+            title="Cuenta"
+            subtitle="Tu cuenta, tus preferencias y tu forma de coordinar dentro de SyncPlans."
+            mobileNav="bottom"
+          />
         </div>
 
         <div style={styles.mainGrid} className="spProfileMainGrid">
-          {/* Columna izquierda */}
           <div style={styles.leftCol}>
             <section style={styles.card} className="spProfileHideMobileSecondary">
               <div style={styles.sectionLabel}>Identidad</div>
@@ -1270,57 +1319,58 @@ setVerified(!!u.email_confirmed_at);
                 />
               </div>
 
-             <div style={styles.planCtaRow}>
-  <button
-    type="button"
-    onClick={() => router.push("/planes")}
-    style={styles.planPrimaryBtn}
-  >
-    {planCtaLabel}
-  </button>
-</div>
+              <div style={styles.planCtaRow}>
+                <button
+                  type="button"
+                  onClick={() => router.push("/planes")}
+                  style={styles.planPrimaryBtn}
+                >
+                  {planCtaLabel}
+                </button>
+              </div>
             </section>
-<section style={styles.card} className="spProfileHideMobile">
-  <div style={styles.sectionLabel}>Centro de control</div>
-  <div style={styles.sectionSub}>Accesos rápidos a lo importante.</div>
 
-  <div style={styles.hubGrid} className="spProfileHubGrid">
-<HubCard
-  title="Grupos"
-  hint="Pareja, familia y compartidos."
-  onClick={() => router.push("/groups")}
-/>
-<HubCard
-  title="Miembros"
-  hint="Quién está en tus grupos."
-  onClick={() => router.push("/members")}
-/>
-<HubCard
-  title="Invitaciones"
-  hint="Invita y acepta accesos."
-  onClick={() => router.push("/invitations")}
-/>
-<HubCard
-  title="Settings"
-  hint="Preferencias del producto."
-  onClick={() => router.push("/settings")}
-/>
-<HubCard
-  title="Planes"
-  hint="Ver tu plan y upgrade."
-  onClick={() => router.push("/planes")}
-/>
-<HubCard
-  title="Salir"
-  hint="Cerrar sesión."
-  onClick={async () => {
-    await supabase.auth.signOut();
-    router.replace("/auth/login");
-  }}
-/>
-  </div>
-</section>
-            {/* Cómo te ve el resto */}
+            <section style={styles.card} className="spProfileHideMobile">
+              <div style={styles.sectionLabel}>Centro de control</div>
+              <div style={styles.sectionSub}>Accesos rápidos a lo importante.</div>
+
+              <div style={styles.hubGrid} className="spProfileHubGrid">
+                <HubCard
+                  title="Grupos"
+                  hint="Pareja, familia y compartidos."
+                  onClick={() => router.push("/groups")}
+                />
+                <HubCard
+                  title="Miembros"
+                  hint="Quién está en tus grupos."
+                  onClick={() => router.push("/members")}
+                />
+                <HubCard
+                  title="Invitaciones"
+                  hint="Invita y acepta accesos."
+                  onClick={() => router.push("/invitations")}
+                />
+                <HubCard
+                  title="Settings"
+                  hint="Preferencias del producto."
+                  onClick={() => router.push("/settings")}
+                />
+                <HubCard
+                  title="Planes"
+                  hint="Ver tu plan y upgrade."
+                  onClick={() => router.push("/planes")}
+                />
+                <HubCard
+                  title="Salir"
+                  hint="Cerrar sesión."
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    router.replace("/auth/login");
+                  }}
+                />
+              </div>
+            </section>
+
             <section style={styles.card} className="spProfileHideMobile">
               <div style={styles.sectionLabel}>Cómo te ve el resto</div>
               <div style={styles.sectionSub}>
@@ -1371,7 +1421,6 @@ setVerified(!!u.email_confirmed_at);
               </form>
             </section>
 
-            {/* Preferencias */}
             <section style={styles.card} className="spProfileHideMobile">
               <div style={styles.sectionLabel}>Cómo sueles organizar tu tiempo</div>
               <div style={styles.sectionSub}>
@@ -1491,7 +1540,6 @@ setVerified(!!u.email_confirmed_at);
               </form>
             </section>
 
-            {/* Resumen diario */}
             <section style={styles.card} className="spProfileHideMobile">
               <div style={styles.sectionLabel}>Resumen diario por correo</div>
               <div style={styles.sectionSub}>
@@ -1535,9 +1583,8 @@ setVerified(!!u.email_confirmed_at);
             </section>
           </div>
 
-          {/* Columna derecha */}
           <div style={styles.rightCol}>
-           <section style={styles.card} className="spProfileHideMobile">
+            <section style={styles.card} className="spProfileHideMobile">
               <div style={styles.sectionLabel}>Estado general</div>
               <div style={styles.sectionSub}>Revisa de un vistazo cómo está tu cuenta en SyncPlans.</div>
 
@@ -1611,7 +1658,6 @@ setVerified(!!u.email_confirmed_at);
               )}
             </section>
 
-            {/* Tu rol en los grupos (tu UI original) */}
             <section style={styles.card} className="spProfileHideMobile">
               <div style={styles.sectionLabel}>Tu rol en los grupos</div>
               <div style={styles.sectionSub}>
@@ -1850,7 +1896,6 @@ setVerified(!!u.email_confirmed_at);
               )}
             </section>
 
-            {/* Acciones rápidas */}
             <section style={styles.card} className="spProfileHideMobile">
               <div style={styles.sectionLabel}>Uso y acciones rápidas</div>
               <div style={styles.sectionSub}>Atajos a lo que normalmente haces desde SyncPlans.</div>
@@ -1869,39 +1914,36 @@ setVerified(!!u.email_confirmed_at);
           SyncPlans está pensado para que tu calendario personal, de pareja, familia y grupos compartidos convivan sin fricciones. Este panel es tu centro de control.
         </div>
 
-<style>{`
-  @media (max-width: 780px) {
-    .spProfileMainGrid {
-      grid-template-columns: 1fr !important;
-    }
+        <style>{`
+          @media (max-width: 780px) {
+            .spProfileMainGrid {
+              grid-template-columns: 1fr !important;
+            }
 
-    .spProfileHideMobileSecondary {
-      display: none !important;
-    }
+            .spProfileHideMobileSecondary {
+              display: none !important;
+            }
 
-    .spProfileMasterDetail {
-      grid-template-columns: 1fr !important;
-      min-height: auto !important;
-    }
+            .spProfileMasterDetail {
+              grid-template-columns: 1fr !important;
+              min-height: auto !important;
+            }
 
-    .spProfileQuickGrid {
-      grid-template-columns: 1fr !important;
-    }
-  }
+            .spProfileQuickGrid {
+              grid-template-columns: 1fr !important;
+            }
+          }
 
-  @media (max-width: 520px) {
-    .spProfileHubGrid {
-      grid-template-columns: 1fr !important;
-    }
-  }
-`}</style>
-
-        </MobileScaffold>
-</main>
+          @media (max-width: 520px) {
+            .spProfileHubGrid {
+              grid-template-columns: 1fr !important;
+            }
+          }
+        `}</style>
+      </MobileScaffold>
+    </main>
   );
-} // ✅ IMPORTANTÍSIMO: aquí cerramos ProfilePage correctamente
-
-/* ───────────────────── COMPONENTES DE APOYO ───────────────────── */
+}
 
 function InfoStat(props: { label: string; value: string; hint?: string }) {
   return (
@@ -1912,6 +1954,7 @@ function InfoStat(props: { label: string; value: string; hint?: string }) {
     </div>
   );
 }
+
 function HubCard(props: { title: string; hint: string; onClick: () => void }) {
   return (
     <button type="button" onClick={props.onClick} style={styles.hubCard}>
@@ -1921,6 +1964,7 @@ function HubCard(props: { title: string; hint: string; onClick: () => void }) {
     </button>
   );
 }
+
 function QuickAction(props: { title: string; hint: string; onClick: () => void }) {
   return (
     <button type="button" onClick={props.onClick} style={styles.quickAction}>
