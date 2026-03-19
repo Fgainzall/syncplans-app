@@ -20,118 +20,362 @@ type NavItem = {
   label: string;
   path: string;
   aria: string;
-  icon: string;
+  icon: React.ReactNode;
 };
 
-const NAV_ITEMS: NavItem[] = [
-  {
-    key: "summary",
-    label: "Resumen",
-    path: "/summary",
-    aria: "Ir a Resumen",
-    icon: "⌂",
-  },
-  {
-    key: "calendar",
-    label: "Calendario",
-    path: "/calendar",
-    aria: "Ir a Calendario",
-    icon: "◴",
-  },
-  {
-    key: "events",
-    label: "Eventos",
-    path: "/events",
-    aria: "Ir a Eventos",
-    icon: "⊞",
-  },
-  {
-    key: "conflicts",
-    label: "Conflictos",
-    path: "/conflicts/detected",
-    aria: "Ir a Conflictos",
-    icon: "✦",
-  },
-  {
-    key: "panel",
-    label: "Panel",
-    path: "/panel",
-    aria: "Ir a Panel",
-    icon: "◫",
-  },
-  {
-    key: "groups",
-    label: "Grupos",
-    path: "/groups",
-    aria: "Ir a Grupos",
-    icon: "◎",
-  },
-  {
-    key: "members",
-    label: "Miembros",
-    path: "/members",
-    aria: "Ir a Miembros",
-    icon: "◌",
-  },
-  {
-    key: "invitations",
-    label: "Invitaciones",
-    path: "/invitations",
-    aria: "Ir a Invitaciones",
-    icon: "✉",
-  },
-  {
-    key: "settings",
-    label: "Ajustes",
-    path: "/settings",
-    aria: "Ir a Ajustes",
-    icon: "⚙",
-  },
-  {
-    key: "planes",
-    label: "Planes",
-    path: "/planes",
-    aria: "Ir a Planes",
-    icon: "⬒",
-  },
-];
-
-function isActivePath(pathname: string, item: NavItem) {
-  if (item.key === "summary") return pathname.startsWith("/summary");
-  if (item.key === "calendar") return pathname.startsWith("/calendar");
-  if (item.key === "events") return pathname.startsWith("/events");
-  if (item.key === "conflicts") return pathname.startsWith("/conflicts");
-  if (item.key === "panel") return pathname.startsWith("/panel");
-  if (item.key === "groups") return pathname.startsWith("/groups");
-  if (item.key === "members") return pathname.startsWith("/members");
-  if (item.key === "invitations") return pathname.startsWith("/invitations");
-  if (item.key === "settings") return pathname.startsWith("/settings");
-  if (item.key === "planes") return pathname.startsWith("/planes");
-  return false;
+function SummaryIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 11.5L12 5l8 6.5"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6.5 10.5V18.5C6.5 19.0523 6.94772 19.5 7.5 19.5H10V14.75C10 14.3358 10.3358 14 10.75 14H13.25C13.6642 14 14 14.3358 14 14.75V19.5H16.5C17.0523 19.5 17.5 19.0523 17.5 18.5V10.5"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
+function CalendarIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect
+        x="4"
+        y="5"
+        width="16"
+        height="15"
+        rx="3"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+      />
+      <path
+        d="M8 3.75V7"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M16 3.75V7"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M4 9H20"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function EventsIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect
+        x="4.5"
+        y="6"
+        width="15"
+        height="12"
+        rx="3"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+      />
+      <path
+        d="M8 12H16"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M12 8V16"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ConflictsIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M13.25 3.75L6.75 13H11L10.75 20.25L17.25 11H13L13.25 3.75Z"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PanelIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect
+        x="4"
+        y="4"
+        width="7"
+        height="7"
+        rx="2"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+      />
+      <rect
+        x="13"
+        y="4"
+        width="7"
+        height="5"
+        rx="2"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+      />
+      <rect
+        x="13"
+        y="11"
+        width="7"
+        height="9"
+        rx="2"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+      />
+      <rect
+        x="4"
+        y="13"
+        width="7"
+        height="7"
+        rx="2"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function GroupsIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+      />
+      <path
+        d="M16.5 10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+      />
+      <path
+        d="M3.75 18.25C4.55 15.95 6.2 14.75 8 14.75c1.8 0 3.45 1.2 4.25 3.5"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M13.5 18.25C14.05 16.55 15.25 15.5 16.75 15.25"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function MembersIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle
+        cx="12"
+        cy="8"
+        r="3"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+      />
+      <path
+        d="M6 18.25C7 15.8 9.1 14.5 12 14.5c2.9 0 5 1.3 6 3.75"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function InvitationsIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect
+        x="4"
+        y="6"
+        width="16"
+        height="12"
+        rx="2.5"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+      />
+      <path
+        d="M5.5 8L12 13l6.5-5"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function SettingsIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 8.75a3.25 3.25 0 1 0 0 6.5 3.25 3.25 0 0 0 0-6.5Z"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+      />
+      <path
+        d="M19 12a7.2 7.2 0 0 0-.08-1l1.45-1.13-1.4-2.42-1.74.42a7.5 7.5 0 0 0-1.72-1l-.28-1.77h-2.8l-.28 1.77c-.6.22-1.18.55-1.72 1l-1.74-.42-1.4 2.42L5.08 11c-.05.33-.08.66-.08 1s.03.67.08 1l-1.45 1.13 1.4 2.42 1.74-.42c.54.45 1.12.78 1.72 1l.28 1.77h2.8l.28-1.77c.6-.22 1.18-.55 1.72-1l1.74.42 1.4-2.42L18.92 13c.05-.33.08-.66.08-1Z"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PlansIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M7 6.5h10"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M7 12h10"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M7 17.5h6"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <rect
+        x="4"
+        y="4"
+        width="16"
+        height="16"
+        rx="3"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { key: "summary", label: "Resumen", path: "/summary", aria: "Ir a Resumen", icon: <SummaryIcon active={false} /> },
+  { key: "calendar", label: "Calendario", path: "/calendar", aria: "Ir a Calendario", icon: <CalendarIcon active={false} /> },
+  { key: "events", label: "Eventos", path: "/events", aria: "Ir a Eventos", icon: <EventsIcon active={false} /> },
+  { key: "conflicts", label: "Conflictos", path: "/conflicts/detected", aria: "Ir a Conflictos", icon: <ConflictsIcon active={false} /> },
+  { key: "panel", label: "Panel", path: "/panel", aria: "Ir a Panel", icon: <PanelIcon active={false} /> },
+  { key: "groups", label: "Grupos", path: "/groups", aria: "Ir a Grupos", icon: <GroupsIcon active={false} /> },
+  { key: "members", label: "Miembros", path: "/members", aria: "Ir a Miembros", icon: <MembersIcon active={false} /> },
+  { key: "invitations", label: "Invitaciones", path: "/invitations", aria: "Ir a Invitaciones", icon: <InvitationsIcon active={false} /> },
+  { key: "settings", label: "Ajustes", path: "/settings", aria: "Ir a Ajustes", icon: <SettingsIcon active={false} /> },
+  { key: "planes", label: "Planes", path: "/planes", aria: "Ir a Planes", icon: <PlansIcon active={false} /> },
+];
+
 function shouldHideBottomNav(pathname: string) {
-  if (pathname === "/") return true;
-  if (pathname.startsWith("/login")) return true;
-  if (pathname.startsWith("/register")) return true;
-  if (pathname.startsWith("/onboarding")) return true;
-  if (pathname.startsWith("/auth")) return true;
-  return false;
+  return (
+    pathname === "/" ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/auth")
+  );
 }
 
 export default function BottomNav() {
   const router = useRouter();
   const pathname = usePathname();
 
-  if (shouldHideBottomNav(pathname)) {
-    return null;
-  }
+  if (shouldHideBottomNav(pathname)) return null;
+
+  const isPanelRelatedPath = (path: string) => {
+    return (
+      path.startsWith("/panel") ||
+      path.startsWith("/profile") ||
+      path.startsWith("/groups") ||
+      path.startsWith("/members") ||
+      path.startsWith("/invitations") ||
+      path.startsWith("/settings") ||
+      path.startsWith("/planes")
+    );
+  };
+
+  const isActive = (key: BottomNavKey) => {
+    if (key === "summary") return pathname.startsWith("/summary");
+    if (key === "calendar") return pathname.startsWith("/calendar");
+    if (key === "events") return pathname.startsWith("/events");
+    if (key === "conflicts") return pathname.startsWith("/conflicts");
+    if (key === "panel") return pathname.startsWith("/panel");
+    if (key === "groups") return pathname.startsWith("/groups");
+    if (key === "members") return pathname.startsWith("/members");
+    if (key === "invitations") return pathname.startsWith("/invitations");
+    if (key === "settings") return pathname.startsWith("/settings");
+    if (key === "planes") return pathname.startsWith("/planes");
+    return false;
+  };
+
+  const iconFor = (key: BottomNavKey, active: boolean) => {
+    switch (key) {
+      case "summary":
+        return <SummaryIcon active={active} />;
+      case "calendar":
+        return <CalendarIcon active={active} />;
+      case "events":
+        return <EventsIcon active={active} />;
+      case "conflicts":
+        return <ConflictsIcon active={active} />;
+      case "panel":
+        return <PanelIcon active={active} />;
+      case "groups":
+        return <GroupsIcon active={active} />;
+      case "members":
+        return <MembersIcon active={active} />;
+      case "invitations":
+        return <InvitationsIcon active={active} />;
+      case "settings":
+        return <SettingsIcon active={active} />;
+      case "planes":
+        return <PlansIcon active={active} />;
+      default:
+        return null;
+    }
+  };
 
   return (
     <nav style={S.wrap} aria-label="Navegación principal">
       <div style={S.scroll}>
         {NAV_ITEMS.map((item) => {
-          const active = isActivePath(pathname, item);
+          const active =
+            item.key === "panel" ? isPanelRelatedPath(pathname) : isActive(item.key);
 
           return (
             <button
@@ -145,14 +389,15 @@ export default function BottomNav() {
                 ...(active ? S.itemActive : {}),
               }}
             >
-              <span
+              <div
                 style={{
-                  ...S.icon,
-                  ...(active ? S.iconActive : {}),
+                  ...S.iconWrap,
+                  ...(active ? S.iconWrapActive : {}),
                 }}
+                aria-hidden="true"
               >
-                {item.icon}
-              </span>
+                {iconFor(item.key, active)}
+              </div>
 
               <span
                 style={{
@@ -176,7 +421,7 @@ const S: Record<string, React.CSSProperties> = {
     left: 12,
     right: 12,
     bottom: 12,
-    zIndex: 80,
+    zIndex: 70,
     borderRadius: 20,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(8,12,20,0.84)",
@@ -199,29 +444,30 @@ const S: Record<string, React.CSSProperties> = {
     msOverflowStyle: "none",
     paddingBottom: 2,
     scrollSnapType: "x proximity",
+    touchAction: "pan-x",
   },
 
   item: {
     appearance: "none",
     WebkitAppearance: "none",
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    color: "rgba(255,255,255,0.78)",
-    borderRadius: 14,
-    minHeight: 52,
+    border: "1px solid rgba(255,255,255,0.06)",
+    background: "rgba(255,255,255,0.025)",
+    color: "rgba(255,255,255,0.76)",
+    borderRadius: 16,
+    minHeight: 62,
     minWidth: 78,
-    padding: "8px 12px",
+    padding: "8px 10px 9px",
     cursor: "pointer",
     flex: "0 0 auto",
-    display: "inline-flex",
+    display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    whiteSpace: "nowrap",
     WebkitTapHighlightColor: "transparent",
+    touchAction: "manipulation",
     transition:
-      "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease, transform 160ms ease",
+      "background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease, color 160ms ease",
     scrollSnapAlign: "start",
   },
 
@@ -235,23 +481,28 @@ const S: Record<string, React.CSSProperties> = {
     transform: "translateY(-1px)",
   },
 
-  icon: {
-    fontSize: 16,
-    lineHeight: 1,
-    fontWeight: 900,
-    opacity: 0.95,
+  iconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    display: "grid",
+    placeItems: "center",
+    color: "inherit",
+    background: "rgba(255,255,255,0.02)",
+    flexShrink: 0,
   },
 
-  iconActive: {
-    opacity: 1,
+  iconWrapActive: {
+    background: "rgba(255,255,255,0.06)",
   },
 
   label: {
-    fontSize: 11,
-    lineHeight: 1,
+    fontSize: 10.5,
+    lineHeight: 1.1,
     fontWeight: 800,
     letterSpacing: "0.01em",
-    opacity: 0.94,
+    whiteSpace: "nowrap",
+    opacity: 0.9,
   },
 
   labelActive: {
