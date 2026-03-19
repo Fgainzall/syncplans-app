@@ -330,7 +330,7 @@ async function getEventsForUserOnDay(
 
 // ───────────────────────────── núcleo de la función ──────────────────────────
 
-async function runDailyDigest(dateParam: string | null) {
+export async function runDailyDigest(dateParam: string | null) {
   try {
     const supabaseAdmin = getAdminClient();
     const resend = getResend();
