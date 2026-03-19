@@ -327,7 +327,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
     );
   }, []);
 
-  const shouldShowTopNav: boolean = !isMobile;
+const shouldShowTopNav = true;
   const closeUserMenu = () => setUserMenuOpen(false);
 
   return (
@@ -494,60 +494,110 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
               </div>
             </div>
 
-            {shouldShowTopNav && (
-              <nav style={S.nav}>
-                <NavPill
-                  label="Resumen"
-                  active={pathname.startsWith("/summary")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/summary");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Calendario"
-                  active={pathname.startsWith("/calendar")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/calendar");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Eventos"
-                  active={pathname.startsWith("/events")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/events");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Conflictos"
-                  active={pathname.startsWith("/conflicts")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/conflicts/detected");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Panel"
-                  active={pathname.startsWith("/panel")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/panel");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-              </nav>
-            )}
+{shouldShowTopNav && (
+  <nav style={S.nav}>
+    <NavPill
+      label="Resumen"
+      active={pathname.startsWith("/summary")}
+      onClick={() => {
+        closeUserMenu();
+        router.push("/summary");
+      }}
+      styleOverride={S.pill}
+      styleActive={S.pillActive}
+    />
+    <NavPill
+      label="Calendario"
+      active={pathname.startsWith("/calendar")}
+      onClick={() => {
+        closeUserMenu();
+        router.push("/calendar");
+      }}
+      styleOverride={S.pill}
+      styleActive={S.pillActive}
+    />
+    <NavPill
+      label="Eventos"
+      active={pathname.startsWith("/events")}
+      onClick={() => {
+        closeUserMenu();
+        router.push("/events");
+      }}
+      styleOverride={S.pill}
+      styleActive={S.pillActive}
+    />
+    <NavPill
+      label="Conflictos"
+      active={pathname.startsWith("/conflicts")}
+      onClick={() => {
+        closeUserMenu();
+        router.push("/conflicts/detected");
+      }}
+      styleOverride={S.pill}
+      styleActive={S.pillActive}
+    />
+    <NavPill
+      label="Panel"
+      active={pathname.startsWith("/panel")}
+      onClick={() => {
+        closeUserMenu();
+        router.push("/panel");
+      }}
+      styleOverride={S.pill}
+      styleActive={S.pillActive}
+    />
+    <NavPill
+      label="Grupos"
+      active={pathname.startsWith("/groups")}
+      onClick={() => {
+        closeUserMenu();
+        router.push("/groups");
+      }}
+      styleOverride={S.pill}
+      styleActive={S.pillActive}
+    />
+    <NavPill
+      label="Miembros"
+      active={pathname.startsWith("/members")}
+      onClick={() => {
+        closeUserMenu();
+        router.push("/members");
+      }}
+      styleOverride={S.pill}
+      styleActive={S.pillActive}
+    />
+    <NavPill
+      label="Invitaciones"
+      active={pathname.startsWith("/invitations")}
+      onClick={() => {
+        closeUserMenu();
+        router.push("/invitations");
+      }}
+      styleOverride={S.pill}
+      styleActive={S.pillActive}
+    />
+    <NavPill
+      label="Ajustes"
+      active={pathname.startsWith("/settings")}
+      onClick={() => {
+        closeUserMenu();
+        router.push("/settings");
+      }}
+      styleOverride={S.pill}
+      styleActive={S.pillActive}
+    />
+    <NavPill
+      label="Planes"
+      active={pathname.startsWith("/planes")}
+      onClick={() => {
+        closeUserMenu();
+        router.push("/planes");
+      }}
+      styleOverride={S.pill}
+      styleActive={S.pillActive}
+    />
+  </nav>
+)}
           </>
         ) : (
           <>
