@@ -1,7 +1,7 @@
 // src/app/profile/page.tsx
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 
@@ -39,15 +39,7 @@ import {
   getPlanInfo,
 } from "@/lib/profileDashboard";
 
-/* ─────────────────── Tipos UI ─────────────────── */
-
-/* ─────────────────── Tipos UI ─────────────────── */
-
 type GroupFilter = "all" | "pair" | "family" | "other";
-
-/* ─────────────────── Helpers ─────────────────── */
-
-/* ─────────────────── Helpers ─────────────────── */
 
 function hasGroupMeta(m: GroupMemberRow) {
   return (
@@ -65,32 +57,27 @@ function normalizeCoordPrefs(
   );
 }
 
-/* ─────────────────────────── ESTILOS ─────────────────────────── */
-
-const styles: Record<string, React.CSSProperties> = {
+const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     background:
-      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.16), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.12), transparent 60%), #050816",
+      "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.15), transparent 58%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.10), transparent 58%), #050816",
     color: "rgba(255,255,255,0.92)",
     fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
   },
-  shell: {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: 0,
-  },
-  headerRow: { marginBottom: 16 },
+
+  headerRow: { marginBottom: 14 },
 
   loadingRow: {
-    marginTop: 18,
+    marginTop: 16,
     display: "grid",
-    gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1.6fr)",
-    gap: 12,
+    gridTemplateColumns: "minmax(0, 1.25fr) minmax(0, 0.95fr)",
+    gap: 14,
   },
+
   loadingCard: {
-    height: 180,
-    borderRadius: 22,
+    height: 188,
+    borderRadius: 24,
     border: "1px solid rgba(255,255,255,0.10)",
     background:
       "linear-gradient(90deg, rgba(148,163,184,0.12), rgba(15,23,42,0.7), rgba(148,163,184,0.12))",
@@ -100,95 +87,240 @@ const styles: Record<string, React.CSSProperties> = {
 
   mainGrid: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1.6fr)",
+    gridTemplateColumns: "minmax(0, 1.24fr) minmax(0, 0.96fr)",
     gap: 18,
     alignItems: "flex-start",
   },
-  leftCol: { display: "flex", flexDirection: "column", gap: 16 },
-  rightCol: { display: "flex", flexDirection: "column", gap: 16 },
+
+  leftCol: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
+    minWidth: 0,
+  },
+
+  rightCol: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
+    minWidth: 0,
+  },
 
   card: {
     borderRadius: 24,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(15,23,42,0.94))",
-    boxShadow: "0 22px 54px rgba(2,6,23,0.26)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(15,23,42,0.94))",
+    boxShadow: "0 22px 54px rgba(2,6,23,0.24)",
     padding: 18,
   },
 
-  hubGrid: {
-    marginTop: 10,
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 12,
-  },
-
-  hubCard: {
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.12)",
+  heroCard: {
+    borderRadius: 28,
+    border: "1px solid rgba(255,255,255,0.10)",
     background:
-      "radial-gradient(700px 420px at 0% 0%, rgba(56,189,248,0.18), transparent 55%), rgba(15,23,42,0.92)",
-    padding: 12,
-    textAlign: "left",
-    cursor: "pointer",
+      "radial-gradient(900px 360px at 0% 0%, rgba(56,189,248,0.16), transparent 56%), radial-gradient(620px 260px at 100% 0%, rgba(124,58,237,0.12), transparent 56%), rgba(15,23,42,0.95)",
+    boxShadow: "0 24px 56px rgba(2,6,23,0.30)",
+    padding: 20,
     display: "grid",
-    gridTemplateColumns: "1fr auto",
-    gridTemplateRows: "auto auto",
-    gap: "4px 8px",
-  } as React.CSSProperties,
-
-  hubTitle: { fontSize: 13, fontWeight: 950 },
-  hubHint: { fontSize: 11, opacity: 0.8 },
-  hubChevron: { fontSize: 18, opacity: 0.85, alignSelf: "center" },
-
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: 900,
-    letterSpacing: 0.7,
-    textTransform: "uppercase",
-    opacity: 0.78,
-    marginBottom: 6,
+    gap: 16,
   },
-  sectionSub: { fontSize: 13, opacity: 0.78, marginBottom: 12, lineHeight: 1.55 },
 
-  profileRow: { display: "flex", gap: 14, alignItems: "center" },
+  heroTop: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+    flexWrap: "wrap",
+  },
+
+  profileRow: {
+    display: "flex",
+    gap: 14,
+    alignItems: "center",
+    minWidth: 0,
+    flex: "1 1 420px",
+  },
+
   avatar: {
-    width: 64,
-    height: 64,
+    width: 66,
+    height: 66,
     borderRadius: 999,
     display: "grid",
     placeItems: "center",
     border: "1px solid rgba(255,255,255,0.16)",
     background:
-      "radial-gradient(circle at 30% 0%, rgba(250,204,21,0.85), transparent 60%), rgba(15,23,42,0.92)",
+      "radial-gradient(circle at 30% 0%, rgba(250,204,21,0.82), transparent 60%), rgba(15,23,42,0.92)",
     fontWeight: 950,
     fontSize: 20,
+    flexShrink: 0,
   },
-  nameRow: { display: "flex", gap: 8, alignItems: "center", minWidth: 0 },
+
+  identityWrap: {
+    minWidth: 0,
+    display: "grid",
+    gap: 4,
+  },
+
+  identityEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 0.75,
+    textTransform: "uppercase",
+    color: "rgba(148,163,184,0.88)",
+  },
+
+  nameRow: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+    minWidth: 0,
+    flexWrap: "wrap",
+  },
+
   name: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 950,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+    minWidth: 0,
   },
+
   chip: {
     padding: "6px 10px",
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.12)",
     fontSize: 11,
-    fontWeight: 800,
-    whiteSpace: "nowrap",
-  } as React.CSSProperties,
-  email: {
-    marginTop: 4,
-    fontSize: 13,
-    opacity: 0.74,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
+    fontWeight: 900,
     whiteSpace: "nowrap",
   },
 
-  divider: { margin: "12px 0", borderBottom: "1px solid rgba(148,163,184,0.35)" },
+  email: {
+    fontSize: 13,
+    opacity: 0.76,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    minWidth: 0,
+  },
+
+  heroActionStack: {
+    display: "grid",
+    gap: 8,
+    minWidth: 180,
+  },
+
+  heroPrimaryBtn: {
+    padding: "11px 15px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.40)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.28), rgba(124,58,237,0.24))",
+    color: "rgba(255,255,255,0.96)",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+
+  heroSecondaryBtn: {
+    padding: "11px 15px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(15,23,42,0.88)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+
+  heroStrip: {
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.09)",
+    background: "rgba(255,255,255,0.045)",
+    padding: "14px 14px",
+    display: "grid",
+    gap: 4,
+  },
+
+  heroStripLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
+    color: "rgba(148,163,184,0.88)",
+  },
+
+  heroStripText: {
+    fontSize: 14,
+    lineHeight: 1.56,
+    color: "rgba(255,255,255,0.92)",
+    fontWeight: 700,
+  },
+
+  heroStats: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: 12,
+  },
+
+  stat: {
+    padding: 14,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(15,23,42,0.84)",
+  },
+
+  statLabel: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.55,
+    opacity: 0.72,
+    fontWeight: 900,
+    marginBottom: 4,
+  },
+
+  statValue: {
+    fontSize: 18,
+    fontWeight: 950,
+    marginBottom: 4,
+    lineHeight: 1.1,
+  },
+
+  statHint: {
+    fontSize: 11,
+    opacity: 0.78,
+    lineHeight: 1.5,
+  },
+
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 0.75,
+    textTransform: "uppercase",
+    opacity: 0.78,
+    marginBottom: 6,
+  },
+
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: 950,
+    lineHeight: 1.08,
+    margin: 0,
+  },
+
+  sectionSub: {
+    fontSize: 13,
+    opacity: 0.78,
+    marginTop: 6,
+    lineHeight: 1.58,
+  },
+
+  sectionHead: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+    flexWrap: "wrap",
+  },
 
   smallGrid: {
     display: "grid",
@@ -196,43 +328,73 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
   },
 
-  stat: {
-    padding: 12,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(15,23,42,0.85)",
+  form: {
+    marginTop: 10,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
   },
-  statLabel: {
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    opacity: 0.7,
-    fontWeight: 800,
-    marginBottom: 4,
-  },
-  statValue: { fontSize: 15, fontWeight: 900, marginBottom: 2 },
-  statHint: { fontSize: 11, opacity: 0.75 },
 
-  form: { marginTop: 8, display: "flex", flexDirection: "column", gap: 10 },
   formRow: {
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 12,
   },
-  field: { display: "flex", flexDirection: "column", gap: 4 },
-  label: { fontSize: 12, opacity: 0.8, fontWeight: 700 },
+
+  field: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+  },
+
+  label: {
+    fontSize: 12,
+    opacity: 0.82,
+    fontWeight: 800,
+  },
+
   input: {
     borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.18)",
+    border: "1px solid rgba(255,255,255,0.16)",
     padding: "10px 12px",
-    background: "rgba(15,23,42,0.85)",
+    background: "rgba(15,23,42,0.84)",
     color: "rgba(248,250,252,0.96)",
     fontSize: 13,
     outline: "none",
-  } as React.CSSProperties,
+  },
 
-  error: { fontSize: 12, color: "rgba(248,113,113,0.95)", marginTop: 2 },
-  ok: { fontSize: 12, color: "rgba(52,211,153,0.95)", marginTop: 2 },
+  textarea: {
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.16)",
+    padding: "10px 12px",
+    background: "rgba(15,23,42,0.84)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 13,
+    outline: "none",
+    resize: "vertical",
+  },
+
+  select: {
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.16)",
+    padding: "10px 12px",
+    background: "rgba(15,23,42,0.84)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 13,
+    outline: "none",
+  },
+
+  error: {
+    fontSize: 12,
+    color: "rgba(248,113,113,0.95)",
+    marginTop: 2,
+  },
+
+  ok: {
+    fontSize: 12,
+    color: "rgba(52,211,153,0.95)",
+    marginTop: 2,
+  },
 
   formActions: {
     marginTop: 4,
@@ -241,6 +403,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     flexWrap: "wrap",
   },
+
   ghostBtn: {
     padding: "11px 13px",
     borderRadius: 999,
@@ -250,6 +413,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     fontWeight: 900,
   },
+
   primaryBtn: {
     padding: "11px 14px",
     borderRadius: 999,
@@ -261,13 +425,30 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
   },
 
-  planCtaRow: { marginTop: 10, display: "flex", justifyContent: "flex-end" },
+  secondaryBtn: {
+    padding: "10px 14px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "transparent",
+    color: "rgba(226,232,240,0.95)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+
+  planCtaRow: {
+    marginTop: 10,
+    display: "flex",
+    justifyContent: "flex-end",
+  },
+
   planPrimaryBtn: {
     padding: "10px 14px",
     borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.7)",
+    border: "1px solid rgba(56,189,248,0.55)",
     background:
-      "linear-gradient(135deg, rgba(56,189,248,0.35), rgba(124,58,237,0.35))",
+      "linear-gradient(135deg, rgba(56,189,248,0.32), rgba(124,58,237,0.28))",
     color: "rgba(255,255,255,0.96)",
     fontSize: 12,
     fontWeight: 900,
@@ -275,13 +456,21 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: "nowrap",
   },
 
+  statusCard: {
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.09)",
+    background: "rgba(255,255,255,0.035)",
+    padding: 14,
+    display: "grid",
+    gap: 10,
+  },
+
   accountStatusRow: {
-    marginTop: 10,
-    marginBottom: 10,
     display: "flex",
     gap: 10,
     alignItems: "center",
   },
+
   statusIcon: {
     width: 34,
     height: 34,
@@ -292,28 +481,79 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(15,23,42,0.85)",
     border: "1px solid rgba(255,255,255,0.16)",
     fontSize: 18,
+    flexShrink: 0,
   },
-  statusTitle: { fontSize: 13, fontWeight: 850 },
-  statusHint: { fontSize: 12, opacity: 0.78 },
+
+  statusTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+  },
+
+  statusHint: {
+    fontSize: 12,
+    opacity: 0.78,
+    lineHeight: 1.52,
+  },
+
+  configStatusBox: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(15,23,42,0.76)",
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+
+  configStatusTitle: {
+    fontSize: 12,
+    fontWeight: 900,
+    opacity: 0.86,
+  },
+
+  configStatusItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 13,
+  },
+
+  configStatusBullet: {
+    width: 18,
+    textAlign: "center",
+    flexShrink: 0,
+  },
 
   recoCard: {
-    marginTop: 12,
-    padding: 12,
+    padding: 13,
     borderRadius: 16,
-    border: "1px solid rgba(56,189,248,0.35)",
+    border: "1px solid rgba(56,189,248,0.30)",
     background:
       "radial-gradient(600px 400px at 0% 0%, rgba(56,189,248,0.14), transparent 55%), rgba(15,23,42,0.9)",
   },
+
   recoTitle: {
     fontSize: 11,
     textTransform: "uppercase",
     letterSpacing: 0.6,
     opacity: 0.85,
-    fontWeight: 800,
+    fontWeight: 900,
     marginBottom: 4,
   },
-  recoMain: { fontSize: 14, fontWeight: 900, marginBottom: 3 },
-  recoHint: { fontSize: 12, opacity: 0.8, marginBottom: 8 },
+
+  recoMain: {
+    fontSize: 14,
+    fontWeight: 900,
+    marginBottom: 3,
+  },
+
+  recoHint: {
+    fontSize: 12,
+    opacity: 0.8,
+    marginBottom: 8,
+    lineHeight: 1.52,
+  },
+
   recoBtn: {
     padding: "8px 12px",
     borderRadius: 999,
@@ -324,20 +564,57 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     cursor: "pointer",
   },
-};
-// Continuación estilos
-Object.assign(styles, {
+
+  hubGrid: {
+    marginTop: 8,
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 12,
+  },
+
+  hubCard: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background:
+      "radial-gradient(700px 420px at 0% 0%, rgba(56,189,248,0.16), transparent 55%), rgba(15,23,42,0.92)",
+    padding: 12,
+    textAlign: "left",
+    cursor: "pointer",
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    gridTemplateRows: "auto auto",
+    gap: "4px 8px",
+  },
+
+  hubTitle: {
+    fontSize: 13,
+    fontWeight: 950,
+  },
+
+  hubHint: {
+    fontSize: 11,
+    opacity: 0.82,
+    lineHeight: 1.5,
+  },
+
+  hubChevron: {
+    fontSize: 18,
+    opacity: 0.85,
+    alignSelf: "center",
+  },
+
   quickActionsGrid: {
-    marginTop: 10,
+    marginTop: 8,
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 10,
   },
+
   quickAction: {
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.12)",
     background:
-      "radial-gradient(600px 400px at 0% 0%, rgba(56,189,248,0.18), transparent 55%), rgba(15,23,42,0.9)",
+      "radial-gradient(600px 400px at 0% 0%, rgba(56,189,248,0.16), transparent 55%), rgba(15,23,42,0.9)",
     padding: 10,
     textAlign: "left",
     cursor: "pointer",
@@ -345,23 +622,366 @@ Object.assign(styles, {
     gridTemplateColumns: "1fr auto",
     gridTemplateRows: "auto auto",
     gap: "4px 6px",
-  } as React.CSSProperties,
+  },
+
   quickActionTitle: {
     gridColumn: "1 / span 1",
     fontSize: 13,
     fontWeight: 900,
   },
+
   quickActionHint: {
     gridColumn: "1 / span 1",
     fontSize: 11,
     opacity: 0.8,
+    lineHeight: 1.45,
   },
+
   quickActionChevron: {
     gridColumn: "2 / span 1",
     gridRow: "1 / span 2",
     alignSelf: "center",
     fontSize: 18,
     opacity: 0.85,
+  },
+
+  coordForm: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    marginTop: 8,
+  },
+
+  coordGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 12,
+  },
+
+  coordCol: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(15,23,42,0.76)",
+    padding: 12,
+  },
+
+  coordLabel: {
+    fontSize: 12,
+    fontWeight: 900,
+    marginBottom: 8,
+    opacity: 0.88,
+  },
+
+  checkboxRow: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+    fontSize: 13,
+    marginBottom: 8,
+  },
+
+  coordFieldBlock: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+
+  coordActions: {
+    display: "flex",
+    justifyContent: "flex-end",
+  },
+
+  digestRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 14,
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  digestToggle: {
+    display: "inline-flex",
+    alignItems: "center",
+    fontSize: 13,
+  },
+
+  digestHourWrap: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  digestHourLabel: {
+    fontSize: 13,
+    opacity: 0.82,
+  },
+
+  digestSelect: {
+    padding: "6px 10px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(5,8,22,0.9)",
+    color: "rgba(255,255,255,0.95)",
+    fontSize: 13,
+  },
+
+  digestHint: {
+    marginTop: 6,
+    fontSize: 12,
+    opacity: 0.8,
+  },
+
+  digestSavingHint: {
+    marginTop: 6,
+    fontSize: 12,
+    opacity: 0.8,
+  },
+
+  groupSummaryRow: {
+    marginBottom: 10,
+    fontSize: 12,
+    opacity: 0.84,
+    lineHeight: 1.5,
+  },
+
+  groupMasterDetail: {
+    display: "grid",
+    gridTemplateColumns: "minmax(260px, 0.92fr) minmax(0, 1.24fr)",
+    gap: 12,
+    minHeight: 360,
+  },
+
+  groupListCol: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    minWidth: 0,
+  },
+
+  groupListHeader: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+
+  groupFilterChips: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+
+  groupFilterChip: {
+    padding: "7px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(15,23,42,0.86)",
+    color: "rgba(226,232,240,0.9)",
+    fontSize: 11,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  groupFilterChipActive: {
+    border: "1px solid rgba(56,189,248,0.48)",
+    background: "rgba(56,189,248,0.14)",
+    color: "#E0F2FE",
+  },
+
+  groupSearchInput: {
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    padding: "10px 12px",
+    background: "rgba(15,23,42,0.86)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 13,
+    outline: "none",
+  },
+
+  groupListScroll: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    maxHeight: 420,
+    overflowY: "auto",
+    paddingRight: 2,
+  },
+
+  groupListEmpty: {
+    fontSize: 12,
+    opacity: 0.8,
+    padding: "10px 4px",
+  },
+
+  groupListItem: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(15,23,42,0.80)",
+    padding: 12,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+
+  groupListItemActive: {
+    border: "1px solid rgba(56,189,248,0.42)",
+    background:
+      "radial-gradient(600px 300px at 0% 0%, rgba(56,189,248,0.12), transparent 55%), rgba(15,23,42,0.92)",
+  },
+
+  groupListItemTitleRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 8,
+    alignItems: "center",
+  },
+
+  groupListItemName: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    minWidth: 0,
+    fontSize: 13,
+    fontWeight: 900,
+  },
+
+  groupListItemDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.95)",
+    flexShrink: 0,
+  },
+
+  groupListItemMeta: {
+    marginTop: 6,
+    fontSize: 11,
+    opacity: 0.76,
+    display: "flex",
+    gap: 6,
+    flexWrap: "wrap",
+    lineHeight: 1.45,
+  },
+
+  groupListItemDirty: {
+    color: "#FDE68A",
+  },
+
+  badgeTiny: {
+    padding: "4px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    fontSize: 10,
+    fontWeight: 800,
+    whiteSpace: "nowrap",
+  },
+
+  groupDetailCol: {
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.03), rgba(15,23,42,0.92))",
+    padding: 14,
+    minWidth: 0,
+  },
+
+  groupMetaHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
+
+  groupMetaTitle: {
+    fontSize: 16,
+    fontWeight: 950,
+    lineHeight: 1.2,
+  },
+
+  groupMetaSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    opacity: 0.78,
+    lineHeight: 1.55,
+  },
+
+  groupMetaLabel: {
+    fontSize: 12,
+    fontWeight: 800,
+    marginBottom: 6,
+    opacity: 0.84,
+  },
+
+  groupMetaInput: {
+    width: "100%",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    padding: "10px 12px",
+    background: "rgba(5,8,22,0.9)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 13,
+    outline: "none",
+  },
+
+  groupMetaSelect: {
+    width: "100%",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    padding: "10px 12px",
+    background: "rgba(5,8,22,0.9)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 13,
+    outline: "none",
+  },
+
+  groupMetaTextarea: {
+    width: "100%",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    padding: "10px 12px",
+    background: "rgba(5,8,22,0.9)",
+    color: "rgba(248,250,252,0.96)",
+    fontSize: 13,
+    outline: "none",
+    resize: "vertical",
+  },
+
+  groupMetaSaveRow: {
+    marginTop: 12,
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+
+  groupMetaSaveBtn: {
+    padding: "10px 14px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.45)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.28), rgba(124,58,237,0.24))",
+    color: "rgba(255,255,255,0.96)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+
+  groupMetaCalendarBtn: {
+    padding: "10px 14px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.6)",
+    background: "transparent",
+    color: "rgba(226,232,240,0.95)",
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+
+  smallInfo: {
+    fontSize: 12,
+    opacity: 0.8,
+    lineHeight: 1.55,
   },
 
   footer: {
@@ -375,357 +995,26 @@ Object.assign(styles, {
     lineHeight: 1.6,
     opacity: 0.82,
   },
-
-  coordForm: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-    marginTop: 8,
-  },
-  coordGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 12,
-  },
-  coordCol: {
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(15,23,42,0.75)",
-    padding: 12,
-  },
-  coordLabel: {
-    fontSize: 12,
-    fontWeight: 900,
-    marginBottom: 8,
-    opacity: 0.86,
-  },
-  checkboxRow: {
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-    fontSize: 13,
-    marginBottom: 8,
-  },
-  coordFieldBlock: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  textarea: {
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.18)",
-    padding: "10px 12px",
-    background: "rgba(15,23,42,0.85)",
-    color: "rgba(248,250,252,0.96)",
-    fontSize: 13,
-    outline: "none",
-    resize: "vertical",
-  } as React.CSSProperties,
-  select: {
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.18)",
-    padding: "10px 12px",
-    background: "rgba(15,23,42,0.85)",
-    color: "rgba(248,250,252,0.96)",
-    fontSize: 13,
-    outline: "none",
-  } as React.CSSProperties,
-  coordActions: {
-    display: "flex",
-    justifyContent: "flex-end",
-  },
-
-  configStatusBox: {
-    marginTop: 12,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(15,23,42,0.75)",
-    padding: 12,
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-  },
-  configStatusTitle: {
-    fontSize: 12,
-    fontWeight: 900,
-    opacity: 0.86,
-  },
-  configStatusItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    fontSize: 13,
-  },
-  configStatusBullet: {
-    width: 18,
-    textAlign: "center",
-    flexShrink: 0,
-  },
-
-  smallInfo: {
-    fontSize: 12,
-    opacity: 0.8,
-    lineHeight: 1.55,
-  },
-
-  groupSummaryRow: {
-    marginBottom: 10,
-    fontSize: 12,
-    opacity: 0.84,
-  },
-  groupMasterDetail: {
-    display: "grid",
-    gridTemplateColumns: "minmax(260px, 0.95fr) minmax(0, 1.25fr)",
-    gap: 12,
-    minHeight: 360,
-  },
-  groupListCol: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-    minWidth: 0,
-  },
-  groupListHeader: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
-  groupFilterChips: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  groupFilterChip: {
-    padding: "7px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(15,23,42,0.86)",
-    color: "rgba(226,232,240,0.9)",
-    fontSize: 11,
-    fontWeight: 900,
-    cursor: "pointer",
-  } as React.CSSProperties,
-  groupFilterChipActive: {
-    border: "1px solid rgba(56,189,248,0.48)",
-    background: "rgba(56,189,248,0.14)",
-    color: "#E0F2FE",
-  } as React.CSSProperties,
-  groupSearchInput: {
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    padding: "10px 12px",
-    background: "rgba(15,23,42,0.86)",
-    color: "rgba(248,250,252,0.96)",
-    fontSize: 13,
-    outline: "none",
-  } as React.CSSProperties,
-  groupListScroll: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-    maxHeight: 420,
-    overflowY: "auto",
-    paddingRight: 2,
-  },
-  groupListEmpty: {
-    fontSize: 12,
-    opacity: 0.8,
-    padding: "10px 4px",
-  },
-  groupListItem: {
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(15,23,42,0.80)",
-    padding: 12,
-    textAlign: "left",
-    cursor: "pointer",
-  } as React.CSSProperties,
-  groupListItemActive: {
-    border: "1px solid rgba(56,189,248,0.42)",
-    background:
-      "radial-gradient(600px 300px at 0% 0%, rgba(56,189,248,0.12), transparent 55%), rgba(15,23,42,0.92)",
-  } as React.CSSProperties,
-  groupListItemTitleRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 8,
-    alignItems: "center",
-  },
-  groupListItemName: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    minWidth: 0,
-    fontSize: 13,
-    fontWeight: 900,
-  },
-  groupListItemDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    background: "rgba(56,189,248,0.95)",
-    flexShrink: 0,
-  },
-  groupListItemMeta: {
-    marginTop: 6,
-    fontSize: 11,
-    opacity: 0.76,
-    display: "flex",
-    gap: 6,
-    flexWrap: "wrap",
-  },
-  groupListItemDirty: {
-    color: "#FDE68A",
-  },
-
-  badgeTiny: {
-    padding: "4px 8px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.12)",
-    fontSize: 10,
-    fontWeight: 800,
-    whiteSpace: "nowrap",
-  } as React.CSSProperties,
-
-  groupDetailCol: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.03), rgba(15,23,42,0.92))",
-    padding: 14,
-    minWidth: 0,
-  },
-  groupMetaHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 10,
-    alignItems: "flex-start",
-    flexWrap: "wrap",
-  },
-  groupMetaTitle: {
-    fontSize: 16,
-    fontWeight: 950,
-    lineHeight: 1.2,
-  },
-  groupMetaSubtitle: {
-    marginTop: 4,
-    fontSize: 12,
-    opacity: 0.78,
-    lineHeight: 1.55,
-  },
-  groupMetaLabel: {
-    fontSize: 12,
-    fontWeight: 800,
-    marginBottom: 6,
-    opacity: 0.84,
-  },
-  groupMetaInput: {
-    width: "100%",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    padding: "10px 12px",
-    background: "rgba(5,8,22,0.9)",
-    color: "rgba(248,250,252,0.96)",
-    fontSize: 13,
-    outline: "none",
-  } as React.CSSProperties,
-  groupMetaSelect: {
-    width: "100%",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    padding: "10px 12px",
-    background: "rgba(5,8,22,0.9)",
-    color: "rgba(248,250,252,0.96)",
-    fontSize: 13,
-    outline: "none",
-  } as React.CSSProperties,
-  groupMetaTextarea: {
-    width: "100%",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    padding: "10px 12px",
-    background: "rgba(5,8,22,0.9)",
-    color: "rgba(248,250,252,0.96)",
-    fontSize: 13,
-    outline: "none",
-    resize: "vertical",
-  } as React.CSSProperties,
-  groupMetaSaveRow: {
-    marginTop: 12,
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  groupMetaSaveBtn: {
-    padding: "10px 14px",
-    borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.45)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.28), rgba(124,58,237,0.24))",
-    color: "rgba(255,255,255,0.96)",
-    fontSize: 12,
-    fontWeight: 900,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  } as React.CSSProperties,
-  groupMetaCalendarBtn: {
-    padding: "10px 14px",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.6)",
-    background: "transparent",
-    color: "rgba(226,232,240,0.95)",
-    fontSize: 11,
-    fontWeight: 800,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  } as React.CSSProperties,
-
-  digestRow: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 14,
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  digestToggle: { display: "inline-flex", alignItems: "center", fontSize: 13 },
-  digestHourWrap: { display: "inline-flex", alignItems: "center", gap: 8 },
-  digestHourLabel: { fontSize: 13, opacity: 0.8 },
-  digestSelect: {
-    padding: "6px 10px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(5,8,22,0.9)",
-    color: "rgba(255,255,255,0.95)",
-    fontSize: 13,
-  } as React.CSSProperties,
-  digestHint: { marginTop: 6, fontSize: 12, opacity: 0.8 },
-  digestSavingHint: { marginTop: 6, fontSize: 12, opacity: 0.8 },
-});
-/* ─────────────────── Componente principal ─────────────────── */
+};
 
 export default function ProfilePage() {
   const router = useRouter();
 
-  // Carga base
   const [booting, setBooting] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [email, setEmail] = useState<string>("—");
   const [verified, setVerified] = useState(false);
   const [initials, setInitials] = useState<string>("");
 
-  // Nombre / apellido
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileOk, setProfileOk] = useState<string | null>(null);
 
-  // Stats
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
-  // Grupos / memberships
   const [groups, setGroups] = useState<GroupRow[] | null>(null);
   const [memberships, setMemberships] = useState<GroupMemberRow[] | null>(null);
   const [membershipsLoading, setMembershipsLoading] = useState(false);
@@ -739,18 +1028,15 @@ export default function ProfilePage() {
   const [groupSaveMessage, setGroupSaveMessage] = useState<string | null>(null);
   const [groupSaveError, setGroupSaveError] = useState<string | null>(null);
 
-  // Preferencias globales
   const [coordPrefs, setCoordPrefs] = useState<CoordinationPrefs | null>(null);
   const [savingCoord, setSavingCoord] = useState(false);
   const [coordError, setCoordError] = useState<string | null>(null);
   const [coordOk, setCoordOk] = useState<string | null>(null);
 
-  // Resumen diario
   const [savingDigest, setSavingDigest] = useState(false);
   const [digestError, setDigestError] = useState<string | null>(null);
   const [digestOk, setDigestOk] = useState<string | null>(null);
 
-  /* ── 1) Cargar sesión + perfil ── */
   useEffect(() => {
     let alive = true;
 
@@ -813,7 +1099,6 @@ export default function ProfilePage() {
     };
   }, [router]);
 
-  /* ── 2) Cargar stats + grupos ── */
   useEffect(() => {
     if (!profile) return;
     let alive = true;
@@ -846,7 +1131,6 @@ export default function ProfilePage() {
     };
   }, [profile]);
 
-  /* ── 3) Cargar memberships ── */
   useEffect(() => {
     if (!profile) return;
     let alive = true;
@@ -877,7 +1161,6 @@ export default function ProfilePage() {
     };
   }, [profile]);
 
-  /* ── 3b) Selección por defecto de grupo ── */
   useEffect(() => {
     if (!memberships || memberships.length === 0) {
       setSelectedGroupId(null);
@@ -904,7 +1187,6 @@ export default function ProfilePage() {
     });
   }, [memberships, groups]);
 
-  /* ── 4) Guardar nombre / apellido ── */
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
     setProfileError(null);
@@ -948,7 +1230,6 @@ export default function ProfilePage() {
     }
   }
 
-  /* ── 5) Guardar preferencias globales ── */
   async function handleSaveCoordPrefs(e: React.FormEvent) {
     e.preventDefault();
     if (!coordPrefs) return;
@@ -972,7 +1253,6 @@ export default function ProfilePage() {
     }
   }
 
-  /* ── 6) Manejo local de metadata de grupo ── */
   function updateMembershipLocal(
     groupId: string,
     updater: (prev: GroupMemberRow) => GroupMemberRow
@@ -1040,7 +1320,6 @@ export default function ProfilePage() {
     }
   }
 
-  /* ── 7) Resumen diario ── */
   const handleToggleDigest = async (enabled: boolean) => {
     if (!profile) return;
     setDigestError(null);
@@ -1115,7 +1394,6 @@ export default function ProfilePage() {
     }
   };
 
-  /* ── 8) Loading / sin perfil ── */
   if (booting) {
     return (
       <main style={styles.page}>
@@ -1124,7 +1402,6 @@ export default function ProfilePage() {
           paddingDesktop="22px 18px 48px"
           paddingMobile="14px 12px 18px"
           mobileBottomSafe={120}
-          className="spProfileShell"
         >
           <div style={styles.headerRow}>
             <PremiumHeader
@@ -1134,6 +1411,7 @@ export default function ProfilePage() {
               mobileNav="bottom"
             />
           </div>
+
           <div style={styles.loadingRow}>
             <div style={styles.loadingCard} />
             <div style={styles.loadingCard} />
@@ -1158,7 +1436,6 @@ export default function ProfilePage() {
           paddingDesktop="22px 18px 48px"
           paddingMobile="14px 12px 18px"
           mobileBottomSafe={120}
-          className="spProfileShell"
         >
           <div style={styles.headerRow}>
             <PremiumHeader
@@ -1175,8 +1452,6 @@ export default function ProfilePage() {
       </main>
     );
   }
-
-  /* ── 9) Derivados de UI ── */
 
   const accountStatusLabel = verified ? "Cuenta verificada" : "Verifica tu correo";
   const accountStatusHint = verified
@@ -1218,16 +1493,24 @@ export default function ProfilePage() {
     const g = groupsById.get(m.group_id);
     const typeStr = String(g?.type ?? "").toLowerCase();
 
-    if (groupFilter === "pair" && !(typeStr === "pair" || typeStr === "couple")) return false;
+    if (groupFilter === "pair" && !(typeStr === "pair" || typeStr === "couple"))
+      return false;
     if (groupFilter === "family" && typeStr !== "family") return false;
-    if (groupFilter === "other" && (typeStr === "pair" || typeStr === "family" || typeStr === "couple"))
+    if (
+      groupFilter === "other" &&
+      (typeStr === "pair" || typeStr === "family" || typeStr === "couple")
+    )
       return false;
 
     if (!searchTerm) return true;
 
     const name = (g?.name ?? "").toLowerCase();
     const displayName = (m.display_name ?? "").toLowerCase();
-    return name.includes(searchTerm) || displayName.includes(searchTerm) || typeStr.includes(searchTerm);
+    return (
+      name.includes(searchTerm) ||
+      displayName.includes(searchTerm) ||
+      typeStr.includes(searchTerm)
+    );
   });
 
   const selectedMembership: GroupMemberRow | null =
@@ -1236,10 +1519,13 @@ export default function ProfilePage() {
     null;
 
   const totalGroupsForRoles = memberships ? memberships.length : 0;
-  const configuredGroupsCount = memberships ? memberships.filter((m) => hasGroupMeta(m)).length : 0;
+  const configuredGroupsCount = memberships
+    ? memberships.filter((m) => hasGroupMeta(m)).length
+    : 0;
   const pendingGroupsCount = Math.max(0, totalGroupsForRoles - configuredGroupsCount);
 
-  const hasSelectedDirty = selectedMembership && dirtyGroups.has(selectedMembership.group_id);
+  const hasSelectedDirty =
+    !!selectedMembership && dirtyGroups.has(selectedMembership.group_id);
 
   const digestEnabled = (profile as any).daily_digest_enabled ?? false;
   const digestHour = (profile as any).daily_digest_hour_local ?? 7;
@@ -1248,6 +1534,28 @@ export default function ProfilePage() {
   const anyProfile = profile as unknown as AnyProfile;
   const { planLabel, planHint, planCtaLabel } = getPlanInfo(anyProfile);
 
+  const heroSummary = useMemo(() => {
+    if (statsLoading || !stats) {
+      return "Estamos cargando tu cuenta para darte una lectura más clara de tu estado dentro de SyncPlans.";
+    }
+
+    if (stats.conflictsNow > 0) {
+      return `Tienes ${stats.conflictsNow} conflicto${
+        stats.conflictsNow === 1 ? "" : "s"
+      } visible${stats.conflictsNow === 1 ? "" : "s"} y ${stats.totalGroups} grupo${
+        stats.totalGroups === 1 ? "" : "s"
+      } activo${stats.totalGroups === 1 ? "" : "s"}.`;
+    }
+
+    if (stats.totalGroups > 0) {
+      return `Tu cuenta ya está conectada a ${stats.totalGroups} grupo${
+        stats.totalGroups === 1 ? "" : "s"
+      } y SyncPlans está listo para coordinar con menos fricción.`;
+    }
+
+    return "Tu cuenta está lista para empezar. El siguiente salto real llega cuando sumas grupos y compartes tiempo con alguien más.";
+  }, [stats, statsLoading]);
+
   return (
     <main style={styles.page}>
       <MobileScaffold
@@ -1255,130 +1563,129 @@ export default function ProfilePage() {
         paddingDesktop="22px 18px 48px"
         paddingMobile="14px 12px 18px"
         mobileBottomSafe={120}
-        className="spProfileShell"
       >
         <div style={styles.headerRow}>
           <PremiumHeader
             title="Cuenta"
-            subtitle="Tu cuenta, tus preferencias y tu forma de coordinar dentro de SyncPlans."
+            subtitle="Tu identidad, tus preferencias y cómo SyncPlans te representa cuando compartes tu tiempo."
             mobileNav="bottom"
           />
         </div>
 
+        <section style={styles.heroCard}>
+          <div style={styles.heroTop}>
+            <div style={styles.profileRow}>
+              <div style={styles.avatar}>{initials || "?"}</div>
+
+              <div style={styles.identityWrap}>
+                <div style={styles.identityEyebrow}>Tu cuenta</div>
+
+                <div style={styles.nameRow}>
+                  <span style={styles.name}>
+                    {(profile as any).display_name ||
+                      `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() ||
+                      "(Sin nombre)"}
+                  </span>
+
+                  <span
+                    style={{
+                      ...styles.chip,
+                      borderColor: verified
+                        ? "rgba(34,197,94,0.40)"
+                        : "rgba(250,204,21,0.40)",
+                      background: verified
+                        ? "rgba(34,197,94,0.10)"
+                        : "rgba(250,204,21,0.12)",
+                    }}
+                  >
+                    {verified ? "Verificada" : "Por verificar"}
+                  </span>
+                </div>
+
+                <div style={styles.email}>{email}</div>
+              </div>
+            </div>
+
+            <div style={styles.heroActionStack}>
+              <button
+                type="button"
+                onClick={() => router.push("/planes")}
+                style={styles.heroPrimaryBtn}
+              >
+                {planCtaLabel}
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/summary")}
+                style={styles.heroSecondaryBtn}
+              >
+                Ver resumen
+              </button>
+            </div>
+          </div>
+
+          <div style={styles.heroStrip}>
+            <div style={styles.heroStripLabel}>Estado actual</div>
+            <div style={styles.heroStripText}>{heroSummary}</div>
+          </div>
+
+          <div style={styles.heroStats} className="spProfileHeroStats">
+            <InfoStat
+              label="Plan actual"
+              value={planLabel}
+              hint={planHint}
+            />
+            <InfoStat
+              label="Grupos activos"
+              value={
+                statsLoading
+                  ? "—"
+                  : stats
+                  ? `${stats.totalGroups}`
+                  : "—"
+              }
+              hint={
+                stats && stats.totalGroups > 0
+                  ? `Pareja ${stats.pairGroups} · Familia ${stats.familyGroups} · Compartidos ${stats.otherGroups}`
+                  : "Todavía no has creado grupos."
+              }
+            />
+            <InfoStat
+              label="Eventos"
+              value={statsLoading ? "—" : stats ? `${stats.totalEvents}` : "—"}
+              hint={
+                stats && stats.eventsLast7 > 0
+                  ? `${stats.eventsLast7} en los últimos 7 días`
+                  : "Sin actividad reciente"
+              }
+            />
+            <InfoStat
+              label="Conflictos"
+              value={statsLoading ? "—" : stats ? `${stats.conflictsNow}` : "—"}
+              hint={
+                stats && stats.conflictsNow > 0
+                  ? "Hay choques listos para revisar"
+                  : "Sin conflictos visibles ahora"
+              }
+            />
+          </div>
+        </section>
+
         <div style={styles.mainGrid} className="spProfileMainGrid">
           <div style={styles.leftCol}>
-            <section style={styles.card} className="spProfileHideMobileSecondary">
-              <div style={styles.sectionLabel}>Identidad</div>
-
-              <div style={styles.profileRow}>
-                <div style={styles.avatar}>{initials || "?"}</div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={styles.nameRow}>
-                    <span style={styles.name}>
-                      {(profile as any).display_name ||
-                        `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() ||
-                        "(Sin nombre)"}
-                    </span>
-
-                    <span
-                      style={{
-                        ...styles.chip,
-                        borderColor: verified
-                          ? "rgba(34,197,94,0.40)"
-                          : "rgba(250,204,21,0.40)",
-                        background: verified
-                          ? "rgba(34,197,94,0.10)"
-                          : "rgba(250,204,21,0.12)",
-                      }}
-                    >
-                      {verified ? "Verificada" : "Por verificar"}
-                    </span>
+            <section style={styles.card}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionLabel}>Identidad visible</div>
+                  <h2 style={styles.sectionTitle}>Cómo te ve SyncPlans</h2>
+                  <div style={styles.sectionSub}>
+                    Este nombre se usa en miembros, invitaciones y notificaciones compartidas.
                   </div>
-                  <div style={styles.email}>{email}</div>
                 </div>
               </div>
 
-              <div style={styles.divider} />
-
-              <div style={styles.smallGrid}>
-                <InfoStat label="Plan actual" value={planLabel} hint={planHint} />
-                <InfoStat
-                  label="Grupos activos"
-                  value={
-                    statsLoading
-                      ? "—"
-                      : stats
-                      ? `${stats.totalGroups} grupo${stats.totalGroups === 1 ? "" : "s"}`
-                      : "—"
-                  }
-                  hint={
-                    stats && stats.totalGroups > 0
-                      ? `Pareja: ${stats.pairGroups} · Familia: ${stats.familyGroups} · Compartidos: ${stats.otherGroups}`
-                      : "Crea un grupo para compartir calendario y conflictos."
-                  }
-                />
-              </div>
-
-              <div style={styles.planCtaRow}>
-                <button
-                  type="button"
-                  onClick={() => router.push("/planes")}
-                  style={styles.planPrimaryBtn}
-                >
-                  {planCtaLabel}
-                </button>
-              </div>
-            </section>
-
-            <section style={styles.card} className="spProfileHideMobile">
-              <div style={styles.sectionLabel}>Centro de control</div>
-              <div style={styles.sectionSub}>Accesos rápidos a lo importante.</div>
-
-              <div style={styles.hubGrid} className="spProfileHubGrid">
-                <HubCard
-                  title="Grupos"
-                  hint="Pareja, familia y compartidos."
-                  onClick={() => router.push("/groups")}
-                />
-                <HubCard
-                  title="Miembros"
-                  hint="Quién está en tus grupos."
-                  onClick={() => router.push("/members")}
-                />
-                <HubCard
-                  title="Invitaciones"
-                  hint="Invita y acepta accesos."
-                  onClick={() => router.push("/invitations")}
-                />
-                <HubCard
-                  title="Settings"
-                  hint="Preferencias del producto."
-                  onClick={() => router.push("/settings")}
-                />
-                <HubCard
-                  title="Planes"
-                  hint="Ver tu plan y upgrade."
-                  onClick={() => router.push("/planes")}
-                />
-                <HubCard
-                  title="Salir"
-                  hint="Cerrar sesión."
-                  onClick={async () => {
-                    await supabase.auth.signOut();
-                    router.replace("/auth/login");
-                  }}
-                />
-              </div>
-            </section>
-
-            <section style={styles.card} className="spProfileHideMobile">
-              <div style={styles.sectionLabel}>Cómo te ve el resto</div>
-              <div style={styles.sectionSub}>
-                Este nombre se usa en miembros, invitaciones y notificaciones compartidas.
-              </div>
-
               <form onSubmit={handleSaveProfile} style={styles.form}>
-                <div style={styles.formRow}>
+                <div style={styles.formRow} className="spProfileTwoCols">
                   <div style={styles.field}>
                     <label style={styles.label}>Nombre</label>
                     <input
@@ -1388,6 +1695,7 @@ export default function ProfilePage() {
                       placeholder="Fernando"
                     />
                   </div>
+
                   <div style={styles.field}>
                     <label style={styles.label}>Apellido</label>
                     <input
@@ -1403,9 +1711,14 @@ export default function ProfilePage() {
                 {profileOk && <div style={styles.ok}>{profileOk}</div>}
 
                 <div style={styles.formActions}>
-                  <button type="button" onClick={() => router.push("/summary")} style={styles.ghostBtn}>
-                    Ver resumen semanal
+                  <button
+                    type="button"
+                    onClick={() => router.push("/calendar")}
+                    style={styles.ghostBtn}
+                  >
+                    Ir al calendario
                   </button>
+
                   <button
                     type="submit"
                     disabled={savingProfile}
@@ -1421,250 +1734,21 @@ export default function ProfilePage() {
               </form>
             </section>
 
-            <section style={styles.card} className="spProfileHideMobile">
-              <div style={styles.sectionLabel}>Cómo sueles organizar tu tiempo</div>
-              <div style={styles.sectionSub}>
-                Estas preferencias ayudan a SyncPlans a anticipar fricciones y mostrar mejores decisiones cuando hay conflictos de horario.
-              </div>
-
-              <form onSubmit={handleSaveCoordPrefs} style={styles.coordForm}>
-                <div style={styles.coordGrid}>
-                  <div style={styles.coordCol}>
-                    <div style={styles.coordLabel}>Ritmo del día</div>
-                    <label style={styles.checkboxRow}>
-                      <input
-                        type="checkbox"
-                        checked={coord.prefers_mornings}
-                        onChange={(e) =>
-                          setCoordPrefs((prev) =>
-                            normalizeCoordPrefs({ ...(prev ?? {}), prefers_mornings: e.target.checked })
-                          )
-                        }
-                      />
-                      <span>Soy más de madrugar</span>
-                    </label>
-                    <label style={styles.checkboxRow}>
-                      <input
-                        type="checkbox"
-                        checked={coord.prefers_evenings}
-                        onChange={(e) =>
-                          setCoordPrefs((prev) =>
-                            normalizeCoordPrefs({ ...(prev ?? {}), prefers_evenings: e.target.checked })
-                          )
-                        }
-                      />
-                      <span>Soy más nocturno</span>
-                    </label>
-                  </div>
-
-                  <div style={styles.coordCol}>
-                    <div style={styles.coordLabel}>Cuándo prefieres planear</div>
-                    <label style={styles.checkboxRow}>
-                      <input
-                        type="checkbox"
-                        checked={coord.prefers_weekdays}
-                        onChange={(e) =>
-                          setCoordPrefs((prev) =>
-                            normalizeCoordPrefs({ ...(prev ?? {}), prefers_weekdays: e.target.checked })
-                          )
-                        }
-                      />
-                      <span>Entre semana</span>
-                    </label>
-                    <label style={styles.checkboxRow}>
-                      <input
-                        type="checkbox"
-                        checked={coord.prefers_weekends}
-                        onChange={(e) =>
-                          setCoordPrefs((prev) =>
-                            normalizeCoordPrefs({ ...(prev ?? {}), prefers_weekends: e.target.checked })
-                          )
-                        }
-                      />
-                      <span>Fines de semana</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div style={styles.coordFieldBlock}>
-                  <div style={styles.coordLabel}>Horarios que casi siempre tienes ocupados</div>
-                  <textarea
-                    style={styles.textarea}
-                    rows={3}
-                    value={coord.blocked_note}
-                    onChange={(e) =>
-                      setCoordPrefs((prev) =>
-                        normalizeCoordPrefs({ ...(prev ?? {}), blocked_note: e.target.value })
-                      )
-                    }
-                    placeholder="Ej: Lunes y miércoles de 7 a 9 pm entreno."
-                  />
-                </div>
-
-                <div style={styles.coordFieldBlock}>
-                  <div style={styles.coordLabel}>Cuando hay conflictos de horario, normalmente prefieres…</div>
-                  <select
-                    style={styles.select}
-                    value={coord.decision_style ?? "depends"}
-                    onChange={(e) =>
-                      setCoordPrefs((prev) =>
-                        normalizeCoordPrefs({
-                          ...(prev ?? {}),
-                          decision_style: e.target.value as CoordinationPrefs["decision_style"],
-                        })
-                      )
-                    }
-                  >
-                    <option value="decide_fast">Decidir rápido y seguir</option>
-                    <option value="discuss">Hablarlo con calma</option>
-                    <option value="depends">Depende del evento</option>
-                  </select>
-                </div>
-
-                {coordError && <div style={styles.error}>{coordError}</div>}
-                {coordOk && <div style={styles.ok}>{coordOk}</div>}
-
-                <div style={styles.coordActions}>
-                  <button
-                    type="submit"
-                    disabled={savingCoord}
-                    style={{
-                      ...styles.primaryBtn,
-                      opacity: savingCoord ? 0.7 : 1,
-                      cursor: savingCoord ? "progress" : "pointer",
-                    }}
-                  >
-                    {savingCoord ? "Guardando…" : "Guardar preferencias"}
-                  </button>
-                </div>
-              </form>
-            </section>
-
-            <section style={styles.card} className="spProfileHideMobile">
-              <div style={styles.sectionLabel}>Resumen diario por correo</div>
-              <div style={styles.sectionSub}>
-                Si lo activas, te enviaremos cada mañana un correo con los eventos que tienes para el día, ordenados por hora.
-              </div>
-
-              <div style={styles.digestRow}>
-                <label style={styles.digestToggle}>
-                  <input
-                    type="checkbox"
-                    checked={digestEnabled}
-                    onChange={(e) => handleToggleDigest(e.target.checked)}
-                    disabled={savingDigest}
-                  />
-                  <span style={{ marginLeft: 8 }}>Activar resumen diario</span>
-                </label>
-
-                <div style={styles.digestHourWrap}>
-                  <span style={styles.digestHourLabel}>Hora local:</span>
-                  <select
-                    value={digestHour}
-                    disabled={!digestEnabled || savingDigest}
-                    onChange={(e) => handleChangeDigestHour(Number(e.target.value) || 7)}
-                    style={styles.digestSelect}
-                  >
-                    <option value={6}>6:00</option>
-                    <option value={7}>7:00</option>
-                    <option value={8}>8:00</option>
-                    <option value={9}>9:00</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={styles.digestHint}>
-                Zona horaria: <strong>{digestTz}</strong>
-              </div>
-
-              {savingDigest && <div style={styles.digestSavingHint}>Guardando configuración…</div>}
-              {digestError && <div style={styles.error}>{digestError}</div>}
-              {digestOk && <div style={styles.ok}>{digestOk}</div>}
-            </section>
-          </div>
-
-          <div style={styles.rightCol}>
-            <section style={styles.card} className="spProfileHideMobile">
-              <div style={styles.sectionLabel}>Estado general</div>
-              <div style={styles.sectionSub}>Revisa de un vistazo cómo está tu cuenta en SyncPlans.</div>
-
-              <div style={styles.accountStatusRow}>
-                <div style={styles.statusIcon}>{verified ? "✅" : "⚠️"}</div>
+            <section style={styles.card}>
+              <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.statusTitle}>{accountStatusLabel}</div>
-                  <div style={styles.statusHint}>{accountStatusHint}</div>
+                  <div style={styles.sectionLabel}>Tu rol en los grupos</div>
+                  <h2 style={styles.sectionTitle}>Cómo te ve cada grupo</h2>
+                  <div style={styles.sectionSub}>
+                    No eres la misma persona en todos tus calendarios. Aquí defines cómo te representa cada espacio compartido.
+                  </div>
                 </div>
               </div>
 
-              <div style={styles.smallGrid}>
-                <InfoStat
-                  label="Eventos creados"
-                  value={statsLoading ? "—" : stats ? `${stats.totalEvents}` : "—"}
-                  hint={
-                    stats && stats.eventsLast7 > 0
-                      ? `${stats.eventsLast7} en los últimos 7 días.`
-                      : "Empieza creando tu primer evento en el calendario."
-                  }
-                />
-                <InfoStat
-                  label="Conflictos detectados"
-                  value={statsLoading ? "—" : stats ? `${stats.conflictsNow}` : "—"}
-                  hint={
-                    stats && stats.conflictsNow > 0
-                      ? "Tienes conflictos activos listos para revisar."
-                      : "Detectamos conflictos en el momento en que guardas eventos."
-                  }
-                />
-              </div>
-
-              <div style={styles.configStatusBox}>
-                <div style={styles.configStatusTitle}>Cómo vas con tu configuración</div>
-                <div style={styles.configStatusItem}>
-                  <span style={styles.configStatusBullet}>{hasNameCompleted ? "✅" : "⏳"}</span>
-                  <span>Nombre y apellido definidos</span>
-                </div>
-                <div style={styles.configStatusItem}>
-                  <span style={styles.configStatusBullet}>{hasCoordPrefsMeaningful ? "✅" : "⏳"}</span>
-                  <span>Preferencias de tiempo configuradas</span>
-                </div>
-                <div style={styles.configStatusItem}>
-                  <span style={styles.configStatusBullet}>{hasGroupMetaGlobal ? "✅" : "⏳"}</span>
-                  <span>Roles y nombres en grupos configurados</span>
-                </div>
-              </div>
-
-              {recommendation && (
-                <div style={styles.recoCard}>
-                  <div style={styles.recoTitle}>Próximo paso recomendado</div>
-                  <div style={styles.recoMain}>{recommendation.title}</div>
-                  <div style={styles.recoHint}>{recommendation.hint}</div>
-                  {recommendation.ctaLabel && recommendation.ctaTarget && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const t = recommendation.ctaTarget!;
-                        if (t === "groups_new") router.push("/groups/new");
-                        else if (t === "calendar") router.push("/calendar");
-                        else if (t === "events_new") router.push("/events/new/details?type=personal");
-                        else if (t === "conflicts") router.push("/conflicts/detected");
-                        else if (t === "invitations") router.push("/invitations");
-                      }}
-                      style={styles.recoBtn}
-                    >
-                      {recommendation.ctaLabel}
-                    </button>
-                  )}
-                </div>
+              {membershipsLoading && (
+                <div style={styles.smallInfo}>Cargando tus grupos y roles…</div>
               )}
-            </section>
 
-            <section style={styles.card} className="spProfileHideMobile">
-              <div style={styles.sectionLabel}>Tu rol en los grupos</div>
-              <div style={styles.sectionSub}>
-                No eres la misma persona en todos tus calendarios. Aquí defines cómo te ve cada grupo.
-              </div>
-
-              {membershipsLoading && <div style={styles.smallInfo}>Cargando tus grupos y roles…</div>}
               {membershipsError && <div style={styles.error}>{membershipsError}</div>}
 
               {!membershipsLoading && (!memberships || memberships.length === 0) && (
@@ -1676,11 +1760,11 @@ export default function ProfilePage() {
               {memberships && memberships.length > 0 && (
                 <>
                   <div style={styles.groupSummaryRow}>
-                    <span>
-                      Tienes <strong>{totalGroupsForRoles}</strong> grupo{totalGroupsForRoles === 1 ? "" : "s"} ·{" "}
-                      <strong>{configuredGroupsCount}</strong> con rol configurado ·{" "}
-                      <strong>{pendingGroupsCount}</strong> pendiente{pendingGroupsCount === 1 ? "" : "s"}
-                    </span>
+                    Tienes <strong>{totalGroupsForRoles}</strong> grupo
+                    {totalGroupsForRoles === 1 ? "" : "s"} ·{" "}
+                    <strong>{configuredGroupsCount}</strong> con rol configurado ·{" "}
+                    <strong>{pendingGroupsCount}</strong> pendiente
+                    {pendingGroupsCount === 1 ? "" : "s"}
                   </div>
 
                   <div style={styles.groupMasterDetail} className="spProfileMasterDetail">
@@ -1739,7 +1823,9 @@ export default function ProfilePage() {
 
                       <div style={styles.groupListScroll}>
                         {membershipsFiltered.length === 0 && (
-                          <div style={styles.groupListEmpty}>No hay grupos que coincidan con el filtro.</div>
+                          <div style={styles.groupListEmpty}>
+                            No hay grupos que coincidan con el filtro.
+                          </div>
                         )}
 
                         {membershipsFiltered.map((m) => {
@@ -1769,7 +1855,11 @@ export default function ProfilePage() {
 
                               <div style={styles.groupListItemMeta}>
                                 <span>{hasGroupMeta(m) ? "Rol configurado" : "Sin rol todavía"}</span>
-                                {isDirty && <span style={styles.groupListItemDirty}>· Cambios sin guardar</span>}
+                                {isDirty && (
+                                  <span style={styles.groupListItemDirty}>
+                                    · Cambios sin guardar
+                                  </span>
+                                )}
                               </div>
                             </button>
                           );
@@ -1787,18 +1877,24 @@ export default function ProfilePage() {
                           <div style={styles.groupMetaHeader}>
                             <div>
                               <div style={styles.groupMetaTitle}>
-                                {groupsById.get(selectedMembership.group_id)?.name ?? "(Grupo sin nombre)"}
+                                {groupsById.get(selectedMembership.group_id)?.name ??
+                                  "(Grupo sin nombre)"}
                               </div>
                               <div style={styles.groupMetaSubtitle}>
                                 Define tu nombre visible, tu rol y un contexto rápido para coordinar contigo.
                               </div>
                             </div>
+
                             <span style={styles.badgeTiny}>
-                              {getGroupTypeLabel(String(groupsById.get(selectedMembership.group_id)?.type ?? "grupo"))}
+                              {getGroupTypeLabel(
+                                String(
+                                  groupsById.get(selectedMembership.group_id)?.type ?? "grupo"
+                                )
+                              )}
                             </span>
                           </div>
 
-                          <div style={{ marginTop: 4 }}>
+                          <div style={{ marginTop: 6 }}>
                             <div style={styles.groupMetaLabel}>Nombre visible en este grupo</div>
                             <input
                               style={styles.groupMetaInput}
@@ -1837,7 +1933,9 @@ export default function ProfilePage() {
                           </div>
 
                           <div style={{ marginTop: 10 }}>
-                            <div style={styles.groupMetaLabel}>Algo que deberían saber al coordinar contigo</div>
+                            <div style={styles.groupMetaLabel}>
+                              Algo que deberían saber al coordinar contigo
+                            </div>
                             <textarea
                               style={styles.groupMetaTextarea}
                               rows={2}
@@ -1860,7 +1958,9 @@ export default function ProfilePage() {
                             <button
                               type="button"
                               onClick={() => handleSaveGroupMeta(selectedMembership.group_id)}
-                              disabled={savingGroupId === selectedMembership.group_id || !hasSelectedDirty}
+                              disabled={
+                                savingGroupId === selectedMembership.group_id || !hasSelectedDirty
+                              }
                               style={{
                                 ...styles.groupMetaSaveBtn,
                                 opacity:
@@ -1877,12 +1977,16 @@ export default function ProfilePage() {
                                     : "default",
                               }}
                             >
-                              {savingGroupId === selectedMembership.group_id ? "Guardando…" : "Guardar cambios en este grupo"}
+                              {savingGroupId === selectedMembership.group_id
+                                ? "Guardando…"
+                                : "Guardar cambios en este grupo"}
                             </button>
 
                             <button
                               type="button"
-                              onClick={() => router.push(`/calendar?group=${selectedMembership.group_id}`)}
+                              onClick={() =>
+                                router.push(`/calendar?group=${selectedMembership.group_id}`)
+                              }
                               style={styles.groupMetaCalendarBtn}
                             >
                               Ver calendario de este grupo
@@ -1896,46 +2000,380 @@ export default function ProfilePage() {
               )}
             </section>
 
-            <section style={styles.card} className="spProfileHideMobile">
-              <div style={styles.sectionLabel}>Uso y acciones rápidas</div>
-              <div style={styles.sectionSub}>Atajos a lo que normalmente haces desde SyncPlans.</div>
+            <section style={styles.card}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionLabel}>Preferencias personales</div>
+                  <h2 style={styles.sectionTitle}>Cómo sueles organizar tu tiempo</h2>
+                  <div style={styles.sectionSub}>
+                    Estas preferencias ayudan a SyncPlans a anticipar fricciones y mostrar decisiones más claras cuando se cruzan horarios.
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveCoordPrefs} style={styles.coordForm}>
+                <div style={styles.coordGrid} className="spProfileTwoCols">
+                  <div style={styles.coordCol}>
+                    <div style={styles.coordLabel}>Ritmo del día</div>
+
+                    <label style={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={coord.prefers_mornings}
+                        onChange={(e) =>
+                          setCoordPrefs((prev) =>
+                            normalizeCoordPrefs({
+                              ...(prev ?? {}),
+                              prefers_mornings: e.target.checked,
+                            })
+                          )
+                        }
+                      />
+                      <span>Soy más de madrugar</span>
+                    </label>
+
+                    <label style={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={coord.prefers_evenings}
+                        onChange={(e) =>
+                          setCoordPrefs((prev) =>
+                            normalizeCoordPrefs({
+                              ...(prev ?? {}),
+                              prefers_evenings: e.target.checked,
+                            })
+                          )
+                        }
+                      />
+                      <span>Soy más nocturno</span>
+                    </label>
+                  </div>
+
+                  <div style={styles.coordCol}>
+                    <div style={styles.coordLabel}>Cuándo prefieres planear</div>
+
+                    <label style={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={coord.prefers_weekdays}
+                        onChange={(e) =>
+                          setCoordPrefs((prev) =>
+                            normalizeCoordPrefs({
+                              ...(prev ?? {}),
+                              prefers_weekdays: e.target.checked,
+                            })
+                          )
+                        }
+                      />
+                      <span>Entre semana</span>
+                    </label>
+
+                    <label style={styles.checkboxRow}>
+                      <input
+                        type="checkbox"
+                        checked={coord.prefers_weekends}
+                        onChange={(e) =>
+                          setCoordPrefs((prev) =>
+                            normalizeCoordPrefs({
+                              ...(prev ?? {}),
+                              prefers_weekends: e.target.checked,
+                            })
+                          )
+                        }
+                      />
+                      <span>Fines de semana</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div style={styles.coordFieldBlock}>
+                  <div style={styles.coordLabel}>
+                    Horarios que casi siempre tienes ocupados
+                  </div>
+                  <textarea
+                    style={styles.textarea}
+                    rows={3}
+                    value={coord.blocked_note}
+                    onChange={(e) =>
+                      setCoordPrefs((prev) =>
+                        normalizeCoordPrefs({
+                          ...(prev ?? {}),
+                          blocked_note: e.target.value,
+                        })
+                      )
+                    }
+                    placeholder="Ej: Lunes y miércoles de 7 a 9 pm entreno."
+                  />
+                </div>
+
+                <div style={styles.coordFieldBlock}>
+                  <div style={styles.coordLabel}>
+                    Cuando hay conflictos de horario, normalmente prefieres…
+                  </div>
+                  <select
+                    style={styles.select}
+                    value={coord.decision_style ?? "depends"}
+                    onChange={(e) =>
+                      setCoordPrefs((prev) =>
+                        normalizeCoordPrefs({
+                          ...(prev ?? {}),
+                          decision_style: e.target.value as CoordinationPrefs["decision_style"],
+                        })
+                      )
+                    }
+                  >
+                    <option value="decide_fast">Decidir rápido y seguir</option>
+                    <option value="discuss">Hablarlo con calma</option>
+                    <option value="depends">Depende del evento</option>
+                  </select>
+                </div>
+
+                {coordError && <div style={styles.error}>{coordError}</div>}
+                {coordOk && <div style={styles.ok}>{coordOk}</div>}
+
+                <div style={styles.coordActions}>
+                  <button
+                    type="submit"
+                    disabled={savingCoord}
+                    style={{
+                      ...styles.primaryBtn,
+                      opacity: savingCoord ? 0.7 : 1,
+                      cursor: savingCoord ? "progress" : "pointer",
+                    }}
+                  >
+                    {savingCoord ? "Guardando…" : "Guardar preferencias"}
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <section style={styles.card}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionLabel}>Resumen diario</div>
+                  <h2 style={styles.sectionTitle}>Correo de arranque del día</h2>
+                  <div style={styles.sectionSub}>
+                    Si lo activas, te enviaremos cada mañana un correo con los eventos del día ordenados por hora.
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.digestRow}>
+                <label style={styles.digestToggle}>
+                  <input
+                    type="checkbox"
+                    checked={digestEnabled}
+                    onChange={(e) => handleToggleDigest(e.target.checked)}
+                    disabled={savingDigest}
+                  />
+                  <span style={{ marginLeft: 8 }}>Activar resumen diario</span>
+                </label>
+
+                <div style={styles.digestHourWrap}>
+                  <span style={styles.digestHourLabel}>Hora local:</span>
+                  <select
+                    value={digestHour}
+                    disabled={!digestEnabled || savingDigest}
+                    onChange={(e) => handleChangeDigestHour(Number(e.target.value) || 7)}
+                    style={styles.digestSelect}
+                  >
+                    <option value={6}>6:00</option>
+                    <option value={7}>7:00</option>
+                    <option value={8}>8:00</option>
+                    <option value={9}>9:00</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={styles.digestHint}>
+                Zona horaria: <strong>{digestTz}</strong>
+              </div>
+
+              {savingDigest && (
+                <div style={styles.digestSavingHint}>Guardando configuración…</div>
+              )}
+              {digestError && <div style={styles.error}>{digestError}</div>}
+              {digestOk && <div style={styles.ok}>{digestOk}</div>}
+            </section>
+          </div>
+
+          <div style={styles.rightCol}>
+            <section style={styles.card}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionLabel}>Estado de cuenta</div>
+                  <h2 style={styles.sectionTitle}>Lectura rápida</h2>
+                  <div style={styles.sectionSub}>
+                    Revisa en segundos cómo va tu configuración dentro de SyncPlans.
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.statusCard}>
+                <div style={styles.accountStatusRow}>
+                  <div style={styles.statusIcon}>{verified ? "✅" : "⚠️"}</div>
+                  <div>
+                    <div style={styles.statusTitle}>{accountStatusLabel}</div>
+                    <div style={styles.statusHint}>{accountStatusHint}</div>
+                  </div>
+                </div>
+
+                <div style={styles.configStatusBox}>
+                  <div style={styles.configStatusTitle}>Cómo vas con tu configuración</div>
+                  <div style={styles.configStatusItem}>
+                    <span style={styles.configStatusBullet}>
+                      {hasNameCompleted ? "✅" : "⏳"}
+                    </span>
+                    <span>Nombre y apellido definidos</span>
+                  </div>
+                  <div style={styles.configStatusItem}>
+                    <span style={styles.configStatusBullet}>
+                      {hasCoordPrefsMeaningful ? "✅" : "⏳"}
+                    </span>
+                    <span>Preferencias de tiempo configuradas</span>
+                  </div>
+                  <div style={styles.configStatusItem}>
+                    <span style={styles.configStatusBullet}>
+                      {hasGroupMetaGlobal ? "✅" : "⏳"}
+                    </span>
+                    <span>Roles y nombres en grupos configurados</span>
+                  </div>
+                </div>
+
+                {recommendation && (
+                  <div style={styles.recoCard}>
+                    <div style={styles.recoTitle}>Próximo paso recomendado</div>
+                    <div style={styles.recoMain}>{recommendation.title}</div>
+                    <div style={styles.recoHint}>{recommendation.hint}</div>
+
+                    {recommendation.ctaLabel && recommendation.ctaTarget && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const t = recommendation.ctaTarget!;
+                          if (t === "groups_new") router.push("/groups/new");
+                          else if (t === "calendar") router.push("/calendar");
+                          else if (t === "events_new")
+                            router.push("/events/new/details?type=personal");
+                          else if (t === "conflicts") router.push("/conflicts/detected");
+                          else if (t === "invitations") router.push("/invitations");
+                        }}
+                        style={styles.recoBtn}
+                      >
+                        {recommendation.ctaLabel}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section style={styles.card}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionLabel}>Centro de control</div>
+                  <h2 style={styles.sectionTitle}>Accesos rápidos</h2>
+                  <div style={styles.sectionSub}>
+                    Atajos a lo importante, sin convertir esta pantalla en un archivo interminable.
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.hubGrid} className="spProfileHubGrid">
+                <HubCard
+                  title="Grupos"
+                  hint="Pareja, familia y compartidos."
+                  onClick={() => router.push("/groups")}
+                />
+                <HubCard
+                  title="Miembros"
+                  hint="Quién está en tus grupos."
+                  onClick={() => router.push("/members")}
+                />
+                <HubCard
+                  title="Invitaciones"
+                  hint="Invita y acepta accesos."
+                  onClick={() => router.push("/invitations")}
+                />
+                <HubCard
+                  title="Settings"
+                  hint="Preferencias del producto."
+                  onClick={() => router.push("/settings")}
+                />
+                <HubCard
+                  title="Planes"
+                  hint="Ver tu plan y upgrade."
+                  onClick={() => router.push("/planes")}
+                />
+                <HubCard
+                  title="Salir"
+                  hint="Cerrar sesión."
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    router.replace("/auth/login");
+                  }}
+                />
+              </div>
+            </section>
+
+            <section style={styles.card}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionLabel}>Uso frecuente</div>
+                  <h2 style={styles.sectionTitle}>Lo que más haces</h2>
+                  <div style={styles.sectionSub}>
+                    Atajos directos a los flujos que más sentido tienen desde tu cuenta.
+                  </div>
+                </div>
+              </div>
 
               <div style={styles.quickActionsGrid} className="spProfileQuickGrid">
-                <QuickAction title="Ir al calendario" hint="Ver tu semana y crear nuevas actividades." onClick={() => router.push("/calendar")} />
-                <QuickAction title="Revisar conflictos" hint="Detectar conflictos y decidir qué hacer con ellos." onClick={() => router.push("/conflicts/detected")} />
-                <QuickAction title="Gestionar grupos" hint="Pareja, familia o grupos con los que organizas tu tiempo." onClick={() => router.push("/groups")} />
-                <QuickAction title="Invitar a alguien" hint="Envía invitaciones para compartir eventos y conflictos." onClick={() => router.push("/invitations")} />
+                <QuickAction
+                  title="Ir al calendario"
+                  hint="Ver tu semana y crear nuevas actividades."
+                  onClick={() => router.push("/calendar")}
+                />
+                <QuickAction
+                  title="Revisar conflictos"
+                  hint="Detectar conflictos y decidir qué hacer con ellos."
+                  onClick={() => router.push("/conflicts/detected")}
+                />
+                <QuickAction
+                  title="Gestionar grupos"
+                  hint="Pareja, familia o grupos con los que organizas tu tiempo."
+                  onClick={() => router.push("/groups")}
+                />
+                <QuickAction
+                  title="Invitar a alguien"
+                  hint="Envía invitaciones para compartir eventos y conflictos."
+                  onClick={() => router.push("/invitations")}
+                />
               </div>
             </section>
           </div>
         </div>
 
         <div style={styles.footer}>
-          SyncPlans está pensado para que tu calendario personal, de pareja, familia y grupos compartidos convivan sin fricciones. Este panel es tu centro de control.
+          SyncPlans está pensado para que tu calendario personal, de pareja, familia y grupos compartidos convivan con más claridad y menos fricción. Esta pantalla resume tu cuenta sin recargarla.
         </div>
 
         <style>{`
-          @media (max-width: 780px) {
+          @media (max-width: 900px) {
             .spProfileMainGrid {
               grid-template-columns: 1fr !important;
             }
+          }
 
-            .spProfileHideMobileSecondary {
-              display: none !important;
-            }
-
+          @media (max-width: 780px) {
             .spProfileMasterDetail {
               grid-template-columns: 1fr !important;
               min-height: auto !important;
             }
 
-            .spProfileQuickGrid {
-              grid-template-columns: 1fr !important;
-            }
-          }
-
-          @media (max-width: 520px) {
-            .spProfileHubGrid {
+            .spProfileQuickGrid,
+            .spProfileHubGrid,
+            .spProfileHeroStats,
+            .spProfileTwoCols {
               grid-template-columns: 1fr !important;
             }
           }

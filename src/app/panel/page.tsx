@@ -30,7 +30,6 @@ import {
 } from "@/lib/externalEvents";
 import { getMyProfile, type Profile } from "@/lib/profilesDb";
 import { isPremiumUser, isTrialActive, type PlanTier } from "@/lib/premium";
-
 import { colors, radii, shadows, spacing } from "@/styles/design-tokens";
 
 type QuickAction = {
@@ -39,6 +38,7 @@ type QuickAction = {
   hint: string;
   href: string;
   badge?: string;
+  featured?: boolean;
 };
 
 type ConnectionState = "connected" | "needs_reauth" | "disconnected";
@@ -115,6 +115,7 @@ export default function PanelPage() {
       setLoading(false);
     }
   }, []);
+
   const fetchGoogleStatus = useCallback(async () => {
     try {
       setGoogleLoading(true);
@@ -273,41 +274,43 @@ export default function PanelPage() {
   const quickActions: QuickAction[] = [
     {
       id: "calendar",
-      title: "Ir al calendario",
-      hint: "Tu vista principal para ver el mes, detectar choques y entrar rápido a lo importante.",
+      title: "Abrir calendario",
+      hint: "Tu vista principal para revisar la semana y entrar rápido a lo importante.",
       href: "/calendar",
-    },
-    {
-      id: "events",
-      title: "Crear o revisar eventos",
-      hint: "Administra tu agenda personal y los eventos que compartes con otros.",
-      href: "/events",
-      badge: totalEvents > 0 ? `${totalEvents}` : undefined,
+      featured: true,
     },
     {
       id: "conflicts",
       title: "Resolver conflictos",
-      hint: "Donde realmente se ve el valor de SyncPlans: decidir sin discusiones innecesarias.",
+      hint: "Donde SyncPlans más se diferencia: ver choques y decidir con claridad.",
       href: "/conflicts/detected",
       badge: conflictsNow > 0 ? `${conflictsNow}` : undefined,
+      featured: true,
+    },
+    {
+      id: "events",
+      title: "Eventos",
+      hint: "Crea, revisa y ordena tu agenda personal y compartida.",
+      href: "/events",
+      badge: totalEvents > 0 ? `${totalEvents}` : undefined,
     },
     {
       id: "groups",
-      title: "Administrar grupos",
-      hint: "Pareja, familia o compartido. Aquí está el corazón de la coordinación en grupo.",
+      title: "Grupos",
+      hint: "Administra pareja, familia o espacios compartidos.",
       href: "/groups",
       badge: totalGroups > 0 ? `${totalGroups}` : undefined,
     },
     {
       id: "invitations",
-      title: "Ver invitaciones",
-      hint: "Revisa invitaciones pendientes o suma a alguien más a tu ecosistema de coordinación.",
+      title: "Invitaciones",
+      hint: "Revisa pendientes o suma a alguien más.",
       href: "/invitations",
     },
     {
       id: "settings",
       title: "Cuenta e integraciones",
-      hint: "Ajusta tu perfil, tus preferencias y la conexión con Google Calendar.",
+      hint: "Perfil, preferencias y conexión con Google Calendar.",
       href: "/settings",
     },
   ];
@@ -369,10 +372,23 @@ export default function PanelPage() {
 
   const googleSupportCopy =
     connectionState === "connected"
-      ? "La conexión está activa y lista para seguir trayendo contexto externo."
+      ? "La conexión está activa y lista para sumar contexto externo sin recargar la experiencia principal."
       : connectionState === "needs_reauth"
       ? "No está roto: solo falta renovar la conexión para que SyncPlans vuelva a leer Google con normalidad."
-      : "Es una integración de apoyo. Te sirve para sumar contexto externo sin recargar el Panel.";
+      : "Es una integración de apoyo. Te sirve para sumar contexto externo sin convertir el Panel en un dashboard pesado.";
+
+  const heroNote =
+    conflictsNow > 0
+      ? `Tienes ${conflictsNow} conflicto${
+          conflictsNow === 1 ? "" : "s"
+        } visible${conflictsNow === 1 ? "" : "s"} para revisar.`
+      : totalGroups > 0
+      ? `Ya tienes ${totalGroups} espacio${
+          totalGroups === 1 ? "" : "s"
+        } compartido${totalGroups === 1 ? "" : "s"} activo${
+          totalGroups === 1 ? "" : "s"
+        }.`
+      : "Tu base está lista para empezar a coordinar mejor.";
 
   return (
     <MobileScaffold maxWidth={1120}>
@@ -386,25 +402,38 @@ export default function PanelPage() {
 
         <section style={styles.heroCard}>
           <div style={styles.heroTopRow}>
-            <div style={{ minWidth: 0 }}>
-              <div style={styles.eyebrow}>Centro de control</div>
+            <div style={styles.heroTextWrap}>
+              <div style={styles.eyebrow}>Hub principal</div>
               <h1 style={styles.heroTitle}>
-                Menos ruido. Más claridad sobre qué hacer ahora.
+                Menos dashboard. Más claridad sobre qué hacer ahora.
               </h1>
               <p style={styles.heroCopy}>
-                El Panel no debería sentirse como otro dashboard pesado. Debería
-                orientarte rápido: ver el estado general, entrar a tus flujos
-                clave y seguir.
+                El Panel debería orientarte en segundos: ver estado general,
+                entrar a tus flujos clave y seguir sin sentir peso innecesario.
               </p>
             </div>
 
-            <button
-              type="button"
-              style={styles.primaryCta}
-              onClick={() => router.push("/calendar")}
-            >
-              Abrir calendario
-            </button>
+            <div style={styles.heroActionStack}>
+              <button
+                type="button"
+                style={styles.primaryHeroCta}
+                onClick={() => router.push("/calendar")}
+              >
+                Abrir calendario
+              </button>
+              <button
+                type="button"
+                style={styles.secondaryHeroCta}
+                onClick={() => router.push("/events")}
+              >
+                Ver eventos
+              </button>
+            </div>
+          </div>
+
+          <div style={styles.heroStrip}>
+            <div style={styles.heroStripTitle}>Ahora mismo</div>
+            <div style={styles.heroStripCopy}>{heroNote}</div>
           </div>
 
           <div style={styles.metricsGrid}>
@@ -438,7 +467,7 @@ export default function PanelPage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Acciones principales</div>
-                  <h2 style={styles.sectionTitle}>Lo que de verdad importa</h2>
+                  <h2 style={styles.sectionTitle}>Empieza por lo importante</h2>
                 </div>
               </div>
 
@@ -447,7 +476,12 @@ export default function PanelPage() {
                   <button
                     key={action.id}
                     type="button"
-                    style={styles.actionCard}
+                    style={{
+                      ...styles.actionCard,
+                      ...(action.featured
+                        ? styles.actionCardFeatured
+                        : undefined),
+                    }}
                     onClick={() => router.push(action.href)}
                   >
                     <div style={styles.actionCardTop}>
@@ -466,8 +500,9 @@ export default function PanelPage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Tus grupos</div>
-                  <h2 style={styles.sectionTitle}>Vista rápida de contexto</h2>
+                  <h2 style={styles.sectionTitle}>Contexto compartido</h2>
                 </div>
+
                 <button
                   type="button"
                   style={styles.ghostButton}
@@ -483,7 +518,7 @@ export default function PanelPage() {
                 <div style={styles.list}>
                   {groupsPreview.map((group) => (
                     <div key={group.id} style={styles.listItem}>
-                      <div>
+                      <div style={styles.listCopyWrap}>
                         <div style={styles.listTitle}>
                           {group.name || getGroupTypeLabel(group.type)}
                         </div>
@@ -491,6 +526,7 @@ export default function PanelPage() {
                           {getGroupTypeLabel(group.type)}
                         </div>
                       </div>
+
                       <button
                         type="button"
                         style={styles.inlineLink}
@@ -523,7 +559,7 @@ export default function PanelPage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Google Calendar</div>
-                  <h2 style={styles.sectionTitle}>Integración secundaria</h2>
+                  <h2 style={styles.sectionTitle}>Integración de apoyo</h2>
                 </div>
 
                 <StatusPill label={googlePill.label} tone={googlePill.tone} />
@@ -532,7 +568,7 @@ export default function PanelPage() {
               <p style={styles.bodyCopy}>{googleSupportCopy}</p>
 
               <div style={styles.integrationBox}>
-                <div style={{ minWidth: 0 }}>
+                <div style={styles.integrationCopyWrap}>
                   <div style={styles.integrationLine}>{googleLine}</div>
 
                   {googleStatus?.error ? (
@@ -751,67 +787,133 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: radii.xl,
     border: `1px solid ${colors.borderSubtle}`,
     background:
-      "radial-gradient(1200px 420px at 0% 0%, rgba(56,189,248,0.16), transparent 55%), radial-gradient(800px 360px at 100% 0%, rgba(168,85,247,0.14), transparent 55%), rgba(15,23,42,0.92)",
+      "radial-gradient(1200px 420px at 0% 0%, rgba(56,189,248,0.16), transparent 55%), radial-gradient(760px 320px at 100% 0%, rgba(168,85,247,0.13), transparent 55%), rgba(15,23,42,0.94)",
     padding: 22,
     boxShadow: shadows.card,
     display: "flex",
     flexDirection: "column",
     gap: 18,
   },
+
   heroTopRow: {
     display: "flex",
-    gap: 16,
+    gap: 18,
     justifyContent: "space-between",
     alignItems: "flex-start",
     flexWrap: "wrap",
   },
+
+  heroTextWrap: {
+    minWidth: 0,
+    flex: "1 1 520px",
+  },
+
   eyebrow: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 900,
     textTransform: "uppercase",
-    letterSpacing: 0.7,
+    letterSpacing: 0.8,
     color: colors.accentPrimary,
     marginBottom: 8,
   },
+
   heroTitle: {
     margin: 0,
-    fontSize: "clamp(28px, 4.2vw, 42px)",
+    fontSize: "clamp(28px, 4vw, 42px)",
     lineHeight: 1.02,
     fontWeight: 950,
-    maxWidth: 700,
+    maxWidth: 760,
   },
+
   heroCopy: {
     margin: "10px 0 0",
     maxWidth: 700,
     color: colors.textMuted,
     fontSize: 15,
-    lineHeight: 1.6,
+    lineHeight: 1.62,
+  },
+
+  heroActionStack: {
+    display: "grid",
+    gap: 10,
+    minWidth: 200,
+    alignSelf: "flex-start",
+    flex: "0 0 auto",
+  },
+
+  primaryHeroCta: {
+    borderRadius: 999,
+    padding: "12px 16px",
+    border: "1px solid rgba(56,189,248,0.38)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.30), rgba(168,85,247,0.22))",
+    color: colors.textPrimary,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  secondaryHeroCta: {
+    borderRadius: 999,
+    padding: "11px 16px",
+    border: `1px solid ${colors.borderSubtle}`,
+    background: "rgba(255,255,255,0.04)",
+    color: colors.textPrimary,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+
+  heroStrip: {
+    borderRadius: radii.lg,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.045)",
+    padding: "13px 14px",
+    display: "grid",
+    gap: 4,
+  },
+
+  heroStripTitle: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: 0.65,
+    color: colors.textSecondary,
+  },
+
+  heroStripCopy: {
+    fontSize: 14,
+    color: colors.textPrimary,
+    lineHeight: 1.5,
+    fontWeight: 700,
   },
 
   metricsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
     gap: 12,
   },
+
   metricCard: {
     borderRadius: radii.lg,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.04)",
     padding: 14,
   },
+
   metricLabel: {
-    fontSize: 12,
-    fontWeight: 800,
+    fontSize: 11,
+    fontWeight: 900,
     color: colors.textSecondary,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.55,
   },
+
   metricValue: {
     marginTop: 8,
     fontSize: 28,
     fontWeight: 950,
     lineHeight: 1,
   },
+
   metricHint: {
     marginTop: 6,
     fontSize: 12,
@@ -821,16 +923,18 @@ const styles: Record<string, CSSProperties> = {
 
   mainGrid: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.35fr) minmax(320px, 0.85fr)",
+    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
     gap: spacing.lg,
     alignItems: "start",
   },
+
   leftCol: {
     display: "flex",
     flexDirection: "column",
     gap: spacing.lg,
     minWidth: 0,
   },
+
   rightCol: {
     display: "flex",
     flexDirection: "column",
@@ -856,6 +960,7 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "flex-start",
     flexWrap: "wrap",
   },
+
   sectionEyebrow: {
     fontSize: 11,
     textTransform: "uppercase",
@@ -864,6 +969,7 @@ const styles: Record<string, CSSProperties> = {
     color: colors.textSecondary,
     marginBottom: 6,
   },
+
   sectionTitle: {
     margin: 0,
     fontSize: 22,
@@ -876,6 +982,7 @@ const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: 12,
   },
+
   actionCard: {
     borderRadius: radii.lg,
     border: "1px solid rgba(255,255,255,0.09)",
@@ -885,25 +992,38 @@ const styles: Record<string, CSSProperties> = {
     textAlign: "left",
     cursor: "pointer",
     color: colors.textPrimary,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
   },
+
+  actionCardFeatured: {
+    background:
+      "linear-gradient(180deg, rgba(56,189,248,0.12), rgba(15,23,42,0.96))",
+    border: "1px solid rgba(56,189,248,0.18)",
+    boxShadow: "0 10px 24px rgba(56,189,248,0.08)",
+  },
+
   actionCardTop: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     gap: 10,
-    marginBottom: 10,
   },
+
   actionTitle: {
     fontSize: 16,
     fontWeight: 900,
     lineHeight: 1.2,
   },
+
   actionHint: {
     margin: 0,
     color: colors.textMuted,
     fontSize: 13,
     lineHeight: 1.55,
   },
+
   badge: {
     borderRadius: 999,
     padding: "4px 8px",
@@ -926,6 +1046,7 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: "column",
     gap: 12,
   },
+
   planPill: {
     alignSelf: "flex-start",
     borderRadius: 999,
@@ -936,12 +1057,14 @@ const styles: Record<string, CSSProperties> = {
     background: "rgba(251,191,36,0.10)",
     color: colors.textPrimary,
   },
+
   planTitle: {
     margin: 0,
     fontSize: 24,
     lineHeight: 1.08,
     fontWeight: 950,
   },
+
   planCopy: {
     margin: 0,
     color: colors.textMuted,
@@ -959,6 +1082,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     cursor: "pointer",
   },
+
   ghostButton: {
     borderRadius: 999,
     padding: "10px 14px",
@@ -974,6 +1098,7 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: "column",
     gap: 10,
   },
+
   listItem: {
     borderRadius: radii.lg,
     border: "1px solid rgba(255,255,255,0.07)",
@@ -984,6 +1109,11 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     gap: 12,
   },
+
+  listCopyWrap: {
+    minWidth: 0,
+  },
+
   listItemColumn: {
     borderRadius: radii.lg,
     border: "1px solid rgba(255,255,255,0.07)",
@@ -993,11 +1123,13 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: "column",
     gap: 4,
   },
+
   listTitle: {
     fontSize: 15,
     fontWeight: 850,
     color: colors.textPrimary,
   },
+
   listMeta: {
     fontSize: 12,
     color: colors.textMuted,
@@ -1015,16 +1147,24 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
     alignItems: "center",
   },
+
+  integrationCopyWrap: {
+    minWidth: 0,
+    flex: "1 1 240px",
+  },
+
   integrationLine: {
     fontSize: 14,
     lineHeight: 1.55,
     color: colors.textPrimary,
   },
+
   integrationActions: {
     display: "flex",
     gap: 8,
     flexWrap: "wrap",
   },
+
   primarySmallButton: {
     borderRadius: 999,
     padding: "10px 14px",
@@ -1034,6 +1174,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     cursor: "pointer",
   },
+
   secondarySmallButton: {
     borderRadius: 999,
     padding: "10px 14px",
@@ -1056,12 +1197,14 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: "column",
     gap: 10,
   },
+
   miniSectionHead: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     gap: 12,
   },
+
   miniSectionTitle: {
     fontSize: 13,
     fontWeight: 900,
@@ -1075,6 +1218,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     cursor: "pointer",
     padding: 0,
+    flexShrink: 0,
   },
 
   statusPill: {
@@ -1088,6 +1232,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     whiteSpace: "nowrap",
   },
+
   statusDot: {
     width: 8,
     height: 8,
@@ -1114,6 +1259,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 14,
     lineHeight: 1.5,
   },
+
   errorText: {
     color: "#fecdd3",
     fontSize: 12,

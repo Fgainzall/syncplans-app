@@ -8,7 +8,6 @@ import {
   layout,
   radii,
   shadows,
-  spacing,
 } from "@/styles/design-tokens";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +32,7 @@ export default async function HomePage() {
   return (
     <main style={S.page}>
       <div aria-hidden style={S.backgroundGlow} />
+      <div aria-hidden style={S.backgroundGrid} />
 
       <section style={S.shell} className="sp-shell">
         <header style={S.topBar} className="sp-topBar">
@@ -40,6 +40,7 @@ export default async function HomePage() {
             <BrandLogo size={30} />
             <div style={S.brandMeta}>
               <span style={S.brandEyebrow}>Coordinación compartida</span>
+              <span style={S.brandSubline}>Menos fricción al compartir tu tiempo</span>
             </div>
           </div>
 
@@ -56,20 +57,22 @@ export default async function HomePage() {
 
         <section style={S.heroGrid} className="sp-heroGrid">
           <div style={S.heroCol}>
-            <div style={S.badge}>
-              Menos choques. Menos confusión. Más claridad.
+            <div style={S.heroIntro}>
+              <div style={S.badge}>
+                Menos choques. Menos confusión. Más claridad.
+              </div>
+
+              <h1 style={S.title} className="sp-title">
+                El calendario que ayuda a{" "}
+                <span style={S.titleAccent}>coordinar de verdad</span>.
+              </h1>
+
+              <p style={S.lead} className="sp-lead">
+                SyncPlans detecta cruces de agenda, ordena decisiones y mantiene
+                una sola versión de la verdad cuando compartes tu tiempo con tu
+                pareja, tu familia o tu grupo.
+              </p>
             </div>
-
-            <h1 style={S.title} className="sp-title">
-              El calendario que ayuda a{" "}
-              <span style={S.titleAccent}>coordinar de verdad</span>.
-            </h1>
-
-            <p style={S.lead} className="sp-lead">
-              SyncPlans detecta cruces de agenda, ordena decisiones y mantiene
-              una sola versión de la verdad cuando compartes tu tiempo con tu
-              pareja, tu familia o tu grupo.
-            </p>
 
             <div style={S.ctaRow} className="sp-ctaRow">
               <Link
@@ -93,19 +96,43 @@ export default async function HomePage() {
               Ideal para parejas ocupadas. También sirve para familia y grupos.
             </div>
 
-            <div style={S.valueList}>
-              <ValueItem
-                title="Detecta conflictos antes de que escalen"
-                body="Visualiza choques entre eventos antes de guardar o confirmar."
+            <div style={S.statsRow} className="sp-statsRow">
+              <StatPill
+                kicker="Antes del problema"
+                value="Choques visibles"
               />
-              <ValueItem
-                title="Todos ven lo mismo"
-                body="Menos mensajes cruzados y menos ambigüedad sobre qué quedó."
+              <StatPill
+                kicker="Durante la decisión"
+                value="Menos ambigüedad"
               />
-              <ValueItem
-                title="Decidir pesa menos que discutir"
-                body="Conservar, mover o revisar después con una lógica compartida."
+              <StatPill
+                kicker="Después del acuerdo"
+                value="Todos ven lo mismo"
               />
+            </div>
+
+            <div style={S.valuePanel}>
+              <div style={S.valuePanelHeader}>
+                <div style={S.valuePanelEyebrow}>Por qué se siente distinto</div>
+                <div style={S.valuePanelTitle}>
+                  No es otro calendario compartido.
+                </div>
+              </div>
+
+              <div style={S.valueList}>
+                <ValueItem
+                  title="Detecta conflictos antes de que escalen"
+                  body="Visualiza choques entre eventos antes de guardar o confirmar."
+                />
+                <ValueItem
+                  title="Todos ven lo mismo"
+                  body="Menos mensajes cruzados y menos ambigüedad sobre qué quedó."
+                />
+                <ValueItem
+                  title="Decidir pesa menos que discutir"
+                  body="Conservar, mover o revisar después con una lógica compartida."
+                />
+              </div>
             </div>
           </div>
 
@@ -113,24 +140,26 @@ export default async function HomePage() {
             <PreviewCard nextAfterAuth={nextAfterAuth} />
           </div>
         </section>
-
-        <section style={S.trustRow} className="sp-trustRow">
-          <TrustPill>Choques visibles</TrustPill>
-          <TrustPill>Decisiones claras</TrustPill>
-          <TrustPill>Una sola verdad</TrustPill>
-        </section>
       </section>
 
       <style>{`
+        @media (max-width: 1180px) {
+          .sp-heroGrid {
+            grid-template-columns: minmax(0, 1fr) minmax(300px, 390px) !important;
+            gap: 22px !important;
+          }
+        }
+
         @media (max-width: 980px) {
           .sp-shell {
-            padding: 20px 16px 18px !important;
+            padding: 20px 16px 20px !important;
             border-radius: 24px !important;
           }
 
           .sp-topBar {
             gap: 12px !important;
             align-items: center !important;
+            margin-bottom: 18px !important;
           }
 
           .sp-heroGrid {
@@ -139,8 +168,8 @@ export default async function HomePage() {
           }
 
           .sp-title {
-            font-size: 38px !important;
-            line-height: 1.04 !important;
+            font-size: 40px !important;
+            line-height: 1.03 !important;
           }
 
           .sp-lead {
@@ -159,8 +188,8 @@ export default async function HomePage() {
             justify-content: center !important;
           }
 
-          .sp-trustRow {
-            justify-content: flex-start !important;
+          .sp-statsRow {
+            grid-template-columns: 1fr !important;
           }
         }
 
@@ -175,7 +204,7 @@ export default async function HomePage() {
           }
 
           .sp-title {
-            font-size: 33px !important;
+            font-size: 34px !important;
           }
         }
 
@@ -207,26 +236,51 @@ function ValueItem({
   );
 }
 
-function TrustPill({ children }: { children: React.ReactNode }) {
-  return <span style={S.trustPill}>{children}</span>;
+function StatPill({
+  kicker,
+  value,
+}: {
+  kicker: string;
+  value: string;
+}) {
+  return (
+    <div style={S.statPill}>
+      <div style={S.statKicker}>{kicker}</div>
+      <div style={S.statValue}>{value}</div>
+    </div>
+  );
 }
 
 function PreviewCard({ nextAfterAuth }: { nextAfterAuth: string }) {
   return (
     <div style={S.previewCard}>
+      <div style={S.previewChrome}>
+        <span style={S.previewChromeDot} />
+        <span style={S.previewChromeDot} />
+        <span style={S.previewChromeDot} />
+      </div>
+
       <div style={S.previewHeader}>
         <div style={S.previewHeaderLeft}>
           <span style={S.previewHeaderTitle}>Vista rápida</span>
-          <span style={S.previewHeaderMeta}>Pareja · Conflictos</span>
+          <span style={S.previewHeaderMeta}>Pareja · Conflictos · Claridad</span>
         </div>
 
         <div style={S.previewStatus}>En vivo</div>
       </div>
 
+      <div style={S.previewSummary}>
+        <div style={S.previewSummaryLabel}>Hoy</div>
+        <div style={S.previewSummaryTitle}>Dos planes compiten por el mismo espacio</div>
+        <div style={S.previewSummaryBody}>
+          SyncPlans lo hace visible antes de que termine en mensajes cruzados.
+        </div>
+      </div>
+
       <div style={S.previewCalendar}>
         <div style={S.weekHeader}>
-          {["L", "M", "M", "J", "V", "S", "D"].map((day) => (
-            <span key={day} style={S.weekDay}>
+          {["L", "M", "M", "J", "V", "S", "D"].map((day, index) => (
+            <span key={`${day}-${index}`} style={S.weekDay}>
               {day}
             </span>
           ))}
@@ -243,6 +297,7 @@ function PreviewCard({ nextAfterAuth }: { nextAfterAuth: string }) {
             time="19:00"
             tone="warning"
           />
+
           <div style={S.conflictBox}>
             <div style={S.conflictIcon}>✦</div>
             <div style={{ display: "grid", gap: 4 }}>
@@ -336,7 +391,7 @@ const S: Record<string, React.CSSProperties> = {
     color: colors.textPrimary,
     position: "relative",
     overflow: "hidden",
-    padding: "20px",
+    padding: "24px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -346,11 +401,22 @@ const S: Record<string, React.CSSProperties> = {
     position: "absolute",
     inset: 0,
     background: `
-      radial-gradient(900px 520px at 14% 8%, rgba(56,189,248,0.16), transparent 60%),
-      radial-gradient(840px 500px at 86% 14%, rgba(168,85,247,0.10), transparent 60%),
-      radial-gradient(700px 420px at 54% 92%, rgba(34,197,94,0.08), transparent 60%)
+      radial-gradient(980px 580px at 12% 8%, rgba(56,189,248,0.15), transparent 60%),
+      radial-gradient(860px 520px at 86% 12%, rgba(168,85,247,0.10), transparent 62%),
+      radial-gradient(720px 440px at 52% 96%, rgba(34,197,94,0.07), transparent 60%)
     `,
     pointerEvents: "none",
+  },
+
+  backgroundGrid: {
+    position: "absolute",
+    inset: 0,
+    backgroundImage:
+      "linear-gradient(rgba(148,163,184,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.035) 1px, transparent 1px)",
+    backgroundSize: "40px 40px",
+    maskImage: "radial-gradient(circle at center, black 36%, transparent 88%)",
+    pointerEvents: "none",
+    opacity: 0.6,
   },
 
   shell: {
@@ -358,12 +424,13 @@ const S: Record<string, React.CSSProperties> = {
     zIndex: 1,
     width: "100%",
     maxWidth: layout.maxWidthDesktop,
-    borderRadius: 30,
+    borderRadius: 32,
     border: `1px solid ${colors.borderSubtle}`,
-    background: "linear-gradient(180deg, rgba(15,23,42,0.82) 0%, rgba(2,6,23,0.88) 100%)",
+    background:
+      "linear-gradient(180deg, rgba(15,23,42,0.84) 0%, rgba(2,6,23,0.90) 100%)",
     boxShadow: shadows.soft,
     backdropFilter: "blur(18px)",
-    padding: "24px 24px 20px",
+    padding: "28px 28px 24px",
   },
 
   topBar: {
@@ -371,7 +438,7 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "space-between",
     gap: 16,
-    marginBottom: 24,
+    marginBottom: 28,
   },
 
   brandWrap: {
@@ -394,6 +461,12 @@ const S: Record<string, React.CSSProperties> = {
     textTransform: "uppercase",
   },
 
+  brandSubline: {
+    color: "#CBD5E1",
+    fontSize: 13,
+    fontWeight: 700,
+  },
+
   topActions: {
     display: "flex",
     alignItems: "center",
@@ -401,7 +474,7 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   topLogin: {
-    height: 40,
+    height: 42,
     padding: "0 16px",
     borderRadius: radii.full,
     border: `1px solid ${colors.borderSubtle}`,
@@ -417,22 +490,23 @@ const S: Record<string, React.CSSProperties> = {
 
   heroGrid: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.15fr) minmax(320px, 430px)",
-    gap: 22,
+    gridTemplateColumns: "minmax(0, 1.22fr) minmax(320px, 400px)",
+    gap: 28,
     alignItems: "stretch",
   },
 
   heroCol: {
-    borderRadius: 24,
-    border: `1px solid rgba(148, 163, 184, 0.16)`,
-    background: "linear-gradient(180deg, rgba(15,23,42,0.52) 0%, rgba(2,6,23,0.28) 100%)",
-    padding: 28,
+    minWidth: 0,
     display: "grid",
-    gap: 16,
+    gap: 20,
+    alignContent: "start",
+    padding: "8px 4px 6px 2px",
   },
 
-  previewCol: {
-    minWidth: 0,
+  heroIntro: {
+    display: "grid",
+    gap: 18,
+    paddingTop: 8,
   },
 
   badge: {
@@ -451,25 +525,26 @@ const S: Record<string, React.CSSProperties> = {
 
   title: {
     margin: 0,
-    fontSize: 54,
-    lineHeight: 0.98,
+    fontSize: 62,
+    lineHeight: 0.95,
     fontWeight: 900,
-    letterSpacing: "-0.03em",
+    letterSpacing: "-0.04em",
     maxWidth: 760,
   },
 
   titleAccent: {
-    background: "linear-gradient(90deg, #E0F2FE 0%, #BAE6FD 36%, #DDD6FE 100%)",
+    background:
+      "linear-gradient(90deg, #E0F2FE 0%, #BAE6FD 36%, #DDD6FE 100%)",
     WebkitBackgroundClip: "text",
     color: "transparent",
   },
 
   lead: {
     margin: 0,
-    maxWidth: 670,
+    maxWidth: 700,
     color: "#CBD5E1",
-    fontSize: 17,
-    lineHeight: 1.65,
+    fontSize: 18,
+    lineHeight: 1.72,
   },
 
   ctaRow: {
@@ -477,12 +552,12 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 12,
     flexWrap: "wrap",
-    marginTop: 6,
+    marginTop: 2,
   },
 
   primaryCta: {
-    minHeight: 46,
-    padding: "0 18px",
+    minHeight: 48,
+    padding: "0 20px",
     borderRadius: radii.full,
     textDecoration: "none",
     display: "inline-flex",
@@ -490,12 +565,13 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 14,
     fontWeight: 900,
     color: "#06111D",
-    background: "linear-gradient(135deg, #67E8F9 0%, #38BDF8 45%, #A855F7 100%)",
-    boxShadow: "0 16px 34px rgba(56,189,248,0.20)",
+    background:
+      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 45%, #A855F7 100%)",
+    boxShadow: "0 16px 34px rgba(56,189,248,0.22)",
   },
 
   secondaryCta: {
-    minHeight: 46,
+    minHeight: 48,
     padding: "0 18px",
     borderRadius: radii.full,
     textDecoration: "none",
@@ -511,13 +587,72 @@ const S: Record<string, React.CSSProperties> = {
   microLine: {
     color: colors.textSecondary,
     fontSize: 13,
-    fontWeight: 600,
+    fontWeight: 700,
+  },
+
+  statsRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 10,
+  },
+
+  statPill: {
+    borderRadius: 18,
+    border: "1px solid rgba(148,163,184,0.14)",
+    background: "rgba(15,23,42,0.42)",
+    padding: "14px 14px 13px",
+    display: "grid",
+    gap: 4,
+  },
+
+  statKicker: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.03em",
+    textTransform: "uppercase",
+  },
+
+  statValue: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: 850,
+    lineHeight: 1.35,
+  },
+
+  valuePanel: {
+    borderRadius: 24,
+    border: "1px solid rgba(148,163,184,0.14)",
+    background:
+      "linear-gradient(180deg, rgba(15,23,42,0.50) 0%, rgba(2,6,23,0.22) 100%)",
+    padding: 22,
+    display: "grid",
+    gap: 16,
+  },
+
+  valuePanelHeader: {
+    display: "grid",
+    gap: 4,
+  },
+
+  valuePanelEyebrow: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+  },
+
+  valuePanelTitle: {
+    color: colors.textPrimary,
+    fontSize: 20,
+    fontWeight: 900,
+    lineHeight: 1.15,
   },
 
   valueList: {
     display: "grid",
     gap: 12,
-    marginTop: 6,
   },
 
   valueItem: {
@@ -551,15 +686,39 @@ const S: Record<string, React.CSSProperties> = {
     lineHeight: 1.55,
   },
 
+  previewCol: {
+    minWidth: 0,
+    display: "flex",
+  },
+
   previewCard: {
-    height: "100%",
-    borderRadius: 24,
+    width: "100%",
+    alignSelf: "stretch",
+    borderRadius: 28,
     border: `1px solid ${colors.borderSubtle}`,
-    background: "linear-gradient(180deg, rgba(8,15,30,0.92) 0%, rgba(2,6,23,0.98) 100%)",
+    background:
+      "linear-gradient(180deg, rgba(8,15,30,0.94) 0%, rgba(2,6,23,0.98) 100%)",
     boxShadow: shadows.card,
     padding: 18,
     display: "grid",
     gap: 14,
+    position: "relative",
+    overflow: "hidden",
+  },
+
+  previewChrome: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    opacity: 0.9,
+  },
+
+  previewChromeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: radii.full,
+    background: "rgba(148,163,184,0.45)",
+    display: "inline-block",
   },
 
   previewHeader: {
@@ -595,6 +754,37 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 11,
     fontWeight: 900,
     whiteSpace: "nowrap",
+  },
+
+  previewSummary: {
+    display: "grid",
+    gap: 4,
+    borderRadius: 18,
+    padding: "14px 14px 12px",
+    background:
+      "linear-gradient(180deg, rgba(56,189,248,0.10) 0%, rgba(168,85,247,0.08) 100%)",
+    border: "1px solid rgba(148,163,184,0.14)",
+  },
+
+  previewSummaryLabel: {
+    color: "#C4B5FD",
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+  },
+
+  previewSummaryTitle: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: 900,
+    lineHeight: 1.3,
+  },
+
+  previewSummaryBody: {
+    color: "#CBD5E1",
+    fontSize: 12,
+    lineHeight: 1.55,
   },
 
   previewCalendar: {
@@ -665,7 +855,8 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: "flex-start",
     borderRadius: 16,
     padding: "13px 12px",
-    background: "linear-gradient(180deg, rgba(56,189,248,0.10) 0%, rgba(168,85,247,0.10) 100%)",
+    background:
+      "linear-gradient(180deg, rgba(56,189,248,0.10) 0%, rgba(168,85,247,0.10) 100%)",
     border: "1px solid rgba(148,163,184,0.18)",
   },
 
@@ -692,7 +883,7 @@ const S: Record<string, React.CSSProperties> = {
     display: "flex",
     gap: 10,
     flexWrap: "wrap",
-    marginTop: 2,
+    marginTop: 4,
   },
 
   previewPrimary: {
@@ -706,7 +897,8 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 900,
     color: "#06111D",
-    background: "linear-gradient(135deg, #67E8F9 0%, #38BDF8 50%, #A855F7 100%)",
+    background:
+      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 50%, #A855F7 100%)",
   },
 
   previewSecondary: {
@@ -729,28 +921,5 @@ const S: Record<string, React.CSSProperties> = {
     color: "#94A3B8",
     fontSize: 12,
     fontWeight: 700,
-  },
-
-  trustRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-    marginTop: 18,
-    paddingTop: 2,
-  },
-
-  trustPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 34,
-    padding: "0 12px",
-    borderRadius: radii.full,
-    background: "rgba(15,23,42,0.52)",
-    border: "1px solid rgba(148,163,184,0.12)",
-    color: "#CBD5E1",
-    fontSize: 12,
-    fontWeight: 800,
   },
 };

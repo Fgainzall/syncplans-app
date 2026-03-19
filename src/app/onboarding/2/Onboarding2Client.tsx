@@ -31,16 +31,13 @@ export default function Onboarding2Client() {
     router.replace(nextFinal);
   }
 
-  function handleLogin() {
-    router.push(`/auth/login${qsNext}`);
-  }
-
   return (
     <main style={S.page}>
       <div aria-hidden style={S.backgroundGlow} />
+      <div aria-hidden style={S.backgroundGrid} />
 
-      <section style={S.shell} className="ob-shell">
-        <header style={S.topBar} className="ob-topBar">
+      <section style={S.shell} className="ob2-shell">
+        <header style={S.topBar} className="ob2-topBar">
           <div style={S.brandWrap}>
             <BrandLogo variant="mark" size={30} />
             <div style={S.brandMeta}>
@@ -49,72 +46,67 @@ export default function Onboarding2Client() {
             </div>
           </div>
 
-          <div style={S.topActions}>
-            <button
-              type="button"
-              onClick={handleLogin}
-              style={S.topGhostButton}
-              className="ob-topGhost"
-            >
-              Ya tengo cuenta
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleSkip}
+            style={S.topGhostButton}
+            className="ob2-topGhost"
+          >
+            Saltar
+          </button>
         </header>
 
-        <div style={S.heroGrid} className="ob-heroGrid">
+        <div style={S.heroGrid} className="ob2-heroGrid">
           <section style={S.copyCard}>
             <div style={S.kicker}>
-              Lo que desgasta no siempre es visible
+              La mayoría de los problemas no empiezan por mala intención
             </div>
 
-            <h1 style={S.title} className="ob-title">
-              Muchas discusiones empiezan con algo pequeño.
-              <br />
-              <span style={S.titleAccent}>Una descoordinación.</span>
-            </h1>
+            <div style={S.titleBlock}>
+              <h1 style={S.title} className="ob2-title">
+                Empiezan porque cada uno
+                <br />
+                <span style={S.titleAccent}>ve una versión distinta.</span>
+              </h1>
 
-            <p style={S.lead}>
-              No suele pasar por mala intención. Pasa porque cada uno maneja su
-              agenda por su lado, los mensajes se pierden y la semana se arma
-              entre recuerdos, suposiciones y pantallazos.
-            </p>
+              <p style={S.lead}>
+                Uno cree que ya estaba hablado. El otro piensa que todavía no
+                estaba cerrado. A veces nadie se equivocó del todo: simplemente
+                faltó una referencia común para ver lo mismo al mismo tiempo.
+              </p>
+            </div>
 
-            <div style={S.listCard}>
-              <RecognitionRow
-                title="No era mala voluntad"
-                text="Solo había dos versiones distintas del mismo plan."
+            <div style={S.sceneList}>
+              <SceneCard
+                title="Mensajes que no alcanzan"
+                body="Un chat ayuda, pero se pierde entre otras conversaciones y deja demasiado espacio para interpretar."
               />
-              <RecognitionRow
-                title="No faltó cariño"
-                text="Faltó una referencia común que ambos pudieran ver."
+              <SceneCard
+                title="Acuerdos que no quedaron visibles"
+                body="Algo se habló, pero no quedó claro si era fijo, tentativo o si dependía de otra cosa."
               />
-              <RecognitionRow
-                title="No era un gran problema"
-                text="Pero se volvió uno porque nadie detectó el choque a tiempo."
+              <SceneCard
+                title="Choques que aparecen tarde"
+                body="Cuando el cruce se ve demasiado tarde, ya no se siente como organización: se siente como problema."
               />
             </div>
 
             <p style={S.supportText}>
-              SyncPlans reconoce esa fricción antes de que escale. No juzga.
-              Ordena.
+              SyncPlans no reemplaza la conversación. La ordena, la vuelve más
+              visible y reduce la fricción que aparece cuando cada uno opera con
+              una agenda distinta en la cabeza.
             </p>
 
-            <div style={S.footerActions} className="ob-footerActions">
-              <div style={S.leftActionGroup}>
-                <button type="button" onClick={handleBack} style={S.skipButton}>
-                  Atrás
-                </button>
-
-                <button type="button" onClick={handleSkip} style={S.skipButton}>
-                  Saltar
-                </button>
-              </div>
+            <div style={S.footerActions} className="ob2-footerActions">
+              <button type="button" onClick={handleBack} style={S.secondaryButton}>
+                Atrás
+              </button>
 
               <button
                 type="button"
                 onClick={handleNext}
                 style={S.primaryButton}
-                className="ob-primary"
+                className="ob2-primary"
               >
                 Seguir
               </button>
@@ -124,42 +116,46 @@ export default function Onboarding2Client() {
           <aside style={S.previewCard}>
             <div style={S.previewHeader}>
               <div style={S.previewHeaderMeta}>
-                <span style={S.previewEyebrow}>Antes</span>
-                <span style={S.previewTitle}>Todo queda repartido</span>
+                <span style={S.previewEyebrow}>Escena frecuente</span>
+                <span style={S.previewTitle}>Todos creen tener razón</span>
               </div>
 
-              <span style={S.previewBadge}>Común</span>
+              <span style={S.previewBadge}>Cotidiano</span>
             </div>
 
-            <div style={S.chatStack}>
-              <ChatBubble
+            <div style={S.threadCard}>
+              <MessageBubble
                 side="left"
-                text="¿Entonces quedamos para el viernes?"
+                name="Ara"
+                text="¿Entonces mañana sí quedamos con tus primos?"
               />
-              <ChatBubble
+              <MessageBubble
                 side="right"
-                text="Sí, creo que sí. Te confirmo luego."
+                name="Tú"
+                text="Pensé que era la otra semana."
               />
-              <ChatBubble
+              <MessageBubble
                 side="left"
-                text="Uy, yo entendí sábado..."
-              />
-              <ChatBubble
-                side="right"
-                text="Ya había quedado con mi familia."
+                name="Ara"
+                text="Yo lo había entendido como confirmado."
               />
             </div>
 
-            <div style={S.previewDivider} />
+            <div style={S.insightCard}>
+              <div style={S.insightIcon}>✦</div>
+              <div style={{ display: "grid", gap: 4 }}>
+                <div style={S.insightTitle}>No siempre falta intención.</div>
+                <div style={S.insightBody}>
+                  Muchas veces falta claridad compartida: una sola referencia
+                  visible para no depender de memoria, suposiciones o mensajes
+                  sueltos.
+                </div>
+              </div>
+            </div>
 
-            <div style={S.previewSummary}>
-              <div style={S.previewSummaryTitle}>
-                Sin una sola referencia compartida
-              </div>
-              <div style={S.previewSummaryText}>
-                lo que falla no es el cariño ni el interés. Falla la
-                coordinación.
-              </div>
+            <div style={S.previewFoot}>
+              Cuando ambos miran cosas distintas, coordinar consume más energía
+              de la necesaria.
             </div>
           </aside>
         </div>
@@ -173,8 +169,7 @@ export default function Onboarding2Client() {
           </div>
 
           <div style={S.bottomCaption}>
-            La fricción suele ser pequeña al inicio. Justamente por eso cuesta
-            verla.
+            Del problema general pasamos a la fricción concreta del día a día.
           </div>
         </div>
       </section>
@@ -184,29 +179,28 @@ export default function Onboarding2Client() {
   );
 }
 
-function RecognitionRow({
+function SceneCard({
   title,
-  text,
+  body,
 }: {
   title: string;
-  text: string;
+  body: string;
 }) {
   return (
-    <div style={S.recognitionRow}>
-      <div style={S.recognitionDot} />
-      <div style={{ display: "grid", gap: 4 }}>
-        <div style={S.recognitionTitle}>{title}</div>
-        <div style={S.recognitionText}>{text}</div>
-      </div>
+    <div style={S.sceneCard}>
+      <div style={S.sceneTitle}>{title}</div>
+      <div style={S.sceneBody}>{body}</div>
     </div>
   );
 }
 
-function ChatBubble({
+function MessageBubble({
   side,
+  name,
   text,
 }: {
   side: "left" | "right";
+  name: string;
   text: string;
 }) {
   const isRight = side === "right";
@@ -214,15 +208,19 @@ function ChatBubble({
   return (
     <div
       style={{
-        ...S.chatBubble,
-        alignSelf: isRight ? "flex-end" : "flex-start",
-        background: isRight ? "rgba(56,189,248,0.12)" : "rgba(148,163,184,0.10)",
-        border: isRight
-          ? "1px solid rgba(56,189,248,0.18)"
-          : "1px solid rgba(148,163,184,0.16)",
+        display: "flex",
+        justifyContent: isRight ? "flex-end" : "flex-start",
       }}
     >
-      {text}
+      <div
+        style={{
+          ...S.messageBubble,
+          ...(isRight ? S.messageBubbleRight : S.messageBubbleLeft),
+        }}
+      >
+        <div style={S.messageName}>{name}</div>
+        <div style={S.messageText}>{text}</div>
+      </div>
     </div>
   );
 }
@@ -240,45 +238,52 @@ function Dot({ active = false }: { active?: boolean }) {
 }
 
 const responsiveCss = `
+  @media (max-width: 1100px) {
+    .ob2-heroGrid {
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 380px) !important;
+      gap: 18px !important;
+    }
+  }
+
   @media (max-width: 980px) {
-    .ob-shell {
+    .ob2-shell {
       padding: 20px 16px 18px !important;
       border-radius: 24px !important;
     }
 
-    .ob-topBar {
+    .ob2-topBar {
       gap: 12px !important;
       align-items: center !important;
     }
 
-    .ob-heroGrid {
+    .ob2-heroGrid {
       grid-template-columns: 1fr !important;
       gap: 16px !important;
     }
 
-    .ob-title {
+    .ob2-title {
       font-size: 34px !important;
       line-height: 1.04 !important;
     }
 
-    .ob-footerActions {
+    .ob2-footerActions {
       flex-direction: column !important;
       align-items: stretch !important;
     }
 
-    .ob-primary,
-    .ob-topGhost {
+    .ob2-primary,
+    .ob2-topGhost {
       width: 100% !important;
       justify-content: center !important;
     }
   }
 
   @media (max-width: 640px) {
-    .ob-topBar {
+    .ob2-topBar {
       flex-wrap: wrap !important;
     }
 
-    .ob-title {
+    .ob2-title {
       font-size: 30px !important;
     }
   }
@@ -301,11 +306,22 @@ const S: Record<string, React.CSSProperties> = {
     position: "absolute",
     inset: 0,
     background: `
-      radial-gradient(900px 520px at 10% 8%, rgba(56,189,248,0.12), transparent 58%),
-      radial-gradient(820px 460px at 88% 12%, rgba(168,85,247,0.10), transparent 60%),
-      radial-gradient(700px 420px at 54% 96%, rgba(251,191,36,0.06), transparent 60%)
+      radial-gradient(920px 540px at 10% 8%, rgba(56,189,248,0.14), transparent 58%),
+      radial-gradient(820px 470px at 88% 12%, rgba(168,85,247,0.11), transparent 60%),
+      radial-gradient(700px 430px at 54% 96%, rgba(34,197,94,0.06), transparent 60%)
     `,
     pointerEvents: "none",
+  },
+
+  backgroundGrid: {
+    position: "absolute",
+    inset: 0,
+    backgroundImage:
+      "linear-gradient(rgba(148,163,184,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.03) 1px, transparent 1px)",
+    backgroundSize: "42px 42px",
+    maskImage: "radial-gradient(circle at center, black 34%, transparent 88%)",
+    pointerEvents: "none",
+    opacity: 0.7,
   },
 
   shell: {
@@ -357,12 +373,6 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 800,
   },
 
-  topActions: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-  },
-
   topGhostButton: {
     minHeight: 40,
     padding: "0 16px",
@@ -380,8 +390,8 @@ const S: Record<string, React.CSSProperties> = {
 
   heroGrid: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.1fr) minmax(320px, 420px)",
-    gap: 18,
+    gridTemplateColumns: "minmax(0, 1.14fr) minmax(320px, 400px)",
+    gap: 20,
     alignItems: "stretch",
   },
 
@@ -389,10 +399,10 @@ const S: Record<string, React.CSSProperties> = {
     borderRadius: 24,
     border: "1px solid rgba(148,163,184,0.16)",
     background:
-      "linear-gradient(180deg, rgba(15,23,42,0.52) 0%, rgba(2,6,23,0.26) 100%)",
-    padding: 28,
+      "linear-gradient(180deg, rgba(15,23,42,0.50) 0%, rgba(2,6,23,0.24) 100%)",
+    padding: 30,
     display: "grid",
-    gap: 16,
+    gap: 20,
   },
 
   kicker: {
@@ -401,24 +411,30 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: "center",
     padding: "8px 12px",
     borderRadius: radii.full,
-    border: "1px solid rgba(251,191,36,0.20)",
-    background: "rgba(251,191,36,0.10)",
-    color: "#FDE68A",
+    border: "1px solid rgba(56,189,248,0.20)",
+    background: "rgba(56,189,248,0.10)",
+    color: "#CFF4FF",
     fontSize: 12,
     fontWeight: 800,
   },
 
+  titleBlock: {
+    display: "grid",
+    gap: 14,
+  },
+
   title: {
     margin: 0,
-    fontSize: 44,
-    lineHeight: 1,
+    fontSize: 46,
+    lineHeight: 0.98,
     fontWeight: 900,
-    letterSpacing: "-0.03em",
+    letterSpacing: "-0.035em",
+    maxWidth: 700,
   },
 
   titleAccent: {
     background:
-      "linear-gradient(90deg, #FDE68A 0%, #FDBA74 46%, #F9A8D4 100%)",
+      "linear-gradient(90deg, #E0F2FE 0%, #BAE6FD 34%, #DDD6FE 100%)",
     WebkitBackgroundClip: "text",
     color: "transparent",
   },
@@ -427,52 +443,42 @@ const S: Record<string, React.CSSProperties> = {
     margin: 0,
     color: "#CBD5E1",
     fontSize: 16,
-    lineHeight: 1.68,
-    maxWidth: 650,
+    lineHeight: 1.72,
+    maxWidth: 660,
   },
 
-  listCard: {
+  sceneList: {
     display: "grid",
     gap: 12,
-    marginTop: 2,
   },
 
-  recognitionRow: {
+  sceneCard: {
+    borderRadius: 18,
+    border: "1px solid rgba(148,163,184,0.14)",
+    background: "rgba(255,255,255,0.04)",
+    padding: "15px 16px",
     display: "grid",
-    gridTemplateColumns: "14px minmax(0, 1fr)",
-    gap: 12,
-    alignItems: "flex-start",
-    padding: "12px 0",
-    borderTop: "1px solid rgba(148,163,184,0.10)",
+    gap: 6,
   },
 
-  recognitionDot: {
-    width: 10,
-    height: 10,
-    borderRadius: radii.full,
-    marginTop: 5,
-    background: colors.accentWarning,
-    boxShadow: "0 0 0 6px rgba(251,191,36,0.12)",
-  },
-
-  recognitionTitle: {
+  sceneTitle: {
     color: colors.textPrimary,
     fontSize: 14,
     fontWeight: 850,
     lineHeight: 1.35,
   },
 
-  recognitionText: {
+  sceneBody: {
     color: "#94A3B8",
     fontSize: 13,
-    lineHeight: 1.55,
+    lineHeight: 1.6,
   },
 
   supportText: {
     margin: 0,
     color: "#94A3B8",
     fontSize: 14,
-    lineHeight: 1.65,
+    lineHeight: 1.68,
     maxWidth: 620,
   },
 
@@ -481,59 +487,53 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    marginTop: 8,
+    marginTop: 6,
   },
 
-  leftActionGroup: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-
-  skipButton: {
+  secondaryButton: {
     minHeight: 46,
     padding: "0 16px",
     borderRadius: radii.full,
-    background: "transparent",
-    color: colors.textSecondary,
+    border: `1px solid ${colors.borderSubtle}`,
+    background: "rgba(2,6,23,0.26)",
+    color: colors.textPrimary,
     fontSize: 14,
     fontWeight: 800,
-    border: "none",
     cursor: "pointer",
   },
 
   primaryButton: {
-    minHeight: 46,
-    padding: "0 18px",
+    minHeight: 48,
+    padding: "0 20px",
     borderRadius: radii.full,
     border: "none",
     background:
-      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 46%, #A855F7 100%)",
+      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 50%, #A855F7 100%)",
     color: "#06111D",
     fontSize: 14,
     fontWeight: 900,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
+    boxShadow: "0 16px 32px rgba(56,189,248,0.22)",
     cursor: "pointer",
-    boxShadow: "0 16px 34px rgba(56,189,248,0.20)",
   },
 
   previewCard: {
     borderRadius: 24,
-    border: `1px solid ${colors.borderSubtle}`,
+    border: "1px solid rgba(148,163,184,0.14)",
     background:
-      "linear-gradient(180deg, rgba(8,15,30,0.92) 0%, rgba(2,6,23,0.98) 100%)",
+      "linear-gradient(180deg, rgba(8,15,30,0.90) 0%, rgba(2,6,23,0.96) 100%)",
     boxShadow: shadows.card,
     padding: 18,
     display: "grid",
     gap: 14,
+    alignContent: "start",
   },
 
   previewHeader: {
     display: "flex",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12,
   },
@@ -544,17 +544,18 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   previewEyebrow: {
-    color: colors.textMuted,
+    color: "#94A3B8",
     fontSize: 11,
-    fontWeight: 800,
+    fontWeight: 900,
+    letterSpacing: "0.06em",
     textTransform: "uppercase",
-    letterSpacing: "0.12em",
   },
 
   previewTitle: {
     color: colors.textPrimary,
     fontSize: 15,
     fontWeight: 900,
+    lineHeight: 1.3,
   },
 
   previewBadge: {
@@ -562,79 +563,119 @@ const S: Record<string, React.CSSProperties> = {
     borderRadius: radii.full,
     border: "1px solid rgba(148,163,184,0.16)",
     background: "rgba(148,163,184,0.10)",
-    color: "#E2E8F0",
+    color: "#CBD5E1",
     fontSize: 11,
     fontWeight: 900,
+    whiteSpace: "nowrap",
   },
 
-  chatStack: {
+  threadCard: {
     borderRadius: 18,
-    padding: 14,
-    background: "rgba(15,23,42,0.52)",
     border: "1px solid rgba(148,163,184,0.12)",
-    display: "flex",
-    flexDirection: "column",
+    background: "rgba(15,23,42,0.50)",
+    padding: 14,
+    display: "grid",
     gap: 10,
   },
 
-  chatBubble: {
+  messageBubble: {
     maxWidth: "86%",
     borderRadius: 16,
-    padding: "12px 14px",
+    padding: "11px 12px 10px",
+    display: "grid",
+    gap: 4,
+  },
+
+  messageBubbleLeft: {
+    background: "rgba(148,163,184,0.10)",
+    border: "1px solid rgba(148,163,184,0.16)",
+  },
+
+  messageBubbleRight: {
+    background: "rgba(56,189,248,0.10)",
+    border: "1px solid rgba(56,189,248,0.16)",
+  },
+
+  messageName: {
+    color: "#C4B5FD",
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: "0.03em",
+    textTransform: "uppercase",
+  },
+
+  messageText: {
     color: colors.textPrimary,
     fontSize: 13,
-    fontWeight: 700,
     lineHeight: 1.5,
+    fontWeight: 700,
   },
 
-  previewDivider: {
-    height: 1,
-    background: "rgba(148,163,184,0.12)",
-  },
-
-  previewSummary: {
+  insightCard: {
     display: "grid",
-    gap: 6,
+    gridTemplateColumns: "16px minmax(0, 1fr)",
+    gap: 12,
+    borderRadius: 16,
+    padding: "14px 13px",
+    background:
+      "linear-gradient(180deg, rgba(56,189,248,0.10) 0%, rgba(168,85,247,0.10) 100%)",
+    border: "1px solid rgba(148,163,184,0.16)",
   },
 
-  previewSummaryTitle: {
+  insightIcon: {
+    color: "#C4B5FD",
+    fontSize: 13,
+    fontWeight: 900,
+    marginTop: 2,
+  },
+
+  insightTitle: {
     color: colors.textPrimary,
     fontSize: 13,
     fontWeight: 900,
+    lineHeight: 1.35,
   },
 
-  previewSummaryText: {
+  insightBody: {
     color: "#CBD5E1",
     fontSize: 12,
     lineHeight: 1.55,
   },
 
+  previewFoot: {
+    color: "#94A3B8",
+    fontSize: 12,
+    lineHeight: 1.6,
+  },
+
   bottomMeta: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    flexWrap: "wrap",
+    display: "grid",
+    justifyItems: "center",
+    gap: 8,
+    paddingTop: 4,
   },
 
   progressDots: {
-    display: "inline-flex",
+    display: "flex",
     alignItems: "center",
     gap: 8,
   },
 
   dot: {
-    width: 10,
-    height: 10,
+    width: 8,
+    height: 8,
     borderRadius: radii.full,
     background:
-      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 46%, #A855F7 100%)",
-    transition: "all 160ms ease",
+      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 50%, #A855F7 100%)",
+    boxShadow: "0 0 0 1px rgba(255,255,255,0.06)",
+    transition: "all 180ms ease",
   },
 
   bottomCaption: {
     color: "#94A3B8",
     fontSize: 12,
     fontWeight: 700,
+    textAlign: "center",
+    lineHeight: 1.5,
   },
 };

@@ -34,6 +34,7 @@ export default function Onboarding1Client() {
   return (
     <main style={S.page}>
       <div aria-hidden style={S.backgroundGlow} />
+      <div aria-hidden style={S.backgroundGrid} />
 
       <section style={S.shell} className="ob-shell">
         <header style={S.topBar} className="ob-topBar">
@@ -60,25 +61,31 @@ export default function Onboarding1Client() {
         <div style={S.heroGrid} className="ob-heroGrid">
           <section style={S.copyCard}>
             <div style={S.kicker}>
-              Coordinar el tiempo no debería doler
+              Coordinar el tiempo no debería sentirse pesado
             </div>
 
-            <h1 style={S.title} className="ob-title">
-              El problema no es el calendario.
-              <br />
-              <span style={S.titleAccent}>Es la coordinación.</span>
-            </h1>
+            <div style={S.titleBlock}>
+              <h1 style={S.title} className="ob-title">
+                El problema no es el calendario.
+                <br />
+                <span style={S.titleAccent}>Es la coordinación.</span>
+              </h1>
 
-            <p style={S.lead}>
-              Entre trabajo, pareja, familia, amigos y tiempo para ti, es normal
-              que las agendas se crucen. Lo que no debería ser normal es que
-              organizar algo termine en tensión, confusión o reproches.
-            </p>
+              <p style={S.lead}>
+                Entre trabajo, pareja, familia, amigos y tiempo para ti, es normal
+                que las agendas se crucen. Lo que no debería ser normal es que
+                organizar algo termine en tensión, confusión o reproches.
+              </p>
+            </div>
 
-            <div style={S.quoteStack}>
-              <QuotePill text="“Pensé que era otro día.”" />
-              <QuotePill text="“No vi ese mensaje.”" />
-              <QuotePill text="“Yo ya tenía algo ese sábado.”" />
+            <div style={S.quoteSection}>
+              <div style={S.quoteSectionLabel}>Frases que aparecen demasiado seguido</div>
+
+              <div style={S.quoteStack}>
+                <QuotePill text="“Pensé que era otro día.”" />
+                <QuotePill text="“No vi ese mensaje.”" />
+                <QuotePill text="“Yo ya tenía algo ese sábado.”" />
+              </div>
             </div>
 
             <p style={S.supportText}>
@@ -114,7 +121,11 @@ export default function Onboarding1Client() {
 
             <div style={S.previewScene}>
               <div style={S.dayColumn}>
-                <span style={S.dayLabel}>Vie</span>
+                <div style={S.dayRow}>
+                  <span style={S.dayLabel}>Vie</span>
+                  <span style={S.dayMeta}>Dos planes se pisan</span>
+                </div>
+
                 <div style={S.eventCardNeutral}>
                   <div style={S.eventTitleRow}>
                     <span style={S.eventDotBlue} />
@@ -135,12 +146,10 @@ export default function Onboarding1Client() {
               <div style={S.conflictNotice}>
                 <div style={S.conflictIcon}>✦</div>
                 <div style={{ display: "grid", gap: 4 }}>
-                  <div style={S.conflictTitle}>
-                    Dos planes, mismo horario
-                  </div>
+                  <div style={S.conflictTitle}>Dos planes, mismo horario</div>
                   <div style={S.conflictBody}>
-                    Cuando nadie ve el cruce a tiempo, el problema ya no es la
-                    agenda. Es la fricción que genera.
+                    Cuando nadie ve el cruce a tiempo, el problema deja de ser la
+                    agenda y empieza a ser la fricción.
                   </div>
                 </div>
               </div>
@@ -189,6 +198,13 @@ function Dot({ active = false }: { active?: boolean }) {
 }
 
 const responsiveCss = `
+  @media (max-width: 1100px) {
+    .ob-heroGrid {
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 380px) !important;
+      gap: 18px !important;
+    }
+  }
+
   @media (max-width: 980px) {
     .ob-shell {
       padding: 20px 16px 18px !important;
@@ -250,11 +266,22 @@ const S: Record<string, React.CSSProperties> = {
     position: "absolute",
     inset: 0,
     background: `
-      radial-gradient(900px 520px at 10% 8%, rgba(56,189,248,0.14), transparent 58%),
-      radial-gradient(820px 460px at 88% 12%, rgba(168,85,247,0.11), transparent 60%),
-      radial-gradient(680px 420px at 52% 96%, rgba(34,197,94,0.06), transparent 60%)
+      radial-gradient(920px 540px at 10% 8%, rgba(56,189,248,0.14), transparent 58%),
+      radial-gradient(820px 470px at 88% 12%, rgba(168,85,247,0.11), transparent 60%),
+      radial-gradient(700px 430px at 54% 96%, rgba(34,197,94,0.06), transparent 60%)
     `,
     pointerEvents: "none",
+  },
+
+  backgroundGrid: {
+    position: "absolute",
+    inset: 0,
+    backgroundImage:
+      "linear-gradient(rgba(148,163,184,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.03) 1px, transparent 1px)",
+    backgroundSize: "42px 42px",
+    maskImage: "radial-gradient(circle at center, black 34%, transparent 88%)",
+    pointerEvents: "none",
+    opacity: 0.7,
   },
 
   shell: {
@@ -329,8 +356,8 @@ const S: Record<string, React.CSSProperties> = {
 
   heroGrid: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.1fr) minmax(320px, 420px)",
-    gap: 18,
+    gridTemplateColumns: "minmax(0, 1.14fr) minmax(320px, 400px)",
+    gap: 20,
     alignItems: "stretch",
   },
 
@@ -338,10 +365,10 @@ const S: Record<string, React.CSSProperties> = {
     borderRadius: 24,
     border: "1px solid rgba(148,163,184,0.16)",
     background:
-      "linear-gradient(180deg, rgba(15,23,42,0.52) 0%, rgba(2,6,23,0.26) 100%)",
-    padding: 28,
+      "linear-gradient(180deg, rgba(15,23,42,0.50) 0%, rgba(2,6,23,0.24) 100%)",
+    padding: 30,
     display: "grid",
-    gap: 16,
+    gap: 20,
   },
 
   kicker: {
@@ -350,11 +377,16 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: "center",
     padding: "8px 12px",
     borderRadius: radii.full,
-    border: "1px solid rgba(56,189,248,0.22)",
+    border: "1px solid rgba(56,189,248,0.20)",
     background: "rgba(56,189,248,0.10)",
     color: "#CFF4FF",
     fontSize: 12,
     fontWeight: 800,
+  },
+
+  titleBlock: {
+    display: "grid",
+    gap: 14,
   },
 
   title: {
@@ -362,7 +394,8 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 46,
     lineHeight: 0.98,
     fontWeight: 900,
-    letterSpacing: "-0.03em",
+    letterSpacing: "-0.035em",
+    maxWidth: 700,
   },
 
   titleAccent: {
@@ -376,26 +409,36 @@ const S: Record<string, React.CSSProperties> = {
     margin: 0,
     color: "#CBD5E1",
     fontSize: 16,
-    lineHeight: 1.68,
+    lineHeight: 1.72,
     maxWidth: 660,
+  },
+
+  quoteSection: {
+    display: "grid",
+    gap: 12,
+  },
+
+  quoteSectionLabel: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
   },
 
   quoteStack: {
     display: "grid",
     gap: 10,
-    marginTop: 2,
   },
 
   quotePill: {
-    width: "fit-content",
-    maxWidth: "100%",
-    borderRadius: 16,
-    border: "1px solid rgba(148,163,184,0.16)",
-    background: "rgba(15,23,42,0.62)",
-    color: "#E2E8F0",
-    padding: "12px 14px",
-    fontSize: 14,
-    fontWeight: 700,
+    borderRadius: 18,
+    border: "1px solid rgba(148,163,184,0.14)",
+    background: "rgba(255,255,255,0.04)",
+    padding: "14px 16px",
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: 800,
     lineHeight: 1.4,
   },
 
@@ -403,7 +446,7 @@ const S: Record<string, React.CSSProperties> = {
     margin: 0,
     color: "#94A3B8",
     fontSize: 14,
-    lineHeight: 1.65,
+    lineHeight: 1.68,
     maxWidth: 620,
   },
 
@@ -412,7 +455,7 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    marginTop: 8,
+    marginTop: 6,
   },
 
   skipButton: {
@@ -428,36 +471,37 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   primaryButton: {
-    minHeight: 46,
-    padding: "0 18px",
+    minHeight: 48,
+    padding: "0 20px",
     borderRadius: radii.full,
     border: "none",
     background:
-      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 46%, #A855F7 100%)",
+      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 50%, #A855F7 100%)",
     color: "#06111D",
     fontSize: 14,
     fontWeight: 900,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
+    boxShadow: "0 16px 32px rgba(56,189,248,0.22)",
     cursor: "pointer",
-    boxShadow: "0 16px 34px rgba(56,189,248,0.20)",
   },
 
   previewCard: {
     borderRadius: 24,
-    border: `1px solid ${colors.borderSubtle}`,
+    border: "1px solid rgba(148,163,184,0.14)",
     background:
-      "linear-gradient(180deg, rgba(8,15,30,0.92) 0%, rgba(2,6,23,0.98) 100%)",
+      "linear-gradient(180deg, rgba(8,15,30,0.90) 0%, rgba(2,6,23,0.96) 100%)",
     boxShadow: shadows.card,
     padding: 18,
     display: "grid",
     gap: 14,
+    alignContent: "start",
   },
 
   previewHeader: {
     display: "flex",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12,
   },
@@ -468,34 +512,32 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   previewEyebrow: {
-    color: colors.textMuted,
+    color: "#94A3B8",
     fontSize: 11,
-    fontWeight: 800,
+    fontWeight: 900,
+    letterSpacing: "0.06em",
     textTransform: "uppercase",
-    letterSpacing: "0.12em",
   },
 
   previewTitle: {
     color: colors.textPrimary,
     fontSize: 15,
     fontWeight: 900,
+    lineHeight: 1.3,
   },
 
   previewBadge: {
     padding: "6px 10px",
     borderRadius: radii.full,
-    border: "1px solid rgba(251,191,36,0.16)",
-    background: "rgba(251,191,36,0.10)",
-    color: "#FDE68A",
+    border: "1px solid rgba(148,163,184,0.16)",
+    background: "rgba(148,163,184,0.10)",
+    color: "#CBD5E1",
     fontSize: 11,
     fontWeight: 900,
+    whiteSpace: "nowrap",
   },
 
   previewScene: {
-    borderRadius: 18,
-    padding: 14,
-    background: "rgba(15,23,42,0.52)",
-    border: "1px solid rgba(148,163,184,0.12)",
     display: "grid",
     gap: 12,
   },
@@ -503,21 +545,37 @@ const S: Record<string, React.CSSProperties> = {
   dayColumn: {
     display: "grid",
     gap: 10,
+    padding: 14,
+    borderRadius: 18,
+    border: "1px solid rgba(148,163,184,0.12)",
+    background: "rgba(15,23,42,0.50)",
+  },
+
+  dayRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
   },
 
   dayLabel: {
-    color: "#94A3B8",
-    fontSize: 11,
+    color: colors.textPrimary,
+    fontSize: 13,
     fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.12em",
+    letterSpacing: "0.02em",
+  },
+
+  dayMeta: {
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: 700,
   },
 
   eventCardNeutral: {
     borderRadius: 16,
     padding: "12px 12px",
     background: "rgba(56,189,248,0.10)",
-    border: "1px solid rgba(56,189,248,0.18)",
+    border: "1px solid rgba(56,189,248,0.16)",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -546,8 +604,8 @@ const S: Record<string, React.CSSProperties> = {
     width: 10,
     height: 10,
     borderRadius: radii.full,
-    background: colors.accentPrimary,
-    boxShadow: "0 0 0 6px rgba(56,189,248,0.12)",
+    background: "#38BDF8",
+    boxShadow: "0 0 0 6px rgba(56,189,248,0.18)",
     flexShrink: 0,
   },
 
@@ -556,24 +614,27 @@ const S: Record<string, React.CSSProperties> = {
     height: 10,
     borderRadius: radii.full,
     background: "#94A3B8",
-    boxShadow: "0 0 0 6px rgba(148,163,184,0.12)",
+    boxShadow: "0 0 0 6px rgba(148,163,184,0.16)",
     flexShrink: 0,
   },
 
   eventTitle: {
     color: colors.textPrimary,
     fontSize: 13,
-    fontWeight: 900,
+    fontWeight: 850,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
 
   eventTime: {
-    padding: "6px 10px",
-    borderRadius: radii.full,
-    background: "rgba(2,6,23,0.40)",
-    border: "1px solid rgba(148,163,184,0.16)",
     color: colors.textPrimary,
     fontSize: 12,
     fontWeight: 900,
+    padding: "6px 10px",
+    borderRadius: radii.full,
+    background: "rgba(2,6,23,0.36)",
+    border: "1px solid rgba(148,163,184,0.14)",
     whiteSpace: "nowrap",
   },
 
@@ -581,67 +642,67 @@ const S: Record<string, React.CSSProperties> = {
     display: "grid",
     gridTemplateColumns: "16px minmax(0, 1fr)",
     gap: 12,
-    alignItems: "flex-start",
     borderRadius: 16,
-    padding: "13px 12px",
+    padding: "14px 13px",
     background:
-      "linear-gradient(180deg, rgba(251,191,36,0.12) 0%, rgba(249,115,22,0.12) 100%)",
-    border: "1px solid rgba(251,191,36,0.20)",
+      "linear-gradient(180deg, rgba(56,189,248,0.10) 0%, rgba(168,85,247,0.10) 100%)",
+    border: "1px solid rgba(148,163,184,0.16)",
   },
 
   conflictIcon: {
-    color: "#FCD34D",
+    color: "#C4B5FD",
     fontSize: 13,
     fontWeight: 900,
-    marginTop: 1,
+    marginTop: 2,
   },
 
   conflictTitle: {
     color: colors.textPrimary,
     fontSize: 13,
     fontWeight: 900,
+    lineHeight: 1.35,
   },
 
   conflictBody: {
     color: "#CBD5E1",
     fontSize: 12,
-    lineHeight: 1.52,
+    lineHeight: 1.55,
   },
 
   previewFoot: {
     color: "#94A3B8",
     fontSize: 12,
-    lineHeight: 1.55,
-    textAlign: "center",
-    fontWeight: 700,
+    lineHeight: 1.6,
   },
 
   bottomMeta: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    flexWrap: "wrap",
+    display: "grid",
+    justifyItems: "center",
+    gap: 8,
+    paddingTop: 4,
   },
 
   progressDots: {
-    display: "inline-flex",
+    display: "flex",
     alignItems: "center",
     gap: 8,
   },
 
   dot: {
-    width: 10,
-    height: 10,
+    width: 8,
+    height: 8,
     borderRadius: radii.full,
     background:
-      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 46%, #A855F7 100%)",
-    transition: "all 160ms ease",
+      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 50%, #A855F7 100%)",
+    boxShadow: "0 0 0 1px rgba(255,255,255,0.06)",
+    transition: "all 180ms ease",
   },
 
   bottomCaption: {
     color: "#94A3B8",
     fontSize: 12,
     fontWeight: 700,
+    textAlign: "center",
+    lineHeight: 1.5,
   },
 };

@@ -38,9 +38,10 @@ export default function Onboarding3Client() {
   return (
     <main style={S.page}>
       <div aria-hidden style={S.backgroundGlow} />
+      <div aria-hidden style={S.backgroundGrid} />
 
-      <section style={S.shell} className="ob-shell">
-        <header style={S.topBar} className="ob-topBar">
+      <section style={S.shell} className="ob3-shell">
+        <header style={S.topBar} className="ob3-topBar">
           <div style={S.brandWrap}>
             <BrandLogo variant="mark" size={30} />
             <div style={S.brandMeta}>
@@ -54,54 +55,56 @@ export default function Onboarding3Client() {
               type="button"
               onClick={handleLogin}
               style={S.topGhostButton}
-              className="ob-topGhost"
+              className="ob3-topGhost"
             >
               Ya tengo cuenta
             </button>
           </div>
         </header>
 
-        <div style={S.heroGrid} className="ob-heroGrid">
+        <div style={S.heroGrid} className="ob3-heroGrid">
           <section style={S.copyCard}>
             <div style={S.kicker}>
-              Una sola verdad compartida
+              Una sola referencia compartida
             </div>
 
-            <h1 style={S.title} className="ob-title">
-              SyncPlans no agrega ruido.
-              <br />
-              <span style={S.titleAccent}>Pone orden.</span>
-            </h1>
+            <div style={S.titleBlock}>
+              <h1 style={S.title} className="ob3-title">
+                SyncPlans pone
+                <br />
+                <span style={S.titleAccent}>una sola verdad en el centro.</span>
+              </h1>
 
-            <p style={S.lead}>
-              En vez de que cada uno tenga su agenda por su lado y el acuerdo
-              viva disperso entre chats, SyncPlans aterriza todo en un solo lugar
-              visible para ambos.
-            </p>
+              <p style={S.lead}>
+                En vez de depender de memoria, chats sueltos o versiones parciales
+                de la semana, SyncPlans aterriza el tiempo compartido en un lugar
+                visible, entendible y fácil de decidir entre todos.
+              </p>
+            </div>
 
-            <div style={S.valueGrid}>
+            <div style={S.valueList}>
               <ValueCard
-                title="Detecta choques automáticamente"
-                text="Te muestra cuándo dos planes compiten por el mismo tiempo antes de que el conflicto explote."
+                title="Detecta choques antes de que escalen"
+                text="No esperas a que el problema explote. Ves cuándo dos planes compiten por el mismo espacio y lo haces visible a tiempo."
               />
               <ValueCard
-                title="Nada se borra sin verlo"
-                text="Las decisiones no desaparecen en el aire. Puedes comparar opciones antes de elegir."
+                title="Te deja comparar antes de decidir"
+                text="No se trata de borrar a ciegas. Puedes ver qué compite, entender el contexto y tomar una decisión con más claridad."
               />
               <ValueCard
-                title="Todos ven lo mismo"
-                text="Pareja, familia o grupo: una sola versión de la semana, no versiones parciales."
+                title="Todos operan sobre la misma semana"
+                text="Pareja, familia o grupo: menos versiones distintas en la cabeza y más claridad compartida sobre qué quedó realmente."
               />
             </div>
 
             <p style={S.supportText}>
-              Por eso SyncPlans se siente menos como otro calendario y más como
-              una capa de claridad sobre el tiempo compartido.
+              Por eso SyncPlans no se siente como otro calendario más. Se siente
+              como una capa de orden sobre la coordinación compartida.
             </p>
 
-            <div style={S.footerActions} className="ob-footerActions">
+            <div style={S.footerActions} className="ob3-footerActions">
               <div style={S.leftActionGroup}>
-                <button type="button" onClick={handleBack} style={S.skipButton}>
+                <button type="button" onClick={handleBack} style={S.secondaryButton}>
                   Atrás
                 </button>
 
@@ -114,7 +117,7 @@ export default function Onboarding3Client() {
                 type="button"
                 onClick={handleNext}
                 style={S.primaryButton}
-                className="ob-primary"
+                className="ob3-primary"
               >
                 Seguir
               </button>
@@ -124,7 +127,7 @@ export default function Onboarding3Client() {
           <aside style={S.previewCard}>
             <div style={S.previewHeader}>
               <div style={S.previewHeaderMeta}>
-                <span style={S.previewEyebrow}>Producto</span>
+                <span style={S.previewEyebrow}>Cómo se ve en producto</span>
                 <span style={S.previewTitle}>Todo aterriza en un mismo lugar</span>
               </div>
 
@@ -143,32 +146,36 @@ export default function Onboarding3Client() {
               </div>
 
               <div style={S.boardSection}>
-                <div style={S.boardSectionTitle}>Cuando aparece un choque</div>
+                <div style={S.boardSectionTitle}>Cuando aparece un cruce</div>
 
                 <div style={S.compareCard}>
-                  <div style={S.compareOption}>
-                    <span style={S.compareDotBlue} />
-                    <div style={S.compareMeta}>
-                      <div style={S.compareTitle}>Entreno</div>
-                      <div style={S.compareTime}>19:00 · Personal</div>
-                    </div>
+                  <div style={S.compareHeader}>
+                    <span style={S.compareHeaderLabel}>Conflicto detectado</span>
+                    <span style={S.compareHeaderMeta}>Mismo rango horario</span>
                   </div>
 
-                  <div style={S.compareVs}>vs</div>
+                  <div style={S.compareStack}>
+                    <CompareOption
+                      dotStyle={S.compareDotBlue}
+                      title="Entreno"
+                      subtitle="19:00 · Personal"
+                    />
 
-                  <div style={S.compareOption}>
-                    <span style={S.compareDotPink} />
-                    <div style={S.compareMeta}>
-                      <div style={S.compareTitle}>Cena reservada</div>
-                      <div style={S.compareTime}>20:00 · Compartido</div>
-                    </div>
+                    <div style={S.compareVs}>vs</div>
+
+                    <CompareOption
+                      dotStyle={S.compareDotPink}
+                      title="Cena reservada"
+                      subtitle="20:00 · Compartido"
+                    />
                   </div>
                 </div>
               </div>
             </div>
 
             <div style={S.previewFoot}>
-              SyncPlans no reemplaza la conversación. La hace más clara.
+              SyncPlans no reemplaza la conversación. Le da una base clara para
+              que decidir pese menos.
             </div>
           </aside>
         </div>
@@ -182,7 +189,7 @@ export default function Onboarding3Client() {
           </div>
 
           <div style={S.bottomCaption}>
-            La promesa no es “más features”. Es menos ambigüedad.
+            La promesa no es “más funciones”. Es menos ambigüedad al coordinar.
           </div>
         </div>
       </section>
@@ -207,6 +214,26 @@ function ValueCard({
   );
 }
 
+function CompareOption({
+  dotStyle,
+  title,
+  subtitle,
+}: {
+  dotStyle: React.CSSProperties;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div style={S.compareOption}>
+      <span style={dotStyle} />
+      <div style={S.compareMeta}>
+        <div style={S.compareTitle}>{title}</div>
+        <div style={S.compareTime}>{subtitle}</div>
+      </div>
+    </div>
+  );
+}
+
 function BoardRow({
   day,
   title,
@@ -218,10 +245,22 @@ function BoardRow({
 }) {
   const toneStyles =
     tone === "blue"
-      ? { dot: "#38BDF8", bg: "rgba(56,189,248,0.10)", border: "rgba(56,189,248,0.16)" }
+      ? {
+          dot: "#38BDF8",
+          bg: "rgba(56,189,248,0.10)",
+          border: "rgba(56,189,248,0.16)",
+        }
       : tone === "pink"
-      ? { dot: "#F472B6", bg: "rgba(244,114,182,0.10)", border: "rgba(244,114,182,0.16)" }
-      : { dot: "#94A3B8", bg: "rgba(148,163,184,0.10)", border: "rgba(148,163,184,0.16)" };
+      ? {
+          dot: "#F472B6",
+          bg: "rgba(244,114,182,0.10)",
+          border: "rgba(244,114,182,0.16)",
+        }
+      : {
+          dot: "#94A3B8",
+          bg: "rgba(148,163,184,0.10)",
+          border: "rgba(148,163,184,0.16)",
+        };
 
   return (
     <div
@@ -267,45 +306,52 @@ function Dot({ active = false }: { active?: boolean }) {
 }
 
 const responsiveCss = `
+  @media (max-width: 1100px) {
+    .ob3-heroGrid {
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 388px) !important;
+      gap: 18px !important;
+    }
+  }
+
   @media (max-width: 980px) {
-    .ob-shell {
+    .ob3-shell {
       padding: 20px 16px 18px !important;
       border-radius: 24px !important;
     }
 
-    .ob-topBar {
+    .ob3-topBar {
       gap: 12px !important;
       align-items: center !important;
     }
 
-    .ob-heroGrid {
+    .ob3-heroGrid {
       grid-template-columns: 1fr !important;
       gap: 16px !important;
     }
 
-    .ob-title {
+    .ob3-title {
       font-size: 34px !important;
       line-height: 1.04 !important;
     }
 
-    .ob-footerActions {
+    .ob3-footerActions {
       flex-direction: column !important;
       align-items: stretch !important;
     }
 
-    .ob-primary,
-    .ob-topGhost {
+    .ob3-primary,
+    .ob3-topGhost {
       width: 100% !important;
       justify-content: center !important;
     }
   }
 
   @media (max-width: 640px) {
-    .ob-topBar {
+    .ob3-topBar {
       flex-wrap: wrap !important;
     }
 
-    .ob-title {
+    .ob3-title {
       font-size: 30px !important;
     }
   }
@@ -333,6 +379,17 @@ const S: Record<string, React.CSSProperties> = {
       radial-gradient(700px 420px at 54% 96%, rgba(244,114,182,0.06), transparent 60%)
     `,
     pointerEvents: "none",
+  },
+
+  backgroundGrid: {
+    position: "absolute",
+    inset: 0,
+    backgroundImage:
+      "linear-gradient(rgba(148,163,184,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.03) 1px, transparent 1px)",
+    backgroundSize: "42px 42px",
+    maskImage: "radial-gradient(circle at center, black 34%, transparent 88%)",
+    pointerEvents: "none",
+    opacity: 0.7,
   },
 
   shell: {
@@ -407,8 +464,8 @@ const S: Record<string, React.CSSProperties> = {
 
   heroGrid: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.1fr) minmax(320px, 420px)",
-    gap: 18,
+    gridTemplateColumns: "minmax(0, 1.12fr) minmax(320px, 408px)",
+    gap: 20,
     alignItems: "stretch",
   },
 
@@ -416,10 +473,10 @@ const S: Record<string, React.CSSProperties> = {
     borderRadius: 24,
     border: "1px solid rgba(148,163,184,0.16)",
     background:
-      "linear-gradient(180deg, rgba(15,23,42,0.52) 0%, rgba(2,6,23,0.26) 100%)",
-    padding: 28,
+      "linear-gradient(180deg, rgba(15,23,42,0.50) 0%, rgba(2,6,23,0.24) 100%)",
+    padding: 30,
     display: "grid",
-    gap: 16,
+    gap: 20,
   },
 
   kicker: {
@@ -428,19 +485,25 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: "center",
     padding: "8px 12px",
     borderRadius: radii.full,
-    border: "1px solid rgba(56,189,248,0.22)",
+    border: "1px solid rgba(56,189,248,0.20)",
     background: "rgba(56,189,248,0.10)",
     color: "#CFF4FF",
     fontSize: 12,
     fontWeight: 800,
   },
 
+  titleBlock: {
+    display: "grid",
+    gap: 14,
+  },
+
   title: {
     margin: 0,
-    fontSize: 44,
-    lineHeight: 1,
+    fontSize: 46,
+    lineHeight: 0.98,
     fontWeight: 900,
-    letterSpacing: "-0.03em",
+    letterSpacing: "-0.035em",
+    maxWidth: 720,
   },
 
   titleAccent: {
@@ -454,43 +517,42 @@ const S: Record<string, React.CSSProperties> = {
     margin: 0,
     color: "#CBD5E1",
     fontSize: 16,
-    lineHeight: 1.68,
-    maxWidth: 650,
+    lineHeight: 1.72,
+    maxWidth: 660,
   },
 
-  valueGrid: {
+  valueList: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: 12,
   },
 
   valueCard: {
     borderRadius: 18,
     border: "1px solid rgba(148,163,184,0.14)",
-    background: "rgba(15,23,42,0.52)",
-    padding: "14px 14px",
+    background: "rgba(255,255,255,0.04)",
+    padding: "15px 16px",
     display: "grid",
-    gap: 8,
+    gap: 6,
   },
 
   valueCardTitle: {
     color: colors.textPrimary,
     fontSize: 14,
-    fontWeight: 900,
+    fontWeight: 850,
     lineHeight: 1.35,
   },
 
   valueCardText: {
     color: "#94A3B8",
     fontSize: 13,
-    lineHeight: 1.55,
+    lineHeight: 1.6,
   },
 
   supportText: {
     margin: 0,
     color: "#94A3B8",
     fontSize: 14,
-    lineHeight: 1.65,
+    lineHeight: 1.68,
     maxWidth: 620,
   },
 
@@ -499,7 +561,7 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    marginTop: 8,
+    marginTop: 6,
   },
 
   leftActionGroup: {
@@ -521,37 +583,50 @@ const S: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
 
-  primaryButton: {
+  secondaryButton: {
     minHeight: 46,
-    padding: "0 18px",
+    padding: "0 16px",
+    borderRadius: radii.full,
+    border: `1px solid ${colors.borderSubtle}`,
+    background: "rgba(2,6,23,0.26)",
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+
+  primaryButton: {
+    minHeight: 48,
+    padding: "0 20px",
     borderRadius: radii.full,
     border: "none",
     background:
-      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 46%, #A855F7 100%)",
+      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 50%, #A855F7 100%)",
     color: "#06111D",
     fontSize: 14,
     fontWeight: 900,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
+    boxShadow: "0 16px 32px rgba(56,189,248,0.22)",
     cursor: "pointer",
-    boxShadow: "0 16px 34px rgba(56,189,248,0.20)",
   },
 
   previewCard: {
     borderRadius: 24,
-    border: `1px solid ${colors.borderSubtle}`,
+    border: "1px solid rgba(148,163,184,0.14)",
     background:
-      "linear-gradient(180deg, rgba(8,15,30,0.92) 0%, rgba(2,6,23,0.98) 100%)",
+      "linear-gradient(180deg, rgba(8,15,30,0.90) 0%, rgba(2,6,23,0.96) 100%)",
     boxShadow: shadows.card,
     padding: 18,
     display: "grid",
     gap: 14,
+    alignContent: "start",
   },
 
   previewHeader: {
     display: "flex",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12,
   },
@@ -562,27 +637,29 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   previewEyebrow: {
-    color: colors.textMuted,
+    color: "#94A3B8",
     fontSize: 11,
-    fontWeight: 800,
+    fontWeight: 900,
+    letterSpacing: "0.06em",
     textTransform: "uppercase",
-    letterSpacing: "0.12em",
   },
 
   previewTitle: {
     color: colors.textPrimary,
     fontSize: 15,
     fontWeight: 900,
+    lineHeight: 1.3,
   },
 
   previewBadge: {
     padding: "6px 10px",
     borderRadius: radii.full,
-    border: "1px solid rgba(34,197,94,0.16)",
-    background: "rgba(34,197,94,0.10)",
-    color: "#BBF7D0",
+    border: "1px solid rgba(148,163,184,0.16)",
+    background: "rgba(148,163,184,0.10)",
+    color: "#CBD5E1",
     fontSize: 11,
     fontWeight: 900,
+    whiteSpace: "nowrap",
   },
 
   previewBoard: {
@@ -591,18 +668,19 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   boardSection: {
-    borderRadius: 18,
-    padding: 14,
-    background: "rgba(15,23,42,0.52)",
-    border: "1px solid rgba(148,163,184,0.12)",
     display: "grid",
-    gap: 12,
+    gap: 10,
+    padding: 14,
+    borderRadius: 18,
+    border: "1px solid rgba(148,163,184,0.12)",
+    background: "rgba(15,23,42,0.50)",
   },
 
   boardSectionTitle: {
     color: colors.textPrimary,
     fontSize: 13,
     fontWeight: 900,
+    lineHeight: 1.35,
   },
 
   boardRows: {
@@ -614,6 +692,7 @@ const S: Record<string, React.CSSProperties> = {
     color: "#CBD5E1",
     fontSize: 12,
     fontWeight: 900,
+    letterSpacing: "0.02em",
   },
 
   boardTitleRow: {
@@ -626,15 +705,44 @@ const S: Record<string, React.CSSProperties> = {
   boardTitle: {
     color: colors.textPrimary,
     fontSize: 13,
-    fontWeight: 900,
+    fontWeight: 850,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
 
   compareCard: {
     borderRadius: 16,
-    padding: "12px 12px",
+    padding: 12,
     background:
       "linear-gradient(180deg, rgba(56,189,248,0.10) 0%, rgba(168,85,247,0.10) 100%)",
     border: "1px solid rgba(148,163,184,0.16)",
+    display: "grid",
+    gap: 12,
+  },
+
+  compareHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  compareHeaderLabel: {
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: "0.03em",
+    textTransform: "uppercase",
+  },
+
+  compareHeaderMeta: {
+    color: "#CBD5E1",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+
+  compareStack: {
     display: "grid",
     gap: 10,
   },
@@ -644,6 +752,10 @@ const S: Record<string, React.CSSProperties> = {
     gridTemplateColumns: "10px minmax(0, 1fr)",
     gap: 10,
     alignItems: "flex-start",
+    borderRadius: 14,
+    padding: "12px 12px",
+    background: "rgba(2,6,23,0.28)",
+    border: "1px solid rgba(148,163,184,0.14)",
   },
 
   compareDotBlue: {
@@ -652,7 +764,7 @@ const S: Record<string, React.CSSProperties> = {
     borderRadius: radii.full,
     background: "#38BDF8",
     marginTop: 4,
-    boxShadow: "0 0 0 6px rgba(56,189,248,0.12)",
+    boxShadow: "0 0 0 6px rgba(56,189,248,0.18)",
   },
 
   compareDotPink: {
@@ -661,69 +773,70 @@ const S: Record<string, React.CSSProperties> = {
     borderRadius: radii.full,
     background: "#F472B6",
     marginTop: 4,
-    boxShadow: "0 0 0 6px rgba(244,114,182,0.12)",
+    boxShadow: "0 0 0 6px rgba(244,114,182,0.18)",
   },
 
   compareMeta: {
     display: "grid",
-    gap: 2,
+    gap: 3,
   },
 
   compareTitle: {
     color: colors.textPrimary,
     fontSize: 13,
     fontWeight: 900,
+    lineHeight: 1.35,
   },
 
   compareTime: {
     color: "#CBD5E1",
     fontSize: 12,
-    fontWeight: 700,
+    lineHeight: 1.45,
   },
 
   compareVs: {
+    justifySelf: "center",
     color: "#C4B5FD",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 900,
     letterSpacing: "0.08em",
     textTransform: "uppercase",
-    textAlign: "center",
   },
 
   previewFoot: {
     color: "#94A3B8",
     fontSize: 12,
-    lineHeight: 1.55,
-    textAlign: "center",
-    fontWeight: 700,
+    lineHeight: 1.6,
   },
 
   bottomMeta: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    flexWrap: "wrap",
+    display: "grid",
+    justifyItems: "center",
+    gap: 8,
+    paddingTop: 4,
   },
 
   progressDots: {
-    display: "inline-flex",
+    display: "flex",
     alignItems: "center",
     gap: 8,
   },
 
   dot: {
-    width: 10,
-    height: 10,
+    width: 8,
+    height: 8,
     borderRadius: radii.full,
     background:
-      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 46%, #A855F7 100%)",
-    transition: "all 160ms ease",
+      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 50%, #A855F7 100%)",
+    boxShadow: "0 0 0 1px rgba(255,255,255,0.06)",
+    transition: "all 180ms ease",
   },
 
   bottomCaption: {
     color: "#94A3B8",
     fontSize: 12,
     fontWeight: 700,
+    textAlign: "center",
+    lineHeight: 1.5,
   },
 };
