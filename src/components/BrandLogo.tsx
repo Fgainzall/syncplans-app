@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 
 type BrandLogoVariant = "default" | "mark" | "full" | string;
 
@@ -13,6 +14,9 @@ type BrandLogoProps = {
   priority?: boolean;
 };
 
+const HEADER_LOGO_SRC = "/icons/brand/syncplans-header-mark.png";
+const FALLBACK_LOGO_SRC = "/icons/brand/syncplans-logo.png";
+
 export default function BrandLogo({
   size = 30,
   href,
@@ -20,6 +24,8 @@ export default function BrandLogo({
   variant = "default",
   priority = true,
 }: BrandLogoProps) {
+  const [logoSrc, setLogoSrc] = useState(HEADER_LOGO_SRC);
+
   const resolvedShowWordmark =
     typeof showWordmark === "boolean"
       ? showWordmark
@@ -50,11 +56,16 @@ export default function BrandLogo({
         }}
       >
         <Image
-          src="/icons/brand/syncplans-logo.png"
+          src={logoSrc}
           alt="SyncPlans"
           width={iconSize}
           height={iconSize}
           priority={priority}
+          onError={() => {
+            if (logoSrc !== FALLBACK_LOGO_SRC) {
+              setLogoSrc(FALLBACK_LOGO_SRC);
+            }
+          }}
           style={{
             width: iconSize,
             height: iconSize,
