@@ -45,9 +45,9 @@ export default function RootLayout({
       >
         <SWRegister />
         <ToastProvider>
-          <div style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom))" }}>
-            {children}
-          </div>
+         <div style={{ paddingBottom: "calc(78px + env(safe-area-inset-bottom))" }}>
+  {children}
+</div>
 
           <div className="md:hidden">
             <BottomNavVisibility />
