@@ -419,23 +419,22 @@ export default function BottomNav() {
 }
 
 const S: Record<string, React.CSSProperties> = {
-  wrap: {
-    position: "fixed",
-    left: 12,
-    right: 12,
-    bottom: 12,
-    zIndex: 70,
-    borderRadius: 20,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(8,12,20,0.84)",
-    boxShadow:
-      "0 20px 50px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.04)",
-    backdropFilter: "blur(18px)",
-    WebkitBackdropFilter: "blur(18px)",
-    padding: 8,
-    paddingBottom: "calc(8px + env(safe-area-inset-bottom))",
-    overflow: "hidden",
-  },
+wrap: {
+  position: "fixed",
+  left: 10,
+  right: 10,
+  bottom: 10,
+  zIndex: 70,
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(8,12,20,0.84)",
+  boxShadow:
+    "0 16px 40px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.04)",
+  backdropFilter: "blur(18px)",
+  WebkitBackdropFilter: "blur(18px)",
+  padding: 6,
+  paddingBottom: "calc(6px + env(safe-area-inset-bottom))",
+},
 
   viewport: {
     width: "100%",
@@ -456,60 +455,60 @@ const S: Record<string, React.CSSProperties> = {
     paddingBottom: 2,
   },
 
-  item: {
-    border: "1px solid rgba(255,255,255,0.06)",
-    background: "rgba(255,255,255,0.025)",
-    color: "rgba(255,255,255,0.76)",
-    borderRadius: 16,
-    minHeight: 62,
-    minWidth: 82,
-    padding: "8px 10px 9px",
-    flex: "0 0 auto",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    WebkitTapHighlightColor: "transparent",
-    transition:
-      "background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease, color 160ms ease",
-    textDecoration: "none",
-    userSelect: "none",
-  },
+item: {
+  minWidth: 68,
+  minHeight: 56,
+  padding: "7px 6px 8px",
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.06)",
+  background: "rgba(255,255,255,0.025)",
+  color: "rgba(255,255,255,0.76)",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 4,
+  textDecoration: "none",
+  WebkitTapHighlightColor: "transparent",
+  userSelect: "none",
+  flex: "0 0 auto",
+  transition:
+    "background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease, color 160ms ease",
+},
 
-  itemActive: {
-    color: "#F8FBFF",
-    border: "1px solid rgba(96,165,250,0.34)",
-    background:
-      "linear-gradient(180deg, rgba(59,130,246,0.16), rgba(124,58,237,0.12))",
-    boxShadow:
-      "0 10px 24px rgba(15,23,42,0.28), inset 0 1px 0 rgba(255,255,255,0.06)",
-    transform: "translateY(-1px)",
-  },
+itemActive: {
+  color: "#F8FBFF",
+  border: "1px solid rgba(96,165,250,0.28)",
+  background:
+    "linear-gradient(180deg, rgba(59,130,246,0.14), rgba(124,58,237,0.10))",
+  boxShadow:
+    "0 8px 20px rgba(15,23,42,0.22), inset 0 1px 0 rgba(255,255,255,0.05)",
+  transform: "translateY(-1px)",
+},
 
-  iconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    display: "grid",
-    placeItems: "center",
-    color: "inherit",
-    background: "rgba(255,255,255,0.02)",
-    flexShrink: 0,
-  },
+iconWrap: {
+  width: 26,
+  height: 26,
+  borderRadius: 9,
+  display: "grid",
+  placeItems: "center",
+  color: "inherit",
+  background: "rgba(255,255,255,0.02)",
+  flexShrink: 0,
+},
 
   iconWrapActive: {
     background: "rgba(255,255,255,0.06)",
   },
 
-  label: {
-    fontSize: 10.5,
-    lineHeight: 1.1,
-    fontWeight: 800,
-    letterSpacing: "0.01em",
-    whiteSpace: "nowrap",
-    opacity: 0.9,
-  },
+ label: {
+  fontSize: 9,
+  lineHeight: 1,
+  fontWeight: 800,
+  letterSpacing: "0.01em",
+  whiteSpace: "nowrap",
+  opacity: 0.9,
+},
 
   labelActive: {
     opacity: 1,
