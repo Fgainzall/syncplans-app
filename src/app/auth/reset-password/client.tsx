@@ -5,22 +5,25 @@ import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseRecoveryClient";
 import AuthCard from "@/components/AuthCard";
 
-function getAppOrigin() {
+function getCurrentOrigin() {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+
   const env =
     (process.env.NEXT_PUBLIC_APP_URL ??
       process.env.NEXT_PUBLIC_SITE_URL ??
-      "").trim();
+      process.env.APP_URL ??
+      "")
+      .trim();
 
-  if (env) {
-    try {
-      return new URL(env).origin;
-    } catch {
-      // ignore
-    }
+  if (!env) return "";
+
+  try {
+    return new URL(env).origin;
+  } catch {
+    return "";
   }
-
-  if (typeof window !== "undefined") return window.location.origin;
-  return "";
 }
 
 export default function Client() {
@@ -51,14 +54,12 @@ export default function Client() {
     setSuccess(null);
 
     try {
-      const origin = getAppOrigin();
-      const redirectTo = origin
-        ? `${origin}/auth/update-password`
-        : undefined;
+      const origin = getCurrentOrigin();
+      const redirectTo = origin ? `${origin}/auth/update-password` : undefined;
 
       const { error } = await supabase.auth.resetPasswordForEmail(
         email.trim(),
-        { redirectTo }
+        redirectTo ? { redirectTo } : undefined
       );
 
       if (error) {

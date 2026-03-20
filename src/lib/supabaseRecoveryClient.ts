@@ -10,7 +10,7 @@ const supabaseRecovery = createBrowserClient(
   supabaseAnonKey || "public-anon-key-placeholder",
   {
     auth: {
-      flowType: "implicit",
+      flowType: "pkce",
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
