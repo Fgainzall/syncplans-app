@@ -294,7 +294,6 @@ const NAV_ITEMS: NavItem[] = [
   { key: "events", label: "Eventos", path: "/events", aria: "Ir a Eventos" },
   { key: "conflicts", label: "Conflictos", path: "/conflicts/detected", aria: "Ir a Conflictos" },
   { key: "panel", label: "Panel", path: "/panel", aria: "Ir a Panel" },
-
   { key: "groups", label: "Grupos", path: "/groups", aria: "Ir a Grupos" },
   { key: "members", label: "Miembros", path: "/members", aria: "Ir a Miembros" },
   { key: "invitations", label: "Invitaciones", path: "/invitations", aria: "Ir a Invitaciones" },
@@ -419,22 +418,22 @@ export default function BottomNav() {
 }
 
 const S: Record<string, React.CSSProperties> = {
-wrap: {
-  position: "fixed",
-  left: 10,
-  right: 10,
-  bottom: 10,
-  zIndex: 70,
-  borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.10)",
-  background: "rgba(8,12,20,0.84)",
-  boxShadow:
-    "0 16px 40px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.04)",
-  backdropFilter: "blur(18px)",
-  WebkitBackdropFilter: "blur(18px)",
-  padding: 6,
-  paddingBottom: "calc(6px + env(safe-area-inset-bottom))",
-},
+  wrap: {
+    position: "fixed",
+    left: 10,
+    right: 10,
+    bottom: 10,
+    zIndex: 70,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(8,12,20,0.84)",
+    boxShadow:
+      "0 16px 40px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.04)",
+    backdropFilter: "blur(18px)",
+    WebkitBackdropFilter: "blur(18px)",
+    padding: 4,
+    paddingBottom: "calc(4px + env(safe-area-inset-bottom))",
+  },
 
   viewport: {
     width: "100%",
@@ -455,60 +454,59 @@ wrap: {
     paddingBottom: 2,
   },
 
-item: {
-  minWidth: 68,
-  minHeight: 56,
-  padding: "7px 6px 8px",
-  borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.06)",
-  background: "rgba(255,255,255,0.025)",
-  color: "rgba(255,255,255,0.76)",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 4,
-  textDecoration: "none",
-  WebkitTapHighlightColor: "transparent",
-  userSelect: "none",
-  flex: "0 0 auto",
-  transition:
-    "background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease, color 160ms ease",
-},
+  item: {
+    minWidth: 74,
+    minHeight: 56,
+    padding: "8px 8px 10px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.06)",
+    background: "rgba(255,255,255,0.025)",
+    color: "rgba(255,255,255,0.76)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    textDecoration: "none",
+    WebkitTapHighlightColor: "transparent",
+    userSelect: "none",
+    flex: "0 0 auto",
+    cursor: "pointer",
+    transition:
+      "background 140ms ease, border-color 140ms ease, transform 120ms ease, box-shadow 140ms ease, color 140ms ease",
+  },
 
-itemActive: {
-  color: "#F8FBFF",
-  border: "1px solid rgba(96,165,250,0.28)",
-  background:
-    "linear-gradient(180deg, rgba(59,130,246,0.14), rgba(124,58,237,0.10))",
-  boxShadow:
-    "0 8px 20px rgba(15,23,42,0.22), inset 0 1px 0 rgba(255,255,255,0.05)",
-  transform: "translateY(-1px)",
-},
+  itemActive: {
+    color: "#F8FBFF",
+    border: "1px solid rgba(96,165,250,0.18)",
+    background: "rgba(59,130,246,0.10)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+    transform: "translateY(-0.5px)",
+  },
 
-iconWrap: {
-  width: 26,
-  height: 26,
-  borderRadius: 9,
-  display: "grid",
-  placeItems: "center",
-  color: "inherit",
-  background: "rgba(255,255,255,0.02)",
-  flexShrink: 0,
-},
+  iconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    display: "grid",
+    placeItems: "center",
+    color: "inherit",
+    background: "rgba(255,255,255,0.03)",
+    flexShrink: 0,
+  },
 
   iconWrapActive: {
     background: "rgba(255,255,255,0.06)",
   },
 
- label: {
-  fontSize: 9,
-  lineHeight: 1,
-  fontWeight: 800,
-  letterSpacing: "0.01em",
-  whiteSpace: "nowrap",
-  opacity: 0.9,
-},
+  label: {
+    fontSize: 9,
+    lineHeight: 1,
+    fontWeight: 800,
+    letterSpacing: "0.01em",
+    whiteSpace: "nowrap",
+    opacity: 0.9,
+  },
 
   labelActive: {
     opacity: 1,
