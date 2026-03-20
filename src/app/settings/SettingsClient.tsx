@@ -409,11 +409,7 @@ const googleActionLabel =
         mobileBottomSafe={96}
       >
         <div style={styles.shell}>
-  <div style={styles.topRow}>
-  <PremiumHeader />
-  <div style={styles.topActions}>
-  </div>
-</div>
+<PremiumHeader />
 
           <section style={styles.hero}>
             <div>
@@ -741,21 +737,6 @@ pillWarn: {
   toastTitle: { fontWeight: 900, fontSize: 13 },
   toastSub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 },
 
-  topRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    marginBottom: 14,
-    flexWrap: "wrap",
-  },
-  topActions: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-
 hero: {
   padding: "16px 14px",
   borderRadius: 18,
@@ -926,16 +907,6 @@ ghostBtn: {
     cursor: "pointer",
     fontWeight: 900,
   },
-  ghostBtn: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-
   errorBox: {
     marginTop: 10,
     padding: 12,
