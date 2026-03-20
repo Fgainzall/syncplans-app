@@ -1,12 +1,21 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import AuthCard from "@/components/AuthCard";
 
+function readHashParams() {
+  if (typeof window === "undefined") return new URLSearchParams();
+  const hash = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  return new URLSearchParams(hash);
+}
+
 export default function Client() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -18,13 +27,17 @@ export default function Client() {
 
   const passwordError = useMemo(() => {
     if (!password) return null;
-    if (password.length < 6) return "La contraseña debe tener al menos 6 caracteres.";
+    if (password.length < 6) {
+      return "La contraseña debe tener al menos 6 caracteres.";
+    }
     return null;
   }, [password]);
 
   const confirmError = useMemo(() => {
     if (!confirmPassword) return null;
-    if (password !== confirmPassword) return "Las contraseñas no coinciden.";
+    if (password !== confirmPassword) {
+      return "Las contraseñas no coinciden.";
+    }
     return null;
   }, [password, confirmPassword]);
 
@@ -38,55 +51,100 @@ export default function Client() {
     );
   }, [loading, sessionReady, password, confirmPassword]);
 
-useEffect(() => {
-  let mounted = true;
+  useEffect(() => {
+    let mounted = true;
 
-  async function handleRecovery() {
-    try {
-      // 🔥 1. Forzar a Supabase a leer el hash manualmente
-      const hash = window.location.hash;
+    async function boot() {
+      try {
+        setCheckingSession(true);
+        setError(null);
 
-      if (hash && hash.includes("access_token")) {
-        const { error } = await supabase.auth.setSession({
-          access_token: new URLSearchParams(hash.substring(1)).get("access_token")!,
-          refresh_token: new URLSearchParams(hash.substring(1)).get("refresh_token")!,
-        });
+        const code = searchParams.get("code");
+        const hashParams = readHashParams();
 
-        if (error) {
-          throw error;
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
+        const type = hashParams.get("type");
+
+        // Caso 1: PKCE / code en query
+        if (code) {
+          const { error: exchangeError } =
+            await supabase.auth.exchangeCodeForSession(code);
+
+          if (exchangeError) {
+            if (!mounted) return;
+            setError(
+              "No pudimos validar tu enlace de recuperación. Solicita uno nuevo e inténtalo otra vez."
+            );
+            setSessionReady(false);
+            setCheckingSession(false);
+            return;
+          }
+
+          if (typeof window !== "undefined") {
+            window.history.replaceState({}, document.title, "/auth/update-password");
+          }
         }
-      }
 
-      // 🔥 2. Verificar sesión
-      const { data } = await supabase.auth.getSession();
+        // Caso 2: tokens en hash (#access_token=...&refresh_token=...)
+        else if (accessToken && refreshToken && type === "recovery") {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
 
-      if (!mounted) return;
+          if (setSessionError) {
+            if (!mounted) return;
+            setError(
+              "No pudimos validar tu enlace de recuperación. Solicita uno nuevo e inténtalo otra vez."
+            );
+            setSessionReady(false);
+            setCheckingSession(false);
+            return;
+          }
 
-      if (!data.session) {
-        setError("No pudimos validar tu enlace de recuperación.");
+          if (typeof window !== "undefined") {
+            window.history.replaceState({}, document.title, "/auth/update-password");
+          }
+        }
+
+        // Esperamos la sesión final ya armada
+        const { data, error: sessionError } = await supabase.auth.getSession();
+
+        if (!mounted) return;
+
+        if (sessionError) {
+          setError("No pudimos validar tu enlace de recuperación.");
+          setSessionReady(false);
+          setCheckingSession(false);
+          return;
+        }
+
+        if (!data.session) {
+          setError(
+            "Este enlace no es válido, ya expiró o no pudo completarse. Solicita uno nuevo para cambiar tu contraseña."
+          );
+          setSessionReady(false);
+          setCheckingSession(false);
+          return;
+        }
+
+        setSessionReady(true);
+        setCheckingSession(false);
+      } catch {
+        if (!mounted) return;
+        setError("Ocurrió un error al validar tu acceso.");
         setSessionReady(false);
         setCheckingSession(false);
-        return;
       }
-
-      setSessionReady(true);
-      setCheckingSession(false);
-
-    } catch (err) {
-      if (!mounted) return;
-
-      setError("No pudimos validar tu enlace de recuperación.");
-      setSessionReady(false);
-      setCheckingSession(false);
     }
-  }
 
-  handleRecovery();
+    boot();
 
-  return () => {
-    mounted = false;
-  };
-}, []);
+    return () => {
+      mounted = false;
+    };
+  }, [searchParams]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -97,7 +155,6 @@ useEffect(() => {
     setSuccess(null);
 
     try {
-      // 1. Actualizar contraseña
       const { error } = await supabase.auth.updateUser({
         password,
       });
@@ -108,7 +165,6 @@ useEffect(() => {
         return;
       }
 
-      // 2. Confirmar sesión activa (auto-login)
       const { data: sessionData } = await supabase.auth.getSession();
 
       if (!sessionData?.session) {
@@ -117,9 +173,7 @@ useEffect(() => {
         return;
       }
 
-      // 3. Mensaje + redirect
       setSuccess("Listo. Entrando a SyncPlans…");
-
       router.replace("/summary");
     } catch (err: any) {
       setError(err?.message ?? "Ocurrió un error inesperado.");
@@ -265,26 +319,10 @@ const backButtonStyle: CSSProperties = {
   alignSelf: "flex-start",
 };
 
-const infoBoxStyle: CSSProperties = {
-  borderRadius: 14,
-  border: "1px solid rgba(96,165,250,0.28)",
-  background: "rgba(30,41,59,0.72)",
-  color: "#BFDBFE",
-  padding: "12px 14px",
-  fontSize: 13,
-  lineHeight: 1.5,
-};
-
-const hintErrorStyle: CSSProperties = {
-  fontSize: 12,
-  lineHeight: 1.5,
-  color: "#FCA5A5",
-};
-
 const errorBoxStyle: CSSProperties = {
   borderRadius: 14,
   border: "1px solid rgba(248,113,113,0.35)",
-  background: "rgba(127,29,29,0.22)",
+  background: "rgba(127,29,29,0.28)",
   color: "#FCA5A5",
   padding: "12px 14px",
   fontSize: 13,
@@ -293,10 +331,25 @@ const errorBoxStyle: CSSProperties = {
 
 const successBoxStyle: CSSProperties = {
   borderRadius: 14,
-  border: "1px solid rgba(52,211,153,0.30)",
-  background: "rgba(6,95,70,0.22)",
+  border: "1px solid rgba(74,222,128,0.28)",
+  background: "rgba(20,83,45,0.28)",
   color: "#86EFAC",
   padding: "12px 14px",
   fontSize: 13,
   lineHeight: 1.5,
+};
+
+const infoBoxStyle: CSSProperties = {
+  borderRadius: 14,
+  border: "1px solid rgba(96,165,250,0.22)",
+  background: "rgba(15,23,42,0.56)",
+  color: "#BFDBFE",
+  padding: "12px 14px",
+  fontSize: 13,
+  lineHeight: 1.5,
+};
+
+const hintErrorStyle: CSSProperties = {
+  fontSize: 12,
+  color: "#FCA5A5",
 };
