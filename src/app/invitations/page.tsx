@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
-import LogoutButton from "@/components/LogoutButton";
 
 import {
   getMyInvitations,
@@ -150,7 +149,6 @@ export default function InvitationsPage() {
 
   return (
     <main style={styles.page} className="spInv-page">
-      {/* Toast */}
       {toast && (
         <div style={styles.toastWrap} className="spInv-toastWrap">
           <div style={styles.toastCard} className="spInv-toastCard">
@@ -165,10 +163,8 @@ export default function InvitationsPage() {
       <div style={styles.shell} className="spInv-shell">
         <div style={styles.headerRow} className="spInv-headerRow">
           <PremiumHeader />
-          <LogoutButton />
         </div>
 
-        {/* Hero */}
         <section style={styles.hero} className="spInv-hero">
           <div>
             <div style={styles.kicker}>Tu bandeja</div>
@@ -199,7 +195,6 @@ export default function InvitationsPage() {
           </div>
         </section>
 
-        {/* Estados */}
         {booting ? (
           <div style={styles.loadingCard} className="spInv-loadingCard">
             <div style={styles.loadingDot} />
@@ -218,302 +213,314 @@ export default function InvitationsPage() {
               ...styles.card,
               border: "1px solid rgba(248,113,113,0.22)",
               background: "rgba(248,113,113,0.08)",
+              color: "#ffe6e6",
             }}
           >
-            <div style={{ fontWeight: 900 }}>No se pudo cargar</div>
-            <div
-              style={{ opacity: 0.75, marginTop: 6, fontSize: 12 }}
-            >
-              {error}
-            </div>
-            <button
-              onClick={load}
-              style={{ ...styles.primaryBtn, marginTop: 10 }}
-            >
-              Reintentar
-            </button>
+            {error}
           </div>
         ) : isEmpty ? (
-          <div style={styles.empty} className="spInv-empty">
-            <div style={styles.emptyTitle}>
-              No tienes invitaciones pendientes
-            </div>
+          <div style={styles.emptyCard} className="spInv-emptyCard">
+            <div style={styles.emptyTitle}>No tienes invitaciones pendientes</div>
             <div style={styles.emptySub}>
               Cuando alguien te invite a un grupo, aparecerá aquí.
             </div>
-            <div
-              style={styles.emptyActions}
-              className="spInv-emptyActions"
-            >
-              <button
-                onClick={() => router.push("/groups")}
-                style={styles.primaryBtn}
-              >
-                Ir a grupos →
-              </button>
-            </div>
           </div>
         ) : (
-          <>
-            <div style={styles.smallNote} className="spInv-smallNote">
-              Pendientes: <b>{pendingInvites.length}</b>
-            </div>
-
-            <div style={styles.list} className="spInv-list">
-              {pendingInvites.map((i) => {
-                const t = i.group_type ?? null;
-                const name = i.group_name ?? "Grupo";
-                const role = i.role ?? "member";
-
-                return (
-                  <div
-                    key={i.id}
-                    style={styles.card}
-                    className="spInv-card"
-                  >
-                    <div
-                      style={styles.cardTop}
-                      className="spInv-cardTop"
-                    >
-                      <div>
-                        <div style={styles.groupName}>{name}</div>
-                        <div style={styles.groupType}>
-                          {labelForGroupType(t)} · Rol: <b>{role}</b>
-                        </div>
+          <section style={styles.list} className="spInv-list">
+            {pendingInvites.map((invite) => {
+              const busy = acting === invite.id;
+              return (
+                <article
+                  key={invite.id}
+                  style={styles.inviteCard}
+                  className="spInv-inviteCard"
+                >
+                  <div style={styles.inviteTop}>
+                    <div style={styles.inviteMeta}>
+                      <div style={styles.inviteTitle}>
+                        {invite.group_name || "Grupo sin nombre"}
                       </div>
-
-                      <div style={styles.metaRight}>
-                        <div style={styles.date}>
-                          {safeDateLabel(i.created_at)}
-                        </div>
-                        <span style={styles.pill}>Pendiente</span>
+                      <div style={styles.inviteSub}>
+                        {labelForGroupType(invite.group_type)} ·{" "}
+                        {safeDateLabel(invite.created_at)}
                       </div>
                     </div>
 
-                    <div
-                      style={styles.actions}
-                      className="spInv-actions"
-                    >
-                      <button
-                        onClick={() => onDecline(i.id)}
-                        disabled={acting === i.id}
-                        style={styles.ghostBtn}
-                        className="spInv-btn"
-                      >
-                        {acting === i.id ? "…" : "Rechazar"}
-                      </button>
-
-                      <button
-                        onClick={() => onAccept(i.id)}
-                        disabled={acting === i.id}
-                        style={styles.primaryBtn}
-                        className="spInv-btn"
-                      >
-                        {acting === i.id ? "…" : "Aceptar"}
-                      </button>
-                    </div>
+                    <div style={styles.badgePending}>Pendiente</div>
                   </div>
-                );
-              })}
-            </div>
-          </>
+
+                  <div style={styles.actions}>
+                    <button
+                      onClick={() => onAccept(invite.id)}
+                      disabled={busy}
+                      style={styles.primaryBtn}
+                    >
+                      Aceptar
+                    </button>
+                    <button
+                      onClick={() => onDecline(invite.id)}
+                      disabled={busy}
+                      style={styles.ghostBtn}
+                    >
+                      {busy ? "Procesando…" : "Rechazar"}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </section>
         )}
       </div>
-
-      {/* Responsive aislado */}
-      <style>{`
-        @media (max-width: 520px) {
-          .spInv-shell { padding: 18px 14px 64px !important; }
-          .spInv-headerRow { gap: 10px !important; flex-wrap: wrap !important; }
-          .spInv-hero { padding: 12px !important; border-radius: 16px !important; }
-          .spInv-h1 { font-size: 22px !important; letter-spacing: -0.4px !important; }
-          .spInv-sub { font-size: 12px !important; }
-          .spInv-heroActions { width: 100% !important; }
-          .spInv-btn { flex: 1 1 auto !important; }
-          .spInv-card { padding: 12px !important; border-radius: 16px !important; }
-          .spInv-cardTop { flex-wrap: wrap !important; }
-        }
-      `}</style>
     </main>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
   page: {
-    minHeight: "100vh",
+    minHeight: "100dvh",
     background:
-      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
-    color: "rgba(255,255,255,0.92)",
+      "radial-gradient(circle at top, rgba(40,69,135,0.22), transparent 28%), #050816",
+    color: "#f8fafc",
+    padding: "18px 14px 140px",
+  },
+
+  shell: {
+    width: "100%",
+    maxWidth: 880,
+    margin: "0 auto",
+    display: "grid",
+    gap: 18,
+  },
+
+  headerRow: {
+    display: "block",
+  },
+
+  hero: {
+    display: "grid",
+    gap: 16,
+    borderRadius: 28,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background:
+      "linear-gradient(180deg, rgba(8,15,35,0.94), rgba(6,10,24,0.9))",
+    boxShadow:
+      "0 24px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05)",
+    padding: 22,
+  },
+
+  kicker: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "10px 16px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.03)",
+    color: "rgba(255,255,255,0.86)",
+    fontSize: 13,
+    fontWeight: 800,
+    letterSpacing: "0.18em",
+    textTransform: "uppercase",
+    marginBottom: 14,
+  },
+
+  h1: {
+    margin: 0,
+    fontSize: "clamp(2rem, 4vw, 3rem)",
+    lineHeight: 1.02,
+    letterSpacing: "-0.03em",
+    fontWeight: 900,
+  },
+
+  sub: {
+    marginTop: 12,
+    maxWidth: 680,
+    fontSize: "1.05rem",
+    lineHeight: 1.65,
+    color: "rgba(226,232,240,0.84)",
+  },
+
+  heroActions: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+
+  primaryBtn: {
+    appearance: "none",
+    border: "1px solid rgba(96,165,250,0.34)",
+    background:
+      "linear-gradient(135deg, rgba(37,99,235,0.34), rgba(124,58,237,0.34))",
+    color: "#ffffff",
+    borderRadius: 18,
+    padding: "14px 18px",
+    fontWeight: 800,
+    fontSize: 15,
+    cursor: "pointer",
+    boxShadow: "0 16px 34px rgba(29,78,216,0.18)",
+  },
+
+  ghostBtn: {
+    appearance: "none",
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#ffffff",
+    borderRadius: 18,
+    padding: "14px 18px",
+    fontWeight: 800,
+    fontSize: 15,
+    cursor: "pointer",
+  },
+
+  card: {
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background:
+      "linear-gradient(180deg, rgba(8,15,35,0.90), rgba(6,10,24,0.88))",
+    padding: 18,
+  },
+
+  emptyCard: {
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background:
+      "linear-gradient(180deg, rgba(8,15,35,0.90), rgba(6,10,24,0.88))",
+    padding: 24,
+    display: "grid",
+    gap: 10,
+  },
+
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+  },
+
+  emptySub: {
+    color: "rgba(226,232,240,0.78)",
+    lineHeight: 1.65,
+  },
+
+  loadingCard: {
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background:
+      "linear-gradient(180deg, rgba(8,15,35,0.90), rgba(6,10,24,0.88))",
+    padding: 20,
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+  },
+
+  loadingDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 999,
+    background: "#38bdf8",
+    boxShadow: "0 0 28px rgba(56,189,248,0.55)",
+    flexShrink: 0,
+  },
+
+  loadingTitle: {
+    fontSize: 18,
+    fontWeight: 800,
+  },
+
+  loadingSub: {
+    marginTop: 4,
+    color: "rgba(226,232,240,0.72)",
+  },
+
+  list: {
+    display: "grid",
+    gap: 14,
+  },
+
+  inviteCard: {
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background:
+      "linear-gradient(180deg, rgba(8,15,35,0.90), rgba(6,10,24,0.88))",
+    padding: 18,
+    display: "grid",
+    gap: 16,
+  },
+
+  inviteTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 14,
+  },
+
+  inviteMeta: {
+    display: "grid",
+    gap: 6,
+  },
+
+  inviteTitle: {
+    fontSize: 22,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+  },
+
+  inviteSub: {
+    color: "rgba(226,232,240,0.78)",
+    lineHeight: 1.55,
+  },
+
+  badgePending: {
+    alignSelf: "flex-start",
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(250,204,21,0.24)",
+    background: "rgba(250,204,21,0.12)",
+    color: "#fde68a",
+    fontSize: 12,
+    fontWeight: 800,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+  },
+
+  actions: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
   },
 
   toastWrap: {
     position: "fixed",
     top: 18,
-    right: 18,
-    zIndex: 50,
-    pointerEvents: "none",
-  },
-  toastCard: {
-    pointerEvents: "auto",
-    minWidth: 260,
-    maxWidth: 420,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(7,11,22,0.72)",
-    boxShadow: "0 24px 70px rgba(0,0,0,0.45)",
-    backdropFilter: "blur(14px)",
-    padding: "12px 14px",
-  },
-  toastTitle: { fontWeight: 900, fontSize: 13 },
-  toastSub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 },
-
-  shell: { maxWidth: 820, margin: "0 auto", padding: "22px 18px 56px" },
-
-  headerRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    marginBottom: 14,
-  },
-
-  hero: {
-    padding: "16px 14px",
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.03)",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-
-  kicker: {
-    alignSelf: "flex-start",
-    fontSize: 11,
-    letterSpacing: "0.10em",
-    textTransform: "uppercase",
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-    opacity: 0.9,
-    fontWeight: 900,
-  },
-
-  h1: { margin: "10px 0 0", fontSize: 26, letterSpacing: "-0.6px" },
-  sub: { marginTop: 8, fontSize: 13, opacity: 0.75, maxWidth: 640 },
-
-  heroActions: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-
-  smallNote: { marginTop: 10, fontSize: 12, opacity: 0.72 },
-
-  list: { marginTop: 10, display: "flex", flexDirection: "column", gap: 12 },
-
-  card: {
-    borderRadius: 18,
-    padding: 14,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.03)",
-  },
-
-  cardTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 12,
-    alignItems: "flex-start",
-  },
-
-  groupName: { fontSize: 16, fontWeight: 950, letterSpacing: "-0.2px" },
-  groupType: { fontSize: 13, opacity: 0.75, marginTop: 6 },
-
-  metaRight: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-    alignItems: "flex-end",
-  },
-  date: { fontSize: 12, opacity: 0.6, whiteSpace: "nowrap" },
-
-  pill: {
-    fontSize: 10,
-    fontWeight: 900,
-    padding: "4px 8px",
-    borderRadius: 999,
-    border: "1px solid rgba(251,191,36,0.35)",
-    background: "rgba(251,191,36,0.12)",
-    whiteSpace: "nowrap",
-  },
-
-  actions: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-
-  primaryBtn: {
-    padding: "10px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-
-  ghostBtn: {
-    padding: "10px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-
-  empty: {
-    marginTop: 16,
-    padding: 22,
-    borderRadius: 18,
-    border: "1px dashed rgba(255,255,255,0.18)",
-    background: "rgba(255,255,255,0.02)",
-    textAlign: "center",
-  },
-  emptyTitle: { fontWeight: 950, fontSize: 16 },
-  emptySub: { opacity: 0.75, marginTop: 6, fontSize: 12 },
-  emptyActions: {
-    marginTop: 12,
+    left: 12,
+    right: 12,
+    zIndex: 120,
     display: "flex",
     justifyContent: "center",
+    pointerEvents: "none",
   },
 
-  loadingCard: {
-    marginTop: 12,
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-    padding: 16,
+  toastCard: {
+    minWidth: 240,
+    maxWidth: 520,
     borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(7,12,28,0.92)",
+    boxShadow: "0 16px 36px rgba(0,0,0,0.38)",
+    backdropFilter: "blur(18px)",
+    WebkitBackdropFilter: "blur(18px)",
+    padding: "14px 16px",
+    pointerEvents: "auto",
   },
-  loadingDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 999,
-    background: "rgba(56,189,248,0.95)",
-    boxShadow: "0 0 24px rgba(56,189,248,0.55)",
+
+  toastTitle: {
+    fontSize: 15,
+    fontWeight: 900,
+    color: "#ffffff",
   },
-  loadingTitle: { fontWeight: 900 },
-  loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
+
+  toastSub: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.78)",
+  },
 };

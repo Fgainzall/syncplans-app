@@ -11,7 +11,7 @@ import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 
 import PremiumHeader from "@/components/PremiumHeader";
-import LogoutButton from "@/components/LogoutButton";
+
 import MobileScaffold from "@/components/MobileScaffold";
 
 /* Helpers de fecha para el resumen */
@@ -409,12 +409,11 @@ const googleActionLabel =
         mobileBottomSafe={96}
       >
         <div style={styles.shell}>
-          <div style={styles.topRow}>
-            <PremiumHeader />
-            <div style={styles.topActions}>
-              <LogoutButton />
-            </div>
-          </div>
+  <div style={styles.topRow}>
+  <PremiumHeader />
+  <div style={styles.topActions}>
+  </div>
+</div>
 
           <section style={styles.hero}>
             <div>
