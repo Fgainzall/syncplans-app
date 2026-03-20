@@ -405,11 +405,10 @@ export default function PanelPage() {
            <div style={styles.heroTextWrap}>
   <div style={styles.eyebrow}>Operación</div>
   <h1 style={styles.heroTitle}>
-    El lugar para operar SyncPlans, no para configurarte.
+    Organiza tu tiempo sin choques ni malentendidos.
   </h1>
   <p style={styles.heroCopy}>
-    Desde aquí deberías entrar rápido a calendario, conflictos, eventos,
-    grupos e invitaciones. Tu identidad y preferencias personales viven en Cuenta.
+   Aquí tienes control total sobre tu calendario, tus grupos y tus decisiones.
   </p>
 </div>
 
