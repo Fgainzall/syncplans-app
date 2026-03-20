@@ -43,7 +43,10 @@ export default function Client() {
 
     async function boot() {
       try {
-        const { data, error } = await supabase.auth.getSession();
+        // 🔥 NUEVO: procesar recovery link correctamente
+const { data, error } = await supabase.auth.exchangeCodeForSession(
+  window.location.href
+);
 
         if (!mounted) return;
 
