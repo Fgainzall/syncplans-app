@@ -37,13 +37,14 @@ export default async function HomePage() {
 
       <section style={S.shell} className="sp-shell">
         <header style={S.topBar} className="sp-topBar">
-          <div style={S.brandWrap}>
-            <BrandLogo size={30} />
-            <div style={S.brandMeta}>
-              <span style={S.brandEyebrow}>Coordinación compartida</span>
-              <span style={S.brandSubline}>Menos fricción al compartir tu tiempo</span>
-            </div>
-          </div>
+        <div style={S.brandWrap} className="sp-brandWrap">
+  <BrandLogo size={28} showWordmark={false} />
+  <div style={S.brandMeta} className="sp-brandMeta">
+    <span style={S.brandName}>SyncPlans</span>
+    <span style={S.brandEyebrow}>Coordinación compartida</span>
+    <span style={S.brandSubline}>Menos fricción al compartir tu tiempo</span>
+  </div>
+</div>
 
           <div style={S.topActions}>
             <Link
@@ -198,7 +199,14 @@ export default async function HomePage() {
           .sp-topBar {
             flex-wrap: wrap !important;
           }
+  .sp-brandWrap {
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
 
+  .sp-brandMeta {
+    gap: 1px !important;
+  }
           .sp-topLogin {
             width: 100% !important;
             justify-content: center !important;
@@ -448,12 +456,19 @@ const S: Record<string, React.CSSProperties> = {
     gap: 12,
     minWidth: 0,
   },
-
-  brandMeta: {
-    display: "grid",
-    gap: 2,
-  },
-
+brandMeta: {
+  display: "grid",
+  gap: 2,
+  minWidth: 0,
+},
+brandName: {
+  color: "#F8FAFC",
+  fontSize: 18,
+  fontWeight: 900,
+  lineHeight: 1,
+  letterSpacing: "-0.03em",
+  whiteSpace: "nowrap",
+},
   brandEyebrow: {
     color: colors.textMuted,
     fontSize: 12,
