@@ -38,50 +38,62 @@ export default function Client() {
     );
   }, [loading, sessionReady, password, confirmPassword]);
 
-  useEffect(() => {
-    let mounted = true;
+useEffect(() => {
+  let mounted = true;
 
-    async function boot() {
-      try {
-        // 🔥 NUEVO: procesar recovery link correctamente
-const { data, error } = await supabase.auth.exchangeCodeForSession(
-  window.location.href
-);
+  async function handleRecovery() {
+    try {
+      // 🔥 1. Forzar a Supabase a leer el hash del URL
+      const { data: sessionData } = await supabase.auth.getSession();
 
-        if (!mounted) return;
+      if (!mounted) return;
 
-        if (error) {
-          setError("No pudimos validar tu enlace de recuperación.");
-          setSessionReady(false);
-          setCheckingSession(false);
-          return;
-        }
-
-        if (!data.session) {
-          setError(
-            "Este enlace no es válido o ya expiró. Solicita uno nuevo para cambiar tu contraseña."
-          );
-          setSessionReady(false);
-          setCheckingSession(false);
-          return;
-        }
-
+      if (sessionData?.session) {
         setSessionReady(true);
         setCheckingSession(false);
-      } catch {
+        return;
+      }
+
+      // 🔥 2. Escuchar si Supabase detecta sesión desde el hash
+      const { data: listener } = supabase.auth.onAuthStateChange(
+        (event, session) => {
+          if (!mounted) return;
+
+          if (event === "SIGNED_IN" && session) {
+            setSessionReady(true);
+            setCheckingSession(false);
+          }
+        }
+      );
+
+      // 🔥 3. fallback (si nada pasa)
+      setTimeout(() => {
         if (!mounted) return;
-        setError("Ocurrió un error al validar tu acceso.");
+
+        setError(
+          "No pudimos validar tu enlace de recuperación."
+        );
         setSessionReady(false);
         setCheckingSession(false);
-      }
+      }, 1500);
+
+      return () => {
+        listener.subscription.unsubscribe();
+      };
+    } catch {
+      if (!mounted) return;
+      setError("Ocurrió un error al validar tu acceso.");
+      setSessionReady(false);
+      setCheckingSession(false);
     }
+  }
 
-    boot();
+  handleRecovery();
 
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  return () => {
+    mounted = false;
+  };
+}, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
