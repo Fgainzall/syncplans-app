@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import supabase from "@/lib/supabaseClient";
+import supabase from "@/lib/supabaseRecoveryClient";
 import AuthCard from "@/components/AuthCard";
 
 function readHashParams() {
