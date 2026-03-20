@@ -99,11 +99,11 @@ export default function Client() {
         return;
       }
 
-      setSuccess("Tu contraseña fue actualizada correctamente.");
+     setSuccess("Listo. Ya puedes volver a SyncPlans con tu nueva contraseña.");
 
-      setTimeout(() => {
-        router.replace("/auth/login");
-      }, 1200);
+setTimeout(() => {
+  router.replace("/summary");
+}, 1200);
     } catch (err: any) {
       setError(err?.message ?? "Ocurrió un error inesperado.");
       setLoading(false);
