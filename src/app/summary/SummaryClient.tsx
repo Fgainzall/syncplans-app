@@ -881,10 +881,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
           <section style={styles.card} className="spSum-card">
             <div style={styles.sectionTitle}>Acciones rápidas</div>
-            <div style={styles.smallNote}>
-              Lo que más vas a usar cuando entras solo a “ver cómo están las
-              cosas”.
-            </div>
+         <div style={styles.smallNote}>
+  Accede a lo importante en segundos.
+</div>
 
             <div style={styles.quickGrid} className="spSum-quickGrid">
               <button
