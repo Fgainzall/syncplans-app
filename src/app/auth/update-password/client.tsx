@@ -89,6 +89,7 @@ export default function Client() {
     setSuccess(null);
 
     try {
+      // 1. Actualizar contraseña
       const { error } = await supabase.auth.updateUser({
         password,
       });
@@ -99,11 +100,19 @@ export default function Client() {
         return;
       }
 
-     setSuccess("Listo. Ya puedes volver a SyncPlans con tu nueva contraseña.");
+      // 2. Confirmar sesión activa (auto-login)
+      const { data: sessionData } = await supabase.auth.getSession();
 
-setTimeout(() => {
-  router.replace("/summary");
-}, 1200);
+      if (!sessionData?.session) {
+        setError("No se pudo iniciar sesión automáticamente.");
+        setLoading(false);
+        return;
+      }
+
+      // 3. Mensaje + redirect
+      setSuccess("Listo. Entrando a SyncPlans…");
+
+      router.replace("/summary");
     } catch (err: any) {
       setError(err?.message ?? "Ocurrió un error inesperado.");
       setLoading(false);
