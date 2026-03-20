@@ -172,8 +172,7 @@ export default function InvitationsPage() {
               {title}
             </h1>
             <div style={styles.sub} className="spInv-sub">
-              Grupos a los que te han invitado. Aceptar abre la pantalla
-              premium para confirmarlo.
+             Grupos a los que te han invitado. Acepta para unirte.
             </div>
           </div>
 
