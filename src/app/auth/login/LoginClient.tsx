@@ -224,7 +224,14 @@ export default function LoginClient() {
               disabled={isBusy}
             />
           </div>
-
+<button
+  type="button"
+  onClick={() => router.push("/auth/reset-password")}
+  style={forgotButtonStyle}
+  disabled={isBusy}
+>
+  ¿Olvidaste tu contraseña?
+</button>
           {error && <div style={errorBoxStyle}>{error}</div>}
 
           <button type="submit" disabled={!canSubmit} style={primaryButtonStyle}>
@@ -376,4 +383,16 @@ const helperTextStyle: CSSProperties = {
   fontSize: 11,
   lineHeight: 1.6,
   color: "rgba(148,163,184,0.82)",
+};
+const forgotButtonStyle: CSSProperties = {
+  justifySelf: "end",
+  marginTop: -4,
+  marginBottom: 2,
+  padding: 0,
+  border: "none",
+  background: "transparent",
+  color: "rgba(148,163,184,0.88)",
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: "pointer",
 };
