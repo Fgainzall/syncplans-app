@@ -710,11 +710,11 @@ const styles: Record<string, React.CSSProperties> = {
       "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
   },
-  shell: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
+ shell: {
+  display: "flex",
+  flexDirection: "column",
+  gap: 18,
+},
 pillWarn: {
   background: "rgba(245, 158, 11, 0.16)",
   color: "#FCD34D",
@@ -756,20 +756,19 @@ pillWarn: {
     flexWrap: "wrap",
   },
 
-  hero: {
-    padding: "18px 16px",
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
-    marginBottom: 12,
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    gap: 14,
-    flexWrap: "wrap",
-  },
+ hero: {
+  padding: 22,
+  borderRadius: 28,
+  border: "1px solid rgba(255,255,255,0.10)",
+  background:
+    "linear-gradient(180deg, rgba(8,15,35,0.94), rgba(6,10,24,0.9))",
+  boxShadow:
+    "0 24px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05)",
+  marginBottom: 12,
+  display: "grid",
+  gap: 16,
+  maxWidth: "100%",
+},
   kicker: {
     alignSelf: "flex-start",
     fontSize: 11,
@@ -784,7 +783,11 @@ pillWarn: {
   },
   h1: { margin: "10px 0 0", fontSize: 26, letterSpacing: "-0.6px" },
   sub: { marginTop: 8, fontSize: 13, opacity: 0.75, maxWidth: 720 },
-  heroBtns: { display: "flex", gap: 10, flexWrap: "wrap" },
+  heroBtns: {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 12,
+},
   heroMeta: { marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" },
 
   card: {
