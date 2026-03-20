@@ -343,17 +343,9 @@ export default function BottomNav() {
 
   if (shouldHideBottomNav(pathname)) return null;
 
-  const isPanelRelatedPath = (path: string) => {
-    return (
-      path.startsWith("/panel") ||
-      path.startsWith("/profile") ||
-      path.startsWith("/groups") ||
-      path.startsWith("/members") ||
-      path.startsWith("/invitations") ||
-      path.startsWith("/settings") ||
-      path.startsWith("/planes")
-    );
-  };
+const isPanelRelatedPath = (path: string) => {
+  return path.startsWith("/panel");
+};
 
   const isActive = (key: BottomNavKey) => {
     if (key === "summary") return pathname.startsWith("/summary");
