@@ -43,46 +43,39 @@ useEffect(() => {
 
   async function handleRecovery() {
     try {
-      // 🔥 1. Forzar a Supabase a leer el hash del URL
-      const { data: sessionData } = await supabase.auth.getSession();
+      // 🔥 1. Forzar a Supabase a leer el hash manualmente
+      const hash = window.location.hash;
+
+      if (hash && hash.includes("access_token")) {
+        const { error } = await supabase.auth.setSession({
+          access_token: new URLSearchParams(hash.substring(1)).get("access_token")!,
+          refresh_token: new URLSearchParams(hash.substring(1)).get("refresh_token")!,
+        });
+
+        if (error) {
+          throw error;
+        }
+      }
+
+      // 🔥 2. Verificar sesión
+      const { data } = await supabase.auth.getSession();
 
       if (!mounted) return;
 
-      if (sessionData?.session) {
-        setSessionReady(true);
+      if (!data.session) {
+        setError("No pudimos validar tu enlace de recuperación.");
+        setSessionReady(false);
         setCheckingSession(false);
         return;
       }
 
-      // 🔥 2. Escuchar si Supabase detecta sesión desde el hash
-      const { data: listener } = supabase.auth.onAuthStateChange(
-        (event, session) => {
-          if (!mounted) return;
+      setSessionReady(true);
+      setCheckingSession(false);
 
-          if (event === "SIGNED_IN" && session) {
-            setSessionReady(true);
-            setCheckingSession(false);
-          }
-        }
-      );
-
-      // 🔥 3. fallback (si nada pasa)
-      setTimeout(() => {
-        if (!mounted) return;
-
-        setError(
-          "No pudimos validar tu enlace de recuperación."
-        );
-        setSessionReady(false);
-        setCheckingSession(false);
-      }, 1500);
-
-      return () => {
-        listener.subscription.unsubscribe();
-      };
-    } catch {
+    } catch (err) {
       if (!mounted) return;
-      setError("Ocurrió un error al validar tu acceso.");
+
+      setError("No pudimos validar tu enlace de recuperación.");
       setSessionReady(false);
       setCheckingSession(false);
     }
