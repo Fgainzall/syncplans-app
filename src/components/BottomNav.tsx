@@ -433,6 +433,11 @@ const S: Record<string, React.CSSProperties> = {
     WebkitBackdropFilter: "blur(18px)",
     padding: 8,
     paddingBottom: "calc(8px + env(safe-area-inset-bottom))",
+    overflow: "hidden",
+  },
+
+  viewport: {
+    width: "100%",
     overflowX: "auto",
     overflowY: "hidden",
     WebkitOverflowScrolling: "touch",
@@ -440,11 +445,6 @@ const S: Record<string, React.CSSProperties> = {
     msOverflowStyle: "none",
     touchAction: "pan-x",
     overscrollBehaviorX: "contain",
-  },
-
-  viewport: {
-    width: "100%",
-    overflow: "visible",
   },
 
   track: {

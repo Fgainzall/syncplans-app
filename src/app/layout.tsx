@@ -1,9 +1,8 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import SWRegister from "./sw-register";
-
 import { ToastProvider } from "@/components/ui/Toast";
-import BottomNavVisibility from "@/components/BottomNavVisibility";
+import BottomNav from "@/components/BottomNav";
 
 export const metadata: Metadata = {
   title: "SyncPlans",
@@ -46,10 +45,11 @@ export default function RootLayout({
         }}
       >
         <SWRegister />
-
         <ToastProvider>
           {children}
-          <BottomNavVisibility />
+          <div className="md:hidden">
+            <BottomNav />
+          </div>
         </ToastProvider>
       </body>
     </html>
