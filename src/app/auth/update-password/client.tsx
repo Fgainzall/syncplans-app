@@ -15,7 +15,8 @@ function readHashParams() {
 
 function cleanRecoveryUrl() {
   if (typeof window === "undefined") return;
-  window.history.replaceState({}, document.title, "/auth/update-password");
+  const cleanUrl = `${window.location.origin}/auth/update-password`;
+  window.history.replaceState({}, document.title, cleanUrl);
 }
 
 export default function Client() {
@@ -59,7 +60,7 @@ export default function Client() {
   useEffect(() => {
     let mounted = true;
 
-    async function markReadyFromSession() {
+    async function setReadyFromExistingSession() {
       const { data, error: sessionError } = await supabase.auth.getSession();
 
       if (!mounted) return false;
@@ -71,9 +72,7 @@ export default function Client() {
         return false;
       }
 
-      if (!data.session) {
-        return false;
-      }
+      if (!data.session) return false;
 
       setSessionReady(true);
       setCheckingSession(false);
@@ -86,7 +85,6 @@ export default function Client() {
         setCheckingSession(true);
         setError(null);
 
-        const code = searchParams.get("code");
         const tokenHash = searchParams.get("token_hash");
         const queryType = searchParams.get("type");
         const hashParams = readHashParams();
@@ -95,11 +93,13 @@ export default function Client() {
         const refreshToken = hashParams.get("refresh_token");
         const hashType = hashParams.get("type");
 
-        if (code) {
-          const { error: exchangeError } =
-            await supabase.auth.exchangeCodeForSession(code);
+        if (accessToken && refreshToken && hashType === "recovery") {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
 
-          if (exchangeError) {
+          if (setSessionError) {
             if (!mounted) return;
             setError(
               "No pudimos validar tu enlace de recuperación. Solicita uno nuevo e inténtalo otra vez."
@@ -127,30 +127,13 @@ export default function Client() {
           }
 
           cleanRecoveryUrl();
-        } else if (accessToken && refreshToken && hashType === "recovery") {
-          const { error: setSessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-
-          if (setSessionError) {
-            if (!mounted) return;
-            setError(
-              "No pudimos validar tu enlace de recuperación. Solicita uno nuevo e inténtalo otra vez."
-            );
-            setSessionReady(false);
-            setCheckingSession(false);
-            return;
-          }
-
-          cleanRecoveryUrl();
         }
 
-        const ready = await markReadyFromSession();
+        const ready = await setReadyFromExistingSession();
         if (ready || !mounted) return;
 
         setError(
-          "Este enlace no es válido, ya expiró o llegó en un dominio distinto. Solicita uno nuevo para cambiar tu contraseña."
+          "Este enlace no es válido o ya expiró. Solicita uno nuevo para cambiar tu contraseña."
         );
         setSessionReady(false);
         setCheckingSession(false);
@@ -191,9 +174,7 @@ export default function Client() {
     setSuccess(null);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password,
-      });
+      const { error } = await supabase.auth.updateUser({ password });
 
       if (error) {
         setError(error.message || "No se pudo actualizar la contraseña.");
@@ -201,15 +182,16 @@ export default function Client() {
         return;
       }
 
-      setSuccess("Listo. Entrando a SyncPlans…");
-      router.replace("/summary");
+      setSuccess("Listo. Ya puedes entrar con tu nueva contraseña.");
+      setLoading(false);
+
+      setTimeout(() => {
+        router.replace("/auth/login");
+      }, 900);
     } catch (err: any) {
       setError(err?.message ?? "Ocurrió un error inesperado.");
       setLoading(false);
-      return;
     }
-
-    setLoading(false);
   }
 
   return (
