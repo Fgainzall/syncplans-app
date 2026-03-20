@@ -386,7 +386,7 @@ const googleActionLabel =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  const title = "Settings";
+  const title = "Ajustes";
 
   return (
     <main style={styles.page}>
@@ -713,7 +713,7 @@ const styles: Record<string, React.CSSProperties> = {
  shell: {
   display: "flex",
   flexDirection: "column",
-  gap: 18,
+  gap: 12,
 },
 pillWarn: {
   background: "rgba(245, 158, 11, 0.16)",
@@ -756,18 +756,17 @@ pillWarn: {
     flexWrap: "wrap",
   },
 
- hero: {
-  padding: 22,
-  borderRadius: 28,
+hero: {
+  padding: "16px 14px",
+  borderRadius: 18,
   border: "1px solid rgba(255,255,255,0.10)",
-  background:
-    "linear-gradient(180deg, rgba(8,15,35,0.94), rgba(6,10,24,0.9))",
-  boxShadow:
-    "0 24px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05)",
-  marginBottom: 12,
-  display: "grid",
-  gap: 16,
-  maxWidth: "100%",
+  background: "rgba(255,255,255,0.03)",
+  boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
+  display: "flex",
+  alignItems: "flex-end",
+  justifyContent: "space-between",
+  gap: 12,
+  flexWrap: "wrap",
 },
   kicker: {
     alignSelf: "flex-start",
@@ -783,10 +782,11 @@ pillWarn: {
   },
   h1: { margin: "10px 0 0", fontSize: 26, letterSpacing: "-0.6px" },
   sub: { marginTop: 8, fontSize: 13, opacity: 0.75, maxWidth: 720 },
-  heroBtns: {
+heroBtns: {
   display: "flex",
+  gap: 10,
+  alignItems: "center",
   flexWrap: "wrap",
-  gap: 12,
 },
   heroMeta: { marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" },
 
@@ -908,16 +908,15 @@ pillWarn: {
     whiteSpace: "nowrap",
   },
 
-  primaryBtn: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
+ghostBtn: {
+  padding: "10px 14px",
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.04)",
+  color: "rgba(255,255,255,0.92)",
+  cursor: "pointer",
+  fontWeight: 900,
+},
   secondaryBtn: {
     padding: "12px 14px",
     borderRadius: 14,
