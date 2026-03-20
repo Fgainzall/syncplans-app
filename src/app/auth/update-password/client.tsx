@@ -2,22 +2,8 @@
 
 import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import supabase from "@/lib/supabaseRecoveryClient";
+import supabase from "@/lib/supabaseClient";
 import AuthCard from "@/components/AuthCard";
-
-function readHashParams() {
-  if (typeof window === "undefined") return new URLSearchParams();
-  const hash = window.location.hash.startsWith("#")
-    ? window.location.hash.slice(1)
-    : window.location.hash;
-  return new URLSearchParams(hash);
-}
-
-function cleanRecoveryUrl() {
-  if (typeof window === "undefined") return;
-  const cleanUrl = `${window.location.origin}/auth/update-password`;
-  window.history.replaceState({}, document.title, cleanUrl);
-}
 
 export default function Client() {
   const router = useRouter();
@@ -33,17 +19,13 @@ export default function Client() {
 
   const passwordError = useMemo(() => {
     if (!password) return null;
-    if (password.length < 6) {
-      return "La contraseña debe tener al menos 6 caracteres.";
-    }
+    if (password.length < 6) return "La contraseña debe tener al menos 6 caracteres.";
     return null;
   }, [password]);
 
   const confirmError = useMemo(() => {
     if (!confirmPassword) return null;
-    if (password !== confirmPassword) {
-      return "Las contraseñas no coinciden.";
-    }
+    if (password !== confirmPassword) return "Las contraseñas no coinciden.";
     return null;
   }, [password, confirmPassword]);
 
@@ -60,82 +42,35 @@ export default function Client() {
   useEffect(() => {
     let mounted = true;
 
-    async function setReadyFromExistingSession() {
-      const { data, error: sessionError } = await supabase.auth.getSession();
-
-      if (!mounted) return false;
-
-      if (sessionError) {
-        setError("No pudimos validar tu enlace de recuperación.");
-        setSessionReady(false);
-        setCheckingSession(false);
-        return false;
-      }
-
-      if (!data.session) return false;
-
-      setSessionReady(true);
-      setCheckingSession(false);
-      setError(null);
-      return true;
-    }
-
     async function boot() {
       try {
         setCheckingSession(true);
-        setError(null);
 
-        const tokenHash = searchParams.get("token_hash");
-        const queryType = searchParams.get("type");
-        const hashParams = readHashParams();
-
-        const accessToken = hashParams.get("access_token");
-        const refreshToken = hashParams.get("refresh_token");
-        const hashType = hashParams.get("type");
-
-        if (accessToken && refreshToken && hashType === "recovery") {
-          const { error: setSessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-
-          if (setSessionError) {
-            if (!mounted) return;
-            setError(
-              "No pudimos validar tu enlace de recuperación. Solicita uno nuevo e inténtalo otra vez."
-            );
-            setSessionReady(false);
-            setCheckingSession(false);
-            return;
-          }
-
-          cleanRecoveryUrl();
-        } else if (tokenHash && queryType === "recovery") {
-          const { error: verifyError } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash,
-            type: "recovery",
-          });
-
-          if (verifyError) {
-            if (!mounted) return;
-            setError(
-              "No pudimos validar tu enlace de recuperación. Solicita uno nuevo e inténtalo otra vez."
-            );
-            setSessionReady(false);
-            setCheckingSession(false);
-            return;
-          }
-
-          cleanRecoveryUrl();
+        const urlError = searchParams.get("error");
+        if (urlError === "invalid_or_expired_link") {
+          setError(
+            "Este enlace no es válido o ya expiró. Solicita uno nuevo e inténtalo otra vez."
+          );
+          setSessionReady(false);
+          setCheckingSession(false);
+          return;
         }
 
-        const ready = await setReadyFromExistingSession();
-        if (ready || !mounted) return;
+        const { data, error } = await supabase.auth.getSession();
 
-        setError(
-          "Este enlace no es válido o ya expiró. Solicita uno nuevo para cambiar tu contraseña."
-        );
-        setSessionReady(false);
+        if (!mounted) return;
+
+        if (error || !data.session) {
+          setError(
+            "No pudimos validar tu enlace de recuperación. Solicita uno nuevo e inténtalo otra vez."
+          );
+          setSessionReady(false);
+          setCheckingSession(false);
+          return;
+        }
+
+        setError(null);
+        setSessionReady(true);
         setCheckingSession(false);
       } catch {
         if (!mounted) return;
@@ -147,10 +82,10 @@ export default function Client() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
 
-      if (event === "PASSWORD_RECOVERY" || !!session) {
+      if (session) {
         setSessionReady(true);
         setCheckingSession(false);
         setError(null);

@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import supabase from "@/lib/supabaseRecoveryClient";
+import supabase from "@/lib/supabaseClient";
 import AuthCard from "@/components/AuthCard";
 
 function getCurrentOrigin() {
@@ -11,11 +11,12 @@ function getCurrentOrigin() {
   }
 
   const env =
-    (process.env.NEXT_PUBLIC_APP_URL ??
+    (
+      process.env.NEXT_PUBLIC_APP_URL ??
       process.env.NEXT_PUBLIC_SITE_URL ??
       process.env.APP_URL ??
-      "")
-      .trim();
+      ""
+    ).trim();
 
   if (!env) return "";
 
