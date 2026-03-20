@@ -10,6 +10,7 @@ type BrandLogoProps = {
   href?: string;
   showWordmark?: boolean;
   variant?: BrandLogoVariant;
+  priority?: boolean;
 };
 
 export default function BrandLogo({
@@ -17,11 +18,15 @@ export default function BrandLogo({
   href,
   showWordmark,
   variant = "default",
+  priority = true,
 }: BrandLogoProps) {
   const resolvedShowWordmark =
     typeof showWordmark === "boolean"
       ? showWordmark
       : variant !== "mark";
+
+  const iconSize = Math.max(20, size);
+  const wordmarkSize = Math.max(18, Math.round(iconSize * 0.95));
 
   const content = (
     <div
@@ -30,32 +35,45 @@ export default function BrandLogo({
         alignItems: "center",
         gap: resolvedShowWordmark ? 10 : 0,
         minWidth: 0,
+        lineHeight: 1,
       }}
     >
-      <Image
-        src="/icons/brand/syncplans-logo.png"
-        alt="SyncPlans"
-        width={size}
-        height={size}
-        priority
+      <span
+        aria-hidden="true"
         style={{
-          width: size,
-          height: size,
-          objectFit: "contain",
-          display: "block",
-          flexShrink: 0,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: iconSize,
+          height: iconSize,
+          flex: "0 0 auto",
         }}
-      />
+      >
+        <Image
+          src="/icons/brand/syncplans-logo.png"
+          alt="SyncPlans"
+          width={iconSize}
+          height={iconSize}
+          priority={priority}
+          style={{
+            width: iconSize,
+            height: iconSize,
+            objectFit: "contain",
+            display: "block",
+          }}
+        />
+      </span>
 
       {resolvedShowWordmark && (
         <span
           style={{
             color: "#F8FAFC",
             fontWeight: 900,
-            fontSize: Math.max(20, Math.round(size * 0.95)),
+            fontSize: wordmarkSize,
             lineHeight: 1,
             letterSpacing: "-0.03em",
             whiteSpace: "nowrap",
+            textRendering: "optimizeLegibility",
           }}
         >
           SyncPlans
@@ -69,7 +87,11 @@ export default function BrandLogo({
       <Link
         href={href}
         aria-label="Ir al inicio"
-        style={{ textDecoration: "none", display: "inline-flex" }}
+        style={{
+          textDecoration: "none",
+          display: "inline-flex",
+          alignItems: "center",
+        }}
       >
         {content}
       </Link>

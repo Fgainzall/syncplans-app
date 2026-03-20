@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 type BottomNavKey =
   | "summary"
@@ -20,7 +21,6 @@ type NavItem = {
   label: string;
   path: string;
   aria: string;
-  icon: React.ReactNode;
 };
 
 function SummaryIcon({ active }: { active: boolean }) {
@@ -289,16 +289,16 @@ function PlansIcon({ active }: { active: boolean }) {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { key: "summary", label: "Resumen", path: "/summary", aria: "Ir a Resumen", icon: <SummaryIcon active={false} /> },
-  { key: "calendar", label: "Calendario", path: "/calendar", aria: "Ir a Calendario", icon: <CalendarIcon active={false} /> },
-  { key: "events", label: "Eventos", path: "/events", aria: "Ir a Eventos", icon: <EventsIcon active={false} /> },
-  { key: "conflicts", label: "Conflictos", path: "/conflicts/detected", aria: "Ir a Conflictos", icon: <ConflictsIcon active={false} /> },
-  { key: "panel", label: "Panel", path: "/panel", aria: "Ir a Panel", icon: <PanelIcon active={false} /> },
-  { key: "groups", label: "Grupos", path: "/groups", aria: "Ir a Grupos", icon: <GroupsIcon active={false} /> },
-  { key: "members", label: "Miembros", path: "/members", aria: "Ir a Miembros", icon: <MembersIcon active={false} /> },
-  { key: "invitations", label: "Invitaciones", path: "/invitations", aria: "Ir a Invitaciones", icon: <InvitationsIcon active={false} /> },
-  { key: "settings", label: "Ajustes", path: "/settings", aria: "Ir a Ajustes", icon: <SettingsIcon active={false} /> },
-  { key: "planes", label: "Planes", path: "/planes", aria: "Ir a Planes", icon: <PlansIcon active={false} /> },
+  { key: "summary", label: "Resumen", path: "/summary", aria: "Ir a Resumen" },
+  { key: "calendar", label: "Calendario", path: "/calendar", aria: "Ir a Calendario" },
+  { key: "events", label: "Eventos", path: "/events", aria: "Ir a Eventos" },
+  { key: "conflicts", label: "Conflictos", path: "/conflicts/detected", aria: "Ir a Conflictos" },
+  { key: "panel", label: "Panel", path: "/panel", aria: "Ir a Panel" },
+  { key: "groups", label: "Grupos", path: "/groups", aria: "Ir a Grupos" },
+  { key: "members", label: "Miembros", path: "/members", aria: "Ir a Miembros" },
+  { key: "invitations", label: "Invitaciones", path: "/invitations", aria: "Ir a Invitaciones" },
+  { key: "settings", label: "Ajustes", path: "/settings", aria: "Ir a Ajustes" },
+  { key: "planes", label: "Planes", path: "/planes", aria: "Ir a Planes" },
 ];
 
 function shouldHideBottomNav(pathname: string) {
@@ -311,8 +311,34 @@ function shouldHideBottomNav(pathname: string) {
   );
 }
 
+function iconFor(key: BottomNavKey, active: boolean) {
+  switch (key) {
+    case "summary":
+      return <SummaryIcon active={active} />;
+    case "calendar":
+      return <CalendarIcon active={active} />;
+    case "events":
+      return <EventsIcon active={active} />;
+    case "conflicts":
+      return <ConflictsIcon active={active} />;
+    case "panel":
+      return <PanelIcon active={active} />;
+    case "groups":
+      return <GroupsIcon active={active} />;
+    case "members":
+      return <MembersIcon active={active} />;
+    case "invitations":
+      return <InvitationsIcon active={active} />;
+    case "settings":
+      return <SettingsIcon active={active} />;
+    case "planes":
+      return <PlansIcon active={active} />;
+    default:
+      return null;
+  }
+}
+
 export default function BottomNav() {
-  const router = useRouter();
   const pathname = usePathname();
 
   if (shouldHideBottomNav(pathname)) return null;
@@ -343,46 +369,20 @@ export default function BottomNav() {
     return false;
   };
 
-  const iconFor = (key: BottomNavKey, active: boolean) => {
-    switch (key) {
-      case "summary":
-        return <SummaryIcon active={active} />;
-      case "calendar":
-        return <CalendarIcon active={active} />;
-      case "events":
-        return <EventsIcon active={active} />;
-      case "conflicts":
-        return <ConflictsIcon active={active} />;
-      case "panel":
-        return <PanelIcon active={active} />;
-      case "groups":
-        return <GroupsIcon active={active} />;
-      case "members":
-        return <MembersIcon active={active} />;
-      case "invitations":
-        return <InvitationsIcon active={active} />;
-      case "settings":
-        return <SettingsIcon active={active} />;
-      case "planes":
-        return <PlansIcon active={active} />;
-      default:
-        return null;
-    }
-  };
-
   return (
     <nav style={S.wrap} aria-label="Navegación principal">
       <div style={S.viewport}>
         <div style={S.track}>
           {NAV_ITEMS.map((item) => {
             const active =
-              item.key === "panel" ? isPanelRelatedPath(pathname) : isActive(item.key);
+              item.key === "panel"
+                ? isPanelRelatedPath(pathname)
+                : isActive(item.key);
 
             return (
-              <button
+              <Link
                 key={item.key}
-                type="button"
-                onClick={() => router.push(item.path)}
+                href={item.path}
                 aria-label={item.aria}
                 aria-current={active ? "page" : undefined}
                 style={{
@@ -391,11 +391,11 @@ export default function BottomNav() {
                 }}
               >
                 <div
+                  aria-hidden="true"
                   style={{
                     ...S.iconWrap,
                     ...(active ? S.iconWrapActive : {}),
                   }}
-                  aria-hidden="true"
                 >
                   {iconFor(item.key, active)}
                 </div>
@@ -408,7 +408,7 @@ export default function BottomNav() {
                 >
                   {item.label}
                 </span>
-              </button>
+              </Link>
             );
           })}
         </div>
@@ -433,11 +433,6 @@ const S: Record<string, React.CSSProperties> = {
     WebkitBackdropFilter: "blur(18px)",
     padding: 8,
     paddingBottom: "calc(8px + env(safe-area-inset-bottom))",
-    overflow: "hidden",
-  },
-
-  viewport: {
-    width: "100%",
     overflowX: "auto",
     overflowY: "hidden",
     WebkitOverflowScrolling: "touch",
@@ -447,25 +442,27 @@ const S: Record<string, React.CSSProperties> = {
     overscrollBehaviorX: "contain",
   },
 
+  viewport: {
+    width: "100%",
+    overflow: "visible",
+  },
+
   track: {
     display: "inline-flex",
+    alignItems: "stretch",
     gap: 8,
     minWidth: "max-content",
     paddingBottom: 2,
-    scrollSnapType: "x proximity",
   },
 
   item: {
-    appearance: "none",
-    WebkitAppearance: "none",
     border: "1px solid rgba(255,255,255,0.06)",
     background: "rgba(255,255,255,0.025)",
     color: "rgba(255,255,255,0.76)",
     borderRadius: 16,
     minHeight: 62,
-    minWidth: 78,
+    minWidth: 82,
     padding: "8px 10px 9px",
-    cursor: "pointer",
     flex: "0 0 auto",
     display: "flex",
     flexDirection: "column",
@@ -473,10 +470,10 @@ const S: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     gap: 6,
     WebkitTapHighlightColor: "transparent",
-    touchAction: "auto",
     transition:
       "background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease, color 160ms ease",
-    scrollSnapAlign: "start",
+    textDecoration: "none",
+    userSelect: "none",
   },
 
   itemActive: {

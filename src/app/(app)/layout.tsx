@@ -1,5 +1,7 @@
-// src/app/(app)/layout.tsx
-import { ToastProvider } from "@/components/ui/Toast";
+"use client";
+
+import React from "react";
+import BottomNav from "@/components/BottomNav";
 
 export default function AppLayout({
   children,
@@ -7,8 +9,12 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ToastProvider>
-      {children}
-    </ToastProvider>
+    <>
+      <div style={{ paddingBottom: "96px" }}>{children}</div>
+
+      <div className="md:hidden">
+        <BottomNav />
+      </div>
+    </>
   );
 }
