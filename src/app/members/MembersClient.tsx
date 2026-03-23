@@ -1,4 +1,3 @@
-// src/app/members/MembersClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -6,6 +5,9 @@ import { useRouter } from "next/navigation";
 
 import PremiumHeader from "@/components/PremiumHeader";
 import MobileScaffold from "@/components/MobileScaffold";
+import Section from "@/components/ui/Section";
+import Card from "@/components/ui/Card";
+
 import supabase from "@/lib/supabaseClient";
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import {
@@ -31,19 +33,20 @@ type MemberRow = {
   avatar_url?: string | null;
 };
 
+type UiToast = { title: string; subtitle?: string } | null;
+
 export default function MembersClient() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [toast, setToast] = useState<UiToast>(null);
 
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
-
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [meId, setMeId] = useState<string | null>(null);
 
-  // Cargar usuario actual (para marcar "Tú")
   useEffect(() => {
     (async () => {
       try {
@@ -56,7 +59,6 @@ export default function MembersClient() {
     })();
   }, []);
 
-  // Cargar grupos + activeGroup
   useEffect(() => {
     let alive = true;
 
@@ -76,7 +78,6 @@ export default function MembersClient() {
           return;
         }
 
-        // Intentar leer el group activo; si no hay, usar el primero
         let gid = await getActiveGroupIdFromDb().catch(() => null);
 
         if (!gid || !myGroups.some((g) => String(g.id) === String(gid))) {
@@ -86,7 +87,7 @@ export default function MembersClient() {
 
         if (!alive) return;
         setActiveGroupId(gid);
-      } catch (e: any) {
+      } catch (e) {
         console.error(e);
         if (alive) setErrorMsg("No pudimos cargar tus grupos.");
       } finally {
@@ -99,7 +100,6 @@ export default function MembersClient() {
     };
   }, []);
 
-  // Cargar miembros cuando cambia el grupo activo
   useEffect(() => {
     if (!activeGroupId) return;
 
@@ -128,7 +128,6 @@ export default function MembersClient() {
           isMe: meId != null && String(m.user_id) === String(meId),
         }));
 
-        // Enriquecer con perfiles (nombres reales, avatar, etc.)
         let enrichedRows: MemberRow[] = baseRows;
 
         try {
@@ -157,10 +156,11 @@ export default function MembersClient() {
 
         if (!alive) return;
         setMembers(enrichedRows);
-      } catch (e: any) {
+      } catch (e) {
         console.error(e);
-        if (alive)
+        if (alive) {
           setErrorMsg("No pudimos cargar los miembros de este grupo.");
+        }
       } finally {
         if (alive) setLoading(false);
       }
@@ -176,6 +176,10 @@ export default function MembersClient() {
     [groups, activeGroupId]
   );
 
+  const memberCount = members.length;
+  const hasAnyGroup = groups.length > 0;
+  const hasMembers = memberCount > 0;
+
   function onChangeGroup(e: React.ChangeEvent<HTMLSelectElement>) {
     const gid = e.target.value || null;
     setActiveGroupId(gid);
@@ -187,109 +191,156 @@ export default function MembersClient() {
       router.push("/groups");
       return;
     }
-
     router.push(`/groups/invite?groupId=${encodeURIComponent(activeGroupId)}`);
   }
 
-  const hasAnyGroup = groups.length > 0;
-  const hasMembers = members.length > 0;
+  function showToast(title: string, subtitle?: string) {
+    setToast({ title, subtitle });
+    window.setTimeout(() => setToast(null), 2400);
+  }
 
   return (
-    <MobileScaffold>
-      <PremiumHeader
-        title="Miembros"
-        subtitle="Quién está dentro de tu grupo y qué rol tiene cada uno."
-      />
-
-      {errorMsg && <div style={S.errorBox}>{errorMsg}</div>}
-
-      {!hasAnyGroup ? (
-        <section style={S.emptyWrap}>
-          <div style={S.emptyCard}>
-            <div style={S.emptyTitle}>Aún no tienes grupos</div>
-            <div style={S.emptyText}>
-              Crea un grupo de <strong>Pareja</strong> o{" "}
-              <strong>Familia</strong> para empezar a invitar personas y
-              compartir tu calendario.
-            </div>
-            <button
-              type="button"
-              style={S.primaryBtn}
-              onClick={() => router.push("/groups/new")}
-            >
-              Crear mi primer grupo
-            </button>
+    <MobileScaffold maxWidth={1120} style={S.page}>
+      {toast && (
+        <div style={S.toastWrap}>
+          <div style={S.toastCard}>
+            <div style={S.toastTitle}>{toast.title}</div>
+            {toast.subtitle ? <div style={S.toastSub}>{toast.subtitle}</div> : null}
           </div>
-        </section>
-      ) : (
-        <section style={S.card}>
-          <div style={S.cardHeader}>
-            <div>
-              <h2 style={S.cardTitle}>Miembros del grupo</h2>
-              <p style={S.cardSub}>
-                Gestiona quién forma parte de este grupo y revisa sus roles.
-              </p>
-            </div>
-
-            <div style={S.cardHeaderRight}>
-              <div style={S.selectWrap}>
-                <label style={S.selectLabel}>Grupo activo</label>
-                <select
-                  value={activeGroupId ?? ""}
-                  onChange={onChangeGroup}
-                  style={S.select}
-                >
-                  {groups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name || nombrePorTipo(g.type)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <button type="button" style={S.secondaryBtn} onClick={goToInvite}>
-                Invitar miembro
-              </button>
-            </div>
-          </div>
-
-          {loading && !hasMembers ? (
-            <div style={S.loadingText}>Cargando miembros…</div>
-          ) : !hasMembers ? (
-            <div style={S.membersEmpty}>
-              <div style={S.membersEmptyTitle}>
-                Aún no hay más miembros en este grupo
-              </div>
-              <div style={S.membersEmptyText}>
-                En cuanto alguien acepte tu invitación, aparecerá aquí con su
-                rol asignado.
-              </div>
-              <button type="button" style={S.ghostBtn} onClick={goToInvite}>
-                Enviar primera invitación
-              </button>
-            </div>
-          ) : (
-            <div style={S.list}>
-              {members.map((m) => (
-                <MemberRowView key={m.id} member={m} />
-              ))}
-            </div>
-          )}
-        </section>
+        </div>
       )}
+
+      <Section>
+        <PremiumHeader
+          title="Miembros"
+          subtitle="Quién está dentro de tu grupo y qué rol tiene cada uno."
+        />
+
+        {!hasAnyGroup ? (
+          <Card>
+            <Section>
+              <div style={S.kicker}>Miembros</div>
+              <h1 style={S.h1}>Todavía no tienes un grupo activo</h1>
+              <p style={S.sub}>
+                Crea primero un grupo para empezar a invitar personas y ver quién
+                participa en la coordinación compartida.
+              </p>
+              <div style={S.actionsRow}>
+                <button
+                  type="button"
+                  style={S.primaryBtn}
+                  onClick={() => router.push("/groups/new")}
+                >
+                  Crear mi primer grupo
+                </button>
+                <button
+                  type="button"
+                  style={S.ghostBtn}
+                  onClick={() => router.push("/groups")}
+                >
+                  Ver grupos
+                </button>
+              </div>
+            </Section>
+          </Card>
+        ) : (
+          <Card>
+            <Section>
+              <div style={S.headerRow}>
+                <div style={S.headerCopy}>
+                  <div style={S.kicker}>Estructura del grupo</div>
+                  <h1 style={S.h1}>Miembros</h1>
+                  <p style={S.sub}>
+                    Revisa quién forma parte de <b>{activeGroup?.name || nombrePorTipo(activeGroup?.type)}</b> y qué rol tiene cada persona dentro del espacio compartido.
+                  </p>
+                </div>
+
+                <div style={S.actionsRow}>
+                  <button type="button" style={S.ghostBtn} onClick={() => router.push("/groups")}>Ver grupos</button>
+                  <button type="button" style={S.primaryBtn} onClick={goToInvite}>Invitar miembro</button>
+                </div>
+              </div>
+
+              <Card tone="muted" style={S.heroCard}>
+                <div style={S.heroLeft}>
+                  <div style={S.heroPill}>
+                    <span style={S.heroDot} />
+                    Grupo activo
+                  </div>
+                  <h2 style={S.heroTitle}>{activeGroup?.name || nombrePorTipo(activeGroup?.type)}</h2>
+                  <p style={S.heroText}>
+                    Cambia de grupo para revisar sus miembros, confirmar roles y
+                    enviar nuevas invitaciones sin salir del flujo administrativo.
+                  </p>
+                </div>
+
+                <div style={S.heroRight}>
+                  <label style={S.selectLabel}>Grupo</label>
+                  <select value={activeGroupId ?? ""} onChange={onChangeGroup} style={S.select}>
+                    {groups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name || nombrePorTipo(g.type)}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={S.summaryMini}>{memberCount} miembro{memberCount === 1 ? "" : "s"} visible{memberCount === 1 ? "" : "s"}</div>
+                </div>
+              </Card>
+
+              {errorMsg ? (
+                <Card tone="muted" style={S.errorCard}>
+                  <div style={S.errorTitle}>No se pudo cargar esta vista</div>
+                  <div style={S.errorText}>{errorMsg}</div>
+                </Card>
+              ) : loading && !hasMembers ? (
+                <Card tone="muted">
+                  <div style={S.loadingRow}>
+                    <div style={S.loadingDot} />
+                    <div>
+                      <div style={S.loadingTitle}>Cargando miembros…</div>
+                      <div style={S.loadingSub}>Leyendo grupo activo y perfiles</div>
+                    </div>
+                  </div>
+                </Card>
+              ) : !hasMembers ? (
+                <Card tone="muted" style={S.emptyCard}>
+                  <div style={S.emptyTitle}>Aún no hay más miembros en este grupo</div>
+                  <div style={S.emptyText}>
+                    En cuanto alguien acepte tu invitación, aparecerá aquí con su rol asignado.
+                  </div>
+                  <button
+                    type="button"
+                    style={S.ghostBtn}
+                    onClick={() => {
+                      showToast("Abriendo invitaciones…");
+                      goToInvite();
+                    }}
+                  >
+                    Enviar primera invitación
+                  </button>
+                </Card>
+              ) : (
+                <div style={S.list}>
+                  {members.map((m) => (
+                    <MemberRowView key={m.id} member={m} />
+                  ))}
+                </div>
+              )}
+            </Section>
+          </Card>
+        )}
+      </Section>
     </MobileScaffold>
   );
 }
 
 function labelForRole(role: string | null | undefined): string {
   if (!role) return "Miembro";
-
   switch (role) {
     case "owner":
       return "Admin";
     case "admin":
       return "Admin";
-    case "member":
     default:
       return "Miembro";
   }
@@ -297,13 +348,10 @@ function labelForRole(role: string | null | undefined): string {
 
 function memberDisplayName(member: MemberRow): string {
   if (member.isMe) return "Tú";
-
   const full = (
     member.display_name ?? `${member.first_name ?? ""} ${member.last_name ?? ""}`
   ).trim();
-
-  if (full) return full;
-  return "Miembro";
+  return full || "Miembro";
 }
 
 function MemberRowView({ member }: { member: MemberRow }) {
@@ -320,15 +368,13 @@ function MemberRowView({ member }: { member: MemberRow }) {
     });
   }
 
-  const title = memberDisplayName(member);
-
   return (
-    <div style={S.row}>
-      <div style={S.rowMain}>
+    <Card tone="muted" style={S.memberCard}>
+      <div style={S.memberMain}>
         <div style={S.avatarCircle}>{avatarText}</div>
-        <div>
-          <div style={S.rowTitle}>{title}</div>
-          <div style={S.rowSub}>
+        <div style={S.memberCopy}>
+          <div style={S.memberName}>{memberDisplayName(member)}</div>
+          <div style={S.memberSub}>
             {member.isMe
               ? "Este eres tú dentro del grupo."
               : "Miembro que comparte este grupo contigo."}
@@ -336,235 +382,87 @@ function MemberRowView({ member }: { member: MemberRow }) {
         </div>
       </div>
 
-      <div style={S.rowRight}>
-        <span
-          style={{
-            ...S.roleBadge,
-            ...(isOwner ? S.roleOwner : isAdmin ? S.roleAdmin : S.roleMember),
-          }}
-        >
-          {roleLabel}
-        </span>
-      </div>
-    </div>
+      <span
+        style={{
+          ...S.roleBadge,
+          ...(isOwner ? S.roleOwner : isAdmin ? S.roleAdmin : S.roleMember),
+        }}
+      >
+        {roleLabel}
+      </span>
+    </Card>
   );
 }
 
-function nombrePorTipo(type: GroupRow["type"]): string {
-  const t = String(type).toLowerCase();
+function nombrePorTipo(type?: GroupRow["type"] | null): string {
+  const t = String(type ?? "").toLowerCase();
   if (t === "pair" || t === "couple") return "Pareja";
   if (t === "family") return "Familia";
-  return "Personal";
+  return "Compartido";
 }
 
-/* ────────────── Estilos ────────────── */
-
 const S: Record<string, React.CSSProperties> = {
-  errorBox: {
-    marginTop: 12,
-    padding: 10,
-    borderRadius: 14,
-    border: "1px solid rgba(248,113,113,0.7)",
-    background: "rgba(127,29,29,0.75)",
-    fontSize: 12,
-  },
-
-  emptyWrap: {
-    marginTop: 18,
-  },
-  emptyCard: {
-    borderRadius: 22,
-    border: "1px solid rgba(148,163,184,0.45)",
-    background: "rgba(15,23,42,0.96)",
-    padding: 18,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: 900,
-  },
-  emptyText: {
-    marginTop: 6,
-    fontSize: 13,
-    color: "rgba(148,163,184,0.96)",
-    maxWidth: 460,
-  },
-  primaryBtn: {
-    marginTop: 12,
-    padding: "10px 16px",
-    borderRadius: 999,
-    border: "1px solid rgba(244,244,245,0.18)",
+  page: {
     background:
-      "linear-gradient(135deg, rgba(56,189,248,0.34), rgba(124,58,237,0.6))",
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: 800,
-    cursor: "pointer",
+      "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
+    color: "rgba(255,255,255,0.92)",
   },
-
-  card: {
-    marginTop: 18,
-    borderRadius: 22,
-    border: "1px solid rgba(148,163,184,0.45)",
-    background: "rgba(15,23,42,0.96)",
-    padding: 16,
+  toastWrap: {
+    position: "fixed",
+    top: 18,
+    right: 18,
+    zIndex: 50,
+    pointerEvents: "none",
   },
-  cardHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 14,
-    flexWrap: "wrap",
+  toastCard: {
+    pointerEvents: "auto",
+    minWidth: 240,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(7,11,22,0.92)",
+    boxShadow: "0 24px 70px rgba(0,0,0,0.45)",
+    backdropFilter: "blur(14px)",
+    padding: "12px 14px",
   },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: 900,
-  },
-  cardSub: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "rgba(148,163,184,0.96)",
-  },
-  cardHeaderRight: {
-    display: "flex",
-    gap: 10,
-    alignItems: "flex-end",
-    flexWrap: "wrap",
-  },
-
-  selectWrap: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
-  selectLabel: {
-    fontSize: 11,
-    color: "rgba(148,163,184,0.96)",
-    fontWeight: 700,
-  },
-  select: {
-    minWidth: 190,
-    height: 34,
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.7)",
-    background: "rgba(15,23,42,0.9)",
-    color: "#E5E7EB",
-    padding: "0 10px",
-    fontSize: 12,
-    fontWeight: 600,
-  },
-
-  secondaryBtn: {
-    height: 34,
-    padding: "0 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.7)",
-    background: "rgba(15,23,42,0.9)",
-    color: "#E5E7EB",
-    fontSize: 12,
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-
-  loadingText: {
-    marginTop: 14,
-    fontSize: 12,
-    color: "rgba(148,163,184,0.96)",
-  },
-
-  membersEmpty: {
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 18,
-    border: "1px dashed rgba(148,163,184,0.65)",
-    background: "rgba(15,23,42,0.9)",
-  },
-  membersEmptyTitle: {
-    fontSize: 13,
-    fontWeight: 900,
-  },
-  membersEmptyText: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "rgba(148,163,184,0.96)",
-  },
-  ghostBtn: {
-    marginTop: 10,
-    padding: "8px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.7)",
-    background: "transparent",
-    color: "#E5E7EB",
-    fontSize: 12,
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-
-  list: {
-    marginTop: 16,
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
-  row: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    padding: 10,
-    borderRadius: 18,
-    border: "1px solid rgba(51,65,85,0.9)",
-    background: "rgba(15,23,42,0.9)",
-  },
-  rowMain: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    minWidth: 0,
-  },
-  avatarCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 999,
-    background: "rgba(37,99,235,0.18)",
-    border: "1px solid rgba(59,130,246,0.6)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 12,
-    fontWeight: 800,
-    color: "#E5E7EB",
-  },
-  rowTitle: {
-    fontSize: 13,
-    fontWeight: 800,
-    color: "#E5E7EB",
-  },
-  rowSub: {
-    marginTop: 2,
-    fontSize: 11,
-    color: "rgba(148,163,184,0.96)",
-  },
-  rowRight: {},
-  roleBadge: {
-    padding: "4px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.7)",
-    fontSize: 11,
-    fontWeight: 750,
-  },
-  roleOwner: {
-    borderColor: "rgba(249,115,22,0.9)",
-    background: "rgba(248,113,113,0.12)",
-    color: "#FED7AA",
-  },
-  roleAdmin: {
-    borderColor: "rgba(59,130,246,0.9)",
-    background: "rgba(59,130,246,0.12)",
-    color: "#BFDBFE",
-  },
-  roleMember: {
-    borderColor: "rgba(148,163,184,0.9)",
-    background: "rgba(148,163,184,0.12)",
-    color: "#E5E7EB",
-  },
+  toastTitle: { fontWeight: 900, fontSize: 13 },
+  toastSub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 },
+  headerRow: { display: "flex", justifyContent: "space-between", gap: 18, flexWrap: "wrap", alignItems: "flex-start" },
+  headerCopy: { flex: 1, minWidth: 0 },
+  kicker: { fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(148,163,184,0.95)", fontWeight: 800, marginBottom: 6 },
+  h1: { margin: 0, fontSize: 22, letterSpacing: "-0.03em", fontWeight: 950 },
+  sub: { marginTop: 6, fontSize: 13, color: "rgba(209,213,219,0.96)", maxWidth: 620, lineHeight: 1.65 },
+  actionsRow: { display: "flex", gap: 10, flexWrap: "wrap" },
+  heroCard: { display: "flex", gap: 18, flexWrap: "wrap", alignItems: "stretch" },
+  heroLeft: { flex: 1, minWidth: 220 },
+  heroPill: { display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(191,219,254,0.9)", background: "rgba(15,23,42,0.9)", fontSize: 11, color: "rgba(219,234,254,0.98)", letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 8 },
+  heroDot: { width: 8, height: 8, borderRadius: 999, background: "rgba(59,130,246,0.98)" },
+  heroTitle: { margin: 0, fontSize: 18, fontWeight: 950 },
+  heroText: { marginTop: 8, fontSize: 13, lineHeight: 1.65, color: "rgba(226,232,240,0.96)" },
+  heroRight: { width: 260, display: "flex", flexDirection: "column", justifyContent: "center", gap: 8 },
+  selectLabel: { fontSize: 12, fontWeight: 800, color: "rgba(191,219,254,0.98)" },
+  select: { minWidth: 200, height: 42, borderRadius: 14, border: "1px solid rgba(148,163,184,0.7)", background: "rgba(15,23,42,0.9)", color: "#E5E7EB", padding: "0 12px", fontSize: 13, fontWeight: 700 },
+  summaryMini: { fontSize: 12, color: "rgba(148,163,184,0.96)", lineHeight: 1.5 },
+  loadingRow: { display: "flex", gap: 10, alignItems: "center" },
+  loadingDot: { width: 12, height: 12, borderRadius: 999, background: "rgba(56,189,248,0.95)", boxShadow: "0 0 20px rgba(56,189,248,0.70)" },
+  loadingTitle: { fontSize: 13, fontWeight: 900 },
+  loadingSub: { marginTop: 2, fontSize: 12, color: "rgba(209,213,219,0.96)" },
+  errorCard: { border: "1px solid rgba(248,113,113,0.22)", background: "rgba(248,113,113,0.08)" },
+  errorTitle: { fontSize: 15, fontWeight: 900, color: "#ffe6e6" },
+  errorText: { marginTop: 6, fontSize: 13, color: "#ffe6e6", lineHeight: 1.55 },
+  emptyCard: { textAlign: "center" },
+  emptyTitle: { fontSize: 16, fontWeight: 950 },
+  emptyText: { marginTop: 6, color: "rgba(209,213,219,0.96)", fontSize: 13, lineHeight: 1.65 },
+  list: { display: "flex", flexDirection: "column", gap: 10 },
+  memberCard: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 },
+  memberMain: { display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 },
+  memberCopy: { minWidth: 0, flex: 1 },
+  avatarCircle: { width: 38, height: 38, borderRadius: 999, background: "rgba(37,99,235,0.18)", border: "1px solid rgba(59,130,246,0.6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "#E5E7EB", flexShrink: 0 },
+  memberName: { fontSize: 14, fontWeight: 900, color: "#E5E7EB" },
+  memberSub: { marginTop: 2, fontSize: 12, color: "rgba(148,163,184,0.96)", lineHeight: 1.5 },
+  roleBadge: { padding: "6px 12px", borderRadius: 999, border: "1px solid rgba(148,163,184,0.7)", fontSize: 11, fontWeight: 800, flexShrink: 0 },
+  roleOwner: { borderColor: "rgba(249,115,22,0.9)", background: "rgba(248,113,113,0.12)", color: "#FED7AA" },
+  roleAdmin: { borderColor: "rgba(59,130,246,0.9)", background: "rgba(59,130,246,0.12)", color: "#BFDBFE" },
+  roleMember: { borderColor: "rgba(148,163,184,0.9)", background: "rgba(148,163,184,0.12)", color: "#E5E7EB" },
+  primaryBtn: { padding: "10px 14px", borderRadius: 14, border: "1px solid rgba(96,165,250,0.85)", background: "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95))", color: "white", cursor: "pointer", fontWeight: 900, fontSize: 13 },
+  ghostBtn: { padding: "10px 14px", borderRadius: 14, border: "1px solid rgba(148,163,184,0.75)", background: "rgba(15,23,42,0.96)", color: "rgba(226,232,240,0.98)", cursor: "pointer", fontWeight: 800, fontSize: 13 },
 };
