@@ -651,28 +651,11 @@ const summarySubtitle = !isMobile
         paddingMobile="10px 0 110px"
       >
         <div style={styles.shell} className="spSum-shell">
-          <section style={styles.hero} className="spSum-hero">
-            <div style={styles.heroLeft}>
-              <AppHero title={title} subtitle={summarySubtitle} />
-            </div>
-
-            <div style={styles.heroBtns} className="spSum-heroBtns">
-              <button
-                onClick={() => router.push("/calendar")}
-                style={styles.primaryBtn}
-                className="spSum-btn"
-              >
-                Abrir calendario →
-              </button>
-              <button
-                onClick={() => router.push("/events/new/details?type=personal")}
-                style={styles.ghostBtn}
-                className="spSum-btn"
-              >
-                Crear evento →
-              </button>
-            </div>
-          </section>
+        <section style={styles.hero} className="spSum-hero">
+  <div style={styles.heroLeft}>
+    <AppHero title={title} subtitle={summarySubtitle} />
+  </div>
+</section>
 
           <section style={styles.card} className="spSum-card">
             {conflictAlert.count > 0 ? (
@@ -1027,12 +1010,12 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.75,
     fontWeight: 650,
   },
-  hero: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 16,
-    padding: "18px 18px",
+hero: {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "flex-start", // 👈 CAMBIO CLAVE
+   padding: "22px 22px",
+gap: 20,
     borderRadius: 24,
     border: "1px solid rgba(255,255,255,0.10)",
     background:
