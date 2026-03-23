@@ -376,21 +376,18 @@ export default function PanelPage() {
       ? "No está roto: solo falta renovar la conexión para que SyncPlans vuelva a leer Google con normalidad."
       : "Es una integración de apoyo. Te sirve para sumar contexto externo sin convertir el Panel en un dashboard pesado.";
 
-  const heroNote =
-    totalGroups > 0 && connectionState === "connected"
-      ? `Tu estructura ya está armada: ${totalGroups} espacio${
-          totalGroups === 1 ? "" : "s"
-        } activo${totalGroups === 1 ? "" : "s"} y Google Calendar conectado.`
-      : totalGroups > 0
-      ? `Ya tienes ${totalGroups} espacio${
-          totalGroups === 1 ? "" : "s"
-        } compartido${totalGroups === 1 ? "" : "s"} listo${
-          totalGroups === 1 ? "" : "s"
-        } para coordinar mejor.`
-      : connectionState === "connected"
-      ? "Tu base ya está conectada: ahora toca ordenar grupos, accesos e integraciones."
-      : "Desde aquí defines la estructura que sostiene la coordinación compartida.";
-
+const heroNote =
+  totalGroups > 0 && connectionState === "connected"
+    ? `Tu estructura ya está armada: ${totalGroups} grupo${
+        totalGroups === 1 ? "" : "s"
+      } activo${totalGroups === 1 ? "" : "s"} y Google Calendar conectado.`
+    : totalGroups > 0
+    ? `Tienes ${totalGroups} grupo${
+        totalGroups === 1 ? "" : "s"
+      } activo${totalGroups === 1 ? "" : "s"}.`
+    : connectionState === "connected"
+    ? "Tu base ya está conectada: ahora toca ordenar grupos, accesos e integraciones."
+    : "Desde aquí defines la estructura que sostiene la coordinación compartida.";
   return (
     <MobileScaffold maxWidth={1120}>
       <PremiumHeader
@@ -437,12 +434,12 @@ export default function PanelPage() {
           </div>
 
           <div style={styles.metricsGrid}>
-            <MetricCard
-              label="Espacios"
-              value={loading ? "—" : String(totalGroups)}
-              hint="Pareja, familia y compartidos"
-            />
          <MetricCard
+  label="Grupos"
+  value={loading ? "—" : String(totalGroups)}
+  hint="Pareja, familia y compartidos"
+/>
+<MetricCard
   label="Eventos registrados"
   value={loading ? "—" : String(totalEvents)}
   hint="En el sistema"
@@ -507,8 +504,8 @@ export default function PanelPage() {
             <section style={styles.sectionCard}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionEyebrow}>Estructura</div>
-                  <h2 style={styles.sectionTitle}>Espacios activos</h2>
+                 <div style={styles.sectionEyebrow}>Estructura</div>
+<h2 style={styles.sectionTitle}>Grupos activos</h2>
                 </div>
 
                 <button
@@ -521,7 +518,7 @@ export default function PanelPage() {
               </div>
 
               {groupsPreview.length === 0 ? (
-                <EmptyBlock copy="Todavía no tienes grupos creados. Este es el primer bloque que conviene activar para que SyncPlans deje de ser solo personal." />
+                <EmptyBlock copy="Todavía no tienes grupos creados. Este es el primer paso para que SyncPlans deje de ser solo personal." />
               ) : (
                 <div style={styles.list}>
                   {groupsPreview.map((group) => (
