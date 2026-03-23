@@ -593,17 +593,17 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [loadSummary]);
 
-  const title = activeGroupId
-    ? `Resumen · ${activeLabel}`
-    : "Resumen · Personal";
+const title = activeGroupId
+  ? `Resumen · Coordinación ${activeLabel}`
+  : "Resumen · Coordinación personal";
 
-  const summarySubtitle = !isMobile
-    ? activeGroupId
-      ? `Tu vista operativa diaria con contexto compartido: ${activeLabel}. Aquí ves qué viene, qué choca y qué conviene decidir ahora.`
-      : "Tu vista operativa diaria para entender qué viene, qué choca y qué toca mover hoy."
-    : activeGroupId
-    ? `Vista diaria · ${activeLabel}`
-    : "Tu vista diaria de tiempo.";
+const summarySubtitle = !isMobile
+  ? activeGroupId
+    ? `Tu vista operativa diaria con contexto compartido. Aquí ves qué viene, qué choca y qué conviene decidir ahora.`
+    : "Tu vista operativa diaria para entender qué viene, qué choca y qué conviene decidir hoy."
+  : activeGroupId
+  ? `Vista operativa · ${activeLabel}`
+  : "Vista operativa · Personal";
 
   const moodAccentBorder =
     mood.tone === "clear"
@@ -683,15 +683,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               >
                 <div style={styles.conflictBannerLeft}>
                   <div style={styles.conflictBannerEyebrow}>Atención</div>
-                  <div style={styles.conflictBannerTitle}>
-                    Tienes {conflictAlert.count} conflicto
-                    {conflictAlert.count === 1 ? "" : "s"} pendiente
-                    {conflictAlert.count === 1 ? "" : "s"}
-                  </div>
-                  <div style={styles.conflictBannerSub}>
-                    Esta es la alerta importante del día. Revísala antes de que
-                    se convierta en fricción real.
-                  </div>
+                 <div style={styles.conflictBannerTitle}>
+  Tienes {conflictAlert.count} conflicto
+  {conflictAlert.count === 1 ? "" : "s"} por resolver
+</div>
+<div style={styles.conflictBannerSub}>
+  Revísalo ahora para evitar fricción innecesaria en la coordinación.
+</div>
                 </div>
 
                 <div style={styles.conflictBannerCta}>Resolver ahora →</div>
@@ -746,9 +744,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               <div style={styles.stateKpi}>
                 <div style={styles.stateKpiLabel}>Próximos 7 días</div>
                 <div style={styles.stateKpiNumber}>{upcomingStats.total}</div>
-                <div style={styles.stateKpiHint}>
-                  Núcleo operativo visible en esta semana.
-                </div>
+             <div style={styles.stateKpiHint}>
+  Eventos visibles en tu ventana operativa actual.
+</div>
               </div>
             </div>
 
@@ -762,11 +760,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               </div>
             ) : !nextEvent ? (
               <div style={styles.emptyBlock}>
-                <div style={styles.emptyTitle}>No hay nada por delante</div>
-                <div style={styles.emptySub}>
-                  En este contexto no tienes eventos en los próximos 7 días.
-                  Crea uno nuevo desde Calendario o desde Eventos.
-                </div>
+              <div style={styles.emptyTitle}>No tienes eventos próximos</div>
+<div style={styles.emptySub}>
+  En los próximos 7 días no aparece actividad en este contexto.
+  Puedes crear un evento nuevo o revisar el calendario completo.
+</div>
                 <button
                   onClick={() =>
                     router.push("/events/new/details?type=personal")
@@ -883,9 +881,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
           <section style={styles.card} className="spSum-card">
             <div style={styles.sectionTitle}>Acciones rápidas</div>
-            <div style={styles.smallNote}>
-              Opera desde aquí sin convertir el resumen en un panel de gestión.
-            </div>
+           <div style={styles.smallNote}>
+  Resuelve lo urgente desde aquí sin salir de tu vista operativa.
+</div>
 
             <div style={styles.quickGrid} className="spSum-quickGrid">
               <button
@@ -894,9 +892,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 className="spSum-quickCard"
               >
                 <div style={styles.quickTitle}>Crear evento</div>
-                <div style={styles.quickSub}>
-                  Carga algo nuevo sin salir de la lógica diaria.
-                </div>
+               <div style={styles.quickSub}>
+  Añade un nuevo plan sin salir de tu flujo operativo.
+</div>
               </button>
 
               <button
@@ -906,8 +904,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               >
                 <div style={styles.quickTitle}>Abrir calendario</div>
                 <div style={styles.quickSub}>
-                  Ve la agenda completa para operar con más contexto.
-                </div>
+  Abre la vista completa para revisar más contexto y detalle.
+</div>
               </button>
 
               <button
@@ -916,9 +914,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 className="spSum-quickCard"
               >
                 <div style={styles.quickTitle}>Resolver conflictos</div>
-                <div style={styles.quickSub}>
-                  Detectar, comparar y decidir antes de que se complique.
-                </div>
+               <div style={styles.quickSub}>
+  Revisa choques activos y decide antes de que generen fricción.
+</div>
               </button>
             </div>
           </section>
