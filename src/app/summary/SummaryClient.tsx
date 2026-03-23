@@ -334,6 +334,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const toastTimeoutRef = useRef<number | null>(null);
 
   const clearToastTimer = () => {
+    if (typeof window === "undefined") return;
     if (toastTimeoutRef.current) {
       window.clearTimeout(toastTimeoutRef.current);
       toastTimeoutRef.current = null;
@@ -341,6 +342,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   };
 
   const showToast = useCallback((title: string, subtitle?: string) => {
+    if (typeof window === "undefined") return;
     clearToastTimer();
     setToast({ title, subtitle });
     toastTimeoutRef.current = window.setTimeout(() => {
@@ -364,8 +366,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [activeGroupId, activeGroup]);
 
   const contextLabel = useMemo(() => {
-    if (!activeGroupId) return "Vista general";
-    return `Vista general · Grupo activo: ${activeLabel}`;
+    if (!activeGroupId) return "Vista operativa · Personal";
+    return `Vista operativa · ${activeLabel}`;
   }, [activeGroupId, activeLabel]);
 
   const normalizedEvents = useMemo(() => {
@@ -449,7 +451,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     if (booting) {
       return {
         title: "Cargando tu resumen…",
-        subtitle: "Revisando eventos y grupos activos.",
+        subtitle: "Revisando eventos y contexto activo.",
         tone: "neutral" as const,
       };
     }
@@ -552,25 +554,26 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [loadSummary, appliedToast, showToast]);
 
-  /**
-   * Refresca cuando cambia el grupo activo.
-   */
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const handler = () => {
       void loadSummary();
     };
 
-    window.addEventListener("sp:active-group-changed", handler as any);
-    return () =>
-      window.removeEventListener("sp:active-group-changed", handler as any);
+    window.addEventListener("sp:active-group-changed", handler as EventListener);
+
+    return () => {
+      window.removeEventListener(
+        "sp:active-group-changed",
+        handler as EventListener
+      );
+    };
   }, [loadSummary]);
 
-  /**
-   * Refresca al volver a la pestaña o recuperar foco.
-   * Esto ayuda mucho después de volver desde Conflictos.
-   * La verdad viene desde BD, no desde localStorage legacy.
-   */
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const onFocus = () => {
       void loadSummary();
     };
@@ -590,15 +593,17 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [loadSummary]);
 
-  const title = "Resumen · Personal";
+  const title = activeGroupId
+    ? `Resumen · ${activeLabel}`
+    : "Resumen · Personal";
 
   const summarySubtitle = !isMobile
     ? activeGroupId
-      ? `Vista general de tu agenda con contexto compartido: ${activeLabel}.`
-      : "Tu vista general del tiempo que ya tienes coordinado."
+      ? `Tu vista operativa diaria con contexto compartido: ${activeLabel}. Aquí ves qué viene, qué choca y qué conviene decidir ahora.`
+      : "Tu vista operativa diaria para entender qué viene, qué choca y qué toca mover hoy."
     : activeGroupId
-    ? `Contexto compartido: ${activeLabel}`
-    : "Tu vista general de tiempo.";
+    ? `Vista diaria · ${activeLabel}`
+    : "Tu vista diaria de tiempo.";
 
   const moodAccentBorder =
     mood.tone === "clear"
@@ -648,10 +653,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         <div style={styles.shell} className="spSum-shell">
           <section style={styles.hero} className="spSum-hero">
             <div style={styles.heroLeft}>
-<AppHero
-  title={title}
-  subtitle={summarySubtitle}
-/>
+              <AppHero title={title} subtitle={summarySubtitle} />
             </div>
 
             <div style={styles.heroBtns} className="spSum-heroBtns">
@@ -660,14 +662,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 style={styles.primaryBtn}
                 className="spSum-btn"
               >
-                Abrir Calendario →
+                Abrir calendario →
               </button>
               <button
-                onClick={() => router.push("/conflicts/detected")}
+                onClick={() => router.push("/events/new/details?type=personal")}
                 style={styles.ghostBtn}
                 className="spSum-btn"
               >
-                Ver conflictos →
+                Crear evento →
               </button>
             </div>
           </section>
@@ -687,8 +689,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                     {conflictAlert.count === 1 ? "" : "s"}
                   </div>
                   <div style={styles.conflictBannerSub}>
-                    No esperes a entrar manualmente a Conflictos. Revísalos
-                    ahora.
+                    Esta es la alerta importante del día. Revísala antes de que
+                    se convierta en fricción real.
                   </div>
                 </div>
 
@@ -745,7 +747,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 <div style={styles.stateKpiLabel}>Próximos 7 días</div>
                 <div style={styles.stateKpiNumber}>{upcomingStats.total}</div>
                 <div style={styles.stateKpiHint}>
-                  Solo cuenta esta semana, no el mes entero.
+                  Núcleo operativo visible en esta semana.
                 </div>
               </div>
             </div>
@@ -777,7 +779,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             ) : (
               <>
                 <div style={styles.nextBlock}>
-                  <div style={styles.nextLabel}>Siguiente evento</div>
+                  <div style={styles.nextLabel}>Próximo evento</div>
                   <button
                     onClick={() => router.push("/calendar")}
                     style={{
@@ -881,9 +883,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
           <section style={styles.card} className="spSum-card">
             <div style={styles.sectionTitle}>Acciones rápidas</div>
-         <div style={styles.smallNote}>
-  Accede a lo importante en segundos.
-</div>
+            <div style={styles.smallNote}>
+              Opera desde aquí sin convertir el resumen en un panel de gestión.
+            </div>
 
             <div style={styles.quickGrid} className="spSum-quickGrid">
               <button
@@ -893,29 +895,29 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               >
                 <div style={styles.quickTitle}>Crear evento</div>
                 <div style={styles.quickSub}>
-                  Personal o para tu grupo activo, en segundos.
+                  Carga algo nuevo sin salir de la lógica diaria.
                 </div>
               </button>
 
               <button
-                onClick={() => router.push("/groups")}
+                onClick={() => router.push("/calendar")}
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
-                <div style={styles.quickTitle}>Ir a grupos</div>
+                <div style={styles.quickTitle}>Abrir calendario</div>
                 <div style={styles.quickSub}>
-                  Invita, configura y revisa quién ve qué.
+                  Ve la agenda completa para operar con más contexto.
                 </div>
               </button>
 
               <button
-                onClick={() => router.push("/conflicts/detected")}
+                onClick={openConflictCenter}
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
                 <div style={styles.quickTitle}>Resolver conflictos</div>
                 <div style={styles.quickSub}>
-                  Detectar → comparar → decidir sin pelear.
+                  Detectar, comparar y decidir antes de que se complique.
                 </div>
               </button>
             </div>

@@ -271,49 +271,48 @@ export default function PanelPage() {
     };
   }, [premiumActive, tier, trialActive]);
 
- const quickActions: QuickAction[] = [
-  {
-    id: "calendar",
-    title: "Abrir calendario",
-    hint: "Tu vista principal para revisar agenda, contexto compartido y próximos movimientos.",
-    href: "/calendar",
-    featured: true,
-  },
-  {
-    id: "conflicts",
-    title: "Resolver conflictos",
-    hint: "El flujo más diferencial de SyncPlans: detectar choques y decidir con claridad.",
-    href: "/conflicts/detected",
-    badge: conflictsNow > 0 ? `${conflictsNow}` : undefined,
-    featured: true,
-  },
-  {
-    id: "events",
-    title: "Eventos",
-    hint: "Crea, revisa y ordena tu agenda personal y compartida.",
-    href: "/events",
-    badge: totalEvents > 0 ? `${totalEvents}` : undefined,
-  },
-  {
-    id: "groups",
-    title: "Grupos",
-    hint: "Gestiona pareja, familia y espacios compartidos desde un solo lugar.",
-    href: "/groups",
-    badge: totalGroups > 0 ? `${totalGroups}` : undefined,
-  },
-  {
-    id: "invitations",
-    title: "Invitaciones",
-    hint: "Revisa pendientes y suma a alguien más sin salir del flujo operativo.",
-    href: "/invitations",
-  },
-  {
-    id: "settings",
-    title: "Ajustes e integraciones",
-    hint: "Configura el producto y conecta herramientas como Google Calendar.",
-    href: "/settings",
-  },
-];
+  const quickActions: QuickAction[] = [
+    {
+      id: "groups",
+      title: "Gestionar grupos",
+      hint: "Organiza pareja, familia y espacios compartidos desde el centro administrativo.",
+      href: "/groups",
+      badge: totalGroups > 0 ? `${totalGroups}` : undefined,
+      featured: true,
+    },
+    {
+      id: "invitations",
+      title: "Gestionar invitaciones",
+      hint: "Invita, acepta y ordena quién entra al sistema sin mezclarlo con la operación diaria.",
+      href: "/invitations",
+      featured: true,
+    },
+    {
+      id: "settings",
+      title: "Ajustes e integraciones",
+      hint: "Configura SyncPlans y conecta herramientas como Google Calendar.",
+      href: "/settings",
+    },
+    {
+      id: "plans",
+      title: "Plan y acceso",
+      hint: "Revisa tu nivel actual, beneficios y próximos pasos de crecimiento.",
+      href: "/planes",
+    },
+    {
+      id: "calendar",
+      title: "Ir al calendario",
+      hint: "Entrada secundaria para volver a la operación diaria cuando la necesites.",
+      href: "/calendar",
+    },
+    {
+      id: "events",
+      title: "Ver eventos",
+      hint: "Consulta la agenda cargada sin convertir el Panel en otra vista operativa.",
+      href: "/events",
+      badge: totalEvents > 0 ? `${totalEvents}` : undefined,
+    },
+  ];
 
   const groupsPreview = useMemo(() => groups.slice(0, 3), [groups]);
 
@@ -378,23 +377,25 @@ export default function PanelPage() {
       : "Es una integración de apoyo. Te sirve para sumar contexto externo sin convertir el Panel en un dashboard pesado.";
 
   const heroNote =
-    conflictsNow > 0
-      ? `Tienes ${conflictsNow} conflicto${
-          conflictsNow === 1 ? "" : "s"
-        } visible${conflictsNow === 1 ? "" : "s"} para revisar.`
+    totalGroups > 0 && connectionState === "connected"
+      ? `Tu estructura ya está armada: ${totalGroups} espacio${
+          totalGroups === 1 ? "" : "s"
+        } activo${totalGroups === 1 ? "" : "s"} y Google Calendar conectado.`
       : totalGroups > 0
       ? `Ya tienes ${totalGroups} espacio${
           totalGroups === 1 ? "" : "s"
-        } compartido${totalGroups === 1 ? "" : "s"} activo${
+        } compartido${totalGroups === 1 ? "" : "s"} listo${
           totalGroups === 1 ? "" : "s"
-        }.`
-      : "Tu base está lista para empezar a coordinar mejor.";
+        } para coordinar mejor.`
+      : connectionState === "connected"
+      ? "Tu base ya está conectada: ahora toca ordenar grupos, accesos e integraciones."
+      : "Desde aquí defines la estructura que sostiene la coordinación compartida.";
 
   return (
     <MobileScaffold maxWidth={1120}>
       <PremiumHeader
         title="Panel"
-        subtitle="Tu hub premium para entrar rápido a lo importante y mantener una sola verdad en el centro."
+        subtitle="Tu centro de gestión premium para ordenar grupos, invitaciones, integraciones y acceso."
       />
 
       <div style={styles.stack}>
@@ -402,54 +403,62 @@ export default function PanelPage() {
 
         <section style={styles.heroCard}>
           <div style={styles.heroTopRow}>
-           <div style={styles.heroTextWrap}>
-  <div style={styles.eyebrow}>Operación</div>
-  <h1 style={styles.heroTitle}>
-    Organiza tu tiempo sin choques ni malentendidos.
-  </h1>
-  <p style={styles.heroCopy}>
-   Aquí tienes control total sobre tu calendario, tus grupos y tus decisiones.
-  </p>
-</div>
+            <div style={styles.heroTextWrap}>
+              <div style={styles.eyebrow}>Gestión</div>
+              <h1 style={styles.heroTitle}>
+                Administra la estructura que sostiene tu coordinación.
+              </h1>
+              <p style={styles.heroCopy}>
+                El Panel no es otra agenda: es el lugar donde ordenas espacios,
+                accesos e integraciones para que el resto de la app fluya mejor.
+              </p>
+            </div>
 
             <div style={styles.heroActionStack}>
               <button
                 type="button"
                 style={styles.primaryHeroCta}
-                onClick={() => router.push("/calendar")}
+                onClick={() => router.push("/groups")}
               >
-                Abrir calendario
+                Gestionar grupos
               </button>
-         <button
-  type="button"
-  style={styles.secondaryHeroCta}
-  onClick={() => router.push("/conflicts/detected")}
->
-  Ver conflictos
-</button>
+              <button
+                type="button"
+                style={styles.secondaryHeroCta}
+                onClick={() => router.push("/invitations")}
+              >
+                Ver invitaciones
+              </button>
             </div>
           </div>
-
-          <div style={styles.heroStrip}>
-            <div style={styles.heroStripTitle}>Ahora mismo</div>
+                    <div style={styles.heroStrip}>
+            <div style={styles.heroStripTitle}>Estado del espacio</div>
             <div style={styles.heroStripCopy}>{heroNote}</div>
           </div>
 
           <div style={styles.metricsGrid}>
             <MetricCard
-              label="Eventos"
-              value={loading ? "—" : String(totalEvents)}
-              hint="Entre personal y grupos"
-            />
-            <MetricCard
-              label="Últimos 7 días"
-              value={loading ? "—" : String(eventsLast7)}
-              hint="Actividad reciente"
-            />
-            <MetricCard
-              label="Grupos"
+              label="Espacios"
               value={loading ? "—" : String(totalGroups)}
-              hint="Espacios compartidos activos"
+              hint="Pareja, familia y compartidos"
+            />
+            <MetricCard
+              label="Agenda cargada"
+              value={loading ? "—" : String(totalEvents)}
+              hint="Eventos guardados en el sistema"
+            />
+            <MetricCard
+              label="Google"
+              value={
+                loading
+                  ? "—"
+                  : connectionState === "connected"
+                  ? "Activo"
+                  : connectionState === "needs_reauth"
+                  ? "Revisar"
+                  : "Pendiente"
+              }
+              hint="Estado de integración externa"
             />
             <MetricCard
               label="Conflictos"
@@ -464,11 +473,11 @@ export default function PanelPage() {
           <div style={styles.leftCol}>
             <section style={styles.sectionCard}>
               <div style={styles.sectionHead}>
-  <div>
-    <div style={styles.sectionEyebrow}>Operación</div>
-    <h2 style={styles.sectionTitle}>Entradas rápidas al flujo real</h2>
-  </div>
-</div>
+                <div>
+                  <div style={styles.sectionEyebrow}>Gestión</div>
+                  <h2 style={styles.sectionTitle}>Centro de administración</h2>
+                </div>
+              </div>
 
               <div style={styles.actionsGrid}>
                 {quickActions.map((action) => (
@@ -498,8 +507,8 @@ export default function PanelPage() {
             <section style={styles.sectionCard}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionEyebrow}>Tus grupos</div>
-                  <h2 style={styles.sectionTitle}>Contexto compartido</h2>
+                  <div style={styles.sectionEyebrow}>Estructura</div>
+                  <h2 style={styles.sectionTitle}>Espacios activos</h2>
                 </div>
 
                 <button
@@ -512,7 +521,7 @@ export default function PanelPage() {
               </div>
 
               {groupsPreview.length === 0 ? (
-                <EmptyBlock copy="Todavía no tienes grupos creados. Cuando armes uno, este bloque empieza a darte contexto real." />
+                <EmptyBlock copy="Todavía no tienes grupos creados. Este es el primer bloque que conviene activar para que SyncPlans deje de ser solo personal." />
               ) : (
                 <div style={styles.list}>
                   {groupsPreview.map((group) => (
@@ -564,10 +573,11 @@ export default function PanelPage() {
                 <StatusPill label={googlePill.label} tone={googlePill.tone} />
               </div>
 
-<p style={styles.bodyCopy}>
-  Google Calendar complementa tu operación en SyncPlans, pero no
-  reemplaza la lógica compartida ni el flujo de decisiones dentro de la app.
-</p>
+              <p style={styles.bodyCopy}>
+                Google Calendar suma contexto externo, pero la verdad compartida
+                sigue viviendo dentro de SyncPlans. Desde aquí gestionas esa
+                conexión sin mezclarla con la vista diaria.
+              </p>
 
               <div style={styles.integrationBox}>
                 <div style={styles.integrationCopyWrap}>
@@ -601,7 +611,7 @@ export default function PanelPage() {
                 <div style={styles.googleEventsWrap}>
                   <div style={styles.miniSectionHead}>
                     <span style={styles.miniSectionTitle}>
-                      Próximos eventos de Google
+                      Vista previa de Google
                     </span>
                     <button
                       type="button"
@@ -850,7 +860,7 @@ const styles: Record<string, CSSProperties> = {
     background:
       "linear-gradient(135deg, rgba(56,189,248,0.30), rgba(168,85,247,0.22))",
     color: colors.textPrimary,
-    fontWeight: 900,
+        fontWeight: 900,
     cursor: "pointer",
   },
 
