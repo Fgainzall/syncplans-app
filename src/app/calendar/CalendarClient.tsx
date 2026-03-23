@@ -1288,6 +1288,8 @@ function renderMonthCells(opts: {
     eventsByDay,
     openNewEventPersonal,
     openNewEventGroup,
+    groupTypeById,
+    onEdit,
     today,
   } = opts;
 
@@ -1397,10 +1399,8 @@ function renderMonthCells(opts: {
 
           {top3.map((e) => {
             const resolvedType: GroupType = e.groupId
-              ? ((opts.groupTypeById.get(
-                  String(e.groupId)
-                ) ?? "pair") as any)
-              : ("personal" as any);
+              ? ((groupTypeById.get(String(e.groupId)) ?? "pair") as GroupType)
+              : ("personal" as GroupType);
 
             const meta = groupMeta(resolvedType);
 
@@ -1410,7 +1410,7 @@ function renderMonthCells(opts: {
                 onClick={(ev) => {
                   ev.preventDefault();
                   ev.stopPropagation();
-                  opts.onEdit(e);
+                  onEdit(e);
                 }}
                 style={{
                   ...styles.cellEventLine,
