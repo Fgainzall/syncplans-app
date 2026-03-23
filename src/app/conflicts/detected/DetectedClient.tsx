@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import AppHero from "@/components/AppHero";
+import MobileScaffold from "@/components/MobileScaffold";
 
 import {
   CalendarEvent,
@@ -355,7 +356,12 @@ export default function DetectedClient() {
 
   if (booting) {
     return (
-      <main style={styles.page}>
+      <MobileScaffold
+        maxWidth={1180}
+        paddingDesktop="18px 12px 120px"
+        paddingMobile="14px 12px 120px"
+        style={styles.page}
+      >
         <div style={styles.shell} className="spDet-shell">
           <AppHero
             mobileNav="bottom"
@@ -371,12 +377,17 @@ export default function DetectedClient() {
             </div>
           </div>
         </div>
-      </main>
+      </MobileScaffold>
     );
   }
 
   return (
-    <main style={styles.page}>
+    <MobileScaffold
+      maxWidth={1180}
+      paddingDesktop="18px 12px 120px"
+      paddingMobile="14px 12px 120px"
+      style={styles.page}
+    >
       <div style={styles.shell} className="spDet-shell">
         <div style={styles.topRow} className="spDet-topRow">
           <AppHero
@@ -504,21 +515,20 @@ export default function DetectedClient() {
           )}
         </section>
       </div>
-    </main>
+    </MobileScaffold>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
   page: {
-    minHeight: "100dvh",
     background:
       "radial-gradient(1000px 600px at 15% -10%, rgba(70,92,210,0.18), transparent 50%), linear-gradient(180deg, #071026 0%, #050914 100%)",
     color: "#F7F9FF",
   },
   shell: {
-    width: "min(1180px, calc(100% - 24px))",
-    margin: "0 auto",
-    padding: "18px 0 120px",
+    width: "100%",
+    display: "grid",
+    gap: 0,
   },
   topRow: {
     display: "grid",

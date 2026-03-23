@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
+import MobileScaffold from "@/components/MobileScaffold";
 
 import { getMyGroups, getGroupTypeLabel } from "@/lib/groupsDb";
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
@@ -187,7 +188,7 @@ export default function GroupsPage() {
      ============================ */
   if (booting) {
     return (
-      <main style={styles.page}>
+      <MobileScaffold maxWidth={1120} style={styles.page}>
         <div style={styles.stickyTop}>
           <PremiumHeader />
         </div>
@@ -205,12 +206,12 @@ export default function GroupsPage() {
             </div>
           </div>
         </section>
-      </main>
+      </MobileScaffold>
     );
   }
 
   return (
-    <main style={styles.page}>
+    <MobileScaffold maxWidth={1120} style={styles.page}>
       {toast && (
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
@@ -419,7 +420,7 @@ export default function GroupsPage() {
           </div>
         )}
       </section>
-    </main>
+    </MobileScaffold>
   );
 }
 
@@ -529,13 +530,9 @@ function metaForGroupType(type: string) {
    ============================ */
 const styles: Record<string, React.CSSProperties> = {
   page: {
-    minHeight: "100vh",
     background:
       "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: "22px 18px 56px",
   },
 
   stickyTop: {

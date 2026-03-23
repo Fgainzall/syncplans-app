@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
+import MobileScaffold from "@/components/MobileScaffold";
 
 import {
   getMyInvitations,
@@ -148,7 +149,7 @@ export default function InvitationsPage() {
   const isEmpty = !loading && !error && pendingInvites.length === 0;
 
   return (
-    <main style={styles.page} className="spInv-page">
+    <MobileScaffold maxWidth={1120} style={styles.page}>
       {toast && (
         <div style={styles.toastWrap} className="spInv-toastWrap">
           <div style={styles.toastCard} className="spInv-toastCard">
@@ -270,17 +271,15 @@ export default function InvitationsPage() {
           </section>
         )}
       </div>
-    </main>
+    </MobileScaffold>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
   page: {
-    minHeight: "100dvh",
     background:
       "radial-gradient(circle at top, rgba(40,69,135,0.22), transparent 28%), #050816",
     color: "#f8fafc",
-    padding: "18px 14px 140px",
   },
 
  shell: {
