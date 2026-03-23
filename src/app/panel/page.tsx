@@ -308,7 +308,7 @@ export default function PanelPage() {
     {
       id: "events",
       title: "Ver eventos",
-      hint: "Consulta la agenda cargada sin convertir el Panel en otra vista operativa.",
+      hint: "Consulta los eventos registrados sin convertir el Panel en otra vista operativa.",
       href: "/events",
       badge: totalEvents > 0 ? `${totalEvents}` : undefined,
     },
@@ -442,11 +442,11 @@ export default function PanelPage() {
               value={loading ? "—" : String(totalGroups)}
               hint="Pareja, familia y compartidos"
             />
-            <MetricCard
-              label="Agenda cargada"
-              value={loading ? "—" : String(totalEvents)}
-              hint="Eventos guardados en el sistema"
-            />
+         <MetricCard
+  label="Eventos registrados"
+  value={loading ? "—" : String(totalEvents)}
+  hint="En el sistema"
+/>
             <MetricCard
               label="Google"
               value={
