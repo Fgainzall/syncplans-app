@@ -576,7 +576,7 @@ export default function EventsPage() {
 
 const S: Record<string, React.CSSProperties> = {
   pageShell: {
-    maxWidth: 720,
+  maxWidth: 1120,
     margin: "0 auto",
     padding: "10px 14px 80px",
     display: "flex",
