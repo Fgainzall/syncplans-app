@@ -1295,26 +1295,29 @@ function renderMonthCells(opts: {
   let day = new Date(gridStart);
 
   while (day <= gridEnd) {
-    const inMonth = day.getMonth() === monthStart.getMonth();
-    const isSelected = sameDay(day, selectedDay);
-    const isToday = sameDay(day, today);
+    const cellDate = new Date(day);
 
-    const dayEvents = eventsByDay.get(ymd(day)) || [];
+    const inMonth = cellDate.getMonth() === monthStart.getMonth();
+    const isSelected = sameDay(cellDate, selectedDay);
+    const isToday = sameDay(cellDate, today);
+
+    const dayEvents = eventsByDay.get(ymd(cellDate)) || [];
     const top3 = dayEvents.slice(0, 3);
 
-    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-    const dayKey = ymd(day);
+    const isWeekend =
+      cellDate.getDay() === 0 || cellDate.getDay() === 6;
+    const dayKey = ymd(cellDate);
 
     cells.push(
       <div
         key={dayKey}
         role="button"
         tabIndex={0}
-        onClick={() => setSelectedDay(new Date(day))}
+        onClick={() => setSelectedDay(new Date(cellDate))}
         onKeyDown={(ev) => {
           if (ev.key === "Enter" || ev.key === " ") {
             ev.preventDefault();
-            setSelectedDay(new Date(day));
+            setSelectedDay(new Date(cellDate));
           }
         }}
         style={{
@@ -1341,7 +1344,7 @@ function renderMonthCells(opts: {
               ...(isToday ? styles.cellDayToday : {}),
             }}
           >
-            {day.getDate()}
+            {cellDate.getDate()}
           </div>
 
           <div style={styles.cellTopRight}>
@@ -1354,7 +1357,7 @@ function renderMonthCells(opts: {
                 onClick={(ev) => {
                   ev.preventDefault();
                   ev.stopPropagation();
-                  openNewEventPersonal(day);
+                  openNewEventPersonal(new Date(cellDate));
                 }}
                 style={styles.cellQuickBtnPersonal}
                 aria-label="Crear evento personal"
@@ -1368,7 +1371,7 @@ function renderMonthCells(opts: {
                 onClick={(ev) => {
                   ev.preventDefault();
                   ev.stopPropagation();
-                  openNewEventGroup(day);
+                  openNewEventGroup(new Date(cellDate));
                 }}
                 style={styles.cellQuickBtnGroup}
                 aria-label="Crear evento de grupo"
@@ -1440,7 +1443,7 @@ function renderMonthCells(opts: {
       </div>
     );
 
-    day = addDays(day, 1);
+    day.setDate(day.getDate() + 1);
   }
 
   return cells;
