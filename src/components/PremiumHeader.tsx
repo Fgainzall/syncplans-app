@@ -925,17 +925,24 @@ const S: Record<string, CSSProperties> = {
     fontSize: 13,
     fontWeight: 650,
   },
-  iconBtn: {
-    height: 40,
-    padding: "0 14px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background:
-      "linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.55))",
-    color: "#fff",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
+iconBtn: {
+  height: 40,
+  padding: "0 16px",
+  minWidth: 110,
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background:
+    "linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.55))",
+  color: "#fff",
+  fontWeight: 900,
+  cursor: "pointer",
+
+  display: "inline-flex",        // 👈 clave
+  alignItems: "center",          // 👈 centra vertical
+  justifyContent: "center",      // 👈 centra horizontal
+  whiteSpace: "nowrap",          // 👈 evita salto de línea
+  flexShrink: 0,                 // 👈 evita que se comprima
+},
   ghostBtn: {
     height: 40,
     padding: "0 14px",
