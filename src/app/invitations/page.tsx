@@ -283,29 +283,32 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "18px 14px 140px",
   },
 
-  shell: {
-    width: "100%",
-    maxWidth: 880,
-    margin: "0 auto",
-    display: "grid",
-    gap: 18,
-  },
+ shell: {
+  width: "100%",
+  maxWidth: 1120,
+  margin: "0 auto",
+  display: "grid",
+  gap: 18,
+},
 
   headerRow: {
     display: "block",
   },
 
-  hero: {
-    display: "grid",
-    gap: 16,
-    borderRadius: 28,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(8,15,35,0.94), rgba(6,10,24,0.9))",
-    boxShadow:
-      "0 24px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05)",
-    padding: 22,
-  },
+hero: {
+  width: "100%",
+  maxWidth: 900,
+  margin: "0 auto",
+  display: "grid",
+  gap: 16,
+  borderRadius: 28,
+  border: "1px solid rgba(255,255,255,0.10)",
+  background:
+    "linear-gradient(180deg, rgba(8,15,35,0.94), rgba(6,10,24,0.9))",
+  boxShadow:
+    "0 24px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05)",
+  padding: 22,
+},
 
   kicker: {
     display: "inline-flex",
@@ -370,23 +373,29 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
 
-  card: {
-    borderRadius: 24,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(8,15,35,0.90), rgba(6,10,24,0.88))",
-    padding: 18,
-  },
+ card: {
+  width: "100%",
+  maxWidth: 900,
+  margin: "0 auto",
+  borderRadius: 24,
+  border: "1px solid rgba(255,255,255,0.10)",
+  background:
+    "linear-gradient(180deg, rgba(8,15,35,0.90), rgba(6,10,24,0.88))",
+  padding: 18,
+},
 
-  emptyCard: {
-    borderRadius: 24,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(8,15,35,0.90), rgba(6,10,24,0.88))",
-    padding: 24,
-    display: "grid",
-    gap: 10,
-  },
+emptyCard: {
+  width: "100%",
+  maxWidth: 900,
+  margin: "0 auto",
+  borderRadius: 24,
+  border: "1px solid rgba(255,255,255,0.10)",
+  background:
+    "linear-gradient(180deg, rgba(8,15,35,0.90), rgba(6,10,24,0.88))",
+  padding: 24,
+  display: "grid",
+  gap: 10,
+},
 
   emptyTitle: {
     fontSize: 22,
@@ -399,16 +408,19 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.65,
   },
 
-  loadingCard: {
-    borderRadius: 24,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(8,15,35,0.90), rgba(6,10,24,0.88))",
-    padding: 20,
-    display: "flex",
-    alignItems: "center",
-    gap: 14,
-  },
+loadingCard: {
+  width: "100%",
+  maxWidth: 900,
+  margin: "0 auto",
+  borderRadius: 24,
+  border: "1px solid rgba(255,255,255,0.10)",
+  background:
+    "linear-gradient(180deg, rgba(8,15,35,0.90), rgba(6,10,24,0.88))",
+  padding: 20,
+  display: "flex",
+  alignItems: "center",
+  gap: 14,
+},
 
   loadingDot: {
     width: 14,
@@ -429,10 +441,13 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(226,232,240,0.72)",
   },
 
-  list: {
-    display: "grid",
-    gap: 14,
-  },
+ list: {
+  width: "100%",
+  maxWidth: 900,
+  margin: "0 auto",
+  display: "grid",
+  gap: 14,
+},
 
   inviteCard: {
     borderRadius: 24,

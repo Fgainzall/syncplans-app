@@ -575,14 +575,14 @@ export default function EventsPage() {
 }
 
 const S: Record<string, React.CSSProperties> = {
-  pageShell: {
+pageShell: {
   maxWidth: 1120,
-    margin: "0 auto",
-    padding: "10px 14px 80px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
+  margin: "0 auto",
+  padding: "10px 14px 80px",
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+},
   stickyTop: {
     position: "sticky",
     top: 0,
@@ -594,14 +594,17 @@ const S: Record<string, React.CSSProperties> = {
     backdropFilter: "blur(14px)",
   },
 
-  card: {
-    borderRadius: 24,
-    border: "1px solid rgba(31,41,55,0.95)",
-    background:
-      "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.25), transparent 55%), radial-gradient(circle at 100% 0%, rgba(56,189,248,0.18), transparent 55%), rgba(15,23,42,0.98)",
-    padding: 16,
-    boxShadow: "0 24px 60px rgba(0,0,0,0.85)",
-  },
+card: {
+  width: "100%",
+  maxWidth: 900,
+  margin: "0 auto",
+  borderRadius: 24,
+  border: "1px solid rgba(31,41,55,0.95)",
+  background:
+    "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.25), transparent 55%), radial-gradient(circle at 100% 0%, rgba(56,189,248,0.18), transparent 55%), rgba(15,23,42,0.98)",
+  padding: 16,
+  boxShadow: "0 24px 60px rgba(0,0,0,0.85)",
+},
 
   titleRow: {
     display: "flex",
@@ -751,10 +754,12 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   footerSection: {
-    marginTop: 16,
-    display: "flex",
-    justifyContent: "center",
-  },
+  width: "100%",
+  maxWidth: 900,
+  margin: "16px auto 0",
+  display: "flex",
+  justifyContent: "center",
+},
   refreshBtn: {
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.75)",
