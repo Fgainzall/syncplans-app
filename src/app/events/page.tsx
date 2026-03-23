@@ -1,3 +1,4 @@
+// src/app/events/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -8,7 +9,7 @@ import MobileScaffold from "@/components/MobileScaffold";
 import EventsHero from "@/components/events/EventsHero";
 import EventsFiltersBar from "@/components/events/EventsFiltersBar";
 import EventsEmptyState from "@/components/events/EventsEmptyState";
-import EventsTimelineList from "@/components/events/EventsTimelineList";
+import EventsTimeline from "@/components/EventsTimeline";
 
 import {
   getMyEvents,
@@ -43,6 +44,39 @@ function localDateKey(value: string | Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function isWithinNext24Hours(value: string | Date) {
+  const now = new Date();
+  const d = value instanceof Date ? value : new Date(value);
+  const diff = d.getTime() - now.getTime();
+  return diff >= 0 && diff <= 24 * 60 * 60 * 1000;
+}
+
+function shortDateLabel(value: string | Date) {
+  const d = value instanceof Date ? value : new Date(value);
+  const now = new Date();
+
+  const todayKey = localDateKey(now);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+
+  const dateKey = localDateKey(d);
+
+  if (dateKey === todayKey) return "Hoy";
+  if (dateKey === localDateKey(tomorrow)) return "Mañana";
+
+  return `${String(d.getDate()).padStart(2, "0")}/${String(
+    d.getMonth() + 1
+  ).padStart(2, "0")}`;
+}
+
+function shortTimeLabel(value: string | Date) {
+  const d = value instanceof Date ? value : new Date(value);
+  return d.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function EventsPage() {
   const router = useRouter();
 
@@ -70,8 +104,6 @@ export default function EventsPage() {
     type: "success" | "error";
     message: string;
   } | null>(null);
-
-  // ===== CARGA INICIAL =====
 
   useEffect(() => {
     let alive = true;
@@ -123,8 +155,6 @@ export default function EventsPage() {
     };
   }, [router]);
 
-  // ===== REFRESH DE SOFT REJECTED =====
-
   useEffect(() => {
     const refreshHidden = () => {
       setHiddenEventIds(loadSoftRejectedEventIds());
@@ -167,8 +197,6 @@ export default function EventsPage() {
     };
   }, []);
 
-  // ===== DERIVADOS =====
-
   const totalGroups = groups.length;
 
   const filteredEvents = useMemo(() => {
@@ -208,24 +236,10 @@ export default function EventsPage() {
     return list;
   }, [events, hiddenEventIds, filters]);
 
-  const groupedByDate = useMemo(() => {
-    const groupsMap = new Map<string, EventWithGroup[]>();
-
-    for (const e of filteredEvents) {
-      const key = localDateKey(e.start);
-      if (!groupsMap.has(key)) groupsMap.set(key, []);
-      groupsMap.get(key)!.push(e);
-    }
-
-    const entries = Array.from(groupsMap.entries()).sort(([a], [b]) =>
-      a < b ? -1 : 1
-    );
-
-    return entries.map(([dateKey, list]) => ({
-      dateKey,
-      events: list,
-    }));
-  }, [filteredEvents]);
+  const urgentEvents = useMemo(() => {
+    if (filters.view === "history") return [];
+    return filteredEvents.filter((e) => isWithinNext24Hours(e.start));
+  }, [filteredEvents, filters.view]);
 
   const headerSubtitle = useMemo(() => {
     const visibleEvents = filterSoftRejectedEvents(events, hiddenEventIds);
@@ -241,8 +255,6 @@ export default function EventsPage() {
       personal === 1 ? "" : "s"
     } personales y ${groupEvents} en grupos. Filtra, revisa y limpia sin perder contexto.`;
   }, [events, hiddenEventIds]);
-
-  // ===== HANDLERS =====
 
   function toggleSelection(id: string) {
     setSelectedIds((prev) => {
@@ -361,8 +373,6 @@ export default function EventsPage() {
 
   const anySelected = selectedIds.size > 0;
 
-  // ===== ESTADO BOOTING =====
-
   if (booting) {
     return (
       <MobileScaffold>
@@ -387,8 +397,6 @@ export default function EventsPage() {
       </MobileScaffold>
     );
   }
-
-  // ===== RENDER PRINCIPAL =====
 
   return (
     <MobileScaffold>
@@ -534,6 +542,47 @@ export default function EventsPage() {
             </div>
           )}
 
+          {!loading && urgentEvents.length > 0 && (
+            <div style={S.urgentBlock}>
+              <div style={S.urgentHeader}>
+                <div>
+                  <div style={S.urgentKicker}>Foco operativo</div>
+                  <div style={S.urgentTitle}>Requiere atención</div>
+                </div>
+
+                <div style={S.urgentCount}>
+                  {urgentEvents.length} evento
+                  {urgentEvents.length === 1 ? "" : "s"}
+                </div>
+              </div>
+
+              <div style={S.urgentList}>
+                {urgentEvents.slice(0, 3).map((e) => (
+                  <div key={String(e.id)} style={S.urgentItem}>
+                    <div style={S.urgentItemMain}>
+                      <div style={S.urgentNameRow}>
+                        <span style={S.urgentName}>{e.title}</span>
+                        <span style={S.urgentWhen}>
+                          {shortDateLabel(e.start)} · {shortTimeLabel(e.start)}
+                        </span>
+                      </div>
+
+                      <div style={S.urgentMeta}>
+                        {e.group?.name ? `En ${e.group.name}` : "Personal"}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {urgentEvents.length > 3 && (
+                <div style={S.urgentFooter}>
+                  +{urgentEvents.length - 3} más para revisar pronto
+                </div>
+              )}
+            </div>
+          )}
+
           {loading ? (
             <div style={S.loadingList}>
               <div style={S.loadingRow}>
@@ -544,15 +593,15 @@ export default function EventsPage() {
                 </div>
               </div>
             </div>
-          ) : groupedByDate.length === 0 ? (
+          ) : filteredEvents.length === 0 ? (
             <EventsEmptyState
               onCreateFirstEvent={() =>
                 router.push("/events/new/details?type=personal")
               }
             />
           ) : (
-            <EventsTimelineList
-              groupedByDate={groupedByDate as any}
+            <EventsTimeline
+              events={filteredEvents}
               selectedIds={selectedIds}
               onToggleSelected={toggleSelection}
             />
@@ -575,14 +624,14 @@ export default function EventsPage() {
 }
 
 const S: Record<string, React.CSSProperties> = {
-pageShell: {
-  maxWidth: 1120,
-  margin: "0 auto",
-  padding: "10px 14px 80px",
-  display: "flex",
-  flexDirection: "column",
-  gap: 12,
-},
+  pageShell: {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: "10px 14px 80px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  },
   stickyTop: {
     position: "sticky",
     top: 0,
@@ -593,19 +642,17 @@ pageShell: {
       "linear-gradient(to bottom, rgba(8,15,28,1) 0%, rgba(8,15,28,0.92) 55%, rgba(8,15,28,0.0) 100%)",
     backdropFilter: "blur(14px)",
   },
-
-card: {
-  width: "100%",
-  maxWidth: 900,
-  margin: "0 auto",
-  borderRadius: 24,
-  border: "1px solid rgba(31,41,55,0.95)",
-  background:
-    "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.25), transparent 55%), radial-gradient(circle at 100% 0%, rgba(56,189,248,0.18), transparent 55%), rgba(15,23,42,0.98)",
-  padding: 16,
-  boxShadow: "0 24px 60px rgba(0,0,0,0.85)",
-},
-
+  card: {
+    width: "100%",
+    maxWidth: 900,
+    margin: "0 auto",
+    borderRadius: 24,
+    border: "1px solid rgba(31,41,55,0.95)",
+    background:
+      "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.25), transparent 55%), radial-gradient(circle at 100% 0%, rgba(56,189,248,0.18), transparent 55%), rgba(15,23,42,0.98)",
+    padding: 16,
+    boxShadow: "0 24px 60px rgba(0,0,0,0.85)",
+  },
   titleRow: {
     display: "flex",
     justifyContent: "space-between",
@@ -635,7 +682,6 @@ card: {
     lineHeight: 1.5,
     color: "rgba(209,213,219,0.98)",
   },
-
   factBox: {
     minWidth: 160,
     maxWidth: 210,
@@ -680,7 +726,6 @@ card: {
     fontSize: 11,
     color: "rgba(148,163,184,0.96)",
   },
-
   digestBtn: {
     marginTop: 10,
     padding: "8px 11px",
@@ -696,7 +741,6 @@ card: {
     opacity: 0.7,
     cursor: "default",
   },
-
   bulkBar: {
     marginTop: 10,
     borderRadius: 999,
@@ -722,7 +766,88 @@ card: {
     fontWeight: 800,
     cursor: "pointer",
   },
-
+  urgentBlock: {
+    marginTop: 14,
+    marginBottom: 2,
+    borderRadius: 18,
+    border: "1px solid rgba(248,113,113,0.30)",
+    background:
+      "radial-gradient(circle at 0% 0%, rgba(239,68,68,0.22), transparent 58%), rgba(15,23,42,0.97)",
+    padding: 12,
+    boxShadow: "0 10px 28px rgba(0,0,0,0.28)",
+  },
+  urgentHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 10,
+    flexWrap: "wrap",
+  },
+  urgentKicker: {
+    fontSize: 10,
+    fontWeight: 900,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    color: "rgba(254,202,202,0.9)",
+  },
+  urgentTitle: {
+    marginTop: 2,
+    fontSize: 16,
+    fontWeight: 900,
+    color: "rgba(255,245,245,1)",
+  },
+  urgentCount: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "rgba(254,226,226,0.92)",
+    borderRadius: 999,
+    border: "1px solid rgba(248,113,113,0.22)",
+    background: "rgba(127,29,29,0.28)",
+    padding: "6px 10px",
+  },
+  urgentList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  urgentItem: {
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.06)",
+    background: "rgba(255,255,255,0.03)",
+    padding: "10px 11px",
+  },
+  urgentItemMain: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  urgentNameRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  urgentName: {
+    fontSize: 13,
+    fontWeight: 800,
+    color: "rgba(255,255,255,0.98)",
+  },
+  urgentWhen: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "rgba(252,165,165,0.95)",
+  },
+  urgentMeta: {
+    fontSize: 11,
+    color: "rgba(203,213,225,0.86)",
+  },
+  urgentFooter: {
+    marginTop: 10,
+    fontSize: 11,
+    color: "rgba(254,226,226,0.82)",
+  },
   loadingList: {
     marginTop: 12,
     borderRadius: 18,
@@ -752,14 +877,13 @@ card: {
     fontSize: 12,
     color: "rgba(148,163,184,0.96)",
   },
-
   footerSection: {
-  width: "100%",
-  maxWidth: 900,
-  margin: "16px auto 0",
-  display: "flex",
-  justifyContent: "center",
-},
+    width: "100%",
+    maxWidth: 900,
+    margin: "16px auto 0",
+    display: "flex",
+    justifyContent: "center",
+  },
   refreshBtn: {
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.75)",
