@@ -327,7 +327,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
     );
   }, []);
 
-const shouldShowTopNav = !isMobile;
+  const shouldShowTopNav = !isMobile;
   const closeUserMenu = () => setUserMenuOpen(false);
 
   return (
@@ -494,110 +494,110 @@ const shouldShowTopNav = !isMobile;
               </div>
             </div>
 
-{shouldShowTopNav && (
-  <nav style={S.nav}>
-    <NavPill
-      label="Resumen"
-      active={pathname.startsWith("/summary")}
-      onClick={() => {
-        closeUserMenu();
-        router.push("/summary");
-      }}
-      styleOverride={S.pill}
-      styleActive={S.pillActive}
-    />
-    <NavPill
-      label="Calendario"
-      active={pathname.startsWith("/calendar")}
-      onClick={() => {
-        closeUserMenu();
-        router.push("/calendar");
-      }}
-      styleOverride={S.pill}
-      styleActive={S.pillActive}
-    />
-    <NavPill
-      label="Eventos"
-      active={pathname.startsWith("/events")}
-      onClick={() => {
-        closeUserMenu();
-        router.push("/events");
-      }}
-      styleOverride={S.pill}
-      styleActive={S.pillActive}
-    />
-    <NavPill
-      label="Conflictos"
-      active={pathname.startsWith("/conflicts")}
-      onClick={() => {
-        closeUserMenu();
-        router.push("/conflicts/detected");
-      }}
-      styleOverride={S.pill}
-      styleActive={S.pillActive}
-    />
-    <NavPill
-      label="Panel"
-      active={pathname.startsWith("/panel")}
-      onClick={() => {
-        closeUserMenu();
-        router.push("/panel");
-      }}
-      styleOverride={S.pill}
-      styleActive={S.pillActive}
-    />
-    <NavPill
-      label="Grupos"
-      active={pathname.startsWith("/groups")}
-      onClick={() => {
-        closeUserMenu();
-        router.push("/groups");
-      }}
-      styleOverride={S.pill}
-      styleActive={S.pillActive}
-    />
-    <NavPill
-      label="Miembros"
-      active={pathname.startsWith("/members")}
-      onClick={() => {
-        closeUserMenu();
-        router.push("/members");
-      }}
-      styleOverride={S.pill}
-      styleActive={S.pillActive}
-    />
-    <NavPill
-      label="Invitaciones"
-      active={pathname.startsWith("/invitations")}
-      onClick={() => {
-        closeUserMenu();
-        router.push("/invitations");
-      }}
-      styleOverride={S.pill}
-      styleActive={S.pillActive}
-    />
-    <NavPill
-      label="Ajustes"
-      active={pathname.startsWith("/settings")}
-      onClick={() => {
-        closeUserMenu();
-        router.push("/settings");
-      }}
-      styleOverride={S.pill}
-      styleActive={S.pillActive}
-    />
-    <NavPill
-      label="Planes"
-      active={pathname.startsWith("/planes")}
-      onClick={() => {
-        closeUserMenu();
-        router.push("/planes");
-      }}
-      styleOverride={S.pill}
-      styleActive={S.pillActive}
-    />
-  </nav>
-)}
+            {shouldShowTopNav && (
+              <nav style={S.nav}>
+                <NavPill
+                  label="Resumen"
+                  active={pathname.startsWith("/summary")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/summary");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Calendario"
+                  active={pathname.startsWith("/calendar")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/calendar");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Eventos"
+                  active={pathname.startsWith("/events")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/events");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Conflictos"
+                  active={pathname.startsWith("/conflicts")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/conflicts/detected");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Panel"
+                  active={pathname.startsWith("/panel")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/panel");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Grupos"
+                  active={pathname.startsWith("/groups")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/groups");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Miembros"
+                  active={pathname.startsWith("/members")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/members");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Invitaciones"
+                  active={pathname.startsWith("/invitations")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/invitations");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Ajustes"
+                  active={pathname.startsWith("/settings")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/settings");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+                <NavPill
+                  label="Planes"
+                  active={pathname.startsWith("/planes")}
+                  onClick={() => {
+                    closeUserMenu();
+                    router.push("/planes");
+                  }}
+                  styleOverride={S.pill}
+                  styleActive={S.pillActive}
+                />
+              </nav>
+            )}
           </>
         ) : (
           <>
@@ -877,7 +877,7 @@ function NavPill({
 const S: Record<string, CSSProperties> = {
   wrap: {
     borderRadius: 22,
-    padding: 18,
+    padding: 20,
     border: "1px solid rgba(255,255,255,0.10)",
     background:
       "radial-gradient(900px 400px at 10% 0%, rgba(37,99,235,0.20), transparent 55%), radial-gradient(900px 420px at 90% 0%, rgba(124,58,237,0.18), transparent 55%), rgba(2,6,23,0.65)",
@@ -889,17 +889,26 @@ const S: Record<string, CSSProperties> = {
 
   topRow: {
     display: "flex",
-    gap: 14,
-    alignItems: "center",
+    gap: 18,
+    alignItems: "flex-start",
     justifyContent: "space-between",
   },
-  left: { minWidth: 0 },
-  right: { display: "flex", gap: 10, alignItems: "center" },
+  left: {
+    minWidth: 0,
+    flex: 1,
+    paddingTop: 2,
+  },
+  right: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexShrink: 0,
+  },
   kicker: {
     display: "inline-flex",
     gap: 10,
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   dot: {
     width: 10,
@@ -917,32 +926,34 @@ const S: Record<string, CSSProperties> = {
     fontSize: 26,
     fontWeight: 900,
     letterSpacing: -0.5,
+    lineHeight: 1.08,
     color: "#fff",
   },
   subtitle: {
-    margin: "6px 0 0",
+    margin: "8px 0 0",
     color: "#a8b3cf",
     fontSize: 13,
+    lineHeight: 1.45,
     fontWeight: 650,
+    maxWidth: 680,
   },
-iconBtn: {
-  height: 40,
-  padding: "0 16px",
-  minWidth: 110,
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background:
-    "linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.55))",
-  color: "#fff",
-  fontWeight: 900,
-  cursor: "pointer",
-
-  display: "inline-flex",        // 👈 clave
-  alignItems: "center",          // 👈 centra vertical
-  justifyContent: "center",      // 👈 centra horizontal
-  whiteSpace: "nowrap",          // 👈 evita salto de línea
-  flexShrink: 0,                 // 👈 evita que se comprima
-},
+  iconBtn: {
+    height: 40,
+    padding: "0 16px",
+    minWidth: 110,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background:
+      "linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.55))",
+    color: "#fff",
+    fontWeight: 900,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+  },
   ghostBtn: {
     height: 40,
     padding: "0 14px",
@@ -952,6 +963,7 @@ iconBtn: {
     color: "#fff",
     fontWeight: 900,
     cursor: "pointer",
+    flexShrink: 0,
   },
   bellWrap: { position: "relative", flexShrink: 0 },
   bellBtn: {
@@ -1019,7 +1031,7 @@ iconBtn: {
     textOverflow: "ellipsis",
   },
 
-  tabs: { position: "relative", marginTop: 14 },
+  tabs: { position: "relative", marginTop: 16 },
   tabsBg: {
     position: "absolute",
     inset: 0,
@@ -1072,7 +1084,7 @@ iconBtn: {
   nav: {
     display: "flex",
     gap: 10,
-    marginTop: 12,
+    marginTop: 14,
     flexWrap: "wrap",
   },
   pill: {
@@ -1112,7 +1124,7 @@ iconBtn: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: 2,
+    gap: 3,
     minWidth: 0,
   },
   mKickerRow: {
@@ -1133,11 +1145,13 @@ iconBtn: {
     fontSize: 18,
     fontWeight: 900,
     letterSpacing: -0.4,
+    lineHeight: 1.1,
     color: "#fff",
   },
   mSubtitle: {
-    margin: "10px 0 10px",
+    margin: "12px 0 12px",
     fontSize: 12,
+    lineHeight: 1.45,
     color: "#a8b3cf",
     fontWeight: 600,
   },
@@ -1155,7 +1169,7 @@ iconBtn: {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   mGhostBtn: {
     flex: 1,
