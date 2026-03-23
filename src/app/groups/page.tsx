@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import MobileScaffold from "@/components/MobileScaffold";
+import Section from "@/components/ui/Section";
+import Card from "@/components/ui/Card";
 
 import { getMyGroups, getGroupTypeLabel } from "@/lib/groupsDb";
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
@@ -27,6 +29,13 @@ type GroupWithRole = {
 
 type GroupFilter = "all" | "pair" | "family" | "shared";
 
+type UiToast =
+  | null
+  | {
+      title: string;
+      subtitle?: string;
+    };
+
 export default function GroupsPage() {
   const router = useRouter();
 
@@ -37,17 +46,8 @@ export default function GroupsPage() {
   const [filter, setFilter] = useState<GroupFilter>("all");
 
   const [pendingInvites, setPendingInvites] = useState(0);
-  const [toast, setToast] = useState<
-    | null
-    | {
-        title: string;
-        subtitle?: string;
-      }
-  >(null);
+  const [toast, setToast] = useState<UiToast>(null);
 
-  /* ============================
-     Boot y carga de datos
-     ============================ */
   useEffect(() => {
     let alive = true;
 
@@ -81,7 +81,7 @@ export default function GroupsPage() {
       if (withToast) {
         setToast({
           title: "Actualizando grupos…",
-          subtitle: "Cargando tus grupos y invitaciones",
+          subtitle: "Cargando tus grupos e invitaciones",
         });
       }
 
@@ -124,9 +124,6 @@ export default function GroupsPage() {
     }
   }
 
-  /* ============================
-     Cambiar grupo activo
-     ============================ */
   async function handleActivateGroup(groupId: string) {
     try {
       await setActiveGroupIdInDb(groupId);
@@ -153,9 +150,6 @@ export default function GroupsPage() {
     }
   }
 
-  /* ============================
-     Filtros derivados
-     ============================ */
   const filteredGroups = useMemo(() => {
     if (filter === "all") return groups;
 
@@ -183,29 +177,27 @@ export default function GroupsPage() {
       ? "Invitaciones"
       : `Invitaciones (${pendingInvites})`;
 
-  /* ============================
-     RENDER
-     ============================ */
   if (booting) {
     return (
       <MobileScaffold maxWidth={1120} style={styles.page}>
-        <div style={styles.stickyTop}>
-          <PremiumHeader />
-        </div>
+        <Section>
+          <PremiumHeader
+            title="Grupos"
+            subtitle="Organiza tu estructura compartida sin fricción."
+          />
 
-        <section style={styles.card}>
-          <div style={styles.loadingRow}>
-            <div style={styles.loadingDot} />
-            <div>
-              <div style={styles.loadingTitle}>
-                Cargando tus grupos…
-              </div>
-              <div style={styles.loadingSub}>
-                Preparando tus grupos e invitaciones
+          <Card style={styles.surfaceCard}>
+            <div style={styles.loadingRow}>
+              <div style={styles.loadingDot} />
+              <div>
+                <div style={styles.loadingTitle}>Cargando tus grupos…</div>
+                <div style={styles.loadingSub}>
+                  Preparando tus grupos e invitaciones
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </Card>
+        </Section>
       </MobileScaffold>
     );
   }
@@ -223,203 +215,195 @@ export default function GroupsPage() {
         </div>
       )}
 
-      <div style={styles.stickyTop}>
-        <PremiumHeader />
-      </div>
+      <Section>
+        <PremiumHeader
+          title="Grupos"
+          subtitle="Organiza tus espacios compartidos y define desde dónde se coordina el tiempo."
+        />
 
-      <section style={styles.card} className="sp-groups-card">
-        <div style={styles.headerRow}>
-          <div>
-            <div style={styles.kicker}>
-              Personas con las que te organizas
-            </div>
-            <h1 style={styles.h1}>Grupos</h1>
-            <p style={styles.sub}>{headerSubtitle}</p>
-          </div>
+        <Card style={styles.surfaceCard}>
+          <Section style={styles.contentStack}>
+            <div style={styles.headerRow}>
+              <div style={styles.headerCopy}>
+                <div style={styles.kicker}>Personas con las que te organizas</div>
+                <h1 style={styles.h1}>Grupos</h1>
+                <p style={styles.sub}>{headerSubtitle}</p>
+              </div>
 
-          <div style={styles.topActions}>
-            <button
-              type="button"
-              style={styles.secondary}
-              onClick={() => router.push("/invitations")}
-            >
-              {invitationsLabel}
-            </button>
+              <div style={styles.topActions}>
+                <button
+                  type="button"
+                  style={styles.secondary}
+                  onClick={() => router.push("/invitations")}
+                >
+                  {invitationsLabel}
+                </button>
 
-            <button
-              type="button"
-              style={styles.primary}
-              onClick={() => router.push("/groups/new")}
-            >
-              + Nuevo grupo
-            </button>
-          </div>
-        </div>
-
-        <section
-          className="sp-groups-hero"
-          style={styles.heroSection}
-        >
-          <div style={styles.heroLeft}>
-            <div style={styles.heroPill}>
-              <span style={styles.heroDot} />
-              Personas con las que te organizas
-            </div>
-            <h2 style={styles.heroTitle}>
-              Grupos para coordinar sin fricciones
-            </h2>
-            <p style={styles.heroText}>
-              Cada grupo tiene su propio calendario compartido. Aquí
-              decides con quién se cruzan tus planes: pareja, familia o
-              grupos compartidos como amigos y equipos.
-            </p>
-
-            <div style={styles.heroTip}>
-              <div style={styles.heroTipLabel}>Tip</div>
-              <p style={styles.heroTipText}>
-                Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>.
-                Después puedes sumar grupos compartidos (amigos, pádel,
-                trabajo) y dejar que SyncPlans señale los choques por
-                ustedes.
-              </p>
-            </div>
-          </div>
-
-          <div style={styles.heroSummary}>
-            <div style={styles.heroSummaryTitle}>
-              Resumen de tus grupos
-            </div>
-            <div style={styles.heroSummaryRow}>
-              <span style={styles.heroSummaryDotPair} />
-              <span>
-                {summary.pair} de pareja
-                {summary.pair === 1 ? "" : "s"}
-              </span>
-            </div>
-            <div style={styles.heroSummaryRow}>
-              <span style={styles.heroSummaryDotFamily} />
-              <span>
-                {summary.family} de familia
-                {summary.family === 1 ? "" : "s"}
-              </span>
-            </div>
-            <div style={styles.heroSummaryRow}>
-              <span style={styles.heroSummaryDotShared} />
-              <span>
-                {summary.shared} compartido
-                {summary.shared === 1 ? "" : "s"}
-              </span>
-            </div>
-
-            <div style={styles.heroSummaryHint}>
-              El grupo activo se usa para los conflictos y eventos
-              compartidos.
-            </div>
-          </div>
-        </section>
-
-        <section style={styles.filtersRow}>
-          <div style={styles.segment}>
-            <button
-              type="button"
-              style={{
-                ...styles.segmentBtn,
-                ...(filter === "all"
-                  ? styles.segmentBtnActive
-                  : {}),
-              }}
-              onClick={() => setFilter("all")}
-            >
-              Todos
-            </button>
-            <button
-              type="button"
-              style={{
-                ...styles.segmentBtn,
-                ...(filter === "pair"
-                  ? styles.segmentBtnActive
-                  : {}),
-              }}
-              onClick={() => setFilter("pair")}
-            >
-              Pareja
-            </button>
-            <button
-              type="button"
-              style={{
-                ...styles.segmentBtn,
-                ...(filter === "family"
-                  ? styles.segmentBtnActive
-                  : {}),
-              }}
-              onClick={() => setFilter("family")}
-            >
-              Familia
-            </button>
-            <button
-              type="button"
-              style={{
-                ...styles.segmentBtn,
-                ...(filter === "shared"
-                  ? styles.segmentBtnActive
-                  : {}),
-              }}
-              onClick={() => setFilter("shared")}
-            >
-              Compartidos
-            </button>
-          </div>
-
-          <button
-            type="button"
-            style={styles.refreshBtn}
-            onClick={() => refreshData(true)}
-          >
-            Actualizar
-          </button>
-        </section>
-
-        {loading ? (
-          <div style={styles.loadingList}>
-            <div style={styles.loadingRow}>
-              <div style={styles.loadingDot} />
-              <div>
-                <div style={styles.loadingTitle}>
-                  Cargando grupos…
-                </div>
-                <div style={styles.loadingSub}>
-                  Un momento, por favor.
-                </div>
+                <button
+                  type="button"
+                  style={styles.primary}
+                  onClick={() => router.push("/groups/new")}
+                >
+                  + Nuevo grupo
+                </button>
               </div>
             </div>
-          </div>
-        ) : filteredGroups.length === 0 ? (
-          <div style={styles.emptyState}>
-            <h2 style={styles.emptyTitle}>Aún no tienes grupos</h2>
-            <p style={styles.emptySub}>
-              Crea tu primer grupo de pareja, familia o compartido para
-              empezar a coordinar con otros.
-            </p>
-            <button
-              type="button"
-              style={styles.primary}
-              onClick={() => router.push("/groups/new")}
-            >
-              Crear grupo
-            </button>
-          </div>
-        ) : (
-          <div style={styles.groupList}>
-            {filteredGroups.map((g) => (
-              <GroupRow
-                key={g.id}
-                g={g}
-                onActivate={handleActivateGroup}
-              />
-            ))}
-          </div>
-        )}
-      </section>
+
+            <Card tone="muted" style={styles.heroSection}>
+              <div style={styles.heroLeft}>
+                <div style={styles.heroPill}>
+                  <span style={styles.heroDot} />
+                  Personas con las que te organizas
+                </div>
+
+                <h2 style={styles.heroTitle}>
+                  Grupos para coordinar sin fricciones
+                </h2>
+
+                <p style={styles.heroText}>
+                  Cada grupo tiene su propio calendario compartido. Aquí decides
+                  con quién se cruzan tus planes: pareja, familia o grupos
+                  compartidos como amigos, deporte o equipos.
+                </p>
+
+                <div style={styles.heroTip}>
+                  <div style={styles.heroTipLabel}>Tip</div>
+                  <p style={styles.heroTipText}>
+                    Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>.
+                    Después puedes sumar grupos compartidos y dejar que
+                    SyncPlans te señale los choques con claridad.
+                  </p>
+                </div>
+              </div>
+
+              <Card tone="strong" style={styles.heroSummary}>
+                <div style={styles.heroSummaryTitle}>Resumen de tus grupos</div>
+
+                <div style={styles.heroSummaryRow}>
+                  <span style={styles.heroSummaryDotPair} />
+                  <span>
+                    {summary.pair} de pareja
+                    {summary.pair === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                <div style={styles.heroSummaryRow}>
+                  <span style={styles.heroSummaryDotFamily} />
+                  <span>
+                    {summary.family} de familia
+                    {summary.family === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                <div style={styles.heroSummaryRow}>
+                  <span style={styles.heroSummaryDotShared} />
+                  <span>
+                    {summary.shared} compartido
+                    {summary.shared === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                <div style={styles.heroSummaryHint}>
+                  El grupo activo se usa como base para eventos compartidos y
+                  conflictos.
+                </div>
+              </Card>
+            </Card>
+
+            <div style={styles.filtersRow}>
+              <div style={styles.segment}>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.segmentBtn,
+                    ...(filter === "all" ? styles.segmentBtnActive : {}),
+                  }}
+                  onClick={() => setFilter("all")}
+                >
+                  Todos
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.segmentBtn,
+                    ...(filter === "pair" ? styles.segmentBtnActive : {}),
+                  }}
+                  onClick={() => setFilter("pair")}
+                >
+                  Pareja
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.segmentBtn,
+                    ...(filter === "family" ? styles.segmentBtnActive : {}),
+                  }}
+                  onClick={() => setFilter("family")}
+                >
+                  Familia
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.segmentBtn,
+                    ...(filter === "shared" ? styles.segmentBtnActive : {}),
+                  }}
+                  onClick={() => setFilter("shared")}
+                >
+                  Compartidos
+                </button>
+              </div>
+
+              <button
+                type="button"
+                style={styles.refreshBtn}
+                onClick={() => refreshData(true)}
+              >
+                Actualizar
+              </button>
+            </div>
+
+            {loading ? (
+              <Card tone="muted" style={styles.stateCard}>
+                <div style={styles.loadingRow}>
+                  <div style={styles.loadingDot} />
+                  <div>
+                    <div style={styles.loadingTitle}>Cargando grupos…</div>
+                    <div style={styles.loadingSub}>Un momento, por favor.</div>
+                  </div>
+                </div>
+              </Card>
+            ) : filteredGroups.length === 0 ? (
+              <Card tone="muted" style={styles.emptyState}>
+                <h2 style={styles.emptyTitle}>Aún no tienes grupos</h2>
+                <p style={styles.emptySub}>
+                  Crea tu primer grupo de pareja, familia o compartido para
+                  empezar a coordinar con otros.
+                </p>
+                <div style={styles.emptyActions}>
+                  <button
+                    type="button"
+                    style={styles.primary}
+                    onClick={() => router.push("/groups/new")}
+                  >
+                    Crear grupo
+                  </button>
+                </div>
+              </Card>
+            ) : (
+              <div style={styles.groupList}>
+                {filteredGroups.map((g) => (
+                  <GroupRow
+                    key={g.id}
+                    g={g}
+                    onActivate={handleActivateGroup}
+                  />
+                ))}
+              </div>
+            )}
+          </Section>
+        </Card>
+      </Section>
     </MobileScaffold>
   );
 }
@@ -431,10 +415,11 @@ function GroupRow({
   g: GroupWithRole;
   onActivate: (id: string) => void;
 }) {
+  const router = useRouter();
   const meta = metaForGroupType(g.type);
 
   return (
-    <div style={styles.groupRow} className="sp-groups-row">
+    <Card tone="muted" style={styles.groupRow}>
       <div style={styles.groupLeft}>
         <div style={styles.groupAvatar}>
           <span
@@ -444,7 +429,8 @@ function GroupRow({
             }}
           />
         </div>
-        <div>
+
+        <div style={styles.groupCopy}>
           <div style={styles.groupName}>{g.name || meta.label}</div>
           <div style={styles.groupMetaRow}>
             <span style={styles.groupMetaType}>
@@ -452,13 +438,10 @@ function GroupRow({
             </span>
             <span style={styles.dotSeparator}>•</span>
             <span style={styles.groupMetaMembers}>
-              {g.members_count} persona
-              {g.members_count === 1 ? "" : "s"}
+              {g.members_count} persona{g.members_count === 1 ? "" : "s"}
             </span>
             <span style={styles.dotSeparator}>•</span>
-            <span style={styles.groupMetaRole}>
-              {roleLabel(g.role)}
-            </span>
+            <span style={styles.groupMetaRole}>{roleLabel(g.role)}</span>
           </div>
         </div>
       </div>
@@ -479,20 +462,15 @@ function GroupRow({
         <button
           type="button"
           style={styles.linkBtn}
-          onClick={() => {
-            window.location.href = `/groups/${g.id}`;
-          }}
+          onClick={() => router.push(`/groups/${g.id}`)}
         >
           Ver detalles
         </button>
       </div>
-    </div>
+    </Card>
   );
 }
 
-/* ============================
-   Helpers
-   ============================ */
 function roleLabel(role: GroupRole) {
   switch (role) {
     case "owner":
@@ -525,26 +503,11 @@ function metaForGroupType(type: string) {
   }
 }
 
-/* ============================
-   Styles
-   ============================ */
 const styles: Record<string, React.CSSProperties> = {
   page: {
     background:
       "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
-  },
-
-  stickyTop: {
-    position: "sticky",
-    top: 0,
-    zIndex: 20,
-    paddingTop: 10,
-    paddingBottom: 10,
-    backdropFilter: "blur(16px)",
-    background:
-      "linear-gradient(180deg, rgba(5,8,22,0.92), rgba(5,8,22,0.78))",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
   },
 
   toastWrap: {
@@ -577,17 +540,12 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 650,
   },
 
-  card: {
-    marginTop: 14,
-    borderRadius: 20,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(6,10,25,0.90)",
-    boxShadow:
-      "0 22px 70px rgba(0,0,0,0.55), 0 0 0 1px rgba(15,23,42,0.60)",
-    padding: "18px 16px 18px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 16,
+  surfaceCard: {
+    gap: 0,
+  },
+
+  contentStack: {
+    marginBottom: 0,
   },
 
   headerRow: {
@@ -596,6 +554,10 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "flex-start",
     gap: 18,
     flexWrap: "wrap",
+  },
+  headerCopy: {
+    minWidth: 0,
+    flex: 1,
   },
   kicker: {
     fontSize: 11,
@@ -615,7 +577,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 6,
     fontSize: 13,
     color: "rgba(209,213,219,0.96)",
-    maxWidth: 420,
+    maxWidth: 460,
   },
 
   topActions: {
@@ -626,19 +588,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   heroSection: {
-    marginTop: 12,
-    borderRadius: 18,
-    border: "1px solid rgba(31,41,55,0.95)",
-    background:
-      "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.20), transparent 60%), radial-gradient(circle at 100% 100%, rgba(16,185,129,0.16), transparent 55%), rgba(15,23,42,0.96)",
-    padding: 14,
+    marginTop: 4,
     display: "flex",
     gap: 18,
     flexWrap: "wrap",
+    alignItems: "stretch",
   },
   heroLeft: {
     flex: 1,
-    minWidth: 220,
+    minWidth: 240,
   },
   heroPill: {
     display: "inline-flex",
@@ -666,14 +624,14 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 950,
   },
   heroText: {
-    marginTop: 6,
+    marginTop: 8,
     fontSize: 13,
+    lineHeight: 1.65,
     color: "rgba(226,232,240,0.96)",
   },
-
   heroTip: {
-    marginTop: 10,
-    padding: 10,
+    marginTop: 12,
+    padding: 12,
     borderRadius: 14,
     border: "1px dashed rgba(191,219,254,0.9)",
     background: "rgba(15,23,42,0.96)",
@@ -687,21 +645,20 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 4,
   },
   heroTipText: {
+    margin: 0,
     fontSize: 13,
+    lineHeight: 1.6,
     color: "rgba(226,232,240,0.96)",
   },
 
   heroSummary: {
-    width: 220,
-    borderRadius: 16,
-    border: "1px solid rgba(15,23,42,0.95)",
-    background: "rgba(15,23,42,0.92)",
-    padding: 10,
+    width: 240,
+    alignSelf: "stretch",
   },
   heroSummaryTitle: {
     fontSize: 13,
     fontWeight: 900,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   heroSummaryRow: {
     display: "flex",
@@ -709,7 +666,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     fontSize: 12,
     color: "rgba(209,213,219,0.96)",
-    marginBottom: 3,
+    marginBottom: 6,
   },
   heroSummaryDotPair: {
     width: 8,
@@ -730,13 +687,14 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(129,140,248,0.98)",
   },
   heroSummaryHint: {
-    marginTop: 6,
+    marginTop: 8,
     fontSize: 12,
+    lineHeight: 1.55,
     color: "rgba(148,163,184,0.96)",
   },
 
   filtersRow: {
-    marginTop: 10,
+    marginTop: 2,
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
@@ -749,9 +707,10 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(148,163,184,0.75)",
     background: "rgba(15,23,42,0.96)",
     overflow: "hidden",
+    flexWrap: "wrap",
   },
   segmentBtn: {
-    padding: "7px 11px",
+    padding: "8px 12px",
     fontSize: 12,
     background: "transparent",
     border: "none",
@@ -766,7 +725,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   refreshBtn: {
-    padding: "7px 11px",
+    padding: "8px 12px",
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.75)",
     background: "rgba(15,23,42,0.96)",
@@ -776,8 +735,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
   },
 
+  stateCard: {
+    marginTop: 2,
+  },
+
   groupList: {
-    marginTop: 12,
     display: "flex",
     flexDirection: "column",
     gap: 10,
@@ -788,21 +750,22 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     alignItems: "stretch",
     gap: 12,
-    borderRadius: 16,
-    border: "1px solid rgba(31,41,55,0.95)",
-    background: "rgba(15,23,42,0.96)",
-    padding: 10,
+    padding: 14,
   },
   groupLeft: {
     display: "flex",
-    gap: 10,
+    gap: 12,
     alignItems: "center",
     flex: 1,
     minWidth: 0,
   },
+  groupCopy: {
+    minWidth: 0,
+    flex: 1,
+  },
   groupAvatar: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: 12,
     border: "1px solid rgba(148,163,184,0.75)",
     display: "flex",
@@ -819,9 +782,12 @@ const styles: Record<string, React.CSSProperties> = {
   groupName: {
     fontSize: 14,
     fontWeight: 900,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   groupMetaRow: {
-    marginTop: 2,
+    marginTop: 4,
     fontSize: 12,
     color: "rgba(148,163,184,0.96)",
     display: "flex",
@@ -843,11 +809,11 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     gap: 8,
     flexShrink: 0,
-    minWidth: 140,
+    minWidth: 146,
   },
 
   activateBtn: {
-    padding: "6px 10px",
+    padding: "7px 11px",
     borderRadius: 999,
     border: "1px solid rgba(56,189,248,0.75)",
     background: "rgba(15,23,42,0.96)",
@@ -859,7 +825,7 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: "center",
   },
   activeBadge: {
-    padding: "6px 10px",
+    padding: "7px 11px",
     borderRadius: 999,
     border: "1px solid rgba(34,197,94,0.75)",
     background: "rgba(22,163,74,0.16)",
@@ -868,7 +834,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
   },
   linkBtn: {
-    padding: "6px 10px",
+    padding: "7px 11px",
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.75)",
     background: "rgba(15,23,42,0.96)",
@@ -881,32 +847,26 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   emptyState: {
-    marginTop: 12,
-    borderRadius: 18,
-    border: "1px dashed rgba(148,163,184,0.75)",
-    background: "rgba(15,23,42,0.92)",
-    padding: 16,
     textAlign: "center",
   },
   emptyTitle: {
+    margin: 0,
     fontSize: 16,
     fontWeight: 950,
   },
   emptySub: {
-    marginTop: 4,
+    marginTop: 6,
+    marginBottom: 0,
     fontSize: 13,
+    lineHeight: 1.65,
     color: "rgba(209,213,219,0.96)",
-    marginBottom: 10,
+  },
+  emptyActions: {
+    marginTop: 12,
+    display: "flex",
+    justifyContent: "center",
   },
 
-  loadingList: {
-    marginTop: 12,
-    borderRadius: 18,
-    border: "1px solid rgba(30,64,175,0.8)",
-    background:
-      "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.22), transparent 55%), rgba(15,23,42,0.96)",
-    padding: 14,
-  },
   loadingRow: {
     display: "flex",
     gap: 10,

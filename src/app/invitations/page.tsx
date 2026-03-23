@@ -1,4 +1,3 @@
-// src/app/invitations/page.tsx
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -7,6 +6,8 @@ import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import MobileScaffold from "@/components/MobileScaffold";
+import Section from "@/components/ui/Section";
+import Card from "@/components/ui/Card";
 
 import {
   getMyInvitations,
@@ -23,6 +24,7 @@ const groupLabel: Record<string, string> = {
   couple: "Pareja",
   family: "Familia",
   other: "Compartido",
+  shared: "Compartido",
 };
 
 function labelForGroupType(t?: string | null) {
@@ -112,12 +114,10 @@ export default function InvitationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ aceptar SIEMPRE por pantalla premium
   const onAccept = (id: string) => {
     router.push(`/invitations/accept?invite=${encodeURIComponent(id)}`);
   };
 
-  // ✅ rechazar: sin confirm(), con toast + recarga
   const onDecline = async (id: string) => {
     setActing(id);
     try {
@@ -145,14 +145,14 @@ export default function InvitationsPage() {
     );
   }, [normalizedInvites]);
 
-  const title = "Invitaciones";
   const isEmpty = !loading && !error && pendingInvites.length === 0;
+  const pendingCount = pendingInvites.length;
 
   return (
     <MobileScaffold maxWidth={1120} style={styles.page}>
       {toast && (
-        <div style={styles.toastWrap} className="spInv-toastWrap">
-          <div style={styles.toastCard} className="spInv-toastCard">
+        <div style={styles.toastWrap}>
+          <div style={styles.toastCard}>
             <div style={styles.toastTitle}>{toast.title}</div>
             {toast.subtitle ? (
               <div style={styles.toastSub}>{toast.subtitle}</div>
@@ -161,116 +161,155 @@ export default function InvitationsPage() {
         </div>
       )}
 
-      <div style={styles.shell} className="spInv-shell">
-        <div style={styles.headerRow} className="spInv-headerRow">
-          <PremiumHeader />
-        </div>
+      <Section>
+        <PremiumHeader
+          title="Invitaciones"
+          subtitle="Gestiona accesos pendientes y acepta nuevos espacios compartidos."
+        />
 
-        <section style={styles.hero} className="spInv-hero">
-          <div>
-            <div style={styles.kicker}>Tu bandeja</div>
-            <h1 style={styles.h1} className="spInv-h1">
-              {title}
-            </h1>
-            <div style={styles.sub} className="spInv-sub">
-             Grupos a los que te han invitado. Acepta para unirte.
-            </div>
-          </div>
+        <Card style={styles.surfaceCard}>
+          <Section style={styles.contentStack}>
+            <div style={styles.headerRow}>
+              <div style={styles.headerCopy}>
+                <div style={styles.kicker}>Tu bandeja</div>
+                <h1 style={styles.h1}>Invitaciones</h1>
+                <p style={styles.sub}>
+                  Grupos a los que te han invitado. Acepta para unirte y empezar
+                  a coordinar desde un mismo lugar.
+                </p>
+              </div>
 
-          <div style={styles.heroActions} className="spInv-heroActions">
-            <button
-              onClick={() => router.push("/groups")}
-              style={styles.ghostBtn}
-              disabled={loading}
-            >
-              ← Volver a grupos
-            </button>
-            <button
-              onClick={load}
-              style={styles.primaryBtn}
-              disabled={loading}
-            >
-              {loading ? "Actualizando…" : "Actualizar"}
-            </button>
-          </div>
-        </section>
-
-        {booting ? (
-          <div style={styles.loadingCard} className="spInv-loadingCard">
-            <div style={styles.loadingDot} />
-            <div>
-              <div style={styles.loadingTitle}>Preparando…</div>
-              <div style={styles.loadingSub}>Invitaciones</div>
-            </div>
-          </div>
-        ) : loading ? (
-          <div style={styles.card} className="spInv-card">
-            Cargando…
-          </div>
-        ) : error ? (
-          <div
-            style={{
-              ...styles.card,
-              border: "1px solid rgba(248,113,113,0.22)",
-              background: "rgba(248,113,113,0.08)",
-              color: "#ffe6e6",
-            }}
-          >
-            {error}
-          </div>
-        ) : isEmpty ? (
-          <div style={styles.emptyCard} className="spInv-emptyCard">
-            <div style={styles.emptyTitle}>No tienes invitaciones pendientes</div>
-            <div style={styles.emptySub}>
-              Cuando alguien te invite a un grupo, aparecerá aquí.
-            </div>
-          </div>
-        ) : (
-          <section style={styles.list} className="spInv-list">
-            {pendingInvites.map((invite) => {
-              const busy = acting === invite.id;
-              return (
-                <article
-                  key={invite.id}
-                  style={styles.inviteCard}
-                  className="spInv-inviteCard"
+              <div style={styles.topActions}>
+                <button
+                  onClick={() => router.push("/groups")}
+                  style={styles.ghostBtn}
+                  disabled={loading}
                 >
-                  <div style={styles.inviteTop}>
-                    <div style={styles.inviteMeta}>
-                      <div style={styles.inviteTitle}>
-                        {invite.group_name || "Grupo sin nombre"}
-                      </div>
-                      <div style={styles.inviteSub}>
-                        {labelForGroupType(invite.group_type)} ·{" "}
-                        {safeDateLabel(invite.created_at)}
-                      </div>
-                    </div>
+                  ← Volver a grupos
+                </button>
+                <button
+                  onClick={load}
+                  style={styles.primaryBtn}
+                  disabled={loading}
+                >
+                  {loading ? "Actualizando…" : "Actualizar"}
+                </button>
+              </div>
+            </div>
 
-                    <div style={styles.badgePending}>Pendiente</div>
-                  </div>
+            <Card tone="muted" style={styles.heroSection}>
+              <div style={styles.heroLeft}>
+                <div style={styles.heroPill}>
+                  <span style={styles.heroDot} />
+                  Accesos pendientes
+                </div>
 
-                  <div style={styles.actions}>
-                    <button
-                      onClick={() => onAccept(invite.id)}
-                      disabled={busy}
-                      style={styles.primaryBtn}
-                    >
-                      Aceptar
-                    </button>
-                    <button
-                      onClick={() => onDecline(invite.id)}
-                      disabled={busy}
-                      style={styles.ghostBtn}
-                    >
-                      {busy ? "Procesando…" : "Rechazar"}
-                    </button>
+                <h2 style={styles.heroTitle}>
+                  Todo lo que aún está esperando tu decisión
+                </h2>
+
+                <p style={styles.heroText}>
+                  Aquí aparecen los grupos a los que te han invitado. Cuando
+                  aceptas, pasas a formar parte del espacio compartido y SyncPlans
+                  puede empezar a coordinar mejor tu tiempo con los demás.
+                </p>
+              </div>
+
+              <Card tone="strong" style={styles.heroSummary}>
+                <div style={styles.heroSummaryTitle}>Resumen rápido</div>
+                <div style={styles.heroSummaryNumber}>{pendingCount}</div>
+                <div style={styles.heroSummaryLabel}>
+                  invitación{pendingCount === 1 ? "" : "es"} pendiente
+                  {pendingCount === 1 ? "" : "s"}
+                </div>
+                <div style={styles.heroSummaryHint}>
+                  Aceptar te lleva por el flujo premium de ingreso al grupo.
+                </div>
+              </Card>
+            </Card>
+
+            {booting ? (
+              <Card tone="muted" style={styles.stateCard}>
+                <div style={styles.loadingRow}>
+                  <div style={styles.loadingDot} />
+                  <div>
+                    <div style={styles.loadingTitle}>Preparando…</div>
+                    <div style={styles.loadingSub}>Invitaciones</div>
                   </div>
-                </article>
-              );
-            })}
-          </section>
-        )}
-      </div>
+                </div>
+              </Card>
+            ) : loading ? (
+              <Card tone="muted" style={styles.stateCard}>
+                <div style={styles.loadingRow}>
+                  <div style={styles.loadingDot} />
+                  <div>
+                    <div style={styles.loadingTitle}>Cargando invitaciones…</div>
+                    <div style={styles.loadingSub}>Un momento, por favor.</div>
+                  </div>
+                </div>
+              </Card>
+            ) : error ? (
+              <Card style={styles.errorCard}>
+                <div style={styles.errorTitle}>No se pudieron cargar</div>
+                <div style={styles.errorText}>{error}</div>
+              </Card>
+            ) : isEmpty ? (
+              <Card tone="muted" style={styles.emptyCard}>
+                <div style={styles.emptyTitle}>
+                  No tienes invitaciones pendientes
+                </div>
+                <div style={styles.emptySub}>
+                  Cuando alguien te invite a un grupo, aparecerá aquí.
+                </div>
+              </Card>
+            ) : (
+              <div style={styles.list}>
+                {pendingInvites.map((invite) => {
+                  const busy = acting === invite.id;
+                  return (
+                    <Card
+                      key={invite.id}
+                      tone="muted"
+                      style={styles.inviteCard}
+                    >
+                      <div style={styles.inviteTop}>
+                        <div style={styles.inviteMeta}>
+                          <div style={styles.inviteTitle}>
+                            {invite.group_name || "Grupo sin nombre"}
+                          </div>
+                          <div style={styles.inviteSub}>
+                            {labelForGroupType(invite.group_type)} ·{" "}
+                            {safeDateLabel(invite.created_at)}
+                          </div>
+                        </div>
+
+                        <div style={styles.badgePending}>Pendiente</div>
+                      </div>
+
+                      <div style={styles.actions}>
+                        <button
+                          onClick={() => onAccept(invite.id)}
+                          disabled={busy}
+                          style={styles.primaryBtn}
+                        >
+                          Aceptar
+                        </button>
+                        <button
+                          onClick={() => onDecline(invite.id)}
+                          disabled={busy}
+                          style={styles.ghostBtn}
+                        >
+                          {busy ? "Procesando…" : "Rechazar"}
+                        </button>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
+        </Card>
+      </Section>
     </MobileScaffold>
   );
 }
@@ -282,68 +321,126 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#f8fafc",
   },
 
- shell: {
-  width: "100%",
-  maxWidth: 1120,
-  margin: "0 auto",
-  display: "grid",
-  gap: 18,
-},
-
-  headerRow: {
-    display: "block",
+  surfaceCard: {
+    gap: 0,
   },
 
-hero: {
-  width: "100%",
-  maxWidth: 900,
-  margin: "0 auto",
-  display: "grid",
-  gap: 16,
-  borderRadius: 28,
-  border: "1px solid rgba(255,255,255,0.10)",
-  background:
-    "linear-gradient(180deg, rgba(8,15,35,0.94), rgba(6,10,24,0.9))",
-  boxShadow:
-    "0 24px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05)",
-  padding: 22,
-},
+  contentStack: {
+    marginBottom: 0,
+  },
+
+  headerRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 18,
+    flexWrap: "wrap",
+  },
+  headerCopy: {
+    minWidth: 0,
+    flex: 1,
+  },
 
   kicker: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "10px 16px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.03)",
-    color: "rgba(255,255,255,0.86)",
-    fontSize: 13,
-    fontWeight: 800,
-    letterSpacing: "0.18em",
+    fontSize: 11,
+    letterSpacing: "0.14em",
     textTransform: "uppercase",
-    marginBottom: 14,
+    color: "rgba(148,163,184,0.95)",
+    fontWeight: 800,
+    marginBottom: 6,
   },
 
   h1: {
     margin: 0,
-    fontSize: "clamp(2rem, 4vw, 3rem)",
-    lineHeight: 1.02,
+    fontSize: 22,
     letterSpacing: "-0.03em",
-    fontWeight: 900,
+    fontWeight: 950,
   },
 
   sub: {
-    marginTop: 12,
-    maxWidth: 680,
-    fontSize: "1.05rem",
+    marginTop: 6,
+    maxWidth: 700,
+    fontSize: 13,
     lineHeight: 1.65,
     color: "rgba(226,232,240,0.84)",
   },
 
-  heroActions: {
+  topActions: {
     display: "flex",
     flexWrap: "wrap",
-    gap: 12,
+    gap: 10,
+  },
+
+  heroSection: {
+    display: "flex",
+    gap: 18,
+    flexWrap: "wrap",
+    alignItems: "stretch",
+  },
+  heroLeft: {
+    flex: 1,
+    minWidth: 240,
+  },
+  heroPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(191,219,254,0.9)",
+    background: "rgba(15,23,42,0.9)",
+    fontSize: 11,
+    color: "rgba(219,234,254,0.98)",
+    letterSpacing: "0.10em",
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  heroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(59,130,246,0.98)",
+  },
+  heroTitle: {
+    margin: 0,
+    fontSize: 18,
+    fontWeight: 950,
+  },
+  heroText: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 1.65,
+    color: "rgba(226,232,240,0.96)",
+  },
+  heroSummary: {
+    width: 240,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+  },
+  heroSummaryTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+    marginBottom: 8,
+  },
+  heroSummaryNumber: {
+    fontSize: 32,
+    lineHeight: 1,
+    fontWeight: 950,
+    letterSpacing: "-0.04em",
+    color: "#ffffff",
+  },
+  heroSummaryLabel: {
+    marginTop: 6,
+    fontSize: 13,
+    color: "rgba(226,232,240,0.88)",
+    fontWeight: 700,
+  },
+  heroSummaryHint: {
+    marginTop: 10,
+    fontSize: 12,
+    lineHeight: 1.55,
+    color: "rgba(148,163,184,0.96)",
   },
 
   primaryBtn: {
@@ -352,10 +449,10 @@ hero: {
     background:
       "linear-gradient(135deg, rgba(37,99,235,0.34), rgba(124,58,237,0.34))",
     color: "#ffffff",
-    borderRadius: 18,
-    padding: "14px 18px",
+    borderRadius: 16,
+    padding: "12px 16px",
     fontWeight: 800,
-    fontSize: 15,
+    fontSize: 14,
     cursor: "pointer",
     boxShadow: "0 16px 34px rgba(29,78,216,0.18)",
   },
@@ -365,62 +462,51 @@ hero: {
     border: "1px solid rgba(255,255,255,0.14)",
     background: "rgba(255,255,255,0.04)",
     color: "#ffffff",
-    borderRadius: 18,
-    padding: "14px 18px",
+    borderRadius: 16,
+    padding: "12px 16px",
     fontWeight: 800,
-    fontSize: 15,
+    fontSize: 14,
     cursor: "pointer",
   },
 
- card: {
-  width: "100%",
-  maxWidth: 900,
-  margin: "0 auto",
-  borderRadius: 24,
-  border: "1px solid rgba(255,255,255,0.10)",
-  background:
-    "linear-gradient(180deg, rgba(8,15,35,0.90), rgba(6,10,24,0.88))",
-  padding: 18,
-},
+  stateCard: {
+    padding: 18,
+  },
 
-emptyCard: {
-  width: "100%",
-  maxWidth: 900,
-  margin: "0 auto",
-  borderRadius: 24,
-  border: "1px solid rgba(255,255,255,0.10)",
-  background:
-    "linear-gradient(180deg, rgba(8,15,35,0.90), rgba(6,10,24,0.88))",
-  padding: 24,
-  display: "grid",
-  gap: 10,
-},
-
+  emptyCard: {
+    textAlign: "center",
+  },
   emptyTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: 900,
     letterSpacing: "-0.02em",
   },
-
   emptySub: {
+    marginTop: 6,
     color: "rgba(226,232,240,0.78)",
     lineHeight: 1.65,
   },
 
-loadingCard: {
-  width: "100%",
-  maxWidth: 900,
-  margin: "0 auto",
-  borderRadius: 24,
-  border: "1px solid rgba(255,255,255,0.10)",
-  background:
-    "linear-gradient(180deg, rgba(8,15,35,0.90), rgba(6,10,24,0.88))",
-  padding: 20,
-  display: "flex",
-  alignItems: "center",
-  gap: 14,
-},
+  errorCard: {
+    border: "1px solid rgba(248,113,113,0.22)",
+    background: "rgba(248,113,113,0.08)",
+    color: "#ffe6e6",
+  },
+  errorTitle: {
+    fontSize: 15,
+    fontWeight: 900,
+  },
+  errorText: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 1.55,
+  },
 
+  loadingRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+  },
   loadingDot: {
     width: 14,
     height: 14,
@@ -429,31 +515,22 @@ loadingCard: {
     boxShadow: "0 0 28px rgba(56,189,248,0.55)",
     flexShrink: 0,
   },
-
   loadingTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 800,
   },
-
   loadingSub: {
     marginTop: 4,
     color: "rgba(226,232,240,0.72)",
+    fontSize: 13,
   },
 
- list: {
-  width: "100%",
-  maxWidth: 900,
-  margin: "0 auto",
-  display: "grid",
-  gap: 14,
-},
+  list: {
+    display: "grid",
+    gap: 14,
+  },
 
   inviteCard: {
-    borderRadius: 24,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(8,15,35,0.90), rgba(6,10,24,0.88))",
-    padding: 18,
     display: "grid",
     gap: 16,
   },
@@ -463,6 +540,7 @@ loadingCard: {
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 14,
+    flexWrap: "wrap",
   },
 
   inviteMeta: {
@@ -471,7 +549,7 @@ loadingCard: {
   },
 
   inviteTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 900,
     letterSpacing: "-0.02em",
   },
@@ -479,6 +557,7 @@ loadingCard: {
   inviteSub: {
     color: "rgba(226,232,240,0.78)",
     lineHeight: 1.55,
+    fontSize: 13,
   },
 
   badgePending: {

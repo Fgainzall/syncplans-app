@@ -1,21 +1,25 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import React from "react";
 
 type SectionProps = {
-  children: ReactNode;
-  style?: CSSProperties;
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+  className?: string;
 };
 
-export default function Section({ children, style }: SectionProps) {
+export default function Section({
+  children,
+  style,
+  className,
+}: SectionProps) {
   return (
     <section
+      className={className}
       style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 16,
+        display: "grid",
+        gap: 18,
         width: "100%",
-        marginBottom: 20,
         ...style,
       }}
     >

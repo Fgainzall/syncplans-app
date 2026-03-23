@@ -9,7 +9,9 @@ import React, {
 } from "react";
 import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
-import AppHero from "@/components/AppHero";
+import PremiumHeader from "@/components/PremiumHeader";
+import Section from "@/components/ui/Section";
+import Card from "@/components/ui/Card";
 import MobileScaffold from "@/components/MobileScaffold";
 
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
@@ -633,7 +635,7 @@ const summarySubtitle = !isMobile
   }, [router, conflictAlert]);
 
   return (
-    <main style={styles.page} className="spSum-page">
+    <div style={styles.page} className="spSum-page">
       {toast && (
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
@@ -650,14 +652,10 @@ const summarySubtitle = !isMobile
         paddingDesktop="10px 0 110px"
         paddingMobile="10px 0 110px"
       >
-        <div style={styles.shell} className="spSum-shell">
-        <section style={styles.hero} className="spSum-hero">
-  <div style={styles.heroLeft}>
-    <AppHero title={title} subtitle={summarySubtitle} />
-  </div>
-</section>
+        <Section style={styles.shell} className="spSum-shell">
+          <PremiumHeader title={title} subtitle={summarySubtitle} />
 
-          <section style={styles.card} className="spSum-card">
+          <Card style={styles.card} className="spSum-card">
             {conflictAlert.count > 0 ? (
               <button
                 onClick={openConflictCenter}
@@ -860,9 +858,9 @@ const summarySubtitle = !isMobile
                 )}
               </>
             )}
-          </section>
+          </Card>
 
-          <section style={styles.card} className="spSum-card">
+          <Card style={styles.card} className="spSum-card">
             <div style={styles.sectionTitle}>Acciones rápidas</div>
            <div style={styles.smallNote}>
   Resuelve lo urgente desde aquí sin salir de tu vista operativa.
@@ -902,8 +900,8 @@ const summarySubtitle = !isMobile
 </div>
               </button>
             </div>
-          </section>
-        </div>
+          </Card>
+        </Section>
       </MobileScaffold>
 
       <style>{`
@@ -962,7 +960,7 @@ const summarySubtitle = !isMobile
           }
         }
       `}</style>
-    </main>
+    </div>
   );
 }
 

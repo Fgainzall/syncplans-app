@@ -10,7 +10,9 @@ import React, {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
-import AppHero from "@/components/AppHero";
+import PremiumHeader from "@/components/PremiumHeader";
+import Section from "@/components/ui/Section";
+import Card from "@/components/ui/Card";
 import MobileScaffold from "@/components/MobileScaffold";
 import { EventEditModal } from "@/components/EventEditModal";
 import { CalendarFilters } from "./CalendarFilters";
@@ -856,28 +858,37 @@ const openConflicts = () => {
 
   if (booting) {
     return (
-      <MobileScaffold>
-        <main style={styles.page}>
-          <div style={styles.stickyTop}>
-            <AppHero
-              title="Calendario"
-              subtitle="Una sola vista para tus eventos personales, de pareja y familia."
-              mobileNav="bottom"
-            />
-          </div>
+      <MobileScaffold maxWidth={1120} style={styles.page}>
+        <Section>
+          <PremiumHeader
+            title="Calendario"
+            subtitle="Visualiza tu tiempo con claridad y detecta choques rápido."
+            rightSlot={
+              <button
+                onClick={handleRefresh}
+                style={{
+                  ...styles.ghostBtn,
+                  padding: isMobile ? "6px 10px" : "10px 12px",
+                  fontSize: isMobile ? 12 : 14,
+                }}
+              >
+                Actualizar
+              </button>
+            }
+          />
 
-          <div style={styles.loadingCard}>
-            <div style={styles.loadingDot} />
-            <div>
-              <div style={styles.loadingTitle}>
-                Cargando tu calendario…
-              </div>
-              <div style={styles.loadingSub}>
-                Preparando tus eventos y grupos
+          <Card style={styles.loadingCard}>
+            <div style={styles.loadingRow}>
+              <div style={styles.loadingDot} />
+              <div>
+                <div style={styles.loadingTitle}>Cargando tu calendario…</div>
+                <div style={styles.loadingSub}>
+                  Preparando tus eventos y grupos
+                </div>
               </div>
             </div>
-          </div>
-        </main>
+          </Card>
+        </Section>
       </MobileScaffold>
     );
   }
@@ -885,7 +896,7 @@ const openConflicts = () => {
   const monthTitle = prettyMonthRange(monthStart, monthEnd);
 
   return (
-    <MobileScaffold>
+    <MobileScaffold maxWidth={1120} style={styles.page}>
       {toast && (
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
@@ -897,86 +908,84 @@ const openConflicts = () => {
         </div>
       )}
 
-      <main style={styles.page} className="spCal-shell">
-        <div style={styles.stickyTop}>
-<AppHero
-  mobileNav="bottom"
-  title="Calendario"
-  subtitle={isMobile ? "" : "Organiza tu tiempo sin fricción."}
-  rightSlot={
-  <button
-    onClick={handleRefresh}
-    style={{
-      ...styles.ghostBtn,
-      padding: isMobile ? "6px 10px" : "10px 12px",
-      fontSize: isMobile ? 12 : 14,
-    }}
-  >
-    Actualizar
-  </button>
-}
-/>
-        </div>
+      <Section>
+        <PremiumHeader
+          title="Calendario"
+          subtitle="Visualiza tu tiempo con claridad y detecta choques rápido."
+          rightSlot={
+            <button
+              onClick={handleRefresh}
+              style={{
+                ...styles.ghostBtn,
+                padding: isMobile ? "6px 10px" : "10px 12px",
+                fontSize: isMobile ? 12 : 14,
+              }}
+            >
+              Actualizar
+            </button>
+          }
+        />
 
-       <section style={styles.overviewCard} className="spCal-overviewCard">
-  <div style={styles.overviewTop}>
-    <div style={styles.overviewLeft}>
-      <div style={styles.overviewEyebrow}>Vista actual</div>
-      <h2 style={styles.overviewTitle}>
-        {tab === "month" ? "Vista mensual" : "Vista agenda"}
-      </h2>
-      <div style={styles.overviewSub}>
-        {monthTitle}
-        {error ? ` · ${error}` : ""}
-      </div>
-    </div>
+        <Card style={styles.overviewCard} className="spCal-overviewCard">
+          <div style={styles.overviewTop}>
+            <div style={styles.overviewLeft}>
+              <div style={styles.overviewEyebrow}>Vista actual</div>
+              <h2 style={styles.overviewTitle}>
+                {tab === "month" ? "Vista mensual" : "Vista agenda"}
+              </h2>
+              <div style={styles.overviewSub}>
+                {monthTitle}
+                {error ? ` · ${error}` : ""}
+              </div>
+            </div>
 
-    <div style={styles.overviewActions}>
-      <button
-        onClick={() => openNewEventPersonal()}
-        style={styles.primaryBtnPersonal}
-      >
-        + Personal
-      </button>
-      <button
-        onClick={() => openNewEventGroup()}
-        style={styles.primaryBtnGroup}
-      >
-        + Grupo
-      </button>
-    </div>
-  </div>
+            <div style={styles.overviewActions}>
+              <button
+                onClick={() => openNewEventPersonal()}
+                style={styles.primaryBtnPersonal}
+              >
+                + Personal
+              </button>
+              <button
+                onClick={() => openNewEventGroup()}
+                style={styles.primaryBtnGroup}
+              >
+                + Grupo
+              </button>
+            </div>
+          </div>
 
-  <div style={styles.overviewMetaRow}>
-    {!eventsLoaded ? (
-      <div style={styles.statusPillNeutral}>
-        <span style={styles.statusDotNeutral} />
-        Revisando conflictos…
-      </div>
-    ) : conflictCount > 0 ? (
-      <div style={styles.statusCluster}>
-        <button onClick={openConflicts} style={styles.statusPillDanger}>
-          <span style={styles.statusDotDanger} />
-          {conflictCount} conflicto{conflictCount === 1 ? "" : "s"} activo
-          {conflictCount === 1 ? "" : "s"}
-        </button>
+          <div style={styles.overviewMetaRow}>
+            {!eventsLoaded ? (
+              <div style={styles.statusPillNeutral}>
+                <span style={styles.statusDotNeutral} />
+                Revisando conflictos…
+              </div>
+            ) : conflictCount > 0 ? (
+              <div style={styles.statusCluster}>
+                <button onClick={openConflicts} style={styles.statusPillDanger}>
+                  <span style={styles.statusDotDanger} />
+                  {conflictCount} conflicto{conflictCount === 1 ? "" : "s"} activo
+                  {conflictCount === 1 ? "" : "s"}
+                </button>
 
-        <button onClick={resolveNow} style={styles.statusPillAction}>
-          Resolver ahora
-        </button>
-      </div>
-    ) : (
-      <div style={styles.statusPillSuccess}>
-        <span style={styles.statusDotSuccess} />
-        Sin conflictos activos
-      </div>
-    )}
+                <button onClick={resolveNow} style={styles.statusPillAction}>
+                  Resolver ahora
+                </button>
+              </div>
+            ) : (
+              <div style={styles.statusPillSuccess}>
+                <span style={styles.statusDotSuccess} />
+                Sin conflictos activos
+              </div>
+            )}
 
-    <button onClick={handleRefresh} style={styles.overviewGhostBtn}>
-      Actualizar
-    </button>
-  </div>
-</section>
+            <button onClick={handleRefresh} style={styles.overviewGhostBtn}>
+              Actualizar
+            </button>
+          </div>
+        </Card>
+
         <CalendarFilters
           tab={tab}
           scope={scope}
@@ -995,18 +1004,9 @@ const openConflicts = () => {
         />
 
         {tab === "month" ? (
-          <section
-            style={styles.calendarCard}
-            className="spCal-calendarCard"
-          >
-            <div
-              className="spCal-monthScroller"
-              style={styles.monthScroller}
-            >
-              <div
-                style={styles.weekHeader}
-                className="spCal-weekHeader"
-              >
+          <Card style={styles.calendarCard} className="spCal-calendarCard">
+            <div className="spCal-monthScroller" style={styles.monthScroller}>
+              <div style={styles.weekHeader} className="spCal-weekHeader">
                 {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map(
                   (d) => (
                     <div key={d} style={styles.weekDay}>
@@ -1016,13 +1016,13 @@ const openConflicts = () => {
                 )}
               </div>
 
-             <div
-  style={{
-    ...styles.grid,
-    gridAutoRows: isMobile ? "110px" : "140px",
-  }}
-  className="spCal-grid"
->
+              <div
+                style={{
+                  ...styles.grid,
+                  gridAutoRows: isMobile ? "110px" : "140px",
+                }}
+                className="spCal-grid"
+              >
                 {renderMonthCells({
                   gridStart,
                   gridEnd,
@@ -1039,28 +1039,19 @@ const openConflicts = () => {
               </div>
             </div>
 
-            <div
-              style={styles.dayPanel}
-              className="spCal-dayPanel"
-            >
+            <div style={styles.dayPanel} className="spCal-dayPanel">
               <div style={styles.dayPanelTop}>
-                <div style={styles.dayPanelTitle}>
-                  {prettyDay(selectedDay)}
-                </div>
+                <div style={styles.dayPanelTitle}>{prettyDay(selectedDay)}</div>
 
                 <div style={styles.dayPanelActions}>
                   <button
-                    onClick={() =>
-                      openNewEventPersonal(selectedDay)
-                    }
+                    onClick={() => openNewEventPersonal(selectedDay)}
                     style={styles.ghostBtnSmallPersonal}
                   >
                     + Personal
                   </button>
                   <button
-                    onClick={() =>
-                      openNewEventGroup(selectedDay)
-                    }
+                    onClick={() => openNewEventGroup(selectedDay)}
                     style={styles.ghostBtnSmallGroup}
                   >
                     + Grupo
@@ -1069,31 +1060,26 @@ const openConflicts = () => {
               </div>
 
               <div style={styles.dayList}>
-                {(eventsByDay.get(ymd(selectedDay)) || []).length ===
-                0 ? (
-                  <div style={styles.emptyHint}>
-                    No hay eventos este día.
-                  </div>
+                {(eventsByDay.get(ymd(selectedDay)) || []).length === 0 ? (
+                  <div style={styles.emptyHint}>No hay eventos este día.</div>
                 ) : (
-                  (eventsByDay.get(ymd(selectedDay)) || []).map(
-                    (e) => (
-                      <EventRow
-                        key={e.id ?? `${e.start}_${e.end}`}
-                        e={e}
-                        highlightId={highlightId}
-                        setRef={setEventRef}
-                        onDelete={handleDeleteEvent}
-                        onEdit={handleEditEvent}
-                        groupTypeById={groupTypeById}
-                      />
-                    )
-                  )
+                  (eventsByDay.get(ymd(selectedDay)) || []).map((e) => (
+                    <EventRow
+                      key={e.id ?? `${e.start}_${e.end}`}
+                      e={e}
+                      highlightId={highlightId}
+                      setRef={setEventRef}
+                      onDelete={handleDeleteEvent}
+                      onEdit={handleEditEvent}
+                      groupTypeById={groupTypeById}
+                    />
+                  ))
                 )}
               </div>
             </div>
-          </section>
+          </Card>
         ) : (
-          <section style={styles.agendaCard}>
+          <Card style={styles.agendaCard}>
             <div style={styles.agendaTop}>
               <div style={styles.agendaTitle}>Agenda del mes</div>
               <div style={styles.agendaSub}>
@@ -1121,7 +1107,7 @@ const openConflicts = () => {
                 ))
               )}
             </div>
-          </section>
+          </Card>
         )}
 
         <EventEditModal
@@ -1157,7 +1143,7 @@ const openConflicts = () => {
             });
           }}
         />
-      </main>
+      </Section>
     </MobileScaffold>
   );
 }
@@ -2031,6 +2017,11 @@ eventTitle: {
     fontWeight: 700,
   },
 
+  loadingRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+  },
   loadingCard: {
     marginTop: 18,
     display: "flex",

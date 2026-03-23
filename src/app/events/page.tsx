@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
 import MobileScaffold from "@/components/MobileScaffold";
-import EventsHero from "@/components/events/EventsHero";
+import PremiumHeader from "@/components/PremiumHeader";
+import Section from "@/components/ui/Section";
+import Card from "@/components/ui/Card";
 import EventsFiltersBar from "@/components/events/EventsFiltersBar";
 import EventsEmptyState from "@/components/events/EventsEmptyState";
 import EventsTimeline from "@/components/EventsTimeline";
@@ -375,16 +377,13 @@ export default function EventsPage() {
 
   if (booting) {
     return (
-      <MobileScaffold>
-        <main style={S.pageShell}>
-          <div style={S.stickyTop}>
-            <EventsHero
-              subtitle="Mira y gestiona tu lista de eventos personales y compartidos."
-              showCreateButton={false}
-            />
-          </div>
-
-          <section style={S.card}>
+      <MobileScaffold maxWidth={1120} style={S.pageBg}>
+        <Section>
+          <PremiumHeader
+            title="Eventos"
+            subtitle="Mira y gestiona tu lista de eventos personales y compartidos."
+          />
+          <Card style={S.cardShell}>
             <div style={S.loadingRow}>
               <div style={S.loadingDot} />
               <div>
@@ -392,14 +391,14 @@ export default function EventsPage() {
                 <div style={S.loadingSub}>Preparando tu lista para hoy</div>
               </div>
             </div>
-          </section>
-        </main>
+          </Card>
+        </Section>
       </MobileScaffold>
     );
   }
 
   return (
-    <MobileScaffold>
+    <MobileScaffold maxWidth={1120} style={S.pageBg}>
       {toast && (
         <div
           style={{
@@ -433,12 +432,13 @@ export default function EventsPage() {
         </div>
       )}
 
-      <main style={S.pageShell}>
-        <div style={S.stickyTop}>
-          <EventsHero subtitle={headerSubtitle} />
-        </div>
+      <Section>
+        <PremiumHeader
+          title="Eventos"
+          subtitle={headerSubtitle}
+        />
 
-        <section style={S.card} className="spEvt-card">
+        <Card style={S.cardShell} className="spEvt-card">
           <div style={S.titleRow}>
             <div>
               <div style={S.kicker}>Tu agenda, capa por capa</div>
@@ -606,7 +606,7 @@ export default function EventsPage() {
               onToggleSelected={toggleSelection}
             />
           )}
-        </section>
+        </Card>
 
         <section style={S.footerSection}>
           <button
@@ -618,12 +618,22 @@ export default function EventsPage() {
             {loading ? "Actualizando lista…" : "Actualizar lista"}
           </button>
         </section>
-      </main>
+      </Section>
     </MobileScaffold>
   );
 }
 
 const S: Record<string, React.CSSProperties> = {
+  pageBg: {
+    background:
+      "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
+    color: "rgba(255,255,255,0.92)",
+  },
+  cardShell: {
+    width: "100%",
+    maxWidth: 900,
+    margin: "0 auto",
+  },
   pageShell: {
     maxWidth: 1120,
     margin: "0 auto",

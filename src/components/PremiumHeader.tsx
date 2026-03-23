@@ -1,29 +1,37 @@
 "use client";
 
 import React, {
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
-  useCallback,
   type CSSProperties,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   getGroupState,
   setMode,
-  type UsageMode,
   type GroupState,
+  type UsageMode,
 } from "@/lib/groups";
 import NotificationsDrawer, {
   type NavigationMode,
 } from "./NotificationsDrawer";
-import {
-  getMyProfile,
-  getInitials,
-  type Profile as UserProfile,
-} from "@/lib/profilesDb";
 import IntegrationsDrawer from "@/components/IntegrationsDrawer";
 import LogoutButton from "@/components/LogoutButton";
+import {
+  getInitials,
+  getMyProfile,
+  type Profile as UserProfile,
+} from "@/lib/profilesDb";
+import {
+  colors,
+  layout,
+  radii,
+  shadows,
+  spacing,
+} from "@/styles/design-tokens";
 
 type TabKey = UsageMode | "other";
 
@@ -33,6 +41,29 @@ type Tab = {
   hint: string;
   dot: string;
 };
+
+type MobileNavVariant = "top" | "bottom" | "none";
+type UiToast = {
+  deleted: number;
+  skipped: number;
+  appliedCount: number;
+} | null;
+
+type PremiumHeaderProps = {
+  title?: string;
+  subtitle?: string;
+  rightSlot?: React.ReactNode;
+  mobileNav?: MobileNavVariant;
+  highlightId?: string | null;
+  appliedToast?: UiToast;
+};
+
+type HeaderUser = {
+  name: string;
+  initials: string;
+};
+
+const NAV_MODE: NavigationMode = "replace";
 
 const TABS: Tab[] = [
   { key: "solo", label: "Personal", hint: "Solo tú", dot: "#FBBF24" },
@@ -48,8 +79,8 @@ const TABS: Tab[] = [
 
 function applyThemeVars(mode: UsageMode | "other") {
   if (typeof document === "undefined") return;
-  const root = document.documentElement;
 
+  const root = document.documentElement;
   root.style.setProperty("--sp-personal", "#FBBF24");
   root.style.setProperty("--sp-pair", "#F87171");
   root.style.setProperty("--sp-family", "#60A5FA");
@@ -101,11 +132,6 @@ async function ensureActiveGroupForMode(
   return null;
 }
 
-type HeaderUser = {
-  name: string;
-  initials: string;
-};
-
 function normalizeGroupLabel(input?: string | null) {
   const raw = (input ?? "").trim();
   if (!raw) return null;
@@ -119,68 +145,114 @@ function normalizeGroupLabel(input?: string | null) {
   return raw;
 }
 
-function useIsMobileWidth(maxWidth = 520) {
+function useIsMobileWidth(maxWidth = layout.mobileBreakpoint) {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
 
+    const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
     const apply = () => setIsMobile(!!mq.matches);
     apply();
 
     if (typeof mq.addEventListener === "function") {
       mq.addEventListener("change", apply);
       return () => mq.removeEventListener("change", apply);
-    } else {
-      // @ts-ignore
-      mq.addListener(apply);
-      return () => {
-        // @ts-ignore
-        mq.removeListener(apply);
-      };
     }
+
+    // @ts-ignore legacy support
+    mq.addListener(apply);
+    return () => {
+      // @ts-ignore legacy support
+      mq.removeListener(apply);
+    };
   }, [maxWidth]);
 
   return isMobile;
 }
 
-type MobileNavVariant = "top" | "bottom" | "none";
-type UiToast = { deleted: number; skipped: number; appliedCount: number } | null;
+function useClickOutside<T extends HTMLElement>(
+  ref: React.RefObject<T | null>,
+  onOutside: () => void
+) {
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (!ref.current) return;
+      if (ref.current.contains(e.target as Node)) return;
+      onOutside();
+    }
 
-type PremiumHeaderProps = {
-  title?: string;
-  subtitle?: string;
-  rightSlot?: React.ReactNode;
-  mobileNav?: MobileNavVariant;
-  highlightId?: string | null;
-  appliedToast?: UiToast;
-};
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [ref, onOutside]);
+}
 
-export default function PremiumHeader(props: PremiumHeaderProps) {
-  const {
-    title,
-    subtitle,
-    rightSlot,
-    mobileNav: _mobileNav = "bottom",
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    highlightId,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    appliedToast,
-  } = props;
+function getAutoTitle(pathname: string) {
+  if (pathname.startsWith("/panel")) return "Panel";
+  if (pathname.startsWith("/planes")) return "Planes";
+  if (pathname.startsWith("/profile")) return "Perfil";
+  if (pathname.startsWith("/conflicts")) return "Conflictos";
+  if (pathname.startsWith("/groups")) return "Grupos";
+  if (pathname.startsWith("/members")) return "Miembros";
+  if (pathname.startsWith("/invitations")) return "Invitaciones";
+  if (pathname.startsWith("/events")) return "Eventos";
+  if (pathname.startsWith("/summary")) return "Resumen";
+  if (pathname.startsWith("/calendar")) return "Calendario";
+  if (pathname.startsWith("/settings")) return "Ajustes";
+  return "Calendario";
+}
 
+function getAutoSubtitle(pathname: string) {
+  if (pathname.startsWith("/groups")) {
+    return "Organiza tus grupos y mantén clara la estructura compartida.";
+  }
+  if (pathname.startsWith("/invitations")) {
+    return "Gestiona invitaciones pendientes y accesos al espacio compartido.";
+  }
+  if (pathname.startsWith("/events")) {
+    return "Revisa y ordena tus eventos sin perder contexto.";
+  }
+  if (pathname.startsWith("/summary")) {
+    return "La vista operativa de lo que viene en tu tiempo compartido.";
+  }
+  if (pathname.startsWith("/calendar")) {
+    return "Visualiza tu tiempo con claridad y detecta choques rápido.";
+  }
+  if (pathname.startsWith("/conflicts")) {
+    return "Decide conflictos antes de que se conviertan en fricción.";
+  }
+  if (pathname.startsWith("/panel")) {
+    return "Administra la estructura que sostiene la coordinación.";
+  }
+  if (pathname.startsWith("/settings")) {
+    return "Ajusta la experiencia, permisos e integraciones de tu espacio.";
+  }
+  if (pathname.startsWith("/planes")) {
+    return "Compara planes y desbloquea funciones premium.";
+  }
+  return "Organiza tu día sin conflictos de horario.";
+}
+
+export default function PremiumHeader({
+  title,
+  subtitle,
+  rightSlot,
+  mobileNav: _mobileNav = "bottom",
+}: PremiumHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const NAV_MODE: NavigationMode = "replace";
+  const isMobile = useIsMobileWidth();
 
   const [group, setGroup] = useState<GroupState | null>(null);
   const [openNotif, setOpenNotif] = useState(false);
+  const [openIntegrations, setOpenIntegrations] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [headerUser, setHeaderUser] = useState<HeaderUser | null>(null);
-  const [openIntegrations, setOpenIntegrations] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  const isMobile = useIsMobileWidth(520);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useClickOutside(userMenuRef, () => setUserMenuOpen(false));
 
   useEffect(() => {
     const g = getGroupState();
@@ -202,26 +274,27 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
         const profile: UserProfile | null = await getMyProfile();
         if (!alive) return;
 
-        if (profile) {
-          const display = (
-            profile.display_name ??
-            `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
-          ).trim();
-
-          const name = display || "Tú";
-          const initials = getInitials({
-            first_name: profile.first_name,
-            last_name: profile.last_name,
-            display_name: profile.display_name,
-          });
-
-          setHeaderUser({ name, initials });
-        } else {
+        if (!profile) {
           setHeaderUser({ name: "Tú", initials: "T" });
+          return;
         }
+
+        const display = (
+          profile.display_name ??
+          `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
+        ).trim();
+
+        const name = display || "Tú";
+        const initials = getInitials({
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          display_name: profile.display_name,
+        });
+
+        setHeaderUser({ name, initials });
       } catch {
         if (!alive) return;
-        setHeaderUser(null);
+        setHeaderUser({ name: "Tú", initials: "T" });
       }
     })();
 
@@ -230,57 +303,39 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
     };
   }, []);
 
-  async function refreshBadge() {
+  const refreshBadge = useCallback(async () => {
     try {
       const { getMyNotifications } = await import("@/lib/notificationsDb");
-      const n = await getMyNotifications(50);
-      const unread = (n ?? []).filter(
+      const notifications = await getMyNotifications(50);
+      const unread = (notifications ?? []).filter(
         (x: any) => !x.read_at || x.read_at === ""
       ).length;
       setUnreadCount(unread);
     } catch {
       setUnreadCount(0);
     }
-  }
-
-  useEffect(() => {
-    refreshBadge();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     refreshBadge();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openNotif, pathname]);
+  }, [refreshBadge]);
 
-  const active = useMemo(
+  useEffect(() => {
+    refreshBadge();
+  }, [openNotif, pathname, refreshBadge]);
+
+  const activeTab = useMemo(
     () => TABS.find((t) => t.key === activeMode) ?? TABS[0],
     [activeMode]
   );
 
   const kickerLabel = useMemo(() => {
     const cleaned = normalizeGroupLabel((group as any)?.groupName ?? null);
-    return cleaned ?? active.label;
-  }, [group, active.label]);
+    return cleaned ?? activeTab.label;
+  }, [group, activeTab.label]);
 
-  const autoTitle = useMemo(() => {
-    if (pathname.startsWith("/panel")) return "Panel";
-    if (pathname.startsWith("/planes")) return "Planes";
-    if (pathname.startsWith("/profile")) return "Perfil";
-    if (pathname.startsWith("/conflicts")) return "Conflictos";
-    if (pathname.startsWith("/groups")) return "Grupos";
-    if (pathname.startsWith("/members")) return "Miembros";
-    if (pathname.startsWith("/invitations")) return "Invitaciones";
-    if (pathname.startsWith("/events")) return "Eventos";
-    if (pathname.startsWith("/summary")) return "Resumen";
-    if (pathname.startsWith("/calendar")) return "Calendario";
-    if (pathname.startsWith("/settings")) return "Ajustes";
-    return "Calendario";
-  }, [pathname]);
-
-  const finalTitle = title ?? autoTitle;
-  const finalSubtitle =
-    subtitle ?? "Organiza tu día sin conflictos de horario.";
+  const finalTitle = title ?? getAutoTitle(pathname);
+  const finalSubtitle = subtitle ?? getAutoSubtitle(pathname);
 
   async function onNewEvent() {
     try {
@@ -308,14 +363,12 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
     setGroup(next);
     applyThemeVars(nextMode);
 
-    if (nextMode === "solo") {
-      return;
-    }
+    if (nextMode === "solo") return;
 
     try {
       await ensureActiveGroupForMode(nextMode);
     } catch {
-      // sin dispatch manual: el helper central ya emite el evento
+      // noop
     }
   }
 
@@ -327,68 +380,84 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
     );
   }, []);
 
-  const shouldShowTopNav = !isMobile;
-  const closeUserMenu = () => setUserMenuOpen(false);
+  const navItems = [
+    { label: "Resumen", path: "/summary", active: pathname.startsWith("/summary") },
+    { label: "Calendario", path: "/calendar", active: pathname.startsWith("/calendar") },
+    { label: "Eventos", path: "/events", active: pathname.startsWith("/events") },
+    {
+      label: "Conflictos",
+      path: "/conflicts/detected",
+      active: pathname.startsWith("/conflicts"),
+    },
+    { label: "Panel", path: "/panel", active: pathname.startsWith("/panel") },
+    { label: "Grupos", path: "/groups", active: pathname.startsWith("/groups") },
+    { label: "Miembros", path: "/members", active: pathname.startsWith("/members") },
+    {
+      label: "Invitaciones",
+      path: "/invitations",
+      active: pathname.startsWith("/invitations"),
+    },
+    { label: "Ajustes", path: "/settings", active: pathname.startsWith("/settings") },
+    { label: "Planes", path: "/planes", active: pathname.startsWith("/planes") },
+  ];
 
   return (
     <>
-      <header style={S.wrap}>
+      <header style={isMobile ? styles.mobileWrap : styles.desktopWrap}>
+        <div style={styles.backgroundGlow} />
+
         {isMobile ? (
           <>
-            <div style={S.mTopBar}>
-              <div style={S.bellWrap}>
+            <div style={styles.mobileTopRow}>
+              <div style={styles.mobileLeftCluster}>
                 <button
-                  style={S.mBellBtn}
+                  type="button"
                   aria-label="Notificaciones"
                   title="Notificaciones"
                   onClick={() => setOpenNotif(true)}
+                  style={styles.iconButton}
                 >
                   🔔
+                  {unreadCount > 0 && (
+                    <span style={styles.badgeCount}>
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
                 </button>
-                {unreadCount > 0 && (
-                  <span style={S.badgeCount}>
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </span>
-                )}
               </div>
 
-              <div style={S.mTitleBlock}>
-                <div style={S.mKickerRow}>
-                  <span
-                    style={{ ...S.dot, background: active.dot, marginBottom: 0 }}
-                  />
-                  <span style={S.mKickerText}>{kickerLabel}</span>
+              <div style={styles.mobileCenterBlock}>
+                <div style={styles.kickerRowCenter}>
+                  <span style={{ ...styles.dot, background: activeTab.dot }} />
+                  <span style={styles.kickerTextMobile}>{kickerLabel}</span>
                 </div>
-                <div style={S.mTitle}>{finalTitle}</div>
+                <h1 style={styles.mobileTitle}>{finalTitle}</h1>
               </div>
 
-              <div style={S.userChipWrap}>
-                {headerUser && (
-                  <button
-                    type="button"
-                    style={S.mUserBtn}
-                    onClick={() => setUserMenuOpen((v) => !v)}
-                    title="Cuenta y más opciones"
-                  >
-                    <div style={S.userAvatar}>{headerUser.initials}</div>
-                  </button>
-                )}
+              <div ref={userMenuRef} style={styles.userMenuAnchor}>
+                <button
+                  type="button"
+                  style={styles.mobileUserButton}
+                  onClick={() => setUserMenuOpen((v) => !v)}
+                  title="Cuenta"
+                >
+                  <div style={styles.userAvatar}>{headerUser?.initials ?? "T"}</div>
+                </button>
+
                 {userMenuOpen && (
-                  <div style={S.userMenu}>
-                    <div style={S.userMenuHeader}>
-                      <div style={S.userMenuAvatar}>
+                  <div style={styles.mobileMenu}>
+                    <div style={styles.menuHeader}>
+                      <div style={styles.menuAvatar}>
                         {headerUser?.initials ?? "T"}
                       </div>
-                      <div style={S.userMenuName}>
-                        {headerUser?.name ?? "Tú"}
-                      </div>
+                      <div style={styles.menuName}>{headerUser?.name ?? "Tú"}</div>
                     </div>
 
                     <button
                       type="button"
-                      style={S.userMenuItem}
+                      style={styles.menuItem}
                       onClick={() => {
-                        closeUserMenu();
+                        setUserMenuOpen(false);
                         router.push("/groups");
                       }}
                     >
@@ -397,9 +466,9 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
 
                     <button
                       type="button"
-                      style={S.userMenuItem}
+                      style={styles.menuItem}
                       onClick={() => {
-                        closeUserMenu();
+                        setUserMenuOpen(false);
                         router.push("/members");
                       }}
                     >
@@ -408,9 +477,9 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
 
                     <button
                       type="button"
-                      style={S.userMenuItem}
+                      style={styles.menuItem}
                       onClick={() => {
-                        closeUserMenu();
+                        setUserMenuOpen(false);
                         router.push("/invitations");
                       }}
                     >
@@ -419,9 +488,9 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
 
                     <button
                       type="button"
-                      style={S.userMenuItem}
+                      style={styles.menuItem}
                       onClick={() => {
-                        closeUserMenu();
+                        setUserMenuOpen(false);
                         router.push("/settings");
                       }}
                     >
@@ -430,17 +499,17 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
 
                     <button
                       type="button"
-                      style={S.userMenuItem}
+                      style={styles.menuItem}
                       onClick={() => {
-                        closeUserMenu();
+                        setUserMenuOpen(false);
                         router.push("/planes");
                       }}
                     >
                       Planes
                     </button>
 
-                    <div style={S.userMenuDivider} />
-                    <div style={S.userMenuLogout}>
+                    <div style={styles.menuDivider} />
+                    <div style={styles.logoutWrap}>
                       <LogoutButton />
                     </div>
                   </div>
@@ -448,14 +517,14 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
               </div>
             </div>
 
-            <p style={S.mSubtitle}>{finalSubtitle}</p>
+            <p style={styles.mobileSubtitle}>{finalSubtitle}</p>
 
-            <div style={S.mActionsRow}>
+            <div style={styles.mobileActionsRow}>
               <button
                 type="button"
-                style={S.mGhostBtn}
+                style={styles.secondaryButton}
                 onClick={() => {
-                  closeUserMenu();
+                  setUserMenuOpen(false);
                   setOpenIntegrations(true);
                 }}
                 title="Conectar y sincronizar calendarios externos"
@@ -464,199 +533,89 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
               </button>
 
               {rightSlot ?? (
-                <button
-                  style={S.mPrimaryBtn}
-                  onClick={onNewEvent}
-                  type="button"
-                >
+                <button type="button" style={styles.primaryButton} onClick={onNewEvent}>
                   + Evento
                 </button>
               )}
             </div>
 
-            <div style={S.tabs}>
-              <div style={S.tabsBg} />
-              <div style={S.mTabsInner}>
-                {TABS.map((t) => {
-                  const isActive = t.key === activeMode;
+            <div style={styles.tabsWrap}>
+              <div style={styles.tabsGridMobile}>
+                {TABS.map((tab) => {
+                  const isActive = tab.key === activeMode;
                   return (
                     <button
-                      key={t.key}
-                      style={{ ...S.mTab, ...(isActive ? S.tabActive : {}) }}
-                      onClick={() => onPickMode(t.key)}
+                      key={tab.key}
+                      type="button"
+                      onClick={() => onPickMode(tab.key)}
+                      style={{
+                        ...styles.modeTabMobile,
+                        ...(isActive ? styles.modeTabActive : {}),
+                      }}
                     >
-                      <span style={{ ...S.tabDot, background: t.dot }} />
-                      <span style={S.mTabText}>{t.label}</span>
-                      <span style={S.mTabHint}>{t.hint}</span>
+                      <span style={{ ...styles.tabDot, background: tab.dot }} />
+                      <span style={styles.modeTabLabel}>{tab.label}</span>
+                      <span style={styles.modeTabHint}>{tab.hint}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
-
-            {shouldShowTopNav && (
-              <nav style={S.nav}>
-                <NavPill
-                  label="Resumen"
-                  active={pathname.startsWith("/summary")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/summary");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Calendario"
-                  active={pathname.startsWith("/calendar")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/calendar");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Eventos"
-                  active={pathname.startsWith("/events")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/events");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Conflictos"
-                  active={pathname.startsWith("/conflicts")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/conflicts/detected");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Panel"
-                  active={pathname.startsWith("/panel")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/panel");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Grupos"
-                  active={pathname.startsWith("/groups")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/groups");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Miembros"
-                  active={pathname.startsWith("/members")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/members");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Invitaciones"
-                  active={pathname.startsWith("/invitations")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/invitations");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Ajustes"
-                  active={pathname.startsWith("/settings")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/settings");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Planes"
-                  active={pathname.startsWith("/planes")}
-                  onClick={() => {
-                    closeUserMenu();
-                    router.push("/planes");
-                  }}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-              </nav>
-            )}
           </>
         ) : (
           <>
-            <div style={S.topRow}>
-              <div style={S.left}>
-                <div style={S.kicker}>
-                  <span style={{ ...S.dot, background: active.dot }} />
-                  <span style={S.kickerText}>{kickerLabel}</span>
+            <div style={styles.desktopTopRow}>
+              <div style={styles.desktopTitleBlock}>
+                <div style={styles.kickerRow}>
+                  <span style={{ ...styles.dot, background: activeTab.dot }} />
+                  <span style={styles.kickerText}>{kickerLabel}</span>
                 </div>
-                <h1 style={S.title}>{finalTitle}</h1>
-                <p style={S.subtitle}>{finalSubtitle}</p>
+
+                <h1 style={styles.desktopTitle}>{finalTitle}</h1>
+                <p style={styles.desktopSubtitle}>{finalSubtitle}</p>
               </div>
 
-              <div style={S.right}>
-                <div style={S.bellWrap}>
-                  <button
-                    style={S.bellBtn}
-                    aria-label="Notificaciones"
-                    title="Notificaciones"
-                    onClick={() => setOpenNotif(true)}
-                  >
-                    🔔
-                  </button>
+              <div style={styles.desktopActions}>
+                <button
+                  type="button"
+                  aria-label="Notificaciones"
+                  title="Notificaciones"
+                  onClick={() => setOpenNotif(true)}
+                  style={styles.iconButton}
+                >
+                  🔔
                   {unreadCount > 0 && (
-                    <span style={S.badgeCount}>
+                    <span style={styles.badgeCount}>
                       {unreadCount > 99 ? "99+" : unreadCount}
                     </span>
                   )}
-                </div>
+                </button>
 
-                <div style={S.userChipWrap}>
-                  {headerUser && (
-                    <button
-                      type="button"
-                      style={S.userChip}
-                      onClick={() => setUserMenuOpen((v) => !v)}
-                      title="Ver panel de cuenta"
-                    >
-                      <div style={S.userAvatar}>{headerUser.initials}</div>
-                      <span style={S.userLabel}>{headerUser.name}</span>
-                    </button>
-                  )}
+                <div ref={userMenuRef} style={styles.userMenuAnchor}>
+                  <button
+                    type="button"
+                    style={styles.userChip}
+                    onClick={() => setUserMenuOpen((v) => !v)}
+                    title="Cuenta y opciones"
+                  >
+                    <div style={styles.userAvatar}>{headerUser?.initials ?? "T"}</div>
+                    <span style={styles.userLabel}>{headerUser?.name ?? "Tú"}</span>
+                  </button>
 
                   {userMenuOpen && (
-                    <div style={S.userMenuDesktop}>
-                      <div style={S.userMenuHeader}>
-                        <div style={S.userMenuAvatar}>
+                    <div style={styles.desktopMenu}>
+                      <div style={styles.menuHeader}>
+                        <div style={styles.menuAvatar}>
                           {headerUser?.initials ?? "T"}
                         </div>
-                        <div style={S.userMenuName}>
-                          {headerUser?.name ?? "Tú"}
-                        </div>
+                        <div style={styles.menuName}>{headerUser?.name ?? "Tú"}</div>
                       </div>
 
                       <button
                         type="button"
-                        style={S.userMenuItem}
+                        style={styles.menuItem}
                         onClick={() => {
-                          closeUserMenu();
+                          setUserMenuOpen(false);
                           router.push("/groups");
                         }}
                       >
@@ -665,9 +624,9 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
 
                       <button
                         type="button"
-                        style={S.userMenuItem}
+                        style={styles.menuItem}
                         onClick={() => {
-                          closeUserMenu();
+                          setUserMenuOpen(false);
                           router.push("/members");
                         }}
                       >
@@ -676,9 +635,9 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
 
                       <button
                         type="button"
-                        style={S.userMenuItem}
+                        style={styles.menuItem}
                         onClick={() => {
-                          closeUserMenu();
+                          setUserMenuOpen(false);
                           router.push("/invitations");
                         }}
                       >
@@ -687,9 +646,9 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
 
                       <button
                         type="button"
-                        style={S.userMenuItem}
+                        style={styles.menuItem}
                         onClick={() => {
-                          closeUserMenu();
+                          setUserMenuOpen(false);
                           router.push("/settings");
                         }}
                       >
@@ -698,17 +657,17 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
 
                       <button
                         type="button"
-                        style={S.userMenuItem}
+                        style={styles.menuItem}
                         onClick={() => {
-                          closeUserMenu();
+                          setUserMenuOpen(false);
                           router.push("/planes");
                         }}
                       >
                         Planes
                       </button>
 
-                      <div style={S.userMenuDivider} />
-                      <div style={S.userMenuLogout}>
+                      <div style={styles.menuDivider} />
+                      <div style={styles.logoutWrap}>
                         <LogoutButton />
                       </div>
                     </div>
@@ -717,7 +676,7 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
 
                 <button
                   type="button"
-                  style={S.ghostBtn}
+                  style={styles.secondaryButton}
                   onClick={() => setOpenIntegrations(true)}
                   title="Conectar y sincronizar calendarios externos"
                 >
@@ -725,111 +684,51 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
                 </button>
 
                 {rightSlot ?? (
-                  <button
-                    style={S.iconBtn}
-                    onClick={onNewEvent}
-                    type="button"
-                  >
+                  <button type="button" style={styles.primaryButton} onClick={onNewEvent}>
                     + Evento
                   </button>
                 )}
               </div>
             </div>
 
-            <div style={S.tabs}>
-              <div style={S.tabsBg} />
-              <div style={S.tabsInner}>
-                {TABS.map((t) => {
-                  const isActive = t.key === activeMode;
+            <div style={styles.tabsWrap}>
+              <div style={styles.tabsGridDesktop}>
+                {TABS.map((tab) => {
+                  const isActive = tab.key === activeMode;
                   return (
                     <button
-                      key={t.key}
-                      style={{ ...S.tab, ...(isActive ? S.tabActive : {}) }}
-                      onClick={() => onPickMode(t.key)}
+                      key={tab.key}
+                      type="button"
+                      onClick={() => onPickMode(tab.key)}
+                      style={{
+                        ...styles.modeTabDesktop,
+                        ...(isActive ? styles.modeTabActive : {}),
+                      }}
                     >
-                      <span style={{ ...S.tabDot, background: t.dot }} />
-                      <span style={S.tabText}>{t.label}</span>
-                      <span style={S.tabHint}>{t.hint}</span>
+                      <span style={{ ...styles.tabDot, background: tab.dot }} />
+                      <span style={styles.modeTabLabel}>{tab.label}</span>
+                      <span style={styles.modeTabHint}>{tab.hint}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {shouldShowTopNav && (
-              <nav style={S.nav}>
-                <NavPill
-                  label="Resumen"
-                  active={pathname.startsWith("/summary")}
-                  onClick={() => router.push("/summary")}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Calendario"
-                  active={pathname.startsWith("/calendar")}
-                  onClick={() => router.push("/calendar")}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Eventos"
-                  active={pathname.startsWith("/events")}
-                  onClick={() => router.push("/events")}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Conflictos"
-                  active={pathname.startsWith("/conflicts")}
-                  onClick={() => router.push("/conflicts/detected")}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Panel"
-                  active={pathname.startsWith("/panel")}
-                  onClick={() => router.push("/panel")}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Grupos"
-                  active={pathname.startsWith("/groups")}
-                  onClick={() => router.push("/groups")}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Miembros"
-                  active={pathname.startsWith("/members")}
-                  onClick={() => router.push("/members")}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Invitaciones"
-                  active={pathname.startsWith("/invitations")}
-                  onClick={() => router.push("/invitations")}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Ajustes"
-                  active={pathname.startsWith("/settings")}
-                  onClick={() => router.push("/settings")}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-                <NavPill
-                  label="Planes"
-                  active={pathname.startsWith("/planes")}
-                  onClick={() => router.push("/planes")}
-                  styleOverride={S.pill}
-                  styleActive={S.pillActive}
-                />
-              </nav>
-            )}
+            <nav style={styles.topNav}>
+              {navItems.map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => router.push(item.path)}
+                  style={{
+                    ...styles.navPill,
+                    ...(item.active ? styles.navPillActive : {}),
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
           </>
         )}
       </header>
@@ -850,131 +749,169 @@ export default function PremiumHeader(props: PremiumHeaderProps) {
   );
 }
 
-function NavPill({
-  label,
-  active,
-  onClick,
-  styleOverride,
-  styleActive,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  styleOverride: CSSProperties;
-  styleActive: CSSProperties;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{ ...styleOverride, ...(active ? styleActive : {}) }}
-    >
-      {label}
-    </button>
-  );
-}
-
-const S: Record<string, CSSProperties> = {
-  wrap: {
-    borderRadius: 22,
-    padding: 20,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "radial-gradient(900px 400px at 10% 0%, rgba(37,99,235,0.20), transparent 55%), radial-gradient(900px 420px at 90% 0%, rgba(124,58,237,0.18), transparent 55%), rgba(2,6,23,0.65)",
-    boxShadow: "0 30px 90px rgba(0,0,0,0.45)",
-    backdropFilter: "blur(14px)",
-    position: "relative",
+const styles: Record<string, CSSProperties> = {
+  desktopWrap: {
+    position: "sticky",
+    top: 10,
+    zIndex: 20,
     overflow: "visible",
+    borderRadius: radii.xl,
+    padding: 20,
+    background:
+      "linear-gradient(180deg, rgba(15,23,42,0.96), rgba(15,23,42,0.88))",
+    border: `1px solid ${colors.borderSubtle}`,
+    boxShadow: shadows.card,
+    backdropFilter: "blur(16px)",
+    marginBottom: spacing.xl,
+  },
+  mobileWrap: {
+    position: "sticky",
+    top: 8,
+    zIndex: 20,
+    overflow: "visible",
+    borderRadius: 20,
+    padding: 14,
+    background:
+      "linear-gradient(180deg, rgba(15,23,42,0.96), rgba(15,23,42,0.90))",
+    border: `1px solid ${colors.borderSubtle}`,
+    boxShadow: shadows.card,
+    backdropFilter: "blur(16px)",
+    marginBottom: spacing.lg,
+  },
+  backgroundGlow: {
+    position: "absolute",
+    inset: 0,
+    borderRadius: "inherit",
+    background:
+      "radial-gradient(700px 260px at 10% -10%, rgba(56,189,248,0.16), transparent 55%), radial-gradient(700px 260px at 90% -10%, rgba(168,85,247,0.15), transparent 55%)",
+    pointerEvents: "none",
   },
 
-  topRow: {
+  desktopTopRow: {
+    position: "relative",
+    zIndex: 1,
     display: "flex",
-    gap: 18,
     alignItems: "flex-start",
     justifyContent: "space-between",
+    gap: 18,
   },
-  left: {
-    minWidth: 0,
+  desktopTitleBlock: {
     flex: 1,
-    paddingTop: 2,
+    minWidth: 0,
   },
-  right: {
+  desktopActions: {
     display: "flex",
-    gap: 10,
     alignItems: "center",
+    gap: 10,
     flexShrink: 0,
   },
-  kicker: {
-    display: "inline-flex",
-    gap: 10,
+
+  mobileTopRow: {
+    position: "relative",
+    zIndex: 1,
+    display: "grid",
+    gridTemplateColumns: "40px 1fr 40px",
     alignItems: "center",
-    marginBottom: 12,
+    gap: 10,
+  },
+  mobileLeftCluster: {
+    display: "flex",
+    justifyContent: "flex-start",
+  },
+  mobileCenterBlock: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    minWidth: 0,
+    gap: 4,
+  },
+
+  kickerRow: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  },
+  kickerRowCenter: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 0,
+    maxWidth: "100%",
+  },
+  kickerText: {
+    margin: 0,
+    fontSize: 12,
+    fontWeight: 800,
+    color: "#D6E8FF",
+    letterSpacing: 0.2,
+  },
+  kickerTextMobile: {
+    margin: 0,
+    fontSize: 11,
+    fontWeight: 800,
+    color: "#D6E8FF",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   dot: {
     width: 10,
     height: 10,
     borderRadius: 999,
     boxShadow: "0 0 0 4px rgba(255,255,255,0.06)",
+    flexShrink: 0,
   },
-  kickerText: {
-    fontSize: 12,
-    fontWeight: 800,
-    color: "#dbeafe",
-  },
-  title: {
+
+  desktopTitle: {
     margin: 0,
-    fontSize: 26,
+    fontSize: 30,
+    lineHeight: 1.05,
     fontWeight: 900,
-    letterSpacing: -0.5,
-    lineHeight: 1.08,
-    color: "#fff",
+    letterSpacing: -0.7,
+    color: colors.textPrimary,
   },
-  subtitle: {
+  desktopSubtitle: {
     margin: "8px 0 0",
-    color: "#a8b3cf",
-    fontSize: 13,
-    lineHeight: 1.45,
-    fontWeight: 650,
-    maxWidth: 680,
+    maxWidth: 720,
+    fontSize: 14,
+    lineHeight: 1.5,
+    color: colors.textSecondary,
+    fontWeight: 600,
   },
-  iconBtn: {
-    height: 40,
-    padding: "0 16px",
-    minWidth: 110,
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background:
-      "linear-gradient(180deg, rgba(37,99,235,0.95), rgba(37,99,235,0.55))",
-    color: "#fff",
+
+  mobileTitle: {
+    margin: 0,
+    fontSize: 18,
+    lineHeight: 1.1,
     fontWeight: 900,
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    whiteSpace: "nowrap",
-    flexShrink: 0,
+    letterSpacing: -0.4,
+    color: colors.textPrimary,
+    textAlign: "center",
   },
-  ghostBtn: {
-    height: 40,
-    padding: "0 14px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "#fff",
-    fontWeight: 900,
-    cursor: "pointer",
-    flexShrink: 0,
+  mobileSubtitle: {
+    position: "relative",
+    zIndex: 1,
+    margin: "12px 0 0",
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: colors.textSecondary,
+    fontWeight: 600,
   },
-  bellWrap: { position: "relative", flexShrink: 0 },
-  bellBtn: {
+
+  iconButton: {
+    position: "relative",
     width: 40,
     height: 40,
     borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
+    border: `1px solid ${colors.borderSubtle}`,
     background: "rgba(255,255,255,0.04)",
-    color: "#fff",
+    color: colors.textPrimary,
     cursor: "pointer",
     fontWeight: 900,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
   badgeCount: {
     position: "absolute",
@@ -983,36 +920,179 @@ const S: Record<string, CSSProperties> = {
     minWidth: 20,
     height: 20,
     padding: "0 6px",
-    borderRadius: 999,
-    background: "rgba(99,102,241,0.95)",
-    color: "#fff",
-    fontWeight: 900,
+    borderRadius: radii.full,
+    background: "rgba(99,102,241,0.96)",
+    color: "#FFFFFF",
     fontSize: 11,
+    fontWeight: 900,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     boxShadow:
-      "0 0 0 2px rgba(2,6,23,0.85), 0 10px 25px rgba(0,0,0,0.35)",
+      "0 0 0 2px rgba(15,23,42,0.95), 0 10px 25px rgba(0,0,0,0.35)",
   },
-  userChipWrap: {
+
+  secondaryButton: {
+    height: 42,
+    padding: "0 16px",
+    borderRadius: 12,
+    border: `1px solid ${colors.borderSubtle}`,
+    background: "rgba(255,255,255,0.04)",
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  primaryButton: {
+    height: 42,
+    padding: "0 18px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.26), rgba(168,85,247,0.24))",
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  mobileActionsRow: {
+    position: "relative",
+    zIndex: 1,
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 8,
+    marginTop: 12,
+  },
+
+  tabsWrap: {
+    position: "relative",
+    zIndex: 1,
+    marginTop: 16,
+    borderRadius: 18,
+    background: "rgba(255,255,255,0.04)",
+    border: `1px solid ${colors.borderSubtle}`,
+    padding: 8,
+  },
+  tabsGridDesktop: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: 10,
+  },
+  tabsGridMobile: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 8,
+  },
+  modeTabDesktop: {
+    minHeight: 54,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(2,6,23,0.55)",
+    display: "grid",
+    gridTemplateColumns: "14px 1fr",
+    gridTemplateRows: "1fr 1fr",
+    alignItems: "center",
+    gap: "0 10px",
+    padding: "10px 12px",
+    cursor: "pointer",
+    color: colors.textPrimary,
+    textAlign: "left",
+  },
+  modeTabMobile: {
+    minHeight: 50,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(2,6,23,0.55)",
+    display: "grid",
+    gridTemplateColumns: "14px 1fr",
+    gridTemplateRows: "1fr 1fr",
+    alignItems: "center",
+    gap: "0 8px",
+    padding: "8px 10px",
+    cursor: "pointer",
+    color: colors.textPrimary,
+    textAlign: "left",
+  },
+  modeTabActive: {
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.16)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
+  },
+  tabDot: {
+    width: 10,
+    height: 10,
+    borderRadius: radii.full,
+    gridRow: "1 / span 2",
+  },
+  modeTabLabel: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: colors.textPrimary,
+  },
+  modeTabHint: {
+    fontSize: 11,
+    fontWeight: 650,
+    color: colors.textSecondary,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+
+  topNav: {
+    position: "relative",
+    zIndex: 1,
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 14,
+  },
+  navPill: {
+    height: 34,
+    padding: "0 12px",
+    borderRadius: radii.full,
+    border: `1px solid ${colors.borderSubtle}`,
+    background: "rgba(255,255,255,0.04)",
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: 850,
+    cursor: "pointer",
+  },
+  navPillActive: {
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "rgba(255,255,255,0.08)",
+  },
+
+  userMenuAnchor: {
     position: "relative",
     display: "inline-flex",
   },
   userChip: {
-    display: "flex",
+    display: "inline-flex",
     alignItems: "center",
     gap: 8,
     padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(15,23,42,0.85)",
+    maxWidth: 220,
+    borderRadius: radii.full,
+    border: `1px solid ${colors.borderSubtle}`,
+    background: "rgba(15,23,42,0.84)",
     cursor: "pointer",
-    maxWidth: 210,
+  },
+  mobileUserButton: {
+    border: `1px solid ${colors.borderSubtle}`,
+    background: "rgba(15,23,42,0.84)",
+    borderRadius: radii.full,
+    padding: 4,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
   userAvatar: {
     width: 28,
     height: 28,
-    borderRadius: 999,
+    borderRadius: radii.full,
     border: "1px solid rgba(56,189,248,0.7)",
     background: "rgba(8,47,73,0.9)",
     display: "flex",
@@ -1025,241 +1105,46 @@ const S: Record<string, CSSProperties> = {
   userLabel: {
     fontSize: 12,
     fontWeight: 750,
-    color: "#E5E7EB",
+    color: colors.textPrimary,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
 
-  tabs: { position: "relative", marginTop: 16 },
-  tabsBg: {
-    position: "absolute",
-    inset: 0,
-    borderRadius: 18,
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.08)",
-  },
-  tabsInner: {
-    position: "relative",
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: 10,
-    padding: 10,
-  },
-  tab: {
-    height: 52,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(2,6,23,0.55)",
-    display: "grid",
-    gridTemplateColumns: "14px 1fr",
-    gridTemplateRows: "1fr 1fr",
-    alignItems: "center",
-    gap: "0 10px",
-    padding: "10px 12px",
-    cursor: "pointer",
-    color: "#fff",
-    textAlign: "left",
-  },
-  tabActive: {
-    background: "rgba(255,255,255,0.08)",
-    border: "1px solid rgba(255,255,255,0.16)",
-  },
-  tabDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    gridRow: "1 / span 2",
-  },
-  tabText: { fontSize: 13, fontWeight: 900 },
-  tabHint: {
-    fontSize: 11,
-    opacity: 0.75,
-    fontWeight: 650,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-
-  nav: {
-    display: "flex",
-    gap: 10,
-    marginTop: 14,
-    flexWrap: "wrap",
-  },
-  pill: {
-    height: 34,
-    padding: "0 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "#fff",
-    cursor: "pointer",
-    fontWeight: 850,
-    fontSize: 12,
-  },
-  pillActive: {
-    border: "1px solid rgba(255,255,255,0.18)",
-    background: "rgba(255,255,255,0.08)",
-  },
-
-  mTopBar: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  mBellBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "#fff",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  mTitleBlock: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 3,
-    minWidth: 0,
-  },
-  mKickerRow: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    maxWidth: "100%",
-  },
-  mKickerText: {
-    fontSize: 11,
-    fontWeight: 800,
-    color: "#dbeafe",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  mTitle: {
-    fontSize: 18,
-    fontWeight: 900,
-    letterSpacing: -0.4,
-    lineHeight: 1.1,
-    color: "#fff",
-  },
-  mSubtitle: {
-    margin: "12px 0 12px",
-    fontSize: 12,
-    lineHeight: 1.45,
-    color: "#a8b3cf",
-    fontWeight: 600,
-  },
-  mUserBtn: {
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(15,23,42,0.85)",
-    borderRadius: 999,
-    padding: 4,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mActionsRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  mGhostBtn: {
-    flex: 1,
-    height: 40,
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "#fff",
-    fontWeight: 900,
-    fontSize: 12,
-    cursor: "pointer",
-  },
-  mPrimaryBtn: {
-    flex: 1,
-    height: 40,
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.28), rgba(124,58,237,0.28))",
-    color: "#fff",
-    fontWeight: 900,
-    fontSize: 12,
-    cursor: "pointer",
-  },
-  mTabsInner: {
-    position: "relative",
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 8,
-    padding: 8,
-  },
-  mTab: {
-    height: 50,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(2,6,23,0.55)",
-    display: "grid",
-    gridTemplateColumns: "14px 1fr",
-    gridTemplateRows: "1fr 1fr",
-    alignItems: "center",
-    gap: "0 8px",
-    padding: "8px 10px",
-    cursor: "pointer",
-    color: "#fff",
-    textAlign: "left",
-  },
-  mTabText: { fontSize: 12, fontWeight: 900 },
-  mTabHint: {
-    fontSize: 10,
-    opacity: 0.75,
-    fontWeight: 650,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-
-  userMenu: {
-    position: "absolute",
-    top: "115%",
-    right: 0,
-    minWidth: 190,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(15,23,42,0.96)",
-    boxShadow: "0 20px 60px rgba(0,0,0,0.55)",
-    padding: 8,
-    zIndex: 80,
-  },
-  userMenuDesktop: {
+  desktopMenu: {
     position: "absolute",
     top: "115%",
     right: 0,
     minWidth: 220,
     borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(15,23,42,0.96)",
-    boxShadow: "0 20px 60px rgba(0,0,0,0.55)",
+    border: `1px solid ${colors.borderSubtle}`,
+    background: "rgba(15,23,42,0.97)",
+    boxShadow: shadows.soft,
     padding: 8,
     zIndex: 80,
   },
-  userMenuHeader: {
+  mobileMenu: {
+    position: "absolute",
+    top: "115%",
+    right: 0,
+    minWidth: 190,
+    borderRadius: 16,
+    border: `1px solid ${colors.borderSubtle}`,
+    background: "rgba(15,23,42,0.97)",
+    boxShadow: shadows.soft,
+    padding: 8,
+    zIndex: 80,
+  },
+  menuHeader: {
     display: "flex",
     alignItems: "center",
     gap: 10,
     padding: "6px 8px 8px",
   },
-  userMenuAvatar: {
+  menuAvatar: {
     width: 26,
     height: 26,
-    borderRadius: 999,
+    borderRadius: radii.full,
     border: "1px solid rgba(56,189,248,0.7)",
     background: "rgba(8,47,73,0.9)",
     display: "flex",
@@ -1269,29 +1154,29 @@ const S: Record<string, CSSProperties> = {
     fontWeight: 900,
     color: "#E0F2FE",
   },
-  userMenuName: {
+  menuName: {
     fontSize: 12,
     fontWeight: 800,
-    color: "#E5E7EB",
+    color: colors.textPrimary,
   },
-  userMenuItem: {
+  menuItem: {
     width: "100%",
     textAlign: "left",
     borderRadius: 10,
     border: "none",
     background: "transparent",
-    color: "#E5E7EB",
+    color: colors.textPrimary,
     fontSize: 12,
     fontWeight: 800,
-    padding: "6px 9px",
+    padding: "8px 10px",
     cursor: "pointer",
   },
-  userMenuDivider: {
+  menuDivider: {
     margin: "6px 0",
     height: 1,
-    background: "rgba(148,163,184,0.35)",
+    background: colors.borderSubtle,
   },
-  userMenuLogout: {
+  logoutWrap: {
     padding: "4px 6px",
   },
 };
