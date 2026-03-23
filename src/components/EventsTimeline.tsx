@@ -13,8 +13,8 @@ type TimelineEvent = {
   start: string;
   end: string;
   group_id?: string | null;
-  source?: string | null;
-  source_type?: string | null;
+  external_source?: string | null;
+  external_id?: string | null;
   group?: {
     id?: string;
     name?: string | null;
@@ -116,9 +116,11 @@ function getGroupSignal(ev: TimelineEvent) {
   };
 }
 
-function isExternalEvent(ev: TimelineEvent) {
-  const source = String(ev.source ?? ev.source_type ?? "").toLowerCase();
-  return source.includes("google") || source.includes("external");
+function getExternalLabel(ev: TimelineEvent) {
+  if (!ev.external_source) return null;
+
+  if (ev.external_source.toLowerCase() === "google") return "Google";
+  return "Externo";
 }
 
 export default function EventsTimeline({
@@ -173,7 +175,7 @@ export default function EventsTimeline({
             <div style={S.dayList}>
               {dayEvents.map((ev) => {
                 const signal = getGroupSignal(ev);
-                const external = isExternalEvent(ev);
+                const externalLabel = getExternalLabel(ev);
 
                 const start = new Date(ev.start).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -214,10 +216,7 @@ export default function EventsTimeline({
                               <span>
                                 {start} – {end}
                               </span>
-
-                              {ev.group?.name ? (
-                                <span>· {ev.group.name}</span>
-                              ) : null}
+                              {ev.group?.name ? <span>· {ev.group.name}</span> : null}
                             </div>
                           </div>
                         </div>
@@ -256,7 +255,7 @@ export default function EventsTimeline({
                           {signal.label}
                         </span>
 
-                        {external && (
+                        {externalLabel && (
                           <span
                             style={{
                               ...S.signalBadge,
@@ -265,7 +264,7 @@ export default function EventsTimeline({
                               color: "rgba(207,250,254,0.98)",
                             }}
                           >
-                            Externo
+                            {externalLabel}
                           </span>
                         )}
                       </div>
@@ -306,6 +305,7 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     fontSize: 14,
     color: "rgba(255,255,255,0.94)",
+    textTransform: "capitalize",
   },
   dayCount: {
     fontSize: 11,

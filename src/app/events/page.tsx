@@ -561,7 +561,7 @@ export default function EventsPage() {
                   <div key={String(e.id)} style={S.urgentItem}>
                     <div style={S.urgentItemMain}>
                       <div style={S.urgentNameRow}>
-                        <span style={S.urgentName}>{e.title}</span>
+                        <span style={S.urgentName}>{e.title || "Sin título"}</span>
                         <span style={S.urgentWhen}>
                           {shortDateLabel(e.start)} · {shortTimeLabel(e.start)}
                         </span>
