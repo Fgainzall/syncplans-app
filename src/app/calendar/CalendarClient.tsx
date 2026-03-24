@@ -1195,55 +1195,59 @@ function EventRow({
     >
       <div style={{ ...styles.eventBar, background: meta.dot }} />
       <div style={styles.eventBody}>
-        <div style={styles.eventTop}>
-          <div style={styles.eventTitle}>
-            {e.title || "Sin título"}
-          </div>
+    <div style={styles.eventTop}>
+  <div style={styles.eventMain}>
+    <div style={styles.eventTitle}>
+      {e.title || "Sin título"}
+    </div>
 
-          <div style={styles.eventRight}>
-            <div style={styles.eventTag}>
-              <span
-                style={{
-                  ...styles.eventDot,
-                  background: meta.dot,
-                }}
-              />
-              {meta.label}
-            </div>
+    <div style={styles.eventTime}>
+      {prettyTimeRange(e.start, e.end)}
+    </div>
+  </div>
 
-            <button
-              type="button"
-              onClick={(ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-                onEdit?.(e);
-              }}
-              style={styles.editBtn}
-              aria-label="Editar evento"
-              title="Editar evento"
-            >
-              ✏️
-            </button>
+  <div style={styles.eventRight}>
+    <div style={styles.eventTag}>
+      <span
+        style={{
+          ...styles.eventDot,
+          background: meta.dot,
+        }}
+      />
+      {meta.label}
+    </div>
 
-            <button
-              type="button"
-              onClick={(ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-                onDelete?.(String(e.id), e.title);
-              }}
-              style={styles.deleteBtn}
-              aria-label="Eliminar evento"
-              title="Eliminar evento"
-            >
-              🗑️
-            </button>
-          </div>
-        </div>
+    <button
+      type="button"
+      onClick={(ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        onEdit?.(e);
+      }}
+      style={styles.editBtn}
+      aria-label="Editar evento"
+      title="Editar evento"
+    >
+      ✏️
+    </button>
 
-        <div style={styles.eventTime}>
-          {prettyTimeRange(e.start, e.end)}
-        </div>
+    <button
+      type="button"
+      onClick={(ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        onDelete?.(String(e.id), e.title);
+      }}
+      style={styles.deleteBtn}
+      aria-label="Eliminar evento"
+      title="Eliminar evento"
+    >
+      🗑️
+    </button>
+  </div>
+</div>
+
+    
       </div>
     </div>
   );
@@ -1442,8 +1446,8 @@ const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
     background:
-      "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
-    color: "rgba(255,255,255,0.92)",
+      "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.20), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.16), transparent 60%), linear-gradient(180deg, #050816 0%, #060a18 42%, #050816 100%)",
+    color: "rgba(255,255,255,0.94)",
     maxWidth: 1120,
     margin: "0 auto",
     padding: "22px 18px 48px",
@@ -1472,11 +1476,12 @@ const styles: Record<string, React.CSSProperties> = {
     pointerEvents: "auto",
     minWidth: 260,
     maxWidth: 360,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(7,11,22,0.72)",
-    boxShadow: "0 24px 70px rgba(0,0,0,0.45)",
-    backdropFilter: "blur(14px)",
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background:
+      "linear-gradient(180deg, rgba(11,16,32,0.88), rgba(7,11,22,0.74))",
+    boxShadow: "0 30px 80px rgba(0,0,0,0.48)",
+    backdropFilter: "blur(18px)",
     padding: "12px 14px",
   },
   toastTitle: {
@@ -1604,11 +1609,12 @@ const styles: Record<string, React.CSSProperties> = {
   groupDot: { width: 10, height: 10, borderRadius: 999 },
 
 calendarCard: {
-  borderRadius: 20,
-  border: "1px solid rgba(255,255,255,0.05)",
-  background: "rgba(255,255,255,0.02)",
+  borderRadius: 22,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background:
+    "linear-gradient(180deg, rgba(255,255,255,0.042), rgba(255,255,255,0.024))",
   overflow: "hidden",
-  boxShadow: "0 30px 80px rgba(0,0,0,0.35)",
+  boxShadow: "0 34px 90px rgba(0,0,0,0.38)",
 },
 
   monthScroller: {
@@ -1622,27 +1628,33 @@ calendarCard: {
     gridTemplateColumns: "repeat(7, 1fr)",
     padding: "10px 10px 0",
     minWidth: 720,
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0))",
   },
   weekDay: {
     padding: "10px 10px",
     fontSize: 12,
-    opacity: 0.75,
-    fontWeight: 850,
+    opacity: 0.82,
+    fontWeight: 900,
+    letterSpacing: "0.03em",
+    color: "rgba(226,232,240,0.9)",
   },
 
 grid: {
   display: "grid",
   gridTemplateColumns: "repeat(7, 1fr)",
-  gap: 12, // antes 10
+  gap: 12,
   padding: 12,
   minWidth: 720,
 },
 
 cell: {
   height: "100%",
-  borderRadius: 16,
-  border: "1px solid rgba(255,255,255,0.04)", // 🔥 menos ruido
-  background: "rgba(255,255,255,0.025)",
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.06)",
+  background:
+    "linear-gradient(180deg, rgba(255,255,255,0.032), rgba(255,255,255,0.018))",
   padding: "10px 10px 8px",
   cursor: "pointer",
   textAlign: "left",
@@ -1650,7 +1662,8 @@ cell: {
   display: "flex",
   flexDirection: "column",
   justifyContent: "space-between",
-  transition: "all 160ms ease",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.025)",
+  transition: "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease",
 },
 ":hover": {
   background: "rgba(255,255,255,0.05)",
@@ -1668,22 +1681,30 @@ cell: {
     gap: 6,
     flexWrap: "wrap",
   },
-  cellDay: { fontSize: 13, fontWeight: 900, opacity: 0.92 },
+  cellDay: {
+    fontSize: 13,
+    fontWeight: 950,
+    opacity: 0.98,
+    color: "rgba(248,250,252,0.96)",
+    letterSpacing: "-0.02em",
+  },
   cellDayToday: {
     padding: "2px 8px",
     borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.35)",
-    background: "rgba(56,189,248,0.12)",
+    border: "1px solid rgba(56,189,248,0.38)",
+    background: "rgba(56,189,248,0.14)",
+    boxShadow: "0 0 0 1px rgba(125,211,252,0.08) inset",
   },
 
   cellCount: {
     fontSize: 11,
     padding: "1px 6px",
     borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-    opacity: 0.9,
-    fontWeight: 850,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.055)",
+    color: "rgba(226,232,240,0.92)",
+    opacity: 0.96,
+    fontWeight: 900,
     flexShrink: 0,
   },
   cellCountRow: {
@@ -1703,28 +1724,32 @@ cell: {
     width: 20,
     height: 20,
     borderRadius: 8,
-    border: "1px solid rgba(250,204,21,0.40)",
-    background: "rgba(250,204,21,0.12)",
-    color: "rgba(255,255,255,0.95)",
+    border: "1px solid rgba(250,204,21,0.46)",
+    background:
+      "linear-gradient(180deg, rgba(250,204,21,0.18), rgba(250,204,21,0.10))",
+    color: "rgba(255,255,255,0.97)",
     cursor: "pointer",
-    fontWeight: 900,
+    fontWeight: 950,
     fontSize: 11,
     lineHeight: "20px",
     textAlign: "center",
+    boxShadow: "0 8px 18px rgba(250,204,21,0.12)",
     flexShrink: 0,
   },
   cellQuickBtnGroup: {
     width: 20,
     height: 20,
     borderRadius: 8,
-    border: "1px solid rgba(96,165,250,0.40)",
-    background: "rgba(96,165,250,0.12)",
-    color: "rgba(255,255,255,0.95)",
+    border: "1px solid rgba(96,165,250,0.46)",
+    background:
+      "linear-gradient(180deg, rgba(96,165,250,0.18), rgba(96,165,250,0.10))",
+    color: "rgba(255,255,255,0.97)",
     cursor: "pointer",
-    fontWeight: 900,
+    fontWeight: 950,
     fontSize: 11,
     lineHeight: "20px",
     textAlign: "center",
+    boxShadow: "0 8px 18px rgba(96,165,250,0.12)",
     flexShrink: 0,
   },
 
@@ -1750,21 +1775,25 @@ cell: {
   },
 cellEventText: {
   fontSize: 12,
-  opacity: 0.95,
-  fontWeight: 800, // 🔥 más peso
+  opacity: 0.98,
+  color: "rgba(241,245,249,0.94)",
+  fontWeight: 850,
   overflow: "hidden",
   whiteSpace: "nowrap",
   textOverflow: "ellipsis",
 },
   moreHint: {
     fontSize: 12,
-    opacity: 0.65,
+    opacity: 0.78,
+    color: "rgba(191,219,254,0.88)",
     marginTop: 4,
-    fontWeight: 750,
+    fontWeight: 800,
   },
 
 dayPanel: {
-  borderTop: "1px solid rgba(255,255,255,0.05)",
+  borderTop: "1px solid rgba(255,255,255,0.06)",
+  background:
+    "linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.008))",
   padding: 14,
 },
   dayPanelTop: {
@@ -1793,11 +1822,12 @@ dayPanel: {
   },
 
   agendaCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
+    borderRadius: 20,
+    border: "1px solid rgba(255,255,255,0.09)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.022))",
     overflow: "hidden",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
+    boxShadow: "0 22px 70px rgba(0,0,0,0.30)",
   },
   agendaTop: {
     padding: 14,
@@ -1822,9 +1852,11 @@ eventRow: {
   gap: 12,
   padding: 14,
   borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.05)",
-  background: "rgba(255,255,255,0.03)",
-  transition: "all 160ms ease",
+  border: "1px solid rgba(255,255,255,0.06)",
+  background:
+    "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.025))",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.025)",
+  transition: "background 160ms ease, border-color 160ms ease, transform 160ms ease",
 },
   eventBar: { width: 6, borderRadius: 999 },
   eventBody: {
@@ -1833,29 +1865,40 @@ eventRow: {
     flexDirection: "column",
     gap: 6,
   },
-  eventTop: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  eventRight: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-  },
+  eventMain: {
+  flex: 1,
+  minWidth: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+},
+eventTop: {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 10,
+},
+eventRight: {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  flexShrink: 0,
+  alignSelf: "flex-start",
+},
 eventTitle: {
-  fontSize: 15, // 🔥 sube un poco
+  fontSize: 15,
   fontWeight: 950,
   letterSpacing: "-0.2px",
+  color: "rgba(248,250,252,0.97)",
   overflow: "hidden",
   whiteSpace: "nowrap",
   textOverflow: "ellipsis",
 },
   eventTime: {
     fontSize: 12,
-    opacity: 0.78,
-    fontWeight: 700,
+    opacity: 0.9,
+    color: "rgba(191,219,254,0.78)",
+    fontWeight: 750,
   },
   eventTag: {
     display: "inline-flex",
@@ -1864,9 +1907,10 @@ eventTitle: {
     fontSize: 12,
     padding: "6px 10px",
     borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.03)",
-    opacity: 0.95,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.045)",
+    color: "rgba(226,232,240,0.94)",
+    opacity: 0.98,
     whiteSpace: "nowrap",
     fontWeight: 850,
   },
@@ -1876,8 +1920,25 @@ eventTitle: {
     width: 34,
     height: 34,
     borderRadius: 12,
-    border: "1px solid rgba(59,130,246,0.45)",
-    background: "rgba(59,130,246,0.16)",
+    border: "1px solid rgba(59,130,246,0.48)",
+    background:
+      "linear-gradient(180deg, rgba(59,130,246,0.20), rgba(59,130,246,0.12))",
+    color: "rgba(255,255,255,0.96)",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 14,
+    fontWeight: 950,
+    boxShadow: "0 8px 20px rgba(59,130,246,0.10)",
+  },
+  deleteBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    border: "1px solid rgba(248,113,113,0.32)",
+    background:
+      "linear-gradient(180deg, rgba(248,113,113,0.14), rgba(248,113,113,0.08))",
     color: "rgba(255,255,255,0.94)",
     cursor: "pointer",
     display: "inline-flex",
@@ -1885,51 +1946,40 @@ eventTitle: {
     justifyContent: "center",
     fontSize: 14,
     fontWeight: 950,
-  },
-  deleteBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    border: "1px solid rgba(248,113,113,0.28)",
-    background: "rgba(248,113,113,0.10)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 14,
-    fontWeight: 950,
+    boxShadow: "0 8px 20px rgba(248,113,113,0.08)",
   },
 
   primaryBtnPersonal: {
     padding: "12px 14px",
     borderRadius: 14,
-    border: "1px solid rgba(250,204,21,0.30)",
+    border: "1px solid rgba(250,204,21,0.34)",
     background:
-      "linear-gradient(135deg, rgba(250,204,21,0.22), rgba(250,204,21,0.08))",
-    color: "rgba(255,255,255,0.95)",
+      "linear-gradient(135deg, rgba(250,204,21,0.24), rgba(250,204,21,0.10))",
+    color: "rgba(255,255,255,0.97)",
     cursor: "pointer",
     fontWeight: 950,
+    boxShadow: "0 14px 30px rgba(250,204,21,0.10)",
   },
   primaryBtnGroup: {
     padding: "12px 14px",
     borderRadius: 14,
-    border: "1px solid rgba(96,165,250,0.30)",
+    border: "1px solid rgba(96,165,250,0.34)",
     background:
-      "linear-gradient(135deg, rgba(96,165,250,0.22), rgba(96,165,250,0.08))",
-    color: "rgba(255,255,255,0.95)",
+      "linear-gradient(135deg, rgba(96,165,250,0.24), rgba(96,165,250,0.10))",
+    color: "rgba(255,255,255,0.97)",
     cursor: "pointer",
     fontWeight: 950,
+    boxShadow: "0 14px 30px rgba(96,165,250,0.10)",
   },
 
  ghostBtn: {
   padding: "8px 12px",
   borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.03)",
-  color: "rgba(255,255,255,0.9)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(255,255,255,0.04)",
+  color: "rgba(255,255,255,0.92)",
   cursor: "pointer",
-  fontWeight: 800,
+  fontWeight: 850,
 },
 
   ghostBtnSmallPersonal: {
@@ -2099,9 +2149,11 @@ eventTitle: {
     fontWeight: 900,
   },
 overviewCard: {
-  borderRadius: 16,
-  border: "1px solid rgba(255,255,255,0.04)",
-  background: "rgba(255,255,255,0.02)",
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background:
+    "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.022))",
+  boxShadow: "0 20px 60px rgba(0,0,0,0.24)",
   padding: "10px 12px",
   marginBottom: 8,
 },
@@ -2122,9 +2174,9 @@ overviewLeft: {
 overviewEyebrow: {
   fontSize: 11,
   fontWeight: 900,
-  letterSpacing: 0.5,
+  letterSpacing: 0.6,
   textTransform: "uppercase",
-  color: "rgba(148,163,184,0.86)",
+  color: "rgba(191,219,254,0.72)",
   marginBottom: 6,
 },
 
@@ -2141,7 +2193,7 @@ overviewSub: {
   marginTop: 8,
   fontSize: 13,
   lineHeight: 1.5,
-  color: "rgba(191,219,254,0.82)",
+  color: "rgba(226,232,240,0.76)",
 },
 
 overviewActions: {
@@ -2154,7 +2206,7 @@ overviewActions: {
 overviewMetaRow: {
   marginTop: 10,
   paddingTop: 10,
-  borderTop: "1px solid rgba(148,163,184,0.10)",
+  borderTop: "1px solid rgba(148,163,184,0.12)",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
