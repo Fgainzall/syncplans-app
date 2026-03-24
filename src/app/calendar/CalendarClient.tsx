@@ -1859,13 +1859,14 @@ eventRow: {
   transition: "background 160ms ease, border-color 160ms ease, transform 160ms ease",
 },
   eventBar: { width: 6, borderRadius: 999 },
-  eventBody: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  eventMain: {
+eventBody: {
+  flex: 1,
+  minWidth: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+},
+eventMain: {
   flex: 1,
   minWidth: 0,
   display: "flex",
@@ -1877,6 +1878,8 @@ eventTop: {
   alignItems: "flex-start",
   justifyContent: "space-between",
   gap: 10,
+  width: "100%",
+  minWidth: 0,
 },
 eventRight: {
   display: "inline-flex",
@@ -1884,6 +1887,7 @@ eventRight: {
   gap: 8,
   flexShrink: 0,
   alignSelf: "flex-start",
+  marginLeft: 8,
 },
 eventTitle: {
   fontSize: 15,
@@ -1893,6 +1897,7 @@ eventTitle: {
   overflow: "hidden",
   whiteSpace: "nowrap",
   textOverflow: "ellipsis",
+  minWidth: 0,
 },
   eventTime: {
     fontSize: 12,
@@ -1900,20 +1905,21 @@ eventTitle: {
     color: "rgba(191,219,254,0.78)",
     fontWeight: 750,
   },
-  eventTag: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    fontSize: 12,
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.045)",
-    color: "rgba(226,232,240,0.94)",
-    opacity: 0.98,
-    whiteSpace: "nowrap",
-    fontWeight: 850,
-  },
+eventTag: {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  fontSize: 12,
+  padding: "6px 10px",
+  borderRadius: 999,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.045)",
+  color: "rgba(226,232,240,0.94)",
+  opacity: 0.98,
+  whiteSpace: "nowrap",
+  fontWeight: 850,
+  maxWidth: "100%",
+},
   eventDot: { width: 8, height: 8, borderRadius: 999 },
 
   editBtn: {
