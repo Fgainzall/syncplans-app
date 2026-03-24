@@ -57,3 +57,57 @@ canvas {
   max-width: 100%;
   height: auto;
 }
+
+.spCal-calendarCard,
+.spCal-overviewCard {
+  position: relative;
+}
+
+.spCal-calendarCard::before,
+.spCal-overviewCard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent 22%);
+}
+
+.spCal-chip {
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.spCal-chip:hover {
+  border-color: rgba(255,255,255,0.12) !important;
+  background: rgba(255,255,255,0.055) !important;
+}
+
+.spCal-cell {
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.spCal-cell:hover {
+  border-color: rgba(255,255,255,0.12) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.028)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 10px 24px rgba(0,0,0,0.12);
+}
+
+.spCal-cell:focus-visible {
+  outline: 2px solid rgba(125,211,252,0.42) !important;
+  outline-offset: 0;
+}
+
+.spCal-monthScroller::-webkit-scrollbar {
+  height: 10px;
+}
+
+.spCal-monthScroller::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.03);
+  border-radius: 999px;
+}
+
+.spCal-monthScroller::-webkit-scrollbar-thumb {
+  background: rgba(148,163,184,0.32);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
