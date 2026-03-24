@@ -1,4 +1,3 @@
-// src/app/panel/page.tsx
 "use client";
 
 import React, {
@@ -30,6 +29,12 @@ import {
 } from "@/lib/externalEvents";
 import { getMyProfile, type Profile } from "@/lib/profilesDb";
 import { isPremiumUser, isTrialActive, type PlanTier } from "@/lib/premium";
+import {
+  getGroupState,
+  setMode,
+  type GroupState,
+  type UsageMode,
+} from "@/lib/groups";
 import { colors, radii, shadows, spacing } from "@/styles/design-tokens";
 
 type QuickAction = {
@@ -58,6 +63,84 @@ type GoogleStatus = {
   error?: string | null;
 };
 
+type ContextOption = {
+  key: UsageMode;
+  label: string;
+  hint: string;
+  dot: string;
+};
+
+const CONTEXT_OPTIONS: ContextOption[] = [
+  {
+    key: "solo",
+    label: "Personal",
+    hint: "Tu agenda individual",
+    dot: "#FBBF24",
+  },
+  {
+    key: "pair",
+    label: "Pareja",
+    hint: "Coordinación de dos",
+    dot: "#F87171",
+  },
+  {
+    key: "family",
+    label: "Familia",
+    hint: "Varios miembros",
+    dot: "#60A5FA",
+  },
+];
+
+async function ensureActiveGroupForMode(
+  mode: UsageMode
+): Promise<string | null> {
+  if (mode === "solo") return null;
+
+  const { getActiveGroupIdFromDb, setActiveGroupIdInDb } = await import(
+    "@/lib/activeGroup"
+  );
+  const { getMyGroups } = await import("@/lib/groupsDb");
+
+  const existing = await getActiveGroupIdFromDb().catch(() => null);
+  const groups = await getMyGroups();
+  if (!groups.length) return null;
+
+  const wantType = String(mode).toLowerCase();
+
+  if (existing) {
+    const current = groups.find((g: any) => String(g.id) === String(existing));
+    const currentType = String(current?.type ?? "").toLowerCase();
+    if (current && currentType === wantType) {
+      return String(existing);
+    }
+  }
+
+  const match = groups.find(
+    (g: any) => String(g.type ?? "").toLowerCase() === wantType
+  );
+  const pick = match?.id ?? groups[0]?.id ?? null;
+
+  if (pick) {
+    await setActiveGroupIdInDb(String(pick));
+    return String(pick);
+  }
+
+  return null;
+}
+
+function normalizeGroupLabel(input?: string | null) {
+  const raw = (input ?? "").trim();
+  if (!raw) return null;
+
+  if (/^activo$/i.test(raw)) return "Grupo actual";
+  if (/^activo\s*[:\-–]\s*/i.test(raw)) {
+    const cleaned = raw.replace(/^activo\s*[:\-–]\s*/i, "").trim();
+    return cleaned || "Grupo actual";
+  }
+
+  return raw;
+}
+
 export default function PanelPage() {
   const router = useRouter();
 
@@ -75,6 +158,11 @@ export default function PanelPage() {
   const [googleEventsError, setGoogleEventsError] = useState<string | null>(
     null
   );
+
+  const [contextState, setContextState] = useState<GroupState>(() =>
+    getGroupState()
+  );
+  const [contextSaving, setContextSaving] = useState<UsageMode | null>(null);
 
   const loadCore = useCallback(async () => {
     try {
@@ -204,7 +292,28 @@ export default function PanelPage() {
   useEffect(() => {
     loadCore();
     fetchGoogleStatus();
+    setContextState(getGroupState());
   }, [loadCore, fetchGoogleStatus]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key || e.key === "syncplans.groupState.v3") {
+        setContextState(getGroupState());
+      }
+    };
+
+    const onModeChanged = () => {
+      setContextState(getGroupState());
+    };
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("sp:mode-changed", onModeChanged);
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("sp:mode-changed", onModeChanged);
+    };
+  }, []);
 
   const connectionState: ConnectionState =
     googleStatus?.connection_state ??
@@ -221,13 +330,25 @@ export default function PanelPage() {
   }, [connectionState, fetchGoogleEvents]);
 
   const totalEvents = stats?.totalEvents ?? 0;
-  const eventsLast7 = stats?.eventsLast7 ?? 0;
   const totalGroups = stats?.totalGroups ?? 0;
   const conflictsNow = stats?.conflictsNow ?? 0;
 
   const tier = (profile?.plan_tier ?? "free") as PlanTier;
   const trialActive = isTrialActive(profile);
   const premiumActive = isPremiumUser(profile);
+
+  const currentContextOption =
+    CONTEXT_OPTIONS.find((x) => x.key === contextState.mode) ??
+    CONTEXT_OPTIONS[0];
+
+  const currentContextGroupName = normalizeGroupLabel(
+    contextState.groupName ?? null
+  );
+  const showContextGroupName =
+    currentContextGroupName &&
+    currentContextGroupName !== currentContextOption.label
+      ? currentContextGroupName
+      : null;
 
   const planInfo = useMemo(() => {
     const normalizedTier = String(tier || "free").toLowerCase();
@@ -369,25 +490,38 @@ export default function PanelPage() {
         : "La conexión existe, pero necesita reconexión."
       : "Todavía no has conectado Google Calendar.";
 
-  const googleSupportCopy =
-    connectionState === "connected"
-      ? "La conexión está activa y lista para sumar contexto externo sin recargar la experiencia principal."
-      : connectionState === "needs_reauth"
-      ? "No está roto: solo falta renovar la conexión para que SyncPlans vuelva a leer Google con normalidad."
-      : "Es una integración de apoyo. Te sirve para sumar contexto externo sin convertir el Panel en un dashboard pesado.";
+  const heroNote =
+    totalGroups > 0 && connectionState === "connected"
+      ? `Tu estructura ya está armada: ${totalGroups} grupo${
+          totalGroups === 1 ? "" : "s"
+        } activo${totalGroups === 1 ? "" : "s"} y Google Calendar conectado.`
+      : totalGroups > 0
+      ? `Tienes ${totalGroups} grupo${
+          totalGroups === 1 ? "" : "s"
+        } activo${totalGroups === 1 ? "" : "s"}.`
+      : connectionState === "connected"
+      ? "Tu base ya está conectada: ahora toca ordenar grupos, accesos e integraciones."
+      : "Desde aquí defines la estructura que sostiene la coordinación compartida.";
 
-const heroNote =
-  totalGroups > 0 && connectionState === "connected"
-    ? `Tu estructura ya está armada: ${totalGroups} grupo${
-        totalGroups === 1 ? "" : "s"
-      } activo${totalGroups === 1 ? "" : "s"} y Google Calendar conectado.`
-    : totalGroups > 0
-    ? `Tienes ${totalGroups} grupo${
-        totalGroups === 1 ? "" : "s"
-      } activo${totalGroups === 1 ? "" : "s"}.`
-    : connectionState === "connected"
-    ? "Tu base ya está conectada: ahora toca ordenar grupos, accesos e integraciones."
-    : "Desde aquí defines la estructura que sostiene la coordinación compartida.";
+  async function handleContextChange(nextMode: UsageMode) {
+    if (contextSaving === nextMode || contextState.mode === nextMode) return;
+
+    setContextSaving(nextMode);
+
+    try {
+      const nextState = setMode(nextMode);
+
+      if (nextMode !== "solo") {
+        await ensureActiveGroupForMode(nextMode).catch(() => null);
+      }
+
+      setContextState(nextState);
+      window.dispatchEvent(new Event("sp:mode-changed"));
+    } finally {
+      setContextSaving(null);
+    }
+  }
+
   return (
     <MobileScaffold maxWidth={1120}>
       <PremiumHeader
@@ -428,22 +562,23 @@ const heroNote =
               </button>
             </div>
           </div>
-                    <div style={styles.heroStrip}>
+
+          <div style={styles.heroStrip}>
             <div style={styles.heroStripTitle}>Estado del espacio</div>
             <div style={styles.heroStripCopy}>{heroNote}</div>
           </div>
 
           <div style={styles.metricsGrid}>
-         <MetricCard
-  label="Grupos"
-  value={loading ? "—" : String(totalGroups)}
-  hint="Pareja, familia y compartidos"
-/>
-<MetricCard
-  label="Eventos registrados"
-  value={loading ? "—" : String(totalEvents)}
-  hint="En el sistema"
-/>
+            <MetricCard
+              label="Grupos"
+              value={loading ? "—" : String(totalGroups)}
+              hint="Pareja, familia y compartidos"
+            />
+            <MetricCard
+              label="Eventos registrados"
+              value={loading ? "—" : String(totalEvents)}
+              hint="En el sistema"
+            />
             <MetricCard
               label="Google"
               value={
@@ -468,6 +603,96 @@ const heroNote =
 
         <div style={styles.mainGrid}>
           <div style={styles.leftCol}>
+            <section style={styles.sectionCard}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionEyebrow}>Contexto</div>
+                  <h2 style={styles.sectionTitle}>Contexto activo</h2>
+                </div>
+              </div>
+
+              <p style={styles.bodyCopy}>
+                Esto define desde qué perspectiva principal estás trabajando la
+                app. El header te informa; aquí decides el enfoque.
+              </p>
+
+              <div style={styles.contextHero}>
+                <div style={styles.contextHeroLeft}>
+                  <div style={styles.contextHeroLabel}>Actualmente</div>
+                  <div style={styles.contextCurrentRow}>
+                    <span
+                      style={{
+                        ...styles.contextCurrentDot,
+                        background: currentContextOption.dot,
+                      }}
+                    />
+                    <span style={styles.contextCurrentText}>
+                      {currentContextOption.label}
+                    </span>
+                  </div>
+
+                  {showContextGroupName ? (
+                    <div style={styles.contextCurrentMeta}>
+                      Grupo asociado: {showContextGroupName}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div style={styles.contextHeroRight}>
+                  <div style={styles.contextHeroHint}>
+                    Cambia este contexto solo cuando quieras cambiar la mirada
+                    principal de la app.
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.contextGrid}>
+                {CONTEXT_OPTIONS.map((option) => {
+                  const active = option.key === contextState.mode;
+                  const saving = contextSaving === option.key;
+
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => handleContextChange(option.key)}
+                      disabled={saving}
+                      style={{
+                        ...styles.contextCard,
+                        ...(active ? styles.contextCardActive : {}),
+                        ...(saving ? styles.contextCardBusy : {}),
+                      }}
+                    >
+                      <div style={styles.contextCardTop}>
+                        <span
+                          style={{
+                            ...styles.contextCardDot,
+                            background: option.dot,
+                          }}
+                        />
+                        <span style={styles.contextCardLabel}>
+                          {option.label}
+                        </span>
+                        {active ? (
+                          <span style={styles.contextBadge}>Activo</span>
+                        ) : null}
+                      </div>
+
+                      <div style={styles.contextCardHint}>{option.hint}</div>
+
+                      <div style={styles.contextCardFoot}>
+                        {saving
+                          ? "Actualizando..."
+                          : active
+                          ? "Este es el contexto principal actual."
+                          : "Cambiar a este contexto"}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
             <section style={styles.sectionCard}>
               <div style={styles.sectionHead}>
                 <div>
@@ -504,8 +729,8 @@ const heroNote =
             <section style={styles.sectionCard}>
               <div style={styles.sectionHead}>
                 <div>
-                 <div style={styles.sectionEyebrow}>Estructura</div>
-<h2 style={styles.sectionTitle}>Grupos activos</h2>
+                  <div style={styles.sectionEyebrow}>Estructura</div>
+                  <h2 style={styles.sectionTitle}>Grupos activos</h2>
                 </div>
 
                 <button
@@ -857,7 +1082,7 @@ const styles: Record<string, CSSProperties> = {
     background:
       "linear-gradient(135deg, rgba(56,189,248,0.30), rgba(168,85,247,0.22))",
     color: colors.textPrimary,
-        fontWeight: 900,
+    fontWeight: 900,
     cursor: "pointer",
   },
 
@@ -984,6 +1209,161 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 22,
     fontWeight: 900,
     lineHeight: 1.05,
+  },
+
+  bodyCopy: {
+    margin: 0,
+    color: colors.textMuted,
+    fontSize: 14,
+    lineHeight: 1.6,
+  },
+
+  contextHero: {
+    display: "grid",
+    gridTemplateColumns: "minmax(220px, 1.2fr) minmax(220px, 1fr)",
+    gap: 14,
+    borderRadius: radii.lg,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background:
+      "radial-gradient(700px 220px at 0% 0%, rgba(56,189,248,0.10), transparent 55%), rgba(255,255,255,0.03)",
+    padding: 16,
+  },
+
+  contextHeroLeft: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    minWidth: 0,
+  },
+
+  contextHeroRight: {
+    display: "flex",
+    alignItems: "center",
+    minWidth: 0,
+  },
+
+  contextHeroLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: 0.65,
+    color: colors.textSecondary,
+  },
+
+  contextCurrentRow: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+
+  contextCurrentDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    boxShadow: "0 0 0 4px rgba(255,255,255,0.05)",
+    flexShrink: 0,
+  },
+
+  contextCurrentText: {
+    fontSize: 24,
+    lineHeight: 1.05,
+    fontWeight: 950,
+    color: colors.textPrimary,
+  },
+
+  contextCurrentMeta: {
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 1.5,
+    fontWeight: 700,
+  },
+
+  contextHeroHint: {
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: colors.textMuted,
+  },
+
+  contextGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 12,
+  },
+
+  contextCard: {
+    borderRadius: radii.lg,
+    border: "1px solid rgba(255,255,255,0.09)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(15,23,42,0.98))",
+    padding: 16,
+    textAlign: "left",
+    cursor: "pointer",
+    color: colors.textPrimary,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    transition: "transform 160ms ease, border-color 160ms ease",
+  },
+
+  contextCardActive: {
+    border: "1px solid rgba(56,189,248,0.24)",
+    background:
+      "linear-gradient(180deg, rgba(56,189,248,0.10), rgba(15,23,42,0.98))",
+    boxShadow: "0 12px 28px rgba(56,189,248,0.08)",
+  },
+
+  contextCardBusy: {
+    opacity: 0.78,
+    cursor: "wait",
+  },
+
+  contextCardTop: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    minWidth: 0,
+    flexWrap: "wrap",
+  },
+
+  contextCardDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    flexShrink: 0,
+  },
+
+  contextCardLabel: {
+    fontSize: 16,
+    fontWeight: 900,
+    lineHeight: 1.2,
+    color: colors.textPrimary,
+  },
+
+  contextBadge: {
+    marginLeft: "auto",
+    borderRadius: 999,
+    padding: "4px 8px",
+    fontSize: 11,
+    fontWeight: 900,
+    border: "1px solid rgba(56,189,248,0.34)",
+    background: "rgba(56,189,248,0.12)",
+    color: colors.textPrimary,
+    whiteSpace: "nowrap",
+  },
+
+  contextCardHint: {
+    margin: 0,
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 1.55,
+  },
+
+  contextCardFoot: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 1.5,
+    fontWeight: 700,
   },
 
   actionsGrid: {
@@ -1192,13 +1572,6 @@ const styles: Record<string, CSSProperties> = {
     color: colors.textPrimary,
     fontWeight: 800,
     cursor: "pointer",
-  },
-
-  bodyCopy: {
-    margin: 0,
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 1.6,
   },
 
   googleEventsWrap: {

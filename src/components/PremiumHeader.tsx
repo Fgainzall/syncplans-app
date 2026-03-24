@@ -242,11 +242,31 @@ export default function PremiumHeader({
 
   useClickOutside(userMenuRef, () => setUserMenuOpen(false));
 
-  useEffect(() => {
+  const syncGroupState = useCallback(() => {
     const g = getGroupState();
     setGroup(g);
     applyThemeVars((g.mode as TabKey) ?? "solo");
   }, []);
+
+  useEffect(() => {
+    syncGroupState();
+
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key || e.key === "syncplans.groupState.v3") {
+        syncGroupState();
+      }
+    };
+
+    const onModeChanged = () => syncGroupState();
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("sp:mode-changed", onModeChanged);
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("sp:mode-changed", onModeChanged);
+    };
+  }, [syncGroupState]);
 
   const activeMode: TabKey = (group?.mode as TabKey) ?? "solo";
 
@@ -316,9 +336,11 @@ export default function PremiumHeader({
     return MODE_META[activeMode] ?? MODE_META.solo;
   }, [activeMode]);
 
-  const kickerLabel = useMemo(() => {
+  const groupDisplayName = useMemo(() => {
     const cleaned = normalizeGroupLabel((group as any)?.groupName ?? null);
-    return cleaned ?? activeTab.label;
+    if (!cleaned) return null;
+    if (cleaned === activeTab.label) return null;
+    return cleaned;
   }, [group, activeTab.label]);
 
   const finalTitle = title ?? getAutoTitle(pathname);
@@ -428,10 +450,17 @@ export default function PremiumHeader({
               </div>
 
               <div style={styles.mobileCenterBlock}>
-                <div style={styles.kickerRowCenter}>
+                <div style={styles.contextKickerMobile}>Contexto activo</div>
+
+                <div style={styles.contextPillMobile}>
                   <span style={{ ...styles.dot, background: activeTab.dot }} />
-                  <span style={styles.kickerTextMobile}>{kickerLabel}</span>
+                  <span style={styles.contextPillText}>{activeTab.label}</span>
                 </div>
+
+                {groupDisplayName ? (
+                  <div style={styles.contextSubtleMobile}>{groupDisplayName}</div>
+                ) : null}
+
                 <h1 style={styles.mobileTitle}>{finalTitle}</h1>
               </div>
 
@@ -552,9 +581,19 @@ export default function PremiumHeader({
           <>
             <div style={styles.desktopTopRow}>
               <div style={styles.desktopTitleBlock}>
-                <div style={styles.kickerRow}>
-                  <span style={{ ...styles.dot, background: activeTab.dot }} />
-                  <span style={styles.kickerText}>{kickerLabel}</span>
+                <div style={styles.contextKickerDesktop}>Contexto activo</div>
+
+                <div style={styles.desktopContextRow}>
+                  <div style={styles.contextPillDesktop}>
+                    <span style={{ ...styles.dot, background: activeTab.dot }} />
+                    <span style={styles.contextPillText}>{activeTab.label}</span>
+                  </div>
+
+                  {groupDisplayName ? (
+                    <span style={styles.contextMetaDesktop}>
+                      · {groupDisplayName}
+                    </span>
+                  ) : null}
                 </div>
 
                 <h1 style={styles.desktopTitle}>{finalTitle}</h1>
@@ -784,7 +823,7 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 1,
     display: "grid",
     gridTemplateColumns: "40px 1fr 40px",
-    alignItems: "center",
+    alignItems: "start",
     gap: 10,
   },
   mobileLeftCluster: {
@@ -796,34 +835,72 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: "column",
     alignItems: "center",
     minWidth: 0,
-    gap: 4,
+    gap: 5,
   },
 
-  kickerRow: {
+  contextKickerDesktop: {
+    margin: 0,
+    fontSize: 11,
+    fontWeight: 900,
+    color: colors.textSecondary,
+    letterSpacing: 0.72,
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  contextKickerMobile: {
+    margin: 0,
+    fontSize: 10,
+    fontWeight: 900,
+    color: colors.textSecondary,
+    letterSpacing: 0.68,
+    textTransform: "uppercase",
+  },
+  desktopContextRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+    marginBottom: 12,
+  },
+  contextPillDesktop: {
     display: "inline-flex",
     alignItems: "center",
     gap: 8,
-    marginBottom: 10,
+    padding: "7px 12px",
+    borderRadius: radii.full,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.055)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
   },
-  kickerRowCenter: {
+  contextPillMobile: {
     display: "inline-flex",
     alignItems: "center",
-    gap: 6,
-    minWidth: 0,
+    gap: 7,
+    padding: "6px 10px",
+    borderRadius: radii.full,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
     maxWidth: "100%",
   },
-  kickerText: {
-    margin: 0,
+  contextPillText: {
     fontSize: 12,
-    fontWeight: 800,
-    color: "#D6E8FF",
-    letterSpacing: 0.2,
+    fontWeight: 900,
+    color: colors.textPrimary,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
-  kickerTextMobile: {
-    margin: 0,
+  contextMetaDesktop: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: colors.textMuted,
+  },
+  contextSubtleMobile: {
     fontSize: 11,
-    fontWeight: 800,
-    color: "#D6E8FF",
+    fontWeight: 700,
+    color: colors.textMuted,
+    textAlign: "center",
+    maxWidth: "100%",
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -854,7 +931,7 @@ const styles: Record<string, CSSProperties> = {
   },
 
   mobileTitle: {
-    margin: 0,
+    margin: "2px 0 0",
     fontSize: 18,
     lineHeight: 1.1,
     fontWeight: 900,
