@@ -548,19 +548,19 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 0,
   },
 
- headerRow: {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 18,
-  flexWrap: "wrap",
-  width: "100%",
-},
-headerCopy: {
-  minWidth: 0,
-  flex: "1 1 320px",
-  width: "100%",
-},
+  headerRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 18,
+    flexWrap: "wrap",
+    width: "100%",
+  },
+  headerCopy: {
+    minWidth: 0,
+    flex: "1 1 320px",
+    width: "100%",
+  },
   kicker: {
     fontSize: 11,
     letterSpacing: "0.14em",
@@ -575,23 +575,23 @@ headerCopy: {
     letterSpacing: "-0.03em",
     fontWeight: 950,
   },
-sub: {
-  marginTop: 6,
-  fontSize: 13,
-  color: "rgba(209,213,219,0.96)",
-  maxWidth: 460,
-  width: "100%",
-  lineHeight: 1.65,
-  overflowWrap: "break-word",
-},
+  sub: {
+    marginTop: 6,
+    fontSize: 13,
+    color: "rgba(209,213,219,0.96)",
+    maxWidth: 460,
+    width: "100%",
+    lineHeight: 1.65,
+    overflowWrap: "break-word",
+  },
 
-topActions: {
-  display: "flex",
-  gap: 8,
-  alignItems: "center",
-  flexWrap: "wrap",
-  width: "100%",
-},
+  topActions: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+    flexWrap: "wrap",
+    width: "100%",
+  },
 
   heroSection: {
     marginTop: 4,
@@ -658,7 +658,8 @@ topActions: {
   },
 
   heroSummary: {
-    width: 240,
+    width: "100%",
+    maxWidth: 240,
     alignSelf: "stretch",
   },
   heroSummaryTitle: {
@@ -714,6 +715,7 @@ topActions: {
     background: "rgba(15,23,42,0.96)",
     overflow: "hidden",
     flexWrap: "wrap",
+    maxWidth: "100%",
   },
   segmentBtn: {
     padding: "8px 12px",
@@ -757,12 +759,14 @@ topActions: {
     alignItems: "stretch",
     gap: 12,
     padding: 14,
+    flexWrap: "wrap",
+    width: "100%",
   },
   groupLeft: {
     display: "flex",
     gap: 12,
     alignItems: "center",
-    flex: 1,
+    flex: "1 1 280px",
     minWidth: 0,
   },
   groupCopy: {
@@ -791,6 +795,7 @@ topActions: {
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
+    minWidth: 0,
   },
   groupMetaRow: {
     marginTop: 4,
@@ -800,6 +805,7 @@ topActions: {
     alignItems: "center",
     gap: 4,
     flexWrap: "wrap",
+    minWidth: 0,
   },
   dotSeparator: {
     opacity: 0.7,
@@ -810,12 +816,14 @@ topActions: {
 
   groupRight: {
     display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-end",
-    justifyContent: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
     gap: 8,
-    flexShrink: 0,
-    minWidth: 146,
+    flexWrap: "wrap",
+    flex: "1 1 100%",
+    minWidth: 0,
+    width: "100%",
   },
 
   activateBtn: {
@@ -827,7 +835,9 @@ topActions: {
     fontSize: 12,
     cursor: "pointer",
     fontWeight: 800,
-    minWidth: 130,
+    minWidth: 0,
+    maxWidth: "100%",
+    flex: "1 1 160px",
     textAlign: "center",
   },
   activeBadge: {
@@ -838,6 +848,10 @@ topActions: {
     color: "rgba(220,252,231,0.98)",
     fontSize: 12,
     fontWeight: 800,
+    minWidth: 0,
+    maxWidth: "100%",
+    flex: "1 1 160px",
+    textAlign: "center",
   },
   linkBtn: {
     padding: "7px 11px",
@@ -848,7 +862,9 @@ topActions: {
     fontSize: 12,
     cursor: "pointer",
     fontWeight: 800,
-    minWidth: 130,
+    minWidth: 0,
+    maxWidth: "100%",
+    flex: "1 1 160px",
     textAlign: "center",
   },
 
@@ -895,31 +911,31 @@ topActions: {
     color: "rgba(209,213,219,0.96)",
   },
 
-primary: {
-  padding: "9px 12px",
-  borderRadius: 14,
-  border: "1px solid rgba(96,165,250,0.85)",
-  background:
-    "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95))",
-  color: "white",
-  cursor: "pointer",
-  fontWeight: 900,
-  fontSize: 13,
-  flex: "1 1 180px",
-  minWidth: 0,
-  textAlign: "center",
-},
-secondary: {
-  padding: "9px 12px",
-  borderRadius: 14,
-  border: "1px solid rgba(148,163,184,0.75)",
-  background: "rgba(15,23,42,0.96)",
-  color: "rgba(226,232,240,0.98)",
-  cursor: "pointer",
-  fontWeight: 900,
-  fontSize: 13,
-  flex: "1 1 180px",
-  minWidth: 0,
-  textAlign: "center",
-},
+  primary: {
+    padding: "9px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(96,165,250,0.85)",
+    background:
+      "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95))",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: 900,
+    fontSize: 13,
+    flex: "1 1 180px",
+    minWidth: 0,
+    textAlign: "center",
+  },
+  secondary: {
+    padding: "9px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(148,163,184,0.75)",
+    background: "rgba(15,23,42,0.96)",
+    color: "rgba(226,232,240,0.98)",
+    cursor: "pointer",
+    fontWeight: 900,
+    fontSize: 13,
+    flex: "1 1 180px",
+    minWidth: 0,
+    textAlign: "center",
+  },
 };
