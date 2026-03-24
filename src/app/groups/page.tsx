@@ -548,17 +548,19 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 0,
   },
 
-  headerRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 18,
-    flexWrap: "wrap",
-  },
-  headerCopy: {
-    minWidth: 0,
-    flex: 1,
-  },
+ headerRow: {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 18,
+  flexWrap: "wrap",
+  width: "100%",
+},
+headerCopy: {
+  minWidth: 0,
+  flex: "1 1 320px",
+  width: "100%",
+},
   kicker: {
     fontSize: 11,
     letterSpacing: "0.14em",
@@ -573,19 +575,23 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: "-0.03em",
     fontWeight: 950,
   },
-  sub: {
-    marginTop: 6,
-    fontSize: 13,
-    color: "rgba(209,213,219,0.96)",
-    maxWidth: 460,
-  },
+sub: {
+  marginTop: 6,
+  fontSize: 13,
+  color: "rgba(209,213,219,0.96)",
+  maxWidth: 460,
+  width: "100%",
+  lineHeight: 1.65,
+  overflowWrap: "break-word",
+},
 
-  topActions: {
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
+topActions: {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+  flexWrap: "wrap",
+  width: "100%",
+},
 
   heroSection: {
     marginTop: 4,
@@ -889,25 +895,31 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(209,213,219,0.96)",
   },
 
-  primary: {
-    padding: "9px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(96,165,250,0.85)",
-    background:
-      "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95))",
-    color: "white",
-    cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 13,
-  },
-  secondary: {
-    padding: "9px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(148,163,184,0.75)",
-    background: "rgba(15,23,42,0.96)",
-    color: "rgba(226,232,240,0.98)",
-    cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 13,
-  },
+primary: {
+  padding: "9px 12px",
+  borderRadius: 14,
+  border: "1px solid rgba(96,165,250,0.85)",
+  background:
+    "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95))",
+  color: "white",
+  cursor: "pointer",
+  fontWeight: 900,
+  fontSize: 13,
+  flex: "1 1 180px",
+  minWidth: 0,
+  textAlign: "center",
+},
+secondary: {
+  padding: "9px 12px",
+  borderRadius: 14,
+  border: "1px solid rgba(148,163,184,0.75)",
+  background: "rgba(15,23,42,0.96)",
+  color: "rgba(226,232,240,0.98)",
+  cursor: "pointer",
+  fontWeight: 900,
+  fontSize: 13,
+  flex: "1 1 180px",
+  minWidth: 0,
+  textAlign: "center",
+},
 };
