@@ -10,6 +10,13 @@ export type ConflictResolutionRow = {
   user_id: string;
 };
 
+type UpsertConflictResolutionInput = {
+  conflictId: string;
+  existingEventId?: string;
+  incomingEventId?: string;
+  resolution: Resolution;
+};
+
 async function requireUserId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
   if (error) throw error;
@@ -46,31 +53,56 @@ export async function getMyConflictResolutionsMap(): Promise<
 }
 
 /**
- * Upsert robusto sin depender de onConflict
+ * Guarda o actualiza la resolución del conflicto para el usuario actual.
+ * Soporta el formato nuevo ({ conflictId, resolution, ... }) y evita
+ * romperse si aún no existe una fila previa.
  */
 export async function upsertConflictResolution(
-  conflictId: string,
-  resolution: Resolution
+  inputOrConflictId: UpsertConflictResolutionInput | string,
+  maybeResolution?: Resolution
 ) {
   const uid = await requireUserId();
 
-  const payload = {
-    conflict_id: String(conflictId),
-    user_id: uid,
-    resolution,
-  };
+  const payload =
+    typeof inputOrConflictId === "string"
+      ? {
+          conflict_id: String(inputOrConflictId),
+          user_id: uid,
+          resolution: maybeResolution as Resolution,
+        }
+      : {
+          conflict_id: String(inputOrConflictId.conflictId),
+          user_id: uid,
+          resolution: inputOrConflictId.resolution,
+        };
 
-  const { data: updated, error: updateErr } = await supabase
+  if (!payload.conflict_id) {
+    throw new Error("Falta conflict_id para guardar la resolución.");
+  }
+
+  if (!payload.resolution) {
+    throw new Error("Falta resolution para guardar la decisión.");
+  }
+
+  const { data: existing, error: existingErr } = await supabase
     .from("conflict_resolutions")
-    .update({ resolution })
+    .select("conflict_id")
     .eq("conflict_id", payload.conflict_id)
     .eq("user_id", payload.user_id)
-    .select("conflict_id")
     .maybeSingle();
 
-  if (updateErr) throw updateErr;
+  if (existingErr) throw existingErr;
 
-  if (updated?.conflict_id) return;
+  if (existing?.conflict_id) {
+    const { error: updateErr } = await supabase
+      .from("conflict_resolutions")
+      .update({ resolution: payload.resolution })
+      .eq("conflict_id", payload.conflict_id)
+      .eq("user_id", payload.user_id);
+
+    if (updateErr) throw updateErr;
+    return;
+  }
 
   const { error: insertErr } = await supabase
     .from("conflict_resolutions")

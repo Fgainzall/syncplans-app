@@ -363,45 +363,36 @@ export default function CompareClient() {
     router.push(`/conflicts/detected?${qp.toString()}`);
   };
 
+  const existing = activeConflict?.existingEvent;
+  const incoming = activeConflict?.incomingEvent;
+
+  const existingSelected = selectedResolution === "keep_existing";
+  const incomingSelected = selectedResolution === "replace_with_new";
+  const bothSelected = selectedResolution === "none";
+
   if (booting) {
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-          <div style={styles.loadingCard}>
-            <div style={styles.loadingDot} />
-            <div>
-              <div style={styles.loadingTitle}>Cargando comparación…</div>
-              <div style={styles.loadingSub}>Un segundo</div>
-            </div>
-          </div>
+          <div style={styles.loadingCard}>Preparando comparación…</div>
         </div>
       </main>
     );
   }
 
-  if (!activeConflict) {
+  if (!activeConflict || !existing || !incoming) {
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-          <div style={styles.topRow}>
-            <PremiumHeader />
-            <div style={styles.topActions}>
-              <button onClick={goBack} style={styles.ghostBtn}>
-                ← Volver
-              </button>
-              <LogoutButton />
-            </div>
-          </div>
-
+          <PremiumHeader />
           <section style={styles.emptyCard}>
-            <div style={styles.emptyTitle}>No encontramos un conflicto activo</div>
+            <div style={styles.emptyTitle}>No encontramos ese conflicto</div>
             <div style={styles.emptySub}>
-              Puede que ya esté resuelto o que uno de los eventos haya quedado
-              declined y por eso ya no deba compararse.
+              Puede que ya haya sido resuelto o que el evento ya no esté visible.
             </div>
             <div style={styles.footerBar}>
-              <button onClick={goBack} style={styles.primaryBtn}>
-                Volver a conflictos
+              <button onClick={goBack} style={styles.secondaryBtn}>
+                Volver
               </button>
             </div>
           </section>
@@ -409,13 +400,6 @@ export default function CompareClient() {
       </main>
     );
   }
-
-  const existing = activeConflict.existingEvent;
-  const incoming = activeConflict.incomingEvent;
-
-  const existingSelected = selectedResolution === "keep_existing";
-  const incomingSelected = selectedResolution === "replace_with_new";
-  const bothSelected = selectedResolution === "none";
 
   return (
     <main style={styles.page}>
@@ -692,50 +676,46 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.05)",
-    color: "#E8EEFF",
+    color: "#DCE5FF",
   },
   cardTitle: {
     margin: 0,
-    fontSize: 24,
-    lineHeight: 1.15,
+    fontSize: 18,
     fontWeight: 900,
     letterSpacing: "-0.02em",
   },
   metaBlock: {
     display: "grid",
-    gap: 12,
+    gap: 10,
   },
   metaRow: {
     display: "grid",
     gap: 4,
     fontSize: 14,
-    lineHeight: 1.55,
     color: "rgba(235,241,255,0.84)",
   },
   metaLabel: {
-    fontSize: 12,
-    color: "rgba(235,241,255,0.58)",
-    fontWeight: 800,
-    textTransform: "uppercase",
+    fontSize: 11,
+    fontWeight: 900,
     letterSpacing: 1.1,
+    textTransform: "uppercase",
+    color: "rgba(235,241,255,0.56)",
   },
   notesBox: {
     borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.035)",
     padding: 12,
-    fontSize: 14,
-    lineHeight: 1.6,
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.06)",
     color: "rgba(235,241,255,0.82)",
-    whiteSpace: "pre-wrap",
+    fontSize: 13,
+    lineHeight: 1.55,
   },
   choiceBtn: {
-    marginTop: 8,
     borderRadius: 16,
     padding: "12px 16px",
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.05)",
-    color: "#FFFFFF",
+    color: "#EEF3FF",
     fontSize: 14,
     fontWeight: 900,
     cursor: "pointer",
@@ -743,11 +723,11 @@ const styles: Record<string, React.CSSProperties> = {
   choiceBtnSelected: {
     border: "1px solid rgba(103,133,255,0.30)",
     background:
-      "linear-gradient(135deg, rgba(91,120,255,0.96), rgba(119,95,255,0.96))",
-    boxShadow: "0 18px 44px rgba(63,93,227,0.30)",
+      "linear-gradient(135deg, rgba(91,120,255,0.20), rgba(119,95,255,0.20))",
+    boxShadow: "0 16px 34px rgba(63,93,227,0.18)",
   },
   middleCard: {
-    marginTop: 18,
+    marginTop: 16,
     borderRadius: 24,
     padding: 18,
     border: "1px solid rgba(255,255,255,0.10)",
@@ -757,17 +737,18 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 12,
+    gap: 14,
     flexWrap: "wrap",
   },
   middleTitle: {
     fontSize: 18,
     fontWeight: 900,
+    letterSpacing: "-0.02em",
   },
   middleSub: {
     marginTop: 4,
     fontSize: 13,
-    color: "rgba(235,241,255,0.68)",
+    color: "rgba(235,241,255,0.66)",
     lineHeight: 1.5,
   },
   secondaryChoiceBtn: {
@@ -781,8 +762,8 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
   secondaryChoiceBtnSelected: {
-    border: "1px solid rgba(255,214,102,0.28)",
-    background: "rgba(90,69,21,0.82)",
+    border: "1px solid rgba(255,214,102,0.30)",
+    background: "rgba(255,214,102,0.10)",
     color: "#FFF0C7",
   },
   footerBar: {
@@ -837,25 +818,9 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 18,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(11,16,35,0.84)",
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-  },
-  loadingDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 999,
-    background:
-      "linear-gradient(135deg, rgba(115,145,255,1), rgba(144,119,255,1))",
-    boxShadow: "0 0 0 8px rgba(115,145,255,0.10)",
-  },
-  loadingTitle: {
+    color: "#F6F8FC",
     fontSize: 16,
     fontWeight: 900,
-  },
-  loadingSub: {
-    fontSize: 13,
-    color: "rgba(235,241,255,0.68)",
   },
   toastWrap: {
     position: "fixed",
