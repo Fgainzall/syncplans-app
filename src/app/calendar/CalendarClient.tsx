@@ -14,7 +14,6 @@ import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
 import MobileScaffold from "@/components/MobileScaffold";
-import { colors, layout } from "@/styles/design-tokens";
 import { EventEditModal } from "@/components/EventEditModal";
 import { CalendarFilters } from "./CalendarFilters";
 import { getMyGroups } from "@/lib/groupsDb";
@@ -242,7 +241,7 @@ export default function CalendarClient(
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
 
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
     () => new Set()
@@ -282,6 +281,7 @@ export default function CalendarClient(
 
   const [toast, setToast] =
     useState<null | { title: string; subtitle?: string }>(null);
+
 
   /* ✏️ ESTADO DEL MODAL DE EDICIÓN */
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
@@ -362,6 +362,7 @@ export default function CalendarClient(
 
         setResMap(nextResMap ?? {});
         setDeclinedEventIds(nextDeclined ?? new Set());
+
 
         const groupTypeByIdLocal = new Map<string, "family" | "pair" | "other">(
           (myGroups || []).map((g: any) => {
@@ -734,7 +735,8 @@ export default function CalendarClient(
     }
     for (const [k, arr] of map.entries()) {
       arr.sort(
-        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+        (a, b) =>
+          new Date(a.start).getTime() - new Date(b.start).getTime()
       );
       map.set(k, arr);
     }
@@ -744,7 +746,8 @@ export default function CalendarClient(
   const agendaEvents = useMemo(() => {
     const list = [...visibleEvents];
     list.sort(
-      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+      (a, b) =>
+        new Date(a.start).getTime() - new Date(b.start).getTime()
     );
     return list;
   }, [visibleEvents]);
@@ -841,9 +844,9 @@ export default function CalendarClient(
     );
   };
 
-  const openConflicts = () => {
-    router.push("/conflicts/detected");
-  };
+const openConflicts = () => {
+  router.push("/conflicts/detected");
+};
 
   const resolveNow = () =>
     router.push(
@@ -855,7 +858,7 @@ export default function CalendarClient(
 
   if (booting) {
     return (
-      <MobileScaffold maxWidth={layout.maxWidthDesktop} style={styles.page}>
+      <MobileScaffold maxWidth={1120} style={styles.page}>
         <Section>
           <PremiumHeader
             title="Calendario"
@@ -893,7 +896,7 @@ export default function CalendarClient(
   const monthTitle = prettyMonthRange(monthStart, monthEnd);
 
   return (
-    <MobileScaffold maxWidth={layout.maxWidthDesktop} style={styles.page}>
+    <MobileScaffold maxWidth={1120} style={styles.page}>
       {toast && (
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
@@ -1439,10 +1442,9 @@ const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
     background:
-      "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), " +
-      colors.appBackground,
+      "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
-    maxWidth: layout.maxWidthDesktop,
+    maxWidth: 1120,
     margin: "0 auto",
     padding: "22px 18px 48px",
   },
@@ -1601,475 +1603,657 @@ const styles: Record<string, React.CSSProperties> = {
   },
   groupDot: { width: 10, height: 10, borderRadius: 999 },
 
-  ghostBtn: {
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.94)",
-    borderRadius: 14,
-    fontWeight: 850,
-    cursor: "pointer",
-  },
+calendarCard: {
+  borderRadius: 20,
+  border: "1px solid rgba(255,255,255,0.05)",
+  background: "rgba(255,255,255,0.02)",
+  overflow: "hidden",
+  boxShadow: "0 30px 80px rgba(0,0,0,0.35)",
+},
 
-  loadingCard: {
-    padding: 18,
-  },
-  loadingRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 14,
-  },
-  loadingDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    background: "rgba(56,189,248,0.92)",
-    boxShadow: "0 0 0 10px rgba(56,189,248,0.12)",
-  },
-  loadingTitle: {
-    fontSize: 15,
-    fontWeight: 900,
-  },
-  loadingSub: {
-    marginTop: 4,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.66)",
-  },
-
-  overviewCard: {
-    display: "grid",
-    gap: 16,
-  },
-  overviewTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 16,
-    flexWrap: "wrap",
-  },
-  overviewLeft: {
-    display: "grid",
-    gap: 6,
-  },
-  overviewEyebrow: {
-    fontSize: 11,
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    color: "rgba(148,163,184,0.88)",
-    fontWeight: 900,
-  },
-  overviewTitle: {
-    margin: 0,
-    fontSize: 24,
-    lineHeight: 1.06,
-    fontWeight: 950,
-  },
-  overviewSub: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.70)",
-    fontWeight: 650,
-  },
-  overviewActions: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  primaryBtnPersonal: {
-    padding: "10px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(56,189,248,0.38)",
-    background: "rgba(56,189,248,0.14)",
-    color: "rgba(240,249,255,0.98)",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  primaryBtnGroup: {
-    padding: "10px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(168,85,247,0.34)",
-    background: "rgba(168,85,247,0.14)",
-    color: "rgba(250,245,255,0.98)",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-
-  overviewMetaRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  statusCluster: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
-  statusPillNeutral: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "10px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.20)",
-    background: "rgba(148,163,184,0.10)",
-    fontSize: 13,
-    fontWeight: 850,
-  },
-  statusDotNeutral: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    background: "rgba(148,163,184,0.95)",
-  },
-  statusPillSuccess: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "10px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(16,185,129,0.22)",
-    background: "rgba(16,185,129,0.10)",
-    fontSize: 13,
-    fontWeight: 850,
-    color: "rgba(236,253,245,0.98)",
-  },
-  statusDotSuccess: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    background: "rgba(16,185,129,0.95)",
-  },
-  statusPillDanger: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "10px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(251,113,133,0.24)",
-    background: "rgba(251,113,133,0.11)",
-    color: "rgba(255,241,242,0.98)",
-    fontSize: 13,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  statusDotDanger: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    background: "rgba(251,113,133,0.95)",
-  },
-  statusPillAction: {
-    padding: "10px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.26)",
-    background: "rgba(56,189,248,0.12)",
-    color: "rgba(240,249,255,0.98)",
-    fontSize: 13,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  overviewGhostBtn: {
-    padding: "10px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.93)",
-    fontWeight: 850,
-    cursor: "pointer",
-  },
-
-  calendarCard: {
-    display: "grid",
-    gap: 16,
-  },
   monthScroller: {
-    display: "grid",
-    gap: 8,
+    overflowX: "auto",
+    overflowY: "hidden",
+    WebkitOverflowScrolling: "touch",
   },
+
   weekHeader: {
     display: "grid",
-    gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-    gap: 8,
+    gridTemplateColumns: "repeat(7, 1fr)",
+    padding: "10px 10px 0",
+    minWidth: 720,
   },
   weekDay: {
+    padding: "10px 10px",
     fontSize: 12,
-    fontWeight: 900,
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    color: "rgba(148,163,184,0.88)",
-    textAlign: "center",
-    paddingBottom: 2,
+    opacity: 0.75,
+    fontWeight: 850,
   },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-    gap: 8,
-  },
-  cell: {
-    minHeight: 0,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    padding: 8,
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-    overflow: "hidden",
-    cursor: "pointer",
-  },
+
+grid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(7, 1fr)",
+  gap: 12, // antes 10
+  padding: 12,
+  minWidth: 720,
+},
+
+cell: {
+  height: "100%",
+  borderRadius: 16,
+  border: "1px solid rgba(255,255,255,0.04)", // 🔥 menos ruido
+  background: "rgba(255,255,255,0.025)",
+  padding: "10px 10px 8px",
+  cursor: "pointer",
+  textAlign: "left",
+  overflow: "hidden",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+  transition: "all 160ms ease",
+},
+":hover": {
+  background: "rgba(255,255,255,0.05)",
+  transform: "translateY(-1px)",
+},
   cellTop: {
     display: "flex",
-    alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 8,
-  },
-  cellDay: {
-    width: 28,
-    height: 28,
-    borderRadius: 999,
-    display: "inline-flex",
     alignItems: "center",
-    justifyContent: "center",
-    fontSize: 13,
-    fontWeight: 900,
-    color: "rgba(255,255,255,0.92)",
-    background: "rgba(255,255,255,0.05)",
-    flexShrink: 0,
-  },
-  cellDayToday: {
-    background: "rgba(56,189,248,0.20)",
-    color: "rgba(240,249,255,0.98)",
-    boxShadow: "0 0 0 1px rgba(56,189,248,0.30) inset",
   },
   cellTopRight: {
     display: "flex",
     alignItems: "center",
     justifyContent: "flex-end",
-    flex: 1,
-  },
-  cellQuickAdd: {
-    display: "inline-flex",
-    alignItems: "center",
     gap: 6,
+    flexWrap: "wrap",
   },
-  cellQuickBtnPersonal: {
-    width: 24,
-    height: 24,
+  cellDay: { fontSize: 13, fontWeight: 900, opacity: 0.92 },
+  cellDayToday: {
+    padding: "2px 8px",
     borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.28)",
-    background: "rgba(56,189,248,0.14)",
-    color: "rgba(240,249,255,0.98)",
-    fontWeight: 900,
-    cursor: "pointer",
-    lineHeight: 1,
-  },
-  cellQuickBtnGroup: {
-    width: 24,
-    height: 24,
-    borderRadius: 999,
-    border: "1px solid rgba(168,85,247,0.26)",
-    background: "rgba(168,85,247,0.14)",
-    color: "rgba(250,245,255,0.98)",
-    fontWeight: 900,
-    cursor: "pointer",
-    lineHeight: 1,
-  },
-  cellEvents: {
-    minHeight: 0,
-    display: "flex",
-    flexDirection: "column",
-    gap: 5,
-    overflow: "hidden",
-  },
-  cellCountRow: {
-    display: "flex",
-    justifyContent: "flex-end",
-  },
-  cellCount: {
-    fontSize: 11,
-    color: "rgba(148,163,184,0.88)",
-    fontWeight: 900,
-  },
-  cellEventLine: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    minWidth: 0,
-    borderRadius: 10,
-    padding: "4px 6px",
-    background: "rgba(255,255,255,0.04)",
-  },
-  miniDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    flexShrink: 0,
-  },
-  cellEventText: {
-    fontSize: 11,
-    fontWeight: 750,
-    color: "rgba(255,255,255,0.90)",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  moreHint: {
-    fontSize: 11,
-    color: "rgba(148,163,184,0.92)",
-    fontWeight: 850,
-    paddingLeft: 2,
+    border: "1px solid rgba(56,189,248,0.35)",
+    background: "rgba(56,189,248,0.12)",
   },
 
-  dayPanel: {
-    display: "grid",
-    gap: 12,
+  cellCount: {
+    fontSize: 11,
+    padding: "1px 6px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    opacity: 0.9,
+    fontWeight: 850,
+    flexShrink: 0,
   },
-  dayPanelTop: {
+  cellCountRow: {
+    marginBottom: 4,
     display: "flex",
     alignItems: "center",
+    justifyContent: "flex-start",
+  },
+
+  cellQuickAdd: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    flexShrink: 0,
+  },
+  cellQuickBtnPersonal: {
+    width: 20,
+    height: 20,
+    borderRadius: 8,
+    border: "1px solid rgba(250,204,21,0.40)",
+    background: "rgba(250,204,21,0.12)",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    fontWeight: 900,
+    fontSize: 11,
+    lineHeight: "20px",
+    textAlign: "center",
+    flexShrink: 0,
+  },
+  cellQuickBtnGroup: {
+    width: 20,
+    height: 20,
+    borderRadius: 8,
+    border: "1px solid rgba(96,165,250,0.40)",
+    background: "rgba(96,165,250,0.12)",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    fontWeight: 900,
+    fontSize: 11,
+    lineHeight: "20px",
+    textAlign: "center",
+    flexShrink: 0,
+  },
+
+ cellEvents: {
+  marginTop: 6,
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+  flexGrow: 1,
+  minHeight: 0,
+  overflow: "hidden",
+},
+  cellEventLine: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+  },
+  miniDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    flex: "0 0 auto",
+  },
+cellEventText: {
+  fontSize: 12,
+  opacity: 0.95,
+  fontWeight: 800, // 🔥 más peso
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+},
+  moreHint: {
+    fontSize: 12,
+    opacity: 0.65,
+    marginTop: 4,
+    fontWeight: 750,
+  },
+
+dayPanel: {
+  borderTop: "1px solid rgba(255,255,255,0.05)",
+  padding: 14,
+},
+  dayPanelTop: {
+    display: "flex",
     justifyContent: "space-between",
-    gap: 12,
+    alignItems: "center",
+    gap: 10,
     flexWrap: "wrap",
   },
   dayPanelTitle: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: 900,
-    color: "rgba(255,255,255,0.96)",
+    opacity: 0.95,
   },
   dayPanelActions: {
     display: "flex",
     gap: 8,
-    flexWrap: "wrap",
+    alignItems: "center",
   },
-  ghostBtnSmallPersonal: {
-    padding: "8px 10px",
-    borderRadius: 12,
-    border: "1px solid rgba(56,189,248,0.28)",
-    background: "rgba(56,189,248,0.10)",
-    color: "rgba(240,249,255,0.98)",
-    fontWeight: 850,
-    cursor: "pointer",
-    fontSize: 12,
-  },
-  ghostBtnSmallGroup: {
-    padding: "8px 10px",
-    borderRadius: 12,
-    border: "1px solid rgba(168,85,247,0.26)",
-    background: "rgba(168,85,247,0.10)",
-    color: "rgba(250,245,255,0.98)",
-    fontWeight: 850,
-    cursor: "pointer",
-    fontSize: 12,
-  },
+
   dayList: {
-    display: "grid",
+    marginTop: 10,
+    display: "flex",
+    flexDirection: "column",
     gap: 10,
   },
 
   agendaCard: {
-    display: "grid",
-    gap: 16,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    overflow: "hidden",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
   },
   agendaTop: {
-    display: "grid",
-    gap: 4,
+    padding: 14,
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
   },
-  agendaTitle: {
-    fontSize: 18,
-    fontWeight: 900,
-  },
+  agendaTitle: { fontSize: 16, fontWeight: 950 },
   agendaSub: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.66)",
-    fontWeight: 650,
+    marginTop: 4,
+    fontSize: 12,
+    opacity: 0.75,
+    fontWeight: 750,
   },
   agendaList: {
-    display: "grid",
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
     gap: 10,
   },
 
-  eventRow: {
-    display: "flex",
-    alignItems: "stretch",
-    gap: 0,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    overflow: "hidden",
-    cursor: "pointer",
-  },
-  eventBar: {
-    width: 4,
-    flexShrink: 0,
-  },
+eventRow: {
+  display: "flex",
+  gap: 12,
+  padding: 14,
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.05)",
+  background: "rgba(255,255,255,0.03)",
+  transition: "all 160ms ease",
+},
+  eventBar: { width: 6, borderRadius: 999 },
   eventBody: {
     flex: 1,
-    padding: "12px 14px",
-    display: "grid",
+    display: "flex",
+    flexDirection: "column",
     gap: 6,
-    minWidth: 0,
   },
   eventTop: {
     display: "flex",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
     gap: 10,
-    flexWrap: "wrap",
-  },
-  eventTitle: {
-    fontSize: 14,
-    fontWeight: 900,
-    color: "rgba(255,255,255,0.96)",
-    minWidth: 0,
   },
   eventRight: {
-    display: "flex",
+    display: "inline-flex",
     alignItems: "center",
     gap: 8,
-    flexWrap: "wrap",
+  },
+eventTitle: {
+  fontSize: 15, // 🔥 sube un poco
+  fontWeight: 950,
+  letterSpacing: "-0.2px",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+},
+  eventTime: {
+    fontSize: 12,
+    opacity: 0.78,
+    fontWeight: 700,
   },
   eventTag: {
     display: "inline-flex",
     alignItems: "center",
     gap: 8,
+    fontSize: 12,
     padding: "6px 10px",
     borderRadius: 999,
-    fontSize: 11,
-    fontWeight: 900,
-    background: "rgba(255,255,255,0.05)",
-    color: "rgba(255,255,255,0.88)",
-  },
-  eventDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-  },
-  eventTime: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.68)",
-    fontWeight: 650,
-  },
-  editBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
+    background: "rgba(255,255,255,0.03)",
+    opacity: 0.95,
+    whiteSpace: "nowrap",
+    fontWeight: 850,
+  },
+  eventDot: { width: 8, height: 8, borderRadius: 999 },
+
+  editBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    border: "1px solid rgba(59,130,246,0.45)",
+    background: "rgba(59,130,246,0.16)",
+    color: "rgba(255,255,255,0.94)",
     cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 14,
+    fontWeight: 950,
   },
   deleteBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    border: "1px solid rgba(251,113,133,0.18)",
-    background: "rgba(251,113,133,0.08)",
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    border: "1px solid rgba(248,113,113,0.28)",
+    background: "rgba(248,113,113,0.10)",
+    color: "rgba(255,255,255,0.92)",
     cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 14,
+    fontWeight: 950,
+  },
+
+  primaryBtnPersonal: {
+    padding: "12px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(250,204,21,0.30)",
+    background:
+      "linear-gradient(135deg, rgba(250,204,21,0.22), rgba(250,204,21,0.08))",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    fontWeight: 950,
+  },
+  primaryBtnGroup: {
+    padding: "12px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(96,165,250,0.30)",
+    background:
+      "linear-gradient(135deg, rgba(96,165,250,0.22), rgba(96,165,250,0.08))",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    fontWeight: 950,
+  },
+
+ ghostBtn: {
+  padding: "8px 12px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.03)",
+  color: "rgba(255,255,255,0.9)",
+  cursor: "pointer",
+  fontWeight: 800,
+},
+
+  ghostBtnSmallPersonal: {
+    padding: "8px 10px",
+    borderRadius: 12,
+    border: "1px solid rgba(250,204,21,0.22)",
+    background: "rgba(250,204,21,0.08)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    fontWeight: 900,
+    fontSize: 12,
+  },
+  ghostBtnSmallGroup: {
+    padding: "8px 10px",
+    borderRadius: 12,
+    border: "1px solid rgba(96,165,250,0.22)",
+    background: "rgba(96,165,250,0.08)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    fontWeight: 900,
+    fontSize: 12,
+  },
+
+  conflictPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(248,113,113,0.35)",
+    background: "rgba(248,113,113,0.12)",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    fontWeight: 950,
+    fontSize: 12,
+  },
+  conflictDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    background: "rgba(248,113,113,0.95)",
+  },
+  conflictArrow: { opacity: 0.8 },
+
+  resolvePill: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.06)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    fontWeight: 950,
+    fontSize: 12,
+  },
+
+  okPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(34,197,94,0.30)",
+    background: "rgba(34,197,94,0.10)",
+    color: "rgba(255,255,255,0.92)",
+    fontWeight: 950,
+    fontSize: 12,
+  },
+  okDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    background: "rgba(34,197,94,0.95)",
   },
 
   emptyHint: {
+    padding: 14,
+    borderRadius: 14,
+    border: "1px dashed rgba(255,255,255,0.16)",
+    background: "rgba(255,255,255,0.02)",
+    opacity: 0.8,
     fontSize: 13,
-    color: "rgba(148,163,184,0.88)",
     fontWeight: 700,
-    padding: "8px 2px",
   },
+
+  loadingRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingCard: {
+    marginTop: 18,
+    display: "flex",
+    gap: 12,
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.25)",
+  },
+  loadingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 24px rgba(56,189,248,0.55)",
+  },
+  loadingTitle: { fontWeight: 950 },
+  loadingSub: {
+    fontSize: 12,
+    opacity: 0.75,
+    marginTop: 2,
+    fontWeight: 700,
+  },
+
+  conflictBanner: {
+    width: "100%",
+    marginTop: 12,
+    marginBottom: 14,
+    borderRadius: 20,
+    border: "1px solid rgba(248,113,113,0.28)",
+    background:
+      "linear-gradient(180deg, rgba(248,113,113,0.14), rgba(244,63,94,0.08))",
+    padding: 16,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    cursor: "pointer",
+    color: "rgba(255,255,255,0.94)",
+    textAlign: "left",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
+  },
+  conflictBannerLeft: {
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  conflictBannerEyebrow: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    fontWeight: 900,
+    opacity: 0.72,
+  },
+  conflictBannerTitle: {
+    fontSize: 18,
+    fontWeight: 950,
+    letterSpacing: "-0.3px",
+  },
+  conflictBannerSub: {
+    fontSize: 12,
+    opacity: 0.8,
+    lineHeight: 1.45,
+  },
+  conflictBannerCta: {
+    flexShrink: 0,
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.06)",
+    fontSize: 12,
+    fontWeight: 900,
+  },
+overviewCard: {
+  borderRadius: 16,
+  border: "1px solid rgba(255,255,255,0.04)",
+  background: "rgba(255,255,255,0.02)",
+  padding: "10px 12px",
+  marginBottom: 8,
+},
+
+overviewTop: {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 14,
+  flexWrap: "wrap",
+},
+
+overviewLeft: {
+  minWidth: 0,
+  flex: "1 1 280px",
+},
+
+overviewEyebrow: {
+  fontSize: 11,
+  fontWeight: 900,
+  letterSpacing: 0.5,
+  textTransform: "uppercase",
+  color: "rgba(148,163,184,0.86)",
+  marginBottom: 6,
+},
+
+overviewTitle: {
+  margin: 0,
+  fontSize: "clamp(20px, 3vw, 28px)",
+  lineHeight: 1.08,
+  fontWeight: 950,
+  color: "#F8FAFC",
+  letterSpacing: -0.6,
+},
+
+overviewSub: {
+  marginTop: 8,
+  fontSize: 13,
+  lineHeight: 1.5,
+  color: "rgba(191,219,254,0.82)",
+},
+
+overviewActions: {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "wrap",
+},
+
+overviewMetaRow: {
+  marginTop: 10,
+  paddingTop: 10,
+  borderTop: "1px solid rgba(148,163,184,0.10)",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "wrap",
+},
+
+statusCluster: {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "wrap",
+},
+
+statusPillNeutral: {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  minHeight: 38,
+  padding: "0 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(148,163,184,0.18)",
+  background: "rgba(255,255,255,0.05)",
+  color: "#E2E8F0",
+  fontSize: 12,
+  fontWeight: 800,
+},
+
+statusPillSuccess: {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  minHeight: 38,
+  padding: "0 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(34,197,94,0.24)",
+  background: "rgba(34,197,94,0.10)",
+  color: "#DCFCE7",
+  fontSize: 12,
+  fontWeight: 900,
+},
+
+statusPillDanger: {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  minHeight: 38,
+  padding: "0 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(248,113,113,0.28)",
+  background: "rgba(248,113,113,0.12)",
+  color: "#FECACA",
+  fontSize: 12,
+  fontWeight: 900,
+  cursor: "pointer",
+},
+
+statusPillAction: {
+  minHeight: 38,
+  padding: "0 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(56,189,248,0.24)",
+  background: "rgba(56,189,248,0.12)",
+  color: "#E0F2FE",
+  fontSize: 12,
+  fontWeight: 900,
+  cursor: "pointer",
+},
+
+statusDotNeutral: {
+  width: 8,
+  height: 8,
+  borderRadius: 999,
+  background: "rgba(148,163,184,0.86)",
+},
+
+statusDotSuccess: {
+  width: 8,
+  height: 8,
+  borderRadius: 999,
+  background: "#22C55E",
+},
+
+statusDotDanger: {
+  width: 8,
+  height: 8,
+  borderRadius: 999,
+  background: "#F87171",
+},
+
+overviewGhostBtn: {
+  minHeight: 38,
+  padding: "0 12px",
+  borderRadius: 999,
+  border: "1px solid rgba(148,163,184,0.18)",
+  background: "rgba(255,255,255,0.05)",
+  color: "#E2E8F0",
+  fontSize: 12,
+  fontWeight: 800,
+  cursor: "pointer",
+},
 };

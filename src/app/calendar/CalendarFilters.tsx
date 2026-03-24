@@ -1,8 +1,8 @@
+// src/app/calendar/CalendarFilters.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React from "react";
 import { type GroupType, groupMeta } from "@/lib/conflicts";
-import { colors, radii, shadows, spacing } from "@/styles/design-tokens";
 
 type Scope = "personal" | "active" | "all";
 type Tab = "month" | "agenda";
@@ -16,14 +16,16 @@ type CalendarFiltersProps = {
     personal: boolean;
     pair: boolean;
     family: boolean;
-    other?: boolean;
   };
   onToggleGroup: (g: GroupType) => void;
   onPrevMonth: () => void;
   onNextMonth: () => void;
   onToday: () => void;
+  /** índice de mes actual (0-11) basado en anchor */
   currentMonthIndex: number;
+  /** año actual basado en anchor */
   currentYear: number;
+  /** salta directo a un mes/año concreto */
   onChangeMonthYear: (year: number, monthIndex: number) => void;
 };
 
@@ -42,29 +44,6 @@ const MONTH_LABELS = [
   "Dic",
 ];
 
-function useIsCompact(maxWidth = 860) {
-  const [compact, setCompact] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const media = window.matchMedia(`(max-width: ${maxWidth}px)`);
-    const apply = () => setCompact(media.matches);
-    apply();
-
-    if (typeof media.addEventListener === "function") {
-      media.addEventListener("change", apply);
-      return () => media.removeEventListener("change", apply);
-    }
-
-    const legacyMedia = media as any;
-    legacyMedia.addListener?.(apply);
-    return () => legacyMedia.removeListener?.(apply);
-  }, [maxWidth]);
-
-  return compact;
-}
-
 export function CalendarFilters({
   tab,
   scope,
@@ -79,15 +58,7 @@ export function CalendarFilters({
   currentYear,
   onChangeMonthYear,
 }: CalendarFiltersProps) {
-  const isCompact = useIsCompact();
-  const [expanded, setExpanded] = useState(!isCompact);
-
-  useEffect(() => {
-    if (!isCompact) {
-      setExpanded(true);
-    }
-  }, [isCompact]);
-
+  // Helpers para mover mes / año sin dropdown feo
   const handleMonthStep = (delta: number) => {
     let newMonth = currentMonthIndex + delta;
     let newYear = currentYear;
@@ -104,138 +75,94 @@ export function CalendarFilters({
   };
 
   const handleYearStep = (delta: number) => {
-    onChangeMonthYear(currentYear + delta, currentMonthIndex);
+    const newYear = currentYear + delta;
+    onChangeMonthYear(newYear, currentMonthIndex);
   };
 
-  const summary = useMemo(() => {
-    const tabLabel = tab === "month" ? "Mes" : "Agenda";
-    const scopeLabel =
-      scope === "active" ? "Activo" : scope === "personal" ? "Personal" : "Todo";
-    const monthLabel = MONTH_LABELS[currentMonthIndex] ?? "Mes";
-    return `${tabLabel} · ${scopeLabel} · ${monthLabel} ${currentYear}`;
-  }, [currentMonthIndex, currentYear, scope, tab]);
-
-  const groupOptions: GroupType[] = ["personal", "pair", "family", "other"];
-
   return (
-    <div style={styles.rootCard}>
-      <div style={styles.headerRow}>
-        <div style={styles.headerCopy}>
-          <div style={styles.eyebrow}>Controles del calendario</div>
-          <div style={styles.titleRow}>
-            <h3 style={styles.title}>Filtros y navegación</h3>
-            {isCompact ? <span style={styles.summaryPill}>{summary}</span> : null}
-          </div>
-          <p style={styles.subtitle}>
-            Ajusta la vista, el alcance y los grupos sin salir del mismo lenguaje
-            visual de SyncPlans.
-          </p>
+    <section style={styles.filtersCard}>
+      <div style={styles.filtersRow}>
+        {/* Selector Mes / Agenda */}
+        <div style={styles.segment}>
+          <button
+            onClick={() => onChangeTab("month")}
+            style={{
+              ...styles.segmentBtn,
+              ...(tab === "month" ? styles.segmentOn : {}),
+            }}
+          >
+            Mes
+          </button>
+          <button
+            onClick={() => onChangeTab("agenda")}
+            style={{
+              ...styles.segmentBtn,
+              ...(tab === "agenda" ? styles.segmentOn : {}),
+            }}
+          >
+            Agenda
+          </button>
         </div>
 
-        {isCompact ? (
+        {/* Selector Alcance: Activo / Personal / Todo */}
+        <div style={styles.segment}>
           <button
-            type="button"
-            onClick={() => setExpanded((value) => !value)}
-            style={styles.collapseBtn}
-            aria-expanded={expanded}
-            aria-label={expanded ? "Ocultar controles" : "Mostrar controles"}
+            onClick={() => onChangeScope("active")}
+            style={{
+              ...styles.segmentBtn,
+              ...(scope === "active" ? styles.segmentOn : {}),
+            }}
+            title="Personal + grupo activo + conflictos"
           >
-            {expanded ? "Ocultar" : "Mostrar"}
+            Activo
           </button>
-        ) : null}
-      </div>
+          <button
+            onClick={() => onChangeScope("personal")}
+            style={{
+              ...styles.segmentBtn,
+              ...(scope === "personal" ? styles.segmentOn : {}),
+            }}
+          >
+            Personal
+          </button>
+          <button
+            onClick={() => onChangeScope("all")}
+            style={{
+              ...styles.segmentBtn,
+              ...(scope === "all" ? styles.segmentOn : {}),
+            }}
+          >
+            Todo
+          </button>
+        </div>
 
-      {expanded ? (
-        <div style={styles.contentGrid}>
-          <div style={styles.block}>
-            <div style={styles.blockLabel}>Vista</div>
-            <div style={styles.segment}>
-              <button
-                type="button"
-                onClick={() => onChangeTab("month")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(tab === "month" ? styles.segmentBtnActive : {}),
-                }}
-              >
-                Mes
-              </button>
-              <button
-                type="button"
-                onClick={() => onChangeTab("agenda")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(tab === "agenda" ? styles.segmentBtnActive : {}),
-                }}
-              >
-                Agenda
-              </button>
-            </div>
+        {/* Navegación + controles Mes / Año premium */}
+        <div style={styles.navCol}>
+          <div style={styles.navRow}>
+            <button
+              onClick={onPrevMonth}
+              style={styles.iconBtn}
+              aria-label="Mes anterior"
+            >
+              ‹
+            </button>
+            <button
+              onClick={onToday}
+              style={styles.ghostBtnSmall}
+            >
+              Hoy
+            </button>
+            <button
+              onClick={onNextMonth}
+              style={styles.iconBtn}
+              aria-label="Mes siguiente"
+            >
+              ›
+            </button>
           </div>
 
-          <div style={styles.block}>
-            <div style={styles.blockLabel}>Alcance</div>
-            <div style={styles.segment}>
-              <button
-                type="button"
-                onClick={() => onChangeScope("active")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "active" ? styles.segmentBtnActive : {}),
-                }}
-                title="Personal + grupo activo + conflictos"
-              >
-                Activo
-              </button>
-              <button
-                type="button"
-                onClick={() => onChangeScope("personal")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "personal" ? styles.segmentBtnActive : {}),
-                }}
-              >
-                Personal
-              </button>
-              <button
-                type="button"
-                onClick={() => onChangeScope("all")}
-                style={{
-                  ...styles.segmentBtn,
-                  ...(scope === "all" ? styles.segmentBtnActive : {}),
-                }}
-              >
-                Todo
-              </button>
-            </div>
-          </div>
-
-          <div style={styles.block}>
-            <div style={styles.blockLabel}>Mover mes</div>
-            <div style={styles.navRow}>
-              <button
-                type="button"
-                onClick={onPrevMonth}
-                style={styles.iconBtn}
-                aria-label="Mes anterior"
-              >
-                ‹
-              </button>
-              <button type="button" onClick={onToday} style={styles.todayBtn}>
-                Hoy
-              </button>
-              <button
-                type="button"
-                onClick={onNextMonth}
-                style={styles.iconBtn}
-                aria-label="Mes siguiente"
-              >
-                ›
-              </button>
-            </div>
-          </div>
-
-          <div style={styles.monthYearGrid}>
+          {/* 🔽 Controles Mes / Año tipo pill, sin dropdown nativo */}
+          <div style={styles.monthYearRow}>
             <div style={styles.selectPill}>
               <span style={styles.selectLabel}>Mes</span>
               <button
@@ -280,236 +207,152 @@ export function CalendarFilters({
               </button>
             </div>
           </div>
-
-          <div style={styles.groupsBlock}>
-            <div style={styles.blockLabel}>Grupos visibles</div>
-            <div style={styles.groupRow}>
-              {groupOptions.map((groupType) => {
-                const meta = groupMeta(groupType);
-                const isEnabled = Boolean(
-                  (enabledGroups as Record<string, boolean | undefined>)[groupType]
-                );
-
-                return (
-                  <button
-                    key={groupType}
-                    type="button"
-                    onClick={() => onToggleGroup(groupType)}
-                    style={{
-                      ...styles.groupChip,
-                      opacity: isEnabled ? 1 : 0.58,
-                      borderColor: isEnabled
-                        ? "rgba(148,163,184,0.5)"
-                        : colors.borderSubtle,
-                      background: isEnabled
-                        ? "rgba(255,255,255,0.06)"
-                        : "rgba(255,255,255,0.03)",
-                    }}
-                  >
-                    <span style={{ ...styles.groupDot, background: meta.dot }} />
-                    {meta.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </div>
-      ) : null}
-    </div>
+      </div>
+
+      {/* Chips de grupos (Personal / Pareja / Familia) */}
+      <div style={styles.groupRow}>
+        {(
+          ["personal", "pair", "family"] as any as GroupType[]
+        ).map((g) => {
+          const meta = groupMeta(g);
+          const on = (enabledGroups as any)[g];
+          return (
+            <button
+              key={g}
+              onClick={() => onToggleGroup(g)}
+              style={{
+                ...styles.groupChip,
+                borderColor: on
+                  ? "rgba(255,255,255,0.18)"
+                  : "rgba(255,255,255,0.10)",
+                opacity: on ? 1 : 0.55,
+              }}
+            >
+              <span
+                style={{
+                  ...styles.groupDot,
+                  background: meta.dot,
+                }}
+              />
+              {meta.label}
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  rootCard: {
-    width: "100%",
-    borderRadius: radii.xl,
-    border: `1px solid ${colors.borderSubtle}`,
-    background:
-      "radial-gradient(160px 120px at 0% 0%, rgba(56,189,248,0.12), transparent 60%), rgba(15,23,42,0.96)",
-    boxShadow: shadows.card,
-    backdropFilter: "blur(14px)",
-    padding: spacing.lg,
-    display: "grid",
-    gap: spacing.lg,
+  filtersCard: {
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: 12,
+    marginBottom: 12,
   },
-  headerRow: {
+  filtersRow: {
     display: "flex",
+    gap: 10,
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: spacing.md,
     flexWrap: "wrap",
-  },
-  headerCopy: {
-    display: "grid",
-    gap: 6,
-    flex: "1 1 320px",
-  },
-  eyebrow: {
-    fontSize: 11,
-    fontWeight: 900,
-    letterSpacing: 0.9,
-    textTransform: "uppercase",
-    color: colors.textMuted,
-  },
-  titleRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: spacing.sm,
-    flexWrap: "wrap",
-  },
-  title: {
-    margin: 0,
-    fontSize: 18,
-    lineHeight: 1.1,
-    fontWeight: 900,
-    color: colors.textPrimary,
-  },
-  subtitle: {
-    margin: 0,
-    fontSize: 13,
-    lineHeight: 1.5,
-    color: colors.textSecondary,
-    maxWidth: 760,
-  },
-  summaryPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "6px 10px",
-    borderRadius: radii.full,
-    border: `1px solid ${colors.borderSubtle}`,
-    background: "rgba(255,255,255,0.05)",
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: 800,
-  },
-  collapseBtn: {
-    padding: "10px 14px",
-    borderRadius: 14,
-    border: `1px solid ${colors.borderSubtle}`,
-    background: "rgba(255,255,255,0.04)",
-    color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: 850,
-    cursor: "pointer",
-  },
-  contentGrid: {
-    display: "grid",
-    gap: spacing.md,
-  },
-  block: {
-    display: "grid",
-    gap: spacing.sm,
-  },
-  blockLabel: {
-    fontSize: 12,
-    fontWeight: 850,
-    color: colors.textMuted,
   },
   segment: {
     display: "flex",
-    flexWrap: "wrap",
-    gap: spacing.xs,
-    padding: 4,
-    borderRadius: 16,
-    border: `1px solid ${colors.borderSubtle}`,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    overflow: "hidden",
     background: "rgba(255,255,255,0.03)",
   },
   segmentBtn: {
-    flex: "1 1 0",
-    minWidth: 92,
-    border: "none",
-    borderRadius: 12,
-    padding: "11px 12px",
+    padding: "10px 12px",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.86)",
     background: "transparent",
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: 850,
+    border: "none",
     cursor: "pointer",
+    fontWeight: 850,
   },
-  segmentBtnActive: {
-    background: "rgba(255,255,255,0.08)",
-    color: colors.textPrimary,
-    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06)",
-  },
-  navRow: {
+  segmentOn: { background: "rgba(255,255,255,0.08)" },
+
+  navCol: {
     display: "flex",
-    gap: spacing.sm,
-    alignItems: "center",
-    flexWrap: "wrap",
+    flexDirection: "column",
+    gap: 6,
+    alignItems: "flex-end",
   },
+  navRow: { display: "flex", gap: 8, alignItems: "center" },
   iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    border: `1px solid ${colors.borderSubtle}`,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.04)",
-    color: colors.textPrimary,
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
     fontSize: 18,
-    fontWeight: 900,
-    cursor: "pointer",
   },
-  todayBtn: {
-    padding: "10px 14px",
-    borderRadius: 14,
-    border: `1px solid ${colors.borderSubtle}`,
+  ghostBtnSmall: {
+    padding: "8px 10px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.04)",
-    color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: 850,
+    color: "rgba(255,255,255,0.92)",
     cursor: "pointer",
+    fontWeight: 850,
+    fontSize: 12,
   },
-  monthYearGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-    gap: spacing.sm,
+
+  monthYearRow: {
+    display: "flex",
+    gap: 8,
+    marginTop: 4,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
   },
   selectPill: {
     display: "inline-flex",
     alignItems: "center",
-    justifyContent: "space-between",
     gap: 6,
-    width: "100%",
-    padding: "8px 10px",
-    borderRadius: 16,
-    border: `1px solid ${colors.borderSubtle}`,
-    background: "rgba(255,255,255,0.04)",
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.26)",
+    background:
+      "radial-gradient(220px 220px at 0% 0%, rgba(56,189,248,0.18), transparent 60%), rgba(15,23,42,0.85)",
   },
   selectLabel: {
     fontSize: 11,
-    fontWeight: 900,
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    color: colors.textMuted,
+    fontWeight: 800,
+    color: "rgba(148,163,184,0.95)",
   },
   selectArrow: {
-    width: 26,
-    height: 26,
-    borderRadius: radii.full,
-    border: `1px solid ${colors.borderSubtle}`,
-    background: "rgba(15,23,42,0.98)",
-    color: colors.textPrimary,
-    fontSize: 13,
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.45)",
+    background: "rgba(15,23,42,0.95)",
+    color: "rgba(226,232,240,0.96)",
     cursor: "pointer",
-    display: "inline-flex",
+    fontSize: 12,
+    display: "flex",
     alignItems: "center",
     justifyContent: "center",
     padding: 0,
-    flexShrink: 0,
   },
   selectValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 900,
-    color: colors.textPrimary,
-    minWidth: 56,
+    color: "rgba(226,232,240,0.98)",
+    minWidth: 32,
     textAlign: "center",
   },
-  groupsBlock: {
-    display: "grid",
-    gap: spacing.sm,
-  },
+
   groupRow: {
     display: "flex",
-    gap: spacing.sm,
+    gap: 10,
+    paddingTop: 10,
     flexWrap: "wrap",
   },
   groupChip: {
@@ -517,18 +360,13 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 10,
     padding: "10px 12px",
-    borderRadius: radii.full,
-    border: `1px solid ${colors.borderSubtle}`,
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.03)",
-    color: colors.textPrimary,
+    cursor: "pointer",
+    color: "rgba(255,255,255,0.90)",
     fontSize: 13,
     fontWeight: 850,
-    cursor: "pointer",
   },
-  groupDot: {
-    width: 10,
-    height: 10,
-    borderRadius: radii.full,
-    flexShrink: 0,
-  },
+  groupDot: { width: 10, height: 10, borderRadius: 999 },
 };
