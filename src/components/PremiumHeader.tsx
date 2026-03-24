@@ -9,12 +9,7 @@ import React, {
   type CSSProperties,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  getGroupState,
-  setMode,
-  type GroupState,
-  type UsageMode,
-} from "@/lib/groups";
+import { getGroupState, type GroupState, type UsageMode } from "@/lib/groups";
 import NotificationsDrawer, {
   type NavigationMode,
 } from "./NotificationsDrawer";
@@ -35,10 +30,8 @@ import {
 
 type TabKey = UsageMode | "other";
 
-type Tab = {
-  key: TabKey;
+type ModeMeta = {
   label: string;
-  hint: string;
   dot: string;
 };
 
@@ -65,17 +58,12 @@ type HeaderUser = {
 
 const NAV_MODE: NavigationMode = "replace";
 
-const TABS: Tab[] = [
-  { key: "solo", label: "Personal", hint: "Solo tú", dot: "#FBBF24" },
-  { key: "pair", label: "Pareja", hint: "2 personas", dot: "#F87171" },
-  { key: "family", label: "Familia", hint: "Varios", dot: "#60A5FA" },
-  {
-    key: "other",
-    label: "Compartido",
-    hint: "Amigos, equipos",
-    dot: "#A855F7",
-  },
-];
+const MODE_META: Record<TabKey, ModeMeta> = {
+  solo: { label: "Personal", dot: "#FBBF24" },
+  pair: { label: "Pareja", dot: "#F87171" },
+  family: { label: "Familia", dot: "#60A5FA" },
+  other: { label: "Compartido", dot: "#A855F7" },
+};
 
 function applyThemeVars(mode: UsageMode | "other") {
   if (typeof document === "undefined") return;
@@ -324,10 +312,9 @@ export default function PremiumHeader({
     refreshBadge();
   }, [openNotif, pathname, refreshBadge]);
 
-  const activeTab = useMemo(
-    () => TABS.find((t) => t.key === activeMode) ?? TABS[0],
-    [activeMode]
-  );
+  const activeTab = useMemo<ModeMeta>(() => {
+    return MODE_META[activeMode] ?? MODE_META.solo;
+  }, [activeMode]);
 
   const kickerLabel = useMemo(() => {
     const cleaned = normalizeGroupLabel((group as any)?.groupName ?? null);
@@ -358,20 +345,6 @@ export default function PremiumHeader({
     }
   }
 
-  async function onPickMode(nextMode: TabKey) {
-    const next = setMode(nextMode as UsageMode);
-    setGroup(next);
-    applyThemeVars(nextMode);
-
-    if (nextMode === "solo") return;
-
-    try {
-      await ensureActiveGroupForMode(nextMode);
-    } catch {
-      // noop
-    }
-  }
-
   const onSyncedFromDrawer = useCallback((imported: number) => {
     window.dispatchEvent(
       new CustomEvent("sp:google-synced", {
@@ -381,24 +354,52 @@ export default function PremiumHeader({
   }, []);
 
   const navItems = [
-    { label: "Resumen", path: "/summary", active: pathname.startsWith("/summary") },
-    { label: "Calendario", path: "/calendar", active: pathname.startsWith("/calendar") },
-    { label: "Eventos", path: "/events", active: pathname.startsWith("/events") },
+    {
+      label: "Resumen",
+      path: "/summary",
+      active: pathname.startsWith("/summary"),
+    },
+    {
+      label: "Calendario",
+      path: "/calendar",
+      active: pathname.startsWith("/calendar"),
+    },
+    {
+      label: "Eventos",
+      path: "/events",
+      active: pathname.startsWith("/events"),
+    },
     {
       label: "Conflictos",
       path: "/conflicts/detected",
       active: pathname.startsWith("/conflicts"),
     },
     { label: "Panel", path: "/panel", active: pathname.startsWith("/panel") },
-    { label: "Grupos", path: "/groups", active: pathname.startsWith("/groups") },
-    { label: "Miembros", path: "/members", active: pathname.startsWith("/members") },
+    {
+      label: "Grupos",
+      path: "/groups",
+      active: pathname.startsWith("/groups"),
+    },
+    {
+      label: "Miembros",
+      path: "/members",
+      active: pathname.startsWith("/members"),
+    },
     {
       label: "Invitaciones",
       path: "/invitations",
       active: pathname.startsWith("/invitations"),
     },
-    { label: "Ajustes", path: "/settings", active: pathname.startsWith("/settings") },
-    { label: "Planes", path: "/planes", active: pathname.startsWith("/planes") },
+    {
+      label: "Ajustes",
+      path: "/settings",
+      active: pathname.startsWith("/settings"),
+    },
+    {
+      label: "Planes",
+      path: "/planes",
+      active: pathname.startsWith("/planes"),
+    },
   ];
 
   return (
@@ -441,7 +442,9 @@ export default function PremiumHeader({
                   onClick={() => setUserMenuOpen((v) => !v)}
                   title="Cuenta"
                 >
-                  <div style={styles.userAvatar}>{headerUser?.initials ?? "T"}</div>
+                  <div style={styles.userAvatar}>
+                    {headerUser?.initials ?? "T"}
+                  </div>
                 </button>
 
                 {userMenuOpen && (
@@ -450,7 +453,9 @@ export default function PremiumHeader({
                       <div style={styles.menuAvatar}>
                         {headerUser?.initials ?? "T"}
                       </div>
-                      <div style={styles.menuName}>{headerUser?.name ?? "Tú"}</div>
+                      <div style={styles.menuName}>
+                        {headerUser?.name ?? "Tú"}
+                      </div>
                     </div>
 
                     <button
@@ -533,33 +538,14 @@ export default function PremiumHeader({
               </button>
 
               {rightSlot ?? (
-                <button type="button" style={styles.primaryButton} onClick={onNewEvent}>
+                <button
+                  type="button"
+                  style={styles.primaryButton}
+                  onClick={onNewEvent}
+                >
                   + Evento
                 </button>
               )}
-            </div>
-
-            <div style={styles.tabsWrap}>
-              <div style={styles.tabsGridMobile}>
-                {TABS.map((tab) => {
-                  const isActive = tab.key === activeMode;
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => onPickMode(tab.key)}
-                      style={{
-                        ...styles.modeTabMobile,
-                        ...(isActive ? styles.modeTabActive : {}),
-                      }}
-                    >
-                      <span style={{ ...styles.tabDot, background: tab.dot }} />
-                      <span style={styles.modeTabLabel}>{tab.label}</span>
-                      <span style={styles.modeTabHint}>{tab.hint}</span>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
           </>
         ) : (
@@ -598,8 +584,12 @@ export default function PremiumHeader({
                     onClick={() => setUserMenuOpen((v) => !v)}
                     title="Cuenta y opciones"
                   >
-                    <div style={styles.userAvatar}>{headerUser?.initials ?? "T"}</div>
-                    <span style={styles.userLabel}>{headerUser?.name ?? "Tú"}</span>
+                    <div style={styles.userAvatar}>
+                      {headerUser?.initials ?? "T"}
+                    </div>
+                    <span style={styles.userLabel}>
+                      {headerUser?.name ?? "Tú"}
+                    </span>
                   </button>
 
                   {userMenuOpen && (
@@ -608,7 +598,9 @@ export default function PremiumHeader({
                         <div style={styles.menuAvatar}>
                           {headerUser?.initials ?? "T"}
                         </div>
-                        <div style={styles.menuName}>{headerUser?.name ?? "Tú"}</div>
+                        <div style={styles.menuName}>
+                          {headerUser?.name ?? "Tú"}
+                        </div>
                       </div>
 
                       <button
@@ -684,33 +676,14 @@ export default function PremiumHeader({
                 </button>
 
                 {rightSlot ?? (
-                  <button type="button" style={styles.primaryButton} onClick={onNewEvent}>
+                  <button
+                    type="button"
+                    style={styles.primaryButton}
+                    onClick={onNewEvent}
+                  >
                     + Evento
                   </button>
                 )}
-              </div>
-            </div>
-
-            <div style={styles.tabsWrap}>
-              <div style={styles.tabsGridDesktop}>
-                {TABS.map((tab) => {
-                  const isActive = tab.key === activeMode;
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => onPickMode(tab.key)}
-                      style={{
-                        ...styles.modeTabDesktop,
-                        ...(isActive ? styles.modeTabActive : {}),
-                      }}
-                    >
-                      <span style={{ ...styles.tabDot, background: tab.dot }} />
-                      <span style={styles.modeTabLabel}>{tab.label}</span>
-                      <span style={styles.modeTabHint}>{tab.hint}</span>
-                    </button>
-                  );
-                })}
               </div>
             </div>
 
@@ -964,80 +937,6 @@ const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: "1fr 1fr",
     gap: 8,
     marginTop: 12,
-  },
-
-  tabsWrap: {
-    position: "relative",
-    zIndex: 1,
-    marginTop: 16,
-    borderRadius: 18,
-    background: "rgba(255,255,255,0.04)",
-    border: `1px solid ${colors.borderSubtle}`,
-    padding: 8,
-  },
-  tabsGridDesktop: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-    gap: 10,
-  },
-  tabsGridMobile: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 8,
-  },
-  modeTabDesktop: {
-    minHeight: 54,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(2,6,23,0.55)",
-    display: "grid",
-    gridTemplateColumns: "14px 1fr",
-    gridTemplateRows: "1fr 1fr",
-    alignItems: "center",
-    gap: "0 10px",
-    padding: "10px 12px",
-    cursor: "pointer",
-    color: colors.textPrimary,
-    textAlign: "left",
-  },
-  modeTabMobile: {
-    minHeight: 50,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(2,6,23,0.55)",
-    display: "grid",
-    gridTemplateColumns: "14px 1fr",
-    gridTemplateRows: "1fr 1fr",
-    alignItems: "center",
-    gap: "0 8px",
-    padding: "8px 10px",
-    cursor: "pointer",
-    color: colors.textPrimary,
-    textAlign: "left",
-  },
-  modeTabActive: {
-    background: "rgba(255,255,255,0.08)",
-    border: "1px solid rgba(255,255,255,0.16)",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
-  },
-  tabDot: {
-    width: 10,
-    height: 10,
-    borderRadius: radii.full,
-    gridRow: "1 / span 2",
-  },
-  modeTabLabel: {
-    fontSize: 13,
-    fontWeight: 900,
-    color: colors.textPrimary,
-  },
-  modeTabHint: {
-    fontSize: 11,
-    fontWeight: 650,
-    color: colors.textSecondary,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
   },
 
   topNav: {
