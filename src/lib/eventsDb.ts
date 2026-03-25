@@ -2,6 +2,10 @@
 "use client";
 
 import supabase from "@/lib/supabaseClient";
+import {
+  createPublicInvite,
+  type PublicInviteRow,
+} from "@/lib/invitationsDb";
 
 /* ======================================================
   Tipos base (DB)
@@ -65,6 +69,17 @@ export type DeleteEventsResult = {
   ownIds: string[];
   blockedIds: string[];
   deletedCount: number;
+};
+
+export type GeneratePublicInviteLinkInput = {
+  eventId: string;
+  contact?: string | null;
+  baseUrl?: string | null;
+};
+
+export type GeneratePublicInviteLinkResult = {
+  invite: PublicInviteRow;
+  link: string;
 };
 
 /* ======================================================
@@ -134,6 +149,26 @@ function resolveEventOwnerId(row: any): string {
   return String(
     row?.owner_id ?? row?.user_id ?? row?.created_by ?? ""
   ).trim();
+}
+
+function resolvePublicAppBaseUrl(explicitBaseUrl?: string | null): string {
+  const explicit = String(explicitBaseUrl ?? "")
+    .trim()
+    .replace(/\/$/, "");
+  if (explicit) return explicit;
+
+  const envBase = String(
+    process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? ""
+  )
+    .trim()
+    .replace(/\/$/, "");
+  if (envBase) return envBase;
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin.replace(/\/$/, "");
+  }
+
+  return "http://localhost:3000";
 }
 
 /* ======================================================
@@ -382,6 +417,42 @@ export async function updateEvent(
     .eq("id", id);
 
   if (error) throw error;
+}
+
+/* ======================================================
+  Invitaciones públicas externas
+====================================================== */
+
+export async function generatePublicInviteLink(
+  input: GeneratePublicInviteLinkInput | string
+): Promise<GeneratePublicInviteLinkResult> {
+  const safeInput =
+    typeof input === "string"
+      ? { eventId: input, contact: null, baseUrl: null }
+      : input;
+
+  const eventId = String(safeInput.eventId ?? "").trim();
+  const contact =
+    safeInput.contact === undefined ? null : safeInput.contact ?? null;
+
+  if (!eventId) {
+    throw new Error("Falta el evento para generar el link público.");
+  }
+
+  await getEventById(eventId);
+
+  const invite = await createPublicInvite({
+    eventId,
+    contact,
+  });
+
+  const baseUrl = resolvePublicAppBaseUrl(safeInput.baseUrl);
+  const link = `${baseUrl}/invite/${encodeURIComponent(invite.token)}`;
+
+  return {
+    invite,
+    link,
+  };
 }
 
 /* ======================================================

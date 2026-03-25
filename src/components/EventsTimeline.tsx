@@ -5,7 +5,7 @@ import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { deleteEventsByIds } from "@/lib/eventsDb";
-import { createPublicInvite } from "@/lib/invitationsDb";
+import { deleteEventsByIds, generatePublicInviteLink } from "@/lib/eventsDb";
 
 type TimelineEvent = {
   id: string;
@@ -211,12 +211,7 @@ export default function EventsTimeline({
     }));
 
     try {
-      const invite = await createPublicInvite({
-        eventId,
-        contact: null,
-      });
-
-      const link = `${clientBaseUrl()}/invite/${encodeURIComponent(invite.token)}`;
+const { link } = await generatePublicInviteLink(eventId);
 
       setShareStateById((prev) => ({
         ...prev,
