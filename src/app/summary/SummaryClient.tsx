@@ -34,7 +34,7 @@ import {
   filterOutDeclinedEvents,
   getMyDeclinedEventIds,
 } from "@/lib/eventResponsesDb";
-
+import { getUnreadConflictNotificationsSummary } from "@/lib/notificationsDb";
 type Props = {
   highlightId: string | null;
   appliedToast: string | null;
@@ -332,7 +332,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   );
   const [loading, setLoading] = useState(false);
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
-
+  const [unreadConflictAlert, setUnreadConflictAlert] = useState<ConflictAlert>({
+    count: 0,
+    latestEventId: null,
+  });
   const toastTimeoutRef = useRef<number | null>(null);
 
   const clearToastTimer = () => {
@@ -393,10 +396,15 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     });
   }, [normalizedEvents]);
 
-  const conflictAlert = useMemo(
-    () => buildConflictAlert(visibleEvents, groups, resMap),
-    [visibleEvents, groups, resMap]
-  );
+  const conflictAlert = useMemo(() => {
+    const baseAlert = buildConflictAlert(visibleEvents, groups, resMap);
+
+    return {
+      count: Math.max(baseAlert.count, unreadConflictAlert.count),
+      latestEventId:
+        unreadConflictAlert.latestEventId ?? baseAlert.latestEventId ?? null,
+    };
+  }, [visibleEvents, groups, resMap, unreadConflictAlert]);
 
   /**
    * Ventana correcta:
@@ -515,15 +523,23 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
       setActiveGroupId(validActive);
 
-      const [es, conflictResolutions, declined] = await Promise.all([
-        getMyEvents(),
-        getMyConflictResolutionsMap().catch(() => ({})),
-        getMyDeclinedEventIds().catch(() => new Set<string>()),
-      ]);
+            const [es, conflictResolutions, declined, unreadConflicts] =
+        await Promise.all([
+          getMyEvents(),
+          getMyConflictResolutionsMap().catch(() => ({})),
+          getMyDeclinedEventIds().catch(() => new Set<string>()),
+          getUnreadConflictNotificationsSummary().catch(() => ({
+            count: 0,
+            latestEventId: null,
+          })),
+        ]);
 
       setEvents(Array.isArray(es) ? es : []);
       setResMap(conflictResolutions ?? {});
       setDeclinedEventIds(declined ?? new Set());
+      setUnreadConflictAlert(
+        unreadConflicts ?? { count: 0, latestEventId: null }
+      );
     } catch (e: any) {
       showToast(
         "No se pudo cargar el resumen",

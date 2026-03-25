@@ -271,7 +271,29 @@ export default function DetectedClient() {
         String(c.incomingEventId) === String(focusEventId)
     );
   }, [allVisibleConflicts, resMap, focusEventId]);
+  const focusedEvent = useMemo(() => {
+    if (!focusEventId) return null;
 
+    return (
+      visibleEvents.find((e) => String(e.id) === String(focusEventId)) ?? null
+    );
+  }, [visibleEvents, focusEventId]);
+
+  const isFocusedView = Boolean(focusEventId);
+
+  const focusSummary = useMemo(() => {
+    if (!focusEventId) {
+      return { relatedCount: 0 };
+    }
+
+    const relatedCount = pendingConflicts.filter(
+      (c) =>
+        String(c.existingEventId) === String(focusEventId) ||
+        String(c.incomingEventId) === String(focusEventId)
+    ).length;
+
+    return { relatedCount };
+  }, [pendingConflicts, focusEventId]);
   const summary = useMemo(() => {
     const totalVisible = allVisibleConflicts.length;
     let decided = 0;
@@ -390,12 +412,14 @@ export default function DetectedClient() {
     >
       <div style={styles.shell} className="spDet-shell">
         <div style={styles.topRow} className="spDet-topRow">
-          <AppHero
+                 <AppHero
             mobileNav="bottom"
             title="Conflictos"
             subtitle={
               summary.pending === 0
                 ? "Tu agenda está sincronizada."
+                : isFocusedView
+                ? "Te llevamos directo al conflicto más relevante para que no se pierda entre el resto."
                 : "Detecta y resuelve choques de horario en segundos."
             }
           />
@@ -431,7 +455,21 @@ export default function DetectedClient() {
             )}
           </div>
         </section>
-
+        {isFocusedView && focusedEvent ? (
+          <section style={styles.focusCard}>
+            <div style={styles.focusEyebrow}>Conflicto priorizado</div>
+            <div style={styles.focusTitle}>
+              {focusedEvent.title || "Evento seleccionado"}
+            </div>
+            <div style={styles.focusSub}>
+              {focusSummary.relatedCount > 0
+                ? `Este evento tiene ${focusSummary.relatedCount} conflicto${
+                    focusSummary.relatedCount === 1 ? "" : "s"
+                  } pendiente${focusSummary.relatedCount === 1 ? "" : "s"} y por eso lo trajimos arriba.`
+                : "Llegaste desde una alerta específica. Si ya no aparece conflicto pendiente, puede que ya haya sido resuelto o ignorado."}
+            </div>
+          </section>
+        ) : null}
         <section style={styles.listCard}>
           <div style={styles.listTop}>
             <div>
@@ -740,5 +778,34 @@ const styles: Record<string, React.CSSProperties> = {
   loadingSub: {
     fontSize: 13,
     color: "rgba(235,241,255,0.68)",
+  },
+    focusCard: {
+    marginTop: 14,
+    borderRadius: 22,
+    border: "1px solid rgba(244,114,182,0.18)",
+    background:
+      "linear-gradient(180deg, rgba(83,18,45,0.32), rgba(32,12,27,0.22))",
+    boxShadow: "0 18px 48px rgba(0,0,0,0.20)",
+    padding: 18,
+    display: "grid",
+    gap: 8,
+  },
+  focusEyebrow: {
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: "uppercase" as const,
+    fontWeight: 800,
+    color: "rgba(255,194,221,0.88)",
+  },
+  focusTitle: {
+    fontSize: 18,
+    lineHeight: 1.2,
+    fontWeight: 800,
+    color: "#FFF4FA",
+  },
+  focusSub: {
+    fontSize: 14,
+    lineHeight: 1.6,
+    color: "rgba(255,232,242,0.76)",
   },
 };

@@ -640,7 +640,31 @@ export default function CalendarClient(
   }, [events, resMap]);
 
   const conflictCount = conflicts.length;
+  const latestConflictEventId = useMemo(() => {
+    if (!conflicts.length) return null;
 
+    let latestId: string | null = null;
+    let latestStartMs = -1;
+
+    for (const conflict of conflicts) {
+      const candidates = [
+        events.find((e) => String(e.id) === String(conflict.existingEventId)),
+        events.find((e) => String(e.id) === String(conflict.incomingEventId)),
+      ].filter(Boolean) as CalendarEvent[];
+
+      for (const event of candidates) {
+        const ms = new Date(event.start).getTime();
+        if (Number.isNaN(ms)) continue;
+
+        if (ms > latestStartMs) {
+          latestStartMs = ms;
+          latestId = String(event.id);
+        }
+      }
+    }
+
+    return latestId;
+  }, [conflicts, events]);
   const conflictEventIdsInGrid = useMemo(() => {
     const a = gridStart.getTime();
     const b = gridEnd.getTime();
@@ -844,14 +868,19 @@ export default function CalendarClient(
     );
   };
 
-const openConflicts = () => {
-  router.push("/conflicts/detected");
-};
+  const openConflicts = () => {
+    if (latestConflictEventId) {
+      router.push(
+        `/conflicts/detected?eventId=${encodeURIComponent(latestConflictEventId)}`
+      );
+      return;
+    }
+
+    router.push("/conflicts/detected");
+  };
 
   const resolveNow = () =>
-    router.push(
-      `/conflicts/compare?i=${firstRelevantConflictIndex}`
-    );
+    router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`);
 
   const currentMonthIndex = anchor.getMonth();
   const currentYear = anchor.getFullYear();
@@ -985,7 +1014,26 @@ const openConflicts = () => {
             </button>
           </div>
         </Card>
+        {conflictCount > 0 ? (
+          <button
+            onClick={openConflicts}
+            style={styles.conflictBanner}
+            className="spCal-conflictBanner"
+          >
+            <div style={styles.conflictBannerLeft}>
+              <div style={styles.conflictBannerEyebrow}>Atención</div>
+              <div style={styles.conflictBannerTitle}>
+                Tienes {conflictCount} conflicto
+                {conflictCount === 1 ? "" : "s"} por resolver
+              </div>
+              <div style={styles.conflictBannerSub}>
+                Revísalo ahora para evitar cruces y fricción en la coordinación.
+              </div>
+            </div>
 
+            <div style={styles.conflictBannerCta}>Ver conflictos →</div>
+          </button>
+        ) : null}
         <CalendarFilters
           tab={tab}
           scope={scope}

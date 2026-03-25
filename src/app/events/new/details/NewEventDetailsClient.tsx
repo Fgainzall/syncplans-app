@@ -5,6 +5,7 @@ import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+import SharedConflictPreflightModal from "@/components/ConflictPreflightModal";
 import { createConflictNotificationForEvent } from "@/lib/notificationsDb";
 import {
   GroupType,
@@ -85,7 +86,29 @@ type PreflightConflict = {
   overlapStart: string;
   overlapEnd: string;
 };
+function getConflictCounterpart(
+  conflict: ReturnType<typeof computeVisibleConflicts>[number],
+  candidateId: string
+) {
+  const existingId = String(conflict.existingEventId ?? "");
+  const incomingId = String(conflict.incomingEventId ?? "");
 
+  if (existingId === candidateId) {
+    return {
+      otherId: incomingId,
+      otherEvent: conflict.incomingEvent ?? conflict.incoming ?? null,
+    };
+  }
+
+  if (incomingId === candidateId) {
+    return {
+      otherId: existingId,
+      otherEvent: conflict.existingEvent ?? conflict.existing ?? null,
+    };
+  }
+
+  return null;
+}
 function mapDefaultResolutionToChoice(
   s: NotificationSettings | null
 ): PreflightChoice {
@@ -531,44 +554,56 @@ function NewEventDetailsInner() {
       const combined = [...pf.baseEvents, pf.candidateEvent];
       const all = computeVisibleConflicts(combined);
 
-      const incomingId = String(pf.candidateEvent.id);
+const candidateId = String(pf.candidateEvent.id);
 
-      const conflicts = all.filter((c) => {
-        if (String(c.incomingEventId) !== incomingId) return false;
+const conflicts = all.filter((c) => {
+  const touchesCandidate =
+    String(c.existingEventId) === candidateId ||
+    String(c.incomingEventId) === candidateId;
 
-        if (
-          isEditing &&
-          eventIdParam &&
-          String(c.existingEventId) === String(eventIdParam)
-        ) {
-          return false;
-        }
+  if (!touchesCandidate) return false;
 
-        return true;
-      });
+  const counterpart = getConflictCounterpart(c, candidateId);
+  if (!counterpart?.otherId) return false;
 
-      if (!conflicts.length) {
-        return { ok: true };
-      }
+  if (
+    isEditing &&
+    eventIdParam &&
+    String(counterpart.otherId) === String(eventIdParam)
+  ) {
+    return false;
+  }
 
-      const items: PreflightConflict[] = conflicts.map((c) => {
-        const ex = c.existingEvent ?? c.existing ?? null;
-        const gm = groupMeta(ex?.groupType ?? "personal");
+  return true;
+});
 
-        return {
-          id: c.id,
-          existingId: String(c.existingEventId),
-          title: ex?.title ?? "Evento existente",
-          groupLabel: gm.label,
-          range: ex ? fmtRange(ex.start, ex.end) : "—",
-          overlapStart: c.overlapStart,
-          overlapEnd: c.overlapEnd,
-        };
-      });
+if (!conflicts.length) {
+  return { ok: true };
+}
 
-      setExistingIdsToReplace(
-        Array.from(new Set(items.map((x) => String(x.existingId))))
-      );
+const items: PreflightConflict[] = conflicts
+  .map((c) => {
+    const counterpart = getConflictCounterpart(c, candidateId);
+    if (!counterpart?.otherId) return null;
+
+    const otherEvent = counterpart.otherEvent;
+    const gm = groupMeta(otherEvent?.groupType ?? "personal");
+
+    return {
+      id: c.id,
+      existingId: String(counterpart.otherId),
+      title: otherEvent?.title ?? "Evento existente",
+      groupLabel: gm.label,
+      range: otherEvent ? fmtRange(otherEvent.start, otherEvent.end) : "—",
+      overlapStart: c.overlapStart,
+      overlapEnd: c.overlapEnd,
+    };
+  })
+  .filter(Boolean) as PreflightConflict[];
+
+setExistingIdsToReplace(
+  Array.from(new Set(items.map((x) => String(x.existingId)).filter(Boolean)))
+);
       setPreflightItems(items);
       setPreflightDefaultChoice(mapDefaultResolutionToChoice(settings));
       setPreflightOpen(true);
@@ -958,109 +993,15 @@ function ConflictPreflightModal({
   onClose: () => void;
   onChoose: (c: PreflightChoice) => void;
 }) {
-  const [choice, setChoice] = useState<PreflightChoice>(defaultChoice);
-
-  useEffect(() => {
-    if (open) setChoice(defaultChoice);
-  }, [open, defaultChoice]);
-
-  if (!open) return null;
-
-  const count = items.length;
-
   return (
-    <div style={modalStyles.wrap}>
-      <button
-        style={modalStyles.backdrop}
-        onClick={onClose}
-        aria-label="Cerrar"
-      />
-      <div style={modalStyles.card}>
-        <div style={modalStyles.header}>
-          <div style={modalStyles.badge}>
-            <span style={modalStyles.badgeDot} />
-            SyncPlans · Conflictos
-          </div>
-          <div style={modalStyles.h2}>Antes de guardar, resolvamos esto</div>
-          <div style={modalStyles.p}>
-            <b style={{ opacity: 0.9 }}>“{title}”</b> se cruza con{" "}
-            <b style={{ opacity: 0.9 }}>{count}</b> evento
-            {count === 1 ? "" : "s"}.
-          </div>
-        </div>
-
-        <div style={modalStyles.listBox}>
-          <div style={modalStyles.listInner}>
-            {items.map((it, idx) => (
-              <div
-                key={it.id}
-                style={{
-                  ...modalStyles.item,
-                  borderTop: idx
-                    ? "1px solid rgba(255,255,255,0.10)"
-                    : "none",
-                }}
-              >
-                <div style={modalStyles.itemTop}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={modalStyles.itemTitle}>{it.title}</div>
-                    <div style={modalStyles.itemSub}>
-                      {it.groupLabel} · {it.range}
-                    </div>
-                    <div style={modalStyles.overlapPill}>
-                      Se cruza:{" "}
-                      {new Date(it.overlapStart).toLocaleString()} —{" "}
-                      {new Date(it.overlapEnd).toLocaleString()}
-                    </div>
-                  </div>
-                  <div style={modalStyles.idxPill}>#{idx + 1}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={modalStyles.choices}>
-          <ChoiceCard
-            active={choice === "keep_existing"}
-            title="Conservar existente"
-            desc="No guardo el nuevo."
-            onClick={() => setChoice("keep_existing")}
-          />
-          <ChoiceCard
-            active={choice === "replace_with_new"}
-            title="Reemplazar por el nuevo"
-            desc="El nuevo gana (borro los existentes)."
-            onClick={() => setChoice("replace_with_new")}
-          />
-          <ChoiceCard
-            active={choice === "keep_both"}
-            title="Conservar ambos"
-            desc="Guardo el nuevo y mantengo los existentes (el conflicto queda)."
-            onClick={() => setChoice("keep_both")}
-          />
-          <ChoiceCard
-            active={choice === "edit"}
-            title="Editar antes"
-            desc="Ajustar horas o título."
-            onClick={() => setChoice("edit")}
-          />
-        </div>
-
-        <div style={modalStyles.footer}>
-          <button style={modalStyles.ghost} onClick={onClose}>
-            Cancelar
-          </button>
-          <button style={modalStyles.primary} onClick={() => onChoose(choice)}>
-            Continuar
-          </button>
-        </div>
-
-        <div style={modalStyles.tip}>
-          Tip: esto respeta tus Settings (warn-before-save + default-resolution).
-        </div>
-      </div>
-    </div>
+    <SharedConflictPreflightModal
+      open={open}
+      title={title}
+      items={items}
+      defaultChoice={defaultChoice}
+      onClose={onClose}
+      onChoose={onChoose}
+    />
   );
 }
 

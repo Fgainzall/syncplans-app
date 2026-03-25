@@ -42,6 +42,13 @@ export type ConflictItem = {
   overlapStart: string;
   overlapEnd: string;
 
+  // enriquecimiento útil para UI / filtros
+  eventIds: [string, string];
+  durationMinutes: number;
+  sameGroup: boolean;
+  existingGroupType: GroupType;
+  incomingGroupType: GroupType;
+
   // compat
   existing?: CalendarEvent | null;
   incoming?: CalendarEvent | null;
@@ -321,10 +328,7 @@ type GroupTypeLike = GroupType | (string & {});
 export function normalizeGroupType(gt: GroupTypeLike): CanonicalGroupType {
   const value = String(gt ?? "").toLowerCase();
 
-  if (
-    value === "couple" ||
-    value === "pair"
-  ) {
+  if (value === "couple" || value === "pair") {
     return "pair";
   }
 
@@ -405,6 +409,66 @@ export function conflictKey(aId: string, bId: string) {
   return `cx::${x}::${y}`;
 }
 
+export function conflictInvolvesEvent(
+  conflict: ConflictItem | null | undefined,
+  eventId: string | null | undefined
+) {
+  if (!conflict || !eventId) return false;
+  const id = String(eventId);
+  return (
+    String(conflict.existingEventId) === id ||
+    String(conflict.incomingEventId) === id
+  );
+}
+
+export function getOtherEventIdFromConflict(
+  conflict: ConflictItem | null | undefined,
+  eventId: string | null | undefined
+): string | null {
+  if (!conflict || !eventId) return null;
+
+  const id = String(eventId);
+
+  if (String(conflict.existingEventId) === id) {
+    return String(conflict.incomingEventId);
+  }
+
+  if (String(conflict.incomingEventId) === id) {
+    return String(conflict.existingEventId);
+  }
+
+  return null;
+}
+
+export function getOtherEventFromConflict(
+  conflict: ConflictItem | null | undefined,
+  eventId: string | null | undefined
+): CalendarEvent | null {
+  if (!conflict || !eventId) return null;
+
+  const id = String(eventId);
+
+  if (String(conflict.existingEventId) === id) {
+    return conflict.incomingEvent ?? conflict.incoming ?? null;
+  }
+
+  if (String(conflict.incomingEventId) === id) {
+    return conflict.existingEvent ?? conflict.existing ?? null;
+  }
+
+  return null;
+}
+
+export function filterConflictsTouchingEvent(
+  conflicts: ConflictItem[],
+  eventId: string | null | undefined
+): ConflictItem[] {
+  if (!eventId) return [];
+  return (Array.isArray(conflicts) ? conflicts : []).filter((c) =>
+    conflictInvolvesEvent(c, eventId)
+  );
+}
+
 export function computeVisibleConflicts(events: unknown): ConflictItem[] {
   const list: CalendarEvent[] = Array.isArray(events)
     ? (events.filter(Boolean) as CalendarEvent[])
@@ -417,11 +481,14 @@ export function computeVisibleConflicts(events: unknown): ConflictItem[] {
       if (!Number.isFinite(s) || !Number.isFinite(en)) return null;
       if (en <= s) return null;
 
+      const normalizedEvent: CalendarEvent = {
+        ...e,
+        id: String(e.id),
+        groupType: normalizeEventGroupType(e.groupType),
+      };
+
       return {
-        e: {
-          ...e,
-          groupType: normalizeEventGroupType(e.groupType),
-        },
+        e: normalizedEvent,
         s,
         en,
       };
@@ -445,18 +512,32 @@ export function computeVisibleConflicts(events: unknown): ConflictItem[] {
       if (oStart >= oEnd) continue;
 
       const pick = chooseExistingIncoming(prev.e, cur.e);
-      const id = conflictKey(pick.existing.id, pick.incoming.id);
+      const existingId = String(pick.existing.id);
+      const incomingId = String(pick.incoming.id);
+      const id = conflictKey(existingId, incomingId);
 
       if (seen.has(id)) continue;
       seen.add(id);
 
+      const durationMinutes = Math.max(
+        1,
+        Math.round((oEnd - oStart) / (1000 * 60))
+      );
+
       out.push({
         id,
         kind: "overlap",
-        existingEventId: pick.existing.id,
-        incomingEventId: pick.incoming.id,
+        existingEventId: existingId,
+        incomingEventId: incomingId,
         overlapStart: new Date(oStart).toISOString(),
         overlapEnd: new Date(oEnd).toISOString(),
+        eventIds: [existingId, incomingId],
+        durationMinutes,
+        sameGroup:
+          String(pick.existing.groupId ?? "") === String(pick.incoming.groupId ?? "") &&
+          String(pick.existing.groupId ?? "") !== "",
+        existingGroupType: normalizeEventGroupType(pick.existing.groupType),
+        incomingGroupType: normalizeEventGroupType(pick.incoming.groupType),
         existing: pick.existing,
         incoming: pick.incoming,
         existingEvent: pick.existing,
@@ -468,10 +549,15 @@ export function computeVisibleConflicts(events: unknown): ConflictItem[] {
   }
 
   out.sort((x, y) => {
-    const xl = toMs(x.overlapEnd) - toMs(x.overlapStart);
-    const yl = toMs(y.overlapEnd) - toMs(y.overlapStart);
-    if (xl !== yl) return yl - xl;
-    return String(x.id) < String(y.id) ? -1 : 1;
+    if (x.durationMinutes !== y.durationMinutes) {
+      return y.durationMinutes - x.durationMinutes;
+    }
+
+    const xStart = toMs(x.overlapStart);
+    const yStart = toMs(y.overlapStart);
+    if (xStart !== yStart) return xStart - yStart;
+
+    return String(x.id).localeCompare(String(y.id));
   });
 
   return out;
@@ -487,6 +573,7 @@ export function attachEvents(
 
   const normalizedList = list.map((e) => ({
     ...e,
+    id: String(e.id),
     groupType: normalizeEventGroupType(e.groupType),
   }));
 
@@ -507,6 +594,16 @@ export function attachEvents(
 
     return {
       ...c,
+      eventIds: [String(c.existingEventId), String(c.incomingEventId)],
+      existingGroupType: normalizeEventGroupType(
+        existing?.groupType ?? c.existingGroupType ?? "personal"
+      ),
+      incomingGroupType: normalizeEventGroupType(
+        incoming?.groupType ?? c.incomingGroupType ?? "personal"
+      ),
+      sameGroup:
+        String(existing?.groupId ?? "") === String(incoming?.groupId ?? "") &&
+        String(existing?.groupId ?? "") !== "",
       existing,
       incoming,
       existingEvent: existing,
