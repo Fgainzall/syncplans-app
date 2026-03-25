@@ -408,10 +408,20 @@ export default function CompareClient() {
     }
   };
 
+  const activeConflictIndex = useMemo(() => {
+    if (!activeConflict) return null;
+    const idx = conflicts.findIndex(
+      (c) => String(c.id) === String(activeConflict.id)
+    );
+    return idx >= 0 ? idx : null;
+  }, [conflicts, activeConflict]);
+
   const goToActions = () => {
     const qp = new URLSearchParams();
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     if (focusEventId) qp.set("eventId", focusEventId);
+    if (activeConflict?.id != null) qp.set("conflict", String(activeConflict.id));
+    if (activeConflictIndex != null) qp.set("i", String(activeConflictIndex));
     router.push(`/conflicts/actions?${qp.toString()}`);
   };
 

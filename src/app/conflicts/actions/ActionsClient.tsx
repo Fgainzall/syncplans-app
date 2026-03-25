@@ -152,6 +152,8 @@ export default function ActionsClient() {
 
   const groupIdFromUrl = searchParams.get("groupId");
   const focusEventId = searchParams.get("eventId");
+  const focusConflictId = searchParams.get("conflict");
+  const focusIndex = searchParams.get("i");
 
   const [booting, setBooting] = useState(true);
   const [applying, setApplying] = useState(false);
@@ -291,6 +293,8 @@ export default function ActionsClient() {
     const qp = new URLSearchParams();
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     if (focusEventId) qp.set("eventId", focusEventId);
+    if (focusConflictId) qp.set("conflict", focusConflictId);
+    if (focusIndex) qp.set("i", focusIndex);
     router.push(`/conflicts/compare?${qp.toString()}`);
   };
 
@@ -467,10 +471,15 @@ export default function ActionsClient() {
 
         <section style={styles.hero}>
           <div style={styles.kicker}>Cierre</div>
-          <h1 style={styles.h1}>Aplica las decisiones guardadas</h1>
+          <h1 style={styles.h1}>
+            {focusEventId
+              ? "Aplica la decisión de este conflicto"
+              : "Aplica las decisiones guardadas"}
+          </h1>
           <div style={styles.sub}>
-            Aquí cerramos el flujo. SyncPlans aplicará lo que decidiste en la
-            comparación y luego te devolverá al resumen.
+            {focusEventId
+              ? "Aquí cerramos el conflicto que vienes revisando. SyncPlans aplicará solo las decisiones vinculadas a este evento y luego te devolverá al resumen."
+              : "Aquí cerramos el flujo. SyncPlans aplicará lo que decidiste en la comparación y luego te devolverá al resumen."}
           </div>
 
           <div
@@ -503,7 +512,9 @@ export default function ActionsClient() {
             <div>
               <div style={styles.sectionTitle}>Qué se va a ejecutar</div>
               <div style={styles.sectionSub}>
-                Solo se aplicarán conflictos que ya tengan una resolución elegida.
+                {focusEventId
+                  ? "Solo se aplicarán las resoluciones guardadas para este evento."
+                  : "Solo se aplicarán conflictos que ya tengan una resolución elegida."}
               </div>
             </div>
           </div>

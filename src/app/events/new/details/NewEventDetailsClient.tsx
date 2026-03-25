@@ -394,6 +394,32 @@ function NewEventDetailsInner() {
     };
   }, [effectiveType, lockedToActiveGroup, meta.label, groupType]);
 
+  const durationLabel = useMemo(() => {
+    const diffMs = endDate.getTime() - startDate.getTime();
+    if (!Number.isFinite(diffMs) || diffMs <= 0) return null;
+
+    const totalMinutes = Math.round(diffMs / 60000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    if (hours > 0 && minutes > 0) return `${hours} h ${minutes} min`;
+    if (hours > 0) return `${hours} h`;
+    return `${minutes} min`;
+  }, [startDate, endDate]);
+
+  const summaryLine = useMemo(() => {
+    if (effectiveType === "group") {
+      const groupName = selectedGroup?.name ?? "Grupo";
+      return `Se compartirá con ${groupName}.`;
+    }
+    return "Solo aparecerá en tu calendario.";
+  }, [effectiveType, selectedGroup]);
+
+  const dateRangeLabel = useMemo(() => {
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "";
+    return fmtRange(startDate.toISOString(), endDate.toISOString());
+  }, [startDate, endDate]);
+
   const errors = useMemo(() => {
     const e: string[] = [];
 
@@ -753,8 +779,14 @@ setExistingIdsToReplace(
               </span>
             </div>
             <div style={styles.heroSub}>
-              Antes de guardar, SyncPlans revisa choques. Si hay conflicto, tú
-              decides.
+              Crea el evento en pocos segundos. SyncPlans revisa conflictos antes
+              de guardarlo para que no pierdas el hilo.
+              <div style={styles.heroMetaRow}>
+                <span style={styles.heroMetaPill}>{summaryLine}</span>
+                {durationLabel ? (
+                  <span style={styles.heroMetaPill}>Duración: {durationLabel}</span>
+                ) : null}
+              </div>
               {lockedToActiveGroup ? (
                 <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>
                   Este evento se compartirá automáticamente con tu grupo activo.
@@ -782,163 +814,192 @@ setExistingIdsToReplace(
         </section>
 
         <section style={styles.card}>
-          <div style={styles.row}>
-            <div style={styles.label}>Tipo</div>
-            <div style={styles.chips}>
-              <button
-                type="button"
-                onClick={() => {
-                  router.push(
-                    buildUrl(
-                      "personal",
-                      new Date(startDate).toISOString(),
-                      null
-                    )
-                  );
-                }}
-                style={{
-                  ...styles.chip,
-                  background:
-                    effectiveType === "personal"
-                      ? "rgba(255,255,255,0.08)"
-                      : "rgba(255,255,255,0.03)",
-                }}
-              >
-                <span
-                  style={{
-                    ...styles.chipDot,
-                    background: "rgba(250,204,21,0.95)",
-                  }}
-                />
-                Personal
-              </button>
+          <div style={styles.primaryStack}>
+            <div style={styles.sectionIntro}>
+              <div style={styles.sectionEyebrow}>Lo esencial</div>
+              <div style={styles.sectionTitle}>Primero, lo importante</div>
+              <div style={styles.sectionSub}>
+                Título, horario y guardar. Lo demás queda visible pero sin meter
+                ruido.
+              </div>
+            </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const gid =
-                    selectedGroupId ||
-                    activeGroupId ||
-                    (uniqueGroups[0]?.id ?? "");
-                  router.push(
-                    buildUrl(
-                      "group",
-                      new Date(startDate).toISOString(),
-                      gid || null
-                    )
-                  );
-                }}
-                style={{
-                  ...styles.chip,
-                  background:
-                    effectiveType === "group"
-                      ? "rgba(255,255,255,0.08)"
-                      : "rgba(255,255,255,0.03)",
-                }}
-              >
-                <span
-                  style={{
-                    ...styles.chipDot,
-                    background: "rgba(96,165,250,0.95)",
-                  }}
+            <div style={styles.field}>
+              <div style={styles.fieldLabel}>Título</div>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Ej: Cena / Pádel / Médico"
+                style={styles.inputLg}
+              />
+            </div>
+
+            <div style={styles.grid2Tight}>
+              <div style={styles.field}>
+                <div style={styles.fieldLabel}>Inicio</div>
+                <input
+                  type="datetime-local"
+                  value={startLocal}
+                  onChange={(e) => setStartLocal(e.target.value)}
+                  onBlur={onAutoEnd}
+                  style={styles.input}
                 />
-                Grupo
-              </button>
+              </div>
+
+              <div style={styles.field}>
+                <div style={styles.fieldLabel}>Fin</div>
+                <input
+                  type="datetime-local"
+                  value={endLocal}
+                  onChange={(e) => setEndLocal(e.target.value)}
+                  style={styles.input}
+                />
+              </div>
+            </div>
+
+            <div style={styles.quickSummary}>
+              <div style={styles.quickSummaryTitle}>Resumen rápido</div>
+              <div style={styles.quickSummaryRow}>
+                <span style={styles.quickSummaryPill}>
+                  {effectiveType === "group" ? "Compartido" : "Personal"}
+                </span>
+                {durationLabel ? (
+                  <span style={styles.quickSummaryPill}>{durationLabel}</span>
+                ) : null}
+                {dateRangeLabel ? (
+                  <span style={styles.quickSummaryPill}>{dateRangeLabel}</span>
+                ) : null}
+              </div>
             </div>
           </div>
 
-          {effectiveType === "group" && (
-            <div style={{ ...styles.field, marginTop: 12 }}>
-              <div style={styles.fieldLabel}>Grupo</div>
-              {loadingGroups || booting ? (
-                <div style={styles.skeleton}>Cargando grupos…</div>
-              ) : uniqueGroups.length === 0 ? (
-                <div style={styles.emptyInline}>
-                  <div style={styles.emptyInlineTitle}>No tienes grupos</div>
-                  <div style={styles.emptyInlineSub}>
-                    Crea uno para poder hacer eventos compartidos.
-                  </div>
-                  <button
-                    onClick={() => router.push("/groups/new")}
-                    style={styles.primaryBtnSmall}
-                  >
-                    Crear grupo
-                  </button>
-                </div>
-              ) : (
-                <select
-                  value={selectedGroupId}
-                  disabled={lockedToActiveGroup}
-                  onChange={(e) => setSelectedGroupId(e.target.value)}
+          <div style={styles.secondaryCard}>
+            <div style={styles.row}>
+              <div style={styles.label}>Tipo de evento</div>
+              <div style={styles.chips}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    router.push(
+                      buildUrl(
+                        "personal",
+                        new Date(startDate).toISOString(),
+                        null
+                      )
+                    );
+                  }}
                   style={{
-                    ...styles.select,
-                    opacity: lockedToActiveGroup ? 0.7 : 1,
-                    cursor: lockedToActiveGroup ? "not-allowed" : "pointer",
+                    ...styles.chip,
+                    background:
+                      effectiveType === "personal"
+                        ? "rgba(255,255,255,0.08)"
+                        : "rgba(255,255,255,0.03)",
                   }}
                 >
-                  {uniqueGroups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name ?? "Grupo"} ({getGroupTypeLabel(g.type)})
-                    </option>
-                  ))}
-                </select>
-              )}
+                  <span
+                    style={{
+                      ...styles.chipDot,
+                      background: "rgba(250,204,21,0.95)",
+                    }}
+                  />
+                  Personal
+                </button>
 
-              {selectedGroup ? (
-                <div style={styles.hint}>
-                  Seleccionado: <b>{selectedGroup.name ?? "Grupo"}</b> · tipo{" "}
-                  <b>{getGroupTypeLabel(selectedGroup.type)}</b>
-                  {lockedToActiveGroup ? (
-                    <span style={{ marginLeft: 8, opacity: 0.9 }}>
-                      · (grupo activo)
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const gid =
+                      selectedGroupId ||
+                      activeGroupId ||
+                      (uniqueGroups[0]?.id ?? "");
+                    router.push(
+                      buildUrl(
+                        "group",
+                        new Date(startDate).toISOString(),
+                        gid || null
+                      )
+                    );
+                  }}
+                  style={{
+                    ...styles.chip,
+                    background:
+                      effectiveType === "group"
+                        ? "rgba(255,255,255,0.08)"
+                        : "rgba(255,255,255,0.03)",
+                  }}
+                >
+                  <span
+                    style={{
+                      ...styles.chipDot,
+                      background: "rgba(96,165,250,0.95)",
+                    }}
+                  />
+                  Grupo
+                </button>
+              </div>
             </div>
-          )}
 
-          <div style={styles.field}>
-            <div style={styles.fieldLabel}>Título</div>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ej: Cena / Gym / Médico"
-              style={styles.input}
-            />
-          </div>
+            {effectiveType === "group" && (
+              <div style={{ ...styles.field, marginTop: 12 }}>
+                <div style={styles.fieldLabel}>Grupo</div>
+                {loadingGroups || booting ? (
+                  <div style={styles.skeleton}>Cargando grupos…</div>
+                ) : uniqueGroups.length === 0 ? (
+                  <div style={styles.emptyInline}>
+                    <div style={styles.emptyInlineTitle}>No tienes grupos</div>
+                    <div style={styles.emptyInlineSub}>
+                      Crea uno para poder hacer eventos compartidos.
+                    </div>
+                    <button
+                      onClick={() => router.push("/groups/new")}
+                      style={styles.primaryBtnSmall}
+                    >
+                      Crear grupo
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedGroupId}
+                    disabled={lockedToActiveGroup}
+                    onChange={(e) => setSelectedGroupId(e.target.value)}
+                    style={{
+                      ...styles.select,
+                      opacity: lockedToActiveGroup ? 0.7 : 1,
+                      cursor: lockedToActiveGroup ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {uniqueGroups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name ?? "Grupo"} ({getGroupTypeLabel(g.type)})
+                      </option>
+                    ))}
+                  </select>
+                )}
 
-          <div style={styles.grid2}>
+                {selectedGroup ? (
+                  <div style={styles.hint}>
+                    Seleccionado: <b>{selectedGroup.name ?? "Grupo"}</b> · tipo{" "}
+                    <b>{getGroupTypeLabel(selectedGroup.type)}</b>
+                    {lockedToActiveGroup ? (
+                      <span style={{ marginLeft: 8, opacity: 0.9 }}>
+                        · (grupo activo)
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            )}
+
             <div style={styles.field}>
-              <div style={styles.fieldLabel}>Inicio</div>
-              <input
-                type="datetime-local"
-                value={startLocal}
-                onChange={(e) => setStartLocal(e.target.value)}
-                onBlur={onAutoEnd}
-                style={styles.input}
+              <div style={styles.fieldLabel}>Notas (opcional)</div>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                style={styles.textarea}
+                rows={3}
+                placeholder="Añade contexto si realmente te suma."
               />
             </div>
-
-            <div style={styles.field}>
-              <div style={styles.fieldLabel}>Fin</div>
-              <input
-                type="datetime-local"
-                value={endLocal}
-                onChange={(e) => setEndLocal(e.target.value)}
-                style={styles.input}
-              />
-            </div>
-          </div>
-
-          <div style={styles.field}>
-            <div style={styles.fieldLabel}>Notas (opcional)</div>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              style={styles.textarea}
-              rows={4}
-            />
           </div>
 
           {errors.length > 0 && (
@@ -1304,6 +1365,23 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: 520,
     lineHeight: 1.4,
   },
+  heroMetaRow: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    marginTop: 10,
+  },
+  heroMetaPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    fontSize: 11,
+    fontWeight: 800,
+    color: "rgba(255,255,255,0.88)",
+  },
   pill: {
     display: "inline-flex",
     alignItems: "center",
@@ -1330,6 +1408,41 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
+    padding: 14,
+  },
+  primaryStack: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 14,
+  },
+  sectionIntro: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  sectionEyebrow: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    opacity: 0.65,
+    fontWeight: 900,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+  },
+  sectionSub: {
+    fontSize: 13,
+    opacity: 0.72,
+    lineHeight: 1.45,
+    maxWidth: 560,
+  },
+  secondaryCard: {
+    marginTop: 16,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.025)",
     padding: 14,
   },
   row: {
@@ -1391,6 +1504,19 @@ input: {
   color: "rgba(255,255,255,0.92)",
   outline: "none",
   fontSize: 14,
+},
+inputLg: {
+  width: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
+  padding: "14px 14px",
+  borderRadius: 16,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(6,10,20,0.62)",
+  color: "rgba(255,255,255,0.95)",
+  outline: "none",
+  fontSize: 15,
+  fontWeight: 700,
 },
   textarea: {
     width: "100%",
@@ -1458,6 +1584,39 @@ grid2: {
   marginTop: 8,
   width: "100%",
 },
+grid2Tight: {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+  gap: 12,
+  width: "100%",
+},
+  quickSummary: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.025)",
+    padding: 12,
+  },
+  quickSummaryTitle: {
+    fontSize: 12,
+    fontWeight: 900,
+    opacity: 0.78,
+    marginBottom: 10,
+  },
+  quickSummaryRow: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  quickSummaryPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "8px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    fontSize: 12,
+    fontWeight: 850,
+  },
   errorBox: {
     marginTop: 14,
     borderRadius: 16,
