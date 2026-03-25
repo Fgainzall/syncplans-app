@@ -1,58 +1,62 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
-import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
+import supabase from "@/lib/supabaseClient";
 
 import {
   CalendarEvent,
   GroupType,
   computeVisibleConflicts,
   attachEvents,
-  type ConflictItem,
+  conflictInvolvesEvent,
   conflictKey,
   filterIgnoredConflicts,
   loadIgnoredConflictKeys,
+  hideEventIdsForCurrentUser,
+  ignoreConflictIds,
+  type ConflictItem,
 } from "@/lib/conflicts";
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
-import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
-import { getMyProfile } from "@/lib/profilesDb";
 import {
-  createNotifications,
-  markConflictNotificationsAsRead,
-  type CreateNotificationInput,
-} from "@/lib/notificationsDb";
-import {
-  type Resolution,
+  Resolution,
   getMyConflictResolutionsMap,
 } from "@/lib/conflictResolutionsDb";
 import {
   filterOutDeclinedEvents,
   getMyDeclinedEventIds,
 } from "@/lib/eventResponsesDb";
+import {
+  deleteEventsByIdsDetailed,
+  getEventById,
+} from "@/lib/eventsDb";
+import { createNotifications } from "@/lib/notificationsDb";
 
-type EventResponseStatus = "pending" | "accepted" | "declined";
+function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
+  return (gt ?? "personal") as GroupType;
+}
 
-type ResponsePlan = {
-  total: number;
-  decided: number;
-  pending: number;
-  skipped: number;
-  acceptedEventIds: string[];
-  declinedEventIds: string[];
-};
+function safeTitle(value?: string | null) {
+  const v = String(value ?? "").trim();
+  return v || "Evento sin título";
+}
 
-type RejectedTarget = {
-  id: string;
-  title: string;
-  creatorId: string;
-  groupId: string | null;
-  startsAt: string;
-  endsAt: string;
-};
+function resolveEventOwnerId(event: any): string | null {
+  const candidate =
+    event?.owner_id ??
+    event?.ownerId ??
+    event?.created_by ??
+    event?.createdBy ??
+    event?.user_id ??
+    event?.userId ??
+    null;
+
+  const normalized = String(candidate ?? "").trim();
+  return normalized || null;
+}
 
 function resolutionForConflict(
   c: ConflictItem,
@@ -65,8 +69,8 @@ function resolutionForConflict(
   const b = String(c.incomingEventId ?? "");
   if (!a || !b) return undefined;
 
-  const stableKey = conflictKey(a, b);
-  if (resMap[stableKey]) return resMap[stableKey];
+  const stable = conflictKey(a, b);
+  if (resMap[stable]) return resMap[stable];
 
   const [x, y] = [a, b].sort();
   const legacyPrefix = `cx::${x}::${y}::`;
@@ -74,61 +78,41 @@ function resolutionForConflict(
   for (const k of Object.keys(resMap)) {
     if (k.startsWith(legacyPrefix)) return resMap[k];
   }
+
   return undefined;
 }
 
-function safeTitle(value?: string | null) {
-  const v = String(value ?? "").trim();
-  return v || "Evento sin título";
-}
-
-function actorDisplayNameFromProfile(
-  profile: Awaited<ReturnType<typeof getMyProfile>>
-) {
-  if (!profile) return "Alguien";
-
-  const display = String((profile as any).display_name ?? "").trim();
-  if (display) return display;
-
-  const full = `${(profile as any).first_name ?? ""} ${(profile as any).last_name ?? ""}`.trim();
-  if (full) return full;
-
-  const first = String((profile as any).first_name ?? "").trim();
-  if (first) return first;
-
-  return "Alguien";
-}
-
-function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
-  return (gt ?? "personal") as GroupType;
+function groupLabel(groupType?: string | null) {
+  const v = String(groupType ?? "personal").toLowerCase();
+  if (v === "pair" || v === "couple") return "Pareja";
+  if (v === "family") return "Familia";
+  if (v === "shared" || v === "other") return "Compartido";
+  return "Personal";
 }
 
 function formatRange(startIso?: string | null, endIso?: string | null) {
   const start = startIso ? new Date(startIso) : null;
   const end = endIso ? new Date(endIso) : null;
 
-  if (!start || Number.isNaN(start.getTime())) return "";
-
-  const sameDay =
-    !!end &&
-    !Number.isNaN(end.getTime()) &&
-    start.toDateString() === end.toDateString();
+  if (!start || Number.isNaN(start.getTime())) return "Sin fecha";
 
   try {
-    if (end && !Number.isNaN(end.getTime()) && sameDay) {
-      return `${start.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      })} · ${start.toLocaleTimeString(undefined, {
-        hour: "2-digit",
-        minute: "2-digit",
-      })} – ${end.toLocaleTimeString(undefined, {
-        hour: "2-digit",
-        minute: "2-digit",
-      })}`;
-    }
-
     if (end && !Number.isNaN(end.getTime())) {
+      const sameDay = start.toDateString() === end.toDateString();
+
+      if (sameDay) {
+        return `${start.toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+        })} · ${start.toLocaleTimeString(undefined, {
+          hour: "2-digit",
+          minute: "2-digit",
+        })} – ${end.toLocaleTimeString(undefined, {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}`;
+      }
+
       return `${start.toLocaleString(undefined, {
         month: "short",
         day: "numeric",
@@ -149,62 +133,66 @@ function formatRange(startIso?: string | null, endIso?: string | null) {
       minute: "2-digit",
     });
   } catch {
-    return "";
+    return "Sin fecha";
   }
 }
 
-export default function ActionsClient({
-  groupIdFromUrl,
-}: {
-  groupIdFromUrl: string | null;
-}) {
+type ApplySummary = {
+  resolvedCount: number;
+  deletedCount: number;
+  blockedCount: number;
+  ignoredCount: number;
+  softRejectedCount: number;
+  notifiedCount: number;
+};
+
+export default function ActionsClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const groupIdFromUrl = searchParams.get("groupId");
+  const focusEventId = searchParams.get("eventId");
 
   const [booting, setBooting] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [dbEvents, setDbEvents] = useState<DbEventRow[]>([]);
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
   const [declinedIds, setDeclinedIds] = useState<Set<string>>(new Set());
-  const [currentUid, setCurrentUid] = useState<string | null>(null);
-  const [actorName, setActorName] = useState("Alguien");
-  const [commentsByEventId, setCommentsByEventId] = useState<
-    Record<string, string>
-  >({});
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [summary, setSummary] = useState<ApplySummary | null>(null);
   const [toast, setToast] = useState<null | { title: string; sub?: string }>(
     null
   );
+  const [isMobile, setIsMobile] = useState(false);
 
-  const loadScreenData = useCallback(
-    async (opts?: { includeProfile?: boolean }) => {
-      const includeProfile = opts?.includeProfile ?? false;
+  const loadScreenData = useCallback(async () => {
+    const [eventsForConflicts, dbMap, declinedSet] = await Promise.all([
+      loadEventsFromDb({ groupId: groupIdFromUrl }),
+      getMyConflictResolutionsMap(),
+      getMyDeclinedEventIds(),
+    ]);
 
-      const [eventsForConflicts, dbMap, rawDbEvents, declinedSet, profile] =
-        await Promise.all([
-          loadEventsFromDb({ groupId: groupIdFromUrl }),
-          getMyConflictResolutionsMap(),
-          getMyEvents(),
-          getMyDeclinedEventIds(),
-          includeProfile ? getMyProfile() : Promise.resolve(null),
-        ]);
+    setEvents(
+      Array.isArray(eventsForConflicts?.events) ? eventsForConflicts.events : []
+    );
+    setResMap(dbMap ?? {});
+    setDeclinedIds(declinedSet instanceof Set ? declinedSet : new Set());
+  }, [groupIdFromUrl]);
 
-      setEvents(
-        Array.isArray(eventsForConflicts?.events) ? eventsForConflicts.events : []
-      );
-      setResMap(dbMap ?? {});
-      setDbEvents(Array.isArray(rawDbEvents) ? rawDbEvents : []);
-      setDeclinedIds(declinedSet instanceof Set ? declinedSet : new Set());
+  useEffect(() => {
+    const syncViewport = () => {
+      if (typeof window === "undefined") return;
+      setIsMobile(window.innerWidth < 920);
+    };
 
-      if (includeProfile) {
-        setActorName(actorDisplayNameFromProfile(profile as any));
-      }
-    },
-    [groupIdFromUrl]
-  );
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2600);
+    const t = setTimeout(() => setToast(null), 2500);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -216,27 +204,23 @@ export default function ActionsClient({
 
       const {
         data: { user },
-        error,
       } = await supabase.auth.getUser();
 
       if (!alive) return;
 
-      const uid = user?.id ?? null;
-      if (error || !uid) {
-        setBooting(false);
+      if (!user) {
         router.replace("/auth/login");
         return;
       }
 
-      setCurrentUid(uid);
+      setCurrentUserId(user.id);
 
       try {
-        await loadScreenData({ includeProfile: true });
+        await loadScreenData();
       } catch {
         if (!alive) return;
         setEvents([]);
         setResMap({});
-        setDbEvents([]);
         setDeclinedIds(new Set());
       }
 
@@ -249,27 +233,6 @@ export default function ActionsClient({
     };
   }, [router, loadScreenData]);
 
-  useEffect(() => {
-    const refreshFromDb = () => {
-      void loadScreenData();
-    };
-
-    const onFocus = () => refreshFromDb();
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        refreshFromDb();
-      }
-    };
-
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisibility);
-
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [loadScreenData]);
-
   const visibleEventsForConflicts = useMemo(() => {
     return filterOutDeclinedEvents(
       Array.isArray(events) ? events : [],
@@ -277,7 +240,7 @@ export default function ActionsClient({
     );
   }, [events, declinedIds]);
 
-  const conflicts = useMemo<ConflictItem[]>(() => {
+  const allVisibleConflicts = useMemo<ConflictItem[]>(() => {
     const normalized: CalendarEvent[] = (
       Array.isArray(visibleEventsForConflicts) ? visibleEventsForConflicts : []
     ).map((e) => ({
@@ -285,302 +248,195 @@ export default function ActionsClient({
       groupType: normalizeForConflicts(e.groupType),
     }));
 
-    const cx = computeVisibleConflicts(normalized);
+    const computed = computeVisibleConflicts(normalized);
     const ignored = loadIgnoredConflictKeys();
-    const visible = filterIgnoredConflicts(cx, ignored);
+    const visible = filterIgnoredConflicts(computed, ignored);
 
     return attachEvents(visible, visibleEventsForConflicts);
   }, [visibleEventsForConflicts]);
 
-  const plan = useMemo<ResponsePlan>(() => {
-    let decided = 0;
-    let pending = 0;
-    let skipped = 0;
+  const scopedConflicts = useMemo(() => {
+    if (!focusEventId) return allVisibleConflicts;
+    return allVisibleConflicts.filter((c) =>
+      conflictInvolvesEvent(c, focusEventId)
+    );
+  }, [allVisibleConflicts, focusEventId]);
 
-    const acceptedIds = new Set<string>();
-    const declinedIdsFromPlan = new Set<string>();
-
-    for (const c of conflicts) {
+  const resolvedConflicts = useMemo(() => {
+    return scopedConflicts.filter((c) => {
       const r = resolutionForConflict(c, resMap);
-
-      if (!r) {
-        pending++;
-        continue;
-      }
-
-      decided++;
-
-      const existingId = String(c.existingEventId ?? "").trim();
-      const incomingId = String(c.incomingEventId ?? "").trim();
-
-      if (r === "none") {
-        skipped++;
-        continue;
-      }
-
-      if (r === "keep_existing") {
-        if (existingId) acceptedIds.add(existingId);
-        if (incomingId) declinedIdsFromPlan.add(incomingId);
-        continue;
-      }
-
-      if (r === "replace_with_new") {
-        if (incomingId) acceptedIds.add(incomingId);
-        if (existingId) declinedIdsFromPlan.add(existingId);
-      }
-    }
-
-    for (const declinedId of declinedIdsFromPlan) {
-      acceptedIds.delete(declinedId);
-    }
-
-    return {
-      total: conflicts.length,
-      decided,
-      pending,
-      skipped,
-      acceptedEventIds: Array.from(acceptedIds),
-      declinedEventIds: Array.from(declinedIdsFromPlan),
-    };
-  }, [conflicts, resMap]);
-
-  const dbEventsById = useMemo(() => {
-    return new Map(dbEvents.map((ev) => [String(ev.id), ev]));
-  }, [dbEvents]);
-
-  const ownDeclinedEventIds = useMemo(() => {
-    const out: string[] = [];
-
-    for (const eventId of plan.declinedEventIds) {
-      const row = dbEventsById.get(String(eventId));
-      if (!row) continue;
-
-      const ownerId = String(
-        (row as any).owner_id ?? row.user_id ?? (row as any).created_by ?? ""
-      ).trim();
-
-      if (currentUid && ownerId === currentUid) {
-        out.push(String(row.id));
-      }
-    }
-
-    return out;
-  }, [plan.declinedEventIds, dbEventsById, currentUid]);
-
-  const externalDeclinedEventIds = useMemo(() => {
-    const own = new Set(ownDeclinedEventIds.map(String));
-    return plan.declinedEventIds.filter((id) => !own.has(String(id)));
-  }, [plan.declinedEventIds, ownDeclinedEventIds]);
-
-  const rejectedTargets = useMemo<RejectedTarget[]>(() => {
-    const out: RejectedTarget[] = [];
-    const seen = new Set<string>();
-
-    for (const eventId of plan.declinedEventIds) {
-      const row = dbEventsById.get(String(eventId));
-      if (!row) continue;
-
-      const creatorId = String(
-        (row as any).owner_id ?? row.user_id ?? (row as any).created_by ?? ""
-      ).trim();
-
-      if (!creatorId) continue;
-      if (currentUid && creatorId === currentUid) continue;
-      if (seen.has(String(row.id))) continue;
-
-      seen.add(String(row.id));
-
-      out.push({
-        id: String(row.id),
-        title: safeTitle(row.title),
-        creatorId,
-        groupId: row.group_id ?? null,
-        startsAt: row.start,
-        endsAt: row.end,
-      });
-    }
-
-    return out;
-  }, [plan.declinedEventIds, dbEventsById, currentUid]);
-
-  const resolvedConflictEventIds = useMemo(() => {
-    const ids = new Set<string>();
-
-    for (const c of conflicts) {
-      const r = resolutionForConflict(c, resMap);
-      if (!r) continue;
-
-      if (c.existingEventId) ids.add(String(c.existingEventId));
-      if (c.incomingEventId) ids.add(String(c.incomingEventId));
-    }
-
-    return Array.from(ids);
-  }, [conflicts, resMap]);
-
-  const notificationRows = useMemo<CreateNotificationInput[]>(() => {
-    return rejectedTargets
-      .map((target) => {
-        const comment = String(commentsByEventId[target.id] ?? "").trim();
-        const bodyBase = `Tu evento “${target.title}” no fue elegido al resolver un conflicto.`;
-        const body = comment ? `${bodyBase} Motivo: ${comment}` : bodyBase;
-
-        const creatorId = String(target.creatorId ?? "").trim();
-        if (!creatorId) return null;
-
-        return {
-          user_id: creatorId,
-          type: "event_rejected",
-          title: `${actorName} no aceptó tu evento`,
-          body,
-          entity_id: target.id,
-          payload: {
-            event_id: target.id,
-            event_title: target.title,
-            actor_name: actorName,
-            actor_user_id: currentUid,
-            comment: comment || null,
-            group_id: target.groupId,
-            start: target.startsAt,
-            end: target.endsAt,
-          },
-        } satisfies CreateNotificationInput;
-      })
-      .filter(Boolean) as CreateNotificationInput[];
-  }, [rejectedTargets, commentsByEventId, actorName, currentUid]);
-
-  const disabledApply = plan.decided === 0 || busy;
-  const hasRejectedTargets = rejectedTargets.length > 0;
-
-  const updateComment = (eventId: string, value: string) => {
-    setCommentsByEventId((prev) => ({
-      ...prev,
-      [eventId]: value,
-    }));
-  };
-
-  const respondToEvent = async (
-    eventId: string,
-    status: EventResponseStatus,
-    comment?: string | null
-  ) => {
-    const trimmedComment = String(comment ?? "").trim() || null;
-
-    const { error } = await supabase.rpc("respond_to_event", {
-      p_event_id: eventId,
-      p_response_status: status,
-      p_comment: trimmedComment,
+      return r === "keep_existing" || r === "replace_with_new" || r === "none";
     });
+  }, [scopedConflicts, resMap]);
 
-    if (error) {
-      throw new Error(
-        error.message || "No se pudo guardar la respuesta del evento."
-      );
-    }
-  };
+  const keepBothConflicts = useMemo(() => {
+    return resolvedConflicts.filter(
+      (c) => resolutionForConflict(c, resMap) === "none"
+    );
+  }, [resolvedConflicts, resMap]);
 
-  const apply = async () => {
-    if (busy) return;
+  const actionableConflicts = useMemo(() => {
+    return resolvedConflicts.filter((c) => {
+      const r = resolutionForConflict(c, resMap);
+      return r === "keep_existing" || r === "replace_with_new";
+    });
+  }, [resolvedConflicts, resMap]);
 
-    if (plan.decided === 0) {
-      setToast({
-        title: "Nada que finalizar",
-        sub: "Primero elige qué hacer con al menos un conflicto.",
-      });
-      return;
-    }
+  const pendingCount = Math.max(
+    scopedConflicts.length - resolvedConflicts.length,
+    0
+  );
 
-    try {
-      setBusy(true);
-
-      let acceptedCount = 0;
-      let declinedCount = 0;
-      let notifiedCount = 0;
-
-      for (const eventId of plan.acceptedEventIds) {
-        await respondToEvent(eventId, "accepted", null);
-        acceptedCount++;
-      }
-
-      for (const eventId of plan.declinedEventIds) {
-        const comment = String(commentsByEventId[eventId] ?? "").trim() || null;
-        await respondToEvent(eventId, "declined", comment);
-        declinedCount++;
-      }
-
-      if (notificationRows.length > 0) {
-        try {
-          notifiedCount = await createNotifications(notificationRows);
-        } catch (e: any) {
-          throw new Error(
-            e?.message ||
-              "No se pudo crear la notificación para el otro usuario."
-          );
-        }
-
-        if (notifiedCount !== notificationRows.length) {
-          throw new Error(
-            "No se registraron todas las notificaciones esperadas del evento rechazado."
-          );
-        }
-      }
-
-      if (resolvedConflictEventIds.length > 0) {
-        try {
-          await markConflictNotificationsAsRead({
-            eventIds: resolvedConflictEventIds,
-          });
-        } catch {
-          // si falla la limpieza de notificaciones, no rompemos el cierre
-        }
-      }
-
-      const qp = new URLSearchParams();
-      qp.set("from", "conflicts");
-      qp.set("resolved", String(plan.decided));
-
-      if (acceptedCount > 0) {
-        qp.set("accepted", String(acceptedCount));
-      }
-
-      if (declinedCount > 0) {
-        qp.set("declined", String(declinedCount));
-      }
-
-      if (notifiedCount > 0) {
-        qp.set("notified", String(notifiedCount));
-      }
-
-      router.replace(`/summary?${qp.toString()}`);
-    } catch (e: any) {
-      setBusy(false);
-      setToast({
-        title: "No se pudo finalizar la resolución",
-        sub:
-          typeof e?.message === "string" && e.message.trim().length > 0
-            ? e.message
-            : "No pudimos cerrar la resolución completa. Para evitar inconsistencias, el flujo no se cerró.",
-      });
-    }
-  };
-
-  const back = () => {
+  const goBack = () => {
     const qp = new URLSearchParams();
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
-    router.push(`/conflicts/detected?${qp.toString()}`);
+    if (focusEventId) qp.set("eventId", focusEventId);
+    router.push(`/conflicts/compare?${qp.toString()}`);
+  };
+
+  const goToSummary = (result?: ApplySummary) => {
+    const qp = new URLSearchParams();
+    qp.set("from", "conflicts");
+
+    if (result) {
+      qp.set("resolved", String(result.resolvedCount));
+      qp.set("deleted", String(result.deletedCount));
+      qp.set("blocked", String(result.blockedCount));
+      qp.set("ignored", String(result.ignoredCount));
+      qp.set("softRejected", String(result.softRejectedCount));
+      qp.set("notified", String(result.notifiedCount));
+    }
+
+    router.push(`/summary?${qp.toString()}`);
+  };
+
+  const applyAll = async () => {
+    if (applying || !currentUserId) return;
+
+    try {
+      setApplying(true);
+
+      const idsRequestedForRemoval = new Set<string>();
+      const ignoredConflictIds = new Set<string>();
+
+      for (const c of actionableConflicts) {
+        const resolution = resolutionForConflict(c, resMap);
+        const existingId = String(c.existingEventId ?? "").trim();
+        const incomingId = String(c.incomingEventId ?? "").trim();
+
+        if (!existingId || !incomingId) continue;
+
+        if (resolution === "keep_existing") {
+          idsRequestedForRemoval.add(incomingId);
+          ignoredConflictIds.add(String(c.id));
+        }
+
+        if (resolution === "replace_with_new") {
+          idsRequestedForRemoval.add(existingId);
+          ignoredConflictIds.add(String(c.id));
+        }
+      }
+
+      for (const c of keepBothConflicts) {
+        ignoredConflictIds.add(String(c.id));
+      }
+
+      let deletedCount = 0;
+      let blockedCount = 0;
+      const blockedIds = new Set<string>();
+
+      if (idsRequestedForRemoval.size > 0) {
+        const deletionResult = await deleteEventsByIdsDetailed(
+          Array.from(idsRequestedForRemoval)
+        );
+
+        deletedCount = Number(deletionResult?.deletedCount ?? 0);
+        blockedCount = Array.isArray(deletionResult?.blockedIds)
+          ? deletionResult.blockedIds.length
+          : 0;
+
+        for (const id of deletionResult?.blockedIds ?? []) {
+          if (id) blockedIds.add(String(id));
+        }
+      }
+
+      if (blockedIds.size > 0) {
+        hideEventIdsForCurrentUser(Array.from(blockedIds));
+      }
+
+      let notifiedCount = 0;
+
+      for (const blockedId of blockedIds) {
+        try {
+          const dbEvent = await getEventById(blockedId);
+          const targetUserId = resolveEventOwnerId(dbEvent);
+
+          if (!targetUserId || targetUserId === currentUserId) continue;
+
+          await createNotifications([
+            {
+              user_id: targetUserId,
+              type: "event_rejected",
+              title: "Uno de tus eventos fue rechazado",
+              body:
+                "Un miembro decidió no mantener ese evento dentro de la resolución del conflicto.",
+              entity_id: blockedId,
+              payload: {
+                event_id: blockedId,
+                actor_user_id: currentUserId,
+              },
+            },
+          ]);
+
+          notifiedCount += 1;
+        } catch {
+          // no rompemos el flujo por una notificación
+        }
+      }
+
+      if (ignoredConflictIds.size > 0) {
+        ignoreConflictIds(Array.from(ignoredConflictIds));
+      }
+
+      const result: ApplySummary = {
+        resolvedCount: resolvedConflicts.length,
+        deletedCount,
+        blockedCount,
+        ignoredCount: ignoredConflictIds.size,
+        softRejectedCount: blockedIds.size,
+        notifiedCount,
+      };
+
+      setSummary(result);
+      setToast({
+        title: "Cambios aplicados",
+        sub: "El conflicto ya quedó procesado y el resumen se actualizará.",
+      });
+
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      setTimeout(() => {
+        goToSummary(result);
+      }, 700);
+    } catch (e: any) {
+      setToast({
+        title: "No se pudo aplicar",
+        sub:
+          typeof e?.message === "string" && e.message.trim()
+            ? e.message
+            : "Intenta nuevamente.",
+      });
+    } finally {
+      setApplying(false);
+    }
   };
 
   if (booting) {
     return (
       <main style={styles.page}>
         <div style={styles.shell}>
-          <PremiumHeader />
-          <div style={styles.loadingCard}>
-            <div style={styles.loadingDot} />
-            <div>
-              <div style={styles.loadingTitle}>Preparando cierre…</div>
-              <div style={styles.loadingSub}>Un segundo</div>
-            </div>
-          </div>
+          <div style={styles.loadingCard}>Preparando cierre…</div>
         </div>
       </main>
     );
@@ -589,10 +445,20 @@ export default function ActionsClient({
   return (
     <main style={styles.page}>
       <div style={styles.shell}>
-        <div style={styles.topRow}>
+        <div
+          style={{
+            ...styles.topRow,
+            ...(isMobile ? styles.topRowMobile : null),
+          }}
+        >
           <PremiumHeader />
-          <div style={styles.topActions}>
-            <button onClick={back} style={styles.ghostBtn}>
+          <div
+            style={{
+              ...styles.topActions,
+              ...(isMobile ? styles.topActionsMobile : null),
+            }}
+          >
+            <button onClick={goBack} style={styles.ghostBtn}>
               ← Volver
             </button>
             <LogoutButton />
@@ -600,206 +466,196 @@ export default function ActionsClient({
         </div>
 
         <section style={styles.hero}>
-          <div style={styles.heroLeft}>
-            <div style={styles.kicker}>Cierre</div>
-            <h1 style={styles.h1}>
-              {hasRejectedTargets
-                ? "Enviar comentarios y cerrar"
-                : "Finalizar resolución"}
-            </h1>
-            <div style={styles.sub}>
-              {hasRejectedTargets
-                ? "Antes de cerrar, puedes avisar al creador de cada evento que no fue elegido. La resolución ya no borra eventos: guarda tu respuesta real."
-                : "Revisamos todo y dejamos lista tu decisión sobre los conflictos."}
-            </div>
+          <div style={styles.kicker}>Cierre</div>
+          <h1 style={styles.h1}>Aplica las decisiones guardadas</h1>
+          <div style={styles.sub}>
+            Aquí cerramos el flujo. SyncPlans aplicará lo que decidiste en la
+            comparación y luego te devolverá al resumen.
           </div>
 
-          <div style={styles.heroRight}>
-            <div style={styles.statPill}>
-              <div style={styles.statLabel}>Resueltos</div>
-              <div style={styles.statValue}>{plan.decided}</div>
+          <div
+            style={{
+              ...styles.heroStats,
+              gridTemplateColumns: isMobile
+                ? "minmax(0, 1fr)"
+                : "repeat(3, minmax(0, 1fr))",
+            }}
+          >
+            <div style={styles.statCard}>
+              <div style={styles.statLabel}>Conflictos visibles</div>
+              <div style={styles.statValue}>{scopedConflicts.length}</div>
             </div>
-            <div style={styles.statPillMuted}>
+
+            <div style={styles.statCard}>
+              <div style={styles.statLabel}>Con decisión guardada</div>
+              <div style={styles.statValue}>{resolvedConflicts.length}</div>
+            </div>
+
+            <div style={styles.statCard}>
               <div style={styles.statLabel}>Pendientes</div>
-              <div style={styles.statValue}>{plan.pending}</div>
+              <div style={styles.statValue}>{pendingCount}</div>
             </div>
           </div>
         </section>
 
-        <section style={styles.summaryCard}>
-          <div style={styles.summaryGrid}>
-            <div style={styles.summaryItem}>
-              <div style={styles.summaryLabel}>Conflictos analizados</div>
-              <div style={styles.summaryValue}>{plan.total}</div>
-            </div>
-
-            <div style={styles.summaryItem}>
-              <div style={styles.summaryLabel}>Decisiones guardadas</div>
-              <div style={styles.summaryValue}>{plan.decided}</div>
-            </div>
-
-            <div style={styles.summaryItem}>
-              <div style={styles.summaryLabel}>Eventos aceptados</div>
-              <div style={styles.summaryValue}>{plan.acceptedEventIds.length}</div>
-            </div>
-
-            <div style={styles.summaryItem}>
-              <div style={styles.summaryLabel}>Eventos rechazados</div>
-              <div style={styles.summaryValue}>{plan.declinedEventIds.length}</div>
-            </div>
-
-            <div style={styles.summaryItem}>
-              <div style={styles.summaryLabel}>Rechazos a eventos propios</div>
-              <div style={styles.summaryValue}>{ownDeclinedEventIds.length}</div>
-            </div>
-
-            <div style={styles.summaryItem}>
-              <div style={styles.summaryLabel}>Comentarios por enviar</div>
-              <div style={styles.summaryValue}>{rejectedTargets.length}</div>
-            </div>
-
-            <div style={styles.summaryItem}>
-              <div style={styles.summaryLabel}>Se mantienen ambos</div>
-              <div style={styles.summaryValue}>{plan.skipped}</div>
-            </div>
-
-            <div style={styles.summaryItem}>
-              <div style={styles.summaryLabel}>Rechazos a eventos ajenos</div>
-              <div style={styles.summaryValue}>
-                {externalDeclinedEventIds.length}
+        <section style={styles.sectionCard}>
+          <div style={styles.sectionHead}>
+            <div>
+              <div style={styles.sectionTitle}>Qué se va a ejecutar</div>
+              <div style={styles.sectionSub}>
+                Solo se aplicarán conflictos que ya tengan una resolución elegida.
               </div>
             </div>
           </div>
+
+          {!resolvedConflicts.length ? (
+            <div style={styles.emptyBox}>
+              Aún no hay decisiones guardadas para aplicar.
+            </div>
+          ) : (
+            <div style={styles.stack}>
+              {resolvedConflicts.map((c) => {
+                const resolution = resolutionForConflict(c, resMap);
+                const keptTitle =
+                  resolution === "keep_existing"
+                    ? safeTitle(c.existingEvent?.title)
+                    : resolution === "replace_with_new"
+                    ? safeTitle(c.incomingEvent?.title)
+                    : null;
+
+                const affectedTitle =
+                  resolution === "keep_existing"
+                    ? safeTitle(c.incomingEvent?.title)
+                    : resolution === "replace_with_new"
+                    ? safeTitle(c.existingEvent?.title)
+                    : null;
+
+                return (
+                  <article key={String(c.id)} style={styles.conflictCard}>
+                    <div
+                      style={{
+                        ...styles.conflictTop,
+                        ...(isMobile ? styles.conflictTopMobile : null),
+                      }}
+                    >
+                      <div style={styles.conflictBadge}>
+                        {resolution === "keep_existing"
+                          ? "Conservar Evento A"
+                          : resolution === "replace_with_new"
+                            ? "Conservar Evento B"
+                            : "Mantener ambos"}
+                      </div>
+
+                      <div style={styles.conflictMeta}>
+                        {groupLabel(
+                          c.existingEvent?.groupType ?? c.incomingEvent?.groupType
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={styles.conflictGrid}>
+                      <div style={styles.eventMini}>
+                        <div style={styles.eventMiniLabel}>Evento A</div>
+                        <div style={styles.eventMiniTitle}>
+                          {safeTitle(c.existingEvent?.title)}
+                        </div>
+                        <div style={styles.eventMiniSub}>
+                          {formatRange(c.existingEvent?.start, c.existingEvent?.end)}
+                        </div>
+                      </div>
+
+                      <div style={styles.eventMini}>
+                        <div style={styles.eventMiniLabel}>Evento B</div>
+                        <div style={styles.eventMiniTitle}>
+                          {safeTitle(c.incomingEvent?.title)}
+                        </div>
+                        <div style={styles.eventMiniSub}>
+                          {formatRange(c.incomingEvent?.start, c.incomingEvent?.end)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={styles.decisionBox}>
+                      {resolution === "none" ? (
+                        <span>
+                          Ambos eventos se mantendrán visibles y el conflicto quedará
+                          ignorado para no reaparecer.
+                        </span>
+                      ) : (
+                        <span>
+                          Se conservará <strong>{keptTitle}</strong> y se intentará
+                          retirar <strong>{affectedTitle}</strong>. Si ese evento no te
+                          pertenece, se ocultará para ti y se notificará al creador.
+                        </span>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </section>
 
-        {conflicts.length > 0 ? (
-          <section style={styles.conflictsCard}>
-            <div style={styles.blockTop}>
-              <div style={styles.blockTitle}>Decisiones detectadas</div>
-              <div style={styles.blockSub}>
-                Esto es lo que se aplicará al finalizar.
+        {summary ? (
+          <section style={styles.sectionCard}>
+            <div style={styles.sectionTitle}>Resultado listo</div>
+            <div style={styles.summaryGrid}>
+              <div style={styles.summaryPill}>
+                Resueltos: {summary.resolvedCount}
+              </div>
+              <div style={styles.summaryPill}>
+                Eliminados: {summary.deletedCount}
+              </div>
+              <div style={styles.summaryPill}>
+                Bloqueados: {summary.blockedCount}
+              </div>
+              <div style={styles.summaryPill}>
+                Ignorados: {summary.ignoredCount}
+              </div>
+              <div style={styles.summaryPill}>
+                Soft-reject: {summary.softRejectedCount}
+              </div>
+              <div style={styles.summaryPill}>
+                Notificados: {summary.notifiedCount}
               </div>
             </div>
-
-            <div style={styles.conflictList}>
-              {conflicts.map((c) => {
-                const r = resolutionForConflict(c, resMap);
-                const existing = c.existingEvent;
-                const incoming = c.incomingEvent;
-
-                let statusLabel = "Pendiente";
-                let statusTone = styles.pillGray;
-
-                if (r === "keep_existing") {
-                  statusLabel = "Conservar A";
-                  statusTone = styles.pillGreen;
-                } else if (r === "replace_with_new") {
-                  statusLabel = "Conservar B";
-                  statusTone = styles.pillGreen;
-                } else if (r === "none") {
-                  statusLabel = "Mantener ambos";
-                  statusTone = styles.pillAmber;
-                }
-
-                return (
-                  <div key={c.id} style={styles.conflictRow}>
-                    <div style={styles.conflictHead}>
-                      <div style={styles.conflictTitle}>
-                        {safeTitle(existing?.title)} ↔ {safeTitle(incoming?.title)}
-                      </div>
-                      <span style={{ ...styles.pillStatus, ...statusTone }}>
-                        {statusLabel}
-                      </span>
-                    </div>
-
-                    <div style={styles.conflictMeta}>
-                      <div style={styles.metaLine}>
-                        <span style={styles.metaLabel}>A</span>
-                        <span>{formatRange(existing?.start, existing?.end)}</span>
-                      </div>
-                      <div style={styles.metaLine}>
-                        <span style={styles.metaLabel}>B</span>
-                        <span>{formatRange(incoming?.start, incoming?.end)}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           </section>
-        ) : (
-          <section style={styles.emptyCard}>
-            <div style={styles.emptyTitle}>No hay conflictos visibles</div>
-            <div style={styles.emptySub}>
-              No encontramos choques pendientes para este contexto.
-            </div>
-          </section>
-        )}
+        ) : null}
 
-        {rejectedTargets.length > 0 && (
-          <section style={styles.commentsCard}>
-            <div style={styles.blockTop}>
-              <div style={styles.blockTitle}>Comentario opcional</div>
-              <div style={styles.blockSub}>
-                Esto se enviará al creador del evento que no fue elegido.
-              </div>
-            </div>
-
-            <div style={styles.commentList}>
-              {rejectedTargets.map((target) => {
-                const current = String(commentsByEventId[target.id] ?? "");
-                return (
-                  <div key={target.id} style={styles.commentRow}>
-                    <div style={styles.commentHead}>
-                      <div style={styles.commentTitle}>{target.title}</div>
-                      <div style={styles.commentTime}>
-                        {formatRange(target.startsAt, target.endsAt)}
-                      </div>
-                    </div>
-
-                    <textarea
-                      value={current}
-                      onChange={(e) => updateComment(target.id, e.target.value)}
-                      placeholder="Ej.: Me chocaba con otro plan confirmado / ya tenía algo cerrado / no llego a esa hora."
-                      style={styles.textarea}
-                      rows={3}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        <section style={styles.footerBar}>
-          <button onClick={back} style={styles.secondaryBtn} disabled={busy}>
+        <section
+          style={{
+            ...styles.footerBar,
+            ...(isMobile ? styles.footerBarMobile : null),
+          }}
+        >
+          <button onClick={goBack} style={styles.secondaryBtn}>
             Volver
           </button>
 
           <button
-            onClick={apply}
+            onClick={() => {
+              void applyAll();
+            }}
+            disabled={applying || !resolvedConflicts.length}
             style={{
               ...styles.primaryBtn,
-              ...(disabledApply ? styles.primaryBtnDisabled : {}),
+              ...(applying || !resolvedConflicts.length
+                ? styles.primaryBtnDisabled
+                : null),
             }}
-            disabled={disabledApply}
           >
-            {busy
-              ? "Aplicando…"
-              : hasRejectedTargets
-                ? "Enviar comentarios"
-                : "Finalizar resolución"}
+            {applying ? "Aplicando..." : "Aplicar y volver al resumen"}
           </button>
         </section>
 
-        {toast && (
+        {toast ? (
           <div style={styles.toastWrap}>
             <div style={styles.toast}>
               <div style={styles.toastTitle}>{toast.title}</div>
               {toast.sub ? <div style={styles.toastSub}>{toast.sub}</div> : null}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </main>
   );
@@ -823,10 +679,17 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 16,
     alignItems: "start",
   },
+  topRowMobile: {
+    gridTemplateColumns: "1fr",
+  },
   topActions: {
     display: "flex",
     gap: 10,
     alignItems: "center",
+  },
+  topActionsMobile: {
+    justifyContent: "flex-start",
+    flexWrap: "wrap",
   },
   ghostBtn: {
     border: "1px solid rgba(255,255,255,0.12)",
@@ -841,25 +704,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   hero: {
     marginTop: 18,
-    display: "grid",
-    gridTemplateColumns: "1fr auto",
-    gap: 18,
-    alignItems: "stretch",
     border: "1px solid rgba(110,138,255,0.18)",
     background:
       "linear-gradient(180deg, rgba(16,22,48,0.92), rgba(9,13,30,0.92))",
     borderRadius: 28,
     padding: 22,
     boxShadow: "0 30px 90px rgba(0,0,0,0.34)",
-  },
-  heroLeft: {
     display: "grid",
-    gap: 8,
-  },
-  heroRight: {
-    display: "flex",
-    gap: 12,
-    alignItems: "stretch",
+    gap: 10,
   },
   kicker: {
     fontSize: 12,
@@ -879,207 +731,168 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(235,241,255,0.76)",
     fontSize: 15,
     lineHeight: 1.6,
-    maxWidth: 760,
+    maxWidth: 860,
   },
-  statPill: {
-    minWidth: 118,
-    borderRadius: 22,
-    padding: "14px 16px",
-    border: "1px solid rgba(102,255,179,0.28)",
-    background: "rgba(22,38,28,0.76)",
+  heroStats: {
+    marginTop: 8,
     display: "grid",
-    gap: 6,
-    alignContent: "center",
+    gap: 12,
   },
-  statPillMuted: {
-    minWidth: 118,
-    borderRadius: 22,
-    padding: "14px 16px",
+  statCard: {
+    borderRadius: 18,
+    padding: 14,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.04)",
     display: "grid",
     gap: 6,
-    alignContent: "center",
   },
   statLabel: {
-    fontSize: 12,
-    color: "rgba(235,241,255,0.68)",
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 1.1,
     textTransform: "uppercase",
-    letterSpacing: 1.2,
-    fontWeight: 800,
+    color: "rgba(235,241,255,0.58)",
   },
   statValue: {
     fontSize: 24,
     fontWeight: 900,
-    lineHeight: 1,
+    letterSpacing: "-0.03em",
   },
-  summaryCard: {
+  sectionCard: {
     marginTop: 18,
     borderRadius: 24,
     padding: 18,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(11,16,35,0.84)",
-    boxShadow: "0 24px 70px rgba(0,0,0,0.24)",
+    background: "rgba(11,16,35,0.88)",
+    boxShadow: "0 24px 70px rgba(0,0,0,0.22)",
   },
-  summaryGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: 14,
+  sectionHead: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 12,
+    flexWrap: "wrap",
   },
-  summaryItem: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.035)",
-    padding: 14,
-    display: "grid",
-    gap: 6,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: "rgba(235,241,255,0.66)",
-    fontWeight: 700,
-  },
-  summaryValue: {
-    fontSize: 24,
-    fontWeight: 900,
-  },
-  conflictsCard: {
-    marginTop: 18,
-    borderRadius: 24,
-    padding: 18,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(10,14,30,0.90)",
-  },
-  commentsCard: {
-    marginTop: 18,
-    borderRadius: 24,
-    padding: 18,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(10,14,30,0.90)",
-  },
-  blockTop: {
-    display: "grid",
-    gap: 4,
-    marginBottom: 14,
-  },
-  blockTitle: {
+  sectionTitle: {
     fontSize: 18,
     fontWeight: 900,
     letterSpacing: "-0.02em",
   },
-  blockSub: {
+  sectionSub: {
+    marginTop: 4,
     fontSize: 13,
     color: "rgba(235,241,255,0.66)",
     lineHeight: 1.5,
   },
-  conflictList: {
-    display: "grid",
-    gap: 12,
+  emptyBox: {
+    borderRadius: 18,
+    padding: 14,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(235,241,255,0.74)",
+    fontSize: 14,
   },
-  conflictRow: {
+  stack: {
+    display: "grid",
+    gap: 14,
+  },
+  conflictCard: {
     borderRadius: 20,
+    padding: 16,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
-    padding: 14,
     display: "grid",
-    gap: 10,
+    gap: 14,
   },
-  conflictHead: {
+  conflictTop: {
     display: "flex",
-    alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    alignItems: "center",
+    gap: 10,
     flexWrap: "wrap",
   },
-  conflictTitle: {
-    fontSize: 15,
-    fontWeight: 800,
+  conflictTopMobile: {
+    alignItems: "flex-start",
   },
-  conflictMeta: {
-    display: "grid",
-    gap: 8,
-  },
-  metaLine: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    color: "rgba(235,241,255,0.82)",
-    fontSize: 13,
-  },
-  metaLabel: {
-    minWidth: 22,
-    height: 22,
-    borderRadius: 999,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 11,
-    fontWeight: 900,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.06)",
-  },
-  pillStatus: {
+  conflictBadge: {
     borderRadius: 999,
     padding: "7px 11px",
     fontSize: 12,
     fontWeight: 900,
+    border: "1px solid rgba(103,133,255,0.30)",
+    background:
+      "linear-gradient(135deg, rgba(91,120,255,0.20), rgba(119,95,255,0.20))",
+    color: "#EDF2FF",
   },
-  pillGray: {
-    background: "rgba(255,255,255,0.08)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    color: "#E8EEFF",
+  conflictMeta: {
+    fontSize: 12,
+    fontWeight: 800,
+    color: "rgba(235,241,255,0.66)",
   },
-  pillGreen: {
-    background: "rgba(19,61,35,0.78)",
-    border: "1px solid rgba(102,255,179,0.22)",
-    color: "#D6FFE8",
-  },
-  pillAmber: {
-    background: "rgba(74,55,18,0.80)",
-    border: "1px solid rgba(255,214,102,0.24)",
-    color: "#FFF0C7",
-  },
-  commentList: {
+  conflictGrid: {
     display: "grid",
-    gap: 14,
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 12,
   },
-  commentRow: {
-    borderRadius: 20,
+  eventMini: {
+    borderRadius: 16,
+    padding: 12,
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 14,
+    background: "rgba(255,255,255,0.04)",
     display: "grid",
+    gap: 6,
+  },
+  eventMiniLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 1.1,
+    textTransform: "uppercase",
+    color: "rgba(235,241,255,0.56)",
+  },
+  eventMiniTitle: {
+    fontSize: 15,
+    fontWeight: 900,
+    lineHeight: 1.35,
+  },
+  eventMiniSub: {
+    fontSize: 13,
+    color: "rgba(235,241,255,0.72)",
+    lineHeight: 1.5,
+  },
+  decisionBox: {
+    borderRadius: 16,
+    padding: 12,
+    border: "1px solid rgba(255,255,255,0.07)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(235,241,255,0.82)",
+    fontSize: 13,
+    lineHeight: 1.6,
+  },
+  summaryGrid: {
+    marginTop: 12,
+    display: "flex",
+    flexWrap: "wrap",
     gap: 10,
   },
-  commentHead: {
-    display: "grid",
-    gap: 4,
-  },
-  commentTitle: {
-    fontSize: 15,
-    fontWeight: 800,
-  },
-  commentTime: {
-    fontSize: 12,
-    color: "rgba(235,241,255,0.62)",
-  },
-  textarea: {
-    width: "100%",
-    borderRadius: 16,
+  summaryPill: {
+    borderRadius: 999,
+    padding: "10px 12px",
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(4,8,20,0.80)",
-    color: "#F6F8FC",
-    padding: "12px 14px",
-    outline: "none",
-    fontSize: 14,
-    lineHeight: 1.55,
-    resize: "vertical",
+    background: "rgba(255,255,255,0.05)",
+    color: "#EEF3FF",
+    fontSize: 13,
+    fontWeight: 800,
   },
   footerBar: {
     marginTop: 20,
     display: "flex",
     justifyContent: "flex-end",
     gap: 12,
+    flexWrap: "wrap",
+  },
+  footerBarMobile: {
+    justifyContent: "stretch",
   },
   secondaryBtn: {
     borderRadius: 16,
@@ -1108,49 +921,15 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "not-allowed",
     boxShadow: "none",
   },
-  emptyCard: {
-    marginTop: 20,
-    borderRadius: 24,
-    padding: 24,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(11,16,35,0.82)",
-    display: "grid",
-    gap: 8,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: 900,
-  },
-  emptySub: {
-    fontSize: 14,
-    lineHeight: 1.6,
-    color: "rgba(235,241,255,0.72)",
-  },
   loadingCard: {
     marginTop: 18,
     borderRadius: 24,
     padding: 18,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(11,16,35,0.84)",
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-  },
-  loadingDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 999,
-    background:
-      "linear-gradient(135deg, rgba(115,145,255,1), rgba(144,119,255,1))",
-    boxShadow: "0 0 0 8px rgba(115,145,255,0.10)",
-  },
-  loadingTitle: {
+    color: "#F6F8FC",
     fontSize: 16,
     fontWeight: 900,
-  },
-  loadingSub: {
-    fontSize: 13,
-    color: "rgba(235,241,255,0.68)",
   },
   toastWrap: {
     position: "fixed",

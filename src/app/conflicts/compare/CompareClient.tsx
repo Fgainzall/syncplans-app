@@ -14,6 +14,7 @@ import {
   attachEvents,
   type ConflictItem,
   conflictKey,
+  conflictInvolvesEvent,
   filterIgnoredConflicts,
   loadIgnoredConflictKeys,
 } from "@/lib/conflicts";
@@ -60,7 +61,9 @@ function safeTitle(value?: string | null) {
   const v = String(value ?? "").trim();
   return v || "Evento sin título";
 }
-
+function getEventLocation(event?: CalendarEvent | null) {
+  return String((event as any)?.location ?? "").trim();
+}
 function formatDateTime(iso?: string | null) {
   if (!iso) return "Sin fecha";
   const d = new Date(iso);
@@ -166,14 +169,31 @@ function groupLabel(groupType?: string | null) {
   return "Personal";
 }
 
+function resolutionLabel(value: Resolution | null) {
+  if (value === "keep_existing") return "Conservar Evento A";
+  if (value === "replace_with_new") return "Conservar Evento B";
+  if (value === "none") return "Mantener ambos";
+  return "Aún no elegiste una resolución";
+}
+
+function parseIndex(value: string | null): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (n < 0) return null;
+  return Math.floor(n);
+}
+
 export default function CompareClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const groupIdFromUrl = searchParams.get("groupId");
-  const focusId = searchParams.get("conflict");
+  const focusConflictId = searchParams.get("conflict");
   const incomingIdFromUrl = searchParams.get("incoming");
   const existingIdFromUrl = searchParams.get("existing");
+  const focusEventId = searchParams.get("eventId");
+  const indexFromUrl = parseIndex(searchParams.get("i"));
 
   const [booting, setBooting] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -186,6 +206,7 @@ export default function CompareClient() {
   const [toast, setToast] = useState<null | { title: string; sub?: string }>(
     null
   );
+  const [isMobile, setIsMobile] = useState(false);
 
   const loadScreenData = useCallback(async () => {
     const [eventsForConflicts, dbMap, declinedSet] = await Promise.all([
@@ -200,6 +221,17 @@ export default function CompareClient() {
     setResMap(dbMap ?? {});
     setDeclinedIds(declinedSet instanceof Set ? declinedSet : new Set());
   }, [groupIdFromUrl]);
+
+  useEffect(() => {
+    const syncViewport = () => {
+      if (typeof window === "undefined") return;
+      setIsMobile(window.innerWidth < 920);
+    };
+
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -285,11 +317,18 @@ export default function CompareClient() {
     return attachEvents(visible, visibleEventsForConflicts);
   }, [visibleEventsForConflicts]);
 
+  const focusConflicts = useMemo(() => {
+    if (!focusEventId) return [];
+    return conflicts.filter((c) => conflictInvolvesEvent(c, focusEventId));
+  }, [conflicts, focusEventId]);
+
   const activeConflict = useMemo<ConflictItem | null>(() => {
     if (!conflicts.length) return null;
 
-    if (focusId) {
-      const byId = conflicts.find((c) => String(c.id) === String(focusId));
+    if (focusConflictId) {
+      const byId = conflicts.find(
+        (c) => String(c.id) === String(focusConflictId)
+      );
       if (byId) return byId;
     }
 
@@ -304,8 +343,26 @@ export default function CompareClient() {
       if (byPair) return byPair;
     }
 
+    if (indexFromUrl != null && conflicts[indexFromUrl]) {
+      return conflicts[indexFromUrl];
+    }
+
+    if (focusEventId) {
+      const byEvent = conflicts.find((c) =>
+        conflictInvolvesEvent(c, focusEventId)
+      );
+      if (byEvent) return byEvent;
+    }
+
     return conflicts[0] ?? null;
-  }, [conflicts, focusId, existingIdFromUrl, incomingIdFromUrl]);
+  }, [
+    conflicts,
+    focusConflictId,
+    existingIdFromUrl,
+    incomingIdFromUrl,
+    indexFromUrl,
+    focusEventId,
+  ]);
 
   useEffect(() => {
     if (!activeConflict) {
@@ -336,7 +393,7 @@ export default function CompareClient() {
 
       setToast({
         title: "Decisión guardada",
-        sub: "La resolución ya quedó persistida.",
+        sub: "La resolución ya quedó persistida para este conflicto.",
       });
     } catch (e: any) {
       setToast({
@@ -354,12 +411,14 @@ export default function CompareClient() {
   const goToActions = () => {
     const qp = new URLSearchParams();
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
+    if (focusEventId) qp.set("eventId", focusEventId);
     router.push(`/conflicts/actions?${qp.toString()}`);
   };
 
   const goBack = () => {
     const qp = new URLSearchParams();
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
+    if (focusEventId) qp.set("eventId", focusEventId);
     router.push(`/conflicts/detected?${qp.toString()}`);
   };
 
@@ -369,6 +428,20 @@ export default function CompareClient() {
   const existingSelected = selectedResolution === "keep_existing";
   const incomingSelected = selectedResolution === "replace_with_new";
   const bothSelected = selectedResolution === "none";
+
+  const decisionReady = selectedResolution !== null;
+
+  const focusSummaryText = useMemo(() => {
+    if (focusEventId && focusConflicts.length > 1) {
+      return `Este evento tiene ${focusConflicts.length} conflictos visibles. Aquí estás resolviendo uno de ellos.`;
+    }
+
+    if (focusEventId && focusConflicts.length === 1) {
+      return "Estás resolviendo el conflicto principal del evento que disparó la alerta.";
+    }
+
+    return "Compara ambos eventos, guarda una decisión y luego pasa al cierre final.";
+  }, [focusEventId, focusConflicts.length]);
 
   if (booting) {
     return (
@@ -404,9 +477,19 @@ export default function CompareClient() {
   return (
     <main style={styles.page}>
       <div style={styles.shell}>
-        <div style={styles.topRow}>
+        <div
+          style={{
+            ...styles.topRow,
+            ...(isMobile ? styles.topRowMobile : null),
+          }}
+        >
           <PremiumHeader />
-          <div style={styles.topActions}>
+          <div
+            style={{
+              ...styles.topActions,
+              ...(isMobile ? styles.topActionsMobile : null),
+            }}
+          >
             <button onClick={goBack} style={styles.ghostBtn}>
               ← Volver
             </button>
@@ -417,13 +500,38 @@ export default function CompareClient() {
         <section style={styles.hero}>
           <div style={styles.kicker}>Comparar</div>
           <h1 style={styles.h1}>Elige qué hacer con este choque</h1>
-          <div style={styles.sub}>
-            Esta pantalla ya compara solo eventos visibles reales. Si alguno fue
-            marcado como declined en BD, ya no debería aparecer aquí.
+          <div style={styles.sub}>{focusSummaryText}</div>
+
+          <div
+            style={{
+              ...styles.heroInfoRow,
+              ...(isMobile ? styles.heroInfoRowMobile : null),
+            }}
+          >
+            <div style={styles.heroInfoCard}>
+              <div style={styles.heroInfoLabel}>Cruce detectado</div>
+              <div style={styles.heroInfoValue}>
+                {formatRange(existing?.start, incoming?.end || existing?.end)}
+              </div>
+            </div>
+
+            <div style={styles.heroInfoCard}>
+              <div style={styles.heroInfoLabel}>Estado actual</div>
+              <div style={styles.heroInfoValue}>
+                {resolutionLabel(selectedResolution)}
+              </div>
+            </div>
           </div>
         </section>
 
-        <section style={styles.compareGrid}>
+        <section
+          style={{
+            ...styles.compareGrid,
+            gridTemplateColumns: isMobile
+              ? "minmax(0, 1fr)"
+              : "repeat(2, minmax(0, 1fr))",
+          }}
+        >
           <article
             style={{
               ...styles.eventCard,
@@ -451,12 +559,12 @@ export default function CompareClient() {
                 <span>{formatRange(existing?.start, existing?.end)}</span>
               </div>
 
-              {existing?.location ? (
-                <div style={styles.metaRow}>
-                  <span style={styles.metaLabel}>Lugar</span>
-                  <span>{existing.location}</span>
-                </div>
-              ) : null}
+             {getEventLocation(existing) ? (
+  <div style={styles.metaRow}>
+    <span style={styles.metaLabel}>Lugar</span>
+    <span>{getEventLocation(existing)}</span>
+  </div>
+) : null}
 
               {existing?.notes ? (
                 <div style={styles.notesBox}>{existing.notes}</div>
@@ -502,12 +610,12 @@ export default function CompareClient() {
                 <span>{formatRange(incoming?.start, incoming?.end)}</span>
               </div>
 
-              {incoming?.location ? (
-                <div style={styles.metaRow}>
-                  <span style={styles.metaLabel}>Lugar</span>
-                  <span>{incoming.location}</span>
-                </div>
-              ) : null}
+             {getEventLocation(incoming) ? (
+  <div style={styles.metaRow}>
+    <span style={styles.metaLabel}>Lugar</span>
+    <span>{getEventLocation(incoming)}</span>
+  </div>
+) : null}
 
               {incoming?.notes ? (
                 <div style={styles.notesBox}>{incoming.notes}</div>
@@ -528,11 +636,17 @@ export default function CompareClient() {
         </section>
 
         <section style={styles.middleCard}>
-          <div style={styles.middleTop}>
+          <div
+            style={{
+              ...styles.middleTop,
+              ...(isMobile ? styles.middleTopMobile : null),
+            }}
+          >
             <div>
               <div style={styles.middleTitle}>Otra opción</div>
               <div style={styles.middleSub}>
-                También puedes mantener ambos y decidir después.
+                También puedes mantener ambos y decidir más adelante en el uso
+                real del calendario.
               </div>
             </div>
 
@@ -549,13 +663,24 @@ export default function CompareClient() {
           </div>
         </section>
 
-        <section style={styles.footerBar}>
+        <section
+          style={{
+            ...styles.footerBar,
+            ...(isMobile ? styles.footerBarMobile : null),
+          }}
+        >
           <button onClick={goBack} style={styles.secondaryBtn}>
             Volver
           </button>
 
-          <button onClick={goToActions} style={styles.primaryBtn}>
-            Seguir a cierre
+          <button
+            onClick={goToActions}
+            style={{
+              ...styles.primaryBtn,
+              ...(decisionReady ? null : styles.primaryBtnMuted),
+            }}
+          >
+            {decisionReady ? "Seguir a cierre" : "Ir al cierre"}
           </button>
         </section>
 
@@ -590,10 +715,17 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 16,
     alignItems: "start",
   },
+  topRowMobile: {
+    gridTemplateColumns: "1fr",
+  },
   topActions: {
     display: "flex",
     gap: 10,
     alignItems: "center",
+  },
+  topActionsMobile: {
+    justifyContent: "flex-start",
+    flexWrap: "wrap",
   },
   ghostBtn: {
     border: "1px solid rgba(255,255,255,0.12)",
@@ -615,7 +747,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 22,
     boxShadow: "0 30px 90px rgba(0,0,0,0.34)",
     display: "grid",
-    gap: 8,
+    gap: 10,
   },
   kicker: {
     fontSize: 12,
@@ -637,10 +769,39 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.6,
     maxWidth: 840,
   },
+  heroInfoRow: {
+    marginTop: 8,
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 12,
+  },
+  heroInfoRowMobile: {
+    gridTemplateColumns: "minmax(0, 1fr)",
+  },
+  heroInfoCard: {
+    borderRadius: 18,
+    padding: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    display: "grid",
+    gap: 6,
+  },
+  heroInfoLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 1.1,
+    textTransform: "uppercase",
+    color: "rgba(235,241,255,0.58)",
+  },
+  heroInfoValue: {
+    fontSize: 14,
+    lineHeight: 1.5,
+    color: "#F3F6FF",
+    fontWeight: 700,
+  },
   compareGrid: {
     marginTop: 18,
     display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 16,
   },
   eventCard: {
@@ -709,6 +870,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(235,241,255,0.82)",
     fontSize: 13,
     lineHeight: 1.55,
+    wordBreak: "break-word",
   },
   choiceBtn: {
     borderRadius: 16,
@@ -740,6 +902,9 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 14,
     flexWrap: "wrap",
   },
+  middleTopMobile: {
+    alignItems: "stretch",
+  },
   middleTitle: {
     fontSize: 18,
     fontWeight: 900,
@@ -750,6 +915,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     color: "rgba(235,241,255,0.66)",
     lineHeight: 1.5,
+    maxWidth: 720,
   },
   secondaryChoiceBtn: {
     borderRadius: 16,
@@ -771,6 +937,10 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     justifyContent: "flex-end",
     gap: 12,
+    flexWrap: "wrap",
+  },
+  footerBarMobile: {
+    justifyContent: "stretch",
   },
   secondaryBtn: {
     borderRadius: 16,
@@ -793,6 +963,9 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     cursor: "pointer",
     boxShadow: "0 18px 44px rgba(63,93,227,0.30)",
+  },
+  primaryBtnMuted: {
+    opacity: 0.92,
   },
   emptyCard: {
     marginTop: 20,
