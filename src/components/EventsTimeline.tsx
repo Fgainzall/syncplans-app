@@ -4,7 +4,6 @@
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { deleteEventsByIds } from "@/lib/eventsDb";
 import { deleteEventsByIds, generatePublicInviteLink } from "@/lib/eventsDb";
 
 type TimelineEvent = {
