@@ -1,272 +1,437 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-export const dynamic = "force-dynamic";
+type GoogleAccountRow = {
+  user_id: string;
+  email: string | null;
+  access_token: string | null;
+  refresh_token: string | null;
+  expiry_date: string | null;
+};
 
-function mustEnv(name: string) {
-  const v = (process.env[name] ?? "").trim();
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
+type GoogleCalendarListItem = {
+  id: string;
+  summary?: string;
+  primary?: boolean;
+  accessRole?: string;
+};
+
+type GoogleEventItem = {
+  id: string;
+  status?: string;
+  summary?: string;
+  description?: string;
+  updated?: string;
+  start?: {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
+  end?: {
+    dateTime?: string;
+    date?: string;
+    timeZone?: string;
+  };
+};
+
+type GoogleCalendarListResponse = {
+  items?: GoogleCalendarListItem[];
+};
+
+type GoogleEventsResponse = {
+  items?: GoogleEventItem[];
+  nextPageToken?: string;
+};
+
+function jsonError(message: string, status = 400) {
+  return NextResponse.json({ error: message }, { status });
 }
 
-function safeIso(d: any): string | null {
-  try {
-    return new Date(d).toISOString();
-  } catch {
-    return null;
+function toIsoFromGoogleBoundary(
+  value?: { dateTime?: string; date?: string } | null,
+  fallbackAllDayEnd = false
+): string | null {
+  if (!value) return null;
+
+  if (value.dateTime) {
+    const d = new Date(value.dateTime);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
   }
+
+  if (value.date) {
+    if (fallbackAllDayEnd) {
+      // Google all-day end date is exclusive.
+      const d = new Date(`${value.date}T00:00:00`);
+      if (Number.isNaN(d.getTime())) return null;
+      return d.toISOString();
+    }
+
+    const d = new Date(`${value.date}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
+  }
+
+  return null;
 }
 
-function toTimeMinMax() {
-  const now = new Date();
+async function refreshGoogleAccessToken(
+  refreshToken: string
+): Promise<{
+  access_token: string;
+  expires_in?: number;
+}> {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
-  const min = new Date(now);
-  min.setDate(min.getDate() - 30);
+  if (!clientId || !clientSecret) {
+    throw new Error("Faltan GOOGLE_CLIENT_ID o GOOGLE_CLIENT_SECRET");
+  }
 
-  const max = new Date(now);
-  max.setDate(max.getDate() + 120);
+  const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    refresh_token: refreshToken,
+    grant_type: "refresh_token",
+  });
 
-  return { timeMin: min.toISOString(), timeMax: max.toISOString() };
-}
-
-async function refreshGoogleAccessToken(input: { refresh_token: string }) {
-  const client_id = mustEnv("GOOGLE_OAUTH_CLIENT_ID");
-  const client_secret = mustEnv("GOOGLE_OAUTH_CLIENT_SECRET");
-
-  const body = new URLSearchParams();
-  body.set("client_id", client_id);
-  body.set("client_secret", client_secret);
-  body.set("refresh_token", input.refresh_token);
-  body.set("grant_type", "refresh_token");
-
-  const r = await fetch("https://oauth2.googleapis.com/token", {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
   });
 
-  const json = await r.json().catch(() => ({} as any));
+  const json = await res.json();
 
-  if (!r.ok) {
-    return { ok: false as const, status: r.status, json };
+  if (!res.ok || !json?.access_token) {
+    throw new Error(
+      json?.error_description ||
+        json?.error ||
+        "No se pudo refrescar el access token de Google"
+    );
   }
 
-  const access_token = String(json.access_token || "");
-  const expires_in = Number(json.expires_in || 0);
+  return {
+    access_token: String(json.access_token),
+    expires_in:
+      typeof json.expires_in === "number" ? json.expires_in : undefined,
+  };
+}
 
-  if (!access_token || !expires_in) {
-    return { ok: false as const, status: 500, json };
+async function googleFetchJson<T>(
+  url: string,
+  accessToken: string
+): Promise<T> {
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    cache: "no-store",
+  });
+
+  const json = await res.json();
+
+  if (!res.ok) {
+    throw new Error(
+      json?.error?.message ||
+        json?.error_description ||
+        `Google API error ${res.status}`
+    );
   }
 
-  const expires_at = new Date(Date.now() + expires_in * 1000).toISOString();
+  return json as T;
+}
 
-  return { ok: true as const, access_token, expires_at };
+async function listAllVisibleCalendars(accessToken: string) {
+  const out: GoogleCalendarListItem[] = [];
+  let pageToken = "";
+
+  while (true) {
+    const qs = new URLSearchParams({
+      minAccessRole: "reader",
+      showHidden: "false",
+      maxResults: "250",
+    });
+
+    if (pageToken) qs.set("pageToken", pageToken);
+
+    const url = `https://www.googleapis.com/calendar/v3/users/me/calendarList?${qs.toString()}`;
+
+    const json = await googleFetchJson<GoogleCalendarListResponse>(
+      url,
+      accessToken
+    );
+
+    const items = Array.isArray(json?.items) ? json.items : [];
+    out.push(...items);
+
+    const next = (json as any)?.nextPageToken;
+    if (!next) break;
+    pageToken = String(next);
+  }
+
+  return out;
+}
+
+async function listEventsForCalendar(
+  accessToken: string,
+  calendarId: string,
+  timeMin: string,
+  timeMax: string
+) {
+  const out: GoogleEventItem[] = [];
+  let pageToken = "";
+
+  while (true) {
+    const qs = new URLSearchParams({
+      singleEvents: "true",
+      orderBy: "startTime",
+      showDeleted: "false",
+      maxResults: "250",
+      timeMin,
+      timeMax,
+    });
+
+    if (pageToken) qs.set("pageToken", pageToken);
+
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
+      calendarId
+    )}/events?${qs.toString()}`;
+
+    const json = await googleFetchJson<GoogleEventsResponse>(url, accessToken);
+
+    const items = Array.isArray(json?.items) ? json.items : [];
+    out.push(...items);
+
+    if (!json?.nextPageToken) break;
+    pageToken = String(json.nextPageToken);
+  }
+
+  return out;
 }
 
 export async function POST(req: Request) {
   try {
-    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
-    const supabaseAnon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
+    const authHeader = req.headers.get("authorization");
+    const bearer = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : null;
 
-    if (!supabaseUrl || !supabaseAnon) {
-      return NextResponse.json(
-        { ok: false, error: "Faltan env vars de Supabase." },
-        { status: 500 }
-      );
+    if (!bearer) {
+      return jsonError("Falta bearer token", 401);
     }
 
-    const auth = req.headers.get("authorization") || "";
-    const token = auth.toLowerCase().startsWith("bearer ")
-      ? auth.slice(7).trim()
-      : "";
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!token) {
-      return NextResponse.json(
-        { ok: false, error: "No autorizado (token faltante)." },
-        { status: 401 }
-      );
+    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+      return jsonError("Faltan variables de Supabase en el servidor", 500);
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnon, {
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${bearer}`,
         },
       },
       auth: {
         persistSession: false,
         autoRefreshToken: false,
-        detectSessionInUrl: false,
       },
     });
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    const user = userData?.user;
+    const {
+      data: { user },
+      error: userError,
+    } = await supabaseAuth.auth.getUser();
 
-    if (userErr || !user) {
-      return NextResponse.json(
-        { ok: false, error: "Token inválido o sesión expirada." },
-        { status: 401 }
-      );
+    if (userError || !user) {
+      return jsonError("Sesión inválida", 401);
     }
 
-    const { data: ga, error: gaErr } = await supabase
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+
+    const { data: ga, error: gaError } = await supabaseAdmin
       .from("google_accounts")
-      .select("access_token, refresh_token, expires_at, email, scope, updated_at")
+      .select("user_id, email, access_token, refresh_token, expiry_date")
       .eq("user_id", user.id)
-      .maybeSingle();
+      .maybeSingle<GoogleAccountRow>();
 
-    if (gaErr || !ga) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "No hay Google conectado (google_accounts no encontrado).",
-        },
-        { status: 400 }
+    if (gaError) {
+      return jsonError(
+        gaError.message || "No se pudo leer google_accounts",
+        500
       );
     }
 
-    let accessToken = (ga as any).access_token as string | null;
-    const refreshToken = (ga as any).refresh_token as string | null;
-    const expiresAtRaw = (ga as any).expires_at as string | null;
+    if (!ga) {
+      return jsonError("La cuenta Google no está conectada", 404);
+    }
+
+    let accessToken = ga.access_token ?? null;
+    const refreshToken = ga.refresh_token ?? null;
 
     const nowMs = Date.now();
-    const expiresMs = expiresAtRaw ? new Date(expiresAtRaw).getTime() : 0;
-    const expired = !accessToken || !expiresMs || expiresMs < nowMs + 60_000;
+    const expiryMs = ga.expiry_date ? new Date(ga.expiry_date).getTime() : 0;
+    const isExpired =
+      !accessToken || !expiryMs || Number.isNaN(expiryMs) || expiryMs <= nowMs + 60_000;
 
-    if (expired) {
+    if (isExpired) {
       if (!refreshToken) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: "Tu token Google expiró y no hay refresh_token. Reconecta Google.",
-          },
-          { status: 400 }
+        return jsonError(
+          "La cuenta Google necesita reconectarse porque no tiene refresh_token",
+          401
         );
       }
 
-      const refreshed = await refreshGoogleAccessToken({
-        refresh_token: refreshToken,
-      });
-
-      if (!refreshed.ok) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: "No se pudo refrescar token Google",
-            details: refreshed,
-          },
-          { status: 502 }
-        );
-      }
-
+      const refreshed = await refreshGoogleAccessToken(refreshToken);
       accessToken = refreshed.access_token;
 
-      await supabase
+      const nextExpiry = new Date(
+        Date.now() + (refreshed.expires_in ?? 3600) * 1000
+      ).toISOString();
+
+      const { error: updateTokenError } = await supabaseAdmin
         .from("google_accounts")
         .update({
-          access_token: refreshed.access_token,
-          expires_at: refreshed.expires_at,
-          updated_at: new Date().toISOString(),
+          access_token: accessToken,
+          expiry_date: nextExpiry,
         })
         .eq("user_id", user.id);
-    }
 
-    const { timeMin, timeMax } = toTimeMinMax();
-
-    const r = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(
-        timeMin
-      )}&timeMax=${encodeURIComponent(
-        timeMax
-      )}&singleEvents=true&orderBy=startTime&maxResults=250`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      if (updateTokenError) {
+        return jsonError(
+          updateTokenError.message ||
+            "No se pudo guardar el token refrescado",
+          500
+        );
       }
-    );
-
-    const json = await r.json().catch(() => ({} as any));
-
-    if (!r.ok) {
-      return NextResponse.json(
-        { ok: false, status: r.status, google: json },
-        { status: 502 }
-      );
     }
 
-    const items: any[] = Array.isArray(json.items) ? json.items : [];
+    if (!accessToken) {
+      return jsonError("No hay access token disponible", 401);
+    }
 
-    const rowsToUpsert = items
-      .map((it) => {
-        const external_id = String(it.id || "").trim();
-        if (!external_id) return null;
+    const now = new Date();
+    const timeMin = new Date(now);
+    timeMin.setDate(timeMin.getDate() - 30);
+    timeMin.setHours(0, 0, 0, 0);
 
-        const summary = String(it.summary || "Evento (Google)");
-        const updated = safeIso(it.updated);
+    const timeMax = new Date(now);
+    timeMax.setDate(timeMax.getDate() + 120);
+    timeMax.setHours(23, 59, 59, 999);
 
-        const startObj = it.start || {};
-        const endObj = it.end || {};
+    const calendars = await listAllVisibleCalendars(accessToken);
 
-        let startIso: string | null = null;
-        let endIso: string | null = null;
-
-        if (startObj.dateTime && endObj.dateTime) {
-          startIso = safeIso(startObj.dateTime);
-          endIso = safeIso(endObj.dateTime);
-        } else if (startObj.date && endObj.date) {
-          const s = new Date(String(startObj.date) + "T00:00:00.000Z");
-          const eExclusive = new Date(String(endObj.date) + "T00:00:00.000Z");
-          const e = new Date(eExclusive.getTime() - 1);
-          startIso = s.toISOString();
-          endIso = e.toISOString();
-        }
-
-        if (!startIso || !endIso) return null;
-
-      return {
-  user_id: user.id,
-  owner_id: user.id,
-  created_by: user.id,
-  group_id: null,
-  title: summary,
-  notes: it.description ? String(it.description) : null,
-  start: startIso,
-  end: endIso,
-  external_source: "google",
-  external_id,
-  external_updated_at: updated,
-};
-      })
-      .filter(Boolean) as any[];
-
-    if (rowsToUpsert.length === 0) {
+    if (!calendars.length) {
       return NextResponse.json({
         ok: true,
         imported: 0,
-        message: "No hay eventos para importar.",
+        calendars: 0,
+        message: "No se encontraron calendarios visibles para esta cuenta",
       });
     }
 
-    const { error: upErr } = await supabase
-      .from("events")
-      .upsert(rowsToUpsert, { onConflict: "user_id,external_source,external_id" });
+    const allRowsToUpsert: Record<string, any> = {};
+    let totalFetched = 0;
 
-    if (upErr) {
-      return NextResponse.json(
-        { ok: false, error: "No se pudo upsertear en events", details: upErr },
-        { status: 500 }
+    for (const cal of calendars) {
+      const calendarId = String(cal.id || "").trim();
+      if (!calendarId) continue;
+
+      const calendarName = cal.summary?.trim() || "Google Calendar";
+
+      let items: GoogleEventItem[] = [];
+      try {
+        items = await listEventsForCalendar(
+          accessToken,
+          calendarId,
+          timeMin.toISOString(),
+          timeMax.toISOString()
+        );
+      } catch (err: any) {
+        // No tumbamos toda la sync por un calendario problemático.
+        console.warn(
+          `[google sync] No se pudo leer el calendario ${calendarId}:`,
+          err?.message || err
+        );
+        continue;
+      }
+
+      totalFetched += items.length;
+
+      for (const it of items) {
+        if (!it?.id) continue;
+        if (it.status === "cancelled") continue;
+
+        const startIso = toIsoFromGoogleBoundary(it.start, false);
+        const endIso = toIsoFromGoogleBoundary(it.end, true);
+
+        if (!startIso || !endIso) continue;
+
+        const externalId = `google:${calendarId}:${String(it.id)}`;
+        const summary = (it.summary || "").trim() || "Evento de Google";
+        const updated = it.updated ? String(it.updated) : null;
+
+        allRowsToUpsert[externalId] = {
+          user_id: user.id,
+          owner_id: user.id,
+          created_by: user.id,
+          group_id: null,
+          title: summary,
+          notes: it.description ? String(it.description) : null,
+          start: startIso,
+          end: endIso,
+          external_source: "google",
+          external_id: externalId,
+          external_updated_at: updated,
+          source_calendar_id: calendarId,
+          source_calendar_name: calendarName,
+        };
+      }
+    }
+
+    const rowsToUpsert = Object.values(allRowsToUpsert);
+
+    if (!rowsToUpsert.length) {
+      return NextResponse.json({
+        ok: true,
+        imported: 0,
+        calendars: calendars.length,
+        fetched: totalFetched,
+        message: "No hubo eventos válidos para importar",
+      });
+    }
+
+    const { error: upsertError } = await supabaseAdmin
+      .from("events")
+      .upsert(rowsToUpsert, {
+        onConflict: "external_id",
+      });
+
+    if (upsertError) {
+      return jsonError(
+        upsertError.message || "No se pudieron guardar los eventos importados",
+        500
       );
     }
 
     return NextResponse.json({
       ok: true,
       imported: rowsToUpsert.length,
-      range: { timeMin, timeMax },
+      calendars: calendars.length,
+      fetched: totalFetched,
     });
-  } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Error inesperado en sync." },
-      { status: 500 }
+  } catch (err: any) {
+    return jsonError(
+      err?.message || "Falló la sincronización de Google Calendar",
+      500
     );
   }
 }
