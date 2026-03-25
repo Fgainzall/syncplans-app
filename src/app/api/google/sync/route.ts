@@ -223,17 +223,19 @@ export async function POST(req: Request) {
 
         if (!startIso || !endIso) return null;
 
-        return {
-          user_id: user.id,
-          group_id: null,
-          title: summary,
-          notes: it.description ? String(it.description) : null,
-          start: startIso,
-          end: endIso,
-          external_source: "google",
-          external_id,
-          external_updated_at: updated,
-        };
+      return {
+  user_id: user.id,
+  owner_id: user.id,
+  created_by: user.id,
+  group_id: null,
+  title: summary,
+  notes: it.description ? String(it.description) : null,
+  start: startIso,
+  end: endIso,
+  external_source: "google",
+  external_id,
+  external_updated_at: updated,
+};
       })
       .filter(Boolean) as any[];
 

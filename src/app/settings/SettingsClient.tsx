@@ -226,10 +226,17 @@ const googleActionLabel =
         return;
       }
 
-      const imported = Number(json?.imported ?? 0);
-      showToast("Importación lista ✅", `Importados/actualizados: ${imported}`);
+   const imported = Number(json?.imported ?? 0);
 
-      refreshGoogleStatusWithRetry().catch(() => {});
+window.dispatchEvent(
+  new CustomEvent("sp:google-synced", {
+    detail: { imported },
+  })
+);
+
+showToast("Importación lista ✅", `Importados/actualizados: ${imported}`);
+
+refreshGoogleStatusWithRetry().catch(() => {});
     } catch (e: any) {
       console.error("[SettingsHub] google sync exception", e);
       showToast(
