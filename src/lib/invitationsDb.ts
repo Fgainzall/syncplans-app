@@ -528,3 +528,118 @@ export async function declineInvitation(inviteId: string) {
     return { ok: false, error: e?.message || "Error al rechazar invitación" };
   }
 }
+// ==============================
+// Public invites (external flow)
+// ==============================
+
+export type PublicInviteStatus = "pending" | "accepted" | "rejected";
+
+export type PublicInviteRow = {
+  id: string;
+  event_id: string;
+  contact: string | null;
+  token: string;
+  status: PublicInviteStatus;
+  proposed_date: string | null;
+  message: string | null;
+  created_at: string;
+};
+
+export type CreatePublicInviteInput = {
+  eventId: string;
+  contact?: string | null;
+};
+
+export type RespondToPublicInviteInput = {
+  token: string;
+  status: Exclude<PublicInviteStatus, "pending">;
+  proposedDate?: string | null;
+  message?: string | null;
+};
+
+const PUBLIC_INVITES_TABLE = "public_invites";
+
+function makePublicInviteToken() {
+  const random = Math.random().toString(36).slice(2);
+  const stamp = Date.now().toString(36);
+  return `spi_${stamp}_${random}`;
+}
+
+/**
+ * Crea una invitación pública para compartir externamente.
+ */
+export async function createPublicInvite(
+  input: CreatePublicInviteInput
+): Promise<PublicInviteRow> {
+  const token = makePublicInviteToken();
+
+  const payload = {
+    event_id: input.eventId,
+    contact: input.contact ?? null,
+    token,
+    status: "pending",
+    proposed_date: null,
+    message: null,
+  };
+
+  const { data, error } = await (supabase as any)
+    .from(PUBLIC_INVITES_TABLE)
+    .insert(payload)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message || "No se pudo crear la invitación pública.");
+  }
+
+  return data as PublicInviteRow;
+}
+
+/**
+ * Busca una invitación pública por token.
+ */
+export async function getPublicInviteByToken(
+  token: string
+): Promise<PublicInviteRow | null> {
+  const { data, error } = await (supabase as any)
+    .from(PUBLIC_INVITES_TABLE)
+    .select("*")
+    .eq("token", token)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      error.message || "No se pudo obtener la invitación pública."
+    );
+  }
+
+  return (data as PublicInviteRow | null) ?? null;
+}
+
+/**
+ * Responde una invitación pública.
+ */
+export async function respondToPublicInvite(
+  input: RespondToPublicInviteInput
+): Promise<PublicInviteRow> {
+  const payload = {
+    status: input.status,
+    proposed_date: input.proposedDate ?? null,
+    message: input.message ?? null,
+  };
+
+  const { data, error } = await (supabase as any)
+    .from(PUBLIC_INVITES_TABLE)
+    .update(payload)
+    .eq("token", input.token)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(
+      error.message || "No se pudo responder la invitación pública."
+    );
+  }
+
+  return data as PublicInviteRow;
+}
