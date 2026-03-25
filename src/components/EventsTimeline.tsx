@@ -1,10 +1,11 @@
 // src/components/EventsTimeline.tsx
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { deleteEventsByIds } from "@/lib/eventsDb";
+import { createPublicInvite } from "@/lib/invitationsDb";
 
 type TimelineEvent = {
   id: string;
@@ -26,6 +27,13 @@ type Props = {
   events: TimelineEvent[];
   selectedIds: Set<string>;
   onToggleSelected: (id: string) => void;
+};
+
+type ShareState = {
+  loading: boolean;
+  link: string | null;
+  error: string | null;
+  copied: boolean;
 };
 
 function localDateKey(value: string | Date) {
@@ -123,12 +131,44 @@ function getExternalLabel(ev: TimelineEvent) {
   return "Externo";
 }
 
+function clientBaseUrl() {
+  const env = String(
+    process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? ""
+  )
+    .trim()
+    .replace(/\/$/, "");
+
+  if (env) return env;
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin.replace(/\/$/, "");
+  }
+
+  return "http://localhost:3000";
+}
+
+function buildWhatsAppText(ev: TimelineEvent, link: string) {
+  const start = new Date(ev.start);
+  const startLabel = start.toLocaleString([], {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return `Te comparto este plan de SyncPlans: ${ev.title || "Evento"} (${startLabel}). Puedes responder aquí: ${link}`;
+}
+
 export default function EventsTimeline({
   events,
   selectedIds,
   onToggleSelected,
 }: Props) {
   const router = useRouter();
+  const [shareStateById, setShareStateById] = useState<Record<string, ShareState>>(
+    {}
+  );
 
   const sorted = useMemo(() => {
     return [...events].sort(
@@ -157,6 +197,121 @@ export default function EventsTimeline({
     router.refresh();
   }
 
+  async function onCreateShareLink(ev: TimelineEvent): Promise<string | null> {
+    const eventId = String(ev.id);
+
+    setShareStateById((prev) => ({
+      ...prev,
+      [eventId]: {
+        loading: true,
+        link: prev[eventId]?.link ?? null,
+        error: null,
+        copied: false,
+      },
+    }));
+
+    try {
+      const invite = await createPublicInvite({
+        eventId,
+        contact: null,
+      });
+
+      const link = `${clientBaseUrl()}/invite/${encodeURIComponent(invite.token)}`;
+
+      setShareStateById((prev) => ({
+        ...prev,
+        [eventId]: {
+          loading: false,
+          link,
+          error: null,
+          copied: false,
+        },
+      }));
+
+      return link;
+    } catch (e: any) {
+      setShareStateById((prev) => ({
+        ...prev,
+        [eventId]: {
+          loading: false,
+          link: null,
+          error:
+            e?.message ||
+            "No se pudo generar el link para compartir este evento.",
+          copied: false,
+        },
+      }));
+      return null;
+    }
+  }
+
+  async function onCopyLink(ev: TimelineEvent) {
+    const eventId = String(ev.id);
+    const shareState = shareStateById[eventId];
+    let link = shareState?.link ?? null;
+
+    if (!link) {
+      link = await onCreateShareLink(ev);
+      if (!link) return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(link);
+      } else {
+        const input = document.createElement("textarea");
+        input.value = link;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        document.body.removeChild(input);
+      }
+
+      setShareStateById((prev) => ({
+        ...prev,
+        [eventId]: {
+          loading: false,
+          link,
+          error: null,
+          copied: true,
+        },
+      }));
+    } catch {
+      setShareStateById((prev) => ({
+        ...prev,
+        [eventId]: {
+          loading: false,
+          link,
+          error: "No se pudo copiar automáticamente. Copia el link manualmente.",
+          copied: false,
+        },
+      }));
+    }
+  }
+
+  async function onWhatsApp(ev: TimelineEvent) {
+    const eventId = String(ev.id);
+    let link = shareStateById[eventId]?.link ?? null;
+
+    if (!link) {
+      link = await onCreateShareLink(ev);
+    }
+
+    if (!link) return;
+
+    const text = buildWhatsAppText(ev, link);
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  function onCloseShare(eventId: string) {
+    setShareStateById((prev) => {
+      const next = { ...prev };
+      delete next[eventId];
+      return next;
+    });
+  }
+
   return (
     <div style={S.wrapper}>
       {groupedByDay.map(({ dayKey, dayEvents }) => {
@@ -176,6 +331,8 @@ export default function EventsTimeline({
               {dayEvents.map((ev) => {
                 const signal = getGroupSignal(ev);
                 const externalLabel = getExternalLabel(ev);
+                const eventId = String(ev.id);
+                const shareState = shareStateById[eventId];
 
                 const start = new Date(ev.start).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -187,15 +344,15 @@ export default function EventsTimeline({
                   minute: "2-digit",
                 });
 
-                const checked = selectedIds.has(String(ev.id));
+                const checked = selectedIds.has(eventId);
 
                 return (
-                  <div key={String(ev.id)} style={S.eventRow}>
+                  <div key={eventId} style={S.eventRow}>
                     <label style={S.checkWrap}>
                       <input
                         type="checkbox"
                         checked={checked}
-                        onChange={() => onToggleSelected(String(ev.id))}
+                        onChange={() => onToggleSelected(eventId)}
                         style={S.checkbox}
                       />
                     </label>
@@ -223,8 +380,17 @@ export default function EventsTimeline({
 
                         <div style={S.actions}>
                           <button
+                            onClick={() => onCreateShareLink(ev)}
+                            style={iconBtn}
+                            title="Compartir"
+                            type="button"
+                            disabled={shareState?.loading}
+                          >
+                            {shareState?.loading ? "…" : "🔗"}
+                          </button>
+                          <button
                             onClick={() =>
-                              router.push(`/events/new/details?edit=${ev.id}`)
+                              router.push(`/events/new/details?edit=${eventId}`)
                             }
                             style={iconBtn}
                             title="Editar"
@@ -233,7 +399,7 @@ export default function EventsTimeline({
                             ✏️
                           </button>
                           <button
-                            onClick={() => onDelete(String(ev.id))}
+                            onClick={() => onDelete(eventId)}
                             style={iconBtn}
                             title="Eliminar"
                             type="button"
@@ -268,6 +434,57 @@ export default function EventsTimeline({
                           </span>
                         )}
                       </div>
+
+                      {(shareState?.loading || shareState?.link || shareState?.error) && (
+                        <div style={S.sharePanel}>
+                          <div style={S.sharePanelHeader}>
+                            <div>
+                              <div style={S.shareKicker}>Invitación externa</div>
+                              <div style={S.shareTitle}>Compartir este plan</div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => onCloseShare(eventId)}
+                              style={S.shareCloseBtn}
+                            >
+                              Cerrar
+                            </button>
+                          </div>
+
+                          {shareState.loading ? (
+                            <div style={S.shareStatus}>Generando link…</div>
+                          ) : shareState.error ? (
+                            <div style={S.shareError}>{shareState.error}</div>
+                          ) : shareState.link ? (
+                            <>
+                              <div style={S.shareStatus}>
+                                Link listo. Puedes copiarlo o enviarlo por WhatsApp.
+                              </div>
+
+                              <div style={S.shareLinkBox}>{shareState.link}</div>
+
+                              <div style={S.shareActionsRow}>
+                                <button
+                                  type="button"
+                                  onClick={() => onCopyLink(ev)}
+                                  style={S.sharePrimaryBtn}
+                                >
+                                  {shareState.copied ? "Link copiado" : "Copiar link"}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => onWhatsApp(ev)}
+                                  style={S.shareSecondaryBtn}
+                                >
+                                  Enviar por WhatsApp
+                                </button>
+                              </div>
+                            </>
+                          ) : null}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -403,6 +620,89 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 11,
     fontWeight: 800,
     lineHeight: 1,
+  },
+  sharePanel: {
+    marginTop: 4,
+    borderRadius: 14,
+    border: "1px solid rgba(103,232,249,0.18)",
+    background:
+      "linear-gradient(180deg, rgba(6,182,212,0.10), rgba(15,23,42,0.50))",
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  sharePanelHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  shareKicker: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    fontWeight: 800,
+    color: "rgba(125,211,252,0.92)",
+  },
+  shareTitle: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.98)",
+  },
+  shareCloseBtn: {
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(226,232,240,0.95)",
+    fontSize: 12,
+    fontWeight: 700,
+    padding: "7px 10px",
+    cursor: "pointer",
+  },
+  shareStatus: {
+    fontSize: 12,
+    color: "rgba(226,232,240,0.88)",
+  },
+  shareError: {
+    fontSize: 12,
+    color: "rgba(252,165,165,0.98)",
+    fontWeight: 700,
+  },
+  shareLinkBox: {
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(2,6,23,0.55)",
+    color: "rgba(224,242,254,0.96)",
+    fontSize: 12,
+    lineHeight: 1.45,
+    padding: "10px 12px",
+    wordBreak: "break-all",
+  },
+  shareActionsRow: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  sharePrimaryBtn: {
+    borderRadius: 999,
+    border: "1px solid rgba(103,232,249,0.28)",
+    background: "rgba(6,182,212,0.18)",
+    color: "rgba(236,254,255,0.98)",
+    fontSize: 12,
+    fontWeight: 800,
+    padding: "10px 14px",
+    cursor: "pointer",
+  },
+  shareSecondaryBtn: {
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.96)",
+    fontSize: 12,
+    fontWeight: 800,
+    padding: "10px 14px",
+    cursor: "pointer",
   },
 };
 
