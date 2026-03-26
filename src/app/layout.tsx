@@ -25,7 +25,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" style={{ background: "#0B0F19" }}>
+    <html
+      lang="es"
+      style={
+        {
+          background: "#0B0F19",
+          ["--sp-bottom-nav-height" as any]: "94px",
+          ["--sp-bottom-nav-offset" as any]: "12px",
+          ["--sp-bottom-safe" as any]:
+            "calc(var(--sp-bottom-nav-height) + var(--sp-bottom-nav-offset) + env(safe-area-inset-bottom))",
+        } as React.CSSProperties
+      }
+    >
       <head>
         <link rel="manifest" href="/manifest.webmanifest" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -41,13 +52,20 @@ export default function RootLayout({
           minHeight: "100dvh",
           background: "#0B0F19",
           color: "#E5E7EB",
+          margin: 0,
         }}
       >
         <SWRegister />
         <ToastProvider>
-         <div style={{ paddingBottom: "calc(78px + env(safe-area-inset-bottom))" }}>
-  {children}
-</div>
+          <div
+            style={{
+              minHeight: "100dvh",
+              paddingBottom: "var(--sp-bottom-safe)",
+              boxSizing: "border-box",
+            }}
+          >
+            {children}
+          </div>
 
           <div className="md:hidden">
             <BottomNavVisibility />

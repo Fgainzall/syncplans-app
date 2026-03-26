@@ -343,9 +343,7 @@ export default function BottomNav() {
 
   if (shouldHideBottomNav(pathname)) return null;
 
-const isPanelRelatedPath = (path: string) => {
-  return path.startsWith("/panel");
-};
+  const isPanelRelatedPath = (path: string) => path.startsWith("/panel");
 
   const isActive = (key: BottomNavKey) => {
     if (key === "summary") return pathname.startsWith("/summary");
@@ -362,47 +360,49 @@ const isPanelRelatedPath = (path: string) => {
   };
 
   return (
-    <nav style={S.wrap} aria-label="Navegación principal">
-      <div style={S.viewport}>
-        <div style={S.track}>
-          {NAV_ITEMS.map((item) => {
-            const active =
-              item.key === "panel"
-                ? isPanelRelatedPath(pathname)
-                : isActive(item.key);
+    <nav style={S.outer} aria-label="Navegación principal">
+      <div style={S.wrap}>
+        <div style={S.viewport}>
+          <div style={S.track}>
+            {NAV_ITEMS.map((item) => {
+              const active =
+                item.key === "panel"
+                  ? isPanelRelatedPath(pathname)
+                  : isActive(item.key);
 
-            return (
-              <Link
-                key={item.key}
-                href={item.path}
-                aria-label={item.aria}
-                aria-current={active ? "page" : undefined}
-                style={{
-                  ...S.item,
-                  ...(active ? S.itemActive : {}),
-                }}
-              >
-                <div
-                  aria-hidden="true"
+              return (
+                <Link
+                  key={item.key}
+                  href={item.path}
+                  aria-label={item.aria}
+                  aria-current={active ? "page" : undefined}
                   style={{
-                    ...S.iconWrap,
-                    ...(active ? S.iconWrapActive : {}),
+                    ...S.item,
+                    ...(active ? S.itemActive : {}),
                   }}
                 >
-                  {iconFor(item.key, active)}
-                </div>
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      ...S.iconWrap,
+                      ...(active ? S.iconWrapActive : {}),
+                    }}
+                  >
+                    {iconFor(item.key, active)}
+                  </div>
 
-                <span
-                  style={{
-                    ...S.label,
-                    ...(active ? S.labelActive : {}),
-                  }}
-                >
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
+                  <span
+                    style={{
+                      ...S.label,
+                      ...(active ? S.labelActive : {}),
+                    }}
+                  >
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </div>
     </nav>
@@ -410,21 +410,31 @@ const isPanelRelatedPath = (path: string) => {
 }
 
 const S: Record<string, React.CSSProperties> = {
-  wrap: {
+  outer: {
     position: "fixed",
-    left: 10,
-    right: 10,
-    bottom: 10,
-    zIndex: 70,
-    borderRadius: 18,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 90,
+    pointerEvents: "none",
+    paddingLeft: 10,
+    paddingRight: 10,
+    paddingBottom: "calc(var(--sp-bottom-nav-offset, 12px) + env(safe-area-inset-bottom))",
+    boxSizing: "border-box",
+  },
+
+  wrap: {
+    pointerEvents: "auto",
+    maxWidth: 560,
+    margin: "0 auto",
+    borderRadius: 20,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(8,12,20,0.84)",
+    background: "rgba(8,12,20,0.88)",
     boxShadow:
-      "0 16px 40px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.04)",
-    backdropFilter: "blur(18px)",
-    WebkitBackdropFilter: "blur(18px)",
+      "0 20px 50px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.04)",
+    backdropFilter: "blur(20px)",
+    WebkitBackdropFilter: "blur(20px)",
     padding: 4,
-    paddingBottom: "calc(4px + env(safe-area-inset-bottom))",
   },
 
   viewport: {
@@ -448,7 +458,7 @@ const S: Record<string, React.CSSProperties> = {
 
   item: {
     minWidth: 74,
-    minHeight: 56,
+    minHeight: 58,
     padding: "8px 8px 10px",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.06)",

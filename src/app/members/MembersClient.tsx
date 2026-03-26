@@ -46,6 +46,17 @@ export default function MembersClient() {
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [meId, setMeId] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const onResize = () => {
+      setIsMobile(window.innerWidth < 860);
+    };
+
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -205,7 +216,9 @@ export default function MembersClient() {
         <div style={S.toastWrap}>
           <div style={S.toastCard}>
             <div style={S.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? <div style={S.toastSub}>{toast.subtitle}</div> : null}
+            {toast.subtitle ? (
+              <div style={S.toastSub}>{toast.subtitle}</div>
+            ) : null}
           </div>
         </div>
       )}
@@ -225,7 +238,8 @@ export default function MembersClient() {
                 Crea primero un grupo para empezar a invitar personas y ver quién
                 participa en la coordinación compartida.
               </p>
-              <div style={S.actionsRow}>
+
+              <div style={S.actionButtons}>
                 <button
                   type="button"
                   style={S.primaryBtn}
@@ -246,44 +260,99 @@ export default function MembersClient() {
         ) : (
           <Card>
             <Section>
-              <div style={S.headerRow}>
+              <div
+                style={{
+                  ...S.headerBlock,
+                  ...(isMobile ? S.headerBlockMobile : null),
+                }}
+              >
                 <div style={S.headerCopy}>
                   <div style={S.kicker}>Estructura del grupo</div>
                   <h1 style={S.h1}>Miembros</h1>
                   <p style={S.sub}>
-                    Revisa quién forma parte de <b>{activeGroup?.name || nombrePorTipo(activeGroup?.type)}</b> y qué rol tiene cada persona dentro del espacio compartido.
+                    Revisa quién forma parte de{" "}
+                    <b>
+                      {activeGroup?.name || nombrePorTipo(activeGroup?.type)}
+                    </b>{" "}
+                    y qué rol tiene cada persona dentro del espacio compartido.
                   </p>
                 </div>
 
-                <div style={S.actionsRow}>
-                  <button type="button" style={S.ghostBtn} onClick={() => router.push("/groups")}>Ver grupos</button>
-                  <button type="button" style={S.primaryBtn} onClick={goToInvite}>Invitar miembro</button>
+                <div
+                  style={{
+                    ...S.actionButtons,
+                    ...(isMobile ? S.actionButtonsMobile : null),
+                  }}
+                >
+                  <button
+                    type="button"
+                    style={{
+                      ...S.ghostBtn,
+                      ...(isMobile ? S.fullBtn : null),
+                    }}
+                    onClick={() => router.push("/groups")}
+                  >
+                    Ver grupos
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      ...S.primaryBtn,
+                      ...(isMobile ? S.fullBtn : null),
+                    }}
+                    onClick={goToInvite}
+                  >
+                    Invitar miembro
+                  </button>
                 </div>
               </div>
 
-              <Card tone="muted" style={S.heroCard}>
+              <Card
+                tone="muted"
+                style={{
+                  ...S.heroCard,
+                  ...(isMobile ? S.heroCardMobile : null),
+                }}
+              >
                 <div style={S.heroLeft}>
                   <div style={S.heroPill}>
                     <span style={S.heroDot} />
                     Grupo activo
                   </div>
-                  <h2 style={S.heroTitle}>{activeGroup?.name || nombrePorTipo(activeGroup?.type)}</h2>
+
+                  <h2 style={S.heroTitle}>
+                    {activeGroup?.name || nombrePorTipo(activeGroup?.type)}
+                  </h2>
+
                   <p style={S.heroText}>
                     Cambia de grupo para revisar sus miembros, confirmar roles y
                     enviar nuevas invitaciones sin salir del flujo administrativo.
                   </p>
                 </div>
 
-                <div style={S.heroRight}>
+                <div
+                  style={{
+                    ...S.heroRight,
+                    ...(isMobile ? S.heroRightMobile : null),
+                  }}
+                >
                   <label style={S.selectLabel}>Grupo</label>
-                  <select value={activeGroupId ?? ""} onChange={onChangeGroup} style={S.select}>
+                  <select
+                    value={activeGroupId ?? ""}
+                    onChange={onChangeGroup}
+                    style={S.select}
+                  >
                     {groups.map((g) => (
                       <option key={g.id} value={g.id}>
                         {g.name || nombrePorTipo(g.type)}
                       </option>
                     ))}
                   </select>
-                  <div style={S.summaryMini}>{memberCount} miembro{memberCount === 1 ? "" : "s"} visible{memberCount === 1 ? "" : "s"}</div>
+
+                  <div style={S.summaryMini}>
+                    {memberCount} miembro{memberCount === 1 ? "" : "s"} visible
+                    {memberCount === 1 ? "" : "s"}
+                  </div>
                 </div>
               </Card>
 
@@ -298,15 +367,20 @@ export default function MembersClient() {
                     <div style={S.loadingDot} />
                     <div>
                       <div style={S.loadingTitle}>Cargando miembros…</div>
-                      <div style={S.loadingSub}>Leyendo grupo activo y perfiles</div>
+                      <div style={S.loadingSub}>
+                        Leyendo grupo activo y perfiles
+                      </div>
                     </div>
                   </div>
                 </Card>
               ) : !hasMembers ? (
                 <Card tone="muted" style={S.emptyCard}>
-                  <div style={S.emptyTitle}>Aún no hay más miembros en este grupo</div>
+                  <div style={S.emptyTitle}>
+                    Aún no hay más miembros en este grupo
+                  </div>
                   <div style={S.emptyText}>
-                    En cuanto alguien acepte tu invitación, aparecerá aquí con su rol asignado.
+                    En cuanto alguien acepte tu invitación, aparecerá aquí con
+                    su rol asignado.
                   </div>
                   <button
                     type="button"
@@ -322,7 +396,7 @@ export default function MembersClient() {
               ) : (
                 <div style={S.list}>
                   {members.map((m) => (
-                    <MemberRowView key={m.id} member={m} />
+                    <MemberRowView key={m.id} member={m} isMobile={isMobile} />
                   ))}
                 </div>
               )}
@@ -354,7 +428,13 @@ function memberDisplayName(member: MemberRow): string {
   return full || "Miembro";
 }
 
-function MemberRowView({ member }: { member: MemberRow }) {
+function MemberRowView({
+  member,
+  isMobile,
+}: {
+  member: MemberRow;
+  isMobile: boolean;
+}) {
   const roleLabel = labelForRole(member.role);
   const isOwner = member.role === "owner";
   const isAdmin = member.role === "admin";
@@ -369,7 +449,13 @@ function MemberRowView({ member }: { member: MemberRow }) {
   }
 
   return (
-    <Card tone="muted" style={S.memberCard}>
+    <Card
+      tone="muted"
+      style={{
+        ...S.memberCard,
+        ...(isMobile ? S.memberCardMobile : null),
+      }}
+    >
       <div style={S.memberMain}>
         <div style={S.avatarCircle}>{avatarText}</div>
         <div style={S.memberCopy}>
@@ -407,6 +493,7 @@ const S: Record<string, React.CSSProperties> = {
       "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
   },
+
   toastWrap: {
     position: "fixed",
     top: 18,
@@ -426,43 +513,298 @@ const S: Record<string, React.CSSProperties> = {
   },
   toastTitle: { fontWeight: 900, fontSize: 13 },
   toastSub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 },
-  headerRow: { display: "flex", justifyContent: "space-between", gap: 18, flexWrap: "wrap", alignItems: "flex-start" },
-  headerCopy: { flex: 1, minWidth: 0 },
-  kicker: { fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(148,163,184,0.95)", fontWeight: 800, marginBottom: 6 },
-  h1: { margin: 0, fontSize: 22, letterSpacing: "-0.03em", fontWeight: 950 },
-  sub: { marginTop: 6, fontSize: 13, color: "rgba(209,213,219,0.96)", maxWidth: 620, lineHeight: 1.65 },
-  actionsRow: { display: "flex", gap: 10, flexWrap: "wrap" },
-  heroCard: { display: "flex", gap: 18, flexWrap: "wrap", alignItems: "stretch" },
-  heroLeft: { flex: 1, minWidth: 220 },
-  heroPill: { display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 999, border: "1px solid rgba(191,219,254,0.9)", background: "rgba(15,23,42,0.9)", fontSize: 11, color: "rgba(219,234,254,0.98)", letterSpacing: "0.10em", textTransform: "uppercase", marginBottom: 8 },
-  heroDot: { width: 8, height: 8, borderRadius: 999, background: "rgba(59,130,246,0.98)" },
-  heroTitle: { margin: 0, fontSize: 18, fontWeight: 950 },
-  heroText: { marginTop: 8, fontSize: 13, lineHeight: 1.65, color: "rgba(226,232,240,0.96)" },
-  heroRight: { width: 260, display: "flex", flexDirection: "column", justifyContent: "center", gap: 8 },
-  selectLabel: { fontSize: 12, fontWeight: 800, color: "rgba(191,219,254,0.98)" },
-  select: { minWidth: 200, height: 42, borderRadius: 14, border: "1px solid rgba(148,163,184,0.7)", background: "rgba(15,23,42,0.9)", color: "#E5E7EB", padding: "0 12px", fontSize: 13, fontWeight: 700 },
-  summaryMini: { fontSize: 12, color: "rgba(148,163,184,0.96)", lineHeight: 1.5 },
-  loadingRow: { display: "flex", gap: 10, alignItems: "center" },
-  loadingDot: { width: 12, height: 12, borderRadius: 999, background: "rgba(56,189,248,0.95)", boxShadow: "0 0 20px rgba(56,189,248,0.70)" },
-  loadingTitle: { fontSize: 13, fontWeight: 900 },
-  loadingSub: { marginTop: 2, fontSize: 12, color: "rgba(209,213,219,0.96)" },
-  errorCard: { border: "1px solid rgba(248,113,113,0.22)", background: "rgba(248,113,113,0.08)" },
-  errorTitle: { fontSize: 15, fontWeight: 900, color: "#ffe6e6" },
-  errorText: { marginTop: 6, fontSize: 13, color: "#ffe6e6", lineHeight: 1.55 },
-  emptyCard: { textAlign: "center" },
-  emptyTitle: { fontSize: 16, fontWeight: 950 },
-  emptyText: { marginTop: 6, color: "rgba(209,213,219,0.96)", fontSize: 13, lineHeight: 1.65 },
-  list: { display: "flex", flexDirection: "column", gap: 10 },
-  memberCard: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 },
-  memberMain: { display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 },
-  memberCopy: { minWidth: 0, flex: 1 },
-  avatarCircle: { width: 38, height: 38, borderRadius: 999, background: "rgba(37,99,235,0.18)", border: "1px solid rgba(59,130,246,0.6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "#E5E7EB", flexShrink: 0 },
-  memberName: { fontSize: 14, fontWeight: 900, color: "#E5E7EB" },
-  memberSub: { marginTop: 2, fontSize: 12, color: "rgba(148,163,184,0.96)", lineHeight: 1.5 },
-  roleBadge: { padding: "6px 12px", borderRadius: 999, border: "1px solid rgba(148,163,184,0.7)", fontSize: 11, fontWeight: 800, flexShrink: 0 },
-  roleOwner: { borderColor: "rgba(249,115,22,0.9)", background: "rgba(248,113,113,0.12)", color: "#FED7AA" },
-  roleAdmin: { borderColor: "rgba(59,130,246,0.9)", background: "rgba(59,130,246,0.12)", color: "#BFDBFE" },
-  roleMember: { borderColor: "rgba(148,163,184,0.9)", background: "rgba(148,163,184,0.12)", color: "#E5E7EB" },
-  primaryBtn: { padding: "10px 14px", borderRadius: 14, border: "1px solid rgba(96,165,250,0.85)", background: "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95))", color: "white", cursor: "pointer", fontWeight: 900, fontSize: 13 },
-  ghostBtn: { padding: "10px 14px", borderRadius: 14, border: "1px solid rgba(148,163,184,0.75)", background: "rgba(15,23,42,0.96)", color: "rgba(226,232,240,0.98)", cursor: "pointer", fontWeight: 800, fontSize: 13 },
+
+  headerBlock: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 20,
+    marginBottom: 4,
+  },
+  headerBlockMobile: {
+    flexDirection: "column",
+    alignItems: "stretch",
+  },
+  headerCopy: {
+    flex: 1,
+    minWidth: 0,
+    maxWidth: 760,
+  },
+
+  kicker: {
+    fontSize: 11,
+    letterSpacing: "0.14em",
+    textTransform: "uppercase",
+    color: "rgba(148,163,184,0.95)",
+    fontWeight: 800,
+    marginBottom: 6,
+  },
+  h1: {
+    margin: 0,
+    fontSize: 22,
+    letterSpacing: "-0.03em",
+    fontWeight: 950,
+  },
+  sub: {
+    marginTop: 8,
+    marginBottom: 0,
+    fontSize: 14,
+    color: "rgba(209,213,219,0.96)",
+    maxWidth: 760,
+    lineHeight: 1.7,
+    whiteSpace: "normal",
+    wordBreak: "normal",
+    overflowWrap: "break-word",
+  },
+
+  actionButtons: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flexShrink: 0,
+  },
+  actionButtonsMobile: {
+    width: "100%",
+    justifyContent: "stretch",
+    flexDirection: "column",
+  },
+  fullBtn: {
+    width: "100%",
+  },
+
+  heroCard: {
+    display: "flex",
+    gap: 18,
+    alignItems: "stretch",
+    justifyContent: "space-between",
+    flexWrap: "nowrap",
+  },
+  heroCardMobile: {
+    flexDirection: "column",
+  },
+  heroLeft: {
+    flex: 1,
+    minWidth: 0,
+  },
+  heroPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(191,219,254,0.9)",
+    background: "rgba(15,23,42,0.9)",
+    fontSize: 11,
+    color: "rgba(219,234,254,0.98)",
+    letterSpacing: "0.10em",
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  heroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(59,130,246,0.98)",
+  },
+  heroTitle: {
+    margin: 0,
+    fontSize: 18,
+    fontWeight: 950,
+  },
+  heroText: {
+    marginTop: 8,
+    marginBottom: 0,
+    fontSize: 13,
+    lineHeight: 1.7,
+    color: "rgba(226,232,240,0.96)",
+  },
+  heroRight: {
+    width: 280,
+    minWidth: 280,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    gap: 8,
+  },
+  heroRightMobile: {
+    width: "100%",
+    minWidth: 0,
+  },
+
+  selectLabel: {
+    fontSize: 12,
+    fontWeight: 800,
+    color: "rgba(191,219,254,0.98)",
+  },
+  select: {
+    width: "100%",
+    minWidth: 0,
+    height: 44,
+    borderRadius: 14,
+    border: "1px solid rgba(148,163,184,0.7)",
+    background: "rgba(15,23,42,0.9)",
+    color: "#E5E7EB",
+    padding: "0 12px",
+    fontSize: 13,
+    fontWeight: 700,
+  },
+  summaryMini: {
+    fontSize: 12,
+    color: "rgba(148,163,184,0.96)",
+    lineHeight: 1.5,
+  },
+
+  loadingRow: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+  },
+  loadingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 20px rgba(56,189,248,0.70)",
+  },
+  loadingTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+  },
+  loadingSub: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "rgba(209,213,219,0.96)",
+  },
+
+  errorCard: {
+    border: "1px solid rgba(248,113,113,0.22)",
+    background: "rgba(248,113,113,0.08)",
+  },
+  errorTitle: {
+    fontSize: 15,
+    fontWeight: 900,
+    color: "#ffe6e6",
+  },
+  errorText: {
+    marginTop: 6,
+    fontSize: 13,
+    color: "#ffe6e6",
+    lineHeight: 1.55,
+  },
+
+  emptyCard: {
+    textAlign: "center",
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: 950,
+  },
+  emptyText: {
+    marginTop: 6,
+    color: "rgba(209,213,219,0.96)",
+    fontSize: 13,
+    lineHeight: 1.65,
+    marginBottom: 14,
+  },
+
+  list: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  memberCard: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  },
+  memberCardMobile: {
+    flexDirection: "column",
+    alignItems: "stretch",
+  },
+  memberMain: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    minWidth: 0,
+    flex: 1,
+  },
+  memberCopy: {
+    minWidth: 0,
+    flex: 1,
+  },
+  avatarCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    background: "rgba(37,99,235,0.18)",
+    border: "1px solid rgba(59,130,246,0.6)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 12,
+    fontWeight: 800,
+    color: "#E5E7EB",
+    flexShrink: 0,
+  },
+  memberName: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "#E5E7EB",
+  },
+  memberSub: {
+    marginTop: 3,
+    fontSize: 12,
+    color: "rgba(148,163,184,0.96)",
+    lineHeight: 1.5,
+  },
+
+  roleBadge: {
+    padding: "6px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.7)",
+    fontSize: 11,
+    fontWeight: 800,
+    flexShrink: 0,
+    alignSelf: "center",
+  },
+  roleOwner: {
+    borderColor: "rgba(249,115,22,0.9)",
+    background: "rgba(248,113,113,0.12)",
+    color: "#FED7AA",
+  },
+  roleAdmin: {
+    borderColor: "rgba(59,130,246,0.9)",
+    background: "rgba(59,130,246,0.12)",
+    color: "#BFDBFE",
+  },
+  roleMember: {
+    borderColor: "rgba(148,163,184,0.9)",
+    background: "rgba(148,163,184,0.12)",
+    color: "#E5E7EB",
+  },
+
+  primaryBtn: {
+    padding: "11px 16px",
+    borderRadius: 14,
+    border: "1px solid rgba(96,165,250,0.85)",
+    background:
+      "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95))",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: 900,
+    fontSize: 13,
+  },
+  ghostBtn: {
+    padding: "11px 16px",
+    borderRadius: 14,
+    border: "1px solid rgba(148,163,184,0.75)",
+    background: "rgba(15,23,42,0.96)",
+    color: "rgba(226,232,240,0.98)",
+    cursor: "pointer",
+    fontWeight: 800,
+    fontSize: 13,
+  },
 };
