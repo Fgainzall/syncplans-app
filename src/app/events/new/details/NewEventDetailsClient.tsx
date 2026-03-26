@@ -1220,10 +1220,15 @@ setPostSaveActions({
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setPostSaveActions(null);
-                    setToast(null);
-                  }}
+                 onClick={() => {
+  const nextStart = new Date();
+  const nextEnd = addMinutes(nextStart, 60);
+
+  setPostSaveActions(null);
+  setToast(null);
+  setStartLocal(toInputLocal(nextStart));
+  setEndLocal(toInputLocal(nextEnd));
+}}
                   style={styles.primaryBtn}
                 >
                   Crear otro similar
