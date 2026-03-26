@@ -1361,167 +1361,166 @@ function renderMonthCells(opts: {
       cellDate.getDay() === 0 || cellDate.getDay() === 6;
     const dayKey = ymd(cellDate);
 
-    cells.push(
+cells.push(
+  <div
+    key={dayKey}
+    role="button"
+    tabIndex={0}
+    onClick={() => setSelectedDay(new Date(cellDate))}
+    onKeyDown={(ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        setSelectedDay(new Date(cellDate));
+      }
+    }}
+    style={{
+      ...styles.cell,
+      minHeight: isMobile ? 112 : 140,
+      padding: isMobile ? "9px 8px 8px" : styles.cell.padding,
+      borderRadius: isMobile ? 16 : styles.cell.borderRadius,
+      opacity: inMonth ? 1 : 0.38,
+      outline: isSelected
+        ? "2px solid rgba(255,255,255,0.22)"
+        : "1px solid rgba(255,255,255,0.08)",
+      background: isSelected
+        ? "rgba(255,255,255,0.06)"
+        : isWeekend
+        ? "rgba(148,163,184,0.05)"
+        : "rgba(255,255,255,0.03)",
+      borderColor: isToday
+        ? "rgba(56,189,248,0.35)"
+        : "rgba(255,255,255,0.08)",
+    }}
+    className="spCal-cell"
+  >
+    <div style={styles.cellTop} className="spCal-cellTop">
       <div
-        key={dayKey}
-        role="button"
-        tabIndex={0}
-        onClick={() => setSelectedDay(new Date(cellDate))}
-        onKeyDown={(ev) => {
-          if (ev.key === "Enter" || ev.key === " ") {
-            ev.preventDefault();
-            setSelectedDay(new Date(cellDate));
-          }
+        style={{
+          ...styles.cellDay,
+          fontSize: isMobile ? 11 : styles.cellDay.fontSize,
+          ...(isToday
+            ? {
+                ...styles.cellDayToday,
+                padding: isMobile ? "1px 6px" : styles.cellDayToday.padding,
+              }
+            : {}),
         }}
-style={{
-  ...styles.cell,
-  minHeight: isMobile ? 112 : 140,
-  padding: isMobile ? "9px 8px 8px" : styles.cell.padding,
-  borderRadius: isMobile ? 16 : styles.cell.borderRadius,
-          opacity: inMonth ? 1 : 0.38,
-          outline: isSelected
-            ? "2px solid rgba(255,255,255,0.22)"
-            : "1px solid rgba(255,255,255,0.08)",
-          background: isSelected
-            ? "rgba(255,255,255,0.06)"
-            : isWeekend
-            ? "rgba(148,163,184,0.05)"
-            : "rgba(255,255,255,0.03)",
-          borderColor: isToday
-            ? "rgba(56,189,248,0.35)"
-            : "rgba(255,255,255,0.08)",
-        }}
-        className="spCal-cell"
       >
-        <div style={styles.cellTop} className="spCal-cellTop">
-          <div
+        {cellDate.getDate()}
+      </div>
+
+      <div style={styles.cellTopRight}>
+        <button
+          type="button"
+          onClick={(ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openNewEventPersonal(new Date(cellDate));
+          }}
+          style={{
+            ...styles.cellQuickBtnPersonal,
+            width: isMobile ? 24 : styles.cellQuickBtnPersonal.width,
+            height: isMobile ? 24 : styles.cellQuickBtnPersonal.height,
+            borderRadius: 999,
+            fontSize: isMobile ? 14 : styles.cellQuickBtnPersonal.fontSize,
+            lineHeight: isMobile ? "24px" : styles.cellQuickBtnPersonal.lineHeight,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+          aria-label="Crear evento"
+          title="Crear evento"
+        >
+          +
+        </button>
+      </div>
+    </div>
+
+    <div style={styles.cellEvents} className="spCal-cellEvents">
+      {dayEvents.length > 0 && (
+        <div style={{ ...styles.cellCountRow, marginBottom: isMobile ? 2 : 4 }}>
+          <span
             style={{
-              ...styles.cellDay,
-              fontSize: isMobile ? 11 : styles.cellDay.fontSize,
-              ...(isToday
-                ? {
-                    ...styles.cellDayToday,
-                    padding: isMobile ? "1px 6px" : styles.cellDayToday.padding,
-                  }
-                : {}),
+              ...styles.cellCount,
+              fontSize: isMobile ? 10 : styles.cellCount.fontSize,
+              padding: isMobile ? "1px 5px" : styles.cellCount.padding,
             }}
           >
-            {cellDate.getDate()}
-          </div>
-
-<div style={styles.cellTop} className="spCal-cellTop">
-  <div
-    style={{
-      ...styles.cellDay,
-      fontSize: isMobile ? 11 : styles.cellDay.fontSize,
-      ...(isToday
-        ? {
-            ...styles.cellDayToday,
-            padding: isMobile ? "1px 6px" : styles.cellDayToday.padding,
-          }
-        : {}),
-    }}
-  >
-    {cellDate.getDate()}
-  </div>
-
-  <div style={styles.cellTopRight}>
-    <button
-      type="button"
-      onClick={(ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        openNewEventPersonal(new Date(cellDate));
-      }}
-      style={{
-        ...styles.cellQuickBtnPersonal,
-        width: isMobile ? 24 : styles.cellQuickBtnPersonal.width,
-        height: isMobile ? 24 : styles.cellQuickBtnPersonal.height,
-        borderRadius: 999,
-        fontSize: isMobile ? 14 : styles.cellQuickBtnPersonal.fontSize,
-        lineHeight: isMobile ? "24px" : styles.cellQuickBtnPersonal.lineHeight,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-      }}
-      aria-label="Crear evento"
-      title="Crear evento"
-    >
-      +
-    </button>
-  </div>
-</div>
-          {dayEvents.length > 0 && (
-            <div style={{ ...styles.cellCountRow, marginBottom: isMobile ? 2 : 4 }}>
-              <span style={{ ...styles.cellCount, fontSize: isMobile ? 10 : styles.cellCount.fontSize, padding: isMobile ? "1px 5px" : styles.cellCount.padding }}>
-                {dayEvents.length}
-              </span>
-            </div>
-          )}
-
-          {(isMobile ? top3.slice(0, 2) : top3).map((e) => {
-            const resolvedType: GroupType = e.groupId
-              ? ((groupTypeById.get(String(e.groupId)) ?? "pair") as GroupType)
-              : ("personal" as GroupType);
-
-            const meta = groupMeta(resolvedType);
-
-            return (
-              <div
-                key={e.id ?? `${e.start}_${e.end}`}
-                onClick={(ev) => {
-                  ev.preventDefault();
-                  ev.stopPropagation();
-                  onEdit(e);
-                }}
-                style={{
-                  ...styles.cellEventLine,
-                  cursor: "pointer",
-                }}
-                className="spCal-chip"
-              >
-                <span
-                  style={{
-                    ...styles.miniDot,
-                    background: meta.dot,
-                  }}
-                />
-                <span style={{ ...styles.cellEventText, fontSize: isMobile ? 11 : styles.cellEventText.fontSize }}>
-                  {e.title || "Evento"}
-                </span>
-              </div>
-            );
-          })}
-
-          {dayEvents.length > 3 ? (
-            <div
-              className="spCal-moreHint"
-              style={{ ...styles.moreHint, fontSize: isMobile ? 11 : styles.moreHint.fontSize }}
-            >
-              +{dayEvents.length - 3} más
-            </div>
-          ) : null}
+            {dayEvents.length}
+          </span>
         </div>
-      </div>
-    );
+      )}
 
+      {(isMobile ? top3.slice(0, 2) : top3).map((e) => {
+        const resolvedType: GroupType = e.groupId
+          ? ((groupTypeById.get(String(e.groupId)) ?? "pair") as GroupType)
+          : ("personal" as GroupType);
+
+        const meta = groupMeta(resolvedType);
+
+        return (
+          <div
+            key={e.id ?? `${e.start}_${e.end}`}
+            onClick={(ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              onEdit(e);
+            }}
+            style={{
+              ...styles.cellEventLine,
+              cursor: "pointer",
+            }}
+            className="spCal-chip"
+          >
+            <span
+              style={{
+                ...styles.miniDot,
+                background: meta.dot,
+              }}
+            />
+            <span
+              style={{
+                ...styles.cellEventText,
+                fontSize: isMobile ? 11 : styles.cellEventText.fontSize,
+              }}
+            >
+              {e.title || "Evento"}
+            </span>
+          </div>
+        );
+      })}
+
+      {dayEvents.length > 3 ? (
+        <div
+          className="spCal-moreHint"
+          style={{
+            ...styles.moreHint,
+            fontSize: isMobile ? 11 : styles.moreHint.fontSize,
+          }}
+        >
+          +{dayEvents.length - 3} más
+        </div>
+      ) : null}
+    </div>
+  </div>
+);
     day.setDate(day.getDate() + 1);
   }
 
   return cells;
 }
-
 /* =========================
    Styles
    ========================= */
 const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100%",
-    background:
-      "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.20), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.16), transparent 60%), linear-gradient(180deg, #050816 0%, #060a18 42%, #050816 100%)",
-    color: "rgba(255,255,255,0.94)",
-  },
+ page: {
+  minHeight: "100%",
+  overflowX: "hidden",
+  background:
+    "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.20), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.16), transparent 60%), linear-gradient(180deg, #050816 0%, #060a18 42%, #050816 100%)",
+  color: "rgba(255,255,255,0.94)",
+},
 
   stickyTop: {
     position: "sticky",
@@ -1679,6 +1678,9 @@ const styles: Record<string, React.CSSProperties> = {
   groupDot: { width: 10, height: 10, borderRadius: 999 },
 
 calendarCard: {
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
   borderRadius: 22,
   border: "1px solid rgba(255,255,255,0.08)",
   background:
@@ -1686,7 +1688,6 @@ calendarCard: {
   overflow: "visible",
   boxShadow: "0 34px 90px rgba(0,0,0,0.38)",
 },
-
  monthScroller: {
   width: "100%",
   overflowX: "auto",
@@ -2027,28 +2028,30 @@ eventTag: {
     boxShadow: "0 8px 20px rgba(248,113,113,0.08)",
   },
 
-  primaryBtnPersonal: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(250,204,21,0.34)",
-    background:
-      "linear-gradient(135deg, rgba(250,204,21,0.24), rgba(250,204,21,0.10))",
-    color: "rgba(255,255,255,0.97)",
-    cursor: "pointer",
-    fontWeight: 950,
-    boxShadow: "0 14px 30px rgba(250,204,21,0.10)",
-  },
-  primaryBtnGroup: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(96,165,250,0.34)",
-    background:
-      "linear-gradient(135deg, rgba(96,165,250,0.24), rgba(96,165,250,0.10))",
-    color: "rgba(255,255,255,0.97)",
-    cursor: "pointer",
-    fontWeight: 950,
-    boxShadow: "0 14px 30px rgba(96,165,250,0.10)",
-  },
+primaryBtnPersonal: {
+  flex: "1 1 160px",
+  minWidth: 0,
+  borderRadius: 18,
+  padding: "14px 16px",
+  border: "1px solid rgba(250,204,21,0.34)",
+  background: "linear-gradient(180deg, rgba(250,204,21,0.20), rgba(250,204,21,0.10))",
+  color: "rgba(255,255,255,0.96)",
+  fontSize: 15,
+  fontWeight: 800,
+  cursor: "pointer",
+},
+primaryBtnGroup: {
+  flex: "1 1 160px",
+  minWidth: 0,
+  borderRadius: 18,
+  padding: "14px 16px",
+  border: "1px solid rgba(96,165,250,0.34)",
+  background: "linear-gradient(180deg, rgba(59,130,246,0.22), rgba(59,130,246,0.12))",
+  color: "rgba(255,255,255,0.96)",
+  fontSize: 15,
+  fontWeight: 800,
+  cursor: "pointer",
+},
 
  ghostBtn: {
   padding: "8px 12px",
@@ -2276,20 +2279,18 @@ overviewSub: {
 
 overviewActions: {
   display: "flex",
-  alignItems: "center",
-  gap: 10,
   flexWrap: "wrap",
+  gap: 10,
+  width: "100%",
 },
 
 overviewMetaRow: {
-  marginTop: 10,
-  paddingTop: 10,
-  borderTop: "1px solid rgba(148,163,184,0.12)",
   display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 10,
   flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+  width: "100%",
 },
 
 statusCluster: {
