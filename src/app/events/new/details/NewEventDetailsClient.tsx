@@ -165,10 +165,16 @@ function NewEventDetailsInner() {
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<null | {
+    
     title: string;
     subtitle?: string;
   }>(null);
-
+const [postSaveActions, setPostSaveActions] = useState<null | {
+  visible: boolean;
+  eventId?: string;
+  title?: string;
+  isShared?: boolean;
+}>(null);
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
 
   const [booting, setBooting] = useState(true);
@@ -621,40 +627,45 @@ const doSave = async (
           // ok
         }
 
-        setToast(buildSuccessToast({ keepBoth: true }));
+setToast(buildSuccessToast({ keepBoth: true }));
 
-        window.setTimeout(() => {
-          router.push("/calendar");
-        }, 450);
-        return;
-      }
+setPostSaveActions({
+  visible: true,
+  title: payload.title,
+  isShared: effectiveType === "group",
+});
 
-      if (conflictResult.conflictCount > 0) {
-        setToast({
-          title: "⚠️ Conflicto detectado",
-          subtitle: "Te llevo a revisarlo ahora…",
-        });
+return;
+}
 
-        const qp = new URLSearchParams();
-        if (conflictResult.targetEventId) {
-          qp.set("eventId", String(conflictResult.targetEventId));
-        }
-        if (payload.groupId) {
-          qp.set("groupId", String(payload.groupId));
-        }
-        qp.set("from", isEditing ? "event_edit" : "event_create");
+if (conflictResult.conflictCount > 0) {
+  setToast({
+    title: "⚠️ Conflicto detectado",
+    subtitle: "Te llevo a revisarlo ahora…",
+  });
 
-        window.setTimeout(() => {
-          router.push(`/conflicts/detected?${qp.toString()}`);
-        }, 500);
-        return;
-      }
+  const qp = new URLSearchParams();
+  if (conflictResult.targetEventId) {
+    qp.set("eventId", String(conflictResult.targetEventId));
+  }
+  if (payload.groupId) {
+    qp.set("groupId", String(payload.groupId));
+  }
+  qp.set("from", isEditing ? "event_edit" : "event_create");
 
-     setToast(buildSuccessToast());
+  window.setTimeout(() => {
+    router.push(`/conflicts/detected?${qp.toString()}`);
+  }, 500);
+  return;
+}
 
-      window.setTimeout(() => {
-        router.push("/calendar");
-      }, 450);
+setToast(buildSuccessToast());
+
+setPostSaveActions({
+  visible: true,
+  title: payload.title,
+  isShared: effectiveType === "group",
+});
     } catch (err: any) {
       setToast({
         title: "No se pudo guardar",
@@ -1153,7 +1164,7 @@ const doSave = async (
             </div>
           </div>
 
-          {errors.length > 0 && (
+                {errors.length > 0 && (
             <div style={styles.errorBox}>
               <div style={styles.errorTitle}>Antes de guardar:</div>
               <ul style={styles.errorList}>
@@ -1165,6 +1176,61 @@ const doSave = async (
               </ul>
             </div>
           )}
+
+          {postSaveActions?.visible ? (
+            <div
+              style={{
+                marginTop: 14,
+                borderRadius: 16,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.04)",
+                padding: 14,
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 900 }}>
+                  {postSaveActions.isShared
+                    ? "Plan compartido guardado"
+                    : "Evento guardado"}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 12, opacity: 0.72 }}>
+                  {postSaveActions.title
+                    ? `"${postSaveActions.title}" ya quedó listo. ¿Qué quieres hacer ahora?`
+                    : "Tu evento ya quedó listo. ¿Qué quieres hacer ahora?"}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  flexWrap: "wrap",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => router.push("/calendar")}
+                  style={styles.ghostBtn}
+                >
+                  Ver calendario
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPostSaveActions(null);
+                    setToast(null);
+                  }}
+                  style={styles.primaryBtn}
+                >
+                  Crear otro similar
+                </button>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <section style={styles.footerRow}>
