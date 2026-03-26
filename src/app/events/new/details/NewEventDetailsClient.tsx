@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 import SharedConflictPreflightModal from "@/components/ConflictPreflightModal";
+import EventTemplatePicker from "@/components/events/EventTemplatePicker";
+import type { EventTemplate } from "@/lib/eventTemplates";
 import { createConflictNotificationForEvent } from "@/lib/notificationsDb";
 import {
   GroupType,
@@ -86,6 +88,7 @@ type PreflightConflict = {
   overlapStart: string;
   overlapEnd: string;
 };
+
 function getConflictCounterpart(
   conflict: ReturnType<typeof computeVisibleConflicts>[number],
   candidateId: string
@@ -109,6 +112,7 @@ function getConflictCounterpart(
 
   return null;
 }
+
 function mapDefaultResolutionToChoice(
   s: NotificationSettings | null
 ): PreflightChoice {
@@ -148,6 +152,9 @@ function NewEventDetailsInner() {
     if (rounded >= 60) d.setHours(d.getHours() + 1);
     return d;
   }, [dateParam]);
+
+  const [selectedTemplate, setSelectedTemplate] =
+    useState<EventTemplate | null>(null);
 
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
@@ -472,7 +479,23 @@ function NewEventDetailsInner() {
     if (e.getTime() <= s.getTime())
       setEndLocal(toInputLocal(addMinutes(s, 60)));
   };
+const applyTemplateSelection = (template: EventTemplate) => {
+  setSelectedTemplate(template);
+  setTitle(template.title);
+  setNotes(template.defaultNotes ?? "");
 
+  const start = fromInputLocal(startLocal);
+  if (!isNaN(start.getTime())) {
+    const nextEnd = addMinutes(start, template.defaultDurationMinutes);
+    setEndLocal(toInputLocal(nextEnd));
+  }
+};
+
+const clearTemplateSelection = () => {
+  setSelectedTemplate(null);
+  setTitle("");
+  setNotes("");
+};
   const doSave = async (
     payload: {
       groupType: GroupType;
@@ -636,56 +659,56 @@ function NewEventDetailsInner() {
       const combined = [...pf.baseEvents, pf.candidateEvent];
       const all = computeVisibleConflicts(combined);
 
-const candidateId = String(pf.candidateEvent.id);
+      const candidateId = String(pf.candidateEvent.id);
 
-const conflicts = all.filter((c) => {
-  const touchesCandidate =
-    String(c.existingEventId) === candidateId ||
-    String(c.incomingEventId) === candidateId;
+      const conflicts = all.filter((c) => {
+        const touchesCandidate =
+          String(c.existingEventId) === candidateId ||
+          String(c.incomingEventId) === candidateId;
 
-  if (!touchesCandidate) return false;
+        if (!touchesCandidate) return false;
 
-  const counterpart = getConflictCounterpart(c, candidateId);
-  if (!counterpart?.otherId) return false;
+        const counterpart = getConflictCounterpart(c, candidateId);
+        if (!counterpart?.otherId) return false;
 
-  if (
-    isEditing &&
-    eventIdParam &&
-    String(counterpart.otherId) === String(eventIdParam)
-  ) {
-    return false;
-  }
+        if (
+          isEditing &&
+          eventIdParam &&
+          String(counterpart.otherId) === String(eventIdParam)
+        ) {
+          return false;
+        }
 
-  return true;
-});
+        return true;
+      });
 
-if (!conflicts.length) {
-  return { ok: true };
-}
+      if (!conflicts.length) {
+        return { ok: true };
+      }
 
-const items: PreflightConflict[] = conflicts
-  .map((c) => {
-    const counterpart = getConflictCounterpart(c, candidateId);
-    if (!counterpart?.otherId) return null;
+      const items: PreflightConflict[] = conflicts
+        .map((c) => {
+          const counterpart = getConflictCounterpart(c, candidateId);
+          if (!counterpart?.otherId) return null;
 
-    const otherEvent = counterpart.otherEvent;
-    const gm = groupMeta(otherEvent?.groupType ?? "personal");
+          const otherEvent = counterpart.otherEvent;
+          const gm = groupMeta(otherEvent?.groupType ?? "personal");
 
-    return {
-      id: c.id,
-      existingId: String(counterpart.otherId),
-      title: otherEvent?.title ?? "Evento existente",
-      groupLabel: gm.label,
-      range: otherEvent ? fmtRange(otherEvent.start, otherEvent.end) : "—",
-      overlapStart: c.overlapStart,
-      overlapEnd: c.overlapEnd,
-    };
-  })
-  .filter(Boolean) as PreflightConflict[];
+          return {
+            id: c.id,
+            existingId: String(counterpart.otherId),
+            title: otherEvent?.title ?? "Evento existente",
+            groupLabel: gm.label,
+            range: otherEvent ? fmtRange(otherEvent.start, otherEvent.end) : "—",
+            overlapStart: c.overlapStart,
+            overlapEnd: c.overlapEnd,
+          };
+        })
+        .filter(Boolean) as PreflightConflict[];
 
-setExistingIdsToReplace(
-  Array.from(new Set(items.map((x) => String(x.existingId)).filter(Boolean)))
-);
+      setExistingIdsToReplace(
+        Array.from(new Set(items.map((x) => String(x.existingId)).filter(Boolean)))
+      );
       setPreflightItems(items);
       setPreflightDefaultChoice(mapDefaultResolutionToChoice(settings));
       setPreflightOpen(true);
@@ -879,6 +902,44 @@ setExistingIdsToReplace(
                 ruido.
               </div>
             </div>
+
+            {!isEditing ? (
+              <>
+             <EventTemplatePicker
+  selectedTemplateId={selectedTemplate?.id ?? null}
+  onSelect={applyTemplateSelection}
+/>
+{selectedTemplate ? (
+  <div style={styles.templatePreview}>
+    <div style={styles.templatePreviewTop}>
+      <div style={styles.templatePreviewLabel}>
+        Template elegido
+      </div>
+
+      <button
+        type="button"
+        onClick={clearTemplateSelection}
+        style={styles.templateClearBtn}
+      >
+        Empezar desde cero
+      </button>
+    </div>
+
+    <div style={styles.templatePreviewTitle}>
+      {selectedTemplate.emoji} {selectedTemplate.title}
+    </div>
+
+    <div style={styles.templatePreviewMeta}>
+      Duración sugerida: {selectedTemplate.defaultDurationMinutes} min
+      {selectedTemplate.defaultNotes
+        ? ` · ${selectedTemplate.defaultNotes}`
+        : ""}
+      {" · "}El formulario ya fue precargado y puedes ajustarlo libremente.
+    </div>
+  </div>
+) : null}
+              </>
+            ) : null}
 
             <div style={styles.field}>
               <div style={styles.fieldLabel}>Título</div>
@@ -1494,6 +1555,31 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.45,
     maxWidth: 560,
   },
+  templatePreview: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.025)",
+    padding: 12,
+    display: "grid",
+    gap: 6,
+  },
+  templatePreviewLabel: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    opacity: 0.68,
+    fontWeight: 900,
+  },
+  templatePreviewTitle: {
+    fontSize: 16,
+    fontWeight: 900,
+    lineHeight: 1.2,
+  },
+  templatePreviewMeta: {
+    fontSize: 13,
+    lineHeight: 1.4,
+    opacity: 0.78,
+  },
   secondaryCard: {
     marginTop: 16,
     borderRadius: 16,
@@ -1536,44 +1622,44 @@ const styles: Record<string, React.CSSProperties> = {
     height: 10,
     borderRadius: 999,
   },
-field: {
-  marginTop: 12,
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-  minWidth: 0,
-  width: "100%",
-},
+  field: {
+    marginTop: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    minWidth: 0,
+    width: "100%",
+  },
   fieldLabel: {
     fontSize: 12,
     opacity: 0.8,
     fontWeight: 900,
   },
-input: {
-  width: "100%",
-  minWidth: 0,
-  boxSizing: "border-box",
-  padding: "12px 12px",
-  borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.10)",
-  background: "rgba(6,10,20,0.55)",
-  color: "rgba(255,255,255,0.92)",
-  outline: "none",
-  fontSize: 14,
-},
-inputLg: {
-  width: "100%",
-  minWidth: 0,
-  boxSizing: "border-box",
-  padding: "14px 14px",
-  borderRadius: 16,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(6,10,20,0.62)",
-  color: "rgba(255,255,255,0.95)",
-  outline: "none",
-  fontSize: 15,
-  fontWeight: 700,
-},
+  input: {
+    width: "100%",
+    minWidth: 0,
+    boxSizing: "border-box",
+    padding: "12px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(6,10,20,0.55)",
+    color: "rgba(255,255,255,0.92)",
+    outline: "none",
+    fontSize: 14,
+  },
+  inputLg: {
+    width: "100%",
+    minWidth: 0,
+    boxSizing: "border-box",
+    padding: "14px 14px",
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(6,10,20,0.62)",
+    color: "rgba(255,255,255,0.95)",
+    outline: "none",
+    fontSize: 15,
+    fontWeight: 700,
+  },
   textarea: {
     width: "100%",
     padding: "12px 12px",
@@ -1633,19 +1719,19 @@ inputLg: {
     fontSize: 12,
     opacity: 0.72,
   },
-grid2: {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-  gap: 12,
-  marginTop: 8,
-  width: "100%",
-},
-grid2Tight: {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-  gap: 12,
-  width: "100%",
-},
+  grid2: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: 12,
+    marginTop: 8,
+    width: "100%",
+  },
+  grid2Tight: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+    gap: 12,
+    width: "100%",
+  },
   quickSummary: {
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.08)",
@@ -1741,4 +1827,21 @@ grid2Tight: {
     fontWeight: 900,
     minWidth: 240,
   },
+  templatePreviewTop: {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+  flexWrap: "wrap",
+},
+templateClearBtn: {
+  padding: "8px 10px",
+  borderRadius: 999,
+  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(255,255,255,0.04)",
+  color: "rgba(255,255,255,0.86)",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 800,
+},
 };
