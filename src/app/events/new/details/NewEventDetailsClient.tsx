@@ -496,7 +496,47 @@ const clearTemplateSelection = () => {
   setTitle("");
   setNotes("");
 };
-  const doSave = async (
+
+const buildSuccessToast = (options?: { keepBoth?: boolean }) => {
+  const isSharedEvent = effectiveType === "group";
+
+  if (options?.keepBoth) {
+    return {
+      title: isSharedEvent
+        ? isEditing
+          ? "Plan compartido actualizado ✅"
+          : "Plan compartido creado ✅"
+        : isEditing
+        ? "Evento personal actualizado ✅"
+        : "Evento personal creado ✅",
+      subtitle: isSharedEvent
+        ? "Conservamos ambos planes y volvemos al calendario."
+        : "Conservamos ambos eventos y volvemos al calendario.",
+    };
+  }
+
+  if (isSharedEvent) {
+    return {
+      title: isEditing
+        ? "Plan compartido actualizado ✅"
+        : "Plan compartido creado ✅",
+      subtitle: isEditing
+        ? "El grupo ya verá la versión actualizada."
+        : "Ya está en el calendario del grupo.",
+    };
+  }
+
+  return {
+    title: isEditing
+      ? "Evento personal actualizado ✅"
+      : "Evento personal creado ✅",
+    subtitle: isEditing
+      ? "Tus cambios ya quedaron guardados."
+      : "Ya quedó en tu calendario.",
+  };
+};
+
+const doSave = async (
     payload: {
       groupType: GroupType;
       groupId: string | null;
@@ -581,10 +621,7 @@ const clearTemplateSelection = () => {
           // ok
         }
 
-        setToast({
-          title: isEditing ? "Evento actualizado ✅" : "Evento creado ✅",
-          subtitle: "Conservamos ambos eventos y volvemos al calendario…",
-        });
+        setToast(buildSuccessToast({ keepBoth: true }));
 
         window.setTimeout(() => {
           router.push("/calendar");
@@ -613,10 +650,7 @@ const clearTemplateSelection = () => {
         return;
       }
 
-      setToast({
-        title: isEditing ? "Evento actualizado ✅" : "Evento creado ✅",
-        subtitle: "Volviendo al calendario…",
-      });
+     setToast(buildSuccessToast());
 
       window.setTimeout(() => {
         router.push("/calendar");
