@@ -131,7 +131,7 @@ function NewEventDetailsInner() {
   const router = useRouter();
   const sp = useSearchParams();
 
-  const eventIdParam = sp.get("eventId") || sp.get("id");
+  const eventIdParam = sp.get("eventId") || sp.get("edit") || sp.get("id");
   const isEditing = !!eventIdParam;
 
   const typeParam = (sp.get("type") || "personal") as NewType;
@@ -235,10 +235,22 @@ function NewEventDetailsInner() {
     const params = new URLSearchParams();
     params.set("type", nextType);
     params.set("date", nextDateIso);
+
     if (nextType === "group") {
       const gid = nextGroupId || selectedGroupId || activeGroupId || "";
       if (gid) params.set("groupId", gid);
     }
+
+    if (isEditing && eventIdParam) {
+      params.set("eventId", String(eventIdParam));
+    }
+
+    const lockParam = sp.get("lock");
+    if (lockParam) params.set("lock", lockParam);
+
+    const fromParam = sp.get("from");
+    if (fromParam) params.set("from", fromParam);
+
     return `/events/new/details?${params.toString()}`;
   }
 
@@ -461,14 +473,17 @@ function NewEventDetailsInner() {
       setEndLocal(toInputLocal(addMinutes(s, 60)));
   };
 
-  const doSave = async (payload: {
-    groupType: GroupType;
-    groupId: string | null;
-    title: string;
-    notes?: string;
-    startIso: string;
-    endIso: string;
-  }) => {
+  const doSave = async (
+    payload: {
+      groupType: GroupType;
+      groupId: string | null;
+      title: string;
+      notes?: string;
+      startIso: string;
+      endIso: string;
+    },
+    options?: { suppressConflictRedirect?: boolean }
+  ) => {
     setSaving(true);
 
     try {
@@ -512,6 +527,47 @@ function NewEventDetailsInner() {
             conflictCount: 0,
             targetEventId: null,
           };
+
+      if (options?.suppressConflictRedirect && savedEventId) {
+        try {
+          const pf = await loadEventsForConflictPreflight({
+            candidate: {
+              id: savedEventId,
+              title: payload.title,
+              start: payload.startIso,
+              end: payload.endIso,
+              groupId: payload.groupId,
+              groupType: payload.groupType,
+              notes: payload.notes,
+            },
+          });
+
+          const combined = [...pf.baseEvents, pf.candidateEvent];
+          const related = computeVisibleConflicts(combined).filter((c) => {
+            const savedId = String(savedEventId);
+            return (
+              String(c.existingEventId) === savedId ||
+              String(c.incomingEventId) === savedId
+            );
+          });
+
+          if (related.length > 0) {
+            ignoreConflictIds(related.map((c) => c.id).filter(Boolean));
+          }
+        } catch {
+          // ok
+        }
+
+        setToast({
+          title: isEditing ? "Evento actualizado ✅" : "Evento creado ✅",
+          subtitle: "Conservamos ambos eventos y volvemos al calendario…",
+        });
+
+        window.setTimeout(() => {
+          router.push("/calendar");
+        }, 450);
+        return;
+      }
 
       if (conflictResult.conflictCount > 0) {
         setToast({
@@ -699,7 +755,7 @@ setExistingIdsToReplace(
       } catch {
         // ok
       }
-      await doSave(pendingPayload);
+      await doSave(pendingPayload, { suppressConflictRedirect: true });
       return;
     }
 

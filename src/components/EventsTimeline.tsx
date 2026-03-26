@@ -384,7 +384,7 @@ const { link } = await generatePublicInviteLink(eventId);
                           </button>
                           <button
                             onClick={() =>
-                              router.push(`/events/new/details?edit=${eventId}`)
+                              router.push(`/events/new/details?eventId=${eventId}`)
                             }
                             style={iconBtn}
                             title="Editar"
