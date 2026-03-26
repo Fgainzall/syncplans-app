@@ -360,7 +360,7 @@ export default function BottomNav() {
   };
 
   return (
-    <nav style={S.outer} aria-label="Navegación principal">
+    <nav style={S.outer} aria-label="NavegaciÃ³n principal">
       <div style={S.wrap}>
         <div style={S.viewport}>
           <div style={S.track}>
@@ -411,21 +411,22 @@ export default function BottomNav() {
 
 const S: Record<string, React.CSSProperties> = {
  outer: {
-  position: "fixed",
-  left: 0,
-  right: 0,
-  bottom: "env(safe-area-inset-bottom)",
+    position: "fixed",
+    left: 0,
+    right: 0,
+    bottom: 0,
     zIndex: 90,
     pointerEvents: "none",
     paddingLeft: 10,
     paddingRight: 10,
-   paddingBottom: "var(--sp-bottom-nav-offset, 12px)",
+    paddingBottom:
+      "calc(env(safe-area-inset-bottom, 0px) + var(--sp-bottom-nav-offset, 12px))",
     boxSizing: "border-box",
   },
 
   wrap: {
     pointerEvents: "auto",
-    maxWidth: 560,
+    width: "min(100%, 560px)",
     margin: "0 auto",
     borderRadius: 20,
     border: "1px solid rgba(255,255,255,0.10)",
@@ -446,6 +447,7 @@ const S: Record<string, React.CSSProperties> = {
     msOverflowStyle: "none",
     touchAction: "pan-x",
     overscrollBehaviorX: "contain",
+    overscrollBehaviorY: "none",
   },
 
   track: {

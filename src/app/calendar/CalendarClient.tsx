@@ -1054,7 +1054,14 @@ export default function CalendarClient(
         {tab === "month" ? (
           <Card style={styles.calendarCard} className="spCal-calendarCard">
             <div className="spCal-monthScroller" style={styles.monthScroller}>
-              <div style={styles.weekHeader} className="spCal-weekHeader">
+              <div
+                style={{
+                  ...styles.weekHeader,
+                  minWidth: isMobile ? "100%" : styles.weekHeader.minWidth,
+                  padding: isMobile ? "8px 8px 0" : styles.weekHeader.padding,
+                }}
+                className="spCal-weekHeader"
+              >
                 {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map(
                   (d) => (
                     <div key={d} style={styles.weekDay}>
@@ -1067,7 +1074,10 @@ export default function CalendarClient(
               <div
                 style={{
                   ...styles.grid,
-                  gridAutoRows: isMobile ? "minmax(110px, auto)" : "minmax(140px, auto)",
+                  minWidth: isMobile ? "100%" : styles.grid.minWidth,
+                  gap: isMobile ? 6 : styles.grid.gap,
+                  padding: isMobile ? 8 : styles.grid.padding,
+                  gridAutoRows: isMobile ? "minmax(72px, auto)" : "minmax(140px, auto)",
                 }}
                 className="spCal-grid"
               >
@@ -1083,6 +1093,7 @@ export default function CalendarClient(
                   groupTypeById,
                   onEdit: handleEditEvent,
                   today,
+                  isCompact: isMobile,
                 })}
               </div>
             </div>
@@ -1316,6 +1327,7 @@ function renderMonthCells(opts: {
   groupTypeById: Map<string, "pair" | "family" | "other">;
   onEdit: (e: CalendarEvent) => void;
   today: Date;
+  isCompact?: boolean;
 }) {
   const {
     gridStart,
@@ -1329,6 +1341,7 @@ function renderMonthCells(opts: {
     groupTypeById,
     onEdit,
     today,
+    isCompact = false,
   } = opts;
 
   const cells: React.ReactNode[] = [];
@@ -1342,7 +1355,7 @@ function renderMonthCells(opts: {
     const isToday = sameDay(cellDate, today);
 
     const dayEvents = eventsByDay.get(ymd(cellDate)) || [];
-    const top3 = dayEvents.slice(0, 3);
+    const top3 = dayEvents.slice(0, isCompact ? 1 : 3);
 
     const isWeekend =
       cellDate.getDay() === 0 || cellDate.getDay() === 6;
@@ -1362,6 +1375,7 @@ function renderMonthCells(opts: {
         }}
         style={{
           ...styles.cell,
+          ...(isCompact ? styles.cellCompact : {}),
           opacity: inMonth ? 1 : 0.38,
           outline: isSelected
             ? "2px solid rgba(255,255,255,0.22)"
@@ -1392,39 +1406,60 @@ function renderMonthCells(opts: {
               style={styles.cellQuickAdd}
               className="spCal-cellQuickAdd"
             >
-              <button
-                type="button"
-                onClick={(ev) => {
-                  ev.preventDefault();
-                  ev.stopPropagation();
-                  openNewEventPersonal(new Date(cellDate));
-                }}
-                style={styles.cellQuickBtnPersonal}
-                aria-label="Crear evento personal"
-                title="Crear evento personal"
-              >
-                +
-              </button>
+              {isCompact ? (
+                <button
+                  type="button"
+                  onClick={(ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    openNewEventPersonal(new Date(cellDate));
+                  }}
+                  style={styles.cellQuickBtnCompact}
+                  aria-label="Crear evento"
+                  title="Crear evento"
+                >
+                  +
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={(ev) => {
+                      ev.preventDefault();
+                      ev.stopPropagation();
+                      openNewEventPersonal(new Date(cellDate));
+                    }}
+                    style={styles.cellQuickBtnPersonal}
+                    aria-label="Crear evento personal"
+                    title="Crear evento personal"
+                  >
+                    +
+                  </button>
 
-              <button
-                type="button"
-                onClick={(ev) => {
-                  ev.preventDefault();
-                  ev.stopPropagation();
-                  openNewEventGroup(new Date(cellDate));
-                }}
-                style={styles.cellQuickBtnGroup}
-                aria-label="Crear evento de grupo"
-                title="Crear evento de grupo"
-              >
-                +
-              </button>
+                  <button
+                    type="button"
+                    onClick={(ev) => {
+                      ev.preventDefault();
+                      ev.stopPropagation();
+                      openNewEventGroup(new Date(cellDate));
+                    }}
+                    style={styles.cellQuickBtnGroup}
+                    aria-label="Crear evento de grupo"
+                    title="Crear evento de grupo"
+                  >
+                    +
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
 
         <div
-          style={styles.cellEvents}
+          style={{
+            ...styles.cellEvents,
+            ...(isCompact ? styles.cellEventsCompact : {}),
+          }}
           className="spCal-cellEvents"
         >
           {dayEvents.length > 0 && (
@@ -1462,19 +1497,24 @@ function renderMonthCells(opts: {
                     background: meta.dot,
                   }}
                 />
-                <span style={styles.cellEventText}>
+                <span
+                style={{
+                  ...styles.cellEventText,
+                  ...(isCompact ? styles.cellEventTextCompact : {}),
+                }}
+              >
                   {e.title || "Evento"}
                 </span>
               </div>
             );
           })}
 
-          {dayEvents.length > 3 ? (
+          {dayEvents.length > (isCompact ? 1 : 3) ? (
             <div
               style={styles.moreHint}
               className="spCal-moreHint"
             >
-              +{dayEvents.length - 3} más
+              +{dayEvents.length - (isCompact ? 1 : 3)} más
             </div>
           ) : null}
         </div>
@@ -1798,6 +1838,22 @@ cell: {
     boxShadow: "0 8px 18px rgba(96,165,250,0.12)",
     flexShrink: 0,
   },
+  cellQuickBtnCompact: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    border: "1px solid rgba(125,211,252,0.46)",
+    background:
+      "linear-gradient(180deg, rgba(125,211,252,0.20), rgba(56,189,248,0.12))",
+    color: "rgba(255,255,255,0.98)",
+    cursor: "pointer",
+    fontWeight: 950,
+    fontSize: 13,
+    lineHeight: "22px",
+    textAlign: "center",
+    boxShadow: "0 8px 18px rgba(56,189,248,0.14)",
+    flexShrink: 0,
+  },
 
  cellEvents: {
   marginTop: 6,
@@ -1829,6 +1885,18 @@ cellEventText: {
   whiteSpace: "nowrap",
   textOverflow: "ellipsis",
 },
+  cellCompact: {
+    padding: "6px 5px 5px",
+    borderRadius: 14,
+  },
+  cellEventsCompact: {
+    marginTop: 4,
+    gap: 3,
+  },
+  cellEventTextCompact: {
+    fontSize: 10,
+    fontWeight: 800,
+  },
   moreHint: {
     fontSize: 12,
     opacity: 0.78,
