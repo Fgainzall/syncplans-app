@@ -210,7 +210,7 @@ export default function EventsTimeline({
     }));
 
     try {
-const { link } = await generatePublicInviteLink(eventId);
+      const { link } = await generatePublicInviteLink(eventId);
 
       setShareStateById((prev) => ({
         ...prev,
@@ -707,4 +707,11 @@ const iconBtn: React.CSSProperties = {
   padding: "6px 8px",
   cursor: "pointer",
   fontSize: 13,
+};
+
+const activeIconBtn: React.CSSProperties = {
+  ...iconBtn,
+  border: "1px solid rgba(96,165,250,0.28)",
+  background: "rgba(59,130,246,0.12)",
+  boxShadow: "0 10px 24px rgba(59,130,246,0.16)",
 };

@@ -264,7 +264,9 @@ export async function inviteToGroup(input: {
     if (error) {
       const msg = String(error.message ?? "").toLowerCase();
       const missingFunction =
-        msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+        msg.includes("function") ||
+        msg.includes("rpc") ||
+        msg.includes("does not exist");
 
       if (!missingFunction) {
         console.error("[inviteToGroup] invite_to_group RPC error", error);
@@ -274,7 +276,9 @@ export async function inviteToGroup(input: {
   } catch (e: any) {
     const msg = String(e?.message ?? "").toLowerCase();
     const missingFunction =
-      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+      msg.includes("function") ||
+      msg.includes("rpc") ||
+      msg.includes("does not exist");
 
     if (!missingFunction) {
       console.error("[inviteToGroup] invite_to_group RPC exception", e);
@@ -310,7 +314,9 @@ export async function inviteToGroup(input: {
     if (error) {
       const msg = String(error.message ?? "").toLowerCase();
       const missingFunction =
-        msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+        msg.includes("function") ||
+        msg.includes("rpc") ||
+        msg.includes("does not exist");
 
       if (!missingFunction) {
         console.error("[inviteToGroup] create_group_invite RPC error", error);
@@ -320,7 +326,9 @@ export async function inviteToGroup(input: {
   } catch (e: any) {
     const msg = String(e?.message ?? "").toLowerCase();
     const missingFunction =
-      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+      msg.includes("function") ||
+      msg.includes("rpc") ||
+      msg.includes("does not exist");
 
     if (!missingFunction) {
       console.error("[inviteToGroup] create_group_invite RPC exception", e);
@@ -393,7 +401,9 @@ export async function acceptInvitation(inviteId: string) {
 
     const msg = String(error.message ?? "").toLowerCase();
     const missingFunction =
-      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+      msg.includes("function") ||
+      msg.includes("rpc") ||
+      msg.includes("does not exist");
 
     if (!missingFunction) {
       console.error("[acceptInvitation] RPC error", error);
@@ -402,7 +412,9 @@ export async function acceptInvitation(inviteId: string) {
   } catch (e: any) {
     const msg = String(e?.message ?? "").toLowerCase();
     const missingFunction =
-      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+      msg.includes("function") ||
+      msg.includes("rpc") ||
+      msg.includes("does not exist");
 
     if (!missingFunction) {
       console.error("[acceptInvitation] RPC exception", e);
@@ -452,10 +464,6 @@ export async function acceptInvitation(inviteId: string) {
 
     if (updateErr) {
       console.error("[acceptInvitation] fallback update invite error", updateErr);
-      /**
-       * Ya insertamos membership.
-       * No devolvemos error duro para no dejar UX rota si la membresía ya quedó.
-       */
     }
 
     return { ok: true, data: { invite_id: safeInviteId, status: "accepted" } };
@@ -487,7 +495,9 @@ export async function declineInvitation(inviteId: string) {
 
     const msg = String(error.message ?? "").toLowerCase();
     const missingFunction =
-      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+      msg.includes("function") ||
+      msg.includes("rpc") ||
+      msg.includes("does not exist");
 
     if (!missingFunction) {
       console.error("[declineInvitation] RPC error", error);
@@ -496,7 +506,9 @@ export async function declineInvitation(inviteId: string) {
   } catch (e: any) {
     const msg = String(e?.message ?? "").toLowerCase();
     const missingFunction =
-      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+      msg.includes("function") ||
+      msg.includes("rpc") ||
+      msg.includes("does not exist");
 
     if (!missingFunction) {
       console.error("[declineInvitation] RPC exception", e);
@@ -528,6 +540,7 @@ export async function declineInvitation(inviteId: string) {
     return { ok: false, error: e?.message || "Error al rechazar invitación" };
   }
 }
+
 // ==============================
 // Public invites (external flow)
 // ==============================
@@ -593,6 +606,35 @@ export async function createPublicInvite(
   }
 
   return data as PublicInviteRow;
+}
+
+export async function getPendingPublicInviteByEventId(
+  eventId: string
+): Promise<PublicInviteRow | null> {
+  const { data, error } = await (supabase as any)
+    .from(PUBLIC_INVITES_TABLE)
+    .select("*")
+    .eq("event_id", eventId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      error.message || "No se pudo revisar la invitación pública existente."
+    );
+  }
+
+  return (data as PublicInviteRow | null) ?? null;
+}
+
+export async function getOrCreatePublicInvite(
+  input: CreatePublicInviteInput
+): Promise<PublicInviteRow> {
+  const existing = await getPendingPublicInviteByEventId(input.eventId);
+  if (existing) return existing;
+  return createPublicInvite(input);
 }
 
 /**
