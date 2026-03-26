@@ -24,8 +24,8 @@ export const EVENT_TEMPLATES: EventTemplate[] = [
     suggestedGroupType: "shared",
   },
   {
-    id: "padel",
-    title: "Pádel",
+   id: "padel",
+title: "Deporte",
     emoji: "🎾",
     defaultDurationMinutes: 90,
     suggestedGroupType: "shared",
