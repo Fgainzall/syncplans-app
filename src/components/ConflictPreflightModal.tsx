@@ -18,51 +18,51 @@ export type PreflightConflict = {
   overlapEnd: string;
 };
 
-function fmt(dtIso?: string) {
-  if (!dtIso) return "—";
+function formatDateLabel(value?: string) {
+  if (!value) return "—";
 
   try {
-    const d = new Date(dtIso);
-    if (Number.isNaN(d.getTime())) return dtIso;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
 
     return d.toLocaleString(undefined, {
       weekday: "short",
-      month: "short",
       day: "numeric",
+      month: "short",
       hour: "2-digit",
       minute: "2-digit",
     });
   } catch {
-    return dtIso;
+    return value;
   }
 }
 
-function choiceCopy(choice: PreflightChoice) {
+function getChoiceMeta(choice: PreflightChoice) {
   switch (choice) {
+    case "edit":
+      return {
+        title: "Ajustar horario",
+        subtitle: "Vuelves a editar antes de guardar.",
+        accent: "rgba(56,189,248,0.95)",
+      };
     case "keep_existing":
       return {
-        eyebrow: "Conservar lo actual",
-        title: "No guardar este nuevo evento",
-        desc: "Mantienes intacto el evento que ya existe y cancelas este guardado.",
+        title: "Quedarme con el actual",
+        subtitle: "No se guarda este nuevo evento.",
+        accent: "rgba(148,163,184,0.95)",
       };
     case "replace_with_new":
       return {
-        eyebrow: "Dar prioridad al nuevo",
-        title: "Reemplazar el evento existente",
-        desc: "El nuevo evento toma prioridad y el otro deja de ser el plan principal.",
+        title: "Priorizar este",
+        subtitle: "El nuevo reemplaza al existente.",
+        accent: "rgba(168,85,247,0.95)",
       };
     case "keep_both":
-      return {
-        eyebrow: "Aceptar el cruce",
-        title: "Guardar ambos y revisar luego",
-        desc: "Se guarda igual. El conflicto seguirá visible para decidirlo más adelante.",
-      };
-    case "edit":
     default:
       return {
-        eyebrow: "Ajustar antes",
-        title: "Volver a editar este evento",
-        desc: "Cambias horario o detalles antes de guardar para evitar el cruce.",
+        title: "Mantener ambos",
+        subtitle: "Guardar igual y decidir después.",
+        accent: "rgba(250,204,21,0.95)",
       };
   }
 }
@@ -91,164 +91,154 @@ export default function ConflictPreflightModal({
   React.useEffect(() => {
     if (!open) return;
 
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
 
     window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
+    return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
   if (!open) return null;
 
+  const firstItem = items[0];
+  const selected = getChoiceMeta(choice);
   const count = items.length;
-  const selected = choiceCopy(choice);
-  const first = items[0];
 
   return (
-    <div className="fixed inset-0 z-[120]">
+    <div style={S.backdropWrap}>
       <button
         type="button"
         aria-label="Cerrar"
         onClick={onClose}
-        className="absolute inset-0 bg-[#020617]/84 backdrop-blur-md"
+        style={S.backdrop}
       />
 
-      <div className="absolute inset-0 overflow-y-auto">
-        <div className="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-6">
-          <div className="relative w-full max-w-3xl overflow-hidden rounded-t-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_28%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_32%),linear-gradient(180deg,rgba(6,10,24,0.98),rgba(4,8,20,0.98))] shadow-[0_30px_120px_rgba(0,0,0,0.55)] sm:rounded-[30px]">
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/50 to-transparent" />
+      <div style={S.sheetViewport}>
+        <div style={S.sheet}>
+          <div style={S.handleWrap}>
+            <div style={S.handle} />
+          </div>
 
-            <div className="px-4 pb-4 pt-5 sm:px-6 sm:pb-5 sm:pt-6">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex items-center gap-2 rounded-full border border-rose-300/20 bg-rose-400/10 px-3 py-1 text-[11px] font-semibold tracking-[0.16em] text-rose-100/90 uppercase">
-                  <span className="h-2 w-2 rounded-full bg-rose-400 shadow-[0_0_14px_rgba(251,113,133,0.85)]" />
-                  Conflicto detectado
-                </div>
-                <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium text-white/65">
-                  SyncPlans
-                </div>
-              </div>
-
-              <div className="mt-4 max-w-2xl">
-                <h2 className="text-[24px] font-black tracking-[-0.05em] text-white sm:text-[34px]">
-                  Antes de guardar, elige una salida simple
-                </h2>
-                <p className="mt-3 text-[15px] leading-7 text-white/72">
-                  {title ? (
-                    <>
-                      <span className="font-semibold text-white">“{title}”</span> se cruza con{' '}
-                      <span className="font-semibold text-white">{count}</span> evento{count === 1 ? '' : 's'} ya visible{count === 1 ? '' : 's'}.
-                    </>
-                  ) : (
-                    <>
-                      Este evento se cruza con <span className="font-semibold text-white">{count}</span> evento{count === 1 ? '' : 's'} ya visible{count === 1 ? '' : 's'}.
-                    </>
-                  )} Decide ahora qué prefieres hacer.
-                </p>
-              </div>
+          <div style={S.header}>
+            <div style={S.badgesRow}>
+              <span style={S.badgeDanger}>Conflicto detectado</span>
+              <span style={S.badgeSoft}>SyncPlans</span>
             </div>
 
-            <div className="border-y border-white/8 bg-white/[0.02] px-4 py-4 sm:px-6">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-100/72">Cruce principal</div>
-                  <div className="mt-1 text-sm text-white/58">Lo que ya existe y está chocando con este guardado.</div>
-                </div>
-                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/68">{count} cruce{count === 1 ? '' : 's'}</div>
-              </div>
+            <h2 style={S.title}>
+              Antes de guardar, elige una salida simple
+            </h2>
 
-              {first ? (
-                <article className="rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-[22px] font-black tracking-[-0.04em] text-white">{first.title || 'Evento existente'}</div>
-                      <div className="mt-1 text-sm text-white/62">{first.groupLabel ? `${first.groupLabel} · ` : ''}{first.range || '—'}</div>
-                    </div>
-                    <div className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-white/62">#{1}</div>
+            <p style={S.subtitle}>
+              <strong style={{ color: "#FFFFFF" }}>
+                “{title || "Este evento"}”
+              </strong>{" "}
+              se cruza con{" "}
+              <strong style={{ color: "#FFFFFF" }}>
+                {count} evento{count === 1 ? "" : "s"}
+              </strong>{" "}
+              ya visible. Decide ahora qué prefieres hacer.
+            </p>
+          </div>
+
+          <div style={S.scrollArea}>
+            {firstItem ? (
+              <section style={S.section}>
+                <div style={S.sectionHeader}>
+                  <div style={S.sectionKicker}>Cruce principal</div>
+                  <div style={S.countPill}>
+                    {count} cruce{count === 1 ? "" : "s"}
+                  </div>
+                </div>
+
+                <div style={S.eventCard}>
+                  <div style={S.eventTitle}>
+                    {firstItem.title || "Evento existente"}
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1 text-[11px] font-medium text-amber-100/90">
-                      <span className="h-2 w-2 rounded-full bg-amber-300" />
-                      Cruce detectado
+                  <div style={S.eventMeta}>
+                    {firstItem.groupLabel ? `${firstItem.groupLabel} · ` : ""}
+                    {firstItem.range || "—"}
+                  </div>
+
+                  <div style={S.tagsRow}>
+                    <span style={S.warningPill}>Cruce detectado</span>
+                    <span style={S.timePill}>
+                      {formatDateLabel(firstItem.overlapStart)} —{" "}
+                      {formatDateLabel(firstItem.overlapEnd)}
                     </span>
-                    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] text-white/65">{fmt(first.overlapStart)} — {fmt(first.overlapEnd)}</span>
                   </div>
-                </article>
-              ) : null}
-            </div>
+                </div>
+              </section>
+            ) : null}
 
-            <div className="px-4 py-4 sm:px-6 sm:py-5">
-              <div className="mb-3">
-                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-100/72">Tu decisión</div>
-                <div className="mt-1 text-sm text-white/58">Toca una opción. La idea es resolverlo sin fricción.</div>
-              </div>
+            <section style={S.section}>
+              <div style={S.sectionKicker}>Tu decisión</div>
+              <p style={S.helperText}>
+                Toca una opción. La idea es resolverlo sin fricción.
+              </p>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <QuickChoice
+              <div style={S.choicesList}>
+                <ChoiceCard
                   active={choice === "edit"}
                   title="Ajustar horario"
                   subtitle="Vuelves a editar antes de guardar"
-                  color="blue"
+                  tone="blue"
                   onClick={() => setChoice("edit")}
                 />
-                <QuickChoice
+
+                <ChoiceCard
                   active={choice === "keep_existing"}
                   title="Quedarme con el actual"
                   subtitle="No guardo este nuevo evento"
-                  color="gray"
+                  tone="slate"
                   onClick={() => setChoice("keep_existing")}
                 />
-                <QuickChoice
+
+                <ChoiceCard
                   active={choice === "replace_with_new"}
                   title="Priorizar este"
                   subtitle="El nuevo reemplaza al existente"
-                  color="purple"
+                  tone="violet"
                   onClick={() => setChoice("replace_with_new")}
                 />
-                <QuickChoice
+
+                <ChoiceCard
                   active={choice === "keep_both"}
                   title="Mantener ambos"
                   subtitle="Guardar igual y decidir después"
-                  color="amber"
+                  tone="amber"
                   onClick={() => setChoice("keep_both")}
                 />
               </div>
+            </section>
 
-              <div className="mt-4 rounded-[22px] border border-cyan-300/12 bg-[linear-gradient(180deg,rgba(34,211,238,0.08),rgba(255,255,255,0.03))] p-4">
-                <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-100/75">Selección actual</div>
-                <div className="mt-2 text-xl font-black tracking-[-0.04em] text-white">{selected.title}</div>
-                <div className="mt-1 text-sm font-medium text-cyan-100/70">{selected.eyebrow}</div>
-                <p className="mt-3 text-sm leading-6 text-white/68">{selected.desc}</p>
-              </div>
-            </div>
+            <section style={S.selectionCard}>
+              <div style={S.sectionKicker}>Selección actual</div>
+              <div style={S.selectionTitle}>{selected.title}</div>
+              <div style={S.selectionSubtitle}>{selected.subtitle}</div>
+              <div
+                style={{
+                  ...S.selectionAccent,
+                  background: selected.accent,
+                }}
+              />
+            </section>
+          </div>
 
-            <div className="border-t border-white/10 bg-[rgba(5,8,20,0.88)] px-4 py-4 sm:px-6 sm:py-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] px-4 text-sm font-semibold text-white/72 transition hover:bg-white/[0.06] hover:text-white"
-                >
-                  Cerrar
-                </button>
+          <div style={S.footer}>
+            <button type="button" onClick={onClose} style={S.secondaryBtn}>
+              Cerrar
+            </button>
 
-                <button
-                  type="button"
-                  onClick={() => onChoose(choice)}
-                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-cyan-300/25 bg-[linear-gradient(135deg,rgba(59,130,246,0.98),rgba(124,58,237,0.98))] px-5 text-sm font-bold text-white shadow-[0_16px_40px_rgba(59,130,246,0.28)] transition hover:scale-[1.01]"
-                >
-                  Continuar con esta decisión
-                </button>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => onChoose(choice)}
+              style={S.primaryBtn}
+            >
+              Continuar con esta decisión
+            </button>
           </div>
         </div>
       </div>
@@ -256,49 +246,418 @@ export default function ConflictPreflightModal({
   );
 }
 
-function QuickChoice({
+function ChoiceCard({
   active,
   title,
   subtitle,
   onClick,
-  color,
+  tone,
 }: {
   active: boolean;
   title: string;
   subtitle: string;
   onClick: () => void;
-  color: "blue" | "gray" | "purple" | "amber";
+  tone: "blue" | "slate" | "violet" | "amber";
 }) {
-  const tones = {
-    blue: active
-      ? "border-cyan-400/70 bg-cyan-400/12 shadow-[0_12px_30px_rgba(34,211,238,0.12)]"
-      : "border-white/10 bg-white/[0.03] hover:border-cyan-300/25 hover:bg-cyan-300/[0.04]",
-    gray: active
-      ? "border-white/35 bg-white/10 shadow-[0_12px_30px_rgba(255,255,255,0.06)]"
-      : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
-    purple: active
-      ? "border-violet-400/70 bg-violet-400/12 shadow-[0_12px_30px_rgba(139,92,246,0.12)]"
-      : "border-white/10 bg-white/[0.03] hover:border-violet-300/25 hover:bg-violet-300/[0.04]",
-    amber: active
-      ? "border-amber-400/70 bg-amber-400/12 shadow-[0_12px_30px_rgba(251,191,36,0.10)]"
-      : "border-white/10 bg-white/[0.03] hover:border-amber-300/25 hover:bg-amber-300/[0.04]",
+  const toneMap = {
+    blue: {
+      border: active ? "rgba(56,189,248,0.7)" : "rgba(255,255,255,0.08)",
+      bg: active ? "rgba(34,211,238,0.10)" : "rgba(255,255,255,0.03)",
+      glow: active ? "0 0 0 1px rgba(56,189,248,0.18) inset" : "none",
+      dot: "rgba(56,189,248,0.95)",
+    },
+    slate: {
+      border: active ? "rgba(226,232,240,0.45)" : "rgba(255,255,255,0.08)",
+      bg: active ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)",
+      glow: active ? "0 0 0 1px rgba(226,232,240,0.12) inset" : "none",
+      dot: "rgba(226,232,240,0.95)",
+    },
+    violet: {
+      border: active ? "rgba(168,85,247,0.7)" : "rgba(255,255,255,0.08)",
+      bg: active ? "rgba(168,85,247,0.10)" : "rgba(255,255,255,0.03)",
+      glow: active ? "0 0 0 1px rgba(168,85,247,0.18) inset" : "none",
+      dot: "rgba(168,85,247,0.95)",
+    },
+    amber: {
+      border: active ? "rgba(250,204,21,0.7)" : "rgba(255,255,255,0.08)",
+      bg: active ? "rgba(250,204,21,0.10)" : "rgba(255,255,255,0.03)",
+      glow: active ? "0 0 0 1px rgba(250,204,21,0.18) inset" : "none",
+      dot: "rgba(250,204,21,0.95)",
+    },
   };
+
+  const style = toneMap[tone];
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-[22px] border p-4 text-left transition-all ${tones[color]}`}
+      style={{
+        ...S.choiceCard,
+        border: `1px solid ${style.border}`,
+        background: style.bg,
+        boxShadow: style.glow,
+      }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-base font-black tracking-[-0.03em] text-white">{title}</div>
-          <div className="mt-1 text-sm leading-6 text-white/62">{subtitle}</div>
-        </div>
-        <div className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${active ? 'border-white bg-white' : 'border-white/20 bg-transparent'}`}>
-          {active ? <div className="h-2 w-2 rounded-full bg-slate-900" /> : null}
-        </div>
+      <div style={S.choiceCopy}>
+        <div style={S.choiceTitle}>{title}</div>
+        <div style={S.choiceSubtitle}>{subtitle}</div>
+      </div>
+
+      <div
+        style={{
+          ...S.choiceIndicator,
+          borderColor: active ? style.dot : "rgba(255,255,255,0.16)",
+          background: active ? "rgba(255,255,255,0.10)" : "transparent",
+        }}
+      >
+        {active ? (
+          <div
+            style={{
+              ...S.choiceIndicatorInner,
+              background: style.dot,
+            }}
+          />
+        ) : null}
       </div>
     </button>
   );
 }
+
+const S: Record<string, React.CSSProperties> = {
+  backdropWrap: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 120,
+  },
+
+  backdrop: {
+    position: "absolute",
+    inset: 0,
+    border: "none",
+    background: "rgba(2,6,23,0.78)",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+    cursor: "pointer",
+  },
+
+  sheetViewport: {
+    position: "absolute",
+    inset: 0,
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    padding: "12px",
+    boxSizing: "border-box",
+  },
+
+  sheet: {
+    width: "100%",
+    maxWidth: 560,
+    maxHeight: "92dvh",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    borderRadius: 28,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background:
+      "radial-gradient(1100px 540px at 0% -10%, rgba(56,189,248,0.16), transparent 48%), radial-gradient(900px 420px at 100% 0%, rgba(124,58,237,0.16), transparent 42%), linear-gradient(180deg, rgba(7,11,22,0.985), rgba(4,7,18,0.985))",
+    boxShadow: "0 28px 90px rgba(0,0,0,0.52)",
+  },
+
+  handleWrap: {
+    display: "flex",
+    justifyContent: "center",
+    paddingTop: 10,
+    paddingBottom: 2,
+  },
+
+  handle: {
+    width: 44,
+    height: 5,
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.16)",
+  },
+
+  header: {
+    padding: "10px 18px 14px",
+    borderBottom: "1px solid rgba(255,255,255,0.07)",
+  },
+
+  badgesRow: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+
+  badgeDanger: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "5px 10px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    color: "rgba(255,240,245,0.96)",
+    background: "rgba(244,63,94,0.12)",
+    border: "1px solid rgba(244,63,94,0.22)",
+  },
+
+  badgeSoft: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "5px 10px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 700,
+    color: "rgba(226,232,240,0.75)",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+  },
+
+  title: {
+    margin: 0,
+    fontSize: 32,
+    lineHeight: 1.02,
+    letterSpacing: "-0.05em",
+    fontWeight: 950,
+    color: "#FFFFFF",
+  },
+
+  subtitle: {
+    marginTop: 10,
+    marginBottom: 0,
+    fontSize: 16,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.82)",
+  },
+
+  scrollArea: {
+    overflowY: "auto",
+    padding: "16px 18px 14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 14,
+  },
+
+  section: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+
+  sectionHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  sectionKicker: {
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.14em",
+    textTransform: "uppercase",
+    color: "rgba(186,230,253,0.78)",
+  },
+
+  countPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "6px 10px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 700,
+    color: "rgba(226,232,240,0.76)",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+  },
+
+  helperText: {
+    margin: 0,
+    fontSize: 14,
+    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.66)",
+  },
+
+  eventCard: {
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: 16,
+  },
+
+  eventTitle: {
+    fontSize: 18,
+    fontWeight: 900,
+    lineHeight: 1.15,
+    color: "#FFFFFF",
+  },
+
+  eventMeta: {
+    marginTop: 6,
+    fontSize: 15,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.74)",
+  },
+
+  tagsRow: {
+    marginTop: 12,
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+
+  warningPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "7px 12px",
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 700,
+    color: "rgba(254,240,138,0.96)",
+    background: "rgba(250,204,21,0.10)",
+    border: "1px solid rgba(250,204,21,0.20)",
+  },
+
+  timePill: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "7px 12px",
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 600,
+    color: "rgba(226,232,240,0.74)",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+  },
+
+  choicesList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+
+  choiceCard: {
+    width: "100%",
+    borderRadius: 20,
+    padding: "16px 16px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    textAlign: "left",
+    cursor: "pointer",
+    transition: "all 160ms ease",
+  },
+
+  choiceCopy: {
+    minWidth: 0,
+    flex: 1,
+  },
+
+  choiceTitle: {
+    fontSize: 22,
+    lineHeight: 1.05,
+    fontWeight: 900,
+    letterSpacing: "-0.04em",
+    color: "#FFFFFF",
+  },
+
+  choiceSubtitle: {
+    marginTop: 6,
+    fontSize: 14,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.72)",
+  },
+
+  choiceIndicator: {
+    width: 24,
+    height: 24,
+    minWidth: 24,
+    borderRadius: 999,
+    border: "2px solid rgba(255,255,255,0.16)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  choiceIndicatorInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+  },
+
+  selectionCard: {
+    position: "relative",
+    overflow: "hidden",
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: 16,
+  },
+
+  selectionTitle: {
+    marginTop: 6,
+    fontSize: 24,
+    lineHeight: 1.05,
+    fontWeight: 900,
+    letterSpacing: "-0.04em",
+    color: "#FFFFFF",
+  },
+
+  selectionSubtitle: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.72)",
+    maxWidth: "95%",
+  },
+
+  selectionAccent: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 3,
+  },
+
+  footer: {
+    padding: "12px 18px calc(12px + env(safe-area-inset-bottom))",
+    borderTop: "1px solid rgba(255,255,255,0.07)",
+    background: "rgba(5,8,18,0.92)",
+    display: "flex",
+    flexDirection: "column-reverse",
+    gap: 10,
+  },
+
+  secondaryBtn: {
+    width: "100%",
+    height: 54,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.03)",
+    color: "rgba(241,245,249,0.92)",
+    fontSize: 16,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+
+  primaryBtn: {
+    width: "100%",
+    height: 58,
+    borderRadius: 18,
+    border: "1px solid rgba(96,165,250,0.22)",
+    background:
+      "linear-gradient(135deg, rgba(59,130,246,0.98), rgba(124,58,237,0.98))",
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+    boxShadow: "0 16px 40px rgba(59,130,246,0.26)",
+    cursor: "pointer",
+  },
+};
