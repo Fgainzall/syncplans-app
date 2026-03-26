@@ -56,6 +56,25 @@ function addMinutes(d: Date, mins: number) {
   return x;
 }
 
+function roundToNextQuarterHour(d: Date) {
+  const x = new Date(d);
+  x.setSeconds(0, 0);
+
+  const m = x.getMinutes();
+  const rounded = Math.ceil(m / 15) * 15;
+
+  x.setMinutes(rounded % 60);
+  if (rounded >= 60) x.setHours(x.getHours() + 1);
+
+  return x;
+}
+
+function getSafeDurationMinutes(start: Date, end: Date) {
+  const diff = end.getTime() - start.getTime();
+  if (!Number.isFinite(diff) || diff <= 0) return 60;
+  return Math.max(15, Math.round(diff / 60000));
+}
+
 type DbGroup = {
   id: string;
   name: string | null;
@@ -874,13 +893,11 @@ setPostSaveActions({
       setSharingPostSave(true);
 
       const invite = await getOrCreatePublicInvite({
-  eventId: postSaveActions.eventId,
-});
+        eventId: postSaveActions.eventId,
+      });
 
-const token =
-  typeof invite === "string"
-    ? invite
-    : invite?.token || invite?.id || null;
+      const token =
+        typeof invite === "string" ? invite : invite?.token || invite?.id || null;
 
       if (!token) {
         throw new Error("No se pudo generar el link.");
@@ -889,8 +906,8 @@ const token =
       const shareUrl = `${window.location.origin}/invite/${token}`;
       setPostSaveShareUrl(shareUrl);
 
-      try {
-        if (navigator.share) {
+      if (navigator.share) {
+        try {
           await navigator.share({
             title: postSaveActions.title || "Evento compartido",
             text: postSaveActions.title
@@ -898,31 +915,26 @@ const token =
               : "Te comparto este plan.",
             url: shareUrl,
           });
-        } else if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(shareUrl);
-          setToast({
-            title: "Link copiado ✅",
-            subtitle: "Ya puedes compartirlo donde quieras.",
-          });
-        } else {
-          setToast({
-            title: "Link listo ✅",
-            subtitle: "Cópialo manualmente desde la caja de abajo.",
-          });
+
+          return;
+        } catch (shareErr: any) {
+          if (shareErr?.name === "AbortError") {
+            return;
+          }
         }
-      } catch {
-        if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(shareUrl);
-          setToast({
-            title: "Link copiado ✅",
-            subtitle: "Ya puedes compartirlo donde quieras.",
-          });
-        } else {
-          setToast({
-            title: "Link listo ✅",
-            subtitle: "Cópialo manualmente desde la caja de abajo.",
-          });
-        }
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        setToast({
+          title: "Link copiado ✅",
+          subtitle: "Ya puedes compartirlo donde quieras.",
+        });
+      } else {
+        setToast({
+          title: "Link listo ✅",
+          subtitle: "Cópialo manualmente desde la caja de abajo.",
+        });
       }
     } catch (err: any) {
       setToast({
@@ -932,6 +944,35 @@ const token =
     } finally {
       setSharingPostSave(false);
     }
+  };
+
+  const handleCreateAnotherSimilar = () => {
+    const durationMinutes = getSafeDurationMinutes(startDate, endDate);
+    const nextStart = roundToNextQuarterHour(new Date());
+    const nextEnd = addMinutes(nextStart, durationMinutes);
+
+    setPostSaveActions(null);
+    setToast(null);
+    setPostSaveShareUrl(null);
+
+    if (isEditing) {
+      const nextUrl = buildUrl(
+        effectiveType,
+        nextStart.toISOString(),
+        effectiveType === "group"
+          ? selectedGroupId || activeGroupId || null
+          : null
+      );
+
+      const nextParams = new URLSearchParams(nextUrl.split("?")[1] || "");
+      nextParams.delete("eventId");
+
+      router.replace(`/events/new/details?${nextParams.toString()}`);
+      return;
+    }
+
+    setStartLocal(toInputLocal(nextStart));
+    setEndLocal(toInputLocal(nextEnd));
   };
 
   return (
@@ -1311,16 +1352,7 @@ const token =
 
                 <button
                   type="button"
-                  onClick={() => {
-                    const nextStart = new Date();
-                    const nextEnd = addMinutes(nextStart, 60);
-
-                    setPostSaveActions(null);
-                    setToast(null);
-                    setPostSaveShareUrl(null);
-                    setStartLocal(toInputLocal(nextStart));
-                    setEndLocal(toInputLocal(nextEnd));
-                  }}
+                  onClick={handleCreateAnotherSimilar}
                   style={styles.primaryBtn}
                 >
                   Crear otro similar
