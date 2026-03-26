@@ -410,16 +410,16 @@ export default function BottomNav() {
 }
 
 const S: Record<string, React.CSSProperties> = {
-  outer: {
-    position: "fixed",
-    left: 0,
-    right: 0,
-    bottom: 0,
+ outer: {
+  position: "fixed",
+  left: 0,
+  right: 0,
+  bottom: "env(safe-area-inset-bottom)",
     zIndex: 90,
     pointerEvents: "none",
     paddingLeft: 10,
     paddingRight: 10,
-    paddingBottom: "calc(var(--sp-bottom-nav-offset, 12px) + env(safe-area-inset-bottom))",
+   paddingBottom: "var(--sp-bottom-nav-offset, 12px)",
     boxSizing: "border-box",
   },
 

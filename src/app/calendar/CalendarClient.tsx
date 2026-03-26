@@ -1067,7 +1067,7 @@ export default function CalendarClient(
               <div
                 style={{
                   ...styles.grid,
-                  gridAutoRows: isMobile ? "110px" : "140px",
+                  gridAutoRows: isMobile ? "minmax(110px, auto)" : "minmax(140px, auto)",
                 }}
                 className="spCal-grid"
               >
@@ -1492,13 +1492,10 @@ function renderMonthCells(opts: {
    ========================= */
 const styles: Record<string, React.CSSProperties> = {
   page: {
-    minHeight: "100vh",
+    minHeight: "100%",
     background:
       "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.20), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.16), transparent 60%), linear-gradient(180deg, #050816 0%, #060a18 42%, #050816 100%)",
     color: "rgba(255,255,255,0.94)",
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: "22px 18px 48px",
   },
 
   stickyTop: {
@@ -1661,13 +1658,14 @@ calendarCard: {
   border: "1px solid rgba(255,255,255,0.08)",
   background:
     "linear-gradient(180deg, rgba(255,255,255,0.042), rgba(255,255,255,0.024))",
-  overflow: "hidden",
+  overflow: "visible",
   boxShadow: "0 34px 90px rgba(0,0,0,0.38)",
 },
 
   monthScroller: {
+    width: "100%",
     overflowX: "auto",
-    overflowY: "hidden",
+    overflowY: "visible",
     WebkitOverflowScrolling: "touch",
   },
 
@@ -1698,7 +1696,7 @@ grid: {
 },
 
 cell: {
-  height: "100%",
+  minHeight: 0,
   borderRadius: 18,
   border: "1px solid rgba(255,255,255,0.06)",
   background:
@@ -1809,6 +1807,7 @@ cell: {
   flexGrow: 1,
   minHeight: 0,
   overflow: "hidden",
+  justifyContent: "flex-start",
 },
   cellEventLine: {
     display: "flex",

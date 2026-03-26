@@ -1,3 +1,4 @@
+// src/components/MobileScaffold.tsx
 "use client";
 
 import React, {
@@ -20,13 +21,8 @@ type Props = {
 
 function parsePadding(pad: string): CSSProperties {
   const parts = pad.split(" ").map((p) => p.trim());
-
   if (parts.length === 1) return { padding: parts[0] };
-
-  if (parts.length === 2) {
-    return { padding: `${parts[0]} ${parts[1]}` };
-  }
-
+  if (parts.length === 2) return { padding: `${parts[0]} ${parts[1]}` };
   if (parts.length === 3) {
     return {
       paddingTop: parts[0],
@@ -35,7 +31,6 @@ function parsePadding(pad: string): CSSProperties {
       paddingBottom: parts[2],
     };
   }
-
   if (parts.length >= 4) {
     return {
       paddingTop: parts[0],
@@ -44,7 +39,6 @@ function parsePadding(pad: string): CSSProperties {
       paddingLeft: parts[3],
     };
   }
-
   return {};
 }
 
@@ -87,9 +81,7 @@ export default function MobileScaffold({
   const containerStyle = useMemo<CSSProperties>(() => {
     const desktopPadding = parsePadding(paddingDesktop);
     const mobilePadding = parsePadding(paddingMobile);
-
     const effectiveMaxWidth = isMobile ? layout.maxWidthMobile : maxWidth;
-
     const reservedBottom = isMobile
       ? `max(var(--sp-bottom-safe, 0px), calc(env(safe-area-inset-bottom) + ${mobileBottomSafe}px))`
       : "0px";
@@ -118,11 +110,8 @@ function useIsMobileWidth(breakpoint: number) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
     const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
-
     const apply = () => setIsMobile(mq.matches);
-
     apply();
 
     if (typeof mq.addEventListener === "function") {
@@ -130,7 +119,6 @@ function useIsMobileWidth(breakpoint: number) {
       return () => mq.removeEventListener("change", apply);
     }
 
-    // Safari viejo
     // @ts-ignore
     mq.addListener(apply);
     return () => {
