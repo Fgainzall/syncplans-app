@@ -452,9 +452,9 @@ export default function EventsTimeline({
                             <div style={S.shareError}>{shareState.error}</div>
                           ) : shareState.link ? (
                             <>
-                              <div style={S.shareStatus}>
-                                Link listo. Puedes copiarlo o enviarlo por WhatsApp.
-                              </div>
+                             <div style={S.shareStatus}>
+  Este es el link activo de este plan. Puedes copiarlo o enviarlo por WhatsApp.
+</div>
 
                               <div style={S.shareLinkBox}>{shareState.link}</div>
 

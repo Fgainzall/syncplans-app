@@ -3,7 +3,7 @@
 
 import supabase from "@/lib/supabaseClient";
 import {
-  createPublicInvite,
+  getOrCreatePublicInvite,
   type PublicInviteRow,
 } from "@/lib/invitationsDb";
 
@@ -441,7 +441,7 @@ export async function generatePublicInviteLink(
 
   await getEventById(eventId);
 
-  const invite = await createPublicInvite({
+  const invite = await getOrCreatePublicInvite({
     eventId,
     contact,
   });
