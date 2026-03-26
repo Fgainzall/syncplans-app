@@ -30,7 +30,7 @@ import {
   getEventById,
   updateEvent,
 } from "@/lib/eventsDb";
-
+import { getOrCreatePublicInvite } from "@/lib/invitationsDb";
 // ✅ active group desde DB
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { loadEventsForConflictPreflight } from "@/lib/conflictsDbBridge";
@@ -175,6 +175,8 @@ const [postSaveActions, setPostSaveActions] = useState<null | {
   title?: string;
   isShared?: boolean;
 }>(null);
+const [sharingPostSave, setSharingPostSave] = useState(false);
+const [postSaveShareUrl, setPostSaveShareUrl] = useState<string | null>(null);
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
 
   const [booting, setBooting] = useState(true);
@@ -631,6 +633,7 @@ setToast(buildSuccessToast({ keepBoth: true }));
 
 setPostSaveActions({
   visible: true,
+  eventId: savedEventId ?? undefined,
   title: payload.title,
   isShared: effectiveType === "group",
 });
@@ -663,6 +666,7 @@ setToast(buildSuccessToast());
 
 setPostSaveActions({
   visible: true,
+  eventId: savedEventId ?? undefined,
   title: payload.title,
   isShared: effectiveType === "group",
 });
@@ -853,6 +857,80 @@ setPostSaveActions({
       window.setTimeout(() => setToast(null), 2800);
     } finally {
       setSaving(false);
+    }
+  };
+
+
+  const handleSharePostSave = async () => {
+    try {
+      if (!postSaveActions?.eventId) {
+        setToast({
+          title: "No se pudo compartir",
+          subtitle: "Todavía no encontré el evento que acabas de guardar.",
+        });
+        return;
+      }
+
+      setSharingPostSave(true);
+
+      const invite = await getOrCreatePublicInvite({
+  eventId: postSaveActions.eventId,
+});
+
+const token =
+  typeof invite === "string"
+    ? invite
+    : invite?.token || invite?.id || null;
+
+      if (!token) {
+        throw new Error("No se pudo generar el link.");
+      }
+
+      const shareUrl = `${window.location.origin}/invite/${token}`;
+      setPostSaveShareUrl(shareUrl);
+
+      try {
+        if (navigator.share) {
+          await navigator.share({
+            title: postSaveActions.title || "Evento compartido",
+            text: postSaveActions.title
+              ? `Te comparto este plan: ${postSaveActions.title}`
+              : "Te comparto este plan.",
+            url: shareUrl,
+          });
+        } else if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(shareUrl);
+          setToast({
+            title: "Link copiado ✅",
+            subtitle: "Ya puedes compartirlo donde quieras.",
+          });
+        } else {
+          setToast({
+            title: "Link listo ✅",
+            subtitle: "Cópialo manualmente desde la caja de abajo.",
+          });
+        }
+      } catch {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(shareUrl);
+          setToast({
+            title: "Link copiado ✅",
+            subtitle: "Ya puedes compartirlo donde quieras.",
+          });
+        } else {
+          setToast({
+            title: "Link listo ✅",
+            subtitle: "Cópialo manualmente desde la caja de abajo.",
+          });
+        }
+      }
+    } catch (err: any) {
+      setToast({
+        title: "No se pudo compartir",
+        subtitle: err?.message || "Intenta nuevamente.",
+      });
+    } finally {
+      setSharingPostSave(false);
     }
   };
 
@@ -1176,7 +1254,6 @@ setPostSaveActions({
               </ul>
             </div>
           )}
-
           {postSaveActions?.visible ? (
             <div
               style={{
@@ -1218,22 +1295,97 @@ setPostSaveActions({
                   Ver calendario
                 </button>
 
+                {postSaveActions?.isShared && postSaveActions?.eventId ? (
+                  <button
+                    type="button"
+                    onClick={handleSharePostSave}
+                    disabled={sharingPostSave}
+                    style={{
+                      ...styles.ghostBtn,
+                      opacity: sharingPostSave ? 0.7 : 1,
+                    }}
+                  >
+                    {sharingPostSave ? "Compartiendo…" : "Compartir"}
+                  </button>
+                ) : null}
+
                 <button
                   type="button"
-                 onClick={() => {
-  const nextStart = new Date();
-  const nextEnd = addMinutes(nextStart, 60);
+                  onClick={() => {
+                    const nextStart = new Date();
+                    const nextEnd = addMinutes(nextStart, 60);
 
-  setPostSaveActions(null);
-  setToast(null);
-  setStartLocal(toInputLocal(nextStart));
-  setEndLocal(toInputLocal(nextEnd));
-}}
+                    setPostSaveActions(null);
+                    setToast(null);
+                    setPostSaveShareUrl(null);
+                    setStartLocal(toInputLocal(nextStart));
+                    setEndLocal(toInputLocal(nextEnd));
+                  }}
                   style={styles.primaryBtn}
                 >
                   Crear otro similar
                 </button>
               </div>
+
+              {postSaveShareUrl ? (
+                <div
+                  style={{
+                    borderRadius: 12,
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    background: "rgba(255,255,255,0.03)",
+                    padding: 10,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 12, opacity: 0.72 }}>
+                    Link listo para compartir
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 12,
+                      wordBreak: "break-all",
+                      opacity: 0.9,
+                    }}
+                  >
+                    {postSaveShareUrl}
+                  </div>
+
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!postSaveShareUrl) return;
+                        try {
+                          await navigator.clipboard.writeText(postSaveShareUrl);
+                          setToast({
+                            title: "Link copiado ✅",
+                            subtitle: "Ya puedes compartirlo donde quieras.",
+                          });
+                        } catch {
+                          setToast({
+                            title: "No se pudo copiar",
+                            subtitle: "Cópialo manualmente desde aquí.",
+                          });
+                        }
+                      }}
+                      style={styles.ghostBtn}
+                    >
+                      Copiar link
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPostSaveShareUrl(null)}
+                      style={styles.ghostBtn}
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </section>
