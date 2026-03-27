@@ -35,6 +35,7 @@ import {
   filterIgnoredConflicts,
   groupMeta,
   loadSoftRejectedEventIds,
+  SOFT_REJECTED_EVENTS_KEY,
 } from "@/lib/conflicts";
 import {
   getMyConflictResolutionsMap,
@@ -287,13 +288,16 @@ export default function CalendarClient(
 
   const [toast, setToast] =
     useState<null | { title: string; subtitle?: string }>(null);
-
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [hideError, setHideError] = useState<string | null>(null);
 
   /* ✏️ ESTADO DEL MODAL DE EDICIÓN */
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
 
   const handleEditEvent = useCallback((e: CalendarEvent) => {
+    setDeleteError(null);
+    setHideError(null);
     setEditingEvent(e);
     setIsEditOpen(true);
   }, []);
@@ -464,29 +468,34 @@ export default function CalendarClient(
 
   const handleDeleteEvent = useCallback(
     async (eventId: string, title?: string) => {
-      const ok = confirm(
-        `¿Eliminar el evento${
-          title ? ` "${title}"` : ""
-        }?\nEsta acción no se puede deshacer.`
-      );
-      if (!ok) return;
+      if (!editingEvent || !currentUserId) return;
+
+      if (!isEventOwnedByUser(editingEvent as any, currentUserId)) {
+        setDeleteError("No puedes eliminar este evento porque no te pertenece.");
+        return;
+      }
 
       try {
-        setToast({ title: "Eliminando…", subtitle: "Aplicando cambios" });
+        setDeleteError(null);
+        setHideError(null);
 
         const result = await deleteEventsByIdsDetailed([eventId]);
 
         if (result.deletedCount !== 1) {
           if (result.blockedIds.length > 0) {
-            throw new Error(
-              "No pudiste eliminar ese evento con tu sesión actual. Puede pertenecer a otra persona o no estar permitido por permisos."
+            setDeleteError(
+              "No tienes permisos para eliminar este evento con tu sesión actual."
             );
+            return;
           }
 
-          throw new Error(
-            "El evento no se eliminó realmente. No actualizamos la UI como si hubiera salido bien."
-          );
+          setDeleteError("El evento no se eliminó realmente.");
+          return;
         }
+
+        setDeleteError(null);
+        setIsEditOpen(false);
+        setEditingEvent(null);
 
         await refreshCalendar({
           showToast: true,
@@ -494,11 +503,43 @@ export default function CalendarClient(
           toastSubtitle: "Tu calendario ya está actualizado.",
         });
       } catch (e: any) {
-        setToast({
-          title: "No se pudo eliminar",
-          subtitle: e?.message ?? "Revisa permisos o conexión.",
+        setDeleteError(
+          e?.message ?? "No se pudo eliminar este evento con tu sesión actual."
+        );
+      }
+    },
+    [currentUserId, editingEvent, refreshCalendar]
+  );
+
+
+  const handleHideEvent = useCallback(
+    async (eventId: string) => {
+      try {
+        setHideError(null);
+        setDeleteError(null);
+
+        const currentIds = Array.from(loadSoftRejectedEventIds());
+        const nextIds = Array.from(new Set([...currentIds, String(eventId)]));
+
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(
+            SOFT_REJECTED_EVENTS_KEY,
+            JSON.stringify(nextIds)
+          );
+          window.dispatchEvent(new Event("sp:soft-rejected-events-changed"));
+        }
+
+        setIsEditOpen(false);
+        setEditingEvent(null);
+
+        await refreshCalendar({
+          showToast: true,
+          toastTitle: "Evento ocultado ✅",
+          toastSubtitle: "Ya no lo verás en tu calendario ni en tu lista.",
         });
-        window.setTimeout(() => setToast(null), 2600);
+      } catch (e: any) {
+        console.error("hide event failed", e);
+        setHideError(e?.message ?? "No se pudo ocultar este evento para tu cuenta.");
       }
     },
     [refreshCalendar]
@@ -1215,6 +1256,8 @@ export default function CalendarClient(
           onClose={() => {
             setIsEditOpen(false);
             setEditingEvent(null);
+            setDeleteError(null);
+            setHideError(null);
           }}
           initialEvent={
             editingEvent
@@ -1234,9 +1277,28 @@ export default function CalendarClient(
           }
           groups={groups?.map((g) => ({ id: g.id, type: g.type }))}
           canDelete={!!editingEvent && isEventOwnedByUser(editingEvent as any, currentUserId)}
+          canHide={!!(editingEvent && currentUserId && !isEventOwnedByUser(editingEvent as any, currentUserId))}
+          onDelete={
+            editingEvent && currentUserId && isEventOwnedByUser(editingEvent as any, currentUserId)
+              ? async () => {
+                  await handleDeleteEvent(editingEvent.id, editingEvent.title);
+                }
+              : undefined
+          }
+          onHide={
+            editingEvent && currentUserId && !isEventOwnedByUser(editingEvent as any, currentUserId)
+              ? async () => {
+                  await handleHideEvent(editingEvent.id);
+                }
+              : undefined
+          }
+          deleteError={deleteError}
+          hideError={hideError}
           onSaved={async () => {
             setIsEditOpen(false);
             setEditingEvent(null);
+            setDeleteError(null);
+            setHideError(null);
             await refreshCalendar({
               showToast: true,
               toastTitle: "Evento actualizado ✅",

@@ -3,7 +3,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import supabase from "@/lib/supabaseClient";
-import { deleteEventsByIdsDetailed } from "@/lib/eventsDb";
 import type { GroupType } from "@/lib/conflicts";
 
 type EditableGroupType = "personal" | "couple" | "family";
@@ -22,8 +21,13 @@ type EventEditModalProps = {
   onClose: () => void;
   initialEvent?: EditEventShape;
   onSaved?: () => void | Promise<void>;
-  groups?: { id: string; type: string }[]; // 🔥 NUEVO
+  groups?: { id: string; type: string }[];
   canDelete?: boolean;
+  canHide?: boolean;
+  onDelete?: () => void | Promise<void>;
+  onHide?: () => void | Promise<void>;
+  deleteError?: string | null;
+  hideError?: string | null;
 };
 
 // Helpers para datetime-local
@@ -58,8 +62,13 @@ export function EventEditModal({
   onClose,
   initialEvent,
   onSaved,
-  groups, // 🔥 NUEVO
+  groups,
   canDelete = true,
+  canHide = false,
+  onDelete,
+  onHide,
+  deleteError = null,
+  hideError = null,
 }: EventEditModalProps) {
   const [title, setTitle] = useState("");
   const [startLocal, setStartLocal] = useState("");
@@ -69,7 +78,6 @@ export function EventEditModal({
   const [allDay, setAllDay] = useState(false);
 
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const hasId = !!initialEvent?.id;
@@ -119,15 +127,14 @@ export function EventEditModal({
       !!title.trim() &&
       !!startLocal &&
       !!endLocal &&
-      !saving &&
-      !deleting
+      !saving
     );
-  }, [title, startLocal, endLocal, saving, deleting]);
+  }, [title, startLocal, endLocal, saving]);
 
   if (!isOpen) return null;
 
   const handleClose = () => {
-    if (saving || deleting) return;
+    if (saving) return;
     onClose();
   };
 
@@ -219,42 +226,32 @@ if (groupType !== "personal" && groups?.length) {
   };
 
   const handleDelete = async () => {
-    if (!hasId || deleting) return;
+    if (!hasId || !onDelete) return;
 
     const ok = confirm(
-      `¿Eliminar el evento"${title ? ` "${title}"` : ""}"?\nEsta acción no se puede deshacer.`
+      `¿Eliminar el evento${title ? ` "${title}"` : ""}?\nEsta acción no se puede deshacer.`
     );
     if (!ok) return;
 
-    setDeleting(true);
-    setError(null);
+    try {
+      await onDelete();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleHide = async () => {
+    if (!hasId || !onHide) return;
+
+    const ok = confirm(
+      `¿Ocultar este evento para tu cuenta${title ? `: "${title}"` : ""}?\nLos demás seguirán viéndolo.`
+    );
+    if (!ok) return;
 
     try {
-      const result = await deleteEventsByIdsDetailed([String(initialEvent!.id)]);
-
-      if (result.deletedCount !== 1) {
-        if (result.blockedIds.length > 0) {
-          setError(
-            "No tienes permisos para eliminar este evento con tu sesión actual."
-          );
-          setDeleting(false);
-          return;
-        }
-
-        setError("El evento no se eliminó realmente.");
-        setDeleting(false);
-        return;
-      }
-
-      if (onSaved) {
-        await onSaved();
-      }
-      setDeleting(false);
-      onClose();
-    } catch (e: any) {
+      await onHide();
+    } catch (e) {
       console.error(e);
-      setError(e?.message ?? "Error inesperado al eliminar.");
-      setDeleting(false);
     }
   };
 
@@ -425,23 +422,41 @@ if (groupType !== "personal" && groups?.length) {
           </div>
 
           {error && <div style={errorStyles}>{error}</div>}
+          {deleteError && <div style={errorStyles}>{deleteError}</div>}
+          {hideError && <div style={{ ...errorStyles, color: "rgba(253,230,138,0.96)", borderColor: "rgba(245,158,11,0.28)", background: "rgba(120,53,15,0.18)" }}>{hideError}</div>}
         </div>
 
         {/* Footer */}
         <div style={footerStyles}>
-          {canDelete ? (
+          {canDelete && onDelete ? (
             <button
               type="button"
               onClick={handleDelete}
-              disabled={!hasId || deleting || saving}
+              disabled={!hasId || saving}
               style={{
                 ...dangerBtnStyles,
-                opacity: !hasId || deleting || saving ? 0.65 : 1,
-                cursor:
-                  !hasId || deleting || saving ? "default" : "pointer",
+                opacity: !hasId || saving ? 0.65 : 1,
+                cursor: !hasId || saving ? "default" : "pointer",
               }}
             >
-              {deleting ? "Eliminando…" : "Eliminar"}
+              Eliminar
+            </button>
+          ) : canHide && onHide ? (
+            <button
+              type="button"
+              onClick={handleHide}
+              disabled={!hasId || saving}
+              style={{
+                ...dangerBtnStyles,
+                background: "linear-gradient(180deg, rgba(245,158,11,0.24), rgba(180,83,9,0.22))",
+                border: "1px solid rgba(245,158,11,0.35)",
+                color: "rgba(255,237,213,0.96)",
+                boxShadow: "0 16px 34px rgba(120,53,15,0.20)",
+                opacity: !hasId || saving ? 0.65 : 1,
+                cursor: !hasId || saving ? "default" : "pointer",
+              }}
+            >
+              Ocultar para mí
             </button>
           ) : (
             <div style={{ color: "rgba(148,163,184,0.9)", fontSize: 12 }}>
@@ -453,7 +468,7 @@ if (groupType !== "personal" && groups?.length) {
             <button
               type="button"
               onClick={handleClose}
-              disabled={saving || deleting}
+              disabled={saving}
               style={secondaryBtnStyles}
             >
               Cancelar
