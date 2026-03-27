@@ -1233,6 +1233,7 @@ export default function CalendarClient(
               : undefined
           }
           groups={groups?.map((g) => ({ id: g.id, type: g.type }))}
+          canDelete={!!editingEvent && isEventOwnedByUser(editingEvent as any, currentUserId)}
           onSaved={async () => {
             setIsEditOpen(false);
             setEditingEvent(null);

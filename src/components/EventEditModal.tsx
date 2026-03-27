@@ -3,6 +3,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import supabase from "@/lib/supabaseClient";
+import { deleteEventsByIdsDetailed } from "@/lib/eventsDb";
 import type { GroupType } from "@/lib/conflicts";
 
 type EditableGroupType = "personal" | "couple" | "family";
@@ -22,6 +23,7 @@ type EventEditModalProps = {
   initialEvent?: EditEventShape;
   onSaved?: () => void | Promise<void>;
   groups?: { id: string; type: string }[]; // 🔥 NUEVO
+  canDelete?: boolean;
 };
 
 // Helpers para datetime-local
@@ -57,6 +59,7 @@ export function EventEditModal({
   initialEvent,
   onSaved,
   groups, // 🔥 NUEVO
+  canDelete = true,
 }: EventEditModalProps) {
   const [title, setTitle] = useState("");
   const [startLocal, setStartLocal] = useState("");
@@ -227,14 +230,18 @@ if (groupType !== "personal" && groups?.length) {
     setError(null);
 
     try {
-      const { error: dbError } = await supabase
-        .from("events")
-        .delete()
-        .eq("id", initialEvent!.id);
+      const result = await deleteEventsByIdsDetailed([String(initialEvent!.id)]);
 
-      if (dbError) {
-        console.error(dbError);
-        setError(dbError.message ?? "No se pudo eliminar el evento.");
+      if (result.deletedCount !== 1) {
+        if (result.blockedIds.length > 0) {
+          setError(
+            "No tienes permisos para eliminar este evento con tu sesión actual."
+          );
+          setDeleting(false);
+          return;
+        }
+
+        setError("El evento no se eliminó realmente.");
         setDeleting(false);
         return;
       }
@@ -422,19 +429,25 @@ if (groupType !== "personal" && groups?.length) {
 
         {/* Footer */}
         <div style={footerStyles}>
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={!hasId || deleting || saving}
-            style={{
-              ...dangerBtnStyles,
-              opacity: !hasId || deleting ? 0.65 : 1,
-              cursor:
-                !hasId || deleting || saving ? "default" : "pointer",
-            }}
-          >
-            {deleting ? "Eliminando…" : "Eliminar"}
-          </button>
+          {canDelete ? (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={!hasId || deleting || saving}
+              style={{
+                ...dangerBtnStyles,
+                opacity: !hasId || deleting || saving ? 0.65 : 1,
+                cursor:
+                  !hasId || deleting || saving ? "default" : "pointer",
+              }}
+            >
+              {deleting ? "Eliminando…" : "Eliminar"}
+            </button>
+          ) : (
+            <div style={{ color: "rgba(148,163,184,0.9)", fontSize: 12 }}>
+              Este evento no te pertenece.
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <button

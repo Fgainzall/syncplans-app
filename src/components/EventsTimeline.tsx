@@ -531,8 +531,9 @@ export default function EventsTimeline({
                 const checked = selectedIds.has(eventId);
                 const isShareOpen =
                   !!shareState?.loading || !!shareState?.link || !!shareState?.error;
-                const canDelete =
+                const isOwnerView =
                   !!currentUserId && resolveEventOwnerId(ev) === currentUserId;
+                const canDelete = isOwnerView;
 
                 return (
                   <div key={eventId} style={S.eventRow}>
@@ -567,15 +568,17 @@ export default function EventsTimeline({
                         </div>
 
                         <div style={S.actions}>
-                          <button
-                            onClick={() => onCreateShareLink(ev)}
-                            style={isShareOpen ? activeIconBtn : iconBtn}
-                            title="Compartir"
-                            type="button"
-                            disabled={shareState?.loading}
-                          >
-                            {shareState?.loading ? "…" : "🔗"}
-                          </button>
+                          {isOwnerView ? (
+                            <button
+                              onClick={() => onCreateShareLink(ev)}
+                              style={isShareOpen ? activeIconBtn : iconBtn}
+                              title="Compartir"
+                              type="button"
+                              disabled={shareState?.loading}
+                            >
+                              {shareState?.loading ? "…" : "🔗"}
+                            </button>
+                          ) : null}
 
                           <button
                             onClick={() =>
@@ -626,17 +629,30 @@ export default function EventsTimeline({
                           </span>
                         )}
 
-                        <span
-                          style={{
-                            ...S.signalBadge,
-                            ...getInviteBadgeStyle(invitePresentation.tone),
-                          }}
-                        >
-                          {invitePresentation.label}
-                        </span>
+                        {isOwnerView ? (
+                          <span
+                            style={{
+                              ...S.signalBadge,
+                              ...getInviteBadgeStyle(invitePresentation.tone),
+                            }}
+                          >
+                            {invitePresentation.label}
+                          </span>
+                        ) : invite ? (
+                          <span
+                            style={{
+                              ...S.signalBadge,
+                              background: "rgba(30,41,59,0.88)",
+                              borderColor: "rgba(148,163,184,0.18)",
+                              color: "rgba(226,232,240,0.96)",
+                            }}
+                          >
+                            Invitación recibida
+                          </span>
+                        ) : null}
                       </div>
 
-                      {(shareState?.loading || shareState?.link || shareState?.error) && (
+                      {isOwnerView && (shareState?.loading || shareState?.link || shareState?.error) && (
                         <div style={S.sharePanel}>
                           <div style={S.sharePanelHeader}>
                             <div>
