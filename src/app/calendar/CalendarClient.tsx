@@ -292,15 +292,15 @@ export default function CalendarClient(
   const [hideError, setHideError] = useState<string | null>(null);
 
   /* ✏️ ESTADO DEL MODAL DE EDICIÓN */
-  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+ const [editingEvent, setEditingEvent] = useState<CalendarEventWithOwner | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
 
-  const handleEditEvent = useCallback((e: CalendarEvent) => {
-    setDeleteError(null);
-    setHideError(null);
-    setEditingEvent(e);
-    setIsEditOpen(true);
-  }, []);
+const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
+  setDeleteError(null);
+  setHideError(null);
+  setEditingEvent(e);
+  setIsEditOpen(true);
+}, []);
 
   const monthStart = useMemo(() => startOfMonth(anchor), [anchor]);
   const monthEnd = useMemo(() => endOfMonth(anchor), [anchor]);
@@ -469,11 +469,18 @@ export default function CalendarClient(
   const handleDeleteEvent = useCallback(
     async (eventId: string, title?: string) => {
       if (!editingEvent || !currentUserId) return;
-
-      if (!isEventOwnedByUser(editingEvent as any, currentUserId)) {
-        setDeleteError("No puedes eliminar este evento porque no te pertenece.");
-        return;
-      }
+console.log("DELETE CHECK", {
+  eventId: editingEvent?.id,
+  owner_id: editingEvent?.owner_id,
+  user_id: editingEvent?.user_id,
+  created_by: editingEvent?.created_by,
+  currentUserId,
+  canDelete: isEventOwnedByUser(editingEvent, currentUserId),
+});
+    if (!isEventOwnedByUser(editingEvent, currentUserId)) {
+  setDeleteError("No puedes eliminar este evento porque no te pertenece.");
+  return;
+}
 
       try {
         setDeleteError(null);
@@ -1259,39 +1266,39 @@ export default function CalendarClient(
             setDeleteError(null);
             setHideError(null);
           }}
-          initialEvent={
-            editingEvent
-              ? {
-                  id: editingEvent.id,
-                  title: editingEvent.title,
-                  start: editingEvent.start,
-                  end: editingEvent.end,
-                  description: editingEvent.notes,
-                  groupType:
-                    editingEvent.groupType === "pair"
-                      ? ("couple" as any)
-                      : editingEvent.groupType,
-                  groupId: editingEvent.groupId ?? null,
-                }
-              : undefined
-          }
+initialEvent={
+  editingEvent
+    ? {
+        id: editingEvent.id,
+        title: editingEvent.title,
+        start: editingEvent.start,
+        end: editingEvent.end,
+        description: editingEvent.notes,
+        groupType:
+          editingEvent.groupType === "pair"
+            ? ("couple" as any)
+            : editingEvent.groupType,
+        groupId: editingEvent.groupId ?? null,
+      }
+    : undefined
+}
           groups={groups?.map((g) => ({ id: g.id, type: g.type }))}
-          canDelete={!!editingEvent && isEventOwnedByUser(editingEvent as any, currentUserId)}
-          canHide={!!(editingEvent && currentUserId && !isEventOwnedByUser(editingEvent as any, currentUserId))}
-          onDelete={
-            editingEvent && currentUserId && isEventOwnedByUser(editingEvent as any, currentUserId)
-              ? async () => {
-                  await handleDeleteEvent(editingEvent.id, editingEvent.title);
-                }
-              : undefined
-          }
-          onHide={
-            editingEvent && currentUserId && !isEventOwnedByUser(editingEvent as any, currentUserId)
-              ? async () => {
-                  await handleHideEvent(editingEvent.id);
-                }
-              : undefined
-          }
+canDelete={!!editingEvent && isEventOwnedByUser(editingEvent, currentUserId)}
+canHide={!!(editingEvent && currentUserId && !isEventOwnedByUser(editingEvent, currentUserId))}
+     onDelete={
+  editingEvent && currentUserId && isEventOwnedByUser(editingEvent, currentUserId)
+    ? async () => {
+        await handleDeleteEvent(editingEvent.id, editingEvent.title);
+      }
+    : undefined
+}
+onHide={
+  editingEvent && currentUserId && !isEventOwnedByUser(editingEvent, currentUserId)
+    ? async () => {
+        await handleHideEvent(editingEvent.id);
+      }
+    : undefined
+}
           deleteError={deleteError}
           hideError={hideError}
           onSaved={async () => {
@@ -1424,11 +1431,11 @@ function renderMonthCells(opts: {
   monthStart: Date;
   selectedDay: Date;
   setSelectedDay: (d: Date) => void;
-  eventsByDay: Map<string, CalendarEvent[]>;
+ eventsByDay: Map<string, CalendarEventWithOwner[]>;
   openNewEventPersonal: (date?: Date) => void;
   openNewEventGroup: (date?: Date) => void;
   groupTypeById: Map<string, "pair" | "family" | "other">;
-  onEdit: (e: CalendarEvent) => void;
+onEdit: (e: CalendarEventWithOwner) => void;
   today: Date;
   isMobile: boolean;
 }) {
