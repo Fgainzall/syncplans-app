@@ -241,7 +241,8 @@ const [sharingPostSave, setSharingPostSave] = useState(false);
 const [postSaveShareUrl, setPostSaveShareUrl] = useState<string | null>(null);
 const [postSaveFingerprint, setPostSaveFingerprint] =
   useState<PostSaveFormFingerprint | null>(null);
-  const [settings, setSettings] = useState<NotificationSettings | null>(null);
+const [hydrated, setHydrated] = useState(false);
+const [settings, setSettings] = useState<NotificationSettings | null>(null);
 
   const [booting, setBooting] = useState(true);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
@@ -281,7 +282,9 @@ const [postSaveFingerprint, setPostSaveFingerprint] =
     const t = window.setTimeout(() => setToast(null), 2600);
     return () => window.clearTimeout(t);
   }, [toast]);
-
+useEffect(() => {
+  setHydrated(true);
+}, []);
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -1064,7 +1067,9 @@ setPostSaveActions({
     setStartLocal(toInputLocal(nextStart));
     setEndLocal(toInputLocal(nextEnd));
   };
-
+if (!hydrated) {
+  return <main style={styles.page} />;
+}
   return (
     <main style={styles.page}>
       {toast && (
