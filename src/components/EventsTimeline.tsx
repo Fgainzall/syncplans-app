@@ -4,7 +4,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { deleteEventsByIds, generatePublicInviteLink } from "@/lib/eventsDb";
+import supabase from "@/lib/supabaseClient";
+import { deleteEventsByIdsDetailed, generatePublicInviteLink } from "@/lib/eventsDb";
 import {
   getLatestPublicInvitesByEventIds,
   type PublicInviteRow,
@@ -12,6 +13,9 @@ import {
 
 type TimelineEvent = {
   id: string;
+  user_id?: string | null;
+  owner_id?: string | null;
+  created_by?: string | null;
   title?: string | null;
   notes?: string | null;
   start: string;
@@ -30,6 +34,7 @@ type Props = {
   events: TimelineEvent[];
   selectedIds: Set<string>;
   onToggleSelected: (id: string) => void;
+  onEventsRemoved?: (removedIds: string[]) => void;
 };
 
 type ShareState = {
@@ -239,16 +244,22 @@ function getInviteBadgeStyle(tone: "neutral" | "pending" | "accepted" | "rejecte
   }
 }
 
+function resolveEventOwnerId(event: TimelineEvent | null | undefined): string {
+  return String(event?.owner_id ?? event?.user_id ?? event?.created_by ?? "").trim();
+}
+
 export default function EventsTimeline({
   events,
   selectedIds,
   onToggleSelected,
+  onEventsRemoved,
 }: Props) {
   const router = useRouter();
 
   const [shareStateById, setShareStateById] = useState<Record<string, ShareState>>(
     {}
   );
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [inviteStateByEventId, setInviteStateByEventId] =
     useState<InviteStateByEventId>({});
   const [inviteStatesLoading, setInviteStatesLoading] = useState(false);
@@ -273,6 +284,25 @@ export default function EventsTimeline({
       dayEvents,
     }));
   }, [sorted]);
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (!alive) return;
+      if (error) {
+        console.error("[EventsTimeline] getUser error", error);
+        return;
+      }
+
+      setCurrentUserId(data.user?.id ?? null);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -321,8 +351,32 @@ export default function EventsTimeline({
 
   async function onDelete(id: string) {
     if (!confirm("¿Eliminar este evento?")) return;
-    await deleteEventsByIds([id]);
-    router.refresh();
+
+    try {
+      const result = await deleteEventsByIdsDetailed([id]);
+
+      if (result.deletedCount === 1) {
+        onEventsRemoved?.([id]);
+        return;
+      }
+
+      if (result.blockedIds.length > 0) {
+        window.alert(
+          "No pudiste eliminar ese evento con tu sesión actual. Puede pertenecer a otra persona o no estar permitido por permisos."
+        );
+        return;
+      }
+
+      window.alert(
+        "El evento no se eliminó realmente. La lista no se actualizó como si hubiera salido bien."
+      );
+    } catch (error: any) {
+      console.error("[EventsTimeline] delete error", error);
+      window.alert(
+        error?.message ||
+          "No se pudo eliminar este evento. Revisa tus permisos o vuelve a intentar."
+      );
+    }
   }
 
   async function onCreateShareLink(ev: TimelineEvent): Promise<string | null> {
@@ -477,6 +531,8 @@ export default function EventsTimeline({
                 const checked = selectedIds.has(eventId);
                 const isShareOpen =
                   !!shareState?.loading || !!shareState?.link || !!shareState?.error;
+                const canDelete =
+                  !!currentUserId && resolveEventOwnerId(ev) === currentUserId;
 
                 return (
                   <div key={eventId} style={S.eventRow}>
@@ -532,14 +588,16 @@ export default function EventsTimeline({
                             ✏️
                           </button>
 
-                          <button
-                            onClick={() => onDelete(eventId)}
-                            style={iconBtn}
-                            title="Eliminar"
-                            type="button"
-                          >
-                            🗑️
-                          </button>
+                          {canDelete ? (
+                            <button
+                              onClick={() => onDelete(eventId)}
+                              style={iconBtn}
+                              title="Eliminar"
+                              type="button"
+                            >
+                              🗑️
+                            </button>
+                          ) : null}
                         </div>
                       </div>
 

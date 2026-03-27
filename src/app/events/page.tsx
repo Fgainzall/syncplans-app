@@ -15,15 +15,16 @@ import EventsTimeline from "@/components/EventsTimeline";
 
 import {
   getMyEvents,
-  deleteEventsByIds,
+  deleteEventsByIdsDetailed,
   type DbEventRow,
 } from "@/lib/eventsDb";
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import {
-  filterSoftRejectedEvents,
   loadSoftRejectedEventIds,
   SOFT_REJECTED_EVENTS_KEY,
 } from "@/lib/conflicts";
+import { getMyDeclinedEventIds } from "@/lib/eventResponsesDb";
+import { filterVisibleEvents } from "@/lib/tempeventVisibility";
 
 type ViewMode = "upcoming" | "history" | "all";
 type Scope = "personal" | "groups" | "all";
@@ -89,6 +90,9 @@ export default function EventsPage() {
   const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(
     () => loadSoftRejectedEventIds()
   );
+  const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const [groups, setGroups] = useState<GroupRow[]>([]);
 
   const [filters, setFilters] = useState<FilterState>({
@@ -118,7 +122,7 @@ export default function EventsPage() {
           return;
         }
 
-        const [eventsRes, groupsRes] = await Promise.all([
+        const [eventsRes, groupsRes, declinedRes] = await Promise.all([
           getMyEvents().catch((err) => {
             console.error("Error getMyEvents en /events:", err);
             return [] as DbEventRow[];
@@ -126,6 +130,10 @@ export default function EventsPage() {
           getMyGroups().catch((err) => {
             console.error("Error getMyGroups en /events:", err);
             return [] as GroupRow[];
+          }),
+          getMyDeclinedEventIds().catch((err) => {
+            console.error("Error getMyDeclinedEventIds en /events:", err);
+            return new Set<string>();
           }),
         ]);
 
@@ -141,6 +149,7 @@ export default function EventsPage() {
         setEvents(withGroup);
         setGroups(groupsRes);
         setHiddenEventIds(loadSoftRejectedEventIds());
+        setDeclinedEventIds(declinedRes);
       } catch (err) {
         console.error("Error booting events:", err);
       } finally {
@@ -202,7 +211,10 @@ export default function EventsPage() {
   const totalGroups = groups.length;
 
   const filteredEvents = useMemo(() => {
-    let list = filterSoftRejectedEvents(events, hiddenEventIds);
+    let list = filterVisibleEvents(events, {
+      declinedIds: declinedEventIds,
+      hiddenIds: hiddenEventIds,
+    });
 
     const now = new Date();
 
@@ -236,7 +248,7 @@ export default function EventsPage() {
     }
 
     return list;
-  }, [events, hiddenEventIds, filters]);
+  }, [events, declinedEventIds, hiddenEventIds, filters]);
 
   const urgentEvents = useMemo(() => {
     if (filters.view === "history") return [];
@@ -244,7 +256,10 @@ export default function EventsPage() {
   }, [filteredEvents, filters.view]);
 
   const headerSubtitle = useMemo(() => {
-    const visibleEvents = filterSoftRejectedEvents(events, hiddenEventIds);
+    const visibleEvents = filterVisibleEvents(events, {
+      declinedIds: declinedEventIds,
+      hiddenIds: hiddenEventIds,
+    });
 
     if (visibleEvents.length === 0) {
       return "Mira y gestiona tu lista de eventos personales y compartidos.";
@@ -256,7 +271,7 @@ export default function EventsPage() {
     return `Tu lista combina ${personal} evento${
       personal === 1 ? "" : "s"
     } personales y ${groupEvents} en grupos. Filtra, revisa y limpia sin perder contexto.`;
-  }, [events, hiddenEventIds]);
+  }, [events, declinedEventIds, hiddenEventIds]);
 
   function toggleSelection(id: string) {
     setSelectedIds((prev) => {
@@ -274,7 +289,7 @@ export default function EventsPage() {
     try {
       setLoading(true);
 
-      const [eventsRes, groupsRes] = await Promise.all([
+      const [eventsRes, groupsRes, declinedRes] = await Promise.all([
         getMyEvents().catch((err) => {
           console.error("Error refrescando getMyEvents:", err);
           return [] as DbEventRow[];
@@ -282,6 +297,10 @@ export default function EventsPage() {
         getMyGroups().catch((err) => {
           console.error("Error refrescando getMyGroups:", err);
           return [] as GroupRow[];
+        }),
+        getMyDeclinedEventIds().catch((err) => {
+          console.error("Error refrescando getMyDeclinedEventIds:", err);
+          return new Set<string>();
         }),
       ]);
 
@@ -295,6 +314,7 @@ export default function EventsPage() {
       setEvents(withGroup);
       setGroups(groupsRes);
       setHiddenEventIds(loadSoftRejectedEventIds());
+      setDeclinedEventIds(declinedRes);
     } catch (err: any) {
       console.error("Error refrescando eventos:", err);
       setToast({
@@ -325,14 +345,49 @@ export default function EventsPage() {
       setDeleting(true);
 
       const idsArray = Array.from(selectedIds);
-      await deleteEventsByIds(idsArray);
+      const result = await deleteEventsByIdsDetailed(idsArray);
 
-      setEvents((prev) => prev.filter((e) => !idsArray.includes(String(e.id))));
-      setSelectedIds(new Set());
-      setToast({
-        type: "success",
-        message: "Eventos eliminados correctamente.",
-      });
+      if (result.deletedCount > 0) {
+        const removedIds = new Set(result.ownIds.map(String));
+
+        setEvents((prev) =>
+          prev.filter((event) => !removedIds.has(String(event.id)))
+        );
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          for (const id of removedIds) next.delete(id);
+          return next;
+        });
+      }
+
+      if (result.deletedCount > 0 && result.blockedIds.length > 0) {
+        setToast({
+          type: "success",
+          message:
+            `Se eliminaron ${result.deletedCount} evento${
+              result.deletedCount === 1 ? "" : "s"
+            }, pero ${result.blockedIds.length} no se pudo${
+              result.blockedIds.length === 1 ? "" : "ieron"
+            } borrar porque no te pertenece${
+              result.blockedIds.length === 1 ? "" : "n"
+            } o no está permitido.`,
+        });
+        return;
+      }
+
+      if (result.deletedCount > 0) {
+        setToast({
+          type: "success",
+          message: `Se eliminaron ${result.deletedCount} evento${
+            result.deletedCount === 1 ? "" : "s"
+          } correctamente.`,
+        });
+        return;
+      }
+
+      throw new Error(
+        "No se pudo eliminar la selección con tu sesión actual. Puede incluir eventos de otra persona o bloqueados por permisos."
+      );
     } catch (err: any) {
       console.error("Error al eliminar eventos:", err);
       setToast({
@@ -456,7 +511,10 @@ export default function EventsPage() {
                 <span style={S.factDotPersonal} />
                 <span>
                   {
-                    filterSoftRejectedEvents(events, hiddenEventIds).filter(
+                    filterVisibleEvents(events, {
+                      declinedIds: declinedEventIds,
+                      hiddenIds: hiddenEventIds,
+                    }).filter(
                       (e) => !e.group_id
                     ).length
                   }{" "}
@@ -467,7 +525,10 @@ export default function EventsPage() {
                 <span style={S.factDotGroup} />
                 <span>
                   {
-                    filterSoftRejectedEvents(events, hiddenEventIds).filter(
+                    filterVisibleEvents(events, {
+                      declinedIds: declinedEventIds,
+                      hiddenIds: hiddenEventIds,
+                    }).filter(
                       (e) => !!e.group_id
                     ).length
                   }{" "}
@@ -604,6 +665,17 @@ export default function EventsPage() {
               events={filteredEvents}
               selectedIds={selectedIds}
               onToggleSelected={toggleSelection}
+              onEventsRemoved={(removedIds) => {
+                const removed = new Set(removedIds.map(String));
+                setEvents((prev) =>
+                  prev.filter((event) => !removed.has(String(event.id)))
+                );
+                setSelectedIds((prev) => {
+                  const next = new Set(prev);
+                  for (const id of removed) next.delete(id);
+                  return next;
+                });
+              }}
             />
           )}
         </Card>

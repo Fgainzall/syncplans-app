@@ -34,15 +34,20 @@ import {
   conflictKey,
   filterIgnoredConflicts,
   groupMeta,
+  loadSoftRejectedEventIds,
 } from "@/lib/conflicts";
 import {
   getMyConflictResolutionsMap,
   type Resolution,
 } from "@/lib/conflictResolutionsDb";
-import {
-  getMyDeclinedEventIds,
-  filterOutDeclinedEvents,
-} from "@/lib/eventResponsesDb";
+import { getMyDeclinedEventIds } from "@/lib/eventResponsesDb";
+import { filterVisibleEvents, isEventOwnedByUser } from "@/lib/tempeventVisibility";
+
+type CalendarEventWithOwner = CalendarEvent & {
+  user_id?: string | null;
+  owner_id?: string | null;
+  created_by?: string | null;
+};
 
 type Scope = "personal" | "active" | "all";
 type Tab = "month" | "agenda";
@@ -241,7 +246,7 @@ export default function CalendarClient(
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
 
-   const [events, setEvents] = useState<CalendarEvent[]>([]);
+   const [events, setEvents] = useState<CalendarEventWithOwner[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
     () => new Set()
@@ -271,6 +276,7 @@ export default function CalendarClient(
   const [eventsLoaded, setEventsLoaded] = useState(false);
 
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const [enabledGroups, setEnabledGroups] = useState({
     personal: true,
@@ -330,6 +336,8 @@ export default function CalendarClient(
           return;
         }
 
+        setCurrentUserId(data.session.user.id ?? null);
+
         const myGroups = await getMyGroups();
         setGroups(myGroups);
 
@@ -380,7 +388,9 @@ export default function CalendarClient(
           })
         );
 
-        const enriched: CalendarEvent[] = (rawEvents || [])
+        const nextHiddenIds = loadSoftRejectedEventIds();
+
+        const enriched: CalendarEventWithOwner[] = (rawEvents || [])
           .map((ev: any) => {
             const gid = ev.group_id ?? ev.groupId ?? null;
 
@@ -413,14 +423,17 @@ export default function CalendarClient(
               notes: ev.notes ?? undefined,
               groupId: gid ? String(gid) : null,
               groupType: gt,
-            } as CalendarEvent;
+              user_id: ev.user_id ?? null,
+              owner_id: ev.owner_id ?? null,
+              created_by: ev.created_by ?? null,
+            } as CalendarEventWithOwner;
           })
-          .filter(Boolean) as CalendarEvent[];
+          .filter(Boolean) as CalendarEventWithOwner[];
 
-        const filtered = filterOutDeclinedEvents(
-          enriched,
-          nextDeclined ?? new Set<string>()
-        );
+        const filtered = filterVisibleEvents(enriched, {
+          declinedIds: nextDeclined ?? new Set<string>(),
+          hiddenIds: nextHiddenIds,
+        });
 
         setEvents(filtered);
         setEventsLoaded(true);
@@ -573,6 +586,32 @@ export default function CalendarClient(
   }, [refreshCalendar]);
 
   useEffect(() => {
+    const onSoftRejectedChanged = () => {
+      void refreshCalendar();
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === "syncplans_soft_rejected_events_v1") {
+        void refreshCalendar();
+      }
+    };
+
+    window.addEventListener(
+      "sp:soft-rejected-events-changed",
+      onSoftRejectedChanged as EventListener
+    );
+    window.addEventListener("storage", onStorage);
+
+    return () => {
+      window.removeEventListener(
+        "sp:soft-rejected-events-changed",
+        onSoftRejectedChanged as EventListener
+      );
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [refreshCalendar]);
+
+  useEffect(() => {
     const onFocus = () => {
       void refreshCalendar();
     };
@@ -625,7 +664,7 @@ export default function CalendarClient(
      Conflictos
      ========================= */
   const conflicts = useMemo(() => {
-    const normalized: CalendarEvent[] = (Array.isArray(events)
+    const normalized: CalendarEventWithOwner[] = (Array.isArray(events)
       ? events
       : []
     ).map((e) => ({
@@ -650,7 +689,7 @@ export default function CalendarClient(
       const candidates = [
         events.find((e) => String(e.id) === String(conflict.existingEventId)),
         events.find((e) => String(e.id) === String(conflict.incomingEventId)),
-      ].filter(Boolean) as CalendarEvent[];
+      ].filter(Boolean) as CalendarEventWithOwner[];
 
       for (const event of candidates) {
         const ms = new Date(event.start).getTime();
@@ -749,7 +788,7 @@ export default function CalendarClient(
   }, [filteredEvents, gridStart, gridEnd]);
 
   const eventsByDay = useMemo(() => {
-    const map = new Map<string, CalendarEvent[]>();
+    const map = new Map<string, CalendarEventWithOwner[]>();
 
     for (const e of visibleEvents) {
       const key = ymd(new Date(e.start));
@@ -1131,6 +1170,7 @@ export default function CalendarClient(
                       onDelete={handleDeleteEvent}
                       onEdit={handleEditEvent}
                       groupTypeById={groupTypeById}
+                      currentUserId={currentUserId}
                     />
                   ))
                 )}
@@ -1162,6 +1202,7 @@ export default function CalendarClient(
                     onDelete={handleDeleteEvent}
                     onEdit={handleEditEvent}
                     groupTypeById={groupTypeById}
+                    currentUserId={currentUserId}
                   />
                 ))
               )}
@@ -1217,12 +1258,14 @@ function EventRow({
   onDelete,
   onEdit,
   groupTypeById,
+  currentUserId,
 }: {
-  e: CalendarEvent;
+  e: CalendarEventWithOwner;
   highlightId?: string | null;
   setRef?: (id: string) => (el: HTMLDivElement | null) => void;
   onDelete?: (id: string, title?: string) => void;
-  onEdit?: (e: CalendarEvent) => void;
+  onEdit?: (e: CalendarEventWithOwner) => void;
+  currentUserId?: string | null;
   groupTypeById?: Map<string, "pair" | "family" | "other">;
 }) {
   const resolvedType: GroupType = e.groupId
@@ -1232,6 +1275,7 @@ function EventRow({
   const meta = groupMeta(resolvedType);
   const isHighlighted =
     highlightId && String(e.id) === String(highlightId);
+  const canDelete = isEventOwnedByUser(e, currentUserId);
 
   return (
     <div
@@ -1254,59 +1298,55 @@ function EventRow({
     >
       <div style={{ ...styles.eventBar, background: meta.dot }} />
       <div style={styles.eventBody}>
-    <div style={styles.eventTop}>
-  <div style={styles.eventMain}>
-    <div style={styles.eventTitle}>
-      {e.title || "Sin título"}
-    </div>
+        <div style={styles.eventTop}>
+          <div style={styles.eventMain}>
+            <div style={styles.eventTitle}>{e.title || "Sin título"}</div>
 
-    <div style={styles.eventTime}>
-      {prettyTimeRange(e.start, e.end)}
-    </div>
-  </div>
+            <div style={styles.eventTime}>{prettyTimeRange(e.start, e.end)}</div>
+          </div>
 
-  <div style={styles.eventRight}>
-    <div style={styles.eventTag}>
-      <span
-        style={{
-          ...styles.eventDot,
-          background: meta.dot,
-        }}
-      />
-      {meta.label}
-    </div>
+          <div style={styles.eventRight}>
+            <div style={styles.eventTag}>
+              <span
+                style={{
+                  ...styles.eventDot,
+                  background: meta.dot,
+                }}
+              />
+              {meta.label}
+            </div>
 
-    <button
-      type="button"
-      onClick={(ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        onEdit?.(e);
-      }}
-      style={styles.editBtn}
-      aria-label="Editar evento"
-      title="Editar evento"
-    >
-      ✏️
-    </button>
+            <button
+              type="button"
+              onClick={(ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                onEdit?.(e);
+              }}
+              style={styles.editBtn}
+              aria-label="Editar evento"
+              title="Editar evento"
+            >
+              ✏️
+            </button>
 
-    <button
-      type="button"
-      onClick={(ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        onDelete?.(String(e.id), e.title);
-      }}
-      style={styles.deleteBtn}
-      aria-label="Eliminar evento"
-      title="Eliminar evento"
-    >
-      🗑️
-    </button>
-  </div>
-</div>
-
-    
+            {canDelete ? (
+              <button
+                type="button"
+                onClick={(ev) => {
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                  onDelete?.(String(e.id), e.title);
+                }}
+                style={styles.deleteBtn}
+                aria-label="Eliminar evento"
+                title="Eliminar evento"
+              >
+                🗑️
+              </button>
+            ) : null}
+          </div>
+        </div>
       </div>
     </div>
   );
