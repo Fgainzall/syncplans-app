@@ -144,6 +144,7 @@ type ApplySummary = {
   ignoredCount: number;
   softRejectedCount: number;
   notifiedCount: number;
+  fallbackKeepBothCount: number;
 };
 
 export default function ActionsClient() {
@@ -309,6 +310,7 @@ export default function ActionsClient() {
       qp.set("ignored", String(result.ignoredCount));
       qp.set("softRejected", String(result.softRejectedCount));
       qp.set("notified", String(result.notifiedCount));
+      qp.set("fallbackKeepBoth", String(result.fallbackKeepBothCount));
     }
 
     router.push(`/summary?${qp.toString()}`);
@@ -322,22 +324,34 @@ export default function ActionsClient() {
 
       const idsRequestedForRemoval = new Set<string>();
       const ignoredConflictIds = new Set<string>();
+      const removalPlanByEventId = new Map<
+        string,
+        { conflictId: string; resolution: Resolution }
+      >();
 
       for (const c of actionableConflicts) {
         const resolution = resolutionForConflict(c, resMap);
         const existingId = String(c.existingEventId ?? "").trim();
         const incomingId = String(c.incomingEventId ?? "").trim();
 
-        if (!existingId || !incomingId) continue;
+        if (!existingId || !incomingId || !resolution) continue;
 
         if (resolution === "keep_existing") {
           idsRequestedForRemoval.add(incomingId);
           ignoredConflictIds.add(String(c.id));
+          removalPlanByEventId.set(incomingId, {
+            conflictId: String(c.id),
+            resolution,
+          });
         }
 
         if (resolution === "replace_with_new") {
           idsRequestedForRemoval.add(existingId);
           ignoredConflictIds.add(String(c.id));
+          removalPlanByEventId.set(existingId, {
+            conflictId: String(c.id),
+            resolution,
+          });
         }
       }
 
@@ -347,7 +361,9 @@ export default function ActionsClient() {
 
       let deletedCount = 0;
       let blockedCount = 0;
+      let fallbackKeepBothCount = 0;
       const blockedIds = new Set<string>();
+      const fallbackConflictIds = new Set<string>();
 
       if (idsRequestedForRemoval.size > 0) {
         const deletionResult = await deleteEventsByIdsDetailed(
@@ -359,13 +375,22 @@ export default function ActionsClient() {
           ? deletionResult.blockedIds.length
           : 0;
 
-        for (const id of deletionResult?.blockedIds ?? []) {
-          if (id) blockedIds.add(String(id));
+        for (const rawId of deletionResult?.blockedIds ?? []) {
+          const blockedId = String(rawId ?? "").trim();
+          if (!blockedId) continue;
+
+          blockedIds.add(blockedId);
+
+          const plan = removalPlanByEventId.get(blockedId);
+          if (plan?.conflictId) {
+            fallbackConflictIds.add(plan.conflictId);
+          }
         }
       }
 
       if (blockedIds.size > 0) {
         hideEventIdsForCurrentUser(Array.from(blockedIds));
+        fallbackKeepBothCount = fallbackConflictIds.size;
       }
 
       let notifiedCount = 0;
@@ -381,13 +406,14 @@ export default function ActionsClient() {
             {
               user_id: targetUserId,
               type: "event_rejected",
-              title: "Uno de tus eventos fue rechazado",
+              title: "Uno de tus eventos no pudo reemplazarse",
               body:
-                "Un miembro decidió no mantener ese evento dentro de la resolución del conflicto.",
+                "Otro miembro resolvió el conflicto, pero tu evento no pudo eliminarse. Se mantendrán ambos para evitar inconsistencias.",
               entity_id: blockedId,
               payload: {
                 event_id: blockedId,
                 actor_user_id: currentUserId,
+                resolution: "fallback_keep_both",
               },
             },
           ]);
@@ -409,13 +435,25 @@ export default function ActionsClient() {
         ignoredCount: ignoredConflictIds.size,
         softRejectedCount: blockedIds.size,
         notifiedCount,
+        fallbackKeepBothCount,
       };
 
       setSummary(result);
-      setToast({
-        title: "Cambios aplicados",
-        sub: "El conflicto ya quedó procesado y el resumen se actualizará.",
-      });
+
+      if (fallbackKeepBothCount > 0) {
+        setToast({
+          title: "Aplicado con ajuste automático",
+          sub:
+            fallbackKeepBothCount === 1
+              ? "Un conflicto no pudo reemplazar todos los eventos. Mantuvimos ambos para evitar inconsistencias."
+              : `${fallbackKeepBothCount} conflictos no pudieron reemplazar todos los eventos. Mantuvimos ambos para evitar inconsistencias.`,
+        });
+      } else {
+        setToast({
+          title: "Cambios aplicados",
+          sub: "El conflicto ya quedó procesado y el resumen se actualizará.",
+        });
+      }
 
       window.dispatchEvent(new Event("focus"));
       document.dispatchEvent(new Event("visibilitychange"));
@@ -596,7 +634,8 @@ export default function ActionsClient() {
                         <span>
                           Se conservará <strong>{keptTitle}</strong> y se intentará
                           retirar <strong>{affectedTitle}</strong>. Si ese evento no te
-                          pertenece, se ocultará para ti y se notificará al creador.
+                          pertenece, SyncPlans hará fallback automático a mantener ambos,
+                          lo ocultará para ti y notificará al creador.
                         </span>
                       )}
                     </div>
@@ -628,6 +667,9 @@ export default function ActionsClient() {
               </div>
               <div style={styles.summaryPill}>
                 Notificados: {summary.notifiedCount}
+              </div>
+              <div style={styles.summaryPill}>
+                Fallback keep both: {summary.fallbackKeepBothCount}
               </div>
             </div>
           </section>
