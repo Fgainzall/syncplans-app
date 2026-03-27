@@ -729,14 +729,16 @@ const doSave = async (
         }
 
 setToast(buildSuccessToast({ keepBoth: true }));
-setPostSaveShareUrl(null);
-setPostSaveFingerprint(currentPostSaveFingerprint);
-setPostSaveActions({
-  visible: true,
-  eventId: savedEventId ?? undefined,
-  title: payload.title,
-  isShared: effectiveType === "group",
-});
+
+const qp = new URLSearchParams();
+qp.set("from", "conflicts");
+qp.set("fallbackKeepBoth", "1");
+if (savedEventId) qp.set("eventId", String(savedEventId));
+if (payload.groupId) qp.set("groupId", String(payload.groupId));
+
+window.setTimeout(() => {
+  router.push(`/summary?${qp.toString()}`);
+}, 500);
 
 return;
 }
