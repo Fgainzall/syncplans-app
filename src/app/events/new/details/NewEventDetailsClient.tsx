@@ -16,6 +16,7 @@ import {
   fmtRange,
   type CalendarEvent,
   ignoreConflictIds,
+  hideEventIdsForCurrentUser,
 } from "@/lib/conflicts";
 
 import { getSettingsFromDb, type NotificationSettings } from "@/lib/settings";
@@ -940,35 +941,58 @@ setPostSaveActions({
       return;
     }
 
-    setSaving(true);
+setSaving(true);
+try {
+  const payloadToSave = pendingPayload;
+  const deleteResult = await deleteEventsByIdsDetailed(existingIdsToReplace);
+
+  const blockedIds = Array.isArray(deleteResult?.blockedIds)
+    ? deleteResult.blockedIds.map((id) => String(id)).filter(Boolean)
+    : [];
+
+  const didDeleteAll =
+    Number(deleteResult?.deletedCount ?? 0) === existingIdsToReplace.length;
+
+  if (blockedIds.length > 0 || !didDeleteAll) {
     try {
-      const payloadToSave = pendingPayload;
-      const deleteResult = await deleteEventsByIdsDetailed(existingIdsToReplace);
+      const conflictIds = preflightItems.map((it) => it.id).filter(Boolean);
 
-      if (deleteResult.blockedIds.length > 0) {
-        throw new Error(
-          "Uno o más eventos en conflicto no pudieron eliminarse porque no te pertenecen o tu sesión no tiene permisos para borrarlos."
-        );
+      if (blockedIds.length > 0) {
+        hideEventIdsForCurrentUser(blockedIds);
       }
 
-      if (deleteResult.deletedCount !== existingIdsToReplace.length) {
-        throw new Error(
-          "No se eliminaron todos los eventos que debían reemplazarse. No continuamos para evitar inconsistencias."
-        );
+      if (conflictIds.length > 0) {
+        ignoreConflictIds(conflictIds);
       }
-
-      clearPreflightState();
-      await doSave(payloadToSave);
-      return;
-    } catch (err: any) {
-      setToast({
-        title: "No se pudo aplicar",
-        subtitle: err?.message || "Intenta nuevamente.",
-      });
-      window.setTimeout(() => setToast(null), 2800);
-    } finally {
-      setSaving(false);
+    } catch {
+      // no rompemos el flujo por el fallback
     }
+
+    clearPreflightState();
+
+    setToast({
+      title: "Aplicado con ajuste automático",
+      subtitle:
+        "No pudimos reemplazar todos los eventos por permisos. Mantuvimos ambos para evitar inconsistencias.",
+    });
+    window.setTimeout(() => setToast(null), 3200);
+
+    await doSave(payloadToSave, { suppressConflictRedirect: true });
+    return;
+  }
+
+  clearPreflightState();
+  await doSave(payloadToSave);
+  return;
+} catch (err: any) {
+  setToast({
+    title: "No se pudo aplicar",
+    subtitle: err?.message || "Intenta nuevamente.",
+  });
+  window.setTimeout(() => setToast(null), 2800);
+} finally {
+  setSaving(false);
+}
   };
 
 
