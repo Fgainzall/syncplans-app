@@ -9,18 +9,33 @@ type RouteContext = {
   params: Promise<{ token: string }>;
 };
 
+type PublicInviteStatus = "pending" | "accepted" | "rejected";
+
+function normalizeStatus(value: unknown): PublicInviteStatus {
+  const raw = String(value ?? "pending").toLowerCase();
+  if (raw === "accepted") return "accepted";
+  if (raw === "rejected") return "rejected";
+  return "pending";
+}
+
+function normalizeOptionalString(value: unknown) {
+  const text = String(value ?? "").trim();
+  return text.length ? text : null;
+}
+
 export async function GET(_: Request, context: RouteContext) {
   try {
     const { token } = await context.params;
+    const safeToken = String(token ?? "").trim();
 
-    if (!token) {
+    if (!safeToken) {
       return NextResponse.json(
         { error: "Token inválido." },
         { status: 400 }
       );
     }
 
-    const invite = await getPublicInviteByToken(token);
+    const invite = await getPublicInviteByToken(safeToken);
 
     if (!invite) {
       return NextResponse.json(
@@ -29,7 +44,7 @@ export async function GET(_: Request, context: RouteContext) {
       );
     }
 
-    const { data: event, error: eventError } = await (supabase as any)
+    const { data: event, error: eventError } = await supabase
       .from("events")
       .select("id, title, start, end")
       .eq("id", invite.event_id)
@@ -37,60 +52,100 @@ export async function GET(_: Request, context: RouteContext) {
 
     if (eventError) {
       return NextResponse.json(
-        { error: "Error al cargar el evento." },
+        { error: eventError.message || "No se pudo cargar el evento." },
         { status: 500 }
       );
     }
 
     return NextResponse.json(
       {
+        ok: true,
         invite,
         event: event ?? null,
       },
       { status: 200 }
     );
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Error inesperado.";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json(
+      {
+        error:
+          error?.message || "Ocurrió un error al cargar la invitación pública.",
+      },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { token } = await context.params;
+    const safeToken = String(token ?? "").trim();
 
-    if (!token) {
+    if (!safeToken) {
       return NextResponse.json(
         { error: "Token inválido." },
         { status: 400 }
       );
     }
 
-    const body = await request.json().catch(() => null);
+    const existingInvite = await getPublicInviteByToken(safeToken);
 
-    const status = body?.status;
-    const proposedDate = body?.proposedDate ?? null;
-    const message = body?.message ?? null;
-
-    if (status !== "accepted" && status !== "rejected") {
+    if (!existingInvite) {
       return NextResponse.json(
-        { error: "Status inválido. Usa accepted o rejected." },
+        { error: "Invitación no encontrada." },
+        { status: 404 }
+      );
+    }
+
+    const body = await request.json().catch(() => ({}));
+
+    const status = normalizeStatus(body?.status);
+    const message = normalizeOptionalString(body?.message);
+    const proposedDate = normalizeOptionalString(body?.proposedDate);
+
+    if (status === "pending") {
+      return NextResponse.json(
+        { error: "Estado inválido para responder la invitación." },
         { status: 400 }
       );
     }
 
-    const updated = await respondToPublicInvite({
-      token,
+    const updatedInvite = await respondToPublicInvite({
+      token: safeToken,
       status,
-      proposedDate,
       message,
+      proposedDate,
     });
 
-    return NextResponse.json({ invite: updated }, { status: 200 });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Error inesperado.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const { data: event, error: eventError } = await supabase
+      .from("events")
+      .select("id, title, start, end")
+      .eq("id", updatedInvite.event_id)
+      .maybeSingle();
+
+    if (eventError) {
+      return NextResponse.json(
+        { error: eventError.message || "No se pudo cargar el evento." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        ok: true,
+        invite: updatedInvite,
+        event: event ?? null,
+      },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    return NextResponse.json(
+      {
+        error:
+          error?.message ||
+          "Ocurrió un error al responder la invitación pública.",
+      },
+      { status: 500 }
+    );
   }
 }

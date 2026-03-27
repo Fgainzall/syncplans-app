@@ -608,13 +608,41 @@ export async function createPublicInvite(
   return data as PublicInviteRow;
 }
 
+function normalizePublicInviteRow(row: any): PublicInviteRow | null {
+  if (!row) return null;
+
+  const status = String(row?.status ?? "pending").toLowerCase();
+  const safeStatus: PublicInviteStatus =
+    status === "accepted" || status === "rejected" ? status : "pending";
+
+  return {
+    id: String(row?.id ?? ""),
+    event_id: String(row?.event_id ?? ""),
+    contact: row?.contact ?? null,
+    token: String(row?.token ?? ""),
+    status: safeStatus,
+    message: row?.message ?? null,
+    proposed_date: row?.proposed_date ?? null,
+    created_at: row?.created_at ?? null,
+  };
+}
+
+function normalizePublicInviteRows(rows: any[] | null | undefined) {
+  return (rows ?? [])
+    .map((row) => normalizePublicInviteRow(row))
+    .filter(Boolean) as PublicInviteRow[];
+}
+
 export async function getPendingPublicInviteByEventId(
   eventId: string
 ): Promise<PublicInviteRow | null> {
+  const safeEventId = String(eventId ?? "").trim();
+  if (!safeEventId) return null;
+
   const { data, error } = await (supabase as any)
     .from(PUBLIC_INVITES_TABLE)
     .select("*")
-    .eq("event_id", eventId)
+    .eq("event_id", safeEventId)
     .eq("status", "pending")
     .order("created_at", { ascending: false })
     .limit(1)
@@ -626,7 +654,73 @@ export async function getPendingPublicInviteByEventId(
     );
   }
 
-  return (data as PublicInviteRow | null) ?? null;
+  return normalizePublicInviteRow(data);
+}
+
+export async function getLatestPublicInviteByEventId(
+  eventId: string
+): Promise<PublicInviteRow | null> {
+  const safeEventId = String(eventId ?? "").trim();
+  if (!safeEventId) return null;
+
+  const { data, error } = await (supabase as any)
+    .from(PUBLIC_INVITES_TABLE)
+    .select("*")
+    .eq("event_id", safeEventId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      error.message || "No se pudo obtener el estado de la invitación pública."
+    );
+  }
+
+  return normalizePublicInviteRow(data);
+}
+
+export async function getLatestPublicInvitesByEventIds(
+  eventIds: string[]
+): Promise<Record<string, PublicInviteRow | null>> {
+  const safeEventIds = Array.from(
+    new Set(
+      (eventIds ?? [])
+        .map((id) => String(id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (safeEventIds.length === 0) {
+    return {};
+  }
+
+  const { data, error } = await (supabase as any)
+    .from(PUBLIC_INVITES_TABLE)
+    .select("*")
+    .in("event_id", safeEventIds)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(
+      error.message || "No se pudo obtener el estado de las invitaciones públicas."
+    );
+  }
+
+  const rows = normalizePublicInviteRows(data);
+  const byEventId: Record<string, PublicInviteRow | null> = {};
+
+  for (const eventId of safeEventIds) {
+    byEventId[eventId] = null;
+  }
+
+  for (const row of rows) {
+    if (!row.event_id) continue;
+    if (byEventId[row.event_id]) continue;
+    byEventId[row.event_id] = row;
+  }
+
+  return byEventId;
 }
 
 export async function getOrCreatePublicInvite(
@@ -643,10 +737,13 @@ export async function getOrCreatePublicInvite(
 export async function getPublicInviteByToken(
   token: string
 ): Promise<PublicInviteRow | null> {
+  const safeToken = String(token ?? "").trim();
+  if (!safeToken) return null;
+
   const { data, error } = await (supabase as any)
     .from(PUBLIC_INVITES_TABLE)
     .select("*")
-    .eq("token", token)
+    .eq("token", safeToken)
     .maybeSingle();
 
   if (error) {
@@ -655,7 +752,7 @@ export async function getPublicInviteByToken(
     );
   }
 
-  return (data as PublicInviteRow | null) ?? null;
+  return normalizePublicInviteRow(data);
 }
 
 /**
@@ -683,5 +780,5 @@ export async function respondToPublicInvite(
     );
   }
 
-  return data as PublicInviteRow;
+  return normalizePublicInviteRow(data) as PublicInviteRow;
 }

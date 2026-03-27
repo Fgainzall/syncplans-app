@@ -32,26 +32,157 @@ function formatEventDate(start?: string | null, end?: string | null) {
   const startDate = new Date(start);
   const endDate = end ? new Date(end) : null;
 
+  if (Number.isNaN(startDate.getTime())) return "Fecha por confirmar";
+
   const sameDay =
     endDate &&
+    !Number.isNaN(endDate.getTime()) &&
     startDate.getFullYear() === endDate.getFullYear() &&
     startDate.getMonth() === endDate.getMonth() &&
     startDate.getDate() === endDate.getDate();
 
-  const startLabel = startDate.toLocaleString();
-  const endLabel = endDate ? endDate.toLocaleString() : null;
+  const startLabel = startDate.toLocaleString([], {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const endLabel =
+    endDate && !Number.isNaN(endDate.getTime())
+      ? endDate.toLocaleString([], {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null;
 
   if (!endLabel) return startLabel;
-  if (sameDay) return `${startLabel} — ${endDate!.toLocaleTimeString()}`;
+
+  if (sameDay) {
+    return `${startLabel} — ${endDate!.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`;
+  }
 
   return `${startLabel} — ${endLabel}`;
+}
+
+function formatCreatedAt(value?: string | null) {
+  if (!value) return "No disponible";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString([], {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatProposedDate(value?: string | null) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString([], {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getStatusPresentation(invite: PublicInviteRow | null) {
+  if (!invite) {
+    return {
+      label: "",
+      description: "",
+      tone: "neutral" as const,
+    };
+  }
+
+  if (invite.status === "pending") {
+    return {
+      label: "Pendiente",
+      description: "Todavía no se ha enviado una respuesta final.",
+      tone: "pending" as const,
+    };
+  }
+
+  if (invite.status === "accepted") {
+    return {
+      label: "Aceptado",
+      description: "Este plan fue confirmado desde el link externo.",
+      tone: "accepted" as const,
+    };
+  }
+
+  if (invite.status === "rejected" && invite.proposed_date) {
+    return {
+      label: "Propuso nueva fecha",
+      description:
+        "El horario original fue rechazado, pero se sugirió una nueva opción.",
+      tone: "proposed" as const,
+    };
+  }
+
+  return {
+    label: "Rechazado",
+    description: "Este plan fue rechazado desde el link externo.",
+    tone: "rejected" as const,
+  };
+}
+
+function getStatusBadgeStyle(
+  tone: "neutral" | "pending" | "accepted" | "rejected" | "proposed"
+) {
+  switch (tone) {
+    case "pending":
+      return {
+        background: "#fef3c7",
+        color: "#92400e",
+        border: "1px solid #fcd34d",
+      };
+    case "accepted":
+      return {
+        background: "#dcfce7",
+        color: "#166534",
+        border: "1px solid #86efac",
+      };
+    case "rejected":
+      return {
+        background: "#fee2e2",
+        color: "#991b1b",
+        border: "1px solid #fecaca",
+      };
+    case "proposed":
+      return {
+        background: "#e0e7ff",
+        color: "#3730a3",
+        border: "1px solid #c7d2fe",
+      };
+    default:
+      return {
+        background: "#e2e8f0",
+        color: "#334155",
+        border: "1px solid #cbd5e1",
+      };
+  }
 }
 
 export default function InviteClient({ token }: Props) {
   const [invite, setInvite] = useState<PublicInviteRow | null>(null);
   const [event, setEvent] = useState<PublicInviteEvent | null>(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState<
+    "accepted" | "rejected" | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
 
   const [message, setMessage] = useState("");
@@ -77,8 +208,13 @@ export default function InviteClient({ token }: Props) {
         }
 
         if (!cancelled) {
-          setInvite(json.invite ?? null);
-          setEvent(json.event ?? null);
+          const nextInvite = (json?.invite ?? null) as PublicInviteRow | null;
+          const nextEvent = (json?.event ?? null) as PublicInviteEvent | null;
+
+          setInvite(nextInvite);
+          setEvent(nextEvent);
+          setMessage(nextInvite?.message ?? "");
+          setProposedDate(nextInvite?.proposed_date ?? "");
         }
       } catch (err) {
         if (!cancelled) {
@@ -102,28 +238,29 @@ export default function InviteClient({ token }: Props) {
     };
   }, [token]);
 
-  const statusLabel = useMemo(() => {
-    if (!invite) return "";
-    if (invite.status === "accepted") return "Aceptada";
-    if (invite.status === "rejected") return "Rechazada";
-    return "Pendiente";
-  }, [invite]);
+  const statusInfo = useMemo(() => getStatusPresentation(invite), [invite]);
+
+  const hasFinalResponse = invite?.status === "accepted" || invite?.status === "rejected";
+  const proposedDateLabel = formatProposedDate(invite?.proposed_date);
+  const canSubmit = !loading && !!invite && submittingAction === null;
 
   async function handleRespond(nextStatus: "accepted" | "rejected") {
     try {
-      setSubmitting(true);
+      setSubmittingAction(nextStatus);
       setError(null);
+
+      const payload = {
+        status: nextStatus,
+        message: message.trim() || null,
+        proposedDate: proposedDate || null,
+      };
 
       const res = await fetch(`/api/public-invite/${token}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          status: nextStatus,
-          message: message.trim() || null,
-          proposedDate: proposedDate || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const json = await res.json();
@@ -132,7 +269,10 @@ export default function InviteClient({ token }: Props) {
         throw new Error(json?.error || "No se pudo responder la invitación.");
       }
 
-      setInvite(json.invite ?? null);
+      const updatedInvite = (json?.invite ?? null) as PublicInviteRow | null;
+      setInvite(updatedInvite);
+      setMessage(updatedInvite?.message ?? payload.message ?? "");
+      setProposedDate(updatedInvite?.proposed_date ?? payload.proposedDate ?? "");
     } catch (err) {
       setError(
         err instanceof Error
@@ -140,7 +280,7 @@ export default function InviteClient({ token }: Props) {
           : "Ocurrió un error al responder la invitación."
       );
     } finally {
-      setSubmitting(false);
+      setSubmittingAction(null);
     }
   }
 
@@ -202,7 +342,7 @@ export default function InviteClient({ token }: Props) {
                 color: "#475569",
               }}
             >
-              Responde esta invitación aunque no tengas cuenta dentro de la app.
+              Responde este plan aunque no tengas cuenta dentro de la app.
             </p>
           </div>
 
@@ -306,7 +446,7 @@ export default function InviteClient({ token }: Props) {
                     alignItems: "center",
                     gap: 12,
                     flexWrap: "wrap",
-                    marginBottom: 10,
+                    marginBottom: 12,
                   }}
                 >
                   <strong style={{ color: "#0f172a", fontSize: 16 }}>
@@ -318,36 +458,48 @@ export default function InviteClient({ token }: Props) {
                       padding: "6px 10px",
                       borderRadius: 999,
                       fontSize: 12,
-                      fontWeight: 700,
-                      background:
-                        invite.status === "accepted"
-                          ? "#dcfce7"
-                          : invite.status === "rejected"
-                          ? "#fee2e2"
-                          : "#e2e8f0",
-                      color:
-                        invite.status === "accepted"
-                          ? "#166534"
-                          : invite.status === "rejected"
-                          ? "#991b1b"
-                          : "#334155",
+                      fontWeight: 800,
+                      ...getStatusBadgeStyle(statusInfo.tone),
                     }}
                   >
-                    {statusLabel}
+                    {statusInfo.label}
                   </span>
                 </div>
 
-                <div style={{ color: "#475569", fontSize: 14, lineHeight: 1.6 }}>
+                <div
+                  style={{
+                    color: "#475569",
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                    display: "grid",
+                    gap: 8,
+                  }}
+                >
+                  <div>{statusInfo.description}</div>
+
                   <div>
-                    <strong>Token:</strong> {invite.token}
+                    <strong style={{ color: "#0f172a" }}>Contacto:</strong>{" "}
+                    {invite.contact || "No especificado"}
                   </div>
+
                   <div>
-                    <strong>Contacto:</strong> {invite.contact || "No especificado"}
+                    <strong style={{ color: "#0f172a" }}>Creada:</strong>{" "}
+                    {formatCreatedAt(invite.created_at)}
                   </div>
-                  <div>
-                    <strong>Creada:</strong>{" "}
-                    {new Date(invite.created_at).toLocaleString()}
-                  </div>
+
+                  {invite.message ? (
+                    <div>
+                      <strong style={{ color: "#0f172a" }}>Último mensaje:</strong>{" "}
+                      {invite.message}
+                    </div>
+                  ) : null}
+
+                  {proposedDateLabel ? (
+                    <div>
+                      <strong style={{ color: "#0f172a" }}>Fecha propuesta:</strong>{" "}
+                      {proposedDateLabel}
+                    </div>
+                  ) : null}
                 </div>
               </section>
 
@@ -373,8 +525,9 @@ export default function InviteClient({ token }: Props) {
                   <textarea
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Ej: No puedo ese día, ¿podría ser más tarde?"
+                    placeholder="Ej: No puedo ese día, pero sí más tarde."
                     rows={4}
+                    disabled={submittingAction !== null}
                     style={{
                       width: "100%",
                       borderRadius: 14,
@@ -405,6 +558,7 @@ export default function InviteClient({ token }: Props) {
                     type="datetime-local"
                     value={proposedDate}
                     onChange={(e) => setProposedDate(e.target.value)}
+                    disabled={submittingAction !== null}
                     style={{
                       width: "100%",
                       borderRadius: 14,
@@ -416,6 +570,16 @@ export default function InviteClient({ token }: Props) {
                       background: "#fff",
                     }}
                   />
+                  <div
+                    style={{
+                      marginTop: 8,
+                      fontSize: 12,
+                      lineHeight: 1.5,
+                      color: "#64748b",
+                    }}
+                  >
+                    Si rechazas el horario original, puedes dejar aquí una alternativa.
+                  </div>
                 </div>
               </section>
 
@@ -429,7 +593,7 @@ export default function InviteClient({ token }: Props) {
                 <button
                   type="button"
                   onClick={() => void handleRespond("accepted")}
-                  disabled={submitting}
+                  disabled={!canSubmit}
                   style={{
                     border: "none",
                     borderRadius: 16,
@@ -438,17 +602,17 @@ export default function InviteClient({ token }: Props) {
                     fontWeight: 700,
                     background: "#0f172a",
                     color: "#fff",
-                    cursor: submitting ? "not-allowed" : "pointer",
-                    opacity: submitting ? 0.7 : 1,
+                    cursor: canSubmit ? "pointer" : "not-allowed",
+                    opacity: canSubmit ? 1 : 0.7,
                   }}
                 >
-                  {submitting ? "Procesando..." : "Aceptar"}
+                  {submittingAction === "accepted" ? "Procesando..." : "Aceptar"}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => void handleRespond("rejected")}
-                  disabled={submitting}
+                  disabled={!canSubmit}
                   style={{
                     border: "1px solid #cbd5e1",
                     borderRadius: 16,
@@ -457,29 +621,47 @@ export default function InviteClient({ token }: Props) {
                     fontWeight: 700,
                     background: "#fff",
                     color: "#0f172a",
-                    cursor: submitting ? "not-allowed" : "pointer",
-                    opacity: submitting ? 0.7 : 1,
+                    cursor: canSubmit ? "pointer" : "not-allowed",
+                    opacity: canSubmit ? 1 : 0.7,
                   }}
                 >
-                  {submitting ? "Procesando..." : "Rechazar"}
+                  {submittingAction === "rejected" ? "Procesando..." : "Rechazar"}
                 </button>
               </div>
 
-              {invite.message ? (
+              {hasFinalResponse ? (
                 <div
                   style={{
                     marginTop: 18,
                     padding: 14,
                     borderRadius: 14,
-                    background: "#f8fafc",
-                    border: "1px solid rgba(15,23,42,0.06)",
-                    color: "#475569",
+                    background:
+                      invite.status === "accepted"
+                        ? "#f0fdf4"
+                        : invite.proposed_date
+                        ? "#eef2ff"
+                        : "#fef2f2",
+                    border:
+                      invite.status === "accepted"
+                        ? "1px solid #bbf7d0"
+                        : invite.proposed_date
+                        ? "1px solid #c7d2fe"
+                        : "1px solid #fecaca",
+                    color:
+                      invite.status === "accepted"
+                        ? "#166534"
+                        : invite.proposed_date
+                        ? "#3730a3"
+                        : "#991b1b",
                     fontSize: 14,
                     lineHeight: 1.6,
                   }}
                 >
-                  <strong style={{ color: "#0f172a" }}>Último mensaje:</strong>
-                  <div style={{ marginTop: 6 }}>{invite.message}</div>
+                  {invite.status === "accepted"
+                    ? "Tu respuesta quedó guardada correctamente."
+                    : invite.proposed_date
+                    ? "Tu rechazo con propuesta de nueva fecha quedó guardado correctamente."
+                    : "Tu rechazo quedó guardado correctamente."}
                 </div>
               ) : null}
             </>

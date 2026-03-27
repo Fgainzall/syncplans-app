@@ -1,10 +1,14 @@
 // src/components/EventsTimeline.tsx
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { deleteEventsByIds, generatePublicInviteLink } from "@/lib/eventsDb";
+import {
+  getLatestPublicInvitesByEventIds,
+  type PublicInviteRow,
+} from "@/lib/invitationsDb";
 
 type TimelineEvent = {
   id: string;
@@ -34,6 +38,8 @@ type ShareState = {
   error: string | null;
   copied: boolean;
 };
+
+type InviteStateByEventId = Record<string, PublicInviteRow | null>;
 
 function localDateKey(value: string | Date) {
   const d = value instanceof Date ? value : new Date(value);
@@ -130,22 +136,6 @@ function getExternalLabel(ev: TimelineEvent) {
   return "Externo";
 }
 
-function clientBaseUrl() {
-  const env = String(
-    process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? ""
-  )
-    .trim()
-    .replace(/\/$/, "");
-
-  if (env) return env;
-
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return window.location.origin.replace(/\/$/, "");
-  }
-
-  return "http://localhost:3000";
-}
-
 function buildWhatsAppText(ev: TimelineEvent, link: string) {
   const start = new Date(ev.start);
   const startLabel = start.toLocaleString([], {
@@ -159,15 +149,109 @@ function buildWhatsAppText(ev: TimelineEvent, link: string) {
   return `Te comparto este plan de SyncPlans: ${ev.title || "Evento"} (${startLabel}). Puedes responder aquí: ${link}`;
 }
 
+function formatProposedDate(value: string | null | undefined) {
+  if (!value) return null;
+
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+
+  return d.toLocaleString([], {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getInvitePresentation(invite: PublicInviteRow | null) {
+  if (!invite) {
+    return {
+      label: "Sin respuesta todavía",
+      tone: "neutral" as const,
+      detail: "Aún no hay una respuesta registrada para este link.",
+    };
+  }
+
+  if (invite.status === "pending") {
+    return {
+      label: "Pendiente",
+      tone: "pending" as const,
+      detail: "El link fue compartido, pero todavía no hubo respuesta.",
+    };
+  }
+
+  if (invite.status === "accepted") {
+    return {
+      label: "Aceptado",
+      tone: "accepted" as const,
+      detail: "La persona externa confirmó este plan.",
+    };
+  }
+
+  if (invite.status === "rejected" && invite.proposed_date) {
+    return {
+      label: "Propuso nueva fecha",
+      tone: "proposed" as const,
+      detail: "La persona rechazó el horario original y sugirió otra fecha.",
+    };
+  }
+
+  return {
+    label: "Rechazado",
+    tone: "rejected" as const,
+    detail: "La persona externa rechazó este plan.",
+  };
+}
+
+function getInviteBadgeStyle(tone: "neutral" | "pending" | "accepted" | "rejected" | "proposed"): React.CSSProperties {
+  switch (tone) {
+    case "pending":
+      return {
+        background: "rgba(120,53,15,0.85)",
+        borderColor: "rgba(251,191,36,0.24)",
+        color: "rgba(254,243,199,0.98)",
+      };
+    case "accepted":
+      return {
+        background: "rgba(20,83,45,0.9)",
+        borderColor: "rgba(74,222,128,0.24)",
+        color: "rgba(220,252,231,0.98)",
+      };
+    case "rejected":
+      return {
+        background: "rgba(127,29,29,0.9)",
+        borderColor: "rgba(252,165,165,0.24)",
+        color: "rgba(254,226,226,0.98)",
+      };
+    case "proposed":
+      return {
+        background: "rgba(49,46,129,0.9)",
+        borderColor: "rgba(165,180,252,0.24)",
+        color: "rgba(224,231,255,0.98)",
+      };
+    default:
+      return {
+        background: "rgba(15,23,42,0.72)",
+        borderColor: "rgba(148,163,184,0.18)",
+        color: "rgba(226,232,240,0.94)",
+      };
+  }
+}
+
 export default function EventsTimeline({
   events,
   selectedIds,
   onToggleSelected,
 }: Props) {
   const router = useRouter();
+
   const [shareStateById, setShareStateById] = useState<Record<string, ShareState>>(
     {}
   );
+  const [inviteStateByEventId, setInviteStateByEventId] =
+    useState<InviteStateByEventId>({});
+  const [inviteStatesLoading, setInviteStatesLoading] = useState(false);
 
   const sorted = useMemo(() => {
     return [...events].sort(
@@ -190,6 +274,51 @@ export default function EventsTimeline({
     }));
   }, [sorted]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInviteStates() {
+      const eventIds = Array.from(
+        new Set(
+          sorted
+            .map((ev) => String(ev.id ?? "").trim())
+            .filter(Boolean)
+        )
+      );
+
+      if (eventIds.length === 0) {
+        setInviteStateByEventId({});
+        return;
+      }
+
+      try {
+        setInviteStatesLoading(true);
+        const data = await getLatestPublicInvitesByEventIds(eventIds);
+
+        if (!cancelled) {
+          setInviteStateByEventId(data);
+        }
+      } catch (error) {
+        console.error("[EventsTimeline] loadInviteStates error", error);
+        if (!cancelled) {
+          const fallback: InviteStateByEventId = {};
+          for (const id of eventIds) fallback[id] = null;
+          setInviteStateByEventId(fallback);
+        }
+      } finally {
+        if (!cancelled) {
+          setInviteStatesLoading(false);
+        }
+      }
+    }
+
+    loadInviteStates();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sorted]);
+
   async function onDelete(id: string) {
     if (!confirm("¿Eliminar este evento?")) return;
     await deleteEventsByIds([id]);
@@ -210,7 +339,7 @@ export default function EventsTimeline({
     }));
 
     try {
-      const { link } = await generatePublicInviteLink(eventId);
+      const { invite, link } = await generatePublicInviteLink(eventId);
 
       setShareStateById((prev) => ({
         ...prev,
@@ -222,13 +351,18 @@ export default function EventsTimeline({
         },
       }));
 
+      setInviteStateByEventId((prev) => ({
+        ...prev,
+        [eventId]: invite ?? prev[eventId] ?? null,
+      }));
+
       return link;
     } catch (e: any) {
       setShareStateById((prev) => ({
         ...prev,
         [eventId]: {
           loading: false,
-          link: null,
+          link: prev[eventId]?.link ?? null,
           error:
             e?.message ||
             "No se pudo generar el link para compartir este evento.",
@@ -327,6 +461,8 @@ export default function EventsTimeline({
                 const externalLabel = getExternalLabel(ev);
                 const eventId = String(ev.id);
                 const shareState = shareStateById[eventId];
+                const invite = inviteStateByEventId[eventId] ?? null;
+                const invitePresentation = getInvitePresentation(invite);
 
                 const start = new Date(ev.start).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -339,6 +475,8 @@ export default function EventsTimeline({
                 });
 
                 const checked = selectedIds.has(eventId);
+                const isShareOpen =
+                  !!shareState?.loading || !!shareState?.link || !!shareState?.error;
 
                 return (
                   <div key={eventId} style={S.eventRow}>
@@ -375,13 +513,14 @@ export default function EventsTimeline({
                         <div style={S.actions}>
                           <button
                             onClick={() => onCreateShareLink(ev)}
-                            style={iconBtn}
+                            style={isShareOpen ? activeIconBtn : iconBtn}
                             title="Compartir"
                             type="button"
                             disabled={shareState?.loading}
                           >
                             {shareState?.loading ? "…" : "🔗"}
                           </button>
+
                           <button
                             onClick={() =>
                               router.push(`/events/new/details?eventId=${eventId}`)
@@ -392,6 +531,7 @@ export default function EventsTimeline({
                           >
                             ✏️
                           </button>
+
                           <button
                             onClick={() => onDelete(eventId)}
                             style={iconBtn}
@@ -427,6 +567,15 @@ export default function EventsTimeline({
                             {externalLabel}
                           </span>
                         )}
+
+                        <span
+                          style={{
+                            ...S.signalBadge,
+                            ...getInviteBadgeStyle(invitePresentation.tone),
+                          }}
+                        >
+                          {invitePresentation.label}
+                        </span>
                       </div>
 
                       {(shareState?.loading || shareState?.link || shareState?.error) && (
@@ -446,15 +595,60 @@ export default function EventsTimeline({
                             </button>
                           </div>
 
+                          {inviteStatesLoading && !invite ? (
+                            <div style={S.shareSubtle}>Cargando estado actual…</div>
+                          ) : null}
+
+                          <div style={S.inviteStatusCard}>
+                            <div style={S.inviteStatusTopRow}>
+                              <div style={S.inviteStatusLabelWrap}>
+                                <div style={S.inviteStatusKicker}>Estado actual</div>
+                                <div style={S.inviteStatusText}>
+                                  {invitePresentation.label}
+                                </div>
+                              </div>
+
+                              <span
+                                style={{
+                                  ...S.signalBadge,
+                                  ...getInviteBadgeStyle(invitePresentation.tone),
+                                }}
+                              >
+                                {invitePresentation.label}
+                              </span>
+                            </div>
+
+                            <div style={S.inviteStatusDetail}>
+                              {invitePresentation.detail}
+                            </div>
+
+                            {invite?.message ? (
+                              <div style={S.inviteMetaBlock}>
+                                <div style={S.inviteMetaTitle}>Mensaje</div>
+                                <div style={S.inviteMetaValue}>{invite.message}</div>
+                              </div>
+                            ) : null}
+
+                            {invite?.proposed_date ? (
+                              <div style={S.inviteMetaBlock}>
+                                <div style={S.inviteMetaTitle}>Fecha propuesta</div>
+                                <div style={S.inviteMetaValue}>
+                                  {formatProposedDate(invite.proposed_date)}
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+
                           {shareState.loading ? (
                             <div style={S.shareStatus}>Generando link…</div>
                           ) : shareState.error ? (
                             <div style={S.shareError}>{shareState.error}</div>
                           ) : shareState.link ? (
                             <>
-                             <div style={S.shareStatus}>
-  Este es el link activo de este plan. Puedes copiarlo o enviarlo por WhatsApp.
-</div>
+                              <div style={S.shareStatus}>
+                                Este es el link activo de este plan. Puedes copiarlo o
+                                enviarlo por WhatsApp.
+                              </div>
 
                               <div style={S.shareLinkBox}>{shareState.link}</div>
 
@@ -476,7 +670,11 @@ export default function EventsTimeline({
                                 </button>
                               </div>
                             </>
-                          ) : null}
+                          ) : (
+                            <div style={S.shareSubtle}>
+                              Genera el link para compartir este plan externamente.
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -658,6 +856,10 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: "rgba(226,232,240,0.88)",
   },
+  shareSubtle: {
+    fontSize: 12,
+    color: "rgba(191,219,254,0.86)",
+  },
   shareError: {
     fontSize: 12,
     color: "rgba(252,165,165,0.98)",
@@ -697,6 +899,63 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     padding: "10px 14px",
     cursor: "pointer",
+  },
+  inviteStatusCard: {
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(2,6,23,0.42)",
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  inviteStatusTopRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  inviteStatusLabelWrap: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  inviteStatusKicker: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    fontWeight: 800,
+    color: "rgba(148,163,184,0.95)",
+  },
+  inviteStatusText: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.98)",
+  },
+  inviteStatusDetail: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.9)",
+  },
+  inviteMetaBlock: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  inviteMetaTitle: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    fontWeight: 800,
+    color: "rgba(125,211,252,0.9)",
+  },
+  inviteMetaValue: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(240,249,255,0.95)",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
   },
 };
 
