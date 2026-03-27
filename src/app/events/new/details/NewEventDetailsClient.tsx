@@ -108,6 +108,8 @@ type PreflightConflict = {
   overlapEnd: string;
 };
 
+type PostSaveFormFingerprint = string;
+
 function getConflictCounterpart(
   conflict: ReturnType<typeof computeVisibleConflicts>[number],
   candidateId: string
@@ -140,6 +142,47 @@ function mapDefaultResolutionToChoice(
   if (def === "replace_with_new") return "replace_with_new";
   if (def === "none") return "keep_both";
   return "edit";
+}
+
+
+function emitSyncPlansRefreshSignals() {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.dispatchEvent(new CustomEvent("sp:events-changed"));
+  } catch {
+    // no-op
+  }
+
+  try {
+    window.dispatchEvent(new Event("focus"));
+  } catch {
+    // no-op
+  }
+
+  try {
+    document.dispatchEvent(new Event("visibilitychange"));
+  } catch {
+    // no-op
+  }
+}
+
+function buildPostSaveFingerprint(input: {
+  effectiveType: NewType;
+  selectedGroupId: string;
+  title: string;
+  notes: string;
+  startLocal: string;
+  endLocal: string;
+}): PostSaveFormFingerprint {
+  return JSON.stringify({
+    effectiveType: input.effectiveType,
+    selectedGroupId: input.selectedGroupId || "",
+    title: input.title.trim(),
+    notes: input.notes.trim(),
+    startLocal: input.startLocal,
+    endLocal: input.endLocal,
+  });
 }
 
 export default function NewEventDetailsClient() {
@@ -196,6 +239,8 @@ const [postSaveActions, setPostSaveActions] = useState<null | {
 }>(null);
 const [sharingPostSave, setSharingPostSave] = useState(false);
 const [postSaveShareUrl, setPostSaveShareUrl] = useState<string | null>(null);
+const [postSaveFingerprint, setPostSaveFingerprint] =
+  useState<PostSaveFormFingerprint | null>(null);
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
 
   const [booting, setBooting] = useState(true);
@@ -466,6 +511,33 @@ const [postSaveShareUrl, setPostSaveShareUrl] = useState<string | null>(null);
     return fmtRange(startDate.toISOString(), endDate.toISOString());
   }, [startDate, endDate]);
 
+
+  const currentPostSaveFingerprint = useMemo(
+    () =>
+      buildPostSaveFingerprint({
+        effectiveType,
+        selectedGroupId,
+        title,
+        notes,
+        startLocal,
+        endLocal,
+      }),
+    [effectiveType, selectedGroupId, title, notes, startLocal, endLocal]
+  );
+
+  const clearPostSaveState = (options?: { keepToast?: boolean }) => {
+    setPostSaveActions(null);
+    setPostSaveShareUrl(null);
+    setPostSaveFingerprint(null);
+    if (!options?.keepToast) setToast(null);
+  };
+
+  const clearPreflightState = () => {
+    setPendingPayload(null);
+    setExistingIdsToReplace([]);
+    setPreflightItems([]);
+  };
+
   const errors = useMemo(() => {
     const e: string[] = [];
 
@@ -496,6 +568,14 @@ const [postSaveShareUrl, setPostSaveShareUrl] = useState<string | null>(null);
   ]);
 
   const canSave = errors.length === 0 && !saving && !bootingEvent;
+
+  useEffect(() => {
+    if (!postSaveActions?.visible) return;
+    if (!postSaveFingerprint) return;
+    if (currentPostSaveFingerprint === postSaveFingerprint) return;
+
+    clearPostSaveState({ keepToast: true });
+  }, [currentPostSaveFingerprint, postSaveFingerprint, postSaveActions?.visible]);
 
   const goBack = () => router.push("/calendar");
 
@@ -600,11 +680,7 @@ const doSave = async (
         savedEventId = created?.id ? String(created.id) : null;
       }
 
-      try {
-        window.dispatchEvent(new CustomEvent("sp:events-changed"));
-      } catch {
-        // no-op
-      }
+      emitSyncPlansRefreshSignals();
 
       const conflictResult = savedEventId
         ? await createConflictNotificationForEvent(savedEventId).catch(() => ({
@@ -649,7 +725,8 @@ const doSave = async (
         }
 
 setToast(buildSuccessToast({ keepBoth: true }));
-
+setPostSaveShareUrl(null);
+setPostSaveFingerprint(currentPostSaveFingerprint);
 setPostSaveActions({
   visible: true,
   eventId: savedEventId ?? undefined,
@@ -682,7 +759,8 @@ if (conflictResult.conflictCount > 0) {
 }
 
 setToast(buildSuccessToast());
-
+setPostSaveShareUrl(null);
+setPostSaveFingerprint(currentPostSaveFingerprint);
 setPostSaveActions({
   visible: true,
   eventId: savedEventId ?? undefined,
@@ -751,6 +829,7 @@ setPostSaveActions({
       });
 
       if (!conflicts.length) {
+        clearPreflightState();
         return { ok: true };
       }
 
@@ -788,6 +867,9 @@ setPostSaveActions({
   };
 
   const save = async () => {
+    clearPreflightState();
+    clearPostSaveState({ keepToast: true });
+
     if (!canSave) {
       setToast({
         title: "Revisa el formulario",
@@ -816,6 +898,7 @@ setPostSaveActions({
     setPreflightOpen(false);
 
     if (choice === "edit") {
+      clearPreflightState();
       setToast({
         title: "Ok",
         subtitle: "Ajusta horario/título y vuelve a guardar.",
@@ -824,6 +907,7 @@ setPostSaveActions({
     }
 
     if (choice === "keep_existing") {
+      clearPreflightState();
       setToast({
         title: "No se guardó",
         subtitle: "Conservamos tus eventos existentes.",
@@ -832,6 +916,7 @@ setPostSaveActions({
     }
 
     if (!pendingPayload) {
+      clearPreflightState();
       setToast({
         title: "Ups",
         subtitle: "No encontré el evento pendiente. Intenta otra vez.",
@@ -846,12 +931,15 @@ setPostSaveActions({
       } catch {
         // ok
       }
-      await doSave(pendingPayload, { suppressConflictRedirect: true });
+      const payloadToSave = pendingPayload;
+      clearPreflightState();
+      await doSave(payloadToSave, { suppressConflictRedirect: true });
       return;
     }
 
     setSaving(true);
     try {
+      const payloadToSave = pendingPayload;
       const deleteResult = await deleteEventsByIdsDetailed(existingIdsToReplace);
 
       if (deleteResult.blockedIds.length > 0) {
@@ -866,7 +954,8 @@ setPostSaveActions({
         );
       }
 
-      await doSave(pendingPayload);
+      clearPreflightState();
+      await doSave(payloadToSave);
       return;
     } catch (err: any) {
       setToast({
@@ -954,6 +1043,7 @@ setPostSaveActions({
     setPostSaveActions(null);
     setToast(null);
     setPostSaveShareUrl(null);
+    setPostSaveFingerprint(null);
 
     if (isEditing) {
       const nextUrl = buildUrl(
@@ -993,7 +1083,10 @@ setPostSaveActions({
         title={title.trim() || (isEditing ? "Editar evento" : "Nuevo evento")}
         items={preflightItems}
         defaultChoice={preflightDefaultChoice}
-        onClose={() => setPreflightOpen(false)}
+        onClose={() => {
+        setPreflightOpen(false);
+        clearPreflightState();
+      }}
         onChoose={onPreflightChoose}
       />
 
