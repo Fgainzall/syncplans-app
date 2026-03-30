@@ -814,7 +814,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             <div
               style={{
                 ...styles.stateRow,
-                boxShadow: `0 0 32px ${moodAccentGlow}`,
+                boxShadow: `0 0 18px ${moodAccentGlow}`,
                 borderColor: moodAccentBorder,
               }}
             >
@@ -1187,7 +1187,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "18px 18px 0",
     display: "flex",
     flexDirection: "column",
-    gap: 14,
+    gap: 16,
   },
   toastWrap: {
     position: "fixed",
@@ -1274,20 +1274,19 @@ const styles: Record<string, React.CSSProperties> = {
   },
   conflictBanner: {
     width: "100%",
-    marginBottom: 14,
+    marginBottom: 12,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 14,
+    gap: 12,
     flexWrap: "wrap",
-    padding: "15px 16px",
-    borderRadius: 18,
-    border: "1px solid rgba(251,191,36,0.28)",
+    padding: "13px 14px",
+    borderRadius: 16,
+    border: "1px solid rgba(251,191,36,0.20)",
     background:
-      "linear-gradient(135deg, rgba(251,191,36,0.14), rgba(239,68,68,0.10))",
-    color: "rgba(255,255,255,0.96)",
+      "linear-gradient(135deg, rgba(251,191,36,0.10), rgba(239,68,68,0.06))",
+    color: "rgba(255,255,255,0.94)",
     cursor: "pointer",
-    boxShadow: "0 18px 44px rgba(0,0,0,0.18)",
   },
   conflictBannerLeft: {
     display: "grid",
@@ -1302,7 +1301,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,230,160,0.9)",
   },
   conflictBannerTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 900,
     letterSpacing: "-0.02em",
   },
@@ -1361,8 +1360,8 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.9,
   },
   stateMoodTitle: {
-    marginTop: 12,
-    fontSize: 26,
+    marginTop: 10,
+    fontSize: 24,
     fontWeight: 950,
     letterSpacing: "-0.5px",
   },
@@ -1408,7 +1407,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   stateKpiNumber: {
     marginTop: 4,
-    fontSize: 34,
+    fontSize: 30,
     fontWeight: 950,
     letterSpacing: "-1px",
     lineHeight: 1,
@@ -1512,7 +1511,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   eventRow: {
     width: "100%",
-    minHeight: 74,
+    minHeight: 68,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1537,14 +1536,14 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 4,
   },
   eventWhen: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 850,
     opacity: 0.72,
   },
   eventTitle: {
     fontSize: 15,
     fontWeight: 900,
-    lineHeight: 1.3,
+    lineHeight: 1.35,
     letterSpacing: "-0.01em",
   },
   eventMeta: {
