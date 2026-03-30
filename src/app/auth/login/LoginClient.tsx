@@ -1,9 +1,9 @@
-// src/app/auth/login/LoginClient.tsx
 "use client";
 
 import React, {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
 } from "react";
@@ -37,7 +37,7 @@ export default function LoginClient() {
   const nextParam = sp.get("next");
   const nextTarget = useMemo(
     () => (nextParam && nextParam.startsWith("/") ? nextParam : "/summary"),
-    [nextParam],
+    [nextParam]
   );
 
   const [email, setEmail] = useState("");
@@ -45,9 +45,43 @@ export default function LoginClient() {
 
   const [loadingEmail, setLoadingEmail] = useState(false);
   const [loadingGoogle, setLoadingGoogle] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [slowMessage, setSlowMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const isBusy = loadingEmail || loadingGoogle;
+  const redirectTimerRef = useRef<number | null>(null);
+  const slowUiTimerRef = useRef<number | null>(null);
+
+  const isBusy = loadingEmail || loadingGoogle || isRedirecting;
+
+  function clearTimers() {
+    if (redirectTimerRef.current !== null) {
+      window.clearTimeout(redirectTimerRef.current);
+      redirectTimerRef.current = null;
+    }
+    if (slowUiTimerRef.current !== null) {
+      window.clearTimeout(slowUiTimerRef.current);
+      slowUiTimerRef.current = null;
+    }
+  }
+
+  function startRedirect(nextPath: string) {
+    setIsRedirecting(true);
+    setSlowMessage(null);
+
+    router.replace(nextPath);
+    router.refresh();
+
+    if (typeof window !== "undefined") {
+      slowUiTimerRef.current = window.setTimeout(() => {
+        setSlowMessage("Esto está tardando más de lo esperado…");
+      }, 2500);
+
+      redirectTimerRef.current = window.setTimeout(() => {
+        window.location.assign(nextPath);
+      }, 4000);
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -60,7 +94,7 @@ export default function LoginClient() {
             window.history.replaceState(
               {},
               document.title,
-              window.location.pathname + window.location.search,
+              window.location.pathname + window.location.search
             );
           }
         }
@@ -69,21 +103,24 @@ export default function LoginClient() {
         if (!alive) return;
 
         if (data?.session) {
-          router.replace(nextTarget);
+          startRedirect(nextTarget);
         }
       } catch {
         // no-op
       }
     }
 
-    go();
+    void go();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) router.replace(nextTarget);
+      if (session) {
+        startRedirect(nextTarget);
+      }
     });
 
     return () => {
       alive = false;
+      clearTimers();
       sub?.subscription?.unsubscribe();
     };
   }, [router, nextTarget]);
@@ -98,10 +135,12 @@ export default function LoginClient() {
     if (!canSubmit) return;
 
     setError(null);
+    setSlowMessage(null);
+    clearTimers();
     setLoadingEmail(true);
 
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password.trim(),
       });
@@ -116,7 +155,7 @@ export default function LoginClient() {
           msg.includes("confirmation")
         ) {
           setError(
-            "Debes confirmar tu correo antes de iniciar sesión. Revisa tu bandeja o spam y entra desde el link.",
+            "Debes confirmar tu correo antes de iniciar sesión. Revisa tu bandeja o spam y entra desde el link."
           );
         } else if (msg.includes("invalid login") || msg.includes("invalid")) {
           setError("Correo o contraseña incorrectos.");
@@ -128,15 +167,26 @@ export default function LoginClient() {
         return;
       }
 
-      router.replace(nextTarget);
+      if (!data?.session) {
+        setError("No se pudo iniciar sesión correctamente. Intenta otra vez.");
+        setLoadingEmail(false);
+        return;
+      }
+
+      setLoadingEmail(false);
+      startRedirect(nextTarget);
     } catch (err: any) {
       setError(err?.message ?? "Error inesperado. Intenta otra vez.");
       setLoadingEmail(false);
+      setIsRedirecting(false);
+      setSlowMessage(null);
+      clearTimers();
     }
   }
 
   async function onGoogle() {
     setError(null);
+    setSlowMessage(null);
     setLoadingGoogle(true);
 
     try {
@@ -224,18 +274,28 @@ export default function LoginClient() {
               disabled={isBusy}
             />
           </div>
-<button
-  type="button"
-  onClick={() => router.push("/auth/reset-password")}
-  style={forgotButtonStyle}
-  disabled={isBusy}
->
-  ¿Olvidaste tu contraseña?
-</button>
+
+          <button
+            type="button"
+            onClick={() => router.push("/auth/reset-password")}
+            style={forgotButtonStyle}
+            disabled={isBusy}
+          >
+            ¿Olvidaste tu contraseña?
+          </button>
+
           {error && <div style={errorBoxStyle}>{error}</div>}
 
-          <button type="submit" disabled={!canSubmit} style={primaryButtonStyle}>
-            {loadingEmail ? "Ingresando…" : "Iniciar sesión"}
+          {slowMessage && !error && (
+            <div style={infoBoxStyle}>{slowMessage}</div>
+          )}
+
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            style={primaryButtonStyle}
+          >
+            {loadingEmail || isRedirecting ? "Ingresando…" : "Iniciar sesión"}
           </button>
         </form>
 
@@ -321,6 +381,16 @@ const errorBoxStyle: CSSProperties = {
   lineHeight: 1.55,
 };
 
+const infoBoxStyle: CSSProperties = {
+  borderRadius: 16,
+  border: "1px solid rgba(56,189,248,0.28)",
+  background: "rgba(2,132,199,0.14)",
+  color: "rgba(224,242,254,0.96)",
+  padding: "11px 12px",
+  fontSize: 12,
+  lineHeight: 1.55,
+};
+
 const primaryButtonStyle: CSSProperties = {
   width: "100%",
   borderRadius: 999,
@@ -384,6 +454,7 @@ const helperTextStyle: CSSProperties = {
   lineHeight: 1.6,
   color: "rgba(148,163,184,0.82)",
 };
+
 const forgotButtonStyle: CSSProperties = {
   justifySelf: "end",
   marginTop: -4,
