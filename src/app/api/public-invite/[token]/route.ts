@@ -1,41 +1,48 @@
-import { NextResponse } from "next/server";
-import supabase from "@/lib/supabaseClient";
-import {
-  getPublicInviteByToken,
-  respondToPublicInvite,
-} from "@/lib/invitationsDb";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 type RouteContext = {
   params: Promise<{ token: string }>;
 };
 
-type PublicInviteStatus = "pending" | "accepted" | "rejected";
+function getAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-function normalizeStatus(value: unknown): PublicInviteStatus {
-  const raw = String(value ?? "pending").toLowerCase();
-  if (raw === "accepted") return "accepted";
-  if (raw === "rejected") return "rejected";
-  return "pending";
+  if (!url || !serviceRoleKey) {
+    throw new Error("Faltan variables de entorno de Supabase.");
+  }
+
+  return createClient(url, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
 }
 
-function normalizeOptionalString(value: unknown) {
-  const text = String(value ?? "").trim();
-  return text.length ? text : null;
-}
-
-export async function GET(_: Request, context: RouteContext) {
+export async function GET(_: NextRequest, context: RouteContext) {
   try {
     const { token } = await context.params;
-    const safeToken = String(token ?? "").trim();
 
-    if (!safeToken) {
-      return NextResponse.json(
-        { error: "Token inválido." },
-        { status: 400 }
-      );
+    if (!token) {
+      return NextResponse.json({ error: "Token inválido." }, { status: 400 });
     }
 
-    const invite = await getPublicInviteByToken(safeToken);
+    const supabase = getAdminClient();
+
+    const { data: invite, error: inviteError } = await supabase
+      .from("public_invites")
+      .select("*")
+      .eq("token", token)
+      .maybeSingle();
+
+    if (inviteError) {
+      return NextResponse.json(
+        { error: inviteError.message || "No se pudo cargar la invitación." },
+        { status: 500 }
+      );
+    }
 
     if (!invite) {
       return NextResponse.json(
@@ -59,91 +66,103 @@ export async function GET(_: Request, context: RouteContext) {
 
     return NextResponse.json(
       {
-        ok: true,
         invite,
         event: event ?? null,
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error) {
     return NextResponse.json(
       {
         error:
-          error?.message || "Ocurrió un error al cargar la invitación pública.",
+          error instanceof Error
+            ? error.message
+            : "Ocurrió un error al cargar la invitación.",
       },
       { status: 500 }
     );
   }
 }
 
-export async function POST(request: Request, context: RouteContext) {
+export async function POST(req: NextRequest, context: RouteContext) {
   try {
     const { token } = await context.params;
-    const safeToken = String(token ?? "").trim();
 
-    if (!safeToken) {
+    if (!token) {
+      return NextResponse.json({ error: "Token inválido." }, { status: 400 });
+    }
+
+    const body = await req.json().catch(() => null);
+
+    const status = body?.status;
+    const message =
+      typeof body?.message === "string" ? body.message.trim() || null : null;
+    const proposedDate =
+      typeof body?.proposedDate === "string" && body.proposedDate.trim()
+        ? new Date(body.proposedDate).toISOString()
+        : null;
+
+    if (status !== "accepted" && status !== "rejected") {
       return NextResponse.json(
-        { error: "Token inválido." },
+        { error: "Estado inválido." },
         { status: 400 }
       );
     }
 
-    const existingInvite = await getPublicInviteByToken(safeToken);
+    const supabase = getAdminClient();
 
-    if (!existingInvite) {
+    const { data: currentInvite, error: currentInviteError } = await supabase
+      .from("public_invites")
+      .select("*")
+      .eq("token", token)
+      .maybeSingle();
+
+    if (currentInviteError) {
+      return NextResponse.json(
+        {
+          error:
+            currentInviteError.message || "No se pudo cargar la invitación.",
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!currentInvite) {
       return NextResponse.json(
         { error: "Invitación no encontrada." },
         { status: 404 }
       );
     }
 
-    const body = await request.json().catch(() => ({}));
-
-    const status = normalizeStatus(body?.status);
-    const message = normalizeOptionalString(body?.message);
-    const proposedDate = normalizeOptionalString(body?.proposedDate);
-
-    if (status === "pending") {
-      return NextResponse.json(
-        { error: "Estado inválido para responder la invitación." },
-        { status: 400 }
-      );
-    }
-
-    const updatedInvite = await respondToPublicInvite({
-      token: safeToken,
+    const updatePayload = {
       status,
       message,
-      proposedDate,
-    });
+      proposed_date: proposedDate,
+      responded_at: new Date().toISOString(),
+    };
 
-    const { data: event, error: eventError } = await supabase
-      .from("events")
-      .select("id, title, start, end")
-      .eq("id", updatedInvite.event_id)
+    const { data: invite, error: updateError } = await supabase
+      .from("public_invites")
+      .update(updatePayload)
+      .eq("id", currentInvite.id)
+      .select("*")
       .maybeSingle();
 
-    if (eventError) {
+    if (updateError) {
       return NextResponse.json(
-        { error: eventError.message || "No se pudo cargar el evento." },
+        { error: updateError.message || "No se pudo guardar la respuesta." },
         { status: 500 }
       );
     }
 
-    return NextResponse.json(
-      {
-        ok: true,
-        invite: updatedInvite,
-        event: event ?? null,
-      },
-      { status: 200 }
-    );
-  } catch (error: any) {
+    return NextResponse.json({ invite }, { status: 200 });
+  } catch (error) {
     return NextResponse.json(
       {
         error:
-          error?.message ||
-          "Ocurrió un error al responder la invitación pública.",
+          error instanceof Error
+            ? error.message
+            : "Ocurrió un error al responder la invitación.",
       },
       { status: 500 }
     );
