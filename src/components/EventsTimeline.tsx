@@ -2,7 +2,7 @@
 // src/components/EventsTimeline.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
@@ -54,6 +54,29 @@ type ShareState = {
 
 type InviteStateByEventId = Record<string, PublicInviteRow | null>;
 type TrustSignalByEventId = Record<string, ConflictTrustSignal | null>;
+
+
+function humanizeShareError(
+  err: unknown,
+  fallback = "No se pudo completar esta acción."
+) {
+  const message =
+    err instanceof Error ? err.message.trim() : String(err ?? "").trim();
+
+  if (!message) return fallback;
+
+  const lowered = message.toLowerCase();
+
+  if (
+    lowered.includes("fetch") ||
+    lowered.includes("network") ||
+    lowered.includes("failed to fetch")
+  ) {
+    return "Parece un problema de red. Revisa tu conexión e inténtalo otra vez.";
+  }
+
+  return message;
+}
 
 function localDateKey(value: string | Date) {
   const d = value instanceof Date ? value : new Date(value);
@@ -306,6 +329,7 @@ export default function EventsTimeline({
 }: Props) {
   const router = useRouter();
 
+  const shareRequestRef = useRef<Partial<Record<string, Promise<string | null>>>>({});
   const [shareStateById, setShareStateById] = useState<
     Record<string, ShareState>
   >({});
@@ -468,6 +492,10 @@ export default function EventsTimeline({
   async function onCreateShareLink(ev: TimelineEvent): Promise<string | null> {
     const eventId = String(ev.id);
 
+    if (shareRequestRef.current[eventId]) {
+      return shareRequestRef.current[eventId];
+    }
+
     setShareStateById((prev) => ({
       ...prev,
       [eventId]: {
@@ -478,39 +506,47 @@ export default function EventsTimeline({
       },
     }));
 
-    try {
-      const { invite, link } = await generatePublicInviteLink(eventId);
+    const request = (async () => {
+      try {
+        const { invite, link } = await generatePublicInviteLink(eventId);
 
-      setShareStateById((prev) => ({
-        ...prev,
-        [eventId]: {
-          loading: false,
-          link,
-          error: null,
-          copied: false,
-        },
-      }));
+        setShareStateById((prev) => ({
+          ...prev,
+          [eventId]: {
+            loading: false,
+            link,
+            error: null,
+            copied: false,
+          },
+        }));
 
-      setInviteStateByEventId((prev) => ({
-        ...prev,
-        [eventId]: invite ?? prev[eventId] ?? null,
-      }));
+        setInviteStateByEventId((prev) => ({
+          ...prev,
+          [eventId]: invite ?? prev[eventId] ?? null,
+        }));
 
-      return link;
-    } catch (e: any) {
-      setShareStateById((prev) => ({
-        ...prev,
-        [eventId]: {
-          loading: false,
-          link: prev[eventId]?.link ?? null,
-          error:
-            e?.message ||
-            "No se pudo generar el link para compartir este evento.",
-          copied: false,
-        },
-      }));
-      return null;
-    }
+        return link;
+      } catch (e: any) {
+        setShareStateById((prev) => ({
+          ...prev,
+          [eventId]: {
+            loading: false,
+            link: prev[eventId]?.link ?? null,
+            error: humanizeShareError(
+              e,
+              "No se pudo generar el link para compartir este evento."
+            ),
+            copied: false,
+          },
+        }));
+        return null;
+      } finally {
+        delete shareRequestRef.current[eventId];
+      }
+    })();
+
+    shareRequestRef.current[eventId] = request;
+    return request;
   }
 
   async function onCopyLink(ev: TimelineEvent) {

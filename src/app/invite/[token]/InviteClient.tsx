@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type PublicInviteStatus = "pending" | "accepted" | "rejected";
 
@@ -27,6 +27,41 @@ type Props = {
 };
 
 type ResponseMode = "idle" | "propose";
+
+
+function humanizeInviteError(
+  err: unknown,
+  fallback: string
+) {
+  const message =
+    err instanceof Error ? err.message.trim() : String(err ?? "").trim();
+
+  if (!message) return fallback;
+
+  const lowered = message.toLowerCase();
+
+  if (lowered.includes("abort")) {
+    return "La respuesta tardó demasiado. Intenta de nuevo en unos segundos.";
+  }
+
+  if (
+    lowered.includes("fetch") ||
+    lowered.includes("network") ||
+    lowered.includes("failed to fetch")
+  ) {
+    return "No pudimos conectarnos en este momento. Revisa tu internet e inténtalo otra vez.";
+  }
+
+  return message;
+}
+
+async function readJsonSafely(res: Response) {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 
 function formatEventDate(start?: string | null, end?: string | null) {
   if (!start) return "Fecha por confirmar";
@@ -204,57 +239,67 @@ export default function InviteClient({ token }: Props) {
   const [message, setMessage] = useState("");
   const [proposedDate, setProposedDate] = useState("");
   const [mode, setMode] = useState<ResponseMode>("idle");
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const submitInFlightRef = useRef(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadInvite = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    setError(null);
 
-    async function loadInvite() {
-      try {
-        setLoading(true);
-        setError(null);
+    const res = await fetch(`/api/public-invite/${token}`, {
+      method: "GET",
+      cache: "no-store",
+      signal,
+    });
 
-        const res = await fetch(`/api/public-invite/${token}`, {
-          method: "GET",
-          cache: "no-store",
-        });
+    const json = await readJsonSafely(res);
 
-        const json = await res.json();
-
-        if (!res.ok) {
-          throw new Error(json?.error || "No se pudo cargar la invitación.");
-        }
-
-        if (!cancelled) {
-          const nextInvite = (json?.invite ?? null) as PublicInviteRow | null;
-          const nextEvent = (json?.event ?? null) as PublicInviteEvent | null;
-
-          setInvite(nextInvite);
-          setEvent(nextEvent);
-          setMessage(nextInvite?.message ?? "");
-          setProposedDate(toDateTimeLocalValue(nextInvite?.proposed_date));
-          setMode("idle");
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Ocurrió un error al cargar la invitación."
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+    if (!res.ok) {
+      throw new Error(
+        (json as any)?.error || "No se pudo cargar la invitación."
+      );
     }
 
-    void loadInvite();
+    const nextInvite = ((json as any)?.invite ?? null) as PublicInviteRow | null;
+    const nextEvent = ((json as any)?.event ?? null) as PublicInviteEvent | null;
+
+    setInvite(nextInvite);
+    setEvent(nextEvent);
+    setMessage(nextInvite?.message ?? "");
+    setProposedDate(toDateTimeLocalValue(nextInvite?.proposed_date));
+    setMode("idle");
+  }, [token]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+
+    void (async () => {
+      try {
+        await loadInvite(controller.signal);
+      } catch (err) {
+        if (controller.signal.aborted) {
+          setError("La invitación tardó demasiado en responder. Vuelve a intentarlo.");
+          return;
+        }
+
+        setError(
+          humanizeInviteError(
+            err,
+            "Ocurrió un error al cargar la invitación."
+          )
+        );
+      } finally {
+        window.clearTimeout(timeoutId);
+        setLoading(false);
+      }
+    })();
 
     return () => {
-      cancelled = true;
+      window.clearTimeout(timeoutId);
+      controller.abort();
     };
-  }, [token]);
+  }, [loadInvite, reloadNonce]);
 
   const statusInfo = useMemo(() => getStatusPresentation(invite), [invite]);
 
@@ -268,6 +313,10 @@ export default function InviteClient({ token }: Props) {
     canSubmit && proposedDate.trim().length > 0;
 
   async function handleRespond(nextStatus: "accepted" | "rejected") {
+    if (submitInFlightRef.current) return;
+
+    submitInFlightRef.current = true;
+
     try {
       setSubmittingAction(nextStatus);
       setError(null);
@@ -278,15 +327,20 @@ export default function InviteClient({ token }: Props) {
         proposedDate: null,
       };
 
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+
       const res = await fetch(`/api/public-invite/${token}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
 
-      const json = await res.json();
+      window.clearTimeout(timeoutId);
+      const json = await readJsonSafely(res);
 
       if (!res.ok) {
         throw new Error(json?.error || "No se pudo responder la invitación.");
@@ -299,22 +353,27 @@ export default function InviteClient({ token }: Props) {
       setMode("idle");
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Ocurrió un error al responder la invitación."
+        humanizeInviteError(
+          err,
+          "Ocurrió un error al responder la invitación."
+        )
       );
     } finally {
+      submitInFlightRef.current = false;
       setSubmittingAction(null);
     }
   }
 
   async function handlePropose() {
+    if (submitInFlightRef.current) return;
+
     if (!proposedDate.trim()) {
       setError("Debes elegir una nueva fecha antes de enviarla.");
       return;
     }
 
     try {
+      submitInFlightRef.current = true;
       setSubmittingAction("rejected");
       setError(null);
 
@@ -324,15 +383,20 @@ export default function InviteClient({ token }: Props) {
         proposedDate,
       };
 
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+
       const res = await fetch(`/api/public-invite/${token}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
 
-      const json = await res.json();
+      window.clearTimeout(timeoutId);
+      const json = await readJsonSafely(res);
 
       if (!res.ok) {
         throw new Error(json?.error || "No se pudo enviar la propuesta.");
@@ -345,11 +409,13 @@ export default function InviteClient({ token }: Props) {
       setMode("idle");
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Ocurrió un error al enviar la propuesta."
+        humanizeInviteError(
+          err,
+          "Ocurrió un error al enviar la propuesta."
+        )
       );
     } finally {
+      submitInFlightRef.current = false;
       setSubmittingAction(null);
     }
   }
@@ -435,9 +501,27 @@ export default function InviteClient({ token }: Props) {
                 background: "#fef2f2",
                 color: "#991b1b",
                 border: "1px solid #fecaca",
+                display: "grid",
+                gap: 12,
               }}
             >
-              {error}
+              <div>{error}</div>
+              <button
+                type="button"
+                onClick={() => setReloadNonce((value) => value + 1)}
+                style={{
+                  border: "1px solid #fecaca",
+                  borderRadius: 12,
+                  padding: "10px 12px",
+                  background: "#fff",
+                  color: "#991b1b",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  justifySelf: "start",
+                }}
+              >
+                Reintentar
+              </button>
             </div>
           ) : !invite ? (
             <div

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import PremiumHeader from "@/components/PremiumHeader";
@@ -42,6 +42,33 @@ import {
 
 function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
   return (gt ?? "personal") as GroupType;
+}
+
+
+function humanizeConflictActionError(
+  err: unknown,
+  fallback = "Intenta nuevamente."
+) {
+  const message =
+    err instanceof Error ? err.message.trim() : String(err ?? "").trim();
+
+  if (!message) return fallback;
+
+  const lowered = message.toLowerCase();
+
+  if (lowered.includes("abort")) {
+    return "La acción tardó demasiado o se interrumpió. Vuelve a intentarlo.";
+  }
+
+  if (
+    lowered.includes("fetch") ||
+    lowered.includes("network") ||
+    lowered.includes("failed to fetch")
+  ) {
+    return "Parece un problema de red. Revisa tu conexión e inténtalo otra vez.";
+  }
+
+  return message;
 }
 
 function safeTitle(value?: string | null) {
@@ -214,6 +241,7 @@ export default function ActionsClient() {
     null
   );
   const [isMobile, setIsMobile] = useState(false);
+  const applyInFlightRef = useRef(false);
 
   const loadScreenData = useCallback(async () => {
     const [eventsForConflicts, dbMap, declinedSet] = await Promise.all([
@@ -364,7 +392,9 @@ export default function ActionsClient() {
   };
 
   const applyAll = async () => {
-    if (applying || !currentUserId) return;
+    if (applyInFlightRef.current || applying || !currentUserId) return;
+
+    applyInFlightRef.current = true;
 
     try {
       setApplying(true);
@@ -690,6 +720,7 @@ export default function ActionsClient() {
             : "Intenta nuevamente.",
       });
     } finally {
+      applyInFlightRef.current = false;
       setApplying(false);
     }
   };

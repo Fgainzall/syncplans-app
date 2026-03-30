@@ -1,7 +1,7 @@
 // src/app/events/new/details/NewEventDetailsClient.tsx
 "use client";
 
-import React, { Suspense, useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
@@ -205,6 +205,34 @@ function finalActionFromPreflightChoice(
   if (choice === "replace_with_new") return "replace_with_new";
   return "keep_both";
 }
+
+function humanizeActionError(
+  err: unknown,
+  fallback = "Intenta nuevamente."
+) {
+  const message =
+    err instanceof Error ? err.message.trim() : String(err ?? "").trim();
+
+  if (!message) return fallback;
+
+  const lowered = message.toLowerCase();
+
+  if (lowered.includes("abort")) {
+    return "La operación tardó demasiado o se interrumpió. Vuelve a intentarlo.";
+  }
+
+  if (
+    lowered.includes("fetch") ||
+    lowered.includes("network") ||
+    lowered.includes("networkerror") ||
+    lowered.includes("failed to fetch")
+  ) {
+    return "Parece un problema de red. Revisa tu conexión e inténtalo otra vez.";
+  }
+
+  return message;
+}
+
 function safeTitle(value?: string | null) {
   const v = String(value ?? "").trim();
   return v || "Evento sin título";
@@ -277,6 +305,8 @@ function NewEventDetailsInner() {
     isShared?: boolean;
   }>(null);
   const [sharingPostSave, setSharingPostSave] = useState(false);
+  const saveInFlightRef = useRef(false);
+  const preflightChoiceInFlightRef = useRef(false);
   const [postSaveShareUrl, setPostSaveShareUrl] = useState<string | null>(null);
   const [postSaveFingerprint, setPostSaveFingerprint] =
     useState<PostSaveFormFingerprint | null>(null);
@@ -422,7 +452,7 @@ function NewEventDetailsInner() {
         if (!alive) return;
         setToast({
           title: "No se pudo inicializar",
-          subtitle: err?.message || "Intenta nuevamente.",
+          subtitle: humanizeActionError(err, "Intenta nuevamente."),
         });
       } finally {
         if (!alive) return;
@@ -476,7 +506,7 @@ function NewEventDetailsInner() {
 
       setToast({
         title: "No se pudo cargar el evento",
-        subtitle: err?.message || "Intenta nuevamente.",
+        subtitle: humanizeActionError(err, "Intenta nuevamente."),
       });
     } finally {
       if (!alive) return;
@@ -911,6 +941,9 @@ function NewEventDetailsInner() {
     },
     options?: { suppressConflictRedirect?: boolean }
   ) => {
+    if (saveInFlightRef.current) return null;
+
+    saveInFlightRef.current = true;
     setSaving(true);
 
     try {
@@ -1050,11 +1083,12 @@ if (isEditing && eventIdParam) {
     } catch (err: any) {
       setToast({
         title: "No se pudo guardar",
-        subtitle: err?.message || "Intenta nuevamente.",
+        subtitle: humanizeActionError(err, "Intenta nuevamente."),
       });
       window.setTimeout(() => setToast(null), 2800);
       return null;
     } finally {
+      saveInFlightRef.current = false;
       setSaving(false);
     }
   };
@@ -1148,6 +1182,8 @@ if (isEditing && eventIdParam) {
   };
 
   const save = async () => {
+    if (saving || saveInFlightRef.current || preflightChoiceInFlightRef.current) return;
+
     clearPreflightState();
     clearPostSaveState({ keepToast: true });
 
@@ -1351,15 +1387,18 @@ if (isEditing && eventIdParam) {
     } catch (err: any) {
       setToast({
         title: "No se pudo aplicar",
-        subtitle: err?.message || "Intenta nuevamente.",
+        subtitle: humanizeActionError(err, "Intenta nuevamente."),
       });
       window.setTimeout(() => setToast(null), 2800);
     } finally {
+      saveInFlightRef.current = false;
       setSaving(false);
     }
   };
 
   const handleSharePostSave = async () => {
+    if (sharingPostSave) return;
+
     try {
       if (!postSaveActions?.eventId) {
         setToast({
@@ -1418,7 +1457,7 @@ if (isEditing && eventIdParam) {
     } catch (err: any) {
       setToast({
         title: "No se pudo compartir",
-        subtitle: err?.message || "Intenta nuevamente.",
+        subtitle: humanizeActionError(err, "Intenta nuevamente."),
       });
     } finally {
       setSharingPostSave(false);
