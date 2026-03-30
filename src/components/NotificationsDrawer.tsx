@@ -46,6 +46,7 @@ export default function NotificationsDrawer({
   const busyIds = useRef<Set<string>>(new Set());
 
   const unreadCount = useMemo(() => items.length, [items]);
+  const unreadLabel = unreadCount === 1 ? "1 pendiente" : `${unreadCount} pendientes`;
 
   useEffect(() => {
     if (!onUnreadChange) return;
@@ -508,7 +509,7 @@ export default function NotificationsDrawer({
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={title}>Notificaciones</div>
                 <div style={sub}>
-                  {unreadCount > 0 ? `${unreadCount} pendientes` : "Estás al día ✨"}
+                  {unreadCount > 0 ? unreadLabel : "Estás al día ✨"}
                 </div>
                 <div style={subtleCopy}>
                   Solo mostramos notificaciones pendientes. Lo que marques como leído
@@ -727,26 +728,27 @@ const backdrop: React.CSSProperties = {
 };
 
 const drawer: React.CSSProperties = {
-  background: "radial-gradient(circle at top, #0f172a 0, #020617 62%)",
+  background:
+    "radial-gradient(circle at top, rgba(15,23,42,0.98) 0, rgba(2,6,23,0.99) 62%)",
   display: "flex",
   flexDirection: "column",
-  boxShadow: "-18px 0 60px rgba(0,0,0,0.42)",
-  borderLeft: "1px solid rgba(148,163,184,0.24)",
+  boxShadow: "-18px 0 56px rgba(0,0,0,0.38)",
+  borderLeft: "1px solid rgba(148,163,184,0.18)",
 };
 
 const drawerDesktop: React.CSSProperties = {
-  width: "min(480px, 92vw)",
+  width: "min(460px, 92vw)",
   height: "100%",
-  padding: 22,
+  padding: 20,
 };
 
 const drawerMobile: React.CSSProperties = {
   width: "100%",
   height: "100%",
-  paddingTop: "max(18px, env(safe-area-inset-top))",
-  paddingRight: 16,
-  paddingBottom: "max(18px, env(safe-area-inset-bottom))",
-  paddingLeft: 16,
+  paddingTop: "max(16px, env(safe-area-inset-top))",
+  paddingRight: 14,
+  paddingBottom: "max(16px, env(safe-area-inset-bottom))",
+  paddingLeft: 14,
 };
 
 const header: React.CSSProperties = {
@@ -766,7 +768,7 @@ const headerTopActions: React.CSSProperties = {
 };
 
 const title: React.CSSProperties = {
-  fontSize: 30,
+  fontSize: 28,
   fontWeight: 950,
   color: "rgba(248,250,252,0.98)",
   letterSpacing: "-0.03em",
@@ -775,22 +777,22 @@ const title: React.CSSProperties = {
 };
 
 const sub: React.CSSProperties = {
-  marginTop: 8,
-  fontSize: 14,
-  color: "rgba(148,163,184,0.95)",
-  fontWeight: 700,
+  marginTop: 7,
+  fontSize: 13,
+  color: "rgba(148,163,184,0.94)",
+  fontWeight: 800,
 };
 
 const subtleCopy: React.CSSProperties = {
-  marginTop: 10,
-  fontSize: 13,
+  marginTop: 8,
+  fontSize: 12,
   lineHeight: 1.45,
-  color: "rgba(148,163,184,0.84)",
-  maxWidth: 360,
+  color: "rgba(148,163,184,0.78)",
+  maxWidth: 340,
 };
 
 const bulkActionsRow: React.CSSProperties = {
-  marginTop: 16,
+  marginTop: 14,
   display: "flex",
   gap: 10,
   flexWrap: "wrap",
@@ -801,7 +803,7 @@ const bulkActionsRowMobile: React.CSSProperties = {
 };
 
 const body: React.CSSProperties = {
-  marginTop: 18,
+  marginTop: 16,
   flex: 1,
   overflowY: "auto",
   paddingRight: 2,
@@ -811,14 +813,15 @@ const body: React.CSSProperties = {
 const list: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: 12,
+  gap: 10,
 };
 
 const rowCard: React.CSSProperties = {
   width: "100%",
-  borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.12)",
-  padding: 14,
+  borderRadius: 16,
+  border: "1px solid rgba(255,255,255,0.10)",
+  padding: 13,
+  boxShadow: "0 10px 28px rgba(0,0,0,0.14)",
 };
 
 const rowTop: React.CSSProperties = {
@@ -830,17 +833,18 @@ const rowTop: React.CSSProperties = {
 
 const rowTopLeft: React.CSSProperties = {
   display: "flex",
-  gap: 12,
+  gap: 10,
   alignItems: "flex-start",
   width: "100%",
 };
 
 const dot: React.CSSProperties = {
-  width: 10,
-  height: 10,
+  width: 9,
+  height: 9,
   borderRadius: 999,
-  marginTop: 7,
+  marginTop: 6,
   flex: "0 0 auto",
+  boxShadow: "0 0 0 5px rgba(255,255,255,0.03)",
 };
 
 const rowTitleLine: React.CSSProperties = {
@@ -851,37 +855,39 @@ const rowTitleLine: React.CSSProperties = {
 };
 
 const rowTitle: React.CSSProperties = {
-  fontSize: 15,
+  fontSize: 14,
   fontWeight: 900,
   color: "rgba(248,250,252,0.98)",
-  lineHeight: 1.25,
+  lineHeight: 1.28,
+  letterSpacing: "-0.01em",
 };
 
 const rowTime: React.CSSProperties = {
-  fontSize: 11,
-  color: "rgba(255,255,255,0.55)",
+  fontSize: 10,
+  color: "rgba(255,255,255,0.52)",
   whiteSpace: "nowrap",
   marginTop: 2,
+  fontWeight: 800,
 };
 
 const rowSub: React.CSSProperties = {
-  marginTop: 8,
-  fontSize: 13,
+  marginTop: 7,
+  fontSize: 12,
   color: "rgba(255,255,255,0.74)",
-  lineHeight: 1.45,
+  lineHeight: 1.5,
 };
 
 const rowMeta: React.CSSProperties = {
-  marginTop: 12,
+  marginTop: 10,
   display: "flex",
-  gap: 8,
+  gap: 7,
   flexWrap: "wrap",
 };
 
 const rowActions: React.CSSProperties = {
-  marginTop: 14,
+  marginTop: 12,
   display: "flex",
-  gap: 10,
+  gap: 8,
   flexWrap: "wrap",
 };
 
@@ -890,18 +896,19 @@ const rowActionsMobile: React.CSSProperties = {
 };
 
 const metaPill: React.CSSProperties = {
-  fontSize: 11,
-  padding: "5px 9px",
+  fontSize: 10,
+  padding: "5px 8px",
   borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(255,255,255,0.045)",
   color: "rgba(255,255,255,0.78)",
+  fontWeight: 800,
 };
 
 const smallSoftBtn: React.CSSProperties = {
-  minHeight: 44,
-  padding: "10px 14px",
-  borderRadius: 14,
+  minHeight: 42,
+  padding: "10px 13px",
+  borderRadius: 13,
   border: "1px solid rgba(255,255,255,0.12)",
   background: "rgba(255,255,255,0.05)",
   color: "rgba(255,255,255,0.92)",
@@ -910,9 +917,9 @@ const smallSoftBtn: React.CSSProperties = {
 };
 
 const secondaryHeaderBtn: React.CSSProperties = {
-  minHeight: 44,
-  padding: "11px 14px",
-  borderRadius: 14,
+  minHeight: 42,
+  padding: "10px 13px",
+  borderRadius: 13,
   border: "1px solid rgba(255,255,255,0.12)",
   background: "rgba(255,255,255,0.05)",
   color: "rgba(255,255,255,0.94)",
@@ -921,9 +928,9 @@ const secondaryHeaderBtn: React.CSSProperties = {
 };
 
 const dangerHeaderBtn: React.CSSProperties = {
-  minHeight: 44,
-  padding: "11px 14px",
-  borderRadius: 14,
+  minHeight: 42,
+  padding: "10px 13px",
+  borderRadius: 13,
   border: "1px solid rgba(248,113,113,0.56)",
   background: "rgba(127,29,29,0.72)",
   color: "rgba(254,242,242,0.98)",
@@ -932,8 +939,8 @@ const dangerHeaderBtn: React.CSSProperties = {
 };
 
 const primaryRowBtn: React.CSSProperties = {
-  minHeight: 42,
-  padding: "10px 14px",
+  minHeight: 40,
+  padding: "9px 13px",
   borderRadius: 12,
   border: "1px solid rgba(56,189,248,0.35)",
   background:
@@ -944,8 +951,8 @@ const primaryRowBtn: React.CSSProperties = {
 };
 
 const secondaryRowBtn: React.CSSProperties = {
-  minHeight: 42,
-  padding: "10px 14px",
+  minHeight: 40,
+  padding: "9px 13px",
   borderRadius: 12,
   border: "1px solid rgba(255,255,255,0.12)",
   background: "rgba(255,255,255,0.05)",
@@ -955,8 +962,8 @@ const secondaryRowBtn: React.CSSProperties = {
 };
 
 const dangerRowBtn: React.CSSProperties = {
-  minHeight: 42,
-  padding: "10px 14px",
+  minHeight: 40,
+  padding: "9px 13px",
   borderRadius: 12,
   border: "1px solid rgba(248,113,113,0.56)",
   background: "rgba(127,29,29,0.72)",
@@ -971,9 +978,9 @@ const mobileActionBtn: React.CSSProperties = {
 };
 
 const iconBtn: React.CSSProperties = {
-  width: 44,
-  height: 44,
-  borderRadius: 14,
+  width: 42,
+  height: 42,
+  borderRadius: 13,
   border: "1px solid rgba(255,255,255,0.12)",
   background: "rgba(15,23,42,0.85)",
   color: "rgba(248,250,252,0.96)",
