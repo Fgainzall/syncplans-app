@@ -1084,7 +1084,12 @@ console.log("DELETE CHECK", {
             </div>
           </div>
 
-          <div style={styles.overviewMetaRow}>
+          <div
+            style={{
+              ...styles.overviewMetaRow,
+              ...(isMobile ? styles.overviewMetaRowMobile : null),
+            }}
+          >
             {!eventsLoaded ? (
               <div style={styles.statusPillNeutral}>
                 <span style={styles.statusDotNeutral} />
@@ -1103,13 +1108,24 @@ console.log("DELETE CHECK", {
                 </button>
               </div>
             ) : (
-              <div style={styles.statusPillSuccess}>
+              <div
+                style={{
+                  ...styles.statusPillSuccess,
+                  ...(isMobile ? styles.statusPillSuccessMobile : null),
+                }}
+              >
                 <span style={styles.statusDotSuccess} />
                 Sin conflictos activos
               </div>
             )}
 
-            <button onClick={handleRefresh} style={styles.overviewGhostBtn}>
+            <button
+              onClick={handleRefresh}
+              style={{
+                ...styles.overviewGhostBtn,
+                ...(isMobile ? styles.overviewGhostBtnMobile : null),
+              }}
+            >
               Actualizar
             </button>
           </div>
@@ -1266,6 +1282,7 @@ console.log("DELETE CHECK", {
                     onEdit={handleEditEvent}
                     groupTypeById={groupTypeById}
                     currentUserId={currentUserId}
+                    isMobile={isMobile}
                   />
                 ))
               )}
@@ -1345,6 +1362,7 @@ function EventRow({
   groupTypeById,
   currentUserId,
   trustSignal,
+  isMobile,
 }: {
   e: CalendarEventWithOwner;
   highlightId?: string | null;
@@ -1354,6 +1372,7 @@ function EventRow({
   currentUserId?: string | null;
   groupTypeById?: Map<string, "pair" | "family" | "other">;
   trustSignal?: ConflictTrustSignal | null;
+  isMobile?: boolean;
 }) {
   const resolvedType: GroupType = e.groupId
     ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
@@ -1390,14 +1409,29 @@ function EventRow({
     >
       <div style={{ ...styles.eventBar, background: meta.dot }} />
       <div style={styles.eventBody}>
-        <div style={styles.eventTop}>
-          <div style={styles.eventMain}>
+        <div
+          style={{
+            ...styles.eventTop,
+            ...(isMobile ? styles.eventTopMobile : null),
+          }}
+        >
+          <div
+            style={{
+              ...styles.eventMain,
+              ...(isMobile ? styles.eventMainMobile : null),
+            }}
+          >
             <div style={styles.eventTitle}>{e.title || "Sin título"}</div>
 
             <div style={styles.eventTime}>{prettyTimeRange(e.start, e.end)}</div>
           </div>
 
-          <div style={styles.eventRight}>
+          <div
+            style={{
+              ...styles.eventRight,
+              ...(isMobile ? styles.eventRightMobile : null),
+            }}
+          >
             <div style={styles.eventTag}>
               <span
                 style={{
@@ -1502,8 +1536,7 @@ function renderMonthCells(opts: {
     const isToday = sameDay(cellDate, today);
 
     const dayEvents = eventsByDay.get(ymd(cellDate)) || [];
-    const visibleEventLimit = isMobile ? 2 : 3;
-    const visibleEvents = dayEvents.slice(0, visibleEventLimit);
+    const top3 = dayEvents.slice(0, 3);
 
     const isWeekend =
       cellDate.getDay() === 0 || cellDate.getDay() === 6;
@@ -1600,19 +1633,18 @@ cells.push(
         </div>
       )}
 
-      {visibleEvents.map((e) => {
+      {(isMobile ? top3.slice(0, 2) : top3).map((e) => {
         const resolvedType: GroupType = e.groupId
           ? ((groupTypeById.get(String(e.groupId)) ?? "pair") as GroupType)
           : ("personal" as GroupType);
 
         const meta = groupMeta(resolvedType);
         const trustSignal = trustSignals[String(e.id)];
-        const trustAccent =
-          trustSignal?.label === "auto_adjusted"
-            ? styles.cellTrustDotAuto
-            : trustSignal
-            ? styles.cellTrustDotResolved
-            : null;
+        const trustShortLabel = trustSignal
+          ? trustSignal.label === "auto_adjusted"
+            ? "Auto"
+            : "Resuelto"
+          : null;
 
         return (
           <div
@@ -1643,29 +1675,23 @@ cells.push(
               {e.title || "Evento"}
             </span>
 
-            {trustAccent ? (
+            {trustShortLabel ? (
               <span
-                aria-label={
-                  trustSignal?.label === "auto_adjusted"
-                    ? "Ajuste automático"
-                    : "Resuelto"
-                }
-                title={
-                  trustSignal?.label === "auto_adjusted"
-                    ? "Ajuste automático"
-                    : "Resuelto"
-                }
                 style={{
-                  ...styles.cellTrustDot,
-                  ...trustAccent,
+                  ...styles.cellTrustPill,
+                  ...(trustSignal?.label === "auto_adjusted"
+                    ? styles.cellTrustPillAuto
+                    : styles.cellTrustPillResolved),
                 }}
-              />
+              >
+                {trustShortLabel}
+              </span>
             ) : null}
           </div>
         );
       })}
 
-      {dayEvents.length > visibleEventLimit ? (
+      {dayEvents.length > 3 ? (
         <div
           className="spCal-moreHint"
           style={{
@@ -1673,7 +1699,7 @@ cells.push(
             fontSize: isMobile ? 11 : styles.moreHint.fontSize,
           }}
         >
-          +{dayEvents.length - visibleEventLimit} más
+          +{dayEvents.length - 3} más
         </div>
       ) : null}
     </div>
@@ -2010,28 +2036,14 @@ cell: {
 },
   cellEventLine: {
     display: "flex",
-    gap: 7,
+    gap: 8,
     alignItems: "center",
-    minWidth: 0,
   },
   miniDot: {
     width: 8,
     height: 8,
     borderRadius: 999,
     flex: "0 0 auto",
-  },
-  cellTrustDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    flex: "0 0 auto",
-    boxShadow: "0 0 0 3px rgba(255,255,255,0.04)",
-  },
-  cellTrustDotResolved: {
-    background: "rgba(52,211,153,0.95)",
-  },
-  cellTrustDotAuto: {
-    background: "rgba(251,191,36,0.95)",
   },
 cellEventText: {
   fontSize: 12,
@@ -2585,6 +2597,9 @@ statusDotDanger: {
 },
 
 overviewGhostBtn: {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
   minHeight: 38,
   padding: "0 12px",
   borderRadius: 999,
@@ -2595,4 +2610,34 @@ overviewGhostBtn: {
   fontWeight: 800,
   cursor: "pointer",
 },
+  overviewMetaRowMobile: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 8,
+  },
+  statusPillSuccessMobile: {
+    width: "100%",
+    justifyContent: "center",
+    textAlign: "center",
+  },
+  overviewGhostBtnMobile: {
+    width: "100%",
+    justifyContent: "center",
+  },
+  eventTopMobile: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 8,
+  },
+  eventMainMobile: {
+    gap: 4,
+  },
+  eventRightMobile: {
+    width: "100%",
+    marginLeft: 0,
+    gap: 6,
+    flexWrap: "wrap",
+    justifyContent: "flex-start",
+  },
+
 };
