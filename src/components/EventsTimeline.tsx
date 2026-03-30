@@ -581,12 +581,16 @@ export default function EventsTimeline({
     });
   }
 
-  function onAcceptExternalProposal(ev: TimelineEvent, invite: PublicInviteRow) {
+  function buildExternalProposalUrl(
+    ev: TimelineEvent,
+    invite: PublicInviteRow,
+    intent: "review" | "accept" = "review"
+  ) {
     const proposed = String(invite.proposed_date ?? "").trim();
-    if (!proposed) return;
+    if (!proposed) return null;
 
     const proposedStart = new Date(proposed);
-    if (Number.isNaN(proposedStart.getTime())) return;
+    if (Number.isNaN(proposedStart.getTime())) return null;
 
     const durationMs = getSafeDurationMs(ev.start, ev.end);
     const proposedEnd = new Date(proposedStart.getTime() + durationMs);
@@ -595,8 +599,22 @@ export default function EventsTimeline({
     qp.set("eventId", String(ev.id));
     qp.set("proposedStart", proposedStart.toISOString());
     qp.set("proposedEnd", proposedEnd.toISOString());
+    qp.set("proposalSource", "public_invite");
+    qp.set("proposalIntent", intent);
 
-    router.push(`/events/new/details?${qp.toString()}`);
+    return `/events/new/details?${qp.toString()}`;
+  }
+
+  function onReviewExternalProposal(ev: TimelineEvent, invite: PublicInviteRow) {
+    const url = buildExternalProposalUrl(ev, invite, "review");
+    if (!url) return;
+    router.push(url);
+  }
+
+  function onTakeExternalProposal(ev: TimelineEvent, invite: PublicInviteRow) {
+    const url = buildExternalProposalUrl(ev, invite, "accept");
+    if (!url) return;
+    router.push(url);
   }
 
   return (
@@ -647,6 +665,9 @@ export default function EventsTimeline({
                   isOwnerView &&
                   invite?.status === "rejected" &&
                   !!invite?.proposed_date;
+                const proposedDateLabel = formatProposedDate(
+                  invite?.proposed_date ?? null
+                );
 
                 return (
                   <div key={eventId} style={S.eventRow}>
@@ -786,6 +807,42 @@ export default function EventsTimeline({
                         ) : null}
                       </div>
 
+                      {canAcceptProposal ? (
+                        <div style={S.inlineProposalStrip}>
+                          <div style={S.inlineProposalCopy}>
+                            <div style={S.inlineProposalKicker}>Propuesta externa</div>
+                            <div style={S.inlineProposalTitle}>
+                              {proposedDateLabel
+                                ? `Te propusieron mover este plan a ${proposedDateLabel}`
+                                : "Te propusieron una nueva fecha para este plan"}
+                            </div>
+                            <div style={S.inlineProposalSub}>
+                              Puedes revisarla con calma o entrar ya con esa fecha
+                              precargada para confirmar y guardar pasando por
+                              conflictos.
+                            </div>
+                          </div>
+
+                          <div style={S.inlineProposalActions}>
+                            <button
+                              type="button"
+                              onClick={() => onReviewExternalProposal(ev, invite!)}
+                              style={S.proposalSecondaryBtn}
+                            >
+                              Revisar propuesta
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => onTakeExternalProposal(ev, invite!)}
+                              style={S.proposalPrimaryBtn}
+                            >
+                              Tomar esta fecha
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+
                       {isOwnerView &&
                       (shareState?.loading || shareState?.link || shareState?.error) ? (
                         <div style={S.sharePanel}>
@@ -851,21 +908,32 @@ export default function EventsTimeline({
                           {canAcceptProposal ? (
                             <div style={S.proposalActionBox}>
                               <div style={S.proposalActionTitle}>
-                                Ya puedes revisar esta propuesta dentro de SyncPlans
+                                Esta propuesta ya puede convertirse en una decisión
+                                real dentro de SyncPlans
                               </div>
                               <div style={S.proposalActionSub}>
-                                Abriremos el formulario con la nueva fecha sugerida
-                                para que la aceptes, la ajustes o la guardes pasando
-                                por conflictos.
+                                Entraremos con la fecha sugerida precargada. Desde ahí
+                                puedes ajustarla, confirmarla o guardarla pasando por el
+                                mismo flujo real de conflictos.
                               </div>
 
-                              <button
-                                type="button"
-                                onClick={() => onAcceptExternalProposal(ev, invite)}
-                                style={S.proposalPrimaryBtn}
-                              >
-                                Revisar propuesta
-                              </button>
+                              <div style={S.inlineProposalActions}>
+                                <button
+                                  type="button"
+                                  onClick={() => onReviewExternalProposal(ev, invite)}
+                                  style={S.proposalSecondaryBtn}
+                                >
+                                  Revisar propuesta
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => onTakeExternalProposal(ev, invite)}
+                                  style={S.proposalPrimaryBtn}
+                                >
+                                  Tomar esta fecha
+                                </button>
+                              </div>
                             </div>
                           ) : null}
 
@@ -1196,6 +1264,45 @@ const S: Record<string, React.CSSProperties> = {
     whiteSpace: "pre-wrap",
     wordBreak: "break-word",
   },
+
+  inlineProposalStrip: {
+    borderRadius: 14,
+    border: "1px solid rgba(165,180,252,0.24)",
+    background:
+      "linear-gradient(180deg, rgba(79,70,229,0.16), rgba(30,41,59,0.42))",
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  inlineProposalCopy: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  inlineProposalKicker: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    fontWeight: 800,
+    color: "rgba(199,210,254,0.95)",
+  },
+  inlineProposalTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "rgba(238,242,255,0.98)",
+    lineHeight: 1.4,
+  },
+  inlineProposalSub: {
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: "rgba(224,231,255,0.84)",
+  },
+  inlineProposalActions: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
   proposalActionBox: {
     borderRadius: 14,
     border: "1px solid rgba(165,180,252,0.22)",
@@ -1223,6 +1330,17 @@ const S: Record<string, React.CSSProperties> = {
     color: "rgba(238,242,255,0.98)",
     fontSize: 12,
     fontWeight: 900,
+    padding: "10px 14px",
+    cursor: "pointer",
+  },
+  proposalSecondaryBtn: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.96)",
+    fontSize: 12,
+    fontWeight: 800,
     padding: "10px 14px",
     cursor: "pointer",
   },
