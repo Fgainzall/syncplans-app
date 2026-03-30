@@ -508,6 +508,7 @@ export default function EventsTimeline({
 
     const request = (async () => {
       try {
+        console.log("SYNCPLANS ANALYTICS TEST", eventId);
 const { invite, link } = await generatePublicInviteLink(eventId);
 
 const { error: analyticsError } = await supabase
