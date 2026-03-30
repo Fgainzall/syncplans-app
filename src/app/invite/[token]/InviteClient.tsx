@@ -26,6 +26,8 @@ type Props = {
   token: string;
 };
 
+type ResponseMode = "idle" | "propose";
+
 function formatEventDate(start?: string | null, end?: string | null) {
   if (!start) return "Fecha por confirmar";
 
@@ -201,6 +203,7 @@ export default function InviteClient({ token }: Props) {
 
   const [message, setMessage] = useState("");
   const [proposedDate, setProposedDate] = useState("");
+  const [mode, setMode] = useState<ResponseMode>("idle");
 
   useEffect(() => {
     let cancelled = false;
@@ -229,6 +232,7 @@ export default function InviteClient({ token }: Props) {
           setEvent(nextEvent);
           setMessage(nextInvite?.message ?? "");
           setProposedDate(toDateTimeLocalValue(nextInvite?.proposed_date));
+          setMode("idle");
         }
       } catch (err) {
         if (!cancelled) {
@@ -257,9 +261,11 @@ export default function InviteClient({ token }: Props) {
   const hasFinalResponse =
     invite?.status === "accepted" || invite?.status === "rejected";
   const proposedDateLabel = formatProposedDate(invite?.proposed_date);
-  const hasProposedDate = Boolean(proposedDate && proposedDate.trim().length > 0);
   const canSubmit = !loading && !!invite && submittingAction === null;
-  const canAccept = canSubmit && !hasProposedDate;
+  const canAccept = canSubmit;
+  const canReject = canSubmit;
+  const canSendProposal =
+    canSubmit && proposedDate.trim().length > 0;
 
   async function handleRespond(nextStatus: "accepted" | "rejected") {
     try {
@@ -269,7 +275,7 @@ export default function InviteClient({ token }: Props) {
       const payload = {
         status: nextStatus,
         message: message.trim() || null,
-        proposedDate: proposedDate || null,
+        proposedDate: null,
       };
 
       const res = await fetch(`/api/public-invite/${token}`, {
@@ -290,11 +296,58 @@ export default function InviteClient({ token }: Props) {
       setInvite(updatedInvite);
       setMessage(updatedInvite?.message ?? payload.message ?? "");
       setProposedDate(toDateTimeLocalValue(updatedInvite?.proposed_date));
+      setMode("idle");
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
           : "Ocurrió un error al responder la invitación."
+      );
+    } finally {
+      setSubmittingAction(null);
+    }
+  }
+
+  async function handlePropose() {
+    if (!proposedDate.trim()) {
+      setError("Debes elegir una nueva fecha antes de enviarla.");
+      return;
+    }
+
+    try {
+      setSubmittingAction("rejected");
+      setError(null);
+
+      const payload = {
+        status: "rejected" as const,
+        message: message.trim() || null,
+        proposedDate,
+      };
+
+      const res = await fetch(`/api/public-invite/${token}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "No se pudo enviar la propuesta.");
+      }
+
+      const updatedInvite = (json?.invite ?? null) as PublicInviteRow | null;
+      setInvite(updatedInvite);
+      setMessage(updatedInvite?.message ?? payload.message ?? "");
+      setProposedDate(toDateTimeLocalValue(updatedInvite?.proposed_date));
+      setMode("idle");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Ocurrió un error al enviar la propuesta."
       );
     } finally {
       setSubmittingAction(null);
@@ -559,109 +612,172 @@ export default function InviteClient({ token }: Props) {
                   />
                 </div>
 
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "#334155",
-                      marginBottom: 8,
-                    }}
-                  >
-                    Proponer otra fecha (opcional)
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={proposedDate}
-                    onChange={(e) => setProposedDate(e.target.value)}
-                    disabled={submittingAction !== null}
-                    style={{
-                      width: "100%",
-                      borderRadius: 14,
-                      border: "1px solid #cbd5e1",
-                      padding: 12,
-                      fontSize: 14,
-                      outline: "none",
-                      boxSizing: "border-box",
-                      background: "#fff",
-                    }}
-                  />
-                  <div
-                    style={{
-                      marginTop: 8,
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      color: "#64748b",
-                    }}
-                  >
-                    Si rechazas el horario original, puedes dejar aquí una alternativa.
-                  </div>
+                {mode === "propose" ? (
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: "#334155",
+                        marginBottom: 8,
+                      }}
+                    >
+                      Nueva fecha propuesta
+                    </label>
 
-                  {hasProposedDate ? (
+                    <input
+                      type="datetime-local"
+                      value={proposedDate}
+                      onChange={(e) => setProposedDate(e.target.value)}
+                      disabled={submittingAction !== null}
+                      style={{
+                        width: "100%",
+                        borderRadius: 14,
+                        border: "1px solid #cbd5e1",
+                        padding: 12,
+                        fontSize: 14,
+                        outline: "none",
+                        boxSizing: "border-box",
+                        background: "#fff",
+                      }}
+                    />
+
                     <div
                       style={{
                         marginTop: 8,
-                        fontSize: 13,
+                        fontSize: 12,
                         lineHeight: 1.5,
-                        color: "#4338ca",
-                        background: "#eef2ff",
-                        border: "1px solid #c7d2fe",
-                        borderRadius: 12,
-                        padding: "10px 12px",
+                        color: "#64748b",
                       }}
                     >
-                      Si propones una nueva fecha, debes rechazar el horario actual.
+                      Esta acción rechazará el horario original y enviará una alternativa.
                     </div>
-                  ) : null}
-                </div>
+                  </div>
+                ) : null}
               </section>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 12,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => void handleRespond("accepted")}
-                  disabled={!canAccept}
+              {mode === "idle" ? (
+                <div
                   style={{
-                    border: "none",
-                    borderRadius: 16,
-                    padding: "14px 16px",
-                    fontSize: 15,
-                    fontWeight: 700,
-                    background: "#0f172a",
-                    color: "#fff",
-                    cursor: canAccept ? "pointer" : "not-allowed",
-                    opacity: canAccept ? 1 : 0.5,
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1fr",
+                    gap: 12,
                   }}
                 >
-                  {submittingAction === "accepted" ? "Procesando..." : "Aceptar"}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleRespond("accepted")}
+                    disabled={!canAccept}
+                    style={{
+                      border: "none",
+                      borderRadius: 16,
+                      padding: "14px 16px",
+                      fontSize: 15,
+                      fontWeight: 700,
+                      background: "#0f172a",
+                      color: "#fff",
+                      cursor: canAccept ? "pointer" : "not-allowed",
+                      opacity: canAccept ? 1 : 0.5,
+                    }}
+                  >
+                    {submittingAction === "accepted" ? "Procesando..." : "Aceptar"}
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => void handleRespond("rejected")}
-                  disabled={!canSubmit}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("propose");
+                      setError(null);
+                    }}
+                    disabled={!canSubmit}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      borderRadius: 16,
+                      padding: "14px 16px",
+                      fontSize: 15,
+                      fontWeight: 700,
+                      background: "#fff",
+                      color: "#0f172a",
+                      cursor: canSubmit ? "pointer" : "not-allowed",
+                      opacity: canSubmit ? 1 : 0.7,
+                    }}
+                  >
+                    Proponer nueva fecha
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleRespond("rejected")}
+                    disabled={!canReject}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      borderRadius: 16,
+                      padding: "14px 16px",
+                      fontSize: 15,
+                      fontWeight: 700,
+                      background: "#fff",
+                      color: "#0f172a",
+                      cursor: canReject ? "pointer" : "not-allowed",
+                      opacity: canReject ? 1 : 0.7,
+                    }}
+                  >
+                    {submittingAction === "rejected" ? "Procesando..." : "Rechazar"}
+                  </button>
+                </div>
+              ) : (
+                <div
                   style={{
-                    border: "1px solid #cbd5e1",
-                    borderRadius: 16,
-                    padding: "14px 16px",
-                    fontSize: 15,
-                    fontWeight: 700,
-                    background: "#fff",
-                    color: "#0f172a",
-                    cursor: canSubmit ? "pointer" : "not-allowed",
-                    opacity: canSubmit ? 1 : 0.7,
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 12,
                   }}
                 >
-                  {submittingAction === "rejected" ? "Procesando..." : "Rechazar"}
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => void handlePropose()}
+                    disabled={!canSendProposal}
+                    style={{
+                      border: "none",
+                      borderRadius: 16,
+                      padding: "14px 16px",
+                      fontSize: 15,
+                      fontWeight: 700,
+                      background: "#0f172a",
+                      color: "#fff",
+                      cursor: canSendProposal ? "pointer" : "not-allowed",
+                      opacity: canSendProposal ? 1 : 0.5,
+                    }}
+                  >
+                    {submittingAction === "rejected"
+                      ? "Enviando..."
+                      : "Enviar propuesta"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("idle");
+                      setError(null);
+                    }}
+                    disabled={submittingAction !== null}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      borderRadius: 16,
+                      padding: "14px 16px",
+                      fontSize: 15,
+                      fontWeight: 700,
+                      background: "#fff",
+                      color: "#0f172a",
+                      cursor:
+                        submittingAction === null ? "pointer" : "not-allowed",
+                      opacity: submittingAction === null ? 1 : 0.7,
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              )}
 
               {hasFinalResponse ? (
                 <div
@@ -694,7 +810,7 @@ export default function InviteClient({ token }: Props) {
                   {invite.status === "accepted"
                     ? "Tu respuesta quedó guardada correctamente."
                     : invite.proposed_date
-                    ? "Tu rechazo con propuesta de nueva fecha quedó guardado correctamente."
+                    ? "Tu propuesta de nueva fecha quedó guardada correctamente."
                     : "Tu rechazo quedó guardado correctamente."}
                 </div>
               ) : null}

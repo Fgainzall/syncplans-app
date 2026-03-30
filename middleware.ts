@@ -1,32 +1,41 @@
-// middleware.ts (debe estar en la raíz del repo, no dentro de src/)
+// middleware.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 function canonicalHost() {
-  const env = (process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? "").trim();
+  const env = (
+    process.env.NEXT_PUBLIC_APP_URL ??
+    process.env.APP_URL ??
+    ""
+  ).trim();
+
   if (!env) return null;
+
   try {
-    return new URL(env).host; // => syncplansapp.com
+    return new URL(env).host;
   } catch {
     return null;
   }
 }
 
 function isPublicPath(pathname: string) {
+  // ✅ Invite público
+  if (pathname.startsWith("/invite/")) return true;
+
   // ✅ Auth pages
   if (pathname.startsWith("/auth/")) return true;
 
   // ✅ Next internals
   if (pathname.startsWith("/_next/")) return true;
 
-  // ✅ Static assets / public files (PWA needs these unauthenticated)
+  // ✅ Static assets / public files
   if (pathname === "/manifest.webmanifest") return true;
   if (pathname.startsWith("/icons/")) return true;
   if (pathname.startsWith("/favicon")) return true;
   if (pathname === "/robots.txt") return true;
   if (pathname === "/sitemap.xml") return true;
 
-  // ✅ APIs must remain reachable (they handle auth internally if needed)
+  // ✅ APIs públicas / internas
   if (pathname.startsWith("/api/")) return true;
 
   // ✅ Landing
@@ -39,7 +48,7 @@ export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
   const host = request.headers.get("host") ?? url.host;
 
-  // ✅ 0) Canonical SIEMPRE (incluye /auth/* y /api/*)
+  // ✅ Canonical host
   const canon = canonicalHost();
   if (canon && host !== canon) {
     const redirectUrl = url.clone();
@@ -48,14 +57,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // ✅ 1) Público: pasa sin chequear sesión
-  if (isPublicPath(url.pathname)) return NextResponse.next();
+  // ✅ Rutas públicas pasan sin auth
+  if (isPublicPath(url.pathname)) {
+    return NextResponse.next();
+  }
 
   const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
   const supabaseAnon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
-  if (!supabaseUrl || !supabaseAnon) return NextResponse.next();
 
-  // ✅ 2) Crear response primero para permitir set-cookie si hay refresh
+  if (!supabaseUrl || !supabaseAnon) {
+    return NextResponse.next();
+  }
+
   const response = NextResponse.next();
 
   const supabase = createServerClient(supabaseUrl, supabaseAnon, {
@@ -79,8 +92,11 @@ export async function middleware(request: NextRequest) {
     loginUrl.searchParams.set("next", url.pathname + url.search);
 
     const redirectResponse = NextResponse.redirect(loginUrl);
-    // Mantener cualquier cookie que se haya seteado (por ejemplo, refresh de sesión fallido)
-    response.cookies.getAll().forEach((c) => redirectResponse.cookies.set(c));
+
+    response.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie);
+    });
+
     return redirectResponse;
   }
 
@@ -88,6 +104,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Deja pasar todo por el middleware excepto assets internos de Next.
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
