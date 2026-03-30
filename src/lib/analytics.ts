@@ -14,7 +14,7 @@ export async function trackEvent({
   metadata,
 }: TrackParams) {
   try {
-    console.log("TRACK EVENT START", {
+    console.log("[analytics] START", {
       event,
       userId,
       entityId,
@@ -28,12 +28,12 @@ export async function trackEvent({
       metadata: metadata ?? null,
     });
 
-    console.log("TRACK EVENT RESULT", { data, error });
+    console.log("[analytics] RESULT", { data, error });
 
     if (error) {
-      console.error("analytics insert error", error);
+      console.error("[analytics] INSERT ERROR", error);
     }
   } catch (err) {
-    console.error("analytics fatal error", err);
+    console.error("[analytics] FATAL ERROR", err);
   }
 }

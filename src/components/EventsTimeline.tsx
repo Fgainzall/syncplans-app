@@ -508,12 +508,24 @@ export default function EventsTimeline({
 
     const request = (async () => {
       try {
-        const { invite, link } = await generatePublicInviteLink(eventId);
-await trackEvent({
-  event: "invite_created",
- entityId: eventId,
-});
-        setShareStateById((prev) => ({
+const { invite, link } = await generatePublicInviteLink(eventId);
+
+const { error: analyticsError } = await supabase
+  .from("events_analytics")
+  .insert({
+    user_id: currentUserId,
+    event_type: "invite_created",
+    entity_id: eventId,
+    metadata: {
+      source: "timeline_share",
+    },
+  });
+
+if (analyticsError) {
+  console.error("[EventsTimeline] analytics invite_created error", analyticsError);
+}
+
+setShareStateById((prev) => ({
           ...prev,
           [eventId]: {
             loading: false,
