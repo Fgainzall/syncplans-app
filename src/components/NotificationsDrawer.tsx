@@ -573,10 +573,10 @@ export default function NotificationsDrawer({
                 <SkeletonList />
               ) : showEmptyState ? (
                 <div style={emptyBox}>
-                  <div style={emptyTitle}>Nada nuevo por aquí</div>
+                  <div style={emptyTitle}>Sin notificaciones por ahora</div>
                   <div style={emptySub}>
                     Cuando tengas conflictos, eventos, mensajes o invitaciones a
-                    grupos, aparecerán en esta bandeja.
+                    grupos, aparecerán aquí.
                   </div>
                 </div>
               ) : (
