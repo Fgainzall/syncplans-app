@@ -7,6 +7,10 @@ import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import { deleteEventsByIdsDetailed, generatePublicInviteLink } from "@/lib/eventsDb";
 import {
+  getLatestConflictTrustSignalsByEventIds,
+  type ConflictTrustSignal,
+} from "@/lib/conflictResolutionsLogDb";
+import {
   getLatestPublicInvitesByEventIds,
   type PublicInviteRow,
 } from "@/lib/invitationsDb";
@@ -45,6 +49,8 @@ type ShareState = {
 };
 
 type InviteStateByEventId = Record<string, PublicInviteRow | null>;
+
+type TrustSignalByEventId = Record<string, ConflictTrustSignal | null>;
 
 function localDateKey(value: string | Date) {
   const d = value instanceof Date ? value : new Date(value);
@@ -139,6 +145,33 @@ function getExternalLabel(ev: TimelineEvent) {
 
   if (ev.external_source.toLowerCase() === "google") return "Google";
   return "Externo";
+}
+
+
+function getTrustPresentation(signal: ConflictTrustSignal | null) {
+  if (!signal) return null;
+
+  if (signal.label === "auto_adjusted") {
+    return {
+      label: "Ajuste automático",
+      title: "SyncPlans mantuvo una salida segura automáticamente.",
+      style: {
+        background: "rgba(67,56,202,0.18)",
+        borderColor: "rgba(129,140,248,0.28)",
+        color: "rgba(224,231,255,0.98)",
+      } as React.CSSProperties,
+    };
+  }
+
+  return {
+    label: "Resuelto",
+    title: "Este evento ya pasó por una decisión confirmada.",
+    style: {
+      background: "rgba(20,83,45,0.18)",
+      borderColor: "rgba(74,222,128,0.24)",
+      color: "rgba(220,252,231,0.98)",
+    } as React.CSSProperties,
+  };
 }
 
 function buildWhatsAppText(ev: TimelineEvent, link: string) {
@@ -263,6 +296,8 @@ export default function EventsTimeline({
   const [inviteStateByEventId, setInviteStateByEventId] =
     useState<InviteStateByEventId>({});
   const [inviteStatesLoading, setInviteStatesLoading] = useState(false);
+  const [trustSignalsByEventId, setTrustSignalsByEventId] =
+    useState<TrustSignalByEventId>({});
 
   const sorted = useMemo(() => {
     return [...events].sort(
@@ -303,6 +338,49 @@ export default function EventsTimeline({
       alive = false;
     };
   }, []);
+
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTrustSignals() {
+      const eventIds = Array.from(
+        new Set(
+          sorted
+            .map((ev) => String(ev.id ?? "").trim())
+            .filter(Boolean)
+        )
+      );
+
+      if (eventIds.length === 0) {
+        setTrustSignalsByEventId({});
+        return;
+      }
+
+      try {
+        const data = await getLatestConflictTrustSignalsByEventIds(eventIds);
+
+        if (!cancelled) {
+          const fallback: TrustSignalByEventId = {};
+          for (const id of eventIds) fallback[id] = data[id] ?? null;
+          setTrustSignalsByEventId(fallback);
+        }
+      } catch (error) {
+        console.error("[EventsTimeline] loadTrustSignals error", error);
+        if (!cancelled) {
+          const fallback: TrustSignalByEventId = {};
+          for (const id of eventIds) fallback[id] = null;
+          setTrustSignalsByEventId(fallback);
+        }
+      }
+    }
+
+    loadTrustSignals();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sorted]);
 
   useEffect(() => {
     let cancelled = false;
@@ -517,6 +595,8 @@ export default function EventsTimeline({
                 const shareState = shareStateById[eventId];
                 const invite = inviteStateByEventId[eventId] ?? null;
                 const invitePresentation = getInvitePresentation(invite);
+                const trustSignal = trustSignalsByEventId[eventId] ?? null;
+                const trustPresentation = getTrustPresentation(trustSignal);
 
                 const start = new Date(ev.start).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -628,6 +708,18 @@ export default function EventsTimeline({
                             {externalLabel}
                           </span>
                         )}
+
+                        {trustPresentation ? (
+                          <span
+                            style={{
+                              ...S.signalBadge,
+                              ...trustPresentation.style,
+                            }}
+                            title={trustPresentation.title}
+                          >
+                            {trustPresentation.label}
+                          </span>
+                        ) : null}
 
                         {isOwnerView ? (
                           <span

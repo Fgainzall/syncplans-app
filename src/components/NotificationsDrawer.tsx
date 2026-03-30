@@ -180,6 +180,22 @@ export default function NotificationsDrawer({
       return `${actorName} no aceptó tu evento`;
     }
 
+    if (t === "conflict_decision") {
+      const payload = (n.payload || {}) as any;
+      const keptTitle = String(payload.kept_event_title ?? "").trim();
+      if (keptTitle) return `Decisión aplicada: “${keptTitle}”`;
+      if (n.title) return n.title;
+      return "Se aplicó una decisión de conflicto";
+    }
+
+    if (t === "conflict_auto_adjusted") {
+      const payload = (n.payload || {}) as any;
+      const affectedTitle = String(payload.affected_event_title ?? "").trim();
+      if (affectedTitle) return `Ajuste automático en “${affectedTitle}”`;
+      if (n.title) return n.title;
+      return "SyncPlans aplicó un ajuste automático";
+    }
+
     if (n.title) return n.title;
     if (t === "conflict_detected" || t === "conflict") return "Conflicto de horario";
     if (t === "event_created") return "Nuevo evento creado";
@@ -223,6 +239,29 @@ export default function NotificationsDrawer({
       return "Tu evento no fue elegido al resolver un conflicto.";
     }
 
+    if (t === "conflict_decision") {
+      const payload = (n.payload || {}) as any;
+      const affectedTitle = String(payload.affected_event_title ?? "").trim();
+      const keptTitle = String(payload.kept_event_title ?? "").trim();
+
+      if (keptTitle && affectedTitle) {
+        return `Se decidió conservar “${keptTitle}” frente a “${affectedTitle}”.`;
+      }
+      if (n.body) return n.body;
+      return "Ya quedó aplicada una decisión de conflicto.";
+    }
+
+    if (t === "conflict_auto_adjusted") {
+      const payload = (n.payload || {}) as any;
+      const affectedTitle = String(payload.affected_event_title ?? "").trim();
+
+      if (affectedTitle) {
+        return `No se pudo reemplazar “${affectedTitle}”, así que SyncPlans mantuvo una salida segura.`;
+      }
+      if (n.body) return n.body;
+      return "SyncPlans hizo un ajuste automático para evitar inconsistencias.";
+    }
+
     if (n.body) return n.body;
     return "Toca para ver más.";
   }
@@ -230,6 +269,8 @@ export default function NotificationsDrawer({
   function typeLabel(n: NotificationRow): string {
     const t = String(n.type || "").toLowerCase();
     if (t === "conflict" || t === "conflict_detected") return "Conflicto";
+    if (t === "conflict_decision") return "Decisión aplicada";
+    if (t === "conflict_auto_adjusted") return "Ajuste automático";
     if (t === "event_created" || t === "event_deleted") return "Evento";
     if (t === "event_rejected") return "Decisión";
     if (t === "group_message") return "Mensaje";
@@ -245,6 +286,22 @@ export default function NotificationsDrawer({
         dot: "#FB7185",
         border: "rgba(251,113,133,0.24)",
         bg: "linear-gradient(180deg, rgba(127,29,29,0.24), rgba(255,255,255,0.04))",
+      };
+    }
+
+    if (t === "conflict_decision") {
+      return {
+        dot: "#4ADE80",
+        border: "rgba(74,222,128,0.24)",
+        bg: "linear-gradient(180deg, rgba(20,83,45,0.24), rgba(255,255,255,0.04))",
+      };
+    }
+
+    if (t === "conflict_auto_adjusted") {
+      return {
+        dot: "#818CF8",
+        border: "rgba(129,140,248,0.24)",
+        bg: "linear-gradient(180deg, rgba(49,46,129,0.24), rgba(255,255,255,0.04))",
       };
     }
 
@@ -564,6 +621,12 @@ export default function NotificationsDrawer({
                                   )}
                                 {type === "event_rejected" && payload.event_title && (
                                   <span style={metaPill}>{payload.event_title}</span>
+                                )}
+                                {type === "conflict_decision" && payload.kept_event_title && (
+                                  <span style={metaPill}>{payload.kept_event_title}</span>
+                                )}
+                                {type === "conflict_auto_adjusted" && payload.affected_event_title && (
+                                  <span style={metaPill}>{payload.affected_event_title}</span>
                                 )}
                               </div>
                             </div>

@@ -106,3 +106,97 @@ export async function getRecentConflictResolutionLogs(
 
   return (data ?? []).map(mapRow);
 }
+
+export type ConflictTrustSignal = {
+  eventId: string;
+  label: "resolved" | "auto_adjusted";
+  finalAction: string;
+  decisionType: string;
+  conflictId: string | null;
+  createdAt: string;
+};
+
+function extractEventIdsFromLogMetadata(
+  metadata: Record<string, unknown>
+): string[] {
+  const candidates = [
+    metadata["existing_event_id"],
+    metadata["incoming_event_id"],
+    metadata["target_event_id"],
+    metadata["affected_event_id"],
+    metadata["kept_event_id"],
+    metadata["blocked_event_id"],
+  ];
+
+  return Array.from(
+    new Set(
+      candidates
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function trustLabelFromFinalAction(
+  finalAction: string
+): "resolved" | "auto_adjusted" {
+  const normalized = String(finalAction ?? "").trim().toLowerCase();
+
+  if (normalized.includes("fallback") || normalized.includes("auto")) {
+    return "auto_adjusted";
+  }
+
+  return "resolved";
+}
+
+export async function getLatestConflictTrustSignalsByEventIds(
+  eventIds: string[]
+): Promise<Record<string, ConflictTrustSignal>> {
+  const safeEventIds = Array.from(
+    new Set(
+      (eventIds ?? [])
+        .map((id) => String(id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (safeEventIds.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from("conflict_resolutions_log")
+    .select("id, conflict_id, decision_type, final_action, metadata, created_at")
+    .order("created_at", { ascending: false })
+    .limit(250);
+
+  if (error) throw error;
+
+  const targetSet = new Set(safeEventIds);
+  const result: Record<string, ConflictTrustSignal> = {};
+
+  for (const row of data ?? []) {
+    const metadata =
+      row?.metadata && typeof row.metadata === "object" ? row.metadata : {};
+
+    const ids = extractEventIdsFromLogMetadata(
+      metadata as Record<string, unknown>
+    );
+    const matchingIds = ids.filter((id) => targetSet.has(id));
+
+    if (matchingIds.length === 0) continue;
+
+    for (const eventId of matchingIds) {
+      if (result[eventId]) continue;
+
+      result[eventId] = {
+        eventId,
+        label: trustLabelFromFinalAction(String(row?.final_action ?? "")),
+        finalAction: String(row?.final_action ?? ""),
+        decisionType: String(row?.decision_type ?? ""),
+        conflictId: row?.conflict_id ? String(row.conflict_id) : null,
+        createdAt: String(row?.created_at ?? ""),
+      };
+    }
+  }
+
+  return result;
+}
