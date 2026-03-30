@@ -147,7 +147,6 @@ function getExternalLabel(ev: TimelineEvent) {
   return "Externo";
 }
 
-
 function getTrustPresentation(signal: ConflictTrustSignal | null) {
   if (!signal) return null;
 
@@ -242,7 +241,9 @@ function getInvitePresentation(invite: PublicInviteRow | null) {
   };
 }
 
-function getInviteBadgeStyle(tone: "neutral" | "pending" | "accepted" | "rejected" | "proposed"): React.CSSProperties {
+function getInviteBadgeStyle(
+  tone: "neutral" | "pending" | "accepted" | "rejected" | "proposed"
+): React.CSSProperties {
   switch (tone) {
     case "pending":
       return {
@@ -338,7 +339,6 @@ export default function EventsTimeline({
       alive = false;
     };
   }, []);
-
 
   useEffect(() => {
     let cancelled = false;
@@ -685,47 +685,13 @@ export default function EventsTimeline({
                       </div>
 
                       <div style={S.signalsRow}>
-                        <span
-                          style={{
-                            ...S.signalBadge,
-                            background: signal.badgeBg,
-                            borderColor: signal.badgeBorder,
-                            color: signal.badgeText,
-                          }}
-                        >
-                          {signal.label}
-                        </span>
-
-                        {externalLabel && (
-                          <span
-                            style={{
-                              ...S.signalBadge,
-                              background: "rgba(22,78,99,0.9)",
-                              borderColor: "rgba(103,232,249,0.22)",
-                              color: "rgba(207,250,254,0.98)",
-                            }}
-                          >
-                            {externalLabel}
-                          </span>
-                        )}
-
-                        {trustPresentation ? (
-                          <span
-                            style={{
-                              ...S.signalBadge,
-                              ...trustPresentation.style,
-                            }}
-                            title={trustPresentation.title}
-                          >
-                            {trustPresentation.label}
-                          </span>
-                        ) : null}
-
                         {isOwnerView ? (
                           <span
                             style={{
                               ...S.signalBadge,
                               ...getInviteBadgeStyle(invitePresentation.tone),
+                              fontWeight: 900,
+                              padding: "6px 11px",
                             }}
                           >
                             {invitePresentation.label}
@@ -740,6 +706,45 @@ export default function EventsTimeline({
                             }}
                           >
                             Invitación recibida
+                          </span>
+                        ) : null}
+
+                        <span
+                          style={{
+                            ...S.signalBadge,
+                            background: signal.badgeBg,
+                            borderColor: signal.badgeBorder,
+                            color: signal.badgeText,
+                            opacity: 0.8,
+                          }}
+                        >
+                          {signal.label}
+                        </span>
+
+                        {externalLabel && (
+                          <span
+                            style={{
+                              ...S.signalBadge,
+                              background: "rgba(22,78,99,0.9)",
+                              borderColor: "rgba(103,232,249,0.22)",
+                              color: "rgba(207,250,254,0.98)",
+                              opacity: 0.8,
+                            }}
+                          >
+                            {externalLabel}
+                          </span>
+                        )}
+
+                        {trustPresentation ? (
+                          <span
+                            style={{
+                              ...S.signalBadge,
+                              ...trustPresentation.style,
+                              opacity: 0.8,
+                            }}
+                            title={trustPresentation.title}
+                          >
+                            {trustPresentation.label}
                           </span>
                         ) : null}
                       </div>
