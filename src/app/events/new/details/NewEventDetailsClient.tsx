@@ -150,7 +150,6 @@ function mapDefaultResolutionToChoice(
   return "edit";
 }
 
-
 function emitSyncPlansRefreshSignals() {
   if (typeof window === "undefined") return;
 
@@ -235,6 +234,8 @@ export default function NewEventDetailsClient() {
 function NewEventDetailsInner() {
   const router = useRouter();
   const sp = useSearchParams();
+  const proposedStartParam = sp.get("proposedStart");
+  const proposedEndParam = sp.get("proposedEnd");
 
   const eventIdParam = sp.get("eventId") || sp.get("edit") || sp.get("id");
   const isEditing = !!eventIdParam;
@@ -266,23 +267,23 @@ function NewEventDetailsInner() {
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<null | {
-    
     title: string;
     subtitle?: string;
   }>(null);
-const [postSaveActions, setPostSaveActions] = useState<null | {
-  visible: boolean;
-  eventId?: string;
-  title?: string;
-  isShared?: boolean;
-}>(null);
-const [sharingPostSave, setSharingPostSave] = useState(false);
-const [postSaveShareUrl, setPostSaveShareUrl] = useState<string | null>(null);
-const [postSaveFingerprint, setPostSaveFingerprint] =
-  useState<PostSaveFormFingerprint | null>(null);
-const [hydrated, setHydrated] = useState(false);
-const [settings, setSettings] = useState<NotificationSettings | null>(null);
-const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [postSaveActions, setPostSaveActions] = useState<null | {
+    visible: boolean;
+    eventId?: string;
+    title?: string;
+    isShared?: boolean;
+  }>(null);
+  const [sharingPostSave, setSharingPostSave] = useState(false);
+  const [postSaveShareUrl, setPostSaveShareUrl] = useState<string | null>(null);
+  const [postSaveFingerprint, setPostSaveFingerprint] =
+    useState<PostSaveFormFingerprint | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const [settings, setSettings] = useState<NotificationSettings | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [externalProposalActive, setExternalProposalActive] = useState(false);
 
   const [booting, setBooting] = useState(true);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
@@ -322,9 +323,9 @@ const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const t = window.setTimeout(() => setToast(null), 2600);
     return () => window.clearTimeout(t);
   }, [toast]);
-useEffect(() => {
-  setHydrated(true);
-}, []);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -472,6 +473,28 @@ useEffect(() => {
     };
   }, [isEditing, eventIdParam]);
 
+  useEffect(() => {
+    if (!proposedStartParam || !proposedEndParam) return;
+
+    try {
+      const s = new Date(proposedStartParam);
+      const e = new Date(proposedEndParam);
+
+      if (!isNaN(s.getTime()) && !isNaN(e.getTime())) {
+        setStartLocal(toInputLocal(s));
+        setEndLocal(toInputLocal(e));
+        setExternalProposalActive(true);
+
+        setToast({
+          title: "Propuesta recibida 📩",
+          subtitle: "Revisa la nueva fecha sugerida.",
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }, [proposedStartParam, proposedEndParam]);
+
   const lockedToActiveGroup = useMemo(() => {
     if (typeParam !== "group") return false;
     return sp.get("lock") === "1";
@@ -563,7 +586,6 @@ useEffect(() => {
     return fmtRange(startDate.toISOString(), endDate.toISOString());
   }, [startDate, endDate]);
 
-
   const currentPostSaveFingerprint = useMemo(
     () =>
       buildPostSaveFingerprint({
@@ -638,62 +660,62 @@ useEffect(() => {
     if (e.getTime() <= s.getTime())
       setEndLocal(toInputLocal(addMinutes(s, 60)));
   };
-const applyTemplateSelection = (template: EventTemplate) => {
-  setSelectedTemplate(template);
-  setTitle(template.title);
-  setNotes(template.defaultNotes ?? "");
+  const applyTemplateSelection = (template: EventTemplate) => {
+    setSelectedTemplate(template);
+    setTitle(template.title);
+    setNotes(template.defaultNotes ?? "");
 
-  const start = fromInputLocal(startLocal);
-  if (!isNaN(start.getTime())) {
-    const nextEnd = addMinutes(start, template.defaultDurationMinutes);
-    setEndLocal(toInputLocal(nextEnd));
-  }
-};
+    const start = fromInputLocal(startLocal);
+    if (!isNaN(start.getTime())) {
+      const nextEnd = addMinutes(start, template.defaultDurationMinutes);
+      setEndLocal(toInputLocal(nextEnd));
+    }
+  };
 
-const clearTemplateSelection = () => {
-  setSelectedTemplate(null);
-  setTitle("");
-  setNotes("");
-};
+  const clearTemplateSelection = () => {
+    setSelectedTemplate(null);
+    setTitle("");
+    setNotes("");
+  };
 
-const buildSuccessToast = (options?: { keepBoth?: boolean }) => {
-  const isSharedEvent = effectiveType === "group";
+  const buildSuccessToast = (options?: { keepBoth?: boolean }) => {
+    const isSharedEvent = effectiveType === "group";
 
-  if (options?.keepBoth) {
-    return {
-      title: isSharedEvent
-        ? isEditing
+    if (options?.keepBoth) {
+      return {
+        title: isSharedEvent
+          ? isEditing
+            ? "Plan compartido actualizado ✅"
+            : "Plan compartido creado ✅"
+          : isEditing
+          ? "Evento personal actualizado ✅"
+          : "Evento personal creado ✅",
+        subtitle: isSharedEvent
+          ? "Conservamos ambos planes y volvemos al calendario."
+          : "Conservamos ambos eventos y volvemos al calendario.",
+      };
+    }
+
+    if (isSharedEvent) {
+      return {
+        title: isEditing
           ? "Plan compartido actualizado ✅"
-          : "Plan compartido creado ✅"
-        : isEditing
-        ? "Evento personal actualizado ✅"
-        : "Evento personal creado ✅",
-      subtitle: isSharedEvent
-        ? "Conservamos ambos planes y volvemos al calendario."
-        : "Conservamos ambos eventos y volvemos al calendario.",
-    };
-  }
+          : "Plan compartido creado ✅",
+        subtitle: isEditing
+          ? "El grupo ya verá la versión actualizada."
+          : "Ya está en el calendario del grupo.",
+      };
+    }
 
-  if (isSharedEvent) {
     return {
       title: isEditing
-        ? "Plan compartido actualizado ✅"
-        : "Plan compartido creado ✅",
+        ? "Evento personal actualizado ✅"
+        : "Evento personal creado ✅",
       subtitle: isEditing
-        ? "El grupo ya verá la versión actualizada."
-        : "Ya está en el calendario del grupo.",
+        ? "Tus cambios ya quedaron guardados."
+        : "Ya quedó en tu calendario.",
     };
-  }
-
-  return {
-    title: isEditing
-      ? "Evento personal actualizado ✅"
-      : "Evento personal creado ✅",
-    subtitle: isEditing
-      ? "Tus cambios ya quedaron guardados."
-      : "Ya quedó en tu calendario.",
   };
-};
 
   const writePreflightResolutionLogs = async (input: {
     items: PreflightConflict[];
@@ -749,7 +771,6 @@ const buildSuccessToast = (options?: { keepBoth?: boolean }) => {
       }
     }
   };
-
 
   const writePreflightDecisionNotifications = async (input: {
     items: PreflightConflict[];
@@ -863,7 +884,7 @@ const buildSuccessToast = (options?: { keepBoth?: boolean }) => {
     return created;
   };
 
-const doSave = async (
+  const doSave = async (
     payload: {
       groupType: GroupType;
       groupId: string | null;
@@ -944,51 +965,51 @@ const doSave = async (
           // ok
         }
 
-setToast(buildSuccessToast({ keepBoth: true }));
+        setToast(buildSuccessToast({ keepBoth: true }));
 
-const qp = new URLSearchParams();
-qp.set("from", "conflicts");
-qp.set("fallbackKeepBoth", "1");
-if (savedEventId) qp.set("eventId", String(savedEventId));
-if (payload.groupId) qp.set("groupId", String(payload.groupId));
+        const qp = new URLSearchParams();
+        qp.set("from", "conflicts");
+        qp.set("fallbackKeepBoth", "1");
+        if (savedEventId) qp.set("eventId", String(savedEventId));
+        if (payload.groupId) qp.set("groupId", String(payload.groupId));
 
-window.setTimeout(() => {
-  router.push(`/summary?${qp.toString()}`);
-}, 500);
+        window.setTimeout(() => {
+          router.push(`/summary?${qp.toString()}`);
+        }, 500);
 
-return savedEventId;
-}
+        return savedEventId;
+      }
 
-if (conflictResult.conflictCount > 0) {
-  setToast({
-    title: "⚠️ Conflicto detectado",
-    subtitle: "Te llevo a revisarlo ahora…",
-  });
+      if (conflictResult.conflictCount > 0) {
+        setToast({
+          title: "⚠️ Conflicto detectado",
+          subtitle: "Te llevo a revisarlo ahora…",
+        });
 
-  const qp = new URLSearchParams();
-  if (conflictResult.targetEventId) {
-    qp.set("eventId", String(conflictResult.targetEventId));
-  }
-  if (payload.groupId) {
-    qp.set("groupId", String(payload.groupId));
-  }
-  qp.set("from", isEditing ? "event_edit" : "event_create");
+        const qp = new URLSearchParams();
+        if (conflictResult.targetEventId) {
+          qp.set("eventId", String(conflictResult.targetEventId));
+        }
+        if (payload.groupId) {
+          qp.set("groupId", String(payload.groupId));
+        }
+        qp.set("from", isEditing ? "event_edit" : "event_create");
 
-  window.setTimeout(() => {
-    router.push(`/conflicts/detected?${qp.toString()}`);
-  }, 500);
-  return savedEventId;
-}
+        window.setTimeout(() => {
+          router.push(`/conflicts/detected?${qp.toString()}`);
+        }, 500);
+        return savedEventId;
+      }
 
-setToast(buildSuccessToast());
-setPostSaveShareUrl(null);
-setPostSaveFingerprint(currentPostSaveFingerprint);
-setPostSaveActions({
-  visible: true,
-  eventId: savedEventId ?? undefined,
-  title: payload.title,
-  isShared: effectiveType === "group",
-});
+      setToast(buildSuccessToast());
+      setPostSaveShareUrl(null);
+      setPostSaveFingerprint(currentPostSaveFingerprint);
+      setPostSaveActions({
+        visible: true,
+        eventId: savedEventId ?? undefined,
+        title: payload.title,
+        isShared: effectiveType === "group",
+      });
 
       return savedEventId;
     } catch (err: any) {
@@ -1195,114 +1216,113 @@ setPostSaveActions({
       return;
     }
 
-setSaving(true);
-try {
-  const payloadToSave = pendingPayload;
-  const itemsSnapshot = [...preflightItems];
-  const idsToReplaceSnapshot = [...existingIdsToReplace];
-  const deleteResult = await deleteEventsByIdsDetailed(idsToReplaceSnapshot);
-
-  const blockedIds = Array.isArray(deleteResult?.blockedIds)
-    ? deleteResult.blockedIds.map((id) => String(id)).filter(Boolean)
-    : [];
-
-  const didDeleteAll =
-    Number(deleteResult?.deletedCount ?? 0) === idsToReplaceSnapshot.length;
-
-  if (blockedIds.length > 0 || !didDeleteAll) {
+    setSaving(true);
     try {
-      const conflictIds = itemsSnapshot.map((it) => it.id).filter(Boolean);
+      const payloadToSave = pendingPayload;
+      const itemsSnapshot = [...preflightItems];
+      const idsToReplaceSnapshot = [...existingIdsToReplace];
+      const deleteResult = await deleteEventsByIdsDetailed(idsToReplaceSnapshot);
 
-      if (blockedIds.length > 0) {
-        hideEventIdsForCurrentUser(blockedIds);
+      const blockedIds = Array.isArray(deleteResult?.blockedIds)
+        ? deleteResult.blockedIds.map((id) => String(id)).filter(Boolean)
+        : [];
+
+      const didDeleteAll =
+        Number(deleteResult?.deletedCount ?? 0) === idsToReplaceSnapshot.length;
+
+      if (blockedIds.length > 0 || !didDeleteAll) {
+        try {
+          const conflictIds = itemsSnapshot.map((it) => it.id).filter(Boolean);
+
+          if (blockedIds.length > 0) {
+            hideEventIdsForCurrentUser(blockedIds);
+          }
+
+          if (conflictIds.length > 0) {
+            ignoreConflictIds(conflictIds);
+          }
+        } catch {
+          // no rompemos el flujo por el fallback
+        }
+
+        clearPreflightState();
+
+        setToast({
+          title: "Aplicado con ajuste automático",
+          subtitle:
+            "No pudimos reemplazar todos los eventos por permisos. Mantuvimos ambos para evitar inconsistencias.",
+        });
+        window.setTimeout(() => setToast(null), 3200);
+
+        const savedEventId = await doSave(payloadToSave, {
+          suppressConflictRedirect: true,
+        });
+
+        await writePreflightResolutionLogs({
+          items: itemsSnapshot,
+          payload: payloadToSave,
+          choice: "replace_with_new",
+          finalAction: "fallback_keep_both",
+          savedEventId: savedEventId ?? null,
+          blockedIds,
+          reason:
+            "No se pudieron eliminar todos los eventos en conflicto por permisos. SyncPlans aplicó fallback automático y mantuvo ambos.",
+        });
+        try {
+          await writePreflightDecisionNotifications({
+            items: itemsSnapshot,
+            choice: "replace_with_new",
+            finalAction: "fallback_keep_both",
+            savedEventId: savedEventId ?? null,
+            payload: {
+              title: payloadToSave.title,
+              groupId: payloadToSave.groupId ?? null,
+            },
+          });
+        } catch (error) {
+          console.error("preflight conflict decision notifications failed", error);
+        }
+        return;
       }
 
-      if (conflictIds.length > 0) {
-        ignoreConflictIds(conflictIds);
-      }
-    } catch {
-      // no rompemos el flujo por el fallback
-    }
+      clearPreflightState();
 
-    clearPreflightState();
+      const savedEventId = await doSave(payloadToSave);
 
-    setToast({
-      title: "Aplicado con ajuste automático",
-      subtitle:
-        "No pudimos reemplazar todos los eventos por permisos. Mantuvimos ambos para evitar inconsistencias.",
-    });
-    window.setTimeout(() => setToast(null), 3200);
-
-    const savedEventId = await doSave(payloadToSave, {
-      suppressConflictRedirect: true,
-    });
-
-    await writePreflightResolutionLogs({
-      items: itemsSnapshot,
-      payload: payloadToSave,
-      choice: "replace_with_new",
-      finalAction: "fallback_keep_both",
-      savedEventId: savedEventId ?? null,
-      blockedIds,
-      reason:
-        "No se pudieron eliminar todos los eventos en conflicto por permisos. SyncPlans aplicó fallback automático y mantuvo ambos.",
-    });
-    try {
-      await writePreflightDecisionNotifications({
+      await writePreflightResolutionLogs({
         items: itemsSnapshot,
+        payload: payloadToSave,
         choice: "replace_with_new",
-        finalAction: "fallback_keep_both",
+        finalAction: finalActionFromPreflightChoice("replace_with_new"),
         savedEventId: savedEventId ?? null,
-        payload: {
-          title: payloadToSave.title,
-          groupId: payloadToSave.groupId ?? null,
-        },
+        blockedIds: [],
+        reason: null,
       });
-    } catch (error) {
-      console.error("preflight conflict decision notifications failed", error);
+      try {
+        await writePreflightDecisionNotifications({
+          items: itemsSnapshot,
+          choice: "replace_with_new",
+          finalAction: finalActionFromPreflightChoice("replace_with_new"),
+          savedEventId: savedEventId ?? null,
+          payload: {
+            title: payloadToSave.title,
+            groupId: payloadToSave.groupId ?? null,
+          },
+        });
+      } catch (error) {
+        console.error("preflight conflict decision notifications failed", error);
+      }
+      return;
+    } catch (err: any) {
+      setToast({
+        title: "No se pudo aplicar",
+        subtitle: err?.message || "Intenta nuevamente.",
+      });
+      window.setTimeout(() => setToast(null), 2800);
+    } finally {
+      setSaving(false);
     }
-    return;
-  }
-
-  clearPreflightState();
-
-  const savedEventId = await doSave(payloadToSave);
-
-  await writePreflightResolutionLogs({
-    items: itemsSnapshot,
-    payload: payloadToSave,
-    choice: "replace_with_new",
-    finalAction: finalActionFromPreflightChoice("replace_with_new"),
-    savedEventId: savedEventId ?? null,
-    blockedIds: [],
-    reason: null,
-  });
-  try {
-    await writePreflightDecisionNotifications({
-      items: itemsSnapshot,
-      choice: "replace_with_new",
-      finalAction: finalActionFromPreflightChoice("replace_with_new"),
-      savedEventId: savedEventId ?? null,
-      payload: {
-        title: payloadToSave.title,
-        groupId: payloadToSave.groupId ?? null,
-      },
-    });
-  } catch (error) {
-    console.error("preflight conflict decision notifications failed", error);
-  }
-  return;
-} catch (err: any) {
-  setToast({
-    title: "No se pudo aplicar",
-    subtitle: err?.message || "Intenta nuevamente.",
-  });
-  window.setTimeout(() => setToast(null), 2800);
-} finally {
-  setSaving(false);
-}
   };
-
 
   const handleSharePostSave = async () => {
     try {
@@ -1399,9 +1419,9 @@ try {
     setStartLocal(toInputLocal(nextStart));
     setEndLocal(toInputLocal(nextEnd));
   };
-if (!hydrated) {
-  return <main style={styles.page} />;
-}
+  if (!hydrated) {
+    return <main style={styles.page} />;
+  }
   return (
     <main style={styles.page}>
       {toast && (
@@ -1421,9 +1441,9 @@ if (!hydrated) {
         items={preflightItems}
         defaultChoice={preflightDefaultChoice}
         onClose={() => {
-        setPreflightOpen(false);
-        clearPreflightState();
-      }}
+          setPreflightOpen(false);
+          clearPreflightState();
+        }}
         onChoose={onPreflightChoose}
       />
 
@@ -1499,39 +1519,39 @@ if (!hydrated) {
 
             {!isEditing ? (
               <>
-             <EventTemplatePicker
-  selectedTemplateId={selectedTemplate?.id ?? null}
-  onSelect={applyTemplateSelection}
-/>
-{selectedTemplate ? (
-  <div style={styles.templatePreview}>
-    <div style={styles.templatePreviewTop}>
-      <div style={styles.templatePreviewLabel}>
-        Template elegido
-      </div>
+                <EventTemplatePicker
+                  selectedTemplateId={selectedTemplate?.id ?? null}
+                  onSelect={applyTemplateSelection}
+                />
+                {selectedTemplate ? (
+                  <div style={styles.templatePreview}>
+                    <div style={styles.templatePreviewTop}>
+                      <div style={styles.templatePreviewLabel}>
+                        Template elegido
+                      </div>
 
-      <button
-        type="button"
-        onClick={clearTemplateSelection}
-        style={styles.templateClearBtn}
-      >
-        Empezar desde cero
-      </button>
-    </div>
+                      <button
+                        type="button"
+                        onClick={clearTemplateSelection}
+                        style={styles.templateClearBtn}
+                      >
+                        Empezar desde cero
+                      </button>
+                    </div>
 
-    <div style={styles.templatePreviewTitle}>
-      {selectedTemplate.emoji} {selectedTemplate.title}
-    </div>
+                    <div style={styles.templatePreviewTitle}>
+                      {selectedTemplate.emoji} {selectedTemplate.title}
+                    </div>
 
-    <div style={styles.templatePreviewMeta}>
-      Duración sugerida: {selectedTemplate.defaultDurationMinutes} min
-      {selectedTemplate.defaultNotes
-        ? ` · ${selectedTemplate.defaultNotes}`
-        : ""}
-      {" · "}El formulario ya fue precargado y puedes ajustarlo libremente.
-    </div>
-  </div>
-) : null}
+                    <div style={styles.templatePreviewMeta}>
+                      Duración sugerida: {selectedTemplate.defaultDurationMinutes} min
+                      {selectedTemplate.defaultNotes
+                        ? ` · ${selectedTemplate.defaultNotes}`
+                        : ""}
+                      {" · "}El formulario ya fue precargado y puedes ajustarlo libremente.
+                    </div>
+                  </div>
+                ) : null}
               </>
             ) : null}
 
@@ -1567,6 +1587,22 @@ if (!hydrated) {
                 />
               </div>
             </div>
+
+            {externalProposalActive && (
+              <div
+                style={{
+                  marginBottom: 10,
+                  borderRadius: 14,
+                  border: "1px solid rgba(56,189,248,0.28)",
+                  background: "rgba(56,189,248,0.10)",
+                  padding: "10px 12px",
+                  fontSize: 12,
+                  fontWeight: 800,
+                }}
+              >
+                Nueva fecha sugerida desde invitación externa
+              </div>
+            )}
 
             <div style={styles.quickSummary}>
               <div style={styles.quickSummaryTitle}>Resumen rápido</div>
@@ -1713,7 +1749,7 @@ if (!hydrated) {
             </div>
           </div>
 
-                {errors.length > 0 && (
+          {errors.length > 0 && (
             <div style={styles.errorBox}>
               <div style={styles.errorTitle}>Antes de guardar:</div>
               <ul style={styles.errorList}>
@@ -2547,20 +2583,20 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: 240,
   },
   templatePreviewTop: {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 10,
-  flexWrap: "wrap",
-},
-templateClearBtn: {
-  padding: "8px 10px",
-  borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.10)",
-  background: "rgba(255,255,255,0.04)",
-  color: "rgba(255,255,255,0.86)",
-  cursor: "pointer",
-  fontSize: 12,
-  fontWeight: 800,
-},
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  templateClearBtn: {
+    padding: "8px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.86)",
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 800,
+  },
 };
