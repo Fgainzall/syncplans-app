@@ -18,7 +18,7 @@ import {
   ignoreConflictIds,
   hideEventIdsForCurrentUser,
 } from "@/lib/conflicts";
-
+import supabase from "@/lib/supabaseClient";
 import { getSettingsFromDb, type NotificationSettings } from "@/lib/settings";
 
 // ✅ DB real (RLS)
@@ -35,6 +35,7 @@ import { getOrCreatePublicInvite } from "@/lib/invitationsDb";
 // ✅ active group desde DB
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { loadEventsForConflictPreflight } from "@/lib/conflictsDbBridge";
+import { createConflictResolutionLog } from "@/lib/conflictResolutionsLogDb";
 
 /* Helpers */
 function pad2(n: number) {
@@ -186,6 +187,22 @@ function buildPostSaveFingerprint(input: {
   });
 }
 
+function decisionTypeFromPreflightChoice(
+  choice: Exclude<PreflightChoice, "edit">
+): string {
+  if (choice === "keep_existing") return "keep_existing";
+  if (choice === "replace_with_new") return "replace_with_new";
+  return "keep_both";
+}
+
+function finalActionFromPreflightChoice(
+  choice: Exclude<PreflightChoice, "edit">
+): string {
+  if (choice === "keep_existing") return "keep_existing";
+  if (choice === "replace_with_new") return "replace_with_new";
+  return "keep_both";
+}
+
 export default function NewEventDetailsClient() {
   return (
     <Suspense fallback={<main style={styles.page} />}>
@@ -244,6 +261,7 @@ const [postSaveFingerprint, setPostSaveFingerprint] =
   useState<PostSaveFormFingerprint | null>(null);
 const [hydrated, setHydrated] = useState(false);
 const [settings, setSettings] = useState<NotificationSettings | null>(null);
+const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const [booting, setBooting] = useState(true);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
@@ -343,11 +361,20 @@ useEffect(() => {
       setBooting(true);
       setLoadingGroups(true);
       try {
-        const [gid, g] = await Promise.all([
+        const [{ data: authData }, gid, g] = await Promise.all([
+          supabase.auth.getUser(),
           getActiveGroupIdFromDb().catch(() => null),
           getMyGroups().catch(() => [] as any),
         ]);
         if (!alive) return;
+
+        const uid = authData?.user?.id ?? null;
+        setCurrentUserId(uid);
+
+        if (!uid) {
+          router.replace("/auth/login");
+          return;
+        }
 
         const list: DbGroup[] = Array.isArray(g) ? (g as DbGroup[]) : [];
         const map = new Map<string, DbGroup>();
@@ -647,6 +674,61 @@ const buildSuccessToast = (options?: { keepBoth?: boolean }) => {
   };
 };
 
+  const writePreflightResolutionLogs = async (input: {
+    items: PreflightConflict[];
+    payload: {
+      groupType: GroupType;
+      groupId: string | null;
+      title: string;
+      notes?: string;
+      startIso: string;
+      endIso: string;
+    };
+    choice: Exclude<PreflightChoice, "edit">;
+    finalAction: string;
+    savedEventId?: string | null;
+    blockedIds?: string[];
+    reason?: string | null;
+  }) => {
+    if (!currentUserId || !input.items.length) return;
+
+    const writes = input.items
+      .filter((it) => String(it.id ?? "").trim())
+      .map((it) =>
+        createConflictResolutionLog({
+          conflictId: String(it.id),
+          groupId: input.payload.groupId ?? null,
+          decidedBy: currentUserId,
+          decisionType: decisionTypeFromPreflightChoice(input.choice),
+          finalAction: input.finalAction,
+          reason: input.reason ?? null,
+          metadata: {
+            existing_event_id: String(it.existingId ?? ""),
+            incoming_event_id: input.savedEventId ?? null,
+            blocked_event_ids: input.blockedIds ?? [],
+            fallback_applied: input.finalAction === "fallback_keep_both",
+            source: "event_preflight",
+            incoming_draft: {
+              title: input.payload.title,
+              notes: input.payload.notes ?? null,
+              start: input.payload.startIso,
+              end: input.payload.endIso,
+              group_id: input.payload.groupId ?? null,
+              group_type: input.payload.groupType,
+            },
+          },
+        })
+      );
+
+    const settled = await Promise.allSettled(writes);
+
+    for (const item of settled) {
+      if (item.status === "rejected") {
+        console.error("preflight conflict log insert failed", item.reason);
+      }
+    }
+  };
+
 const doSave = async (
     payload: {
       groupType: GroupType;
@@ -740,7 +822,7 @@ window.setTimeout(() => {
   router.push(`/summary?${qp.toString()}`);
 }, 500);
 
-return;
+return savedEventId;
 }
 
 if (conflictResult.conflictCount > 0) {
@@ -761,7 +843,7 @@ if (conflictResult.conflictCount > 0) {
   window.setTimeout(() => {
     router.push(`/conflicts/detected?${qp.toString()}`);
   }, 500);
-  return;
+  return savedEventId;
 }
 
 setToast(buildSuccessToast());
@@ -773,12 +855,15 @@ setPostSaveActions({
   title: payload.title,
   isShared: effectiveType === "group",
 });
+
+      return savedEventId;
     } catch (err: any) {
       setToast({
         title: "No se pudo guardar",
         subtitle: err?.message || "Intenta nuevamente.",
       });
       window.setTimeout(() => setToast(null), 2800);
+      return null;
     } finally {
       setSaving(false);
     }
@@ -913,6 +998,22 @@ setPostSaveActions({
     }
 
     if (choice === "keep_existing") {
+      const itemsSnapshot = [...preflightItems];
+      const payloadSnapshot = pendingPayload;
+
+      if (payloadSnapshot) {
+        await writePreflightResolutionLogs({
+          items: itemsSnapshot,
+          payload: payloadSnapshot,
+          choice: "keep_existing",
+          finalAction: finalActionFromPreflightChoice("keep_existing"),
+          savedEventId: null,
+          blockedIds: [],
+          reason:
+            "El usuario decidió conservar los eventos existentes y no guardar el nuevo evento.",
+        });
+      }
+
       clearPreflightState();
       setToast({
         title: "No se guardó",
@@ -931,33 +1032,52 @@ setPostSaveActions({
     }
 
     if (choice === "keep_both") {
+      const itemsSnapshot = [...preflightItems];
+      const payloadToSave = pendingPayload;
+
       try {
-        const ids = preflightItems.map((it) => it.id).filter(Boolean);
+        const ids = itemsSnapshot.map((it) => it.id).filter(Boolean);
         ignoreConflictIds(ids);
       } catch {
         // ok
       }
-      const payloadToSave = pendingPayload;
+
       clearPreflightState();
-      await doSave(payloadToSave, { suppressConflictRedirect: true });
+
+      const savedEventId = await doSave(payloadToSave, {
+        suppressConflictRedirect: true,
+      });
+
+      await writePreflightResolutionLogs({
+        items: itemsSnapshot,
+        payload: payloadToSave,
+        choice: "keep_both",
+        finalAction: finalActionFromPreflightChoice("keep_both"),
+        savedEventId: savedEventId ?? null,
+        blockedIds: [],
+        reason: null,
+      });
+
       return;
     }
 
 setSaving(true);
 try {
   const payloadToSave = pendingPayload;
-  const deleteResult = await deleteEventsByIdsDetailed(existingIdsToReplace);
+  const itemsSnapshot = [...preflightItems];
+  const idsToReplaceSnapshot = [...existingIdsToReplace];
+  const deleteResult = await deleteEventsByIdsDetailed(idsToReplaceSnapshot);
 
   const blockedIds = Array.isArray(deleteResult?.blockedIds)
     ? deleteResult.blockedIds.map((id) => String(id)).filter(Boolean)
     : [];
 
   const didDeleteAll =
-    Number(deleteResult?.deletedCount ?? 0) === existingIdsToReplace.length;
+    Number(deleteResult?.deletedCount ?? 0) === idsToReplaceSnapshot.length;
 
   if (blockedIds.length > 0 || !didDeleteAll) {
     try {
-      const conflictIds = preflightItems.map((it) => it.id).filter(Boolean);
+      const conflictIds = itemsSnapshot.map((it) => it.id).filter(Boolean);
 
       if (blockedIds.length > 0) {
         hideEventIdsForCurrentUser(blockedIds);
@@ -979,12 +1099,38 @@ try {
     });
     window.setTimeout(() => setToast(null), 3200);
 
-    await doSave(payloadToSave, { suppressConflictRedirect: true });
+    const savedEventId = await doSave(payloadToSave, {
+      suppressConflictRedirect: true,
+    });
+
+    await writePreflightResolutionLogs({
+      items: itemsSnapshot,
+      payload: payloadToSave,
+      choice: "replace_with_new",
+      finalAction: "fallback_keep_both",
+      savedEventId: savedEventId ?? null,
+      blockedIds,
+      reason:
+        "No se pudieron eliminar todos los eventos en conflicto por permisos. SyncPlans aplicó fallback automático y mantuvo ambos.",
+    });
+
     return;
   }
 
   clearPreflightState();
-  await doSave(payloadToSave);
+
+  const savedEventId = await doSave(payloadToSave);
+
+  await writePreflightResolutionLogs({
+    items: itemsSnapshot,
+    payload: payloadToSave,
+    choice: "replace_with_new",
+    finalAction: finalActionFromPreflightChoice("replace_with_new"),
+    savedEventId: savedEventId ?? null,
+    blockedIds: [],
+    reason: null,
+  });
+
   return;
 } catch (err: any) {
   setToast({
