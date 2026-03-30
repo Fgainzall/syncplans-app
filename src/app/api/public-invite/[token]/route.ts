@@ -134,12 +134,11 @@ export async function POST(req: NextRequest, context: RouteContext) {
       );
     }
 
-    const updatePayload = {
-      status,
-      message,
-      proposed_date: proposedDate,
-      responded_at: new Date().toISOString(),
-    };
+   const updatePayload = {
+  status,
+  message,
+  proposed_date: proposedDate,
+};
 
     const { data: invite, error: updateError } = await supabase
       .from("public_invites")
