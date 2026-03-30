@@ -13,6 +13,7 @@ import {
   createConflictDecisionNotification,
   createConflictAutoAdjustedNotification,
 } from "@/lib/notificationsDb";
+import { trackEvent } from "@/lib/analytics";
 import {
   GroupType,
   groupMeta,
@@ -959,7 +960,14 @@ if (isEditing && eventIdParam) {
     groupId: payload.groupId,
   });
   savedEventId = String(eventIdParam);
-
+await trackEvent({
+  event: "event_edited",
+  userId: currentUserId,
+  entityId: savedEventId,
+  metadata: {
+    type: payload.groupId ? "group" : "personal",
+  },
+});
   const proposalSource = sp.get("proposalSource");
   const proposalIntent = sp.get("proposalIntent");
 
@@ -987,6 +995,16 @@ if (isEditing && eventIdParam) {
     groupId: payload.groupId,
   });
   savedEventId = created?.id ? String(created.id) : null;
+  if (savedEventId) {
+  await trackEvent({
+    event: "event_created",
+    userId: currentUserId,
+    entityId: savedEventId,
+    metadata: {
+      type: payload.groupId ? "group" : "personal",
+    },
+  });
+}
 }
 
       emitSyncPlansRefreshSignals();

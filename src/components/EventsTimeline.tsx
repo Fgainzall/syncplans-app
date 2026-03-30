@@ -4,7 +4,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-
+import { trackEvent } from "@/lib/analytics";
 import supabase from "@/lib/supabaseClient";
 import {
   deleteEventsByIdsDetailed,
@@ -509,7 +509,10 @@ export default function EventsTimeline({
     const request = (async () => {
       try {
         const { invite, link } = await generatePublicInviteLink(eventId);
-
+await trackEvent({
+  event: "invite_created",
+ entityId: eventId,
+});
         setShareStateById((prev) => ({
           ...prev,
           [eventId]: {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-
+import { trackEvent } from "@/lib/analytics";
 type PublicInviteStatus = "pending" | "accepted" | "rejected";
 
 type PublicInviteRow = {
@@ -229,6 +229,12 @@ export default function InviteClient({ token }: Props) {
           const nextEvent = (json?.event ?? null) as PublicInviteEvent | null;
 
           setInvite(nextInvite);
+          if (nextInvite) {
+  await trackEvent({
+    event: "invite_opened",
+    entityId: nextInvite.id,
+  });
+}
           setEvent(nextEvent);
           setMessage(nextInvite?.message ?? "");
           setProposedDate(toDateTimeLocalValue(nextInvite?.proposed_date));
@@ -294,6 +300,15 @@ export default function InviteClient({ token }: Props) {
 
       const updatedInvite = (json?.invite ?? null) as PublicInviteRow | null;
       setInvite(updatedInvite);
+      if (updatedInvite) {
+  await trackEvent({
+    event:
+      nextStatus === "accepted"
+        ? "invite_accepted"
+        : "invite_rejected",
+    entityId: updatedInvite.id,
+  });
+}
       setMessage(updatedInvite?.message ?? payload.message ?? "");
       setProposedDate(toDateTimeLocalValue(updatedInvite?.proposed_date));
       setMode("idle");

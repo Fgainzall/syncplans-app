@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-
+import { trackEvent } from "@/lib/analytics";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 import supabase from "@/lib/supabaseClient";
@@ -687,7 +687,19 @@ export default function ActionsClient() {
         notifiedCount,
         fallbackKeepBothCount,
       };
-
+await trackEvent({
+  event: "conflict_resolved",
+  userId: currentUserId,
+  metadata: {
+    resolvedCount: result.resolvedCount,
+    deletedCount: result.deletedCount,
+    blockedCount: result.blockedCount,
+    ignoredCount: result.ignoredCount,
+    softRejectedCount: result.softRejectedCount,
+    notifiedCount: result.notifiedCount,
+    fallbackKeepBothCount: result.fallbackKeepBothCount,
+  },
+});
       setSummary(result);
 
       if (fallbackKeepBothCount > 0) {
