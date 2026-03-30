@@ -916,26 +916,45 @@ function NewEventDetailsInner() {
     try {
       let savedEventId: string | null = null;
 
-      if (isEditing && eventIdParam) {
-        await updateEvent({
-          id: eventIdParam,
-          title: payload.title,
-          notes: payload.notes,
-          start: payload.startIso,
-          end: payload.endIso,
-          groupId: payload.groupId,
-        });
-        savedEventId = String(eventIdParam);
-      } else {
-        const created = await createEventForGroup({
-          title: payload.title,
-          notes: payload.notes,
-          start: payload.startIso,
-          end: payload.endIso,
-          groupId: payload.groupId,
-        });
-        savedEventId = created?.id ? String(created.id) : null;
-      }
+if (isEditing && eventIdParam) {
+  await updateEvent({
+    id: eventIdParam,
+    title: payload.title,
+    notes: payload.notes,
+    start: payload.startIso,
+    end: payload.endIso,
+    groupId: payload.groupId,
+  });
+  savedEventId = String(eventIdParam);
+
+  const proposalSource = sp.get("proposalSource");
+  const proposalIntent = sp.get("proposalIntent");
+
+  if (proposalSource === "public_invite" && savedEventId) {
+    const creatorResponse =
+      proposalIntent === "accept"
+        ? "accepted"
+        : proposalIntent === "reject"
+        ? "rejected"
+        : null;
+
+    if (creatorResponse) {
+      await supabase
+        .from("public_invites")
+        .update({ creator_response: creatorResponse })
+        .eq("event_id", savedEventId);
+    }
+  }
+} else {
+  const created = await createEventForGroup({
+    title: payload.title,
+    notes: payload.notes,
+    start: payload.startIso,
+    end: payload.endIso,
+    groupId: payload.groupId,
+  });
+  savedEventId = created?.id ? String(created.id) : null;
+}
 
       emitSyncPlansRefreshSignals();
 

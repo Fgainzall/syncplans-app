@@ -98,6 +98,20 @@ function formatProposedDate(value?: string | null) {
   });
 }
 
+function toDateTimeLocalValue(value?: string | null) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+}
+
 function getStatusPresentation(invite: PublicInviteRow | null) {
   if (!invite) {
     return {
@@ -214,7 +228,7 @@ export default function InviteClient({ token }: Props) {
           setInvite(nextInvite);
           setEvent(nextEvent);
           setMessage(nextInvite?.message ?? "");
-          setProposedDate(nextInvite?.proposed_date ?? "");
+          setProposedDate(toDateTimeLocalValue(nextInvite?.proposed_date));
         }
       } catch (err) {
         if (!cancelled) {
@@ -240,9 +254,12 @@ export default function InviteClient({ token }: Props) {
 
   const statusInfo = useMemo(() => getStatusPresentation(invite), [invite]);
 
-  const hasFinalResponse = invite?.status === "accepted" || invite?.status === "rejected";
+  const hasFinalResponse =
+    invite?.status === "accepted" || invite?.status === "rejected";
   const proposedDateLabel = formatProposedDate(invite?.proposed_date);
+  const hasProposedDate = Boolean(proposedDate && proposedDate.trim().length > 0);
   const canSubmit = !loading && !!invite && submittingAction === null;
+  const canAccept = canSubmit && !hasProposedDate;
 
   async function handleRespond(nextStatus: "accepted" | "rejected") {
     try {
@@ -272,7 +289,7 @@ export default function InviteClient({ token }: Props) {
       const updatedInvite = (json?.invite ?? null) as PublicInviteRow | null;
       setInvite(updatedInvite);
       setMessage(updatedInvite?.message ?? payload.message ?? "");
-      setProposedDate(updatedInvite?.proposed_date ?? payload.proposedDate ?? "");
+      setProposedDate(toDateTimeLocalValue(updatedInvite?.proposed_date));
     } catch (err) {
       setError(
         err instanceof Error
@@ -580,6 +597,23 @@ export default function InviteClient({ token }: Props) {
                   >
                     Si rechazas el horario original, puedes dejar aquí una alternativa.
                   </div>
+
+                  {hasProposedDate ? (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                        color: "#4338ca",
+                        background: "#eef2ff",
+                        border: "1px solid #c7d2fe",
+                        borderRadius: 12,
+                        padding: "10px 12px",
+                      }}
+                    >
+                      Si propones una nueva fecha, debes rechazar el horario actual.
+                    </div>
+                  ) : null}
                 </div>
               </section>
 
@@ -593,7 +627,7 @@ export default function InviteClient({ token }: Props) {
                 <button
                   type="button"
                   onClick={() => void handleRespond("accepted")}
-                  disabled={!canSubmit}
+                  disabled={!canAccept}
                   style={{
                     border: "none",
                     borderRadius: 16,
@@ -602,8 +636,8 @@ export default function InviteClient({ token }: Props) {
                     fontWeight: 700,
                     background: "#0f172a",
                     color: "#fff",
-                    cursor: canSubmit ? "pointer" : "not-allowed",
-                    opacity: canSubmit ? 1 : 0.7,
+                    cursor: canAccept ? "pointer" : "not-allowed",
+                    opacity: canAccept ? 1 : 0.5,
                   }}
                 >
                   {submittingAction === "accepted" ? "Procesando..." : "Aceptar"}
