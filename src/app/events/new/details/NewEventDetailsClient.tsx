@@ -436,42 +436,58 @@ function NewEventDetailsInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!isEditing || !eventIdParam) return;
+ useEffect(() => {
+  if (!isEditing || !eventIdParam) return;
 
-    let alive = true;
+  let alive = true;
 
-    (async () => {
-      try {
-        const ev = await getEventById(eventIdParam);
-        if (!alive) return;
+  (async () => {
+    try {
+      const ev = await getEventById(eventIdParam);
+      if (!alive) return;
 
-        setTitle(ev.title ?? "");
-        setNotes(ev.notes ?? "");
+      setTitle(ev.title ?? "");
+      setNotes(ev.notes ?? "");
 
-        const s = new Date(ev.start);
-        const e = new Date(ev.end);
-        if (!Number.isNaN(s.getTime())) setStartLocal(toInputLocal(s));
-        if (!Number.isNaN(e.getTime())) setEndLocal(toInputLocal(e));
+      const s = new Date(ev.start);
+      const e = new Date(ev.end);
 
-        const gid = ev.group_id ? String(ev.group_id) : "";
-        if (gid) setSelectedGroupId(gid);
-      } catch (err: any) {
-        if (!alive) return;
-        setToast({
-          title: "No se pudo cargar el evento",
-          subtitle: err?.message || "Intenta nuevamente.",
-        });
-      } finally {
-        if (!alive) return;
-        setBootingEvent(false);
+      if (!Number.isNaN(s.getTime())) {
+        setStartLocal(toInputLocal(s));
       }
-    })();
 
-    return () => {
-      alive = false;
-    };
-  }, [isEditing, eventIdParam]);
+      if (!Number.isNaN(e.getTime())) {
+        setEndLocal(toInputLocal(e));
+      }
+
+      const gid = ev.group_id ? String(ev.group_id) : "";
+      if (gid) {
+        setSelectedGroupId(gid);
+
+        const next = buildUrl("group", new Date(ev.start).toISOString(), gid);
+        const current = `/events/new/details?${sp.toString()}`;
+
+        if (current !== next) {
+          router.replace(next);
+        }
+      }
+    } catch (err: any) {
+      if (!alive) return;
+
+      setToast({
+        title: "No se pudo cargar el evento",
+        subtitle: err?.message || "Intenta nuevamente.",
+      });
+    } finally {
+      if (!alive) return;
+      setBootingEvent(false);
+    }
+  })();
+
+  return () => {
+    alive = false;
+  };
+}, [isEditing, eventIdParam, router, sp]);
 
   useEffect(() => {
     if (!proposedStartParam || !proposedEndParam) return;
