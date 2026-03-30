@@ -1,12 +1,7 @@
 // src/components/MobileScaffold.tsx
 "use client";
 
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-} from "react";
+import React, { memo, type CSSProperties } from "react";
 import { colors, layout } from "@/styles/design-tokens";
 
 type Props = {
@@ -42,7 +37,7 @@ function parsePadding(pad: string): CSSProperties {
   return {};
 }
 
-export default function MobileScaffold({
+function MobileScaffold({
   children,
   maxWidth = layout.maxWidthDesktop,
   paddingDesktop = "22px 18px 24px",
@@ -51,81 +46,59 @@ export default function MobileScaffold({
   className,
   style,
 }: Props) {
-  const isMobile = useIsMobileWidth(layout.mobileBreakpoint);
+  const desktopPadding = parsePadding(paddingDesktop);
 
-  const shellStyle = useMemo<CSSProperties>(() => {
-    return {
-      minHeight: "100dvh",
-      width: "100%",
-      background: colors.appBackground,
-      color: colors.textPrimary,
-      paddingTop: "env(safe-area-inset-top)",
-      boxSizing: "border-box",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "stretch",
-      justifyContent: "flex-start",
-    };
-  }, []);
+  const shellStyle: CSSProperties = {
+    minHeight: "100dvh",
+    width: "100%",
+    background: colors.appBackground,
+    color: colors.textPrimary,
+    paddingTop: "env(safe-area-inset-top)",
+    boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "stretch",
+    justifyContent: "flex-start",
+  };
 
-  const scrollAreaStyle = useMemo<CSSProperties>(() => {
-    return {
-      flex: 1,
-      width: "100%",
-      overflowX: "hidden",
-      overflowY: "visible",
-      WebkitOverflowScrolling: "touch",
-    };
-  }, []);
+  const scrollAreaStyle: CSSProperties = {
+    flex: 1,
+    width: "100%",
+    overflowX: "hidden",
+    overflowY: "visible",
+    WebkitOverflowScrolling: "touch",
+  };
 
-  const containerStyle = useMemo<CSSProperties>(() => {
-    const desktopPadding = parsePadding(paddingDesktop);
-    const mobilePadding = parsePadding(paddingMobile);
-    const effectiveMaxWidth = isMobile ? layout.maxWidthMobile : maxWidth;
-    const reservedBottom = isMobile
-      ? `max(var(--sp-bottom-safe, 0px), calc(env(safe-area-inset-bottom) + ${mobileBottomSafe}px))`
-      : "0px";
-
-    return {
-      maxWidth: effectiveMaxWidth,
-      width: "100%",
-      margin: "0 auto",
-      boxSizing: "border-box",
-      ...(isMobile ? mobilePadding : desktopPadding),
-      paddingBottom: reservedBottom,
-    };
-  }, [isMobile, maxWidth, paddingDesktop, paddingMobile, mobileBottomSafe]);
+  const containerStyle: CSSProperties = {
+    maxWidth: `min(100%, ${maxWidth}px)`,
+    width: "100%",
+    margin: "0 auto",
+    boxSizing: "border-box",
+    ...desktopPadding,
+    paddingBottom: `max(var(--sp-bottom-safe, 0px), calc(env(safe-area-inset-bottom) + ${mobileBottomSafe}px))`,
+  };
 
   return (
     <div className={className} style={{ ...shellStyle, ...style }}>
       <div style={scrollAreaStyle}>
-        <div style={containerStyle}>{children}</div>
+        <div style={containerStyle} className="sp-mobile-scaffold-container">
+          {children}
+        </div>
       </div>
+
+      <style jsx>{`
+        @media (max-width: ${layout.mobileBreakpoint}px) {
+          .sp-mobile-scaffold-container {
+            max-width: min(100%, ${layout.maxWidthMobile}px);
+            padding-top: 14px;
+            padding-left: 12px;
+            padding-right: 12px;
+            padding-bottom: 18px;
+          }
+        }
+      `}</style>
     </div>
   );
 }
 
-function useIsMobileWidth(breakpoint: number) {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
-    const apply = () => setIsMobile(mq.matches);
-    apply();
-
-    if (typeof mq.addEventListener === "function") {
-      mq.addEventListener("change", apply);
-      return () => mq.removeEventListener("change", apply);
-    }
-
-    // @ts-ignore
-    mq.addListener(apply);
-    return () => {
-      // @ts-ignore
-      mq.removeListener(apply);
-    };
-  }, [breakpoint]);
-
-  return isMobile;
-}
+export default memo(MobileScaffold);

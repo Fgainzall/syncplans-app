@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { memo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -338,7 +338,7 @@ function iconFor(key: BottomNavKey, active: boolean) {
   }
 }
 
-export default function BottomNav() {
+function BottomNav() {
   const pathname = usePathname();
 
   if (shouldHideBottomNav(pathname)) return null;
@@ -360,7 +360,7 @@ export default function BottomNav() {
   };
 
   return (
-    <nav style={S.outer} aria-label="NavegaciÃ³n principal">
+    <nav style={S.outer} aria-label="NavegaciÃƒÂ³n principal">
       <div style={S.wrap}>
         <div style={S.viewport}>
           <div style={S.track}>
@@ -516,3 +516,5 @@ const S: Record<string, React.CSSProperties> = {
     opacity: 1,
   },
 };
+
+export default memo(BottomNav);
