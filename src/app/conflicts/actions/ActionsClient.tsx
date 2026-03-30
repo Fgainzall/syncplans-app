@@ -25,6 +25,7 @@ import {
   Resolution,
   getMyConflictResolutionsMap,
 } from "@/lib/conflictResolutionsDb";
+import { createConflictResolutionLog } from "@/lib/conflictResolutionsLogDb";
 import {
   filterOutDeclinedEvents,
   getMyDeclinedEventIds,
@@ -81,7 +82,31 @@ function resolutionForConflict(
 
   return undefined;
 }
+function decisionTypeFromResolution(resolution: Resolution): string {
+  if (resolution === "keep_existing") return "keep_existing";
+  if (resolution === "replace_with_new") return "replace_with_new";
+  return "keep_both";
+}
 
+function finalActionFromResolution(resolution: Resolution): string {
+  if (resolution === "keep_existing") return "keep_existing";
+  if (resolution === "replace_with_new") return "replace_with_new";
+  return "keep_both";
+}
+
+function resolveConflictGroupId(
+  conflict: ConflictItem,
+  fallbackGroupId?: string | null
+): string | null {
+  const raw =
+    conflict.existing?.groupId ??
+    conflict.incoming?.groupId ??
+    fallbackGroupId ??
+    null;
+
+  const normalized = String(raw ?? "").trim();
+  return normalized || null;
+}
 function groupLabel(groupType?: string | null) {
   const v = String(groupType ?? "personal").toLowerCase();
   if (v === "pair" || v === "couple") return "Pareja";
@@ -424,8 +449,81 @@ export default function ActionsClient() {
         }
       }
 
-      if (ignoredConflictIds.size > 0) {
+       if (ignoredConflictIds.size > 0) {
         ignoreConflictIds(Array.from(ignoredConflictIds));
+      }
+
+      const logWrites: Promise<unknown>[] = [];
+
+      for (const c of actionableConflicts) {
+        const resolution = resolutionForConflict(c, resMap);
+        const existingId = String(c.existingEventId ?? "").trim();
+        const incomingId = String(c.incomingEventId ?? "").trim();
+
+        if (!resolution || !existingId || !incomingId) continue;
+
+        const targetEventId =
+          resolution === "keep_existing" ? incomingId : existingId;
+
+        const wasBlocked = blockedIds.has(targetEventId);
+        const finalAction = wasBlocked
+          ? "fallback_keep_both"
+          : finalActionFromResolution(resolution);
+
+        logWrites.push(
+          createConflictResolutionLog({
+            conflictId: String(c.id),
+            groupId: resolveConflictGroupId(c, groupIdFromUrl),
+            decidedBy: currentUserId,
+            decisionType: decisionTypeFromResolution(resolution),
+            finalAction,
+            reason: wasBlocked
+              ? "No se pudo eliminar el evento objetivo por permisos. SyncPlans aplicó fallback automático y mantuvo ambos."
+              : null,
+            metadata: {
+              existing_event_id: existingId,
+              incoming_event_id: incomingId,
+              target_event_id: targetEventId,
+              fallback_applied: wasBlocked,
+              blocked_event_id: wasBlocked ? targetEventId : null,
+              source: "conflicts_actions",
+            },
+          })
+        );
+      }
+
+      for (const c of keepBothConflicts) {
+        const existingId = String(c.existingEventId ?? "").trim();
+        const incomingId = String(c.incomingEventId ?? "").trim();
+
+        if (!existingId || !incomingId) continue;
+
+        logWrites.push(
+          createConflictResolutionLog({
+            conflictId: String(c.id),
+            groupId: resolveConflictGroupId(c, groupIdFromUrl),
+            decidedBy: currentUserId,
+            decisionType: "keep_both",
+            finalAction: "keep_both",
+            reason: null,
+            metadata: {
+              existing_event_id: existingId,
+              incoming_event_id: incomingId,
+              fallback_applied: false,
+              source: "conflicts_actions",
+            },
+          })
+        );
+      }
+
+      if (logWrites.length > 0) {
+        const settled = await Promise.allSettled(logWrites);
+
+        for (const item of settled) {
+          if (item.status === "rejected") {
+            console.error("conflict_resolutions_log insert failed", item.reason);
+          }
+        }
       }
 
       const result: ApplySummary = {
