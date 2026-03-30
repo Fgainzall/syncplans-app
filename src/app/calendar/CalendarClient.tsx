@@ -1502,7 +1502,8 @@ function renderMonthCells(opts: {
     const isToday = sameDay(cellDate, today);
 
     const dayEvents = eventsByDay.get(ymd(cellDate)) || [];
-    const top3 = dayEvents.slice(0, 3);
+    const visibleEventLimit = isMobile ? 2 : 3;
+    const visibleEvents = dayEvents.slice(0, visibleEventLimit);
 
     const isWeekend =
       cellDate.getDay() === 0 || cellDate.getDay() === 6;
@@ -1599,18 +1600,19 @@ cells.push(
         </div>
       )}
 
-      {(isMobile ? top3.slice(0, 2) : top3).map((e) => {
+      {visibleEvents.map((e) => {
         const resolvedType: GroupType = e.groupId
           ? ((groupTypeById.get(String(e.groupId)) ?? "pair") as GroupType)
           : ("personal" as GroupType);
 
         const meta = groupMeta(resolvedType);
         const trustSignal = trustSignals[String(e.id)];
-        const trustShortLabel = trustSignal
-          ? trustSignal.label === "auto_adjusted"
-            ? "Auto"
-            : "Resuelto"
-          : null;
+        const trustAccent =
+          trustSignal?.label === "auto_adjusted"
+            ? styles.cellTrustDotAuto
+            : trustSignal
+            ? styles.cellTrustDotResolved
+            : null;
 
         return (
           <div
@@ -1641,23 +1643,29 @@ cells.push(
               {e.title || "Evento"}
             </span>
 
-            {trustShortLabel ? (
+            {trustAccent ? (
               <span
+                aria-label={
+                  trustSignal?.label === "auto_adjusted"
+                    ? "Ajuste automático"
+                    : "Resuelto"
+                }
+                title={
+                  trustSignal?.label === "auto_adjusted"
+                    ? "Ajuste automático"
+                    : "Resuelto"
+                }
                 style={{
-                  ...styles.cellTrustPill,
-                  ...(trustSignal?.label === "auto_adjusted"
-                    ? styles.cellTrustPillAuto
-                    : styles.cellTrustPillResolved),
+                  ...styles.cellTrustDot,
+                  ...trustAccent,
                 }}
-              >
-                {trustShortLabel}
-              </span>
+              />
             ) : null}
           </div>
         );
       })}
 
-      {dayEvents.length > 3 ? (
+      {dayEvents.length > visibleEventLimit ? (
         <div
           className="spCal-moreHint"
           style={{
@@ -1665,7 +1673,7 @@ cells.push(
             fontSize: isMobile ? 11 : styles.moreHint.fontSize,
           }}
         >
-          +{dayEvents.length - 3} más
+          +{dayEvents.length - visibleEventLimit} más
         </div>
       ) : null}
     </div>
@@ -2002,14 +2010,28 @@ cell: {
 },
   cellEventLine: {
     display: "flex",
-    gap: 8,
+    gap: 7,
     alignItems: "center",
+    minWidth: 0,
   },
   miniDot: {
     width: 8,
     height: 8,
     borderRadius: 999,
     flex: "0 0 auto",
+  },
+  cellTrustDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    flex: "0 0 auto",
+    boxShadow: "0 0 0 3px rgba(255,255,255,0.04)",
+  },
+  cellTrustDotResolved: {
+    background: "rgba(52,211,153,0.95)",
+  },
+  cellTrustDotAuto: {
+    background: "rgba(251,191,36,0.95)",
   },
 cellEventText: {
   fontSize: 12,
