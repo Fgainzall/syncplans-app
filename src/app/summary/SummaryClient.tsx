@@ -39,6 +39,7 @@ import {
   getRecentConflictResolutionLogs,
   type ConflictResolutionLogRow,
 } from "@/lib/conflictResolutionsLogDb";
+
 type Props = {
   highlightId: string | null;
   appliedToast: string | null;
@@ -283,26 +284,30 @@ function formatDecisionTitle(log: ConflictResolutionLogRow): string {
   const decisionType = String(log.decision_type ?? "").trim().toLowerCase();
 
   if (finalAction === "fallback_keep_both") {
-    return "Se aplicó ajuste automático";
+    return "Ajuste automático aplicado";
   }
+
   if (finalAction === "replace_with_new") {
-    return "Se reemplazó el evento anterior";
+    return "Evento reemplazado";
   }
+
   if (finalAction === "keep_existing") {
-    return "Se conservó el evento existente";
+    return "Se mantuvo el evento original";
   }
+
   if (finalAction === "keep_both") {
-    return "Se mantuvieron ambos eventos";
+    return "Ambos eventos fueron conservados";
   }
 
   if (decisionType === "replace_with_new") {
-    return "Se reemplazó el evento anterior";
-  }
-  if (decisionType === "keep_existing") {
-    return "Se conservó el evento existente";
+    return "Evento reemplazado";
   }
 
-  return "Se registró una decisión reciente";
+  if (decisionType === "keep_existing") {
+    return "Se mantuvo el evento original";
+  }
+
+  return "Decisión aplicada correctamente";
 }
 
 function formatDecisionSubtitle(log: ConflictResolutionLogRow): string {
@@ -313,19 +318,21 @@ function formatDecisionSubtitle(log: ConflictResolutionLogRow): string {
     .trim()
     .toLowerCase();
 
-  if (String(log.final_action ?? "").trim().toLowerCase() === "fallback_keep_both") {
-    return "No se pudo borrar el otro evento y el sistema mantuvo ambos para no romper el flujo.";
+  const finalAction = String(log.final_action ?? "").trim().toLowerCase();
+
+  if (finalAction === "fallback_keep_both") {
+    return "No se pudo modificar el otro evento. El sistema evitó conflicto manteniendo ambos.";
   }
 
   if (source === "preflight") {
-    return "La decisión se tomó antes de guardar el evento nuevo.";
+    return "Se resolvió antes de guardar el evento.";
   }
 
   if (source === "actions") {
-    return "La decisión se aplicó desde el centro de conflictos.";
+    return "Se resolvió desde el centro de conflictos.";
   }
 
-  return "La coordinación reciente ya quedó registrada en tu historial.";
+  return "Esta decisión ya forma parte del historial de coordinación.";
 }
 
 function formatRelativeDateLabel(iso: string | null | undefined): string {
@@ -627,7 +634,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
       setActiveGroupId(validActive);
 
-            const [
+      const [
         es,
         conflictResolutions,
         declined,
@@ -722,31 +729,31 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [loadSummary]);
 
-const title = activeGroupId
-  ? `Resumen · Coordinación ${activeLabel}`
-  : "Resumen · Coordinación personal";
+  const title = activeGroupId
+    ? `Resumen · Coordinación ${activeLabel}`
+    : "Resumen · Coordinación personal";
 
-const summarySubtitle = !isMobile
-  ? activeGroupId
-    ? `Tu vista operativa diaria con contexto compartido. Aquí ves qué viene, qué choca y qué conviene decidir ahora.`
-    : "Tu vista operativa diaria para entender qué viene, qué choca y qué conviene decidir hoy."
-  : activeGroupId
-  ? `Vista operativa · ${activeLabel}`
-  : "Vista operativa · Personal";
+  const summarySubtitle = !isMobile
+    ? activeGroupId
+      ? `Tu vista operativa diaria con contexto compartido. Aquí ves qué viene, qué choca y qué conviene decidir ahora.`
+      : "Tu vista operativa diaria para entender qué viene, qué choca y qué conviene decidir hoy."
+    : activeGroupId
+      ? `Vista operativa · ${activeLabel}`
+      : "Vista operativa · Personal";
 
   const moodAccentBorder =
     mood.tone === "clear"
       ? "rgba(34,197,94,0.85)"
       : mood.tone === "busy"
-      ? "rgba(251,191,36,0.9)"
-      : "rgba(56,189,248,0.9)";
+        ? "rgba(251,191,36,0.9)"
+        : "rgba(56,189,248,0.9)";
 
   const moodAccentGlow =
     mood.tone === "clear"
       ? "rgba(34,197,94,0.35)"
       : mood.tone === "busy"
-      ? "rgba(251,191,36,0.35)"
-      : "rgba(56,189,248,0.35)";
+        ? "rgba(251,191,36,0.35)"
+        : "rgba(56,189,248,0.35)";
 
   const openConflictCenter = useCallback(() => {
     if (conflictAlert.latestEventId) {
@@ -791,13 +798,13 @@ const summarySubtitle = !isMobile
               >
                 <div style={styles.conflictBannerLeft}>
                   <div style={styles.conflictBannerEyebrow}>Atención</div>
-                 <div style={styles.conflictBannerTitle}>
-  Tienes {conflictAlert.count} conflicto
-  {conflictAlert.count === 1 ? "" : "s"} por resolver
-</div>
-<div style={styles.conflictBannerSub}>
-  Revísalo ahora para evitar fricción innecesaria en la coordinación.
-</div>
+                  <div style={styles.conflictBannerTitle}>
+                    Tienes {conflictAlert.count} conflicto
+                    {conflictAlert.count === 1 ? "" : "s"} por resolver
+                  </div>
+                  <div style={styles.conflictBannerSub}>
+                    Revísalo ahora para evitar fricción innecesaria en la coordinación.
+                  </div>
                 </div>
 
                 <div style={styles.conflictBannerCta}>Resolver ahora →</div>
@@ -852,9 +859,9 @@ const summarySubtitle = !isMobile
               <div style={styles.stateKpi}>
                 <div style={styles.stateKpiLabel}>Próximos 7 días</div>
                 <div style={styles.stateKpiNumber}>{upcomingStats.total}</div>
-             <div style={styles.stateKpiHint}>
-  Eventos visibles en tu ventana operativa actual.
-</div>
+                <div style={styles.stateKpiHint}>
+                  Eventos visibles en tu ventana operativa actual.
+                </div>
               </div>
             </div>
 
@@ -868,11 +875,11 @@ const summarySubtitle = !isMobile
               </div>
             ) : !nextEvent ? (
               <div style={styles.emptyBlock}>
-              <div style={styles.emptyTitle}>No tienes eventos próximos</div>
-<div style={styles.emptySub}>
-  En los próximos 7 días no aparece actividad en este contexto.
-  Puedes crear un evento nuevo o revisar el calendario completo.
-</div>
+                <div style={styles.emptyTitle}>No tienes eventos próximos</div>
+                <div style={styles.emptySub}>
+                  En los próximos 7 días no aparece actividad en este contexto.
+                  Puedes crear un evento nuevo o revisar el calendario completo.
+                </div>
                 <button
                   onClick={() =>
                     router.push("/events/new/details?type=personal")
@@ -988,7 +995,25 @@ const summarySubtitle = !isMobile
           </Card>
 
           <Card style={styles.card} className="spSum-card">
-            <div style={styles.sectionTitle}>Decisiones recientes</div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={styles.sectionTitle}>Decisiones recientes</div>
+
+              <button
+                onClick={() => router.push("/calendar")}
+                style={styles.decisionsCta}
+              >
+                Ver calendario →
+              </button>
+            </div>
+
             <div style={styles.smallNote}>
               Aquí ves la historia reciente de cómo se resolvieron choques y ajustes
               en tu coordinación.
@@ -1027,9 +1052,16 @@ const summarySubtitle = !isMobile
 
                       <div style={styles.decisionSubtitle}>{decision.subtitle}</div>
 
-                      {decision.isFallback ? (
-                        <div style={styles.decisionBadge}>Ajuste automático</div>
-                      ) : null}
+                      <div
+                        style={{
+                          ...styles.decisionBadge,
+                          ...(decision.isFallback
+                            ? styles.decisionBadgeFallback
+                            : styles.decisionBadgeManual),
+                        }}
+                      >
+                        {decision.isFallback ? "Ajuste automático" : "Resuelto"}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1039,9 +1071,9 @@ const summarySubtitle = !isMobile
 
           <Card style={styles.card} className="spSum-card">
             <div style={styles.sectionTitle}>Acciones rápidas</div>
-           <div style={styles.smallNote}>
-  Resuelve lo urgente desde aquí sin salir de tu vista operativa.
-</div>
+            <div style={styles.smallNote}>
+              Resuelve lo urgente desde aquí sin salir de tu vista operativa.
+            </div>
 
             <div style={styles.quickGrid} className="spSum-quickGrid">
               <button
@@ -1050,9 +1082,9 @@ const summarySubtitle = !isMobile
                 className="spSum-quickCard"
               >
                 <div style={styles.quickTitle}>Crear evento</div>
-               <div style={styles.quickSub}>
-  Añade un nuevo plan sin salir de tu flujo operativo.
-</div>
+                <div style={styles.quickSub}>
+                  Añade un nuevo plan sin salir de tu flujo operativo.
+                </div>
               </button>
 
               <button
@@ -1062,8 +1094,8 @@ const summarySubtitle = !isMobile
               >
                 <div style={styles.quickTitle}>Abrir calendario</div>
                 <div style={styles.quickSub}>
-  Abre la vista completa para revisar más contexto y detalle.
-</div>
+                  Abre la vista completa para revisar más contexto y detalle.
+                </div>
               </button>
 
               <button
@@ -1072,9 +1104,9 @@ const summarySubtitle = !isMobile
                 className="spSum-quickCard"
               >
                 <div style={styles.quickTitle}>Resolver conflictos</div>
-               <div style={styles.quickSub}>
-  Revisa choques activos y decide antes de que generen fricción.
-</div>
+                <div style={styles.quickSub}>
+                  Revisa choques activos y decide antes de que generen fricción.
+                </div>
               </button>
             </div>
           </Card>
@@ -1185,12 +1217,12 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.75,
     fontWeight: 650,
   },
-hero: {
-  display: "flex",
-  alignItems: "flex-start",
-  justifyContent: "flex-start", // 👈 CAMBIO CLAVE
-   padding: "22px 22px",
-gap: 20,
+  hero: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+    padding: "22px 22px",
+    gap: 20,
     borderRadius: 24,
     border: "1px solid rgba(255,255,255,0.10)",
     background:
@@ -1568,6 +1600,16 @@ gap: 20,
     opacity: 0.72,
     lineHeight: 1.5,
   },
+  decisionsCta: {
+    fontSize: 12,
+    fontWeight: 900,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.95)",
+    padding: "6px 10px",
+    borderRadius: 999,
+    cursor: "pointer",
+  },
   decisionsEmpty: {
     marginTop: 14,
     padding: "18px 16px",
@@ -1656,11 +1698,18 @@ gap: 20,
     width: "fit-content",
     padding: "6px 10px",
     borderRadius: 999,
-    border: "1px solid rgba(251,191,36,0.22)",
-    background: "rgba(251,191,36,0.12)",
     fontSize: 11,
     fontWeight: 900,
-    color: "rgba(255,236,179,0.96)",
+  },
+  decisionBadgeManual: {
+    border: "1px solid rgba(52,211,153,0.25)",
+    background: "rgba(52,211,153,0.12)",
+    color: "rgba(187,247,208,0.95)",
+  },
+  decisionBadgeFallback: {
+    border: "1px solid rgba(251,191,36,0.25)",
+    background: "rgba(251,191,36,0.12)",
+    color: "rgba(255,236,179,0.95)",
   },
   quickGrid: {
     marginTop: 14,

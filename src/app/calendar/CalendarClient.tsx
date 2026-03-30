@@ -42,6 +42,10 @@ import {
   type Resolution,
 } from "@/lib/conflictResolutionsDb";
 import { getMyDeclinedEventIds } from "@/lib/eventResponsesDb";
+import {
+  getLatestConflictTrustSignalsByEventIds,
+  type ConflictTrustSignal,
+} from "@/lib/conflictResolutionsLogDb";
 import { filterVisibleEvents, isEventOwnedByUser } from "@/lib/tempeventVisibility";
 
 type CalendarEventWithOwner = CalendarEvent & {
@@ -253,6 +257,9 @@ export default function CalendarClient(
     () => new Set()
   );
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
+  const [trustSignals, setTrustSignals] = useState<
+    Record<string, ConflictTrustSignal>
+  >({});
 
   const groupTypeById = useMemo(() => {
     const m = new Map<string, "pair" | "family" | "other">();
@@ -439,7 +446,12 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
           hiddenIds: nextHiddenIds,
         });
 
+        const nextTrustSignals = await getLatestConflictTrustSignalsByEventIds(
+          filtered.map((event) => String(event.id))
+        ).catch(() => ({}));
+
         setEvents(filtered);
+        setTrustSignals(nextTrustSignals ?? {});
         setEventsLoaded(true);
         setError(null);
 
@@ -452,6 +464,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
         }
       } catch (e: any) {
         setError(e?.message ?? "Error cargando calendario");
+        setTrustSignals({});
         setEventsLoaded(true);
 
         if (showToastFlag) {
@@ -489,16 +502,16 @@ console.log("DELETE CHECK", {
         const result = await deleteEventsByIdsDetailed([eventId]);
 
         if (result.deletedCount !== 1) {
-          if (result.blockedIds.length > 0) {
-            setDeleteError(
-              "No tienes permisos para eliminar este evento con tu sesión actual."
-            );
-            return;
-          }
+  if (result.blockedIds.length > 0) {
+    setDeleteError(
+      "Este evento parece tuyo en la app, pero la base de datos no permitió eliminarlo. Revisa la policy de DELETE en Supabase."
+    );
+    return;
+  }
 
-          setDeleteError("El evento no se eliminó realmente.");
-          return;
-        }
+  setDeleteError("El evento no se eliminó realmente.");
+  return;
+}
 
         setDeleteError(null);
         setIsEditOpen(false);
@@ -1178,6 +1191,7 @@ console.log("DELETE CHECK", {
                   openNewEventPersonal,
                   openNewEventGroup,
                   groupTypeById,
+                  trustSignals,
                   onEdit: handleEditEvent,
                   today,
                   isMobile,
@@ -1219,6 +1233,7 @@ console.log("DELETE CHECK", {
                       onEdit={handleEditEvent}
                       groupTypeById={groupTypeById}
                       currentUserId={currentUserId}
+                      trustSignal={trustSignals[String(e.id)]}
                     />
                   ))
                 )}
@@ -1329,6 +1344,7 @@ function EventRow({
   onEdit,
   groupTypeById,
   currentUserId,
+  trustSignal,
 }: {
   e: CalendarEventWithOwner;
   highlightId?: string | null;
@@ -1337,6 +1353,7 @@ function EventRow({
   onEdit?: (e: CalendarEventWithOwner) => void;
   currentUserId?: string | null;
   groupTypeById?: Map<string, "pair" | "family" | "other">;
+  trustSignal?: ConflictTrustSignal | null;
 }) {
   const resolvedType: GroupType = e.groupId
     ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
@@ -1346,6 +1363,11 @@ function EventRow({
   const isHighlighted =
     highlightId && String(e.id) === String(highlightId);
   const canDelete = isEventOwnedByUser(e, currentUserId);
+  const trustLabel = trustSignal
+    ? trustSignal.label === "auto_adjusted"
+      ? "Ajuste automático"
+      : "Resuelto"
+    : null;
 
   return (
     <div
@@ -1385,6 +1407,19 @@ function EventRow({
               />
               {meta.label}
             </div>
+
+            {trustLabel ? (
+              <div
+                style={{
+                  ...styles.eventTrustBadge,
+                  ...(trustSignal?.label === "auto_adjusted"
+                    ? styles.eventTrustBadgeAuto
+                    : styles.eventTrustBadgeResolved),
+                }}
+              >
+                {trustLabel}
+              </div>
+            ) : null}
 
             <button
               type="button"
@@ -1435,7 +1470,8 @@ function renderMonthCells(opts: {
   openNewEventPersonal: (date?: Date) => void;
   openNewEventGroup: (date?: Date) => void;
   groupTypeById: Map<string, "pair" | "family" | "other">;
-onEdit: (e: CalendarEventWithOwner) => void;
+  trustSignals: Record<string, ConflictTrustSignal>;
+  onEdit: (e: CalendarEventWithOwner) => void;
   today: Date;
   isMobile: boolean;
 }) {
@@ -1449,6 +1485,7 @@ onEdit: (e: CalendarEventWithOwner) => void;
     openNewEventPersonal,
     openNewEventGroup,
     groupTypeById,
+    trustSignals,
     onEdit,
     today,
     isMobile,
@@ -1568,6 +1605,12 @@ cells.push(
           : ("personal" as GroupType);
 
         const meta = groupMeta(resolvedType);
+        const trustSignal = trustSignals[String(e.id)];
+        const trustShortLabel = trustSignal
+          ? trustSignal.label === "auto_adjusted"
+            ? "Auto"
+            : "Resuelto"
+          : null;
 
         return (
           <div
@@ -1597,6 +1640,19 @@ cells.push(
             >
               {e.title || "Evento"}
             </span>
+
+            {trustShortLabel ? (
+              <span
+                style={{
+                  ...styles.cellTrustPill,
+                  ...(trustSignal?.label === "auto_adjusted"
+                    ? styles.cellTrustPillAuto
+                    : styles.cellTrustPillResolved),
+                }}
+              >
+                {trustShortLabel}
+              </span>
+            ) : null}
           </div>
         );
       })}
@@ -2104,6 +2160,26 @@ eventTag: {
   maxWidth: "100%",
 },
   eventDot: { width: 8, height: 8, borderRadius: 999 },
+
+  eventTrustBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "6px 10px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+  },
+  eventTrustBadgeResolved: {
+    border: "1px solid rgba(52,211,153,0.24)",
+    background: "rgba(52,211,153,0.12)",
+    color: "rgba(187,247,208,0.96)",
+  },
+  eventTrustBadgeAuto: {
+    border: "1px solid rgba(251,191,36,0.24)",
+    background: "rgba(251,191,36,0.12)",
+    color: "rgba(255,236,179,0.96)",
+  },
 
   editBtn: {
     width: 34,
