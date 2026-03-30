@@ -1,3 +1,4 @@
+
 // src/components/EventsTimeline.tsx
 "use client";
 
@@ -5,7 +6,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
-import { deleteEventsByIdsDetailed, generatePublicInviteLink } from "@/lib/eventsDb";
+import {
+  deleteEventsByIdsDetailed,
+  generatePublicInviteLink,
+} from "@/lib/eventsDb";
 import {
   getLatestConflictTrustSignalsByEventIds,
   type ConflictTrustSignal,
@@ -49,7 +53,6 @@ type ShareState = {
 };
 
 type InviteStateByEventId = Record<string, PublicInviteRow | null>;
-
 type TrustSignalByEventId = Record<string, ConflictTrustSignal | null>;
 
 function localDateKey(value: string | Date) {
@@ -142,7 +145,6 @@ function getGroupSignal(ev: TimelineEvent) {
 
 function getExternalLabel(ev: TimelineEvent) {
   if (!ev.external_source) return null;
-
   if (ev.external_source.toLowerCase() === "google") return "Google";
   return "Externo";
 }
@@ -279,7 +281,21 @@ function getInviteBadgeStyle(
 }
 
 function resolveEventOwnerId(event: TimelineEvent | null | undefined): string {
-  return String(event?.owner_id ?? event?.user_id ?? event?.created_by ?? "").trim();
+  return String(
+    event?.owner_id ?? event?.user_id ?? event?.created_by ?? ""
+  ).trim();
+}
+
+function getSafeDurationMs(startIso?: string | null, endIso?: string | null) {
+  const startMs = new Date(String(startIso ?? "")).getTime();
+  const endMs = new Date(String(endIso ?? "")).getTime();
+  const diff = endMs - startMs;
+
+  if (!Number.isFinite(diff) || diff <= 0) {
+    return 60 * 60 * 1000;
+  }
+
+  return diff;
 }
 
 export default function EventsTimeline({
@@ -290,9 +306,9 @@ export default function EventsTimeline({
 }: Props) {
   const router = useRouter();
 
-  const [shareStateById, setShareStateById] = useState<Record<string, ShareState>>(
-    {}
-  );
+  const [shareStateById, setShareStateById] = useState<
+    Record<string, ShareState>
+  >({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [inviteStateByEventId, setInviteStateByEventId] =
     useState<InviteStateByEventId>({});
@@ -345,11 +361,7 @@ export default function EventsTimeline({
 
     async function loadTrustSignals() {
       const eventIds = Array.from(
-        new Set(
-          sorted
-            .map((ev) => String(ev.id ?? "").trim())
-            .filter(Boolean)
-        )
+        new Set(sorted.map((ev) => String(ev.id ?? "").trim()).filter(Boolean))
       );
 
       if (eventIds.length === 0) {
@@ -375,7 +387,7 @@ export default function EventsTimeline({
       }
     }
 
-    loadTrustSignals();
+    void loadTrustSignals();
 
     return () => {
       cancelled = true;
@@ -387,11 +399,7 @@ export default function EventsTimeline({
 
     async function loadInviteStates() {
       const eventIds = Array.from(
-        new Set(
-          sorted
-            .map((ev) => String(ev.id ?? "").trim())
-            .filter(Boolean)
-        )
+        new Set(sorted.map((ev) => String(ev.id ?? "").trim()).filter(Boolean))
       );
 
       if (eventIds.length === 0) {
@@ -420,7 +428,7 @@ export default function EventsTimeline({
       }
     }
 
-    loadInviteStates();
+    void loadInviteStates();
 
     return () => {
       cancelled = true;
@@ -542,7 +550,8 @@ export default function EventsTimeline({
         [eventId]: {
           loading: false,
           link,
-          error: "No se pudo copiar automáticamente. Copia el link manualmente.",
+          error:
+            "No se pudo copiar automáticamente. Copia el link manualmente.",
           copied: false,
         },
       }));
@@ -570,6 +579,24 @@ export default function EventsTimeline({
       delete next[eventId];
       return next;
     });
+  }
+
+  function onAcceptExternalProposal(ev: TimelineEvent, invite: PublicInviteRow) {
+    const proposed = String(invite.proposed_date ?? "").trim();
+    if (!proposed) return;
+
+    const proposedStart = new Date(proposed);
+    if (Number.isNaN(proposedStart.getTime())) return;
+
+    const durationMs = getSafeDurationMs(ev.start, ev.end);
+    const proposedEnd = new Date(proposedStart.getTime() + durationMs);
+
+    const qp = new URLSearchParams();
+    qp.set("eventId", String(ev.id));
+    qp.set("proposedStart", proposedStart.toISOString());
+    qp.set("proposedEnd", proposedEnd.toISOString());
+
+    router.push(`/events/new/details?${qp.toString()}`);
   }
 
   return (
@@ -610,10 +637,16 @@ export default function EventsTimeline({
 
                 const checked = selectedIds.has(eventId);
                 const isShareOpen =
-                  !!shareState?.loading || !!shareState?.link || !!shareState?.error;
+                  !!shareState?.loading ||
+                  !!shareState?.link ||
+                  !!shareState?.error;
                 const isOwnerView =
                   !!currentUserId && resolveEventOwnerId(ev) === currentUserId;
                 const canDelete = isOwnerView;
+                const canAcceptProposal =
+                  isOwnerView &&
+                  invite?.status === "rejected" &&
+                  !!invite?.proposed_date;
 
                 return (
                   <div key={eventId} style={S.eventRow}>
@@ -636,13 +669,17 @@ export default function EventsTimeline({
                             }}
                           />
                           <div style={S.titleBlock}>
-                            <div style={S.titleText}>{ev.title || "Sin título"}</div>
+                            <div style={S.titleText}>
+                              {ev.title || "Sin título"}
+                            </div>
 
                             <div style={S.metaLine}>
                               <span>
                                 {start} – {end}
                               </span>
-                              {ev.group?.name ? <span>· {ev.group.name}</span> : null}
+                              {ev.group?.name ? (
+                                <span>· {ev.group.name}</span>
+                              ) : null}
                             </div>
                           </div>
                         </div>
@@ -749,7 +786,8 @@ export default function EventsTimeline({
                         ) : null}
                       </div>
 
-                      {isOwnerView && (shareState?.loading || shareState?.link || shareState?.error) && (
+                      {isOwnerView &&
+                      (shareState?.loading || shareState?.link || shareState?.error) ? (
                         <div style={S.sharePanel}>
                           <div style={S.sharePanelHeader}>
                             <div>
@@ -810,6 +848,27 @@ export default function EventsTimeline({
                             ) : null}
                           </div>
 
+                          {canAcceptProposal ? (
+                            <div style={S.proposalActionBox}>
+                              <div style={S.proposalActionTitle}>
+                                Ya puedes revisar esta propuesta dentro de SyncPlans
+                              </div>
+                              <div style={S.proposalActionSub}>
+                                Abriremos el formulario con la nueva fecha sugerida
+                                para que la aceptes, la ajustes o la guardes pasando
+                                por conflictos.
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => onAcceptExternalProposal(ev, invite)}
+                                style={S.proposalPrimaryBtn}
+                              >
+                                Revisar propuesta
+                              </button>
+                            </div>
+                          ) : null}
+
                           {shareState.loading ? (
                             <div style={S.shareStatus}>Generando link…</div>
                           ) : shareState.error ? (
@@ -847,7 +906,7 @@ export default function EventsTimeline({
                             </div>
                           )}
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -1136,6 +1195,36 @@ const S: Record<string, React.CSSProperties> = {
     color: "rgba(240,249,255,0.95)",
     whiteSpace: "pre-wrap",
     wordBreak: "break-word",
+  },
+  proposalActionBox: {
+    borderRadius: 14,
+    border: "1px solid rgba(165,180,252,0.22)",
+    background: "rgba(49,46,129,0.18)",
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  proposalActionTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "rgba(224,231,255,0.98)",
+  },
+  proposalActionSub: {
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: "rgba(224,231,255,0.86)",
+  },
+  proposalPrimaryBtn: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    border: "1px solid rgba(165,180,252,0.28)",
+    background: "rgba(99,102,241,0.22)",
+    color: "rgba(238,242,255,0.98)",
+    fontSize: 12,
+    fontWeight: 900,
+    padding: "10px 14px",
+    cursor: "pointer",
   },
 };
 
