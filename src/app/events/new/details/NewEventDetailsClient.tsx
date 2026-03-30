@@ -8,7 +8,11 @@ import LogoutButton from "@/components/LogoutButton";
 import SharedConflictPreflightModal from "@/components/ConflictPreflightModal";
 import EventTemplatePicker from "@/components/events/EventTemplatePicker";
 import type { EventTemplate } from "@/lib/eventTemplates";
-import { createConflictNotificationForEvent } from "@/lib/notificationsDb";
+import {
+  createConflictNotificationForEvent,
+  createConflictDecisionNotification,
+  createConflictAutoAdjustedNotification,
+} from "@/lib/notificationsDb";
 import {
   GroupType,
   groupMeta,
@@ -202,7 +206,24 @@ function finalActionFromPreflightChoice(
   if (choice === "replace_with_new") return "replace_with_new";
   return "keep_both";
 }
+function safeTitle(value?: string | null) {
+  const v = String(value ?? "").trim();
+  return v || "Evento sin título";
+}
 
+function resolveEventOwnerId(event: any): string | null {
+  const candidate =
+    event?.owner_id ??
+    event?.ownerId ??
+    event?.created_by ??
+    event?.createdBy ??
+    event?.user_id ??
+    event?.userId ??
+    null;
+
+  const normalized = String(candidate ?? "").trim();
+  return normalized || null;
+}
 export default function NewEventDetailsClient() {
   return (
     <Suspense fallback={<main style={styles.page} />}>
@@ -729,6 +750,119 @@ const buildSuccessToast = (options?: { keepBoth?: boolean }) => {
     }
   };
 
+
+  const writePreflightDecisionNotifications = async (input: {
+    items: PreflightConflict[];
+    choice: Exclude<PreflightChoice, "edit">;
+    finalAction: string;
+    savedEventId?: string | null;
+    payload: {
+      title: string;
+      groupId: string | null;
+    };
+  }) => {
+    if (!currentUserId || !input.items.length) return 0;
+    if (input.choice !== "replace_with_new") return 0;
+
+    const rows: Array<{
+      user_id: string;
+      actor_user_id: string;
+      conflict_id: string;
+      decision_type: string;
+      final_action: string;
+      affected_event_id: string;
+      affected_event_title: string;
+      kept_event_id: string | null;
+      kept_event_title: string | null;
+      group_id: string | null;
+      source: string;
+    }> = [];
+
+    for (const item of input.items) {
+      try {
+        const existingEvent = await getEventById(String(item.existingId));
+        const targetUserId = resolveEventOwnerId(existingEvent);
+
+        if (!targetUserId || targetUserId === currentUserId) continue;
+
+        rows.push({
+          user_id: targetUserId,
+          actor_user_id: currentUserId,
+          conflict_id: String(item.id),
+          decision_type: decisionTypeFromPreflightChoice(input.choice),
+          final_action: input.finalAction,
+          affected_event_id: String(item.existingId),
+          affected_event_title: safeTitle(
+            (existingEvent as any)?.title ?? item.title
+          ),
+          kept_event_id: input.savedEventId ?? null,
+          kept_event_title: safeTitle(input.payload.title),
+          group_id: input.payload.groupId ?? null,
+          source: "event_preflight",
+        });
+      } catch {
+        // no rompemos el flujo por una notificación
+      }
+    }
+
+    if (rows.length === 0) return 0;
+
+    let created = 0;
+
+    for (const row of rows) {
+      const decisionLabel =
+        row.final_action === "fallback_keep_both"
+          ? `Se intentó resolver el conflicto con “${row.affected_event_title ?? "evento"}”, pero no se pudo eliminar. SyncPlans mantuvo ambos eventos automáticamente.`
+          : row.final_action === "replace_with_new"
+            ? `Se reemplazó “${row.affected_event_title ?? "evento"}” por “${row.kept_event_title ?? "el nuevo evento"}”.`
+            : row.final_action === "keep_existing"
+              ? `Se conservó “${row.affected_event_title ?? "el evento existente"}”.`
+              : `Se tomó una decisión sobre un conflicto que involucraba “${row.affected_event_title ?? "un evento"}”.`;
+
+      if (row.final_action === "fallback_keep_both") {
+        await createConflictAutoAdjustedNotification({
+          userId: row.user_id,
+          decisionLabel,
+          entityId: row.affected_event_id ?? null,
+          payload: {
+            actor_user_id: row.actor_user_id,
+            conflict_id: row.conflict_id,
+            decision_type: row.decision_type,
+            final_action: row.final_action,
+            affected_event_id: row.affected_event_id,
+            affected_event_title: row.affected_event_title,
+            kept_event_id: row.kept_event_id,
+            kept_event_title: row.kept_event_title,
+            group_id: row.group_id,
+            source: row.source,
+          },
+        });
+      } else {
+        await createConflictDecisionNotification({
+          userId: row.user_id,
+          decisionLabel,
+          entityId: row.affected_event_id ?? null,
+          payload: {
+            actor_user_id: row.actor_user_id,
+            conflict_id: row.conflict_id,
+            decision_type: row.decision_type,
+            final_action: row.final_action,
+            affected_event_id: row.affected_event_id,
+            affected_event_title: row.affected_event_title,
+            kept_event_id: row.kept_event_id,
+            kept_event_title: row.kept_event_title,
+            group_id: row.group_id,
+            source: row.source,
+          },
+        });
+      }
+
+      created += 1;
+    }
+
+    return created;
+  };
+
 const doSave = async (
     payload: {
       groupType: GroupType;
@@ -1113,7 +1247,20 @@ try {
       reason:
         "No se pudieron eliminar todos los eventos en conflicto por permisos. SyncPlans aplicó fallback automático y mantuvo ambos.",
     });
-
+    try {
+      await writePreflightDecisionNotifications({
+        items: itemsSnapshot,
+        choice: "replace_with_new",
+        finalAction: "fallback_keep_both",
+        savedEventId: savedEventId ?? null,
+        payload: {
+          title: payloadToSave.title,
+          groupId: payloadToSave.groupId ?? null,
+        },
+      });
+    } catch (error) {
+      console.error("preflight conflict decision notifications failed", error);
+    }
     return;
   }
 
@@ -1130,7 +1277,20 @@ try {
     blockedIds: [],
     reason: null,
   });
-
+  try {
+    await writePreflightDecisionNotifications({
+      items: itemsSnapshot,
+      choice: "replace_with_new",
+      finalAction: finalActionFromPreflightChoice("replace_with_new"),
+      savedEventId: savedEventId ?? null,
+      payload: {
+        title: payloadToSave.title,
+        groupId: payloadToSave.groupId ?? null,
+      },
+    });
+  } catch (error) {
+    console.error("preflight conflict decision notifications failed", error);
+  }
   return;
 } catch (err: any) {
   setToast({

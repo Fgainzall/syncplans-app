@@ -15,6 +15,8 @@ export type NotificationType =
   | "event_rejected"
   | "conflict"
   | "conflict_detected"
+  | "conflict_decision"
+  | "conflict_auto_adjusted"
   | "group_message"
   | "group_invite"
   | string;
@@ -64,7 +66,12 @@ type AttachedConflict = {
   } | null;
 };
 
-const CONFLICT_NOTIFICATION_TYPES = ["conflict", "conflict_detected"] as const;
+const CONFLICT_NOTIFICATION_TYPES = [
+  "conflict",
+  "conflict_detected",
+  "conflict_decision",
+  "conflict_auto_adjusted",
+] as const;
 
 /* ======================================================
   Auth / normalización base
@@ -167,13 +174,6 @@ function extractEventIdsFromPayload(
   Creación
 ====================================================== */
 
-/**
- * Inserta notificaciones limpias y deduplicadas.
- *
- * Nota:
- * - seguimos usando inserción directa para no introducir más capas ahora
- * - pero dejamos auth consistente, payload limpio y conteo honesto
- */
 export async function createNotifications(
   rows: CreateNotificationInput[]
 ): Promise<number> {
@@ -197,6 +197,12 @@ export async function createNotifications(
   }
 
   return deduped.length;
+}
+
+export async function createNotification(
+  row: CreateNotificationInput
+): Promise<number> {
+  return createNotifications([row]);
 }
 
 async function hasUnreadConflictNotificationForEvent(
@@ -223,13 +229,6 @@ function buildAttachedConflicts(events: any[]): AttachedConflict[] {
   return attachEvents(cx, events) as unknown as AttachedConflict[];
 }
 
-/**
- * Conflicto detectado por guardado/creación de un evento.
- *
- * Importante:
- * esto sigue siendo frontend-driven por ahora,
- * pero lo dejamos deduplicado y más coherente.
- */
 export async function createConflictNotificationForEvent(
   eventId: string
 ): Promise<ConflictNotificationResult> {
@@ -302,9 +301,6 @@ export async function createConflictNotificationForEvent(
   };
 }
 
-/**
- * Conflicto detectado al aceptar/unirse a un grupo.
- */
 export async function createConflictNotificationForGroup(
   groupId: string
 ): Promise<ConflictNotificationResult> {
@@ -396,6 +392,45 @@ export async function createConflictNotificationForGroup(
   };
 }
 
+export async function createConflictDecisionNotification(input: {
+  userId: string;
+  decisionLabel: string;
+  entityId?: string | null;
+  payload?: any | null;
+}) {
+  return createNotification({
+    user_id: input.userId,
+    type: "conflict_decision",
+    title: "Se tomó una decisión sobre un conflicto",
+    body: input.decisionLabel,
+    entity_id: input.entityId ?? null,
+    payload: {
+      ...(input.payload ?? {}),
+      source: "conflict_decision",
+    },
+  });
+}
+
+export async function createConflictAutoAdjustedNotification(input: {
+  userId: string;
+  decisionLabel: string;
+  entityId?: string | null;
+  payload?: any | null;
+}) {
+  return createNotification({
+    user_id: input.userId,
+    type: "conflict_auto_adjusted",
+    title: "Se aplicó un ajuste automático",
+    body: input.decisionLabel,
+    entity_id: input.entityId ?? null,
+    payload: {
+      ...(input.payload ?? {}),
+      source: "conflict_auto_adjusted",
+      fallback_applied: true,
+    },
+  });
+}
+
 /* ======================================================
   Lectura
 ====================================================== */
@@ -428,14 +463,6 @@ export async function getMyNotifications(
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  /**
-   * Nota:
-   * aquí se sigue usando entity_id para excluir grupos muteados,
-   * lo cual sirve SOLO para tipos donde entity_id representa realmente group_id
-   * (ej. group_message).
-   *
-   * No lo expandimos ahora para no romper nada.
-   */
   if (mutedGroupIds.length > 0) {
     const list = `(${mutedGroupIds
       .map((id) => `'${String(id).replace(/'/g, "''")}'`)
@@ -492,16 +519,16 @@ function shouldKeepNotification(
 ): boolean {
   const t = String(n.type || "").toLowerCase();
 
-  if (t === "conflict" || t === "conflict_detected") {
+  if (
+    t === "conflict" ||
+    t === "conflict_detected" ||
+    t === "conflict_decision" ||
+    t === "conflict_auto_adjusted"
+  ) {
     return !!prefs.notify_conflicts;
   }
 
   if (t === "event_rejected") {
-    /**
-     * Importante:
-     * este tipo nace como consecuencia de un conflicto/resolución,
-     * así que no debe perderse por el filtro genérico final.
-     */
     if (prefs.notify_conflicts) return true;
     if (prefs.notify_personal) return true;
     return false;
@@ -515,7 +542,10 @@ function shouldKeepNotification(
     if (gt === "family" && !prefs.notify_family) return false;
 
     if (
-      (gt === "personal" || gt === "other" || gt === "shared" || gt === "solo") &&
+      (gt === "personal" ||
+        gt === "other" ||
+        gt === "shared" ||
+        gt === "solo") &&
       !prefs.notify_personal
     ) {
       return false;
@@ -729,7 +759,12 @@ export async function deleteAllNotifications() {
 export function notificationHref(n: NotificationRow): string {
   const t = String(n.type || "").toLowerCase();
 
-  if (t === "conflict" || t === "conflict_detected") {
+  if (
+    t === "conflict" ||
+    t === "conflict_detected" ||
+    t === "conflict_decision" ||
+    t === "conflict_auto_adjusted"
+  ) {
     if (n.entity_id) {
       return `/conflicts/compare?eventId=${encodeURIComponent(n.entity_id)}`;
     }

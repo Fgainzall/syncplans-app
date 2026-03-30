@@ -34,7 +34,11 @@ import {
   deleteEventsByIdsDetailed,
   getEventById,
 } from "@/lib/eventsDb";
-import { createNotifications } from "@/lib/notificationsDb";
+import {
+  createConflictAutoAdjustedNotification,
+  createConflictDecisionNotification,
+  createNotifications,
+} from "@/lib/notificationsDb";
 
 function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
   return (gt ?? "personal") as GroupType;
@@ -44,6 +48,24 @@ function safeTitle(value?: string | null) {
   const v = String(value ?? "").trim();
   return v || "Evento sin título";
 }
+
+function eventFromConflictById(conflict: ConflictItem, eventId: string) {
+  const safeId = String(eventId ?? "").trim();
+  if (!safeId) return null;
+
+  const existingId = String(conflict.existingEventId ?? "").trim();
+  if (existingId && existingId === safeId) {
+    return conflict.existing ?? conflict.existingEvent ?? null;
+  }
+
+  const incomingId = String(conflict.incomingEventId ?? "").trim();
+  if (incomingId && incomingId === safeId) {
+    return conflict.incoming ?? conflict.incomingEvent ?? null;
+  }
+
+  return null;
+}
+
 
 function resolveEventOwnerId(event: any): string | null {
   const candidate =
@@ -454,6 +476,19 @@ export default function ActionsClient() {
       }
 
       const logWrites: Promise<unknown>[] = [];
+      const decisionNotifications: Array<{
+        user_id: string;
+        actor_user_id: string;
+        conflict_id: string;
+        decision_type: string;
+        final_action: string;
+        affected_event_id: string;
+        affected_event_title: string | null;
+        kept_event_id: string | null;
+        kept_event_title: string | null;
+        group_id: string | null;
+        source: string;
+      }> = [];
 
       for (const c of actionableConflicts) {
         const resolution = resolutionForConflict(c, resMap);
@@ -469,11 +504,12 @@ export default function ActionsClient() {
         const finalAction = wasBlocked
           ? "fallback_keep_both"
           : finalActionFromResolution(resolution);
+        const groupIdForConflict = resolveConflictGroupId(c, groupIdFromUrl);
 
         logWrites.push(
           createConflictResolutionLog({
             conflictId: String(c.id),
-            groupId: resolveConflictGroupId(c, groupIdFromUrl),
+            groupId: groupIdForConflict,
             decidedBy: currentUserId,
             decisionType: decisionTypeFromResolution(resolution),
             finalAction,
@@ -490,6 +526,35 @@ export default function ActionsClient() {
             },
           })
         );
+
+        try {
+          const targetFromConflict = eventFromConflictById(c, targetEventId);
+          const targetDbEvent = targetFromConflict ?? (await getEventById(targetEventId));
+          const targetUserId = resolveEventOwnerId(targetDbEvent);
+
+          if (targetUserId && targetUserId !== currentUserId) {
+            const keptEventId = resolution === "keep_existing" ? existingId : incomingId;
+            const keptFromConflict = eventFromConflictById(c, keptEventId);
+
+            decisionNotifications.push({
+              user_id: targetUserId,
+              actor_user_id: currentUserId,
+              conflict_id: String(c.id),
+              decision_type: decisionTypeFromResolution(resolution),
+              final_action: finalAction,
+              affected_event_id: targetEventId,
+              affected_event_title: safeTitle(
+                (targetDbEvent as any)?.title ?? (targetFromConflict as any)?.title ?? null
+              ),
+              kept_event_id: keptEventId || null,
+              kept_event_title: safeTitle((keptFromConflict as any)?.title ?? null),
+              group_id: groupIdForConflict,
+              source: "conflicts_actions",
+            });
+          }
+        } catch {
+          // no rompemos el flujo por una notificación
+        }
       }
 
       for (const c of keepBothConflicts) {
@@ -523,6 +588,63 @@ export default function ActionsClient() {
           if (item.status === "rejected") {
             console.error("conflict_resolutions_log insert failed", item.reason);
           }
+        }
+      }
+
+      if (decisionNotifications.length > 0) {
+        try {
+          for (const row of decisionNotifications) {
+            const decisionLabel =
+              row.final_action === "fallback_keep_both"
+                ? `Se intentó resolver el conflicto con “${row.affected_event_title ?? "evento"}”, pero no se pudo eliminar. SyncPlans mantuvo ambos eventos automáticamente.`
+                : row.final_action === "replace_with_new"
+                  ? `Se reemplazó “${row.affected_event_title ?? "evento"}” por “${row.kept_event_title ?? "el nuevo evento"}”.`
+                  : row.final_action === "keep_existing"
+                    ? `Se conservó “${row.kept_event_title ?? "el evento existente"}”.`
+                    : `Se tomó una decisión sobre un conflicto que involucraba “${row.affected_event_title ?? "un evento"}”.`;
+
+            if (row.final_action === "fallback_keep_both") {
+              await createConflictAutoAdjustedNotification({
+                userId: row.user_id,
+                decisionLabel,
+                entityId: row.affected_event_id ?? null,
+                payload: {
+                  actor_user_id: row.actor_user_id,
+                  conflict_id: row.conflict_id,
+                  decision_type: row.decision_type,
+                  final_action: row.final_action,
+                  affected_event_id: row.affected_event_id,
+                  affected_event_title: row.affected_event_title,
+                  kept_event_id: row.kept_event_id,
+                  kept_event_title: row.kept_event_title,
+                  group_id: row.group_id,
+                  source: row.source,
+                },
+              });
+            } else {
+              await createConflictDecisionNotification({
+                userId: row.user_id,
+                decisionLabel,
+                entityId: row.affected_event_id ?? null,
+                payload: {
+                  actor_user_id: row.actor_user_id,
+                  conflict_id: row.conflict_id,
+                  decision_type: row.decision_type,
+                  final_action: row.final_action,
+                  affected_event_id: row.affected_event_id,
+                  affected_event_title: row.affected_event_title,
+                  kept_event_id: row.kept_event_id,
+                  kept_event_title: row.kept_event_title,
+                  group_id: row.group_id,
+                  source: row.source,
+                },
+              });
+            }
+
+            notifiedCount += 1;
+          }
+        } catch (error) {
+          console.error("conflict decision notifications failed", error);
         }
       }
 
