@@ -88,3 +88,21 @@ export async function getConflictResolutionLogsByGroupId(
 
   return (data ?? []).map(mapRow);
 }
+
+export async function getRecentConflictResolutionLogs(
+  limit = 10
+): Promise<ConflictResolutionLogRow[]> {
+  const safeLimit = Number.isFinite(limit)
+    ? Math.min(Math.max(Math.trunc(limit), 1), 50)
+    : 10;
+
+  const { data, error } = await supabase
+    .from("conflict_resolutions_log")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(safeLimit);
+
+  if (error) throw error;
+
+  return (data ?? []).map(mapRow);
+}

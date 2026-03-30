@@ -35,6 +35,10 @@ import {
   getMyDeclinedEventIds,
 } from "@/lib/eventResponsesDb";
 import { getUnreadConflictNotificationsSummary } from "@/lib/notificationsDb";
+import {
+  getRecentConflictResolutionLogs,
+  type ConflictResolutionLogRow,
+} from "@/lib/conflictResolutionsLogDb";
 type Props = {
   highlightId: string | null;
   appliedToast: string | null;
@@ -57,6 +61,14 @@ type SummaryEvent = {
 type ConflictAlert = {
   count: number;
   latestEventId: string | null;
+};
+
+type RecentDecision = {
+  id: string;
+  title: string;
+  subtitle: string;
+  whenLabel: string;
+  isFallback: boolean;
 };
 
 function safeDate(iso?: string | null) {
@@ -266,6 +278,97 @@ function buildAppliedToastMessage(raw: string | null): string | null {
   return safe;
 }
 
+function formatDecisionTitle(log: ConflictResolutionLogRow): string {
+  const finalAction = String(log.final_action ?? "").trim().toLowerCase();
+  const decisionType = String(log.decision_type ?? "").trim().toLowerCase();
+
+  if (finalAction === "fallback_keep_both") {
+    return "Se aplicó ajuste automático";
+  }
+  if (finalAction === "replace_with_new") {
+    return "Se reemplazó el evento anterior";
+  }
+  if (finalAction === "keep_existing") {
+    return "Se conservó el evento existente";
+  }
+  if (finalAction === "keep_both") {
+    return "Se mantuvieron ambos eventos";
+  }
+
+  if (decisionType === "replace_with_new") {
+    return "Se reemplazó el evento anterior";
+  }
+  if (decisionType === "keep_existing") {
+    return "Se conservó el evento existente";
+  }
+
+  return "Se registró una decisión reciente";
+}
+
+function formatDecisionSubtitle(log: ConflictResolutionLogRow): string {
+  const metadata =
+    log.metadata && typeof log.metadata === "object" ? log.metadata : {};
+
+  const source = String((metadata as Record<string, unknown>).source ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (String(log.final_action ?? "").trim().toLowerCase() === "fallback_keep_both") {
+    return "No se pudo borrar el otro evento y el sistema mantuvo ambos para no romper el flujo.";
+  }
+
+  if (source === "preflight") {
+    return "La decisión se tomó antes de guardar el evento nuevo.";
+  }
+
+  if (source === "actions") {
+    return "La decisión se aplicó desde el centro de conflictos.";
+  }
+
+  return "La coordinación reciente ya quedó registrada en tu historial.";
+}
+
+function formatRelativeDateLabel(iso: string | null | undefined): string {
+  const date = safeDate(iso ?? null);
+  if (!date) return "Fecha no disponible";
+
+  const now = new Date();
+  const startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startTarget = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  );
+
+  const diffDays = Math.round(
+    (startNow.getTime() - startTarget.getTime()) / 86400000
+  );
+
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  const timeLabel = `${hh}:${mm}`;
+
+  if (diffDays === 0) return `Hoy · ${timeLabel}`;
+  if (diffDays === 1) return `Ayer · ${timeLabel}`;
+  if (diffDays > 1 && diffDays <= 6) return `Hace ${diffDays} días · ${timeLabel}`;
+
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mo = String(date.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mo} · ${timeLabel}`;
+}
+
+function mapRecentDecision(log: ConflictResolutionLogRow): RecentDecision {
+  const finalAction = String(log.final_action ?? "").trim().toLowerCase();
+
+  return {
+    id: String(log.id),
+    title: formatDecisionTitle(log),
+    subtitle: formatDecisionSubtitle(log),
+    whenLabel: formatRelativeDateLabel(log.created_at),
+    isFallback: finalAction === "fallback_keep_both",
+  };
+}
+
 function normalizeEvent(e: any): SummaryEvent | null {
   const id = String(e?.id ?? "").trim();
   if (!id) return null;
@@ -336,6 +439,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     count: 0,
     latestEventId: null,
   });
+  const [recentDecisions, setRecentDecisions] = useState<RecentDecision[]>([]);
   const toastTimeoutRef = useRef<number | null>(null);
 
   const clearToastTimer = () => {
@@ -523,16 +627,22 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
       setActiveGroupId(validActive);
 
-            const [es, conflictResolutions, declined, unreadConflicts] =
-        await Promise.all([
-          getMyEvents(),
-          getMyConflictResolutionsMap().catch(() => ({})),
-          getMyDeclinedEventIds().catch(() => new Set<string>()),
-          getUnreadConflictNotificationsSummary().catch(() => ({
-            count: 0,
-            latestEventId: null,
-          })),
-        ]);
+            const [
+        es,
+        conflictResolutions,
+        declined,
+        unreadConflicts,
+        recentDecisionLogs,
+      ] = await Promise.all([
+        getMyEvents(),
+        getMyConflictResolutionsMap().catch(() => ({})),
+        getMyDeclinedEventIds().catch(() => new Set<string>()),
+        getUnreadConflictNotificationsSummary().catch(() => ({
+          count: 0,
+          latestEventId: null,
+        })),
+        getRecentConflictResolutionLogs(10).catch(() => []),
+      ]);
 
       setEvents(Array.isArray(es) ? es : []);
       setResMap(conflictResolutions ?? {});
@@ -540,6 +650,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       setUnreadConflictAlert(
         unreadConflicts ?? { count: 0, latestEventId: null }
       );
+      setRecentDecisions((recentDecisionLogs ?? []).map(mapRecentDecision));
     } catch (e: any) {
       showToast(
         "No se pudo cargar el resumen",
@@ -873,6 +984,56 @@ const summarySubtitle = !isMobile
                   </button>
                 )}
               </>
+            )}
+          </Card>
+
+          <Card style={styles.card} className="spSum-card">
+            <div style={styles.sectionTitle}>Decisiones recientes</div>
+            <div style={styles.smallNote}>
+              Aquí ves la historia reciente de cómo se resolvieron choques y ajustes
+              en tu coordinación.
+            </div>
+
+            {recentDecisions.length === 0 ? (
+              <div style={styles.decisionsEmpty}>
+                <div style={styles.decisionsEmptyTitle}>
+                  Aún no hay decisiones recientes
+                </div>
+                <div style={styles.decisionsEmptySub}>
+                  Cuando resuelvas un conflicto o el sistema aplique un ajuste, lo
+                  verás aquí.
+                </div>
+              </div>
+            ) : (
+              <div style={styles.decisionsList}>
+                {recentDecisions.map((decision) => (
+                  <div key={decision.id} style={styles.decisionRow}>
+                    <div
+                      style={{
+                        ...styles.decisionIcon,
+                        ...(decision.isFallback
+                          ? styles.decisionIconFallback
+                          : styles.decisionIconNormal),
+                      }}
+                    >
+                      {decision.isFallback ? "⚠️" : "✓"}
+                    </div>
+
+                    <div style={styles.decisionContent}>
+                      <div style={styles.decisionTopRow}>
+                        <div style={styles.decisionTitle}>{decision.title}</div>
+                        <div style={styles.decisionWhen}>{decision.whenLabel}</div>
+                      </div>
+
+                      <div style={styles.decisionSubtitle}>{decision.subtitle}</div>
+
+                      {decision.isFallback ? (
+                        <div style={styles.decisionBadge}>Ajuste automático</div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </Card>
 
@@ -1406,6 +1567,100 @@ gap: 20,
     fontSize: 13,
     opacity: 0.72,
     lineHeight: 1.5,
+  },
+  decisionsEmpty: {
+    marginTop: 14,
+    padding: "18px 16px",
+    borderRadius: 18,
+    border: "1px dashed rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.03)",
+  },
+  decisionsEmptyTitle: {
+    fontSize: 16,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+  },
+  decisionsEmptySub: {
+    marginTop: 8,
+    fontSize: 13,
+    opacity: 0.74,
+    lineHeight: 1.5,
+    maxWidth: 620,
+  },
+  decisionsList: {
+    marginTop: 14,
+    display: "grid",
+    gap: 10,
+  },
+  decisionRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: "14px 14px",
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.09)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+  },
+  decisionIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    fontSize: 15,
+    fontWeight: 900,
+  },
+  decisionIconNormal: {
+    border: "1px solid rgba(52,211,153,0.28)",
+    background: "rgba(52,211,153,0.12)",
+  },
+  decisionIconFallback: {
+    border: "1px solid rgba(251,191,36,0.28)",
+    background: "rgba(251,191,36,0.14)",
+  },
+  decisionContent: {
+    minWidth: 0,
+    flex: 1,
+    display: "grid",
+    gap: 6,
+  },
+  decisionTopRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  decisionTitle: {
+    fontSize: 15,
+    fontWeight: 900,
+    letterSpacing: "-0.01em",
+  },
+  decisionWhen: {
+    fontSize: 12,
+    fontWeight: 850,
+    opacity: 0.68,
+    whiteSpace: "nowrap",
+  },
+  decisionSubtitle: {
+    fontSize: 13,
+    opacity: 0.76,
+    lineHeight: 1.5,
+  },
+  decisionBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    width: "fit-content",
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(251,191,36,0.22)",
+    background: "rgba(251,191,36,0.12)",
+    fontSize: 11,
+    fontWeight: 900,
+    color: "rgba(255,236,179,0.96)",
   },
   quickGrid: {
     marginTop: 14,
