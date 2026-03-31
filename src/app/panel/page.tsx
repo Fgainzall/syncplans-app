@@ -35,6 +35,10 @@ import {
   type GroupState,
   type UsageMode,
 } from "@/lib/groups";
+import {
+  getPendingPublicInviteCaptures,
+  type PublicInviteCaptureItem,
+} from "@/lib/invitationsDb";
 import { colors, radii, shadows, spacing } from "@/styles/design-tokens";
 
 type QuickAction = {
@@ -147,6 +151,7 @@ export default function PanelPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [groups, setGroups] = useState<GroupRow[]>([]);
+  const [captures, setCaptures] = useState<PublicInviteCaptureItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -436,6 +441,7 @@ export default function PanelPage() {
   ];
 
   const groupsPreview = useMemo(() => groups.slice(0, 3), [groups]);
+  const capturesPreview = useMemo(() => captures.slice(0, 3), [captures]);
 
   const googlePill = useMemo(() => {
     if (googleLoading) {
@@ -502,6 +508,98 @@ export default function PanelPage() {
       : connectionState === "connected"
       ? "Tu base ya está conectada: ahora toca ordenar grupos, accesos e integraciones."
       : "Desde aquí defines la estructura que sostiene la coordinación compartida.";
+
+
+  function getSafeDurationMs(start: string | null, end: string | null) {
+    const startMs = start ? new Date(start).getTime() : NaN;
+    const endMs = end ? new Date(end).getTime() : NaN;
+
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      return 60 * 60 * 1000;
+    }
+
+    return endMs - startMs;
+  }
+
+  function formatCaptureWhen(value: string | null) {
+    if (!value) return null;
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+
+    return new Intl.DateTimeFormat("es-PE", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(parsed);
+  }
+
+  function getCaptureSummary(capture: PublicInviteCaptureItem) {
+    if (capture.status === "accepted") {
+      return "Aceptaron esta invitación externa.";
+    }
+
+    if (capture.proposed_date) {
+      const when = formatCaptureWhen(capture.proposed_date);
+      return when
+        ? `La rechazaron, pero propusieron moverla a ${when}.`
+        : "La rechazaron, pero propusieron una nueva fecha.";
+    }
+
+    return "La rechazaron y todavía no hay una nueva fecha sugerida.";
+  }
+
+  function buildCaptureProposalUrl(
+    capture: PublicInviteCaptureItem,
+    intent: "review" | "accept" = "review"
+  ) {
+    const proposed = String(capture.proposed_date ?? "").trim();
+    if (!proposed) return null;
+
+    const proposedStart = new Date(proposed);
+    if (Number.isNaN(proposedStart.getTime())) return null;
+
+    const durationMs = getSafeDurationMs(
+      capture.event_start,
+      capture.event_end
+    );
+    const proposedEnd = new Date(proposedStart.getTime() + durationMs);
+
+    const qp = new URLSearchParams();
+    qp.set("eventId", String(capture.event_id));
+    qp.set("proposedStart", proposedStart.toISOString());
+    qp.set("proposedEnd", proposedEnd.toISOString());
+    qp.set("proposalSource", "public_invite");
+    qp.set("proposalIntent", intent);
+
+    return `/events/new/details?${qp.toString()}`;
+  }
+
+  function openCaptureEvent(capture: PublicInviteCaptureItem) {
+    router.push(
+      `/events/new/details?eventId=${encodeURIComponent(capture.event_id)}`
+    );
+  }
+
+  function reviewCaptureProposal(capture: PublicInviteCaptureItem) {
+    const url = buildCaptureProposalUrl(capture, "review");
+    if (!url) {
+      openCaptureEvent(capture);
+      return;
+    }
+    router.push(url);
+  }
+
+  function takeCaptureProposal(capture: PublicInviteCaptureItem) {
+    const url = buildCaptureProposalUrl(capture, "accept");
+    if (!url) {
+      openCaptureEvent(capture);
+      return;
+    }
+    router.push(url);
+  }
 
   async function handleContextChange(nextMode: UsageMode) {
     if (contextSaving === nextMode || contextState.mode === nextMode) return;
@@ -724,6 +822,125 @@ export default function PanelPage() {
                   </button>
                 ))}
               </div>
+            </section>
+
+            <section style={styles.sectionCard}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionEyebrow}>Captura</div>
+                  <h2 style={styles.sectionTitle}>Acciones sugeridas</h2>
+                </div>
+
+                {capturesPreview.length > 0 ? (
+                  <span style={styles.badge}>{capturesPreview.length}</span>
+                ) : null}
+              </div>
+
+              {capturesPreview.length === 0 ? (
+                <EmptyBlock copy="Cuando alguien responda desde un link público, aquí aparecerán sugerencias listas para revisar sin perder el hilo." />
+              ) : (
+                <div style={styles.list}>
+                  {capturesPreview.map((capture) => {
+                    const showProposal =
+                      capture.status === "rejected" && !!capture.proposed_date;
+
+                    return (
+                      <div key={capture.invite_id} style={styles.listItem}>
+                        <div style={styles.listCopyWrap}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <div style={styles.listTitle}>
+                              {capture.event_title}
+                            </div>
+
+                            <span
+                              style={{
+                                ...styles.badge,
+                                ...(capture.status === "accepted"
+                                  ? {
+                                      background: "rgba(34,197,94,0.14)",
+                                      color: "#86EFAC",
+                                      borderColor: "rgba(34,197,94,0.26)",
+                                    }
+                                  : {
+                                      background: "rgba(251,191,36,0.14)",
+                                      color: "#FDE68A",
+                                      borderColor: "rgba(251,191,36,0.26)",
+                                    }),
+                              }}
+                            >
+                              {capture.status === "accepted"
+                                ? "Aceptada"
+                                : "Rechazada"}
+                            </span>
+                          </div>
+
+                          <div style={styles.listMeta}>
+                            {capture.contact
+                              ? `${capture.contact} · ${getCaptureSummary(capture)}`
+                              : getCaptureSummary(capture)}
+                          </div>
+
+                          {capture.message ? (
+                            <div
+                              style={{
+                                ...styles.listMeta,
+                                color: "rgba(255,255,255,0.84)",
+                              }}
+                            >
+                              “{capture.message}”
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            flexWrap: "wrap",
+                            justifyContent: "flex-end",
+                          }}
+                        >
+                          {showProposal ? (
+                            <>
+                              <button
+                                type="button"
+                                style={styles.inlineLink}
+                                onClick={() => reviewCaptureProposal(capture)}
+                              >
+                                Revisar propuesta
+                              </button>
+
+                              <button
+                                type="button"
+                                style={styles.inlineLink}
+                                onClick={() => takeCaptureProposal(capture)}
+                              >
+                                Tomar propuesta
+                              </button>
+                            </>
+                          ) : null}
+
+                          <button
+                            type="button"
+                            style={styles.inlineLink}
+                            onClick={() => openCaptureEvent(capture)}
+                          >
+                            Ver evento
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </section>
 
             <section style={styles.sectionCard}>

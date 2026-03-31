@@ -782,3 +782,157 @@ export async function respondToPublicInvite(
 
   return normalizePublicInviteRow(data) as PublicInviteRow;
 }
+
+export type PublicInviteCaptureStatus = "accepted" | "rejected";
+
+export type PublicInviteCaptureItem = {
+  invite_id: string;
+  token: string;
+  event_id: string;
+  event_title: string;
+  event_start: string | null;
+  event_end: string | null;
+  event_group_id: string | null;
+  contact: string | null;
+  status: PublicInviteCaptureStatus;
+  proposed_date: string | null;
+  message: string | null;
+  created_at: string | null;
+  creator_response: string | null;
+};
+
+function normalizeCaptureStatus(
+  value: unknown
+): PublicInviteCaptureStatus | null {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (raw === "accepted" || raw === "rejected") return raw;
+  return null;
+}
+
+export async function getPendingPublicInviteCaptures(
+  limit = 6
+): Promise<PublicInviteCaptureItem[]> {
+  await requireUser();
+
+  const safeLimit = Math.max(1, Math.min(12, Number(limit) || 6));
+
+  const { data: inviteRows, error: inviteError } = await (supabase as any)
+    .from(PUBLIC_INVITES_TABLE)
+    .select(
+      "id, token, event_id, contact, status, proposed_date, message, created_at, creator_response"
+    )
+    .neq("status", "pending")
+    .is("creator_response", null)
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  if (inviteError) {
+    throw new Error(
+      inviteError.message ||
+        "No se pudieron obtener las capturas de invitaciones públicas."
+    );
+  }
+
+  const normalizedInvites = (inviteRows ?? [])
+    .map((row: any) => {
+      const status = normalizeCaptureStatus(row?.status);
+      if (!status) return null;
+
+      return {
+        invite_id: String(row?.id ?? ""),
+        token: String(row?.token ?? ""),
+        event_id: String(row?.event_id ?? ""),
+        contact: row?.contact ?? null,
+        status,
+        proposed_date: row?.proposed_date ?? null,
+        message: row?.message ?? null,
+        created_at: row?.created_at ?? null,
+        creator_response: row?.creator_response ?? null,
+      };
+    })
+    .filter(Boolean) as Array<{
+      invite_id: string;
+      token: string;
+      event_id: string;
+      contact: string | null;
+      status: PublicInviteCaptureStatus;
+      proposed_date: string | null;
+      message: string | null;
+      created_at: string | null;
+      creator_response: string | null;
+    }>;
+
+  if (normalizedInvites.length === 0) {
+    return [];
+  }
+
+  const eventIds = Array.from(
+    new Set(
+      normalizedInvites
+        .map((row) => String(row.event_id ?? "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (eventIds.length === 0) {
+    return [];
+  }
+
+  const { data: eventRows, error: eventsError } = await supabase
+    .from("events")
+    .select("id, title, start, end, group_id")
+    .in("id", eventIds);
+
+  if (eventsError) {
+    throw new Error(
+      eventsError.message ||
+        "No se pudo completar la lectura de eventos para las capturas."
+    );
+  }
+
+  const eventsById = new Map<
+    string,
+    {
+      id: string;
+      title: string;
+      start: string | null;
+      end: string | null;
+      group_id: string | null;
+    }
+  >();
+
+  for (const row of eventRows ?? []) {
+    eventsById.set(String((row as any).id), {
+      id: String((row as any).id),
+      title: String((row as any).title ?? "Evento"),
+      start: (row as any).start ?? null,
+      end: (row as any).end ?? null,
+      group_id: (row as any).group_id ?? null,
+    });
+  }
+
+  const merged = normalizedInvites
+    .map((invite) => {
+      const event = eventsById.get(invite.event_id);
+      if (!event) return null;
+
+      return {
+        invite_id: invite.invite_id,
+        token: invite.token,
+        event_id: invite.event_id,
+        event_title: event.title,
+        event_start: event.start,
+        event_end: event.end,
+        event_group_id: event.group_id,
+        contact: invite.contact,
+        status: invite.status,
+        proposed_date: invite.proposed_date,
+        message: invite.message,
+        created_at: invite.created_at,
+        creator_response: invite.creator_response,
+      } satisfies PublicInviteCaptureItem;
+    })
+    .filter(Boolean) as PublicInviteCaptureItem[];
+
+  return merged.slice(0, safeLimit);
+}
