@@ -465,7 +465,7 @@ export default function PanelPage() {
   const premiumActive = isPremiumUser(profile);
   const canUseCaptures = hasPremiumAccess(profile);
   const canUseGoogleIntegration = hasPremiumAccess(profile);
-
+const canUseAdvancedAnalytics = hasPremiumAccess(profile);
   const currentContextOption =
     CONTEXT_OPTIONS.find((x) => x.key === contextState.mode) ??
     CONTEXT_OPTIONS[0];
@@ -729,7 +729,86 @@ export default function PanelPage() {
             />
           </div>
         </section>
+<section style={styles.sectionCard}>
+  <div style={styles.sectionHead}>
+    <div>
+      <div style={styles.sectionEyebrow}>Insights</div>
+      <h2 style={styles.sectionTitle}>
+        Lectura de tu coordinación
+      </h2>
+    </div>
+  </div>
 
+  {!canUseAdvancedAnalytics ? (
+    <div style={styles.premiumLockCard}>
+      <div style={styles.premiumLockHeader}>
+        <span style={styles.premiumLockBadge}>Premium</span>
+        <h3 style={styles.premiumLockTitle}>
+          Entiende cómo estás coordinando realmente
+        </h3>
+      </div>
+
+      <p style={styles.premiumLockCopy}>
+        SyncPlans puede analizar tu actividad para darte señales claras:
+        carga de eventos, fricción en conflictos y patrones de coordinación.
+      </p>
+
+      <button
+        type="button"
+        style={styles.primarySmallButton}
+        onClick={() => router.push("/planes")}
+      >
+        Ver insights en Premium
+      </button>
+    </div>
+  ) : (
+    <div style={styles.insightGrid}>
+      <div style={styles.insightCard}>
+        <div style={styles.insightTitle}>Carga semanal</div>
+        <div style={styles.insightValue}>
+          {totalEvents === 0
+            ? "Ligera"
+            : totalEvents < 5
+            ? "Controlada"
+            : totalEvents < 10
+            ? "Activa"
+            : "Intensa"}
+        </div>
+        <div style={styles.insightHint}>
+          Basado en tus eventos recientes
+        </div>
+      </div>
+
+      <div style={styles.insightCard}>
+        <div style={styles.insightTitle}>Fricción</div>
+        <div style={styles.insightValue}>
+          {conflictsNow === 0
+            ? "Baja"
+            : conflictsNow < 3
+            ? "Moderada"
+            : "Alta"}
+        </div>
+        <div style={styles.insightHint}>
+          Conflictos actuales en el sistema
+        </div>
+      </div>
+
+      <div style={styles.insightCard}>
+        <div style={styles.insightTitle}>Estructura</div>
+        <div style={styles.insightValue}>
+          {totalGroups === 0
+            ? "Sin estructura"
+            : totalGroups === 1
+            ? "Simple"
+            : "Distribuida"}
+        </div>
+        <div style={styles.insightHint}>
+          Organización de tus espacios
+        </div>
+      </div>
+    </div>
+  )}
+</section>
         <div style={styles.mainGrid}>
           <div style={styles.leftCol}>
             <section style={styles.sectionCard}>
@@ -2173,4 +2252,37 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     lineHeight: 1.5,
   },
+  insightGrid: {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  gap: 10,
+},
+
+insightCard: {
+  borderRadius: radii.lg,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.04)",
+  padding: 14,
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+},
+
+insightTitle: {
+  fontSize: 11,
+  fontWeight: 900,
+  color: colors.textSecondary,
+  textTransform: "uppercase",
+},
+
+insightValue: {
+  fontSize: 18,
+  fontWeight: 900,
+  color: colors.textPrimary,
+},
+
+insightHint: {
+  fontSize: 12,
+  color: colors.textMuted,
+},
 };
