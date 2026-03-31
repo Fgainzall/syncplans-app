@@ -8,6 +8,7 @@ import PremiumHeader from "@/components/PremiumHeader";
 
 import { getMyProfile, type Profile } from "@/lib/profilesDb";
 import {
+  FREE_GROUP_LIMIT,
   getPlanAccessState,
   type PlanCardId,
   type PlanAccessState,
@@ -31,12 +32,13 @@ type PlanCardConfig = {
 
 const freeFeatures: string[] = [
   "Tu calendario personal y la base para empezar a coordinar sin caos.",
-  "Un espacio suficiente para probar la dinámica con tu pareja o familia.",
+  `Hasta ${FREE_GROUP_LIMIT} grupo incluido para arrancar sin fricción y validar el hábito compartido.`,
   "Detección básica de conflictos al guardar nuevos eventos.",
   "Sin tarjetas ni cobros automáticos durante la beta privada.",
 ];
 
 const premiumCoreFeatures: string[] = [
+  "Más de un grupo cuando tu coordinación ya no cabe en un solo espacio compartido.",
   "Coordinación externa más útil: respuestas, propuestas y acciones dentro de la app.",
   "Más contexto para decidir conflictos sin perseguir mensajes por fuera.",
   "Panel y métricas para entender qué está pasando en el tiempo compartido.",
@@ -120,7 +122,7 @@ function getCurrentPlanNote(state: PlanAccessState): string {
     return "Tu acceso actual corresponde a Premium Mensual.";
   }
 
-  return "Hoy estás usando SyncPlans desde la base Free.";
+  return `Hoy estás usando SyncPlans desde la base Free con hasta ${FREE_GROUP_LIMIT} grupo incluido.`;
 }
 
 
@@ -172,6 +174,7 @@ function getWhyPayBullets(state: PlanAccessState): string[] {
   }
 
   return [
+    `Porque Free te deja empezar con hasta ${FREE_GROUP_LIMIT} grupo, pero la coordinación real suele crecer más allá de un solo espacio.`,
     "Porque el problema no es guardar eventos, sino alinear personas.",
     "Porque Premium convierte respuestas, contexto e integración en decisiones dentro del sistema.",
     "Porque coordinar bien cuesta menos que corregir enredos después.",
@@ -325,7 +328,9 @@ export default function PlanesPage() {
             <p style={betaNoteBodyStyle}>
               Durante esta etapa no se realizan cobros automáticos. Primero
               estamos cerrando bien la lógica de planes, acceso y valor del
-              producto antes de activar pagos reales.
+              producto antes de activar pagos reales. El primer límite suave de
+              Free es la cantidad de grupos: Premium abre más espacios cuando la
+              coordinación compartida crece.
             </p>
           </div>
         </section>

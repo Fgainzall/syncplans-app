@@ -37,6 +37,7 @@ import {
   hasPremiumAccess,
   isPremiumUser,
   isTrialActive,
+  getGroupLimitState,
   type PlanTier,
 } from "@/lib/premium";
 import {
@@ -493,6 +494,7 @@ export default function PanelPage() {
   const totalEvents = stats?.totalEvents ?? 0;
   const totalGroups = stats?.totalGroups ?? 0;
   const conflictsNow = stats?.conflictsNow ?? 0;
+  const groupLimitState = getGroupLimitState(profile, totalGroups);
 
   const tier = (profile?.plan_tier ?? "free") as PlanTier;
   const trialActive = isTrialActive(profile);
@@ -566,7 +568,7 @@ export default function PanelPage() {
       supportingCopy:
         "Evita el clásico: “pensé que era otro día”.",
     };
-  }, [premiumActive, tier, trialActive]);
+  }, [groupLimitState.reached, premiumActive, tier, trialActive]);
 
   const quickActions: QuickAction[] = [
     {
@@ -677,6 +679,8 @@ export default function PanelPage() {
         } activo${totalGroups === 1 ? "" : "s"}.`
       : connectionState === "connected"
       ? "Tu base ya está conectada: ahora toca ordenar grupos, accesos e integraciones."
+      : groupLimitState.reached
+      ? "Tu base ya está creada. El siguiente salto es abrir más espacios sin perder claridad."
       : "Desde aquí defines la estructura que sostiene la coordinación compartida.";
 
   async function handleContextChange(nextMode: UsageMode) {
@@ -1030,6 +1034,14 @@ export default function PanelPage() {
               <div style={styles.planSupportCopy}>
                 {planInfo.supportingCopy}
               </div>
+
+              {!planInfo.tone || planInfo.tone === "free" ? (
+                <div style={styles.planMiniNote}>
+                  {groupLimitState.reached
+                    ? "Free ya cumplió su función base. Premium abre más grupos cuando coordinar empieza a crecer."
+                    : `Free incluye hasta ${groupLimitState.limit ?? "1"} grupo para empezar sin fricción.`}
+                </div>
+              ) : null}
 
               <button
                 type="button"
@@ -1958,6 +1970,16 @@ const styles: Record<string, CSSProperties> = {
     color: colors.textSecondary,
   },
 
+  planMiniNote: {
+    marginTop: 12,
+    borderRadius: 14,
+    border: "1px solid rgba(56,189,248,0.18)",
+    background: "rgba(56,189,248,0.08)",
+    padding: "10px 12px",
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.84)",
+  },
   primaryCta: {
     borderRadius: 999,
     padding: "12px 16px",

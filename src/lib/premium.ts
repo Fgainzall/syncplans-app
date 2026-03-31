@@ -267,6 +267,58 @@ export function canUseUnlimitedGroups(
 ): boolean {
   return hasPremiumAccess(profile);
 }
+
+export const FREE_GROUP_LIMIT = 1;
+
+export type GroupLimitState = {
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  reached: boolean;
+  isUnlimited: boolean;
+};
+
+export function getGroupLimit(
+  profile: AnyProfile | null | undefined
+): number | null {
+  return canUseUnlimitedGroups(profile) ? null : FREE_GROUP_LIMIT;
+}
+
+export function getGroupLimitState(
+  profile: AnyProfile | null | undefined,
+  currentGroupCount: number
+): GroupLimitState {
+  const used = Math.max(0, Number(currentGroupCount) || 0);
+  const limit = getGroupLimit(profile);
+
+  if (limit === null) {
+    return {
+      limit: null,
+      used,
+      remaining: null,
+      reached: false,
+      isUnlimited: true,
+    };
+  }
+
+  const remaining = Math.max(0, limit - used);
+
+  return {
+    limit,
+    used,
+    remaining,
+    reached: used >= limit,
+    isUnlimited: false,
+  };
+}
+
+export function hasReachedGroupLimit(
+  profile: AnyProfile | null | undefined,
+  currentGroupCount: number
+): boolean {
+  return getGroupLimitState(profile, currentGroupCount).reached;
+}
+
 export type PlanCardId = "free" | "premium_monthly" | "premium_yearly";
 
 export type PlanAccessSource = "free" | "trial" | "founder" | "paid";

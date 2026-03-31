@@ -15,6 +15,8 @@ import {
   buildGroupsSummary,
   type GroupSummary,
 } from "@/lib/groupsSummary";
+import { getMyProfile, type Profile } from "@/lib/profilesDb";
+import { getGroupLimitState } from "@/lib/premium";
 
 type GroupRole = "owner" | "admin" | "member";
 
@@ -43,6 +45,7 @@ export default function GroupsPage() {
   const [loading, setLoading] = useState(true);
 
   const [groups, setGroups] = useState<GroupWithRole[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [filter, setFilter] = useState<GroupFilter>("all");
 
   const [pendingInvites, setPendingInvites] = useState(0);
@@ -87,9 +90,10 @@ export default function GroupsPage() {
 
       setLoading(true);
 
-      const [groupsData, invitesData] = await Promise.all([
+      const [groupsData, invitesData, profileRow] = await Promise.all([
         getMyGroups(),
         getMyInvitations(),
+        getMyProfile().catch(() => null),
       ]);
 
       const rawGroups = (groupsData || []) as any[];
@@ -104,6 +108,7 @@ export default function GroupsPage() {
 
       setGroups(enriched);
       setPendingInvites(((invitesData as any[]) ?? []).length);
+      setProfile(profileRow ?? null);
 
       if (withToast) {
         setToast({
@@ -164,6 +169,12 @@ export default function GroupsPage() {
     () => buildGroupsSummary(groups),
     [groups]
   );
+
+  const groupLimitState = useMemo(
+    () => getGroupLimitState(profile, groups.length),
+    [profile, groups.length]
+  );
+  const reachedGroupLimit = groupLimitState.reached;
 
   const headerSubtitle =
     summary.total === 0
@@ -241,10 +252,12 @@ export default function GroupsPage() {
 
                 <button
                   type="button"
-                  style={styles.primary}
-                  onClick={() => router.push("/groups/new")}
+                  style={{ ...styles.primary, opacity: reachedGroupLimit ? 0.92 : 1 }}
+                  onClick={() =>
+                    reachedGroupLimit ? router.push("/planes") : router.push("/groups/new")
+                  }
                 >
-                  + Nuevo grupo
+                  {reachedGroupLimit ? "Ver planes" : "+ Nuevo grupo"}
                 </button>
               </div>
             </div>
@@ -309,6 +322,34 @@ export default function GroupsPage() {
                 </div>
               </Card>
             </Card>
+
+
+            {reachedGroupLimit ? (
+              <Card tone="muted" style={styles.limitBanner}>
+                <div style={styles.limitBannerTop}>
+                  <div>
+                    <div style={styles.limitBannerBadge}>Free</div>
+                    <div style={styles.limitBannerTitle}>
+                      Ya usaste tu grupo incluido en Free.
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    style={styles.primary}
+                    onClick={() => router.push("/planes")}
+                  >
+                    Ver planes
+                  </button>
+                </div>
+
+                <p style={styles.limitBannerCopy}>
+                  Tu base ya está creada. Premium abre más espacios compartidos
+                  cuando necesitas coordinar más de {groupLimitState.limit} grupo
+                  sin salirte del mismo sistema.
+                </p>
+              </Card>
+            ) : null}
 
             <div style={styles.filtersRow}>
               <div style={styles.segment}>
@@ -384,9 +425,11 @@ export default function GroupsPage() {
                   <button
                     type="button"
                     style={styles.primary}
-                    onClick={() => router.push("/groups/new")}
+                    onClick={() =>
+                      reachedGroupLimit ? router.push("/planes") : router.push("/groups/new")
+                    }
                   >
-                    Crear grupo
+                    {reachedGroupLimit ? "Ver planes" : "Crear grupo"}
                   </button>
                 </div>
               </Card>
@@ -700,6 +743,45 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(148,163,184,0.96)",
   },
 
+
+  limitBanner: {
+    display: "grid",
+    gap: 12,
+    border: "1px solid rgba(56,189,248,0.20)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(37,99,235,0.08))",
+  },
+  limitBannerTop: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  limitBannerBadge: {
+    alignSelf: "flex-start",
+    display: "inline-flex",
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.22)",
+    background: "rgba(56,189,248,0.12)",
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  limitBannerTitle: {
+    fontSize: 18,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+  },
+  limitBannerCopy: {
+    margin: 0,
+    color: "rgba(226,232,240,0.84)",
+    lineHeight: 1.6,
+    fontSize: 14,
+  },
   filtersRow: {
     marginTop: 2,
     display: "flex",

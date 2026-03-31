@@ -7,7 +7,9 @@ import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 const AnyPremiumHeader = PremiumHeader as React.ComponentType<any>;
-import { createGroup } from "@/lib/groupsDb";
+import { createGroup, getMyGroups } from "@/lib/groupsDb";
+import { getMyProfile, type Profile } from "@/lib/profilesDb";
+import { getGroupLimitState } from "@/lib/premium";
 
 type GType = "pair" | "family" | "other";
 
@@ -18,6 +20,8 @@ export default function NewGroupPage() {
   const [type, setType] = useState<GType>("pair");
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [existingGroupsCount, setExistingGroupsCount] = useState(0);
   const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
     null
   );
@@ -35,7 +39,19 @@ export default function NewGroupPage() {
         return;
       }
 
-      setBooting(false);
+      try {
+        const [profileRow, groups] = await Promise.all([
+          getMyProfile().catch(() => null),
+          getMyGroups().catch(() => []),
+        ]);
+
+        if (!alive) return;
+
+        setProfile(profileRow ?? null);
+        setExistingGroupsCount(Array.isArray(groups) ? groups.length : 0);
+      } finally {
+        if (alive) setBooting(false);
+      }
     })();
 
     return () => {
@@ -83,11 +99,27 @@ export default function NewGroupPage() {
     return e;
   }, [name]);
 
-  const canSave = errors.length === 0 && !saving;
+  const groupLimitState = useMemo(
+    () => getGroupLimitState(profile, existingGroupsCount),
+    [profile, existingGroupsCount]
+  );
+
+  const reachedGroupLimit = groupLimitState.reached;
+  const canSave = errors.length === 0 && !saving && !reachedGroupLimit;
 
   const goBack = () => router.push("/groups");
 
   const save = async () => {
+    if (reachedGroupLimit) {
+      setToast({
+        title: "Límite Free alcanzado",
+        subtitle:
+          "En Free puedes crear 1 grupo. Premium abre más espacios compartidos sin fricción.",
+      });
+      window.setTimeout(() => router.push("/planes"), 500);
+      return;
+    }
+
     if (!canSave) {
       setToast({ title: "Revisa el formulario", subtitle: errors[0] });
       window.setTimeout(() => setToast(null), 2500);
@@ -196,10 +228,29 @@ export default function NewGroupPage() {
               style={{ ...styles.primaryBtn, opacity: canSave ? 1 : 0.6 }}
               disabled={!canSave}
             >
-              {saving ? "Creando…" : "Crear"}
+              {reachedGroupLimit ? "Ver planes" : saving ? "Creando…" : "Crear"}
             </button>
           </div>
         </section>
+
+        {reachedGroupLimit ? (
+          <section style={styles.limitCard}>
+            <div style={styles.limitBadge}>Free</div>
+            <div style={styles.limitTitle}>Ya usaste tu espacio compartido incluido.</div>
+            <div style={styles.limitCopy}>
+              En Free puedes crear {groupLimitState.limit} grupo. Premium te deja abrir más espacios
+              cuando tu coordinación ya crece más allá de una sola pareja, familia o grupo compartido.
+            </div>
+            <div style={styles.limitActions}>
+              <button onClick={() => router.push("/planes")} style={styles.primaryBtn}>
+                Ver planes
+              </button>
+              <button onClick={goBack} style={styles.ghostBtn}>
+                Volver a grupos
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         <section style={styles.card}>
           <div style={styles.row}>
@@ -290,7 +341,7 @@ export default function NewGroupPage() {
             style={{ ...styles.primaryBtnWide, opacity: canSave ? 1 : 0.6 }}
             disabled={!canSave}
           >
-            {saving ? "Creando…" : "Crear grupo"}
+            {reachedGroupLimit ? "Ver planes" : saving ? "Creando…" : "Crear grupo"}
           </button>
         </section>
       </div>
@@ -415,6 +466,45 @@ const styles: Record<string, React.CSSProperties> = {
   errorList: { margin: 0, paddingLeft: 16 },
   errorItem: { fontSize: 12, opacity: 0.9, marginBottom: 4 },
 
+
+  limitCard: {
+    marginBottom: 12,
+    borderRadius: 18,
+    border: "1px solid rgba(56,189,248,0.22)",
+    background:
+      "linear-gradient(180deg, rgba(56,189,248,0.10), rgba(255,255,255,0.03))",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.24)",
+    padding: "16px 16px 18px",
+    display: "grid",
+    gap: 10,
+  },
+  limitBadge: {
+    alignSelf: "flex-start",
+    fontSize: 11,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.22)",
+    background: "rgba(56,189,248,0.12)",
+    fontWeight: 900,
+  },
+  limitTitle: {
+    fontSize: 20,
+    fontWeight: 900,
+    letterSpacing: "-0.4px",
+  },
+  limitCopy: {
+    fontSize: 14,
+    lineHeight: 1.6,
+    color: "rgba(255,255,255,0.78)",
+  },
+  limitActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
   footerRow: {
     marginTop: 14,
     display: "flex",
