@@ -27,6 +27,8 @@ import {
   getMyDeclinedEventIds,
 } from "@/lib/eventResponsesDb";
 import { markConflictNotificationsAsRead } from "@/lib/notificationsDb";
+import { getMyProfile, type Profile } from "@/lib/profilesDb";
+import { hasPremiumAccess } from "@/lib/premium";
 
 /* =========================
    Helpers
@@ -144,6 +146,7 @@ export default function DetectedClient() {
   const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -161,12 +164,13 @@ export default function DetectedClient() {
       }
 
       try {
-        const [{ events: ev }, dbMap, declined] = await Promise.all([
+        const [{ events: ev }, dbMap, declined, fetchedProfile] = await Promise.all([
           loadEventsFromDb({
             groupId: groupIdFromUrl ?? undefined,
           }),
           getMyConflictResolutionsMap().catch(() => ({})),
           getMyDeclinedEventIds().catch(() => new Set<string>()),
+          getMyProfile().catch(() => null),
         ]);
 
         if (!alive) return;
@@ -174,11 +178,13 @@ export default function DetectedClient() {
         setEvents(Array.isArray(ev) ? ev : []);
         setResMap(dbMap ?? {});
         setDeclinedEventIds(declined ?? new Set());
+        setProfile(fetchedProfile ?? null);
       } catch {
         if (!alive) return;
         setEvents([]);
         setResMap({});
         setDeclinedEventIds(new Set());
+        setProfile(null);
       } finally {
         if (alive) {
           setBooting(false);
@@ -279,7 +285,8 @@ export default function DetectedClient() {
     );
   }, [visibleEvents, focusEventId]);
 
-  const isFocusedView = Boolean(focusEventId);
+const isFocusedView = Boolean(focusEventId);
+const hasPremium = hasPremiumAccess(profile);
 
   const focusRelatedVisibleConflicts = useMemo(() => {
     if (!focusEventId) return [];
@@ -310,22 +317,24 @@ export default function DetectedClient() {
       visibleCount,
     };
   }, [pendingConflicts, focusRelatedVisibleConflicts, focusEventId]);
-  const summary = useMemo(() => {
-    const totalVisible = allVisibleConflicts.length;
-    let decided = 0;
+const summary = useMemo(() => {
+  const totalVisible = allVisibleConflicts.length;
+  let decided = 0;
 
-    for (const c of allVisibleConflicts) {
-      if (resolutionForConflict(c, resMap)) decided++;
-    }
+  for (const c of allVisibleConflicts) {
+    if (resolutionForConflict(c, resMap)) decided++;
+  }
 
-    const pending = pendingConflicts.length;
+  const pending = pendingConflicts.length;
 
-    return {
-      totalVisible,
-      decided,
-      pending,
-    };
-  }, [allVisibleConflicts, pendingConflicts, resMap]);
+  return {
+    totalVisible,
+    decided,
+    pending,
+  };
+}, [allVisibleConflicts, pendingConflicts, resMap]);
+
+const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
 
   /**
    * Si entramos desde una notificación con eventId
@@ -510,6 +519,33 @@ export default function DetectedClient() {
             </div>
           </section>
         ) : null}
+
+        {shouldShowUpgradeNudge ? (
+          <section style={styles.upgradeNudgeCard}>
+            <div style={styles.upgradeNudgeBadge}>Premium</div>
+            <div style={styles.upgradeNudgeTitle}>
+              Resolver conflictos está bien. Evitar que ocurran es otra cosa.
+            </div>
+            <div style={styles.upgradeNudgeCopy}>
+              Premium te ayuda a anticiparlos, no solo reaccionar. Añade más contexto, mejor lectura de tu coordinación y menos fricción en el tiempo compartido.
+            </div>
+            <div style={styles.upgradeNudgeActions}>
+              <button
+                onClick={() => router.push("/planes")}
+                style={styles.primaryBtn}
+              >
+                Ver cómo funciona
+              </button>
+              <button
+                onClick={resumeNext}
+                style={styles.secondaryBtn}
+              >
+                Seguir resolviendo
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         <section style={styles.listCard}>
           <div style={styles.listTop}>
             <div>
@@ -681,6 +717,47 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     fontWeight: 800,
     cursor: "pointer",
+  },
+  upgradeNudgeCard: {
+    marginTop: 16,
+    borderRadius: 24,
+    border: "1px solid rgba(56,189,248,0.20)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(168,85,247,0.08))",
+    boxShadow: "0 24px 60px rgba(0,0,0,0.20)",
+    padding: 18,
+    display: "grid",
+    gap: 10,
+  },
+  upgradeNudgeBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    padding: "6px 10px",
+    fontSize: 11,
+    fontWeight: 900,
+    border: "1px solid rgba(56,189,248,0.30)",
+    background: "rgba(56,189,248,0.12)",
+    color: "#F3F7FF",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  upgradeNudgeTitle: {
+    fontSize: 20,
+    lineHeight: 1.2,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+  },
+  upgradeNudgeCopy: {
+    fontSize: 14,
+    lineHeight: 1.6,
+    color: "rgba(235,241,255,0.78)",
+    maxWidth: 820,
+  },
+  upgradeNudgeActions: {
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+    marginTop: 4,
   },
   listCard: {
     marginTop: 18,
