@@ -257,18 +257,16 @@ refreshGoogleStatusWithRetry().catch(() => {});
     try {
       setDigestSending(true);
 
-      const u = getUser();
-      const email =
-        (u as any)?.email ||
-        (u as any)?.user_metadata?.email ||
-        (u as any)?.user_metadata?.preferred_email;
+      const token = await getAccessTokenOrNull();
 
-      if (!email) {
-        showToast("No encontramos tu correo", "Revisa tu sesión o tu perfil.");
+      if (!token) {
+        showToast(
+          "No encontramos tu sesión",
+          "Vuelve a iniciar sesión e inténtalo otra vez."
+        );
         return;
       }
 
-      // Fecha “hoy” (cliente)
       const now = new Date();
       const y = now.getFullYear();
       const m = now.getMonth() + 1;
@@ -278,61 +276,40 @@ refreshGoogleStatusWithRetry().catch(() => {});
         "0"
       )}`;
 
-      const base = startOfDay(todayISO);
-      const end = new Date(base);
-      end.setDate(end.getDate() + 1);
-
-      const [activeGroupId, rawEvents] = await Promise.all([
-        getActiveGroupIdFromDb().catch(() => null),
-        getMyEvents().catch(() => [] as DbEventRow[]),
-      ]);
-
-      const baseMs = base.getTime();
-      const endMs = end.getTime();
-
-      const filteredByDay = (rawEvents ?? []).filter((r: DbEventRow) => {
-        const startMs = new Date(r.start).getTime();
-        if (Number.isNaN(startMs)) return false;
-        return startMs >= baseMs && startMs < endMs;
-      });
-
-      // Personales + grupo activo (si hay)
-      const filtered = filteredByDay.filter((r) => {
-        if (!activeGroupId) return !r.group_id;
-        return !r.group_id || String(r.group_id) === String(activeGroupId);
-      });
-
-      if (!filtered.length) {
-        showToast(
-          "Hoy no tienes eventos 🙌",
-          "Cuando tengas algo agendado, te mando el resumen."
-        );
-        return;
-      }
-
-      const eventsPayload = filtered.map((e) => ({
-        title: e.title ?? "Evento",
-        start: e.start,
-        end: e.end,
-        groupLabel: labelForGroup(e),
-      }));
-
-      const dateLabel = prettyDateLabelFromISO(todayISO);
-
       const res = await fetch("/api/daily-digest", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
-          to: email,
-          date: dateLabel,
-          events: eventsPayload,
+          date: todayISO,
+          source: "settings_manual",
         }),
       });
 
       const json = await res.json().catch(() => ({} as any));
 
       if (!res.ok || !json.ok) {
-        throw new Error(json?.message || "Error enviando el correo");
+        if (json?.reason === "no_email") {
+          showToast(
+            "No encontramos tu correo",
+            "Revisa tu sesión o vuelve a entrar a la app."
+          );
+          return;
+        }
+
+        throw new Error(
+          json?.message || json?.error || "Error enviando el correo"
+        );
+      }
+
+      if (json?.reason === "no_events") {
+        showToast(
+          "Hoy no tienes eventos 🙌",
+          "Cuando tengas algo agendado, te mando el resumen."
+        );
+        return;
       }
 
       showToast(
@@ -534,8 +511,9 @@ refreshGoogleStatusWithRetry().catch(() => {});
 
             {!canUseGooglePremium ? (
               <PremiumSettingsGate
-                title="Añade contexto externo sin romper tu coordinación"
-                copy="Google Calendar se desbloquea en Premium para que importes contexto externo sin convertir SyncPlans en otra app desordenada."
+                title="Ver horarios fuera está bien. Decidir con ese contexto dentro de SyncPlans es otra cosa."
+                copy="Premium desbloquea Google Calendar para que importes contexto externo, detectes choques antes y coordines sin saltar entre apps."
+                cta="Entender cómo funciona"
                 onClick={() => router.push("/planes")}
               />
             ) : (
@@ -615,6 +593,12 @@ refreshGoogleStatusWithRetry().catch(() => {});
                   <div style={styles.note}>
                     <b>Tip:</b> Sync trae 30 días atrás y 120 días adelante.
                   </div>
+
+                  {googleConnected ? (
+                    <div style={styles.googleValueStrip}>
+                      Ya añadiste contexto externo. El valor real está en usarlo para anticipar choques, no solo para mirar otro calendario.
+                    </div>
+                  ) : null}
                 </div>
               </>
             )}
@@ -1006,6 +990,17 @@ ghostBtn: {
     opacity: 0.78,
     fontWeight: 650,
     lineHeight: 1.4,
+  },
+  googleValueStrip: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 14,
+    border: "1px solid rgba(56,189,248,0.18)",
+    background: "rgba(56,189,248,0.08)",
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 12,
+    lineHeight: 1.45,
+    fontWeight: 650,
   },
 
   loadingCard: {

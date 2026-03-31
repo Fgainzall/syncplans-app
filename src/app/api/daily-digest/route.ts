@@ -16,6 +16,7 @@ const EMAIL_FROM =
   "SyncPlans <no-reply@syncplansapp.com>";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
@@ -40,6 +41,36 @@ function getAdminClient(): AdminClient {
     throw new Error("Missing Supabase admin env vars");
   }
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+}
+
+async function getUserFromBearer(req: Request) {
+  const authHeader = req.headers.get("authorization") || "";
+  const token = authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : authHeader.startsWith("bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+
+  if (!token) return null;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+
+  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+
+  const { data, error } = await client.auth.getUser();
+  if (error || !data.user) return null;
+
+  return data.user;
 }
 
 // ───────────────────────────── helpers de auth ───────────────────────────────
@@ -424,6 +455,70 @@ const { html, subject } = buildDailyDigestHtml(dateLabel, events);
   }
 }
 
+async function runManualDigestForAuthedUser(
+  req: Request,
+  dateParam: string | null
+) {
+  try {
+    const user = await getUserFromBearer(req);
+
+    if (!user) {
+      return NextResponse.json(
+        { ok: false, message: "Unauthorized", reason: "unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    if (!user.email) {
+      return NextResponse.json(
+        { ok: false, message: "No email", reason: "no_email" },
+        { status: 400 }
+      );
+    }
+
+    const supabaseAdmin = getAdminClient();
+    const resend = getResend();
+    const { dayStartIso, dayEndIso, dateLabel } = buildLimaDayRange(dateParam);
+
+    const events = await getEventsForUserOnDay(
+      supabaseAdmin,
+      user.id,
+      dayStartIso,
+      dayEndIso
+    );
+
+    if (events.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        sent: false,
+        reason: "no_events",
+      });
+    }
+
+    const { html, subject } = buildDailyDigestHtml(dateLabel, events);
+
+    await resend.emails.send({
+      from: EMAIL_FROM,
+      to: user.email,
+      subject,
+      html,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      sent: true,
+      count: events.length,
+      to: user.email,
+    });
+  } catch (err: any) {
+    console.error("[daily-digest] manual user error", err);
+    return NextResponse.json(
+      { ok: false, message: err?.message || "Manual digest failed" },
+      { status: 500 }
+    );
+  }
+}
+
 // ───────────────────────────── handlers GET & POST ───────────────────────────
 
 export async function GET(req: Request) {
@@ -441,15 +536,16 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json(
-      { ok: false, message: "Unauthorized" },
-      { status: 401 }
-    );
+  const url = new URL(req.url);
+  const dateFromQuery = url.searchParams.get("date");
+
+  if (isAuthorized(req)) {
+    return runDailyDigest(dateFromQuery);
   }
 
-  const url = new URL(req.url);
-  const dateParam = url.searchParams.get("date");
+  const body = await req.json().catch(() => ({} as any));
+  const dateFromBody =
+    typeof body?.date === "string" && body.date.trim() ? body.date.trim() : null;
 
-  return runDailyDigest(dateParam);
+  return runManualDigestForAuthedUser(req, dateFromBody ?? dateFromQuery);
 }
