@@ -959,15 +959,27 @@ if (isEditing && eventIdParam) {
     end: payload.endIso,
     groupId: payload.groupId,
   });
+
   savedEventId = String(eventIdParam);
-await trackEvent({
-  event: "event_edited",
-  userId: currentUserId,
-  entityId: savedEventId,
-  metadata: {
-    type: payload.groupId ? "group" : "personal",
-  },
-});
+
+  console.log("EVENT EDITED ID", savedEventId);
+  console.log("TRACK EVENT EDITED", {
+    event: "event_edited",
+    userId: currentUserId,
+    entityId: savedEventId,
+    metadata: {
+      type: payload.groupId ? "group" : "personal",
+    },
+  });
+
+  await trackEvent({
+    event: "event_edited",
+    userId: currentUserId,
+    entityId: savedEventId,
+    metadata: {
+      type: payload.groupId ? "group" : "personal",
+    },
+  });
   const proposalSource = sp.get("proposalSource");
   const proposalIntent = sp.get("proposalIntent");
 
