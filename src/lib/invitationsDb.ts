@@ -933,7 +933,19 @@ export async function getPendingPublicInviteCaptures(
     })
     .filter(Boolean) as PublicInviteCaptureItem[];
 
-  return merged.slice(0, safeLimit);
+  const dedupedByEvent: PublicInviteCaptureItem[] = [];
+  const seenEventIds = new Set<string>();
+
+  for (const item of merged) {
+    const eventId = String(item.event_id ?? "").trim();
+    if (!eventId) continue;
+    if (seenEventIds.has(eventId)) continue;
+
+    seenEventIds.add(eventId);
+    dedupedByEvent.push(item);
+  }
+
+  return dedupedByEvent.slice(0, safeLimit);
 }
 export async function markPublicInviteCaptureHandled(
   token: string,
