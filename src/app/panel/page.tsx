@@ -1,4 +1,4 @@
-"use client";
+ "use client";
 
 import React, {
   useCallback,
@@ -230,7 +230,6 @@ export default function PanelPage() {
       setCapturesLoading(false);
     }
   }, []);
-
   const handleReviewCapture = useCallback(
     async (capture: PublicInviteCaptureItem) => {
       try {
@@ -247,7 +246,6 @@ export default function PanelPage() {
     },
     [router]
   );
-
   const handleTakeCaptureProposal = useCallback(
     async (capture: PublicInviteCaptureItem) => {
       try {
@@ -291,7 +289,6 @@ export default function PanelPage() {
     },
     [router]
   );
-
   const handleRescheduleCapture = useCallback(
     async (capture: PublicInviteCaptureItem) => {
       try {
@@ -304,10 +301,11 @@ export default function PanelPage() {
     },
     [router]
   );
-
   const openEventFromCapture = useCallback(
     (capture: PublicInviteCaptureItem) => {
-      router.push(`/events?focusEventId=${encodeURIComponent(capture.event_id)}`);
+      router.push(
+        `/events?focusEventId=${encodeURIComponent(capture.event_id)}`
+      );
     },
     [router]
   );
@@ -466,6 +464,7 @@ export default function PanelPage() {
   const trialActive = isTrialActive(profile);
   const premiumActive = isPremiumUser(profile);
   const canUseCaptures = hasPremiumAccess(profile);
+  const canUseGoogleIntegration = hasPremiumAccess(profile);
 
   const currentContextOption =
     CONTEXT_OPTIONS.find((x) => x.key === contextState.mode) ??
@@ -946,9 +945,9 @@ export default function PanelPage() {
                   </div>
 
                   <p style={styles.premiumLockCopy}>
-                    Cuando alguien responde desde un link, SyncPlans puede
-                    convertir eso en decisiones dentro del sistema: aceptar,
-                    reprogramar o ajustar sin perder contexto.
+                    Cuando alguien responde desde un link, SyncPlans puede convertir eso en
+                    decisiones dentro del sistema: aceptar, reprogramar o ajustar sin perder
+                    contexto.
                   </p>
 
                   <button
@@ -1105,7 +1104,11 @@ export default function PanelPage() {
                   <h2 style={styles.sectionTitle}>Integración de apoyo</h2>
                 </div>
 
-                <StatusPill label={googlePill.label} tone={googlePill.tone} />
+                {!canUseGoogleIntegration ? (
+                  <span style={styles.googlePremiumBadge}>Premium</span>
+                ) : (
+                  <StatusPill label={googlePill.label} tone={googlePill.tone} />
+                )}
               </div>
 
               <p style={styles.bodyCopy}>
@@ -1114,76 +1117,107 @@ export default function PanelPage() {
                 conexión sin mezclarla con la vista diaria.
               </p>
 
-              <div style={styles.integrationBox}>
-                <div style={styles.integrationCopyWrap}>
-                  <div style={styles.integrationLine}>{googleLine}</div>
+              {!canUseGoogleIntegration ? (
+                <div style={styles.premiumLockCard}>
+                  <div style={styles.premiumLockHeader}>
+                    <span style={styles.premiumLockBadge}>Premium</span>
+                    <h3 style={styles.premiumLockTitle}>
+                      Añade contexto externo sin salir de SyncPlans
+                    </h3>
+                  </div>
 
-                  {googleStatus?.error ? (
-                    <div style={styles.errorText}>{googleStatus.error}</div>
-                  ) : null}
-                </div>
+                  <p style={styles.premiumLockCopy}>
+                    Conecta Google Calendar para traer visibilidad adicional a tu
+                    tiempo compartido, revisar eventos próximos y decidir mejor
+                    sin depender de varias ventanas o chats.
+                  </p>
 
-                <div style={styles.integrationActions}>
                   <button
                     type="button"
                     style={styles.primarySmallButton}
-                    onClick={() => router.push("/settings?tab=integrations")}
+                    onClick={() => router.push("/planes")}
                   >
-                    {googlePrimaryCta}
-                  </button>
-                  <button
-                    type="button"
-                    style={styles.secondarySmallButton}
-                    onClick={fetchGoogleStatus}
-                    disabled={googleLoading}
-                  >
-                    Actualizar
+                    Desbloquear integración en Premium
                   </button>
                 </div>
-              </div>
+              ) : (
+                <>
+                  <div style={styles.integrationBox}>
+                    <div style={styles.integrationCopyWrap}>
+                      <div style={styles.integrationLine}>{googleLine}</div>
 
-              {connectionState === "connected" ? (
-                <div style={styles.googleEventsWrap}>
-                  <div style={styles.miniSectionHead}>
-                    <span style={styles.miniSectionTitle}>
-                      Vista previa de Google
-                    </span>
-                    <button
-                      type="button"
-                      style={styles.inlineLink}
-                      onClick={fetchGoogleEvents}
-                    >
-                      Recargar
-                    </button>
+                      {googleStatus?.error ? (
+                        <div style={styles.errorText}>{googleStatus.error}</div>
+                      ) : null}
+                    </div>
+
+                    <div style={styles.integrationActions}>
+                      <button
+                        type="button"
+                        style={styles.primarySmallButton}
+                        onClick={() =>
+                          router.push("/settings?tab=integrations")
+                        }
+                      >
+                        {googlePrimaryCta}
+                      </button>
+                      <button
+                        type="button"
+                        style={styles.secondarySmallButton}
+                        onClick={fetchGoogleStatus}
+                        disabled={googleLoading}
+                      >
+                        Actualizar
+                      </button>
+                    </div>
                   </div>
 
-                  {googleEventsError ? (
-                    <div style={styles.errorText}>{googleEventsError}</div>
-                  ) : null}
+                  {connectionState === "connected" ? (
+                    <div style={styles.googleEventsWrap}>
+                      <div style={styles.miniSectionHead}>
+                        <span style={styles.miniSectionTitle}>
+                          Vista previa de Google
+                        </span>
+                        <button
+                          type="button"
+                          style={styles.inlineLink}
+                          onClick={fetchGoogleEvents}
+                        >
+                          Recargar
+                        </button>
+                      </div>
 
-                  {googleEventsLoading ? (
-                    <EmptyBlock copy="Cargando próximos eventos de Google…" />
-                  ) : googleEvents.length === 0 ? (
-                    <EmptyBlock copy="No encontramos eventos próximos en Google para mostrar aquí." />
-                  ) : (
-                    <div style={styles.list}>
-                      {googleEvents.slice(0, 3).map((event) => (
-                        <div key={event.id} style={styles.listItemColumn}>
-                          <div style={styles.listTitle}>
-                            {event.title || "Evento sin título"}
-                          </div>
-                          <div style={styles.listMeta}>
-                            {formatExternalEventRange(event)}
-                          </div>
-                          {event.location ? (
-                            <div style={styles.listMeta}>{event.location}</div>
-                          ) : null}
+                      {googleEventsError ? (
+                        <div style={styles.errorText}>{googleEventsError}</div>
+                      ) : null}
+
+                      {googleEventsLoading ? (
+                        <EmptyBlock copy="Cargando próximos eventos de Google…" />
+                      ) : googleEvents.length === 0 ? (
+                        <EmptyBlock copy="No encontramos eventos próximos en Google para mostrar aquí." />
+                      ) : (
+                        <div style={styles.list}>
+                          {googleEvents.slice(0, 3).map((event) => (
+                            <div key={event.id} style={styles.listItemColumn}>
+                              <div style={styles.listTitle}>
+                                {event.title || "Evento sin título"}
+                              </div>
+                              <div style={styles.listMeta}>
+                                {formatExternalEventRange(event)}
+                              </div>
+                              {event.location ? (
+                                <div style={styles.listMeta}>
+                                  {event.location}
+                                </div>
+                              ) : null}
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
-                  )}
-                </div>
-              ) : null}
+                  ) : null}
+                </>
+              )}
             </section>
           </div>
         </div>
@@ -1309,7 +1343,8 @@ function formatRelativeCaptureTime(value: string | null) {
     if (diffHours < 24) return `Hace ${diffHours} h`;
 
     const diffDays = Math.round(diffHours / 24);
-    if (diffDays < 7) return `Hace ${diffDays} día${diffDays === 1 ? "" : "s"}`;
+    if (diffDays < 7)
+      return `Hace ${diffDays} día${diffDays === 1 ? "" : "s"}`;
 
     return date.toLocaleDateString("es-PE", {
       day: "2-digit",
@@ -1939,48 +1974,6 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
   },
 
-  premiumLockCard: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(56,189,248,0.25)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.08), rgba(168,85,247,0.08))",
-    padding: 16,
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
-
-  premiumLockHeader: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-
-  premiumLockBadge: {
-    alignSelf: "flex-start",
-    fontSize: 11,
-    fontWeight: 900,
-    padding: "4px 8px",
-    borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.4)",
-    background: "rgba(56,189,248,0.12)",
-    color: colors.textPrimary,
-  },
-
-  premiumLockTitle: {
-    margin: 0,
-    fontSize: 16,
-    fontWeight: 900,
-    color: colors.textPrimary,
-  },
-
-  premiumLockCopy: {
-    margin: 0,
-    fontSize: 13,
-    lineHeight: 1.5,
-    color: colors.textMuted,
-  },
-
   captureCard: {
     borderRadius: radii.lg,
     border: "1px solid rgba(255,255,255,0.08)",
@@ -2050,6 +2043,61 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     gap: 10,
     flexWrap: "wrap",
+  },
+
+  premiumLockCard: {
+    borderRadius: radii.lg,
+    border: "1px solid rgba(56,189,248,0.25)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.08), rgba(168,85,247,0.08))",
+    padding: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+
+  premiumLockHeader: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+
+  premiumLockBadge: {
+    alignSelf: "flex-start",
+    fontSize: 11,
+    fontWeight: 900,
+    padding: "4px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.4)",
+    background: "rgba(56,189,248,0.12)",
+    color: colors.textPrimary,
+  },
+
+  premiumLockTitle: {
+    margin: 0,
+    fontSize: 16,
+    fontWeight: 900,
+    color: colors.textPrimary,
+  },
+
+  premiumLockCopy: {
+    margin: 0,
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: colors.textMuted,
+  },
+
+  googlePremiumBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "7px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.38)",
+    background: "rgba(56,189,248,0.10)",
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: 800,
+    whiteSpace: "nowrap",
   },
 
   googleEventsWrap: {
