@@ -911,26 +911,26 @@ export async function getPendingPublicInviteCaptures(
     });
   }
 
- const merged = normalizedInvites
-  .map((invite) => {
-    const event = eventsById.get(invite.event_id);
+  const merged = normalizedInvites
+    .map((invite) => {
+      const event = eventsById.get(invite.event_id);
 
-    return {
-      invite_id: invite.invite_id,
-      token: invite.token,
-      event_id: invite.event_id,
-      event_title: event?.title ?? "Evento",
-      event_start: event?.start ?? null,
-      event_end: event?.end ?? null,
-      event_group_id: event?.group_id ?? null,
-      contact: invite.contact,
-      status: invite.status,
-      proposed_date: invite.proposed_date,
-      message: invite.message,
-      created_at: invite.created_at,
-      creator_response: invite.creator_response,
-    } satisfies PublicInviteCaptureItem;
-  })
+      return {
+        invite_id: invite.invite_id,
+        token: invite.token,
+        event_id: invite.event_id,
+        event_title: event?.title ?? "Evento",
+        event_start: event?.start ?? null,
+        event_end: event?.end ?? null,
+        event_group_id: event?.group_id ?? null,
+        contact: invite.contact,
+        status: invite.status,
+        proposed_date: invite.proposed_date,
+        message: invite.message,
+        created_at: invite.created_at,
+        creator_response: invite.creator_response,
+      } satisfies PublicInviteCaptureItem;
+    })
     .filter(Boolean) as PublicInviteCaptureItem[];
 
   return merged.slice(0, safeLimit);
