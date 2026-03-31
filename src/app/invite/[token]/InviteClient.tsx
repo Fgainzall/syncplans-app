@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { trackEvent } from "@/lib/analytics";
+import supabase from "@/lib/supabaseClient";
 type PublicInviteStatus = "pending" | "accepted" | "rejected";
 
 type PublicInviteRow = {
@@ -191,7 +191,29 @@ function getStatusBadgeStyle(
       };
   }
 }
+async function insertInviteAnalytics(input: {
+  userId?: string | null;
+  eventType: "invite_opened" | "invite_accepted" | "invite_rejected";
+  entityId?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  const analyticsPayload = {
+    user_id: input.userId ?? null,
+    event_type: input.eventType,
+    entity_id: input.entityId ?? null,
+    metadata: input.metadata ?? {},
+  };
 
+  console.log("INVITE ANALYTICS", analyticsPayload);
+
+  const { error } = await supabase
+    .from("events_analytics")
+    .insert(analyticsPayload);
+
+  if (error) {
+    console.error("invite analytics insert failed", error);
+  }
+}
 export default function InviteClient({ token }: Props) {
   const [invite, setInvite] = useState<PublicInviteRow | null>(null);
   const [event, setEvent] = useState<PublicInviteEvent | null>(null);
@@ -230,11 +252,19 @@ export default function InviteClient({ token }: Props) {
 
           setInvite(nextInvite);
           if (nextInvite) {
-  await trackEvent({
-    event: "invite_opened",
-    entityId: nextInvite.id,
-  });
-}
+           await insertInviteAnalytics({
+  userId: null,
+  eventType: "invite_opened",
+  entityId: invite?.id ?? event?.id ?? null,
+  metadata: {
+    source: "public_invite",
+    invite_id: invite?.id ?? null,
+    event_id: invite?.event_id ?? event?.id ?? null,
+    invite_status: invite?.status ?? null,
+    contact: invite?.contact ?? null,
+  },
+});
+          }
           setEvent(nextEvent);
           setMessage(nextInvite?.message ?? "");
           setProposedDate(toDateTimeLocalValue(nextInvite?.proposed_date));
@@ -301,14 +331,19 @@ export default function InviteClient({ token }: Props) {
       const updatedInvite = (json?.invite ?? null) as PublicInviteRow | null;
       setInvite(updatedInvite);
       if (updatedInvite) {
-  await trackEvent({
-    event:
-      nextStatus === "accepted"
-        ? "invite_accepted"
-        : "invite_rejected",
-    entityId: updatedInvite.id,
-  });
-}
+       await insertInviteAnalytics({
+  userId: null,
+  eventType: "invite_rejected",
+  entityId: invite?.id ?? event?.id ?? null,
+  metadata: {
+    source: "public_invite",
+    invite_id: invite?.id ?? null,
+    event_id: invite?.event_id ?? event?.id ?? null,
+    invite_status: "rejected",
+    contact: invite?.contact ?? null,
+  },
+});
+      }
       setMessage(updatedInvite?.message ?? payload.message ?? "");
       setProposedDate(toDateTimeLocalValue(updatedInvite?.proposed_date));
       setMode("idle");
