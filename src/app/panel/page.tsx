@@ -241,6 +241,18 @@ export default function PanelPage() {
     },
     [router]
   );
+    const handleRescheduleCapture = useCallback(
+    async (capture: PublicInviteCaptureItem) => {
+      try {
+        await markPublicInviteCaptureHandled(capture.token, "handled");
+      } catch (err) {
+        console.error("No se pudo marcar la captura como procesada:", err);
+      }
+
+      router.push(`/events/new/details?eventId=${capture.event_id}`);
+    },
+    [router]
+  );
   const fetchGoogleStatus = useCallback(async () => {
     try {
       setGoogleLoading(true);
@@ -891,36 +903,64 @@ export default function PanelPage() {
                           />
                         </div>
 
-                        <div style={styles.captureMeta}>
-                          {hasProposal
-                            ? `Nueva fecha sugerida: ${formatCaptureDate(capture.proposed_date)}`
-                            : capture.status === "accepted"
+                                            <div style={styles.captureMeta}>
+                          {capture.status === "accepted"
                             ? "La invitación fue aceptada externamente."
-                            : "La invitación fue rechazada y sigue pendiente de revisión."}
+                            : hasProposal
+                            ? `Nueva fecha sugerida: ${formatCaptureDate(capture.proposed_date)}`
+                            : "La invitación fue rechazada sin propuesta de nueva fecha."}
                         </div>
 
                         {capture.message ? (
                           <div style={styles.captureMessage}>“{capture.message}”</div>
                         ) : null}
 
-                        <div style={styles.captureActions}>
-                          {hasProposal ? (
+                                              <div style={styles.captureActions}>
+                          {capture.status === "accepted" ? (
                             <button
                               type="button"
                               style={styles.primarySmallButton}
-                             onClick={() => handleReviewCapture(capture)}
+                              onClick={() => router.push("/events")}
                             >
-                              Revisar propuesta
+                              Ver evento
                             </button>
-                          ) : null}
+                          ) : hasProposal ? (
+                            <>
+                              <button
+                                type="button"
+                                style={styles.primarySmallButton}
+                                onClick={() => handleReviewCapture(capture)}
+                              >
+                                Revisar propuesta
+                              </button>
 
-                          <button
-                            type="button"
-                            style={hasProposal ? styles.secondarySmallButton : styles.primarySmallButton}
-                            onClick={() => router.push("/events")}
-                          >
-                            Ver eventos
-                          </button>
+                              <button
+                                type="button"
+                                style={styles.secondarySmallButton}
+                                onClick={() => router.push("/events")}
+                              >
+                                Ver evento
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                style={styles.primarySmallButton}
+                                onClick={() => handleRescheduleCapture(capture)}
+                              >
+                                Reprogramar
+                              </button>
+
+                              <button
+                                type="button"
+                                style={styles.secondarySmallButton}
+                                onClick={() => router.push("/events")}
+                              >
+                                Ver evento
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     );
