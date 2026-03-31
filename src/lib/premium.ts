@@ -3,44 +3,95 @@
 // ❌ Importante: NO "use client" aquí.
 // Este módulo debe poder usarse tanto en server components como en client.
 
-export type PlanTier =
+export type KnownPlanTier =
   | "free"
+  | "trial"
+  | "founder"
   | "premium_monthly"
-  | "premium_yearly"
-  | string;
+  | "premium_yearly";
+
+export type PlanTier = KnownPlanTier | string;
+
+export type PlanStatus =
+  | "active"
+  | "trialing"
+  | "inactive"
+  | "canceled"
+  | "cancelled"
+  | "past_due"
+  | "incomplete"
+  | "unknown";
+
+export type BillingCycle = "monthly" | "yearly" | null;
 
 type AnyProfile = {
   plan_tier?: string | null;
-  subscription_status?: string | null; // opcional, por si mañana lo usas con Stripe/Paddle
-  plan_status?: string | null; // legacy: "active" | "inactive" | "canceled" | "cancelled" | ...
+  subscription_status?: string | null;
+  plan_status?: string | null; // legacy
   trial_ends_at?: string | null;
 };
 
-/**
- * Normaliza el plan_tier a algo razonable.
- * Regla actual:
- * - null/undefined/"" => "free"
- * - cualquier otro string => se respeta tal cual (aunque no sea uno de los "conocidos")
- */
-function normalizePlanTier(raw?: string | null): PlanTier {
-  if (!raw) return "free";
-  return raw.toLowerCase() as PlanTier;
+export type PlanSnapshot = {
+  rawTier: string | null;
+  tier: KnownPlanTier | string;
+  rawStatus: string | null;
+  status: PlanStatus;
+  billingCycle: BillingCycle;
+  isFree: boolean;
+  isFounder: boolean;
+  isTrialActive: boolean;
+  isPremiumTier: boolean;
+  hasPremiumAccess: boolean;
+  accessKind: "free" | "trial" | "founder" | "premium";
+  planLabel: string;
+  planTag: string;
+  statusLabel: string;
+  planDescription: string;
+};
+
+const INACTIVE_STATUSES: PlanStatus[] = [
+  "inactive",
+  "canceled",
+  "cancelled",
+  "past_due",
+  "incomplete",
+];
+
+function normalizeText(value?: string | null): string | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized.length ? normalized : null;
 }
 
-/**
- * Determina si un tier es de pago.
- *
- * Regla actual (simple y segura para beta):
- * - "free" => NO es de pago
- * - cualquier otro string => se considera de pago
- *
- * Si mañana quieres afinar esto (ej. solo premium_* y founder_*),
- * se cambia esta función y todo el resto sigue igual.
- */
-function isPaidTier(tier: PlanTier): boolean {
-  if (!tier) return false;
-  if (tier === "free") return false;
-  return true;
+export function normalizePlanTier(raw?: string | null): PlanTier {
+  const value = normalizeText(raw);
+  if (!value) return "free";
+
+  if (value.startsWith("founder")) return "founder";
+  if (value === "trial") return "trial";
+  if (value === "premium_monthly") return "premium_monthly";
+  if (value === "premium_yearly") return "premium_yearly";
+  if (value === "free") return "free";
+
+  return value;
+}
+
+export function normalizePlanStatus(profile?: AnyProfile | null): PlanStatus {
+  const raw =
+    normalizeText(profile?.subscription_status) ??
+    normalizeText(profile?.plan_status);
+
+  if (!raw) return "unknown";
+
+  if (raw === "active") return "active";
+  if (raw === "trialing") return "trialing";
+  if (raw === "inactive") return "inactive";
+  if (raw === "canceled") return "canceled";
+  if (raw === "cancelled") return "cancelled";
+  if (raw === "past_due") return "past_due";
+  if (raw === "incomplete") return "incomplete";
+
+  return "unknown";
 }
 
 /**
@@ -53,43 +104,215 @@ export function isTrialActive(profile: AnyProfile | null | undefined): boolean {
   const endsAtMs = Date.parse(profile.trial_ends_at);
   if (!Number.isFinite(endsAtMs)) return false;
 
-  const now = Date.now();
-  return endsAtMs > now;
+  return endsAtMs > Date.now();
 }
 
-/**
- * Determina si el usuario es "premium" a ojos de producto.
- *
- * Regla:
- * 1) Si tiene un tier de pago Y el status NO es "inactive"/"canceled"/"cancelled" => premium.
- * 2) Si tiene trial activo => también premium.
- *
- * Todo lo que no cumpla esto => no premium.
- */
-export function isPremiumUser(
+export function isFounderTier(tier: PlanTier): boolean {
+  return String(tier).startsWith("founder");
+}
+
+export function isPremiumTier(tier: PlanTier): boolean {
+  return tier === "premium_monthly" || tier === "premium_yearly";
+}
+
+export function getBillingCycle(tier: PlanTier): BillingCycle {
+  if (tier === "premium_monthly") return "monthly";
+  if (tier === "premium_yearly") return "yearly";
+  return null;
+}
+
+export function hasPremiumAccess(
   profile: AnyProfile | null | undefined
 ): boolean {
   if (!profile) return false;
 
-  const tier = normalizePlanTier(profile.plan_tier ?? "free");
-  const paidTier = isPaidTier(tier);
-
-  const statusRaw =
-    profile.subscription_status ?? profile.plan_status ?? null;
-  const status = statusRaw ? statusRaw.toLowerCase() : null;
-
+  const tier = normalizePlanTier(profile.plan_tier);
+  const status = normalizePlanStatus(profile);
   const trialActive = isTrialActive(profile);
 
-  const inactiveStatuses = ["inactive", "canceled", "cancelled"];
+  if (trialActive) return true;
+  if (isFounderTier(tier)) return true;
 
-  // Caso 1: plan de pago + status OK
-  if (paidTier && status && !inactiveStatuses.includes(status)) {
-    return true;
+  if (isPremiumTier(tier)) {
+    if (status === "unknown") return true; // beta-safe fallback
+    return !INACTIVE_STATUSES.includes(status);
   }
 
-  // Caso 2: trial activo => también cuenta como premium
-  if (trialActive) return true;
-
-  // En cualquier otro caso => no premium
   return false;
+}
+
+export function isPremiumUser(
+  profile: AnyProfile | null | undefined
+): boolean {
+  return hasPremiumAccess(profile);
+}
+
+export function getPlanSnapshot(
+  profile: AnyProfile | null | undefined
+): PlanSnapshot {
+  const rawTier = profile?.plan_tier ?? null;
+  const tier = normalizePlanTier(rawTier);
+  const rawStatus =
+    profile?.subscription_status ?? profile?.plan_status ?? null;
+  const status = normalizePlanStatus(profile);
+  const trialActive = isTrialActive(profile);
+  const founder = isFounderTier(tier);
+  const premiumTier = isPremiumTier(tier);
+  const premiumAccess = hasPremiumAccess(profile);
+  const billingCycle = getBillingCycle(tier);
+
+  const isFree = !premiumAccess && !founder && !trialActive && tier === "free";
+
+  let accessKind: PlanSnapshot["accessKind"] = "free";
+  if (founder) accessKind = "founder";
+  else if (trialActive) accessKind = "trial";
+  else if (premiumAccess) accessKind = "premium";
+
+  let planLabel = "Free";
+  let planTag = "Plan Free";
+  let statusLabel = "Modo Free";
+  let planDescription =
+    "Organiza tu tiempo compartido con lo esencial, sin pagar durante la beta.";
+
+  if (founder) {
+    planLabel = "Founder";
+    planTag = "Plan Founder";
+    statusLabel = "Founder activo";
+    planDescription =
+      "Acceso preferencial para quienes apostaron por SyncPlans desde el inicio.";
+  } else if (trialActive) {
+    planLabel = "Prueba Premium";
+    planTag = "Prueba Premium";
+    statusLabel = "Prueba Premium activa";
+    planDescription =
+      "Estás probando las funciones avanzadas que reducen la fricción al coordinar.";
+  } else if (premiumAccess && billingCycle === "yearly") {
+    planLabel = "Premium Anual";
+    planTag = "Plan Premium";
+    statusLabel = "Premium anual activo";
+    planDescription =
+      "Acceso completo para quienes ya usan SyncPlans como sistema real de coordinación.";
+  } else if (premiumAccess && billingCycle === "monthly") {
+    planLabel = "Premium Mensual";
+    planTag = "Plan Premium";
+    statusLabel = "Premium mensual activo";
+    planDescription =
+      "Acceso completo con flexibilidad mes a mes para coordinar mejor sin fricción.";
+  } else if (premiumAccess) {
+    planLabel = "Premium";
+    planTag = "Plan Premium";
+    statusLabel = "Premium activo";
+    planDescription =
+      "Tienes acceso a las funciones avanzadas para convertir coordinación en decisiones reales.";
+  }
+
+  return {
+    rawTier,
+    tier,
+    rawStatus,
+    status,
+    billingCycle,
+    isFree,
+    isFounder: founder,
+    isTrialActive: trialActive,
+    isPremiumTier: premiumTier,
+    hasPremiumAccess: premiumAccess,
+    accessKind,
+    planLabel,
+    planTag,
+    statusLabel,
+    planDescription,
+  };
+}
+
+export function getCurrentPlanCardId(
+  profile: AnyProfile | null | undefined
+): "free" | "premium_monthly" | "premium_yearly" | null {
+  const snapshot = getPlanSnapshot(profile);
+
+  if (snapshot.isFounder) return null;
+  if (snapshot.accessKind === "trial") return "premium_monthly";
+  if (snapshot.accessKind === "free") return "free";
+  if (snapshot.tier === "premium_monthly") return "premium_monthly";
+  if (snapshot.tier === "premium_yearly") return "premium_yearly";
+
+  return null;
+}
+
+/**
+ * Helpers de capacidades premium
+ * Úsalos después para gates suaves dentro del producto.
+ */
+
+export function canUseAdvancedExternalCoordination(
+  profile: AnyProfile | null | undefined
+): boolean {
+  return hasPremiumAccess(profile);
+}
+
+export function canUseAdvancedAnalytics(
+  profile: AnyProfile | null | undefined
+): boolean {
+  return hasPremiumAccess(profile);
+}
+
+export function canUseGoogleCalendarIntegration(
+  profile: AnyProfile | null | undefined
+): boolean {
+  return hasPremiumAccess(profile);
+}
+
+export function canUseUnlimitedGroups(
+  profile: AnyProfile | null | undefined
+): boolean {
+  return hasPremiumAccess(profile);
+}
+export type PlanCardId = "free" | "premium_monthly" | "premium_yearly";
+
+export type PlanAccessSource = "free" | "trial" | "founder" | "paid";
+
+export type PlanAccessState = PlanSnapshot & {
+  currentPlanCardId: PlanCardId | null;
+  accessSource: PlanAccessSource;
+  planStatusHint: string;
+};
+
+export function getPlanAccessState(
+  profile: AnyProfile | null | undefined
+): PlanAccessState {
+  const snapshot = getPlanSnapshot(profile);
+  const currentPlanCardId = getCurrentPlanCardId(profile);
+
+  let accessSource: PlanAccessSource = "free";
+  if (snapshot.isFounder) {
+    accessSource = "founder";
+  } else if (snapshot.isTrialActive) {
+    accessSource = "trial";
+  } else if (snapshot.hasPremiumAccess) {
+    accessSource = "paid";
+  }
+
+  let planStatusHint =
+    "Estás usando SyncPlans desde la base Free mientras terminamos de definir el empaquetado final de valor.";
+
+  if (accessSource === "founder") {
+    planStatusHint =
+      "Tu acceso Founder mantiene beneficios preferenciales y se trata como una capa premium estable durante la beta.";
+  } else if (accessSource === "trial") {
+    planStatusHint =
+      "Tu trial te da acceso a funciones premium para que valides el valor real antes de cualquier cobro.";
+  } else if (currentPlanCardId === "premium_yearly") {
+    planStatusHint =
+      "Tu acceso Premium Anual está pensado para una coordinación sostenida y con menos fricción.";
+  } else if (currentPlanCardId === "premium_monthly") {
+    planStatusHint =
+      "Tu acceso Premium Mensual te da flexibilidad mientras validas cuánto valor te aporta SyncPlans.";
+  }
+
+  return {
+    ...snapshot,
+    currentPlanCardId,
+    accessSource,
+    planStatusHint,
+  };
 }

@@ -1,17 +1,19 @@
 // src/app/planes/page.tsx
 "use client";
 
-import React, { useEffect, useState, type CSSProperties } from "react";
+import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 import MobileScaffold from "@/components/MobileScaffold";
 import PremiumHeader from "@/components/PremiumHeader";
 
 import { getMyProfile, type Profile } from "@/lib/profilesDb";
-import { isPremiumUser, isTrialActive, type PlanTier } from "@/lib/premium";
+import {
+  getPlanAccessState,
+  type PlanCardId,
+  type PlanAccessState,
+} from "@/lib/premium";
 
 import { colors, radii, shadows, spacing } from "@/styles/design-tokens";
-
-type PlanCardId = "free" | "premium_monthly" | "premium_yearly";
 
 type PlanCardConfig = {
   id: PlanCardId;
@@ -23,31 +25,32 @@ type PlanCardConfig = {
   badge?: string;
   highlight?: boolean;
   features: string[];
+  idealFor: string;
 };
 
 const freeFeatures: string[] = [
-  "Calendario personal para organizar tu día a día.",
-  "Un par de grupos (pareja / familia) para probar la idea.",
-  "Detección básica de conflictos al guardar eventos.",
-  "Sin tarjeta ni pagos durante la beta privada.",
+  "Tu calendario personal y la base para empezar a coordinar sin caos.",
+  "Un espacio suficiente para probar la dinámica con tu pareja o familia.",
+  "Detección básica de conflictos al guardar nuevos eventos.",
+  "Sin tarjetas ni cobros automáticos durante la beta privada.",
 ];
 
 const premiumCoreFeatures: string[] = [
-  "Detección avanzada de conflictos entre personas y grupos.",
-  "Panel con métricas de uso y conflictos abiertos.",
-  "Integración con Google Calendar (solo lectura, fase 1).",
-  "Resúmenes por correo para mantener a todos alineados.",
+  "Coordinación externa más útil: respuestas, propuestas y acciones dentro de la app.",
+  "Más contexto para decidir conflictos sin perseguir mensajes por fuera.",
+  "Panel y métricas para entender qué está pasando en el tiempo compartido.",
+  "Integraciones y automatizaciones premium a medida que SyncPlans madure.",
 ];
 
 const premiumMonthlyFeatures: string[] = [
   ...premiumCoreFeatures,
-  "Flexibilidad mes a mes para probar Premium sin compromiso.",
+  "Flexibilidad para activar Premium mientras validas cuánto valor real te aporta semana a semana.",
 ];
 
 const premiumYearlyFeatures: string[] = [
   ...premiumCoreFeatures,
-  "Precio anual optimizado para uso constante con tu pareja o familia.",
-  "Mejor relación valor / precio si ya usas SyncPlans en serio.",
+  "Mejor relación valor / precio para hogares o parejas que ya usan SyncPlans como hábito.",
+  "Pensado para una coordinación sostenida, no para un uso esporádico.",
 ];
 
 function buildPlanCards(): PlanCardConfig[] {
@@ -55,21 +58,25 @@ function buildPlanCards(): PlanCardConfig[] {
     {
       id: "free",
       label: "Free",
-      tag: "Plan Free",
+      tag: "Base",
       price: "US$0",
       priceSuffix: "/ mes",
       description:
-        "Para empezar a probar SyncPlans con tu pareja o familia, sin fricción ni tarjetas.",
+        "La puerta de entrada para ordenar el tiempo compartido y entender el problema antes de pagar por resolverlo mejor.",
+      idealFor:
+        "Ideal si recién estás empezando y todavía quieres validar el hábito.",
       features: freeFeatures,
     },
     {
       id: "premium_monthly",
       label: "Premium Mensual",
-      tag: "Plan Premium",
+      tag: "Premium",
       price: "US$X",
       priceSuffix: "/ mes",
       description:
-        "Para cuando ya sabes que SyncPlans te ahorra discusiones, pero quieres flexibilidad mes a mes.",
+        "Para quien ya sintió el valor de coordinar mejor y quiere menos fricción sin comprometerse todavía a largo plazo.",
+      idealFor:
+        "Ideal si ya usas SyncPlans en serio, pero todavía quieres flexibilidad.",
       badge: "Recomendado",
       highlight: true,
       features: premiumMonthlyFeatures,
@@ -77,14 +84,36 @@ function buildPlanCards(): PlanCardConfig[] {
     {
       id: "premium_yearly",
       label: "Premium Anual",
-      tag: "Premium Anual",
+      tag: "Premium",
       price: "US$Y",
       priceSuffix: "/ año",
       description:
-        "Para parejas y familias que ya integraron SyncPlans en su rutina de coordinación.",
+        "Para parejas y familias que ya entendieron que la tranquilidad compartida vale más que resolver todo por chat.",
+      idealFor:
+        "Ideal si SyncPlans ya se volvió parte de la rutina.",
       features: premiumYearlyFeatures,
     },
   ];
+}
+
+function getCurrentPlanNote(state: PlanAccessState): string {
+  if (state.isFounder) {
+    return "Tu acceso Founder se trata como una capa premium estable y preferencial durante la beta.";
+  }
+
+  if (state.accessSource === "trial") {
+    return "Hoy tienes acceso premium por trial, así que esta pantalla debe ayudarte a entender el valor antes que el precio.";
+  }
+
+  if (state.currentPlanCardId === "premium_yearly") {
+    return "Tu acceso actual corresponde a Premium Anual.";
+  }
+
+  if (state.currentPlanCardId === "premium_monthly") {
+    return "Tu acceso actual corresponde a Premium Mensual.";
+  }
+
+  return "Hoy estás usando SyncPlans desde la base Free.";
 }
 
 export default function PlanesPage() {
@@ -115,134 +144,119 @@ export default function PlanesPage() {
     };
   }, []);
 
-  const tier = (profile?.plan_tier ?? "free") as PlanTier;
-  const normalizedTier = String(tier || "free").toLowerCase();
-  const trialActive = isTrialActive(profile);
-  const premiumActive = isPremiumUser(profile);
-
-  let planLabel = "Free";
-  let planTag = "Plan Free";
-  let planDescription =
-    "Todas las funciones básicas para organizar tu tiempo sin pagar nada durante la beta.";
-  let planStatusHint = "Estás usando SyncPlans en modo Free.";
-
-  if (normalizedTier.startsWith("founder")) {
-    planLabel = "Founder";
-    planTag = "Plan Founder";
-    planDescription =
-      "Mantienes un precio preferencial por ser de las primeras personas en apostar por SyncPlans.";
-    planStatusHint =
-      "Tu plan Founder se conservará incluso cuando lancemos la versión pública.";
-  } else if (premiumActive && !trialActive) {
-    planLabel = "Premium";
-    planTag = "Plan Premium";
-    planDescription =
-      "Tienes activadas las funciones avanzadas para coordinar mejor con tu pareja y familia.";
-    planStatusHint = "Tu plan Premium está activo.";
-  } else if (trialActive) {
-    planLabel = "Prueba Premium";
-    planTag = "Prueba Premium";
-    planDescription =
-      "Estás probando todas las funciones Premium por tiempo limitado, sin riesgo.";
-    planStatusHint =
-      "Cuando termine tu prueba podrás decidir si continúas en Free o pasas a Premium.";
-  }
-
-  const cards = buildPlanCards();
-
-  const isFreeTier = normalizedTier === "free";
-  const isFounderTier = normalizedTier.startsWith("founder");
-
-  const statusPillText = isFounderTier
-    ? "Founder activo"
-    : trialActive
-    ? "Prueba Premium activa"
-    : premiumActive
-    ? "Premium activo"
-    : "Modo Free";
-
-  const resolveIsCurrent = (id: PlanCardId): boolean => {
-    // Founder es un plan especial, no coincide 1:1 con estos cards
-    if (isFounderTier) {
-      return false;
-    }
-    if (isFreeTier) return id === "free";
-
-    // Premium pagado (sin trial) → marcamos ambos Premium como “actuales”
-    if (premiumActive && !trialActive) {
-      return id === "premium_monthly" || id === "premium_yearly";
-    }
-
-    // Trial activo → marcamos solo el mensual como referencia
-    if (trialActive) {
-      return id === "premium_monthly";
-    }
-
-    return false;
-  };
+  const cards = useMemo(() => buildPlanCards(), []);
+  const planState = useMemo(() => getPlanAccessState(profile), [profile]);
 
   return (
     <MobileScaffold>
       <PremiumHeader
         title="Planes"
-        subtitle="Elige hasta dónde quieres llevar el árbitro neutral de tu tiempo compartido."
+        subtitle="No se trata de vender más calendario. Se trata de reducir fricción real en el tiempo compartido."
       />
 
       <div style={sectionWrapperStyle}>
-        {/* BLOQUE: TU PLAN ACTUAL */}
         <section style={planCardStyle}>
           <div style={planHeaderRowStyle}>
             <div style={planLabelColumnStyle}>
               <div style={planPillStyle}>
                 <span style={planDotStyle} />
                 <span style={planPillTextStyle}>
-                  {loading ? "Cargando plan..." : planTag}
+                  {loading ? "Cargando plan..." : planState.planTag}
                 </span>
               </div>
+
               <h2 style={planTitleStyle}>
-                {loading ? " " : `Tu plan: ${planLabel}`}
+                {loading ? " " : `Tu plan: ${planState.planLabel}`}
               </h2>
+
               <p style={planSubtitleStyle}>
                 {loading
                   ? "Leyendo tu información de cuenta..."
-                  : planDescription}
+                  : planState.planDescription}
               </p>
             </div>
+
             <div style={planActionsColumnStyle}>
               <div style={planStatusPillStyle}>
-                {loading ? "Leyendo estado..." : statusPillText}
+                {loading ? "Leyendo estado..." : planState.statusLabel}
               </div>
             </div>
           </div>
 
-          <p style={planHintTextStyle}>{planStatusHint}</p>
+          <p style={planHintTextStyle}>
+            {loading ? "" : planState.planStatusHint}
+          </p>
+
+          <div style={statusSummaryGridStyle}>
+            <div style={statusSummaryItemStyle}>
+              <span style={statusSummaryLabelStyle}>Acceso</span>
+              <strong style={statusSummaryValueStyle}>
+                {loading
+                  ? "Cargando..."
+                  : planState.hasPremiumAccess
+                  ? "Premium habilitado"
+                  : "Solo base Free"}
+              </strong>
+            </div>
+
+            <div style={statusSummaryItemStyle}>
+              <span style={statusSummaryLabelStyle}>Origen</span>
+              <strong style={statusSummaryValueStyle}>
+                {loading
+                  ? "Cargando..."
+                  : planState.accessSource === "founder"
+                  ? "Founder"
+                  : planState.accessSource === "trial"
+                  ? "Trial"
+                  : planState.accessSource === "paid"
+                  ? "Pago / beta"
+                  : "Free"}
+              </strong>
+            </div>
+
+            <div style={statusSummaryItemStyle}>
+              <span style={statusSummaryLabelStyle}>Ciclo</span>
+              <strong style={statusSummaryValueStyle}>
+                {loading
+                  ? "Cargando..."
+                  : planState.billingCycle === "yearly"
+                  ? "Anual"
+                  : planState.billingCycle === "monthly"
+                  ? "Mensual"
+                  : "No aplica"}
+              </strong>
+            </div>
+          </div>
+
+          <p style={currentPlanNoteStyle}>{loading ? "" : getCurrentPlanNote(planState)}</p>
 
           <div style={betaNoteStyle}>
             <p style={betaNoteTitleStyle}>Beta privada</p>
             <p style={betaNoteBodyStyle}>
-              Durante esta etapa no se realizan cobros automáticos. Cualquier
-              cambio de plan se coordina directamente contigo para que tengas
-              control total.
+              Durante esta etapa no se realizan cobros automáticos. Primero
+              estamos cerrando bien la lógica de planes, acceso y valor del
+              producto antes de activar pagos reales.
             </p>
           </div>
         </section>
 
-        {/* BLOQUE: PLANES DISPONIBLES */}
         <section style={plansSectionStyle}>
           <header style={plansHeaderRowStyle}>
             <div>
               <h3 style={plansTitleStyle}>Planes de SyncPlans</h3>
               <p style={plansSubtitleStyle}>
-                Todos los planes comparten la misma idea: una sola verdad sobre
-                el tiempo compartido. Lo que cambia es cuánto quieres
-                automatizar y cuánta tranquilidad buscas.
+                La diferencia real entre planes no es “tener más calendario”,
+                sino cuánto contexto, cuánta coordinación y cuánta tranquilidad
+                quieres recuperar cuando varias personas comparten el tiempo.
               </p>
             </div>
           </header>
 
           <div style={plansGridStyle}>
             {cards.map((card) => {
-              const isCurrent = resolveIsCurrent(card.id);
+              const isCurrent = planState.currentPlanCardId === card.id;
+              const founderEquivalent =
+                planState.isFounder && card.id !== "free";
 
               return (
                 <article
@@ -263,15 +277,11 @@ export default function PlanesPage() {
                       <div style={planOptionTagRowStyle}>
                         <span style={planOptionTagStyle}>{card.tag}</span>
                         {card.badge ? (
-                          <span style={planOptionBadgeStyle}>
-                            {card.badge}
-                          </span>
+                          <span style={planOptionBadgeStyle}>{card.badge}</span>
                         ) : null}
                       </div>
                       <h4 style={planOptionTitleStyle}>{card.label}</h4>
-                      <p style={planOptionDescriptionStyle}>
-                        {card.description}
-                      </p>
+                      <p style={planOptionDescriptionStyle}>{card.description}</p>
                     </div>
 
                     <div style={planOptionPriceBlockStyle}>
@@ -281,17 +291,20 @@ export default function PlanesPage() {
                           {card.priceSuffix}
                         </span>
                       </div>
+
                       {isCurrent ? (
                         <span style={planOptionCurrentChipStyle}>
                           Tu plan actual
                         </span>
-                      ) : isFounderTier && card.id !== "free" ? (
+                      ) : founderEquivalent ? (
                         <span style={planOptionCurrentChipStyle}>
-                          Beneficios similares a tu plan Founder
+                          Tu acceso Founder se parece a esta capa
                         </span>
                       ) : null}
                     </div>
                   </div>
+
+                  <p style={planIdealForStyle}>{card.idealFor}</p>
 
                   <ul style={planFeaturesListStyle}>
                     {card.features.map((feature) => (
@@ -314,13 +327,14 @@ export default function PlanesPage() {
                       {isCurrent
                         ? "Ya estás en este plan"
                         : card.id === "free"
-                        ? "Empezar en Free"
+                        ? "Seguir con Free"
                         : "Premium disponible pronto"}
                     </button>
+
                     <p style={planCtaHintStyle}>
-                      Los cambios de plan se habilitarán oficialmente al salir
-                      de la beta privada. Si quieres comentar tu caso, háblame
-                      directo.
+                      Por ahora estamos afinando acceso y narrativa de valor.
+                      Luego activaremos bloqueos premium elegantes y recién
+                      después cobros reales.
                     </p>
                   </div>
                 </article>
@@ -332,8 +346,6 @@ export default function PlanesPage() {
     </MobileScaffold>
   );
 }
-
-// ===== Estilos =====
 
 const sectionWrapperStyle: CSSProperties = {
   maxWidth: 720,
@@ -435,6 +447,44 @@ const planHintTextStyle: CSSProperties = {
   color: colors.textSecondary,
 };
 
+const statusSummaryGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  gap: spacing.sm,
+  marginTop: spacing.sm,
+};
+
+const statusSummaryItemStyle: CSSProperties = {
+  borderRadius: radii.lg,
+  border: `1px solid ${colors.borderSubtle}`,
+  background: colors.surfaceLow,
+  padding: `${spacing.sm}px ${spacing.md}px`,
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+};
+
+const statusSummaryLabelStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: 0.3,
+  color: colors.textMuted,
+};
+
+const statusSummaryValueStyle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 800,
+  color: colors.textPrimary,
+};
+
+const currentPlanNoteStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 12,
+  lineHeight: 1.6,
+  color: colors.textMuted,
+};
+
 const betaNoteStyle: CSSProperties = {
   marginTop: spacing.md,
   borderRadius: radii.lg,
@@ -461,7 +511,6 @@ const betaNoteBodyStyle: CSSProperties = {
   color: colors.textSecondary,
 };
 
-// Sección de grid de planes
 const plansSectionStyle: CSSProperties = {
   borderRadius: radii.xl,
   background: colors.surfaceRaised,
@@ -598,6 +647,13 @@ const planOptionCurrentChipStyle: CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
   color: colors.textSecondary,
+};
+
+const planIdealForStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 12,
+  lineHeight: 1.5,
+  color: colors.textMuted,
 };
 
 const planFeaturesListStyle: CSSProperties = {
