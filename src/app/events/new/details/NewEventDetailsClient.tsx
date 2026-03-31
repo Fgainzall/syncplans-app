@@ -963,23 +963,28 @@ if (isEditing && eventIdParam) {
   savedEventId = String(eventIdParam);
 
   console.log("EVENT EDITED ID", savedEventId);
-  console.log("TRACK EVENT EDITED", {
-    event: "event_edited",
-    userId: currentUserId,
-    entityId: savedEventId,
-    metadata: {
-      type: payload.groupId ? "group" : "personal",
-    },
-  });
 
-  await trackEvent({
-    event: "event_edited",
-    userId: currentUserId,
-    entityId: savedEventId,
-    metadata: {
-      type: payload.groupId ? "group" : "personal",
-    },
-  });
+  if (currentUserId && savedEventId) {
+    const analyticsPayload = {
+      user_id: currentUserId,
+      event_type: "event_edited",
+      entity_id: savedEventId,
+      metadata: {
+        type: payload.groupId ? "group" : "personal",
+      },
+    };
+
+    console.log("TRACK EVENT EDITED DIRECT", analyticsPayload);
+
+    const { error: analyticsError } = await supabase
+      .from("events_analytics")
+      .insert(analyticsPayload);
+
+    if (analyticsError) {
+      console.error("event_edited analytics insert failed", analyticsError);
+    }
+  }
+
   const proposalSource = sp.get("proposalSource");
   const proposalIntent = sp.get("proposalIntent");
 
