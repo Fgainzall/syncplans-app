@@ -22,7 +22,6 @@ import {
 } from "@/lib/profilesDb";
 import {
   hasPremiumAccess,
-  getPlanAccessState,
 } from "@/lib/premium";
 import {
   colors,
@@ -369,13 +368,10 @@ export default function PremiumHeader({
   const finalSubtitle = subtitle ?? getAutoSubtitle(pathname);
 
   const hasPremium = useMemo(() => hasPremiumAccess(profile), [profile]);
-const planState = useMemo(() => getPlanAccessState(profile), [profile]);
-
-const headerPlanBadge = useMemo(() => {
-  const tier = String((profile as any)?.plan_tier ?? "").toLowerCase();
-  if (tier === "trial") return "Trial";
-  return "Free";
-}, [profile]);
+  const headerPlanBadge = useMemo(() => {
+    const tier = String((profile as any)?.plan_tier ?? "").toLowerCase();
+    return tier === "trial" ? "Trial" : "Free";
+  }, [profile]);
   const upgradeMessage = useMemo(() => getUpgradeMessage(pathname), [pathname]);
   const shouldShowHeaderUpgrade = useMemo(() => {
     if (hasPremium) return false;
@@ -595,7 +591,7 @@ const headerPlanBadge = useMemo(() => {
               <div style={styles.mobileUpgradeBar}>
                 <div style={styles.mobileUpgradeCopy}>
                   <span style={styles.upgradeMiniBadge}>
-                   {headerPlanBadge}
+                    {headerPlanBadge}
                   </span>
                   <span>{upgradeMessage}</span>
                 </div>

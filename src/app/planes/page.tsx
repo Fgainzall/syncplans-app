@@ -132,7 +132,7 @@ function getDecisionHeadline(state: PlanAccessState): string {
     return "Ahora mismo ya estás sintiendo el valor completo de Premium.";
   if (state.hasPremiumAccess)
     return "Tu coordinación ya funciona con menos fricción.";
-  return "Free sirve para empezar. Premium aparece cuando coordinar con otros deja de ser una prueba.";
+  return "Free sirve para empezar. Premium aparece cuando coordinar con otros deja de ser una prueba y pide más claridad.";
 }
 
 function getDecisionCopy(state: PlanAccessState): string {
@@ -145,7 +145,7 @@ function getDecisionCopy(state: PlanAccessState): string {
   if (state.hasPremiumAccess) {
     return "Cuando Premium está activo, el valor no se nota en una lista. Se nota en menos desgaste, menos mensajes sueltos y mejores decisiones.";
   }
-  return "El problema no es guardar eventos. El problema es alinear personas, contexto y decisiones sin perseguir chats.";
+  return "El problema no es guardar eventos. El problema es alinear personas, contexto y decisiones sin perseguir chats ni versiones distintas de la realidad.";
 }
 
 function getWhyPayBullets(state: PlanAccessState): string[] {
@@ -217,7 +217,7 @@ export default function PlanesPage() {
     <MobileScaffold>
       <PremiumHeader
         title="Planes"
-        subtitle="No se trata de vender más calendario. Se trata de reducir fricción real en el tiempo compartido."
+        subtitle="No se trata de vender más calendario. Se trata de reducir fricción real, ganar claridad y coordinar mejor el tiempo compartido."
       />
 
       <div style={sectionWrapperStyle}>
