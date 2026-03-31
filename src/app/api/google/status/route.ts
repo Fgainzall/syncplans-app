@@ -1,13 +1,88 @@
-// src/app/api/google/status/route.ts
+// src/app/api/integrations/google/list/route.ts
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-type ConnectionState = "connected" | "needs_reauth" | "disconnected";
+function mustEnv(name: string): string {
+  const v = (process.env[name] ?? "").trim();
+  if (!v) throw new Error(`Missing env: ${name}`);
+  return v;
+}
 
-export async function GET(req: Request) {
+async function refreshGoogleAccessToken(
+  supabase: ReturnType<typeof createServerClient>,
+  userId: string,
+  refreshToken: string
+): Promise<string> {
+  const clientId = mustEnv("GOOGLE_CLIENT_ID");
+  const clientSecret = mustEnv("GOOGLE_CLIENT_SECRET");
+
+  const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    refresh_token: refreshToken,
+    grant_type: "refresh_token",
+  });
+
+  const resp = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: body.toString(),
+  });
+
+  const data = await resp.json();
+
+  if (!resp.ok || !data.access_token) {
+    throw new Error(
+      data?.error_description ||
+        data?.error ||
+        "No se pudo refrescar el token de Google."
+    );
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const expiresAt =
+    typeof data.expires_in === "number" ? nowSec + data.expires_in : null;
+
+  await supabase
+    .from("google_accounts")
+    .update({
+      access_token: data.access_token,
+      expires_at: expiresAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId);
+
+  return data.access_token as string;
+}
+
+async function fetchEventsWithToken(accessToken: string) {
+  const timeMin = new Date().toISOString();
+
+  const r = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(
+      timeMin
+    )}&singleEvents=true&orderBy=startTime&maxResults=50`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  const json = await r.json();
+
+  return { response: r, json };
+}
+
+export async function GET() {
   try {
+    const cookieStore = await cookies();
+
     const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
     const supabaseAnon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
 
@@ -15,117 +90,115 @@ export async function GET(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          connected: false,
-          connection_state: "disconnected" satisfies ConnectionState,
-          error: "Faltan env vars de Supabase (URL/ANON).",
+          error: "Faltan variables de entorno de Supabase (URL/ANON).",
         },
         { status: 500 }
       );
     }
 
-    const auth = req.headers.get("authorization") || "";
-    const token = auth.toLowerCase().startsWith("bearer ")
-      ? auth.slice(7).trim()
-      : "";
-
-    if (!token) {
-      return NextResponse.json(
-        {
-          ok: false,
-          connected: false,
-          connection_state: "disconnected" satisfies ConnectionState,
-          error: "No autorizado (token faltante).",
+    const supabase = createServerClient(supabaseUrl, supabaseAnon, {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
         },
-        { status: 401 }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseAnon, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`,
+        set(name: string, value: string, options: any) {
+          cookieStore.set({ name, value, ...options });
         },
-      },
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
+        remove(name: string, options: any) {
+          cookieStore.set({ name, value: "", ...options, maxAge: 0 });
+        },
       },
     });
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    const userId = userData?.user?.id;
-
-    if (userErr || !userId) {
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData?.user;
+    if (!user) {
       return NextResponse.json(
-        {
-          ok: false,
-          connected: false,
-          connection_state: "disconnected" satisfies ConnectionState,
-          error: "Token inválido o sesión expirada.",
-        },
+        { ok: false, error: "No autenticado." },
         { status: 401 }
       );
     }
 
-    const { data, error } = await supabase
+    const { data: ga, error: gaErr } = await supabase
       .from("google_accounts")
-      .select("provider,email,created_at,updated_at,expires_at,refresh_token")
-      .eq("user_id", userId)
+      .select("access_token, refresh_token")
+      .eq("user_id", user.id)
       .maybeSingle();
 
-    if (error) {
+    if (gaErr || !ga?.access_token) {
       return NextResponse.json(
         {
           ok: false,
-          connected: false,
-          connection_state: "disconnected" satisfies ConnectionState,
-          error: error.message,
+          error: "No hay Google conectado (token no encontrado). Vuelve a conectar tu cuenta desde el Panel.",
         },
-        { status: 500 }
+        { status: 400 }
       );
     }
 
-    if (!data) {
-      return NextResponse.json({
-        ok: true,
-        connected: false,
-        connection_state: "disconnected" satisfies ConnectionState,
-        account: null,
-      });
+    let accessToken = ga.access_token as string;
+
+    let { response, json } = await fetchEventsWithToken(accessToken);
+
+    if (
+      (response.status === 401 || response.status === 403) &&
+      ga.refresh_token
+    ) {
+      try {
+        const newToken = await refreshGoogleAccessToken(
+          supabase,
+          user.id,
+          ga.refresh_token as string
+        );
+        accessToken = newToken;
+
+        const retry = await fetchEventsWithToken(accessToken);
+        response = retry.response;
+        json = retry.json;
+      } catch (e: any) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              e?.message ||
+              "No se pudo refrescar la sesión de Google. Vuelve a conectar tu cuenta desde el Panel.",
+          },
+          { status: 401 }
+        );
+      }
     }
 
-    const expiresAtRaw = (data as any).expires_at ?? null;
-    const refreshToken = (data as any).refresh_token ?? null;
+    if (!response.ok) {
+      const base = json || {};
+      const code = (base.error && base.error.status) || response.status;
+      const msg =
+        base.error?.message ||
+        base.error_description ||
+        "Error al leer los eventos de Google.";
 
-    const expiresMs = expiresAtRaw ? new Date(String(expiresAtRaw)).getTime() : 0;
-    const nowMs = Date.now();
+      return NextResponse.json(
+        {
+          ok: false,
+          status: response.status,
+          error: `Google devolvió un error (${code}): ${msg}`,
+        },
+        { status: 502 }
+      );
+    }
 
-    const needsReauth =
-      !refreshToken || !expiresMs || Number.isNaN(expiresMs) || expiresMs < nowMs + 60_000;
-
-    const connectionState: ConnectionState = needsReauth
-      ? "needs_reauth"
-      : "connected";
+    const items = Array.isArray(json.items) ? json.items : [];
 
     return NextResponse.json({
       ok: true,
-      connected: connectionState === "connected",
-      connection_state: connectionState,
-      account: {
-        provider: (data as any).provider ?? "google",
-        email: (data as any).email ?? null,
-        created_at: (data as any).created_at ?? null,
-        updated_at: (data as any).updated_at ?? null,
-      },
+      items,
     });
   } catch (e: any) {
+    console.error("[/api/integrations/google/list] error", e);
     return NextResponse.json(
       {
         ok: false,
-        connected: false,
-        connection_state: "disconnected",
-        error: e?.message || "Error inesperado.",
+        error:
+          e?.message ||
+          "Error inesperado al leer los eventos de Google.",
       },
       { status: 500 }
     );

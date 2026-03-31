@@ -48,7 +48,6 @@ async function refreshGoogleAccessToken(
   const expiresAt =
     typeof data.expires_in === "number" ? nowSec + data.expires_in : null;
 
-  // Guardamos el nuevo access_token en Supabase
   await supabase
     .from("google_accounts")
     .update({
@@ -120,7 +119,6 @@ export async function GET() {
       );
     }
 
-    // ✅ aquí sí podemos leer tokens (es una ruta interna del propio backend)
     const { data: ga, error: gaErr } = await supabase
       .from("google_accounts")
       .select("access_token, refresh_token")
@@ -139,10 +137,8 @@ export async function GET() {
 
     let accessToken = ga.access_token as string;
 
-    // 1️⃣ Intento inicial
     let { response, json } = await fetchEventsWithToken(accessToken);
 
-    // 2️⃣ Si el token está caducado / inválido y tenemos refresh_token, intentamos refrescar una vez
     if (
       (response.status === 401 || response.status === 403) &&
       ga.refresh_token

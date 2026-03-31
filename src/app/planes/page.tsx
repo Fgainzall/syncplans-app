@@ -26,6 +26,7 @@ type PlanCardConfig = {
   highlight?: boolean;
   features: string[];
   idealFor: string;
+  emotionalHook: string;
 };
 
 const freeFeatures: string[] = [
@@ -66,6 +67,8 @@ function buildPlanCards(): PlanCardConfig[] {
       idealFor:
         "Ideal si recién estás empezando y todavía quieres validar el hábito.",
       features: freeFeatures,
+      emotionalHook:
+        "Free te deja empezar. Premium aparece cuando coordinar bien ya no es opcional.",
     },
     {
       id: "premium_monthly",
@@ -80,6 +83,8 @@ function buildPlanCards(): PlanCardConfig[] {
       badge: "Recomendado",
       highlight: true,
       features: premiumMonthlyFeatures,
+      emotionalHook:
+        "La diferencia no es más calendario. Es menos fricción todas las semanas.",
     },
     {
       id: "premium_yearly",
@@ -92,6 +97,8 @@ function buildPlanCards(): PlanCardConfig[] {
       idealFor:
         "Ideal si SyncPlans ya se volvió parte de la rutina.",
       features: premiumYearlyFeatures,
+      emotionalHook:
+        "Cuando la coordinación importa de verdad, la tranquilidad compartida vale más que el precio.",
     },
   ];
 }
@@ -114,6 +121,61 @@ function getCurrentPlanNote(state: PlanAccessState): string {
   }
 
   return "Hoy estás usando SyncPlans desde la base Free.";
+}
+
+
+function getDecisionHeadline(state: PlanAccessState): string {
+  if (state.isFounder) return "Tu acceso ya está en una capa preferencial.";
+  if (state.accessSource === "trial")
+    return "Ahora mismo ya estás sintiendo el valor completo de Premium.";
+  if (state.hasPremiumAccess)
+    return "Tu coordinación ya funciona con menos fricción.";
+  return "Free sirve para empezar. Premium aparece cuando coordinar con otros deja de ser una prueba.";
+}
+
+function getDecisionCopy(state: PlanAccessState): string {
+  if (state.isFounder) {
+    return "Founder no necesita urgencia. Necesita reconocer que entraste antes y conservas una posición especial.";
+  }
+  if (state.accessSource === "trial") {
+    return "La decisión no es pagar por más funciones. Es no volver al modo improvisado después de haber probado claridad real.";
+  }
+  if (state.hasPremiumAccess) {
+    return "Cuando Premium está activo, el valor no se nota en una lista. Se nota en menos desgaste, menos mensajes sueltos y mejores decisiones.";
+  }
+  return "El problema no es guardar eventos. El problema es alinear personas, contexto y decisiones sin perseguir chats.";
+}
+
+function getWhyPayBullets(state: PlanAccessState): string[] {
+  if (state.isFounder) {
+    return [
+      "Porque Founder reconoce tu entrada temprana y tu confianza inicial.",
+      "Porque tu acceso ya vive cerca de la capa premium sin fricción extra.",
+      "Porque esta posición debe sentirse especial, no genérica.",
+    ];
+  }
+
+  if (state.accessSource === "trial") {
+    return [
+      "Porque ya viste la diferencia entre registrar cosas y coordinarlas bien.",
+      "Porque Premium reduce fricción justo donde más se siente: decisiones, contexto e integración.",
+      "Porque volver atrás se nota cuando todos dejan de ver la misma verdad.",
+    ];
+  }
+
+  if (state.hasPremiumAccess) {
+    return [
+      "Porque una buena coordinación no se mide en funciones, sino en fricción evitada.",
+      "Porque mantener claridad compartida vale más que resolver malentendidos después.",
+      "Porque el valor real está en la tranquilidad operativa, no en la decoración visual.",
+    ];
+  }
+
+  return [
+    "Porque el problema no es guardar eventos, sino alinear personas.",
+    "Porque Premium convierte respuestas, contexto e integración en decisiones dentro del sistema.",
+    "Porque coordinar bien cuesta menos que corregir enredos después.",
+  ];
 }
 
 export default function PlanesPage() {
@@ -146,6 +208,7 @@ export default function PlanesPage() {
 
   const cards = useMemo(() => buildPlanCards(), []);
   const planState = useMemo(() => getPlanAccessState(profile), [profile]);
+  const whyPayBullets = useMemo(() => getWhyPayBullets(planState), [planState]);
 
   return (
     <MobileScaffold>
@@ -155,6 +218,33 @@ export default function PlanesPage() {
       />
 
       <div style={sectionWrapperStyle}>
+        <section style={decisionHeroStyle}>
+          <div style={decisionHeroTopStyle}>
+            <div style={decisionHeroTextStyle}>
+              <div style={decisionEyebrowStyle}>Conversión</div>
+              <h2 style={decisionTitleStyle}>
+                {loading ? "Cargando estado del plan..." : getDecisionHeadline(planState)}
+              </h2>
+              <p style={decisionCopyStyle}>
+                {loading ? "Leyendo tu información de cuenta..." : getDecisionCopy(planState)}
+              </p>
+            </div>
+
+            <div style={decisionSidePillStyle}>
+              {loading ? "Leyendo..." : planState.statusLabel}
+            </div>
+          </div>
+
+          <div style={decisionBulletsGridStyle}>
+            {whyPayBullets.map((item) => (
+              <div key={item} style={decisionBulletCardStyle}>
+                <span style={decisionBulletDotStyle} />
+                <span style={decisionBulletTextStyle}>{item}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <section style={planCardStyle}>
           <div style={planHeaderRowStyle}>
             <div style={planLabelColumnStyle}>
@@ -306,6 +396,8 @@ export default function PlanesPage() {
 
                   <p style={planIdealForStyle}>{card.idealFor}</p>
 
+                  <div style={planEmotionalHookStyle}>{card.emotionalHook}</div>
+
                   <ul style={planFeaturesListStyle}>
                     {card.features.map((feature) => (
                       <li key={feature} style={planFeatureItemStyle}>
@@ -327,14 +419,14 @@ export default function PlanesPage() {
                       {isCurrent
                         ? "Ya estás en este plan"
                         : card.id === "free"
-                        ? "Seguir con Free"
-                        : "Premium disponible pronto"}
+                        ? "Continuar con Free"
+                        : "Próximamente activación Premium"}
                     </button>
 
                     <p style={planCtaHintStyle}>
-                      Por ahora estamos afinando acceso y narrativa de valor.
-                      Luego activaremos bloqueos premium elegantes y recién
-                      después cobros reales.
+                      {card.id === "free"
+                        ? "Free te deja entrar. Premium aparece cuando la coordinación compartida ya importa de verdad."
+                        : "Este plan está pensado para reducir fricción real, no para acumular funciones decorativas."}
                     </p>
                   </div>
                 </article>
@@ -354,6 +446,100 @@ const sectionWrapperStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: spacing.lg,
+};
+
+
+const decisionHeroStyle: CSSProperties = {
+  borderRadius: radii.xl,
+  border: `1px solid ${colors.borderStrong}`,
+  background:
+    "radial-gradient(900px 280px at 0% 0%, rgba(56,189,248,0.16), transparent 55%), radial-gradient(700px 220px at 100% 0%, rgba(168,85,247,0.12), transparent 60%), rgba(15,23,42,0.96)",
+  boxShadow: shadows.card,
+  padding: `${spacing.lg}px ${spacing.lg}px ${spacing.lg}px`,
+  display: "flex",
+  flexDirection: "column",
+  gap: spacing.md,
+};
+
+const decisionHeroTopStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: spacing.md,
+  flexWrap: "wrap",
+};
+
+const decisionHeroTextStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+  flex: 1,
+  minWidth: 0,
+};
+
+const decisionEyebrowStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 900,
+  textTransform: "uppercase",
+  letterSpacing: 0.8,
+  color: colors.accentPrimary,
+};
+
+const decisionTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 24,
+  lineHeight: 1.1,
+  fontWeight: 950,
+  color: colors.textPrimary,
+};
+
+const decisionCopyStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 14,
+  lineHeight: 1.6,
+  color: colors.textSecondary,
+};
+
+const decisionSidePillStyle: CSSProperties = {
+  padding: "8px 12px",
+  borderRadius: 999,
+  border: `1px solid ${colors.borderSubtle}`,
+  background: "rgba(255,255,255,0.05)",
+  fontSize: 12,
+  fontWeight: 800,
+  color: colors.textPrimary,
+  whiteSpace: "nowrap",
+};
+
+const decisionBulletsGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: spacing.sm,
+};
+
+const decisionBulletCardStyle: CSSProperties = {
+  borderRadius: radii.lg,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.04)",
+  padding: `${spacing.sm}px ${spacing.md}px`,
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 10,
+};
+
+const decisionBulletDotStyle: CSSProperties = {
+  width: 8,
+  height: 8,
+  borderRadius: 999,
+  background: colors.accentPrimary,
+  marginTop: 6,
+  flexShrink: 0,
+};
+
+const decisionBulletTextStyle: CSSProperties = {
+  fontSize: 13,
+  lineHeight: 1.55,
+  color: colors.textPrimary,
 };
 
 const planCardStyle: CSSProperties = {
@@ -654,6 +840,16 @@ const planIdealForStyle: CSSProperties = {
   fontSize: 12,
   lineHeight: 1.5,
   color: colors.textMuted,
+};
+
+const planEmotionalHookStyle: CSSProperties = {
+  borderRadius: radii.md,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.04)",
+  padding: "10px 12px",
+  fontSize: 12,
+  lineHeight: 1.55,
+  color: colors.textPrimary,
 };
 
 const planFeaturesListStyle: CSSProperties = {

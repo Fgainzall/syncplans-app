@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import React, {
   useCallback,
@@ -80,6 +80,13 @@ type ContextOption = {
   dot: string;
 };
 
+type PremiumLockProps = {
+  title: string;
+  copy: string;
+};
+
+type PlanTone = "free" | "trial" | "premium" | "founder";
+
 const CONTEXT_OPTIONS: ContextOption[] = [
   {
     key: "solo",
@@ -149,6 +156,29 @@ function normalizeGroupLabel(input?: string | null) {
   }
 
   return raw;
+}
+
+function PremiumLock({ title, copy }: PremiumLockProps) {
+  const router = useRouter();
+
+  return (
+    <div style={styles.premiumLockCard}>
+      <div style={styles.premiumLockHeader}>
+        <span style={styles.premiumLockBadge}>Premium</span>
+        <h3 style={styles.premiumLockTitle}>{title}</h3>
+      </div>
+
+      <p style={styles.premiumLockCopy}>{copy}</p>
+
+      <button
+        type="button"
+        style={styles.primarySmallButton}
+        onClick={() => router.push("/planes")}
+      >
+        Descubrir Premium
+      </button>
+    </div>
+  );
 }
 
 export default function PanelPage() {
@@ -230,6 +260,7 @@ export default function PanelPage() {
       setCapturesLoading(false);
     }
   }, []);
+
   const handleReviewCapture = useCallback(
     async (capture: PublicInviteCaptureItem) => {
       try {
@@ -246,6 +277,7 @@ export default function PanelPage() {
     },
     [router]
   );
+
   const handleTakeCaptureProposal = useCallback(
     async (capture: PublicInviteCaptureItem) => {
       try {
@@ -289,6 +321,7 @@ export default function PanelPage() {
     },
     [router]
   );
+
   const handleRescheduleCapture = useCallback(
     async (capture: PublicInviteCaptureItem) => {
       try {
@@ -301,6 +334,7 @@ export default function PanelPage() {
     },
     [router]
   );
+
   const openEventFromCapture = useCallback(
     (capture: PublicInviteCaptureItem) => {
       router.push(
@@ -465,7 +499,8 @@ export default function PanelPage() {
   const premiumActive = isPremiumUser(profile);
   const canUseCaptures = hasPremiumAccess(profile);
   const canUseGoogleIntegration = hasPremiumAccess(profile);
-const canUseAdvancedAnalytics = hasPremiumAccess(profile);
+  const canUseAdvancedAnalytics = hasPremiumAccess(profile);
+
   const currentContextOption =
     CONTEXT_OPTIONS.find((x) => x.key === contextState.mode) ??
     CONTEXT_OPTIONS[0];
@@ -487,20 +522,24 @@ const canUseAdvancedAnalytics = hasPremiumAccess(profile);
         pill: "Founder",
         title: "Tienes acceso fundador",
         copy:
-          "Estás dentro desde el inicio. SyncPlans evoluciona contigo y mantienes beneficios preferenciales permanentes.",
+          "Entraste antes que la mayoría. Mantienes una posición preferencial mientras SyncPlans evoluciona.",
         cta: "Ver beneficios",
-        tone: "founder",
+        tone: "founder" as PlanTone,
+        supportingCopy:
+          "No necesitas más funciones. Necesitas conservar una ventaja temprana.",
       };
     }
 
     if (trialActive) {
       return {
         pill: "Trial activo",
-        title: "Ya estás coordinando mejor",
+        title: "Ya estás sintiendo lo que cambia con Premium",
         copy:
-          "Estás probando cómo se siente coordinar sin fricción: decisiones claras, contexto completo y menos discusiones.",
+          "Estás probando una coordinación con más claridad, menos idas y vueltas y mejor contexto compartido.",
         cta: "Mantener Premium",
-        tone: "trial",
+        tone: "trial" as PlanTone,
+        supportingCopy:
+          "La decisión no es pagar por más. Es no volver al caos que ya lograste evitar.",
       };
     }
 
@@ -509,9 +548,11 @@ const canUseAdvancedAnalytics = hasPremiumAccess(profile);
         pill: "Premium",
         title: "Coordinación sin fricción activa",
         copy:
-          "Ya tienes la experiencia completa: decisiones claras, integración externa y control real del tiempo compartido.",
+          "Tus funciones premium ya están empujando una coordinación más clara, más compartida y menos desgastante.",
         cta: "Gestionar plan",
-        tone: "premium",
+        tone: "premium" as PlanTone,
+        supportingCopy:
+          "Cuando todo está alineado, el valor no se nota en la pantalla. Se nota en la tranquilidad.",
       };
     }
 
@@ -519,9 +560,11 @@ const canUseAdvancedAnalytics = hasPremiumAccess(profile);
       pill: "Free",
       title: "Aquí empieza la coordinación real",
       copy:
-        "Hoy organizas eventos. Con Premium empiezas a evitar fricciones, decidir mejor y alinear a todos sin chats ni confusión.",
+        "Ya puedes organizarte. Premium aparece cuando coordinar con otros deja de ser una prueba y se vuelve una necesidad real.",
       cta: "Descubrir Premium",
-      tone: "free",
+      tone: "free" as PlanTone,
+      supportingCopy:
+        "Evita el clásico: “pensé que era otro día”.",
     };
   }, [premiumActive, tier, trialActive]);
 
@@ -733,86 +776,69 @@ const canUseAdvancedAnalytics = hasPremiumAccess(profile);
             />
           </div>
         </section>
-<section style={styles.sectionCard}>
-  <div style={styles.sectionHead}>
-    <div>
-      <div style={styles.sectionEyebrow}>Insights</div>
-      <h2 style={styles.sectionTitle}>
-        Lectura de tu coordinación
-      </h2>
-    </div>
-  </div>
 
-  {!canUseAdvancedAnalytics ? (
-    <div style={styles.premiumLockCard}>
-      <div style={styles.premiumLockHeader}>
-        <span style={styles.premiumLockBadge}>Premium</span>
-        <h3 style={styles.premiumLockTitle}>
-          Entiende cómo estás coordinando realmente
-        </h3>
-      </div>
+        <section style={styles.sectionCard}>
+          <div style={styles.sectionHead}>
+            <div>
+              <div style={styles.sectionEyebrow}>Insights</div>
+              <h2 style={styles.sectionTitle}>Lectura de tu coordinación</h2>
+            </div>
+          </div>
 
-      <p style={styles.premiumLockCopy}>
-        SyncPlans puede analizar tu actividad para darte señales claras:
-        carga de eventos, fricción en conflictos y patrones de coordinación.
-      </p>
+          {!canUseAdvancedAnalytics ? (
+            <PremiumLock
+              title="Entiende cómo estás coordinando realmente"
+              copy="Hoy solo ves eventos. Con Premium entiendes la carga real, la fricción y cómo mejorar la coordinación sin adivinar."
+            />
+          ) : (
+            <div style={styles.insightGrid}>
+              <div style={styles.insightCard}>
+                <div style={styles.insightTitle}>Carga semanal</div>
+                <div style={styles.insightValue}>
+                  {totalEvents === 0
+                    ? "Ligera"
+                    : totalEvents < 5
+                    ? "Controlada"
+                    : totalEvents < 10
+                    ? "Activa"
+                    : "Intensa"}
+                </div>
+                <div style={styles.insightHint}>
+                  Basado en tus eventos recientes
+                </div>
+              </div>
 
-      <button
-        type="button"
-        style={styles.primarySmallButton}
-        onClick={() => router.push("/planes")}
-      >
-        Ver insights en Premium
-      </button>
-    </div>
-  ) : (
-    <div style={styles.insightGrid}>
-      <div style={styles.insightCard}>
-        <div style={styles.insightTitle}>Carga semanal</div>
-        <div style={styles.insightValue}>
-          {totalEvents === 0
-            ? "Ligera"
-            : totalEvents < 5
-            ? "Controlada"
-            : totalEvents < 10
-            ? "Activa"
-            : "Intensa"}
-        </div>
-        <div style={styles.insightHint}>
-          Basado en tus eventos recientes
-        </div>
-      </div>
+              <div style={styles.insightCard}>
+                <div style={styles.insightTitle}>Fricción</div>
+                <div style={styles.insightValue}>
+                  {conflictsNow === 0
+                    ? "Baja"
+                    : conflictsNow < 3
+                    ? "Moderada"
+                    : "Alta"}
+                </div>
+                <div style={styles.insightHint}>
+                  Conflictos actuales en el sistema
+                </div>
+              </div>
 
-      <div style={styles.insightCard}>
-        <div style={styles.insightTitle}>Fricción</div>
-        <div style={styles.insightValue}>
-          {conflictsNow === 0
-            ? "Baja"
-            : conflictsNow < 3
-            ? "Moderada"
-            : "Alta"}
-        </div>
-        <div style={styles.insightHint}>
-          Conflictos actuales en el sistema
-        </div>
-      </div>
+              <div style={styles.insightCard}>
+                <div style={styles.insightTitle}>Estructura</div>
+                <div style={styles.insightValue}>
+                  {totalGroups === 0
+                    ? "Sin estructura"
+                    : totalGroups === 1
+                    ? "Simple"
+                    : "Distribuida"}
+                </div>
+                <div style={styles.insightHint}>
+                  Organización de tus espacios
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
 
-      <div style={styles.insightCard}>
-        <div style={styles.insightTitle}>Estructura</div>
-        <div style={styles.insightValue}>
-          {totalGroups === 0
-            ? "Sin estructura"
-            : totalGroups === 1
-            ? "Simple"
-            : "Distribuida"}
-        </div>
-        <div style={styles.insightHint}>
-          Organización de tus espacios
-        </div>
-      </div>
-    </div>
-  )}
-</section>
         <div style={styles.mainGrid}>
           <div style={styles.leftCol}>
             <section style={styles.sectionCard}>
@@ -998,46 +1024,12 @@ const canUseAdvancedAnalytics = hasPremiumAccess(profile);
               }}
             >
               <div style={styles.planPill}>{planInfo.pill}</div>
-
               <h2 style={styles.planTitle}>{planInfo.title}</h2>
-
               <p style={styles.planCopy}>{planInfo.copy}</p>
 
-              {planInfo.tone === "free" && (
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: colors.textSecondary,
-                    marginTop: 4,
-                  }}
-                >
-                  Evita el clásico: “pensé que era otro día”.
-                </div>
-              )}
-
-              {planInfo.tone === "trial" && (
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: colors.textSecondary,
-                    marginTop: 4,
-                  }}
-                >
-                  Estás viendo cómo cambia la coordinación cuando todos ven lo mismo.
-                </div>
-              )}
-
-              {planInfo.tone === "premium" && (
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: colors.textSecondary,
-                    marginTop: 4,
-                  }}
-                >
-                  Todo está alineado. Solo mantén el flujo.
-                </div>
-              )}
+              <div style={styles.planSupportCopy}>
+                {planInfo.supportingCopy}
+              </div>
 
               <button
                 type="button"
@@ -1070,28 +1062,10 @@ const canUseAdvancedAnalytics = hasPremiumAccess(profile);
               </p>
 
               {!canUseCaptures ? (
-                <div style={styles.premiumLockCard}>
-                  <div style={styles.premiumLockHeader}>
-                    <span style={styles.premiumLockBadge}>Premium</span>
-                    <h3 style={styles.premiumLockTitle}>
-                      Convierte respuestas externas en acciones reales
-                    </h3>
-                  </div>
-
-                  <p style={styles.premiumLockCopy}>
-                    Cuando alguien responde desde un link, SyncPlans puede convertir eso en
-                    decisiones dentro del sistema: aceptar, reprogramar o ajustar sin perder
-                    contexto.
-                  </p>
-
-                  <button
-                    type="button"
-                    style={styles.primarySmallButton}
-                    onClick={() => router.push("/planes")}
-                  >
-                    Ver cómo funciona en Premium
-                  </button>
-                </div>
+                <PremiumLock
+                  title="Convierte respuestas externas en decisiones reales"
+                  copy="Cuando alguien responde desde un link, Premium transforma esa respuesta en acciones dentro del sistema: aceptar, mover o ajustar sin perder contexto."
+                />
               ) : capturesLoading ? (
                 <EmptyBlock copy="Buscando respuestas externas recientes…" />
               ) : captures.length === 0 ? (
@@ -1252,28 +1226,10 @@ const canUseAdvancedAnalytics = hasPremiumAccess(profile);
               </p>
 
               {!canUseGoogleIntegration ? (
-                <div style={styles.premiumLockCard}>
-                  <div style={styles.premiumLockHeader}>
-                    <span style={styles.premiumLockBadge}>Premium</span>
-                    <h3 style={styles.premiumLockTitle}>
-                      Añade contexto externo sin salir de SyncPlans
-                    </h3>
-                  </div>
-
-                  <p style={styles.premiumLockCopy}>
-                    Conecta Google Calendar para traer visibilidad adicional a tu
-                    tiempo compartido, revisar eventos próximos y decidir mejor
-                    sin depender de varias ventanas o chats.
-                  </p>
-
-                  <button
-                    type="button"
-                    style={styles.primarySmallButton}
-                    onClick={() => router.push("/planes")}
-                  >
-                    Desbloquear integración en Premium
-                  </button>
-                </div>
+                <PremiumLock
+                  title="Añade contexto externo sin romper tu coordinación"
+                  copy="Google Calendar te da visibilidad adicional, pero Premium lo integra para que decidas mejor sin saltar entre apps."
+                />
               ) : (
                 <>
                   <div style={styles.integrationBox}>
@@ -1995,6 +1951,13 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.6,
   },
 
+  planSupportCopy: {
+    margin: 0,
+    fontSize: 12,
+    lineHeight: 1.55,
+    color: colors.textSecondary,
+  },
+
   primaryCta: {
     borderRadius: 999,
     padding: "12px 16px",
@@ -2307,37 +2270,38 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     lineHeight: 1.5,
   },
+
   insightGrid: {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-  gap: 10,
-},
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+    gap: 10,
+  },
 
-insightCard: {
-  borderRadius: radii.lg,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.04)",
-  padding: 14,
-  display: "flex",
-  flexDirection: "column",
-  gap: 6,
-},
+  insightCard: {
+    borderRadius: radii.lg,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
+    padding: 14,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
 
-insightTitle: {
-  fontSize: 11,
-  fontWeight: 900,
-  color: colors.textSecondary,
-  textTransform: "uppercase",
-},
+  insightTitle: {
+    fontSize: 11,
+    fontWeight: 900,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+  },
 
-insightValue: {
-  fontSize: 18,
-  fontWeight: 900,
-  color: colors.textPrimary,
-},
+  insightValue: {
+    fontSize: 18,
+    fontWeight: 900,
+    color: colors.textPrimary,
+  },
 
-insightHint: {
-  fontSize: 12,
-  color: colors.textMuted,
-},
+  insightHint: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
 };

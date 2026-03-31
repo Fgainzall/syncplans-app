@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
 import { getUser } from "@/lib/auth";
+import { getMyProfile, type Profile } from "@/lib/profilesDb";
+import { hasPremiumAccess } from "@/lib/premium";
 import { getSettingsFromDb, type NotificationSettings } from "@/lib/settings";
 import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
@@ -98,6 +100,7 @@ export default function SettingsHubPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [google, setGoogle] = useState<GoogleStatus | null>(null);
   const [googleSyncing, setGoogleSyncing] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
 
   const showToast = useCallback((title: string, subtitle?: string) => {
     setToast({ title, subtitle });
@@ -137,6 +140,8 @@ const googleActionLabel =
     : googleState === "connected"
     ? "Gestionar"
     : "Conectar";
+
+  const canUseGooglePremium = hasPremiumAccess(profile);
   async function refreshGoogleStatus() {
     try {
       setGoogleLoading(true);
@@ -360,8 +365,14 @@ refreshGoogleStatusWithRetry().catch(() => {});
         }
 
         try {
-          const db = await getSettingsFromDb();
-          if (alive) setS(db);
+          const [db, p] = await Promise.all([
+            getSettingsFromDb().catch(() => null),
+            getMyProfile().catch(() => null),
+          ]);
+          if (alive) {
+            if (db) setS(db);
+            setProfile(p);
+          }
         } catch {
           // ok
         }
@@ -521,82 +532,92 @@ refreshGoogleStatusWithRetry().catch(() => {});
               </button>
             </div>
 
-            {/* Google card */}
-            <div style={styles.innerCard}>
-              <div style={styles.innerTop}>
-                <div style={styles.innerLeft}>
-                  <div style={styles.innerTitleRow}>
-                    <div style={styles.appIcon}>G</div>
-                    <div>
-                      <div style={styles.innerTitle}>Google Calendar</div>
-                      <div style={styles.innerSub}>
-                        {googleConnected
-                          ? `Cuenta: ${googleEmail || "—"} · Read-only import`
-                          : "Conecta tu Google para importar eventos como externos."}
+            {!canUseGooglePremium ? (
+              <PremiumSettingsGate
+                title="Añade contexto externo sin romper tu coordinación"
+                copy="Google Calendar se desbloquea en Premium para que importes contexto externo sin convertir SyncPlans en otra app desordenada."
+                onClick={() => router.push("/planes")}
+              />
+            ) : (
+              <>
+                {/* Google card */}
+                <div style={styles.innerCard}>
+                  <div style={styles.innerTop}>
+                    <div style={styles.innerLeft}>
+                      <div style={styles.innerTitleRow}>
+                        <div style={styles.appIcon}>G</div>
+                        <div>
+                          <div style={styles.innerTitle}>Google Calendar</div>
+                          <div style={styles.innerSub}>
+                            {googleConnected
+                              ? `Cuenta: ${googleEmail || "—"} · Read-only import`
+                              : "Conecta tu Google para importar eventos como externos."}
+                          </div>
+                        </div>
                       </div>
+
+                      {!googleConnected && google?.error ? (
+                        <div style={styles.errorBox}>{google.error}</div>
+                      ) : null}
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span
+                        style={{
+                          ...styles.pill,
+                          ...(googleState === "connected"
+                            ? styles.pillOk
+                            : googleState === "needs_reauth"
+                            ? styles.pillWarn
+                            : styles.pillMuted),
+                        }}
+                      >
+                        {googlePillLabel}
+                      </span>
+
+                      <button
+                        onClick={handleGoogleConnect}
+                        style={styles.primaryBtn}
+                      >
+                        {googleActionLabel}
+                      </button>
+
+                      <button
+                        onClick={handleGoogleSyncNow}
+                        style={{
+                          ...styles.secondaryBtn,
+                          opacity: !googleConnected ? 0.45 : 1,
+                          cursor: !googleConnected
+                            ? "not-allowed"
+                            : googleSyncing
+                            ? "progress"
+                            : "pointer",
+                        }}
+                        disabled={!googleConnected || googleSyncing}
+                        title={
+                          !googleConnected
+                            ? "Conecta Google para importar."
+                            : "Importar eventos desde Google"
+                        }
+                      >
+                        {googleSyncing ? "Importando…" : "Importar ahora"}
+                      </button>
                     </div>
                   </div>
 
-                  {!googleConnected && google?.error ? (
-                    <div style={styles.errorBox}>{google.error}</div>
-                  ) : null}
+                  <div style={styles.note}>
+                    <b>Tip:</b> Sync trae 30 días atrás y 120 días adelante.
+                  </div>
                 </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                  }}
-                >
-               <span
-  style={{
-    ...styles.pill,
-    ...(googleState === "connected"
-      ? styles.pillOk
-      : googleState === "needs_reauth"
-      ? styles.pillWarn
-      : styles.pillMuted),
-  }}
->
-  {googlePillLabel}
-</span>
-
-<button
-  onClick={handleGoogleConnect}
-  style={styles.primaryBtn}
->
-  {googleActionLabel}
-</button>
-
-                  <button
-                    onClick={handleGoogleSyncNow}
-                    style={{
-                      ...styles.secondaryBtn,
-                      opacity: !googleConnected ? 0.45 : 1,
-                      cursor: !googleConnected
-                        ? "not-allowed"
-                        : googleSyncing
-                        ? "progress"
-                        : "pointer",
-                    }}
-                    disabled={!googleConnected || googleSyncing}
-                    title={
-                      !googleConnected
-                        ? "Conecta Google para importar."
-                        : "Importar eventos desde Google"
-                    }
-                  >
-                    {googleSyncing ? "Importando…" : "Importar ahora"}
-                  </button>
-                </div>
-              </div>
-
-              <div style={styles.note}>
-                <b>Tip:</b> Sync trae 30 días atrás y 120 días adelante.
-              </div>
-            </div>
+              </>
+            )}
 
             {/* Microsoft card (placeholder) */}
             <div style={{ ...styles.innerCard, opacity: 0.9 }}>
@@ -675,6 +696,30 @@ refreshGoogleStatusWithRetry().catch(() => {});
         </div>
       </MobileScaffold>
     </main>
+  );
+}
+
+
+function PremiumSettingsGate({
+  title,
+  copy,
+  cta = "Descubrir Premium",
+  onClick,
+}: {
+  title: string;
+  copy: string;
+  cta?: string;
+  onClick: () => void;
+}) {
+  return (
+    <div style={styles.gateCard}>
+      <div style={styles.gateBadge}>Premium</div>
+      <div style={styles.gateTitle}>{title}</div>
+      <div style={styles.gateCopy}>{copy}</div>
+      <button onClick={onClick} style={styles.primaryBtn}>
+        {cta}
+      </button>
+    </div>
   );
 }
 
@@ -828,6 +873,36 @@ heroBtns: {
     borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.04)",
+  },
+
+  gateCard: {
+    marginTop: 12,
+    borderRadius: 18,
+    border: "1px solid rgba(56,189,248,0.22)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.08), rgba(168,85,247,0.08))",
+    padding: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  gateBadge: {
+    alignSelf: "flex-start",
+    fontSize: 11,
+    fontWeight: 900,
+    padding: "4px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.35)",
+    background: "rgba(56,189,248,0.12)",
+  },
+  gateTitle: {
+    fontSize: 15,
+    fontWeight: 950,
+  },
+  gateCopy: {
+    fontSize: 12,
+    opacity: 0.8,
+    lineHeight: 1.5,
   },
 
   innerCard: {
