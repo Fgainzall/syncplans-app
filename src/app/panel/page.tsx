@@ -485,39 +485,43 @@ const canUseAdvancedAnalytics = hasPremiumAccess(profile);
     if (normalizedTier.startsWith("founder")) {
       return {
         pill: "Founder",
-        title: "Tu acceso fundador sigue activo",
+        title: "Tienes acceso fundador",
         copy:
-          "Mantienes una posición temprana en SyncPlans con beneficios preferenciales.",
-        cta: "Ver planes",
+          "Estás dentro desde el inicio. SyncPlans evoluciona contigo y mantienes beneficios preferenciales permanentes.",
+        cta: "Ver beneficios",
+        tone: "founder",
       };
     }
 
     if (trialActive) {
       return {
-        pill: "Prueba Premium",
-        title: "Tienes Premium desbloqueado",
+        pill: "Trial activo",
+        title: "Ya estás coordinando mejor",
         copy:
-          "Estás probando la experiencia completa para coordinar mejor con pareja, familia y grupos compartidos.",
-        cta: "Ver planes",
+          "Estás probando cómo se siente coordinar sin fricción: decisiones claras, contexto completo y menos discusiones.",
+        cta: "Mantener Premium",
+        tone: "trial",
       };
     }
 
     if (premiumActive) {
       return {
         pill: "Premium",
-        title: "Tu experiencia completa está activa",
+        title: "Coordinación sin fricción activa",
         copy:
-          "Tus funciones avanzadas están listas para ayudarte a coordinar con menos fricción.",
+          "Ya tienes la experiencia completa: decisiones claras, integración externa y control real del tiempo compartido.",
         cta: "Gestionar plan",
+        tone: "premium",
       };
     }
 
     return {
       pill: "Free",
-      title: "Tu base está lista para crecer",
+      title: "Aquí empieza la coordinación real",
       copy:
-        "Ya puedes usar SyncPlans para organizarte. Cuando quieras, puedes pasar a Premium para coordinar mejor con otros.",
-      cta: "Ver planes",
+        "Hoy organizas eventos. Con Premium empiezas a evitar fricciones, decidir mejor y alinear a todos sin chats ni confusión.",
+      cta: "Descubrir Premium",
+      tone: "free",
     };
   }, [premiumActive, tier, trialActive]);
 
@@ -980,10 +984,61 @@ const canUseAdvancedAnalytics = hasPremiumAccess(profile);
           </div>
 
           <div style={styles.rightCol}>
-            <section style={styles.planCard}>
+            <section
+              style={{
+                ...styles.planCard,
+                border:
+                  planInfo.tone === "free"
+                    ? "1px solid rgba(56,189,248,0.25)"
+                    : planInfo.tone === "trial"
+                    ? "1px solid rgba(168,85,247,0.35)"
+                    : planInfo.tone === "premium"
+                    ? "1px solid rgba(34,197,94,0.35)"
+                    : "1px solid rgba(251,191,36,0.35)",
+              }}
+            >
               <div style={styles.planPill}>{planInfo.pill}</div>
+
               <h2 style={styles.planTitle}>{planInfo.title}</h2>
+
               <p style={styles.planCopy}>{planInfo.copy}</p>
+
+              {planInfo.tone === "free" && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: colors.textSecondary,
+                    marginTop: 4,
+                  }}
+                >
+                  Evita el clásico: “pensé que era otro día”.
+                </div>
+              )}
+
+              {planInfo.tone === "trial" && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: colors.textSecondary,
+                    marginTop: 4,
+                  }}
+                >
+                  Estás viendo cómo cambia la coordinación cuando todos ven lo mismo.
+                </div>
+              )}
+
+              {planInfo.tone === "premium" && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: colors.textSecondary,
+                    marginTop: 4,
+                  }}
+                >
+                  Todo está alineado. Solo mantén el flujo.
+                </div>
+              )}
+
               <button
                 type="button"
                 style={styles.primaryCta}
