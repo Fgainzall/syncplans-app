@@ -33,7 +33,12 @@ import {
   markPublicInviteCaptureHandled,
   type PublicInviteCaptureItem,
 } from "@/lib/invitationsDb";
-import { isPremiumUser, isTrialActive, type PlanTier } from "@/lib/premium";
+import {
+  hasPremiumAccess,
+  isPremiumUser,
+  isTrialActive,
+  type PlanTier,
+} from "@/lib/premium";
 import {
   getGroupState,
   setMode,
@@ -225,6 +230,7 @@ export default function PanelPage() {
       setCapturesLoading(false);
     }
   }, []);
+
   const handleReviewCapture = useCallback(
     async (capture: PublicInviteCaptureItem) => {
       try {
@@ -241,7 +247,8 @@ export default function PanelPage() {
     },
     [router]
   );
-    const handleTakeCaptureProposal = useCallback(
+
+  const handleTakeCaptureProposal = useCallback(
     async (capture: PublicInviteCaptureItem) => {
       try {
         await markPublicInviteCaptureHandled(capture.token, "handled");
@@ -284,7 +291,8 @@ export default function PanelPage() {
     },
     [router]
   );
-    const handleRescheduleCapture = useCallback(
+
+  const handleRescheduleCapture = useCallback(
     async (capture: PublicInviteCaptureItem) => {
       try {
         await markPublicInviteCaptureHandled(capture.token, "handled");
@@ -296,6 +304,7 @@ export default function PanelPage() {
     },
     [router]
   );
+
   const openEventFromCapture = useCallback(
     (capture: PublicInviteCaptureItem) => {
       router.push(`/events?focusEventId=${encodeURIComponent(capture.event_id)}`);
@@ -456,6 +465,7 @@ export default function PanelPage() {
   const tier = (profile?.plan_tier ?? "free") as PlanTier;
   const trialActive = isTrialActive(profile);
   const premiumActive = isPremiumUser(profile);
+  const canUseCaptures = hasPremiumAccess(profile);
 
   const currentContextOption =
     CONTEXT_OPTIONS.find((x) => x.key === contextState.mode) ??
@@ -926,7 +936,30 @@ export default function PanelPage() {
                 sugerencias listas para revisar sin perder el hilo.
               </p>
 
-              {capturesLoading ? (
+              {!canUseCaptures ? (
+                <div style={styles.premiumLockCard}>
+                  <div style={styles.premiumLockHeader}>
+                    <span style={styles.premiumLockBadge}>Premium</span>
+                    <h3 style={styles.premiumLockTitle}>
+                      Convierte respuestas externas en acciones reales
+                    </h3>
+                  </div>
+
+                  <p style={styles.premiumLockCopy}>
+                    Cuando alguien responde desde un link, SyncPlans puede
+                    convertir eso en decisiones dentro del sistema: aceptar,
+                    reprogramar o ajustar sin perder contexto.
+                  </p>
+
+                  <button
+                    type="button"
+                    style={styles.primarySmallButton}
+                    onClick={() => router.push("/planes")}
+                  >
+                    Ver cómo funciona en Premium
+                  </button>
+                </div>
+              ) : capturesLoading ? (
                 <EmptyBlock copy="Buscando respuestas externas recientes…" />
               ) : captures.length === 0 ? (
                 <EmptyBlock copy="Todavía no hay respuestas externas pendientes por revisar." />
@@ -935,15 +968,23 @@ export default function PanelPage() {
                   {captures.slice(0, 3).map((capture) => {
                     const hasProposal = Boolean(capture.proposed_date);
                     const statusTone =
-                      capture.status === "accepted" ? "ok" : hasProposal ? "warn" : "bad";
+                      capture.status === "accepted"
+                        ? "ok"
+                        : hasProposal
+                        ? "warn"
+                        : "bad";
                     const actorLabel = getCaptureActorLabel(capture);
-                    const receivedLabel = formatRelativeCaptureTime(capture.created_at);
+                    const receivedLabel = formatRelativeCaptureTime(
+                      capture.created_at
+                    );
 
                     return (
                       <div key={capture.invite_id} style={styles.captureCard}>
                         <div style={styles.captureTopRow}>
                           <div style={styles.captureHeaderCopy}>
-                            <div style={styles.listTitle}>{capture.event_title || "Evento"}</div>
+                            <div style={styles.listTitle}>
+                              {capture.event_title || "Evento"}
+                            </div>
                             <div style={styles.captureSubline}>
                               {capture.status === "accepted"
                                 ? `${actorLabel} confirmó este plan`
@@ -981,12 +1022,16 @@ export default function PanelPage() {
                           {capture.status === "accepted"
                             ? "La respuesta externa ya confirmó este plan y puedes abrirlo directamente."
                             : hasProposal
-                            ? `Nueva fecha sugerida: ${formatCaptureDate(capture.proposed_date)}`
+                            ? `Nueva fecha sugerida: ${formatCaptureDate(
+                                capture.proposed_date
+                              )}`
                             : "La invitación fue rechazada sin nueva fecha sugerida. Puedes reprogramarla o revisar el evento original."}
                         </div>
 
                         {capture.message ? (
-                          <div style={styles.captureMessage}>“{capture.message}”</div>
+                          <div style={styles.captureMessage}>
+                            “{capture.message}”
+                          </div>
                         ) : null}
 
                         <div style={styles.captureActions}>
@@ -1003,7 +1048,9 @@ export default function PanelPage() {
                               <button
                                 type="button"
                                 style={styles.primarySmallButton}
-                                onClick={() => handleTakeCaptureProposal(capture)}
+                                onClick={() =>
+                                  handleTakeCaptureProposal(capture)
+                                }
                               >
                                 Tomar esta fecha
                               </button>
@@ -1244,7 +1291,6 @@ function formatCaptureDate(value: string | null) {
     return "Fecha no disponible";
   }
 }
-
 
 function formatRelativeCaptureTime(value: string | null) {
   if (!value) return "Recientemente";
@@ -1893,6 +1939,47 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
   },
 
+  premiumLockCard: {
+    borderRadius: radii.lg,
+    border: "1px solid rgba(56,189,248,0.25)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.08), rgba(168,85,247,0.08))",
+    padding: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+
+  premiumLockHeader: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+
+  premiumLockBadge: {
+    alignSelf: "flex-start",
+    fontSize: 11,
+    fontWeight: 900,
+    padding: "4px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.4)",
+    background: "rgba(56,189,248,0.12)",
+    color: colors.textPrimary,
+  },
+
+  premiumLockTitle: {
+    margin: 0,
+    fontSize: 16,
+    fontWeight: 900,
+    color: colors.textPrimary,
+  },
+
+  premiumLockCopy: {
+    margin: 0,
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: colors.textMuted,
+  },
 
   captureCard: {
     borderRadius: radii.lg,
