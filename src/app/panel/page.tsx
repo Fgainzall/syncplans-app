@@ -30,6 +30,7 @@ import {
 import { getMyProfile, type Profile } from "@/lib/profilesDb";
 import {
   getPendingPublicInviteCaptures,
+  markPublicInviteCaptureHandled,
   type PublicInviteCaptureItem,
 } from "@/lib/invitationsDb";
 import { isPremiumUser, isTrialActive, type PlanTier } from "@/lib/premium";
@@ -224,7 +225,22 @@ export default function PanelPage() {
       setCapturesLoading(false);
     }
   }, []);
+  const handleReviewCapture = useCallback(
+    async (capture: PublicInviteCaptureItem) => {
+      try {
+        await markPublicInviteCaptureHandled(capture.token, "handled");
+      } catch (err) {
+        console.error("No se pudo marcar la captura como procesada:", err);
+      }
 
+      router.push(
+        `/events/new/details?eventId=${capture.event_id}&proposalSource=public_invite&inviteToken=${encodeURIComponent(
+          capture.token
+        )}`
+      );
+    },
+    [router]
+  );
   const fetchGoogleStatus = useCallback(async () => {
     try {
       setGoogleLoading(true);
@@ -892,13 +908,7 @@ export default function PanelPage() {
                             <button
                               type="button"
                               style={styles.primarySmallButton}
-                              onClick={() =>
-                                router.push(
-                                  `/events/new/details?eventId=${capture.event_id}&proposalSource=public_invite&inviteToken=${encodeURIComponent(
-                                    capture.token
-                                  )}`
-                                )
-                              }
+                             onClick={() => handleReviewCapture(capture)}
                             >
                               Revisar propuesta
                             </button>

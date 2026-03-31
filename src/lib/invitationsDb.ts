@@ -935,3 +935,23 @@ export async function getPendingPublicInviteCaptures(
 
   return merged.slice(0, safeLimit);
 }
+export async function markPublicInviteCaptureHandled(
+  token: string,
+  response: string = "handled"
+): Promise<void> {
+  const safeToken = String(token ?? "").trim();
+  if (!safeToken) return;
+
+  const { error } = await (supabase as any)
+    .from(PUBLIC_INVITES_TABLE)
+    .update({
+      creator_response: response,
+    })
+    .eq("token", safeToken);
+
+  if (error) {
+    throw new Error(
+      error.message || "No se pudo marcar la captura como procesada."
+    );
+  }
+}
