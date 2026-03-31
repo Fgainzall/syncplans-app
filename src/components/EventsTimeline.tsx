@@ -5,7 +5,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { trackEvent } from "@/lib/analytics";
-import supabase from "@/lib/supabaseClient";
 import {
   deleteEventsByIdsDetailed,
   generatePublicInviteLink,
@@ -508,25 +507,19 @@ export default function EventsTimeline({
 
     const request = (async () => {
       try {
-        console.log("SYNCPLANS ANALYTICS TEST", eventId);
-const { invite, link } = await generatePublicInviteLink(eventId);
+        const { invite, link } = await generatePublicInviteLink(eventId);
 
-const { error: analyticsError } = await supabase
-  .from("events_analytics")
-  .insert({
-    user_id: currentUserId,
-    event_type: "invite_created",
-    entity_id: eventId,
-    metadata: {
-      source: "timeline_share",
-    },
-  });
+        await trackEvent({
+          event: "invite_created",
+          userId: currentUserId,
+          entityId: invite?.id ? String(invite.id) : eventId,
+          metadata: {
+            source: "timeline_share",
+            eventId,
+          },
+        });
 
-if (analyticsError) {
-  console.error("[EventsTimeline] analytics invite_created error", analyticsError);
-}
-
-setShareStateById((prev) => ({
+        setShareStateById((prev) => ({
           ...prev,
           [eventId]: {
             loading: false,

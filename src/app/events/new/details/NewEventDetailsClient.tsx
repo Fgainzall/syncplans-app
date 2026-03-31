@@ -995,6 +995,9 @@ await trackEvent({
     groupId: payload.groupId,
   });
   savedEventId = created?.id ? String(created.id) : null;
+  console.log("EVENT CREATED ID", created?.id);
+console.log("TRACK EVENT CREATED", payload);
+
   if (savedEventId) {
   await trackEvent({
     event: "event_created",
