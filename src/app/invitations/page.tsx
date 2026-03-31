@@ -223,7 +223,7 @@ export default function InvitationsPage() {
                   {pendingCount === 1 ? "" : "s"}
                 </div>
                 <div style={styles.heroSummaryHint}>
-                  Aceptar te lleva por el flujo premium de ingreso al grupo.
+                  Aceptar te lleva al flujo guiado de incorporación al grupo.
                 </div>
               </Card>
             </Card>
@@ -329,19 +329,19 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 0,
   },
 
-headerRow: {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 18,
-  flexWrap: "wrap",
-  width: "100%",
-},
-headerCopy: {
-  minWidth: 0,
-  flex: "1 1 320px",
-  width: "100%",
-},
+  headerRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 18,
+    flexWrap: "wrap",
+    width: "100%",
+  },
+  headerCopy: {
+    minWidth: 0,
+    flex: "1 1 320px",
+    width: "100%",
+  },
   kicker: {
     fontSize: 11,
     letterSpacing: "0.14em",
@@ -358,23 +358,23 @@ headerCopy: {
     fontWeight: 950,
   },
 
- sub: {
-  marginTop: 6,
-  maxWidth: 700,
-  fontSize: 13,
-  lineHeight: 1.65,
-  color: "rgba(226,232,240,0.84)",
-  width: "100%",
-  wordBreak: "normal",
-  overflowWrap: "break-word",
-},
+  sub: {
+    marginTop: 6,
+    maxWidth: 700,
+    fontSize: 13,
+    lineHeight: 1.65,
+    color: "rgba(226,232,240,0.84)",
+    width: "100%",
+    wordBreak: "normal",
+    overflowWrap: "break-word",
+  },
 
- topActions: {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 10,
-  width: "100%",
-},
+  topActions: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+    width: "100%",
+  },
 
   heroSection: {
     display: "flex",
@@ -448,37 +448,37 @@ headerCopy: {
     color: "rgba(148,163,184,0.96)",
   },
 
-primaryBtn: {
-  appearance: "none",
-  border: "1px solid rgba(96,165,250,0.34)",
-  background:
-    "linear-gradient(135deg, rgba(37,99,235,0.34), rgba(124,58,237,0.34))",
-  color: "#ffffff",
-  borderRadius: 16,
-  padding: "12px 16px",
-  fontWeight: 800,
-  fontSize: 14,
-  cursor: "pointer",
-  boxShadow: "0 16px 34px rgba(29,78,216,0.18)",
-  flex: "1 1 180px",
-  minWidth: 0,
-  textAlign: "center",
-},
+  primaryBtn: {
+    appearance: "none",
+    border: "1px solid rgba(96,165,250,0.34)",
+    background:
+      "linear-gradient(135deg, rgba(37,99,235,0.34), rgba(124,58,237,0.34))",
+    color: "#ffffff",
+    borderRadius: 16,
+    padding: "12px 16px",
+    fontWeight: 800,
+    fontSize: 14,
+    cursor: "pointer",
+    boxShadow: "0 16px 34px rgba(29,78,216,0.18)",
+    flex: "1 1 180px",
+    minWidth: 0,
+    textAlign: "center",
+  },
 
-ghostBtn: {
-  appearance: "none",
-  border: "1px solid rgba(255,255,255,0.14)",
-  background: "rgba(255,255,255,0.04)",
-  color: "#ffffff",
-  borderRadius: 16,
-  padding: "12px 16px",
-  fontWeight: 800,
-  fontSize: 14,
-  cursor: "pointer",
-  flex: "1 1 220px",
-  minWidth: 0,
-  textAlign: "center",
-},
+  ghostBtn: {
+    appearance: "none",
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#ffffff",
+    borderRadius: 16,
+    padding: "12px 16px",
+    fontWeight: 800,
+    fontSize: 14,
+    cursor: "pointer",
+    flex: "1 1 220px",
+    minWidth: 0,
+    textAlign: "center",
+  },
 
   stateCard: {
     padding: 18,

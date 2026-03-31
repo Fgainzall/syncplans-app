@@ -21,6 +21,10 @@ import {
   type Profile as UserProfile,
 } from "@/lib/profilesDb";
 import {
+  hasPremiumAccess,
+  getPlanAccessState,
+} from "@/lib/premium";
+import {
   colors,
   layout,
   radii,
@@ -107,9 +111,7 @@ async function ensureActiveGroupForMode(
     }
   }
 
-  const match = groups.find(
-    (g: any) => String(g.type ?? "").toLowerCase() === wantType
-  );
+  const match = groups.find((g: any) => String(g.type ?? "").toLowerCase() === wantType);
   const pick = match?.id ?? groups[0]?.id ?? null;
 
   if (pick) {
@@ -221,6 +223,22 @@ function getAutoSubtitle(pathname: string) {
   return "Organiza tu día sin conflictos de horario.";
 }
 
+function getUpgradeMessage(pathname: string) {
+  if (pathname.startsWith("/groups")) {
+    return "Más claridad cuando tu coordinación compartida crece.";
+  }
+  if (pathname.startsWith("/invitations")) {
+    return "Más contexto cuando nuevas personas entran a coordinar.";
+  }
+  if (pathname.startsWith("/calendar")) {
+    return "Más contexto para anticipar choques antes de reaccionar.";
+  }
+  if (pathname.startsWith("/panel")) {
+    return "Más visibilidad para sostener la coordinación sin fricción.";
+  }
+  return "Menos fricción y más claridad para coordinar mejor.";
+}
+
 export default function PremiumHeader({
   title,
   subtitle,
@@ -237,6 +255,7 @@ export default function PremiumHeader({
   const [unreadCount, setUnreadCount] = useState(0);
   const [headerUser, setHeaderUser] = useState<HeaderUser | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -279,30 +298,33 @@ export default function PremiumHeader({
 
     (async () => {
       try {
-        const profile: UserProfile | null = await getMyProfile();
+        const fetchedProfile: UserProfile | null = await getMyProfile();
         if (!alive) return;
 
-        if (!profile) {
+        setProfile(fetchedProfile ?? null);
+
+        if (!fetchedProfile) {
           setHeaderUser({ name: "Tú", initials: "T" });
           return;
         }
 
         const display = (
-          profile.display_name ??
-          `${profile.first_name ?? ""} ${profile.last_name ?? ""}`
+          fetchedProfile.display_name ??
+          `${fetchedProfile.first_name ?? ""} ${fetchedProfile.last_name ?? ""}`
         ).trim();
 
         const name = display || "Tú";
         const initials = getInitials({
-          first_name: profile.first_name,
-          last_name: profile.last_name,
-          display_name: profile.display_name,
+          first_name: fetchedProfile.first_name,
+          last_name: fetchedProfile.last_name,
+          display_name: fetchedProfile.display_name,
         });
 
         setHeaderUser({ name, initials });
       } catch {
         if (!alive) return;
         setHeaderUser({ name: "Tú", initials: "T" });
+        setProfile(null);
       }
     })();
 
@@ -345,6 +367,22 @@ export default function PremiumHeader({
 
   const finalTitle = title ?? getAutoTitle(pathname);
   const finalSubtitle = subtitle ?? getAutoSubtitle(pathname);
+
+  const hasPremium = useMemo(() => hasPremiumAccess(profile), [profile]);
+const planState = useMemo(() => getPlanAccessState(profile), [profile]);
+
+const headerPlanBadge = useMemo(() => {
+  const tier = String((profile as any)?.plan_tier ?? "").toLowerCase();
+  if (tier === "trial") return "Trial";
+  return "Free";
+}, [profile]);
+  const upgradeMessage = useMemo(() => getUpgradeMessage(pathname), [pathname]);
+  const shouldShowHeaderUpgrade = useMemo(() => {
+    if (hasPremium) return false;
+    if (pathname.startsWith("/planes")) return false;
+    if (pathname.startsWith("/auth")) return false;
+    return true;
+  }, [hasPremium, pathname]);
 
   async function onNewEvent() {
     try {
@@ -553,6 +591,24 @@ export default function PremiumHeader({
 
             <p style={styles.mobileSubtitle}>{finalSubtitle}</p>
 
+            {shouldShowHeaderUpgrade ? (
+              <div style={styles.mobileUpgradeBar}>
+                <div style={styles.mobileUpgradeCopy}>
+                  <span style={styles.upgradeMiniBadge}>
+                   {headerPlanBadge}
+                  </span>
+                  <span>{upgradeMessage}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => router.push("/planes")}
+                  style={styles.mobileUpgradeButton}
+                >
+                  Ver planes
+                </button>
+              </div>
+            ) : null}
+
             <div style={styles.mobileActionsRow}>
               <button
                 type="button"
@@ -593,6 +649,19 @@ export default function PremiumHeader({
                     <span style={styles.contextMetaDesktop}>
                       · {groupDisplayName}
                     </span>
+                  ) : null}
+
+                  {shouldShowHeaderUpgrade ? (
+                    <button
+                      type="button"
+                      onClick={() => router.push("/planes")}
+                      style={styles.desktopUpgradeChip}
+                    >
+                      <span style={styles.upgradeMiniBadgeDesktop}>
+                        {headerPlanBadge}
+                      </span>
+                      {upgradeMessage}
+                    </button>
                   ) : null}
                 </div>
 
@@ -947,6 +1016,85 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.5,
     color: colors.textSecondary,
     fontWeight: 600,
+  },
+
+  mobileUpgradeBar: {
+    position: "relative",
+    zIndex: 1,
+    marginTop: 12,
+    display: "grid",
+    gap: 8,
+    padding: "10px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(56,189,248,0.18)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(168,85,247,0.08))",
+  },
+  mobileUpgradeCopy: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+    alignItems: "center",
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: colors.textPrimary,
+    fontWeight: 700,
+  },
+  mobileUpgradeButton: {
+    height: 38,
+    padding: "0 14px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.06)",
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+    justifySelf: "start",
+  },
+  desktopUpgradeChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "7px 12px",
+    borderRadius: radii.full,
+    border: "1px solid rgba(56,189,248,0.18)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(168,85,247,0.08))",
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  upgradeMiniBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 42,
+    height: 22,
+    padding: "0 8px",
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.10)",
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  upgradeMiniBadgeDesktop: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 42,
+    height: 20,
+    padding: "0 8px",
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.10)",
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
 
   iconButton: {

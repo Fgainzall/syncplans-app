@@ -9,7 +9,13 @@ import LogoutButton from "@/components/LogoutButton";
 
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
 import { inviteToGroup } from "@/lib/invitationsDb";
-import { getProfilesByIds, type Profile as UserProfile } from "@/lib/profilesDb";
+import {
+  getProfilesByIds,
+  getMyProfile,
+  type Profile as UserProfile,
+  type Profile as AccountProfile,
+} from "@/lib/profilesDb";
+import { hasPremiumAccess } from "@/lib/premium";
 import {
   updateGroupMeta,
   deleteGroup,
@@ -111,6 +117,7 @@ export default function GroupDetailsPage() {
     null
   );
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [accountProfile, setAccountProfile] = useState<AccountProfile | null>(null);
 
   // Edición de grupo (nombre + tipo)
   const [editName, setEditName] = useState("");
@@ -150,6 +157,14 @@ export default function GroupDetailsPage() {
     if (!currentUserId) return false;
     return members.some((m) => String(m.user_id) === String(currentUserId));
   }, [members, currentUserId]);
+
+  const hasPremium = useMemo(() => {
+    return hasPremiumAccess(accountProfile);
+  }, [accountProfile]);
+
+  const shouldShowInviteUpgradeNudge = useMemo(() => {
+    return !hasPremium && isOwner;
+  }, [hasPremium, isOwner]);
 
   const hasGroupMetaChanges = useMemo(() => {
     if (!group) return false;
@@ -263,16 +278,20 @@ export default function GroupDetailsPage() {
       // no bloquea
     }
 
-    const { data: g, error: gErr } = await supabase
-      .from("groups")
-      .select("id,name,type,owner_id,created_at")
-      .eq("id", groupId)
-      .single();
+    const [{ data: g, error: gErr }, fetchedProfile] = await Promise.all([
+      supabase
+        .from("groups")
+        .select("id,name,type,owner_id,created_at")
+        .eq("id", groupId)
+        .single(),
+      getMyProfile().catch(() => null),
+    ]);
 
     if (gErr) throw gErr;
 
     const typedGroup = g as Group;
     setGroup(typedGroup);
+    setAccountProfile(fetchedProfile ?? null);
 
     setEditName(typedGroup.name ?? "");
     setEditType(normalizeEditableGroupType(typedGroup.type));
@@ -638,7 +657,6 @@ export default function GroupDetailsPage() {
 
   return (
     <main style={styles.page}>
-      {/* MOBILE ULTRA PREMIUM */}
       <style jsx global>{`
         @media (max-width: 680px) {
           .sp-group-shell {
@@ -750,7 +768,6 @@ export default function GroupDetailsPage() {
           </div>
         </section>
 
-        {/* Configuración del grupo */}
         <section style={styles.card}>
           <div style={styles.sectionTitle}>Configurar grupo</div>
           <div style={styles.smallNote}>
@@ -816,7 +833,6 @@ export default function GroupDetailsPage() {
               )}
             </div>
 
-            {/* Zona peligrosa */}
             <div
               style={{
                 marginTop: 12,
@@ -864,7 +880,6 @@ export default function GroupDetailsPage() {
           </div>
         </section>
 
-        {/* Miembros */}
         <section style={styles.card}>
           <div style={styles.sectionTitle}>Miembros</div>
           <div style={styles.smallNote}>
@@ -903,7 +918,6 @@ export default function GroupDetailsPage() {
           </div>
         </section>
 
-        {/* Mensajes */}
         <section style={styles.card}>
           <div style={styles.sectionTitleRow}>
             <div style={styles.sectionTitle}>Mensajes del grupo</div>
@@ -979,12 +993,46 @@ export default function GroupDetailsPage() {
           </div>
         </section>
 
-        {/* Invitaciones */}
         <section style={styles.card}>
           <div style={styles.sectionTitle}>Invitar</div>
           <div style={styles.smallNote}>
             Escribe el email del invitado. Se creará una invitación <b>pending</b> y, cuando la acepte, se agregará automáticamente como miembro.
           </div>
+
+          {shouldShowInviteUpgradeNudge ? (
+            <div style={styles.upgradeNudgeCard}>
+              <div style={styles.upgradeNudgeBadge}>Premium</div>
+              <div style={styles.upgradeNudgeTitle}>
+                Invitar está bien. Coordinar cuando el grupo crece es otra cosa.
+              </div>
+              <div style={styles.upgradeNudgeCopy}>
+                Premium te ayuda a sostener mejor la coordinación compartida cuando entra más gente, con más claridad sobre cambios, contexto y menos fricción para decidir.
+              </div>
+              <div style={styles.upgradeNudgeBullets}>
+                <div>• Más contexto cuando el grupo empieza a moverse más.</div>
+                <div>• Mejor lectura de lo que cambia al sumar nuevas personas.</div>
+                <div>• Una experiencia más clara cuando la coordinación deja de ser simple.</div>
+              </div>
+              <div style={styles.upgradeNudgeActions}>
+                <button
+                  className="sp-tap"
+                  type="button"
+                  onClick={() => router.push("/planes")}
+                  style={styles.primaryBtn}
+                >
+                  Ver cómo funciona
+                </button>
+                <button
+                  className="sp-tap"
+                  type="button"
+                  onClick={() => setEmail((prev) => prev)}
+                  style={styles.ghostBtn}
+                >
+                  Seguir invitando
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div className="sp-group-inputRow" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
             <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="correo@ejemplo.com" style={styles.input} />
@@ -1262,7 +1310,6 @@ const styles: Record<string, React.CSSProperties> = {
   loadingTitle: { fontWeight: 900 },
   loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
 
-  // Mensajes
   messagesWrap: {
     marginTop: 10,
     maxHeight: 260,
@@ -1310,5 +1357,51 @@ const styles: Record<string, React.CSSProperties> = {
     outline: "none",
     fontSize: 13,
     resize: "vertical",
+  },
+
+  upgradeNudgeCard: {
+    marginTop: 12,
+    borderRadius: 18,
+    border: "1px solid rgba(56,189,248,0.22)",
+    background: "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(124,58,237,0.08))",
+    padding: 14,
+    display: "grid",
+    gap: 8,
+  },
+  upgradeNudgeBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    padding: "6px 10px",
+    fontSize: 11,
+    fontWeight: 900,
+    border: "1px solid rgba(56,189,248,0.28)",
+    background: "rgba(56,189,248,0.12)",
+    color: "#F3F7FF",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  upgradeNudgeTitle: {
+    fontSize: 18,
+    lineHeight: 1.25,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+  },
+  upgradeNudgeCopy: {
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: "rgba(235,241,255,0.80)",
+  },
+  upgradeNudgeBullets: {
+    display: "grid",
+    gap: 5,
+    fontSize: 12,
+    lineHeight: 1.55,
+    color: "rgba(235,241,255,0.78)",
+  },
+  upgradeNudgeActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    marginTop: 2,
   },
 };
