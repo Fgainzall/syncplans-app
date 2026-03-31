@@ -936,11 +936,23 @@ export default function PanelPage() {
                     const hasProposal = Boolean(capture.proposed_date);
                     const statusTone =
                       capture.status === "accepted" ? "ok" : hasProposal ? "warn" : "bad";
+                    const actorLabel = getCaptureActorLabel(capture);
+                    const receivedLabel = formatRelativeCaptureTime(capture.created_at);
 
                     return (
                       <div key={capture.invite_id} style={styles.captureCard}>
                         <div style={styles.captureTopRow}>
-                          <div style={styles.listTitle}>{capture.event_title || "Evento"}</div>
+                          <div style={styles.captureHeaderCopy}>
+                            <div style={styles.listTitle}>{capture.event_title || "Evento"}</div>
+                            <div style={styles.captureSubline}>
+                              {capture.status === "accepted"
+                                ? `${actorLabel} confirmó este plan`
+                                : hasProposal
+                                ? `${actorLabel} sugirió mover este plan`
+                                : `${actorLabel} rechazó este plan`}
+                            </div>
+                          </div>
+
                           <StatusPill
                             label={
                               capture.status === "accepted"
@@ -953,19 +965,31 @@ export default function PanelPage() {
                           />
                         </div>
 
-                                            <div style={styles.captureMeta}>
+                        <div style={styles.captureMetaRow}>
+                          <span style={styles.captureMetaPill}>
+                            Recibido {receivedLabel}
+                          </span>
+
+                          {capture.contact ? (
+                            <span style={styles.captureMetaPill}>
+                              Respuesta de {capture.contact}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div style={styles.captureMeta}>
                           {capture.status === "accepted"
-                            ? "La invitación fue aceptada externamente."
+                            ? "La respuesta externa ya confirmó este plan y puedes abrirlo directamente."
                             : hasProposal
                             ? `Nueva fecha sugerida: ${formatCaptureDate(capture.proposed_date)}`
-                            : "La invitación fue rechazada sin propuesta de nueva fecha."}
+                            : "La invitación fue rechazada sin nueva fecha sugerida. Puedes reprogramarla o revisar el evento original."}
                         </div>
 
                         {capture.message ? (
                           <div style={styles.captureMessage}>“{capture.message}”</div>
                         ) : null}
 
-                                              <div style={styles.captureActions}>
+                        <div style={styles.captureActions}>
                           {capture.status === "accepted" ? (
                             <button
                               type="button"
@@ -974,7 +998,7 @@ export default function PanelPage() {
                             >
                               Ver evento
                             </button>
-                                                 ) : hasProposal ? (
+                          ) : hasProposal ? (
                             <>
                               <button
                                 type="button"
@@ -1219,6 +1243,41 @@ function formatCaptureDate(value: string | null) {
   } catch {
     return "Fecha no disponible";
   }
+}
+
+
+function formatRelativeCaptureTime(value: string | null) {
+  if (!value) return "Recientemente";
+
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Recientemente";
+
+    const diffMs = Date.now() - date.getTime();
+    const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
+
+    if (diffMinutes < 1) return "Ahora mismo";
+    if (diffMinutes < 60) return `Hace ${diffMinutes} min`;
+
+    const diffHours = Math.round(diffMinutes / 60);
+    if (diffHours < 24) return `Hace ${diffHours} h`;
+
+    const diffDays = Math.round(diffHours / 24);
+    if (diffDays < 7) return `Hace ${diffDays} día${diffDays === 1 ? "" : "s"}`;
+
+    return date.toLocaleDateString("es-PE", {
+      day: "2-digit",
+      month: "short",
+    });
+  } catch {
+    return "Recientemente";
+  }
+}
+
+function getCaptureActorLabel(capture: PublicInviteCaptureItem) {
+  const contact = String(capture.contact ?? "").trim();
+  if (contact) return contact;
+  return "Alguien";
 }
 
 function formatExternalEventRange(event: ExternalEvent) {
@@ -1832,6 +1891,78 @@ const styles: Record<string, CSSProperties> = {
     color: colors.textPrimary,
     fontWeight: 800,
     cursor: "pointer",
+  },
+
+
+  captureCard: {
+    borderRadius: radii.lg,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
+    padding: 14,
+    display: "grid",
+    gap: 10,
+  },
+
+  captureTopRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
+
+  captureHeaderCopy: {
+    minWidth: 0,
+    flex: "1 1 220px",
+    display: "grid",
+    gap: 4,
+  },
+
+  captureSubline: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 1.45,
+    fontWeight: 700,
+  },
+
+  captureMetaRow: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+
+  captureMetaPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: 800,
+  },
+
+  captureMeta: {
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 1.5,
+  },
+
+  captureMessage: {
+    fontSize: 13,
+    color: colors.textPrimary,
+    lineHeight: 1.5,
+    padding: "10px 12px",
+    borderRadius: radii.md,
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.06)",
+  },
+
+  captureActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
   },
 
   googleEventsWrap: {
