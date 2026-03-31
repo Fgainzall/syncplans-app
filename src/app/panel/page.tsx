@@ -241,6 +241,49 @@ export default function PanelPage() {
     },
     [router]
   );
+    const handleTakeCaptureProposal = useCallback(
+    async (capture: PublicInviteCaptureItem) => {
+      try {
+        await markPublicInviteCaptureHandled(capture.token, "handled");
+      } catch (err) {
+        console.error("No se pudo marcar la captura como procesada:", err);
+      }
+
+      const proposedRaw = String(capture.proposed_date ?? "").trim();
+      const eventStartRaw = String(capture.event_start ?? "").trim();
+      const eventEndRaw = String(capture.event_end ?? "").trim();
+
+      const proposedStart = new Date(proposedRaw);
+      const eventStart = new Date(eventStartRaw);
+      const eventEnd = new Date(eventEndRaw);
+
+      if (
+        Number.isNaN(proposedStart.getTime()) ||
+        Number.isNaN(eventStart.getTime()) ||
+        Number.isNaN(eventEnd.getTime())
+      ) {
+        router.push(`/events/new/details?eventId=${capture.event_id}`);
+        return;
+      }
+
+      const durationMs = Math.max(
+        15 * 60 * 1000,
+        eventEnd.getTime() - eventStart.getTime()
+      );
+
+      const proposedEnd = new Date(proposedStart.getTime() + durationMs);
+
+      const qp = new URLSearchParams();
+      qp.set("eventId", String(capture.event_id));
+      qp.set("proposedStart", proposedStart.toISOString());
+      qp.set("proposedEnd", proposedEnd.toISOString());
+      qp.set("proposalSource", "public_invite");
+      qp.set("proposalIntent", "accept");
+
+      router.push(`/events/new/details?${qp.toString()}`);
+    },
+    [router]
+  );
     const handleRescheduleCapture = useCallback(
     async (capture: PublicInviteCaptureItem) => {
       try {
@@ -931,11 +974,19 @@ export default function PanelPage() {
                             >
                               Ver evento
                             </button>
-                          ) : hasProposal ? (
+                                                 ) : hasProposal ? (
                             <>
                               <button
                                 type="button"
                                 style={styles.primarySmallButton}
+                                onClick={() => handleTakeCaptureProposal(capture)}
+                              >
+                                Tomar esta fecha
+                              </button>
+
+                              <button
+                                type="button"
+                                style={styles.secondarySmallButton}
                                 onClick={() => handleReviewCapture(capture)}
                               >
                                 Revisar propuesta
