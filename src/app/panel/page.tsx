@@ -208,17 +208,7 @@ export default function PanelPage() {
       setLoading(false);
     }
   }, []);
-  const loadCaptures = useCallback(async () => {
-    try {
-      const rows = await getPendingPublicInviteCaptures(6).catch(
-        () => [] as PublicInviteCaptureItem[]
-      );
-      setCaptures(rows);
-    } catch (err) {
-      console.error("Error cargando capturas sugeridas:", err);
-      setCaptures([]);
-    }
-  }, []);
+
   const fetchGoogleStatus = useCallback(async () => {
     try {
       setGoogleLoading(true);
@@ -306,35 +296,17 @@ export default function PanelPage() {
 
   useEffect(() => {
     loadCore();
-    loadCaptures();
     fetchGoogleStatus();
     setContextState(getGroupState());
-  }, [loadCore, loadCaptures, fetchGoogleStatus]);
+  }, [loadCore, fetchGoogleStatus]);
+
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (!e.key || e.key === "syncplans.groupState.v3") {
         setContextState(getGroupState());
       }
     };
-  useEffect(() => {
-    const refreshSuggestedCaptures = () => {
-      loadCaptures();
-    };
 
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        loadCaptures();
-      }
-    };
-
-    window.addEventListener("focus", refreshSuggestedCaptures);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-
-    return () => {
-      window.removeEventListener("focus", refreshSuggestedCaptures);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [loadCaptures]);
     const onModeChanged = () => {
       setContextState(getGroupState());
     };
