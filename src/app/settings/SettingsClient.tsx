@@ -408,7 +408,7 @@ refreshGoogleStatusWithRetry().catch(() => {});
 
           <section style={styles.hero}>
             <div>
-              <div style={styles.kicker}>Panel</div>
+              <div style={styles.kicker}>Ajustes</div>
               <h1 style={styles.h1}>{title}</h1>
               <div style={styles.sub}>
                 Notificaciones, permisos por grupo y conexiones de calendario.
