@@ -281,19 +281,35 @@ export default function DetectedClient() {
 
   const isFocusedView = Boolean(focusEventId);
 
+  const focusRelatedVisibleConflicts = useMemo(() => {
+    if (!focusEventId) return [];
+
+    return allVisibleConflicts.filter(
+      (c) =>
+        String(c.existingEventId) === String(focusEventId) ||
+        String(c.incomingEventId) === String(focusEventId)
+    );
+  }, [allVisibleConflicts, focusEventId]);
+
   const focusSummary = useMemo(() => {
     if (!focusEventId) {
-      return { relatedCount: 0 };
+      return { relatedCount: 0, pendingCount: 0, visibleCount: 0 };
     }
 
-    const relatedCount = pendingConflicts.filter(
+    const pendingCount = pendingConflicts.filter(
       (c) =>
         String(c.existingEventId) === String(focusEventId) ||
         String(c.incomingEventId) === String(focusEventId)
     ).length;
 
-    return { relatedCount };
-  }, [pendingConflicts, focusEventId]);
+    const visibleCount = focusRelatedVisibleConflicts.length;
+
+    return {
+      relatedCount: pendingCount > 0 ? pendingCount : visibleCount,
+      pendingCount,
+      visibleCount,
+    };
+  }, [pendingConflicts, focusRelatedVisibleConflicts, focusEventId]);
   const summary = useMemo(() => {
     const totalVisible = allVisibleConflicts.length;
     let decided = 0;
@@ -361,6 +377,14 @@ export default function DetectedClient() {
   const resumeNext = () => {
     if (pendingConflicts.length === 0) return;
     openCompare(0);
+  };
+
+  const openFocusedCompare = () => {
+    const qp = new URLSearchParams();
+    if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
+    if (focusEventId) qp.set("eventId", focusEventId);
+
+    router.push(`/conflicts/compare?${qp.toString()}`);
   };
 
   const goActions = () => {
@@ -445,6 +469,10 @@ export default function DetectedClient() {
               <button onClick={resumeNext} style={styles.primaryBtn}>
                 Resolver ahora ✨
               </button>
+            ) : isFocusedView ? (
+              <button onClick={openFocusedCompare} style={styles.primaryBtn}>
+                Revisar este conflicto
+              </button>
             ) : (
               <button
                 onClick={() => router.push("/calendar")}
@@ -465,8 +493,20 @@ export default function DetectedClient() {
               {focusSummary.relatedCount > 0
                 ? `Este evento tiene ${focusSummary.relatedCount} conflicto${
                     focusSummary.relatedCount === 1 ? "" : "s"
-                  } pendiente${focusSummary.relatedCount === 1 ? "" : "s"} y por eso lo trajimos arriba.`
+                  } ${focusSummary.pendingCount > 0 ? "pendiente" : "relacionado"}${
+                    focusSummary.relatedCount === 1 ? "" : "s"
+                  } y por eso lo trajimos arriba.`
                 : "Llegaste desde una alerta específica. Si ya no aparece conflicto pendiente, puede que ya haya sido resuelto o ignorado."}
+            </div>
+
+            <div style={styles.focusActions}>
+              <button onClick={openFocusedCompare} style={styles.primaryBtn}>
+                Resolver conflicto
+              </button>
+
+              <button onClick={() => router.push("/calendar")} style={styles.secondaryBtn}>
+                Volver al calendario
+              </button>
             </div>
           </section>
         ) : null}
@@ -479,8 +519,15 @@ export default function DetectedClient() {
               </div>
             </div>
 
-            {(summary.pending > 0 || summary.decided > 0) && (
-              <button onClick={goActions} style={styles.secondaryBtn}>
+            {(summary.pending > 0 || summary.decided > 0 || isFocusedView) && (
+              <button
+                onClick={
+                  summary.pending > 0 || summary.decided > 0
+                    ? goActions
+                    : openFocusedCompare
+                }
+                style={styles.secondaryBtn}
+              >
                 {summary.decided > 0
                   ? "Aplicar decisiones"
                   : "Resolver conflicto"}
