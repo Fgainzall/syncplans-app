@@ -16,6 +16,8 @@ import {
   getInvitationById,
   type GroupInvitation,
 } from "@/lib/invitationsDb";
+import { getMyProfile, type Profile } from "@/lib/profilesDb";
+import { hasPremiumAccess } from "@/lib/premium";
 
 function isUuid(x: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -123,6 +125,7 @@ export default function AcceptInviteClient() {
   const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
     null
   );
+  const [profile, setProfile] = useState<Profile | null>(null);
 
   const toastTimerRef = useRef<number | null>(null);
   const navTimerRef = useRef<number | null>(null);
@@ -160,6 +163,7 @@ export default function AcceptInviteClient() {
       try {
         if (!inviteId || !isUuid(inviteId)) {
           setInv(null);
+          setProfile(null);
           setLoading(false);
           return;
         }
@@ -175,12 +179,19 @@ export default function AcceptInviteClient() {
           return;
         }
 
-        const r = await getInvitationById(inviteId);
+        const [r, fetchedProfile] = await Promise.all([
+          getInvitationById(inviteId),
+          getMyProfile().catch(() => null),
+        ]);
+
         if (!alive) return;
+
         setInv(r ?? null);
+        setProfile(fetchedProfile ?? null);
       } catch (e: any) {
         if (!alive) return;
         setInv(null);
+        setProfile(null);
         showToast({
           title: "No se pudo cargar la invitación",
           subtitle: e?.message || "Intenta otra vez.",
@@ -197,6 +208,8 @@ export default function AcceptInviteClient() {
 
   const status = String(inv?.status ?? "").toLowerCase();
   const pending = status === "pending";
+  const hasPremium = hasPremiumAccess(profile);
+  const shouldShowExternalNudge = !hasPremium && pending;
 
   async function onAccept() {
     if (!inviteId || !inv || busy) return;
@@ -487,6 +500,75 @@ export default function AcceptInviteClient() {
                 >
                   Estás a un click de sincronizar calendarios.
                 </div>
+
+                {shouldShowExternalNudge ? (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      borderRadius: 18,
+                      border: "1px solid rgba(56,189,248,0.25)",
+                      background:
+                        "linear-gradient(135deg, rgba(56,189,248,0.12), rgba(124,58,237,0.10))",
+                      padding: 14,
+                      display: "grid",
+                      gap: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 900,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        opacity: 0.8,
+                      }}
+                    >
+                      Premium
+                    </div>
+
+                    <div style={{ fontWeight: 900, fontSize: 16 }}>
+                      Recibir respuestas está bien. Convertirlas en decisiones claras es otra cosa.
+                    </div>
+
+                    <div style={{ fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
+                      Premium organiza automáticamente estas respuestas dentro de tu coordinación,
+                      para que no tengas que interpretarlas manualmente.
+                    </div>
+
+                    <div style={{ display: "flex", gap: 10, marginTop: 6, flexWrap: "wrap" }}>
+                      <button
+                        onClick={() => router.push("/planes")}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: 12,
+                          border: "1px solid rgba(255,255,255,0.14)",
+                          background:
+                            "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
+                          color: "white",
+                          fontWeight: 900,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Entender cómo funciona
+                      </button>
+
+                      <button
+                        onClick={() => router.push("/groups")}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: 12,
+                          border: "1px solid rgba(255,255,255,0.14)",
+                          background: "rgba(255,255,255,0.04)",
+                          color: "white",
+                          fontWeight: 900,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Seguir
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div
                   style={{
