@@ -498,7 +498,7 @@ export default function AcceptInviteClient() {
                     maxWidth: 700,
                   }}
                 >
-                  Estás a un click de sincronizar calendarios.
+                  Estás a un click de sumar este grupo a tu coordinación real.
                 </div>
 
                 {shouldShowExternalNudge ? (
@@ -527,12 +527,26 @@ export default function AcceptInviteClient() {
                     </div>
 
                     <div style={{ fontWeight: 900, fontSize: 16 }}>
-                      Recibir respuestas está bien. Convertirlas en decisiones claras es otra cosa.
+                      Aceptar una invitación está bien. Coordinar lo que viene después es otra cosa.
                     </div>
 
-                    <div style={{ fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
-                      Premium organiza automáticamente estas respuestas dentro de tu coordinación,
-                      para que no tengas que interpretarlas manualmente.
+                    <div style={{ fontSize: 13, opacity: 0.78, lineHeight: 1.55 }}>
+                      Premium te ayuda a convertir esta nueva coordinación en una sola verdad compartida,
+                      con más contexto para anticipar choques y menos fricción para decidir.
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: 6,
+                        marginTop: 2,
+                        fontSize: 12,
+                        opacity: 0.78,
+                      }}
+                    >
+                      <div>• Anticipa conflictos cuando entra una agenda nueva.</div>
+                      <div>• Da más claridad cuando varias personas empiezan a coordinar.</div>
+                      <div>• Evita interpretar manualmente qué cambió y qué no.</div>
                     </div>
 
                     <div style={{ display: "flex", gap: 10, marginTop: 6, flexWrap: "wrap" }}>
@@ -564,7 +578,7 @@ export default function AcceptInviteClient() {
                           cursor: "pointer",
                         }}
                       >
-                        Seguir
+                        Seguir por ahora
                       </button>
                     </div>
                   </div>
@@ -603,8 +617,7 @@ export default function AcceptInviteClient() {
                           fontSize: 13,
                         }}
                       >
-                        Tipo: <b>{labelType(inv.group_type)}</b> · Rol:{" "}
-                        <b>{inv.role || "member"}</b>
+                        Tipo: <b>{labelType(inv.group_type)}</b> · Rol: <b>{inv.role || "member"}</b>
                       </div>
                     </div>
 
@@ -627,8 +640,7 @@ export default function AcceptInviteClient() {
                         fontSize: 12,
                       }}
                     >
-                      Esta invitación ya no está pendiente. Puedes volver a tus
-                      grupos.
+                      Esta invitación ya no está pendiente. Puedes volver a tus grupos.
                     </div>
                   ) : (
                     <div
@@ -638,8 +650,7 @@ export default function AcceptInviteClient() {
                         fontSize: 12,
                       }}
                     >
-                      Al aceptar, este grupo quedará activo y SyncPlans revisará
-                      si sus eventos chocan con tu agenda actual.
+                      Al aceptar, este grupo quedará activo y SyncPlans revisará si sus eventos chocan con tu agenda actual.
                     </div>
                   )}
                 </div>

@@ -523,12 +523,13 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
         {shouldShowUpgradeNudge ? (
           <section style={styles.upgradeNudgeCard}>
             <div style={styles.upgradeNudgeBadge}>Premium</div>
-            <div style={styles.upgradeNudgeTitle}>
-              Resolver conflictos está bien. Evitar que ocurran es otra cosa.
-            </div>
-            <div style={styles.upgradeNudgeCopy}>
-              Premium te ayuda a anticiparlos, no solo reaccionar. Añade más contexto, mejor lectura de tu coordinación y menos fricción en el tiempo compartido.
-            </div>
+         <div style={styles.upgradeNudgeTitle}>
+  Resolver conflictos está bien. Coordinar sin que aparezcan es otra cosa.
+</div>
+<div style={styles.upgradeNudgeCopy}>
+  Cuando compartes tiempo con otros, los choques no deberían sorprenderte.
+  Premium te da más contexto para anticiparlos, decidir mejor y reducir fricción.
+</div>
             <div style={styles.upgradeNudgeActions}>
               <button
                 onClick={() => router.push("/planes")}
