@@ -9,6 +9,7 @@ import {
   deleteEventsByIdsDetailed,
   generatePublicInviteLink,
 } from "@/lib/eventsDb";
+import supabase from "@/lib/supabaseClient";
 import {
   getLatestConflictTrustSignalsByEventIds,
   type ConflictTrustSignal,
@@ -40,6 +41,7 @@ type TimelineEvent = {
 type Props = {
   events: TimelineEvent[];
   selectedIds: Set<string>;
+  focusedEventId?: string | null;
   onToggleSelected: (id: string) => void;
   onEventsRemoved?: (removedIds: string[]) => void;
 };
@@ -323,12 +325,14 @@ function getSafeDurationMs(startIso?: string | null, endIso?: string | null) {
 export default function EventsTimeline({
   events,
   selectedIds,
+  focusedEventId = null,
   onToggleSelected,
   onEventsRemoved,
 }: Props) {
   const router = useRouter();
 
   const shareRequestRef = useRef<Partial<Record<string, Promise<string | null>>>>({});
+  const eventRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [shareStateById, setShareStateById] = useState<
     Record<string, ShareState>
   >({});
@@ -378,6 +382,22 @@ export default function EventsTimeline({
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!focusedEventId) return;
+
+    const timer = window.setTimeout(() => {
+      const node = eventRefs.current[String(focusedEventId)];
+      if (!node) return;
+
+      node.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 220);
+
+    return () => window.clearTimeout(timer);
+  }, [focusedEventId, groupedByDay]);
 
   useEffect(() => {
     let cancelled = false;
@@ -715,7 +735,17 @@ export default function EventsTimeline({
                 );
 
                 return (
-                  <div key={eventId} style={S.eventRow}>
+                  <div
+                    key={eventId}
+                    ref={(node) => {
+                      eventRefs.current[eventId] = node;
+                    }}
+                    data-event-id={eventId}
+                    style={{
+                      ...S.eventRow,
+                      ...(focusedEventId === eventId ? S.eventRowFocused : {}),
+                    }}
+                  >
                     <label style={S.checkWrap}>
                       <input
                         type="checkbox"
@@ -1082,6 +1112,13 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.11)",
     background: "rgba(6,10,20,0.58)",
     boxShadow: "0 12px 28px rgba(0,0,0,0.12)",
+    scrollMarginTop: 110,
+    transition: "border-color 180ms ease, box-shadow 180ms ease, background 180ms ease",
+  },
+  eventRowFocused: {
+    border: "1px solid rgba(56,189,248,0.42)",
+    background: "rgba(8,47,73,0.34)",
+    boxShadow: "0 0 0 1px rgba(56,189,248,0.16), 0 14px 34px rgba(56,189,248,0.12)",
   },
   checkWrap: {
     display: "flex",

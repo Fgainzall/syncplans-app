@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
 import MobileScaffold from "@/components/MobileScaffold";
@@ -82,6 +82,7 @@ function shortTimeLabel(value: string | Date) {
 
 export default function EventsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [booting, setBooting] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -209,6 +210,7 @@ export default function EventsPage() {
   }, []);
 
   const totalGroups = groups.length;
+  const focusedEventId = searchParams.get("focusEventId");
 
   const filteredEvents = useMemo(() => {
     let list = filterVisibleEvents(events, {
@@ -664,6 +666,7 @@ export default function EventsPage() {
             <EventsTimeline
               events={filteredEvents}
               selectedIds={selectedIds}
+              focusedEventId={focusedEventId}
               onToggleSelected={toggleSelection}
               onEventsRemoved={(removedIds) => {
                 const removed = new Set(removedIds.map(String));

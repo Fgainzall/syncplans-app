@@ -253,6 +253,13 @@ export default function PanelPage() {
     },
     [router]
   );
+  const openEventFromCapture = useCallback(
+    (capture: PublicInviteCaptureItem) => {
+      router.push(`/events?focusEventId=${encodeURIComponent(capture.event_id)}`);
+    },
+    [router]
+  );
+
   const fetchGoogleStatus = useCallback(async () => {
     try {
       setGoogleLoading(true);
@@ -920,7 +927,7 @@ export default function PanelPage() {
                             <button
                               type="button"
                               style={styles.primarySmallButton}
-                              onClick={() => router.push("/events")}
+                              onClick={() => openEventFromCapture(capture)}
                             >
                               Ver evento
                             </button>
@@ -937,7 +944,7 @@ export default function PanelPage() {
                               <button
                                 type="button"
                                 style={styles.secondarySmallButton}
-                                onClick={() => router.push("/events")}
+                                onClick={() => openEventFromCapture(capture)}
                               >
                                 Ver evento
                               </button>
@@ -955,7 +962,7 @@ export default function PanelPage() {
                               <button
                                 type="button"
                                 style={styles.secondarySmallButton}
-                                onClick={() => router.push("/events")}
+                                onClick={() => openEventFromCapture(capture)}
                               >
                                 Ver evento
                               </button>
