@@ -984,7 +984,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 <div style={styles.captureEyebrow}>Quick Capture</div>
                 <div style={styles.captureTitle}>¿Qué quieres planear?</div>
                 <div style={styles.captureSub}>
-                  Escríbelo simple y te dejo el plan listo para revisar.
+                  Escribe algo y lo convierto en un plan en segundos.
                 </div>
               </div>
 
@@ -1002,6 +1002,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 autoCapitalize="sentences"
                 autoCorrect="on"
                 spellCheck
+                autoFocus
               />
 
               <button
@@ -1020,9 +1021,33 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             </div>
 
             <div style={styles.captureExamplesRow}>
-              <span style={styles.captureExamplePill}>cena viernes 8pm</span>
-              <span style={styles.captureExamplePill}>doctor martes 10</span>
-              <span style={styles.captureExamplePill}>fulbito sábado 6</span>
+             <span
+  onClick={() => {
+    setQuickCaptureValue("cena viernes 8pm");
+    setTimeout(() => handleQuickCaptureSubmit(), 50);
+  }}
+  style={{ ...styles.captureExamplePill, cursor: "pointer" }}
+>
+  cena viernes 8pm
+</span>
+              <span
+  onClick={() => {
+    setQuickCaptureValue("doctor martes 10");
+    setTimeout(() => handleQuickCaptureSubmit(), 50);
+  }}
+  style={{ ...styles.captureExamplePill, cursor: "pointer" }}
+>
+  doctor martes 10
+</span>
+<span
+  onClick={() => {
+    setQuickCaptureValue("fulbito sábado 6");
+    setTimeout(() => handleQuickCaptureSubmit(), 50);
+  }}
+  style={{ ...styles.captureExamplePill, cursor: "pointer" }}
+>
+  fulbito sábado 6
+</span>
             </div>
           </Card>
 
@@ -1422,7 +1447,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   captureTitle: {
     marginTop: 6,
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: 950,
     letterSpacing: "-0.03em",
   },
@@ -1454,7 +1479,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   captureInput: {
     width: "100%",
-    minHeight: 56,
+    minHeight: 64,
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(6,10,22,0.72)",
@@ -1467,7 +1492,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   captureButton: {
     minWidth: 124,
-    minHeight: 56,
+    minHeight: 64,
     border: "1px solid rgba(255,255,255,0.12)",
     borderRadius: 16,
     background: "linear-gradient(135deg, rgba(56,189,248,0.24), rgba(124,58,237,0.24))",
