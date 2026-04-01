@@ -8,6 +8,7 @@ import React, {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
+import { parseQuickCapture } from "@/lib/quickCaptureParser";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
@@ -404,191 +405,6 @@ function eventOverlapsWindow(
 }
 
 
-
-type QuickCaptureParseResult = {
-  title: string;
-  start: Date;
-  end: Date;
-  understoodDate: boolean;
-  understoodTime: boolean;
-};
-
-const QUICK_CAPTURE_DAY_MAP: Array<{ aliases: string[]; dayIndex: number }> = [
-  { aliases: ["domingo"], dayIndex: 0 },
-  { aliases: ["lunes"], dayIndex: 1 },
-  { aliases: ["martes"], dayIndex: 2 },
-  { aliases: ["miercoles", "miércoles"], dayIndex: 3 },
-  { aliases: ["jueves"], dayIndex: 4 },
-  { aliases: ["viernes"], dayIndex: 5 },
-  { aliases: ["sabado", "sábado"], dayIndex: 6 },
-];
-
-function normalizeQuickCaptureText(value: string) {
-  return value
-    .trim()
-    .replace(/\s+/g, " ")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
-function nextWeekday(base: Date, targetDayIndex: number) {
-  const start = new Date(
-    base.getFullYear(),
-    base.getMonth(),
-    base.getDate(),
-    12,
-    0,
-    0,
-    0
-  );
-  const current = start.getDay();
-  let diff = targetDayIndex - current;
-  if (diff < 0) diff += 7;
-  if (diff === 0) diff = 7;
-  start.setDate(start.getDate() + diff);
-  return start;
-}
-
-// ==========================
-// QUICK CAPTURE PARSER PRO V1
-// ==========================
-
-const DAYS_MAP: Record<string, number> = {
-  domingo: 0,
-  lunes: 1,
-  martes: 2,
-  miercoles: 3,
-  miércoles: 3,
-  jueves: 4,
-  viernes: 5,
-  sabado: 6,
-  sábado: 6,
-};
-
-function normalizeText(value: string) {
-  return value
-    .trim()
-    .replace(/\s+/g, " ")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
-function getNextWeekday(base: Date, target: number) {
-  const d = new Date(base);
-  d.setHours(12, 0, 0, 0);
-
-  const current = d.getDay();
-  let diff = target - current;
-
-  if (diff <= 0) diff += 7;
-
-  d.setDate(d.getDate() + diff);
-  return d;
-}
-
-function extractDate(text: string) {
-  const normalized = normalizeText(text);
-
-  // hoy
-  if (/\bhoy\b/.test(normalized)) {
-    const d = new Date();
-    d.setHours(12, 0, 0, 0);
-    return { date: d, token: /\bhoy\b/i, ok: true };
-  }
-
-  // mañana
-  if (/\bmanana\b/.test(normalized)) {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    d.setHours(12, 0, 0, 0);
-    return { date: d, token: /\bmanana\b/i, ok: true };
-  }
-
-  // días de semana
-  for (const key of Object.keys(DAYS_MAP)) {
-    const regex = new RegExp(`\\b${key}\\b`, "i");
-
-    if (regex.test(normalized)) {
-      const date = getNextWeekday(new Date(), DAYS_MAP[key]);
-      return { date, token: regex, ok: true };
-    }
-  }
-
-  // fallback: hoy
-  const fallback = new Date();
-  fallback.setHours(12, 0, 0, 0);
-
-  return { date: fallback, token: null, ok: false };
-}
-
-function extractTime(text: string) {
-  const normalized = normalizeText(text);
-
-  // 6am, 6 pm, 18:00, 6:30pm, etc
-  const regex = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i;
-  const match = normalized.match(regex);
-
-  if (!match) {
-    return { h: 19, m: 0, token: null, ok: false };
-  }
-
-  let h = Number(match[1]);
-  let m = match[2] ? Number(match[2]) : 0;
-  const ampm = (match[3] || "").toLowerCase();
-
-  if (ampm === "pm" && h < 12) h += 12;
-  if (ampm === "am" && h === 12) h = 0;
-
-  // si no hay am/pm → heurística humana
-  if (!ampm && h >= 1 && h <= 7) {
-    h += 12; // 6 → 18 (más probable)
-  }
-
-  if (h > 23 || m > 59) {
-    return { h: 19, m: 0, token: null, ok: false };
-  }
-
-  return { h, m, token: match[0], ok: true };
-}
-
-function cleanTitle(original: string, dateToken: RegExp | null, timeToken: string | null) {
-  let result = original;
-
-  if (dateToken) {
-    result = result.replace(dateToken, " ");
-  }
-
-  if (timeToken) {
-    const escaped = timeToken.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    result = result.replace(new RegExp(escaped, "i"), " ");
-  }
-
-  return result.replace(/\s+/g, " ").trim();
-}
-
-function buildQuickCaptureResult(raw: string): QuickCaptureParseResult {
-  const dateInfo = extractDate(raw);
-  const timeInfo = extractTime(raw);
-
-  const title = cleanTitle(raw, dateInfo.token, timeInfo.token) || raw || "Nuevo evento";
-
-  const start = new Date(dateInfo.date);
-  start.setHours(timeInfo.h, timeInfo.m, 0, 0);
-
-  const end = new Date(start);
-  end.setMinutes(end.getMinutes() + 60);
-
-  return {
-    title,
-    start,
-    end,
-    understoodDate: dateInfo.ok,
-    understoodTime: timeInfo.ok,
-  };
-}
-
 export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const router = useRouter();
   const isMobile = useIsMobileWidth(520);
@@ -908,43 +724,62 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
 
   const handleQuickCaptureSubmit = useCallback(() => {
-    const raw = quickCaptureValue.trim();
-    if (!raw || quickCaptureBusy) return;
+  const raw = quickCaptureValue.trim();
+  if (!raw || quickCaptureBusy) return;
 
-    setQuickCaptureBusy(true);
+  setQuickCaptureBusy(true);
 
-    try {
-      const parsed = buildQuickCaptureResult(raw);
+  try {
+    const parsed = parseQuickCapture(raw);
+    const params = new URLSearchParams();
+
+    params.set("qc", "1");
+
+    if (activeGroupId) {
+      params.set("type", "group");
+      params.set("groupId", activeGroupId);
+    } else {
+      params.set("type", "personal");
+    }
+
+    if (parsed.title) params.set("title", parsed.title);
+    if (parsed.date) params.set("date", parsed.date.toISOString());
+    if (parsed.durationMinutes) params.set("duration", String(parsed.durationMinutes));
+    if (parsed.notes) params.set("notes", parsed.notes);
+
+    router.push(`/events/new/details?${params.toString()}`);
+  } finally {
+    setTimeout(() => setQuickCaptureBusy(false), 180);
+  }
+}, [quickCaptureValue, quickCaptureBusy, activeGroupId, router]);
+
+  const handleQuickCaptureExample = useCallback((value: string) => {
+    setQuickCaptureValue(value);
+
+    if (quickCaptureBusy) return;
+
+    window.setTimeout(() => {
+      const parsed = parseQuickCapture(value);
       const params = new URLSearchParams();
-      const nextType = activeGroupId ? "group" : "personal";
 
       params.set("qc", "1");
-      params.set("type", nextType);
-      params.set("date", parsed.start.toISOString());
-      params.set("title", parsed.title);
-      params.set("duration", "60");
 
       if (activeGroupId) {
+        params.set("type", "group");
         params.set("groupId", activeGroupId);
-        params.set("lock", "1");
+      } else {
+        params.set("type", "personal");
       }
 
-      if (parsed.understoodDate || parsed.understoodTime) {
-        showToast(
-          "Listo, lo preparo ✨",
-          parsed.understoodDate && parsed.understoodTime
-            ? "Abrimos el plan con fecha y hora sugeridas."
-            : parsed.understoodDate
-              ? "Abrimos el plan con el día sugerido para que completes la hora."
-              : "Abrimos el plan con una hora sugerida para que la ajustes si quieres."
-        );
-      }
+      if (parsed.title) params.set("title", parsed.title);
+      if (parsed.date) params.set("date", parsed.date.toISOString());
+      if (parsed.durationMinutes) params.set("duration", String(parsed.durationMinutes));
+      if (parsed.notes) params.set("notes", parsed.notes);
 
       router.push(`/events/new/details?${params.toString()}`);
-    } finally {
-      window.setTimeout(() => setQuickCaptureBusy(false), 180);
-    }
-  }, [activeGroupId, quickCaptureBusy, quickCaptureValue, router, showToast]);
+    }, 0);
+  }, [activeGroupId, quickCaptureBusy, router]);
+
 
   const handleQuickCaptureKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1025,28 +860,19 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 </div>
   <div style={styles.captureExamplesRow}>
              <span
-  onClick={() => {
-    setQuickCaptureValue("cena viernes 8pm");
-    setTimeout(() => handleQuickCaptureSubmit(), 50);
-  }}
+  onClick={() => handleQuickCaptureExample("cena viernes 8pm")}
   style={{ ...styles.captureExamplePill, cursor: "pointer" }}
 >
   cena viernes 8pm
 </span>
               <span
-  onClick={() => {
-    setQuickCaptureValue("doctor martes 10");
-    setTimeout(() => handleQuickCaptureSubmit(), 50);
-  }}
+  onClick={() => handleQuickCaptureExample("doctor martes 10")}
   style={{ ...styles.captureExamplePill, cursor: "pointer" }}
 >
   doctor martes 10
 </span>
 <span
-  onClick={() => {
-    setQuickCaptureValue("fulbito sábado 6");
-    setTimeout(() => handleQuickCaptureSubmit(), 50);
-  }}
+  onClick={() => handleQuickCaptureExample("fulbito sábado 6")}
   style={{ ...styles.captureExamplePill, cursor: "pointer" }}
 >
   fulbito sábado 6

@@ -268,6 +268,7 @@ function NewEventDetailsInner() {
   const quickCaptureParam = sp.get("qc");
   const quickCaptureTitleParam = sp.get("title");
   const quickCaptureDurationParam = sp.get("duration");
+  const quickCaptureNotesParam = sp.get("notes");
 
   const eventIdParam = sp.get("eventId") || sp.get("edit") || sp.get("id");
   const isEditing = !!eventIdParam;
@@ -412,6 +413,7 @@ function NewEventDetailsInner() {
     if (quickCaptureParam === "1") params.set("qc", "1");
     if (quickCaptureTitleParam) params.set("title", quickCaptureTitleParam);
     if (quickCaptureDurationParam) params.set("duration", quickCaptureDurationParam);
+    if (quickCaptureNotesParam) params.set("notes", quickCaptureNotesParam);
 
     return `/events/new/details?${params.toString()}`;
   }
@@ -567,6 +569,11 @@ function NewEventDetailsInner() {
       setTitle((current) => (current.trim() ? current : incomingTitle));
     }
 
+    const incomingNotes = String(quickCaptureNotesParam ?? "").trim();
+    if (incomingNotes) {
+      setNotes((current) => (current.trim() ? current : incomingNotes));
+    }
+
     const parsedDate = dateParam ? new Date(dateParam) : null;
     if (parsedDate && !Number.isNaN(parsedDate.getTime())) {
       setStartLocal(toInputLocal(parsedDate));
@@ -585,6 +592,7 @@ function NewEventDetailsInner() {
     quickCaptureParam,
     quickCaptureTitleParam,
     quickCaptureDurationParam,
+    quickCaptureNotesParam,
     dateParam,
     startLocal,
   ]);
