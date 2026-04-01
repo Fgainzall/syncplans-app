@@ -1,4 +1,3 @@
-
 // src/components/EventsTimeline.tsx
 "use client";
 
@@ -55,7 +54,6 @@ type ShareState = {
 
 type InviteStateByEventId = Record<string, PublicInviteRow | null>;
 type TrustSignalByEventId = Record<string, ConflictTrustSignal | null>;
-
 
 function humanizeShareError(
   err: unknown,
@@ -670,12 +668,6 @@ export default function EventsTimeline({
     return `/events/new/details?${qp.toString()}`;
   }
 
-  function onReviewExternalProposal(ev: TimelineEvent, invite: PublicInviteRow) {
-    const url = buildExternalProposalUrl(ev, invite, "review");
-    if (!url) return;
-    router.push(url);
-  }
-
   function onTakeExternalProposal(ev: TimelineEvent, invite: PublicInviteRow) {
     const url = buildExternalProposalUrl(ev, invite, "accept");
     if (!url) return;
@@ -726,11 +718,11 @@ export default function EventsTimeline({
                 const isOwnerView =
                   !!currentUserId && resolveEventOwnerId(ev) === currentUserId;
                 const canDelete = isOwnerView;
-               const canAcceptProposal =
-  isOwnerView &&
-  invite?.status === "rejected" &&
-  !!invite?.proposed_date &&
-  !invite?.creator_response;
+                const canAcceptProposal =
+                  isOwnerView &&
+                  invite?.status === "rejected" &&
+                  !!invite?.proposed_date &&
+                  !invite?.creator_response;
                 const proposedDateLabel = formatProposedDate(
                   invite?.proposed_date ?? null
                 );
@@ -893,27 +885,26 @@ export default function EventsTimeline({
                                 : "Te propusieron una nueva fecha para este plan"}
                             </div>
                             <div style={S.inlineProposalSub}>
-                              Puedes revisarla con calma o entrar ya con esa fecha
-                              precargada para confirmar y guardar pasando por
-                              conflictos.
+                              Si te sirve, entra directo con esta fecha y guarda la
+                              decisión pasando por el flujo real de conflictos.
                             </div>
                           </div>
 
                           <div style={S.inlineProposalActions}>
                             <button
                               type="button"
-                              onClick={() => onReviewExternalProposal(ev, invite!)}
-                              style={S.proposalSecondaryBtn}
+                              onClick={() => onTakeExternalProposal(ev, invite!)}
+                              style={S.proposalPrimaryBtn}
                             >
-                              Revisar propuesta
+                              Tomar fecha
                             </button>
 
                             <button
                               type="button"
-                              onClick={() => onTakeExternalProposal(ev, invite!)}
-                              style={S.proposalPrimaryBtn}
+                              onClick={() => openEventFromCaptureFallback(router, ev)}
+                              style={S.proposalSecondaryBtn}
                             >
-                              Tomar esta fecha
+                              Ver evento
                             </button>
                           </div>
                         </div>
@@ -988,26 +979,26 @@ export default function EventsTimeline({
                                 real dentro de SyncPlans
                               </div>
                               <div style={S.proposalActionSub}>
-                                Entraremos con la fecha sugerida precargada. Desde ahí
-                                puedes ajustarla, confirmarla o guardarla pasando por el
-                                mismo flujo real de conflictos.
+                                Entraremos con la fecha sugerida precargada para
+                                confirmar y guardar pasando por el flujo real de
+                                conflictos.
                               </div>
 
                               <div style={S.inlineProposalActions}>
                                 <button
                                   type="button"
-                                  onClick={() => onReviewExternalProposal(ev, invite)}
-                                  style={S.proposalSecondaryBtn}
+                                  onClick={() => onTakeExternalProposal(ev, invite)}
+                                  style={S.proposalPrimaryBtn}
                                 >
-                                  Revisar propuesta
+                                  Tomar fecha
                                 </button>
 
                                 <button
                                   type="button"
-                                  onClick={() => onTakeExternalProposal(ev, invite)}
-                                  style={S.proposalPrimaryBtn}
+                                  onClick={() => openEventFromCaptureFallback(router, ev)}
+                                  style={S.proposalSecondaryBtn}
                                 >
-                                  Tomar esta fecha
+                                  Ver evento
                                 </button>
                               </div>
                             </div>
@@ -1061,6 +1052,13 @@ export default function EventsTimeline({
       })}
     </div>
   );
+}
+
+function openEventFromCaptureFallback(
+  router: ReturnType<typeof useRouter>,
+  ev: TimelineEvent
+) {
+  router.push(`/events?focusEventId=${encodeURIComponent(String(ev.id))}`);
 }
 
 const S: Record<string, React.CSSProperties> = {
@@ -1347,7 +1345,6 @@ const S: Record<string, React.CSSProperties> = {
     whiteSpace: "pre-wrap",
     wordBreak: "break-word",
   },
-
   inlineProposalStrip: {
     borderRadius: 14,
     border: "1px solid rgba(165,180,252,0.24)",

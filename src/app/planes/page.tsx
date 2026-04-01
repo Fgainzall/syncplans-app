@@ -125,7 +125,6 @@ function getCurrentPlanNote(state: PlanAccessState): string {
   return `Hoy estás usando SyncPlans desde la base Free con hasta ${FREE_GROUP_LIMIT} grupo incluido.`;
 }
 
-
 function getDecisionHeadline(state: PlanAccessState): string {
   if (state.isFounder) return "Tu acceso ya está en una capa preferencial.";
   if (state.accessSource === "trial")
@@ -181,6 +180,14 @@ function getWhyPayBullets(state: PlanAccessState): string[] {
   ];
 }
 
+function getShortPlanDescription(state: PlanAccessState): string {
+  if (state.isFounder) return "Acceso preferente";
+  if (state.accessSource === "trial") return "Probando Premium";
+  if (state.currentPlanCardId === "premium_yearly") return "Acceso completo";
+  if (state.currentPlanCardId === "premium_monthly") return "Acceso completo";
+  return "Base activa";
+}
+
 export default function PlanesPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -212,6 +219,13 @@ export default function PlanesPage() {
   const cards = useMemo(() => buildPlanCards(), []);
   const planState = useMemo(() => getPlanAccessState(profile), [profile]);
   const whyPayBullets = useMemo(() => getWhyPayBullets(planState), [planState]);
+  const shortPlanDescription = useMemo(
+    () =>
+      loading
+        ? "Leyendo tu información de cuenta..."
+        : getShortPlanDescription(planState),
+    [loading, planState]
+  );
 
   return (
     <MobileScaffold>
@@ -249,36 +263,32 @@ export default function PlanesPage() {
         </section>
 
         <section style={planCardStyle}>
-    <div style={planHeaderRowStyle}>
-  <div style={planLabelColumnStyle}>
-    <div style={planPillStyle}>
-      <span style={planDotStyle} />
-      <span style={planPillTextStyle}>
-        {loading ? "Cargando plan..." : planState.planTag}
-      </span>
-    </div>
+          <div style={planHeaderRowStyle}>
+            <div style={planLabelColumnStyle}>
+              <div style={planPillStyle}>
+                <span style={planDotStyle} />
+                <span style={planPillTextStyle}>
+                  {loading ? "Cargando plan..." : planState.planTag}
+                </span>
+              </div>
 
-    <h2 style={planTitleStyle}>
-      {loading ? " " : planState.planLabel}
-    </h2>
+              <h2 style={planTitleStyle}>
+                {loading ? " " : planState.planLabel}
+              </h2>
 
-    <p style={planSubtitleStyle}>
-      {loading
-        ? "Leyendo tu información de cuenta..."
-        : planState.planDescription}
-    </p>
-  </div>
+              <p style={planSubtitleStyle}>{shortPlanDescription}</p>
+            </div>
 
-  <div style={planActionsColumnStyle}>
-    <div style={planStatusPillStyle}>
-      {loading ? "Leyendo estado..." : planState.statusLabel}
-    </div>
-  </div>
-</div>
+            <div style={planActionsColumnStyle}>
+              <div style={planStatusPillStyle}>
+                {loading ? "Leyendo estado..." : planState.statusLabel}
+              </div>
+            </div>
+          </div>
 
-<p style={planHintTextStyle}>
-  {loading ? "" : getCurrentPlanNote(planState)}
-</p>
+          <p style={planHintTextStyle}>
+            {loading ? "" : getCurrentPlanNote(planState)}
+          </p>
 
           <div style={statusSummaryGridStyle}>
             <div style={statusSummaryItemStyle}>
@@ -323,13 +333,13 @@ export default function PlanesPage() {
 
           <p style={currentPlanNoteStyle}>{loading ? "" : getCurrentPlanNote(planState)}</p>
 
-<div style={betaNoteStyle}>
-  <p style={betaNoteTitleStyle}>Beta privada</p>
-  <p style={betaNoteBodyStyle}>
-    Sin cobros automáticos por ahora. Premium abrirá más espacios cuando
-    la coordinación crezca.
-  </p>
-</div>
+          <div style={betaNoteStyle}>
+            <p style={betaNoteTitleStyle}>Beta privada</p>
+            <p style={betaNoteBodyStyle}>
+              Sin cobros automáticos por ahora. Premium abrirá más espacios cuando
+              la coordinación crezca.
+            </p>
+          </div>
         </section>
 
         <section style={plansSectionStyle}>
@@ -450,7 +460,6 @@ const sectionWrapperStyle: CSSProperties = {
   gap: spacing.lg,
 };
 
-
 const decisionHeroStyle: CSSProperties = {
   borderRadius: radii.xl,
   border: `1px solid ${colors.borderStrong}`,
@@ -526,7 +535,7 @@ const decisionBulletCardStyle: CSSProperties = {
   padding: `${spacing.sm}px ${spacing.md}px`,
   display: "flex",
   alignItems: "flex-start",
-  gap: 10,
+  gap: spacing.sm,
 };
 
 const decisionBulletDotStyle: CSSProperties = {
@@ -557,8 +566,9 @@ const planCardStyle: CSSProperties = {
 
 const planHeaderRowStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "minmax(0, 1fr)",
+  gridTemplateColumns: "1fr auto",
   gap: spacing.md,
+  alignItems: "start",
 };
 
 const planLabelColumnStyle: CSSProperties = {
@@ -571,7 +581,7 @@ const planLabelColumnStyle: CSSProperties = {
 const planActionsColumnStyle: CSSProperties = {
   display: "flex",
   alignItems: "flex-start",
-  justifyContent: "flex-start",
+  justifyContent: "flex-end",
   minWidth: 0,
 };
 
@@ -700,11 +710,7 @@ const betaNoteBodyStyle: CSSProperties = {
   lineHeight: 1.55,
   color: colors.textSecondary,
 };
-const mobilePlanStackStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr",
-  gap: spacing.sm,
-};
+
 const plansSectionStyle: CSSProperties = {
   borderRadius: radii.xl,
   background: colors.surfaceRaised,
