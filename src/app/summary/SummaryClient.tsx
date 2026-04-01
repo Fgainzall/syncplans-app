@@ -268,9 +268,9 @@ function getWeekMoodLabel(count: number): string {
 }
 
 function getWeekSubtitle(count: number): string {
-  if (count === 0) return "No hay eventos en los próximos 7 días.";
-  if (count === 1) return "1 evento en los próximos 7 días.";
-  return `${count} eventos en los próximos 7 días.`;
+  if (count === 0) return "Sin eventos próximos";
+  if (count === 1) return "1 evento en 7 días";
+  return `${count} eventos en 7 días`;
 }
 
 function buildAppliedToastMessage(raw: string | null): string | null {
@@ -283,31 +283,13 @@ function formatDecisionTitle(log: ConflictResolutionLogRow): string {
   const finalAction = String(log.final_action ?? "").trim().toLowerCase();
   const decisionType = String(log.decision_type ?? "").trim().toLowerCase();
 
-  if (finalAction === "fallback_keep_both") {
-    return "Ajuste automático aplicado";
-  }
-
-  if (finalAction === "replace_with_new") {
-    return "Evento reemplazado";
-  }
-
-  if (finalAction === "keep_existing") {
-    return "Se mantuvo el evento original";
-  }
-
-  if (finalAction === "keep_both") {
-    return "Ambos eventos fueron conservados";
-  }
-
-  if (decisionType === "replace_with_new") {
-    return "Evento reemplazado";
-  }
-
-  if (decisionType === "keep_existing") {
-    return "Se mantuvo el evento original";
-  }
-
-  return "Decisión aplicada correctamente";
+  if (finalAction === "fallback_keep_both") return "Ajuste automático";
+  if (finalAction === "replace_with_new") return "Evento reemplazado";
+  if (finalAction === "keep_existing") return "Se mantuvo el original";
+  if (finalAction === "keep_both") return "Se conservaron ambos";
+  if (decisionType === "replace_with_new") return "Evento reemplazado";
+  if (decisionType === "keep_existing") return "Se mantuvo el original";
+  return "Decisión aplicada";
 }
 
 function formatDecisionSubtitle(log: ConflictResolutionLogRow): string {
@@ -321,18 +303,12 @@ function formatDecisionSubtitle(log: ConflictResolutionLogRow): string {
   const finalAction = String(log.final_action ?? "").trim().toLowerCase();
 
   if (finalAction === "fallback_keep_both") {
-    return "No se pudo modificar el otro evento. El sistema evitó conflicto manteniendo ambos.";
+    return "No se pudo editar el otro evento.";
   }
 
-  if (source === "preflight") {
-    return "Se resolvió antes de guardar el evento.";
-  }
-
-  if (source === "actions") {
-    return "Se resolvió desde el centro de conflictos.";
-  }
-
-  return "Esta decisión ya forma parte del historial de coordinación.";
+  if (source === "preflight") return "Resuelto antes de guardar.";
+  if (source === "actions") return "Resuelto desde conflictos.";
+  return "Guardado en el historial.";
 }
 
 function formatRelativeDateLabel(iso: string | null | undefined): string {
@@ -482,8 +458,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [activeGroupId, activeGroup]);
 
   const contextLabel = useMemo(() => {
-    if (!activeGroupId) return "Vista operativa · Personal";
-    return `Vista operativa · ${activeLabel}`;
+    if (!activeGroupId) return "Personal";
+    return activeLabel;
   }, [activeGroupId, activeLabel]);
 
   const normalizedEvents = useMemo(() => {
@@ -494,11 +470,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return filterOutDeclinedEvents(mapped, declinedEventIds);
   }, [events, declinedEventIds]);
 
-  /**
-   * Regla del resumen:
-   * - siempre muestra todos los eventos visibles del usuario
-   * - el grupo activo queda como contexto visual, no como filtro duro
-   */
   const visibleEvents = useMemo(() => {
     return [...normalizedEvents].sort((a, b) => {
       const aMs = a.start?.getTime() ?? 0;
@@ -517,10 +488,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [visibleEvents, groups, resMap, unreadConflictAlert]);
 
-  /**
-   * Ventana correcta:
-   * [hoy 00:00 local, hoy + 7 días)
-   */
   const upcomingAll = useMemo(() => {
     const today = startOfTodayLocal();
     const windowEnd = addDays(today, 7);
@@ -536,15 +503,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     let external = 0;
 
     for (const e of upcomingAll) {
-      if (e.isExternal) {
-        external += 1;
-      }
-
-      if (e.groupId) {
-        group += 1;
-      } else {
-        personal += 1;
-      }
+      if (e.isExternal) external += 1;
+      if (e.groupId) group += 1;
+      else personal += 1;
     }
 
     return {
@@ -555,7 +516,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [upcomingAll]);
 
-  const UPCOMING_LIMIT = isMobile ? 3 : 8;
+  const UPCOMING_LIMIT = isMobile ? 3 : 6;
 
   const upcoming = useMemo(
     () => upcomingAll.slice(0, UPCOMING_LIMIT),
@@ -571,8 +532,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const mood = useMemo(() => {
     if (booting) {
       return {
-        title: "Cargando tu resumen…",
-        subtitle: "Revisando eventos y contexto activo.",
+        title: "Cargando…",
+        subtitle: "Preparando tu resumen",
         tone: "neutral" as const,
       };
     }
@@ -648,7 +609,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           count: 0,
           latestEventId: null,
         })),
-        getRecentConflictResolutionLogs(10).catch(() => []),
+        getRecentConflictResolutionLogs(8).catch(() => []),
       ]);
 
       setEvents(Array.isArray(es) ? es : []);
@@ -659,10 +620,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       );
       setRecentDecisions((recentDecisionLogs ?? []).map(mapRecentDecision));
     } catch (e: any) {
-      showToast(
-        "No se pudo cargar el resumen",
-        e?.message || "Intenta nuevamente."
-      );
+      showToast("No se pudo cargar", e?.message || "Intenta nuevamente.");
     } finally {
       setLoading(false);
     }
@@ -729,17 +687,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [loadSummary]);
 
-  const title = activeGroupId
-    ? `Resumen · Coordinación ${activeLabel}`
-    : "Resumen · Coordinación personal";
-
-  const summarySubtitle = !isMobile
-    ? activeGroupId
-      ? `Tu vista operativa diaria con contexto compartido. Aquí ves qué viene, qué choca y qué conviene decidir ahora.`
-      : "Tu vista operativa diaria para entender qué viene, qué choca y qué conviene decidir hoy."
-    : activeGroupId
-      ? `Vista operativa · ${activeLabel}`
-      : "Vista operativa · Personal";
+  const title = "Resumen";
+  const summarySubtitle = activeGroupId ? `Hoy · ${activeLabel}` : "Hoy · Personal";
 
   const moodAccentBorder =
     mood.tone === "clear"
@@ -767,6 +716,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
     router.push("/conflicts/detected");
   }, [router, conflictAlert]);
+
+  const visibleDecisions = useMemo(() => recentDecisions.slice(0, 3), [recentDecisions]);
 
   return (
     <div style={styles.page} className="spSum-page">
@@ -799,15 +750,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 <div style={styles.conflictBannerLeft}>
                   <div style={styles.conflictBannerEyebrow}>Atención</div>
                   <div style={styles.conflictBannerTitle}>
-                    Tienes {conflictAlert.count} conflicto
-                    {conflictAlert.count === 1 ? "" : "s"} por resolver
+                    {conflictAlert.count} conflicto{conflictAlert.count === 1 ? "" : "s"}
                   </div>
-                  <div style={styles.conflictBannerSub}>
-                    Revísalo ahora para evitar fricción innecesaria en la coordinación.
-                  </div>
+                  <div style={styles.conflictBannerSub}>Resolver ahora</div>
                 </div>
 
-                <div style={styles.conflictBannerCta}>Resolver ahora →</div>
+                <div style={styles.conflictBannerCta}>Abrir →</div>
               </button>
             ) : null}
 
@@ -820,9 +768,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             >
               <div style={styles.stateLeft}>
                 <div style={styles.stateLabelRow}>
-                  <span style={styles.statePill}>
-                    Contexto: <b>{contextLabel}</b>
-                  </span>
+                  <span style={styles.statePill}>{contextLabel}</span>
                   {loading && !booting ? (
                     <span style={styles.stateLoadingBadge}>Actualizando…</span>
                   ) : null}
@@ -832,36 +778,24 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 <div style={styles.stateMoodSub}>{mood.subtitle}</div>
 
                 <div style={styles.stateStatsRow}>
-                  <span style={styles.stateStat}>
-                    {upcomingStats.total} próximo
-                    {upcomingStats.total === 1 ? "" : "s"}
-                  </span>
+                  <span style={styles.stateStat}>{upcomingStats.total} total</span>
                   <span style={styles.stateStatDot}>·</span>
-                  <span style={styles.stateStat}>
-                    {upcomingStats.personal} personales
-                  </span>
+                  <span style={styles.stateStat}>{upcomingStats.personal} personal</span>
                   <span style={styles.stateStatDot}>·</span>
-                  <span style={styles.stateStat}>
-                    {upcomingStats.group} en grupos
-                  </span>
-
+                  <span style={styles.stateStat}>{upcomingStats.group} grupo</span>
                   {upcomingStats.external > 0 ? (
                     <>
                       <span style={styles.stateStatDot}>·</span>
-                      <span style={styles.stateStat}>
-                        {upcomingStats.external} externos
-                      </span>
+                      <span style={styles.stateStat}>{upcomingStats.external} externo</span>
                     </>
                   ) : null}
                 </div>
               </div>
 
               <div style={styles.stateKpi}>
-                <div style={styles.stateKpiLabel}>Próximos 7 días</div>
+                <div style={styles.stateKpiLabel}>7 días</div>
                 <div style={styles.stateKpiNumber}>{upcomingStats.total}</div>
-                <div style={styles.stateKpiHint}>
-                  Eventos visibles en tu ventana operativa actual.
-                </div>
+                <div style={styles.stateKpiHint}>Eventos visibles</div>
               </div>
             </div>
 
@@ -869,30 +803,25 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               <div style={styles.loadingCard}>
                 <div style={styles.loadingDot} />
                 <div>
-                  <div style={styles.loadingTitle}>Cargando resumen…</div>
-                  <div style={styles.loadingSub}>Eventos y contexto</div>
+                  <div style={styles.loadingTitle}>Cargando…</div>
+                  <div style={styles.loadingSub}>Resumen</div>
                 </div>
               </div>
             ) : !nextEvent ? (
               <div style={styles.emptyBlock}>
-                <div style={styles.emptyTitle}>No tienes eventos próximos</div>
-                <div style={styles.emptySub}>
-                  En los próximos 7 días no aparece actividad en este contexto.
-                  Puedes crear un evento nuevo o revisar el calendario completo.
-                </div>
+                <div style={styles.emptyTitle}>Sin eventos próximos</div>
+                <div style={styles.emptySub}>Crea uno nuevo o abre el calendario.</div>
                 <button
-                  onClick={() =>
-                    router.push("/events/new/details?type=personal")
-                  }
+                  onClick={() => router.push("/events/new/details?type=personal")}
                   style={styles.emptyBtn}
                 >
-                  Crear primer evento →
+                  Crear evento →
                 </button>
               </div>
             ) : (
               <>
                 <div style={styles.nextBlock}>
-                  <div style={styles.nextLabel}>Próximo evento</div>
+                  <div style={styles.nextLabel}>Sigue</div>
                   <button
                     onClick={() => router.push("/calendar")}
                     style={{
@@ -916,9 +845,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                         <>
                           <div style={styles.eventLeft}>
                             <div style={styles.eventWhen}>{when}</div>
-                            <div style={styles.eventTitle}>
-                              {nextEvent.title}
-                            </div>
+                            <div style={styles.eventTitle}>{nextEvent.title}</div>
                           </div>
 
                           <div style={styles.eventMeta}>
@@ -966,9 +893,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                           </div>
 
                           <div style={styles.eventMeta}>
-                            {e.isExternal ? (
-                              <span style={styles.pill}>Externo</span>
-                            ) : null}
+                            {e.isExternal ? <span style={styles.pill}>Externo</span> : null}
                             {e.groupId ? (
                               <span style={styles.pillSoft}>Grupo</span>
                             ) : (
@@ -987,7 +912,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                     style={styles.seeMoreBtn}
                     className="spSum-seeMore"
                   >
-                    Ver todos en Calendario ({upcomingAll.length}) →
+                    Ver calendario ({upcomingAll.length}) →
                   </button>
                 )}
               </>
@@ -995,43 +920,26 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           </Card>
 
           <Card style={styles.card} className="spSum-card">
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-                flexWrap: "wrap",
-              }}
-            >
-              <div style={styles.sectionTitle}>Decisiones recientes</div>
-
+            <div style={styles.sectionHeadMini}>
+              <div style={styles.sectionTitle}>Decisiones</div>
               <button
                 onClick={() => router.push("/calendar")}
                 style={styles.decisionsCta}
               >
-                Ver calendario →
+                Calendario →
               </button>
             </div>
 
-            <div style={styles.smallNote}>
-              Aquí ves la historia reciente de cómo se resolvieron choques y ajustes
-              en tu coordinación.
-            </div>
-
-            {recentDecisions.length === 0 ? (
+            {visibleDecisions.length === 0 ? (
               <div style={styles.decisionsEmpty}>
-                <div style={styles.decisionsEmptyTitle}>
-                  Aún no hay decisiones recientes
-                </div>
+                <div style={styles.decisionsEmptyTitle}>Sin decisiones recientes</div>
                 <div style={styles.decisionsEmptySub}>
-                  Cuando resuelvas un conflicto o el sistema aplique un ajuste, lo
-                  verás aquí.
+                  Aquí aparecerán cuando resuelvas conflictos.
                 </div>
               </div>
             ) : (
               <div style={styles.decisionsList}>
-                {recentDecisions.map((decision) => (
+                {visibleDecisions.map((decision) => (
                   <div key={decision.id} style={styles.decisionRow}>
                     <div
                       style={{
@@ -1060,7 +968,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                             : styles.decisionBadgeManual),
                         }}
                       >
-                        {decision.isFallback ? "Ajuste automático" : "Resuelto"}
+                        {decision.isFallback ? "Auto" : "Resuelto"}
                       </div>
                     </div>
                   </div>
@@ -1070,10 +978,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           </Card>
 
           <Card style={styles.card} className="spSum-card">
-            <div style={styles.sectionTitle}>Acciones rápidas</div>
-            <div style={styles.smallNote}>
-              Resuelve lo urgente desde aquí sin salir de tu vista operativa.
-            </div>
+            <div style={styles.sectionTitle}>Acciones</div>
 
             <div style={styles.quickGrid} className="spSum-quickGrid">
               <button
@@ -1082,9 +987,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 className="spSum-quickCard"
               >
                 <div style={styles.quickTitle}>Crear evento</div>
-                <div style={styles.quickSub}>
-                  Añade un nuevo plan sin salir de tu flujo operativo.
-                </div>
+                <div style={styles.quickSub}>Nuevo plan</div>
               </button>
 
               <button
@@ -1093,9 +996,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 className="spSum-quickCard"
               >
                 <div style={styles.quickTitle}>Abrir calendario</div>
-                <div style={styles.quickSub}>
-                  Abre la vista completa para revisar más contexto y detalle.
-                </div>
+                <div style={styles.quickSub}>Ver todo</div>
               </button>
 
               <button
@@ -1104,9 +1005,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 className="spSum-quickCard"
               >
                 <div style={styles.quickTitle}>Resolver conflictos</div>
-                <div style={styles.quickSub}>
-                  Revisa choques activos y decide antes de que generen fricción.
-                </div>
+                <div style={styles.quickSub}>Revisar ahora</div>
               </button>
             </div>
           </Card>
@@ -1120,24 +1019,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             padding-right: 14px !important;
             padding-top: 14px !important;
             gap: 12px !important;
-          }
-
-          .spSum-hero {
-            border-radius: 20px !important;
-            padding: 14px !important;
-            gap: 12px !important;
-          }
-
-          .spSum-heroBtns {
-            width: 100% !important;
-            flex-direction: column !important;
-            align-items: stretch !important;
-          }
-
-          .spSum-btn {
-            width: 100% !important;
-            min-height: 46px !important;
-            justify-content: center !important;
           }
 
           .spSum-card {
@@ -1216,53 +1097,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     opacity: 0.75,
     fontWeight: 650,
-  },
-  hero: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "flex-start",
-    padding: "22px 22px",
-    gap: 20,
-    borderRadius: 24,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.025))",
-    boxShadow: "0 22px 70px rgba(0,0,0,0.34)",
-    backdropFilter: "blur(16px)",
-    flexWrap: "wrap",
-  },
-  heroLeft: {
-    flex: 1,
-    minWidth: 260,
-  },
-  heroBtns: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
-  primaryBtn: {
-    padding: "11px 14px",
-    minHeight: 44,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.20), rgba(124,58,237,0.20))",
-    color: "rgba(255,255,255,0.96)",
-    cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 13,
-  },
-  ghostBtn: {
-    padding: "11px 14px",
-    minHeight: 44,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 13,
   },
   card: {
     borderRadius: 22,
@@ -1388,7 +1222,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
   },
   stateKpi: {
-    minWidth: 150,
+    minWidth: 140,
     padding: 14,
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.10)",
@@ -1588,16 +1422,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     fontSize: 13,
   },
+  sectionHeadMini: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 950,
     letterSpacing: "-0.02em",
-  },
-  smallNote: {
-    marginTop: 6,
-    fontSize: 13,
-    opacity: 0.72,
-    lineHeight: 1.5,
   },
   decisionsCta: {
     fontSize: 12,
@@ -1717,7 +1552,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
   },
   quickCard: {
-    minHeight: 108,
+    minHeight: 100,
     display: "grid",
     alignContent: "start",
     gap: 8,

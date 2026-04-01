@@ -176,7 +176,7 @@ function PremiumLock({ title, copy }: PremiumLockProps) {
         style={styles.primarySmallButton}
         onClick={() => router.push("/planes")}
       >
-        Descubrir Premium
+        Ver planes
       </button>
     </div>
   );
@@ -239,8 +239,7 @@ export default function PanelPage() {
     } catch (err: any) {
       console.error("Error cargando panel:", err);
       setError(
-        err?.message ||
-          "No se pudo cargar el Panel. Intenta recargar la página."
+        err?.message || "No se pudo cargar el panel. Intenta recargar."
       );
     } finally {
       setLoading(false);
@@ -366,8 +365,7 @@ export default function PanelPage() {
           connected: false,
           connection_state: "disconnected",
           error:
-            json?.error ||
-            "No se pudo leer el estado de la integración con Google.",
+            json?.error || "No se pudo leer el estado de Google Calendar.",
         });
         return;
       }
@@ -380,8 +378,7 @@ export default function PanelPage() {
         connected: false,
         connection_state: "disconnected",
         error:
-          err?.message ||
-          "Error inesperado al consultar el estado de Google Calendar.",
+          err?.message || "Error inesperado al consultar Google Calendar.",
       });
     } finally {
       setGoogleLoading(false);
@@ -510,6 +507,7 @@ export default function PanelPage() {
   const currentContextGroupName = normalizeGroupLabel(
     contextState.groupName ?? null
   );
+
   const showContextGroupName =
     currentContextGroupName &&
     currentContextGroupName !== currentContextOption.label
@@ -522,92 +520,84 @@ export default function PanelPage() {
     if (normalizedTier.startsWith("founder")) {
       return {
         pill: "Founder",
-        title: "Tienes acceso fundador",
-        copy:
-          "Entraste antes que la mayoría. Mantienes una posición preferencial mientras SyncPlans evoluciona.",
+        title: "Acceso fundador",
+        copy: "Ventaja temprana activa.",
         cta: "Ver beneficios",
         tone: "founder" as PlanTone,
-        supportingCopy:
-          "No necesitas más funciones. Necesitas conservar una ventaja temprana.",
+        supportingCopy: "Mantienes una posición preferencial.",
       };
     }
 
     if (trialActive) {
       return {
-        pill: "Trial activo",
-        title: "Ya estás sintiendo lo que cambia con Premium",
-        copy:
-          "Estás probando una coordinación con más claridad, menos idas y vueltas y mejor contexto compartido.",
+        pill: "Trial",
+        title: "Premium en prueba",
+        copy: "Ya estás probando una coordinación más clara.",
         cta: "Mantener Premium",
         tone: "trial" as PlanTone,
-        supportingCopy:
-          "La decisión no es pagar por más. Es no volver al caos que ya lograste evitar.",
+        supportingCopy: "Evita volver al desorden.",
       };
     }
 
     if (premiumActive) {
       return {
         pill: "Premium",
-        title: "Coordinación sin fricción activa",
-        copy:
-          "Tus funciones premium ya están empujando una coordinación más clara, más compartida y menos desgastante.",
+        title: "Premium activo",
+        copy: "Tu coordinación premium ya está funcionando.",
         cta: "Gestionar plan",
         tone: "premium" as PlanTone,
-        supportingCopy:
-          "Cuando todo está alineado, el valor no se nota en la pantalla. Se nota en la tranquilidad.",
+        supportingCopy: "Más claridad. Menos fricción.",
       };
     }
 
     return {
       pill: "Free",
-      title: "Aquí empieza la coordinación real",
-      copy:
-        "Ya puedes organizarte. Premium aparece cuando coordinar con otros deja de ser una prueba y se vuelve una necesidad real.",
-      cta: "Descubrir Premium",
+      title: "Plan actual",
+      copy: "Tu base gratuita ya está activa.",
+      cta: "Ver planes",
       tone: "free" as PlanTone,
-      supportingCopy:
-        "Evita el clásico: “pensé que era otro día”.",
+      supportingCopy: "Premium entra cuando coordinar crece.",
     };
-  }, [groupLimitState.reached, premiumActive, tier, trialActive]);
+  }, [premiumActive, tier, trialActive]);
 
   const quickActions: QuickAction[] = [
     {
       id: "groups",
-      title: "Gestionar grupos",
-      hint: "Organiza pareja, familia y espacios compartidos desde el centro administrativo.",
+      title: "Grupos",
+      hint: "Pareja, familia y compartidos",
       href: "/groups",
       badge: totalGroups > 0 ? `${totalGroups}` : undefined,
       featured: true,
     },
     {
       id: "invitations",
-      title: "Gestionar invitaciones",
-      hint: "Invita, acepta y ordena quién entra al sistema sin mezclarlo con la operación diaria.",
+      title: "Invitaciones",
+      hint: "Entradas y accesos",
       href: "/invitations",
       featured: true,
     },
     {
       id: "settings",
-      title: "Ajustes e integraciones",
-      hint: "Configura SyncPlans y conecta herramientas como Google Calendar.",
+      title: "Ajustes",
+      hint: "Cuenta e integraciones",
       href: "/settings",
     },
     {
       id: "plans",
-      title: "Plan y acceso",
-      hint: "Revisa tu nivel actual, beneficios y próximos pasos de crecimiento.",
+      title: "Plan",
+      hint: "Nivel y beneficios",
       href: "/planes",
     },
     {
       id: "calendar",
-      title: "Ir al calendario",
-      hint: "Entrada secundaria para volver a la operación diaria cuando la necesites.",
+      title: "Calendario",
+      hint: "Volver a la operación",
       href: "/calendar",
     },
     {
       id: "events",
-      title: "Ver eventos",
-      hint: "Consulta los eventos registrados sin convertir el Panel en otra vista operativa.",
+      title: "Eventos",
+      hint: "Lista completa",
       href: "/events",
       badge: totalEvents > 0 ? `${totalEvents}` : undefined,
     },
@@ -632,7 +622,7 @@ export default function PanelPage() {
 
     if (connectionState === "needs_reauth") {
       return {
-        label: "Requiere reconexión",
+        label: "Reconectar",
         tone: "warn" as const,
       };
     }
@@ -660,28 +650,13 @@ export default function PanelPage() {
   const googleLine =
     connectionState === "connected"
       ? googleStatus?.account?.email
-        ? `Conectado con ${googleStatus.account.email}.`
-        : "Tu Google Calendar está conectado."
+        ? `Conectado con ${googleStatus.account.email}`
+        : "Google Calendar conectado"
       : connectionState === "needs_reauth"
       ? googleStatus?.account?.email
-        ? `La cuenta ${googleStatus.account.email} necesita reconexión.`
-        : "La conexión existe, pero necesita reconexión."
-      : "Todavía no has conectado Google Calendar.";
-
-  const heroNote =
-    totalGroups > 0 && connectionState === "connected"
-      ? `Tu estructura ya está armada: ${totalGroups} grupo${
-          totalGroups === 1 ? "" : "s"
-        } activo${totalGroups === 1 ? "" : "s"} y Google Calendar conectado.`
-      : totalGroups > 0
-      ? `Tienes ${totalGroups} grupo${
-          totalGroups === 1 ? "" : "s"
-        } activo${totalGroups === 1 ? "" : "s"}.`
-      : connectionState === "connected"
-      ? "Tu base ya está conectada: ahora toca ordenar grupos, accesos e integraciones."
-      : groupLimitState.reached
-      ? "Tu base ya está creada. El siguiente salto es abrir más espacios sin perder claridad."
-      : "Desde aquí defines la estructura que sostiene la coordinación compartida.";
+        ? `${googleStatus.account.email} necesita reconexión`
+        : "La conexión necesita reconexión"
+      : "Google Calendar no conectado";
 
   async function handleContextChange(nextMode: UsageMode) {
     if (contextSaving === nextMode || contextState.mode === nextMode) return;
@@ -704,10 +679,7 @@ export default function PanelPage() {
 
   return (
     <MobileScaffold maxWidth={1120}>
-      <PremiumHeader
-        title="Panel"
-        subtitle="Tu centro de gestión premium para ordenar grupos, invitaciones, integraciones y acceso."
-      />
+      <PremiumHeader title="Panel" subtitle="Gestión" />
 
       <div style={styles.stack}>
         {error ? <div style={styles.errorBanner}>{error}</div> : null}
@@ -715,13 +687,10 @@ export default function PanelPage() {
         <section style={styles.heroCard}>
           <div style={styles.heroTopRow}>
             <div style={styles.heroTextWrap}>
-              <div style={styles.eyebrow}>Gestión</div>
-              <h1 style={styles.heroTitle}>
-                Administra la estructura que sostiene tu coordinación.
-              </h1>
+              <div style={styles.eyebrow}>Panel</div>
+              <h1 style={styles.heroTitle}>Gestiona tu espacio</h1>
               <p style={styles.heroCopy}>
-                El Panel no es otra agenda: es el lugar donde ordenas espacios,
-                accesos e integraciones para que el resto de la app fluya mejor.
+                Grupos, invitaciones, integraciones y plan.
               </p>
             </div>
 
@@ -731,33 +700,28 @@ export default function PanelPage() {
                 style={styles.primaryHeroCta}
                 onClick={() => router.push("/groups")}
               >
-                Gestionar grupos
+                Grupos
               </button>
               <button
                 type="button"
                 style={styles.secondaryHeroCta}
                 onClick={() => router.push("/invitations")}
               >
-                Ver invitaciones
+                Invitaciones
               </button>
             </div>
-          </div>
-
-          <div style={styles.heroStrip}>
-            <div style={styles.heroStripTitle}>Estado del espacio</div>
-            <div style={styles.heroStripCopy}>{heroNote}</div>
           </div>
 
           <div style={styles.metricsGrid}>
             <MetricCard
               label="Grupos"
               value={loading ? "—" : String(totalGroups)}
-              hint="Pareja, familia y compartidos"
+              hint="Espacios activos"
             />
             <MetricCard
-              label="Eventos registrados"
+              label="Eventos"
               value={loading ? "—" : String(totalEvents)}
-              hint="En el sistema"
+              hint="Registrados"
             />
             <MetricCard
               label="Google"
@@ -770,12 +734,12 @@ export default function PanelPage() {
                   ? "Revisar"
                   : "Pendiente"
               }
-              hint="Estado de integración externa"
+              hint="Integración"
             />
             <MetricCard
               label="Conflictos"
               value={loading ? "—" : String(conflictsNow)}
-              hint="Choques abiertos"
+              hint="Abiertos"
               danger={conflictsNow > 0}
             />
           </div>
@@ -784,63 +748,79 @@ export default function PanelPage() {
         <section style={styles.sectionCard}>
           <div style={styles.sectionHead}>
             <div>
-              <div style={styles.sectionEyebrow}>Insights</div>
-              <h2 style={styles.sectionTitle}>Lectura de tu coordinación</h2>
+              <div style={styles.sectionEyebrow}>Contexto</div>
+              <h2 style={styles.sectionTitle}>Modo activo</h2>
             </div>
           </div>
 
-          {!canUseAdvancedAnalytics ? (
-            <PremiumLock
-              title="Entiende cómo estás coordinando realmente"
-              copy="Hoy solo ves eventos. Con Premium entiendes la carga real, la fricción y cómo mejorar la coordinación sin adivinar."
-            />
-          ) : (
-            <div style={styles.insightGrid}>
-              <div style={styles.insightCard}>
-                <div style={styles.insightTitle}>Carga semanal</div>
-                <div style={styles.insightValue}>
-                  {totalEvents === 0
-                    ? "Ligera"
-                    : totalEvents < 5
-                    ? "Controlada"
-                    : totalEvents < 10
-                    ? "Activa"
-                    : "Intensa"}
-                </div>
-                <div style={styles.insightHint}>
-                  Basado en tus eventos recientes
-                </div>
+          <div style={styles.contextHero}>
+            <div style={styles.contextHeroLeft}>
+              <div style={styles.contextHeroLabel}>Actual</div>
+              <div style={styles.contextCurrentRow}>
+                <span
+                  style={{
+                    ...styles.contextCurrentDot,
+                    background: currentContextOption.dot,
+                  }}
+                />
+                <span style={styles.contextCurrentText}>
+                  {currentContextOption.label}
+                </span>
               </div>
 
-              <div style={styles.insightCard}>
-                <div style={styles.insightTitle}>Fricción</div>
-                <div style={styles.insightValue}>
-                  {conflictsNow === 0
-                    ? "Baja"
-                    : conflictsNow < 3
-                    ? "Moderada"
-                    : "Alta"}
-                </div>
-                <div style={styles.insightHint}>
-                  Conflictos actuales en el sistema
-                </div>
-              </div>
-
-              <div style={styles.insightCard}>
-                <div style={styles.insightTitle}>Estructura</div>
-                <div style={styles.insightValue}>
-                  {totalGroups === 0
-                    ? "Sin estructura"
-                    : totalGroups === 1
-                    ? "Simple"
-                    : "Distribuida"}
-                </div>
-                <div style={styles.insightHint}>
-                  Organización de tus espacios
-                </div>
-              </div>
+              {showContextGroupName ? (
+                <div style={styles.contextCurrentMeta}>{showContextGroupName}</div>
+              ) : null}
             </div>
-          )}
+
+            <div style={styles.contextHeroRight}>
+              <div style={styles.contextHeroHint}>Cambia la vista principal.</div>
+            </div>
+          </div>
+
+          <div style={styles.contextGrid}>
+            {CONTEXT_OPTIONS.map((option) => {
+              const active = option.key === contextState.mode;
+              const saving = contextSaving === option.key;
+
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => handleContextChange(option.key)}
+                  disabled={saving}
+                  style={{
+                    ...styles.contextCard,
+                    ...(active ? styles.contextCardActive : {}),
+                    ...(saving ? styles.contextCardBusy : {}),
+                  }}
+                >
+                  <div style={styles.contextCardTop}>
+                    <span
+                      style={{
+                        ...styles.contextCardDot,
+                        background: option.dot,
+                      }}
+                    />
+                    <span style={styles.contextCardLabel}>{option.label}</span>
+                    {active ? (
+                      <span style={styles.contextBadge}>Activo</span>
+                    ) : null}
+                  </div>
+
+                  <div style={styles.contextCardHint}>{option.hint}</div>
+
+                  <div style={styles.contextCardFoot}>
+                    {saving
+                      ? "Actualizando..."
+                      : active
+                      ? "En uso"
+                      : "Cambiar"}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </section>
 
         <div style={styles.mainGrid}>
@@ -848,98 +828,8 @@ export default function PanelPage() {
             <section style={styles.sectionCard}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionEyebrow}>Contexto</div>
-                  <h2 style={styles.sectionTitle}>Contexto activo</h2>
-                </div>
-              </div>
-
-              <p style={styles.bodyCopy}>
-                Esto define desde qué perspectiva principal estás trabajando la
-                app. El header te informa; aquí decides el enfoque.
-              </p>
-
-              <div style={styles.contextHero}>
-                <div style={styles.contextHeroLeft}>
-                  <div style={styles.contextHeroLabel}>Actualmente</div>
-                  <div style={styles.contextCurrentRow}>
-                    <span
-                      style={{
-                        ...styles.contextCurrentDot,
-                        background: currentContextOption.dot,
-                      }}
-                    />
-                    <span style={styles.contextCurrentText}>
-                      {currentContextOption.label}
-                    </span>
-                  </div>
-
-                  {showContextGroupName ? (
-                    <div style={styles.contextCurrentMeta}>
-                      Grupo asociado: {showContextGroupName}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div style={styles.contextHeroRight}>
-                  <div style={styles.contextHeroHint}>
-                    Cambia este contexto solo cuando quieras cambiar la mirada
-                    principal de la app.
-                  </div>
-                </div>
-              </div>
-
-              <div style={styles.contextGrid}>
-                {CONTEXT_OPTIONS.map((option) => {
-                  const active = option.key === contextState.mode;
-                  const saving = contextSaving === option.key;
-
-                  return (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() => handleContextChange(option.key)}
-                      disabled={saving}
-                      style={{
-                        ...styles.contextCard,
-                        ...(active ? styles.contextCardActive : {}),
-                        ...(saving ? styles.contextCardBusy : {}),
-                      }}
-                    >
-                      <div style={styles.contextCardTop}>
-                        <span
-                          style={{
-                            ...styles.contextCardDot,
-                            background: option.dot,
-                          }}
-                        />
-                        <span style={styles.contextCardLabel}>
-                          {option.label}
-                        </span>
-                        {active ? (
-                          <span style={styles.contextBadge}>Activo</span>
-                        ) : null}
-                      </div>
-
-                      <div style={styles.contextCardHint}>{option.hint}</div>
-
-                      <div style={styles.contextCardFoot}>
-                        {saving
-                          ? "Actualizando..."
-                          : active
-                          ? "Este es el contexto principal actual."
-                          : "Cambiar a este contexto"}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section style={styles.sectionCard}>
-              <div style={styles.sectionHead}>
-                <div>
                   <div style={styles.sectionEyebrow}>Gestión</div>
-                  <h2 style={styles.sectionTitle}>Centro de administración</h2>
+                  <h2 style={styles.sectionTitle}>Accesos</h2>
                 </div>
               </div>
 
@@ -971,8 +861,8 @@ export default function PanelPage() {
             <section style={styles.sectionCard}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionEyebrow}>Estructura</div>
-                  <h2 style={styles.sectionTitle}>Grupos activos</h2>
+                  <div style={styles.sectionEyebrow}>Grupos</div>
+                  <h2 style={styles.sectionTitle}>Activos</h2>
                 </div>
 
                 <button
@@ -985,7 +875,7 @@ export default function PanelPage() {
               </div>
 
               {groupsPreview.length === 0 ? (
-                <EmptyBlock copy="Todavía no tienes grupos creados. Este es el primer paso para que SyncPlans deje de ser solo personal." />
+                <EmptyBlock copy="Aún no tienes grupos." />
               ) : (
                 <div style={styles.list}>
                   {groupsPreview.map((group) => (
@@ -1011,6 +901,62 @@ export default function PanelPage() {
                 </div>
               )}
             </section>
+
+            <section style={styles.sectionCard}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionEyebrow}>Insights</div>
+                  <h2 style={styles.sectionTitle}>Lectura rápida</h2>
+                </div>
+              </div>
+
+              {!canUseAdvancedAnalytics ? (
+                <PremiumLock
+                  title="Insights premium"
+                  copy="Carga, fricción y lectura avanzada."
+                />
+              ) : (
+                <div style={styles.insightGrid}>
+                  <div style={styles.insightCard}>
+                    <div style={styles.insightTitle}>Carga</div>
+                    <div style={styles.insightValue}>
+                      {totalEvents === 0
+                        ? "Ligera"
+                        : totalEvents < 5
+                        ? "Controlada"
+                        : totalEvents < 10
+                        ? "Activa"
+                        : "Intensa"}
+                    </div>
+                    <div style={styles.insightHint}>Eventos recientes</div>
+                  </div>
+
+                  <div style={styles.insightCard}>
+                    <div style={styles.insightTitle}>Fricción</div>
+                    <div style={styles.insightValue}>
+                      {conflictsNow === 0
+                        ? "Baja"
+                        : conflictsNow < 3
+                        ? "Moderada"
+                        : "Alta"}
+                    </div>
+                    <div style={styles.insightHint}>Conflictos activos</div>
+                  </div>
+
+                  <div style={styles.insightCard}>
+                    <div style={styles.insightTitle}>Estructura</div>
+                    <div style={styles.insightValue}>
+                      {totalGroups === 0
+                        ? "Vacía"
+                        : totalGroups === 1
+                        ? "Simple"
+                        : "Distribuida"}
+                    </div>
+                    <div style={styles.insightHint}>Espacios creados</div>
+                  </div>
+                </div>
+              )}
+            </section>
           </div>
 
           <div style={styles.rightCol}>
@@ -1030,16 +976,13 @@ export default function PanelPage() {
               <div style={styles.planPill}>{planInfo.pill}</div>
               <h2 style={styles.planTitle}>{planInfo.title}</h2>
               <p style={styles.planCopy}>{planInfo.copy}</p>
-
-              <div style={styles.planSupportCopy}>
-                {planInfo.supportingCopy}
-              </div>
+              <div style={styles.planSupportCopy}>{planInfo.supportingCopy}</div>
 
               {!planInfo.tone || planInfo.tone === "free" ? (
                 <div style={styles.planMiniNote}>
                   {groupLimitState.reached
-                    ? "Free ya cumplió su función base. Premium abre más grupos cuando coordinar empieza a crecer."
-                    : `Free incluye hasta ${groupLimitState.limit ?? "1"} grupo para empezar sin fricción.`}
+                    ? "Premium abre más grupos."
+                    : `Free incluye hasta ${groupLimitState.limit ?? "1"} grupo.`}
                 </div>
               ) : null}
 
@@ -1055,8 +998,8 @@ export default function PanelPage() {
             <section style={styles.sectionCard}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionEyebrow}>Captura</div>
-                  <h2 style={styles.sectionTitle}>Acciones sugeridas</h2>
+                  <div style={styles.sectionEyebrow}>Capturas</div>
+                  <h2 style={styles.sectionTitle}>Sugeridas</h2>
                 </div>
 
                 <button
@@ -1068,20 +1011,15 @@ export default function PanelPage() {
                 </button>
               </div>
 
-              <p style={styles.bodyCopy}>
-                Cuando alguien responda desde un link público, aquí aparecerán
-                sugerencias listas para revisar sin perder el hilo.
-              </p>
-
               {!canUseCaptures ? (
                 <PremiumLock
-                  title="Convierte respuestas externas en decisiones reales"
-                  copy="Cuando alguien responde desde un link, Premium transforma esa respuesta en acciones dentro del sistema: aceptar, mover o ajustar sin perder contexto."
+                  title="Capturas premium"
+                  copy="Respuestas externas convertidas en acciones."
                 />
               ) : capturesLoading ? (
-                <EmptyBlock copy="Buscando respuestas externas recientes…" />
+                <EmptyBlock copy="Buscando respuestas…" />
               ) : captures.length === 0 ? (
-                <EmptyBlock copy="Todavía no hay respuestas externas pendientes por revisar." />
+                <EmptyBlock copy="No hay respuestas pendientes." />
               ) : (
                 <div style={styles.list}>
                   {captures.slice(0, 3).map((capture) => {
@@ -1106,10 +1044,10 @@ export default function PanelPage() {
                             </div>
                             <div style={styles.captureSubline}>
                               {capture.status === "accepted"
-                                ? `${actorLabel} confirmó este plan`
+                                ? `${actorLabel} confirmó`
                                 : hasProposal
-                                ? `${actorLabel} sugirió mover este plan`
-                                : `${actorLabel} rechazó este plan`}
+                                ? `${actorLabel} propuso moverlo`
+                                : `${actorLabel} rechazó`}
                             </div>
                           </div>
 
@@ -1118,7 +1056,7 @@ export default function PanelPage() {
                               capture.status === "accepted"
                                 ? "Aceptado"
                                 : hasProposal
-                                ? "Propuso cambio"
+                                ? "Cambio"
                                 : "Rechazado"
                             }
                             tone={statusTone}
@@ -1127,24 +1065,24 @@ export default function PanelPage() {
 
                         <div style={styles.captureMetaRow}>
                           <span style={styles.captureMetaPill}>
-                            Recibido {receivedLabel}
+                            {receivedLabel}
                           </span>
 
                           {capture.contact ? (
                             <span style={styles.captureMetaPill}>
-                              Respuesta de {capture.contact}
+                              {capture.contact}
                             </span>
                           ) : null}
                         </div>
 
                         <div style={styles.captureMeta}>
                           {capture.status === "accepted"
-                            ? "La respuesta externa ya confirmó este plan y puedes abrirlo directamente."
+                            ? "Ya puedes abrir este evento."
                             : hasProposal
-                            ? `Nueva fecha sugerida: ${formatCaptureDate(
+                            ? `Nueva fecha: ${formatCaptureDate(
                                 capture.proposed_date
                               )}`
-                            : "La invitación fue rechazada sin nueva fecha sugerida. Puedes reprogramarla o revisar el evento original."}
+                            : "Puedes reprogramarlo o revisarlo."}
                         </div>
 
                         {capture.message ? (
@@ -1171,7 +1109,7 @@ export default function PanelPage() {
                                   handleTakeCaptureProposal(capture)
                                 }
                               >
-                                Tomar esta fecha
+                                Tomar fecha
                               </button>
 
                               <button
@@ -1179,7 +1117,7 @@ export default function PanelPage() {
                                 style={styles.secondarySmallButton}
                                 onClick={() => handleReviewCapture(capture)}
                               >
-                                Revisar propuesta
+                                Revisar
                               </button>
 
                               <button
@@ -1220,8 +1158,8 @@ export default function PanelPage() {
             <section style={styles.sectionCard}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionEyebrow}>Google Calendar</div>
-                  <h2 style={styles.sectionTitle}>Integración de apoyo</h2>
+                  <div style={styles.sectionEyebrow}>Google</div>
+                  <h2 style={styles.sectionTitle}>Integración</h2>
                 </div>
 
                 {!canUseGoogleIntegration ? (
@@ -1231,16 +1169,10 @@ export default function PanelPage() {
                 )}
               </div>
 
-              <p style={styles.bodyCopy}>
-                Google Calendar suma contexto externo, pero la verdad compartida
-                sigue viviendo dentro de SyncPlans. Desde aquí gestionas esa
-                conexión sin mezclarla con la vista diaria.
-              </p>
-
               {!canUseGoogleIntegration ? (
                 <PremiumLock
-                  title="Añade contexto externo sin romper tu coordinación"
-                  copy="Google Calendar te da visibilidad adicional, pero Premium lo integra para que decidas mejor sin saltar entre apps."
+                  title="Google premium"
+                  copy="Contexto externo sin salir de SyncPlans."
                 />
               ) : (
                 <>
@@ -1257,9 +1189,7 @@ export default function PanelPage() {
                       <button
                         type="button"
                         style={styles.primarySmallButton}
-                        onClick={() =>
-                          router.push("/settings?tab=integrations")
-                        }
+                        onClick={() => router.push("/settings?tab=integrations")}
                       >
                         {googlePrimaryCta}
                       </button>
@@ -1278,7 +1208,7 @@ export default function PanelPage() {
                     <div style={styles.googleEventsWrap}>
                       <div style={styles.miniSectionHead}>
                         <span style={styles.miniSectionTitle}>
-                          Vista previa de Google
+                          Próximos de Google
                         </span>
                         <button
                           type="button"
@@ -1294,9 +1224,9 @@ export default function PanelPage() {
                       ) : null}
 
                       {googleEventsLoading ? (
-                        <EmptyBlock copy="Cargando próximos eventos de Google…" />
+                        <EmptyBlock copy="Cargando eventos…" />
                       ) : googleEvents.length === 0 ? (
-                        <EmptyBlock copy="No encontramos eventos próximos en Google para mostrar aquí." />
+                        <EmptyBlock copy="No encontramos eventos próximos." />
                       ) : (
                         <div style={styles.list}>
                           {googleEvents.slice(0, 3).map((event) => (
@@ -1438,7 +1368,7 @@ function formatRelativeCaptureTime(value: string | null) {
     const diffMs = Date.now() - date.getTime();
     const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
 
-    if (diffMinutes < 1) return "Ahora mismo";
+    if (diffMinutes < 1) return "Ahora";
     if (diffMinutes < 60) return `Hace ${diffMinutes} min`;
 
     const diffHours = Math.round(diffMinutes / 60);
@@ -1566,13 +1496,13 @@ const styles: Record<string, CSSProperties> = {
     maxWidth: 700,
     color: colors.textMuted,
     fontSize: 15,
-    lineHeight: 1.62,
+    lineHeight: 1.5,
   },
 
   heroActionStack: {
     display: "grid",
     gap: 10,
-    minWidth: 200,
+    minWidth: 180,
     alignSelf: "flex-start",
     flex: "0 0 auto",
   },
@@ -1596,30 +1526,6 @@ const styles: Record<string, CSSProperties> = {
     color: colors.textPrimary,
     fontWeight: 800,
     cursor: "pointer",
-  },
-
-  heroStrip: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.045)",
-    padding: "13px 14px",
-    display: "grid",
-    gap: 4,
-  },
-
-  heroStripTitle: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: 0.65,
-    color: colors.textSecondary,
-  },
-
-  heroStripCopy: {
-    fontSize: 14,
-    color: colors.textPrimary,
-    lineHeight: 1.5,
-    fontWeight: 700,
   },
 
   metricsGrid: {
@@ -1711,13 +1617,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 22,
     fontWeight: 900,
     lineHeight: 1.05,
-  },
-
-  bodyCopy: {
-    margin: 0,
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 1.6,
   },
 
   contextHero: {
@@ -1980,6 +1879,7 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.55,
     color: "rgba(226,232,240,0.84)",
   },
+
   primaryCta: {
     borderRadius: 999,
     padding: "12px 16px",
