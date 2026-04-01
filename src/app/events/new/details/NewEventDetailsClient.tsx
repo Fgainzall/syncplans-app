@@ -265,6 +265,9 @@ function NewEventDetailsInner() {
   const sp = useSearchParams();
   const proposedStartParam = sp.get("proposedStart");
   const proposedEndParam = sp.get("proposedEnd");
+  const quickCaptureParam = sp.get("qc");
+  const quickCaptureTitleParam = sp.get("title");
+  const quickCaptureDurationParam = sp.get("duration");
 
   const eventIdParam = sp.get("eventId") || sp.get("edit") || sp.get("id");
   const isEditing = !!eventIdParam;
@@ -315,6 +318,7 @@ function NewEventDetailsInner() {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [externalProposalActive, setExternalProposalActive] = useState(false);
+  const quickCaptureHydratedRef = useRef(false);
 
   const [booting, setBooting] = useState(true);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
@@ -404,6 +408,10 @@ function NewEventDetailsInner() {
 
     const fromParam = sp.get("from");
     if (fromParam) params.set("from", fromParam);
+
+    if (quickCaptureParam === "1") params.set("qc", "1");
+    if (quickCaptureTitleParam) params.set("title", quickCaptureTitleParam);
+    if (quickCaptureDurationParam) params.set("duration", quickCaptureDurationParam);
 
     return `/events/new/details?${params.toString()}`;
   }
@@ -541,6 +549,45 @@ function NewEventDetailsInner() {
       // ignore
     }
   }, [proposedStartParam, proposedEndParam]);
+
+
+
+  useEffect(() => {
+    if (isEditing) return;
+    if (quickCaptureHydratedRef.current) return;
+    if (quickCaptureParam !== "1") return;
+
+    const incomingTitle = String(quickCaptureTitleParam ?? "").trim();
+    const incomingDuration = Number(quickCaptureDurationParam ?? "60");
+    const safeDuration = Number.isFinite(incomingDuration) && incomingDuration >= 15
+      ? Math.round(incomingDuration)
+      : 60;
+
+    if (incomingTitle) {
+      setTitle((current) => (current.trim() ? current : incomingTitle));
+    }
+
+    const parsedDate = dateParam ? new Date(dateParam) : null;
+    if (parsedDate && !Number.isNaN(parsedDate.getTime())) {
+      setStartLocal(toInputLocal(parsedDate));
+      setEndLocal(toInputLocal(addMinutes(parsedDate, safeDuration)));
+    } else {
+      setEndLocal((current) => {
+        const start = fromInputLocal(startLocal);
+        if (Number.isNaN(start.getTime())) return current;
+        return toInputLocal(addMinutes(start, safeDuration));
+      });
+    }
+
+    quickCaptureHydratedRef.current = true;
+  }, [
+    isEditing,
+    quickCaptureParam,
+    quickCaptureTitleParam,
+    quickCaptureDurationParam,
+    dateParam,
+    startLocal,
+  ]);
 
   const lockedToActiveGroup = useMemo(() => {
     if (typeParam !== "group") return false;

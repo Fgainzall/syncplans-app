@@ -403,6 +403,173 @@ function eventOverlapsWindow(
   );
 }
 
+
+
+type QuickCaptureParseResult = {
+  title: string;
+  start: Date;
+  end: Date;
+  understoodDate: boolean;
+  understoodTime: boolean;
+};
+
+const QUICK_CAPTURE_DAY_MAP: Array<{ aliases: string[]; dayIndex: number }> = [
+  { aliases: ["domingo"], dayIndex: 0 },
+  { aliases: ["lunes"], dayIndex: 1 },
+  { aliases: ["martes"], dayIndex: 2 },
+  { aliases: ["miercoles", "miércoles"], dayIndex: 3 },
+  { aliases: ["jueves"], dayIndex: 4 },
+  { aliases: ["viernes"], dayIndex: 5 },
+  { aliases: ["sabado", "sábado"], dayIndex: 6 },
+];
+
+function normalizeQuickCaptureText(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function nextWeekday(base: Date, targetDayIndex: number) {
+  const start = new Date(
+    base.getFullYear(),
+    base.getMonth(),
+    base.getDate(),
+    12,
+    0,
+    0,
+    0
+  );
+  const current = start.getDay();
+  let diff = targetDayIndex - current;
+  if (diff < 0) diff += 7;
+  if (diff === 0) diff = 7;
+  start.setDate(start.getDate() + diff);
+  return start;
+}
+
+function resolveQuickCaptureDate(normalized: string) {
+  const now = new Date();
+  const today = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    12,
+    0,
+    0,
+    0
+  );
+
+  if (/\bhoy\b/i.test(normalized)) {
+    return { date: today, matchedToken: /\bhoy\b/i, understoodDate: true };
+  }
+
+  if (/\bmanana\b/i.test(normalized)) {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return {
+      date: tomorrow,
+      matchedToken: /\bmanana\b/i,
+      understoodDate: true,
+    };
+  }
+
+  for (const entry of QUICK_CAPTURE_DAY_MAP) {
+    for (const alias of entry.aliases) {
+      const token = new RegExp(`\b${alias}\b`, "i");
+      if (token.test(normalized)) {
+        return {
+          date: nextWeekday(today, entry.dayIndex),
+          matchedToken: token,
+          understoodDate: true,
+        };
+      }
+    }
+  }
+
+  return { date: today, matchedToken: null, understoodDate: false };
+}
+
+function resolveQuickCaptureTime(normalized: string) {
+  const timeRegex = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i;
+  const match = normalized.match(timeRegex);
+
+  if (!match) {
+    return {
+      hours: 19,
+      minutes: 0,
+      matchedText: null,
+      understoodTime: false,
+    };
+  }
+
+  let hours = Number(match[1]);
+  const minutes = match[2] ? Number(match[2]) : 0;
+  const meridiem = (match[3] ?? "").toLowerCase();
+
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes) || minutes > 59) {
+    return {
+      hours: 19,
+      minutes: 0,
+      matchedText: null,
+      understoodTime: false,
+    };
+  }
+
+  if (meridiem === "pm" && hours < 12) hours += 12;
+  if (meridiem === "am" && hours === 12) hours = 0;
+
+  if (!meridiem && hours >= 1 && hours <= 7) {
+    hours += 12;
+  }
+
+  if (hours > 23) {
+    return {
+      hours: 19,
+      minutes: 0,
+      matchedText: null,
+      understoodTime: false,
+    };
+  }
+
+  return {
+    hours,
+    minutes,
+    matchedText: match[0],
+    understoodTime: true,
+  };
+}
+
+function buildQuickCaptureResult(rawValue: string): QuickCaptureParseResult {
+  const normalized = normalizeQuickCaptureText(rawValue);
+  const dateInfo = resolveQuickCaptureDate(normalized);
+  const timeInfo = resolveQuickCaptureTime(normalized);
+
+  const cleanedTitle = rawValue
+    .replace(dateInfo.matchedToken ?? /$^/, " ")
+    .replace(timeInfo.matchedText ?? "$^", " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const title = cleanedTitle || rawValue.trim() || "Nuevo evento";
+
+  const start = new Date(dateInfo.date);
+  start.setHours(timeInfo.hours, timeInfo.minutes, 0, 0);
+
+  const end = new Date(start);
+  end.setMinutes(end.getMinutes() + 60);
+
+  return {
+    title,
+    start,
+    end,
+    understoodDate: dateInfo.understoodDate,
+    understoodTime: timeInfo.understoodTime,
+  };
+}
+
 export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const router = useRouter();
   const isMobile = useIsMobileWidth(520);
@@ -423,6 +590,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     latestEventId: null,
   });
   const [recentDecisions, setRecentDecisions] = useState<RecentDecision[]>([]);
+  const [quickCaptureValue, setQuickCaptureValue] = useState("");
+  const [quickCaptureBusy, setQuickCaptureBusy] = useState(false);
   const toastTimeoutRef = useRef<number | null>(null);
 
   const clearToastTimer = () => {
@@ -717,6 +886,56 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     router.push("/conflicts/detected");
   }, [router, conflictAlert]);
 
+
+
+  const handleQuickCaptureSubmit = useCallback(() => {
+    const raw = quickCaptureValue.trim();
+    if (!raw || quickCaptureBusy) return;
+
+    setQuickCaptureBusy(true);
+
+    try {
+      const parsed = buildQuickCaptureResult(raw);
+      const params = new URLSearchParams();
+      const nextType = activeGroupId ? "group" : "personal";
+
+      params.set("qc", "1");
+      params.set("type", nextType);
+      params.set("date", parsed.start.toISOString());
+      params.set("title", parsed.title);
+      params.set("duration", "60");
+
+      if (activeGroupId) {
+        params.set("groupId", activeGroupId);
+        params.set("lock", "1");
+      }
+
+      if (parsed.understoodDate || parsed.understoodTime) {
+        showToast(
+          "Listo, lo preparo ✨",
+          parsed.understoodDate && parsed.understoodTime
+            ? "Abrimos el plan con fecha y hora sugeridas."
+            : parsed.understoodDate
+              ? "Abrimos el plan con el día sugerido para que completes la hora."
+              : "Abrimos el plan con una hora sugerida para que la ajustes si quieres."
+        );
+      }
+
+      router.push(`/events/new/details?${params.toString()}`);
+    } finally {
+      window.setTimeout(() => setQuickCaptureBusy(false), 180);
+    }
+  }, [activeGroupId, quickCaptureBusy, quickCaptureValue, router, showToast]);
+
+  const handleQuickCaptureKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      handleQuickCaptureSubmit();
+    },
+    [handleQuickCaptureSubmit]
+  );
+
   const visibleDecisions = useMemo(() => recentDecisions.slice(0, 3), [recentDecisions]);
 
   return (
@@ -739,6 +958,54 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       >
         <Section style={styles.shell} className="spSum-shell">
           <PremiumHeader title={title} subtitle={summarySubtitle} />
+
+          <Card style={styles.card} className="spSum-card">
+            <div style={styles.captureHeaderRow}>
+              <div>
+                <div style={styles.captureEyebrow}>Quick Capture</div>
+                <div style={styles.captureTitle}>¿Qué quieres planear?</div>
+                <div style={styles.captureSub}>
+                  Escríbelo simple y te dejo el plan listo para revisar.
+                </div>
+              </div>
+
+              <div style={styles.captureHintPill}>{activeGroupId ? `Contexto · ${activeLabel}` : "Contexto · Personal"}</div>
+            </div>
+
+            <div style={styles.captureFieldWrap} className="spSum-captureFieldWrap">
+              <input
+                value={quickCaptureValue}
+                onChange={(event) => setQuickCaptureValue(event.target.value)}
+                onKeyDown={handleQuickCaptureKeyDown}
+                placeholder="Ej: cena viernes 8pm"
+                style={styles.captureInput}
+                className="spSum-captureInput"
+                autoCapitalize="sentences"
+                autoCorrect="on"
+                spellCheck
+              />
+
+              <button
+                onClick={handleQuickCaptureSubmit}
+                disabled={!quickCaptureValue.trim() || quickCaptureBusy}
+                style={{
+                  ...styles.captureButton,
+                  ...(!quickCaptureValue.trim() || quickCaptureBusy
+                    ? styles.captureButtonDisabled
+                    : {}),
+                }}
+                className="spSum-captureButton"
+              >
+                {quickCaptureBusy ? "Preparando…" : "Seguir"}
+              </button>
+            </div>
+
+            <div style={styles.captureExamplesRow}>
+              <span style={styles.captureExamplePill}>cena viernes 8pm</span>
+              <span style={styles.captureExamplePill}>doctor martes 10</span>
+              <span style={styles.captureExamplePill}>fulbito sábado 6</span>
+            </div>
+          </Card>
 
           <Card style={styles.card} className="spSum-card">
             {conflictAlert.count > 0 ? (
@@ -1039,6 +1306,19 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             grid-template-columns: 1fr !important;
           }
 
+          .spSum-captureFieldWrap {
+            grid-template-columns: 1fr !important;
+          }
+
+          .spSum-captureInput {
+            min-height: 52px !important;
+          }
+
+          .spSum-captureButton {
+            width: 100% !important;
+            min-height: 50px !important;
+          }
+
           .spSum-quickCard {
             min-height: 88px !important;
             padding: 14px !important;
@@ -1105,6 +1385,102 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 16,
     boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
     backdropFilter: "blur(14px)",
+  },
+
+  captureHeaderRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  captureEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.86)",
+  },
+  captureTitle: {
+    marginTop: 6,
+    fontSize: 22,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+  },
+  captureSub: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 1.55,
+    opacity: 0.74,
+    maxWidth: 640,
+  },
+  captureHintPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "8px 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(125,211,252,0.16)",
+    background: "rgba(56,189,248,0.10)",
+    color: "rgba(226,242,255,0.92)",
+    fontSize: 11,
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+  },
+  captureFieldWrap: {
+    marginTop: 16,
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) auto",
+    gap: 10,
+    alignItems: "stretch",
+  },
+  captureInput: {
+    width: "100%",
+    minHeight: 56,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(6,10,22,0.72)",
+    color: "rgba(255,255,255,0.96)",
+    padding: "0 16px",
+    fontSize: 15,
+    fontWeight: 700,
+    outline: "none",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
+  },
+  captureButton: {
+    minWidth: 124,
+    minHeight: 56,
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 16,
+    background: "linear-gradient(135deg, rgba(56,189,248,0.24), rgba(124,58,237,0.24))",
+    color: "rgba(255,255,255,0.96)",
+    fontSize: 14,
+    fontWeight: 900,
+    padding: "0 18px",
+    cursor: "pointer",
+    boxShadow: "0 14px 30px rgba(8,12,28,0.24)",
+  },
+  captureButtonDisabled: {
+    opacity: 0.55,
+    cursor: "not-allowed",
+    boxShadow: "none",
+  },
+  captureExamplesRow: {
+    marginTop: 14,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  captureExamplePill: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "7px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.035)",
+    fontSize: 11,
+    fontWeight: 800,
+    opacity: 0.82,
   },
   conflictBanner: {
     width: "100%",
