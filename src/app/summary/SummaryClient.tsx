@@ -450,113 +450,132 @@ function nextWeekday(base: Date, targetDayIndex: number) {
   return start;
 }
 
-function resolveQuickCaptureDate(normalized: string) {
-  const now = new Date();
-  const today = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-    12,
-    0,
-    0,
-    0
-  );
+// ==========================
+// QUICK CAPTURE PARSER PRO V1
+// ==========================
 
-  if (/\bhoy\b/i.test(normalized)) {
-    return { date: today, matchedToken: /\bhoy\b/i, understoodDate: true };
+const DAYS_MAP: Record<string, number> = {
+  domingo: 0,
+  lunes: 1,
+  martes: 2,
+  miercoles: 3,
+  miércoles: 3,
+  jueves: 4,
+  viernes: 5,
+  sabado: 6,
+  sábado: 6,
+};
+
+function normalizeText(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function getNextWeekday(base: Date, target: number) {
+  const d = new Date(base);
+  d.setHours(12, 0, 0, 0);
+
+  const current = d.getDay();
+  let diff = target - current;
+
+  if (diff <= 0) diff += 7;
+
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+function extractDate(text: string) {
+  const normalized = normalizeText(text);
+
+  // hoy
+  if (/\bhoy\b/.test(normalized)) {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    return { date: d, token: /\bhoy\b/i, ok: true };
   }
 
-  if (/\bmanana\b/i.test(normalized)) {
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return {
-      date: tomorrow,
-      matchedToken: /\bmanana\b/i,
-      understoodDate: true,
-    };
+  // mañana
+  if (/\bmanana\b/.test(normalized)) {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(12, 0, 0, 0);
+    return { date: d, token: /\bmanana\b/i, ok: true };
   }
 
-  for (const entry of QUICK_CAPTURE_DAY_MAP) {
-    for (const alias of entry.aliases) {
-      const token = new RegExp(`\b${alias}\b`, "i");
-      if (token.test(normalized)) {
-        return {
-          date: nextWeekday(today, entry.dayIndex),
-          matchedToken: token,
-          understoodDate: true,
-        };
-      }
+  // días de semana
+  for (const key of Object.keys(DAYS_MAP)) {
+    const regex = new RegExp(`\\b${key}\\b`, "i");
+
+    if (regex.test(normalized)) {
+      const date = getNextWeekday(new Date(), DAYS_MAP[key]);
+      return { date, token: regex, ok: true };
     }
   }
 
-  return { date: today, matchedToken: null, understoodDate: false };
+  // fallback: hoy
+  const fallback = new Date();
+  fallback.setHours(12, 0, 0, 0);
+
+  return { date: fallback, token: null, ok: false };
 }
 
-function resolveQuickCaptureTime(normalized: string) {
-  const timeRegex = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i;
-  const match = normalized.match(timeRegex);
+function extractTime(text: string) {
+  const normalized = normalizeText(text);
+
+  // 6am, 6 pm, 18:00, 6:30pm, etc
+  const regex = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i;
+  const match = normalized.match(regex);
 
   if (!match) {
-    return {
-      hours: 19,
-      minutes: 0,
-      matchedText: null,
-      understoodTime: false,
-    };
+    return { h: 19, m: 0, token: null, ok: false };
   }
 
-  let hours = Number(match[1]);
-  const minutes = match[2] ? Number(match[2]) : 0;
-  const meridiem = (match[3] ?? "").toLowerCase();
+  let h = Number(match[1]);
+  let m = match[2] ? Number(match[2]) : 0;
+  const ampm = (match[3] || "").toLowerCase();
 
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes) || minutes > 59) {
-    return {
-      hours: 19,
-      minutes: 0,
-      matchedText: null,
-      understoodTime: false,
-    };
+  if (ampm === "pm" && h < 12) h += 12;
+  if (ampm === "am" && h === 12) h = 0;
+
+  // si no hay am/pm → heurística humana
+  if (!ampm && h >= 1 && h <= 7) {
+    h += 12; // 6 → 18 (más probable)
   }
 
-  if (meridiem === "pm" && hours < 12) hours += 12;
-  if (meridiem === "am" && hours === 12) hours = 0;
-
-  if (!meridiem && hours >= 1 && hours <= 7) {
-    hours += 12;
+  if (h > 23 || m > 59) {
+    return { h: 19, m: 0, token: null, ok: false };
   }
 
-  if (hours > 23) {
-    return {
-      hours: 19,
-      minutes: 0,
-      matchedText: null,
-      understoodTime: false,
-    };
-  }
-
-  return {
-    hours,
-    minutes,
-    matchedText: match[0],
-    understoodTime: true,
-  };
+  return { h, m, token: match[0], ok: true };
 }
 
-function buildQuickCaptureResult(rawValue: string): QuickCaptureParseResult {
-  const normalized = normalizeQuickCaptureText(rawValue);
-  const dateInfo = resolveQuickCaptureDate(normalized);
-  const timeInfo = resolveQuickCaptureTime(normalized);
+function cleanTitle(original: string, dateToken: RegExp | null, timeToken: string | null) {
+  let result = original;
 
-  const cleanedTitle = rawValue
-    .replace(dateInfo.matchedToken ?? /$^/, " ")
-    .replace(timeInfo.matchedText ?? "$^", " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  if (dateToken) {
+    result = result.replace(dateToken, " ");
+  }
 
-  const title = cleanedTitle || rawValue.trim() || "Nuevo evento";
+  if (timeToken) {
+    const escaped = timeToken.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    result = result.replace(new RegExp(escaped, "i"), " ");
+  }
+
+  return result.replace(/\s+/g, " ").trim();
+}
+
+function buildQuickCaptureResult(raw: string): QuickCaptureParseResult {
+  const dateInfo = extractDate(raw);
+  const timeInfo = extractTime(raw);
+
+  const title = cleanTitle(raw, dateInfo.token, timeInfo.token) || raw || "Nuevo evento";
 
   const start = new Date(dateInfo.date);
-  start.setHours(timeInfo.hours, timeInfo.minutes, 0, 0);
+  start.setHours(timeInfo.h, timeInfo.m, 0, 0);
 
   const end = new Date(start);
   end.setMinutes(end.getMinutes() + 60);
@@ -565,8 +584,8 @@ function buildQuickCaptureResult(rawValue: string): QuickCaptureParseResult {
     title,
     start,
     end,
-    understoodDate: dateInfo.understoodDate,
-    understoodTime: timeInfo.understoodTime,
+    understoodDate: dateInfo.ok,
+    understoodTime: timeInfo.ok,
   };
 }
 
