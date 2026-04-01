@@ -726,10 +726,11 @@ export default function EventsTimeline({
                 const isOwnerView =
                   !!currentUserId && resolveEventOwnerId(ev) === currentUserId;
                 const canDelete = isOwnerView;
-                const canAcceptProposal =
-                  isOwnerView &&
-                  invite?.status === "rejected" &&
-                  !!invite?.proposed_date;
+               const canAcceptProposal =
+  isOwnerView &&
+  invite?.status === "rejected" &&
+  !!invite?.proposed_date &&
+  !invite?.creator_response;
                 const proposedDateLabel = formatProposedDate(
                   invite?.proposed_date ?? null
                 );

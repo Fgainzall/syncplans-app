@@ -556,6 +556,7 @@ export type PublicInviteRow = {
   proposed_date: string | null;
   message: string | null;
   created_at: string;
+  creator_response: string | null;
 };
 
 export type CreatePublicInviteInput = {
@@ -624,6 +625,7 @@ function normalizePublicInviteRow(row: any): PublicInviteRow | null {
     message: row?.message ?? null,
     proposed_date: row?.proposed_date ?? null,
     created_at: row?.created_at ?? null,
+    creator_response: row?.creator_response ?? null,
   };
 }
 
@@ -834,22 +836,23 @@ export async function getPendingPublicInviteCaptures(
   }
 
   const normalizedInvites = (inviteRows ?? [])
-    .map((row: any) => {
-      const status = normalizeCaptureStatus(row?.status);
-      if (!status) return null;
+.map((row: any) => {
+  const status = String(row?.status ?? "pending").toLowerCase();
+  const safeStatus: PublicInviteStatus =
+    status === "accepted" || status === "rejected" ? status : "pending";
 
-      return {
-        invite_id: String(row?.id ?? ""),
-        token: String(row?.token ?? ""),
-        event_id: String(row?.event_id ?? ""),
-        contact: row?.contact ?? null,
-        status,
-        proposed_date: row?.proposed_date ?? null,
-        message: row?.message ?? null,
-        created_at: row?.created_at ?? null,
-        creator_response: row?.creator_response ?? null,
-      };
-    })
+  return {
+    id: String(row?.id ?? ""),
+    event_id: String(row?.event_id ?? ""),
+    contact: row?.contact ?? null,
+    token: String(row?.token ?? ""),
+    status: safeStatus,
+    message: row?.message ?? null,
+    proposed_date: row?.proposed_date ?? null,
+    created_at: row?.created_at ?? null,
+    creator_response: row?.creator_response ?? null,
+  };
+})
     .filter(Boolean) as Array<{
       invite_id: string;
       token: string;

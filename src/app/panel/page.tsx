@@ -753,30 +753,26 @@ export default function PanelPage() {
             </div>
           </div>
 
-          <div style={styles.contextHero}>
-            <div style={styles.contextHeroLeft}>
-              <div style={styles.contextHeroLabel}>Actual</div>
-              <div style={styles.contextCurrentRow}>
-                <span
-                  style={{
-                    ...styles.contextCurrentDot,
-                    background: currentContextOption.dot,
-                  }}
-                />
-                <span style={styles.contextCurrentText}>
-                  {currentContextOption.label}
-                </span>
-              </div>
+ <div style={styles.contextHero}>
+  <div style={styles.contextHeroLeft}>
+    <div style={styles.contextHeroLabel}>Actual</div>
+    <div style={styles.contextCurrentRow}>
+      <span
+        style={{
+          ...styles.contextCurrentDot,
+          background: currentContextOption.dot,
+        }}
+      />
+      <span style={styles.contextCurrentText}>
+        {currentContextOption.label}
+      </span>
+    </div>
 
-              {showContextGroupName ? (
-                <div style={styles.contextCurrentMeta}>{showContextGroupName}</div>
-              ) : null}
-            </div>
-
-            <div style={styles.contextHeroRight}>
-              <div style={styles.contextHeroHint}>Cambia la vista principal.</div>
-            </div>
-          </div>
+    {showContextGroupName ? (
+      <div style={styles.contextCurrentMeta}>{showContextGroupName}</div>
+    ) : null}
+  </div>
+</div>
 
           <div style={styles.contextGrid}>
             {CONTEXT_OPTIONS.map((option) => {
@@ -1612,36 +1608,32 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: 6,
   },
 
-  sectionTitle: {
-    margin: 0,
-    fontSize: 22,
-    fontWeight: 900,
-    lineHeight: 1.05,
-  },
+sectionTitle: {
+  margin: 0,
+  fontSize: 20,
+  fontWeight: 900,
+  lineHeight: 1.08,
+},
 
-  contextHero: {
-    display: "grid",
-    gridTemplateColumns: "minmax(220px, 1.2fr) minmax(220px, 1fr)",
-    gap: 14,
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background:
-      "radial-gradient(700px 220px at 0% 0%, rgba(56,189,248,0.10), transparent 55%), rgba(255,255,255,0.03)",
-    padding: 16,
-  },
+contextHero: {
+  display: "flex",
+  flexDirection: "column",
+  gap: 10,
+  borderRadius: radii.lg,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background:
+    "radial-gradient(700px 220px at 0% 0%, rgba(56,189,248,0.10), transparent 55%), rgba(255,255,255,0.03)",
+  padding: 16,
+},
 
-  contextHeroLeft: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-    minWidth: 0,
-  },
+contextHeroLeft: {
+  display: "flex",
+  flexDirection: "column",
+  gap: 10,
+  minWidth: 0,
+  width: "100%",
+},
 
-  contextHeroRight: {
-    display: "flex",
-    alignItems: "center",
-    minWidth: 0,
-  },
 
   contextHeroLabel: {
     fontSize: 11,
@@ -1651,12 +1643,13 @@ const styles: Record<string, CSSProperties> = {
     color: colors.textSecondary,
   },
 
-  contextCurrentRow: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
+contextCurrentRow: {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "nowrap",
+  minWidth: 0,
+},
 
   contextCurrentDot: {
     width: 12,
@@ -1666,12 +1659,13 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
 
-  contextCurrentText: {
-    fontSize: 24,
-    lineHeight: 1.05,
-    fontWeight: 950,
-    color: colors.textPrimary,
-  },
+contextCurrentText: {
+  fontSize: 24,
+  lineHeight: 1.05,
+  fontWeight: 950,
+  color: colors.textPrimary,
+  minWidth: 0,
+},
 
   contextCurrentMeta: {
     fontSize: 13,
@@ -1680,11 +1674,6 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
   },
 
-  contextHeroHint: {
-    fontSize: 13,
-    lineHeight: 1.6,
-    color: colors.textMuted,
-  },
 
   contextGrid: {
     display: "grid",

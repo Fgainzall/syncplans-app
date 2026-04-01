@@ -249,36 +249,36 @@ export default function PlanesPage() {
         </section>
 
         <section style={planCardStyle}>
-          <div style={planHeaderRowStyle}>
-            <div style={planLabelColumnStyle}>
-              <div style={planPillStyle}>
-                <span style={planDotStyle} />
-                <span style={planPillTextStyle}>
-                  {loading ? "Cargando plan..." : planState.planTag}
-                </span>
-              </div>
+    <div style={planHeaderRowStyle}>
+  <div style={planLabelColumnStyle}>
+    <div style={planPillStyle}>
+      <span style={planDotStyle} />
+      <span style={planPillTextStyle}>
+        {loading ? "Cargando plan..." : planState.planTag}
+      </span>
+    </div>
 
-              <h2 style={planTitleStyle}>
-                {loading ? " " : `Tu plan: ${planState.planLabel}`}
-              </h2>
+    <h2 style={planTitleStyle}>
+      {loading ? " " : planState.planLabel}
+    </h2>
 
-              <p style={planSubtitleStyle}>
-                {loading
-                  ? "Leyendo tu información de cuenta..."
-                  : planState.planDescription}
-              </p>
-            </div>
+    <p style={planSubtitleStyle}>
+      {loading
+        ? "Leyendo tu información de cuenta..."
+        : planState.planDescription}
+    </p>
+  </div>
 
-            <div style={planActionsColumnStyle}>
-              <div style={planStatusPillStyle}>
-                {loading ? "Leyendo estado..." : planState.statusLabel}
-              </div>
-            </div>
-          </div>
+  <div style={planActionsColumnStyle}>
+    <div style={planStatusPillStyle}>
+      {loading ? "Leyendo estado..." : planState.statusLabel}
+    </div>
+  </div>
+</div>
 
-          <p style={planHintTextStyle}>
-            {loading ? "" : planState.planStatusHint}
-          </p>
+<p style={planHintTextStyle}>
+  {loading ? "" : getCurrentPlanNote(planState)}
+</p>
 
           <div style={statusSummaryGridStyle}>
             <div style={statusSummaryItemStyle}>
@@ -323,16 +323,13 @@ export default function PlanesPage() {
 
           <p style={currentPlanNoteStyle}>{loading ? "" : getCurrentPlanNote(planState)}</p>
 
-          <div style={betaNoteStyle}>
-            <p style={betaNoteTitleStyle}>Beta privada</p>
-            <p style={betaNoteBodyStyle}>
-              Durante esta etapa no se realizan cobros automáticos. Primero
-              estamos cerrando bien la lógica de planes, acceso y valor del
-              producto antes de activar pagos reales. El primer límite suave de
-              Free es la cantidad de grupos: Premium abre más espacios cuando la
-              coordinación compartida crece.
-            </p>
-          </div>
+<div style={betaNoteStyle}>
+  <p style={betaNoteTitleStyle}>Beta privada</p>
+  <p style={betaNoteBodyStyle}>
+    Sin cobros automáticos por ahora. Premium abrirá más espacios cuando
+    la coordinación crezca.
+  </p>
+</div>
         </section>
 
         <section style={plansSectionStyle}>
@@ -559,24 +556,22 @@ const planCardStyle: CSSProperties = {
 };
 
 const planHeaderRowStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: spacing.lg,
-  flexWrap: "wrap",
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr)",
+  gap: spacing.md,
 };
 
 const planLabelColumnStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: 6,
-  flex: 1,
+  gap: 8,
+  minWidth: 0,
 };
 
 const planActionsColumnStyle: CSSProperties = {
   display: "flex",
-  alignItems: "flex-end",
-  justifyContent: "flex-end",
+  alignItems: "flex-start",
+  justifyContent: "flex-start",
   minWidth: 0,
 };
 
@@ -608,17 +603,19 @@ const planPillTextStyle: CSSProperties = {
 const planTitleStyle: CSSProperties = {
   margin: 0,
   marginTop: 8,
-  fontSize: 20,
+  fontSize: 18,
   fontWeight: 900,
   color: colors.textPrimary,
+  lineHeight: 1.15,
 };
 
 const planSubtitleStyle: CSSProperties = {
   margin: 0,
-  marginTop: 4,
+  marginTop: 2,
   fontSize: 14,
-  lineHeight: 1.4,
+  lineHeight: 1.45,
   color: colors.textSecondary,
+  maxWidth: 420,
 };
 
 const planStatusPillStyle: CSSProperties = {
@@ -635,12 +632,13 @@ const planHintTextStyle: CSSProperties = {
   margin: 0,
   marginTop: spacing.sm,
   fontSize: 13,
+  lineHeight: 1.5,
   color: colors.textSecondary,
 };
 
 const statusSummaryGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
   gap: spacing.sm,
   marginTop: spacing.sm,
 };
@@ -699,9 +697,14 @@ const betaNoteTitleStyle: CSSProperties = {
 const betaNoteBodyStyle: CSSProperties = {
   margin: 0,
   fontSize: 13,
+  lineHeight: 1.55,
   color: colors.textSecondary,
 };
-
+const mobilePlanStackStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: spacing.sm,
+};
 const plansSectionStyle: CSSProperties = {
   borderRadius: radii.xl,
   background: colors.surfaceRaised,

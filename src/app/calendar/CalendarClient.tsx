@@ -2498,26 +2498,27 @@ overviewSub: {
 },
 
 overviewActions: {
-  display: "flex",
-  flexWrap: "wrap",
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
   gap: 10,
   width: "100%",
 },
 
 overviewMetaRow: {
   display: "flex",
-  flexWrap: "wrap",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 10,
+  flexDirection: "column",
+  alignItems: "stretch",
+  justifyContent: "flex-start",
+  gap: 12,
   width: "100%",
+  marginTop: 12,
 },
 
 statusCluster: {
-  display: "flex",
-  alignItems: "center",
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
   gap: 10,
-  flexWrap: "wrap",
+  width: "100%",
 },
 
 statusPillNeutral: {
@@ -2551,12 +2552,15 @@ statusPillSuccess: {
 statusPillDanger: {
   display: "inline-flex",
   alignItems: "center",
+  justifyContent: "center",
   gap: 8,
-  minHeight: 38,
+  minHeight: 44,
+  width: "100%",
+  textAlign: "center",
   padding: "0 12px",
   borderRadius: 999,
-  border: "1px solid rgba(248,113,113,0.28)",
-  background: "rgba(248,113,113,0.12)",
+  border: "1px solid rgba(251,113,133,0.28)",
+  background: "rgba(127,29,29,0.30)",
   color: "#FECACA",
   fontSize: 12,
   fontWeight: 900,
@@ -2564,11 +2568,16 @@ statusPillDanger: {
 },
 
 statusPillAction: {
-  minHeight: 38,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 44,
+  width: "100%",
+  textAlign: "center",
   padding: "0 12px",
   borderRadius: 999,
-  border: "1px solid rgba(56,189,248,0.24)",
-  background: "rgba(56,189,248,0.12)",
+  border: "1px solid rgba(56,189,248,0.28)",
+  background: "rgba(8,47,73,0.62)",
   color: "#E0F2FE",
   fontSize: 12,
   fontWeight: 900,
@@ -2610,11 +2619,11 @@ overviewGhostBtn: {
   fontWeight: 800,
   cursor: "pointer",
 },
-  overviewMetaRowMobile: {
-    flexDirection: "column",
-    alignItems: "stretch",
-    gap: 8,
-  },
+overviewMetaRowMobile: {
+  flexDirection: "column",
+  alignItems: "stretch",
+  gap: 12,
+},
   statusPillSuccessMobile: {
     width: "100%",
     justifyContent: "center",
