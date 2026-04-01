@@ -983,9 +983,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               <div>
                 <div style={styles.captureEyebrow}>Quick Capture</div>
                 <div style={styles.captureTitle}>¿Qué quieres planear?</div>
-                <div style={styles.captureSub}>
-                  Escribe algo y lo convierto en un plan en segundos.
-                </div>
+              <div style={styles.captureSub}>
+  Escribe algo simple (evento + día + hora) y lo convierto en un plan.
+</div>
               </div>
 
               <div style={styles.captureHintPill}>{activeGroupId ? `Contexto · ${activeLabel}` : "Contexto · Personal"}</div>
@@ -1020,7 +1020,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               </button>
             </div>
 
-            <div style={styles.captureExamplesRow}>
+            <div style={{ marginTop: 14 }}>
+  <div style={styles.captureExamplesLabel}>Ejemplos</div>
+</div>
+  <div style={styles.captureExamplesRow}>
              <span
   onClick={() => {
     setQuickCaptureValue("cena viernes 8pm");
@@ -1996,4 +1999,12 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.74,
     lineHeight: 1.5,
   },
+  captureExamplesLabel: {
+  fontSize: 11,
+  fontWeight: 900,
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  opacity: 0.6,
+  marginBottom: 6,
+},
 };
