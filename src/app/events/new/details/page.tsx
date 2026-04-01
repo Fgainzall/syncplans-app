@@ -1,7 +1,9 @@
 // src/app/events/new/details/page.tsx
 import React, { Suspense } from "react";
 import NewEventDetailsClient from "./NewEventDetailsClient";
-
+import { useState } from "react";
+import EventTemplatePicker from "@/components/events/EventTemplatePicker";
+import type { EventTemplate } from "@/lib/eventTemplates";
 export const dynamic = "force-dynamic";
 
 export default function NewEventDetailsPage() {

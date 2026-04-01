@@ -689,9 +689,9 @@ export default function PanelPage() {
             <div style={styles.heroTextWrap}>
               <div style={styles.eyebrow}>Panel</div>
               <h1 style={styles.heroTitle}>Gestiona tu espacio</h1>
-              <p style={styles.heroCopy}>
-                Grupos, invitaciones, integraciones y plan.
-              </p>
+          <p style={styles.heroCopy}>
+  Grupos, invitaciones y plan.
+</p>
             </div>
 
             <div style={styles.heroActionStack}>
@@ -1610,7 +1610,7 @@ const styles: Record<string, CSSProperties> = {
 
 sectionTitle: {
   margin: 0,
-  fontSize: 20,
+  fontSize: 21,
   fontWeight: 900,
   lineHeight: 1.08,
 },
@@ -1667,12 +1667,13 @@ contextCurrentText: {
   minWidth: 0,
 },
 
-  contextCurrentMeta: {
-    fontSize: 13,
-    color: colors.textMuted,
-    lineHeight: 1.5,
-    fontWeight: 700,
-  },
+contextCurrentMeta: {
+  fontSize: 13,
+  color: colors.textMuted,
+  lineHeight: 1.5,
+  fontWeight: 700,
+  marginTop: 2,
+},
 
 
   contextGrid: {
@@ -1774,6 +1775,7 @@ contextCurrentText: {
     display: "flex",
     flexDirection: "column",
     gap: 10,
+    minHeight: 110,
   },
 
   actionCardFeatured: {
@@ -1989,6 +1991,7 @@ contextCurrentText: {
     padding: 14,
     display: "grid",
     gap: 10,
+    minHeight: 110,
   },
 
   captureTopRow: {
@@ -2196,6 +2199,7 @@ contextCurrentText: {
     display: "flex",
     flexDirection: "column",
     gap: 6,
+    minHeight: 110,
   },
 
   insightTitle: {

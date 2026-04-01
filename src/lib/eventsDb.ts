@@ -297,20 +297,33 @@ export async function deleteEventsByIdsDetailed(
 
   let deletedCount = 0;
 
-  if (ownIds.length > 0) {
-    const { error: deleteError, count } = await supabase
-      .from("events")
-      .delete({ count: "exact" })
-      .in("id", ownIds);
+if (ownIds.length > 0) {
+  const { data: deletedRows, error: deleteError, count } = await supabase
+    .from("events")
+    .delete({ count: "exact" })
+    .in("id", ownIds)
+    .select("id");
 
-    if (deleteError) {
-      console.error("[deleteEventsByIdsDetailed] delete error", deleteError);
-      throw deleteError;
-    }
-
-    deletedCount = count ?? 0;
+  if (deleteError) {
+    console.error("[deleteEventsByIdsDetailed] delete error", deleteError);
+    throw deleteError;
   }
 
+  deletedCount = count ?? deletedRows?.length ?? 0;
+
+  const deletedSet = new Set((deletedRows ?? []).map((row: any) => String(row.id)));
+
+  const deleteBlockedOwnIds = ownIds.filter((id) => !deletedSet.has(String(id)));
+
+  if (deleteBlockedOwnIds.length > 0) {
+    return {
+      requestedIds,
+      ownIds,
+      blockedIds: [...new Set([...blockedIds, ...deleteBlockedOwnIds])],
+      deletedCount,
+    };
+  }
+}
   return {
     requestedIds,
     ownIds,

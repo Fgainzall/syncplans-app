@@ -1,5 +1,3 @@
-// src/lib/quickCaptureParser.tsx
-
 type ParsedQuickCapture = {
   title: string;
   notes: string;
@@ -45,6 +43,79 @@ function normalizeForMatching(input: string) {
     .replace(/[.,]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function collapseSpaces(input: string) {
+  return input.replace(/\s+/g, " ").trim();
+}
+
+function capitalizeFirst(input: string) {
+  const text = collapseSpaces(input);
+  if (!text) return "";
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function toSentenceCase(input: string) {
+  return capitalizeFirst(input.toLowerCase());
+}
+
+function capitalizeLikelyProperNames(input: string) {
+  const smallWords = new Set([
+    "de",
+    "del",
+    "la",
+    "las",
+    "el",
+    "los",
+    "y",
+    "o",
+    "a",
+    "al",
+    "en",
+    "con",
+    "para",
+    "por",
+  ]);
+
+  const triggerPatterns = [
+    /\bcon\s+([a-záéíóúñ]+)/gi,
+    /\ben casa de\s+([a-záéíóúñ]+)/gi,
+    /\bde\s+([a-záéíóúñ]+)$/gi,
+  ];
+
+  let result = input;
+
+  for (const pattern of triggerPatterns) {
+    result = result.replace(pattern, (match, name: string) => {
+      const cleanName = String(name || "").trim();
+      if (!cleanName || smallWords.has(cleanName.toLowerCase())) {
+        return match;
+      }
+
+      const capitalizedName =
+        cleanName.charAt(0).toUpperCase() + cleanName.slice(1).toLowerCase();
+
+      return match.replace(name, capitalizedName);
+    });
+  }
+
+  return result;
+}
+
+function formatTitle(input: string) {
+  const cleaned = collapseSpaces(input);
+  if (!cleaned) return "";
+
+  const lower = cleaned.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
+function formatNotes(input: string) {
+  const cleaned = collapseSpaces(input);
+  if (!cleaned) return "";
+
+  const sentence = toSentenceCase(cleaned);
+  return capitalizeLikelyProperNames(sentence);
 }
 
 function extractHour(text: string): { hour: number | null; minutes: number } {
@@ -121,35 +192,56 @@ function removeDateAndTimeTokens(text: string): string {
 }
 
 function splitTitleAndNotes(original: string): { title: string; notes: string } {
-  const cleaned = removeDateAndTimeTokens(original);
-  const normalizedCleaned = normalizeForMatching(cleaned);
-
-  let splitIndex = -1;
-  let matchedConnector = "";
+  const cleaned = collapseSpaces(removeDateAndTimeTokens(original));
+  const normalizedCleaned = ` ${normalizeForMatching(cleaned)} `;
 
   for (const connector of CONTEXT_CONNECTORS) {
     const normalizedConnector = normalizeForMatching(connector).trim();
-    const idx = normalizedCleaned.indexOf(` ${normalizedConnector} `);
-    if (idx >= 0) {
-      splitIndex = idx;
-      matchedConnector = cleaned.slice(idx).trim();
-      break;
-    }
-  }
+    const marker = ` ${normalizedConnector} `;
+    const idx = normalizedCleaned.indexOf(marker);
 
-  if (splitIndex >= 0) {
-    const title = cleaned.slice(0, splitIndex).replace(/\s+/g, " ").trim();
-    const notes = matchedConnector.replace(/\s+/g, " ").trim();
-    return {
-      title: title || cleaned || original.trim(),
-      notes,
-    };
+    if (idx >= 0) {
+      const rawIndex = findConnectorIndex(cleaned, normalizedConnector);
+      if (rawIndex >= 0) {
+        const title = collapseSpaces(cleaned.slice(0, rawIndex));
+        const notes = collapseSpaces(cleaned.slice(rawIndex));
+
+        return {
+          title: title || cleaned || original.trim(),
+          notes,
+        };
+      }
+    }
   }
 
   return {
     title: cleaned || original.trim().slice(0, 40),
     notes: "",
   };
+}
+
+function findConnectorIndex(cleaned: string, normalizedConnector: string) {
+  const lowered = normalizeForMatching(cleaned);
+  const idx = lowered.indexOf(normalizedConnector);
+  if (idx < 0) return -1;
+
+  const rawWords = collapseSpaces(cleaned).split(" ");
+  let built = "";
+  let rawIndex = 0;
+
+  for (const word of rawWords) {
+    const normalizedWord = normalizeForMatching(word);
+    const nextBuilt = built ? `${built} ${normalizedWord}` : normalizedWord;
+
+    if (nextBuilt.includes(normalizedConnector)) {
+      return rawIndex;
+    }
+
+    rawIndex += word.length + 1;
+    built = nextBuilt;
+  }
+
+  return cleaned.toLowerCase().indexOf(normalizedConnector);
 }
 
 export function parseQuickCapture(input: string): ParsedQuickCapture {
@@ -175,8 +267,8 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
   const split = splitTitleAndNotes(raw);
 
   return {
-    title: split.title || raw.slice(0, 40),
-    notes: split.notes,
+    title: formatTitle(split.title || raw.slice(0, 40)),
+    notes: formatNotes(split.notes),
     date: finalDate,
     durationMinutes: duration,
   };

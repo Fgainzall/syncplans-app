@@ -1,4 +1,3 @@
-// src/app/events/new/page.tsx
 import { redirect } from "next/navigation";
 
 type PageProps = {
