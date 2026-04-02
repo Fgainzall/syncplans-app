@@ -366,20 +366,20 @@ if (groupType !== "personal" && groups?.length) {
                         {g.hint}
                       </div>
                     </div>
-                    {on && ( 
-                      <span
-                        style={{
-                          marginLeft: "auto",
-                          fontSize: 10,
-                          padding: "2px 6px",
-                          borderRadius: 999,
-                          border: "1px solid rgba(129,140,248,0.6)",
-                          color: "rgba(191,219,254,0.95)",
-                        }}
-                      >
-                        Activo
-                      </span>
-                    )}
+                   {on && (
+  <span
+    style={{
+      fontSize: 10,
+      padding: "2px 6px",
+      borderRadius: 999,
+      border: "1px solid rgba(129,140,248,0.6)",
+      color: "rgba(191,219,254,0.95)",
+      marginTop: 4,
+    }}
+  >
+    Activo
+  </span>
+)}
                   </button>
                 );
               })}
