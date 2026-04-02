@@ -829,13 +829,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       const params = new URLSearchParams();
 
       params.set("qc", "1");
-
-      if (activeGroupId) {
-        params.set("type", "group");
-        params.set("groupId", activeGroupId);
-      } else {
-        params.set("type", "personal");
-      }
+      params.set("type", "personal");
 
       if (parsed.title) params.set("title", parsed.title);
       if (parsed.date) params.set("date", parsed.date.toISOString());
