@@ -73,6 +73,11 @@ type RecentDecision = {
   isFallback: boolean;
 };
 
+type QuickCaptureExample = {
+  label: string;
+  value: string;
+};
+
 function safeDate(iso?: string | null) {
   if (!iso) return null;
   const d = new Date(iso);
@@ -404,6 +409,71 @@ function eventOverlapsWindow(
   );
 }
 
+function getQuickCaptureExamples(
+  activeGroupType: GroupType,
+  activeLabel: string,
+  hasActiveGroup: boolean
+): QuickCaptureExample[] {
+  if (!hasActiveGroup) {
+    return [
+      { label: "Gym mañana 7", value: "gym mañana 7" },
+      { label: "Doctor martes 10", value: "doctor martes 10" },
+      { label: "Café jueves 4pm", value: "café jueves 4pm" },
+    ];
+  }
+
+  if (activeGroupType === "pair") {
+    return [
+      { label: "Cena viernes 8pm", value: "cena viernes 8pm" },
+      { label: "Pádel sábado 10", value: "pádel sábado 10" },
+      { label: "Almuerzo domingo 1 con Fer", value: "almuerzo domingo 1 con Fer" },
+    ];
+  }
+
+  if (activeGroupType === "family") {
+    return [
+      { label: "Almuerzo domingo 1", value: "almuerzo domingo 1" },
+      { label: "Cole martes 7am", value: "cole martes 7am" },
+      { label: `Salida sábado 11 con ${activeLabel}`, value: "salida sábado 11" },
+    ];
+  }
+
+  return [
+    { label: "Reunión lunes 9", value: "reunión lunes 9" },
+    { label: "Fulbito sábado 6", value: "fulbito sábado 6" },
+    { label: "Asado domingo 2 en casa", value: "asado domingo 2 en casa" },
+  ];
+}
+
+function formatQuickCapturePreview(input: string): string | null {
+  const raw = String(input || "").trim();
+  if (!raw) return null;
+
+  const parsed = parseQuickCapture(raw);
+  const title = String(parsed.title || "").trim();
+  if (!title) return null;
+
+  const parts: string[] = [title];
+
+  if (parsed.date) {
+    const dateLabel = parsed.date.toLocaleDateString([], {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+    });
+    const timeLabel = parsed.date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    parts.push(`${dateLabel} · ${timeLabel}`);
+  }
+
+  if (parsed.notes) {
+    parts.push(parsed.notes);
+  }
+
+  return parts.join(" — ");
+}
 
 export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const router = useRouter();
@@ -461,9 +531,38 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return activeGroup ? humanGroupName(activeGroup) : "Grupo";
   }, [activeGroupId, activeGroup]);
 
+  const activeGroupType = useMemo(() => {
+    return normalizeSummaryGroupType(String(activeGroup?.type ?? ""));
+  }, [activeGroup]);
+
   const contextLabel = useMemo(() => {
     if (!activeGroupId) return "Personal";
     return activeLabel;
+  }, [activeGroupId, activeLabel]);
+
+  const quickCaptureExamples = useMemo(
+    () => getQuickCaptureExamples(activeGroupType, activeLabel, !!activeGroupId),
+    [activeGroupType, activeLabel, activeGroupId]
+  );
+
+  const quickCapturePreview = useMemo(
+    () => formatQuickCapturePreview(quickCaptureValue),
+    [quickCaptureValue]
+  );
+
+  const quickCaptureHeadline = useMemo(() => {
+    if (!activeGroupId) return "Escribe lo que tienes en mente";
+    if (activeGroupType === "pair") return "Planéalo en una línea";
+    if (activeGroupType === "family") return "Organiza lo importante en segundos";
+    return "Dime qué quieres hacer";
+  }, [activeGroupId, activeGroupType]);
+
+  const quickCaptureSubcopy = useMemo(() => {
+    if (!activeGroupId) {
+      return "Escribe algo simple y lo convierto en un plan listo para revisar.";
+    }
+
+    return `Lo prepararé con el contexto de ${activeLabel} para que entres directo al detalle.`;
   }, [activeGroupId, activeLabel]);
 
   const normalizedEvents = useMemo(() => {
@@ -721,45 +820,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     router.push("/conflicts/detected");
   }, [router, conflictAlert]);
 
+  const navigateFromQuickCapture = useCallback(
+    (value: string) => {
+      const raw = String(value || "").trim();
+      if (!raw) return;
 
-
-  const handleQuickCaptureSubmit = useCallback(() => {
-  const raw = quickCaptureValue.trim();
-  if (!raw || quickCaptureBusy) return;
-
-  setQuickCaptureBusy(true);
-
-  try {
-    const parsed = parseQuickCapture(raw);
-    const params = new URLSearchParams();
-
-    params.set("qc", "1");
-
-    if (activeGroupId) {
-      params.set("type", "group");
-      params.set("groupId", activeGroupId);
-    } else {
-      params.set("type", "personal");
-    }
-
-    if (parsed.title) params.set("title", parsed.title);
-    if (parsed.date) params.set("date", parsed.date.toISOString());
-    if (parsed.durationMinutes) params.set("duration", String(parsed.durationMinutes));
-    if (parsed.notes) params.set("notes", parsed.notes);
-
-    router.push(`/events/new/details?${params.toString()}`);
-  } finally {
-    setTimeout(() => setQuickCaptureBusy(false), 180);
-  }
-}, [quickCaptureValue, quickCaptureBusy, activeGroupId, router]);
-
-  const handleQuickCaptureExample = useCallback((value: string) => {
-    setQuickCaptureValue(value);
-
-    if (quickCaptureBusy) return;
-
-    window.setTimeout(() => {
-      const parsed = parseQuickCapture(value);
+      const parsed = parseQuickCapture(raw);
       const params = new URLSearchParams();
 
       params.set("qc", "1");
@@ -773,13 +839,41 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
       if (parsed.title) params.set("title", parsed.title);
       if (parsed.date) params.set("date", parsed.date.toISOString());
-      if (parsed.durationMinutes) params.set("duration", String(parsed.durationMinutes));
+      if (parsed.durationMinutes) {
+        params.set("duration", String(parsed.durationMinutes));
+      }
       if (parsed.notes) params.set("notes", parsed.notes);
 
       router.push(`/events/new/details?${params.toString()}`);
-    }, 0);
-  }, [activeGroupId, quickCaptureBusy, router]);
+    },
+    [activeGroupId, router]
+  );
 
+  const handleQuickCaptureSubmit = useCallback(() => {
+    const raw = quickCaptureValue.trim();
+    if (!raw || quickCaptureBusy) return;
+
+    setQuickCaptureBusy(true);
+
+    try {
+      navigateFromQuickCapture(raw);
+    } finally {
+      window.setTimeout(() => setQuickCaptureBusy(false), 180);
+    }
+  }, [quickCaptureValue, quickCaptureBusy, navigateFromQuickCapture]);
+
+  const handleQuickCaptureExample = useCallback(
+    (value: string) => {
+      setQuickCaptureValue(value);
+
+      if (quickCaptureBusy) return;
+
+      window.setTimeout(() => {
+        navigateFromQuickCapture(value);
+      }, 0);
+    },
+    [quickCaptureBusy, navigateFromQuickCapture]
+  );
 
   const handleQuickCaptureKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -813,17 +907,20 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         <Section style={styles.shell} className="spSum-shell">
           <PremiumHeader title={title} subtitle={summarySubtitle} />
 
-          <Card style={styles.card} className="spSum-card">
-            <div style={styles.captureHeaderRow}>
-              <div>
-                <div style={styles.captureEyebrow}>Quick Capture</div>
-                <div style={styles.captureTitle}>¿Qué quieres planear?</div>
-              <div style={styles.captureSub}>
-  Escribe algo simple (evento + día + hora) y lo convierto en un plan.
-</div>
-              </div>
+          <Card style={styles.captureCard} className="spSum-card spSum-captureCard">
+            <div style={styles.captureTopBand}>
+              <span style={styles.captureContextPill}>
+                {activeGroupId ? `Contexto · ${activeLabel}` : "Contexto · Personal"}
+              </span>
+              <span style={styles.captureContextGhost}>Entrada rápida</span>
+            </div>
 
-              <div style={styles.captureHintPill}>{activeGroupId ? `Contexto · ${activeLabel}` : "Contexto · Personal"}</div>
+            <div style={styles.captureHeaderRow}>
+              <div style={styles.captureCopyBlock}>
+                <div style={styles.captureEyebrow}>Quick Capture</div>
+                <div style={styles.captureTitle}>{quickCaptureHeadline}</div>
+                <div style={styles.captureSub}>{quickCaptureSubcopy}</div>
+              </div>
             </div>
 
             <div style={styles.captureFieldWrap} className="spSum-captureFieldWrap">
@@ -831,7 +928,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 value={quickCaptureValue}
                 onChange={(event) => setQuickCaptureValue(event.target.value)}
                 onKeyDown={handleQuickCaptureKeyDown}
-                placeholder="Ej: cena viernes 8pm"
+                placeholder={
+                  activeGroupId ? "Ej: cena viernes 8pm" : "Ej: gym mañana 7"
+                }
                 style={styles.captureInput}
                 className="spSum-captureInput"
                 autoCapitalize="sentences"
@@ -855,28 +954,28 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               </button>
             </div>
 
-            <div style={{ marginTop: 14 }}>
-  <div style={styles.captureExamplesLabel}>Ejemplos</div>
-</div>
-  <div style={styles.captureExamplesRow}>
-             <span
-  onClick={() => handleQuickCaptureExample("cena viernes 8pm")}
-  style={{ ...styles.captureExamplePill, cursor: "pointer" }}
->
-  cena viernes 8pm
-</span>
-              <span
-  onClick={() => handleQuickCaptureExample("doctor martes 10")}
-  style={{ ...styles.captureExamplePill, cursor: "pointer" }}
->
-  doctor martes 10
-</span>
-<span
-  onClick={() => handleQuickCaptureExample("fulbito sábado 6")}
-  style={{ ...styles.captureExamplePill, cursor: "pointer" }}
->
-  fulbito sábado 6
-</span>
+            <div style={styles.captureFootRow}>
+              <div style={styles.captureExamplesBlock}>
+                <div style={styles.captureExamplesLabel}>Ejemplos</div>
+                <div style={styles.captureExamplesRow}>
+                  {quickCaptureExamples.map((example) => (
+                    <span
+                      key={example.value}
+                      onClick={() => handleQuickCaptureExample(example.value)}
+                      style={{ ...styles.captureExamplePill, cursor: "pointer" }}
+                    >
+                      {example.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div style={styles.capturePreviewCard}>
+                <div style={styles.capturePreviewLabel}>Vista rápida</div>
+                <div style={styles.capturePreviewValue}>
+                  {quickCapturePreview || "Escribe arriba y te mostraré cómo quedará."}
+                </div>
+              </div>
             </div>
           </Card>
 
@@ -1166,6 +1265,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             padding: 14px !important;
           }
 
+          .spSum-captureCard {
+            padding: 16px !important;
+          }
+
           .spSum-eventsList {
             gap: 8px !important;
           }
@@ -1259,35 +1362,24 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
     backdropFilter: "blur(14px)",
   },
-
-  captureHeaderRow: {
+  captureCard: {
+    borderRadius: 24,
+    border: "1px solid rgba(125,211,252,0.14)",
+    background:
+      "linear-gradient(180deg, rgba(56,189,248,0.10), rgba(124,58,237,0.08) 42%, rgba(255,255,255,0.035) 100%)",
+    padding: 18,
+    boxShadow: "0 22px 72px rgba(0,0,0,0.24)",
+    backdropFilter: "blur(16px)",
+  },
+  captureTopBand: {
     display: "flex",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
-    gap: 14,
+    gap: 12,
     flexWrap: "wrap",
+    marginBottom: 12,
   },
-  captureEyebrow: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(125,211,252,0.86)",
-  },
-  captureTitle: {
-    marginTop: 6,
-    fontSize: 26,
-    fontWeight: 950,
-    letterSpacing: "-0.03em",
-  },
-  captureSub: {
-    marginTop: 6,
-    fontSize: 13,
-    lineHeight: 1.55,
-    opacity: 0.74,
-    maxWidth: 640,
-  },
-  captureHintPill: {
+  captureContextPill: {
     display: "inline-flex",
     alignItems: "center",
     padding: "8px 11px",
@@ -1299,8 +1391,50 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     whiteSpace: "nowrap",
   },
+  captureContextGhost: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "8px 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.74)",
+    fontSize: 11,
+    fontWeight: 850,
+    whiteSpace: "nowrap",
+  },
+  captureHeaderRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  captureCopyBlock: {
+    maxWidth: 720,
+  },
+  captureEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.86)",
+  },
+  captureTitle: {
+    marginTop: 6,
+    fontSize: 28,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+  },
+  captureSub: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 1.55,
+    opacity: 0.78,
+    maxWidth: 640,
+  },
   captureFieldWrap: {
-    marginTop: 16,
+    marginTop: 18,
     display: "grid",
     gridTemplateColumns: "minmax(0, 1fr) auto",
     gap: 10,
@@ -1308,23 +1442,25 @@ const styles: Record<string, React.CSSProperties> = {
   },
   captureInput: {
     width: "100%",
-    minHeight: 64,
-    borderRadius: 16,
+    minHeight: 66,
+    borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(6,10,22,0.72)",
+    background: "rgba(6,10,22,0.78)",
     color: "rgba(255,255,255,0.96)",
     padding: "0 16px",
     fontSize: 15,
     fontWeight: 700,
     outline: "none",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.03), 0 12px 28px rgba(0,0,0,0.16)",
   },
   captureButton: {
     minWidth: 124,
-    minHeight: 64,
+    minHeight: 66,
     border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 16,
-    background: "linear-gradient(135deg, rgba(56,189,248,0.24), rgba(124,58,237,0.24))",
+    borderRadius: 18,
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.26), rgba(124,58,237,0.26))",
     color: "rgba(255,255,255,0.96)",
     fontSize: 14,
     fontWeight: 900,
@@ -1337,8 +1473,25 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "not-allowed",
     boxShadow: "none",
   },
+  captureFootRow: {
+    marginTop: 16,
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1.2fr) minmax(260px, 0.8fr)",
+    gap: 12,
+    alignItems: "stretch",
+  },
+  captureExamplesBlock: {
+    minWidth: 0,
+  },
+  captureExamplesLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    opacity: 0.62,
+    marginBottom: 8,
+  },
   captureExamplesRow: {
-    marginTop: 14,
     display: "flex",
     alignItems: "center",
     gap: 8,
@@ -1353,7 +1506,29 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.035)",
     fontSize: 11,
     fontWeight: 800,
-    opacity: 0.82,
+    opacity: 0.86,
+  },
+  capturePreviewCard: {
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(5,9,20,0.46)",
+    padding: 12,
+    display: "grid",
+    alignContent: "start",
+    gap: 8,
+    minHeight: 100,
+  },
+  capturePreviewLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.82)",
+  },
+  capturePreviewValue: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(255,255,255,0.9)",
   },
   conflictBanner: {
     width: "100%",
@@ -1825,12 +2000,4 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.74,
     lineHeight: 1.5,
   },
-  captureExamplesLabel: {
-  fontSize: 11,
-  fontWeight: 900,
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-  opacity: 0.6,
-  marginBottom: 6,
-},
-};
+}
