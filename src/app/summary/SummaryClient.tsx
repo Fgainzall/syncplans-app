@@ -510,6 +510,20 @@ function buildShareToastLabel(input: string): string {
   return `${preview.slice(0, 69)}...`;
 }
 
+function canUseNativeShare() {
+  return typeof navigator !== "undefined" && typeof navigator.share === "function";
+}
+
+function canUseClipboard() {
+  return (
+    typeof navigator !== "undefined" &&
+    typeof window !== "undefined" &&
+    window.isSecureContext &&
+    !!navigator.clipboard &&
+    typeof navigator.clipboard.writeText === "function"
+  );
+}
+
 export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const router = useRouter();
   const isMobile = useIsMobileWidth(520);
@@ -875,7 +889,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
       router.push(`/events/new/details?${params.toString()}`);
     },
-    [activeGroupId, router]
+    [router]
   );
 
   const handleQuickCaptureSubmit = useCallback(() => {
@@ -936,6 +950,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       return;
     }
 
+    if (!canUseClipboard()) {
+      showToast(
+        "No se pudo copiar",
+        "Tu navegador o contexto actual no permite copiar automáticamente."
+      );
+      return;
+    }
+
     try {
       const fullUrl = buildCaptureShareUrl(raw, "copy_link");
       await navigator.clipboard.writeText(fullUrl);
@@ -957,7 +979,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     const shareText = buildWhatsAppShareText(raw, fullUrl);
 
     try {
-      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      if (canUseNativeShare()) {
         await navigator.share({
           title: "Llevar idea a SyncPlans",
           text: shareText,
@@ -967,11 +989,42 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         return;
       }
 
-      await navigator.clipboard.writeText(fullUrl);
-      showToast("Link copiado ✅", "Tu navegador no soporta compartir nativo.");
+      if (canUseClipboard()) {
+        await navigator.clipboard.writeText(fullUrl);
+        showToast(
+          "Link copiado ✅",
+          "Tu navegador no soporta compartir nativo. Ya quedó listo para pegar."
+        );
+        return;
+      }
+
+      if (typeof window !== "undefined") {
+        window.open(fullUrl, "_blank", "noopener,noreferrer");
+        showToast(
+          "Abrí el link por ti",
+          "Tu navegador no soporta compartir ni copiar automáticamente."
+        );
+        return;
+      }
+
+      showToast("No se pudo compartir", "Intenta nuevamente.");
     } catch (error: any) {
       const name = String(error?.name ?? "").trim();
       if (name === "AbortError") return;
+
+      if (canUseClipboard()) {
+        try {
+          await navigator.clipboard.writeText(fullUrl);
+          showToast(
+            "Link copiado ✅",
+            "El share nativo falló, pero te dejé el link listo para pegar."
+          );
+          return;
+        } catch {
+          // sigue al toast final
+        }
+      }
+
       showToast("No se pudo compartir", "Intenta nuevamente.");
     }
   }, [quickCaptureValue, showToast]);
@@ -993,6 +1046,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       showToast("WhatsApp listo ✅", buildShareToastLabel(raw));
     }
   }, [quickCaptureValue, showToast]);
+
   const visibleDecisions = useMemo(() => recentDecisions.slice(0, 3), [recentDecisions]);
 
   return (
@@ -1024,47 +1078,47 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               <span style={styles.captureContextGhost}>Entrada rápida</span>
             </div>
 
-          <div style={styles.captureHeaderRow}>
-  <div style={styles.captureCopyBlock}>
-    <div style={styles.captureEyebrow}>Quick Capture</div>
-    <div style={styles.captureTitle}>{quickCaptureHeadline}</div>
-    <div style={styles.captureSub}>{quickCaptureSubcopy}</div>
-  </div>
+            <div style={styles.captureHeaderRow}>
+              <div style={styles.captureCopyBlock}>
+                <div style={styles.captureEyebrow}>Quick Capture</div>
+                <div style={styles.captureTitle}>{quickCaptureHeadline}</div>
+                <div style={styles.captureSub}>{quickCaptureSubcopy}</div>
+              </div>
 
-  <div style={styles.captureHeaderActions}>
-    <button
-      onClick={handleShareToWhatsApp}
-      style={styles.captureWhatsappButton}
-      className="spSum-captureDeepLinkButton"
-    >
-      WhatsApp
-    </button>
+              <div style={styles.captureHeaderActions}>
+                <button
+                  onClick={handleShareToWhatsApp}
+                  style={styles.captureWhatsappButton}
+                  className="spSum-captureDeepLinkButton"
+                >
+                  WhatsApp
+                </button>
 
-    <button
-      onClick={handleShareCapture}
-      style={styles.captureGhostButton}
-      className="spSum-captureDeepLinkButton"
-    >
-      Compartir
-    </button>
+                <button
+                  onClick={handleShareCapture}
+                  style={styles.captureGhostButton}
+                  className="spSum-captureDeepLinkButton"
+                >
+                  Compartir
+                </button>
 
-    <button
-      onClick={handleCopyCaptureLink}
-      style={styles.captureGhostButton}
-      className="spSum-captureDeepLinkButton"
-    >
-      Copiar link
-    </button>
+                <button
+                  onClick={handleCopyCaptureLink}
+                  style={styles.captureGhostButton}
+                  className="spSum-captureDeepLinkButton"
+                >
+                  Copiar link
+                </button>
 
-    <button
-      onClick={handleOpenCapture}
-      style={styles.captureDeepLinkButton}
-      className="spSum-captureDeepLinkButton"
-    >
-      Abrir capture completo
-    </button>
-  </div>
-</div>
+                <button
+                  onClick={handleOpenCapture}
+                  style={styles.captureDeepLinkButton}
+                  className="spSum-captureDeepLinkButton"
+                >
+                  Abrir capture completo
+                </button>
+              </div>
+            </div>
 
             <div style={styles.captureShareHelperWrap}>
               <div style={styles.captureShareHelperTitle}>Llévalo fuera de la app</div>
@@ -1110,7 +1164,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               </button>
             </div>
 
-            <div style={styles.captureFootRow}>
+            <div style={styles.captureFootRow} className="spSum-captureFootRow">
               <div style={styles.captureExamplesBlock}>
                 <div style={styles.captureExamplesLabel}>Ejemplos</div>
                 <div style={styles.captureExamplesRow}>
@@ -1408,6 +1462,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       </MobileScaffold>
 
       <style>{`
+        @media (max-width: 720px) {
+          .spSum-captureFootRow {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
         @media (max-width: 520px) {
           .spSum-shell {
             padding-left: 14px !important;
@@ -1572,11 +1632,11 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
   },
   captureHeaderActions: {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  flexWrap: "wrap",
-},
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
   captureCopyBlock: {
     maxWidth: 720,
   },
@@ -2241,4 +2301,4 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.74,
     lineHeight: 1.5,
   },
-}
+};
