@@ -41,6 +41,7 @@ import { getOrCreatePublicInvite } from "@/lib/invitationsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { loadEventsForConflictPreflight } from "@/lib/conflictsDbBridge";
 import { createConflictResolutionLog } from "@/lib/conflictResolutionsLogDb";
+import { upsertProposalResponse } from "@/lib/proposalResponsesDb";
 
 /* Helpers */
 function pad2(n: number) {
@@ -269,6 +270,8 @@ function NewEventDetailsInner() {
   const quickCaptureTitleParam = sp.get("title");
   const quickCaptureDurationParam = sp.get("duration");
   const quickCaptureNotesParam = sp.get("notes");
+  const captureSourceParam = sp.get("capture_source");
+  const rawTextParam = sp.get("raw_text");
   const intentParam = sp.get("intent");
   const proposalParam = sp.get("proposal");
   const proposalResponseParam = sp.get("proposal_response");
@@ -426,6 +429,14 @@ function NewEventDetailsInner() {
     if (quickCaptureTitleParam) params.set("title", quickCaptureTitleParam);
     if (quickCaptureDurationParam) params.set("duration", quickCaptureDurationParam);
     if (quickCaptureNotesParam) params.set("notes", quickCaptureNotesParam);
+    if (captureSourceParam) params.set("capture_source", captureSourceParam);
+    if (rawTextParam) params.set("raw_text", rawTextParam);
+
+    if (intentParam) params.set("intent", intentParam);
+    if (proposalParam) params.set("proposal", proposalParam);
+    if (proposalResponseParam) {
+      params.set("proposal_response", proposalResponseParam);
+    }
 
     return `/events/new/details?${params.toString()}`;
   }
