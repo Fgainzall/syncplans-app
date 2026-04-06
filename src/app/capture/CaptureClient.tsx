@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { parseQuickCapture } from "@/lib/quickCaptureParser";
+import supabase from "@/lib/supabaseClient";
+import { upsertProposalResponse } from "@/lib/proposalResponsesDb";
 
 type CaptureClientProps = {
   initialText?: string;
@@ -48,6 +50,22 @@ function pickIntent(searchParams: ReturnType<typeof useSearchParams>) {
   return searchParams.get("intent")?.trim() || "";
 }
 
+function pickProposalEventId(searchParams: ReturnType<typeof useSearchParams>) {
+  const candidates = [
+    searchParams.get("proposal_event_id"),
+    searchParams.get("proposalEventId"),
+    searchParams.get("event_id"),
+    searchParams.get("eventId"),
+  ];
+
+  for (const candidate of candidates) {
+    const value = candidate?.trim();
+    if (value) return value;
+  }
+
+  return "";
+}
+
 function formatDateLabel(date: Date | null) {
   if (!date || Number.isNaN(date.getTime())) return "Sin fecha detectada";
 
@@ -89,6 +107,10 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
 
   const source = useMemo(() => pickIncomingSource(searchParams), [searchParams]);
   const intent = useMemo(() => pickIntent(searchParams), [searchParams]);
+  const proposalEventId = useMemo(
+    () => pickProposalEventId(searchParams),
+    [searchParams],
+  );
   const isSharedIntent = intent === "shared";
 
   const [draft, setDraft] = useState(incomingText);
@@ -96,6 +118,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   const [clipboardState, setClipboardState] = useState<
     "idle" | "reading" | "success" | "blocked"
   >("idle");
+  const [isSavingLater, setIsSavingLater] = useState(false);
 
   useEffect(() => {
     setDraft(incomingText);
@@ -175,6 +198,10 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       params.set("intent", "shared");
       params.set("proposal", "1");
 
+      if (proposalEventId) {
+        params.set("proposal_event_id", proposalEventId);
+      }
+
       if (response) {
         params.set("proposal_response", response);
       }
@@ -201,9 +228,39 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     router.push(buildDetailsUrl("adjust"));
   }
 
-  function handleLater() {
-    alert("La propuesta quedó pendiente. Puedes volver más tarde desde el link.");
-    router.push("/summary");
+  async function handleLater() {
+    if (isSavingLater) return;
+
+    setIsSavingLater(true);
+
+    try {
+      if (isSharedIntent && proposalEventId) {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError) {
+          throw userError;
+        }
+
+        if (user?.id) {
+          await upsertProposalResponse({
+            eventId: proposalEventId,
+            userId: user.id,
+            response: "pending",
+          });
+        }
+      }
+
+      alert("La propuesta quedó pendiente. Puedes volver más tarde desde el link.");
+      router.push("/summary");
+    } catch (error) {
+      console.error("CaptureClient.handleLater", error);
+      alert("No pudimos guardar la propuesta como pendiente. Inténtalo otra vez.");
+    } finally {
+      setIsSavingLater(false);
+    }
   }
 
   return (
@@ -353,6 +410,24 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               }}
             >
               Leyendo portapapeles...
+            </span>
+          ) : null}
+
+          {isSharedIntent && proposalEventId ? (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                borderRadius: 999,
+                padding: "8px 12px",
+                background: "rgba(16, 185, 129, 0.10)",
+                border: "1px solid rgba(16, 185, 129, 0.22)",
+                color: "#d1fae5",
+                fontSize: 12,
+                fontWeight: 800,
+              }}
+            >
+              Proposal ID detectado
             </span>
           ) : null}
         </div>
@@ -715,6 +790,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
             <button
               type="button"
               onClick={handleLater}
+              disabled={isSavingLater}
               style={{
                 borderRadius: 999,
                 padding: "13px 16px",
@@ -723,10 +799,11 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 color: "#94a3b8",
                 fontSize: 13,
                 fontWeight: 800,
-                cursor: "pointer",
+                cursor: isSavingLater ? "not-allowed" : "pointer",
+                opacity: isSavingLater ? 0.7 : 1,
               }}
             >
-              No ahora
+              {isSavingLater ? "Guardando..." : "No ahora"}
             </button>
           ) : null}
 
