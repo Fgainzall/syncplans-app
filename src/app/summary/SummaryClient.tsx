@@ -14,7 +14,10 @@ import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
 import MobileScaffold from "@/components/MobileScaffold";
-
+import {
+  getProfilesMapByIds,
+  getDisplayName,
+} from "@/lib/profilesDb";
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { getMyEvents } from "@/lib/eventsDb";
@@ -88,7 +91,46 @@ function safeDate(iso?: string | null) {
   if (Number.isNaN(d.getTime())) return null;
   return d;
 }
+function humanizeRelativeDate(dateString?: string | null) {
+  if (!dateString) return null;
 
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return "hoy";
+  if (diffDays === 1) return "ayer";
+  if (diffDays < 7) return `hace ${diffDays} días`;
+
+  return date.toLocaleDateString();
+}
+
+function buildProposalLine({
+  response,
+  name,
+  time,
+}: {
+  response?: string | null;
+  name?: string | null;
+  time?: string | null;
+}) {
+  const r = String(response ?? "").toLowerCase();
+  const n = name || "Alguien";
+
+  if (!r) return null;
+
+  const verb =
+    r === "accepted"
+      ? "la aceptó"
+      : r === "adjusted"
+      ? "la ajustó"
+      : "la dejó pendiente";
+
+  return time ? `${n} ${verb} ${time}` : `${n} ${verb}`;
+}
 function fmtDay(d: Date) {
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -571,6 +613,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [proposalResponsesMap, setProposalResponsesMap] = useState<
     Record<string, ProposalResponseRow>
   >({});
+  const [proposalProfilesMap, setProposalProfilesMap] = useState<
+    Record<string, any>
+  >({});
   const [quickCaptureValue, setQuickCaptureValue] = useState("");
   const [quickCaptureBusy, setQuickCaptureBusy] = useState(false);
   const toastTimeoutRef = useRef<number | null>(null);
@@ -817,7 +862,42 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       setLoading(false);
     }
   }, [router, showToast]);
+useEffect(() => {
+  let cancelled = false;
 
+  async function loadProfiles() {
+    const userIds = Array.from(
+      new Set(
+        Object.values(proposalResponsesMap)
+          .map((r) => String(r?.user_id ?? "").trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (userIds.length === 0) {
+      setProposalProfilesMap({});
+      return;
+    }
+
+    try {
+      const data = await getProfilesMapByIds(userIds);
+
+      if (!cancelled) {
+        setProposalProfilesMap(data ?? {});
+      }
+    } catch {
+      if (!cancelled) {
+        setProposalProfilesMap({});
+      }
+    }
+  }
+
+  loadProfiles();
+
+  return () => {
+    cancelled = true;
+  };
+}, [proposalResponsesMap]);
   useEffect(() => {
     let alive = true;
 
@@ -1106,6 +1186,27 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     [proposalResponsesMap]
   );
 
+  const getProposalLineForEvent = useCallback(
+    (eventId: string | null | undefined) => {
+      const key = String(eventId ?? "").trim();
+      if (!key) return null;
+
+      const row = proposalResponsesMap[key];
+      if (!row) return null;
+
+      const profile = proposalProfilesMap[String(row.user_id ?? "").trim()];
+      const name = getDisplayName(profile);
+      const time = humanizeRelativeDate(row.updated_at);
+
+      return buildProposalLine({
+        response: row.response,
+        name,
+        time,
+      });
+    },
+    [proposalProfilesMap, proposalResponsesMap]
+  );
+
   return (
     <div style={styles.page} className="spSum-page">
       {toast && (
@@ -1352,6 +1453,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                           <div style={styles.eventLeft}>
                             <div style={styles.eventWhen}>{when}</div>
                             <div style={styles.eventTitle}>{nextEvent.title}</div>
+                            {(() => {
+                              const proposalLine = getProposalLineForEvent(nextEvent.id);
+                              return proposalLine ? (
+                                <div style={styles.proposalContextLine}>{proposalLine}</div>
+                              ) : null;
+                            })()}
                           </div>
 
                           <div style={styles.eventMeta}>
@@ -1413,6 +1520,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                           <div style={styles.eventLeft}>
                             <div style={styles.eventWhen}>{when}</div>
                             <div style={styles.eventTitle}>{e.title}</div>
+                            {(() => {
+                              const proposalLine = getProposalLineForEvent(e.id);
+                              return proposalLine ? (
+                                <div style={styles.proposalContextLine}>{proposalLine}</div>
+                              ) : null;
+                            })()}
                           </div>
 
                           <div style={styles.eventMeta}>
@@ -2245,6 +2358,12 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(56,189,248,0.24)",
     background: "rgba(56,189,248,0.12)",
     color: "rgba(224,242,254,0.96)",
+  },
+  proposalContextLine: {
+    fontSize: 11,
+    lineHeight: 1.4,
+    color: "rgba(203,213,225,0.72)",
+    fontWeight: 700,
   },
   seeMoreBtn: {
     marginTop: 12,
