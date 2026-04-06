@@ -448,6 +448,9 @@ function NewEventDetailsInner() {
   const [sharedGroupDetectionState, setSharedGroupDetectionState] = useState<
     "idle" | "matched" | "none" | "ambiguous"
   >("idle");
+  const [suggestedPreselectedGroupId, setSuggestedPreselectedGroupId] =
+    useState<string>("");
+  const groupManualSelectionRef = useRef(false);
 
   const [bootingEvent, setBootingEvent] = useState<boolean>(isEditing);
 
@@ -908,6 +911,55 @@ function NewEventDetailsInner() {
     title,
     notes,
   ]);
+
+  const suggestedGroupCandidate = useMemo(() => {
+    if (!groupSuggestion?.type) return null;
+
+    return (
+      uniqueGroups.find(
+        (group) => normalizeDbGroupType(group.type) === groupSuggestion.type
+      ) || null
+    );
+  }, [groupSuggestion, uniqueGroups]);
+
+  useEffect(() => {
+    if (effectiveType !== "group") {
+      setSuggestedPreselectedGroupId("");
+      return;
+    }
+    if (lockedToActiveGroup) {
+      setSuggestedPreselectedGroupId("");
+      return;
+    }
+    if (groupIdParam) {
+      setSuggestedPreselectedGroupId("");
+      return;
+    }
+    if (autoSharedGroupId || sharedGroupDetectionState === "matched") {
+      setSuggestedPreselectedGroupId("");
+      return;
+    }
+    if (!suggestedGroupCandidate?.id) {
+      setSuggestedPreselectedGroupId("");
+      return;
+    }
+    if (groupManualSelectionRef.current) return;
+
+    setSuggestedPreselectedGroupId(suggestedGroupCandidate.id);
+
+    if (selectedGroupId !== suggestedGroupCandidate.id) {
+      setSelectedGroupId(suggestedGroupCandidate.id);
+    }
+  }, [
+    effectiveType,
+    lockedToActiveGroup,
+    groupIdParam,
+    autoSharedGroupId,
+    sharedGroupDetectionState,
+    suggestedGroupCandidate,
+    selectedGroupId,
+  ]);
+
 
   const dateRangeLabel = useMemo(() => {
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "";
@@ -2288,15 +2340,31 @@ sharedGroupDetectionState === "ambiguous" ? (
       color: "rgba(226,242,255,0.88)",
     }}
   >
-    💡 Sugerencia: este plan parece encajar mejor en{' '}
-    <b>
-      {groupSuggestion.type === "pair"
-        ? "Pareja"
-        : groupSuggestion.type === "family"
-        ? "Familia"
-        : "Compartido"}
-    </b>
-    . Puedes seleccionarlo abajo si tiene sentido para ti.
+    {suggestedPreselectedGroupId && selectedGroup?.id === suggestedPreselectedGroupId ? (
+      <>
+        ✨ Preseleccionamos{' '}
+        <b>
+          {groupSuggestion.type === "pair"
+            ? "Pareja"
+            : groupSuggestion.type === "family"
+            ? "Familia"
+            : "Compartido"}
+        </b>{' '}
+        porque este plan parece encajar mejor ahí. Puedes cambiarlo abajo si prefieres otro grupo.
+      </>
+    ) : (
+      <>
+        💡 Sugerencia: este plan parece encajar mejor en{' '}
+        <b>
+          {groupSuggestion.type === "pair"
+            ? "Pareja"
+            : groupSuggestion.type === "family"
+            ? "Familia"
+            : "Compartido"}
+        </b>
+        . Puedes seleccionarlo abajo si tiene sentido para ti.
+      </>
+    )}
   </div>
 ) : null}
 
@@ -2305,7 +2373,11 @@ sharedGroupDetectionState === "ambiguous" ? (
                       disabled={
                         lockedToActiveGroup || (!!autoSharedGroupId && !groupIdParam)
                       }
-                      onChange={(e) => setSelectedGroupId(e.target.value)}
+                      onChange={(e) => {
+                        groupManualSelectionRef.current = true;
+                        setSuggestedPreselectedGroupId("");
+                        setSelectedGroupId(e.target.value);
+                      }}
                       style={{
                         ...styles.select,
                         opacity:
