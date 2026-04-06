@@ -269,6 +269,8 @@ function NewEventDetailsInner() {
   const quickCaptureTitleParam = sp.get("title");
   const quickCaptureDurationParam = sp.get("duration");
   const quickCaptureNotesParam = sp.get("notes");
+  const intentParam = sp.get("intent");
+  const proposalParam = sp.get("proposal");
 
   const eventIdParam = sp.get("eventId") || sp.get("edit") || sp.get("id");
   const isEditing = !!eventIdParam;
@@ -320,6 +322,8 @@ function NewEventDetailsInner() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [externalProposalActive, setExternalProposalActive] = useState(false);
   const quickCaptureHydratedRef = useRef(false);
+  const isSharedProposal =
+    !isEditing && (intentParam === "shared" || proposalParam === "1");
 
   const [booting, setBooting] = useState(true);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
@@ -676,12 +680,16 @@ function NewEventDetailsInner() {
   }, [startDate, endDate]);
 
   const summaryLine = useMemo(() => {
+    if (isSharedProposal) {
+      return "Estás respondiendo a una propuesta compartida. Puedes aceptarla tal cual o ajustarla antes de guardarla.";
+    }
+
     if (effectiveType === "group") {
       const groupName = selectedGroup?.name ?? "Grupo";
       return `Se compartirá con ${groupName}.`;
     }
     return "Solo aparecerá en tu calendario.";
-  }, [effectiveType, selectedGroup]);
+  }, [effectiveType, selectedGroup, isSharedProposal]);
 
   const dateRangeLabel = useMemo(() => {
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "";
@@ -782,6 +790,20 @@ function NewEventDetailsInner() {
 
   const buildSuccessToast = (options?: { keepBoth?: boolean }) => {
     const isSharedEvent = effectiveType === "group";
+
+    if (isSharedProposal) {
+      if (options?.keepBoth) {
+        return {
+          title: "Propuesta aceptada ✅",
+          subtitle: "Se guardó el plan y conservamos ambos horarios para que puedas revisarlos luego.",
+        };
+      }
+
+      return {
+        title: "Propuesta aceptada ✅",
+        subtitle: "Ya la llevaste a tu calendario y puedes seguir ajustándola cuando quieras.",
+      };
+    }
 
     if (options?.keepBoth) {
       return {
@@ -1639,10 +1661,14 @@ console.log("TRACK EVENT CREATED", payload);
               </span>
             </div>
             <div style={styles.heroSub}>
-              Crea el evento en pocos segundos. SyncPlans revisa conflictos antes
-              de guardarlo para que no pierdas el hilo.
+              {isSharedProposal
+                ? "Estás revisando una propuesta compartida. Puedes aceptarla tal cual o ajustarla antes de guardarla."
+                : "Crea el evento en pocos segundos. SyncPlans revisa conflictos antes de guardarlo para que no pierdas el hilo."}
               <div style={styles.heroMetaRow}>
                 <span style={styles.heroMetaPill}>{summaryLine}</span>
+                {isSharedProposal ? (
+                  <span style={styles.heroMetaPill}>Propuesta compartida</span>
+                ) : null}
                 {durationLabel ? (
                   <span style={styles.heroMetaPill}>Duración: {durationLabel}</span>
                 ) : null}
@@ -1668,10 +1694,24 @@ console.log("TRACK EVENT CREATED", payload);
                 ? "Guardando…"
                 : isEditing
                 ? "Guardar cambios"
+                : isSharedProposal
+                ? "Aceptar propuesta"
                 : "Guardar"}
             </button>
           </div>
         </section>
+
+        {isSharedProposal ? (
+          <section style={styles.proposalBanner}>
+            <div style={styles.proposalBannerEyebrow}>Propuesta compartida</div>
+            <div style={styles.proposalBannerTitle}>
+              Estás respondiendo a una idea que te compartieron
+            </div>
+            <div style={styles.proposalBannerSub}>
+              Revisa título, horario y notas. Si te cuadra, acéptala y guárdala; si no, ajústala antes de crear el plan.
+            </div>
+          </section>
+        ) : null}
 
         <section style={styles.card}>
           <div style={styles.primaryStack}>
@@ -1775,7 +1815,11 @@ console.log("TRACK EVENT CREATED", payload);
               <div style={styles.quickSummaryTitle}>Resumen rápido</div>
               <div style={styles.quickSummaryRow}>
                 <span style={styles.quickSummaryPill}>
-                  {effectiveType === "group" ? "Compartido" : "Personal"}
+                  {isSharedProposal
+                    ? "Propuesta"
+                    : effectiveType === "group"
+                    ? "Compartido"
+                    : "Personal"}
                 </span>
                 {durationLabel ? (
                   <span style={styles.quickSummaryPill}>{durationLabel}</span>
@@ -2068,6 +2112,8 @@ console.log("TRACK EVENT CREATED", payload);
               ? "Guardando…"
               : isEditing
               ? "Guardar cambios"
+              : isSharedProposal
+              ? "Aceptar propuesta"
               : "Guardar evento"}
           </button>
         </section>
@@ -2442,6 +2488,34 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     alignItems: "center",
     flexWrap: "wrap",
+  },
+  proposalBanner: {
+    marginBottom: 12,
+    padding: "14px 16px",
+    borderRadius: 18,
+    border: "1px solid rgba(56,189,248,0.22)",
+    background: "rgba(56,189,248,0.10)",
+    boxShadow: "0 18px 50px rgba(0,0,0,0.18)",
+  },
+  proposalBannerEyebrow: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    fontWeight: 900,
+    color: "rgba(125,211,252,0.95)",
+  },
+  proposalBannerTitle: {
+    marginTop: 6,
+    fontSize: 16,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+    color: "rgba(226,242,255,0.96)",
+  },
+  proposalBannerSub: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.82)",
   },
   card: {
     borderRadius: 18,
