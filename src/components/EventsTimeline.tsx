@@ -242,6 +242,23 @@ function getProposalPresentation(response: string | null | undefined) {
   return null;
 }
 
+function humanizeRelativeDate(dateString?: string | null) {
+  if (!dateString) return null;
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return "hoy";
+  if (diffDays === 1) return "ayer";
+  if (diffDays < 7) return `hace ${diffDays} días`;
+
+  return date.toLocaleDateString();
+}
+
 function buildWhatsAppText(ev: TimelineEvent, link: string) {
   const start = new Date(ev.start);
   const startLabel = start.toLocaleString([], {
@@ -788,6 +805,9 @@ export default function EventsTimeline({
                 const proposalPresentation = getProposalPresentation(
                   proposalResponse?.response
                 );
+                const proposalTime = humanizeRelativeDate(
+                  proposalResponse?.updated_at
+                );
 
                 const start = new Date(ev.start).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -975,6 +995,12 @@ export default function EventsTimeline({
                           </span>
                         ) : null}
                       </div>
+
+                      {proposalPresentation && proposalTime ? (
+                        <div style={S.proposalContextLine}>
+                          {proposalPresentation.label} {proposalTime}
+                        </div>
+                      ) : null}
 
                       {canAcceptProposal ? (
                         <div style={S.inlineProposalStrip}>
@@ -1291,6 +1317,13 @@ const S: Record<string, React.CSSProperties> = {
     gap: 7,
     flexWrap: "wrap",
     alignItems: "center",
+  },
+  proposalContextLine: {
+    fontSize: 11,
+    color: "rgba(203,213,225,0.72)",
+    marginTop: -2,
+    marginLeft: 2,
+    fontWeight: 600,
   },
   signalBadge: {
     borderRadius: 999,
