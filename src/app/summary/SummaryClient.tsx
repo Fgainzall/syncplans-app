@@ -878,6 +878,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     [handleQuickCaptureSubmit]
   );
 
+  const handleOpenCapture = useCallback(() => {
+    router.push("/capture");
+  }, [router]);
+
   const visibleDecisions = useMemo(() => recentDecisions.slice(0, 3), [recentDecisions]);
 
   return (
@@ -915,6 +919,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 <div style={styles.captureTitle}>{quickCaptureHeadline}</div>
                 <div style={styles.captureSub}>{quickCaptureSubcopy}</div>
               </div>
+
+              <button
+                onClick={handleOpenCapture}
+                style={styles.captureDeepLinkButton}
+                className="spSum-captureDeepLinkButton"
+              >
+                Abrir capture completo
+              </button>
             </div>
 
             <div style={styles.captureFieldWrap} className="spSum-captureFieldWrap">
@@ -1289,6 +1301,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             min-height: 50px !important;
           }
 
+          .spSum-captureDeepLinkButton {
+            width: 100% !important;
+            justify-content: center !important;
+          }
+
           .spSum-quickCard {
             min-height: 88px !important;
             padding: 14px !important;
@@ -1406,6 +1423,22 @@ const styles: Record<string, React.CSSProperties> = {
   },
   captureCopyBlock: {
     maxWidth: 720,
+  },
+  captureDeepLinkButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+    borderRadius: 999,
+    border: "1px solid rgba(96,165,250,0.24)",
+    background: "rgba(8,15,29,0.82)",
+    color: "rgba(226,242,255,0.96)",
+    padding: "0 16px",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 12px 26px rgba(0,0,0,0.18)",
+    whiteSpace: "nowrap",
   },
   captureEyebrow: {
     fontSize: 11,
