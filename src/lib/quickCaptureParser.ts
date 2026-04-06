@@ -118,26 +118,8 @@ function formatNotes(input: string) {
   return capitalizeLikelyProperNames(sentence);
 }
 
-function addDays(base: Date, days: number) {
-  const copy = new Date(base);
-  copy.setDate(copy.getDate() + days);
-  return copy;
-}
-
-function nextWeekday(base: Date, dayIndex: number, extraWeeks = 0) {
-  const copy = new Date(base);
-  const currentDay = copy.getDay();
-  let diff = dayIndex - currentDay;
-
-  if (diff <= 0) diff += 7;
-  diff += extraWeeks * 7;
-
-  copy.setDate(copy.getDate() + diff);
-  return copy;
-}
-
 function extractHour(text: string): { hour: number | null; minutes: number } {
-  const match = text.match(/(\d{1,2})(?:[:h](\d{2}))?\s?(am|pm)?/i);
+  const match = text.match(/(?:a\s+las\s+|alas\s+)?(\d{1,2})(?:[:h](\d{2}))?\s?(am|pm)?/i);
   if (!match) return { hour: null, minutes: 0 };
 
   let hour = parseInt(match[1], 10);
@@ -147,7 +129,12 @@ function extractHour(text: string): { hour: number | null; minutes: number } {
   if (period === "pm" && hour < 12) hour += 12;
   if (period === "am" && hour === 12) hour = 0;
 
+  // Si no especifica am/pm y es una hora típica de tarde/noche,
+  // la interpretamos como PM para que "8" sea 8pm, no 8am.
   if (!period && hour >= 1 && hour <= 7) {
+    hour += 12;
+  }
+  if (!period && hour >= 8 && hour <= 11) {
     hour += 12;
   }
 
@@ -158,33 +145,97 @@ function extractHour(text: string): { hour: number | null; minutes: number } {
   return { hour, minutes };
 }
 
+function addDays(date: Date, days: number) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function startOfToday() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0, 0);
+}
+
+function nextOccurrenceOfDay(base: Date, targetDay: number) {
+  const result = new Date(base);
+  const currentDay = result.getDay();
+  let diff = targetDay - currentDay;
+  if (diff <= 0) diff += 7;
+  result.setDate(result.getDate() + diff);
+  return result;
+}
+
 function extractDay(text: string): Date | null {
-  const today = new Date();
+  const today = startOfToday();
   const normalized = normalizeForMatching(text);
 
   if (normalized.includes("pasado manana")) {
     return addDays(today, 2);
   }
 
-  if (normalized.includes("hoy")) return today;
+  if (normalized.includes("hoy")) {
+    return today;
+  }
 
   if (normalized.includes("manana")) {
     return addDays(today, 1);
   }
 
-  const refersToNextWeek =
-    /\b(siguiente|proxima|la otra)\s+semana\b/.test(normalized) ||
-    /\bsemana\s+(que viene|siguiente)\b/.test(normalized) ||
-    /\bel otro\s+(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/.test(normalized);
+  const hasNextWeekIntent =
+    normalized.includes("siguiente semana") ||
+    normalized.includes("proxima semana") ||
+    normalized.includes("semana que viene") ||
+    normalized.includes("la otra semana") ||
+    normalized.includes("de la otra semana") ||
+    normalized.includes("de la siguiente semana") ||
+    normalized.includes("de la proxima semana") ||
+    normalized.includes("en dos semanas");
+
+  const hasOtherDayIntent =
+    /\bel otro\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
+      normalized
+    ) ||
+    /\bla otra\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
+      normalized
+    );
+
+  const hasNextDayIntent =
+    /\bproximo\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
+      normalized
+    ) ||
+    /\bproxima\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
+      normalized
+    ) ||
+    /\bsiguiente\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
+      normalized
+    );
 
   for (const [word, dayIndex] of Object.entries(DAYS_MAP)) {
     const normalizedWord = normalizeForMatching(word);
-    const mentionsDay = new RegExp(`\b${normalizedWord}\b`).test(normalized);
+    if (!normalized.includes(normalizedWord)) continue;
 
-    if (!mentionsDay) continue;
+    let result = nextOccurrenceOfDay(today, dayIndex);
 
-    const extraWeeks = refersToNextWeek ? 1 : 0;
-    return nextWeekday(today, dayIndex, extraWeeks);
+    // "jueves de la siguiente semana" / "el otro martes" / "próximo jueves"
+    if (hasNextWeekIntent || hasOtherDayIntent) {
+      result = addDays(result, 7);
+    } else if (hasNextDayIntent) {
+      result = nextOccurrenceOfDay(addDays(today, 1), dayIndex);
+    }
+
+    if (normalized.includes("en dos semanas")) {
+      result = addDays(result, 7);
+    }
+
+    return result;
+  }
+
+  if (
+    normalized.includes("proxima semana") ||
+    normalized.includes("siguiente semana") ||
+    normalized.includes("semana que viene")
+  ) {
+    return addDays(today, 7);
   }
 
   return null;
@@ -206,11 +257,19 @@ function removeDateAndTimeTokens(text: string): string {
       /\b(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/gi,
       " "
     )
-    .replace(/\b(el otro|la otra)\b/gi, " ")
-    .replace(/\b(de la|de|la)?\s*(siguiente|próxima|proxima)\s+semana\b/gi, " ")
-    .replace(/\bsemana\s+(que viene|siguiente)\b/gi, " ")
-    .replace(/\ba las\b/gi, " ")
-    .replace(/\b(\d{1,2}(?::\d{2})?\s?(am|pm)?)\b/gi, " ")
+    .replace(
+      /\b(proximo|próximo|proxima|próxima|siguiente|otro|otra)\b/gi,
+      " "
+    )
+    .replace(
+      /\b(semana|que|viene)\b/gi,
+      " "
+    )
+    .replace(
+      /\b(a\s+las|alas)\b/gi,
+      " "
+    )
+    .replace(/\b(\d{1,2})(?::\d{2})?\s?(am|pm)?\b/gi, " ")
     .replace(/\b(\d+)\s?(min|mins|m|h|hora|horas)\b/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
