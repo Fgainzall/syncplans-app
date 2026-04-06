@@ -2073,21 +2073,31 @@ if (isEditing && eventIdParam) {
                   </div>
                 ) : (
                   <>
-                    {autoSharedGroupId && !groupIdParam && !lockedToActiveGroup ? (
-                      <div style={{ ...styles.hint, marginBottom: 10 }}>
-                        Grupo detectado automáticamente:{" "}
-                        <b>
-                          {autoSharedGroupLabel ||
-                            selectedGroup?.name ||
-                            "Grupo compartido"}
-                        </b>
-                        {selectedGroup ? (
-                          <>
-                            {" "}· tipo <b>{getGroupTypeLabel(selectedGroup.type)}</b>
-                          </>
-                        ) : null}
-                      </div>
-                    ) : null}
+{autoSharedGroupId && !groupIdParam && !lockedToActiveGroup ? (
+  <div
+    style={{
+      marginBottom: 12,
+      borderRadius: 14,
+      border: "1px solid rgba(96,165,250,0.28)",
+      background: "rgba(96,165,250,0.10)",
+      padding: "10px 12px",
+      fontSize: 12,
+      fontWeight: 800,
+    }}
+  >
+    Usaremos este grupo automáticamente:{" "}
+    <b>
+      {autoSharedGroupLabel ||
+        selectedGroup?.name ||
+        "Grupo compartido"}
+    </b>
+    {selectedGroup ? (
+      <>
+        {" "}· tipo <b>{getGroupTypeLabel(selectedGroup.type)}</b>
+      </>
+    ) : null}
+  </div>
+) : null}
 
                     <select
                       value={selectedGroupId}
@@ -2126,7 +2136,7 @@ if (isEditing && eventIdParam) {
                       </span>
                     ) : autoSharedGroupId && !groupIdParam ? (
                       <span style={{ marginLeft: 8, opacity: 0.9 }}>
-                        · (auto-detectado)
+                        · (detectado automáticamente)
                       </span>
                     ) : null}
                   </div>
