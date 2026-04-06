@@ -764,6 +764,17 @@ function NewEventDetailsInner() {
 
   const goBack = () => router.push("/calendar");
 
+  const handleReviewProposalLater = () => {
+    setToast({
+      title: "Propuesta pendiente",
+      subtitle: "No guardamos nada. Puedes volver más tarde desde el link compartido.",
+    });
+
+    window.setTimeout(() => {
+      router.push("/summary");
+    }, 500);
+  };
+
   const onAutoEnd = () => {
     const s = fromInputLocal(startLocal);
     const e = fromInputLocal(endLocal);
@@ -1684,9 +1695,15 @@ console.log("TRACK EVENT CREATED", payload);
           </div>
 
           <div style={styles.heroRight}>
-            <button onClick={goBack} style={styles.ghostBtn}>
-              Cancelar
-            </button>
+            {isSharedProposal ? (
+              <button onClick={handleReviewProposalLater} style={styles.ghostBtn}>
+                Revisar luego
+              </button>
+            ) : (
+              <button onClick={goBack} style={styles.ghostBtn}>
+                Cancelar
+              </button>
+            )}
             <button
               onClick={save}
               style={{ ...styles.primaryBtn, opacity: canSave ? 1 : 0.6 }}
@@ -2108,8 +2125,11 @@ console.log("TRACK EVENT CREATED", payload);
         </section>
 
         <section style={styles.footerRow}>
-          <button onClick={goBack} style={styles.ghostBtnWide}>
-            ← Volver
+          <button
+            onClick={isSharedProposal ? handleReviewProposalLater : goBack}
+            style={styles.ghostBtnWide}
+          >
+            {isSharedProposal ? "Revisar luego" : "← Volver"}
           </button>
           <button
             onClick={save}
