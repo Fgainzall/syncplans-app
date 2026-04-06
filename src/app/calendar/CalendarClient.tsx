@@ -1496,9 +1496,7 @@ function EventRow({
               >
                 {proposalLabel}
               </div>
-            ) : null}
-
-            {trustLabel ? (
+            ) : trustLabel ? (
               <div
                 style={{
                   ...styles.eventTrustBadge,
@@ -1749,9 +1747,7 @@ cells.push(
               >
                 {proposalLabel}
               </span>
-            ) : null}
-
-            {trustShortLabel ? (
+            ) : trustShortLabel ? (
               <span
                 style={{
                   ...styles.cellTrustPill,

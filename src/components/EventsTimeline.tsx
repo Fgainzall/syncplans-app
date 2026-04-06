@@ -243,6 +243,44 @@ function getProposalPresentation(response: string | null | undefined) {
   return null;
 }
 
+function humanizeRelativeDate(dateString?: string | null) {
+  if (!dateString) return null;
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return "hoy";
+  if (diffDays === 1) return "ayer";
+  if (diffDays < 7) return `hace ${diffDays} días`;
+
+  return date.toLocaleDateString();
+}
+
+function buildProposalContextLine(input: {
+  response: string | null | undefined;
+  displayName: string | null | undefined;
+  relativeDate: string | null | undefined;
+}) {
+  const safeResponse = String(input.response ?? "").trim().toLowerCase();
+  const safeName = String(input.displayName ?? "").trim() || "Alguien";
+  const safeDate = String(input.relativeDate ?? "").trim();
+
+  if (!safeResponse) return null;
+
+  const verb =
+    safeResponse === "accepted"
+      ? "la aceptó"
+      : safeResponse === "adjusted"
+      ? "la ajustó"
+      : "la dejó pendiente";
+
+  return safeDate ? `${safeName} ${verb} ${safeDate}` : `${safeName} ${verb}`;
+}
+
 function buildWhatsAppText(ev: TimelineEvent, link: string) {
   const start = new Date(ev.start);
   const startLabel = start.toLocaleString([], {
@@ -290,7 +328,7 @@ function getInvitePresentation(invite: PublicInviteRow | null) {
 
   if (invite.status === "accepted") {
     return {
-      label: "Aceptado",
+      label: "Confirmado",
       tone: "accepted" as const,
       detail: "La persona externa confirmó este plan.",
     };
@@ -827,6 +865,15 @@ export default function EventsTimeline({
                 const proposalPresentation = getProposalPresentation(
                   proposalResponse?.response
                 );
+                const proposalProfile =
+                  proposalProfilesById[String(proposalResponse?.user_id ?? "")] ?? null;
+                const proposalActorName = getDisplayName(proposalProfile);
+                const proposalTime = humanizeRelativeDate(proposalResponse?.updated_at);
+                const proposalContextLine = buildProposalContextLine({
+                  response: proposalResponse?.response,
+                  displayName: proposalActorName,
+                  relativeDate: proposalTime,
+                });
 
                 const start = new Date(ev.start).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -939,6 +986,18 @@ export default function EventsTimeline({
                       </div>
 
                       <div style={S.signalsRow}>
+                        {proposalPresentation ? (
+                          <span
+                            style={{
+                              ...S.signalBadge,
+                              ...proposalPresentation.style,
+                              opacity: 0.9,
+                            }}
+                          >
+                            {proposalPresentation.label}
+                          </span>
+                        ) : null}
+
                         {isOwnerView ? (
                           <span
                             style={{
@@ -960,6 +1019,19 @@ export default function EventsTimeline({
                             }}
                           >
                             Invitación recibida
+                          </span>
+                        ) : null}
+
+                        {!proposalPresentation && trustPresentation ? (
+                          <span
+                            style={{
+                              ...S.signalBadge,
+                              ...trustPresentation.style,
+                              opacity: 0.8,
+                            }}
+                            title={trustPresentation.title}
+                          >
+                            {trustPresentation.label}
                           </span>
                         ) : null}
 
@@ -988,32 +1060,11 @@ export default function EventsTimeline({
                             {externalLabel}
                           </span>
                         )}
-
-                        {proposalPresentation ? (
-                          <span
-                            style={{
-                              ...S.signalBadge,
-                              ...proposalPresentation.style,
-                              opacity: 0.9,
-                            }}
-                          >
-                            {proposalPresentation.label}
-                          </span>
-                        ) : null}
-
-                        {trustPresentation ? (
-                          <span
-                            style={{
-                              ...S.signalBadge,
-                              ...trustPresentation.style,
-                              opacity: 0.8,
-                            }}
-                            title={trustPresentation.title}
-                          >
-                            {trustPresentation.label}
-                          </span>
-                        ) : null}
                       </div>
+
+                      {proposalPresentation && proposalContextLine ? (
+                        <div style={S.proposalContextLine}>{proposalContextLine}</div>
+                      ) : null}
 
                       {canAcceptProposal ? (
                         <div style={S.inlineProposalStrip}>
@@ -1330,6 +1381,13 @@ const S: Record<string, React.CSSProperties> = {
     gap: 7,
     flexWrap: "wrap",
     alignItems: "center",
+  },
+  proposalContextLine: {
+    fontSize: 11,
+    color: "rgba(203,213,225,0.72)",
+    marginTop: -2,
+    marginLeft: 2,
+    fontWeight: 600,
   },
   signalBadge: {
     borderRadius: 999,
