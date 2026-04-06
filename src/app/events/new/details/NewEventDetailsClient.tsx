@@ -27,7 +27,11 @@ import supabase from "@/lib/supabaseClient";
 import { getSettingsFromDb, type NotificationSettings } from "@/lib/settings";
 
 // ✅ DB real (RLS)
-import { getMyGroups, getGroupTypeLabel } from "@/lib/groupsDb";
+import {
+  getMyGroups,
+  getGroupTypeLabel,
+  getSharedGroupBetweenUsers,
+} from "@/lib/groupsDb";
 
 // ✅ DB Source of Truth
 import {
@@ -274,6 +278,8 @@ function NewEventDetailsInner() {
   const intentParam = sp.get("intent");
   const proposalParam = sp.get("proposal");
   const proposalResponseParam = sp.get("proposal_response");
+  const proposalEventIdParam =
+    sp.get("proposal_event_id") || sp.get("proposalEventId") || "";
 
   const eventIdParam = sp.get("eventId") || sp.get("edit") || sp.get("id");
   const isEditing = !!eventIdParam;
@@ -343,6 +349,8 @@ function NewEventDetailsInner() {
   const [selectedGroupId, setSelectedGroupId] = useState<string>(
     groupIdParam || ""
   );
+  const [autoSharedGroupId, setAutoSharedGroupId] = useState<string>("");
+  const [autoSharedGroupLabel, setAutoSharedGroupLabel] = useState<string>("");
 
   const [bootingEvent, setBootingEvent] = useState<boolean>(isEditing);
 
@@ -436,6 +444,9 @@ function NewEventDetailsInner() {
     if (proposalResponseParam) {
       params.set("proposal_response", proposalResponseParam);
     }
+    if (proposalEventIdParam) {
+      params.set("proposal_event_id", proposalEventIdParam);
+    }
 
     return `/events/new/details?${params.toString()}`;
   }
@@ -469,11 +480,52 @@ function NewEventDetailsInner() {
         setActiveGroupId(gid);
         setGroups(unique);
 
+        let preferredGroupId = groupIdParam || "";
+        let detectedSharedGroupLabel = "";
+
+        if (!preferredGroupId && isSharedProposal && proposalEventIdParam) {
+          try {
+            const proposalEvent = await getEventById(proposalEventIdParam);
+            const proposalOwnerId = resolveEventOwnerId(proposalEvent);
+
+            if (proposalOwnerId && proposalOwnerId !== uid) {
+              const sharedGroup = await getSharedGroupBetweenUsers(
+                proposalOwnerId,
+                uid
+              );
+
+              if (sharedGroup?.id) {
+                preferredGroupId = sharedGroup.id;
+                detectedSharedGroupLabel =
+                  sharedGroup.name || getGroupTypeLabel(sharedGroup.type);
+              }
+            }
+          } catch (sharedGroupError) {
+            console.warn(
+              "[NewEventDetails] shared group auto-detect failed",
+              sharedGroupError
+            );
+          }
+        }
+
         const fallbackGroupId =
-          groupIdParam || gid || (unique && unique.length ? unique[0].id : "");
+          preferredGroupId || gid || (unique && unique.length ? unique[0].id : "");
+
+        if (preferredGroupId) {
+          setAutoSharedGroupId(preferredGroupId);
+          setAutoSharedGroupLabel(detectedSharedGroupLabel);
+        } else {
+          setAutoSharedGroupId("");
+          setAutoSharedGroupLabel("");
+        }
+
         if (fallbackGroupId) setSelectedGroupId(fallbackGroupId);
 
-        if (typeParam === "group" && !groupIdParam) {
+        const shouldAutoRouteToGroup =
+          (typeParam === "group" && !groupIdParam) ||
+          (!!preferredGroupId && isSharedProposal && typeParam !== "group");
+
+        if (shouldAutoRouteToGroup) {
           const next = buildUrl(
             "group",
             new Date(startDate).toISOString(),
@@ -635,6 +687,21 @@ function NewEventDetailsInner() {
     if (selectedGroupId !== activeGroupId) setSelectedGroupId(activeGroupId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lockedToActiveGroup, activeGroupId]);
+
+  useEffect(() => {
+    if (effectiveType !== "group") return;
+    if (!autoSharedGroupId) return;
+    if (lockedToActiveGroup) return;
+    if (groupIdParam) return;
+    if (selectedGroupId === autoSharedGroupId) return;
+    setSelectedGroupId(autoSharedGroupId);
+  }, [
+    effectiveType,
+    autoSharedGroupId,
+    lockedToActiveGroup,
+    groupIdParam,
+    selectedGroupId,
+  ]);
 
   useEffect(() => {
     if (effectiveType !== "group") return;
@@ -2005,22 +2072,48 @@ if (isEditing && eventIdParam) {
                     </button>
                   </div>
                 ) : (
-                  <select
-                    value={selectedGroupId}
-                    disabled={lockedToActiveGroup}
-                    onChange={(e) => setSelectedGroupId(e.target.value)}
-                    style={{
-                      ...styles.select,
-                      opacity: lockedToActiveGroup ? 0.7 : 1,
-                      cursor: lockedToActiveGroup ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {uniqueGroups.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name ?? "Grupo"} ({getGroupTypeLabel(g.type)})
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    {autoSharedGroupId && !groupIdParam && !lockedToActiveGroup ? (
+                      <div style={{ ...styles.hint, marginBottom: 10 }}>
+                        Grupo detectado automáticamente:{" "}
+                        <b>
+                          {autoSharedGroupLabel ||
+                            selectedGroup?.name ||
+                            "Grupo compartido"}
+                        </b>
+                        {selectedGroup ? (
+                          <>
+                            {" "}· tipo <b>{getGroupTypeLabel(selectedGroup.type)}</b>
+                          </>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <select
+                      value={selectedGroupId}
+                      disabled={
+                        lockedToActiveGroup || (!!autoSharedGroupId && !groupIdParam)
+                      }
+                      onChange={(e) => setSelectedGroupId(e.target.value)}
+                      style={{
+                        ...styles.select,
+                        opacity:
+                          lockedToActiveGroup || (!!autoSharedGroupId && !groupIdParam)
+                            ? 0.7
+                            : 1,
+                        cursor:
+                          lockedToActiveGroup || (!!autoSharedGroupId && !groupIdParam)
+                            ? "not-allowed"
+                            : "pointer",
+                      }}
+                    >
+                      {uniqueGroups.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name ?? "Grupo"} ({getGroupTypeLabel(g.type)})
+                        </option>
+                      ))}
+                    </select>
+                  </>
                 )}
 
                 {selectedGroup ? (
@@ -2030,6 +2123,10 @@ if (isEditing && eventIdParam) {
                     {lockedToActiveGroup ? (
                       <span style={{ marginLeft: 8, opacity: 0.9 }}>
                         · (grupo activo)
+                      </span>
+                    ) : autoSharedGroupId && !groupIdParam ? (
+                      <span style={{ marginLeft: 8, opacity: 0.9 }}>
+                        · (auto-detectado)
                       </span>
                     ) : null}
                   </div>

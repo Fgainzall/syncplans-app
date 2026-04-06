@@ -491,3 +491,113 @@ export async function updateMyGroupMeta(
     throw error;
   }
 }
+
+/* ======================================================
+  Grupo compartido entre dos usuarios
+====================================================== */
+
+export type SharedGroupCandidate = GroupRow & {
+  my_role?: string | null;
+  other_role?: string | null;
+};
+
+function rankSharedGroupType(
+  type: GroupType | string | null | undefined
+): number {
+  const normalized = normalizeGroupType(type);
+  if (normalized === "pair") return 0;
+  if (normalized === "family") return 1;
+  if (normalized === "other") return 2;
+  return 3;
+}
+
+/**
+ * Detecta el mejor grupo compartido entre el usuario actual y otro usuario.
+ *
+ * Prioridad:
+ * 1) grupos pair
+ * 2) family
+ * 3) other
+ * 4) más reciente
+ */
+export async function getSharedGroupBetweenUsers(
+  otherUserId: string,
+  currentUserId?: string | null
+): Promise<SharedGroupCandidate | null> {
+  const me = String(currentUserId ?? "").trim() || (await requireUid());
+  const other = String(otherUserId ?? "").trim();
+
+  if (!me || !other) return null;
+  if (me === other) return null;
+
+  const { data: memberships, error: membershipError } = await supabase
+    .from("group_members")
+    .select("group_id, user_id, role")
+    .in("user_id", [me, other]);
+
+  if (membershipError) throw membershipError;
+
+  const rows = Array.isArray(memberships) ? memberships : [];
+  if (rows.length < 2) return null;
+
+  const grouped = new Map<
+    string,
+    { users: Set<string>; my_role?: string | null; other_role?: string | null }
+  >();
+
+  for (const row of rows) {
+    const gid = String(row?.group_id ?? "").trim();
+    const uid = String(row?.user_id ?? "").trim();
+    if (!gid || !uid) continue;
+
+    const entry = grouped.get(gid) ?? {
+      users: new Set<string>(),
+      my_role: null,
+      other_role: null,
+    };
+
+    entry.users.add(uid);
+
+    if (uid === me) entry.my_role = String(row?.role ?? "").trim() || null;
+    if (uid === other) entry.other_role = String(row?.role ?? "").trim() || null;
+
+    grouped.set(gid, entry);
+  }
+
+  const sharedIds = Array.from(grouped.entries())
+    .filter(([, entry]) => entry.users.has(me) && entry.users.has(other))
+    .map(([gid]) => gid);
+
+  if (sharedIds.length === 0) return null;
+
+  const { data: groups, error: groupsError } = await supabase
+    .from("groups")
+    .select("id, name, type, created_at, owner_id")
+    .in("id", sharedIds);
+
+  if (groupsError) throw groupsError;
+
+  const candidates = (groups ?? []).map((row: any) => {
+    const mapped = mapGroupRow(row);
+    const membership = grouped.get(mapped.id);
+
+    return {
+      ...mapped,
+      my_role: membership?.my_role ?? null,
+      other_role: membership?.other_role ?? null,
+    };
+  });
+
+  if (candidates.length === 0) return null;
+
+  candidates.sort((a, b) => {
+    const typeRank = rankSharedGroupType(a.type) - rankSharedGroupType(b.type);
+    if (typeRank !== 0) return typeRank;
+
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return bTime - aTime;
+  });
+
+  return candidates[0] ?? null;
+}
