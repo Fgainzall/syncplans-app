@@ -480,3 +480,27 @@ export function getInitials(p: {
   if (a || b) return `${a}${b}`;
   return "U";
 }
+export async function getProfilesMapByIds(
+  ids: string[]
+): Promise<Record<string, Profile>> {
+  const profiles = await getProfilesByIds(ids);
+
+  return profiles.reduce<Record<string, Profile>>((acc, p) => {
+    acc[p.id] = p;
+    return acc;
+  }, {});
+}
+
+export function getDisplayName(p?: Profile | null): string {
+  if (!p) return "Alguien";
+
+  if (p.display_name?.trim()) return p.display_name.trim();
+
+  const first = p.first_name?.trim() ?? "";
+  const last = p.last_name?.trim() ?? "";
+
+  const combined = `${first} ${last}`.trim();
+  if (combined) return combined;
+
+  return "Alguien";
+}

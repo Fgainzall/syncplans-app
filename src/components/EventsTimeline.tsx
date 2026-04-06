@@ -21,6 +21,7 @@ import {
   getMyProposalResponsesForEvents,
   type ProposalResponseRow,
 } from "@/lib/proposalResponsesDb";
+import { getDisplayName, getProfilesMapByIds } from "@/lib/profilesDb";
 
 type TimelineEvent = {
   id: string;
@@ -242,23 +243,6 @@ function getProposalPresentation(response: string | null | undefined) {
   return null;
 }
 
-function humanizeRelativeDate(dateString?: string | null) {
-  if (!dateString) return null;
-
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return null;
-
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays <= 0) return "hoy";
-  if (diffDays === 1) return "ayer";
-  if (diffDays < 7) return `hace ${diffDays} días`;
-
-  return date.toLocaleDateString();
-}
-
 function buildWhatsAppText(ev: TimelineEvent, link: string) {
   const start = new Date(ev.start);
   const startLabel = start.toLocaleString([], {
@@ -404,6 +388,7 @@ export default function EventsTimeline({
     useState<TrustSignalByEventId>({});
   const [proposalResponsesByEventId, setProposalResponsesByEventId] =
     useState<ProposalResponseByEventId>({});
+  const [proposalProfilesById, setProposalProfilesById] = useState<Record<string, any>>({});
 
   const sorted = useMemo(() => {
     return [...events].sort(
@@ -577,6 +562,43 @@ export default function EventsTimeline({
       cancelled = true;
     };
   }, [sorted, currentUserId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProposalProfiles() {
+      const userIds = Array.from(
+        new Set(
+          Object.values(proposalResponsesByEventId)
+            .map((row) => String(row?.user_id ?? "").trim())
+            .filter(Boolean)
+        )
+      );
+
+      if (userIds.length === 0) {
+        setProposalProfilesById({});
+        return;
+      }
+
+      try {
+        const data = await getProfilesMapByIds(userIds);
+        if (!cancelled) {
+          setProposalProfilesById(data ?? {});
+        }
+      } catch (error) {
+        console.error("[EventsTimeline] loadProposalProfiles error", error);
+        if (!cancelled) {
+          setProposalProfilesById({});
+        }
+      }
+    }
+
+    void loadProposalProfiles();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [proposalResponsesByEventId]);
 
   async function onDelete(id: string) {
     if (!confirm("¿Eliminar este evento?")) return;
@@ -805,9 +827,6 @@ export default function EventsTimeline({
                 const proposalPresentation = getProposalPresentation(
                   proposalResponse?.response
                 );
-                const proposalTime = humanizeRelativeDate(
-                  proposalResponse?.updated_at
-                );
 
                 const start = new Date(ev.start).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -995,12 +1014,6 @@ export default function EventsTimeline({
                           </span>
                         ) : null}
                       </div>
-
-                      {proposalPresentation && proposalTime ? (
-                        <div style={S.proposalContextLine}>
-                          {proposalPresentation.label} {proposalTime}
-                        </div>
-                      ) : null}
 
                       {canAcceptProposal ? (
                         <div style={S.inlineProposalStrip}>
@@ -1317,13 +1330,6 @@ const S: Record<string, React.CSSProperties> = {
     gap: 7,
     flexWrap: "wrap",
     alignItems: "center",
-  },
-  proposalContextLine: {
-    fontSize: 11,
-    color: "rgba(203,213,225,0.72)",
-    marginTop: -2,
-    marginLeft: 2,
-    fontWeight: 600,
   },
   signalBadge: {
     borderRadius: 999,
