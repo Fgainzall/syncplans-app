@@ -41,7 +41,7 @@ import { getOrCreatePublicInvite } from "@/lib/invitationsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { loadEventsForConflictPreflight } from "@/lib/conflictsDbBridge";
 import { createConflictResolutionLog } from "@/lib/conflictResolutionsLogDb";
-
+import { upsertProposalResponse } from "@/lib/proposalResponsesDb";
 /* Helpers */
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -1134,19 +1134,38 @@ if (isEditing && eventIdParam) {
     groupId: payload.groupId,
   });
   savedEventId = created?.id ? String(created.id) : null;
+
   console.log("EVENT CREATED ID", created?.id);
-console.log("TRACK EVENT CREATED", payload);
+  console.log("TRACK EVENT CREATED", payload);
+
+  if (savedEventId && isSharedProposal && proposalResponse && currentUserId) {
+    try {
+      await upsertProposalResponse({
+        eventId: savedEventId,
+        userId: currentUserId,
+        response: proposalResponse === "adjust" ? "adjusted" : "accepted",
+      });
+
+      console.log("PROPOSAL RESPONSE SAVED", {
+        eventId: savedEventId,
+        userId: currentUserId,
+        response: proposalResponse,
+      });
+    } catch (err) {
+      console.error("proposal response persist failed", err);
+    }
+  }
 
   if (savedEventId) {
-  await trackEvent({
-    event: "event_created",
-    userId: currentUserId,
-    entityId: savedEventId,
-    metadata: {
-      type: payload.groupId ? "group" : "personal",
-    },
-  });
-}
+    await trackEvent({
+      event: "event_created",
+      userId: currentUserId,
+      entityId: savedEventId,
+      metadata: {
+        type: payload.groupId ? "group" : "personal",
+      },
+    });
+  }
 }
 
       emitSyncPlansRefreshSignals();
