@@ -1,4 +1,3 @@
-// src/app/events/new/details/NewEventDetailsClient.tsx
 "use client";
 
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -120,6 +119,101 @@ type PreflightConflict = {
 };
 
 type PostSaveFormFingerprint = string;
+
+
+type GroupSuggestion = {
+  type: "pair" | "family" | "other" | null;
+  confidence: number;
+  reason?: string;
+};
+
+const PAIR_KEYWORDS = [
+  "cena",
+  "salida",
+  "salir",
+  "date",
+  "aniversario",
+  "película",
+  "pelicula",
+  "cine",
+  "comer",
+  "desayuno juntos",
+  "almuerzo juntos",
+  "con fer",
+  "con ara",
+];
+
+const FAMILY_KEYWORDS = [
+  "familia",
+  "mamá",
+  "mama",
+  "papá",
+  "papa",
+  "cumple",
+  "cumpleaños",
+  "almuerzo familiar",
+  "reunión familiar",
+  "reunion familiar",
+  "abuelos",
+  "tíos",
+  "tios",
+  "primos",
+];
+
+const OTHER_KEYWORDS = [
+  "pádel",
+  "padel",
+  "fútbol",
+  "futbol",
+  "fulbito",
+  "amigos",
+  "asado",
+  "reunión",
+  "reunion",
+  "partido",
+  "after",
+  "previa",
+];
+
+function scoreSuggestion(text: string, keywords: string[]) {
+  let hits = 0;
+  for (const keyword of keywords) {
+    if (text.includes(keyword)) hits += 1;
+  }
+  return hits;
+}
+
+function suggestGroupFromText(title: string, notes?: string): GroupSuggestion {
+  const text = `${title} ${notes ?? ""}`.toLowerCase().trim();
+
+  if (!text) return { type: null, confidence: 0 };
+
+  const pairScore = scoreSuggestion(text, PAIR_KEYWORDS);
+  const familyScore = scoreSuggestion(text, FAMILY_KEYWORDS);
+  const otherScore = scoreSuggestion(text, OTHER_KEYWORDS);
+
+  const max = Math.max(pairScore, familyScore, otherScore);
+
+  if (max === 0) {
+    return { type: null, confidence: 0 };
+  }
+
+  const leaders = [
+    { type: "pair" as const, score: pairScore, reason: "Parece un plan de pareja" },
+    { type: "family" as const, score: familyScore, reason: "Parece un plan familiar" },
+    { type: "other" as const, score: otherScore, reason: "Parece un plan compartido" },
+  ].filter((item) => item.score === max);
+
+  if (leaders.length !== 1) {
+    return { type: null, confidence: max };
+  }
+
+  return {
+    type: leaders[0].type,
+    confidence: leaders[0].score,
+    reason: leaders[0].reason,
+  };
+}
 
 function getConflictCounterpart(
   conflict: ReturnType<typeof computeVisibleConflicts>[number],
@@ -797,6 +891,23 @@ function NewEventDetailsInner() {
     }
     return "Solo aparecerá en tu calendario.";
   }, [effectiveType, selectedGroup, isSharedProposal, proposalResponse]);
+
+  const groupSuggestion = useMemo(() => {
+    if (effectiveType !== "group") return null;
+    if (autoSharedGroupId) return null;
+    if (sharedGroupDetectionState === "matched") return null;
+
+    const suggestion = suggestGroupFromText(title, notes);
+    if (!suggestion.type || suggestion.confidence <= 0) return null;
+
+    return suggestion;
+  }, [
+    effectiveType,
+    autoSharedGroupId,
+    sharedGroupDetectionState,
+    title,
+    notes,
+  ]);
 
   const dateRangeLabel = useMemo(() => {
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "";
@@ -2158,6 +2269,34 @@ sharedGroupDetectionState === "ambiguous" ? (
   >
     Encontramos más de una opción posible. Para no asumir mal, elige tú el
     grupo correcto para este plan.
+  </div>
+) : null}
+
+{groupSuggestion?.type &&
+!autoSharedGroupId &&
+!groupIdParam &&
+!lockedToActiveGroup ? (
+  <div
+    style={{
+      marginBottom: 12,
+      borderRadius: 14,
+      border: "1px solid rgba(56,189,248,0.20)",
+      background: "rgba(56,189,248,0.08)",
+      padding: "10px 12px",
+      fontSize: 12,
+      lineHeight: 1.45,
+      color: "rgba(226,242,255,0.88)",
+    }}
+  >
+    💡 Sugerencia: este plan parece encajar mejor en{' '}
+    <b>
+      {groupSuggestion.type === "pair"
+        ? "Pareja"
+        : groupSuggestion.type === "family"
+        ? "Familia"
+        : "Compartido"}
+    </b>
+    . Puedes seleccionarlo abajo si tiene sentido para ti.
   </div>
 ) : null}
 
