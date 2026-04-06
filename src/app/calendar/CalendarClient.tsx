@@ -645,11 +645,18 @@ console.log("DELETE CHECK", {
     };
 
     window.addEventListener("sp:active-group-changed", handler as any);
-    return () =>
+    window.addEventListener("sp:events-changed", handler as any);
+
+    return () => {
       window.removeEventListener(
         "sp:active-group-changed",
         handler as any
       );
+      window.removeEventListener(
+        "sp:events-changed",
+        handler as any
+      );
+    };
   }, [refreshCalendar]);
 
   useEffect(() => {
