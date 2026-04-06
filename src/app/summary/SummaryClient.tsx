@@ -1003,7 +1003,7 @@ useEffect(() => {
       const parsed = parseQuickCapture(raw);
       const params = new URLSearchParams();
 
-      const learnedMatch = parsed.title ? learnedGroupMatch(parsed.title) : null;
+      const learnedMatch = learnedGroupMatch(raw);
       const learnedGroupId = String(learnedMatch?.groupId ?? "").trim();
       const learnedGroupStillExists =
         !!learnedGroupId && groups.some((group) => String(group.id) === learnedGroupId);

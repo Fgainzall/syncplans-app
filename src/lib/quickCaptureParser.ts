@@ -211,19 +211,22 @@ function extractDay(text: string): Date | null {
     );
 
   for (const [word, dayIndex] of Object.entries(DAYS_MAP)) {
-    const normalizedWord = normalizeForMatching(word);
-    if (!normalized.includes(normalizedWord)) continue;
+    const regex = new RegExp(`\b${word}\b`, "i");
+    if (!regex.test(text)) continue;
 
     let result = nextOccurrenceOfDay(today, dayIndex);
 
-    // "jueves de la siguiente semana" / "el otro martes" / "próximo jueves"
-    if (hasNextWeekIntent || hasOtherDayIntent) {
+    if (
+      /siguiente semana|proxima semana|semana que viene|la otra semana|de la siguiente semana|de la proxima semana/i.test(text)
+    ) {
+      result = addDays(result, 7);
+    } else if (hasOtherDayIntent) {
       result = addDays(result, 7);
     } else if (hasNextDayIntent) {
       result = nextOccurrenceOfDay(addDays(today, 1), dayIndex);
     }
 
-    if (normalized.includes("en dos semanas")) {
+    if (/en dos semanas/i.test(text)) {
       result = addDays(result, 7);
     }
 
