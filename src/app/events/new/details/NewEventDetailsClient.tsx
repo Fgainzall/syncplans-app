@@ -271,6 +271,7 @@ function NewEventDetailsInner() {
   const quickCaptureNotesParam = sp.get("notes");
   const intentParam = sp.get("intent");
   const proposalParam = sp.get("proposal");
+  const proposalResponseParam = sp.get("proposal_response");
 
   const eventIdParam = sp.get("eventId") || sp.get("edit") || sp.get("id");
   const isEditing = !!eventIdParam;
@@ -325,6 +326,12 @@ function NewEventDetailsInner() {
   const quickCaptureHydratedRef = useRef(false);
   const isSharedProposal =
     !isEditing && (intentParam === "shared" || proposalParam === "1");
+  const proposalResponse =
+    proposalResponseParam === "adjust"
+      ? "adjust"
+      : proposalResponseParam === "accept"
+      ? "accept"
+      : null;
 
   const [booting, setBooting] = useState(true);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
@@ -681,6 +688,10 @@ function NewEventDetailsInner() {
   }, [startDate, endDate]);
 
   const summaryLine = useMemo(() => {
+    if (isSharedProposal && proposalResponse === "adjust") {
+      return "Estás ajustando una propuesta compartida antes de guardarla.";
+    }
+
     if (isSharedProposal) {
       return "Estás respondiendo a una propuesta compartida. Puedes aceptarla tal cual o ajustarla antes de guardarla.";
     }
@@ -690,7 +701,7 @@ function NewEventDetailsInner() {
       return `Se compartirá con ${groupName}.`;
     }
     return "Solo aparecerá en tu calendario.";
-  }, [effectiveType, selectedGroup, isSharedProposal]);
+  }, [effectiveType, selectedGroup, isSharedProposal, proposalResponse]);
 
   const dateRangeLabel = useMemo(() => {
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "";
@@ -806,14 +817,26 @@ function NewEventDetailsInner() {
     if (isSharedProposal) {
       if (options?.keepBoth) {
         return {
-          title: "Propuesta aceptada ✅",
-          subtitle: "Se guardó el plan y conservamos ambos horarios para que puedas revisarlos luego.",
+          title:
+            proposalResponse === "adjust"
+              ? "Propuesta ajustada ✅"
+              : "Propuesta aceptada ✅",
+          subtitle:
+            proposalResponse === "adjust"
+              ? "Guardamos tu versión ajustada y conservamos ambos horarios para que puedas revisarlos luego."
+              : "Se guardó el plan y conservamos ambos horarios para que puedas revisarlos luego.",
         };
       }
 
       return {
-        title: "Propuesta aceptada ✅",
-        subtitle: "Ya la llevaste a tu calendario y puedes seguir ajustándola cuando quieras.",
+        title:
+          proposalResponse === "adjust"
+            ? "Propuesta ajustada ✅"
+            : "Propuesta aceptada ✅",
+        subtitle:
+          proposalResponse === "adjust"
+            ? "Ya guardaste tu versión ajustada del plan y puedes seguir afinándola cuando quieras."
+            : "Ya la llevaste a tu calendario y puedes seguir ajustándola cuando quieras.",
       };
     }
 
@@ -1675,12 +1698,18 @@ console.log("TRACK EVENT CREATED", payload);
             </div>
             <div style={styles.heroSub}>
               {isSharedProposal
-                ? "Estás revisando una propuesta compartida. Puedes aceptarla tal cual o ajustarla antes de guardarla."
+                ? proposalResponse === "adjust"
+                  ? "Estás ajustando una propuesta compartida antes de guardarla. Revisa los detalles y deja tu versión final lista."
+                  : "Estás revisando una propuesta compartida. Puedes aceptarla tal cual o ajustarla antes de guardarla."
                 : "Crea el evento en pocos segundos. SyncPlans revisa conflictos antes de guardarlo para que no pierdas el hilo."}
               <div style={styles.heroMetaRow}>
                 <span style={styles.heroMetaPill}>{summaryLine}</span>
                 {isSharedProposal ? (
-                  <span style={styles.heroMetaPill}>Propuesta compartida</span>
+                  <span style={styles.heroMetaPill}>
+                    {proposalResponse === "adjust"
+                      ? "Ajustando propuesta"
+                      : "Propuesta compartida"}
+                  </span>
                 ) : null}
                 {durationLabel ? (
                   <span style={styles.heroMetaPill}>Duración: {durationLabel}</span>
@@ -1714,7 +1743,9 @@ console.log("TRACK EVENT CREATED", payload);
                 : isEditing
                 ? "Guardar cambios"
                 : isSharedProposal
-                ? "Aceptar propuesta"
+                ? proposalResponse === "adjust"
+                  ? "Guardar propuesta ajustada"
+                  : "Aceptar propuesta"
                 : "Guardar"}
             </button>
           </div>
@@ -1722,12 +1753,20 @@ console.log("TRACK EVENT CREATED", payload);
 
         {isSharedProposal ? (
           <section style={styles.proposalBanner}>
-            <div style={styles.proposalBannerEyebrow}>Propuesta compartida</div>
+            <div style={styles.proposalBannerEyebrow}>
+              {proposalResponse === "adjust"
+                ? "Ajustando propuesta"
+                : "Propuesta compartida"}
+            </div>
             <div style={styles.proposalBannerTitle}>
-              Estás respondiendo a una idea que te compartieron
+              {proposalResponse === "adjust"
+                ? "Estás preparando tu versión ajustada de esta propuesta"
+                : "Estás respondiendo a una idea que te compartieron"}
             </div>
             <div style={styles.proposalBannerSub}>
-              Revisa título, horario y notas. Si te cuadra, acéptala y guárdala; si no, ajústala antes de crear el plan.
+              {proposalResponse === "adjust"
+                ? "Cambia título, horario o notas y guarda tu versión final del plan."
+                : "Revisa título, horario y notas. Si te cuadra, acéptala y guárdala; si no, ajústala antes de crear el plan."}
             </div>
           </section>
         ) : null}
@@ -1835,7 +1874,9 @@ console.log("TRACK EVENT CREATED", payload);
               <div style={styles.quickSummaryRow}>
                 <span style={styles.quickSummaryPill}>
                   {isSharedProposal
-                    ? "Propuesta"
+                    ? proposalResponse === "adjust"
+                      ? "Propuesta ajustándose"
+                      : "Propuesta"
                     : effectiveType === "group"
                     ? "Compartido"
                     : "Personal"}
@@ -2007,14 +2048,20 @@ console.log("TRACK EVENT CREATED", payload);
               <div>
                 <div style={{ fontSize: 13, fontWeight: 900 }}>
                   {postSaveActions.isProposal
-                    ? "Propuesta aceptada"
+                    ? proposalResponse === "adjust"
+                      ? "Propuesta ajustada"
+                      : "Propuesta aceptada"
                     : postSaveActions.isShared
                     ? "Plan compartido guardado"
                     : "Evento guardado"}
                 </div>
                 <div style={{ marginTop: 4, fontSize: 12, opacity: 0.72 }}>
                   {postSaveActions.isProposal
-                    ? postSaveActions.title
+                    ? proposalResponse === "adjust"
+                      ? postSaveActions.title
+                        ? `"${postSaveActions.title}" ya quedó ajustada y guardada como plan. ¿Qué quieres hacer ahora?`
+                        : "La propuesta ya quedó ajustada y guardada como plan. ¿Qué quieres hacer ahora?"
+                      : postSaveActions.title
                       ? `"${postSaveActions.title}" ya quedó aceptada y convertida en plan. ¿Qué quieres hacer ahora?`
                       : "La propuesta ya quedó aceptada y convertida en plan. ¿Qué quieres hacer ahora?"
                     : postSaveActions.title
@@ -2057,7 +2104,11 @@ console.log("TRACK EVENT CREATED", payload);
                   onClick={handleCreateAnotherSimilar}
                   style={styles.primaryBtn}
                 >
-                  {postSaveActions.isProposal ? "Crear otra propuesta similar" : "Crear otro similar"}
+                  {postSaveActions.isProposal
+                    ? proposalResponse === "adjust"
+                      ? "Crear otra propuesta para ajustar"
+                      : "Crear otra propuesta similar"
+                    : "Crear otro similar"}
                 </button>
               </div>
 
@@ -2141,7 +2192,9 @@ console.log("TRACK EVENT CREATED", payload);
               : isEditing
               ? "Guardar cambios"
               : isSharedProposal
-              ? "Aceptar propuesta"
+              ? proposalResponse === "adjust"
+                ? "Guardar propuesta ajustada"
+                : "Aceptar propuesta"
               : "Guardar evento"}
           </button>
         </section>
