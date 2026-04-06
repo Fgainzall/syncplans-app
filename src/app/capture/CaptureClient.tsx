@@ -63,6 +63,12 @@ function toTitleCase(value: string) {
     .join(" ");
 }
 
+function sentenceCase(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
 export default function CaptureClient({ initialText = "" }: CaptureClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -92,14 +98,19 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
 
   const title = parsed.title?.trim() || "";
   const notes = parsed.notes?.trim() || "";
+  const prettyNotes = sentenceCase(notes);
   const durationMinutes = parsed.durationMinutes || 60;
   const hasDate = Boolean(parsed.date && !Number.isNaN(parsed.date.getTime()));
   const canContinue = Boolean(draft.trim() && title);
 
   const summaryLine = useMemo(() => {
     const safeTitle = title || "Evento";
-    const when = hasDate ? formatDateLabel(parsed.date) : "sin fecha todavía";
-    return `→ Se creará: ${toTitleCase(safeTitle)} · ${when}`;
+
+    if (!hasDate) {
+      return `→ Se creará: ${toTitleCase(safeTitle)} (puedes elegir fecha en el siguiente paso)`;
+    }
+
+    return `→ Se creará: ${toTitleCase(safeTitle)} · ${formatDateLabel(parsed.date)}`;
   }, [title, hasDate, parsed]);
 
   function handleContinue() {
@@ -114,8 +125,8 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     params.set("duration", String(durationMinutes));
     params.set("raw_text", draft.trim());
 
-    if (notes) {
-      params.set("notes", notes);
+    if (prettyNotes) {
+      params.set("notes", prettyNotes);
     }
 
     if (hasDate && parsed.date) {
@@ -363,7 +374,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               }}
             >
               <PreviewRow label="Título" value={title ? toTitleCase(title) : "Sin título detectado"} muted={!title} />
-              <PreviewRow label="Notas" value={notes || "Sin notas detectadas"} muted={!notes} />
+              <PreviewRow label="Notas" value={prettyNotes || "Sin notas detectadas"} muted={!prettyNotes} />
               <PreviewRow label="Fecha" value={hasDate ? formatDateLabel(parsed.date) : "Sin fecha detectada"} muted={!hasDate} />
               <PreviewRow label="Duración" value={`${durationMinutes} min`} />
             </div>
@@ -445,7 +456,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               boxShadow: canContinue ? "0 12px 30px rgba(37, 99, 235, 0.26)" : "none",
             }}
           >
-            Continuar al formulario
+            Confirmar y continuar
           </button>
 
           <Link
