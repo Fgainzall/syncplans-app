@@ -161,7 +161,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     return `→ Se creará: ${toTitleCase(safeTitle)} · ${formatDateLabel(parsed.date)}`;
   }, [title, hasDate, parsed]);
 
-  function buildDetailsUrl() {
+  function buildDetailsUrl(response?: "accept" | "adjust") {
     const params = new URLSearchParams();
     params.set("qc", "1");
     params.set("from", "capture");
@@ -174,6 +174,10 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     if (isSharedIntent) {
       params.set("intent", "shared");
       params.set("proposal", "1");
+
+      if (response) {
+        params.set("proposal_response", response);
+      }
     }
 
     if (prettyNotes) {
@@ -189,12 +193,17 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
 
   function handleContinue() {
     if (!canContinue) return;
-    router.push(buildDetailsUrl());
+    router.push(buildDetailsUrl("accept"));
   }
 
   function handleAdjustBeforeCreate() {
     if (!canContinue) return;
-    router.push(buildDetailsUrl());
+    router.push(buildDetailsUrl("adjust"));
+  }
+
+  function handleLater() {
+    alert("La propuesta quedó pendiente. Puedes volver más tarde desde el link.");
+    router.push("/summary");
   }
 
   return (
@@ -646,7 +655,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 color: "rgba(226,232,240,0.78)",
               }}
             >
-              Puedes aceptarla tal cual y seguir, o entrar al formulario para revisarla con más calma antes de crear el plan.
+              Puedes aceptarla tal cual, ajustarla antes de crear o dejarla pendiente para revisarla más tarde.
             </div>
           </div>
         ) : null}
@@ -699,6 +708,25 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               }}
             >
               Ajustar antes de crear
+            </button>
+          ) : null}
+
+          {isSharedIntent ? (
+            <button
+              type="button"
+              onClick={handleLater}
+              style={{
+                borderRadius: 999,
+                padding: "13px 16px",
+                border: "1px solid rgba(148, 163, 184, 0.18)",
+                background: "rgba(2, 6, 23, 0.7)",
+                color: "#94a3b8",
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+            >
+              No ahora
             </button>
           ) : null}
 
