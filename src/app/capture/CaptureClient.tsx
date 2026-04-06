@@ -161,9 +161,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     return `→ Se creará: ${toTitleCase(safeTitle)} · ${formatDateLabel(parsed.date)}`;
   }, [title, hasDate, parsed]);
 
-  function handleContinue() {
-    if (!canContinue) return;
-
+  function buildDetailsUrl() {
     const params = new URLSearchParams();
     params.set("qc", "1");
     params.set("from", "capture");
@@ -173,6 +171,11 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     params.set("duration", String(durationMinutes));
     params.set("raw_text", draft.trim());
 
+    if (isSharedIntent) {
+      params.set("intent", "shared");
+      params.set("proposal", "1");
+    }
+
     if (prettyNotes) {
       params.set("notes", prettyNotes);
     }
@@ -181,7 +184,17 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       params.set("date", parsed.date.toISOString());
     }
 
-    router.push(`/events/new/details?${params.toString()}`);
+    return `/events/new/details?${params.toString()}`;
+  }
+
+  function handleContinue() {
+    if (!canContinue) return;
+    router.push(buildDetailsUrl());
+  }
+
+  function handleAdjustBeforeCreate() {
+    if (!canContinue) return;
+    router.push(buildDetailsUrl());
   }
 
   return (
@@ -250,7 +263,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 color: "rgba(224,242,254,0.84)",
               }}
             >
-              Revísala y conviértela en plan sin perder el contexto.
+              Revísala y decide cómo quieres continuar: aceptarla tal cual o ajustarla antes de crear el plan.
             </div>
           </div>
         ) : null}
@@ -297,6 +310,24 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
           >
             Fuente: {source}
           </span>
+
+          {isSharedIntent ? (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                borderRadius: 999,
+                padding: "8px 12px",
+                background: "rgba(56, 189, 248, 0.10)",
+                border: "1px solid rgba(56, 189, 248, 0.20)",
+                color: "#dbeafe",
+                fontSize: 12,
+                fontWeight: 800,
+              }}
+            >
+              Propuesta compartida
+            </span>
+          ) : null}
 
           {clipboardState === "reading" ? (
             <span
@@ -576,10 +607,49 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
             >
               <MiniStep text="Interpretar tu frase con el parser real" />
               <MiniStep text="Mantener el evento como personal por defecto" />
-              <MiniStep text="Abrir el formulario normal para confirmar" />
+              {isSharedIntent ? (
+                <MiniStep text="Llevarte al formulario para aceptar o ajustar la propuesta" />
+              ) : (
+                <MiniStep text="Abrir el formulario normal para confirmar" />
+              )}
             </div>
           </div>
         </section>
+
+        {isSharedIntent ? (
+          <div
+            style={{
+              marginTop: 18,
+              borderRadius: 18,
+              padding: "14px 16px",
+              background: "rgba(255,255,255,0.035)",
+              border: "1px solid rgba(255,255,255,0.10)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 900,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                color: "#bfdbfe",
+              }}
+            >
+              Responder a la propuesta
+            </div>
+
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 13,
+                lineHeight: 1.55,
+                color: "rgba(226,232,240,0.78)",
+              }}
+            >
+              Puedes aceptarla tal cual y seguir, o entrar al formulario para revisarla con más calma antes de crear el plan.
+            </div>
+          </div>
+        ) : null}
 
         <div
           style={{
@@ -608,8 +678,29 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               boxShadow: canContinue ? "0 12px 30px rgba(37, 99, 235, 0.26)" : "none",
             }}
           >
-            Confirmar y continuar
+            {isSharedIntent ? "Aceptar y continuar" : "Confirmar y continuar"}
           </button>
+
+          {isSharedIntent ? (
+            <button
+              type="button"
+              onClick={handleAdjustBeforeCreate}
+              disabled={!canContinue}
+              style={{
+                borderRadius: 999,
+                padding: "13px 16px",
+                border: "1px solid rgba(148, 163, 184, 0.18)",
+                background: "rgba(15, 23, 42, 0.9)",
+                color: "#e2e8f0",
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: canContinue ? "pointer" : "not-allowed",
+                opacity: canContinue ? 1 : 0.58,
+              }}
+            >
+              Ajustar antes de crear
+            </button>
+          ) : null}
 
           <Link
             href="/summary"
