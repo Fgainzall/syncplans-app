@@ -17,6 +17,10 @@ import {
   getLatestPublicInvitesByEventIds,
   type PublicInviteRow,
 } from "@/lib/invitationsDb";
+import {
+  getMyProposalResponsesForEvents,
+  type ProposalResponseRow,
+} from "@/lib/proposalResponsesDb";
 
 type TimelineEvent = {
   id: string;
@@ -54,6 +58,7 @@ type ShareState = {
 
 type InviteStateByEventId = Record<string, PublicInviteRow | null>;
 type TrustSignalByEventId = Record<string, ConflictTrustSignal | null>;
+type ProposalResponseByEventId = Record<string, ProposalResponseRow | null>;
 
 function humanizeShareError(
   err: unknown,
@@ -195,6 +200,46 @@ function getTrustPresentation(signal: ConflictTrustSignal | null) {
       color: "rgba(220,252,231,0.98)",
     } as React.CSSProperties,
   };
+}
+
+function getProposalPresentation(response: string | null | undefined) {
+  const safe = String(response ?? "").trim().toLowerCase();
+  if (!safe) return null;
+
+  if (safe === "pending") {
+    return {
+      label: "Pendiente",
+      style: {
+        background: "rgba(120,53,15,0.85)",
+        borderColor: "rgba(251,191,36,0.24)",
+        color: "rgba(254,243,199,0.98)",
+      } as React.CSSProperties,
+    };
+  }
+
+  if (safe === "accepted") {
+    return {
+      label: "Aceptada",
+      style: {
+        background: "rgba(20,83,45,0.9)",
+        borderColor: "rgba(74,222,128,0.24)",
+        color: "rgba(220,252,231,0.98)",
+      } as React.CSSProperties,
+    };
+  }
+
+  if (safe === "adjusted") {
+    return {
+      label: "Ajustada",
+      style: {
+        background: "rgba(22,78,99,0.9)",
+        borderColor: "rgba(103,232,249,0.22)",
+        color: "rgba(207,250,254,0.98)",
+      } as React.CSSProperties,
+    };
+  }
+
+  return null;
 }
 
 function buildWhatsAppText(ev: TimelineEvent, link: string) {
@@ -340,6 +385,8 @@ export default function EventsTimeline({
   const [inviteStatesLoading, setInviteStatesLoading] = useState(false);
   const [trustSignalsByEventId, setTrustSignalsByEventId] =
     useState<TrustSignalByEventId>({});
+  const [proposalResponsesByEventId, setProposalResponsesByEventId] =
+    useState<ProposalResponseByEventId>({});
 
   const sorted = useMemo(() => {
     return [...events].sort(
@@ -475,6 +522,44 @@ export default function EventsTimeline({
       cancelled = true;
     };
   }, [sorted]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProposalResponses() {
+      const eventIds = Array.from(
+        new Set(sorted.map((ev) => String(ev.id ?? "").trim()).filter(Boolean))
+      );
+
+      if (eventIds.length === 0 || !currentUserId) {
+        setProposalResponsesByEventId({});
+        return;
+      }
+
+      try {
+        const data = await getMyProposalResponsesForEvents(eventIds, currentUserId);
+
+        if (!cancelled) {
+          const fallback: ProposalResponseByEventId = {};
+          for (const id of eventIds) fallback[id] = data[id] ?? null;
+          setProposalResponsesByEventId(fallback);
+        }
+      } catch (error) {
+        console.error("[EventsTimeline] loadProposalResponses error", error);
+        if (!cancelled) {
+          const fallback: ProposalResponseByEventId = {};
+          for (const id of eventIds) fallback[id] = null;
+          setProposalResponsesByEventId(fallback);
+        }
+      }
+    }
+
+    void loadProposalResponses();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sorted, currentUserId]);
 
   async function onDelete(id: string) {
     if (!confirm("¿Eliminar este evento?")) return;
@@ -699,6 +784,10 @@ export default function EventsTimeline({
                 const invitePresentation = getInvitePresentation(invite);
                 const trustSignal = trustSignalsByEventId[eventId] ?? null;
                 const trustPresentation = getTrustPresentation(trustSignal);
+                const proposalResponse = proposalResponsesByEventId[eventId] ?? null;
+                const proposalPresentation = getProposalPresentation(
+                  proposalResponse?.response
+                );
 
                 const start = new Date(ev.start).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -860,6 +949,18 @@ export default function EventsTimeline({
                             {externalLabel}
                           </span>
                         )}
+
+                        {proposalPresentation ? (
+                          <span
+                            style={{
+                              ...S.signalBadge,
+                              ...proposalPresentation.style,
+                              opacity: 0.9,
+                            }}
+                          >
+                            {proposalPresentation.label}
+                          </span>
+                        ) : null}
 
                         {trustPresentation ? (
                           <span
