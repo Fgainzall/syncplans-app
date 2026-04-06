@@ -44,6 +44,10 @@ function pickIncomingSource(searchParams: ReturnType<typeof useSearchParams>) {
   );
 }
 
+function pickIntent(searchParams: ReturnType<typeof useSearchParams>) {
+  return searchParams.get("intent")?.trim() || "";
+}
+
 function formatDateLabel(date: Date | null) {
   if (!date || Number.isNaN(date.getTime())) return "Sin fecha detectada";
 
@@ -84,6 +88,8 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   );
 
   const source = useMemo(() => pickIncomingSource(searchParams), [searchParams]);
+  const intent = useMemo(() => pickIntent(searchParams), [searchParams]);
+  const isSharedIntent = intent === "shared";
 
   const [draft, setDraft] = useState(incomingText);
   const [clipboardNotice, setClipboardNotice] = useState("");
@@ -202,6 +208,53 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
           color: "#e5eefb",
         }}
       >
+        {isSharedIntent && draft.trim() ? (
+          <div
+            style={{
+              marginBottom: 18,
+              borderRadius: 18,
+              padding: "14px 16px",
+              background: "rgba(56,189,248,0.10)",
+              border: "1px solid rgba(56,189,248,0.25)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 900,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                color: "#7dd3fc",
+              }}
+            >
+              Te compartieron una idea
+            </div>
+
+            <div
+              style={{
+                marginTop: 6,
+                fontSize: 16,
+                fontWeight: 900,
+                color: "#e0f2fe",
+                lineHeight: 1.4,
+              }}
+            >
+              “{draft.trim()}”
+            </div>
+
+            <div
+              style={{
+                marginTop: 6,
+                fontSize: 13,
+                lineHeight: 1.5,
+                color: "rgba(224,242,254,0.84)",
+              }}
+            >
+              Revísala y conviértela en plan sin perder el contexto.
+            </div>
+          </div>
+        ) : null}
+
         <div
           style={{
             display: "flex",
