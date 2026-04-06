@@ -482,6 +482,9 @@ function buildCaptureShareUrl(input: string, source: string): string {
   if (raw) params.set("text", raw);
   if (source) params.set("source", source);
 
+  // 🔥 NUEVO
+  params.set("intent", "shared");
+
   const path = `/capture${params.toString() ? `?${params.toString()}` : ""}`;
 
   if (typeof window === "undefined") {
@@ -497,10 +500,10 @@ function buildWhatsAppShareText(input: string, url: string): string {
   const cleanTitle = preview || raw;
 
   if (cleanTitle) {
-    return `¿Lo pasamos a SyncPlans?\n\nIdea: ${cleanTitle}\n\nÁbrelo aquí para revisarlo y convertirlo en plan:\n${url}`;
+    return `¿Lo vemos en SyncPlans?\n\nIdea: ${cleanTitle}\n\nÁbrelo aquí para revisarlo y decidir juntos:\n${url}`;
   }
 
-  return `¿Lo pasamos a SyncPlans?\n\nÁbrelo aquí para revisarlo y convertirlo en plan:\n${url}`;
+  return `¿Lo vemos en SyncPlans?\n\nÁbrelo aquí para revisarlo y decidir juntos:\n${url}`;
 }
 
 function buildShareToastLabel(input: string): string {
