@@ -475,6 +475,38 @@ function formatQuickCapturePreview(input: string): string | null {
   return parts.join(" — ");
 }
 
+function buildCaptureShareUrl(input: string, source: string): string {
+  const raw = String(input || "").trim();
+  const params = new URLSearchParams();
+
+  if (raw) params.set("text", raw);
+  if (source) params.set("source", source);
+
+  const path = `/capture${params.toString() ? `?${params.toString()}` : ""}`;
+
+  if (typeof window === "undefined") {
+    return `https://syncplansapp.com${path}`;
+  }
+
+  return `${window.location.origin}${path}`;
+}
+
+function buildWhatsAppShareText(input: string, url: string): string {
+  const preview = formatQuickCapturePreview(input);
+
+  if (preview) {
+    return `Te paso este plan para abrirlo en SyncPlans:
+${preview}
+
+Abrir:
+${url}`;
+  }
+
+  return `Te paso este plan para abrirlo en SyncPlans:
+
+${url}`;
+}
+
 export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const router = useRouter();
   const isMobile = useIsMobileWidth(520);
@@ -878,43 +910,86 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     [handleQuickCaptureSubmit]
   );
 
-const handleOpenCapture = useCallback(() => {
-  const raw = quickCaptureValue.trim();
+  const handleOpenCapture = useCallback(() => {
+    const raw = quickCaptureValue.trim();
 
-  if (!raw) {
-    router.push("/capture");
-    return;
-  }
-
-  const params = new URLSearchParams();
-  params.set("text", raw);
-
-  router.push(`/capture?${params.toString()}`);
-}, [router, quickCaptureValue]);
-const handleCopyCaptureLink = useCallback(async () => {
-  const raw = quickCaptureValue.trim();
-
-  if (!raw) {
-    showToast("Escribe algo primero", "Necesito un texto para generar el link.");
-    return;
-  }
-
-  try {
-    const origin =
-      typeof window !== "undefined" ? window.location.origin : "https://syncplansapp.com";
+    if (!raw) {
+      router.push("/capture?source=summary");
+      return;
+    }
 
     const params = new URLSearchParams();
     params.set("text", raw);
+    params.set("source", "summary");
 
-    const fullUrl = `${origin}/capture?${params.toString()}`;
+    router.push(`/capture?${params.toString()}`);
+  }, [router, quickCaptureValue]);
 
-    await navigator.clipboard.writeText(fullUrl);
+  const handleCopyCaptureLink = useCallback(async () => {
+    const raw = quickCaptureValue.trim();
 
-    showToast("Link copiado ✅", "Ya puedes pegarlo donde quieras.");
-  } catch {
-    showToast("No se pudo copiar", "Intenta nuevamente.");
-  }
-}, [quickCaptureValue, showToast]);
+    if (!raw) {
+      showToast("Escribe algo primero", "Necesito un texto para generar el link.");
+      return;
+    }
+
+    try {
+      const fullUrl = buildCaptureShareUrl(raw, "copy_link");
+      await navigator.clipboard.writeText(fullUrl);
+      showToast("Link copiado ✅", "Ya puedes pegarlo donde quieras.");
+    } catch {
+      showToast("No se pudo copiar", "Intenta nuevamente.");
+    }
+  }, [quickCaptureValue, showToast]);
+
+  const handleShareCapture = useCallback(async () => {
+    const raw = quickCaptureValue.trim();
+
+    if (!raw) {
+      showToast("Escribe algo primero", "Necesito un texto para compartir.");
+      return;
+    }
+
+    const fullUrl = buildCaptureShareUrl(raw, "native_share");
+    const shareText = buildWhatsAppShareText(raw, fullUrl);
+
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        await navigator.share({
+          title: "Abrir plan en SyncPlans",
+          text: shareText,
+          url: fullUrl,
+        });
+        showToast("Compartido ✅", "Se abrió el menú nativo de compartir.");
+        return;
+      }
+
+      await navigator.clipboard.writeText(fullUrl);
+      showToast("Link copiado ✅", "Tu navegador no soporta compartir nativo.");
+    } catch (error: any) {
+      const name = String(error?.name ?? "").trim();
+      if (name === "AbortError") return;
+      showToast("No se pudo compartir", "Intenta nuevamente.");
+    }
+  }, [quickCaptureValue, showToast]);
+
+  const handleShareToWhatsApp = useCallback(() => {
+    const raw = quickCaptureValue.trim();
+
+    if (!raw) {
+      showToast("Escribe algo primero", "Necesito un texto para compartir por WhatsApp.");
+      return;
+    }
+
+    const fullUrl = buildCaptureShareUrl(raw, "whatsapp");
+    const message = buildWhatsAppShareText(raw, fullUrl);
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+
+    if (typeof window !== "undefined") {
+      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+      showToast("WhatsApp listo ✅", "Abrí el mensaje con tu link inteligente.");
+    }
+  }, [quickCaptureValue, showToast]);
   const visibleDecisions = useMemo(() => recentDecisions.slice(0, 3), [recentDecisions]);
 
   return (
@@ -954,6 +1029,22 @@ const handleCopyCaptureLink = useCallback(async () => {
   </div>
 
   <div style={styles.captureHeaderActions}>
+    <button
+      onClick={handleShareToWhatsApp}
+      style={styles.captureWhatsappButton}
+      className="spSum-captureDeepLinkButton"
+    >
+      WhatsApp
+    </button>
+
+    <button
+      onClick={handleShareCapture}
+      style={styles.captureGhostButton}
+      className="spSum-captureDeepLinkButton"
+    >
+      Compartir
+    </button>
+
     <button
       onClick={handleCopyCaptureLink}
       style={styles.captureGhostButton}
@@ -1490,20 +1581,36 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: "nowrap",
   },
   captureGhostButton: {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minHeight: 44,
-  borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.10)",
-  background: "rgba(255,255,255,0.05)",
-  color: "rgba(226,242,255,0.92)",
-  padding: "0 16px",
-  fontSize: 13,
-  fontWeight: 900,
-  cursor: "pointer",
-  whiteSpace: "nowrap",
-},
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(226,242,255,0.92)",
+    padding: "0 16px",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  captureWhatsappButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+    borderRadius: 999,
+    border: "1px solid rgba(34,197,94,0.30)",
+    background: "rgba(34,197,94,0.14)",
+    color: "rgba(233,255,240,0.96)",
+    padding: "0 16px",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 12px 26px rgba(0,0,0,0.16)",
+    whiteSpace: "nowrap",
+  },
   captureEyebrow: {
     fontSize: 11,
     fontWeight: 900,
