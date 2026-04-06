@@ -928,10 +928,15 @@ useEffect(() => {
     };
 
     window.addEventListener("sp:active-group-changed", handler as EventListener);
+    window.addEventListener("sp:events-changed", handler as EventListener);
 
     return () => {
       window.removeEventListener(
         "sp:active-group-changed",
+        handler as EventListener
+      );
+      window.removeEventListener(
+        "sp:events-changed",
         handler as EventListener
       );
     };

@@ -427,6 +427,7 @@ export default function EventsTimeline({
   const [proposalResponsesByEventId, setProposalResponsesByEventId] =
     useState<ProposalResponseByEventId>({});
   const [proposalProfilesById, setProposalProfilesById] = useState<Record<string, any>>({});
+  const [refreshTick, setRefreshTick] = useState(0);
 
   const sorted = useMemo(() => {
     return [...events].sort(
@@ -447,7 +448,7 @@ export default function EventsTimeline({
       dayKey,
       dayEvents,
     }));
-  }, [sorted]);
+  }, [sorted, refreshTick]);
 
   useEffect(() => {
     let alive = true;
@@ -465,6 +466,20 @@ export default function EventsTimeline({
 
     return () => {
       alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handler = () => {
+      setRefreshTick((prev) => prev + 1);
+    };
+
+    window.addEventListener("sp:events-changed", handler as EventListener);
+
+    return () => {
+      window.removeEventListener("sp:events-changed", handler as EventListener);
     };
   }, []);
 
@@ -520,7 +535,7 @@ export default function EventsTimeline({
     return () => {
       cancelled = true;
     };
-  }, [sorted]);
+  }, [sorted, refreshTick]);
 
   useEffect(() => {
     let cancelled = false;
@@ -599,7 +614,7 @@ export default function EventsTimeline({
     return () => {
       cancelled = true;
     };
-  }, [sorted, currentUserId]);
+  }, [sorted, currentUserId, refreshTick]);
 
   useEffect(() => {
     let cancelled = false;
@@ -636,7 +651,7 @@ export default function EventsTimeline({
     return () => {
       cancelled = true;
     };
-  }, [proposalResponsesByEventId]);
+  }, [proposalResponsesByEventId, refreshTick]);
 
   async function onDelete(id: string) {
     if (!confirm("¿Eliminar este evento?")) return;
