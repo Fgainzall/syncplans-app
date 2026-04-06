@@ -118,6 +118,24 @@ function formatNotes(input: string) {
   return capitalizeLikelyProperNames(sentence);
 }
 
+function addDays(base: Date, days: number) {
+  const copy = new Date(base);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function nextWeekday(base: Date, dayIndex: number, extraWeeks = 0) {
+  const copy = new Date(base);
+  const currentDay = copy.getDay();
+  let diff = dayIndex - currentDay;
+
+  if (diff <= 0) diff += 7;
+  diff += extraWeeks * 7;
+
+  copy.setDate(copy.getDate() + diff);
+  return copy;
+}
+
 function extractHour(text: string): { hour: number | null; minutes: number } {
   const match = text.match(/(\d{1,2})(?:[:h](\d{2}))?\s?(am|pm)?/i);
   if (!match) return { hour: null, minutes: 0 };
@@ -144,26 +162,29 @@ function extractDay(text: string): Date | null {
   const today = new Date();
   const normalized = normalizeForMatching(text);
 
-  for (const [word, dayIndex] of Object.entries(DAYS_MAP)) {
-    const normalizedWord = normalizeForMatching(word);
-    if (normalized.includes(normalizedWord)) {
-      const result = new Date(today);
-      const currentDay = today.getDay();
-      let diff = dayIndex - currentDay;
-
-      if (diff <= 0) diff += 7;
-
-      result.setDate(today.getDate() + diff);
-      return result;
-    }
+  if (normalized.includes("pasado manana")) {
+    return addDays(today, 2);
   }
 
   if (normalized.includes("hoy")) return today;
 
   if (normalized.includes("manana")) {
-    const t = new Date(today);
-    t.setDate(today.getDate() + 1);
-    return t;
+    return addDays(today, 1);
+  }
+
+  const refersToNextWeek =
+    /\b(siguiente|proxima|la otra)\s+semana\b/.test(normalized) ||
+    /\bsemana\s+(que viene|siguiente)\b/.test(normalized) ||
+    /\bel otro\s+(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/.test(normalized);
+
+  for (const [word, dayIndex] of Object.entries(DAYS_MAP)) {
+    const normalizedWord = normalizeForMatching(word);
+    const mentionsDay = new RegExp(`\b${normalizedWord}\b`).test(normalized);
+
+    if (!mentionsDay) continue;
+
+    const extraWeeks = refersToNextWeek ? 1 : 0;
+    return nextWeekday(today, dayIndex, extraWeeks);
   }
 
   return null;
@@ -182,9 +203,13 @@ function extractDuration(text: string): number {
 function removeDateAndTimeTokens(text: string): string {
   return text
     .replace(
-      /\b(hoy|mañana|manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/gi,
+      /\b(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/gi,
       " "
     )
+    .replace(/\b(el otro|la otra)\b/gi, " ")
+    .replace(/\b(de la|de|la)?\s*(siguiente|próxima|proxima)\s+semana\b/gi, " ")
+    .replace(/\bsemana\s+(que viene|siguiente)\b/gi, " ")
+    .replace(/\ba las\b/gi, " ")
     .replace(/\b(\d{1,2}(?::\d{2})?\s?(am|pm)?)\b/gi, " ")
     .replace(/\b(\d+)\s?(min|mins|m|h|hora|horas)\b/gi, " ")
     .replace(/\s+/g, " ")

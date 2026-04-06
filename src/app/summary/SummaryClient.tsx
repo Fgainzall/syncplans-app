@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { useRouter } from "next/navigation";
 import { parseQuickCapture } from "@/lib/quickCaptureParser";
+import { learnedGroupMatch } from "@/lib/groupLearning";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
@@ -1002,8 +1003,21 @@ useEffect(() => {
       const parsed = parseQuickCapture(raw);
       const params = new URLSearchParams();
 
+      const learnedMatch = parsed.title ? learnedGroupMatch(parsed.title) : null;
+      const learnedGroupId = String(learnedMatch?.groupId ?? "").trim();
+      const learnedGroupStillExists =
+        !!learnedGroupId && groups.some((group) => String(group.id) === learnedGroupId);
+
       params.set("qc", "1");
-      params.set("type", "personal");
+      params.set("capture_source", "summary");
+      params.set("raw_text", raw);
+
+      if (learnedGroupStillExists) {
+        params.set("type", "group");
+        params.set("groupId", learnedGroupId);
+      } else {
+        params.set("type", "personal");
+      }
 
       if (parsed.title) params.set("title", parsed.title);
       if (parsed.date) params.set("date", parsed.date.toISOString());
@@ -1014,7 +1028,7 @@ useEffect(() => {
 
       router.push(`/events/new/details?${params.toString()}`);
     },
-    [router]
+    [groups, router]
   );
 
   const handleQuickCaptureSubmit = useCallback(() => {
