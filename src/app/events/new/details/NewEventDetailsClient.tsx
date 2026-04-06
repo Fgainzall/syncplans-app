@@ -351,6 +351,9 @@ function NewEventDetailsInner() {
   );
   const [autoSharedGroupId, setAutoSharedGroupId] = useState<string>("");
   const [autoSharedGroupLabel, setAutoSharedGroupLabel] = useState<string>("");
+  const [sharedGroupDetectionState, setSharedGroupDetectionState] = useState<
+    "idle" | "matched" | "none" | "ambiguous"
+  >("idle");
 
   const [bootingEvent, setBootingEvent] = useState<boolean>(isEditing);
 
@@ -498,14 +501,22 @@ function NewEventDetailsInner() {
                 preferredGroupId = sharedGroup.id;
                 detectedSharedGroupLabel =
                   sharedGroup.name || getGroupTypeLabel(sharedGroup.type);
+                setSharedGroupDetectionState("matched");
+              } else {
+                setSharedGroupDetectionState("none");
               }
+            } else {
+              setSharedGroupDetectionState("none");
             }
           } catch (sharedGroupError) {
             console.warn(
               "[NewEventDetails] shared group auto-detect failed",
               sharedGroupError
             );
+            setSharedGroupDetectionState("ambiguous");
           }
+        } else if (isSharedProposal) {
+          setSharedGroupDetectionState("none");
         }
 
         const fallbackGroupId =
@@ -514,6 +525,7 @@ function NewEventDetailsInner() {
         if (preferredGroupId) {
           setAutoSharedGroupId(preferredGroupId);
           setAutoSharedGroupLabel(detectedSharedGroupLabel);
+          setSharedGroupDetectionState("matched");
         } else {
           setAutoSharedGroupId("");
           setAutoSharedGroupLabel("");
@@ -2096,6 +2108,50 @@ if (isEditing && eventIdParam) {
         {" "}· tipo <b>{getGroupTypeLabel(selectedGroup.type)}</b>
       </>
     ) : null}
+  </div>
+) : null}
+
+{!autoSharedGroupId &&
+isSharedProposal &&
+!groupIdParam &&
+!lockedToActiveGroup &&
+sharedGroupDetectionState === "none" ? (
+  <div
+    style={{
+      marginBottom: 12,
+      borderRadius: 14,
+      border: "1px solid rgba(255,255,255,0.10)",
+      background: "rgba(255,255,255,0.04)",
+      padding: "10px 12px",
+      fontSize: 12,
+      lineHeight: 1.45,
+      color: "rgba(255,255,255,0.82)",
+    }}
+  >
+    No encontramos un grupo compartido claro para esta propuesta. Puedes
+    elegir abajo dónde quieres guardar este plan.
+  </div>
+) : null}
+
+{!autoSharedGroupId &&
+isSharedProposal &&
+!groupIdParam &&
+!lockedToActiveGroup &&
+sharedGroupDetectionState === "ambiguous" ? (
+  <div
+    style={{
+      marginBottom: 12,
+      borderRadius: 14,
+      border: "1px solid rgba(250,204,21,0.18)",
+      background: "rgba(250,204,21,0.08)",
+      padding: "10px 12px",
+      fontSize: 12,
+      lineHeight: 1.45,
+      color: "rgba(255,248,220,0.88)",
+    }}
+  >
+    Encontramos más de una opción posible. Para no asumir mal, elige tú el
+    grupo correcto para este plan.
   </div>
 ) : null}
 
