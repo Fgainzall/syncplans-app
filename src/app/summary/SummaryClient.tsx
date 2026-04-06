@@ -19,6 +19,10 @@ import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { getMyEvents } from "@/lib/eventsDb";
 import {
+  getMyProposalResponsesForEvents,
+  type ProposalResponseRow,
+} from "@/lib/proposalResponsesDb";
+import {
   computeVisibleConflicts,
   conflictKey,
   filterIgnoredConflicts,
@@ -513,6 +517,23 @@ function buildShareToastLabel(input: string): string {
   return `${preview.slice(0, 69)}...`;
 }
 
+function proposalResponseLabel(response: string | null | undefined): string | null {
+  const safe = String(response ?? "").trim().toLowerCase();
+  if (!safe) return null;
+  if (safe === "pending") return "Pendiente";
+  if (safe === "accepted") return "Aceptada";
+  if (safe === "adjusted") return "Ajustada";
+  return null;
+}
+
+function proposalResponseTone(response: string | null | undefined): "pending" | "accepted" | "adjusted" | "neutral" {
+  const safe = String(response ?? "").trim().toLowerCase();
+  if (safe === "pending") return "pending";
+  if (safe === "accepted") return "accepted";
+  if (safe === "adjusted") return "adjusted";
+  return "neutral";
+}
+
 function canUseNativeShare() {
   return typeof navigator !== "undefined" && typeof navigator.share === "function";
 }
@@ -547,6 +568,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     latestEventId: null,
   });
   const [recentDecisions, setRecentDecisions] = useState<RecentDecision[]>([]);
+  const [proposalResponsesMap, setProposalResponsesMap] = useState<
+    Record<string, ProposalResponseRow>
+  >({});
   const [quickCaptureValue, setQuickCaptureValue] = useState("");
   const [quickCaptureBusy, setQuickCaptureBusy] = useState(false);
   const toastTimeoutRef = useRef<number | null>(null);
@@ -767,13 +791,26 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         getRecentConflictResolutionLogs(8).catch(() => []),
       ]);
 
-      setEvents(Array.isArray(es) ? es : []);
+      const safeEvents = Array.isArray(es) ? es : [];
+      const proposalEventIds = safeEvents
+        .map(normalizeEvent)
+        .filter(Boolean)
+        .map((event) => String((event as SummaryEvent).id))
+        .filter(Boolean);
+
+      const proposalResponses = await getMyProposalResponsesForEvents(
+        proposalEventIds,
+        user.id
+      ).catch(() => ({}));
+
+      setEvents(safeEvents);
       setResMap(conflictResolutions ?? {});
       setDeclinedEventIds(declined ?? new Set());
       setUnreadConflictAlert(
         unreadConflicts ?? { count: 0, latestEventId: null }
       );
       setRecentDecisions((recentDecisionLogs ?? []).map(mapRecentDecision));
+      setProposalResponsesMap(proposalResponses ?? {});
     } catch (e: any) {
       showToast("No se pudo cargar", e?.message || "Intenta nuevamente.");
     } finally {
@@ -1052,6 +1089,23 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const visibleDecisions = useMemo(() => recentDecisions.slice(0, 3), [recentDecisions]);
 
+  const getProposalBadgeForEvent = useCallback(
+    (eventId: string | null | undefined) => {
+      const key = String(eventId ?? "").trim();
+      if (!key) return null;
+
+      const row = proposalResponsesMap[key];
+      const label = proposalResponseLabel(row?.response);
+      if (!label) return null;
+
+      return {
+        label,
+        tone: proposalResponseTone(row?.response),
+      };
+    },
+    [proposalResponsesMap]
+  );
+
   return (
     <div style={styles.page} className="spSum-page">
       {toast && (
@@ -1301,6 +1355,23 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                           </div>
 
                           <div style={styles.eventMeta}>
+                            {(() => {
+                              const proposalBadge = getProposalBadgeForEvent(nextEvent.id);
+                              return proposalBadge ? (
+                                <span
+                                  style={{
+                                    ...styles.proposalPill,
+                                    ...(proposalBadge.tone === "accepted"
+                                      ? styles.proposalPillAccepted
+                                      : proposalBadge.tone === "adjusted"
+                                        ? styles.proposalPillAdjusted
+                                        : styles.proposalPillPending),
+                                  }}
+                                >
+                                  {proposalBadge.label}
+                                </span>
+                              ) : null;
+                            })()}
                             {nextEvent.isExternal ? (
                               <span style={styles.pill}>Externo</span>
                             ) : null}
@@ -1345,6 +1416,23 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                           </div>
 
                           <div style={styles.eventMeta}>
+                            {(() => {
+                              const proposalBadge = getProposalBadgeForEvent(e.id);
+                              return proposalBadge ? (
+                                <span
+                                  style={{
+                                    ...styles.proposalPill,
+                                    ...(proposalBadge.tone === "accepted"
+                                      ? styles.proposalPillAccepted
+                                      : proposalBadge.tone === "adjusted"
+                                        ? styles.proposalPillAdjusted
+                                        : styles.proposalPillPending),
+                                  }}
+                                >
+                                  {proposalBadge.label}
+                                </span>
+                              ) : null;
+                            })()}
                             {e.isExternal ? <span style={styles.pill}>Externo</span> : null}
                             {e.groupId ? (
                               <span style={styles.pillSoft}>Grupo</span>
@@ -2134,6 +2222,29 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.10)",
     fontSize: 11,
     fontWeight: 900,
+  },
+  proposalPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "6px 9px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 900,
+  },
+  proposalPillPending: {
+    border: "1px solid rgba(251,191,36,0.25)",
+    background: "rgba(251,191,36,0.12)",
+    color: "rgba(255,236,179,0.95)",
+  },
+  proposalPillAccepted: {
+    border: "1px solid rgba(52,211,153,0.24)",
+    background: "rgba(52,211,153,0.12)",
+    color: "rgba(209,250,229,0.96)",
+  },
+  proposalPillAdjusted: {
+    border: "1px solid rgba(56,189,248,0.24)",
+    background: "rgba(56,189,248,0.12)",
+    color: "rgba(224,242,254,0.96)",
   },
   seeMoreBtn: {
     marginTop: 12,
