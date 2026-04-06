@@ -46,6 +46,10 @@ import {
   getLatestConflictTrustSignalsByEventIds,
   type ConflictTrustSignal,
 } from "@/lib/conflictResolutionsLogDb";
+import {
+  getMyProposalResponsesForEvents,
+  type ProposalResponseRow,
+} from "@/lib/proposalResponsesDb";
 import { filterVisibleEvents, isEventOwnedByUser } from "@/lib/tempeventVisibility";
 
 type CalendarEventWithOwner = CalendarEvent & {
@@ -215,6 +219,25 @@ function resolutionForConflict(
 
   return undefined;
 }
+function proposalResponseLabel(response: string | null | undefined): string | null {
+  const safe = String(response ?? "").trim().toLowerCase();
+  if (!safe) return null;
+  if (safe === "pending") return "Pendiente";
+  if (safe === "accepted") return "Aceptada";
+  if (safe === "adjusted") return "Ajustada";
+  return null;
+}
+
+function proposalResponseTone(
+  response: string | null | undefined
+): "pending" | "accepted" | "adjusted" | "neutral" {
+  const safe = String(response ?? "").trim().toLowerCase();
+  if (safe === "pending") return "pending";
+  if (safe === "accepted") return "accepted";
+  if (safe === "adjusted") return "adjusted";
+  return "neutral";
+}
+
 /** ✅ Props del Calendar */
 type CalendarClientProps = {
   highlightId?: string | null;
@@ -259,6 +282,9 @@ export default function CalendarClient(
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
   const [trustSignals, setTrustSignals] = useState<
     Record<string, ConflictTrustSignal>
+  >({});
+  const [proposalResponsesMap, setProposalResponsesMap] = useState<
+    Record<string, ProposalResponseRow>
   >({});
 
   const groupTypeById = useMemo(() => {
@@ -450,8 +476,14 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
           filtered.map((event) => String(event.id))
         ).catch(() => ({}));
 
+        const proposalResponses = await getMyProposalResponsesForEvents(
+          filtered.map((event) => String(event.id)),
+          data.session.user.id
+        ).catch(() => ({}));
+
         setEvents(filtered);
         setTrustSignals(nextTrustSignals ?? {});
+        setProposalResponsesMap(proposalResponses ?? {});
         setEventsLoaded(true);
         setError(null);
 
@@ -465,6 +497,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
       } catch (e: any) {
         setError(e?.message ?? "Error cargando calendario");
         setTrustSignals({});
+        setProposalResponsesMap({});
         setEventsLoaded(true);
 
         if (showToastFlag) {
@@ -1208,6 +1241,7 @@ console.log("DELETE CHECK", {
                   openNewEventGroup,
                   groupTypeById,
                   trustSignals,
+                  proposalResponsesMap,
                   onEdit: handleEditEvent,
                   today,
                   isMobile,
@@ -1250,6 +1284,7 @@ console.log("DELETE CHECK", {
                       groupTypeById={groupTypeById}
                       currentUserId={currentUserId}
                       trustSignal={trustSignals[String(e.id)]}
+                      proposalResponsesMap={proposalResponsesMap}
                     />
                   ))
                 )}
@@ -1283,6 +1318,7 @@ console.log("DELETE CHECK", {
                     groupTypeById={groupTypeById}
                     currentUserId={currentUserId}
                     isMobile={isMobile}
+                    proposalResponsesMap={proposalResponsesMap}
                   />
                 ))
               )}
@@ -1363,6 +1399,7 @@ function EventRow({
   currentUserId,
   trustSignal,
   isMobile,
+  proposalResponsesMap,
 }: {
   e: CalendarEventWithOwner;
   highlightId?: string | null;
@@ -1373,6 +1410,7 @@ function EventRow({
   groupTypeById?: Map<string, "pair" | "family" | "other">;
   trustSignal?: ConflictTrustSignal | null;
   isMobile?: boolean;
+  proposalResponsesMap?: Record<string, ProposalResponseRow>;
 }) {
   const resolvedType: GroupType = e.groupId
     ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
@@ -1387,6 +1425,9 @@ function EventRow({
       ? "Ajuste automático"
       : "Resuelto"
     : null;
+  const proposalRow = proposalResponsesMap?.[String(e.id)];
+  const proposalLabel = proposalResponseLabel(proposalRow?.response);
+  const proposalTone = proposalResponseTone(proposalRow?.response);
 
   return (
     <div
@@ -1441,6 +1482,21 @@ function EventRow({
               />
               {meta.label}
             </div>
+
+            {proposalLabel ? (
+              <div
+                style={{
+                  ...styles.eventTrustBadge,
+                  ...(proposalTone === "accepted"
+                    ? styles.eventTrustBadgeResolved
+                    : proposalTone === "adjusted"
+                    ? styles.eventTrustBadgeAuto
+                    : styles.eventTrustBadgePending),
+                }}
+              >
+                {proposalLabel}
+              </div>
+            ) : null}
 
             {trustLabel ? (
               <div
@@ -1505,6 +1561,7 @@ function renderMonthCells(opts: {
   openNewEventGroup: (date?: Date) => void;
   groupTypeById: Map<string, "pair" | "family" | "other">;
   trustSignals: Record<string, ConflictTrustSignal>;
+  proposalResponsesMap: Record<string, ProposalResponseRow>;
   onEdit: (e: CalendarEventWithOwner) => void;
   today: Date;
   isMobile: boolean;
@@ -1520,6 +1577,7 @@ function renderMonthCells(opts: {
     openNewEventGroup,
     groupTypeById,
     trustSignals,
+    proposalResponsesMap,
     onEdit,
     today,
     isMobile,
@@ -1645,6 +1703,9 @@ cells.push(
             ? "Auto"
             : "Resuelto"
           : null;
+        const proposalRow = proposalResponsesMap[String(e.id)];
+        const proposalLabel = proposalResponseLabel(proposalRow?.response);
+        const proposalTone = proposalResponseTone(proposalRow?.response);
 
         return (
           <div
@@ -1674,6 +1735,21 @@ cells.push(
             >
               {e.title || "Evento"}
             </span>
+
+            {proposalLabel ? (
+              <span
+                style={{
+                  ...styles.cellTrustPill,
+                  ...(proposalTone === "accepted"
+                    ? styles.cellTrustPillResolved
+                    : proposalTone === "adjusted"
+                    ? styles.cellTrustPillAuto
+                    : styles.cellTrustPillPending),
+                }}
+              >
+                {proposalLabel}
+              </span>
+            ) : null}
 
             {trustShortLabel ? (
               <span
@@ -2061,6 +2137,31 @@ cellEventText: {
     marginTop: 4,
     fontWeight: 800,
   },
+  cellTrustPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "3px 6px",
+    borderRadius: 999,
+    fontSize: 10,
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+    marginLeft: "auto",
+  },
+  cellTrustPillResolved: {
+    border: "1px solid rgba(52,211,153,0.24)",
+    background: "rgba(52,211,153,0.12)",
+    color: "rgba(187,247,208,0.96)",
+  },
+  cellTrustPillAuto: {
+    border: "1px solid rgba(56,189,248,0.24)",
+    background: "rgba(56,189,248,0.12)",
+    color: "rgba(224,242,254,0.96)",
+  },
+  cellTrustPillPending: {
+    border: "1px solid rgba(251,191,36,0.24)",
+    background: "rgba(251,191,36,0.12)",
+    color: "rgba(255,236,179,0.96)",
+  },
 
 dayPanel: {
   borderTop: "1px solid rgba(255,255,255,0.06)",
@@ -2210,6 +2311,11 @@ eventTag: {
     color: "rgba(187,247,208,0.96)",
   },
   eventTrustBadgeAuto: {
+    border: "1px solid rgba(56,189,248,0.24)",
+    background: "rgba(56,189,248,0.12)",
+    color: "rgba(224,242,254,0.96)",
+  },
+  eventTrustBadgePending: {
     border: "1px solid rgba(251,191,36,0.24)",
     background: "rgba(251,191,36,0.12)",
     color: "rgba(255,236,179,0.96)",
