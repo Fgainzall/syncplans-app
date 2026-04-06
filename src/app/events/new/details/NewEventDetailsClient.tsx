@@ -310,6 +310,7 @@ function NewEventDetailsInner() {
     eventId?: string;
     title?: string;
     isShared?: boolean;
+    isProposal?: boolean;
   }>(null);
   const [sharingPostSave, setSharingPostSave] = useState(false);
   const saveInFlightRef = useRef(false);
@@ -1192,6 +1193,7 @@ console.log("TRACK EVENT CREATED", payload);
         eventId: savedEventId ?? undefined,
         title: payload.title,
         isShared: effectiveType === "group",
+        isProposal: isSharedProposal,
       });
 
       return savedEventId;
@@ -1987,12 +1989,18 @@ console.log("TRACK EVENT CREATED", payload);
             >
               <div>
                 <div style={{ fontSize: 13, fontWeight: 900 }}>
-                  {postSaveActions.isShared
+                  {postSaveActions.isProposal
+                    ? "Propuesta aceptada"
+                    : postSaveActions.isShared
                     ? "Plan compartido guardado"
                     : "Evento guardado"}
                 </div>
                 <div style={{ marginTop: 4, fontSize: 12, opacity: 0.72 }}>
-                  {postSaveActions.title
+                  {postSaveActions.isProposal
+                    ? postSaveActions.title
+                      ? `"${postSaveActions.title}" ya quedó aceptada y convertida en plan. ¿Qué quieres hacer ahora?`
+                      : "La propuesta ya quedó aceptada y convertida en plan. ¿Qué quieres hacer ahora?"
+                    : postSaveActions.title
                     ? `"${postSaveActions.title}" ya quedó listo. ¿Qué quieres hacer ahora?`
                     : "Tu evento ya quedó listo. ¿Qué quieres hacer ahora?"}
                 </div>
@@ -2010,7 +2018,7 @@ console.log("TRACK EVENT CREATED", payload);
                   onClick={() => router.push("/calendar")}
                   style={styles.ghostBtn}
                 >
-                  Ver calendario
+                  {postSaveActions.isProposal ? "Ver plan en calendario" : "Ver calendario"}
                 </button>
 
                 {postSaveActions?.isShared && postSaveActions?.eventId ? (
@@ -2032,7 +2040,7 @@ console.log("TRACK EVENT CREATED", payload);
                   onClick={handleCreateAnotherSimilar}
                   style={styles.primaryBtn}
                 >
-                  Crear otro similar
+                  {postSaveActions.isProposal ? "Crear otra propuesta similar" : "Crear otro similar"}
                 </button>
               </div>
 
