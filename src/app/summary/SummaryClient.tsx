@@ -492,19 +492,22 @@ function buildCaptureShareUrl(input: string, source: string): string {
 }
 
 function buildWhatsAppShareText(input: string, url: string): string {
-  const preview = formatQuickCapturePreview(input);
+  const raw = String(input || "").trim();
+  const preview = formatQuickCapturePreview(raw);
+  const cleanTitle = preview || raw;
 
-  if (preview) {
-    return `Te paso este plan para abrirlo en SyncPlans:
-${preview}
-
-Abrir:
-${url}`;
+  if (cleanTitle) {
+    return `¿Lo pasamos a SyncPlans?\n\nIdea: ${cleanTitle}\n\nÁbrelo aquí para revisarlo y convertirlo en plan:\n${url}`;
   }
 
-  return `Te paso este plan para abrirlo en SyncPlans:
+  return `¿Lo pasamos a SyncPlans?\n\nÁbrelo aquí para revisarlo y convertirlo en plan:\n${url}`;
+}
 
-${url}`;
+function buildShareToastLabel(input: string): string {
+  const preview = formatQuickCapturePreview(input);
+  if (!preview) return "Listo para compartir.";
+  if (preview.length <= 72) return preview;
+  return `${preview.slice(0, 69)}...`;
 }
 
 export default function SummaryClient({ highlightId, appliedToast }: Props) {
@@ -956,11 +959,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     try {
       if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
         await navigator.share({
-          title: "Abrir plan en SyncPlans",
+          title: "Llevar idea a SyncPlans",
           text: shareText,
           url: fullUrl,
         });
-        showToast("Compartido ✅", "Se abrió el menú nativo de compartir.");
+        showToast("Compartido ✅", buildShareToastLabel(raw));
         return;
       }
 
@@ -987,7 +990,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
     if (typeof window !== "undefined") {
       window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-      showToast("WhatsApp listo ✅", "Abrí el mensaje con tu link inteligente.");
+      showToast("WhatsApp listo ✅", buildShareToastLabel(raw));
     }
   }, [quickCaptureValue, showToast]);
   const visibleDecisions = useMemo(() => recentDecisions.slice(0, 3), [recentDecisions]);
@@ -1062,6 +1065,19 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     </button>
   </div>
 </div>
+
+            <div style={styles.captureShareHelperWrap}>
+              <div style={styles.captureShareHelperTitle}>Llévalo fuera de la app</div>
+              <div style={styles.captureShareHelperText}>
+                Comparte una intención por WhatsApp o por link. La otra persona abre
+                SyncPlans, la revisa y la convierte en plan sin perder el contexto.
+              </div>
+              {quickCaptureValue.trim() ? (
+                <div style={styles.captureShareHelperExample}>
+                  Mensaje listo: {buildShareToastLabel(quickCaptureValue)}
+                </div>
+              ) : null}
+            </div>
 
             <div style={styles.captureFieldWrap} className="spSum-captureFieldWrap">
               <input
@@ -1610,6 +1626,33 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     boxShadow: "0 12px 26px rgba(0,0,0,0.16)",
     whiteSpace: "nowrap",
+  },
+  captureShareHelperWrap: {
+    marginTop: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    padding: "12px 14px",
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
+  },
+  captureShareHelperTitle: {
+    fontSize: 12,
+    fontWeight: 900,
+    color: "rgba(226,242,255,0.94)",
+  },
+  captureShareHelperText: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,242,255,0.72)",
+    fontWeight: 650,
+  },
+  captureShareHelperExample: {
+    fontSize: 12,
+    lineHeight: 1.4,
+    color: "rgba(125,211,252,0.92)",
+    fontWeight: 800,
   },
   captureEyebrow: {
     fontSize: 11,
