@@ -878,10 +878,43 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     [handleQuickCaptureSubmit]
   );
 
-  const handleOpenCapture = useCallback(() => {
-    router.push("/capture");
-  }, [router]);
+const handleOpenCapture = useCallback(() => {
+  const raw = quickCaptureValue.trim();
 
+  if (!raw) {
+    router.push("/capture");
+    return;
+  }
+
+  const params = new URLSearchParams();
+  params.set("text", raw);
+
+  router.push(`/capture?${params.toString()}`);
+}, [router, quickCaptureValue]);
+const handleCopyCaptureLink = useCallback(async () => {
+  const raw = quickCaptureValue.trim();
+
+  if (!raw) {
+    showToast("Escribe algo primero", "Necesito un texto para generar el link.");
+    return;
+  }
+
+  try {
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "https://syncplansapp.com";
+
+    const params = new URLSearchParams();
+    params.set("text", raw);
+
+    const fullUrl = `${origin}/capture?${params.toString()}`;
+
+    await navigator.clipboard.writeText(fullUrl);
+
+    showToast("Link copiado ✅", "Ya puedes pegarlo donde quieras.");
+  } catch {
+    showToast("No se pudo copiar", "Intenta nuevamente.");
+  }
+}, [quickCaptureValue, showToast]);
   const visibleDecisions = useMemo(() => recentDecisions.slice(0, 3), [recentDecisions]);
 
   return (
@@ -913,21 +946,31 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               <span style={styles.captureContextGhost}>Entrada rápida</span>
             </div>
 
-            <div style={styles.captureHeaderRow}>
-              <div style={styles.captureCopyBlock}>
-                <div style={styles.captureEyebrow}>Quick Capture</div>
-                <div style={styles.captureTitle}>{quickCaptureHeadline}</div>
-                <div style={styles.captureSub}>{quickCaptureSubcopy}</div>
-              </div>
+          <div style={styles.captureHeaderRow}>
+  <div style={styles.captureCopyBlock}>
+    <div style={styles.captureEyebrow}>Quick Capture</div>
+    <div style={styles.captureTitle}>{quickCaptureHeadline}</div>
+    <div style={styles.captureSub}>{quickCaptureSubcopy}</div>
+  </div>
 
-              <button
-                onClick={handleOpenCapture}
-                style={styles.captureDeepLinkButton}
-                className="spSum-captureDeepLinkButton"
-              >
-                Abrir capture completo
-              </button>
-            </div>
+  <div style={styles.captureHeaderActions}>
+    <button
+      onClick={handleCopyCaptureLink}
+      style={styles.captureGhostButton}
+      className="spSum-captureDeepLinkButton"
+    >
+      Copiar link
+    </button>
+
+    <button
+      onClick={handleOpenCapture}
+      style={styles.captureDeepLinkButton}
+      className="spSum-captureDeepLinkButton"
+    >
+      Abrir capture completo
+    </button>
+  </div>
+</div>
 
             <div style={styles.captureFieldWrap} className="spSum-captureFieldWrap">
               <input
@@ -1421,6 +1464,12 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 14,
     flexWrap: "wrap",
   },
+  captureHeaderActions: {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "wrap",
+},
   captureCopyBlock: {
     maxWidth: 720,
   },
@@ -1440,6 +1489,21 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 12px 26px rgba(0,0,0,0.18)",
     whiteSpace: "nowrap",
   },
+  captureGhostButton: {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 44,
+  borderRadius: 999,
+  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(255,255,255,0.05)",
+  color: "rgba(226,242,255,0.92)",
+  padding: "0 16px",
+  fontSize: 13,
+  fontWeight: 900,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+},
   captureEyebrow: {
     fontSize: 11,
     fontWeight: 900,
