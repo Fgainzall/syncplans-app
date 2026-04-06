@@ -41,7 +41,6 @@ import { getOrCreatePublicInvite } from "@/lib/invitationsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { loadEventsForConflictPreflight } from "@/lib/conflictsDbBridge";
 import { createConflictResolutionLog } from "@/lib/conflictResolutionsLogDb";
-import { upsertProposalResponse } from "@/lib/proposalResponsesDb";
 
 /* Helpers */
 function pad2(n: number) {
