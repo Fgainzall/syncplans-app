@@ -599,5 +599,17 @@ export async function getSharedGroupBetweenUsers(
     return bTime - aTime;
   });
 
+  const pairGroup = candidates.find(
+    (group) => normalizeGroupType(group.type) === "pair"
+  );
+
+  if (pairGroup) {
+    return pairGroup;
+  }
+
+  if (candidates.length > 1) {
+    return null;
+  }
+
   return candidates[0] ?? null;
 }
