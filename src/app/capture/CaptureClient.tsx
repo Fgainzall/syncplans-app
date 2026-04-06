@@ -15,7 +15,10 @@ const EXAMPLES = [
   "cumple de juan viernes 7pm",
 ];
 
-function pickIncomingText(searchParams: ReturnType<typeof useSearchParams>, initialText: string) {
+function pickIncomingText(
+  searchParams: ReturnType<typeof useSearchParams>,
+  initialText: string,
+) {
   const candidates = [
     searchParams.get("text"),
     searchParams.get("q"),
@@ -73,6 +76,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   const router = useRouter();
   const searchParams = useSearchParams();
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const attemptedClipboardRef = useRef(false);
 
   const incomingText = useMemo(
     () => pickIncomingText(searchParams, initialText),
@@ -82,6 +86,10 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   const source = useMemo(() => pickIncomingSource(searchParams), [searchParams]);
 
   const [draft, setDraft] = useState(incomingText);
+  const [clipboardNotice, setClipboardNotice] = useState("");
+  const [clipboardState, setClipboardState] = useState<
+    "idle" | "reading" | "success" | "blocked"
+  >("idle");
 
   useEffect(() => {
     setDraft(incomingText);
@@ -93,6 +101,38 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     const length = inputRef.current.value.length;
     inputRef.current.setSelectionRange(length, length);
   }, []);
+
+  useEffect(() => {
+    if (attemptedClipboardRef.current) return;
+    if (incomingText.trim()) return;
+    if (typeof window === "undefined") return;
+    if (!window.isSecureContext) return;
+    if (!navigator.clipboard?.readText) return;
+
+    attemptedClipboardRef.current = true;
+    setClipboardState("reading");
+
+    navigator.clipboard
+      .readText()
+      .then((clipboardText) => {
+        const value = clipboardText.trim();
+
+        if (!value) {
+          setClipboardState("idle");
+          return;
+        }
+
+        setDraft(value);
+        setClipboardState("success");
+        setClipboardNotice("Texto detectado desde tu portapapeles.");
+      })
+      .catch(() => {
+        setClipboardState("blocked");
+        setClipboardNotice(
+          "No pudimos leer tu portapapeles. Puedes pegar el texto manualmente.",
+        );
+      });
+  }, [incomingText]);
 
   const parsed = useMemo(() => parseQuickCapture(draft.trim()), [draft]);
 
@@ -107,7 +147,9 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     const safeTitle = title || "Evento";
 
     if (!hasDate) {
-      return `→ Se creará: ${toTitleCase(safeTitle)} (puedes elegir fecha en el siguiente paso)`;
+      return `→ Se creará: ${toTitleCase(
+        safeTitle,
+      )} (puedes elegir fecha en el siguiente paso)`;
     }
 
     return `→ Se creará: ${toTitleCase(safeTitle)} · ${formatDateLabel(parsed.date)}`;
@@ -202,6 +244,24 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
           >
             Fuente: {source}
           </span>
+
+          {clipboardState === "reading" ? (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                borderRadius: 999,
+                padding: "8px 12px",
+                background: "rgba(15, 23, 42, 0.92)",
+                border: "1px solid rgba(148, 163, 184, 0.16)",
+                color: "rgba(226, 232, 240, 0.78)",
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              Leyendo portapapeles...
+            </span>
+          ) : null}
         </div>
 
         <header style={{ marginBottom: 18 }}>
@@ -231,6 +291,32 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
             normal para confirmar.
           </p>
         </header>
+
+        {clipboardNotice ? (
+          <div
+            style={{
+              marginBottom: 16,
+              borderRadius: 16,
+              padding: "12px 14px",
+              background:
+                clipboardState === "success"
+                  ? "rgba(16, 185, 129, 0.10)"
+                  : "rgba(245, 158, 11, 0.10)",
+              border:
+                clipboardState === "success"
+                  ? "1px solid rgba(16, 185, 129, 0.25)"
+                  : "1px solid rgba(245, 158, 11, 0.25)",
+              color:
+                clipboardState === "success"
+                  ? "rgba(209, 250, 229, 0.95)"
+                  : "rgba(254, 243, 199, 0.95)",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            {clipboardNotice}
+          </div>
+        ) : null}
 
         <section
           style={{
@@ -373,9 +459,21 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 marginTop: 14,
               }}
             >
-              <PreviewRow label="Título" value={title ? toTitleCase(title) : "Sin título detectado"} muted={!title} />
-              <PreviewRow label="Notas" value={prettyNotes || "Sin notas detectadas"} muted={!prettyNotes} />
-              <PreviewRow label="Fecha" value={hasDate ? formatDateLabel(parsed.date) : "Sin fecha detectada"} muted={!hasDate} />
+              <PreviewRow
+                label="Título"
+                value={title ? toTitleCase(title) : "Sin título detectado"}
+                muted={!title}
+              />
+              <PreviewRow
+                label="Notas"
+                value={prettyNotes || "Sin notas detectadas"}
+                muted={!prettyNotes}
+              />
+              <PreviewRow
+                label="Fecha"
+                value={hasDate ? formatDateLabel(parsed.date) : "Sin fecha detectada"}
+                muted={!hasDate}
+              />
               <PreviewRow label="Duración" value={`${durationMinutes} min`} />
             </div>
 
@@ -384,7 +482,8 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 marginTop: 16,
                 borderRadius: 16,
                 padding: "13px 14px",
-                background: "linear-gradient(180deg, rgba(30,41,59,0.72), rgba(2,6,23,0.72))",
+                background:
+                  "linear-gradient(180deg, rgba(30,41,59,0.72), rgba(2,6,23,0.72))",
                 border: "1px solid rgba(96, 165, 250, 0.22)",
                 color: "#dbeafe",
                 fontSize: 14,
