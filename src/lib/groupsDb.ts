@@ -523,12 +523,15 @@ function rankSharedGroupType(
 export async function getSharedGroupBetweenUsers(
   otherUserId: string,
   currentUserId?: string | null
-): Promise<SharedGroupCandidate | null> {
+): Promise<{
+  status: "matched" | "none" | "ambiguous";
+  group: SharedGroupCandidate | null;
+}> {
   const me = String(currentUserId ?? "").trim() || (await requireUid());
   const other = String(otherUserId ?? "").trim();
 
-  if (!me || !other) return null;
-  if (me === other) return null;
+  if (!me || !other) return { status: "none", group: null };
+  if (me === other) return { status: "none", group: null };
 
   const { data: memberships, error: membershipError } = await supabase
     .from("group_members")
@@ -538,7 +541,7 @@ export async function getSharedGroupBetweenUsers(
   if (membershipError) throw membershipError;
 
   const rows = Array.isArray(memberships) ? memberships : [];
-  if (rows.length < 2) return null;
+  if (rows.length < 2) return { status: "none", group: null };
 
   const grouped = new Map<
     string,
@@ -568,7 +571,9 @@ export async function getSharedGroupBetweenUsers(
     .filter(([, entry]) => entry.users.has(me) && entry.users.has(other))
     .map(([gid]) => gid);
 
-  if (sharedIds.length === 0) return null;
+  if (sharedIds.length === 0) {
+    return { status: "none", group: null };
+  }
 
   const { data: groups, error: groupsError } = await supabase
     .from("groups")
@@ -588,28 +593,21 @@ export async function getSharedGroupBetweenUsers(
     };
   });
 
-  if (candidates.length === 0) return null;
-
-  candidates.sort((a, b) => {
-    const typeRank = rankSharedGroupType(a.type) - rankSharedGroupType(b.type);
-    if (typeRank !== 0) return typeRank;
-
-    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-    return bTime - aTime;
-  });
+  if (candidates.length === 0) {
+    return { status: "none", group: null };
+  }
 
   const pairGroup = candidates.find(
-    (group) => normalizeGroupType(group.type) === "pair"
+    (g) => normalizeGroupType(g.type) === "pair"
   );
 
   if (pairGroup) {
-    return pairGroup;
+    return { status: "matched", group: pairGroup };
   }
 
   if (candidates.length > 1) {
-    return null;
+    return { status: "ambiguous", group: null };
   }
 
-  return candidates[0] ?? null;
+  return { status: "matched", group: candidates[0] };
 }

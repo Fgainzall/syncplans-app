@@ -492,16 +492,22 @@ function NewEventDetailsInner() {
             const proposalOwnerId = resolveEventOwnerId(proposalEvent);
 
             if (proposalOwnerId && proposalOwnerId !== uid) {
-              const sharedGroup = await getSharedGroupBetweenUsers(
+              const sharedGroupResult = await getSharedGroupBetweenUsers(
                 proposalOwnerId,
                 uid
               );
 
-              if (sharedGroup?.id) {
-                preferredGroupId = sharedGroup.id;
+              if (
+                sharedGroupResult.status === "matched" &&
+                sharedGroupResult.group?.id
+              ) {
+                preferredGroupId = sharedGroupResult.group.id;
                 detectedSharedGroupLabel =
-                  sharedGroup.name || getGroupTypeLabel(sharedGroup.type);
+                  sharedGroupResult.group.name ||
+                  getGroupTypeLabel(sharedGroupResult.group.type);
                 setSharedGroupDetectionState("matched");
+              } else if (sharedGroupResult.status === "ambiguous") {
+                setSharedGroupDetectionState("ambiguous");
               } else {
                 setSharedGroupDetectionState("none");
               }
