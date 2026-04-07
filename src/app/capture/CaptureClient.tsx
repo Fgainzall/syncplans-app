@@ -66,6 +66,22 @@ function pickProposalEventId(searchParams: ReturnType<typeof useSearchParams>) {
   return "";
 }
 
+function cleanTemporalNoise(raw: string): string {
+  let text = String(raw || "").trim();
+
+  text = text.replace(/en dos fines de semana/gi, "");
+  text = text.replace(/dos fines de semana/gi, "");
+  text = text.replace(/en dos fines de/gi, "en dos fines");
+  text = text.replace(/en dos fines/gi, "en dos fines");
+  text = text.replace(/\bfin de semana\b/gi, "");
+  text = text.replace(/\bfinde\b/gi, "");
+
+  text = text.replace(/\s+/g, " ").trim();
+  text = text.replace(/^[-–—,:;\s]+/, "").replace(/[-–—,:;\s]+$/, "");
+
+  return text;
+}
+
 function formatDateLabel(date: Date | null) {
   if (!date || Number.isNaN(date.getTime())) return "Sin fecha detectada";
 
@@ -92,6 +108,16 @@ function sentenceCase(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return "";
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+function humanizeSource(source: string) {
+  const safe = source.trim().toLowerCase();
+  if (!safe) return "Link";
+  if (safe === "summary") return "Summary";
+  if (safe === "whatsapp") return "WhatsApp";
+  if (safe === "copy_link") return "Link copiado";
+  if (safe === "deep-link") return "Link";
+  return source;
 }
 
 export default function CaptureClient({ initialText = "" }: CaptureClientProps) {
@@ -166,8 +192,9 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   const parsed = useMemo(() => parseQuickCapture(draft.trim()), [draft]);
 
   const title = parsed.title?.trim() || "";
-  const notes = parsed.notes?.trim() || "";
-  const prettyNotes = sentenceCase(notes);
+  const rawNotes = parsed.notes?.trim() || "";
+  const cleanedNotes = cleanTemporalNoise(rawNotes);
+  const prettyNotes = sentenceCase(cleanedNotes);
   const durationMinutes = parsed.durationMinutes || 60;
   const hasDate = Boolean(parsed.date && !Number.isNaN(parsed.date.getTime()));
   const canContinue = Boolean(draft.trim() && title);
@@ -240,9 +267,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
           error: userError,
         } = await supabase.auth.getUser();
 
-        if (userError) {
-          throw userError;
-        }
+        if (userError) throw userError;
 
         if (user?.id) {
           await upsertProposalResponse({
@@ -253,11 +278,11 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
         }
       }
 
-      alert("La propuesta quedó pendiente. Puedes volver más tarde desde el link.");
+      window.alert("La propuesta quedó pendiente. Puedes volver más tarde desde el link.");
       router.push("/summary");
     } catch (error) {
       console.error("CaptureClient.handleLater", error);
-      alert("No pudimos guardar la propuesta como pendiente. Inténtalo otra vez.");
+      window.alert("No pudimos guardar la propuesta como pendiente. Inténtalo otra vez.");
     } finally {
       setIsSavingLater(false);
     }
@@ -374,7 +399,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               fontWeight: 700,
             }}
           >
-            Fuente: {source}
+            Fuente: {humanizeSource(source)}
           </span>
 
           {isSharedIntent ? (
@@ -427,7 +452,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 fontWeight: 800,
               }}
             >
-              Proposal ID detectado
+              Propuesta vinculada
             </span>
           ) : null}
         </div>
