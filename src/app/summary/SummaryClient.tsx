@@ -89,7 +89,7 @@ type SmartInterpretation = {
   intent: "personal" | "group";
   groupId: string | null;
   confidence: "low" | "medium" | "high";
-  reason: "learned" | "social_hint" | "active_group" | "none";
+  reason: "learned" | "name_match" | "social_hint" | "active_group" | "none";
 };
 
 function textSuggestsSharedPlan(raw: string) {
@@ -103,7 +103,23 @@ function textSuggestsSharedPlan(raw: string) {
     normalized.includes(" junto a ")
   );
 }
+function extractPersonFromText(raw: string): string | null {
+  const match = raw.toLowerCase().match(/con\s+([a-záéíóúñ]+)/i);
+  return match ? match[1] : null;
+}
+function findGroupByName(name: string, groups: GroupRow[]): string | null {
+  const normalized = name.toLowerCase();
 
+  for (const group of groups) {
+    const groupName = String(group.name ?? "").toLowerCase();
+
+    if (groupName.includes(normalized)) {
+      return group.id;
+    }
+  }
+
+  return null;
+}
 function buildSmartInterpretation(input: {
   raw: string;
   groups: GroupRow[];
@@ -127,7 +143,20 @@ function buildSmartInterpretation(input: {
       reason: "learned",
     };
   }
+const person = extractPersonFromText(raw);
 
+if (person) {
+  const matchedGroupId = findGroupByName(person, groups);
+
+  if (matchedGroupId) {
+    return {
+      intent: "group",
+      groupId: matchedGroupId,
+      confidence: "high",
+      reason: "name_match",
+    };
+  }
+}
   if (textSuggestsSharedPlan(raw)) {
     const fallbackGroupId =
       activeGroupId ||
