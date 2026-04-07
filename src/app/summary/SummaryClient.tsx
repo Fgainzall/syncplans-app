@@ -1256,67 +1256,6 @@ const navigateFromQuickCapture = useCallback(
     }
   }, [quickCaptureValue, showToast]);
 
-  const handleShareCapture = useCallback(async () => {
-    const raw = quickCaptureValue.trim();
-
-    if (!raw) {
-      showToast("Escribe algo primero", "Necesito un texto para compartir.");
-      return;
-    }
-
-    const fullUrl = buildCaptureShareUrl(raw, "native_share");
-    const shareText = buildWhatsAppShareText(raw, fullUrl);
-
-    try {
-      if (canUseNativeShare()) {
-        await navigator.share({
-          title: "Llevar idea a SyncPlans",
-          text: shareText,
-          url: fullUrl,
-        });
-        showToast("Compartido ✅", buildShareToastLabel(raw));
-        return;
-      }
-
-      if (canUseClipboard()) {
-        await navigator.clipboard.writeText(fullUrl);
-        showToast(
-          "Link copiado ✅",
-          "Tu navegador no soporta compartir nativo. Ya quedó listo para pegar."
-        );
-        return;
-      }
-
-      if (typeof window !== "undefined") {
-        window.open(fullUrl, "_blank", "noopener,noreferrer");
-        showToast(
-          "Abrí el link por ti",
-          "Tu navegador no soporta compartir ni copiar automáticamente."
-        );
-        return;
-      }
-
-      showToast("No se pudo compartir", "Intenta nuevamente.");
-    } catch (error: any) {
-      const name = String(error?.name ?? "").trim();
-      if (name === "AbortError") return;
-
-      if (canUseClipboard()) {
-        try {
-          await navigator.clipboard.writeText(fullUrl);
-          showToast(
-            "Link copiado ✅",
-            "El share nativo falló, pero te dejé el link listo para pegar."
-          );
-          return;
-        } catch {
-          // sigue al toast final
-        }
-      }
-
-      showToast("No se pudo compartir", "Intenta nuevamente.");
-    }
-  }, [quickCaptureValue, showToast]);
 
   const handleShareToWhatsApp = useCallback(() => {
     const raw = quickCaptureValue.trim();
@@ -1421,15 +1360,7 @@ const navigateFromQuickCapture = useCallback(
                   WhatsApp
                 </button>
 
-                <button
-                  onClick={handleShareCapture}
-                  style={styles.captureGhostButton}
-                  className="spSum-captureDeepLinkButton"
-                >
-                  Compartir
-                </button>
-
-                <button
+                               <button
                   onClick={handleCopyCaptureLink}
                   style={styles.captureGhostButton}
                   className="spSum-captureDeepLinkButton"
