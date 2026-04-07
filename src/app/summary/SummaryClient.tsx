@@ -123,6 +123,57 @@ function findGroupByName(name: string, groups: GroupRow[]): string | null {
 
   return null;
 }
+function detectGroupTypeHint(raw: string): "pair" | "family" | "other" | null {
+  const text = String(raw ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (
+    text.includes("familia") ||
+    text.includes("familiar") ||
+    text.includes("hijos") ||
+    text.includes("casa")
+  ) {
+    return "family";
+  }
+
+  if (
+    text.includes("pareja") ||
+    text.includes("novia") ||
+    text.includes("novio") ||
+    text.includes("esposa") ||
+    text.includes("esposo")
+  ) {
+    return "pair";
+  }
+
+  if (
+    text.includes("amigos") ||
+    text.includes("fulbito") ||
+    text.includes("padel") ||
+    text.includes("pádel") ||
+    text.includes("equipo") ||
+    text.includes("grupo")
+  ) {
+    return "other";
+  }
+
+  return null;
+}
+
+function findGroupByType(
+  groupType: "pair" | "family" | "other",
+  groups: GroupRow[]
+): string | null {
+  const match =
+    groups.find(
+      (group) =>
+        normalizeSummaryGroupType(String(group.type ?? "")) === groupType
+    ) ?? null;
+
+  return match ? String(match.id) : null;
+}
 function buildSmartInterpretation(input: {
   raw: string;
   groups: GroupRow[];
@@ -160,6 +211,20 @@ if (person) {
     };
   }
 }
+  const typeHint = detectGroupTypeHint(raw);
+
+  if (typeHint) {
+    const hintedGroupId = findGroupByType(typeHint, groups);
+
+    if (hintedGroupId) {
+      return {
+        intent: "group",
+        groupId: hintedGroupId,
+        confidence: "high",
+        reason: "social_hint",
+      };
+    }
+  }
   if (textSuggestsSharedPlan(raw)) {
     const fallbackGroupId =
       activeGroupId ||
