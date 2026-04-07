@@ -6,7 +6,7 @@ export type Suggestion = {
   score: number;
 };
 
-type SuggestionGroupType = "personal" | "pair" | "family" | "other";
+export type SuggestionGroupType = "personal" | "pair" | "family" | "other";
 
 type SuggestionIntent =
   | "breakfast"
@@ -53,6 +53,10 @@ function buildLabel(date: Date) {
 
 function detectIntent(raw: string): SuggestionIntent {
   const text = ` ${normalizeText(raw)} `;
+
+  if (text.includes(" familia ") || text.includes(" familiar ")) {
+    return "lunch";
+  }
 
   if (
     text.includes(" desayuno ") ||
@@ -267,6 +271,65 @@ function getHourPreferenceBonus(intent: SuggestionIntent, hour: number) {
   return 0;
 }
 
+
+function getContextualBoost(
+  intent: SuggestionIntent,
+  groupType: SuggestionGroupType,
+  day: Date,
+  rawText: string
+) {
+  const text = ` ${normalizeText(rawText)} `;
+  let score = 0;
+
+  const weekend = isWeekend(day);
+  const weekday = !weekend;
+  const mentionsWeekend =
+    text.includes(" fin de semana ") ||
+    text.includes(" finde ") ||
+    text.includes(" sabado ") ||
+    text.includes(" sábado ") ||
+    text.includes(" domingo ");
+  const mentionsWeek =
+    text.includes(" semana ") ||
+    text.includes(" weekday ") ||
+    text.includes(" entre semana ") ||
+    text.includes(" lunes ") ||
+    text.includes(" martes ") ||
+    text.includes(" miercoles ") ||
+    text.includes(" miércoles ") ||
+    text.includes(" jueves ") ||
+    text.includes(" viernes ");
+
+  if (groupType === "family") {
+    if (weekend) score += 18;
+    if (intent === "lunch") score += 8;
+  }
+
+  if (groupType === "pair") {
+    if (intent === "dinner") score += 10;
+    if (weekday) score += 4;
+  }
+
+  if (groupType === "other") {
+    if (weekend) score += 12;
+    if (intent === "sports") score += 6;
+  }
+
+  if (intent === "breakfast" && weekday) score += 8;
+  if (intent === "lunch" && weekend) score += 10;
+  if (intent === "dinner" && weekend) score += 6;
+
+  if (mentionsWeekend) {
+    score += weekend ? 18 : -14;
+  }
+
+  if (mentionsWeek) {
+    score += weekday ? 12 : -10;
+  }
+
+  return score;
+}
+
 function getRecencyPenalty(now: Date, slot: Date) {
   const diffMinutes = (slot.getTime() - now.getTime()) / 60000;
 
@@ -283,8 +346,10 @@ function scoreSlot(params: {
   day: Date;
   intent: SuggestionIntent;
   durationMinutes: number;
+  groupType: SuggestionGroupType;
+  rawText: string;
 }) {
-  const { events, now, slot, day, intent, durationMinutes } = params;
+  const { events, now, slot, day, intent, durationMinutes, groupType, rawText } = params;
 
   let score = 100;
 
@@ -308,6 +373,8 @@ function scoreSlot(params: {
       score += 6;
     }
   }
+
+  score += getContextualBoost(intent, groupType, day, rawText);
 
   return score;
 }
@@ -348,6 +415,8 @@ export function getSuggestedTimeSlots(
         day,
         intent,
         durationMinutes,
+        groupType,
+        rawText,
       });
 
       const candidate: Suggestion = {

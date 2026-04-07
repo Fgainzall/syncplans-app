@@ -889,6 +889,17 @@ const smartInterpretation = useMemo(() => {
 const smartInterpretationLabel = useMemo(() => {
   return getSmartInterpretationLabel(smartInterpretation, groups);
 }, [smartInterpretation, groups]);
+
+const normalizeSuggestionGroupType = useCallback(
+  (value: string | null | undefined): "personal" | "pair" | "family" | "other" => {
+    if (value === "pair" || value === "couple") return "pair";
+    if (value === "family") return "family";
+    if (value === "other" || value === "shared") return "other";
+    return "personal";
+  },
+  []
+);
+
 const timeSuggestions = useMemo(() => {
   const raw = quickCaptureValue.trim();
   if (!raw) return [];
@@ -897,33 +908,19 @@ const timeSuggestions = useMemo(() => {
 
   if (parsed.date) return [];
 
-  const suggestionGroupType =
-    activeGroupType === "pair" || activeGroupType === "couple"
-      ? "pair"
-      : activeGroupType === "family"
-      ? "family"
-      : activeGroupType === "other" || activeGroupType === "shared"
-      ? "other"
-      : "personal";
+  const suggestionGroupType = normalizeSuggestionGroupType(activeGroupType);
 
   return getSuggestedTimeSlots(events, suggestionGroupType, raw);
-}, [quickCaptureValue, events, activeGroupType]);
+}, [quickCaptureValue, events, activeGroupType, normalizeSuggestionGroupType]);
 
 const timeSuggestionsLabel = useMemo(() => {
   const raw = quickCaptureValue.trim();
   if (!raw || timeSuggestions.length === 0) return null;
 
-  const suggestionGroupType =
-    activeGroupType === "pair" || activeGroupType === "couple"
-      ? "pair"
-      : activeGroupType === "family"
-      ? "family"
-      : activeGroupType === "other" || activeGroupType === "shared"
-      ? "other"
-      : "personal";
+  const suggestionGroupType = normalizeSuggestionGroupType(activeGroupType);
 
   return getSuggestionContextLabel(raw, suggestionGroupType);
-}, [quickCaptureValue, timeSuggestions, activeGroupType]);
+}, [quickCaptureValue, timeSuggestions, activeGroupType, normalizeSuggestionGroupType]);
   const quickCaptureHeadline = useMemo(() => {
     if (!activeGroupId) return "Escribe lo que tienes en mente";
     if (activeGroupType === "pair") return "Planéalo en una línea";
