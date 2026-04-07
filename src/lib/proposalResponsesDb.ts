@@ -128,3 +128,41 @@ export async function getMyProposalResponsesForEvents(
     return acc;
   }, {});
 }
+
+export async function getProposalResponsesForEvents(
+  eventIds: string[],
+): Promise<Record<string, ProposalResponseRow[]>> {
+  const cleanEventIds = Array.from(
+    new Set(
+      (eventIds ?? [])
+        .filter((value) => typeof value === "string" && value.trim().length > 0)
+        .map((value) => String(value).trim()),
+    ),
+  );
+
+  if (cleanEventIds.length === 0) {
+    return {};
+  }
+
+  const { data, error } = await supabase
+    .from("proposal_responses")
+    .select("id, event_id, user_id, response, created_at, updated_at")
+    .in("event_id", cleanEventIds)
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = (data ?? []) as ProposalResponseRow[];
+
+  return rows.reduce<Record<string, ProposalResponseRow[]>>((acc, row) => {
+    const key = String(row.event_id ?? "").trim();
+    if (!key) return acc;
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+    acc[key].push(row);
+    return acc;
+  }, {});
+}

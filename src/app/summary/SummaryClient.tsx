@@ -24,6 +24,7 @@ import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { getMyEvents } from "@/lib/eventsDb";
 import {
   getMyProposalResponsesForEvents,
+  getProposalResponsesForEvents,
   type ProposalResponseRow,
 } from "@/lib/proposalResponsesDb";
 import {
@@ -834,6 +835,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [proposalResponsesMap, setProposalResponsesMap] = useState<
     Record<string, ProposalResponseRow>
   >({});
+  const [proposalResponseGroupsMap, setProposalResponseGroupsMap] = useState<
+    Record<string, ProposalResponseRow[]>
+  >({});
   const [proposalProfilesMap, setProposalProfilesMap] = useState<
     Record<string, any>
   >({});
@@ -1109,10 +1113,10 @@ const timeSuggestionsLabel = useMemo(() => {
         .map((event) => String((event as SummaryEvent).id))
         .filter(Boolean);
 
-      const proposalResponses = await getMyProposalResponsesForEvents(
-        proposalEventIds,
-        user.id
-      ).catch(() => ({}));
+      const [proposalResponses, proposalResponseGroups] = await Promise.all([
+        getMyProposalResponsesForEvents(proposalEventIds, user.id).catch(() => ({})),
+        getProposalResponsesForEvents(proposalEventIds).catch(() => ({})),
+      ]);
 
       setEvents(safeEvents);
       setResMap(conflictResolutions ?? {});
@@ -1122,6 +1126,7 @@ const timeSuggestionsLabel = useMemo(() => {
       );
       setRecentDecisions((recentDecisionLogs ?? []).map(mapRecentDecision));
       setProposalResponsesMap(proposalResponses ?? {});
+      setProposalResponseGroupsMap(proposalResponseGroups ?? {});
     } catch (e: any) {
       showToast("No se pudo cargar", e?.message || "Intenta nuevamente.");
     } finally {
@@ -1134,7 +1139,7 @@ useEffect(() => {
   async function loadProfiles() {
     const userIds = Array.from(
       new Set(
-        Object.values(proposalResponsesMap)
+        Object.values(proposalResponseGroupsMap).flat()
           .map((r) => String(r?.user_id ?? "").trim())
           .filter(Boolean)
       )
@@ -1163,7 +1168,7 @@ useEffect(() => {
   return () => {
     cancelled = true;
   };
-}, [proposalResponsesMap]);
+}, [proposalResponseGroupsMap]);
   useEffect(() => {
     let alive = true;
 
@@ -1469,6 +1474,104 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     [proposalProfilesMap, proposalResponsesMap]
   );
 
+
+  const conflictEventIds = useMemo(() => {
+    const next = new Set<string>();
+
+    const conflictEvents: CalendarEvent[] = visibleEvents
+      .map((event) => {
+        const start = event.startIso;
+        const end = event.endIso;
+        if (!start || !end) return null;
+
+        const rawGroup =
+          groups.find((group) => String(group.id) === String(event.groupId ?? ""))
+            ?.type ?? "personal";
+
+        return {
+          id: String(event.id),
+          title: String(event.title ?? "Evento"),
+          start,
+          end,
+          groupType: normalizeSummaryGroupType(String(rawGroup ?? "personal")) as GroupType,
+          groupId: event.groupId ?? null,
+        } satisfies CalendarEvent;
+      })
+      .filter(Boolean) as CalendarEvent[];
+
+    const computed = filterIgnoredConflicts(
+      computeVisibleConflicts(conflictEvents),
+      loadIgnoredConflictKeys()
+    ).filter((conflict) => !resolutionForConflict(conflict, resMap));
+
+    for (const conflict of computed) {
+      next.add(String(conflict.existingEventId));
+      next.add(String(conflict.incomingEventId));
+    }
+
+    return next;
+  }, [groups, resMap, visibleEvents]);
+
+  const decisionSummary = useMemo(() => {
+    let pendingProposals = 0;
+    let adjustedProposals = 0;
+
+    for (const rows of Object.values(proposalResponseGroupsMap)) {
+      if ((rows ?? []).some((row) => row?.response === "pending")) {
+        pendingProposals += 1;
+      }
+      if ((rows ?? []).some((row) => row?.response === "adjusted")) {
+        adjustedProposals += 1;
+      }
+    }
+
+    return {
+      pendingProposals,
+      adjustedProposals,
+      conflicts: conflictEventIds.size,
+    };
+  }, [conflictEventIds, proposalResponseGroupsMap]);
+
+  const getStatusBadgeForEvent = useCallback(
+    (eventId: string | null | undefined) => {
+      const key = String(eventId ?? "").trim();
+      if (!key) return null;
+
+      if (conflictEventIds.has(key)) {
+        return {
+          label: "Requiere decisión",
+          style: styles.summaryStatusDanger,
+        };
+      }
+
+      const rows = proposalResponseGroupsMap[key] ?? [];
+
+      if (rows.some((row) => row?.response === "pending")) {
+        return {
+          label: "Pendiente",
+          style: styles.summaryStatusPending,
+        };
+      }
+
+      if (rows.some((row) => row?.response === "adjusted")) {
+        return {
+          label: "Ajustado",
+          style: styles.summaryStatusInfo,
+        };
+      }
+
+      if (rows.some((row) => row?.response === "accepted")) {
+        return {
+          label: "Confirmado",
+          style: styles.summaryStatusOk,
+        };
+      }
+
+      return null;
+    },
+    [conflictEventIds, proposalResponseGroupsMap]
+  );
+
   return (
     <div style={styles.page} className="spSum-page">
       {toast && (
@@ -1685,6 +1788,30 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               </div>
             </div>
 
+            {(decisionSummary.conflicts > 0 ||
+              decisionSummary.pendingProposals > 0 ||
+              decisionSummary.adjustedProposals > 0) ? (
+              <div style={styles.decisionChipsRow}>
+                {decisionSummary.conflicts > 0 ? (
+                  <button onClick={openConflictCenter} style={{ ...styles.decisionChip, ...styles.decisionChipDanger }}>
+                    {decisionSummary.conflicts} evento{decisionSummary.conflicts === 1 ? "" : "s"} con conflicto
+                  </button>
+                ) : null}
+
+                {decisionSummary.pendingProposals > 0 ? (
+                  <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipPending }}>
+                    {decisionSummary.pendingProposals} propuesta{decisionSummary.pendingProposals === 1 ? "" : "s"} pendiente{decisionSummary.pendingProposals === 1 ? "" : "s"}
+                  </button>
+                ) : null}
+
+                {decisionSummary.adjustedProposals > 0 ? (
+                  <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipInfo }}>
+                    {decisionSummary.adjustedProposals} ajuste{decisionSummary.adjustedProposals === 1 ? "" : "s"} por revisar
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
             {booting ? (
               <div style={styles.loadingCard}>
                 <div style={styles.loadingDot} />
@@ -1742,6 +1869,20 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
                           <div style={styles.eventMeta}>
                             {(() => {
+                              const statusBadge = getStatusBadgeForEvent(nextEvent.id);
+                              if (statusBadge) {
+                                return (
+                                  <span
+                                    style={{
+                                      ...styles.summaryStatusPill,
+                                      ...statusBadge.style,
+                                    }}
+                                  >
+                                    {statusBadge.label}
+                                  </span>
+                                );
+                              }
+
                               const proposalBadge = getProposalBadgeForEvent(nextEvent.id);
                               return proposalBadge ? (
                                 <span
@@ -1809,6 +1950,20 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
                           <div style={styles.eventMeta}>
                             {(() => {
+                              const statusBadge = getStatusBadgeForEvent(e.id);
+                              if (statusBadge) {
+                                return (
+                                  <span
+                                    style={{
+                                      ...styles.summaryStatusPill,
+                                      ...statusBadge.style,
+                                    }}
+                                  >
+                                    {statusBadge.label}
+                                  </span>
+                                );
+                              }
+
                               const proposalBadge = getProposalBadgeForEvent(e.id);
                               return proposalBadge ? (
                                 <span
@@ -2845,5 +3000,67 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     opacity: 0.74,
     lineHeight: 1.5,
+  },
+
+  decisionChipsRow: {
+    display: "flex",
+    flexWrap: "wrap" as const,
+    gap: 10,
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  decisionChip: {
+    border: "1px solid rgba(148,163,184,0.18)",
+    borderRadius: 999,
+    padding: "10px 14px",
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: "pointer",
+    background: "rgba(15,23,42,0.74)",
+    color: "#e2e8f0",
+  },
+  decisionChipDanger: {
+    background: "rgba(127,29,29,0.88)",
+    borderColor: "rgba(252,165,165,0.24)",
+    color: "rgba(254,226,226,0.98)",
+  },
+  decisionChipPending: {
+    background: "rgba(120,53,15,0.88)",
+    borderColor: "rgba(251,191,36,0.24)",
+    color: "rgba(254,243,199,0.98)",
+  },
+  decisionChipInfo: {
+    background: "rgba(22,78,99,0.88)",
+    borderColor: "rgba(103,232,249,0.24)",
+    color: "rgba(207,250,254,0.98)",
+  },
+  summaryStatusPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: 999,
+    padding: "6px 10px",
+    fontSize: 12,
+    fontWeight: 800,
+    border: "1px solid rgba(148,163,184,0.18)",
+  },
+  summaryStatusDanger: {
+    background: "rgba(127,29,29,0.88)",
+    borderColor: "rgba(252,165,165,0.24)",
+    color: "rgba(254,226,226,0.98)",
+  },
+  summaryStatusPending: {
+    background: "rgba(120,53,15,0.88)",
+    borderColor: "rgba(251,191,36,0.24)",
+    color: "rgba(254,243,199,0.98)",
+  },
+  summaryStatusInfo: {
+    background: "rgba(22,78,99,0.88)",
+    borderColor: "rgba(103,232,249,0.24)",
+    color: "rgba(207,250,254,0.98)",
+  },
+  summaryStatusOk: {
+    background: "rgba(20,83,45,0.88)",
+    borderColor: "rgba(74,222,128,0.24)",
+    color: "rgba(220,252,231,0.98)",
   },
 };

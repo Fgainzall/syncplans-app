@@ -1249,6 +1249,7 @@ console.log("DELETE CHECK", {
                   groupTypeById,
                   trustSignals,
                   proposalResponsesMap,
+                  conflictEventIdsInGrid,
                   onEdit: handleEditEvent,
                   today,
                   isMobile,
@@ -1292,6 +1293,7 @@ console.log("DELETE CHECK", {
                       currentUserId={currentUserId}
                       trustSignal={trustSignals[String(e.id)]}
                       proposalResponsesMap={proposalResponsesMap}
+                      inConflict={conflictEventIdsInGrid.has(String(e.id))}
                     />
                   ))
                 )}
@@ -1326,6 +1328,7 @@ console.log("DELETE CHECK", {
                     currentUserId={currentUserId}
                     isMobile={isMobile}
                     proposalResponsesMap={proposalResponsesMap}
+                    inConflict={conflictEventIdsInGrid.has(String(e.id))}
                   />
                 ))
               )}
@@ -1407,6 +1410,7 @@ function EventRow({
   trustSignal,
   isMobile,
   proposalResponsesMap,
+  inConflict = false,
 }: {
   e: CalendarEventWithOwner;
   highlightId?: string | null;
@@ -1418,6 +1422,7 @@ function EventRow({
   trustSignal?: ConflictTrustSignal | null;
   isMobile?: boolean;
   proposalResponsesMap?: Record<string, ProposalResponseRow>;
+  inConflict?: boolean;
 }) {
   const resolvedType: GroupType = e.groupId
     ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
@@ -1435,6 +1440,18 @@ function EventRow({
   const proposalRow = proposalResponsesMap?.[String(e.id)];
   const proposalLabel = proposalResponseLabel(proposalRow?.response);
   const proposalTone = proposalResponseTone(proposalRow?.response);
+  const statusLabel = inConflict ? "Conflicto" : proposalLabel ?? trustLabel;
+  const statusStyle = inConflict
+    ? styles.eventTrustBadgeConflict
+    : proposalLabel
+    ? proposalTone === "accepted"
+      ? styles.eventTrustBadgeResolved
+      : proposalTone === "adjusted"
+      ? styles.eventTrustBadgeAuto
+      : styles.eventTrustBadgePending
+    : trustSignal?.label === "auto_adjusted"
+    ? styles.eventTrustBadgeAuto
+    : styles.eventTrustBadgeResolved;
 
   return (
     <div
@@ -1490,29 +1507,14 @@ function EventRow({
               {meta.label}
             </div>
 
-            {proposalLabel ? (
+            {statusLabel ? (
               <div
                 style={{
                   ...styles.eventTrustBadge,
-                  ...(proposalTone === "accepted"
-                    ? styles.eventTrustBadgeResolved
-                    : proposalTone === "adjusted"
-                    ? styles.eventTrustBadgeAuto
-                    : styles.eventTrustBadgePending),
+                  ...statusStyle,
                 }}
               >
-                {proposalLabel}
-              </div>
-            ) : trustLabel ? (
-              <div
-                style={{
-                  ...styles.eventTrustBadge,
-                  ...(trustSignal?.label === "auto_adjusted"
-                    ? styles.eventTrustBadgeAuto
-                    : styles.eventTrustBadgeResolved),
-                }}
-              >
-                {trustLabel}
+                {statusLabel}
               </div>
             ) : null}
 
@@ -1567,6 +1569,7 @@ function renderMonthCells(opts: {
   groupTypeById: Map<string, "pair" | "family" | "other">;
   trustSignals: Record<string, ConflictTrustSignal>;
   proposalResponsesMap: Record<string, ProposalResponseRow>;
+  conflictEventIdsInGrid: Set<string>;
   onEdit: (e: CalendarEventWithOwner) => void;
   today: Date;
   isMobile: boolean;
@@ -1583,6 +1586,7 @@ function renderMonthCells(opts: {
     groupTypeById,
     trustSignals,
     proposalResponsesMap,
+    conflictEventIdsInGrid,
     onEdit,
     today,
     isMobile,
@@ -1711,6 +1715,19 @@ cells.push(
         const proposalRow = proposalResponsesMap[String(e.id)];
         const proposalLabel = proposalResponseLabel(proposalRow?.response);
         const proposalTone = proposalResponseTone(proposalRow?.response);
+        const isConflictEvent = conflictEventIdsInGrid.has(String(e.id));
+        const cellStatusLabel = isConflictEvent ? "Conflicto" : proposalLabel ?? trustShortLabel;
+        const cellStatusStyle = isConflictEvent
+          ? styles.cellTrustPillConflict
+          : proposalLabel
+          ? proposalTone === "accepted"
+            ? styles.cellTrustPillResolved
+            : proposalTone === "adjusted"
+            ? styles.cellTrustPillAuto
+            : styles.cellTrustPillPending
+          : trustSignal?.label === "auto_adjusted"
+          ? styles.cellTrustPillAuto
+          : styles.cellTrustPillResolved;
 
         return (
           <div
@@ -1741,29 +1758,14 @@ cells.push(
               {e.title || "Evento"}
             </span>
 
-            {proposalLabel ? (
+            {cellStatusLabel ? (
               <span
                 style={{
                   ...styles.cellTrustPill,
-                  ...(proposalTone === "accepted"
-                    ? styles.cellTrustPillResolved
-                    : proposalTone === "adjusted"
-                    ? styles.cellTrustPillAuto
-                    : styles.cellTrustPillPending),
+                  ...cellStatusStyle,
                 }}
               >
-                {proposalLabel}
-              </span>
-            ) : trustShortLabel ? (
-              <span
-                style={{
-                  ...styles.cellTrustPill,
-                  ...(trustSignal?.label === "auto_adjusted"
-                    ? styles.cellTrustPillAuto
-                    : styles.cellTrustPillResolved),
-                }}
-              >
-                {trustShortLabel}
+                {cellStatusLabel}
               </span>
             ) : null}
           </div>
@@ -2758,4 +2760,15 @@ overviewMetaRowMobile: {
     justifyContent: "flex-start",
   },
 
+
+  eventTrustBadgeConflict: {
+    background: "rgba(127,29,29,0.90)",
+    borderColor: "rgba(252,165,165,0.28)",
+    color: "rgba(254,226,226,0.98)",
+  },
+  cellTrustPillConflict: {
+    background: "rgba(127,29,29,0.90)",
+    borderColor: "rgba(252,165,165,0.28)",
+    color: "rgba(254,226,226,0.98)",
+  },
 };

@@ -19,8 +19,15 @@ import {
 } from "@/lib/invitationsDb";
 import {
   getMyProposalResponsesForEvents,
+  getProposalResponsesForEvents,
   type ProposalResponseRow,
 } from "@/lib/proposalResponsesDb";
+import {
+  computeVisibleConflicts,
+  type CalendarEvent,
+  type GroupType,
+  type ConflictItem,
+} from "@/lib/conflicts";
 import { getDisplayName, getProfilesMapByIds } from "@/lib/profilesDb";
 
 type TimelineEvent = {
@@ -60,6 +67,158 @@ type ShareState = {
 type InviteStateByEventId = Record<string, PublicInviteRow | null>;
 type TrustSignalByEventId = Record<string, ConflictTrustSignal | null>;
 type ProposalResponseByEventId = Record<string, ProposalResponseRow | null>;
+type ProposalResponsesGroupByEventId = Record<string, ProposalResponseRow[]>;
+type ConflictByEventId = Record<string, ConflictItem[]>;
+
+
+function normalizeTimelineGroupType(value: string | null | undefined): GroupType {
+  const safe = String(value ?? "").trim().toLowerCase();
+
+  if (!safe) return "personal";
+  if (safe === "couple") return "pair";
+  if (safe === "shared") return "other";
+  if (safe === "pair" || safe === "family" || safe === "other") {
+    return safe as GroupType;
+  }
+
+  return "other";
+}
+
+function toConflictCalendarEvent(event: TimelineEvent): CalendarEvent {
+  return {
+    id: String(event.id),
+    title: String(event.title ?? "Evento"),
+    start: String(event.start),
+    end: String(event.end),
+    groupType: event.group_id
+      ? normalizeTimelineGroupType(String(event.group?.type ?? "other"))
+      : "personal",
+    groupId: event.group_id ?? null,
+    description: event.notes ?? undefined,
+    notes: event.notes ?? undefined,
+  };
+}
+
+function getEventStatePresentation(input: {
+  conflictsCount: number;
+  responses: ProposalResponseRow[];
+  trustSignal: ConflictTrustSignal | null;
+  invite: PublicInviteRow | null;
+}) {
+  const conflictsCount = Number(input.conflictsCount ?? 0);
+  const responses = Array.isArray(input.responses) ? input.responses : [];
+  const invite = input.invite;
+  const trustSignal = input.trustSignal;
+
+  const hasPending = responses.some((row) => row?.response === "pending");
+  const hasAdjusted = responses.some((row) => row?.response === "adjusted");
+  const hasAccepted = responses.some((row) => row?.response === "accepted");
+
+  if (conflictsCount > 0) {
+    return {
+      label: conflictsCount === 1 ? "Requiere decisión" : `Conflictos (${conflictsCount})`,
+      subtitle:
+        conflictsCount === 1
+          ? "Este plan choca con otro evento visible."
+          : "Este plan tiene varios choques por revisar.",
+      style: {
+        background: "rgba(127,29,29,0.88)",
+        borderColor: "rgba(252,165,165,0.28)",
+        color: "rgba(254,226,226,0.98)",
+      } as React.CSSProperties,
+    };
+  }
+
+  if (hasPending || invite?.status === "pending" || (invite?.status === "rejected" && !!invite?.proposed_date)) {
+    return {
+      label: "Pendiente",
+      subtitle: "Todavía falta una decisión para cerrar este plan.",
+      style: {
+        background: "rgba(120,53,15,0.88)",
+        borderColor: "rgba(251,191,36,0.30)",
+        color: "rgba(254,243,199,0.98)",
+      } as React.CSSProperties,
+    };
+  }
+
+  if (hasAdjusted) {
+    return {
+      label: "Ajustado",
+      subtitle: "Hubo cambios antes de dejar este plan listo.",
+      style: {
+        background: "rgba(22,78,99,0.90)",
+        borderColor: "rgba(103,232,249,0.28)",
+        color: "rgba(207,250,254,0.98)",
+      } as React.CSSProperties,
+    };
+  }
+
+  if (hasAccepted || invite?.status === "accepted" || !!trustSignal) {
+    return {
+      label: "Confirmado",
+      subtitle: "Este plan ya tiene una salida clara.",
+      style: {
+        background: "rgba(20,83,45,0.92)",
+        borderColor: "rgba(74,222,128,0.28)",
+        color: "rgba(220,252,231,0.98)",
+      } as React.CSSProperties,
+    };
+  }
+
+  return null;
+}
+
+function getResponseActorTone(response: string | null | undefined) {
+  const safe = String(response ?? "").trim().toLowerCase();
+
+  if (safe === "accepted") return "accepted";
+  if (safe === "adjusted") return "adjusted";
+  if (safe === "pending") return "pending";
+  return "neutral";
+}
+
+function getResponseActorLabel(response: string | null | undefined) {
+  const safe = String(response ?? "").trim().toLowerCase();
+
+  if (safe === "accepted") return "aceptó";
+  if (safe === "adjusted") return "ajustó";
+  if (safe === "pending") return "pendiente";
+  return "respondió";
+}
+
+function getResponseActorStyle(
+  tone: "accepted" | "adjusted" | "pending" | "neutral"
+): React.CSSProperties {
+  if (tone === "accepted") {
+    return {
+      background: "rgba(20,83,45,0.62)",
+      borderColor: "rgba(74,222,128,0.24)",
+      color: "rgba(220,252,231,0.98)",
+    };
+  }
+
+  if (tone === "adjusted") {
+    return {
+      background: "rgba(22,78,99,0.62)",
+      borderColor: "rgba(103,232,249,0.24)",
+      color: "rgba(207,250,254,0.98)",
+    };
+  }
+
+  if (tone === "pending") {
+    return {
+      background: "rgba(120,53,15,0.62)",
+      borderColor: "rgba(251,191,36,0.24)",
+      color: "rgba(254,243,199,0.98)",
+    };
+  }
+
+  return {
+    background: "rgba(15,23,42,0.72)",
+    borderColor: "rgba(148,163,184,0.18)",
+    color: "rgba(226,232,240,0.94)",
+  };
+}
 
 function humanizeShareError(
   err: unknown,
@@ -484,7 +643,10 @@ export default function EventsTimeline({
     useState<TrustSignalByEventId>({});
   const [proposalResponsesByEventId, setProposalResponsesByEventId] =
     useState<ProposalResponseByEventId>({});
+  const [proposalResponseGroupsByEventId, setProposalResponseGroupsByEventId] =
+    useState<ProposalResponsesGroupByEventId>({});
   const [proposalProfilesById, setProposalProfilesById] = useState<Record<string, any>>({});
+  const [conflictsByEventId, setConflictsByEventId] = useState<ConflictByEventId>({});
   const [refreshTick, setRefreshTick] = useState(0);
 
   const sorted = useMemo(() => {
@@ -506,6 +668,38 @@ export default function EventsTimeline({
       dayKey,
       dayEvents,
     }));
+  }, [sorted, refreshTick]);
+
+  useEffect(() => {
+    const nextConflicts: ConflictByEventId = {};
+    const conflictCandidates = sorted
+      .filter((ev) => !!ev?.start && !!ev?.end)
+      .map(toConflictCalendarEvent);
+
+    if (conflictCandidates.length === 0) {
+      setConflictsByEventId({});
+      return;
+    }
+
+    try {
+      const computed = computeVisibleConflicts(conflictCandidates);
+      for (const conflict of computed) {
+        const existingId = String(conflict.existingEventId ?? "").trim();
+        const incomingId = String(conflict.incomingEventId ?? "").trim();
+
+        if (existingId) {
+          nextConflicts[existingId] = [...(nextConflicts[existingId] ?? []), conflict];
+        }
+
+        if (incomingId) {
+          nextConflicts[incomingId] = [...(nextConflicts[incomingId] ?? []), conflict];
+        }
+      }
+      setConflictsByEventId(nextConflicts);
+    } catch (error) {
+      console.error("[EventsTimeline] compute conflicts error", error);
+      setConflictsByEventId({});
+    }
   }, [sorted, refreshTick]);
 
   useEffect(() => {
@@ -677,10 +871,48 @@ export default function EventsTimeline({
   useEffect(() => {
     let cancelled = false;
 
+    async function loadProposalResponseGroups() {
+      const eventIds = Array.from(
+        new Set(sorted.map((ev) => String(ev.id ?? "").trim()).filter(Boolean))
+      );
+
+      if (eventIds.length === 0) {
+        setProposalResponseGroupsByEventId({});
+        return;
+      }
+
+      try {
+        const data = await getProposalResponsesForEvents(eventIds);
+
+        if (!cancelled) {
+          const fallback: ProposalResponsesGroupByEventId = {};
+          for (const id of eventIds) fallback[id] = data[id] ?? [];
+          setProposalResponseGroupsByEventId(fallback);
+        }
+      } catch (error) {
+        console.error("[EventsTimeline] loadProposalResponseGroups error", error);
+        if (!cancelled) {
+          const fallback: ProposalResponsesGroupByEventId = {};
+          for (const id of eventIds) fallback[id] = [];
+          setProposalResponseGroupsByEventId(fallback);
+        }
+      }
+    }
+
+    void loadProposalResponseGroups();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sorted, refreshTick]);
+
+  useEffect(() => {
+    let cancelled = false;
+
     async function loadProposalProfiles() {
       const userIds = Array.from(
         new Set(
-          Object.values(proposalResponsesByEventId)
+          Object.values(proposalResponseGroupsByEventId).flat()
             .map((row) => String(row?.user_id ?? "").trim())
             .filter(Boolean)
         )
@@ -709,7 +941,7 @@ export default function EventsTimeline({
     return () => {
       cancelled = true;
     };
-  }, [proposalResponsesByEventId, refreshTick]);
+  }, [proposalResponseGroupsByEventId, refreshTick]);
 
   async function onDelete(id: string) {
     if (!confirm("¿Eliminar este evento?")) return;
