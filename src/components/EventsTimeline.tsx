@@ -211,8 +211,8 @@ function getProposalPresentation(response: string | null | undefined) {
     return {
       label: "Pendiente",
       style: {
-        background: "rgba(120,53,15,0.85)",
-        borderColor: "rgba(251,191,36,0.24)",
+        background: "rgba(120,53,15,0.92)",
+        borderColor: "rgba(251,191,36,0.30)",
         color: "rgba(254,243,199,0.98)",
       } as React.CSSProperties,
     };
@@ -222,8 +222,8 @@ function getProposalPresentation(response: string | null | undefined) {
     return {
       label: "Aceptada",
       style: {
-        background: "rgba(20,83,45,0.9)",
-        borderColor: "rgba(74,222,128,0.24)",
+        background: "rgba(20,83,45,0.95)",
+        borderColor: "rgba(74,222,128,0.28)",
         color: "rgba(220,252,231,0.98)",
       } as React.CSSProperties,
     };
@@ -233,14 +233,76 @@ function getProposalPresentation(response: string | null | undefined) {
     return {
       label: "Ajustada",
       style: {
-        background: "rgba(22,78,99,0.9)",
-        borderColor: "rgba(103,232,249,0.22)",
+        background: "rgba(22,78,99,0.95)",
+        borderColor: "rgba(103,232,249,0.28)",
         color: "rgba(207,250,254,0.98)",
       } as React.CSSProperties,
     };
   }
 
   return null;
+}
+
+function getProposalInsight(response: string | null | undefined) {
+  const safe = String(response ?? "").trim().toLowerCase();
+
+  if (safe === "pending") {
+    return {
+      kicker: "Propuesta abierta",
+      title: "Este plan sigue pendiente de decisión",
+      subtitle:
+        "Todavía no quedó cerrado. Vale la pena revisarlo para decidir qué hacer.",
+      tone: "pending" as const,
+    };
+  }
+
+  if (safe === "accepted") {
+    return {
+      kicker: "Propuesta aceptada",
+      title: "Esta propuesta ya fue aceptada",
+      subtitle:
+        "La otra parte confirmó que este plan le funciona como está.",
+      tone: "accepted" as const,
+    };
+  }
+
+  if (safe === "adjusted") {
+    return {
+      kicker: "Propuesta ajustada",
+      title: "Esta propuesta fue ajustada",
+      subtitle:
+        "La otra parte cambió algo antes de dejarla lista para avanzar.",
+      tone: "adjusted" as const,
+    };
+  }
+
+  return null;
+}
+
+function getProposalInsightStyle(
+  tone: "pending" | "accepted" | "adjusted"
+): React.CSSProperties {
+  if (tone === "pending") {
+    return {
+      border: "1px solid rgba(251,191,36,0.24)",
+      background:
+        "linear-gradient(180deg, rgba(120,53,15,0.18), rgba(30,41,59,0.38))",
+    };
+  }
+
+  if (tone === "accepted") {
+    return {
+      border: "1px solid rgba(74,222,128,0.22)",
+      background:
+        "linear-gradient(180deg, rgba(20,83,45,0.18), rgba(30,41,59,0.38))",
+    };
+  }
+
+  return {
+    border: "1px solid rgba(103,232,249,0.22)",
+    background:
+      "linear-gradient(180deg, rgba(22,78,99,0.18), rgba(30,41,59,0.38))",
+  };
 }
 
 function humanizeRelativeDate(dateString?: string | null) {
@@ -282,16 +344,12 @@ function buildProposalContextLine(input: {
 }
 
 function buildWhatsAppText(ev: TimelineEvent, link: string) {
-  const start = new Date(ev.start);
-  const startLabel = start.toLocaleString([], {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return `Oye, pensé esto 👇
 
-  return `Te comparto este plan de SyncPlans: ${ev.title || "Evento"} (${startLabel}). Puedes responder aquí: ${link}`;
+${ev.title || "Evento"}
+
+Lo vemos aquí:
+${link}`;
 }
 
 function formatProposedDate(value: string | null | undefined) {
@@ -576,7 +634,7 @@ export default function EventsTimeline({
     return () => {
       cancelled = true;
     };
-  }, [sorted]);
+  }, [sorted, refreshTick]);
 
   useEffect(() => {
     let cancelled = false;
@@ -687,7 +745,7 @@ export default function EventsTimeline({
     const eventId = String(ev.id);
 
     if (shareRequestRef.current[eventId]) {
-      return shareRequestRef.current[eventId];
+      return shareRequestRef.current[eventId]!;
     }
 
     setShareStateById((prev) => ({
@@ -880,6 +938,9 @@ export default function EventsTimeline({
                 const proposalPresentation = getProposalPresentation(
                   proposalResponse?.response
                 );
+                const proposalInsight = getProposalInsight(
+                  proposalResponse?.response
+                );
                 const proposalProfile =
                   proposalProfilesById[String(proposalResponse?.user_id ?? "")] ?? null;
                 const proposalActorName = getDisplayName(proposalProfile);
@@ -1004,9 +1065,8 @@ export default function EventsTimeline({
                         {proposalPresentation ? (
                           <span
                             style={{
-                              ...S.signalBadge,
+                              ...S.proposalHeroBadge,
                               ...proposalPresentation.style,
-                              opacity: 0.9,
                             }}
                           >
                             {proposalPresentation.label}
@@ -1077,14 +1137,45 @@ export default function EventsTimeline({
                         )}
                       </div>
 
-                      {proposalPresentation && proposalContextLine ? (
-                        <div style={S.proposalContextLine}>{proposalContextLine}</div>
+                      {proposalInsight ? (
+                        <div
+                          style={{
+                            ...S.proposalInsightCard,
+                            ...getProposalInsightStyle(proposalInsight.tone),
+                          }}
+                        >
+                          <div style={S.proposalInsightCopy}>
+                            <div style={S.proposalInsightKicker}>
+                              {proposalInsight.kicker}
+                            </div>
+                            <div style={S.proposalInsightTitle}>
+                              {proposalInsight.title}
+                            </div>
+                            <div style={S.proposalInsightSub}>
+                              {proposalContextLine || proposalInsight.subtitle}
+                            </div>
+                          </div>
+
+                          {proposalResponse?.response === "pending" ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                router.push(`/events/new/details?eventId=${eventId}`)
+                              }
+                              style={S.proposalSecondaryBtn}
+                            >
+                              Revisar
+                            </button>
+                          ) : null}
+                        </div>
                       ) : null}
 
                       {canAcceptProposal ? (
                         <div style={S.inlineProposalStrip}>
                           <div style={S.inlineProposalCopy}>
-                            <div style={S.inlineProposalKicker}>Propuesta externa</div>
+                            <div style={S.inlineProposalKicker}>
+                              Propuesta externa
+                            </div>
                             <div style={S.inlineProposalTitle}>
                               {proposedDateLabel
                                 ? `Te propusieron mover este plan a ${proposedDateLabel}`
@@ -1318,12 +1409,14 @@ const S: Record<string, React.CSSProperties> = {
     background: "rgba(6,10,20,0.58)",
     boxShadow: "0 12px 28px rgba(0,0,0,0.12)",
     scrollMarginTop: 110,
-    transition: "border-color 180ms ease, box-shadow 180ms ease, background 180ms ease",
+    transition:
+      "border-color 180ms ease, box-shadow 180ms ease, background 180ms ease",
   },
   eventRowFocused: {
     border: "1px solid rgba(56,189,248,0.42)",
     background: "rgba(8,47,73,0.34)",
-    boxShadow: "0 0 0 1px rgba(56,189,248,0.16), 0 14px 34px rgba(56,189,248,0.12)",
+    boxShadow:
+      "0 0 0 1px rgba(56,189,248,0.16), 0 14px 34px rgba(56,189,248,0.12)",
   },
   checkWrap: {
     display: "flex",
@@ -1397,13 +1490,6 @@ const S: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
     alignItems: "center",
   },
-  proposalContextLine: {
-    fontSize: 11,
-    color: "rgba(203,213,225,0.72)",
-    marginTop: -2,
-    marginLeft: 2,
-    fontWeight: 600,
-  },
   signalBadge: {
     borderRadius: 999,
     border: "1px solid transparent",
@@ -1411,6 +1497,49 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 11,
     fontWeight: 800,
     lineHeight: 1,
+  },
+  proposalHeroBadge: {
+    borderRadius: 999,
+    border: "1px solid transparent",
+    padding: "7px 12px",
+    fontSize: 11,
+    fontWeight: 900,
+    lineHeight: 1,
+    boxShadow: "0 10px 24px rgba(0,0,0,0.16)",
+  },
+  proposalInsightCard: {
+    borderRadius: 14,
+    padding: 12,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  proposalInsightCopy: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    minWidth: 0,
+    flex: 1,
+  },
+  proposalInsightKicker: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    fontWeight: 800,
+    color: "rgba(226,232,240,0.92)",
+  },
+  proposalInsightTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.98)",
+    lineHeight: 1.4,
+  },
+  proposalInsightSub: {
+    fontSize: 12,
+    color: "rgba(226,232,240,0.82)",
+    lineHeight: 1.5,
   },
   sharePanel: {
     marginTop: 6,
