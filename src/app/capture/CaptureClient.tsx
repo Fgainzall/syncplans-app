@@ -19,7 +19,7 @@ const EXAMPLES = [
 
 function pickIncomingText(
   searchParams: ReturnType<typeof useSearchParams>,
-  initialText: string,
+  initialText: string
 ) {
   const candidates = [
     searchParams.get("text"),
@@ -128,14 +128,14 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
 
   const incomingText = useMemo(
     () => pickIncomingText(searchParams, initialText),
-    [initialText, searchParams],
+    [initialText, searchParams]
   );
 
   const source = useMemo(() => pickIncomingSource(searchParams), [searchParams]);
   const intent = useMemo(() => pickIntent(searchParams), [searchParams]);
   const proposalEventId = useMemo(
     () => pickProposalEventId(searchParams),
-    [searchParams],
+    [searchParams]
   );
   const isSharedIntent = intent === "shared";
 
@@ -184,7 +184,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       .catch(() => {
         setClipboardState("blocked");
         setClipboardNotice(
-          "No pudimos leer tu portapapeles. Puedes pegar el texto manualmente.",
+          "No pudimos leer tu portapapeles. Puedes pegar el texto manualmente."
         );
       });
   }, [incomingText]);
@@ -200,16 +200,12 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   const canContinue = Boolean(draft.trim() && title);
 
   const summaryLine = useMemo(() => {
-    const safeTitle = title || "Evento";
-
     if (!hasDate) {
-      return `→ Se creará: ${toTitleCase(
-        safeTitle,
-      )} (puedes elegir fecha en el siguiente paso)`;
+      return "Tiene sentido así 👇";
     }
 
-    return `→ Se creará: ${toTitleCase(safeTitle)} · ${formatDateLabel(parsed.date)}`;
-  }, [title, hasDate, parsed]);
+    return `Tiene sentido así 👇 · ${formatDateLabel(parsed.date)}`;
+  }, [hasDate, parsed]);
 
   function buildDetailsUrl(response?: "accept" | "adjust") {
     const params = new URLSearchParams();
@@ -278,11 +274,15 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
         }
       }
 
-      window.alert("La propuesta quedó pendiente. Puedes volver más tarde desde el link.");
+      window.alert(
+        "La propuesta quedó pendiente. Puedes volver más tarde desde el link."
+      );
       router.push("/summary");
     } catch (error) {
       console.error("CaptureClient.handleLater", error);
-      window.alert("No pudimos guardar la propuesta como pendiente. Inténtalo otra vez.");
+      window.alert(
+        "No pudimos guardar la propuesta como pendiente. Inténtalo otra vez."
+      );
     } finally {
       setIsSavingLater(false);
     }
@@ -331,7 +331,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 color: "#7dd3fc",
               }}
             >
-              Te compartieron una idea
+              Te mandaron esta idea 👇
             </div>
 
             <div
@@ -354,7 +354,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 color: "rgba(224,242,254,0.84)",
               }}
             >
-              Revísala y decide cómo quieres continuar: aceptarla tal cual o ajustarla antes de crear el plan.
+              Revísala y decide cómo quieres continuar.
             </div>
           </div>
         ) : null}
@@ -467,7 +467,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               letterSpacing: "-0.03em",
             }}
           >
-            Convierte una frase en un plan claro
+            Esto es lo que entendí 👇
           </h1>
 
           <p
@@ -479,9 +479,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               color: "rgba(226, 232, 240, 0.82)",
             }}
           >
-            Aquí no creamos nada automáticamente. Primero entendemos la intención,
-            te mostramos una vista previa limpia y luego te mandamos al formulario
-            normal para confirmar.
+            Revísalo y decide cómo quieres continuar.
           </p>
         </header>
 
@@ -537,7 +535,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                   color: "#bfdbfe",
                 }}
               >
-                Texto a interpretar
+                Tu idea
               </p>
               <p
                 style={{
@@ -546,7 +544,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                   color: "rgba(226, 232, 240, 0.62)",
                 }}
               >
-                Puedes editarlo antes de seguir.
+                Puedes editarla antes de seguir.
               </p>
             </div>
 
@@ -642,7 +640,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 color: "#bfdbfe",
               }}
             >
-              Vista previa
+              Así quedaría 👇
             </p>
 
             <div
@@ -705,7 +703,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 color: "#bfdbfe",
               }}
             >
-              Qué hará SyncPlans ahora
+              Lo que puedes hacer ahora
             </p>
 
             <div
@@ -714,13 +712,9 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 gap: 10,
               }}
             >
-              <MiniStep text="Interpretar tu frase con el parser real" />
-              <MiniStep text="Mantener el evento como personal por defecto" />
-              {isSharedIntent ? (
-                <MiniStep text="Llevarte al formulario para aceptar o ajustar la propuesta" />
-              ) : (
-                <MiniStep text="Abrir el formulario normal para confirmar" />
-              )}
+              <MiniStep text="Interpreté tu idea" />
+              <MiniStep text="La dejé lista para crear" />
+              <MiniStep text="Puedes confirmarla o cambiar algo antes" />
             </div>
           </div>
         </section>
@@ -744,7 +738,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 color: "#bfdbfe",
               }}
             >
-              Responder a la propuesta
+              Decidan esto juntos
             </div>
 
             <div
@@ -755,7 +749,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 color: "rgba(226,232,240,0.78)",
               }}
             >
-              Puedes aceptarla tal cual, ajustarla antes de crear o dejarla pendiente para revisarla más tarde.
+              Puedes dejarlo como está, cambiar algo o verlo más tarde.
             </div>
           </div>
         ) : null}
@@ -784,10 +778,12 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               fontWeight: 900,
               cursor: canContinue ? "pointer" : "not-allowed",
               opacity: canContinue ? 1 : 0.58,
-              boxShadow: canContinue ? "0 12px 30px rgba(37, 99, 235, 0.26)" : "none",
+              boxShadow: canContinue
+                ? "0 12px 30px rgba(37, 99, 235, 0.26)"
+                : "none",
             }}
           >
-            {isSharedIntent ? "Aceptar y continuar" : "Confirmar y continuar"}
+            {isSharedIntent ? "Sí, hagámoslo así" : "Continuar"}
           </button>
 
           {isSharedIntent ? (
@@ -807,7 +803,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 opacity: canContinue ? 1 : 0.58,
               }}
             >
-              Ajustar antes de crear
+              Cambiar algo
             </button>
           ) : null}
 
@@ -828,7 +824,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 opacity: isSavingLater ? 0.7 : 1,
               }}
             >
-              {isSavingLater ? "Guardando..." : "No ahora"}
+              {isSavingLater ? "Guardando..." : "Lo veo después"}
             </button>
           ) : null}
 
