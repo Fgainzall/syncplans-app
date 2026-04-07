@@ -48,7 +48,10 @@ import {
   getRecentConflictResolutionLogs,
   type ConflictResolutionLogRow,
 } from "@/lib/conflictResolutionsLogDb";
-import { getSuggestedTimeSlots } from "@/lib/timeSuggestions";
+import {
+  getSuggestedTimeSlots,
+  getSuggestionContextLabel,
+} from "@/lib/timeSuggestions";
 type Props = {
   highlightId: string | null;
   appliedToast: string | null;
@@ -827,20 +830,35 @@ const timeSuggestions = useMemo(() => {
 
   const parsed = parseQuickCapture(raw);
 
-  // 👉 SOLO si NO hay fecha
   if (parsed.date) return [];
 
-const suggestionGroupType =
-  activeGroupType === "pair" || activeGroupType === "couple"
-    ? "pair"
-    : activeGroupType === "family"
-    ? "family"
-    : activeGroupType === "other" || activeGroupType === "shared"
-    ? "other"
-    : "personal";
+  const suggestionGroupType =
+    activeGroupType === "pair" || activeGroupType === "couple"
+      ? "pair"
+      : activeGroupType === "family"
+      ? "family"
+      : activeGroupType === "other" || activeGroupType === "shared"
+      ? "other"
+      : "personal";
 
-return getSuggestedTimeSlots(events, suggestionGroupType);
+  return getSuggestedTimeSlots(events, suggestionGroupType, raw);
 }, [quickCaptureValue, events, activeGroupType]);
+
+const timeSuggestionsLabel = useMemo(() => {
+  const raw = quickCaptureValue.trim();
+  if (!raw || timeSuggestions.length === 0) return null;
+
+  const suggestionGroupType =
+    activeGroupType === "pair" || activeGroupType === "couple"
+      ? "pair"
+      : activeGroupType === "family"
+      ? "family"
+      : activeGroupType === "other" || activeGroupType === "shared"
+      ? "other"
+      : "personal";
+
+  return getSuggestionContextLabel(raw, suggestionGroupType);
+}, [quickCaptureValue, timeSuggestions, activeGroupType]);
   const quickCaptureHeadline = useMemo(() => {
     if (!activeGroupId) return "Escribe lo que tienes en mente";
     if (activeGroupType === "pair") return "Planéalo en una línea";
@@ -1470,34 +1488,31 @@ const navigateFromQuickCapture = useCallback(
     </div>
   ) : null}
   {timeSuggestions.length > 0 && (
-  <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-    {timeSuggestions.map((s, i) => (
-      <button
-        key={i}
-        onClick={() => {
-          const params = new URLSearchParams();
+  <div style={styles.captureSuggestionsWrap}>
+    {timeSuggestionsLabel ? (
+      <div style={styles.captureSuggestionsTitle}>{timeSuggestionsLabel}</div>
+    ) : null}
 
-          params.set("qc", "1");
-          params.set("capture_source", "summary");
-          params.set("raw_text", quickCaptureValue);
+    <div style={styles.captureSuggestionsRow}>
+      {timeSuggestions.map((s, i) => (
+        <button
+          key={i}
+          onClick={() => {
+            const params = new URLSearchParams();
 
-          params.set("date", s.date.toISOString());
+            params.set("qc", "1");
+            params.set("capture_source", "summary");
+            params.set("raw_text", quickCaptureValue);
+            params.set("date", s.date.toISOString());
 
-          router.push(`/events/new/details?${params.toString()}`);
-        }}
-        style={{
-          padding: "8px 12px",
-          borderRadius: 999,
-          border: "1px solid rgba(56,189,248,0.3)",
-          background: "rgba(56,189,248,0.15)",
-          fontSize: 12,
-          fontWeight: 800,
-          cursor: "pointer",
-        }}
-      >
-        {s.label}
-      </button>
-    ))}
+            router.push(`/events/new/details?${params.toString()}`);
+          }}
+          style={styles.captureSuggestionChip}
+        >
+          {s.label}
+        </button>
+      ))}
+    </div>
   </div>
 )}
 </div>
@@ -2199,6 +2214,32 @@ const styles: Record<string, React.CSSProperties> = {
   color: "rgba(125,211,252,0.92)",
   fontWeight: 800,
 },
+  captureSuggestionsWrap: {
+    marginTop: 10,
+    display: "grid",
+    gap: 8,
+  },
+  captureSuggestionsTitle: {
+    fontSize: 12,
+    lineHeight: 1.4,
+    color: "rgba(226,242,255,0.78)",
+    fontWeight: 800,
+  },
+  captureSuggestionsRow: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  captureSuggestionChip: {
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.30)",
+    background: "rgba(56,189,248,0.15)",
+    color: "rgba(226,242,255,0.96)",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
   conflictBanner: {
     width: "100%",
     marginBottom: 12,
