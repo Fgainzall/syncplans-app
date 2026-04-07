@@ -24,7 +24,10 @@ export type LearnedGroupMatch = {
 
 const STORAGE_KEY = "syncplans.group-learning.v1";
 const MAX_ENTRIES = 120;
-const AUTO_APPLY_MIN_COUNT = 3;
+
+// Más rápido para "sentirse inteligente", pero sin descontrolarse
+const AUTO_APPLY_MIN_COUNT = 2;
+const AUTO_APPLY_MIN_SCORE = 95;
 
 const STOPWORDS = new Set([
   "de",
@@ -83,7 +86,10 @@ function stripTemporalNoise(input: string): string {
   return String(input ?? "")
     .replace(/\b(?:a\s+las|alas)\b/gi, " ")
     .replace(/\b(?:hoy|mañana|manana|pasado mañana|pasado manana)\b/gi, " ")
-    .replace(/\b(?:lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/gi, " ")
+    .replace(
+      /\b(?:lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/gi,
+      " "
+    )
     .replace(/\b(?:proximo|próximo|proxima|próxima|siguiente|otro|otra)\b/gi, " ")
     .replace(/\b(?:semana|que|viene)\b/gi, " ")
     .replace(/\b(?:am|pm)\b/gi, " ")
@@ -108,25 +114,43 @@ function tokenize(input: string): string[] {
     .filter((token) => token.length >= 3 && !STOPWORDS.has(token));
 }
 
+function extractNames(tokens: string[]): string[] {
+  return tokens.filter((token) => token.length >= 3 && /^[a-z]+$/.test(token));
+}
+
 function buildLearningKey(input: string): string {
   return tokenize(input).join(" ").trim();
+}
+
+function getRecencyBoost(lastUsedAt: string): number {
+  const lastUsedTime = new Date(lastUsedAt).getTime();
+  if (!Number.isFinite(lastUsedTime)) return 0;
+
+  const daysSinceLastUse =
+    (Date.now() - lastUsedTime) / (1000 * 60 * 60 * 24);
+
+  if (daysSinceLastUse <= 1) return 25;
+  if (daysSinceLastUse <= 3) return 15;
+  if (daysSinceLastUse <= 7) return 8;
+  return 0;
+}
+
+function getCountBoost(count: number): number {
+  return Math.min(count * 10, 50);
 }
 
 export function canLearnFromInput(input: string): boolean {
   const key = buildLearningKey(input);
   if (!key) return false;
-
   if (key.length < 4) return false;
 
   const tokens = key.split(" ").filter(Boolean);
 
-  if (tokens.length === 1) {
-    if (GENERIC_BLOCKED_KEYS.has(tokens[0])) return false;
-    return false;
-  }
+  // Una sola palabra casi siempre genera ruido
+  if (tokens.length < 2) return false;
 
+  // Si todo es genérico, no sirve
   const meaningfulTokens = tokens.filter((token) => !GENERIC_BLOCKED_KEYS.has(token));
-
   if (meaningfulTokens.length === 0) return false;
 
   return true;
@@ -147,7 +171,9 @@ function readEntries(): LearnedGroupEntry[] {
         key: String(item?.key ?? "").trim(),
         groupId: String(item?.groupId ?? "").trim(),
         groupType:
-          item?.groupType === "pair" || item?.groupType === "family"
+          item?.groupType === "pair" ||
+          item?.groupType === "family" ||
+          item?.groupType === "other"
             ? item.groupType
             : "other",
         count: Math.max(1, Number(item?.count ?? 1) || 1),
@@ -175,8 +201,9 @@ function writeEntries(entries: LearnedGroupEntry[]) {
 
 function sortEntries(entries: LearnedGroupEntry[]) {
   return [...entries].sort((a, b) => {
-    if (b.count !== a.count) return b.count - a.count;
-    return String(b.lastUsedAt).localeCompare(String(a.lastUsedAt));
+    const aScore = a.count * 1000 + new Date(a.lastUsedAt).getTime();
+    const bScore = b.count * 1000 + new Date(b.lastUsedAt).getTime();
+    return bScore - aScore;
   });
 }
 
@@ -192,15 +219,21 @@ export function learnGroupSelection(input: {
 
   const entries = readEntries();
   const now = new Date().toISOString();
+
   const existingIndex = entries.findIndex(
     (entry) => entry.key === key && entry.groupId === input.groupId
   );
 
   if (existingIndex >= 0) {
     const current = entries[existingIndex];
+
+    // Aprende más rápido si el patrón se repite
+    const recencyBoost = getRecencyBoost(current.lastUsedAt) >= 15 ? 1 : 0;
+    const increment = 1 + recencyBoost;
+
     entries[existingIndex] = {
       ...current,
-      count: current.count + 1,
+      count: current.count + increment,
       lastUsedAt: now,
       groupType: input.groupType,
       sampleTitle: title,
@@ -225,6 +258,7 @@ export function getLearnedGroupMatch(input: {
 }): LearnedGroupMatch | null {
   const title = String(input.title ?? "").trim();
   const key = buildLearningKey(title);
+
   if (!canLearnFromInput(title) || !key) return null;
 
   const allowed = new Set(
@@ -234,6 +268,8 @@ export function getLearnedGroupMatch(input: {
   );
 
   const queryTokens = tokenize(title);
+  const queryNames = extractNames(queryTokens);
+
   const entries = readEntries().filter(
     (entry) => !allowed.size || allowed.has(entry.groupId)
   );
@@ -242,6 +278,8 @@ export function getLearnedGroupMatch(input: {
 
   for (const entry of entries) {
     const entryTokens = tokenize(entry.sampleTitle || entry.key);
+    const entryNames = extractNames(entryTokens);
+
     let score = 0;
     let matchKind: LearnedGroupMatch["matchKind"] | null = null;
 
@@ -249,19 +287,25 @@ export function getLearnedGroupMatch(input: {
       score += 100;
       matchKind = "exact";
     } else if (entry.key.includes(key) || key.includes(entry.key)) {
-      score += 70;
+      score += 72;
       matchKind = "contains";
     } else {
       const overlap = queryTokens.filter((token) => entryTokens.includes(token)).length;
       if (overlap > 0) {
-        score += overlap * 18;
+        score += overlap * 20;
         matchKind = "overlap";
       }
     }
 
     if (!matchKind) continue;
 
-    score += Math.min(entry.count * 8, 40);
+    const nameOverlap = queryNames.filter((name) => entryNames.includes(name)).length;
+    if (nameOverlap > 0) {
+      score += nameOverlap * 18;
+    }
+
+    score += getCountBoost(entry.count);
+    score += getRecencyBoost(entry.lastUsedAt);
 
     const strength: LearnedMatchStrength =
       entry.count >= AUTO_APPLY_MIN_COUNT ? "strong" : "weak";
@@ -274,7 +318,10 @@ export function getLearnedGroupMatch(input: {
       sampleTitle: entry.sampleTitle,
       matchKind,
       strength,
-      shouldAutoApply: strength === "strong",
+      shouldAutoApply:
+        strength === "strong" &&
+        score >= AUTO_APPLY_MIN_SCORE &&
+        (matchKind === "exact" || matchKind === "contains"),
       normalizedInput: key,
     };
 
@@ -284,7 +331,11 @@ export function getLearnedGroupMatch(input: {
   }
 
   if (!best) return null;
-  if (best.matchKind === "overlap" && best.score < 22) return null;
+
+  // Evita auto-sugerencias flojas por overlap muy tenue
+  if (best.matchKind === "overlap" && best.score < 30) {
+    return null;
+  }
 
   return best;
 }
