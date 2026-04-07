@@ -18,6 +18,16 @@ type SuggestionIntent =
   | "meeting"
   | "generic";
 
+type TemporalSignals = {
+  mentionsWeekend: boolean;
+  mentionsWeekday: boolean;
+  mentionsSpecificWeekendDay: boolean;
+  mentionsTwoWeekends: boolean;
+  mentionsMorning: boolean;
+  mentionsAfternoon: boolean;
+  mentionsNight: boolean;
+};
+
 function addDays(date: Date, days: number) {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
@@ -32,6 +42,10 @@ function normalizeText(input: string) {
     .replace(/[.,]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function paddedText(input: string) {
+  return ` ${normalizeText(input)} `;
 }
 
 function startOfDay(date: Date) {
@@ -52,11 +66,7 @@ function buildLabel(date: Date) {
 }
 
 function detectIntent(raw: string): SuggestionIntent {
-  const text = ` ${normalizeText(raw)} `;
-
-  if (text.includes(" familia ") || text.includes(" familiar ")) {
-    return "lunch";
-  }
+  const text = paddedText(raw);
 
   if (
     text.includes(" desayuno ") ||
@@ -69,7 +79,9 @@ function detectIntent(raw: string): SuggestionIntent {
   if (
     text.includes(" almuerzo ") ||
     text.includes(" almorzar ") ||
-    text.includes(" lunch ")
+    text.includes(" lunch ") ||
+    text.includes(" familia ") ||
+    text.includes(" familiar ")
   ) {
     return "lunch";
   }
@@ -124,31 +136,111 @@ function detectIntent(raw: string): SuggestionIntent {
   return "generic";
 }
 
+function detectTemporalSignals(raw: string): TemporalSignals {
+  const text = paddedText(raw);
+
+  const mentionsWeekend =
+    text.includes(" fin de semana ") ||
+    text.includes(" finde ") ||
+    text.includes(" finde semana ") ||
+    text.includes(" sabado ") ||
+    text.includes(" domingo ");
+
+  const mentionsWeekday =
+    text.includes(" entre semana ") ||
+    text.includes(" durante la semana ") ||
+    text.includes(" en semana ") ||
+    text.includes(" lunes ") ||
+    text.includes(" martes ") ||
+    text.includes(" miercoles ") ||
+    text.includes(" jueves ") ||
+    text.includes(" viernes ");
+
+  const mentionsSpecificWeekendDay =
+    text.includes(" sabado ") || text.includes(" domingo ");
+
+  const mentionsTwoWeekends =
+    text.includes(" dos fines de semana ") ||
+    text.includes(" dos findes ") ||
+    text.includes(" proximos dos fines ") ||
+    text.includes(" proximos dos fines de semana ") ||
+    text.includes(" siguientes dos fines ") ||
+    text.includes(" en dos fines ");
+
+  const mentionsMorning =
+    text.includes(" manana ") ||
+    text.includes(" temprano ") ||
+    text.includes(" morning ");
+
+  const mentionsAfternoon =
+    text.includes(" tarde ") || text.includes(" afternoon ");
+
+  const mentionsNight =
+    text.includes(" noche ") ||
+    text.includes(" nocturno ") ||
+    text.includes(" night ");
+
+  return {
+    mentionsWeekend,
+    mentionsWeekday,
+    mentionsSpecificWeekendDay,
+    mentionsTwoWeekends,
+    mentionsMorning,
+    mentionsAfternoon,
+    mentionsNight,
+  };
+}
+
 function getCandidateHours(
   intent: SuggestionIntent,
-  groupType: SuggestionGroupType
+  groupType: SuggestionGroupType,
+  signals: TemporalSignals
 ): number[] {
+  let hours: number[];
+
   switch (intent) {
     case "breakfast":
-      return [8, 9, 10];
+      hours = [8, 9, 10];
+      break;
     case "lunch":
-      return [13, 14, 15];
+      hours = [13, 14, 15];
+      break;
     case "dinner":
-      return [19, 20, 21];
+      hours = [19, 20, 21];
+      break;
     case "coffee":
-      return [16, 17, 18];
+      hours = [16, 17, 18];
+      break;
     case "sports":
-      return [18, 19, 20];
+      hours = [18, 19, 20, 21];
+      break;
     case "medical":
-      return [9, 11, 16];
+      hours = [9, 11, 16];
+      break;
     case "meeting":
-      return [9, 11, 16];
+      hours = [9, 11, 16];
+      break;
     default:
-      if (groupType === "pair") return [19, 20, 21];
-      if (groupType === "family") return [13, 18, 19];
-      if (groupType === "other") return [18, 19, 20];
-      return [9, 13, 19];
+      if (groupType === "pair") hours = [19, 20, 21];
+      else if (groupType === "family") hours = [13, 18, 19];
+      else if (groupType === "other") hours = [18, 19, 20];
+      else hours = [9, 13, 19];
+      break;
   }
+
+  if (signals.mentionsMorning) {
+    return hours.filter((hour) => hour <= 11);
+  }
+
+  if (signals.mentionsAfternoon) {
+    return hours.filter((hour) => hour >= 13 && hour <= 18);
+  }
+
+  if (signals.mentionsNight) {
+    return hours.filter((hour) => hour >= 18);
+  }
+
+  return hours;
 }
 
 function getDurationMinutes(intent: SuggestionIntent) {
@@ -164,18 +256,41 @@ function getDurationMinutes(intent: SuggestionIntent) {
   }
 }
 
-function getDayOffsets(intent: SuggestionIntent): number[] {
+function getDayOffsets(intent: SuggestionIntent, signals: TemporalSignals): number[] {
+  if (signals.mentionsTwoWeekends) {
+    return Array.from({ length: 14 }, (_, i) => i + 1);
+  }
+
+  if (signals.mentionsWeekend || signals.mentionsSpecificWeekendDay) {
+    return Array.from({ length: 10 }, (_, i) => i + 1);
+  }
+
   if (intent === "medical" || intent === "meeting") {
     return [1, 2, 3, 4, 5];
   }
 
-  return [1, 2, 3, 4, 5, 6];
+  return [1, 2, 3, 4, 5, 6, 7];
 }
 
-function shouldSkipDay(date: Date, intent: SuggestionIntent) {
+function shouldSkipDay(
+  date: Date,
+  intent: SuggestionIntent,
+  signals: TemporalSignals
+) {
+  const weekend = isWeekend(date);
+
   if (intent === "medical" || intent === "meeting") {
-    return isWeekend(date);
+    return weekend;
   }
+
+  if (signals.mentionsWeekend && !weekend) {
+    return true;
+  }
+
+  if (signals.mentionsWeekday && weekend) {
+    return true;
+  }
+
   return false;
 }
 
@@ -239,13 +354,13 @@ function getHourPreferenceBonus(intent: SuggestionIntent, hour: number) {
   }
 
   if (intent === "lunch") {
-    if (hour === 13) return 16;
+    if (hour === 13) return 18;
     if (hour === 14) return 12;
-    if (hour === 15) return 6;
+    if (hour === 15) return 4;
   }
 
   if (intent === "dinner") {
-    if (hour === 20) return 16;
+    if (hour === 20) return 18;
     if (hour === 19) return 12;
     if (hour === 21) return 8;
   }
@@ -257,9 +372,10 @@ function getHourPreferenceBonus(intent: SuggestionIntent, hour: number) {
   }
 
   if (intent === "sports") {
-    if (hour === 19) return 14;
-    if (hour === 20) return 10;
+    if (hour === 19) return 16;
+    if (hour === 20) return 12;
     if (hour === 18) return 8;
+    if (hour === 21) return 6;
   }
 
   if (intent === "medical" || intent === "meeting") {
@@ -271,60 +387,69 @@ function getHourPreferenceBonus(intent: SuggestionIntent, hour: number) {
   return 0;
 }
 
-
 function getContextualBoost(
   intent: SuggestionIntent,
   groupType: SuggestionGroupType,
   day: Date,
+  signals: TemporalSignals,
   rawText: string
 ) {
-  const text = ` ${normalizeText(rawText)} `;
-  let score = 0;
-
+  const text = paddedText(rawText);
   const weekend = isWeekend(day);
   const weekday = !weekend;
-  const mentionsWeekend =
-    text.includes(" fin de semana ") ||
-    text.includes(" finde ") ||
-    text.includes(" sabado ") ||
-    text.includes(" sábado ") ||
-    text.includes(" domingo ");
-  const mentionsWeek =
-    text.includes(" semana ") ||
-    text.includes(" weekday ") ||
-    text.includes(" entre semana ") ||
-    text.includes(" lunes ") ||
-    text.includes(" martes ") ||
-    text.includes(" miercoles ") ||
-    text.includes(" miércoles ") ||
-    text.includes(" jueves ") ||
-    text.includes(" viernes ");
+  let score = 0;
 
   if (groupType === "family") {
-    if (weekend) score += 18;
-    if (intent === "lunch") score += 8;
+    if (weekend) score += 26;
+    else score -= 6;
+    if (intent === "lunch") score += 10;
+    if (intent === "breakfast" && weekend) score += 6;
   }
 
   if (groupType === "pair") {
     if (intent === "dinner") score += 10;
-    if (weekday) score += 4;
+    if (weekday && (intent === "dinner" || intent === "coffee")) score += 4;
+    if (weekend && intent === "dinner") score += 4;
   }
 
   if (groupType === "other") {
-    if (weekend) score += 12;
-    if (intent === "sports") score += 6;
+    if (weekend) score += 14;
+    if (intent === "sports") score += 10;
+    if (weekday && intent === "sports") score -= 2;
   }
 
   if (intent === "breakfast" && weekday) score += 8;
-  if (intent === "lunch" && weekend) score += 10;
+  if (intent === "lunch" && weekend) score += 12;
   if (intent === "dinner" && weekend) score += 6;
+  if (intent === "medical" && weekend) score -= 30;
+  if (intent === "meeting" && weekend) score -= 24;
 
-  if (mentionsWeekend) {
-    score += weekend ? 18 : -14;
+  if (signals.mentionsWeekend) {
+    score += weekend ? 30 : -24;
   }
 
-  if (mentionsWeek) {
-    score += weekday ? 12 : -10;
+  if (signals.mentionsWeekday) {
+    score += weekday ? 18 : -20;
+  }
+
+  if (signals.mentionsSpecificWeekendDay && weekend) {
+    score += 6;
+  }
+
+  if (signals.mentionsTwoWeekends) {
+    const today = startOfDay(new Date());
+    const diffDays = Math.floor((startOfDay(day).getTime() - today.getTime()) / 86400000);
+
+    if (weekend) {
+      if (diffDays <= 7) score += 10;
+      else if (diffDays <= 14) score += 8;
+      else score -= 8;
+    }
+  }
+
+  if (text.includes(" familiar ") || text.includes(" familia ")) {
+    if (weekend) score += 8;
+    if (intent === "lunch") score += 6;
   }
 
   return score;
@@ -339,6 +464,27 @@ function getRecencyPenalty(now: Date, slot: Date) {
   return 0;
 }
 
+function getDistancePenaltyForExplicitTemporalSignal(
+  slot: Date,
+  signals: TemporalSignals
+) {
+  if (!(signals.mentionsWeekend || signals.mentionsWeekday || signals.mentionsTwoWeekends)) {
+    return 0;
+  }
+
+  const today = startOfDay(new Date());
+  const diffDays = Math.floor((startOfDay(slot).getTime() - today.getTime()) / 86400000);
+
+  if (signals.mentionsTwoWeekends) {
+    if (diffDays > 14) return 30;
+    if (diffDays > 10) return 12;
+    return 0;
+  }
+
+  if (diffDays > 10) return 12;
+  return 0;
+}
+
 function scoreSlot(params: {
   events: any[];
   now: Date;
@@ -348,13 +494,25 @@ function scoreSlot(params: {
   durationMinutes: number;
   groupType: SuggestionGroupType;
   rawText: string;
+  signals: TemporalSignals;
 }) {
-  const { events, now, slot, day, intent, durationMinutes, groupType, rawText } = params;
+  const {
+    events,
+    now,
+    slot,
+    day,
+    intent,
+    durationMinutes,
+    groupType,
+    rawText,
+    signals,
+  } = params;
 
   let score = 100;
 
   score += getHourPreferenceBonus(intent, slot.getHours());
   score -= getRecencyPenalty(now, slot);
+  score -= getDistancePenaltyForExplicitTemporalSignal(slot, signals);
 
   const eventsCountForDay = countEventsForDay(events, day);
   score -= eventsCountForDay * 10;
@@ -369,12 +527,17 @@ function scoreSlot(params: {
   }
 
   if (isWeekend(day)) {
-    if (intent === "breakfast" || intent === "lunch" || intent === "dinner" || intent === "sports") {
+    if (
+      intent === "breakfast" ||
+      intent === "lunch" ||
+      intent === "dinner" ||
+      intent === "sports"
+    ) {
       score += 6;
     }
   }
 
-  score += getContextualBoost(intent, groupType, day, rawText);
+  score += getContextualBoost(intent, groupType, day, signals, rawText);
 
   return score;
 }
@@ -386,16 +549,17 @@ export function getSuggestedTimeSlots(
 ): Suggestion[] {
   const now = new Date();
   const intent = detectIntent(rawText);
-  const hours = getCandidateHours(intent, groupType);
+  const signals = detectTemporalSignals(rawText);
+  const hours = getCandidateHours(intent, groupType, signals);
   const durationMinutes = getDurationMinutes(intent);
-  const offsets = getDayOffsets(intent);
+  const offsets = getDayOffsets(intent, signals);
 
   const candidates: Suggestion[] = [];
 
   for (const offset of offsets) {
     const day = addDays(startOfDay(now), offset);
 
-    if (shouldSkipDay(day, intent)) {
+    if (shouldSkipDay(day, intent, signals)) {
       continue;
     }
 
@@ -417,6 +581,7 @@ export function getSuggestedTimeSlots(
         durationMinutes,
         groupType,
         rawText,
+        signals,
       });
 
       const candidate: Suggestion = {
@@ -435,9 +600,7 @@ export function getSuggestedTimeSlots(
     }
   }
 
-  return candidates
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3);
+  return candidates.sort((a, b) => b.score - a.score).slice(0, 3);
 }
 
 export function getSuggestionContextLabel(
