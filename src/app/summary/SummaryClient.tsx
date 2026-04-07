@@ -1284,6 +1284,44 @@ const navigateFromQuickCapture = useCallback(
   [groups, activeGroupId, router]
 );
 
+const navigateFromSuggestedSlot = useCallback(
+  (value: string, suggestedDate: Date) => {
+    const raw = String(value || "").trim();
+    if (!raw) return;
+
+    const parsed = parseQuickCapture(raw);
+    const params = new URLSearchParams();
+
+    const smart = buildSmartInterpretation({
+      raw,
+      groups,
+      activeGroupId,
+    });
+
+    params.set("qc", "1");
+    params.set("capture_source", "summary");
+    params.set("raw_text", raw);
+
+    if (smart.intent === "group" && smart.groupId) {
+      params.set("type", "group");
+      params.set("groupId", smart.groupId);
+    } else {
+      params.set("type", "personal");
+    }
+
+    if (parsed.title) params.set("title", parsed.title);
+    if (parsed.notes) params.set("notes", parsed.notes);
+    if (parsed.durationMinutes) {
+      params.set("duration", String(parsed.durationMinutes));
+    }
+
+    params.set("date", suggestedDate.toISOString());
+
+    router.push(`/events/new/details?${params.toString()}`);
+  },
+  [groups, activeGroupId, router]
+);
+
   const handleQuickCaptureSubmit = useCallback(() => {
     const raw = quickCaptureValue.trim();
     if (!raw || quickCaptureBusy) return;
@@ -1562,16 +1600,7 @@ const navigateFromQuickCapture = useCallback(
       {timeSuggestions.map((s, i) => (
         <button
           key={i}
-          onClick={() => {
-            const params = new URLSearchParams();
-
-            params.set("qc", "1");
-            params.set("capture_source", "summary");
-            params.set("raw_text", quickCaptureValue);
-            params.set("date", s.date.toISOString());
-
-            router.push(`/events/new/details?${params.toString()}`);
-          }}
+          onClick={() => navigateFromSuggestedSlot(quickCaptureValue, s.date)}
           style={styles.captureSuggestionChip}
         >
           {s.label}

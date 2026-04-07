@@ -3,6 +3,7 @@
 export type Suggestion = {
   date: Date;
   label: string;
+  score: number;
 };
 
 type SuggestionGroupType = "personal" | "pair" | "family" | "other";
@@ -40,21 +41,6 @@ function startOfDay(date: Date) {
 function isWeekend(date: Date) {
   const day = date.getDay();
   return day === 0 || day === 6;
-}
-
-function isSlotFree(events: any[], start: Date, durationMinutes = 60) {
-  const end = new Date(start.getTime() + durationMinutes * 60000);
-
-  return !events.some((e) => {
-    const evStart = new Date(e?.start);
-    const evEnd = new Date(e?.end);
-
-    if (Number.isNaN(evStart.getTime()) || Number.isNaN(evEnd.getTime())) {
-      return false;
-    }
-
-    return start < evEnd && end > evStart;
-  });
 }
 
 function buildLabel(date: Date) {
@@ -189,6 +175,143 @@ function shouldSkipDay(date: Date, intent: SuggestionIntent) {
   return false;
 }
 
+function getEventWindow(event: any) {
+  const start = new Date(event?.start);
+  const end = new Date(event?.end);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return null;
+  }
+
+  return { start, end };
+}
+
+function isSlotFree(events: any[], start: Date, durationMinutes = 60) {
+  const end = new Date(start.getTime() + durationMinutes * 60000);
+
+  return !events.some((e) => {
+    const window = getEventWindow(e);
+    if (!window) return false;
+
+    return start < window.end && end > window.start;
+  });
+}
+
+function countEventsForDay(events: any[], day: Date) {
+  const dayStart = startOfDay(day);
+  const dayEnd = addDays(dayStart, 1);
+
+  return events.reduce((count, event) => {
+    const window = getEventWindow(event);
+    if (!window) return count;
+
+    const overlapsDay = window.start < dayEnd && window.end > dayStart;
+    return overlapsDay ? count + 1 : count;
+  }, 0);
+}
+
+function getNearestGapMinutes(events: any[], slotStart: Date, durationMinutes: number) {
+  const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
+  let nearestGap = Number.POSITIVE_INFINITY;
+
+  for (const event of events) {
+    const window = getEventWindow(event);
+    if (!window) continue;
+
+    const gapBefore = Math.abs(slotStart.getTime() - window.end.getTime()) / 60000;
+    const gapAfter = Math.abs(window.start.getTime() - slotEnd.getTime()) / 60000;
+
+    nearestGap = Math.min(nearestGap, gapBefore, gapAfter);
+  }
+
+  return nearestGap;
+}
+
+function getHourPreferenceBonus(intent: SuggestionIntent, hour: number) {
+  if (intent === "breakfast") {
+    if (hour === 9) return 16;
+    if (hour === 8) return 12;
+    if (hour === 10) return 8;
+  }
+
+  if (intent === "lunch") {
+    if (hour === 13) return 16;
+    if (hour === 14) return 12;
+    if (hour === 15) return 6;
+  }
+
+  if (intent === "dinner") {
+    if (hour === 20) return 16;
+    if (hour === 19) return 12;
+    if (hour === 21) return 8;
+  }
+
+  if (intent === "coffee") {
+    if (hour === 17) return 14;
+    if (hour === 16) return 10;
+    if (hour === 18) return 8;
+  }
+
+  if (intent === "sports") {
+    if (hour === 19) return 14;
+    if (hour === 20) return 10;
+    if (hour === 18) return 8;
+  }
+
+  if (intent === "medical" || intent === "meeting") {
+    if (hour === 11) return 14;
+    if (hour === 9) return 10;
+    if (hour === 16) return 8;
+  }
+
+  return 0;
+}
+
+function getRecencyPenalty(now: Date, slot: Date) {
+  const diffMinutes = (slot.getTime() - now.getTime()) / 60000;
+
+  if (diffMinutes < 180) return 80;
+  if (diffMinutes < 360) return 36;
+  if (diffMinutes < 720) return 16;
+  return 0;
+}
+
+function scoreSlot(params: {
+  events: any[];
+  now: Date;
+  slot: Date;
+  day: Date;
+  intent: SuggestionIntent;
+  durationMinutes: number;
+}) {
+  const { events, now, slot, day, intent, durationMinutes } = params;
+
+  let score = 100;
+
+  score += getHourPreferenceBonus(intent, slot.getHours());
+  score -= getRecencyPenalty(now, slot);
+
+  const eventsCountForDay = countEventsForDay(events, day);
+  score -= eventsCountForDay * 10;
+
+  const nearestGap = getNearestGapMinutes(events, slot, durationMinutes);
+  if (Number.isFinite(nearestGap)) {
+    if (nearestGap < 45) score -= 28;
+    else if (nearestGap < 90) score -= 14;
+    else if (nearestGap >= 180) score += 10;
+  } else {
+    score += 12;
+  }
+
+  if (isWeekend(day)) {
+    if (intent === "breakfast" || intent === "lunch" || intent === "dinner" || intent === "sports") {
+      score += 6;
+    }
+  }
+
+  return score;
+}
+
 export function getSuggestedTimeSlots(
   events: any[],
   groupType: SuggestionGroupType,
@@ -200,7 +323,7 @@ export function getSuggestedTimeSlots(
   const durationMinutes = getDurationMinutes(intent);
   const offsets = getDayOffsets(intent);
 
-  const suggestions: Suggestion[] = [];
+  const candidates: Suggestion[] = [];
 
   for (const offset of offsets) {
     const day = addDays(startOfDay(now), offset);
@@ -209,29 +332,43 @@ export function getSuggestedTimeSlots(
       continue;
     }
 
-    // 🔥 IMPORTANTE:
-    // solo tomamos el PRIMER horario bueno de cada día
+    let bestForDay: Suggestion | null = null;
+
     for (const hour of hours) {
       const slot = new Date(day);
       slot.setHours(hour, 0, 0, 0);
 
       if (slot.getTime() <= now.getTime()) continue;
+      if (!isSlotFree(events, slot, durationMinutes)) continue;
 
-      if (isSlotFree(events, slot, durationMinutes)) {
-        suggestions.push({
-          date: slot,
-          label: buildLabel(slot),
-        });
-        break;
+      const score = scoreSlot({
+        events,
+        now,
+        slot,
+        day,
+        intent,
+        durationMinutes,
+      });
+
+      const candidate: Suggestion = {
+        date: slot,
+        label: buildLabel(slot),
+        score,
+      };
+
+      if (!bestForDay || candidate.score > bestForDay.score) {
+        bestForDay = candidate;
       }
     }
 
-    if (suggestions.length >= 3) {
-      break;
+    if (bestForDay) {
+      candidates.push(bestForDay);
     }
   }
 
-  return suggestions;
+  return candidates
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
 }
 
 export function getSuggestionContextLabel(
