@@ -46,7 +46,8 @@ import { loadEventsForConflictPreflight } from "@/lib/conflictsDbBridge";
 import { createConflictResolutionLog } from "@/lib/conflictResolutionsLogDb";
 import { upsertProposalResponse } from "@/lib/proposalResponsesDb";
 import {
-  learnedGroupMatch as readLearnedGroupMatch,
+  canLearnFromInput,
+  getLearnedGroupMatch,
   learnGroupSelection,
 } from "@/lib/groupLearning";
 /* Helpers */
@@ -899,28 +900,29 @@ function NewEventDetailsInner() {
     return "Solo aparecerá en tu calendario.";
   }, [effectiveType, selectedGroup, isSharedProposal, proposalResponse]);
 
-const learnedGroupMatch = useMemo(() => {
-  if (effectiveType !== "group") return null;
-  if (autoSharedGroupId) return null;
-  if (sharedGroupDetectionState === "matched") return null;
 
-  const match = readLearnedGroupMatch(title);
-  if (!match?.groupId) return null;
+  const learningInput = useMemo(() => {
+    const raw = String(rawTextParam ?? "").trim();
+    if (raw) return raw;
+    return `${title} ${notes}`.trim();
+  }, [rawTextParam, title, notes]);
 
-  const existsInAvailableGroups = uniqueGroups.some(
-    (group) => group.id === match.groupId
-  );
+  const learnedGroupMatch = useMemo(() => {
+    if (effectiveType !== "group") return null;
+    if (autoSharedGroupId) return null;
+    if (sharedGroupDetectionState === "matched") return null;
 
-  if (!existsInAvailableGroups) return null;
-
-  return match;
-}, [
-  effectiveType,
-  autoSharedGroupId,
-  sharedGroupDetectionState,
-  title,
-  uniqueGroups,
-]);
+    return getLearnedGroupMatch({
+      title: learningInput,
+      availableGroupIds: uniqueGroups.map((group) => group.id),
+    });
+  }, [
+    effectiveType,
+    autoSharedGroupId,
+    sharedGroupDetectionState,
+    learningInput,
+    uniqueGroups,
+  ]);
 
   const learnedGroupCandidate = useMemo(() => {
     if (!learnedGroupMatch?.groupId) return null;
@@ -934,7 +936,7 @@ const learnedGroupMatch = useMemo(() => {
     if (effectiveType !== "group") return null;
     if (autoSharedGroupId) return null;
     if (sharedGroupDetectionState === "matched") return null;
-    if (learnedGroupCandidate?.id) return null;
+    if (learnedGroupCandidate?.id && learnedGroupMatch?.shouldAutoApply) return null;
 
     const suggestion = suggestGroupFromText(title, notes);
     if (!suggestion.type || suggestion.confidence <= 0) return null;
@@ -945,12 +947,15 @@ const learnedGroupMatch = useMemo(() => {
     autoSharedGroupId,
     sharedGroupDetectionState,
     learnedGroupCandidate,
+    learnedGroupMatch,
     title,
     notes,
   ]);
 
   const suggestedGroupCandidate = useMemo(() => {
-    if (learnedGroupCandidate?.id) return learnedGroupCandidate;
+    if (learnedGroupCandidate?.id && learnedGroupMatch?.shouldAutoApply) {
+      return learnedGroupCandidate;
+    }
     if (!groupSuggestion?.type) return null;
 
     const compatibleGroups = uniqueGroups.filter(
@@ -964,7 +969,7 @@ const learnedGroupMatch = useMemo(() => {
       compatibleGroups[0] ||
       null
     );
-  }, [learnedGroupCandidate, groupSuggestion, uniqueGroups, activeGroupId]);
+  }, [learnedGroupCandidate, learnedGroupMatch, groupSuggestion, uniqueGroups, activeGroupId]);
 
   useEffect(() => {
     if (effectiveType !== "group") {
@@ -989,6 +994,14 @@ const learnedGroupMatch = useMemo(() => {
     }
     if (groupManualSelectionRef.current) return;
 
+    const canAutoPreselect =
+      !!groupSuggestion?.type || !!learnedGroupMatch?.shouldAutoApply;
+
+    if (!canAutoPreselect) {
+      setSuggestedPreselectedGroupId("");
+      return;
+    }
+
     setSuggestedPreselectedGroupId(suggestedGroupCandidate.id);
 
     if (selectedGroupId !== suggestedGroupCandidate.id) {
@@ -1002,6 +1015,8 @@ const learnedGroupMatch = useMemo(() => {
     sharedGroupDetectionState,
     suggestedGroupCandidate,
     selectedGroupId,
+    groupSuggestion,
+    learnedGroupMatch,
   ]);
 
 
@@ -1026,7 +1041,7 @@ const learnedGroupMatch = useMemo(() => {
   const shouldLearnCurrentSelection = useMemo(() => {
     if (effectiveType !== "group") return false;
     if (!selectedGroup?.id) return false;
-    if (!title.trim()) return false;
+    if (!canLearnFromInput(learningInput)) return false;
 
     const normalizedType = normalizeDbGroupType(selectedGroup.type);
     return (
@@ -1034,7 +1049,7 @@ const learnedGroupMatch = useMemo(() => {
       normalizedType === "family" ||
       normalizedType === "other"
     );
-  }, [effectiveType, selectedGroup, title]);
+  }, [effectiveType, selectedGroup, learningInput]);
 
   const clearPostSaveState = (options?: { keepToast?: boolean }) => {
     setPostSaveActions(null);
@@ -1473,13 +1488,13 @@ if (isEditing && eventIdParam) {
   }
 }
 
-    if (savedEventId && shouldLearnCurrentSelection && selectedGroup?.id) {
-  learnGroupSelection(
-    title,
-    selectedGroup.id,
-    normalizeDbGroupType(selectedGroup.type) as "pair" | "family" | "other"
-  );
-}
+      if (savedEventId && shouldLearnCurrentSelection && selectedGroup?.id) {
+        learnGroupSelection({
+          title: learningInput,
+          groupId: selectedGroup.id,
+          groupType: normalizeDbGroupType(selectedGroup.type) as "pair" | "family" | "other",
+        });
+      }
 
       emitSyncPlansRefreshSignals();
 
@@ -2405,13 +2420,15 @@ sharedGroupDetectionState === "ambiguous" ? (
       color: "rgba(235,255,241,0.90)",
     }}
   >
-    {suggestedPreselectedGroupId && selectedGroup?.id === suggestedPreselectedGroupId ? (
+    {learnedGroupMatch?.shouldAutoApply &&
+    suggestedPreselectedGroupId &&
+    selectedGroup?.id === suggestedPreselectedGroupId ? (
       <>
-        🧠 Preseleccionamos <b>{learnedGroupCandidate.name || getGroupTypeLabel(learnedGroupCandidate.type)}</b> porque en planes parecidos normalmente eliges ese grupo. Puedes cambiarlo abajo si esta vez prefieres otro.
+        🧠 Basado en cómo organizas esto normalmente, preseleccionamos <b>{learnedGroupCandidate.name || getGroupTypeLabel(learnedGroupCandidate.type)}</b>. Puedes cambiarlo abajo si esta vez prefieres otro.
       </>
     ) : (
       <>
-        🧠 Aprendizaje activo: en planes parecidos normalmente eliges <b>{learnedGroupCandidate.name || getGroupTypeLabel(learnedGroupCandidate.type)}</b>. Puedes usarlo abajo si te hace sentido.
+        🧠 Sugerencia inteligente: en planes parecidos normalmente terminas usando <b>{learnedGroupCandidate.name || getGroupTypeLabel(learnedGroupCandidate.type)}</b>. Esta vez te lo mostramos como referencia, sin forzarlo.
       </>
     )}
   </div>

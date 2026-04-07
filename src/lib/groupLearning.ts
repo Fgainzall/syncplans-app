@@ -1,162 +1,261 @@
-// src/lib/groupLearning.ts
+export type LearnedGroupType = "pair" | "family" | "other";
+export type LearnedMatchStrength = "weak" | "strong";
 
 export type LearnedGroupEntry = {
   key: string;
   groupId: string;
-  groupType: string;
+  groupType: LearnedGroupType;
   count: number;
   lastUsedAt: string;
+  sampleTitle: string;
 };
 
 export type LearnedGroupMatch = {
   groupId: string;
-  groupType: string;
+  groupType: LearnedGroupType;
   count: number;
-  lastUsedAt: string;
+  score: number;
+  sampleTitle: string;
+  matchKind: "exact" | "contains" | "overlap";
+  strength: LearnedMatchStrength;
+  shouldAutoApply: boolean;
+  normalizedInput: string;
 };
 
 const STORAGE_KEY = "syncplans.group-learning.v1";
+const MAX_ENTRIES = 120;
+const AUTO_APPLY_MIN_COUNT = 2;
 
-function isBrowser(): boolean {
-  return typeof window !== "undefined";
+const STOPWORDS = new Set([
+  "de","del","la","las","el","los","y","o","a","al","en","con","para","por",
+  "un","una","unos","unas","mi","tu","su","que","lo","le","se"
+]);
+
+const GENERIC_BLOCKED_KEYS = new Set([
+  "evento",
+  "plan",
+  "planes",
+  "reunion",
+  "reuniones",
+  "llamada",
+  "llamadas",
+  "actividad",
+  "pendiente",
+  "cita"
+]);
+
+function canUseStorage() {
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
-function safeParse(raw: string | null): LearnedGroupEntry[] {
-  if (!raw) return [];
+function stripTemporalNoise(input: string): string {
+  return String(input ?? "")
+    .replace(/\b(?:a\s+las|alas)\b/gi, " ")
+    .replace(/\b(?:hoy|mañana|manana|pasado mañana|pasado manana)\b/gi, " ")
+    .replace(/\b(?:lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/gi, " ")
+    .replace(/\b(?:proximo|próximo|proxima|próxima|siguiente|otro|otra)\b/gi, " ")
+    .replace(/\b(?:semana|que|viene)\b/gi, " ")
+    .replace(/\b(?:am|pm)\b/gi, " ")
+    .replace(/\b\d{1,2}(?::\d{2})?\b/g, " ")
+    .replace(/\b\d+\s?(?:min|mins|m|h|hora|horas)\b/gi, " ");
+}
+
+export function normalizeLearningText(input: string): string {
+  return stripTemporalNoise(String(input ?? ""))
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenize(input: string): string[] {
+  return normalizeLearningText(input)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !STOPWORDS.has(token));
+}
+
+function buildLearningKey(input: string): string {
+  return tokenize(input).join(" ").trim();
+}
+
+export function canLearnFromInput(input: string): boolean {
+  const key = buildLearningKey(input);
+  if (!key) return false;
+  if (GENERIC_BLOCKED_KEYS.has(key)) return false;
+  if (key.length < 4) return false;
+  return true;
+}
+
+function readEntries(): LearnedGroupEntry[] {
+  if (!canUseStorage()) return [];
 
   try {
-    const parsed = JSON.parse(raw);
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
 
+    const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
 
-    return parsed.filter(
-      (item) =>
-        item &&
-        typeof item.key === "string" &&
-        typeof item.groupId === "string" &&
-        typeof item.groupType === "string" &&
-        typeof item.count === "number" &&
-        typeof item.lastUsedAt === "string"
-    );
+    return parsed
+      .map((item) => ({
+        key: String(item?.key ?? "").trim(),
+        groupId: String(item?.groupId ?? "").trim(),
+        groupType:
+          item?.groupType === "pair" || item?.groupType === "family"
+            ? item.groupType
+            : "other",
+        count: Math.max(1, Number(item?.count ?? 1) || 1),
+        lastUsedAt: String(item?.lastUsedAt ?? ""),
+        sampleTitle: String(item?.sampleTitle ?? "").trim(),
+      }))
+      .filter((item) => item.key && item.groupId);
   } catch {
     return [];
   }
 }
 
-function readAll(): LearnedGroupEntry[] {
-  if (!isBrowser()) return [];
-  return safeParse(window.localStorage.getItem(STORAGE_KEY));
+function writeEntries(entries: LearnedGroupEntry[]) {
+  if (!canUseStorage()) return;
+
+  try {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(entries.slice(0, MAX_ENTRIES))
+    );
+  } catch {
+    // ignore storage errors
+  }
 }
 
-function writeAll(entries: LearnedGroupEntry[]): void {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+function sortEntries(entries: LearnedGroupEntry[]) {
+  return [...entries].sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return String(b.lastUsedAt).localeCompare(String(a.lastUsedAt));
+  });
 }
 
-export function normalizeLearningText(input: string): string {
-  return (input || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+export function learnGroupSelection(input: {
+  title: string;
+  groupId: string;
+  groupType: LearnedGroupType;
+}) {
+  const title = String(input.title ?? "").trim();
+  const key = buildLearningKey(title);
 
-export function buildLearningKey(input: string): string {
-  const normalized = normalizeLearningText(input);
-  if (!normalized) return "";
-  return normalized;
-}
+  if (!canLearnFromInput(title) || !key) return;
 
-export function learnFromEvent(
-  input: string,
-  groupId: string | null | undefined,
-  groupType: string | null | undefined
-): void {
-  const key = buildLearningKey(input);
-
-  if (!key || !groupId || !groupType || !isBrowser()) return;
-
-  const entries = readAll();
+  const entries = readEntries();
   const now = new Date().toISOString();
-
   const existingIndex = entries.findIndex(
-    (entry) => entry.key === key && entry.groupId === groupId
+    (entry) => entry.key === key && entry.groupId === input.groupId
   );
 
   if (existingIndex >= 0) {
     const current = entries[existingIndex];
-
     entries[existingIndex] = {
       ...current,
-      groupType,
       count: current.count + 1,
       lastUsedAt: now,
+      groupType: input.groupType,
+      sampleTitle: title,
     };
   } else {
     entries.push({
       key,
-      groupId,
-      groupType,
+      groupId: input.groupId,
+      groupType: input.groupType,
       count: 1,
       lastUsedAt: now,
+      sampleTitle: title,
     });
   }
 
-  writeAll(entries);
+  writeEntries(sortEntries(entries));
 }
 
-export function getLearnedGroup(input: string): LearnedGroupEntry | null {
-  const key = buildLearningKey(input);
+export function getLearnedGroupMatch(input: {
+  title: string;
+  availableGroupIds?: string[];
+}): LearnedGroupMatch | null {
+  const title = String(input.title ?? "").trim();
+  const key = buildLearningKey(title);
+  if (!canLearnFromInput(title) || !key) return null;
 
-  if (!key || !isBrowser()) return null;
+  const allowed = new Set(
+    (input.availableGroupIds ?? [])
+      .map((id) => String(id ?? "").trim())
+      .filter(Boolean)
+  );
 
-  const entries = readAll().filter((entry) => entry.key === key);
+  const queryTokens = tokenize(title);
+  const entries = readEntries().filter(
+    (entry) => !allowed.size || allowed.has(entry.groupId)
+  );
 
-  if (!entries.length) return null;
+  let best: LearnedGroupMatch | null = null;
 
-  entries.sort((a, b) => {
-    if (b.count !== a.count) return b.count - a.count;
+  for (const entry of entries) {
+    const entryTokens = tokenize(entry.sampleTitle || entry.key);
+    let score = 0;
+    let matchKind: LearnedGroupMatch["matchKind"] | null = null;
 
-    return (
-      new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime()
-    );
-  });
+    if (entry.key === key) {
+      score += 100;
+      matchKind = "exact";
+    } else if (entry.key.includes(key) || key.includes(entry.key)) {
+      score += 70;
+      matchKind = "contains";
+    } else {
+      const overlap = queryTokens.filter((token) => entryTokens.includes(token)).length;
+      if (overlap > 0) {
+        score += overlap * 18;
+        matchKind = "overlap";
+      }
+    }
 
-  return entries[0] ?? null;
+    if (!matchKind) continue;
+
+    score += Math.min(entry.count * 5, 30);
+
+    const strength: LearnedMatchStrength =
+      entry.count >= AUTO_APPLY_MIN_COUNT ? "strong" : "weak";
+
+    const candidate: LearnedGroupMatch = {
+      groupId: entry.groupId,
+      groupType: entry.groupType,
+      count: entry.count,
+      score,
+      sampleTitle: entry.sampleTitle,
+      matchKind,
+      strength,
+      shouldAutoApply: strength === "strong",
+      normalizedInput: key,
+    };
+
+    if (!best || candidate.score > best.score) {
+      best = candidate;
+    }
+  }
+
+  if (!best) return null;
+  if (best.matchKind === "overlap" && best.score < 22) return null;
+
+  return best;
 }
 
-/**
- * Alias para que NewEventDetailsClient.tsx pueda importar
- * learnedGroupMatch sin cambiar tu archivo actual.
- */
+
 export function learnedGroupMatch(input: string): LearnedGroupMatch | null {
-  const learned = getLearnedGroup(input);
-
-  if (!learned) return null;
-
-  return {
-    groupId: learned.groupId,
-    groupType: learned.groupType,
-    count: learned.count,
-    lastUsedAt: learned.lastUsedAt,
-  };
+  return getLearnedGroupMatch({ title: input });
 }
 
-/**
- * Alias para que NewEventDetailsClient.tsx pueda importar
- * learnGroupSelection sin cambiar tu archivo actual.
- */
-export function learnGroupSelection(
-  input: string,
-  groupId: string | null | undefined,
-  groupType: string | null | undefined
-): void {
-  learnFromEvent(input, groupId, groupType);
-}
-
-export function clearGroupLearning(): void {
-  if (!isBrowser()) return;
-  window.localStorage.removeItem(STORAGE_KEY);
+export function clearGroupLearning() {
+  if (!canUseStorage()) return;
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // ignore
+  }
 }

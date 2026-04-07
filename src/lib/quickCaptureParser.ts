@@ -61,20 +61,7 @@ function toSentenceCase(input: string) {
 
 function capitalizeLikelyProperNames(input: string) {
   const smallWords = new Set([
-    "de",
-    "del",
-    "la",
-    "las",
-    "el",
-    "los",
-    "y",
-    "o",
-    "a",
-    "al",
-    "en",
-    "con",
-    "para",
-    "por",
+    "de","del","la","las","el","los","y","o","a","al","en","con","para","por",
   ]);
 
   const triggerPatterns = [
@@ -129,12 +116,7 @@ function extractHour(text: string): { hour: number | null; minutes: number } {
   if (period === "pm" && hour < 12) hour += 12;
   if (period === "am" && hour === 12) hour = 0;
 
-  // Si no especifica am/pm y es una hora típica de tarde/noche,
-  // la interpretamos como PM para que "8" sea 8pm, no 8am.
-  if (!period && hour >= 1 && hour <= 7) {
-    hour += 12;
-  }
-  if (!period && hour >= 8 && hour <= 11) {
+  if (!period && hour >= 1 && hour <= 11) {
     hour += 12;
   }
 
@@ -192,41 +174,27 @@ function extractDay(text: string): Date | null {
     normalized.includes("en dos semanas");
 
   const hasOtherDayIntent =
-    /\bel otro\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
-      normalized
-    ) ||
-    /\bla otra\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
-      normalized
-    );
+    /\bel otro\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(normalized) ||
+    /\bla otra\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(normalized);
 
   const hasNextDayIntent =
-    /\bproximo\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
-      normalized
-    ) ||
-    /\bproxima\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
-      normalized
-    ) ||
-    /\bsiguiente\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
-      normalized
-    );
+    /\bproximo\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(normalized) ||
+    /\bproxima\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(normalized) ||
+    /\bsiguiente\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(normalized);
 
   for (const [word, dayIndex] of Object.entries(DAYS_MAP)) {
-    const regex = new RegExp(`\b${word}\b`, "i");
-    if (!regex.test(text)) continue;
+    const regex = new RegExp(`\\b${normalizeForMatching(word)}\\b`, "i");
+    if (!regex.test(normalized)) continue;
 
     let result = nextOccurrenceOfDay(today, dayIndex);
 
-    if (
-      /siguiente semana|proxima semana|semana que viene|la otra semana|de la siguiente semana|de la proxima semana/i.test(text)
-    ) {
-      result = addDays(result, 7);
-    } else if (hasOtherDayIntent) {
+    if (hasNextWeekIntent || hasOtherDayIntent) {
       result = addDays(result, 7);
     } else if (hasNextDayIntent) {
       result = nextOccurrenceOfDay(addDays(today, 1), dayIndex);
     }
 
-    if (/en dos semanas/i.test(text)) {
+    if (/en dos semanas/i.test(normalized)) {
       result = addDays(result, 7);
     }
 
@@ -256,24 +224,14 @@ function extractDuration(text: string): number {
 
 function removeDateAndTimeTokens(text: string): string {
   return text
-    .replace(
-      /\b(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/gi,
-      " "
-    )
-    .replace(
-      /\b(proximo|próximo|proxima|próxima|siguiente|otro|otra)\b/gi,
-      " "
-    )
-    .replace(
-      /\b(semana|que|viene)\b/gi,
-      " "
-    )
-    .replace(
-      /\b(a\s+las|alas)\b/gi,
-      " "
-    )
+    .replace(/\b(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/gi, " ")
+    .replace(/\b(proximo|próximo|proxima|próxima|siguiente|otro|otra)\b/gi, " ")
+    .replace(/\b(semana|que|viene)\b/gi, " ")
+    .replace(/\b(a\s+las|alas)\b/gi, " ")
     .replace(/\b(\d{1,2})(?::\d{2})?\s?(am|pm)?\b/gi, " ")
     .replace(/\b(\d+)\s?(min|mins|m|h|hora|horas)\b/gi, " ")
+    .replace(/\b(el|la|los|las)\b(?=\s*$)/gi, " ")
+    .replace(/\b(el|la)\b(?=\s+(jueves|viernes|martes|miercoles|miércoles|lunes|domingo|sabado|sábado)\b)/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -335,7 +293,7 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
   const raw = String(input || "").trim();
   const normalized = normalizeText(raw);
 
-  const date = extractDay(normalized);
+  const date = extractDay(raw);
   const time = extractHour(normalized);
   const duration = extractDuration(normalized);
 
