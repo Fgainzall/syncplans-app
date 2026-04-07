@@ -8,9 +8,9 @@ export type Suggestion = {
 type SuggestionGroupType = "personal" | "pair" | "family" | "other";
 
 type SuggestionIntent =
-  | "dinner"
-  | "lunch"
   | "breakfast"
+  | "lunch"
+  | "dinner"
   | "coffee"
   | "sports"
   | "medical"
@@ -69,12 +69,11 @@ function detectIntent(raw: string): SuggestionIntent {
   const text = ` ${normalizeText(raw)} `;
 
   if (
-    text.includes(" cena ") ||
-    text.includes(" cenar ") ||
-    text.includes(" comida en la noche ") ||
-    text.includes(" dinner ")
+    text.includes(" desayuno ") ||
+    text.includes(" desayunar ") ||
+    text.includes(" breakfast ")
   ) {
-    return "dinner";
+    return "breakfast";
   }
 
   if (
@@ -86,16 +85,15 @@ function detectIntent(raw: string): SuggestionIntent {
   }
 
   if (
-    text.includes(" desayuno ") ||
-    text.includes(" desayunar ") ||
-    text.includes(" breakfast ")
+    text.includes(" cena ") ||
+    text.includes(" cenar ") ||
+    text.includes(" dinner ")
   ) {
-    return "breakfast";
+    return "dinner";
   }
 
   if (
     text.includes(" cafe ") ||
-    text.includes(" café ") ||
     text.includes(" cafecito ") ||
     text.includes(" coffee ")
   ) {
@@ -105,35 +103,30 @@ function detectIntent(raw: string): SuggestionIntent {
   if (
     text.includes(" fulbito ") ||
     text.includes(" futbol ") ||
-    text.includes(" fútbol ") ||
     text.includes(" padel ") ||
-    text.includes(" pádel ") ||
     text.includes(" tenis ") ||
     text.includes(" gym ") ||
-    text.includes(" entrenamiento ") ||
-    text.includes(" deporte ")
+    text.includes(" deporte ") ||
+    text.includes(" entrenamiento ")
   ) {
     return "sports";
   }
 
   if (
     text.includes(" medico ") ||
-    text.includes(" médico ") ||
     text.includes(" doctor ") ||
     text.includes(" dentista ") ||
-    text.includes(" cita medica ") ||
-    text.includes(" cita médica ")
+    text.includes(" cita medica ")
   ) {
     return "medical";
   }
 
   if (
     text.includes(" reunion ") ||
-    text.includes(" reunión ") ||
     text.includes(" meeting ") ||
     text.includes(" llamada ") ||
-    text.includes(" call ") ||
-    text.includes(" zoom ")
+    text.includes(" zoom ") ||
+    text.includes(" trabajo ")
   ) {
     return "meeting";
   }
@@ -141,64 +134,58 @@ function detectIntent(raw: string): SuggestionIntent {
   return "generic";
 }
 
-function getHoursByIntent(
+function getCandidateHours(
   intent: SuggestionIntent,
   groupType: SuggestionGroupType
 ): number[] {
-  if (intent === "dinner") return [19, 20, 21];
-  if (intent === "lunch") return [13, 14, 15];
-  if (intent === "breakfast") return [8, 9, 10];
-  if (intent === "coffee") return [16, 17, 18];
-  if (intent === "sports") return [18, 19, 20];
-  if (intent === "medical") return [9, 11, 16];
-  if (intent === "meeting") return [9, 11, 16];
-
-  if (groupType === "pair") return [19, 20, 21];
-  if (groupType === "family") return [13, 18, 19];
-  if (groupType === "other") return [18, 19, 20];
-
-  return [9, 13, 19];
+  switch (intent) {
+    case "breakfast":
+      return [8, 9, 10];
+    case "lunch":
+      return [13, 14, 15];
+    case "dinner":
+      return [19, 20, 21];
+    case "coffee":
+      return [16, 17, 18];
+    case "sports":
+      return [18, 19, 20];
+    case "medical":
+      return [9, 11, 16];
+    case "meeting":
+      return [9, 11, 16];
+    default:
+      if (groupType === "pair") return [19, 20, 21];
+      if (groupType === "family") return [13, 18, 19];
+      if (groupType === "other") return [18, 19, 20];
+      return [9, 13, 19];
+  }
 }
 
-function getDayOffsetsByIntent(
-  intent: SuggestionIntent,
-  groupType: SuggestionGroupType
-): number[] {
-  if (intent === "lunch" && groupType === "family") {
-    return [1, 2, 4, 5, 6];
+function getDurationMinutes(intent: SuggestionIntent) {
+  switch (intent) {
+    case "dinner":
+      return 120;
+    case "lunch":
+    case "breakfast":
+    case "sports":
+      return 90;
+    default:
+      return 60;
   }
+}
 
-  if (intent === "dinner" && groupType === "pair") {
+function getDayOffsets(intent: SuggestionIntent): number[] {
+  if (intent === "medical" || intent === "meeting") {
     return [1, 2, 3, 4, 5];
   }
 
-  return [1, 2, 3, 4, 5];
+  return [1, 2, 3, 4, 5, 6];
 }
 
-function getDurationByIntent(intent: SuggestionIntent): number {
-  if (intent === "medical") return 60;
-  if (intent === "meeting") return 60;
-  if (intent === "coffee") return 60;
-  if (intent === "breakfast") return 90;
-  if (intent === "lunch") return 90;
-  if (intent === "sports") return 90;
-  if (intent === "dinner") return 120;
-  return 60;
-}
-
-function shouldSkipDay(
-  day: Date,
-  intent: SuggestionIntent,
-  groupType: SuggestionGroupType
-) {
+function shouldSkipDay(date: Date, intent: SuggestionIntent) {
   if (intent === "medical" || intent === "meeting") {
-    return isWeekend(day);
+    return isWeekend(date);
   }
-
-  if (intent === "lunch" && groupType === "family") {
-    return false;
-  }
-
   return false;
 }
 
@@ -209,26 +196,26 @@ export function getSuggestedTimeSlots(
 ): Suggestion[] {
   const now = new Date();
   const intent = detectIntent(rawText);
-  const hours = getHoursByIntent(intent, groupType);
-  const durationMinutes = getDurationByIntent(intent);
-  const dayOffsets = getDayOffsetsByIntent(intent, groupType);
+  const hours = getCandidateHours(intent, groupType);
+  const durationMinutes = getDurationMinutes(intent);
+  const offsets = getDayOffsets(intent);
 
   const suggestions: Suggestion[] = [];
 
-  for (const offset of dayOffsets) {
+  for (const offset of offsets) {
     const day = addDays(startOfDay(now), offset);
 
-    if (shouldSkipDay(day, intent, groupType)) {
+    if (shouldSkipDay(day, intent)) {
       continue;
     }
 
+    // 🔥 IMPORTANTE:
+    // solo tomamos el PRIMER horario bueno de cada día
     for (const hour of hours) {
       const slot = new Date(day);
       slot.setHours(hour, 0, 0, 0);
 
-      if (slot.getTime() <= now.getTime()) {
-        continue;
-      }
+      if (slot.getTime() <= now.getTime()) continue;
 
       if (isSlotFree(events, slot, durationMinutes)) {
         suggestions.push({
@@ -239,7 +226,9 @@ export function getSuggestedTimeSlots(
       }
     }
 
-    if (suggestions.length >= 3) break;
+    if (suggestions.length >= 3) {
+      break;
+    }
   }
 
   return suggestions;
@@ -251,16 +240,24 @@ export function getSuggestionContextLabel(
 ): string | null {
   const intent = detectIntent(rawText);
 
-  if (intent === "dinner") return "Opciones para cenar";
-  if (intent === "lunch") return "Opciones para almorzar";
-  if (intent === "breakfast") return "Opciones para desayunar";
-  if (intent === "coffee") return "Opciones para tomar café";
-  if (intent === "sports") return "Horarios que podrían servir";
-  if (intent === "medical") return "Bloques razonables para esta cita";
-  if (intent === "meeting") return "Horarios que podrían servir";
-
-  if (groupType === "pair") return "Tienen libre:";
-  if (groupType === "family") return "Podría funcionar en:";
-  if (groupType === "other") return "Opciones disponibles:";
-  return "Podría funcionar en:";
+  switch (intent) {
+    case "breakfast":
+      return "Opciones para desayunar";
+    case "lunch":
+      return "Opciones para almorzar";
+    case "dinner":
+      return "Opciones para cenar";
+    case "coffee":
+      return "Opciones para tomar café";
+    case "sports":
+      return "Horarios que podrían servir";
+    case "medical":
+      return "Bloques razonables para esta cita";
+    case "meeting":
+      return "Horarios que podrían servir";
+    default:
+      if (groupType === "pair") return "Tienen libre:";
+      if (groupType === "family") return "Podría funcionar en:";
+      return "Opciones disponibles:";
+  }
 }
