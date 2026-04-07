@@ -85,7 +85,114 @@ type QuickCaptureExample = {
   label: string;
   value: string;
 };
+type SmartInterpretation = {
+  intent: "personal" | "group";
+  groupId: string | null;
+  confidence: "low" | "medium" | "high";
+  reason: "learned" | "social_hint" | "active_group" | "none";
+};
 
+function textSuggestsSharedPlan(raw: string) {
+  const normalized = String(raw ?? "").toLowerCase();
+
+  return (
+    normalized.includes(" con ") ||
+    normalized.includes(" juntos") ||
+    normalized.includes(" juntas") ||
+    normalized.includes(" en casa de ") ||
+    normalized.includes(" junto a ")
+  );
+}
+
+function buildSmartInterpretation(input: {
+  raw: string;
+  groups: GroupRow[];
+  activeGroupId: string | null;
+}): SmartInterpretation {
+  const raw = String(input.raw ?? "").trim();
+  const groups = Array.isArray(input.groups) ? input.groups : [];
+  const activeGroupId = String(input.activeGroupId ?? "").trim() || null;
+
+  const learned = learnedGroupMatch(raw);
+  const learnedGroupId = String(learned?.groupId ?? "").trim();
+  const learnedGroupStillExists =
+    !!learnedGroupId &&
+    groups.some((group) => String(group.id) === learnedGroupId);
+
+  if (learnedGroupStillExists) {
+    return {
+      intent: "group",
+      groupId: learnedGroupId,
+      confidence: learned?.shouldAutoApply ? "high" : "medium",
+      reason: "learned",
+    };
+  }
+
+  if (textSuggestsSharedPlan(raw)) {
+    const fallbackGroupId =
+      activeGroupId ||
+      (groups.length === 1 ? String(groups[0]?.id ?? "").trim() || null : null);
+
+    if (fallbackGroupId) {
+      return {
+        intent: "group",
+        groupId: fallbackGroupId,
+        confidence: "medium",
+        reason: "social_hint",
+      };
+    }
+  }
+
+  if (activeGroupId) {
+    return {
+      intent: "group",
+      groupId: activeGroupId,
+      confidence: "low",
+      reason: "active_group",
+    };
+  }
+
+  return {
+    intent: "personal",
+    groupId: null,
+    confidence: "low",
+    reason: "none",
+  };
+}
+
+function getSmartInterpretationLabel(
+  interpretation: SmartInterpretation | null,
+  groups: GroupRow[]
+) {
+  if (!interpretation) return null;
+
+  if (interpretation.intent === "personal") {
+    return "→ Se creará como evento personal";
+  }
+
+  const group =
+    groups.find(
+      (candidate) => String(candidate.id) === String(interpretation.groupId ?? "")
+    ) ?? null;
+
+  const groupLabel = group ? humanGroupName(group) : "grupo";
+
+  if (interpretation.reason === "learned") {
+    return interpretation.confidence === "high"
+      ? `→ Ya entendí que normalmente esto va a ${groupLabel}`
+      : `→ Esto probablemente va a ${groupLabel}`;
+  }
+
+  if (interpretation.reason === "social_hint") {
+    return `→ Suena a plan compartido · usaré ${groupLabel}`;
+  }
+
+  if (interpretation.reason === "active_group") {
+    return `→ Tomaré ${groupLabel} como contexto inicial`;
+  }
+
+  return `→ Se creará como evento de grupo`;
+}
 function safeDate(iso?: string | null) {
   if (!iso) return null;
   const d = new Date(iso);
@@ -671,7 +778,20 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     () => formatQuickCapturePreview(quickCaptureValue),
     [quickCaptureValue]
   );
+const smartInterpretation = useMemo(() => {
+  const raw = quickCaptureValue.trim();
+  if (!raw) return null;
 
+  return buildSmartInterpretation({
+    raw,
+    groups,
+    activeGroupId,
+  });
+}, [quickCaptureValue, groups, activeGroupId]);
+
+const smartInterpretationLabel = useMemo(() => {
+  return getSmartInterpretationLabel(smartInterpretation, groups);
+}, [smartInterpretation, groups]);
   const quickCaptureHeadline = useMemo(() => {
     if (!activeGroupId) return "Escribe lo que tienes en mente";
     if (activeGroupType === "pair") return "Planéalo en una línea";
@@ -995,41 +1115,42 @@ useEffect(() => {
     router.push("/conflicts/detected");
   }, [router, conflictAlert]);
 
-  const navigateFromQuickCapture = useCallback(
-    (value: string) => {
-      const raw = String(value || "").trim();
-      if (!raw) return;
+const navigateFromQuickCapture = useCallback(
+  (value: string) => {
+    const raw = String(value || "").trim();
+    if (!raw) return;
 
-      const parsed = parseQuickCapture(raw);
-      const params = new URLSearchParams();
+    const parsed = parseQuickCapture(raw);
+    const params = new URLSearchParams();
 
-      const learnedMatch = learnedGroupMatch(raw);
-      const learnedGroupId = String(learnedMatch?.groupId ?? "").trim();
-      const learnedGroupStillExists =
-        !!learnedGroupId && groups.some((group) => String(group.id) === learnedGroupId);
+    const smart = buildSmartInterpretation({
+      raw,
+      groups,
+      activeGroupId,
+    });
 
-      params.set("qc", "1");
-      params.set("capture_source", "summary");
-      params.set("raw_text", raw);
+    params.set("qc", "1");
+    params.set("capture_source", "summary");
+    params.set("raw_text", raw);
 
-      if (learnedGroupStillExists) {
-        params.set("type", "group");
-        params.set("groupId", learnedGroupId);
-      } else {
-        params.set("type", "personal");
-      }
+    if (smart.intent === "group" && smart.groupId) {
+      params.set("type", "group");
+      params.set("groupId", smart.groupId);
+    } else {
+      params.set("type", "personal");
+    }
 
-      if (parsed.title) params.set("title", parsed.title);
-      if (parsed.date) params.set("date", parsed.date.toISOString());
-      if (parsed.durationMinutes) {
-        params.set("duration", String(parsed.durationMinutes));
-      }
-      if (parsed.notes) params.set("notes", parsed.notes);
+    if (parsed.title) params.set("title", parsed.title);
+    if (parsed.date) params.set("date", parsed.date.toISOString());
+    if (parsed.durationMinutes) {
+      params.set("duration", String(parsed.durationMinutes));
+    }
+    if (parsed.notes) params.set("notes", parsed.notes);
 
-      router.push(`/events/new/details?${params.toString()}`);
-    },
-    [groups, router]
-  );
+    router.push(`/events/new/details?${params.toString()}`);
+  },
+  [groups, activeGroupId, router]
+);
 
   const handleQuickCaptureSubmit = useCallback(() => {
     const raw = quickCaptureValue.trim();
@@ -1357,12 +1478,18 @@ useEffect(() => {
                 </div>
               </div>
 
-              <div style={styles.capturePreviewCard}>
-                <div style={styles.capturePreviewLabel}>Vista rápida</div>
-                <div style={styles.capturePreviewValue}>
-                  {quickCapturePreview || "Escribe arriba y te mostraré cómo quedará."}
-                </div>
-              </div>
+            <div style={styles.capturePreviewCard}>
+  <div style={styles.capturePreviewLabel}>Vista rápida</div>
+  <div style={styles.capturePreviewValue}>
+    {quickCapturePreview || "Escribe arriba y te mostraré cómo quedará."}
+  </div>
+
+  {smartInterpretationLabel ? (
+    <div style={styles.captureInterpretationHint}>
+      {smartInterpretationLabel}
+    </div>
+  ) : null}
+</div>
             </div>
           </Card>
 
@@ -2054,6 +2181,13 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.55,
     color: "rgba(255,255,255,0.9)",
   },
+  captureInterpretationHint: {
+  marginTop: 6,
+  fontSize: 12,
+  lineHeight: 1.4,
+  color: "rgba(125,211,252,0.92)",
+  fontWeight: 800,
+},
   conflictBanner: {
     width: "100%",
     marginBottom: 12,
