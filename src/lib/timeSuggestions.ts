@@ -58,13 +58,32 @@ function isWeekend(date: Date) {
 }
 
 function buildLabel(date: Date) {
-  return date.toLocaleString([], {
+  return date.toLocaleString("es-PE", {
     weekday: "short",
+    day: "numeric",
+    month: "short",
     hour: "2-digit",
     minute: "2-digit",
   });
 }
+function cleanTemporalNoise(raw: string): string {
+  let text = raw;
 
+  // casos específicos primero (más largos → primero)
+  text = text.replace(/en dos fines de semana/gi, "");
+  text = text.replace(/dos fines de semana/gi, "");
+  text = text.replace(/en dos fines/gi, "");
+  text = text.replace(/en dos fines de/gi, "");
+
+  // genéricos
+  text = text.replace(/fin de semana/gi, "");
+  text = text.replace(/finde/gi, "");
+
+  // limpiar espacios
+  text = text.replace(/\s+/g, " ").trim();
+
+  return text;
+}
 function detectIntent(raw: string): SuggestionIntent {
   const text = paddedText(raw);
 

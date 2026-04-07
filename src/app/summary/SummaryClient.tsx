@@ -719,13 +719,29 @@ function formatQuickCapturePreview(input: string): string | null {
     parts.push(`${dateLabel} · ${timeLabel}`);
   }
 
-  if (parsed.notes) {
-    parts.push(parsed.notes);
-  }
+const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
+
+if (cleanedNotes) {
+  parts.push(cleanedNotes);
+}
 
   return parts.join(" — ");
 }
+function cleanTemporalNoise(raw: string): string {
+  let text = String(raw || "").trim();
 
+  text = text.replace(/en dos fines de semana/gi, "");
+  text = text.replace(/dos fines de semana/gi, "");
+  text = text.replace(/en dos fines de/gi, "en dos fines");
+  text = text.replace(/en dos fines/gi, "en dos fines");
+  text = text.replace(/fin de semana/gi, "");
+  text = text.replace(/finde/gi, "");
+
+  text = text.replace(/\s+/g, " ").trim();
+  text = text.replace(/^[-–—,:;\s]+/, "").replace(/[-–—,:;\s]+$/, "");
+
+  return text;
+}
 function buildCaptureShareUrl(input: string, source: string): string {
   const raw = String(input || "").trim();
   const params = new URLSearchParams();
@@ -1251,7 +1267,7 @@ const navigateFromQuickCapture = useCallback(
 
     const parsed = parseQuickCapture(raw);
     const params = new URLSearchParams();
-
+const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
     const smart = buildSmartInterpretation({
       raw,
       groups,
@@ -1274,7 +1290,7 @@ const navigateFromQuickCapture = useCallback(
     if (parsed.durationMinutes) {
       params.set("duration", String(parsed.durationMinutes));
     }
-    if (parsed.notes) params.set("notes", parsed.notes);
+    if (cleanedNotes) params.set("notes", cleanedNotes);
 
     router.push(`/events/new/details?${params.toString()}`);
   },
@@ -1288,7 +1304,7 @@ const navigateFromSuggestedSlot = useCallback(
 
     const parsed = parseQuickCapture(raw);
     const params = new URLSearchParams();
-
+const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
     const smart = buildSmartInterpretation({
       raw,
       groups,
@@ -1307,7 +1323,7 @@ const navigateFromSuggestedSlot = useCallback(
     }
 
     if (parsed.title) params.set("title", parsed.title);
-    if (parsed.notes) params.set("notes", parsed.notes);
+if (cleanedNotes) params.set("notes", cleanedNotes);
     if (parsed.durationMinutes) {
       params.set("duration", String(parsed.durationMinutes));
     }
