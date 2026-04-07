@@ -911,6 +911,7 @@ function NewEventDetailsInner() {
     if (effectiveType !== "group") return null;
     if (autoSharedGroupId) return null;
     if (sharedGroupDetectionState === "matched") return null;
+    if (!learningInput || learningInput.trim().length < 4) return null;
 
     return getLearnedGroupMatch({
       title: learningInput,

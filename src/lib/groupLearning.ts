@@ -24,11 +24,42 @@ export type LearnedGroupMatch = {
 
 const STORAGE_KEY = "syncplans.group-learning.v1";
 const MAX_ENTRIES = 120;
-const AUTO_APPLY_MIN_COUNT = 2;
+const AUTO_APPLY_MIN_COUNT = 3;
 
 const STOPWORDS = new Set([
-  "de","del","la","las","el","los","y","o","a","al","en","con","para","por",
-  "un","una","unos","unas","mi","tu","su","que","lo","le","se"
+  "de",
+  "del",
+  "la",
+  "las",
+  "el",
+  "los",
+  "y",
+  "o",
+  "a",
+  "al",
+  "en",
+  "con",
+  "para",
+  "por",
+  "un",
+  "una",
+  "unos",
+  "unas",
+  "mi",
+  "tu",
+  "su",
+  "que",
+  "lo",
+  "le",
+  "se",
+  "conmigo",
+  "contigo",
+  "junto",
+  "juntos",
+  "juntas",
+  "hacer",
+  "ir",
+  "ver",
 ]);
 
 const GENERIC_BLOCKED_KEYS = new Set([
@@ -41,7 +72,7 @@ const GENERIC_BLOCKED_KEYS = new Set([
   "llamadas",
   "actividad",
   "pendiente",
-  "cita"
+  "cita",
 ]);
 
 function canUseStorage() {
@@ -84,8 +115,20 @@ function buildLearningKey(input: string): string {
 export function canLearnFromInput(input: string): boolean {
   const key = buildLearningKey(input);
   if (!key) return false;
-  if (GENERIC_BLOCKED_KEYS.has(key)) return false;
+
   if (key.length < 4) return false;
+
+  const tokens = key.split(" ").filter(Boolean);
+
+  if (tokens.length === 1) {
+    if (GENERIC_BLOCKED_KEYS.has(tokens[0])) return false;
+    return false;
+  }
+
+  const meaningfulTokens = tokens.filter((token) => !GENERIC_BLOCKED_KEYS.has(token));
+
+  if (meaningfulTokens.length === 0) return false;
+
   return true;
 }
 
@@ -218,7 +261,7 @@ export function getLearnedGroupMatch(input: {
 
     if (!matchKind) continue;
 
-    score += Math.min(entry.count * 5, 30);
+    score += Math.min(entry.count * 8, 40);
 
     const strength: LearnedMatchStrength =
       entry.count >= AUTO_APPLY_MIN_COUNT ? "strong" : "weak";
@@ -245,7 +288,6 @@ export function getLearnedGroupMatch(input: {
 
   return best;
 }
-
 
 export function learnedGroupMatch(input: string): LearnedGroupMatch | null {
   return getLearnedGroupMatch({ title: input });
