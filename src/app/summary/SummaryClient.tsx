@@ -275,7 +275,7 @@ function getSmartInterpretationLabel(
   if (!interpretation) return null;
 
   if (interpretation.intent === "personal") {
-    return "→ Se creará como evento personal";
+    return "→ Esto quedará como plan personal";
   }
 
   const group =
@@ -287,19 +287,19 @@ function getSmartInterpretationLabel(
 
   if (interpretation.reason === "learned") {
     return interpretation.confidence === "high"
-      ? `→ Ya entendí que normalmente esto va a ${groupLabel}`
-      : `→ Esto probablemente va a ${groupLabel}`;
+      ? `→ Normalmente esto termina en ${groupLabel}`
+      : `→ Esto probablemente encaja en ${groupLabel}`;
   }
 
   if (interpretation.reason === "social_hint") {
-    return `→ Suena a plan compartido · usaré ${groupLabel}`;
+    return `→ Suena a plan compartido · lo prepararé en ${groupLabel}`;
   }
 
   if (interpretation.reason === "active_group") {
-    return `→ Tomaré ${groupLabel} como contexto inicial`;
+    return `→ Tomaré ${groupLabel} como punto de partida`;
   }
 
-  return `→ Se creará como evento de grupo`;
+  return `→ Esto quedará como plan compartido`;
 }
 function safeDate(iso?: string | null) {
   return parseIsoLike(iso ?? null);
@@ -973,10 +973,10 @@ const timeSuggestionsLabel = useMemo(() => {
 
   const quickCaptureSubcopy = useMemo(() => {
     if (!activeGroupId) {
-      return "Escribe algo simple y lo convierto en un plan listo para revisar.";
+      return "Escribe algo simple y te lo dejo listo para revisarlo sin dar vueltas.";
     }
 
-    return `Lo prepararé con el contexto de ${activeLabel} para que entres directo al detalle.`;
+    return `Lo prepararé con el contexto de ${activeLabel} para que entres directo a revisarlo.`;
   }, [activeGroupId, activeLabel]);
 
   const normalizedEvents = useMemo(() => {
@@ -1652,8 +1652,8 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
             <div style={styles.captureShareHelperWrap}>
               <div style={styles.captureShareHelperTitle}>Llévalo fuera de la app</div>
               <div style={styles.captureShareHelperText}>
-                Comparte una intención por WhatsApp o por link. La otra persona abre
-                SyncPlans, la revisa y la convierte en plan sin perder el contexto.
+                Comparte una idea por WhatsApp o por link. La otra persona la abre,
+                la entiende rápido y la convierte en plan sin perder el contexto.
               </div>
               {quickCaptureValue.trim() ? (
                 <div style={styles.captureShareHelperExample}>
@@ -1668,7 +1668,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 onChange={(event) => setQuickCaptureValue(event.target.value)}
                 onKeyDown={handleQuickCaptureKeyDown}
                 placeholder={
-                  activeGroupId ? "Ej: cena viernes 8pm" : "Ej: gym mañana 7"
+                  activeGroupId ? "Ej: cena viernes 8pm" : "Ej: gym mañana 7am"
                 }
                 style={styles.captureInput}
                 className="spSum-captureInput"
@@ -1689,7 +1689,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 }}
                 className="spSum-captureButton"
               >
-                {quickCaptureBusy ? "Preparando…" : "Seguir"}
+                {quickCaptureBusy ? "Preparando…" : "Continuar"}
               </button>
             </div>
 
@@ -1712,7 +1712,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
             <div style={styles.capturePreviewCard}>
   <div style={styles.capturePreviewLabel}>Vista rápida</div>
   <div style={styles.capturePreviewValue}>
-    {quickCapturePreview || "Escribe arriba y te mostraré cómo quedará."}
+    {quickCapturePreview || "Escribe arriba y te mostraré cómo se entiende este plan."}
   </div>
 
   {smartInterpretationLabel ? (
@@ -1753,9 +1753,9 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 <div style={styles.conflictBannerLeft}>
                   <div style={styles.conflictBannerEyebrow}>Atención</div>
                   <div style={styles.conflictBannerTitle}>
-                    Tienes {conflictAlert.count} conflicto{conflictAlert.count === 1 ? "" : "s"} pendiente{conflictAlert.count === 1 ? "" : "s"} de decisión
+                    Tienes {conflictAlert.count} conflicto{conflictAlert.count === 1 ? "" : "s"} pendiente{conflictAlert.count === 1 ? "" : "s"} por resolver
                   </div>
-                  <div style={styles.conflictBannerSub}>Revísalo antes de que genere más fricción.</div>
+                  <div style={styles.conflictBannerSub}>Revísalo ahora para evitar cruces y conversaciones innecesarias.</div>
                 </div>
 
                 <div style={styles.conflictBannerCta}>Revisar</div>
@@ -1807,13 +1807,13 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               <div style={styles.decisionChipsRow}>
                 {decisionSummary.pendingProposals > 0 ? (
                   <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipPending }}>
-                    {decisionSummary.pendingProposals} propuesta{decisionSummary.pendingProposals === 1 ? "" : "s"} por responder
+                    {decisionSummary.pendingProposals} propuesta{decisionSummary.pendingProposals === 1 ? "" : "s"} esperando decisión
                   </button>
                 ) : null}
 
                 {decisionSummary.adjustedProposals > 0 ? (
                   <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipInfo }}>
-                    {decisionSummary.adjustedProposals} ajuste{decisionSummary.adjustedProposals === 1 ? "" : "s"} por decidir
+                    {decisionSummary.adjustedProposals} ajuste{decisionSummary.adjustedProposals === 1 ? "" : "s"} pendiente{decisionSummary.adjustedProposals === 1 ? "" : "s"}
                   </button>
                 ) : null}
               </div>
@@ -1830,12 +1830,12 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
             ) : !nextEvent ? (
               <div style={styles.emptyBlock}>
                 <div style={styles.emptyTitle}>Sin eventos próximos</div>
-                <div style={styles.emptySub}>Crea uno nuevo o abre el calendario.</div>
+                <div style={styles.emptySub}>Todavía no tienes nada cerca. Puedes crear un plan nuevo o abrir el calendario.</div>
                 <button
                   onClick={() => router.push("/events/new/details?type=personal")}
                   style={styles.emptyBtn}
                 >
-                  Crear evento →
+                  Crear plan →
                 </button>
               </div>
             ) : (
@@ -2080,8 +2080,8 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
-                <div style={styles.quickTitle}>Crear evento</div>
-                <div style={styles.quickSub}>Nuevo plan</div>
+                <div style={styles.quickTitle}>Crear plan</div>
+                <div style={styles.quickSub}>Empezar algo nuevo</div>
               </button>
 
               <button
@@ -2090,7 +2090,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 className="spSum-quickCard"
               >
                 <div style={styles.quickTitle}>Abrir calendario</div>
-                <div style={styles.quickSub}>Ver todo</div>
+                <div style={styles.quickSub}>Ver todo con contexto</div>
               </button>
 
               <button
@@ -2099,7 +2099,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 className="spSum-quickCard"
               >
                 <div style={styles.quickTitle}>Resolver conflictos</div>
-                <div style={styles.quickSub}>Revisar ahora</div>
+                <div style={styles.quickSub}>Entrar al centro de conflictos</div>
               </button>
             </div>
           </Card>

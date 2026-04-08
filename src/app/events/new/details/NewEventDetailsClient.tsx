@@ -207,9 +207,9 @@ function suggestGroupFromText(title: string, notes?: string): GroupSuggestion {
   }
 
   const leaders = [
-    { type: "pair" as const, score: pairScore, reason: "Parece un plan de pareja" },
-    { type: "family" as const, score: familyScore, reason: "Parece un plan familiar" },
-    { type: "other" as const, score: otherScore, reason: "Parece un plan compartido" },
+    { type: "pair" as const, score: pairScore, reason: "Suena más a un plan de pareja" },
+    { type: "family" as const, score: familyScore, reason: "Suena más a un plan familiar" },
+    { type: "other" as const, score: otherScore, reason: "Suena más a un plan compartido" },
   ].filter((item) => item.score === max);
 
   if (leaders.length !== 1) {
@@ -889,11 +889,11 @@ function NewEventDetailsInner() {
 
   const summaryLine = useMemo(() => {
     if (isSharedProposal && proposalResponse === "adjust") {
-      return "Estás ajustando una propuesta compartida antes de guardarla.";
+      return "Estás ajustando una propuesta compartida antes de dejarla lista.";
     }
 
     if (isSharedProposal) {
-      return "Estás respondiendo a una propuesta compartida. Puedes aceptarla tal cual o ajustarla antes de guardarla.";
+      return "Estás respondiendo a una propuesta compartida. Puedes aceptarla como está o ajustarla antes de guardarla.";
     }
 
     if (effectiveType === "group") {
@@ -1157,8 +1157,8 @@ function NewEventDetailsInner() {
               : "Propuesta aceptada ✅",
           subtitle:
             proposalResponse === "adjust"
-              ? "Guardamos tu versión ajustada y conservamos ambos horarios para que puedas revisarlos luego."
-              : "Se guardó el plan y conservamos ambos horarios para que puedas revisarlos luego.",
+              ? "Guardamos tu versión ajustada y conservamos ambos horarios para que puedas revisarlos con calma."
+              : "Guardamos el plan y conservamos ambos horarios para que puedas revisarlos con calma.",
         };
       }
 
@@ -1169,8 +1169,8 @@ function NewEventDetailsInner() {
             : "Propuesta aceptada ✅",
         subtitle:
           proposalResponse === "adjust"
-            ? "Ya guardaste tu versión ajustada del plan y puedes seguir afinándola cuando quieras."
-            : "Ya la llevaste a tu calendario y puedes seguir ajustándola cuando quieras.",
+            ? "Tu versión ajustada ya quedó guardada y puedes seguir afinándola cuando quieras."
+            : "Ya quedó en tu calendario y puedes seguir ajustándola cuando quieras.",
       };
     }
 
@@ -1184,8 +1184,8 @@ function NewEventDetailsInner() {
           ? "Evento personal actualizado ✅"
           : "Evento personal creado ✅",
         subtitle: isSharedEvent
-          ? "Conservamos ambos planes y volvemos al calendario."
-          : "Conservamos ambos eventos y volvemos al calendario.",
+          ? "Conservamos ambos planes para que puedas decidirlo después con más calma."
+          : "Conservamos ambos eventos para que puedas decidirlo después con más calma.",
       };
     }
 
@@ -1195,8 +1195,8 @@ function NewEventDetailsInner() {
           ? "Plan compartido actualizado ✅"
           : "Plan compartido creado ✅",
         subtitle: isEditing
-          ? "El grupo ya verá la versión actualizada."
-          : "Ya está en el calendario del grupo.",
+          ? "El grupo ya verá esta versión actualizada."
+          : "Ya quedó listo en el calendario del grupo.",
       };
     }
 
@@ -1206,7 +1206,7 @@ function NewEventDetailsInner() {
         : "Evento personal creado ✅",
       subtitle: isEditing
         ? "Tus cambios ya quedaron guardados."
-        : "Ya quedó en tu calendario.",
+        : "Ya quedó listo en tu calendario.",
     };
   };
 
@@ -1729,8 +1729,8 @@ if (isEditing && eventIdParam) {
     if (choice === "edit") {
       clearPreflightState();
       setToast({
-        title: "Ok",
-        subtitle: "Ajusta horario/título y vuelve a guardar.",
+        title: "Perfecto",
+        subtitle: "Ajusta lo que necesites y vuelve a guardar.",
       });
       return;
     }
@@ -1849,7 +1849,7 @@ if (isEditing && eventIdParam) {
           savedEventId: savedEventId ?? null,
           blockedIds,
           reason:
-            "No se pudieron eliminar todos los eventos en conflicto por permisos. SyncPlans aplicó fallback automático y mantuvo ambos.",
+            "No se pudieron reemplazar todos los eventos por permisos. Para no romper nada, SyncPlans mantuvo ambos.",
         });
         try {
           await writePreflightDecisionNotifications({
@@ -1914,8 +1914,8 @@ if (isEditing && eventIdParam) {
     try {
       if (!postSaveActions?.eventId) {
         setToast({
-          title: "No se pudo compartir",
-          subtitle: "Todavía no encontré el evento que acabas de guardar.",
+          title: "Todavía no se puede compartir",
+          subtitle: "Aún no encontré el evento que acabas de guardar.",
         });
         return;
       }
@@ -2065,8 +2065,7 @@ if (isEditing && eventIdParam) {
               <div style={styles.sectionEyebrow}>Lo esencial</div>
               <div style={styles.sectionTitle}>Primero, lo importante</div>
               <div style={styles.sectionSub}>
-                Título, horario y guardar. Lo demás queda visible pero sin meter
-                ruido.
+                Título, horario y contexto. Lo esencial primero; el resto queda a mano sin meter ruido.
               </div>
             </div>
 
@@ -2083,7 +2082,7 @@ if (isEditing && eventIdParam) {
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ej: Cena / Pádel / Médico"
+                placeholder="Ej: Cena viernes / Pádel / Médico"
                 style={styles.inputLg}
               />
             </div>
@@ -2123,21 +2122,21 @@ if (isEditing && eventIdParam) {
                   fontWeight: 800,
                 }}
               >
-                Nueva fecha sugerida desde invitación externa
+                Nueva fecha sugerida desde fuera de la app
               </div>
             )}
 
             <div style={styles.quickSummary}>
-              <div style={styles.quickSummaryTitle}>Resumen rápido</div>
+              <div style={styles.quickSummaryTitle}>Así se ve ahora</div>
               <div style={styles.quickSummaryRow}>
                 <span style={styles.quickSummaryPill}>
                   {isSharedProposal
                     ? proposalResponse === "adjust"
-                      ? "Propuesta ajustándose"
-                      : "Propuesta"
+                      ? "Ajustando propuesta"
+                      : "Propuesta compartida"
                     : effectiveType === "group"
-                    ? "Compartido"
-                    : "Personal"}
+                    ? "Plan compartido"
+                    : "Plan personal"}
                 </span>
                 {durationLabel ? (
                   <span style={styles.quickSummaryPill}>{durationLabel}</span>
@@ -2224,13 +2223,13 @@ if (isEditing && eventIdParam) {
                   <div style={styles.emptyInline}>
                     <div style={styles.emptyInlineTitle}>No tienes grupos</div>
                     <div style={styles.emptyInlineSub}>
-                      Crea uno para poder hacer eventos compartidos.
+                      Crea uno y luego podrás guardar aquí planes compartidos.
                     </div>
                     <button
                       onClick={() => router.push("/groups/new")}
                       style={styles.primaryBtnSmall}
                     >
-                      Crear grupo
+                      Crear un grupo
                     </button>
                   </div>
                 ) : (
@@ -2325,11 +2324,11 @@ sharedGroupDetectionState === "ambiguous" ? (
     suggestedPreselectedGroupId &&
     selectedGroup?.id === suggestedPreselectedGroupId ? (
       <>
-        🧠 Basado en cómo organizas esto normalmente, preseleccionamos <b>{learnedGroupCandidate.name || getGroupTypeLabel(learnedGroupCandidate.type)}</b>. Puedes cambiarlo abajo si esta vez prefieres otro.
+        🧠 Como normalmente este tipo de plan termina ahí, preseleccionamos <b>{learnedGroupCandidate.name || getGroupTypeLabel(learnedGroupCandidate.type)}</b>. Puedes cambiarlo abajo si esta vez prefieres otro.
       </>
     ) : (
       <>
-        🧠 Sugerencia inteligente: en planes parecidos normalmente terminas usando <b>{learnedGroupCandidate.name || getGroupTypeLabel(learnedGroupCandidate.type)}</b>. Esta vez te lo mostramos como referencia, sin forzarlo.
+        🧠 Sugerencia inteligente: en planes parecidos normalmente terminas usando <b>{learnedGroupCandidate.name || getGroupTypeLabel(learnedGroupCandidate.type)}</b>. Te lo mostramos como referencia, sin forzarlo.
       </>
     )}
   </div>
@@ -2361,7 +2360,7 @@ sharedGroupDetectionState === "ambiguous" ? (
             ? "Familia"
             : "Compartido"}
         </b>{' '}
-        porque este plan parece encajar mejor ahí. Puedes cambiarlo abajo si prefieres otro grupo.
+        porque este plan parece encajar mejor ahí. Si esta vez no aplica, puedes cambiarlo abajo.
       </>
     ) : (
       <>
@@ -2435,7 +2434,7 @@ sharedGroupDetectionState === "ambiguous" ? (
                 onChange={(e) => setNotes(e.target.value)}
                 style={styles.textarea}
                 rows={3}
-                placeholder="Añade contexto si realmente te suma."
+                placeholder="Añade un poco de contexto si realmente ayuda."
               />
             </div>
           </div>
@@ -2504,7 +2503,9 @@ sharedGroupDetectionState === "ambiguous" ? (
               ? proposalResponse === "adjust"
                 ? "Guardar propuesta ajustada"
                 : "Aceptar propuesta"
-              : "Guardar evento"}
+              : effectiveType === "group"
+              ? "Guardar plan compartido"
+              : "Guardar plan"}
           </button>
         </section>
       </div>
