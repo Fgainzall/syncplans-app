@@ -1,8 +1,23 @@
-type ParsedQuickCapture = {
+export type ParsedQuickCaptureSignals = {
+  hasExplicitDate: boolean;
+  hasExplicitTime: boolean;
+  mentionsWeekend: boolean;
+  mentionsWeekday: boolean;
+  mentionsPeople: boolean;
+  mentionsPluralGroup: boolean;
+  mentionsLocation: boolean;
+  mentionsUrgency: boolean;
+  mentionsLooseFuture: boolean;
+  mentionsRoutine: boolean;
+  confidence: "low" | "medium" | "high";
+};
+
+export type ParsedQuickCapture = {
   title: string;
   notes: string;
   date: Date | null;
   durationMinutes: number;
+  signals: ParsedQuickCaptureSignals;
 };
 
 const DAYS_MAP: Record<string, number> = {
@@ -18,14 +33,14 @@ const DAYS_MAP: Record<string, number> = {
 };
 
 const CONTEXT_CONNECTORS = [
+  " en casa de ",
+  " cerca de ",
+  " junto a ",
   " con ",
   " en ",
   " para ",
   " por ",
-  " cerca de ",
-  " junto a ",
   " donde ",
-  " en casa de ",
 ];
 
 function normalizeText(input: string) {
@@ -139,7 +154,92 @@ function nextOccurrenceOfDay(base: Date, targetDay: number) {
   return result;
 }
 
+function detectSignals(raw: string): ParsedQuickCaptureSignals {
+  const normalized = normalizeForMatching(raw);
+
+  const hasExplicitDate =
+    /\b(hoy|manana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
+      normalized
+    ) ||
+    /\b(proxima semana|proximo|próximo|proxima|próxima|siguiente|en dos semanas|la otra semana|semana que viene)\b/.test(
+      normalized
+    );
+
+  const hasExplicitTime =
+    /\b(a\s+las|alas)?\s*\d{1,2}(?::\d{2})?\s?(am|pm)?\b/i.test(raw) ||
+    /\b(mediodia|medianoche)\b/i.test(raw);
+
+  const mentionsWeekend =
+    /\b(fin de semana|finde|sabado|sábado|domingo)\b/.test(normalized);
+
+  const mentionsWeekday =
+    /\b(entre semana|durante la semana|lunes|martes|miercoles|miércoles|jueves|viernes)\b/.test(
+      normalized
+    );
+
+  const mentionsPeople =
+    /\b(con|junto a|en casa de|cerca de)\s+[a-záéíóúñ]+\b/i.test(raw) ||
+    /\b(novia|novio|pareja|esposa|esposo|mama|mamá|papa|papá|familia|amigos|primos|tios|tíos)\b/.test(
+      normalized
+    );
+
+  const mentionsPluralGroup =
+    /\b(amigos|familia|primos|tios|tíos|equipo|grupo|todos|nosotros)\b/.test(
+      normalized
+    );
+
+  const mentionsLocation =
+    /\b(en|por|cerca de|en casa de|donde)\s+[a-záéíóúñ0-9]+\b/i.test(raw);
+
+  const mentionsUrgency =
+    /\b(hoy|esta tarde|esta noche|mañana|manana|urgente|antes de|si o si|sí o sí|cuanto antes)\b/.test(
+      normalized
+    );
+
+  const mentionsLooseFuture =
+    /\b(algun dia|algún día|uno de estos dias|uno de estos días|cuando puedan|cuando se pueda|esta semana|el otro finde|otro dia|otro día)\b/.test(
+      normalized
+    );
+
+  const mentionsRoutine =
+    /\b(como siempre|de siempre|otra vez|de nuevo|semanal|mensual|cada)\b/.test(
+      normalized
+    );
+
+  let confidenceScore = 0;
+  if (hasExplicitDate) confidenceScore += 1;
+  if (hasExplicitTime) confidenceScore += 1;
+  if (mentionsPeople || mentionsLocation) confidenceScore += 1;
+
+  const confidence: "low" | "medium" | "high" =
+    confidenceScore >= 3 ? "high" : confidenceScore === 2 ? "medium" : "low";
+
+  return {
+    hasExplicitDate,
+    hasExplicitTime,
+    mentionsWeekend,
+    mentionsWeekday,
+    mentionsPeople,
+    mentionsPluralGroup,
+    mentionsLocation,
+    mentionsUrgency,
+    mentionsLooseFuture,
+    mentionsRoutine,
+    confidence,
+  };
+}
+
 function extractHour(text: string): { hour: number | null; minutes: number } {
+  const normalized = normalizeForMatching(text);
+
+  if (/\bmediodia\b/.test(normalized)) {
+    return { hour: 12, minutes: 0 };
+  }
+
+  if (/\bmedianoche\b/.test(normalized)) {
+    return { hour: 0, minutes: 0 };
+  }
+
   const match = text.match(
     /(?:a\s+las\s+|alas\s+)?(\d{1,2})(?:[:h](\d{2}))?\s?(am|pm)?/i
   );
@@ -153,8 +253,6 @@ function extractHour(text: string): { hour: number | null; minutes: number } {
   if (period === "pm" && hour < 12) hour += 12;
   if (period === "am" && hour === 12) hour = 0;
 
-  // Heurística premium:
-  // si pone 1-11 sin am/pm, asumimos tarde/noche
   if (!period && hour >= 1 && hour <= 11) {
     hour += 12;
   }
@@ -173,6 +271,16 @@ function extractDuration(text: string): number {
   const hourMatch = text.match(/(\d+)\s?(h|hora|horas)\b/i);
   if (hourMatch) return Math.max(30, parseInt(hourMatch[1], 10) * 60);
 
+  const normalized = normalizeForMatching(text);
+
+  if (/\bdesayuno\b/.test(normalized)) return 60;
+  if (/\bcafe|cafecito\b/.test(normalized)) return 60;
+  if (/\balmuerzo|lunch\b/.test(normalized)) return 90;
+  if (/\bcena|dinner\b/.test(normalized)) return 120;
+  if (/\bpadel|pádel|fulbito|futbol|fútbol|tenis|gym\b/.test(normalized)) {
+    return 90;
+  }
+
   return 60;
 }
 
@@ -190,6 +298,22 @@ function extractDay(text: string): Date | null {
 
   if (normalized.includes("manana")) {
     return addDays(today, 1);
+  }
+
+  if (
+    normalized.includes("este fin de semana") ||
+    normalized.includes("este finde")
+  ) {
+    return nextOccurrenceOfDay(today, 6);
+  }
+
+  if (
+    normalized.includes("el otro finde") ||
+    normalized.includes("el otro fin de semana") ||
+    normalized.includes("proximo fin de semana") ||
+    normalized.includes("próximo fin de semana")
+  ) {
+    return addDays(nextOccurrenceOfDay(today, 6), 7);
   }
 
   const hasNextWeekIntent =
@@ -264,10 +388,15 @@ function removeDateAndTimeTokens(text: string): string {
       /\b(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/gi,
       " "
     )
-    .replace(/\b(proximo|próximo|proxima|próxima|siguiente|otro|otra)\b/gi, " ")
+    .replace(
+      /\b(fin de semana|finde|este finde|este fin de semana|el otro finde|el otro fin de semana)\b/gi,
+      " "
+    )
+    .replace(/\b(proximo|próximo|proxima|próxima|siguiente|otro|otra|este|esta)\b/gi, " ")
     .replace(/\b(semana|que|viene)\b/gi, " ")
     .replace(/\b(dentro de)\b/gi, " ")
     .replace(/\b(a\s+las|alas)\b/gi, " ")
+    .replace(/\b(mediodia|medianoche)\b/gi, " ")
     .replace(/\b(\d{1,2})(?::\d{2})?\s?(am|pm)?\b/gi, " ")
     .replace(/\b(\d+)\s?(min|mins|m|h|hora|horas)\b/gi, " ")
     .replace(/\b(en dos semanas)\b/gi, " ")
@@ -344,6 +473,7 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
   const raw = String(input || "").trim();
   const normalized = normalizeText(raw);
 
+  const signals = detectSignals(raw);
   const date = extractDay(raw);
   const time = extractHour(normalized);
   const duration = extractDuration(normalized);
@@ -367,5 +497,16 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
     notes: formatNotes(split.notes),
     date: finalDate,
     durationMinutes: duration,
+    signals: {
+      ...signals,
+      hasExplicitDate: signals.hasExplicitDate || !!date,
+      hasExplicitTime: signals.hasExplicitTime || time.hour !== null,
+      confidence:
+        date && time.hour !== null
+          ? "high"
+          : date || time.hour !== null || signals.mentionsPeople
+          ? "medium"
+          : signals.confidence,
+    },
   };
 }
