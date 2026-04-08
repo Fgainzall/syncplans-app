@@ -46,6 +46,12 @@ import {
   toYmdKey,
 } from "@/lib/dateUtils";
 import {
+  normalizeGroupType,
+  normalizeProposalResponse,
+  getProposalResponseLabel,
+  getProposalResponseTone,
+} from "@/lib/naming";
+import {
   getMyConflictResolutionsMap,
   type Resolution,
 } from "@/lib/conflictResolutionsDb";
@@ -174,12 +180,13 @@ function useIsMobileWidth(maxWidth = 720) {
 }
 
 /**
- * ✅ Normalización para conflictos:
- * El motor de conflictos trabaja con "couple" para pareja.
+ * Normalización canónica para el motor de conflictos.
+ * Ya no promovemos valores legacy como "couple".
  */
-function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
-  if (!gt) return "personal" as GroupType;
-  return (gt === ("pair" as any) ? ("couple" as any) : gt) as GroupType;
+function normalizeForConflicts(
+  gt: string | null | undefined
+): GroupType {
+  return normalizeGroupType(gt ?? "personal");
 }
 function resolutionForConflict(
   conflict: ConflictItem,
@@ -205,22 +212,15 @@ function resolutionForConflict(
   return undefined;
 }
 function proposalResponseLabel(response: string | null | undefined): string | null {
-  const safe = String(response ?? "").trim().toLowerCase();
-  if (!safe) return null;
-  if (safe === "pending") return "Pendiente";
-  if (safe === "accepted") return "Aceptada";
-  if (safe === "adjusted") return "Ajustada";
-  return null;
+  if (!response) return null;
+  return getProposalResponseLabel(normalizeProposalResponse(response));
 }
 
 function proposalResponseTone(
   response: string | null | undefined
 ): "pending" | "accepted" | "adjusted" | "neutral" {
-  const safe = String(response ?? "").trim().toLowerCase();
-  if (safe === "pending") return "pending";
-  if (safe === "accepted") return "accepted";
-  if (safe === "adjusted") return "adjusted";
-  return "neutral";
+  if (!response) return "neutral";
+  return getProposalResponseTone(normalizeProposalResponse(response));
 }
 
 /** ✅ Props del Calendar */

@@ -25,9 +25,19 @@ import {
 import {
   computeVisibleConflicts,
   type CalendarEvent,
-  type GroupType,
   type ConflictItem,
 } from "@/lib/conflicts";
+import {
+  deriveEventStatus,
+  getEventStatusLabel,
+  getEventStatusSubtitle,
+  getGroupTypeLabel,
+  getProposalResponseActorLabel,
+  getProposalResponseTone,
+  normalizeGroupType,
+  normalizeInviteStatus,
+  normalizeProposalResponse,
+} from "@/lib/naming";
 import { getDisplayName, getProfilesMapByIds } from "@/lib/profilesDb";
 
 type TimelineEvent = {
@@ -71,17 +81,8 @@ type ProposalResponsesGroupByEventId = Record<string, ProposalResponseRow[]>;
 type ConflictByEventId = Record<string, ConflictItem[]>;
 
 
-function normalizeTimelineGroupType(value: string | null | undefined): GroupType {
-  const safe = String(value ?? "").trim().toLowerCase();
-
-  if (!safe) return "personal";
-  if (safe === "couple") return "pair";
-  if (safe === "shared") return "other";
-  if (safe === "pair" || safe === "family" || safe === "other") {
-    return safe as GroupType;
-  }
-
-  return "other";
+function normalizeTimelineGroupType(value: string | null | undefined) {
+  return normalizeGroupType(value);
 }
 
 function toConflictCalendarEvent(event: TimelineEvent): CalendarEvent {
@@ -110,17 +111,25 @@ function getEventStatePresentation(input: {
   const invite = input.invite;
   const trustSignal = input.trustSignal;
 
-  const hasPending = responses.some((row) => row?.response === "pending");
-  const hasAdjusted = responses.some((row) => row?.response === "adjusted");
-  const hasAccepted = responses.some((row) => row?.response === "accepted");
+  const status = deriveEventStatus({
+    conflictsCount,
+    responseStatuses: responses.map((row) => row?.response),
+    inviteStatus: invite?.status,
+    hasInviteProposedDate: !!invite?.proposed_date,
+    hasTrustSignal: !!trustSignal,
+  });
 
-  if (conflictsCount > 0) {
+  if (status === "scheduled") {
+    return null;
+  }
+
+  if (status === "conflicted") {
     return {
-      label: conflictsCount === 1 ? "Requiere decisión" : `Conflictos (${conflictsCount})`,
-      subtitle:
+      label:
         conflictsCount === 1
-          ? "Este plan choca con otro evento visible."
-          : "Este plan tiene varios choques por revisar.",
+          ? getEventStatusLabel(status)
+          : `Conflictos (${conflictsCount})`,
+      subtitle: getEventStatusSubtitle(status, conflictsCount),
       style: {
         background: "rgba(127,29,29,0.88)",
         borderColor: "rgba(252,165,165,0.28)",
@@ -129,10 +138,10 @@ function getEventStatePresentation(input: {
     };
   }
 
-  if (hasPending || invite?.status === "pending" || (invite?.status === "rejected" && !!invite?.proposed_date)) {
+  if (status === "pending") {
     return {
-      label: "Pendiente",
-      subtitle: "Todavía falta una decisión para cerrar este plan.",
+      label: getEventStatusLabel(status),
+      subtitle: getEventStatusSubtitle(status, conflictsCount),
       style: {
         background: "rgba(120,53,15,0.88)",
         borderColor: "rgba(251,191,36,0.30)",
@@ -141,10 +150,10 @@ function getEventStatePresentation(input: {
     };
   }
 
-  if (hasAdjusted) {
+  if (status === "adjusted") {
     return {
-      label: "Ajustado",
-      subtitle: "Hubo cambios antes de dejar este plan listo.",
+      label: getEventStatusLabel(status),
+      subtitle: getEventStatusSubtitle(status, conflictsCount),
       style: {
         background: "rgba(22,78,99,0.90)",
         borderColor: "rgba(103,232,249,0.28)",
@@ -153,37 +162,26 @@ function getEventStatePresentation(input: {
     };
   }
 
-  if (hasAccepted || invite?.status === "accepted" || !!trustSignal) {
-    return {
-      label: "Confirmado",
-      subtitle: "Este plan ya tiene una salida clara.",
-      style: {
-        background: "rgba(20,83,45,0.92)",
-        borderColor: "rgba(74,222,128,0.28)",
-        color: "rgba(220,252,231,0.98)",
-      } as React.CSSProperties,
-    };
-  }
-
-  return null;
+  return {
+    label: getEventStatusLabel("confirmed"),
+    subtitle: getEventStatusSubtitle("confirmed", conflictsCount),
+    style: {
+      background: "rgba(20,83,45,0.92)",
+      borderColor: "rgba(74,222,128,0.28)",
+      color: "rgba(220,252,231,0.98)",
+    } as React.CSSProperties,
+  };
 }
 
 function getResponseActorTone(response: string | null | undefined) {
-  const safe = String(response ?? "").trim().toLowerCase();
-
-  if (safe === "accepted") return "accepted";
-  if (safe === "adjusted") return "adjusted";
-  if (safe === "pending") return "pending";
-  return "neutral";
+  const tone = getProposalResponseTone(response);
+  return tone === "accepted" || tone === "adjusted" || tone === "pending"
+    ? tone
+    : "neutral";
 }
 
 function getResponseActorLabel(response: string | null | undefined) {
-  const safe = String(response ?? "").trim().toLowerCase();
-
-  if (safe === "accepted") return "aceptó";
-  if (safe === "adjusted") return "ajustó";
-  if (safe === "pending") return "pendiente";
-  return "respondió";
+  return getProposalResponseActorLabel(response);
 }
 
 function getResponseActorStyle(
@@ -289,11 +287,15 @@ function getDayHeaderLabel(value: string | Date) {
 }
 
 function getGroupSignal(ev: TimelineEvent) {
-  const rawType = String(ev.group?.type ?? "").toLowerCase();
+  const normalizedType = ev.group_id
+    ? normalizeGroupType(String(ev.group?.type ?? "other"))
+    : "personal";
 
-  if (!ev.group_id) {
+  const label = ev.group_id ? getGroupTypeLabel(normalizedType) : "Personal";
+
+  if (normalizedType === "personal") {
     return {
-      label: "Personal",
+      label,
       dot: "rgba(56,189,248,0.98)",
       badgeBg: "rgba(8,47,73,0.9)",
       badgeBorder: "rgba(56,189,248,0.28)",
@@ -301,9 +303,9 @@ function getGroupSignal(ev: TimelineEvent) {
     };
   }
 
-  if (rawType === "pair" || rawType === "couple") {
+  if (normalizedType === "pair") {
     return {
-      label: "Pareja",
+      label,
       dot: "rgba(244,114,182,0.98)",
       badgeBg: "rgba(80,7,36,0.9)",
       badgeBorder: "rgba(244,114,182,0.28)",
@@ -311,9 +313,9 @@ function getGroupSignal(ev: TimelineEvent) {
     };
   }
 
-  if (rawType === "family") {
+  if (normalizedType === "family") {
     return {
-      label: "Familia",
+      label,
       dot: "rgba(56,189,248,0.98)",
       badgeBg: "rgba(8,47,73,0.9)",
       badgeBorder: "rgba(56,189,248,0.28)",
@@ -322,7 +324,7 @@ function getGroupSignal(ev: TimelineEvent) {
   }
 
   return {
-    label: "Compartido",
+    label,
     dot: "rgba(167,139,250,0.98)",
     badgeBg: "rgba(46,16,101,0.9)",
     badgeBorder: "rgba(167,139,250,0.28)",
@@ -363,8 +365,7 @@ function getTrustPresentation(signal: ConflictTrustSignal | null) {
 }
 
 function getProposalPresentation(response: string | null | undefined) {
-  const safe = String(response ?? "").trim().toLowerCase();
-  if (!safe) return null;
+  const safe = normalizeProposalResponse(response);
 
   if (safe === "pending") {
     return {
@@ -403,7 +404,7 @@ function getProposalPresentation(response: string | null | undefined) {
 }
 
 function getProposalInsight(response: string | null | undefined) {
-  const safe = String(response ?? "").trim().toLowerCase();
+  const safe = normalizeProposalResponse(response);
 
   if (safe === "pending") {
     return {
@@ -486,11 +487,9 @@ function buildProposalContextLine(input: {
   displayName: string | null | undefined;
   relativeDate: string | null | undefined;
 }) {
-  const safeResponse = String(input.response ?? "").trim().toLowerCase();
+  const safeResponse = normalizeProposalResponse(input.response);
   const safeName = String(input.displayName ?? "").trim() || "Alguien";
   const safeDate = String(input.relativeDate ?? "").trim();
-
-  if (!safeResponse) return null;
 
   const verb =
     safeResponse === "accepted"
@@ -535,7 +534,9 @@ function getInvitePresentation(invite: PublicInviteRow | null) {
     };
   }
 
-  if (invite.status === "pending") {
+  const inviteStatus = normalizeInviteStatus(invite.status);
+
+  if (inviteStatus === "pending") {
     return {
       label: "Pendiente",
       tone: "pending" as const,
@@ -543,7 +544,7 @@ function getInvitePresentation(invite: PublicInviteRow | null) {
     };
   }
 
-  if (invite.status === "accepted") {
+  if (inviteStatus === "accepted") {
     return {
       label: "Confirmado",
       tone: "accepted" as const,
@@ -551,7 +552,7 @@ function getInvitePresentation(invite: PublicInviteRow | null) {
     };
   }
 
-  if (invite.status === "rejected" && invite.proposed_date) {
+  if (inviteStatus === "rejected" && invite.proposed_date) {
     return {
       label: "Propuso nueva fecha",
       tone: "proposed" as const,

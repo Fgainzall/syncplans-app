@@ -1,16 +1,22 @@
-// src/lib/conflicts.ts
+// src/lib/conflicts.tsx
 
-export type GroupType =
-  | "personal"
-  | "pair"
-  | "family"
-  | "couple"
-  | "other"
-  | "shared";
+import {
+  type CanonicalGroupType,
+  type SupportedGroupType,
+  normalizeGroupType as normalizeCanonicalGroupType,
+  getGroupTypeLabel,
+} from "@/lib/naming";
+
+/**
+ * Este módulo sigue aceptando valores legacy como input,
+ * pero desde aquí hacia afuera debe emitir siempre group types canónicos.
+ */
+
+export type GroupType = CanonicalGroupType;
 
 export type SyncPlansGroupType = GroupType;
 
-export type CanonicalGroupType = "personal" | "pair" | "family" | "other";
+type GroupTypeInput = SupportedGroupType | (string & {});
 
 export type CalendarEvent = {
   id: string;
@@ -18,7 +24,11 @@ export type CalendarEvent = {
   start: string; // ISO-ish
   end: string; // ISO-ish
 
-  groupType: GroupType;
+  /**
+   * A nivel de motor, siempre trabajamos con tipos canónicos.
+   * Igual aceptamos legacy durante normalización de entrada.
+   */
+  groupType: GroupTypeInput;
   groupId?: string | null;
 
   // UI estándar
@@ -64,6 +74,7 @@ export const SOFT_REJECTED_EVENTS_KEY = "syncplans_soft_rejected_events_v1";
 
 export function loadIgnoredConflictKeys(): Set<string> {
   if (typeof window === "undefined") return new Set();
+
   try {
     const raw = localStorage.getItem(IGNORED_CONFLICTS_KEY);
     const arr = raw ? JSON.parse(raw) : [];
@@ -73,6 +84,7 @@ export function loadIgnoredConflictKeys(): Set<string> {
     return new Set();
   }
 }
+
 export function conflictInvolvesEvent(
   conflict: ConflictItem | null | undefined,
   eventId: string | null | undefined
@@ -87,8 +99,10 @@ export function conflictInvolvesEvent(
     String(conflict.incomingEventId ?? "").trim() === safeEventId
   );
 }
+
 export function saveIgnoredConflictKeys(keys: Set<string>) {
   if (typeof window === "undefined") return;
+
   localStorage.setItem(
     IGNORED_CONFLICTS_KEY,
     JSON.stringify(Array.from(keys))
@@ -97,6 +111,7 @@ export function saveIgnoredConflictKeys(keys: Set<string>) {
 
 export function ignoreConflictIds(ids: string[]) {
   if (!ids || !ids.length) return;
+
   const set = loadIgnoredConflictKeys();
   for (const id of ids) {
     if (!id) continue;
@@ -107,6 +122,7 @@ export function ignoreConflictIds(ids: string[]) {
 
 export function unignoreConflictIds(ids: string[]) {
   if (!ids || !ids.length) return;
+
   const set = loadIgnoredConflictKeys();
   for (const id of ids) {
     if (!id) continue;
@@ -148,6 +164,7 @@ export function loadSoftRejectedEventIds(): Set<string> {
 
 export function saveSoftRejectedEventIds(ids: Set<string>) {
   if (typeof window === "undefined") return;
+
   localStorage.setItem(
     SOFT_REJECTED_EVENTS_KEY,
     JSON.stringify(Array.from(ids))
@@ -156,6 +173,7 @@ export function saveSoftRejectedEventIds(ids: Set<string>) {
 
 export function hideEventIdsForCurrentUser(ids: string[]) {
   if (!ids || !ids.length) return;
+
   const set = loadSoftRejectedEventIds();
   for (const id of ids) {
     if (!id) continue;
@@ -166,6 +184,7 @@ export function hideEventIdsForCurrentUser(ids: string[]) {
 
 export function unhideEventIdsForCurrentUser(ids: string[]) {
   if (!ids || !ids.length) return;
+
   const set = loadSoftRejectedEventIds();
   for (const id of ids) {
     if (!id) continue;
@@ -194,6 +213,7 @@ export function filterSoftRejectedEvents<T extends { id?: string | null }>(
 ): T[] {
   const set = hidden ?? loadSoftRejectedEventIds();
   if (!set.size) return Array.isArray(events) ? events : [];
+
   return (Array.isArray(events) ? events : []).filter(
     (e) => !set.has(String(e?.id ?? ""))
   );
@@ -205,6 +225,7 @@ export function filterSoftRejectedEvents<T extends { id?: string | null }>(
 
 export function loadEvents(): CalendarEvent[] {
   if (typeof window === "undefined") return [];
+
   try {
     const raw = localStorage.getItem(EVENTS_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
@@ -216,6 +237,7 @@ export function loadEvents(): CalendarEvent[] {
 
 export function saveEvents(events: CalendarEvent[]) {
   if (typeof window === "undefined") return;
+
   localStorage.setItem(
     EVENTS_KEY,
     JSON.stringify(Array.isArray(events) ? events : [])
@@ -329,54 +351,31 @@ export function fmtRange(startISO: string, endISO: string) {
    Groups
    ========================= */
 
-type GroupTypeLike = GroupType | (string & {});
-
-export function normalizeGroupType(gt: GroupTypeLike): CanonicalGroupType {
-  const value = String(gt ?? "").toLowerCase();
-
-  if (
-    value === "couple" ||
-    value === "pair"
-  ) {
-    return "pair";
-  }
-
-  if (value === "family") {
-    return "family";
-  }
-
-  if (value === "other" || value === "shared") {
-    return "other";
-  }
-
-  return "personal";
+export function normalizeGroupType(gt: GroupTypeInput): CanonicalGroupType {
+  return normalizeCanonicalGroupType(gt);
 }
 
-export function normalizeEventGroupType(gt: GroupTypeLike): GroupType {
-  const normalized = normalizeGroupType(gt);
-
-  if (normalized === "pair") return "pair";
-  if (normalized === "family") return "family";
-  if (normalized === "other") return "other";
-  return "personal";
+export function normalizeEventGroupType(gt: GroupTypeInput): GroupType {
+  return normalizeCanonicalGroupType(gt);
 }
 
-export function groupMeta(groupType: GroupTypeLike) {
-  const gt = normalizeGroupType(groupType);
+export function groupMeta(groupType: GroupTypeInput) {
+  const key = normalizeCanonicalGroupType(groupType);
+  const label = getGroupTypeLabel(key);
 
-  if (gt === "personal") {
-    return { key: "personal" as const, label: "Personal", dot: "#FBBF24" };
+  if (key === "personal") {
+    return { key, label, dot: "#FBBF24" };
   }
 
-  if (gt === "pair") {
-    return { key: "pair" as const, label: "Pareja", dot: "#F87171" };
+  if (key === "pair") {
+    return { key, label, dot: "#F87171" };
   }
 
-  if (gt === "family") {
-    return { key: "family" as const, label: "Familia", dot: "#60A5FA" };
+  if (key === "family") {
+    return { key, label, dot: "#60A5FA" };
   }
 
-  return { key: "other" as const, label: "Compartido", dot: "#A855F7" };
+  return { key, label, dot: "#A855F7" };
 }
 
 /* =========================

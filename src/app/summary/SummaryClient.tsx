@@ -54,6 +54,13 @@ import {
   getSuggestionContextLabel,
 } from "@/lib/timeSuggestions";
 import { parseIsoLike, toDateMs } from "@/lib/dateUtils";
+import {
+  normalizeGroupType,
+  getGroupTypeLabel,
+  normalizeProposalResponse,
+  getProposalResponseLabel,
+  getProposalResponseTone,
+} from "@/lib/naming";
 type Props = {
   highlightId: string | null;
   appliedToast: string | null;
@@ -350,25 +357,13 @@ function fmtTime(d: Date) {
 function humanGroupName(g: GroupRow) {
   const n = String(g.name ?? "").trim();
   if (n) return n;
-
-  const t = String(g.type ?? "").toLowerCase();
-  if (t === "pair" || t === "couple") return "Pareja";
-  if (t === "family") return "Familia";
-  if (t === "solo" || t === "personal") return "Personal";
-  if (t === "other" || t === "shared") return "Compartido";
-
-  return "Grupo";
+  return getGroupTypeLabel(String(g.type ?? ""));
 }
 
 function normalizeSummaryGroupType(
   raw: string | null | undefined
 ): GroupType {
-  const value = String(raw ?? "").trim().toLowerCase();
-
-  if (value === "pair" || value === "couple") return "pair";
-  if (value === "family") return "family";
-  if (value === "other" || value === "shared") return "other";
-  return "personal";
+  return normalizeGroupType(raw) as GroupType;
 }
 
 function resolutionForConflict(
@@ -780,20 +775,15 @@ function buildShareToastLabel(input: string): string {
 }
 
 function proposalResponseLabel(response: string | null | undefined): string | null {
-  const safe = String(response ?? "").trim().toLowerCase();
-  if (!safe) return null;
-  if (safe === "pending") return "Pendiente";
-  if (safe === "accepted") return "Aceptada";
-  if (safe === "adjusted") return "Ajustada";
-  return null;
+  const normalized = normalizeProposalResponse(response);
+  if (!response) return null;
+  return getProposalResponseLabel(normalized);
 }
 
 function proposalResponseTone(response: string | null | undefined): "pending" | "accepted" | "adjusted" | "neutral" {
-  const safe = String(response ?? "").trim().toLowerCase();
-  if (safe === "pending") return "pending";
-  if (safe === "accepted") return "accepted";
-  if (safe === "adjusted") return "adjusted";
-  return "neutral";
+  const normalized = normalizeProposalResponse(response);
+  if (!response) return "neutral";
+  return getProposalResponseTone(normalized);
 }
 
 function canUseNativeShare() {
