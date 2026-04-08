@@ -9,6 +9,13 @@ export type ParsedQuickCaptureSignals = {
   mentionsUrgency: boolean;
   mentionsLooseFuture: boolean;
   mentionsRoutine: boolean;
+  mentionsCelebration: boolean;
+  mentionsHealth: boolean;
+  mentionsWork: boolean;
+  mentionsSports: boolean;
+  mentionsFood: boolean;
+  mentionsCouple: boolean;
+  mentionsFamily: boolean;
   confidence: "low" | "medium" | "high";
 };
 
@@ -57,8 +64,8 @@ function normalizeForMatching(input: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[.,]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .replace(/\s+/g, " ");
 }
 
 function collapseSpaces(input: string) {
@@ -105,9 +112,7 @@ function capitalizeLikelyProperNames(input: string) {
   for (const pattern of triggerPatterns) {
     result = result.replace(pattern, (match, name: string) => {
       const cleanName = String(name || "").trim();
-      if (!cleanName || smallWords.has(cleanName.toLowerCase())) {
-        return match;
-      }
+      if (!cleanName || smallWords.has(cleanName.toLowerCase())) return match;
 
       const capitalizedName =
         cleanName.charAt(0).toUpperCase() + cleanName.slice(1).toLowerCase();
@@ -129,9 +134,7 @@ function formatTitle(input: string) {
 function formatNotes(input: string) {
   const cleaned = collapseSpaces(input);
   if (!cleaned) return "";
-
-  const sentence = toSentenceCase(cleaned);
-  return capitalizeLikelyProperNames(sentence);
+  return capitalizeLikelyProperNames(toSentenceCase(cleaned));
 }
 
 function addDays(date: Date, days: number) {
@@ -161,7 +164,7 @@ function detectSignals(raw: string): ParsedQuickCaptureSignals {
     /\b(hoy|manana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/.test(
       normalized
     ) ||
-    /\b(proxima semana|proximo|próximo|proxima|próxima|siguiente|en dos semanas|la otra semana|semana que viene)\b/.test(
+    /\b(proxima semana|proximo|próximo|proxima|próxima|siguiente|en dos semanas|la otra semana|semana que viene|este fin de semana|el otro finde)\b/.test(
       normalized
     );
 
@@ -184,7 +187,7 @@ function detectSignals(raw: string): ParsedQuickCaptureSignals {
     );
 
   const mentionsPluralGroup =
-    /\b(amigos|familia|primos|tios|tíos|equipo|grupo|todos|nosotros)\b/.test(
+    /\b(amigos|familia|primos|tios|tíos|equipo|grupo|todos|nosotros|ustedes)\b/.test(
       normalized
     );
 
@@ -197,7 +200,7 @@ function detectSignals(raw: string): ParsedQuickCaptureSignals {
     );
 
   const mentionsLooseFuture =
-    /\b(algun dia|algún día|uno de estos dias|uno de estos días|cuando puedan|cuando se pueda|esta semana|el otro finde|otro dia|otro día)\b/.test(
+    /\b(algun dia|algún día|uno de estos dias|uno de estos días|cuando puedan|cuando se pueda|esta semana|el otro finde|otro dia|otro día|mas adelante|más adelante)\b/.test(
       normalized
     );
 
@@ -206,10 +209,25 @@ function detectSignals(raw: string): ParsedQuickCaptureSignals {
       normalized
     );
 
+  const mentionsCelebration =
+    /\b(cumple|cumpleanos|cumpleaños|aniversario|celebracion|celebración|brunch)\b/.test(
+      normalized
+    );
+
+  const mentionsHealth = /\b(medico|doctor|dentista|clinica|clínica|cita medica)\b/.test(normalized);
+  const mentionsWork = /\b(reunion|meeting|llamada|zoom|trabajo|oficina)\b/.test(normalized);
+  const mentionsSports = /\b(fulbito|futbol|fútbol|padel|pádel|tenis|gym|entrenamiento)\b/.test(normalized);
+  const mentionsFood = /\b(desayuno|almuerzo|cena|cafe|cafecito|comer|cenar|almorzar)\b/.test(normalized);
+  const mentionsCouple = /\b(novia|novio|pareja|esposa|esposo|aniversario)\b/.test(normalized);
+  const mentionsFamily = /\b(familia|familiar|mama|mamá|papa|papá|hijos|abuelos|primos|tios|tíos)\b/.test(normalized);
+
   let confidenceScore = 0;
   if (hasExplicitDate) confidenceScore += 1;
   if (hasExplicitTime) confidenceScore += 1;
   if (mentionsPeople || mentionsLocation) confidenceScore += 1;
+  if (mentionsCelebration || mentionsHealth || mentionsWork || mentionsSports) {
+    confidenceScore += 1;
+  }
 
   const confidence: "low" | "medium" | "high" =
     confidenceScore >= 3 ? "high" : confidenceScore === 2 ? "medium" : "low";
@@ -225,6 +243,13 @@ function detectSignals(raw: string): ParsedQuickCaptureSignals {
     mentionsUrgency,
     mentionsLooseFuture,
     mentionsRoutine,
+    mentionsCelebration,
+    mentionsHealth,
+    mentionsWork,
+    mentionsSports,
+    mentionsFood,
+    mentionsCouple,
+    mentionsFamily,
     confidence,
   };
 }
@@ -277,9 +302,10 @@ function extractDuration(text: string): number {
   if (/\bcafe|cafecito\b/.test(normalized)) return 60;
   if (/\balmuerzo|lunch\b/.test(normalized)) return 90;
   if (/\bcena|dinner\b/.test(normalized)) return 120;
-  if (/\bpadel|pádel|fulbito|futbol|fútbol|tenis|gym\b/.test(normalized)) {
-    return 90;
-  }
+  if (/\bpadel|pádel|fulbito|futbol|fútbol|tenis|gym\b/.test(normalized)) return 90;
+  if (/\breunion|meeting|llamada|zoom\b/.test(normalized)) return 60;
+  if (/\bdoctor|medico|médico|dentista\b/.test(normalized)) return 60;
+  if (/\bcumple|cumpleanos|cumpleaños|aniversario\b/.test(normalized)) return 120;
 
   return 60;
 }
@@ -288,17 +314,9 @@ function extractDay(text: string): Date | null {
   const today = startOfToday();
   const normalized = normalizeForMatching(text);
 
-  if (normalized.includes("pasado manana")) {
-    return addDays(today, 2);
-  }
-
-  if (normalized.includes("hoy")) {
-    return today;
-  }
-
-  if (normalized.includes("manana")) {
-    return addDays(today, 1);
-  }
+  if (normalized.includes("pasado manana")) return addDays(today, 2);
+  if (normalized.includes("hoy")) return today;
+  if (normalized.includes("manana")) return addDays(today, 1);
 
   if (
     normalized.includes("este fin de semana") ||
@@ -354,10 +372,7 @@ function extractDay(text: string): Date | null {
 
     let result = nextOccurrenceOfDay(today, dayIndex);
 
-    if (hasNextWeekIntent || hasOtherDayIntent) {
-      result = addDays(result, 7);
-    }
-
+    if (hasNextWeekIntent || hasOtherDayIntent) result = addDays(result, 7);
     if (hasTwoWeeksIntent) {
       result = addDays(result, 14);
     } else if (hasNextDayIntent && !hasNextWeekIntent && !hasOtherDayIntent) {
