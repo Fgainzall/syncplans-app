@@ -5,8 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 import SharedConflictPreflightModal from "@/components/ConflictPreflightModal";
-import EventTemplatePicker from "@/components/events/EventTemplatePicker";
+import EventDetailsHero from "@/components/EventDetailsHero";
+import EventDetailsTemplatesSection from "@/components/EventDetailsTemplatesSection";
+import PostSaveActionsCard from "@/components/PostSaveActionsCard";
 import type { EventTemplate } from "@/lib/eventTemplates";
+import ConflictPreflightModal from "@/components/ConflictPreflightModal";
 import {
   createConflictNotificationForEvent,
   createConflictDecisionNotification,
@@ -2038,96 +2041,23 @@ if (isEditing && eventIdParam) {
           </div>
         </div>
 
-        <section
-          style={{
-            ...styles.hero,
-            borderColor: theme.border,
-            background: `linear-gradient(180deg, ${theme.soft}, rgba(255,255,255,0.03))`,
-          }}
-        >
-          <div style={styles.heroLeft}>
-            <div style={styles.heroKicker}>{isEditing ? "Editar" : "Nuevo"}</div>
-            <div style={styles.heroTitleRow}>
-              <h1 style={styles.h1}>{theme.label}</h1>
-              <span style={styles.pill}>
-                <span style={{ ...styles.pillDot, background: meta.dot }} />
-                {meta.label}
-              </span>
-            </div>
-            <div style={styles.heroSub}>
-              {isSharedProposal
-                ? proposalResponse === "adjust"
-                  ? "Estás ajustando una propuesta compartida antes de guardarla. Revisa los detalles y deja tu versión final lista."
-                  : "Estás revisando una propuesta compartida. Puedes aceptarla tal cual o ajustarla antes de guardarla."
-                : "Crea el evento en pocos segundos. SyncPlans revisa conflictos antes de guardarlo para que no pierdas el hilo."}
-              <div style={styles.heroMetaRow}>
-                <span style={styles.heroMetaPill}>{summaryLine}</span>
-                {isSharedProposal ? (
-                  <span style={styles.heroMetaPill}>
-                    {proposalResponse === "adjust"
-                      ? "Ajustando propuesta"
-                      : "Propuesta compartida"}
-                  </span>
-                ) : null}
-                {durationLabel ? (
-                  <span style={styles.heroMetaPill}>Duración: {durationLabel}</span>
-                ) : null}
-              </div>
-              {lockedToActiveGroup ? (
-                <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>
-                  Este evento se compartirá automáticamente con tu grupo activo.
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          <div style={styles.heroRight}>
-            {isSharedProposal ? (
-              <button onClick={handleReviewProposalLater} style={styles.ghostBtn}>
-                Revisar luego
-              </button>
-            ) : (
-              <button onClick={goBack} style={styles.ghostBtn}>
-                Cancelar
-              </button>
-            )}
-            <button
-              onClick={save}
-              style={{ ...styles.primaryBtn, opacity: canSave ? 1 : 0.6 }}
-              disabled={!canSave}
-            >
-              {saving
-                ? "Guardando…"
-                : isEditing
-                ? "Guardar cambios"
-                : isSharedProposal
-                ? proposalResponse === "adjust"
-                  ? "Guardar propuesta ajustada"
-                  : "Aceptar propuesta"
-                : "Guardar"}
-            </button>
-          </div>
-        </section>
-
-        {isSharedProposal ? (
-          <section style={styles.proposalBanner}>
-            <div style={styles.proposalBannerEyebrow}>
-              {proposalResponse === "adjust"
-                ? "Ajustando propuesta"
-                : "Propuesta compartida"}
-            </div>
-            <div style={styles.proposalBannerTitle}>
-              {proposalResponse === "adjust"
-                ? "Estás preparando tu versión ajustada de esta propuesta"
-                : "Estás respondiendo a una idea que te compartieron"}
-            </div>
-            <div style={styles.proposalBannerSub}>
-              {proposalResponse === "adjust"
-                ? "Cambia título, horario o notas y guarda tu versión final del plan."
-                : "Revisa título, horario y notas. Si te cuadra, acéptala y guárdala; si no, ajústala antes de crear el plan."}
-            </div>
-          </section>
-        ) : null}
+        <EventDetailsHero
+          themeLabel={theme.label}
+          themeBorder={theme.border}
+          themeSoft={theme.soft}
+          metaLabel={meta.label}
+          metaDot={meta.dot}
+          isEditing={isEditing}
+          isSharedProposal={isSharedProposal}
+          proposalResponse={proposalResponse}
+          summaryLine={summaryLine}
+          durationLabel={durationLabel}
+          lockedToActiveGroup={lockedToActiveGroup}
+          canSave={canSave}
+          saving={saving}
+          onPrimaryClick={save}
+          onSecondaryClick={isSharedProposal ? handleReviewProposalLater : goBack}
+        />
 
         <section style={styles.card}>
           <div style={styles.primaryStack}>
@@ -2141,41 +2071,11 @@ if (isEditing && eventIdParam) {
             </div>
 
             {!isEditing ? (
-              <>
-                <EventTemplatePicker
-                  selectedTemplateId={selectedTemplate?.id ?? null}
-                  onSelect={applyTemplateSelection}
-                />
-                {selectedTemplate ? (
-                  <div style={styles.templatePreview}>
-                    <div style={styles.templatePreviewTop}>
-                      <div style={styles.templatePreviewLabel}>
-                        Template elegido
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={clearTemplateSelection}
-                        style={styles.templateClearBtn}
-                      >
-                        Empezar desde cero
-                      </button>
-                    </div>
-
-                    <div style={styles.templatePreviewTitle}>
-                      {selectedTemplate.emoji} {selectedTemplate.title}
-                    </div>
-
-                    <div style={styles.templatePreviewMeta}>
-                      Duración sugerida: {selectedTemplate.defaultDurationMinutes} min
-                      {selectedTemplate.defaultNotes
-                        ? ` · ${selectedTemplate.defaultNotes}`
-                        : ""}
-                      {" · "}El formulario ya fue precargado y puedes ajustarlo libremente.
-                    </div>
-                  </div>
-                ) : null}
-              </>
+              <EventDetailsTemplatesSection
+                selectedTemplate={selectedTemplate}
+                onSelectTemplate={applyTemplateSelection}
+                onClearTemplate={clearTemplateSelection}
+              />
             ) : null}
 
             <div style={styles.field}>
@@ -2553,145 +2453,34 @@ sharedGroupDetectionState === "ambiguous" ? (
             </div>
           )}
           {postSaveActions?.visible ? (
-            <div
-              style={{
-                marginTop: 14,
-                borderRadius: 16,
-                border: "1px solid rgba(255,255,255,0.10)",
-                background: "rgba(255,255,255,0.04)",
-                padding: 14,
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
+            <PostSaveActionsCard
+              visible={postSaveActions.visible}
+              isProposal={postSaveActions.isProposal}
+              isShared={postSaveActions.isShared}
+              title={postSaveActions.title}
+              proposalResponse={proposalResponse}
+              sharingPostSave={sharingPostSave}
+              postSaveShareUrl={postSaveShareUrl}
+              onViewCalendar={() => router.push("/calendar")}
+              onShare={handleSharePostSave}
+              onCreateAnother={handleCreateAnotherSimilar}
+              onCopyLink={async () => {
+                if (!postSaveShareUrl) return;
+                try {
+                  await navigator.clipboard.writeText(postSaveShareUrl);
+                  setToast({
+                    title: "Link copiado ✅",
+                    subtitle: "Ya puedes compartirlo donde quieras.",
+                  });
+                } catch {
+                  setToast({
+                    title: "No se pudo copiar",
+                    subtitle: "Cópialo manualmente desde aquí.",
+                  });
+                }
               }}
-            >
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 900 }}>
-                  {postSaveActions.isProposal
-                    ? proposalResponse === "adjust"
-                      ? "Propuesta ajustada"
-                      : "Propuesta aceptada"
-                    : postSaveActions.isShared
-                    ? "Plan compartido guardado"
-                    : "Evento guardado"}
-                </div>
-                <div style={{ marginTop: 4, fontSize: 12, opacity: 0.72 }}>
-                  {postSaveActions.isProposal
-                    ? proposalResponse === "adjust"
-                      ? postSaveActions.title
-                        ? `"${postSaveActions.title}" ya quedó ajustada y guardada como plan. ¿Qué quieres hacer ahora?`
-                        : "La propuesta ya quedó ajustada y guardada como plan. ¿Qué quieres hacer ahora?"
-                      : postSaveActions.title
-                      ? `"${postSaveActions.title}" ya quedó aceptada y convertida en plan. ¿Qué quieres hacer ahora?`
-                      : "La propuesta ya quedó aceptada y convertida en plan. ¿Qué quieres hacer ahora?"
-                    : postSaveActions.title
-                    ? `"${postSaveActions.title}" ya quedó listo. ¿Qué quieres hacer ahora?`
-                    : "Tu evento ya quedó listo. ¿Qué quieres hacer ahora?"}
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => router.push("/calendar")}
-                  style={styles.ghostBtn}
-                >
-                  {postSaveActions.isProposal ? "Ver plan en calendario" : "Ver calendario"}
-                </button>
-
-                {postSaveActions?.isShared && postSaveActions?.eventId ? (
-                  <button
-                    type="button"
-                    onClick={handleSharePostSave}
-                    disabled={sharingPostSave}
-                    style={{
-                      ...styles.ghostBtn,
-                      opacity: sharingPostSave ? 0.7 : 1,
-                    }}
-                  >
-                    {sharingPostSave ? "Compartiendo…" : "Compartir"}
-                  </button>
-                ) : null}
-
-                <button
-                  type="button"
-                  onClick={handleCreateAnotherSimilar}
-                  style={styles.primaryBtn}
-                >
-                  {postSaveActions.isProposal
-                    ? proposalResponse === "adjust"
-                      ? "Crear otra propuesta para ajustar"
-                      : "Crear otra propuesta similar"
-                    : "Crear otro similar"}
-                </button>
-              </div>
-
-              {postSaveShareUrl ? (
-                <div
-                  style={{
-                    borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    background: "rgba(255,255,255,0.03)",
-                    padding: 10,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 8,
-                  }}
-                >
-                  <div style={{ fontSize: 12, opacity: 0.72 }}>
-                    Link listo para compartir
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 12,
-                      wordBreak: "break-all",
-                      opacity: 0.9,
-                    }}
-                  >
-                    {postSaveShareUrl}
-                  </div>
-
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!postSaveShareUrl) return;
-                        try {
-                          await navigator.clipboard.writeText(postSaveShareUrl);
-                          setToast({
-                            title: "Link copiado ✅",
-                            subtitle: "Ya puedes compartirlo donde quieras.",
-                          });
-                        } catch {
-                          setToast({
-                            title: "No se pudo copiar",
-                            subtitle: "Cópialo manualmente desde aquí.",
-                          });
-                        }
-                      }}
-                      style={styles.ghostBtn}
-                    >
-                      Copiar link
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPostSaveShareUrl(null)}
-                      style={styles.ghostBtn}
-                    >
-                      Cerrar
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
+              onCloseShareUrl={() => setPostSaveShareUrl(null)}
+            />
           ) : null}
         </section>
 
@@ -2722,237 +2511,6 @@ sharedGroupDetectionState === "ambiguous" ? (
     </main>
   );
 }
-
-/* ===================== Modal (premium) ===================== */
-
-function ConflictPreflightModal({
-  open,
-  title,
-  items,
-  defaultChoice,
-  onClose,
-  onChoose,
-}: {
-  open: boolean;
-  title: string;
-  items: PreflightConflict[];
-  defaultChoice: PreflightChoice;
-  onClose: () => void;
-  onChoose: (c: PreflightChoice) => void;
-}) {
-  return (
-    <SharedConflictPreflightModal
-      open={open}
-      title={title}
-      items={items}
-      defaultChoice={defaultChoice}
-      onClose={onClose}
-      onChoose={onChoose}
-    />
-  );
-}
-
-function ChoiceCard({
-  active,
-  title,
-  desc,
-  onClick,
-}: {
-  active: boolean;
-  title: string;
-  desc: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        ...modalStyles.choice,
-        borderColor: active
-          ? "rgba(52,211,153,0.22)"
-          : "rgba(255,255,255,0.12)",
-        background: active
-          ? "rgba(52,211,153,0.08)"
-          : "rgba(255,255,255,0.05)",
-      }}
-    >
-      <div style={modalStyles.choiceTitle}>{title}</div>
-      <div style={modalStyles.choiceDesc}>{desc}</div>
-    </button>
-  );
-}
-
-const modalStyles: Record<string, React.CSSProperties> = {
-  wrap: {
-    position: "fixed",
-    inset: 0,
-    zIndex: 80,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-  },
-  backdrop: {
-    position: "absolute",
-    inset: 0,
-    background: "rgba(0,0,0,0.70)",
-    backdropFilter: "blur(2px)",
-    border: "none",
-    cursor: "pointer",
-  },
-  card: {
-    position: "relative",
-    width: "min(860px, 100%)",
-    borderRadius: 22,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(7,11,22,0.88)",
-    boxShadow: "0 30px 100px rgba(0,0,0,0.55)",
-    backdropFilter: "blur(16px)",
-    overflow: "hidden",
-  },
-  header: {
-    padding: 18,
-  },
-  badge: {
-    display: "inline-flex",
-    gap: 8,
-    alignItems: "center",
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.05)",
-    fontSize: 12,
-    fontWeight: 900,
-    opacity: 0.85,
-  },
-  badgeDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 99,
-    background: "rgba(248,113,113,0.95)",
-  },
-  h2: {
-    marginTop: 10,
-    fontSize: 20,
-    fontWeight: 950,
-    letterSpacing: "-0.2px",
-  },
-  p: {
-    marginTop: 6,
-    fontSize: 13,
-    opacity: 0.75,
-    lineHeight: 1.4,
-  },
-  listBox: {
-    padding: "0 18px 14px",
-  },
-  listInner: {
-    maxHeight: 260,
-    overflow: "auto",
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(0,0,0,0.28)",
-  },
-  item: {
-    padding: 14,
-  },
-  itemTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 12,
-    alignItems: "flex-start",
-  },
-  itemTitle: {
-    fontSize: 13,
-    fontWeight: 950,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-  itemSub: {
-    marginTop: 4,
-    fontSize: 12,
-    opacity: 0.7,
-    fontWeight: 700,
-  },
-  overlapPill: {
-    marginTop: 8,
-    display: "inline-flex",
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(248,113,113,0.22)",
-    background: "rgba(248,113,113,0.10)",
-    fontSize: 11,
-    opacity: 0.9,
-    fontWeight: 800,
-  },
-  idxPill: {
-    flexShrink: 0,
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.05)",
-    fontSize: 12,
-    fontWeight: 900,
-    opacity: 0.8,
-  },
-  choices: {
-    padding: "0 18px 14px",
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 10,
-  },
-  choice: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.12)",
-    padding: 14,
-    textAlign: "left",
-    cursor: "pointer",
-    color: "rgba(255,255,255,0.92)",
-  },
-  choiceTitle: {
-    fontSize: 13,
-    fontWeight: 950,
-  },
-  choiceDesc: {
-    marginTop: 4,
-    fontSize: 12,
-    opacity: 0.7,
-    fontWeight: 700,
-  },
-  footer: {
-    padding: "0 18px 16px",
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  ghost: {
-    padding: "10px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.05)",
-    color: "rgba(255,255,255,0.90)",
-    cursor: "pointer",
-    fontWeight: 900,
-  },
-  primary: {
-    padding: "10px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.18), rgba(124,58,237,0.18))",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 950,
-  },
-  tip: {
-    padding: "0 18px 16px",
-    fontSize: 11,
-    opacity: 0.55,
-    fontWeight: 700,
-  },
-};
 
 const styles: Record<string, React.CSSProperties> = {
   page: {

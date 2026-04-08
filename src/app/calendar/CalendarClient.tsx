@@ -38,6 +38,14 @@ import {
   SOFT_REJECTED_EVENTS_KEY,
 } from "@/lib/conflicts";
 import {
+  formatRangeLabel,
+  isValidDateLike,
+  parseIsoLike,
+  sameLocalDay,
+  toDateMs,
+  toYmdKey,
+} from "@/lib/dateUtils";
+import {
   getMyConflictResolutionsMap,
   type Resolution,
 } from "@/lib/conflictResolutionsDb";
@@ -91,17 +99,10 @@ function addDays(d: Date, n: number) {
   return x;
 }
 function sameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+  return sameLocalDay(a, b);
 }
 function ymd(d: Date) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+  return toYmdKey(d);
 }
 function prettyMonthRange(a: Date, b: Date) {
   const meses = [
@@ -143,23 +144,7 @@ function prettyDay(d: Date) {
   } ${d.getFullYear()}`;
 }
 function prettyTimeRange(startIso: string, endIso: string) {
-  const s = new Date(startIso);
-  const e = new Date(endIso);
-  const hhmm = (x: Date) =>
-    `${String(x.getHours()).padStart(2, "0")}:${String(
-      x.getMinutes()
-    ).padStart(2, "0")}`;
-  const cross = !sameDay(s, e);
-  if (cross)
-    return `${s.toLocaleDateString()} ${hhmm(
-      s
-    )} → ${e.toLocaleDateString()} ${hhmm(e)}`;
-  return `${hhmm(s)} – ${hhmm(e)}`;
-}
-function isValidIsoish(v: any) {
-  if (!v || typeof v !== "string") return false;
-  const t = new Date(v).getTime();
-  return !Number.isNaN(t);
+  return formatRangeLabel(startIso, endIso);
 }
 
 /** ✅ detecta móvil por ancho */
@@ -450,7 +435,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
             const startRaw = ev.start ?? ev.start_at ?? null;
             const endRaw = ev.end ?? ev.end_at ?? null;
 
-            if (!isValidIsoish(startRaw) || !isValidIsoish(endRaw)) return null;
+            if (!isValidDateLike(startRaw) || !isValidDateLike(endRaw)) return null;
 
             return {
               id: String(ev.id),
@@ -793,7 +778,7 @@ console.log("DELETE CHECK", {
       ].filter(Boolean) as CalendarEventWithOwner[];
 
       for (const event of candidates) {
-        const ms = new Date(event.start).getTime();
+        const ms = toDateMs(event.start);
         if (Number.isNaN(ms)) continue;
 
         if (ms > latestStartMs) {
@@ -811,8 +796,8 @@ console.log("DELETE CHECK", {
 
     const set = new Set<string>();
     for (const c of conflicts) {
-      const s = new Date(c.overlapStart).getTime();
-      const e = new Date(c.overlapEnd).getTime();
+      const s = toDateMs(c.overlapStart);
+      const e = toDateMs(c.overlapEnd);
       const intersects = e >= a && s <= b;
       if (!intersects) continue;
 
@@ -829,8 +814,8 @@ console.log("DELETE CHECK", {
     const b = gridEnd.getTime();
 
     const idx = conflicts.findIndex((c) => {
-      const s = new Date(c.overlapStart).getTime();
-      const e = new Date(c.overlapEnd).getTime();
+      const s = toDateMs(c.overlapStart);
+      const e = toDateMs(c.overlapEnd);
       return e >= a && s <= b;
     });
 
@@ -882,8 +867,8 @@ console.log("DELETE CHECK", {
     const b = gridEnd.getTime();
 
     return filteredEvents.filter((e) => {
-      const s = new Date(e.start).getTime();
-      const en = new Date(e.end).getTime();
+      const s = toDateMs(e.start);
+      const en = toDateMs(e.end);
       return en >= a && s <= b;
     });
   }, [filteredEvents, gridStart, gridEnd]);
@@ -892,7 +877,7 @@ console.log("DELETE CHECK", {
     const map = new Map<string, CalendarEventWithOwner[]>();
 
     for (const e of visibleEvents) {
-      const key = ymd(new Date(e.start));
+      const key = toYmdKey(parseIsoLike(e.start) ?? new Date(e.start));
       const arr = map.get(key) || [];
       arr.push(e);
       map.set(key, arr);
@@ -900,7 +885,7 @@ console.log("DELETE CHECK", {
     for (const [k, arr] of map.entries()) {
       arr.sort(
         (a, b) =>
-          new Date(a.start).getTime() - new Date(b.start).getTime()
+          toDateMs(a.start) - toDateMs(b.start)
       );
       map.set(k, arr);
     }
@@ -911,7 +896,7 @@ console.log("DELETE CHECK", {
     const list = [...visibleEvents];
     list.sort(
       (a, b) =>
-        new Date(a.start).getTime() - new Date(b.start).getTime()
+        toDateMs(a.start) - toDateMs(b.start)
     );
     return list;
   }, [visibleEvents]);
@@ -928,7 +913,7 @@ console.log("DELETE CHECK", {
   useEffect(() => {
     if (!highlightedEvent) return;
 
-    const d = new Date(highlightedEvent.start);
+    const d = parseIsoLike(highlightedEvent.start) ?? new Date(highlightedEvent.start);
 
     setAnchor(new Date(d.getFullYear(), d.getMonth(), 1));
     setSelectedDay(

@@ -53,6 +53,7 @@ import {
   getSuggestedTimeSlots,
   getSuggestionContextLabel,
 } from "@/lib/timeSuggestions";
+import { parseIsoLike, toDateMs } from "@/lib/dateUtils";
 type Props = {
   highlightId: string | null;
   appliedToast: string | null;
@@ -292,10 +293,7 @@ function getSmartInterpretationLabel(
   return `→ Se creará como evento de grupo`;
 }
 function safeDate(iso?: string | null) {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d;
+  return parseIsoLike(iso ?? null);
 }
 function humanizeRelativeDate(dateString?: string | null) {
   if (!dateString) return null;
@@ -463,15 +461,15 @@ function buildConflictAlert(
       eventsById.get(String(conflict.incomingEventId)),
     ].filter(Boolean) as CalendarEvent[];
 
-    for (const event of candidates) {
-      const ms = new Date(event.start).getTime();
-      if (Number.isNaN(ms)) continue;
+ for (const event of candidates) {
+  const ms = toDateMs(event.start);
+  if (Number.isNaN(ms)) continue;
 
-      if (ms > latestStartMs) {
-        latestStartMs = ms;
-        latestEventId = String(event.id);
-      }
-    }
+  if (ms > latestStartMs) {
+    latestStartMs = ms;
+    latestEventId = String(event.id);
+  }
+}
   }
 
   return {
