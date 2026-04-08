@@ -492,6 +492,9 @@ const overlayStyles: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   zIndex: 80,
+  padding: "16px 14px calc(96px + env(safe-area-inset-bottom, 0px))",
+  boxSizing: "border-box",
+  overflowY: "auto",
 };
 
 const modalStyles: React.CSSProperties = {
@@ -507,6 +510,8 @@ const modalStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: 14,
+  marginTop: "auto",
+  marginBottom: "auto",
 };
 
 const headerStyles: React.CSSProperties = {
