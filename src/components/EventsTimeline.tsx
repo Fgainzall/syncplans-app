@@ -1,4 +1,3 @@
-// src/components/EventsTimeline.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -28,10 +27,7 @@ import {
   type GroupType,
   type ConflictItem,
 } from "@/lib/conflicts";
-import {
-  deriveEventStatus,
-  normalizeProposalResponse,
-} from "@/lib/naming";
+import { deriveEventStatus } from "@/lib/naming";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
 import { getDisplayName, getProfilesMapByIds } from "@/lib/profilesDb";
 
@@ -75,8 +71,9 @@ type ProposalResponseByEventId = Record<string, ProposalResponseRow | null>;
 type ProposalResponsesGroupByEventId = Record<string, ProposalResponseRow[]>;
 type ConflictByEventId = Record<string, ConflictItem[]>;
 
-
-function normalizeTimelineGroupType(value: string | null | undefined): GroupType {
+function normalizeTimelineGroupType(
+  value: string | null | undefined
+): GroupType {
   const safe = String(value ?? "").trim().toLowerCase();
 
   if (!safe) return "personal";
@@ -159,70 +156,11 @@ function getTimelinePrimaryAction(input: {
 function buildConflictSummary(conflicts: ConflictItem[]) {
   if (!Array.isArray(conflicts) || conflicts.length === 0) return null;
 
-  const first = conflicts[0];
-  const otherEventId = String(
-    first.existingEventId === first.incomingEventId
-      ? ""
-      : first.existingEventId
-  ).trim();
-
   if (conflicts.length === 1) {
     return "Este plan choca con otro evento visible.";
   }
 
   return `Este plan choca con ${conflicts.length} eventos visibles.`;
-}
-
-function getResponseActorTone(response: string | null | undefined) {
-  const safe = String(response ?? "").trim().toLowerCase();
-
-  if (safe === "accepted") return "accepted";
-  if (safe === "adjusted") return "adjusted";
-  if (safe === "pending") return "pending";
-  return "neutral";
-}
-
-function getResponseActorLabel(response: string | null | undefined) {
-  const safe = String(response ?? "").trim().toLowerCase();
-
-  if (safe === "accepted") return "aceptó";
-  if (safe === "adjusted") return "ajustó";
-  if (safe === "pending") return "pendiente";
-  return "respondió";
-}
-
-function getResponseActorStyle(
-  tone: "accepted" | "adjusted" | "pending" | "neutral"
-): React.CSSProperties {
-  if (tone === "accepted") {
-    return {
-      background: "rgba(20,83,45,0.62)",
-      borderColor: "rgba(74,222,128,0.24)",
-      color: "rgba(220,252,231,0.98)",
-    };
-  }
-
-  if (tone === "adjusted") {
-    return {
-      background: "rgba(22,78,99,0.62)",
-      borderColor: "rgba(103,232,249,0.24)",
-      color: "rgba(207,250,254,0.98)",
-    };
-  }
-
-  if (tone === "pending") {
-    return {
-      background: "rgba(120,53,15,0.62)",
-      borderColor: "rgba(251,191,36,0.24)",
-      color: "rgba(254,243,199,0.98)",
-    };
-  }
-
-  return {
-    background: "rgba(15,23,42,0.72)",
-    borderColor: "rgba(148,163,184,0.18)",
-    color: "rgba(226,232,240,0.94)",
-  };
 }
 
 function humanizeShareError(
@@ -339,72 +277,6 @@ function getExternalLabel(ev: TimelineEvent) {
   if (!ev.external_source) return null;
   if (ev.external_source.toLowerCase() === "google") return "Google";
   return "Externo";
-}
-
-function getTrustPresentation(signal: ConflictTrustSignal | null) {
-  if (!signal) return null;
-
-  if (signal.label === "auto_adjusted") {
-    return {
-      label: "Ajuste automático",
-      title: "SyncPlans mantuvo una salida segura automáticamente.",
-      style: {
-        background: "rgba(67,56,202,0.18)",
-        borderColor: "rgba(129,140,248,0.28)",
-        color: "rgba(224,231,255,0.98)",
-      } as React.CSSProperties,
-    };
-  }
-
-  return {
-    label: "Resuelto",
-    title: "Este evento ya pasó por una decisión confirmada.",
-    style: {
-      background: "rgba(20,83,45,0.18)",
-      borderColor: "rgba(74,222,128,0.24)",
-      color: "rgba(220,252,231,0.98)",
-    } as React.CSSProperties,
-  };
-}
-
-function getProposalPresentation(response: string | null | undefined) {
-  const safe = String(response ?? "").trim().toLowerCase();
-  if (!safe) return null;
-
-  if (safe === "pending") {
-    return {
-      label: "Pendiente",
-      style: {
-        background: "rgba(120,53,15,0.92)",
-        borderColor: "rgba(251,191,36,0.30)",
-        color: "rgba(254,243,199,0.98)",
-      } as React.CSSProperties,
-    };
-  }
-
-  if (safe === "accepted") {
-    return {
-      label: "Aceptada",
-      style: {
-        background: "rgba(20,83,45,0.95)",
-        borderColor: "rgba(74,222,128,0.28)",
-        color: "rgba(220,252,231,0.98)",
-      } as React.CSSProperties,
-    };
-  }
-
-  if (safe === "adjusted") {
-    return {
-      label: "Ajustada",
-      style: {
-        background: "rgba(22,78,99,0.95)",
-        borderColor: "rgba(103,232,249,0.28)",
-        color: "rgba(207,250,254,0.98)",
-      } as React.CSSProperties,
-    };
-  }
-
-  return null;
 }
 
 function getProposalInsight(response: string | null | undefined) {
@@ -917,7 +789,8 @@ export default function EventsTimeline({
     async function loadProposalProfiles() {
       const userIds = Array.from(
         new Set(
-          Object.values(proposalResponseGroupsByEventId).flat()
+          Object.values(proposalResponseGroupsByEventId)
+            .flat()
             .map((row) => String(row?.user_id ?? "").trim())
             .filter(Boolean)
         )
@@ -1170,7 +1043,6 @@ export default function EventsTimeline({
                 const invite = inviteStateByEventId[eventId] ?? null;
                 const invitePresentation = getInvitePresentation(invite);
                 const trustSignal = trustSignalsByEventId[eventId] ?? null;
-                const trustPresentation = getTrustPresentation(trustSignal);
                 const proposalResponse = proposalResponsesByEventId[eventId] ?? null;
                 const proposalInsight = getProposalInsight(
                   proposalResponse?.response
@@ -1196,15 +1068,6 @@ export default function EventsTimeline({
                   status: statusUi.status,
                 });
                 const conflictSummary = buildConflictSummary(conflictsForEvent);
-                const hasPendingResponse =
-                  normalizeProposalResponse(proposalResponse?.response) === "pending";
-                const shouldShowInviteBadge =
-                  (!!invite && invitePresentation.label.trim().toLowerCase() !==
-                    statusUi.label.trim().toLowerCase()) || false;
-                const shouldShowTrustBadge =
-                  !!trustPresentation &&
-                  trustPresentation.label.trim().toLowerCase() !==
-                    statusUi.label.trim().toLowerCase();
 
                 const start = new Date(ev.start).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -1358,43 +1221,6 @@ export default function EventsTimeline({
                       </div>
 
                       <div style={S.signalsRow}>
-                        {isOwnerView && shouldShowInviteBadge ? (
-                          <span
-                            style={{
-                              ...S.signalBadge,
-                              ...getInviteBadgeStyle(invitePresentation.tone),
-                              fontWeight: 900,
-                              padding: "6px 11px",
-                            }}
-                          >
-                            {invitePresentation.label}
-                          </span>
-                        ) : invite ? (
-                          <span
-                            style={{
-                              ...S.signalBadge,
-                              background: "rgba(30,41,59,0.88)",
-                              borderColor: "rgba(148,163,184,0.18)",
-                              color: "rgba(226,232,240,0.96)",
-                            }}
-                          >
-                            Invitación recibida
-                          </span>
-                        ) : null}
-
-                        {shouldShowTrustBadge ? (
-                          <span
-                            style={{
-                              ...S.signalBadge,
-                              ...trustPresentation.style,
-                              opacity: 0.8,
-                            }}
-                            title={trustPresentation.title}
-                          >
-                            {trustPresentation.label}
-                          </span>
-                        ) : null}
-
                         <span
                           style={{
                             ...S.signalBadge,
@@ -1828,15 +1654,16 @@ const S: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
   },
   stateCard: {
-    borderRadius: 15,
-    border: "1px solid rgba(255,255,255,0.10)",
-    padding: 12,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.18)",
+    padding: 14,
+    backgroundBlendMode: "overlay",
+    boxShadow: "0 18px 40px rgba(0,0,0,0.22)",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 10,
     flexWrap: "wrap",
-    boxShadow: "0 14px 30px rgba(0,0,0,0.14)",
   },
   stateCardCopy: {
     display: "flex",
