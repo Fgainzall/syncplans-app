@@ -55,6 +55,8 @@ import {
 } from "@/lib/timeSuggestions";
 import { parseIsoLike, toDateMs } from "@/lib/dateUtils";
 import {
+  deriveEventStatus,
+  getEventStatusLabel,
   normalizeGroupType,
   getGroupTypeLabel,
   normalizeProposalResponse,
@@ -357,13 +359,25 @@ function fmtTime(d: Date) {
 function humanGroupName(g: GroupRow) {
   const n = String(g.name ?? "").trim();
   if (n) return n;
-  return getGroupTypeLabel(String(g.type ?? ""));
+
+  const t = String(g.type ?? "").toLowerCase();
+  if (t === "pair" || t === "couple") return "Pareja";
+  if (t === "family") return "Familia";
+  if (t === "solo" || t === "personal") return "Personal";
+  if (t === "other" || t === "shared") return "Compartido";
+
+  return "Grupo";
 }
 
 function normalizeSummaryGroupType(
   raw: string | null | undefined
 ): GroupType {
-  return normalizeGroupType(raw) as GroupType;
+  const value = String(raw ?? "").trim().toLowerCase();
+
+  if (value === "pair" || value === "couple") return "pair";
+  if (value === "family") return "family";
+  if (value === "other" || value === "shared") return "other";
+  return "personal";
 }
 
 function resolutionForConflict(
@@ -775,15 +789,36 @@ function buildShareToastLabel(input: string): string {
 }
 
 function proposalResponseLabel(response: string | null | undefined): string | null {
-  const normalized = normalizeProposalResponse(response);
-  if (!response) return null;
-  return getProposalResponseLabel(normalized);
+  const safe = String(response ?? "").trim().toLowerCase();
+  if (!safe) return null;
+  if (safe === "pending") return "Pendiente";
+  if (safe === "accepted") return "Aceptada";
+  if (safe === "adjusted") return "Ajustada";
+  return null;
 }
 
 function proposalResponseTone(response: string | null | undefined): "pending" | "accepted" | "adjusted" | "neutral" {
-  const normalized = normalizeProposalResponse(response);
-  if (!response) return "neutral";
-  return getProposalResponseTone(normalized);
+  const safe = String(response ?? "").trim().toLowerCase();
+  if (safe === "pending") return "pending";
+  if (safe === "accepted") return "accepted";
+  if (safe === "adjusted") return "adjusted";
+  return "neutral";
+}
+
+function getUnifiedEventStatus(input: {
+  eventId: string | null | undefined;
+  conflictEventIds: Set<string>;
+  proposalResponseGroupsMap: Record<string, ProposalResponseRow[]>;
+}): ReturnType<typeof deriveEventStatus> | null {
+  const key = String(input.eventId ?? "").trim();
+  if (!key) return null;
+
+  return deriveEventStatus({
+    conflictsCount: input.conflictEventIds.has(key) ? 1 : 0,
+    responseStatuses: (input.proposalResponseGroupsMap[key] ?? []).map(
+      (row) => row?.response
+    ),
+  });
 }
 
 function canUseNativeShare() {
@@ -1522,40 +1557,25 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
   const getStatusBadgeForEvent = useCallback(
     (eventId: string | null | undefined) => {
-      const key = String(eventId ?? "").trim();
-      if (!key) return null;
+      const status = getUnifiedEventStatus({
+        eventId,
+        conflictEventIds,
+        proposalResponseGroupsMap,
+      });
 
-      if (conflictEventIds.has(key)) {
-        return {
-          label: "Requiere decisión",
-          style: styles.summaryStatusDanger,
-        };
-      }
+      if (!status || status === "scheduled") return null;
 
-      const rows = proposalResponseGroupsMap[key] ?? [];
-
-      if (rows.some((row) => row?.response === "pending")) {
-        return {
-          label: "Pendiente",
-          style: styles.summaryStatusPending,
-        };
-      }
-
-      if (rows.some((row) => row?.response === "adjusted")) {
-        return {
-          label: "Ajustado",
-          style: styles.summaryStatusInfo,
-        };
-      }
-
-      if (rows.some((row) => row?.response === "accepted")) {
-        return {
-          label: "Confirmado",
-          style: styles.summaryStatusOk,
-        };
-      }
-
-      return null;
+      return {
+        label: getEventStatusLabel(status),
+        style:
+          status === "conflicted"
+            ? styles.summaryStatusDanger
+            : status === "pending"
+            ? styles.summaryStatusPending
+            : status === "adjusted"
+            ? styles.summaryStatusInfo
+            : styles.summaryStatusOk,
+      };
     },
     [conflictEventIds, proposalResponseGroupsMap]
   );
@@ -1788,13 +1808,13 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
                 {decisionSummary.pendingProposals > 0 ? (
                   <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipPending }}>
-                    {decisionSummary.pendingProposals} propuesta{decisionSummary.pendingProposals === 1 ? "" : "s"} pendiente{decisionSummary.pendingProposals === 1 ? "" : "s"}
+                    {decisionSummary.pendingProposals} propuesta{decisionSummary.pendingProposals === 1 ? "" : "s"} por responder
                   </button>
                 ) : null}
 
                 {decisionSummary.adjustedProposals > 0 ? (
                   <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipInfo }}>
-                    {decisionSummary.adjustedProposals} ajuste{decisionSummary.adjustedProposals === 1 ? "" : "s"} por revisar
+                    {decisionSummary.adjustedProposals} ajuste{decisionSummary.adjustedProposals === 1 ? "" : "s"} por decidir
                   </button>
                 ) : null}
               </div>

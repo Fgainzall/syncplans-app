@@ -46,6 +46,8 @@ import {
   toYmdKey,
 } from "@/lib/dateUtils";
 import {
+  deriveEventStatus,
+  getEventStatusLabel,
   normalizeGroupType,
   normalizeProposalResponse,
   getProposalResponseLabel,
@@ -180,8 +182,8 @@ function useIsMobileWidth(maxWidth = 720) {
 }
 
 /**
- * Normalización canónica para el motor de conflictos.
- * Ya no promovemos valores legacy como "couple".
+ * ✅ Normalización para conflictos:
+ * El motor de conflictos trabaja con "couple" para pareja.
  */
 function normalizeForConflicts(
   gt: string | null | undefined
@@ -212,15 +214,41 @@ function resolutionForConflict(
   return undefined;
 }
 function proposalResponseLabel(response: string | null | undefined): string | null {
-  if (!response) return null;
-  return getProposalResponseLabel(normalizeProposalResponse(response));
+  const safe = String(response ?? "").trim().toLowerCase();
+  if (!safe) return null;
+  if (safe === "pending") return "Pendiente";
+  if (safe === "accepted") return "Aceptada";
+  if (safe === "adjusted") return "Ajustada";
+  return null;
 }
 
 function proposalResponseTone(
   response: string | null | undefined
 ): "pending" | "accepted" | "adjusted" | "neutral" {
-  if (!response) return "neutral";
-  return getProposalResponseTone(normalizeProposalResponse(response));
+  const safe = String(response ?? "").trim().toLowerCase();
+  if (safe === "pending") return "pending";
+  if (safe === "accepted") return "accepted";
+  if (safe === "adjusted") return "adjusted";
+  return "neutral";
+}
+
+function getCalendarEventStatus(input: {
+  eventId: string | null | undefined;
+  inConflict?: boolean;
+  proposalRow?: ProposalResponseRow | null;
+  trustSignal?: ConflictTrustSignal | null;
+}) {
+  const key = String(input.eventId ?? "").trim();
+  if (!key) return null;
+
+  const status = deriveEventStatus({
+    conflictsCount: input.inConflict ? 1 : 0,
+    responseStatuses: input.proposalRow ? [input.proposalRow.response] : [],
+    hasTrustSignal: !!input.trustSignal,
+  });
+
+  if (status === "scheduled") return null;
+  return status;
 }
 
 /** ✅ Props del Calendar */
@@ -1425,16 +1453,20 @@ function EventRow({
   const proposalRow = proposalResponsesMap?.[String(e.id)];
   const proposalLabel = proposalResponseLabel(proposalRow?.response);
   const proposalTone = proposalResponseTone(proposalRow?.response);
-  const statusLabel = inConflict ? "Conflicto" : proposalLabel ?? trustLabel;
-  const statusStyle = inConflict
+  const calendarEventStatus = getCalendarEventStatus({
+    eventId: e.id,
+    inConflict,
+    proposalRow,
+    trustSignal,
+  });
+  const statusLabel = calendarEventStatus
+    ? getEventStatusLabel(calendarEventStatus)
+    : proposalLabel ?? trustLabel;
+  const statusStyle = calendarEventStatus === "conflicted"
     ? styles.eventTrustBadgeConflict
-    : proposalLabel
-    ? proposalTone === "accepted"
-      ? styles.eventTrustBadgeResolved
-      : proposalTone === "adjusted"
-      ? styles.eventTrustBadgeAuto
-      : styles.eventTrustBadgePending
-    : trustSignal?.label === "auto_adjusted"
+    : calendarEventStatus === "pending"
+    ? styles.eventTrustBadgePending
+    : calendarEventStatus === "adjusted"
     ? styles.eventTrustBadgeAuto
     : styles.eventTrustBadgeResolved;
 
@@ -1701,16 +1733,20 @@ cells.push(
         const proposalLabel = proposalResponseLabel(proposalRow?.response);
         const proposalTone = proposalResponseTone(proposalRow?.response);
         const isConflictEvent = conflictEventIdsInGrid.has(String(e.id));
-        const cellStatusLabel = isConflictEvent ? "Conflicto" : proposalLabel ?? trustShortLabel;
-        const cellStatusStyle = isConflictEvent
+        const calendarEventStatus = getCalendarEventStatus({
+          eventId: e.id,
+          inConflict: isConflictEvent,
+          proposalRow,
+          trustSignal,
+        });
+        const cellStatusLabel = calendarEventStatus
+          ? getEventStatusLabel(calendarEventStatus)
+          : proposalLabel ?? trustShortLabel;
+        const cellStatusStyle = calendarEventStatus === "conflicted"
           ? styles.cellTrustPillConflict
-          : proposalLabel
-          ? proposalTone === "accepted"
-            ? styles.cellTrustPillResolved
-            : proposalTone === "adjusted"
-            ? styles.cellTrustPillAuto
-            : styles.cellTrustPillPending
-          : trustSignal?.label === "auto_adjusted"
+          : calendarEventStatus === "pending"
+          ? styles.cellTrustPillPending
+          : calendarEventStatus === "adjusted"
           ? styles.cellTrustPillAuto
           : styles.cellTrustPillResolved;
 

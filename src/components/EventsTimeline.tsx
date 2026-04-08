@@ -25,6 +25,7 @@ import {
 import {
   computeVisibleConflicts,
   type CalendarEvent,
+  type GroupType,
   type ConflictItem,
 } from "@/lib/conflicts";
 import {
@@ -81,8 +82,17 @@ type ProposalResponsesGroupByEventId = Record<string, ProposalResponseRow[]>;
 type ConflictByEventId = Record<string, ConflictItem[]>;
 
 
-function normalizeTimelineGroupType(value: string | null | undefined) {
-  return normalizeGroupType(value);
+function normalizeTimelineGroupType(value: string | null | undefined): GroupType {
+  const safe = String(value ?? "").trim().toLowerCase();
+
+  if (!safe) return "personal";
+  if (safe === "couple") return "pair";
+  if (safe === "shared") return "other";
+  if (safe === "pair" || safe === "family" || safe === "other") {
+    return safe as GroupType;
+  }
+
+  return "other";
 }
 
 function toConflictCalendarEvent(event: TimelineEvent): CalendarEvent {
@@ -111,25 +121,17 @@ function getEventStatePresentation(input: {
   const invite = input.invite;
   const trustSignal = input.trustSignal;
 
-  const status = deriveEventStatus({
-    conflictsCount,
-    responseStatuses: responses.map((row) => row?.response),
-    inviteStatus: invite?.status,
-    hasInviteProposedDate: !!invite?.proposed_date,
-    hasTrustSignal: !!trustSignal,
-  });
+  const hasPending = responses.some((row) => row?.response === "pending");
+  const hasAdjusted = responses.some((row) => row?.response === "adjusted");
+  const hasAccepted = responses.some((row) => row?.response === "accepted");
 
-  if (status === "scheduled") {
-    return null;
-  }
-
-  if (status === "conflicted") {
+  if (conflictsCount > 0) {
     return {
-      label:
+      label: conflictsCount === 1 ? "Requiere decisión" : `Conflictos (${conflictsCount})`,
+      subtitle:
         conflictsCount === 1
-          ? getEventStatusLabel(status)
-          : `Conflictos (${conflictsCount})`,
-      subtitle: getEventStatusSubtitle(status, conflictsCount),
+          ? "Este plan choca con otro evento visible."
+          : "Este plan tiene varios choques por revisar.",
       style: {
         background: "rgba(127,29,29,0.88)",
         borderColor: "rgba(252,165,165,0.28)",
@@ -138,10 +140,10 @@ function getEventStatePresentation(input: {
     };
   }
 
-  if (status === "pending") {
+  if (hasPending || invite?.status === "pending" || (invite?.status === "rejected" && !!invite?.proposed_date)) {
     return {
-      label: getEventStatusLabel(status),
-      subtitle: getEventStatusSubtitle(status, conflictsCount),
+      label: "Pendiente",
+      subtitle: "Todavía falta una decisión para cerrar este plan.",
       style: {
         background: "rgba(120,53,15,0.88)",
         borderColor: "rgba(251,191,36,0.30)",
@@ -150,10 +152,10 @@ function getEventStatePresentation(input: {
     };
   }
 
-  if (status === "adjusted") {
+  if (hasAdjusted) {
     return {
-      label: getEventStatusLabel(status),
-      subtitle: getEventStatusSubtitle(status, conflictsCount),
+      label: "Ajustado",
+      subtitle: "Hubo cambios antes de dejar este plan listo.",
       style: {
         background: "rgba(22,78,99,0.90)",
         borderColor: "rgba(103,232,249,0.28)",
@@ -162,26 +164,54 @@ function getEventStatePresentation(input: {
     };
   }
 
-  return {
-    label: getEventStatusLabel("confirmed"),
-    subtitle: getEventStatusSubtitle("confirmed", conflictsCount),
-    style: {
-      background: "rgba(20,83,45,0.92)",
-      borderColor: "rgba(74,222,128,0.28)",
-      color: "rgba(220,252,231,0.98)",
-    } as React.CSSProperties,
-  };
+  if (hasAccepted || invite?.status === "accepted" || !!trustSignal) {
+    return {
+      label: "Confirmado",
+      subtitle: "Este plan ya tiene una salida clara.",
+      style: {
+        background: "rgba(20,83,45,0.92)",
+        borderColor: "rgba(74,222,128,0.28)",
+        color: "rgba(220,252,231,0.98)",
+      } as React.CSSProperties,
+    };
+  }
+
+  return null;
+}
+
+function buildConflictSummary(conflicts: ConflictItem[]) {
+  if (!Array.isArray(conflicts) || conflicts.length === 0) return null;
+
+  const first = conflicts[0];
+  const otherEventId = String(
+    first.existingEventId === first.incomingEventId
+      ? ""
+      : first.existingEventId
+  ).trim();
+
+  if (conflicts.length === 1) {
+    return "Este plan choca con otro evento visible.";
+  }
+
+  return `Este plan choca con ${conflicts.length} eventos visibles.`;
 }
 
 function getResponseActorTone(response: string | null | undefined) {
-  const tone = getProposalResponseTone(response);
-  return tone === "accepted" || tone === "adjusted" || tone === "pending"
-    ? tone
-    : "neutral";
+  const safe = String(response ?? "").trim().toLowerCase();
+
+  if (safe === "accepted") return "accepted";
+  if (safe === "adjusted") return "adjusted";
+  if (safe === "pending") return "pending";
+  return "neutral";
 }
 
 function getResponseActorLabel(response: string | null | undefined) {
-  return getProposalResponseActorLabel(response);
+  const safe = String(response ?? "").trim().toLowerCase();
+
+  if (safe === "accepted") return "aceptó";
+  if (safe === "adjusted") return "ajustó";
+  if (safe === "pending") return "pendiente";
+  return "respondió";
 }
 
 function getResponseActorStyle(
@@ -287,15 +317,11 @@ function getDayHeaderLabel(value: string | Date) {
 }
 
 function getGroupSignal(ev: TimelineEvent) {
-  const normalizedType = ev.group_id
-    ? normalizeGroupType(String(ev.group?.type ?? "other"))
-    : "personal";
+  const rawType = String(ev.group?.type ?? "").toLowerCase();
 
-  const label = ev.group_id ? getGroupTypeLabel(normalizedType) : "Personal";
-
-  if (normalizedType === "personal") {
+  if (!ev.group_id) {
     return {
-      label,
+      label: "Personal",
       dot: "rgba(56,189,248,0.98)",
       badgeBg: "rgba(8,47,73,0.9)",
       badgeBorder: "rgba(56,189,248,0.28)",
@@ -303,9 +329,9 @@ function getGroupSignal(ev: TimelineEvent) {
     };
   }
 
-  if (normalizedType === "pair") {
+  if (rawType === "pair" || rawType === "couple") {
     return {
-      label,
+      label: "Pareja",
       dot: "rgba(244,114,182,0.98)",
       badgeBg: "rgba(80,7,36,0.9)",
       badgeBorder: "rgba(244,114,182,0.28)",
@@ -313,9 +339,9 @@ function getGroupSignal(ev: TimelineEvent) {
     };
   }
 
-  if (normalizedType === "family") {
+  if (rawType === "family") {
     return {
-      label,
+      label: "Familia",
       dot: "rgba(56,189,248,0.98)",
       badgeBg: "rgba(8,47,73,0.9)",
       badgeBorder: "rgba(56,189,248,0.28)",
@@ -324,7 +350,7 @@ function getGroupSignal(ev: TimelineEvent) {
   }
 
   return {
-    label,
+    label: "Compartido",
     dot: "rgba(167,139,250,0.98)",
     badgeBg: "rgba(46,16,101,0.9)",
     badgeBorder: "rgba(167,139,250,0.28)",
@@ -365,7 +391,8 @@ function getTrustPresentation(signal: ConflictTrustSignal | null) {
 }
 
 function getProposalPresentation(response: string | null | undefined) {
-  const safe = normalizeProposalResponse(response);
+  const safe = String(response ?? "").trim().toLowerCase();
+  if (!safe) return null;
 
   if (safe === "pending") {
     return {
@@ -404,7 +431,7 @@ function getProposalPresentation(response: string | null | undefined) {
 }
 
 function getProposalInsight(response: string | null | undefined) {
-  const safe = normalizeProposalResponse(response);
+  const safe = String(response ?? "").trim().toLowerCase();
 
   if (safe === "pending") {
     return {
@@ -487,9 +514,11 @@ function buildProposalContextLine(input: {
   displayName: string | null | undefined;
   relativeDate: string | null | undefined;
 }) {
-  const safeResponse = normalizeProposalResponse(input.response);
+  const safeResponse = String(input.response ?? "").trim().toLowerCase();
   const safeName = String(input.displayName ?? "").trim() || "Alguien";
   const safeDate = String(input.relativeDate ?? "").trim();
+
+  if (!safeResponse) return null;
 
   const verb =
     safeResponse === "accepted"
@@ -534,9 +563,7 @@ function getInvitePresentation(invite: PublicInviteRow | null) {
     };
   }
 
-  const inviteStatus = normalizeInviteStatus(invite.status);
-
-  if (inviteStatus === "pending") {
+  if (invite.status === "pending") {
     return {
       label: "Pendiente",
       tone: "pending" as const,
@@ -544,7 +571,7 @@ function getInvitePresentation(invite: PublicInviteRow | null) {
     };
   }
 
-  if (inviteStatus === "accepted") {
+  if (invite.status === "accepted") {
     return {
       label: "Confirmado",
       tone: "accepted" as const,
@@ -552,7 +579,7 @@ function getInvitePresentation(invite: PublicInviteRow | null) {
     };
   }
 
-  if (inviteStatus === "rejected" && invite.proposed_date) {
+  if (invite.status === "rejected" && invite.proposed_date) {
     return {
       label: "Propuso nueva fecha",
       tone: "proposed" as const,
@@ -1183,6 +1210,16 @@ export default function EventsTimeline({
                   displayName: proposalActorName,
                   relativeDate: proposalTime,
                 });
+                const conflictsForEvent = conflictsByEventId[eventId] ?? [];
+                const eventStatePresentation = getEventStatePresentation({
+                  conflictsCount: conflictsForEvent.length,
+                  responses: proposalResponseGroupsByEventId[eventId] ?? [],
+                  trustSignal,
+                  invite,
+                });
+                const conflictSummary = buildConflictSummary(conflictsForEvent);
+                const hasPendingResponse =
+                  normalizeProposalResponse(proposalResponse?.response) === "pending";
 
                 const start = new Date(ev.start).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -1278,7 +1315,7 @@ export default function EventsTimeline({
                             title="Editar"
                             type="button"
                           >
-                            ✏️
+                            Abrir
                           </button>
 
                           {canDelete ? (
@@ -1288,11 +1325,61 @@ export default function EventsTimeline({
                               title="Eliminar"
                               type="button"
                             >
-                              🗑️
+                              Eliminar
                             </button>
                           ) : null}
                         </div>
                       </div>
+
+                      {eventStatePresentation ? (
+                        <div
+                          style={{
+                            ...S.stateCard,
+                            borderColor: eventStatePresentation.style.borderColor,
+                            background: eventStatePresentation.style.background,
+                          }}
+                        >
+                          <div style={S.stateCardCopy}>
+                            <div
+                              style={{
+                                ...S.stateCardLabel,
+                                color: eventStatePresentation.style.color,
+                              }}
+                            >
+                              {eventStatePresentation.label}
+                            </div>
+                            <div style={S.stateCardSub}>
+                              {conflictSummary || eventStatePresentation.subtitle}
+                            </div>
+                          </div>
+
+                          <div style={S.stateCardActions}>
+                            {conflictsForEvent.length > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  router.push(
+                                    `/conflicts/detected?eventId=${encodeURIComponent(eventId)}`
+                                  )
+                                }
+                                style={S.stateCardPrimaryBtn}
+                              >
+                                Resolver
+                              </button>
+                            ) : hasPendingResponse ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  router.push(`/events/new/details?eventId=${eventId}`)
+                                }
+                                style={S.stateCardPrimaryBtn}
+                              >
+                                Responder
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
 
                       <div style={S.signalsRow}>
                         {proposalPresentation ? (
@@ -1397,7 +1484,7 @@ export default function EventsTimeline({
                               }
                               style={S.proposalSecondaryBtn}
                             >
-                              Revisar
+                              Abrir
                             </button>
                           ) : null}
                         </div>
@@ -1773,6 +1860,50 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: "rgba(226,232,240,0.82)",
     lineHeight: 1.5,
+  },
+  stateCard: {
+    borderRadius: 15,
+    border: "1px solid rgba(255,255,255,0.10)",
+    padding: 12,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    flexWrap: "wrap",
+    boxShadow: "0 14px 30px rgba(0,0,0,0.14)",
+  },
+  stateCardCopy: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    minWidth: 0,
+    flex: 1,
+  },
+  stateCardLabel: {
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: "-0.01em",
+  },
+  stateCardSub: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.82)",
+    lineHeight: 1.5,
+  },
+  stateCardActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  stateCardPrimaryBtn: {
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(7,11,22,0.42)",
+    color: "rgba(255,255,255,0.96)",
+    fontSize: 12,
+    fontWeight: 900,
+    padding: "8px 12px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   },
   sharePanel: {
     marginTop: 6,
