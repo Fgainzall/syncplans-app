@@ -1753,12 +1753,12 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 <div style={styles.conflictBannerLeft}>
                   <div style={styles.conflictBannerEyebrow}>Atención</div>
                   <div style={styles.conflictBannerTitle}>
-                    {conflictAlert.count} conflicto{conflictAlert.count === 1 ? "" : "s"}
+                    Tienes {conflictAlert.count} conflicto{conflictAlert.count === 1 ? "" : "s"} pendiente{conflictAlert.count === 1 ? "" : "s"} de decisión
                   </div>
-                  <div style={styles.conflictBannerSub}>Resolver ahora</div>
+                  <div style={styles.conflictBannerSub}>Revísalo antes de que genere más fricción.</div>
                 </div>
 
-                <div style={styles.conflictBannerCta}>Abrir →</div>
+                <div style={styles.conflictBannerCta}>Revisar</div>
               </button>
             ) : null}
 
@@ -1802,16 +1802,9 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               </div>
             </div>
 
-            {(decisionSummary.conflicts > 0 ||
-              decisionSummary.pendingProposals > 0 ||
+            {(decisionSummary.pendingProposals > 0 ||
               decisionSummary.adjustedProposals > 0) ? (
               <div style={styles.decisionChipsRow}>
-                {decisionSummary.conflicts > 0 ? (
-                  <button onClick={openConflictCenter} style={{ ...styles.decisionChip, ...styles.decisionChipDanger }}>
-                    {decisionSummary.conflicts} evento{decisionSummary.conflicts === 1 ? "" : "s"} con conflicto
-                  </button>
-                ) : null}
-
                 {decisionSummary.pendingProposals > 0 ? (
                   <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipPending }}>
                     {decisionSummary.pendingProposals} propuesta{decisionSummary.pendingProposals === 1 ? "" : "s"} por responder

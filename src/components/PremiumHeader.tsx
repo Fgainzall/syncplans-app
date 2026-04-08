@@ -59,6 +59,11 @@ type HeaderUser = {
   initials: string;
 };
 
+type HeaderConflictSummary = {
+  count: number;
+  latestEventId: string | null;
+};
+
 const NAV_MODE: NavigationMode = "replace";
 
 const MODE_META: Record<TabKey, ModeMeta> = {
@@ -252,6 +257,10 @@ export default function PremiumHeader({
   const [openNotif, setOpenNotif] = useState(false);
   const [openIntegrations, setOpenIntegrations] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [conflictSummary, setConflictSummary] = useState<HeaderConflictSummary>({
+    count: 0,
+    latestEventId: null,
+  });
   const [headerUser, setHeaderUser] = useState<HeaderUser | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -334,14 +343,33 @@ export default function PremiumHeader({
 
   const refreshBadge = useCallback(async () => {
     try {
-      const { getMyNotifications } = await import("@/lib/notificationsDb");
-      const notifications = await getMyNotifications(50);
+      const {
+        getMyNotifications,
+        getUnreadConflictNotificationsSummary,
+      } = await import("@/lib/notificationsDb");
+
+      const [notifications, nextConflictSummary] = await Promise.all([
+        getMyNotifications(50),
+        getUnreadConflictNotificationsSummary().catch(() => ({
+          count: 0,
+          latestEventId: null,
+        })),
+      ]);
+
       const unread = (notifications ?? []).filter(
         (x: any) => !x.read_at || x.read_at === ""
       ).length;
+
       setUnreadCount(unread);
+      setConflictSummary({
+        count: Number(nextConflictSummary?.count ?? 0),
+        latestEventId: nextConflictSummary?.latestEventId
+          ? String(nextConflictSummary.latestEventId)
+          : null,
+      });
     } catch {
       setUnreadCount(0);
+      setConflictSummary({ count: 0, latestEventId: null });
     }
   }, []);
 
@@ -363,6 +391,23 @@ export default function PremiumHeader({
     if (cleaned === activeTab.label) return null;
     return cleaned;
   }, [group, activeTab.label]);
+
+  const hasHeaderConflicts = conflictSummary.count > 0;
+
+  const openConflictCenter = useCallback(() => {
+    setUserMenuOpen(false);
+
+    if (conflictSummary.latestEventId) {
+      router.push(
+        `/conflicts/detected?eventId=${encodeURIComponent(
+          conflictSummary.latestEventId
+        )}`
+      );
+      return;
+    }
+
+    router.push("/conflicts/detected");
+  }, [conflictSummary.latestEventId, router]);
 
   const finalTitle = title ?? getAutoTitle(pathname);
   const finalSubtitle = subtitle ?? getAutoSubtitle(pathname);
@@ -587,6 +632,17 @@ export default function PremiumHeader({
 
             <p style={styles.mobileSubtitle}>{finalSubtitle}</p>
 
+            {hasHeaderConflicts ? (
+              <button
+                type="button"
+                onClick={openConflictCenter}
+                style={styles.mobileConflictChip}
+              >
+                <span style={styles.conflictIndicatorDot} />
+                Tienes {conflictSummary.count} conflicto{conflictSummary.count === 1 ? "" : "s"}
+              </button>
+            ) : null}
+
             {shouldShowHeaderUpgrade ? (
               <div style={styles.mobileUpgradeBar}>
                 <div style={styles.mobileUpgradeCopy}>
@@ -645,6 +701,17 @@ export default function PremiumHeader({
                     <span style={styles.contextMetaDesktop}>
                       · {groupDisplayName}
                     </span>
+                  ) : null}
+
+                  {hasHeaderConflicts ? (
+                    <button
+                      type="button"
+                      onClick={openConflictCenter}
+                      style={styles.desktopConflictChip}
+                    >
+                      <span style={styles.conflictIndicatorDot} />
+                      Tienes {conflictSummary.count} conflicto{conflictSummary.count === 1 ? "" : "s"}
+                    </button>
                   ) : null}
 
                   {shouldShowHeaderUpgrade ? (
@@ -959,6 +1026,45 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     fontWeight: 700,
     color: colors.textMuted,
+  },
+  desktopConflictChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "7px 12px",
+    borderRadius: radii.full,
+    border: "1px solid rgba(248,113,113,0.28)",
+    background: "rgba(127,29,29,0.42)",
+    color: "#FEE2E2",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  mobileConflictChip: {
+    position: "relative",
+    zIndex: 1,
+    marginTop: 10,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "flex-start",
+    padding: "8px 12px",
+    borderRadius: radii.full,
+    border: "1px solid rgba(248,113,113,0.28)",
+    background: "rgba(127,29,29,0.42)",
+    color: "#FEE2E2",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  conflictIndicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(248,113,113,0.98)",
+    boxShadow: "0 0 0 4px rgba(248,113,113,0.12)",
+    flexShrink: 0,
   },
   contextSubtleMobile: {
     fontSize: 11,

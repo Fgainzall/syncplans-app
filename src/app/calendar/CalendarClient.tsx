@@ -1146,18 +1146,17 @@ console.log("DELETE CHECK", {
             {!eventsLoaded ? (
               <div style={styles.statusPillNeutral}>
                 <span style={styles.statusDotNeutral} />
-                Revisando conflictos…
+                Revisando…
               </div>
             ) : conflictCount > 0 ? (
               <div style={styles.statusCluster}>
                 <button onClick={openConflicts} style={styles.statusPillDanger}>
                   <span style={styles.statusDotDanger} />
-                  {conflictCount} conflicto{conflictCount === 1 ? "" : "s"} activo
-                  {conflictCount === 1 ? "" : "s"}
+                  {conflictCount} conflicto{conflictCount === 1 ? "" : "s"}
                 </button>
 
                 <button onClick={resolveNow} style={styles.statusPillAction}>
-                  Resolver ahora
+                  Revisar
                 </button>
               </div>
             ) : (
@@ -1168,7 +1167,7 @@ console.log("DELETE CHECK", {
                 }}
               >
                 <span style={styles.statusDotSuccess} />
-                Sin conflictos activos
+                Sin conflictos
               </div>
             )}
 
@@ -1183,26 +1182,6 @@ console.log("DELETE CHECK", {
             </button>
           </div>
         </Card>
-        {conflictCount > 0 ? (
-          <button
-            onClick={openConflicts}
-            style={styles.conflictBanner}
-            className="spCal-conflictBanner"
-          >
-            <div style={styles.conflictBannerLeft}>
-              <div style={styles.conflictBannerEyebrow}>Atención</div>
-              <div style={styles.conflictBannerTitle}>
-                Tienes {conflictCount} conflicto
-                {conflictCount === 1 ? "" : "s"} por resolver
-              </div>
-              <div style={styles.conflictBannerSub}>
-                Revísalo ahora para evitar cruces y fricción en la coordinación.
-              </div>
-            </div>
-
-            <div style={styles.conflictBannerCta}>Ver conflictos →</div>
-          </button>
-        ) : null}
         <CalendarFilters
           tab={tab}
           scope={scope}
@@ -1620,6 +1599,9 @@ function renderMonthCells(opts: {
 
     const dayEvents = eventsByDay.get(ymd(cellDate)) || [];
     const top3 = dayEvents.slice(0, 3);
+    const dayHasConflict = dayEvents.some((event) =>
+      conflictEventIdsInGrid.has(String(event.id))
+    );
 
     const isWeekend =
       cellDate.getDay() === 0 || cellDate.getDay() === 6;
@@ -1674,6 +1656,7 @@ cells.push(
       </div>
 
       <div style={styles.cellTopRight}>
+        {dayHasConflict ? <span style={styles.cellConflictDot} /> : null}
         <button
           type="button"
           onClick={(ev) => {
@@ -1760,6 +1743,7 @@ cells.push(
             }}
             style={{
               ...styles.cellEventLine,
+              ...(isConflictEvent ? styles.cellEventLineConflict : null),
               cursor: "pointer",
             }}
             className="spCal-chip"
@@ -2054,6 +2038,14 @@ cell: {
     flexWrap: "nowrap",
     flexShrink: 0,
   },
+  cellConflictDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(248,113,113,0.98)",
+    boxShadow: "0 0 0 4px rgba(248,113,113,0.10)",
+    flexShrink: 0,
+  },
   cellDay: {
     fontSize: 13,
     fontWeight: 950,
@@ -2140,6 +2132,12 @@ cell: {
     display: "flex",
     gap: 8,
     alignItems: "center",
+    borderRadius: 10,
+    padding: "2px 4px",
+  },
+  cellEventLineConflict: {
+    border: "1px solid rgba(248,113,113,0.18)",
+    background: "rgba(127,29,29,0.18)",
   },
   miniDot: {
     width: 8,
