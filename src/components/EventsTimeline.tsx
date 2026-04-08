@@ -30,15 +30,9 @@ import {
 } from "@/lib/conflicts";
 import {
   deriveEventStatus,
-  getEventStatusLabel,
-  getEventStatusSubtitle,
-  getGroupTypeLabel,
-  getProposalResponseActorLabel,
-  getProposalResponseTone,
-  normalizeGroupType,
-  normalizeInviteStatus,
   normalizeProposalResponse,
 } from "@/lib/naming";
+import { getEventStatusUi } from "@/lib/eventStatusUi";
 import { getDisplayName, getProfilesMapByIds } from "@/lib/profilesDb";
 
 type TimelineEvent = {
@@ -110,69 +104,52 @@ function toConflictCalendarEvent(event: TimelineEvent): CalendarEvent {
   };
 }
 
-function getEventStatePresentation(input: {
+function getTimelineEventStatusUi(input: {
   conflictsCount: number;
   responses: ProposalResponseRow[];
   trustSignal: ConflictTrustSignal | null;
   invite: PublicInviteRow | null;
 }) {
-  const conflictsCount = Number(input.conflictsCount ?? 0);
   const responses = Array.isArray(input.responses) ? input.responses : [];
-  const invite = input.invite;
-  const trustSignal = input.trustSignal;
 
-  const hasPending = responses.some((row) => row?.response === "pending");
-  const hasAdjusted = responses.some((row) => row?.response === "adjusted");
-  const hasAccepted = responses.some((row) => row?.response === "accepted");
+  const status = deriveEventStatus({
+    conflictsCount: Number(input.conflictsCount ?? 0),
+    responseStatuses: responses.map((row) => row?.response),
+    inviteStatus: input.invite?.status,
+    hasInviteProposedDate: Boolean(input.invite?.proposed_date),
+    hasTrustSignal: Boolean(input.trustSignal),
+  });
 
-  if (conflictsCount > 0) {
+  return getEventStatusUi(status, {
+    conflictsCount: Number(input.conflictsCount ?? 0),
+  });
+}
+
+function getTimelinePrimaryAction(input: {
+  eventId: string;
+  status: ReturnType<typeof getTimelineEventStatusUi>["status"];
+}) {
+  const eventId = String(input.eventId ?? "").trim();
+  if (!eventId) return null;
+
+  if (input.status === "conflicted") {
     return {
-      label: conflictsCount === 1 ? "Requiere decisión" : `Conflictos (${conflictsCount})`,
-      subtitle:
-        conflictsCount === 1
-          ? "Este plan choca con otro evento visible."
-          : "Este plan tiene varios choques por revisar.",
-      style: {
-        background: "rgba(127,29,29,0.88)",
-        borderColor: "rgba(252,165,165,0.28)",
-        color: "rgba(254,226,226,0.98)",
-      } as React.CSSProperties,
+      label: "Resolver",
+      href: `/conflicts/detected?eventId=${encodeURIComponent(eventId)}`,
     };
   }
 
-  if (hasPending || invite?.status === "pending" || (invite?.status === "rejected" && !!invite?.proposed_date)) {
+  if (input.status === "pending") {
     return {
-      label: "Pendiente",
-      subtitle: "Todavía falta una decisión para cerrar este plan.",
-      style: {
-        background: "rgba(120,53,15,0.88)",
-        borderColor: "rgba(251,191,36,0.30)",
-        color: "rgba(254,243,199,0.98)",
-      } as React.CSSProperties,
+      label: "Decidir",
+      href: `/events/new/details?eventId=${encodeURIComponent(eventId)}`,
     };
   }
 
-  if (hasAdjusted) {
+  if (input.status === "adjusted") {
     return {
-      label: "Ajustado",
-      subtitle: "Hubo cambios antes de dejar este plan listo.",
-      style: {
-        background: "rgba(22,78,99,0.90)",
-        borderColor: "rgba(103,232,249,0.28)",
-        color: "rgba(207,250,254,0.98)",
-      } as React.CSSProperties,
-    };
-  }
-
-  if (hasAccepted || invite?.status === "accepted" || !!trustSignal) {
-    return {
-      label: "Confirmado",
-      subtitle: "Este plan ya tiene una salida clara.",
-      style: {
-        background: "rgba(20,83,45,0.92)",
-        borderColor: "rgba(74,222,128,0.28)",
-        color: "rgba(220,252,231,0.98)",
-      } as React.CSSProperties,
+      label: "Revisar ajuste",
+      href: `/events/new/details?eventId=${encodeURIComponent(eventId)}`,
     };
   }
 
@@ -1195,9 +1172,6 @@ export default function EventsTimeline({
                 const trustSignal = trustSignalsByEventId[eventId] ?? null;
                 const trustPresentation = getTrustPresentation(trustSignal);
                 const proposalResponse = proposalResponsesByEventId[eventId] ?? null;
-                const proposalPresentation = getProposalPresentation(
-                  proposalResponse?.response
-                );
                 const proposalInsight = getProposalInsight(
                   proposalResponse?.response
                 );
@@ -1211,15 +1185,26 @@ export default function EventsTimeline({
                   relativeDate: proposalTime,
                 });
                 const conflictsForEvent = conflictsByEventId[eventId] ?? [];
-                const eventStatePresentation = getEventStatePresentation({
+                const statusUi = getTimelineEventStatusUi({
                   conflictsCount: conflictsForEvent.length,
                   responses: proposalResponseGroupsByEventId[eventId] ?? [],
                   trustSignal,
                   invite,
                 });
+                const primaryAction = getTimelinePrimaryAction({
+                  eventId,
+                  status: statusUi.status,
+                });
                 const conflictSummary = buildConflictSummary(conflictsForEvent);
                 const hasPendingResponse =
                   normalizeProposalResponse(proposalResponse?.response) === "pending";
+                const shouldShowInviteBadge =
+                  (!!invite && invitePresentation.label.trim().toLowerCase() !==
+                    statusUi.label.trim().toLowerCase()) || false;
+                const shouldShowTrustBadge =
+                  !!trustPresentation &&
+                  trustPresentation.label.trim().toLowerCase() !==
+                    statusUi.label.trim().toLowerCase();
 
                 const start = new Date(ev.start).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -1331,69 +1316,49 @@ export default function EventsTimeline({
                         </div>
                       </div>
 
-                      {eventStatePresentation ? (
-                        <div
-                          style={{
-                            ...S.stateCard,
-                            borderColor: eventStatePresentation.style.borderColor,
-                            background: eventStatePresentation.style.background,
-                          }}
-                        >
-                          <div style={S.stateCardCopy}>
-                            <div
-                              style={{
-                                ...S.stateCardLabel,
-                                color: eventStatePresentation.style.color,
-                              }}
-                            >
-                              {eventStatePresentation.label}
-                            </div>
-                            <div style={S.stateCardSub}>
-                              {conflictSummary || eventStatePresentation.subtitle}
-                            </div>
-                          </div>
-
-                          <div style={S.stateCardActions}>
-                            {conflictsForEvent.length > 0 ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  router.push(
-                                    `/conflicts/detected?eventId=${encodeURIComponent(eventId)}`
-                                  )
-                                }
-                                style={S.stateCardPrimaryBtn}
-                              >
-                                Resolver
-                              </button>
-                            ) : hasPendingResponse ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  router.push(`/events/new/details?eventId=${eventId}`)
-                                }
-                                style={S.stateCardPrimaryBtn}
-                              >
-                                Responder
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      ) : null}
-
-                      <div style={S.signalsRow}>
-                        {proposalPresentation ? (
-                          <span
+                      <div
+                        style={{
+                          ...S.stateCard,
+                          borderColor:
+                            String(statusUi.panelStyle.borderColor ?? "rgba(148,163,184,0.16)"),
+                          background:
+                            String(
+                              statusUi.panelStyle.background ??
+                                "linear-gradient(180deg, rgba(15,23,42,0.18), rgba(15,23,42,0.08))"
+                            ),
+                        }}
+                      >
+                        <div style={S.stateCardCopy}>
+                          <div
                             style={{
-                              ...S.proposalHeroBadge,
-                              ...proposalPresentation.style,
+                              ...S.stateCardLabel,
+                              color: String(
+                                statusUi.badgeStyle.color ?? "rgba(226,232,240,0.96)"
+                              ),
                             }}
                           >
-                            {proposalPresentation.label}
-                          </span>
-                        ) : null}
+                            {statusUi.label}
+                          </div>
+                          <div style={S.stateCardSub}>
+                            {conflictSummary || statusUi.subtitle}
+                          </div>
+                        </div>
 
-                        {isOwnerView ? (
+                        <div style={S.stateCardActions}>
+                          {primaryAction ? (
+                            <button
+                              type="button"
+                              onClick={() => router.push(primaryAction.href)}
+                              style={S.stateCardPrimaryBtn}
+                            >
+                              {primaryAction.label}
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div style={S.signalsRow}>
+                        {isOwnerView && shouldShowInviteBadge ? (
                           <span
                             style={{
                               ...S.signalBadge,
@@ -1417,7 +1382,7 @@ export default function EventsTimeline({
                           </span>
                         ) : null}
 
-                        {!proposalPresentation && trustPresentation ? (
+                        {shouldShowTrustBadge ? (
                           <span
                             style={{
                               ...S.signalBadge,
@@ -1476,7 +1441,8 @@ export default function EventsTimeline({
                             </div>
                           </div>
 
-                          {proposalResponse?.response === "pending" ? (
+                          {proposalResponse?.response === "pending" ||
+                          proposalResponse?.response === "adjusted" ? (
                             <button
                               type="button"
                               onClick={() =>

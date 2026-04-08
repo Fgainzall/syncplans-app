@@ -56,13 +56,13 @@ import {
 import { parseIsoLike, toDateMs } from "@/lib/dateUtils";
 import {
   deriveEventStatus,
-  getEventStatusLabel,
   normalizeGroupType,
   getGroupTypeLabel,
   normalizeProposalResponse,
   getProposalResponseLabel,
   getProposalResponseTone,
 } from "@/lib/naming";
+import { getEventStatusUi } from "@/lib/eventStatusUi";
 type Props = {
   highlightId: string | null;
   appliedToast: string | null;
@@ -1565,16 +1565,22 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
       if (!status || status === "scheduled") return null;
 
+      const conflictsCount = eventId
+        ? conflictEventIds.has(String(eventId))
+          ? 1
+          : 0
+        : 0;
+
+      const statusUi = getEventStatusUi(status, { conflictsCount });
+
       return {
-        label: getEventStatusLabel(status),
-        style:
-          status === "conflicted"
-            ? styles.summaryStatusDanger
-            : status === "pending"
-            ? styles.summaryStatusPending
-            : status === "adjusted"
-            ? styles.summaryStatusInfo
-            : styles.summaryStatusOk,
+        label: statusUi.label,
+        compactLabel: statusUi.compactLabel,
+        subtitle: statusUi.subtitle,
+        tone: statusUi.tone,
+        priority: statusUi.priority,
+        ctaLabel: statusUi.ctaLabel,
+        style: statusUi.badgeStyle,
       };
     },
     [conflictEventIds, proposalResponseGroupsMap]

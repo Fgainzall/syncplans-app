@@ -47,12 +47,12 @@ import {
 } from "@/lib/dateUtils";
 import {
   deriveEventStatus,
-  getEventStatusLabel,
   normalizeGroupType,
   normalizeProposalResponse,
   getProposalResponseLabel,
   getProposalResponseTone,
 } from "@/lib/naming";
+import { getEventStatusUi } from "@/lib/eventStatusUi";
 import {
   getMyConflictResolutionsMap,
   type Resolution,
@@ -1452,23 +1452,22 @@ function EventRow({
     : null;
   const proposalRow = proposalResponsesMap?.[String(e.id)];
   const proposalLabel = proposalResponseLabel(proposalRow?.response);
-  const proposalTone = proposalResponseTone(proposalRow?.response);
   const calendarEventStatus = getCalendarEventStatus({
     eventId: e.id,
     inConflict,
     proposalRow,
     trustSignal,
   });
-  const statusLabel = calendarEventStatus
-    ? getEventStatusLabel(calendarEventStatus)
-    : proposalLabel ?? trustLabel;
-  const statusStyle = calendarEventStatus === "conflicted"
-    ? styles.eventTrustBadgeConflict
-    : calendarEventStatus === "pending"
+  const statusUi = calendarEventStatus
+    ? getEventStatusUi(calendarEventStatus, {
+        conflictsCount: inConflict ? 1 : 0,
+      })
+    : null;
+  const fallbackStatusStyle = proposalLabel
     ? styles.eventTrustBadgePending
-    : calendarEventStatus === "adjusted"
-    ? styles.eventTrustBadgeAuto
     : styles.eventTrustBadgeResolved;
+  const statusLabel = statusUi?.label ?? proposalLabel ?? trustLabel;
+  const statusStyle = statusUi?.badgeStyle ?? fallbackStatusStyle;
 
   return (
     <div
@@ -1731,7 +1730,6 @@ cells.push(
           : null;
         const proposalRow = proposalResponsesMap[String(e.id)];
         const proposalLabel = proposalResponseLabel(proposalRow?.response);
-        const proposalTone = proposalResponseTone(proposalRow?.response);
         const isConflictEvent = conflictEventIdsInGrid.has(String(e.id));
         const calendarEventStatus = getCalendarEventStatus({
           eventId: e.id,
@@ -1739,16 +1737,18 @@ cells.push(
           proposalRow,
           trustSignal,
         });
-        const cellStatusLabel = calendarEventStatus
-          ? getEventStatusLabel(calendarEventStatus)
-          : proposalLabel ?? trustShortLabel;
-        const cellStatusStyle = calendarEventStatus === "conflicted"
-          ? styles.cellTrustPillConflict
-          : calendarEventStatus === "pending"
+        const cellStatusUi = calendarEventStatus
+          ? getEventStatusUi(calendarEventStatus, {
+              conflictsCount: isConflictEvent ? 1 : 0,
+            })
+          : null;
+        const fallbackCellStatusStyle = proposalLabel
           ? styles.cellTrustPillPending
-          : calendarEventStatus === "adjusted"
-          ? styles.cellTrustPillAuto
           : styles.cellTrustPillResolved;
+        const cellStatusLabel =
+          cellStatusUi?.compactLabel ?? proposalLabel ?? trustShortLabel;
+        const cellStatusStyle =
+          cellStatusUi?.badgeStyle ?? fallbackCellStatusStyle;
 
         return (
           <div
