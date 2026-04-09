@@ -4,7 +4,6 @@ import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
-import SharedConflictPreflightModal from "@/components/ConflictPreflightModal";
 import EventDetailsHero from "@/components/EventDetailsHero";
 import EventDetailsTemplatesSection from "@/components/EventDetailsTemplatesSection";
 import PostSaveActionsCard from "@/components/PostSaveActionsCard";
@@ -461,6 +460,7 @@ function NewEventDetailsInner() {
   const groupManualSelectionRef = useRef(false);
 
   const [bootingEvent, setBootingEvent] = useState<boolean>(isEditing);
+  const loadedEditingEventIdRef = useRef<string | null>(null);
 
   const uniqueGroups = useMemo(() => {
     const map = new Map<string, DbGroup>();
@@ -1377,235 +1377,283 @@ function NewEventDetailsInner() {
     return created;
   };
 
-  const doSave = async (
-    payload: {
-      groupType: GroupType;
-      groupId: string | null;
-      title: string;
-      notes?: string;
-      startIso: string;
-      endIso: string;
-    },
-    options?: { suppressConflictRedirect?: boolean }
-  ) => {
-    if (saveInFlightRef.current) return null;
+const persistEvent = async (payload: {
+  groupType: GroupType;
+  groupId: string | null;
+  title: string;
+  notes?: string;
+  startIso: string;
+  endIso: string;
+}) => {
+  let savedEventId: string | null = null;
 
-    saveInFlightRef.current = true;
-    setSaving(true);
+  if (isEditing && eventIdParam) {
+    await updateEvent({
+      id: eventIdParam,
+      title: payload.title,
+      notes: payload.notes,
+      start: payload.startIso,
+      end: payload.endIso,
+      groupId: payload.groupId,
+    });
 
-    try {
-      let savedEventId: string | null = null;
+    savedEventId = String(eventIdParam);
 
-if (isEditing && eventIdParam) {
-  await updateEvent({
-    id: eventIdParam,
-    title: payload.title,
-    notes: payload.notes,
-    start: payload.startIso,
-    end: payload.endIso,
-    groupId: payload.groupId,
-  });
+    if (currentUserId && savedEventId) {
+      const analyticsPayload = {
+        user_id: currentUserId,
+        event_type: "event_edited",
+        entity_id: savedEventId,
+        metadata: {
+          type: payload.groupId ? "group" : "personal",
+        },
+      };
 
-  savedEventId = String(eventIdParam);
+      const { error: analyticsError } = await supabase
+        .from("events_analytics")
+        .insert(analyticsPayload);
 
-  console.log("EVENT EDITED ID", savedEventId);
-
-  if (currentUserId && savedEventId) {
-    const analyticsPayload = {
-      user_id: currentUserId,
-      event_type: "event_edited",
-      entity_id: savedEventId,
-      metadata: {
-        type: payload.groupId ? "group" : "personal",
-      },
-    };
-
-    console.log("TRACK EVENT EDITED DIRECT", analyticsPayload);
-
-    const { error: analyticsError } = await supabase
-      .from("events_analytics")
-      .insert(analyticsPayload);
-
-    if (analyticsError) {
-      console.error("event_edited analytics insert failed", analyticsError);
+      if (analyticsError) {
+        console.error("event_edited analytics insert failed", analyticsError);
+      }
     }
-  }
 
-  const proposalSource = sp.get("proposalSource");
-  const proposalIntent = sp.get("proposalIntent");
+    const proposalSource = sp.get("proposalSource");
+    const proposalIntent = sp.get("proposalIntent");
 
-  if (proposalSource === "public_invite" && savedEventId) {
-    const creatorResponse =
-      proposalIntent === "accept"
-        ? "accepted"
-        : proposalIntent === "reject"
-        ? "rejected"
-        : null;
+    if (proposalSource === "public_invite" && savedEventId) {
+      const creatorResponse =
+        proposalIntent === "accept"
+          ? "accepted"
+          : proposalIntent === "reject"
+          ? "rejected"
+          : null;
 
-    if (creatorResponse) {
-      await supabase
-        .from("public_invites")
-        .update({ creator_response: creatorResponse })
-        .eq("event_id", savedEventId);
+      if (creatorResponse) {
+        await supabase
+          .from("public_invites")
+          .update({ creator_response: creatorResponse })
+          .eq("event_id", savedEventId);
+      }
     }
-  }
-} else {
-  const created = await createEventForGroup({
-    title: payload.title,
-    notes: payload.notes,
-    start: payload.startIso,
-    end: payload.endIso,
-    groupId: payload.groupId,
-  });
-  savedEventId = created?.id ? String(created.id) : null;
+  } else {
+    const created = await createEventForGroup({
+      title: payload.title,
+      notes: payload.notes,
+      start: payload.startIso,
+      end: payload.endIso,
+      groupId: payload.groupId,
+    });
+    savedEventId = created?.id ? String(created.id) : null;
 
-  console.log("EVENT CREATED ID", created?.id);
-  console.log("TRACK EVENT CREATED", payload);
+    if (savedEventId && isSharedProposal && proposalResponse && currentUserId) {
+      try {
+        await upsertProposalResponse({
+          eventId: savedEventId,
+          userId: currentUserId,
+          response: proposalResponse === "adjust" ? "adjusted" : "accepted",
+        });
+      } catch (err) {
+        console.error("proposal response persist failed", err);
+      }
+    }
 
-  if (savedEventId && isSharedProposal && proposalResponse && currentUserId) {
-    try {
-      await upsertProposalResponse({
-        eventId: savedEventId,
+    if (savedEventId) {
+      await trackEvent({
+        event: "event_created",
         userId: currentUserId,
-        response: proposalResponse === "adjust" ? "adjusted" : "accepted",
+        entityId: savedEventId,
+        metadata: {
+          type: payload.groupId ? "group" : "personal",
+        },
       });
-
-      console.log("PROPOSAL RESPONSE SAVED", {
-        eventId: savedEventId,
-        userId: currentUserId,
-        response: proposalResponse,
-      });
-    } catch (err) {
-      console.error("proposal response persist failed", err);
     }
   }
 
-  if (savedEventId) {
-    await trackEvent({
-      event: "event_created",
-      userId: currentUserId,
-      entityId: savedEventId,
-      metadata: {
-        type: payload.groupId ? "group" : "personal",
-      },
+  if (savedEventId && shouldLearnCurrentSelection && selectedGroup?.id) {
+    learnGroupSelection({
+      title: learningInput,
+      groupId: selectedGroup.id,
+      groupType: normalizeDbGroupType(selectedGroup.type) as
+        | "pair"
+        | "family"
+        | "other",
     });
   }
-}
 
-      if (savedEventId && shouldLearnCurrentSelection && selectedGroup?.id) {
-        learnGroupSelection({
-          title: learningInput,
-          groupId: selectedGroup.id,
-          groupType: normalizeDbGroupType(selectedGroup.type) as "pair" | "family" | "other",
-        });
-      }
+  emitSyncPlansRefreshSignals();
+  return savedEventId;
+};
 
-      emitSyncPlansRefreshSignals();
+const showPostSaveCard = (
+  savedEventId: string | null,
+  payload: {
+    groupType: GroupType;
+    groupId: string | null;
+    title: string;
+    notes?: string;
+    startIso: string;
+    endIso: string;
+  },
+  options?: { keepBoth?: boolean }
+) => {
+  setToast(buildSuccessToast(options?.keepBoth ? { keepBoth: true } : undefined));
+  setPostSaveShareUrl(null);
+  setPostSaveFingerprint(currentPostSaveFingerprint);
+  setPostSaveActions({
+    visible: true,
+    eventId: savedEventId ?? undefined,
+    title: payload.title,
+    isShared: effectiveType === "group",
+    isProposal: isSharedProposal,
+  });
+};
 
-      const conflictResult = savedEventId
-        ? await createConflictNotificationForEvent(savedEventId).catch(() => ({
-            created: 0,
-            conflictCount: 0,
-            targetEventId: savedEventId,
-          }))
-        : {
-            created: 0,
-            conflictCount: 0,
-            targetEventId: null,
-          };
+const finalizeKeepBothRedirect = async (
+  savedEventId: string,
+  payload: {
+    groupType: GroupType;
+    groupId: string | null;
+    title: string;
+    notes?: string;
+    startIso: string;
+    endIso: string;
+  }
+) => {
+  try {
+    const pf = await loadEventsForConflictPreflight({
+      candidate: {
+        id: savedEventId,
+        title: payload.title,
+        start: payload.startIso,
+        end: payload.endIso,
+        groupId: payload.groupId,
+        groupType: payload.groupType,
+        notes: payload.notes,
+      },
+    });
 
-      if (options?.suppressConflictRedirect && savedEventId) {
-        try {
-          const pf = await loadEventsForConflictPreflight({
-            candidate: {
-              id: savedEventId,
-              title: payload.title,
-              start: payload.startIso,
-              end: payload.endIso,
-              groupId: payload.groupId,
-              groupType: payload.groupType,
-              notes: payload.notes,
-            },
-          });
+    const combined = [...pf.baseEvents, pf.candidateEvent];
+    const related = computeVisibleConflicts(combined).filter((c) => {
+      const currentSavedId = String(savedEventId);
+      return (
+        String(c.existingEventId) === currentSavedId ||
+        String(c.incomingEventId) === currentSavedId
+      );
+    });
 
-          const combined = [...pf.baseEvents, pf.candidateEvent];
-          const related = computeVisibleConflicts(combined).filter((c) => {
-            const savedId = String(savedEventId);
-            return (
-              String(c.existingEventId) === savedId ||
-              String(c.incomingEventId) === savedId
-            );
-          });
+    if (related.length > 0) {
+      ignoreConflictIds(related.map((c) => c.id).filter(Boolean));
+    }
+  } catch {
+    // ok
+  }
 
-          if (related.length > 0) {
-            ignoreConflictIds(related.map((c) => c.id).filter(Boolean));
-          }
-        } catch {
-          // ok
-        }
+  setToast(buildSuccessToast({ keepBoth: true }));
 
-        setToast(buildSuccessToast({ keepBoth: true }));
+  const qp = new URLSearchParams();
+  qp.set("from", "conflicts");
+  qp.set("fallbackKeepBoth", "1");
+  qp.set("eventId", String(savedEventId));
+  if (payload.groupId) qp.set("groupId", String(payload.groupId));
 
-        const qp = new URLSearchParams();
-        qp.set("from", "conflicts");
-        qp.set("fallbackKeepBoth", "1");
-        if (savedEventId) qp.set("eventId", String(savedEventId));
-        if (payload.groupId) qp.set("groupId", String(payload.groupId));
+  window.setTimeout(() => {
+    router.push(`/summary?${qp.toString()}`);
+  }, 500);
+};
 
-        window.setTimeout(() => {
-          router.push(`/summary?${qp.toString()}`);
-        }, 500);
+const doSave = async (
+  payload: {
+    groupType: GroupType;
+    groupId: string | null;
+    title: string;
+    notes?: string;
+    startIso: string;
+    endIso: string;
+  },
+  options?: {
+    keepBothRedirect?: boolean;
+    skipConflictDetection?: boolean;
+  }
+) => {
+  if (saveInFlightRef.current) return null;
 
-        return savedEventId;
-      }
+  saveInFlightRef.current = true;
+  setSaving(true);
+
+  try {
+    const savedEventId = await persistEvent(payload);
+    if (!savedEventId) {
+      throw new Error("No se pudo obtener el id del evento guardado.");
+    }
+
+    if (options?.keepBothRedirect) {
+      const conflictResult = await createConflictNotificationForEvent(
+        savedEventId
+      ).catch(() => ({
+        created: 0,
+        conflictCount: 0,
+        targetEventId: savedEventId,
+      }));
 
       if (conflictResult.conflictCount > 0) {
-        setToast({
-          title: "⚠️ Conflicto detectado",
-          subtitle: "Te llevo a revisarlo ahora…",
-        });
-
-        const qp = new URLSearchParams();
-        if (conflictResult.targetEventId) {
-          qp.set("eventId", String(conflictResult.targetEventId));
-        }
-        if (payload.groupId) {
-          qp.set("groupId", String(payload.groupId));
-        }
-        qp.set("from", isEditing ? "event_edit" : "event_create");
-
-        window.setTimeout(() => {
-          router.push(`/conflicts/detected?${qp.toString()}`);
-        }, 500);
+        await finalizeKeepBothRedirect(savedEventId, payload);
         return savedEventId;
       }
 
-      setToast(buildSuccessToast());
-      setPostSaveShareUrl(null);
-      setPostSaveFingerprint(currentPostSaveFingerprint);
-      setPostSaveActions({
-        visible: true,
-        eventId: savedEventId ?? undefined,
-        title: payload.title,
-        isShared: effectiveType === "group",
-        isProposal: isSharedProposal,
-      });
-
+      showPostSaveCard(savedEventId, payload, { keepBoth: true });
       return savedEventId;
-    } catch (err: any) {
-      setToast({
-        title: "No se pudo guardar",
-        subtitle: humanizeActionError(err, "Intenta nuevamente."),
-      });
-      window.setTimeout(() => setToast(null), 2800);
-      return null;
-    } finally {
-      saveInFlightRef.current = false;
-      setSaving(false);
     }
-  };
 
-  const preflight = async (payload: {
+    if (options?.skipConflictDetection) {
+      return savedEventId;
+    }
+
+    const conflictResult = await createConflictNotificationForEvent(
+      savedEventId
+    ).catch(() => ({
+      created: 0,
+      conflictCount: 0,
+      targetEventId: savedEventId,
+    }));
+
+    if (conflictResult.conflictCount > 0) {
+      setToast({
+        title: "⚠️ Conflicto detectado",
+        subtitle: "Te llevo a revisarlo ahora…",
+      });
+
+      const qp = new URLSearchParams();
+      if (conflictResult.targetEventId) {
+        qp.set("eventId", String(conflictResult.targetEventId));
+      }
+      if (payload.groupId) {
+        qp.set("groupId", String(payload.groupId));
+      }
+      qp.set("from", isEditing ? "event_edit" : "event_create");
+
+      window.setTimeout(() => {
+        router.push(`/conflicts/detected?${qp.toString()}`);
+      }, 500);
+      return savedEventId;
+    }
+
+    showPostSaveCard(savedEventId, payload);
+    return savedEventId;
+  } catch (err: any) {
+    setToast({
+      title: "No se pudo guardar",
+      subtitle: humanizeActionError(err, "Intenta nuevamente."),
+    });
+    window.setTimeout(() => setToast(null), 2800);
+    return null;
+  } finally {
+    saveInFlightRef.current = false;
+    setSaving(false);
+  }
+};
+
+const preflight = async (payload: {
     groupType: GroupType;
     groupId: string | null;
     title: string;
@@ -1723,9 +1771,12 @@ if (isEditing && eventIdParam) {
     await doSave(payload);
   };
 
-  const onPreflightChoose = async (choice: PreflightChoice) => {
-    setPreflightOpen(false);
+const onPreflightChoose = async (choice: PreflightChoice) => {
+  if (preflightChoiceInFlightRef.current) return;
+  preflightChoiceInFlightRef.current = true;
+  setPreflightOpen(false);
 
+  try {
     if (choice === "edit") {
       clearPreflightState();
       setToast({
@@ -1773,119 +1824,99 @@ if (isEditing && eventIdParam) {
       const itemsSnapshot = [...preflightItems];
       const payloadToSave = pendingPayload;
 
-      try {
-        const ids = itemsSnapshot.map((it) => it.id).filter(Boolean);
-        ignoreConflictIds(ids);
-      } catch {
-        // ok
-      }
-
       clearPreflightState();
 
       const savedEventId = await doSave(payloadToSave, {
-        suppressConflictRedirect: true,
+        keepBothRedirect: true,
       });
 
-      await writePreflightResolutionLogs({
-        items: itemsSnapshot,
-        payload: payloadToSave,
-        choice: "keep_both",
-        finalAction: finalActionFromPreflightChoice("keep_both"),
-        savedEventId: savedEventId ?? null,
-        blockedIds: [],
-        reason: null,
-      });
+      if (savedEventId) {
+        try {
+          const ids = itemsSnapshot.map((it) => it.id).filter(Boolean);
+          if (ids.length > 0) ignoreConflictIds(ids);
+        } catch {
+          // ok
+        }
+
+        await writePreflightResolutionLogs({
+          items: itemsSnapshot,
+          payload: payloadToSave,
+          choice: "keep_both",
+          finalAction: finalActionFromPreflightChoice("keep_both"),
+          savedEventId: savedEventId ?? null,
+          blockedIds: [],
+          reason: null,
+        });
+      }
 
       return;
     }
 
     setSaving(true);
-    try {
-      const payloadToSave = pendingPayload;
-      const itemsSnapshot = [...preflightItems];
-      const idsToReplaceSnapshot = [...existingIdsToReplace];
-      const deleteResult = await deleteEventsByIdsDetailed(idsToReplaceSnapshot);
 
-      const blockedIds = Array.isArray(deleteResult?.blockedIds)
-        ? deleteResult.blockedIds.map((id) => String(id)).filter(Boolean)
-        : [];
+    const payloadToSave = pendingPayload;
+    const itemsSnapshot = [...preflightItems];
+    const idsToReplaceSnapshot = [...existingIdsToReplace];
 
-      const didDeleteAll =
-        Number(deleteResult?.deletedCount ?? 0) === idsToReplaceSnapshot.length;
+    clearPreflightState();
 
-      if (blockedIds.length > 0 || !didDeleteAll) {
-        try {
-          const conflictIds = itemsSnapshot.map((it) => it.id).filter(Boolean);
+    const savedEventId = await doSave(payloadToSave, {
+      skipConflictDetection: true,
+    });
 
-          if (blockedIds.length > 0) {
-            hideEventIdsForCurrentUser(blockedIds);
-          }
+    if (!savedEventId) {
+      return;
+    }
 
-          if (conflictIds.length > 0) {
-            ignoreConflictIds(conflictIds);
-          }
-        } catch {
-          // no rompemos el flujo por el fallback
+    const deleteResult = await deleteEventsByIdsDetailed(idsToReplaceSnapshot);
+
+    const blockedIds = Array.isArray(deleteResult?.blockedIds)
+      ? deleteResult.blockedIds.map((id) => String(id)).filter(Boolean)
+      : [];
+
+    const didDeleteAll =
+      Number(deleteResult?.deletedCount ?? 0) === idsToReplaceSnapshot.length;
+
+    if (blockedIds.length > 0 || !didDeleteAll) {
+      try {
+        const conflictIds = itemsSnapshot.map((it) => it.id).filter(Boolean);
+
+        if (blockedIds.length > 0) {
+          hideEventIdsForCurrentUser(blockedIds);
         }
 
-        clearPreflightState();
-
-        setToast({
-          title: "Aplicado con ajuste automático",
-          subtitle:
-            "No pudimos reemplazar todos los eventos por permisos. Mantuvimos ambos para evitar inconsistencias.",
-        });
-        window.setTimeout(() => setToast(null), 3200);
-
-        const savedEventId = await doSave(payloadToSave, {
-          suppressConflictRedirect: true,
-        });
-
-        await writePreflightResolutionLogs({
-          items: itemsSnapshot,
-          payload: payloadToSave,
-          choice: "replace_with_new",
-          finalAction: "fallback_keep_both",
-          savedEventId: savedEventId ?? null,
-          blockedIds,
-          reason:
-            "No se pudieron reemplazar todos los eventos por permisos. Para no romper nada, SyncPlans mantuvo ambos.",
-        });
-        try {
-          await writePreflightDecisionNotifications({
-            items: itemsSnapshot,
-            choice: "replace_with_new",
-            finalAction: "fallback_keep_both",
-            savedEventId: savedEventId ?? null,
-            payload: {
-              title: payloadToSave.title,
-              groupId: payloadToSave.groupId ?? null,
-            },
-          });
-        } catch (error) {
-          console.error("preflight conflict decision notifications failed", error);
+        if (conflictIds.length > 0) {
+          ignoreConflictIds(conflictIds);
         }
-        return;
+      } catch {
+        // no rompemos el flujo por el fallback
       }
 
-      clearPreflightState();
+      setToast({
+        title: "Aplicado con ajuste automático",
+        subtitle:
+          "No pudimos reemplazar todos los eventos por permisos. Mantuvimos ambos para evitar inconsistencias.",
+      });
+      window.setTimeout(() => setToast(null), 3200);
 
-      const savedEventId = await doSave(payloadToSave);
+      await finalizeKeepBothRedirect(savedEventId, payloadToSave);
 
       await writePreflightResolutionLogs({
         items: itemsSnapshot,
         payload: payloadToSave,
         choice: "replace_with_new",
-        finalAction: finalActionFromPreflightChoice("replace_with_new"),
+        finalAction: "fallback_keep_both",
         savedEventId: savedEventId ?? null,
-        blockedIds: [],
-        reason: null,
+        blockedIds,
+        reason:
+          "No se pudieron reemplazar todos los eventos por permisos. Para no romper nada, SyncPlans mantuvo ambos.",
       });
+
       try {
         await writePreflightDecisionNotifications({
           items: itemsSnapshot,
           choice: "replace_with_new",
-          finalAction: finalActionFromPreflightChoice("replace_with_new"),
+          finalAction: "fallback_keep_both",
           savedEventId: savedEventId ?? null,
           payload: {
             title: payloadToSave.title,
@@ -1896,19 +1927,48 @@ if (isEditing && eventIdParam) {
         console.error("preflight conflict decision notifications failed", error);
       }
       return;
-    } catch (err: any) {
-      setToast({
-        title: "No se pudo aplicar",
-        subtitle: humanizeActionError(err, "Intenta nuevamente."),
-      });
-      window.setTimeout(() => setToast(null), 2800);
-    } finally {
-      saveInFlightRef.current = false;
-      setSaving(false);
     }
-  };
 
-  const handleSharePostSave = async () => {
+    showPostSaveCard(savedEventId, payloadToSave);
+
+    await writePreflightResolutionLogs({
+      items: itemsSnapshot,
+      payload: payloadToSave,
+      choice: "replace_with_new",
+      finalAction: finalActionFromPreflightChoice("replace_with_new"),
+      savedEventId: savedEventId ?? null,
+      blockedIds: [],
+      reason: null,
+    });
+
+    try {
+      await writePreflightDecisionNotifications({
+        items: itemsSnapshot,
+        choice: "replace_with_new",
+        finalAction: finalActionFromPreflightChoice("replace_with_new"),
+        savedEventId: savedEventId ?? null,
+        payload: {
+          title: payloadToSave.title,
+          groupId: payloadToSave.groupId ?? null,
+        },
+      });
+    } catch (error) {
+      console.error("preflight conflict decision notifications failed", error);
+    }
+  } catch (err: any) {
+    setToast({
+      title: "No se pudo aplicar",
+      subtitle: humanizeActionError(err, "Intenta nuevamente."),
+    });
+    window.setTimeout(() => setToast(null), 2800);
+  } finally {
+    preflightChoiceInFlightRef.current = false;
+    saveInFlightRef.current = false;
+    setSaving(false);
+  }
+};
+
+const handleSharePostSave = async () => {
     if (sharingPostSave) return;
 
     try {
