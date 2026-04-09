@@ -16,8 +16,8 @@ import {
   conflictKey,
   conflictInvolvesEvent,
   filterIgnoredConflicts,
-  loadIgnoredConflictKeys,
 } from "@/lib/conflicts";
+import { normalizeGroupType } from "@/lib/naming";
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
 import {
   type Resolution,
@@ -28,9 +28,10 @@ import {
   filterOutDeclinedEvents,
   getMyDeclinedEventIds,
 } from "@/lib/eventResponsesDb";
+import { getIgnoredConflictKeys } from "@/lib/conflictPrefs";
 
-function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
-  return (gt ?? "personal") as GroupType;
+function normalizeForConflicts(gt: string | null | undefined): GroupType {
+  return normalizeGroupType(gt) as GroupType;
 }
 
 function resolutionForConflict(
@@ -200,6 +201,9 @@ export default function CompareClient() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
   const [declinedIds, setDeclinedIds] = useState<Set<string>>(new Set());
+  const [ignoredConflictKeys, setIgnoredConflictKeys] = useState<Set<string>>(
+    new Set()
+  );
   const [selectedResolution, setSelectedResolution] = useState<Resolution | null>(
     null
   );
@@ -209,10 +213,11 @@ export default function CompareClient() {
   const [isMobile, setIsMobile] = useState(false);
 
   const loadScreenData = useCallback(async () => {
-    const [eventsForConflicts, dbMap, declinedSet] = await Promise.all([
+    const [eventsForConflicts, dbMap, declinedSet, ignoredSet] = await Promise.all([
       loadEventsFromDb({ groupId: groupIdFromUrl }),
       getMyConflictResolutionsMap(),
       getMyDeclinedEventIds(),
+      getIgnoredConflictKeys(),
     ]);
 
     setEvents(
@@ -220,6 +225,7 @@ export default function CompareClient() {
     );
     setResMap(dbMap ?? {});
     setDeclinedIds(declinedSet instanceof Set ? declinedSet : new Set());
+    setIgnoredConflictKeys(ignoredSet instanceof Set ? ignoredSet : new Set());
   }, [groupIdFromUrl]);
 
   useEffect(() => {
@@ -311,11 +317,10 @@ export default function CompareClient() {
     }));
 
     const computed = computeVisibleConflicts(normalized);
-    const ignored = loadIgnoredConflictKeys();
-    const visible = filterIgnoredConflicts(computed, ignored);
+    const visible = filterIgnoredConflicts(computed, ignoredConflictKeys);
 
     return attachEvents(visible, visibleEventsForConflicts);
-  }, [visibleEventsForConflicts]);
+  }, [visibleEventsForConflicts, ignoredConflictKeys]);
 
   const focusConflicts = useMemo(() => {
     if (!focusEventId) return [];

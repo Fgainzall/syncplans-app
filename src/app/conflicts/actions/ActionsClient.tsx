@@ -15,11 +15,9 @@ import {
   conflictInvolvesEvent,
   conflictKey,
   filterIgnoredConflicts,
-  loadIgnoredConflictKeys,
-  hideEventIdsForCurrentUser,
-  ignoreConflictIds,
   type ConflictItem,
 } from "@/lib/conflicts";
+import { normalizeGroupType } from "@/lib/naming";
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
 import {
   Resolution,
@@ -27,9 +25,11 @@ import {
 } from "@/lib/conflictResolutionsDb";
 import { createConflictResolutionLog } from "@/lib/conflictResolutionsLogDb";
 import {
+  declineEventForCurrentUser,
   filterOutDeclinedEvents,
   getMyDeclinedEventIds,
 } from "@/lib/eventResponsesDb";
+import { getIgnoredConflictKeys, setConflictPreference } from "@/lib/conflictPrefs";
 import {
   deleteEventsByIdsDetailed,
   getEventById,
@@ -40,8 +40,8 @@ import {
   createNotifications,
 } from "@/lib/notificationsDb";
 
-function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
-  return (gt ?? "personal") as GroupType;
+function normalizeForConflicts(gt: string | null | undefined): GroupType {
+  return normalizeGroupType(gt) as GroupType;
 }
 
 
@@ -235,6 +235,9 @@ export default function ActionsClient() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
   const [declinedIds, setDeclinedIds] = useState<Set<string>>(new Set());
+  const [ignoredConflictKeys, setIgnoredConflictKeys] = useState<Set<string>>(
+    new Set()
+  );
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [summary, setSummary] = useState<ApplySummary | null>(null);
   const [toast, setToast] = useState<null | { title: string; sub?: string }>(
@@ -244,10 +247,11 @@ export default function ActionsClient() {
   const applyInFlightRef = useRef(false);
 
   const loadScreenData = useCallback(async () => {
-    const [eventsForConflicts, dbMap, declinedSet] = await Promise.all([
+    const [eventsForConflicts, dbMap, declinedSet, ignoredSet] = await Promise.all([
       loadEventsFromDb({ groupId: groupIdFromUrl }),
       getMyConflictResolutionsMap(),
       getMyDeclinedEventIds(),
+      getIgnoredConflictKeys(),
     ]);
 
     setEvents(
@@ -255,6 +259,7 @@ export default function ActionsClient() {
     );
     setResMap(dbMap ?? {});
     setDeclinedIds(declinedSet instanceof Set ? declinedSet : new Set());
+    setIgnoredConflictKeys(ignoredSet instanceof Set ? ignoredSet : new Set());
   }, [groupIdFromUrl]);
 
   useEffect(() => {
@@ -327,11 +332,10 @@ export default function ActionsClient() {
     }));
 
     const computed = computeVisibleConflicts(normalized);
-    const ignored = loadIgnoredConflictKeys();
-    const visible = filterIgnoredConflicts(computed, ignored);
+    const visible = filterIgnoredConflicts(computed, ignoredConflictKeys);
 
     return attachEvents(visible, visibleEventsForConflicts);
-  }, [visibleEventsForConflicts]);
+  }, [visibleEventsForConflicts, ignoredConflictKeys]);
 
   const scopedConflicts = useMemo(() => {
     if (!focusEventId) return allVisibleConflicts;
@@ -466,7 +470,25 @@ export default function ActionsClient() {
       }
 
       if (blockedIds.size > 0) {
-        hideEventIdsForCurrentUser(Array.from(blockedIds));
+        const declineWrites: Promise<unknown>[] = [];
+
+        for (const blockedId of blockedIds) {
+          const blockedFromEvents = events.find(
+            (event) => String(event?.id ?? "").trim() === blockedId
+          );
+         const blockedGroupId =
+  String(blockedFromEvents?.groupId ?? "").trim() || null;
+
+          declineWrites.push(
+            declineEventForCurrentUser(
+              blockedId,
+              blockedGroupId,
+              "Fallback keep both after blocked delete"
+            )
+          );
+        }
+
+        await Promise.allSettled(declineWrites);
         fallbackKeepBothCount = fallbackConflictIds.size;
       }
 
@@ -501,8 +523,20 @@ export default function ActionsClient() {
         }
       }
 
-       if (ignoredConflictIds.size > 0) {
-        ignoreConflictIds(Array.from(ignoredConflictIds));
+      if (ignoredConflictIds.size > 0) {
+        const ignoredWrites: Promise<unknown>[] = [];
+
+        for (const conflict of [...actionableConflicts, ...keepBothConflicts]) {
+          const existingId = String(conflict.existingEventId ?? "").trim();
+          const incomingId = String(conflict.incomingEventId ?? "").trim();
+          if (!existingId || !incomingId) continue;
+
+          ignoredWrites.push(
+            setConflictPreference(existingId, incomingId, "ignored")
+          );
+        }
+
+        await Promise.allSettled(ignoredWrites);
       }
 
       const logWrites: Promise<unknown>[] = [];

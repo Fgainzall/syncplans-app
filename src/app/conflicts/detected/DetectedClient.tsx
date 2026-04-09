@@ -14,8 +14,8 @@ import {
   attachEvents,
   conflictKey,
   filterIgnoredConflicts,
-  loadIgnoredConflictKeys,
 } from "@/lib/conflicts";
+import { normalizeGroupType } from "@/lib/naming";
 
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
 import {
@@ -26,6 +26,7 @@ import {
   filterOutDeclinedEvents,
   getMyDeclinedEventIds,
 } from "@/lib/eventResponsesDb";
+import { getIgnoredConflictKeys } from "@/lib/conflictPrefs";
 import { markConflictNotificationsAsRead } from "@/lib/notificationsDb";
 import { getMyProfile, type Profile } from "@/lib/profilesDb";
 import { hasPremiumAccess } from "@/lib/premium";
@@ -64,10 +65,9 @@ function prettyTimeRange(startIso: string, endIso: string) {
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
 
-function normalizeForConflicts(gt: GroupType | null | undefined): GroupType {
-  return (gt ?? "personal") as GroupType;
+function normalizeForConflicts(gt: string | null | undefined): GroupType {
+  return normalizeGroupType(gt) as GroupType;
 }
-
 /** móvil por ancho */
 function useIsMobileWidth(maxWidth = 520) {
   const [isMobile, setIsMobile] = useState(false);
@@ -146,6 +146,9 @@ export default function DetectedClient() {
   const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [ignoredConflictKeys, setIgnoredConflictKeys] = useState<Set<string>>(
+    () => new Set()
+  );
   const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
@@ -164,12 +167,13 @@ export default function DetectedClient() {
       }
 
       try {
-        const [{ events: ev }, dbMap, declined, fetchedProfile] = await Promise.all([
+        const [{ events: ev }, dbMap, declined, ignored, fetchedProfile] = await Promise.all([
           loadEventsFromDb({
             groupId: groupIdFromUrl ?? undefined,
           }),
           getMyConflictResolutionsMap().catch(() => ({})),
           getMyDeclinedEventIds().catch(() => new Set<string>()),
+          getIgnoredConflictKeys().catch(() => new Set<string>()),
           getMyProfile().catch(() => null),
         ]);
 
@@ -178,12 +182,14 @@ export default function DetectedClient() {
         setEvents(Array.isArray(ev) ? ev : []);
         setResMap(dbMap ?? {});
         setDeclinedEventIds(declined ?? new Set());
+        setIgnoredConflictKeys(ignored ?? new Set());
         setProfile(fetchedProfile ?? null);
       } catch {
         if (!alive) return;
         setEvents([]);
         setResMap({});
         setDeclinedEventIds(new Set());
+        setIgnoredConflictKeys(new Set());
         setProfile(null);
       } finally {
         if (alive) {
@@ -202,15 +208,17 @@ export default function DetectedClient() {
 
     const refreshFromDb = async () => {
       try {
-        const [nextResMap, nextDeclined] = await Promise.all([
+        const [nextResMap, nextDeclined, nextIgnored] = await Promise.all([
           getMyConflictResolutionsMap().catch(() => ({})),
           getMyDeclinedEventIds().catch(() => new Set<string>()),
+          getIgnoredConflictKeys().catch(() => new Set<string>()),
         ]);
 
         if (!alive) return;
 
         setResMap(nextResMap ?? {});
         setDeclinedEventIds(nextDeclined ?? new Set());
+        setIgnoredConflictKeys(nextIgnored ?? new Set());
       } catch {
         // no rompemos UI por refresh fallido
       }
@@ -250,14 +258,13 @@ export default function DetectedClient() {
     }));
 
     const cx = computeVisibleConflicts(normalized);
-    const ignored = loadIgnoredConflictKeys();
-    const visible = filterIgnoredConflicts(cx, ignored);
+    const visible = filterIgnoredConflicts(cx, ignoredConflictKeys);
 
     return attachEvents(
       visible,
       visibleEvents
     ) as unknown as AttachedConflict[];
-  }, [visibleEvents]);
+  }, [visibleEvents, ignoredConflictKeys]);
 
   /**
    * Mantenemos solo conflictos pendientes reales:

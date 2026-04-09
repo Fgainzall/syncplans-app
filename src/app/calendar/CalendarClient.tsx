@@ -34,8 +34,6 @@ import {
   conflictKey,
   filterIgnoredConflicts,
   groupMeta,
-  loadSoftRejectedEventIds,
-  SOFT_REJECTED_EVENTS_KEY,
 } from "@/lib/conflicts";
 import {
   formatRangeLabel,
@@ -57,7 +55,10 @@ import {
   getMyConflictResolutionsMap,
   type Resolution,
 } from "@/lib/conflictResolutionsDb";
-import { getMyDeclinedEventIds } from "@/lib/eventResponsesDb";
+import {
+  getMyDeclinedEventIds,
+  declineEventForCurrentUser,
+} from "@/lib/eventResponsesDb";
 import {
   getLatestConflictTrustSignalsByEventIds,
   type ConflictTrustSignal,
@@ -438,7 +439,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
           })
         );
 
-        const nextHiddenIds = loadSoftRejectedEventIds();
+        const nextHiddenIds = new Set<string>();
 
         const enriched: CalendarEventWithOwner[] = (rawEvents || [])
           .map((ev: any) => {
@@ -579,21 +580,16 @@ console.log("DELETE CHECK", {
 
 
   const handleHideEvent = useCallback(
-    async (eventId: string) => {
+    async (eventId: string, groupId?: string | null) => {
       try {
         setHideError(null);
         setDeleteError(null);
 
-        const currentIds = Array.from(loadSoftRejectedEventIds());
-        const nextIds = Array.from(new Set([...currentIds, String(eventId)]));
-
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(
-            SOFT_REJECTED_EVENTS_KEY,
-            JSON.stringify(nextIds)
-          );
-          window.dispatchEvent(new Event("sp:soft-rejected-events-changed"));
-        }
+        await declineEventForCurrentUser(
+          String(eventId),
+          groupId ? String(groupId) : null,
+          "Hidden from calendar"
+        );
 
         setIsEditOpen(false);
         setEditingEvent(null);
@@ -605,7 +601,9 @@ console.log("DELETE CHECK", {
         });
       } catch (e: any) {
         console.error("hide event failed", e);
-        setHideError(e?.message ?? "No se pudo ocultar este evento para tu cuenta.");
+        setHideError(
+          e?.message ?? "No se pudo ocultar este evento para tu cuenta."
+        );
       }
     },
     [refreshCalendar]
@@ -700,29 +698,7 @@ console.log("DELETE CHECK", {
   }, [refreshCalendar]);
 
   useEffect(() => {
-    const onSoftRejectedChanged = () => {
-      void refreshCalendar();
-    };
-
-    const onStorage = (event: StorageEvent) => {
-      if (!event.key || event.key === "syncplans_soft_rejected_events_v1") {
-        void refreshCalendar();
-      }
-    };
-
-    window.addEventListener(
-      "sp:soft-rejected-events-changed",
-      onSoftRejectedChanged as EventListener
-    );
-    window.addEventListener("storage", onStorage);
-
-    return () => {
-      window.removeEventListener(
-        "sp:soft-rejected-events-changed",
-        onSoftRejectedChanged as EventListener
-      );
-      window.removeEventListener("storage", onStorage);
-    };
+    return;
   }, [refreshCalendar]);
 
   useEffect(() => {
@@ -1365,7 +1341,7 @@ canHide={!!(editingEvent && currentUserId && !isEventOwnedByUser(editingEvent, c
 onHide={
   editingEvent && currentUserId && !isEventOwnedByUser(editingEvent, currentUserId)
     ? async () => {
-        await handleHideEvent(editingEvent.id);
+        await handleHideEvent(editingEvent.id, editingEvent.groupId ?? null);
       }
     : undefined
 }

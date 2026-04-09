@@ -19,10 +19,6 @@ import {
   type DbEventRow,
 } from "@/lib/eventsDb";
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
-import {
-  loadSoftRejectedEventIds,
-  SOFT_REJECTED_EVENTS_KEY,
-} from "@/lib/conflicts";
 import { getMyDeclinedEventIds } from "@/lib/eventResponsesDb";
 import { filterVisibleEvents } from "@/lib/tempeventVisibility";
 
@@ -88,9 +84,7 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
 
   const [events, setEvents] = useState<EventWithGroup[]>([]);
-  const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(
-    () => loadSoftRejectedEventIds()
-  );
+  const [hiddenEventIds] = useState<Set<string>>(() => new Set());
   const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -149,7 +143,6 @@ export default function EventsPage() {
 
         setEvents(withGroup);
         setGroups(groupsRes);
-        setHiddenEventIds(loadSoftRejectedEventIds());
         setDeclinedEventIds(declinedRes);
       } catch (err) {
         console.error("Error booting events:", err);
@@ -167,47 +160,7 @@ export default function EventsPage() {
     };
   }, [router]);
 
-  useEffect(() => {
-    const refreshHidden = () => {
-      setHiddenEventIds(loadSoftRejectedEventIds());
-    };
 
-    const onFocus = () => refreshHidden();
-
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        refreshHidden();
-      }
-    };
-
-    const onStorage = (event: StorageEvent) => {
-      if (!event.key || event.key === SOFT_REJECTED_EVENTS_KEY) {
-        refreshHidden();
-      }
-    };
-
-    const onSoftRejectedChanged = () => {
-      refreshHidden();
-    };
-
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("storage", onStorage);
-    window.addEventListener(
-      "sp:soft-rejected-events-changed",
-      onSoftRejectedChanged as EventListener
-    );
-
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener(
-        "sp:soft-rejected-events-changed",
-        onSoftRejectedChanged as EventListener
-      );
-    };
-  }, []);
 
   const totalGroups = groups.length;
   const focusedEventId = searchParams.get("focusEventId");
@@ -315,7 +268,6 @@ export default function EventsPage() {
 
       setEvents(withGroup);
       setGroups(groupsRes);
-      setHiddenEventIds(loadSoftRejectedEventIds());
       setDeclinedEventIds(declinedRes);
     } catch (err: any) {
       console.error("Error refrescando eventos:", err);

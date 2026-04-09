@@ -142,7 +142,13 @@ export function filterIgnoredConflicts(
 ): ConflictItem[] {
   const set = ignored ?? loadIgnoredConflictKeys();
   if (!set.size) return conflicts;
-  return conflicts.filter((c) => !set.has(String(c.id)));
+
+  return conflicts.filter((c) => {
+    const rawId = String(c.id ?? "").trim();
+    const stablePairKey = conflictKey(c.existingEventId, c.incomingEventId);
+
+    return !set.has(rawId) && !set.has(stablePairKey);
+  });
 }
 
 /* =========================

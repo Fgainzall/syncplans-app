@@ -31,7 +31,6 @@ import {
   computeVisibleConflicts,
   conflictKey,
   filterIgnoredConflicts,
-  loadIgnoredConflictKeys,
   type CalendarEvent,
   type GroupType,
   type ConflictItem,
@@ -40,6 +39,7 @@ import {
   getMyConflictResolutionsMap,
   type Resolution,
 } from "@/lib/conflictResolutionsDb";
+import { getIgnoredConflictKeys } from "@/lib/conflictPrefs";
 import {
   filterOutDeclinedEvents,
   getMyDeclinedEventIds,
@@ -407,7 +407,8 @@ function resolutionForConflict(
 function buildConflictAlert(
   events: SummaryEvent[],
   groups: GroupRow[],
-  resMap: Record<string, Resolution>
+  resMap: Record<string, Resolution>,
+  ignoredConflictKeys: Set<string>
 ): ConflictAlert {
   if (!Array.isArray(events) || events.length === 0) {
     return { count: 0, latestEventId: null };
@@ -445,9 +446,11 @@ function buildConflictAlert(
     return { count: 0, latestEventId: null };
   }
 
-  const ignored = loadIgnoredConflictKeys();
   const allConflicts = computeVisibleConflicts(conflictEvents);
-  const visibleConflicts = filterIgnoredConflicts(allConflicts, ignored);
+  const visibleConflicts = filterIgnoredConflicts(
+    allConflicts,
+    ignoredConflictKeys
+  );
 
   const pendingConflicts = visibleConflicts.filter(
     (conflict) => !resolutionForConflict(conflict, resMap)
@@ -848,6 +851,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [ignoredConflictKeys, setIgnoredConflictKeys] = useState<Set<string>>(
+    () => new Set()
+  );
   const [loading, setLoading] = useState(false);
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
   const [unreadConflictAlert, setUnreadConflictAlert] = useState<ConflictAlert>({
@@ -996,14 +1002,19 @@ const timeSuggestionsLabel = useMemo(() => {
   }, [normalizedEvents]);
 
   const conflictAlert = useMemo(() => {
-    const baseAlert = buildConflictAlert(visibleEvents, groups, resMap);
+    const baseAlert = buildConflictAlert(
+      visibleEvents,
+      groups,
+      resMap,
+      ignoredConflictKeys
+    );
 
     return {
       count: Math.max(baseAlert.count, unreadConflictAlert.count),
       latestEventId:
         unreadConflictAlert.latestEventId ?? baseAlert.latestEventId ?? null,
     };
-  }, [visibleEvents, groups, resMap, unreadConflictAlert]);
+  }, [visibleEvents, groups, resMap, ignoredConflictKeys, unreadConflictAlert]);
 
   const upcomingAll = useMemo(() => {
     const today = startOfTodayLocal();
@@ -1116,12 +1127,14 @@ const timeSuggestionsLabel = useMemo(() => {
         es,
         conflictResolutions,
         declined,
+        ignored,
         unreadConflicts,
         recentDecisionLogs,
       ] = await Promise.all([
         getMyEvents(),
         getMyConflictResolutionsMap().catch(() => ({})),
         getMyDeclinedEventIds().catch(() => new Set<string>()),
+        getIgnoredConflictKeys().catch(() => new Set<string>()),
         getUnreadConflictNotificationsSummary().catch(() => ({
           count: 0,
           latestEventId: null,
@@ -1144,6 +1157,7 @@ const timeSuggestionsLabel = useMemo(() => {
       setEvents(safeEvents);
       setResMap(conflictResolutions ?? {});
       setDeclinedEventIds(declined ?? new Set());
+      setIgnoredConflictKeys(ignored ?? new Set());
       setUnreadConflictAlert(
         unreadConflicts ?? { count: 0, latestEventId: null }
       );
@@ -1524,7 +1538,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
     const computed = filterIgnoredConflicts(
       computeVisibleConflicts(conflictEvents),
-      loadIgnoredConflictKeys()
+      ignoredConflictKeys
     ).filter((conflict) => !resolutionForConflict(conflict, resMap));
 
     for (const conflict of computed) {
@@ -1533,7 +1547,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     }
 
     return next;
-  }, [groups, resMap, visibleEvents]);
+  }, [groups, resMap, visibleEvents, ignoredConflictKeys]);
 
   const decisionSummary = useMemo(() => {
     let pendingProposals = 0;
