@@ -1173,7 +1173,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
           <div
   style={{
     ...styles.weekHeader,
-    minWidth: isMobile ? 700 : 720,
+    minWidth: 700,
     padding: isMobile ? "8px 8px 0" : styles.weekHeader.padding,
   }}
   className="spCal-weekHeader"
@@ -1190,7 +1190,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
 <div
   style={{
     ...styles.grid,
-    minWidth: isMobile ? 700 : 720,
+    minWidth: 700,
     gap: isMobile ? 8 : 12,
     padding: isMobile ? 10 : 12,
     gridAutoRows: isMobile ? "minmax(112px, auto)" : "minmax(140px, auto)",
@@ -1566,7 +1566,9 @@ function renderMonthCells(opts: {
     const isToday = sameDay(cellDate, today);
 
     const dayEvents = eventsByDay.get(ymd(cellDate)) || [];
-    const top3 = dayEvents.slice(0, 3);
+const visibleLimit = isMobile ? 2 : 3;
+const visibleEvents = dayEvents.slice(0, visibleLimit);
+const hiddenCount = Math.max(dayEvents.length - visibleLimit, 0);
     const dayHasConflict = dayEvents.some((event) =>
       conflictEventIdsInGrid.has(String(event.id))
     );
@@ -1667,7 +1669,7 @@ cells.push(
         </div>
       )}
 
-      {(isMobile ? top3.slice(0, 2) : top3).map((e) => {
+     {visibleEvents.map((e) => {
         const resolvedType: GroupType = e.groupId
           ? ((groupTypeById.get(String(e.groupId)) ?? "pair") as GroupType)
           : ("personal" as GroupType);
@@ -1745,17 +1747,17 @@ cells.push(
         );
       })}
 
-      {dayEvents.length > 3 ? (
-        <div
-          className="spCal-moreHint"
-          style={{
-            ...styles.moreHint,
-            fontSize: isMobile ? 11 : styles.moreHint.fontSize,
-          }}
-        >
-          +{dayEvents.length - 3} más
-        </div>
-      ) : null}
+    {hiddenCount > 0 ? (
+  <div
+    className="spCal-moreHint"
+    style={{
+      ...styles.moreHint,
+      fontSize: isMobile ? 11 : styles.moreHint.fontSize,
+    }}
+  >
+    +{hiddenCount} más
+  </div>
+) : null}
     </div>
   </div>
 );
@@ -1987,7 +1989,8 @@ cell: {
   overflow: "hidden",
   display: "flex",
   flexDirection: "column",
-  justifyContent: "space-between",
+  justifyContent: "flex-start",
+  gap: 6,
   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.025)",
   transition: "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease",
 },
@@ -2056,14 +2059,14 @@ cell: {
   cellQuickBtnPersonal: {
     width: 20,
     height: 20,
-    borderRadius: 8,
+    borderRadius: 999,
     border: "1px solid rgba(250,204,21,0.46)",
     background:
       "linear-gradient(180deg, rgba(250,204,21,0.18), rgba(250,204,21,0.10))",
     color: "rgba(255,255,255,0.97)",
     cursor: "pointer",
     fontWeight: 950,
-    fontSize: 11,
+    fontSize: 12,
     lineHeight: "20px",
     textAlign: "center",
     boxShadow: "0 8px 18px rgba(250,204,21,0.12)",
@@ -2087,11 +2090,11 @@ cell: {
   },
 
  cellEvents: {
-  marginTop: 4,
+  marginTop: 0,
   display: "flex",
   flexDirection: "column",
   gap: 3,
-  flexGrow: 1,
+  flex: 1,
   minHeight: 0,
   overflow: "hidden",
   justifyContent: "flex-start",
