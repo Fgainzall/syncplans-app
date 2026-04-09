@@ -529,18 +529,11 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
   const handleDeleteEvent = useCallback(
     async (eventId: string, title?: string) => {
       if (!editingEvent || !currentUserId) return;
-console.log("DELETE CHECK", {
-  eventId: editingEvent?.id,
-  owner_id: editingEvent?.owner_id,
-  user_id: editingEvent?.user_id,
-  created_by: editingEvent?.created_by,
-  currentUserId,
-  canDelete: isEventOwnedByUser(editingEvent, currentUserId),
-});
-    if (!isEventOwnedByUser(editingEvent, currentUserId)) {
-  setDeleteError("No puedes eliminar este evento porque no te pertenece.");
-  return;
-}
+
+      if (!isEventOwnedByUser(editingEvent, currentUserId)) {
+        setDeleteError("No puedes eliminar este evento porque no te pertenece.");
+        return;
+      }
 
       try {
         setDeleteError(null);
@@ -600,7 +593,6 @@ console.log("DELETE CHECK", {
           toastSubtitle: "Ya no lo verás en tu calendario ni en tu lista.",
         });
       } catch (e: any) {
-        console.error("hide event failed", e);
         setHideError(
           e?.message ?? "No se pudo ocultar este evento para tu cuenta."
         );

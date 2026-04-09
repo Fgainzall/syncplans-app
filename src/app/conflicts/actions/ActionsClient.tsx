@@ -646,13 +646,7 @@ export default function ActionsClient() {
       }
 
       if (logWrites.length > 0) {
-        const settled = await Promise.allSettled(logWrites);
-
-        for (const item of settled) {
-          if (item.status === "rejected") {
-            console.error("conflict_resolutions_log insert failed", item.reason);
-          }
-        }
+        await Promise.allSettled(logWrites);
       }
 
       if (decisionNotifications.length > 0) {
@@ -707,8 +701,8 @@ export default function ActionsClient() {
 
             notifiedCount += 1;
           }
-        } catch (error) {
-          console.error("conflict decision notifications failed", error);
+        } catch (_error) {
+          // No bloqueamos la resolución principal si falla una notificación.
         }
       }
 
