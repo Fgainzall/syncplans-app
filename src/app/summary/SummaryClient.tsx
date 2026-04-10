@@ -382,7 +382,6 @@ useEffect(() => {
     score: suggestion.score,
     trace: suggestion.trace ?? null,
   }));
-
   const payload = {
     raw,
     parsed: {
