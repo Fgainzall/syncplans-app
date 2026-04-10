@@ -39,7 +39,15 @@ export function buildEventContext(input: EventContextInput): EventContext | null
     ? input.proposalResponses
     : [];
 
-  const inConflict = !!input.conflictEventIds?.has(eventId);
+  const trustLabel = String(input.trustSignal?.label ?? "").trim().toLowerCase();
+
+  const isResolvedByTrust =
+    trustLabel === "resolved" || trustLabel === "auto_adjusted";
+
+  const inConflict = isResolvedByTrust
+    ? false
+    : !!input.conflictEventIds?.has(eventId);
+
   const conflictsCount = inConflict ? 1 : 0;
 
   const decision = getEventDecisionSnapshot({
