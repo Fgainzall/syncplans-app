@@ -1400,8 +1400,11 @@ function EventRow({
       ? "Ajuste automático"
       : "Resuelto"
     : null;
-  const proposalRow = proposalResponsesMap?.[String(e.id)];
-  const proposalLabel = proposalResponseLabel(proposalRow?.response);
+const proposalRow = proposalResponsesMap?.[String(e.id)];
+const proposalLabel =
+  proposalRow?.response === "pending"
+    ? null
+    : proposalResponseLabel(proposalRow?.response);
 const isActuallyPending =
   proposalRow?.response === "pending" ||
   (!proposalRow && inConflict); // fallback solo si no hay respuesta
