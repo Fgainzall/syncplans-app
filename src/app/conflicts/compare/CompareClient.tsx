@@ -13,11 +13,11 @@ import {
   computeVisibleConflicts,
   attachEvents,
   type ConflictItem,
-  conflictKey,
   conflictInvolvesEvent,
   filterIgnoredConflicts,
 } from "@/lib/conflicts";
 import { normalizeGroupType } from "@/lib/naming";
+import { getConflictDecisionSnapshot } from "@/lib/decisionEngine";
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
 import {
   type Resolution,
@@ -32,30 +32,6 @@ import { getIgnoredConflictKeys } from "@/lib/conflictPrefs";
 
 function normalizeForConflicts(gt: string | null | undefined): GroupType {
   return normalizeGroupType(gt) as GroupType;
-}
-
-function resolutionForConflict(
-  c: ConflictItem,
-  resMap: Record<string, Resolution>
-): Resolution | undefined {
-  const exact = resMap[String(c.id)];
-  if (exact) return exact;
-
-  const a = String(c.existingEventId ?? "");
-  const b = String(c.incomingEventId ?? "");
-  if (!a || !b) return undefined;
-
-  const stableKey = conflictKey(a, b);
-  if (resMap[stableKey]) return resMap[stableKey];
-
-  const [x, y] = [a, b].sort();
-  const legacyPrefix = `cx::${x}::${y}::`;
-
-  for (const k of Object.keys(resMap)) {
-    if (k.startsWith(legacyPrefix)) return resMap[k];
-  }
-
-  return undefined;
 }
 
 function safeTitle(value?: string | null) {
@@ -375,8 +351,16 @@ export default function CompareClient() {
       return;
     }
 
-    const current = resolutionForConflict(activeConflict, resMap);
-    setSelectedResolution(current ?? null);
+    const snapshot = getConflictDecisionSnapshot({
+      conflict: {
+        id: activeConflict.id,
+        existing: activeConflict.existingEventId,
+        incoming: activeConflict.incomingEventId,
+      },
+      resolvedConflictMap: resMap,
+    });
+
+    setSelectedResolution(snapshot.resolution ?? null);
   }, [activeConflict, resMap]);
 
   const saveDecision = async (resolution: Resolution) => {

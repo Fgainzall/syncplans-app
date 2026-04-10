@@ -50,6 +50,10 @@ import {
   getProposalResponseLabel,
   getProposalResponseTone,
 } from "@/lib/naming";
+import {
+  getEventDecisionSnapshot,
+  resolveConflictResolution,
+} from "@/lib/decisionEngine";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
 import {
   getMyConflictResolutionsMap,

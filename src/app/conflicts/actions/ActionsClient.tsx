@@ -13,11 +13,15 @@ import {
   computeVisibleConflicts,
   attachEvents,
   conflictInvolvesEvent,
-  conflictKey,
   filterIgnoredConflicts,
   type ConflictItem,
 } from "@/lib/conflicts";
 import { normalizeGroupType } from "@/lib/naming";
+import {
+  buildConflictLogPayload,
+  getConflictDecisionSnapshot,
+  resolveConflictResolution,
+} from "@/lib/decisionEngine";
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
 import {
   Resolution,
@@ -106,41 +110,6 @@ function resolveEventOwnerId(event: any): string | null {
 
   const normalized = String(candidate ?? "").trim();
   return normalized || null;
-}
-
-function resolutionForConflict(
-  c: ConflictItem,
-  resMap: Record<string, Resolution>
-): Resolution | undefined {
-  const exact = resMap[String(c.id)];
-  if (exact) return exact;
-
-  const a = String(c.existingEventId ?? "");
-  const b = String(c.incomingEventId ?? "");
-  if (!a || !b) return undefined;
-
-  const stable = conflictKey(a, b);
-  if (resMap[stable]) return resMap[stable];
-
-  const [x, y] = [a, b].sort();
-  const legacyPrefix = `cx::${x}::${y}::`;
-
-  for (const k of Object.keys(resMap)) {
-    if (k.startsWith(legacyPrefix)) return resMap[k];
-  }
-
-  return undefined;
-}
-function decisionTypeFromResolution(resolution: Resolution): string {
-  if (resolution === "keep_existing") return "keep_existing";
-  if (resolution === "replace_with_new") return "replace_with_new";
-  return "keep_both";
-}
-
-function finalActionFromResolution(resolution: Resolution): string {
-  if (resolution === "keep_existing") return "keep_existing";
-  if (resolution === "replace_with_new") return "replace_with_new";
-  return "keep_both";
 }
 
 function resolveConflictGroupId(
@@ -346,21 +315,48 @@ export default function ActionsClient() {
 
   const resolvedConflicts = useMemo(() => {
     return scopedConflicts.filter((c) => {
-      const r = resolutionForConflict(c, resMap);
-      return r === "keep_existing" || r === "replace_with_new" || r === "none";
+      const snapshot = getConflictDecisionSnapshot({
+        conflict: {
+          id: c.id,
+          existing: c.existingEventId,
+          incoming: c.incomingEventId,
+        },
+        resolvedConflictMap: resMap,
+      });
+
+      return snapshot.isResolved;
     });
   }, [scopedConflicts, resMap]);
 
   const keepBothConflicts = useMemo(() => {
-    return resolvedConflicts.filter(
-      (c) => resolutionForConflict(c, resMap) === "none"
-    );
+    return resolvedConflicts.filter((c) => {
+      const resolution = resolveConflictResolution(
+        {
+          id: c.id,
+          existing: c.existingEventId,
+          incoming: c.incomingEventId,
+        },
+        resMap
+      );
+
+      return resolution === "none";
+    });
   }, [resolvedConflicts, resMap]);
 
   const actionableConflicts = useMemo(() => {
     return resolvedConflicts.filter((c) => {
-      const r = resolutionForConflict(c, resMap);
-      return r === "keep_existing" || r === "replace_with_new";
+      const resolution = resolveConflictResolution(
+        {
+          id: c.id,
+          existing: c.existingEventId,
+          incoming: c.incomingEventId,
+        },
+        resMap
+      );
+
+      return (
+        resolution === "keep_existing" || resolution === "replace_with_new"
+      );
     });
   }, [resolvedConflicts, resMap]);
 
@@ -411,7 +407,14 @@ export default function ActionsClient() {
       >();
 
       for (const c of actionableConflicts) {
-        const resolution = resolutionForConflict(c, resMap);
+        const resolution = resolveConflictResolution(
+          {
+            id: c.id,
+            existing: c.existingEventId,
+            incoming: c.incomingEventId,
+          },
+          resMap
+        );
         const existingId = String(c.existingEventId ?? "").trim();
         const incomingId = String(c.incomingEventId ?? "").trim();
 
@@ -555,7 +558,14 @@ export default function ActionsClient() {
       }> = [];
 
       for (const c of actionableConflicts) {
-        const resolution = resolutionForConflict(c, resMap);
+        const resolution = resolveConflictResolution(
+          {
+            id: c.id,
+            existing: c.existingEventId,
+            incoming: c.incomingEventId,
+          },
+          resMap
+        );
         const existingId = String(c.existingEventId ?? "").trim();
         const incomingId = String(c.incomingEventId ?? "").trim();
 
@@ -567,7 +577,7 @@ export default function ActionsClient() {
         const wasBlocked = blockedIds.has(targetEventId);
         const finalAction = wasBlocked
           ? "fallback_keep_both"
-          : finalActionFromResolution(resolution);
+          : buildConflictLogPayload(resolution).finalAction;
         const groupIdForConflict = resolveConflictGroupId(c, groupIdFromUrl);
 
         logWrites.push(
@@ -575,7 +585,7 @@ export default function ActionsClient() {
             conflictId: String(c.id),
             groupId: groupIdForConflict,
             decidedBy: currentUserId,
-            decisionType: decisionTypeFromResolution(resolution),
+            decisionType: buildConflictLogPayload(resolution).decisionType,
             finalAction,
             reason: wasBlocked
               ? "No se pudo eliminar el evento objetivo por permisos. SyncPlans aplicó fallback automático y mantuvo ambos."
@@ -604,7 +614,7 @@ export default function ActionsClient() {
               user_id: targetUserId,
               actor_user_id: currentUserId,
               conflict_id: String(c.id),
-              decision_type: decisionTypeFromResolution(resolution),
+              decision_type: buildConflictLogPayload(resolution).decisionType,
               final_action: finalAction,
               affected_event_id: targetEventId,
               affected_event_title: safeTitle(
@@ -855,7 +865,14 @@ await trackEvent({
           ) : (
             <div style={styles.stack}>
               {resolvedConflicts.map((c) => {
-                const resolution = resolutionForConflict(c, resMap);
+                const resolution = resolveConflictResolution(
+          {
+            id: c.id,
+            existing: c.existingEventId,
+            incoming: c.incomingEventId,
+          },
+          resMap
+        );
                 const keptTitle =
                   resolution === "keep_existing"
                     ? safeTitle(c.existingEvent?.title)

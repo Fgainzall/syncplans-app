@@ -6,6 +6,7 @@ import type {
 } from "@/lib/conflicts";
 import { computeVisibleConflicts } from "@/lib/conflicts";
 import { deriveEventStatus } from "@/lib/naming";
+import { getEventDecisionSnapshot } from "@/lib/decisionEngine";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
 import type { ConflictTrustSignal } from "@/lib/conflictResolutionsLogDb";
 import type { PublicInviteRow } from "@/lib/invitationsDb";

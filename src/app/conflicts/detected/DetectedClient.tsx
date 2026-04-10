@@ -12,10 +12,13 @@ import {
   groupMeta,
   computeVisibleConflicts,
   attachEvents,
-  conflictKey,
   filterIgnoredConflicts,
 } from "@/lib/conflicts";
 import { normalizeGroupType } from "@/lib/naming";
+import {
+  getConflictDecisionSnapshot,
+  resolveConflictResolution,
+} from "@/lib/decisionEngine";
 
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
 import {
@@ -105,31 +108,6 @@ type AttachedConflict = {
   existingEvent?: CalendarEvent;
   incomingEvent?: CalendarEvent;
 };
-
-function resolutionForConflict(
-  c: AttachedConflict,
-  resMap: Record<string, Resolution>
-): Resolution | undefined {
-  const exact = resMap[String(c.id)];
-  if (exact) return exact;
-
-  const a = String(c.existingEventId ?? "");
-  const b = String(c.incomingEventId ?? "");
-
-  if (!a || !b) return undefined;
-
-  const stableKey = conflictKey(a, b);
-  if (resMap[stableKey]) return resMap[stableKey];
-
-  const [x, y] = [a, b].sort();
-  const legacyPrefix = `cx::${x}::${y}::`;
-
-  for (const k of Object.keys(resMap)) {
-    if (k.startsWith(legacyPrefix)) return resMap[k];
-  }
-
-  return undefined;
-}
 
 export default function DetectedClient() {
   const router = useRouter();
@@ -272,9 +250,18 @@ export default function DetectedClient() {
    * - aquí además ocultamos conflictos ya resueltos en conflict_resolutions
    */
   const pendingConflicts = useMemo<AttachedConflict[]>(() => {
-    const pending = allVisibleConflicts.filter(
-      (c) => !resolutionForConflict(c, resMap)
-    );
+    const pending = allVisibleConflicts.filter((c) => {
+      const snapshot = getConflictDecisionSnapshot({
+        conflict: {
+          id: c.id,
+          existing: c.existingEventId,
+          incoming: c.incomingEventId,
+        },
+        resolvedConflictMap: resMap,
+      });
+
+      return snapshot.isPending;
+    });
 
     if (!focusEventId) return pending;
 
@@ -329,7 +316,16 @@ const summary = useMemo(() => {
   let decided = 0;
 
   for (const c of allVisibleConflicts) {
-    if (resolutionForConflict(c, resMap)) decided++;
+    const resolution = resolveConflictResolution(
+      {
+        id: c.id,
+        existing: c.existingEventId,
+        incoming: c.incomingEventId,
+      },
+      resMap
+    );
+
+    if (resolution) decided++;
   }
 
   const pending = pendingConflicts.length;

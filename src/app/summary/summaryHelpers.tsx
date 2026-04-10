@@ -14,6 +14,10 @@ import { type ProposalResponseRow } from "@/lib/proposalResponsesDb";
 import { type GroupRow } from "@/lib/groupsDb";
 import { parseIsoLike, toDateMs } from "@/lib/dateUtils";
 import { deriveEventStatus } from "@/lib/naming";
+import {
+  getEventDecisionSnapshot,
+  resolveConflictResolution,
+} from "@/lib/decisionEngine";
 
 export type SummaryEvent = {
   id: string;
@@ -137,24 +141,16 @@ export function resolutionForConflict(
   conflict: ConflictItem,
   resMap: Record<string, Resolution>
 ): Resolution | undefined {
-  const exact = resMap[String(conflict.id)];
-  if (exact) return exact;
-
-  const a = String(conflict.existingEventId ?? "");
-  const b = String(conflict.incomingEventId ?? "");
-  if (!a || !b) return undefined;
-
-  const stableKey = conflictKey(a, b);
-  if (resMap[stableKey]) return resMap[stableKey];
-
-  const [x, y] = [a, b].sort();
-  const legacyPrefix = `cx::${x}::${y}::`;
-
-  for (const key of Object.keys(resMap)) {
-    if (key.startsWith(legacyPrefix)) return resMap[key];
-  }
-
-  return undefined;
+  return (
+    resolveConflictResolution(
+      {
+        id: conflict.id,
+        existing: conflict.existingEventId,
+        incoming: conflict.incomingEventId,
+      },
+      resMap
+    ) ?? undefined
+  );
 }
 
 export function buildConflictAlert(
@@ -549,12 +545,10 @@ export function getUnifiedEventStatus(input: {
   const key = String(input.eventId ?? "").trim();
   if (!key) return null;
 
-  return deriveEventStatus({
+  return getEventDecisionSnapshot({
     conflictsCount: input.conflictEventIds.has(key) ? 1 : 0,
-    responseStatuses: (input.proposalResponseGroupsMap[key] ?? []).map(
-      (row) => row?.response
-    ),
-  });
+    proposalResponses: input.proposalResponseGroupsMap[key] ?? [],
+  }).status;
 }
 
 export function textSuggestsSharedPlan(raw: string) {
