@@ -104,7 +104,7 @@ function useIsMobileWidth(maxWidth = 520) {
 export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const router = useRouter();
   const isMobile = useIsMobileWidth(520);
-  const ENABLE_SMART_TRACE = process.env.NEXT_PUBLIC_SYNCPLANS_TRACE === "1";
+  const ENABLE_SMART_TRACE = true;
 
   const [quickCaptureValue, setQuickCaptureValue] = useState("");
   const [quickCaptureBusy, setQuickCaptureBusy] = useState(false);

@@ -101,19 +101,33 @@ export function getTimelineEventStatusUi(input: {
   eventId?: string | null;
 }) {
   const eventId = String(input.eventId ?? "").trim() || "timeline-event";
-  const responses = Array.isArray(input.responses) ? input.responses : [];
-  const conflictsCount = Number(input.conflictsCount ?? 0);
+  const trustLabel = String(input.trustSignal?.label ?? "").trim().toLowerCase();
+
+  const isResolved =
+    trustLabel === "resolved" || trustLabel === "auto_adjusted";
+
+  const responses = isResolved
+    ? []
+    : (Array.isArray(input.responses) ? input.responses : []).filter(
+        (row) => String(row?.response ?? "").trim().toLowerCase() !== "pending"
+      );
+
+  const conflictsCount = isResolved ? 0 : Number(input.conflictsCount ?? 0);
+
+  const invite = isResolved
+    ? null
+    : input.invite
+      ? {
+          status: input.invite.status ?? null,
+          proposed_date: input.invite.proposed_date ?? null,
+        }
+      : null;
 
   const ctx = buildEventContext({
     eventId,
     conflictEventIds: conflictsCount > 0 ? new Set([eventId]) : new Set(),
     proposalResponses: responses,
-    invite: input.invite
-      ? {
-          status: input.invite.status ?? null,
-          proposed_date: input.invite.proposed_date ?? null,
-        }
-      : null,
+    invite,
     trustSignal: input.trustSignal ?? null,
   });
 
@@ -285,15 +299,9 @@ export function getExternalLabel(ev: TimelineEvent) {
 export function getProposalInsight(response: string | null | undefined) {
   const safe = String(response ?? "").trim().toLowerCase();
 
-  if (safe === "pending") {
-    return {
-      kicker: "Propuesta abierta",
-      title: "Este plan sigue pendiente de decisión",
-      subtitle:
-        "Todavía no quedó cerrado. Vale la pena revisarlo para decidir qué hacer.",
-      tone: "pending" as const,
-    };
-  }
+if (safe === "pending") {
+  return null;
+}
 
   if (safe === "accepted") {
     return {
