@@ -268,33 +268,59 @@ function resolveEventOwnerId(event: any): string | null {
   return normalized || null;
 }
 
-async function markEventAcceptedForCurrentUser(input: {
-  eventId: string | null;
-  userId: string | null;
-  groupId?: string | null;
+async function syncAcceptedResponsesForSavedEvent(input: {
+  eventId: string;
+  currentUserId: string | null;
+  groupId: string | null;
 }) {
   const eventId = String(input.eventId ?? "").trim();
-  const userId = String(input.userId ?? "").trim();
+  if (!eventId) return;
 
-  if (!eventId || !userId) return;
+  const fallbackUserId = String(input.currentUserId ?? "").trim();
+  const groupId = String(input.groupId ?? "").trim() || null;
 
-  const payload = {
+  let userIds: string[] = [];
+
+  if (groupId) {
+    const { data: members, error } = await supabase
+      .from("group_members")
+      .select("user_id")
+      .eq("group_id", groupId);
+
+    if (error) {
+      console.error("group_members fetch failed while syncing responses", error);
+    }
+
+    userIds = Array.from(
+      new Set(
+        (members ?? [])
+          .map((row: any) => String(row?.user_id ?? "").trim())
+          .filter(Boolean)
+      )
+    );
+  }
+
+  if (!userIds.length && fallbackUserId) {
+    userIds = [fallbackUserId];
+  }
+
+  if (!userIds.length) return;
+
+  const rows = userIds.map((userId) => ({
     event_id: eventId,
     user_id: userId,
-    group_id: input.groupId ?? null,
+    group_id: groupId,
     response_status: "accepted",
     comment: null,
     updated_at: new Date().toISOString(),
-  };
+  }));
 
-  const { error } = await supabase
+  const { error: upsertError } = await supabase
     .from("event_responses")
-    .upsert(payload, {
-      onConflict: "event_id,user_id",
-    });
+    .upsert(rows, { onConflict: "event_id,user_id" });
 
-  if (error) {
-    console.error("event_responses upsert failed", error);
+  if (upsertError) {
+    console.error("event_responses upsert failed", upsertError);
   }
 }
 export default function NewEventDetailsClient() {
@@ -1379,6 +1405,14 @@ const persistEvent = async (payload: {
     });
     savedEventId = String(eventIdParam);
 
+    if (savedEventId) {
+      await syncAcceptedResponsesForSavedEvent({
+        eventId: savedEventId,
+        currentUserId,
+        groupId: payload.groupId ?? null,
+      });
+    }
+
     if (currentUserId && savedEventId) {
       const analyticsPayload = {
         user_id: currentUserId,
@@ -1426,6 +1460,14 @@ const persistEvent = async (payload: {
     });
     savedEventId = created?.id ? String(created.id) : null;
 
+    if (savedEventId) {
+      await syncAcceptedResponsesForSavedEvent({
+        eventId: savedEventId,
+        currentUserId,
+        groupId: payload.groupId ?? null,
+      });
+    }
+
     if (savedEventId && isSharedProposal && proposalResponse && currentUserId) {
       try {
         await upsertProposalResponse({
@@ -1449,12 +1491,6 @@ const persistEvent = async (payload: {
       });
     }
   }
-
-  await markEventAcceptedForCurrentUser({
-    eventId: savedEventId,
-    userId: currentUserId,
-    groupId: payload.groupId,
-  });
 
   if (savedEventId && shouldLearnCurrentSelection && selectedGroup?.id) {
     learnGroupSelection({
