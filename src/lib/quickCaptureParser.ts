@@ -1,3 +1,4 @@
+
 export type ParsedQuickCaptureSignals = {
   hasExplicitDate: boolean;
   hasExplicitTime: boolean;
@@ -24,6 +25,7 @@ export type ParsedQuickCapture = {
   notes: string;
   date: Date | null;
   durationMinutes: number;
+  participants: string[];
   signals: ParsedQuickCaptureSignals;
 };
 
@@ -43,12 +45,54 @@ const CONTEXT_CONNECTORS = [
   " en casa de ",
   " cerca de ",
   " junto a ",
-  " con ",
   " en ",
   " para ",
   " por ",
   " donde ",
 ];
+
+const NAME_STOPWORDS = new Set([
+  "mi",
+  "mis",
+  "con",
+  "de",
+  "del",
+  "la",
+  "las",
+  "el",
+  "los",
+  "y",
+  "o",
+  "a",
+  "al",
+  "en",
+  "para",
+  "por",
+  "tipo",
+  "desde",
+  "hasta",
+  "manana",
+  "mañana",
+  "hoy",
+  "viernes",
+  "jueves",
+  "miercoles",
+  "miércoles",
+  "martes",
+  "lunes",
+  "sabado",
+  "sábado",
+  "domingo",
+  "tarde",
+  "noche",
+  "mediodia",
+  "mediodía",
+  "medianoche",
+  "semana",
+  "finde",
+  "fin",
+  "casa",
+]);
 
 function normalizeText(input: string) {
   return String(input ?? "")
@@ -157,7 +201,84 @@ function nextOccurrenceOfDay(base: Date, targetDay: number) {
   return result;
 }
 
-function detectSignals(raw: string): ParsedQuickCaptureSignals {
+function normalizePossibleName(value: string) {
+  const cleaned = normalizeForMatching(value).replace(/[^a-zñáéíóúü\s]/gi, " ");
+  const words = collapseSpaces(cleaned).split(" ").filter(Boolean);
+
+  if (words.length === 0 || words.length > 3) return null;
+  if (words.some((word) => NAME_STOPWORDS.has(word))) return null;
+  if (words.some((word) => /\d/.test(word))) return null;
+
+  return words
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function extractParticipants(raw: string): string[] {
+  const normalizedRaw = normalizeForMatching(raw);
+  const seen = new Set<string>();
+  const participants: string[] = [];
+
+  const patterns = [
+    /\bcon\s+([a-záéíóúñ]+(?:\s+y\s+[a-záéíóúñ]+){0,2})\b/gi,
+    /\bjunto a\s+([a-záéíóúñ]+(?:\s+y\s+[a-záéíóúñ]+){0,2})\b/gi,
+    /\ben casa de\s+([a-záéíóúñ]+(?:\s+y\s+[a-záéíóúñ]+){0,2})\b/gi,
+  ];
+
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(normalizedRaw)) !== null) {
+      const chunk = String(match[1] ?? "").trim();
+      if (!chunk) continue;
+
+      const rawNames = chunk
+        .split(/\s+y\s+/i)
+        .map((part) => normalizePossibleName(part))
+        .filter(Boolean) as string[];
+
+      for (const name of rawNames) {
+        const key = normalizeForMatching(name);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        participants.push(name);
+      }
+    }
+  }
+
+  const roleBased: Array<[RegExp, string]> = [
+    [/\bmi novia\b/i, "Novia"],
+    [/\bmi novio\b/i, "Novio"],
+    [/\bmi pareja\b/i, "Pareja"],
+    [/\bmi esposa\b/i, "Esposa"],
+    [/\bmi esposo\b/i, "Esposo"],
+    [/\bmi mama\b|\bmi mamá\b/i, "Mamá"],
+    [/\bmi papa\b|\bmi papá\b/i, "Papá"],
+    [/\bmi familia\b/i, "Familia"],
+  ];
+
+  for (const [regex, label] of roleBased) {
+    if (!regex.test(normalizedRaw)) continue;
+    const key = normalizeForMatching(label);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    participants.push(label);
+  }
+
+  return participants;
+}
+
+function removeParticipantPhrases(raw: string): string {
+  return collapseSpaces(
+    String(raw ?? "")
+      .replace(
+        /\b(con|junto a|en casa de)\s+[a-záéíóúñ]+(?:\s+y\s+[a-záéíóúñ]+){0,2}\b/gi,
+        " "
+      )
+      .replace(/\b(mi novia|mi novio|mi pareja|mi esposa|mi esposo|mi familia)\b/gi, " ")
+  );
+}
+
+function detectSignals(raw: string, participants: string[]): ParsedQuickCaptureSignals {
   const normalized = normalizeForMatching(raw);
 
   const hasExplicitDate =
@@ -169,6 +290,7 @@ function detectSignals(raw: string): ParsedQuickCaptureSignals {
     );
 
   const hasExplicitTime =
+    /\bde\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\s+a\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\b/i.test(raw) ||
     /\b(a\s+las|alas)?\s*\d{1,2}(?::\d{2})?\s?(am|pm)?\b/i.test(raw) ||
     /\b(mediodia|medianoche)\b/i.test(raw);
 
@@ -181,7 +303,7 @@ function detectSignals(raw: string): ParsedQuickCaptureSignals {
     );
 
   const mentionsPeople =
-    /\b(con|junto a|en casa de|cerca de)\s+[a-záéíóúñ]+\b/i.test(raw) ||
+    participants.length > 0 ||
     /\b(novia|novio|pareja|esposa|esposo|mama|mamá|papa|papá|familia|amigos|primos|tios|tíos)\b/.test(
       normalized
     );
@@ -225,7 +347,7 @@ function detectSignals(raw: string): ParsedQuickCaptureSignals {
   if (hasExplicitDate) confidenceScore += 1;
   if (hasExplicitTime) confidenceScore += 1;
   if (mentionsPeople || mentionsLocation) confidenceScore += 1;
-  if (mentionsCelebration || mentionsHealth || mentionsWork || mentionsSports) {
+  if (mentionsCelebration || mentionsHealth || mentionsWork || mentionsSports || mentionsFood) {
     confidenceScore += 1;
   }
 
@@ -254,42 +376,91 @@ function detectSignals(raw: string): ParsedQuickCaptureSignals {
   };
 }
 
-function extractHour(text: string): { hour: number | null; minutes: number } {
+function normalizeHourFromCapture(hour: number, period?: string | null) {
+  let safeHour = hour;
+  const safePeriod = String(period ?? "").toLowerCase();
+
+  if (safePeriod === "pm" && safeHour < 12) safeHour += 12;
+  if (safePeriod === "am" && safeHour === 12) safeHour = 0;
+
+  if (!safePeriod && safeHour >= 1 && safeHour <= 11) {
+    safeHour += 12;
+  }
+
+  return safeHour;
+}
+
+function extractTimeRange(text: string): {
+  startHour: number | null;
+  startMinutes: number;
+  endHour: number | null;
+  endMinutes: number;
+} {
   const normalized = normalizeForMatching(text);
 
   if (/\bmediodia\b/.test(normalized)) {
-    return { hour: 12, minutes: 0 };
+    return { startHour: 12, startMinutes: 0, endHour: null, endMinutes: 0 };
   }
 
   if (/\bmedianoche\b/.test(normalized)) {
-    return { hour: 0, minutes: 0 };
+    return { startHour: 0, startMinutes: 0, endHour: null, endMinutes: 0 };
   }
 
-  const match = text.match(
+  const rangeMatch = text.match(
+    /\bde\s+(\d{1,2})(?::(\d{2}))?\s?(am|pm)?\s+a\s+(\d{1,2})(?::(\d{2}))?\s?(am|pm)?\b/i
+  );
+
+  if (rangeMatch) {
+    const startHour = normalizeHourFromCapture(
+      parseInt(rangeMatch[1], 10),
+      rangeMatch[3]
+    );
+    const startMinutes = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : 0;
+    const endHour = normalizeHourFromCapture(
+      parseInt(rangeMatch[4], 10),
+      rangeMatch[6] || rangeMatch[3]
+    );
+    const endMinutes = rangeMatch[5] ? parseInt(rangeMatch[5], 10) : 0;
+
+    if (
+      startHour <= 23 &&
+      endHour <= 23 &&
+      startMinutes <= 59 &&
+      endMinutes <= 59
+    ) {
+      return { startHour, startMinutes, endHour, endMinutes };
+    }
+  }
+
+  const singleMatch = text.match(
     /(?:a\s+las\s+|alas\s+)?(\d{1,2})(?:[:h](\d{2}))?\s?(am|pm)?/i
   );
 
-  if (!match) return { hour: null, minutes: 0 };
-
-  let hour = parseInt(match[1], 10);
-  const minutes = match[2] ? parseInt(match[2], 10) : 0;
-  const period = (match[3] || "").toLowerCase();
-
-  if (period === "pm" && hour < 12) hour += 12;
-  if (period === "am" && hour === 12) hour = 0;
-
-  if (!period && hour >= 1 && hour <= 11) {
-    hour += 12;
+  if (!singleMatch) {
+    return { startHour: null, startMinutes: 0, endHour: null, endMinutes: 0 };
   }
 
-  if (hour > 23 || minutes > 59) {
-    return { hour: null, minutes: 0 };
+  const startHour = normalizeHourFromCapture(
+    parseInt(singleMatch[1], 10),
+    singleMatch[3]
+  );
+  const startMinutes = singleMatch[2] ? parseInt(singleMatch[2], 10) : 0;
+
+  if (startHour > 23 || startMinutes > 59) {
+    return { startHour: null, startMinutes: 0, endHour: null, endMinutes: 0 };
   }
 
-  return { hour, minutes };
+  return { startHour, startMinutes, endHour: null, endMinutes: 0 };
 }
 
 function extractDuration(text: string): number {
+  const range = extractTimeRange(text);
+  if (range.startHour !== null && range.endHour !== null) {
+    const start = range.startHour * 60 + range.startMinutes;
+    const end = range.endHour * 60 + range.endMinutes;
+    if (end > start) return Math.max(30, end - start);
+  }
+
   const minMatch = text.match(/(\d+)\s?(min|mins|m)\b/i);
   if (minMatch) return Math.max(15, parseInt(minMatch[1], 10));
 
@@ -410,6 +581,7 @@ function removeDateAndTimeTokens(text: string): string {
     .replace(/\b(proximo|próximo|proxima|próxima|siguiente|otro|otra|este|esta)\b/gi, " ")
     .replace(/\b(semana|que|viene)\b/gi, " ")
     .replace(/\b(dentro de)\b/gi, " ")
+    .replace(/\bde\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\s+a\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\b/gi, " ")
     .replace(/\b(a\s+las|alas)\b/gi, " ")
     .replace(/\b(mediodia|medianoche)\b/gi, " ")
     .replace(/\b(\d{1,2})(?::\d{2})?\s?(am|pm)?\b/gi, " ")
@@ -449,7 +621,7 @@ function findConnectorIndex(cleaned: string, normalizedConnector: string) {
 }
 
 function splitTitleAndNotes(original: string): { title: string; notes: string } {
-  const cleaned = collapseSpaces(removeDateAndTimeTokens(original));
+  const cleaned = collapseSpaces(removeDateAndTimeTokens(removeParticipantPhrases(original)));
   const normalizedCleaned = ` ${normalizeForMatching(cleaned)} `;
 
   for (const connector of CONTEXT_CONNECTORS) {
@@ -479,18 +651,30 @@ function splitTitleAndNotes(original: string): { title: string; notes: string } 
 }
 
 function cleanFallbackTitle(raw: string): string {
-  const cleaned = collapseSpaces(removeDateAndTimeTokens(raw));
+  const cleaned = collapseSpaces(removeDateAndTimeTokens(removeParticipantPhrases(raw)));
   if (!cleaned) return collapseSpaces(raw).slice(0, 40);
   return cleaned.slice(0, 60);
+}
+
+function buildSemanticTitle(baseTitle: string, participants: string[]): string {
+  const safeBase = formatTitle(baseTitle);
+  if (!safeBase) return "";
+
+  if (participants.length === 0) return safeBase;
+  if (participants.length === 1) return `${safeBase} con ${participants[0]}`;
+  if (participants.length === 2) return `${safeBase} con ${participants[0]} y ${participants[1]}`;
+
+  return `${safeBase} con ${participants[0]} y ${participants.length - 1} más`;
 }
 
 export function parseQuickCapture(input: string): ParsedQuickCapture {
   const raw = String(input || "").trim();
   const normalized = normalizeText(raw);
 
-  const signals = detectSignals(raw);
+  const participants = extractParticipants(raw);
+  const signals = detectSignals(raw, participants);
   const date = extractDay(raw);
-  const time = extractHour(normalized);
+  const timeRange = extractTimeRange(normalized);
   const duration = extractDuration(normalized);
 
   let finalDate: Date | null = null;
@@ -498,28 +682,31 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
   if (date) {
     finalDate = new Date(date);
 
-    if (time.hour !== null) {
-      finalDate.setHours(time.hour, time.minutes, 0, 0);
+    if (timeRange.startHour !== null) {
+      finalDate.setHours(timeRange.startHour, timeRange.startMinutes, 0, 0);
     } else {
       finalDate.setHours(12, 0, 0, 0);
     }
   }
 
   const split = splitTitleAndNotes(raw);
+  const titleBase = split.title || cleanFallbackTitle(raw);
+  const title = buildSemanticTitle(titleBase, participants);
 
   return {
-    title: formatTitle(split.title || cleanFallbackTitle(raw)),
+    title: title || formatTitle(cleanFallbackTitle(raw)),
     notes: formatNotes(split.notes),
     date: finalDate,
     durationMinutes: duration,
+    participants,
     signals: {
       ...signals,
       hasExplicitDate: signals.hasExplicitDate || !!date,
-      hasExplicitTime: signals.hasExplicitTime || time.hour !== null,
+      hasExplicitTime: signals.hasExplicitTime || timeRange.startHour !== null,
       confidence:
-        date && time.hour !== null
+        date && timeRange.startHour !== null
           ? "high"
-          : date || time.hour !== null || signals.mentionsPeople
+          : date || timeRange.startHour !== null || participants.length > 0
           ? "medium"
           : signals.confidence,
     },
