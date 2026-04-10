@@ -23,11 +23,7 @@ import {
 import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
 import {
   getMyGroups,
-  getMyGroupMemberships,
-  updateMyGroupMeta,
-  getGroupTypeLabel,
   type GroupRow,
-  type GroupMemberRow,
 } from "@/lib/groupsDb";
 
 import {
@@ -37,16 +33,6 @@ import {
   buildRecommendation,
   getPlanInfo,
 } from "@/lib/profileDashboard";
-
-type GroupFilter = "all" | "pair" | "family" | "other";
-
-function hasGroupMeta(m: GroupMemberRow) {
-  return (
-    !!m.display_name ||
-    !!m.relationship_role ||
-    !!m.coordination_prefs?.group_note
-  );
-}
 
 function normalizeCoordPrefs(
   prefs?: Partial<CoordinationPrefs> | null
@@ -920,19 +906,6 @@ export default function ProfilePage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
-  const [groups, setGroups] = useState<GroupRow[] | null>(null);
-  const [memberships, setMemberships] = useState<GroupMemberRow[] | null>(null);
-  const [membershipsLoading, setMembershipsLoading] = useState(false);
-  const [membershipsError, setMembershipsError] = useState<string | null>(null);
-
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [groupFilter, setGroupFilter] = useState<GroupFilter>("all");
-  const [groupSearch, setGroupSearch] = useState("");
-  const [dirtyGroups, setDirtyGroups] = useState<Set<string>>(new Set());
-  const [savingGroupId, setSavingGroupId] = useState<string | null>(null);
-  const [groupSaveMessage, setGroupSaveMessage] = useState<string | null>(null);
-  const [groupSaveError, setGroupSaveError] = useState<string | null>(null);
-
   const [coordPrefs, setCoordPrefs] = useState<CoordinationPrefs | null>(null);
   const [savingCoord, setSavingCoord] = useState(false);
   const [coordError, setCoordError] = useState<string | null>(null);
@@ -1018,12 +991,10 @@ export default function ProfilePage() {
 
         if (!alive) return;
 
-        setGroups(groupsRows);
         setStats(buildDashboardStats(events, groupsRows));
       } catch (e) {
         console.error("[ProfilePage] Error cargando stats:", e);
         if (!alive) return;
-        setGroups(null);
         setStats(null);
       } finally {
         if (!alive) return;
@@ -1036,61 +1007,6 @@ export default function ProfilePage() {
     };
   }, [profile]);
 
-  useEffect(() => {
-    if (!profile) return;
-    let alive = true;
-
-    (async () => {
-      try {
-        setMembershipsLoading(true);
-        setMembershipsError(null);
-
-        const ms = await getMyGroupMemberships();
-        if (!alive) return;
-        setMemberships(ms);
-      } catch (e: any) {
-        console.error("[ProfilePage] Error cargando memberships:", e);
-        if (!alive) return;
-        setMemberships(null);
-        setMembershipsError(
-          "No pudimos cargar tus roles en los grupos. Intenta recargar la página."
-        );
-      } finally {
-        if (!alive) return;
-        setMembershipsLoading(false);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, [profile]);
-
-  useEffect(() => {
-    if (!memberships || memberships.length === 0) {
-      setSelectedGroupId(null);
-      return;
-    }
-
-    setSelectedGroupId((prev) => {
-      if (prev) return prev;
-
-      if (groups && groups.length > 0) {
-        const byId = new Map<string, GroupRow>();
-        groups.forEach((g) => byId.set(g.id, g));
-
-        const pairMembership = memberships.find((m) => {
-          const g = byId.get(m.group_id);
-          const t = String(g?.type ?? "").toLowerCase();
-          return t === "pair" || t === "couple";
-        });
-
-        if (pairMembership) return pairMembership.group_id;
-      }
-
-      return memberships[0].group_id;
-    });
-  }, [memberships, groups]);
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -1155,73 +1071,6 @@ export default function ProfilePage() {
       );
     } finally {
       setSavingCoord(false);
-    }
-  }
-
-  function updateMembershipLocal(
-    groupId: string,
-    updater: (prev: GroupMemberRow) => GroupMemberRow
-  ) {
-    setMemberships((prev) => {
-      if (!prev) return prev;
-      return prev.map((m) => (m.group_id === groupId ? updater(m) : m));
-    });
-
-    setDirtyGroups((prev) => {
-      const next = new Set(prev);
-      next.add(groupId);
-      return next;
-    });
-  }
-
-  function handleMembershipFieldChange(
-    groupId: string,
-    field: "display_name" | "relationship_role" | "group_note",
-    value: string
-  ) {
-    updateMembershipLocal(groupId, (m) => {
-      if (field === "display_name") return { ...m, display_name: value };
-      if (field === "relationship_role") return { ...m, relationship_role: value };
-      if (field === "group_note") {
-        const nextPrefs = { ...(m.coordination_prefs ?? {}), group_note: value };
-        return { ...m, coordination_prefs: nextPrefs };
-      }
-      return m;
-    });
-  }
-
-  async function handleSaveGroupMeta(groupId: string) {
-    if (!memberships) return;
-    const m = memberships.find((mm) => mm.group_id === groupId);
-    if (!m) return;
-
-    setGroupSaveMessage(null);
-    setGroupSaveError(null);
-    setSavingGroupId(groupId);
-
-    try {
-      await updateMyGroupMeta(groupId, {
-        display_name: m.display_name ?? null,
-        relationship_role: m.relationship_role ?? null,
-        coordination_prefs: m.coordination_prefs ?? null,
-      });
-
-      setGroupSaveMessage("Cambios guardados para este grupo.");
-
-      setDirtyGroups((prev) => {
-        const next = new Set(prev);
-        next.delete(groupId);
-        return next;
-      });
-    } catch (e: any) {
-      console.error("[ProfilePage] Error guardando metadata de grupo:", e);
-      setGroupSaveError(
-        typeof e?.message === "string"
-          ? e.message
-          : "No se pudieron guardar los cambios. Intenta de nuevo."
-      );
-    } finally {
-      setSavingGroupId(null);
     }
   }
 
@@ -1376,64 +1225,9 @@ export default function ProfilePage() {
 
   const hasNameCompleted = !!firstName.trim() && !!lastName.trim();
 
-  const groupsById = new Map<string, GroupRow>();
-  (groups ?? []).forEach((g) => groupsById.set(g.id, g));
-
-  const membershipsSorted: GroupMemberRow[] =
-    memberships && groups
-      ? [...memberships].sort((a, b) => {
-          const ga = groupsById.get(a.group_id);
-          const gb = groupsById.get(b.group_id);
-          return (ga?.name ?? "").localeCompare(gb?.name ?? "");
-        })
-      : memberships ?? [];
-
-  const hasGroupMetaGlobal =
-    memberships &&
-    memberships.length > 0 &&
-    memberships.some((m) => hasGroupMeta(m));
-
-  const searchTerm = groupSearch.trim().toLowerCase();
-  const membershipsFiltered = membershipsSorted.filter((m) => {
-    const g = groupsById.get(m.group_id);
-    const typeStr = String(g?.type ?? "").toLowerCase();
-
-    if (groupFilter === "pair" && !(typeStr === "pair" || typeStr === "couple")) {
-      return false;
-    }
-    if (groupFilter === "family" && typeStr !== "family") return false;
-    if (
-      groupFilter === "other" &&
-      (typeStr === "pair" || typeStr === "family" || typeStr === "couple")
-    ) {
-      return false;
-    }
-
-    if (!searchTerm) return true;
-
-    const name = (g?.name ?? "").toLowerCase();
-    const displayName = (m.display_name ?? "").toLowerCase();
-
-    return (
-      name.includes(searchTerm) ||
-      displayName.includes(searchTerm) ||
-      typeStr.includes(searchTerm)
-    );
-  });
-
-  const selectedMembership: GroupMemberRow | null =
-    membershipsFiltered.find((m) => m.group_id === selectedGroupId) ??
-    membershipsFiltered[0] ??
-    null;
-
-  const totalGroupsForRoles = memberships ? memberships.length : 0;
-  const configuredGroupsCount = memberships
-    ? memberships.filter((m) => hasGroupMeta(m)).length
-    : 0;
-  const pendingGroupsCount = Math.max(0, totalGroupsForRoles - configuredGroupsCount);
-
-  const hasSelectedDirty =
-    !!selectedMembership && dirtyGroups.has(selectedMembership.group_id);
+  const totalGroups = stats?.totalGroups ?? 0;
+  const eventsLast7 = stats?.eventsLast7 ?? 0;
+  const conflictsNow = stats?.conflictsNow ?? 0;
 
   const digestEnabled = (profile as any).daily_digest_enabled ?? false;
   const digestHour = (profile as any).daily_digest_hour_local ?? 7;
@@ -1800,264 +1594,101 @@ export default function ProfilePage() {
             <section style={styles.card}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionLabel}>Grupos</div>
-                  <h2 style={styles.sectionTitle}>Cómo te representas en cada grupo</h2>
+                  <div style={styles.sectionLabel}>Espacios compartidos</div>
+                  <h2 style={styles.sectionTitle}>Tu estructura compartida</h2>
                   <div style={styles.sectionSub}>
-                    Ajusta tu nombre visible, tu rol y notas específicas para cada
-                    relación compartida, sin convertir esta pantalla en un segundo hub.
+                    Tus grupos siguen formando parte de tu cuenta, pero la gestión
+                    operativa ya vive en Panel. Aquí solo ves una lectura rápida y
+                    accesos claros para seguir administrando sin mezclar esta pantalla
+                    con tareas de sistema.
                   </div>
                 </div>
 
                 <span
                   style={{
                     ...styles.badgeTiny,
-                    borderColor: hasGroupMetaGlobal
-                      ? "rgba(34,197,94,0.34)"
-                      : "rgba(148,163,184,0.28)",
-                    background: hasGroupMetaGlobal
-                      ? "rgba(34,197,94,0.10)"
-                      : "rgba(255,255,255,0.04)",
-                    color: hasGroupMetaGlobal
-                      ? "#DCFCE7"
-                      : "rgba(226,232,240,0.86)",
+                    borderColor:
+                      totalGroups > 0
+                        ? "rgba(34,197,94,0.34)"
+                        : "rgba(148,163,184,0.28)",
+                    background:
+                      totalGroups > 0
+                        ? "rgba(34,197,94,0.10)"
+                        : "rgba(255,255,255,0.04)",
+                    color:
+                      totalGroups > 0
+                        ? "#DCFCE7"
+                        : "rgba(226,232,240,0.86)",
                   }}
                 >
-                  {configuredGroupsCount}/{totalGroupsForRoles} configurados
+                  {totalGroups > 0 ? `${totalGroups} activos` : "Sin grupos"}
                 </span>
               </div>
 
-              <div style={styles.groupSummaryRow}>
-                {membershipsLoading
-                  ? "Estamos cargando tus grupos..."
-                  : membershipsError
-                  ? membershipsError
-                  : totalGroupsForRoles === 0
-                  ? "Todavía no formas parte de grupos compartidos."
-                  : pendingGroupsCount > 0
-                  ? `Tienes ${pendingGroupsCount} grupo${
-                      pendingGroupsCount === 1 ? "" : "s"
-                    } pendiente${pendingGroupsCount === 1 ? "" : "s"} de configurar.`
-                  : "Tu representación por grupo ya está configurada."}
-              </div>
-
-              <div style={styles.groupMasterDetail}>
-                <div style={styles.groupListCol}>
-                  <div style={styles.groupListHeader}>
-                    <div style={styles.groupFilterChips}>
-                      {[
-                        { key: "all", label: "Todos" },
-                        { key: "pair", label: "Pareja" },
-                        { key: "family", label: "Familia" },
-                        { key: "other", label: "Compartido" },
-                      ].map((item) => {
-                        const active = groupFilter === item.key;
-                        return (
-                          <button
-                            key={item.key}
-                            type="button"
-                            style={{
-                              ...styles.groupFilterChip,
-                              ...(active ? styles.groupFilterChipActive : {}),
-                            }}
-                            onClick={() => setGroupFilter(item.key as GroupFilter)}
-                          >
-                            {item.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <input
-                      style={styles.groupSearchInput}
-                      value={groupSearch}
-                      onChange={(e) => setGroupSearch(e.target.value)}
-                      placeholder="Buscar grupo..."
-                    />
-                  </div>
-
-                  <div style={styles.groupListScroll}>
-                    {membershipsFiltered.length === 0 ? (
-                      <div style={styles.groupListEmpty}>
-                        No encontramos grupos con ese filtro.
+              <div style={styles.smallGrid}>
+                <div style={styles.statusCard}>
+                  <div style={styles.accountStatusRow}>
+                    <div style={styles.statusIcon}>◎</div>
+                    <div>
+                      <div style={styles.statusTitle}>
+                        {totalGroups > 0
+                          ? `${totalGroups} grupo${totalGroups === 1 ? "" : "s"}`
+                          : "Sin grupos todavía"}
                       </div>
-                    ) : (
-                      membershipsFiltered.map((m) => {
-                        const group = groupsById.get(m.group_id);
-                        const selected = selectedMembership?.group_id === m.group_id;
-                        const dirty = dirtyGroups.has(m.group_id);
-
-                        return (
-                          <button
-                            key={m.group_id}
-                            type="button"
-                            onClick={() => setSelectedGroupId(m.group_id)}
-                            style={{
-                              ...styles.groupListItem,
-                              ...(selected ? styles.groupListItemActive : {}),
-                            }}
-                          >
-                            <div style={styles.groupListItemTitleRow}>
-                              <div style={styles.groupListItemName}>
-                                <span style={styles.groupListItemDot} />
-                                <span
-                                  style={{
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  {group?.name ?? "Grupo"}
-                                </span>
-                              </div>
-
-                              <span style={styles.badgeTiny}>
-                                {getGroupTypeLabel(group?.type)}
-                              </span>
-                            </div>
-
-                            <div style={styles.groupListItemMeta}>
-                              <span>{m.display_name?.trim() || "Sin nombre visible"}</span>
-                              <span>•</span>
-                              <span>{m.relationship_role?.trim() || "Sin rol definido"}</span>
-                              {dirty ? (
-                                <>
-                                  <span>•</span>
-                                  <span style={styles.groupListItemDirty}>
-                                    Cambios sin guardar
-                                  </span>
-                                </>
-                              ) : null}
-                            </div>
-                          </button>
-                        );
-                      })
-                    )}
+                      <div style={styles.statusHint}>
+                        {totalGroups > 0
+                          ? "Tu estructura compartida ya existe. La administración detallada vive en Panel."
+                          : "Cuando empieces a compartir tiempo con alguien, aquí verás una lectura simple de esa estructura."}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div style={styles.groupDetailCol}>
-                  {!selectedMembership ? (
-                    <div style={styles.smallInfo}>
-                      Selecciona un grupo para ajustar cómo te representas dentro de
-                      ese espacio compartido.
+                <div style={styles.statusCard}>
+                  <div style={styles.accountStatusRow}>
+                    <div style={styles.statusIcon}>↗</div>
+                    <div>
+                      <div style={styles.statusTitle}>Continuar en Panel</div>
+                      <div style={styles.statusHint}>
+                        Grupos, invitaciones, miembros e integraciones se gestionan desde tu hub administrativo.
+                      </div>
                     </div>
-                  ) : (
-                    (() => {
-                      const group = groupsById.get(selectedMembership.group_id);
+                  </div>
 
-                      return (
-                        <>
-                          <div style={styles.groupMetaHeader}>
-                            <div>
-                              <div style={styles.groupMetaTitle}>
-                                {group?.name ?? "Grupo"}
-                              </div>
-                              <div style={styles.groupMetaSubtitle}>
-                                {getGroupTypeLabel(group?.type)} · Ajustes visibles solo
-                                para mejorar cómo SyncPlans te presenta dentro de este grupo.
-                              </div>
-                            </div>
+                  <div style={styles.planCtaRow}>
+                    <button
+                      type="button"
+                      style={styles.planPrimaryBtn}
+                      onClick={() => router.push("/panel")}
+                    >
+                      Abrir panel
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-                            <button
-                              type="button"
-                              style={styles.groupMetaCalendarBtn}
-                              onClick={() => router.push(`/groups/${selectedMembership.group_id}`)}
-                            >
-                              Ver grupo
-                            </button>
-                          </div>
+              <div style={{ ...styles.configStatusBox, marginTop: 12 }}>
+                <div style={styles.configStatusTitle}>Lectura rápida</div>
 
-                          <div style={{ height: 12 }} />
+                <div style={styles.configStatusItem}>
+                  <span style={styles.configStatusBullet}>•</span>
+                  <span>
+                    Grupos activos: <strong>{totalGroups}</strong>
+                  </span>
+                </div>
 
-                          <div style={styles.field}>
-                            <label style={styles.groupMetaLabel}>Nombre visible</label>
-                            <input
-                              style={styles.groupMetaInput}
-                              value={selectedMembership.display_name ?? ""}
-                              onChange={(e) =>
-                                handleMembershipFieldChange(
-                                  selectedMembership.group_id,
-                                  "display_name",
-                                  e.target.value
-                                )
-                              }
-                              placeholder="Ej. Fer"
-                            />
-                          </div>
+                <div style={styles.configStatusItem}>
+                  <span style={styles.configStatusBullet}>•</span>
+                  <span>
+                    Eventos recientes visibles: <strong>{eventsLast7}</strong>
+                  </span>
+                </div>
 
-                          <div style={{ height: 10 }} />
-
-                          <div style={styles.field}>
-                            <label style={styles.groupMetaLabel}>Tu rol o vínculo</label>
-                            <input
-                              style={styles.groupMetaInput}
-                              value={selectedMembership.relationship_role ?? ""}
-                              onChange={(e) =>
-                                handleMembershipFieldChange(
-                                  selectedMembership.group_id,
-                                  "relationship_role",
-                                  e.target.value
-                                )
-                              }
-                              placeholder="Ej. Pareja, hermano, organizador"
-                            />
-                          </div>
-
-                          <div style={{ height: 10 }} />
-
-                          <div style={styles.field}>
-                            <label style={styles.groupMetaLabel}>Nota contextual</label>
-                            <textarea
-                              style={{ ...styles.groupMetaTextarea, minHeight: 130 }}
-                              value={
-                                selectedMembership.coordination_prefs?.group_note ?? ""
-                              }
-                              onChange={(e) =>
-                                handleMembershipFieldChange(
-                                  selectedMembership.group_id,
-                                  "group_note",
-                                  e.target.value
-                                )
-                              }
-                              placeholder="Ej. En este grupo suelo priorizar fines de semana o reuniones más cortas."
-                            />
-                          </div>
-
-                          {groupSaveError ? (
-                            <div style={{ ...styles.error, marginTop: 10 }}>
-                              {groupSaveError}
-                            </div>
-                          ) : null}
-
-                          {groupSaveMessage && hasSelectedDirty === false ? (
-                            <div style={{ ...styles.ok, marginTop: 10 }}>
-                              {groupSaveMessage}
-                            </div>
-                          ) : null}
-
-                          <div style={styles.groupMetaSaveRow}>
-                            <div style={styles.smallInfo}>
-                              Estos ajustes refinan tu representación. La operación
-                              diaria de grupos sigue viviendo en Panel.
-                            </div>
-
-                            <button
-                              type="button"
-                              style={styles.groupMetaSaveBtn}
-                              disabled={savingGroupId === selectedMembership.group_id}
-                              onClick={() =>
-                                handleSaveGroupMeta(selectedMembership.group_id)
-                              }
-                            >
-                              {savingGroupId === selectedMembership.group_id
-                                ? "Guardando..."
-                                : "Guardar grupo"}
-                            </button>
-                          </div>
-                        </>
-                      );
-                    })()
-                  )}
+                <div style={styles.configStatusItem}>
+                  <span style={styles.configStatusBullet}>•</span>
+                  <span>
+                    Conflictos pendientes: <strong>{conflictsNow}</strong>
+                  </span>
                 </div>
               </div>
             </section>
@@ -2136,13 +1767,10 @@ export default function ProfilePage() {
 
                 <div style={styles.configStatusItem}>
                   <span style={styles.configStatusBullet}>
-                    {configuredGroupsCount > 0 ? "✓" : "•"}
+                    {totalGroups > 0 ? "✓" : "•"}
                   </span>
                   <span>
-                    Representación por grupos{" "}
-                    {configuredGroupsCount > 0
-                      ? `configurada en ${configuredGroupsCount}`
-                      : "sin configurar"}
+                    Estructura compartida {totalGroups > 0 ? "activa" : "todavía no creada"}
                   </span>
                 </div>
               </div>

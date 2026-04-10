@@ -1,3 +1,4 @@
+// src/app/panel/page.tsx
 "use client";
 
 import React, {
@@ -8,10 +9,12 @@ import React, {
   type CSSProperties,
 } from "react";
 import { useRouter } from "next/navigation";
-import { getMyConflictResolutionsMap } from "@/lib/conflictResolutionsDb";
+
 import MobileScaffold from "@/components/MobileScaffold";
 import PremiumHeader from "@/components/PremiumHeader";
+
 import supabase from "@/lib/supabaseClient";
+import { getMyConflictResolutionsMap } from "@/lib/conflictResolutionsDb";
 import { getMyDeclinedEventIds } from "@/lib/eventResponsesDb";
 import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
 import {
@@ -560,7 +563,7 @@ export default function PanelPage() {
     };
   }, [premiumActive, tier, trialActive]);
 
-  const quickActions: QuickAction[] = [
+  const adminActions: QuickAction[] = [
     {
       id: "groups",
       title: "Grupos",
@@ -589,11 +592,28 @@ export default function PanelPage() {
       hint: "Nivel actual y beneficios activos",
       href: "/planes",
     },
+  ];
+
+  const operationActions: QuickAction[] = [
+    {
+      id: "summary",
+      title: "Resumen",
+      hint: "Volver a la lectura diaria",
+      href: "/summary",
+      featured: true,
+    },
     {
       id: "calendar",
       title: "Calendario",
-      hint: "Volver a coordinar en el día a día",
+      hint: "Seguir coordinando en el día a día",
       href: "/calendar",
+    },
+    {
+      id: "conflicts",
+      title: "Conflictos",
+      hint: "Resolver choques pendientes",
+      href: "/conflicts/detected",
+      badge: conflictsNow > 0 ? `${conflictsNow}` : undefined,
     },
     {
       id: "events",
@@ -608,37 +628,18 @@ export default function PanelPage() {
 
   const googlePill = useMemo(() => {
     if (googleLoading) {
-      return {
-        label: "Revisando",
-        tone: "neutral" as const,
-      };
+      return { label: "Revisando", tone: "neutral" as const };
     }
-
     if (connectionState === "connected") {
-      return {
-        label: "Conectado",
-        tone: "ok" as const,
-      };
+      return { label: "Conectado", tone: "ok" as const };
     }
-
     if (connectionState === "needs_reauth") {
-      return {
-        label: "Reconectar",
-        tone: "warn" as const,
-      };
+      return { label: "Reconectar", tone: "warn" as const };
     }
-
     if (googleStatus && !googleStatus.ok) {
-      return {
-        label: "Error",
-        tone: "bad" as const,
-      };
+      return { label: "Error", tone: "bad" as const };
     }
-
-    return {
-      label: "No conectado",
-      tone: "neutral" as const,
-    };
+    return { label: "No conectado", tone: "neutral" as const };
   }, [connectionState, googleLoading, googleStatus]);
 
   const googlePrimaryCta =
@@ -658,6 +659,23 @@ export default function PanelPage() {
         ? `${googleStatus.account.email} necesita reconexión`
         : "La conexión necesita reconexión"
       : "Google Calendar no conectado";
+
+  let heroSummary =
+    "Desde aquí organizas la estructura de SyncPlans: grupos, invitaciones, plan e integraciones.";
+
+  if (!loading) {
+    if (conflictsNow > 0) {
+      heroSummary = `Tienes ${conflictsNow} conflicto${
+        conflictsNow === 1 ? "" : "s"
+      } pendiente${conflictsNow === 1 ? "" : "s"}, ${totalGroups} grupo${
+        totalGroups === 1 ? "" : "s"
+      } y ${totalEvents} evento${totalEvents === 1 ? "" : "s"} visibles en tu sistema.`;
+    } else if (totalGroups > 0) {
+      heroSummary = `Tu estructura ya tiene ${totalGroups} grupo${
+        totalGroups === 1 ? "" : "s"
+      }. Panel es el lugar para gestionar esa base sin mezclarla con la operación diaria.`;
+    }
+  }
 
   async function handleContextChange(nextMode: UsageMode) {
     if (contextSaving === nextMode || contextState.mode === nextMode) return;
@@ -693,9 +711,12 @@ export default function PanelPage() {
             <div style={styles.heroTextWrap}>
               <div style={styles.eyebrow}>Panel</div>
               <h1 style={styles.heroTitle}>Hub administrativo</h1>
-          <p style={styles.heroCopy}>
-  Desde aquí organizas la estructura de SyncPlans: grupos, invitaciones, plan, integraciones y señales externas. La operación diaria sigue viviendo en Calendario, Eventos y Conflictos.
-</p>
+              <p style={styles.heroCopy}>{heroSummary}</p>
+              <div style={styles.heroMicroCopy}>
+                La operación diaria sigue viviendo en <strong>Resumen</strong>,{" "}
+                <strong>Calendario</strong>, <strong>Eventos</strong> y{" "}
+                <strong>Conflictos</strong>.
+              </div>
             </div>
 
             <div style={styles.heroActionStack}>
@@ -754,29 +775,32 @@ export default function PanelPage() {
             <div>
               <div style={styles.sectionEyebrow}>Contexto</div>
               <h2 style={styles.sectionTitle}>Modo activo</h2>
+              <div style={styles.sectionSubtleCopy}>
+                Cambia rápido entre tus contextos sin salir del hub.
+              </div>
             </div>
           </div>
 
- <div style={styles.contextHero}>
-  <div style={styles.contextHeroLeft}>
-    <div style={styles.contextHeroLabel}>Actual</div>
-    <div style={styles.contextCurrentRow}>
-      <span
-        style={{
-          ...styles.contextCurrentDot,
-          background: currentContextOption.dot,
-        }}
-      />
-      <span style={styles.contextCurrentText}>
-        {currentContextOption.label}
-      </span>
-    </div>
+          <div style={styles.contextHero}>
+            <div style={styles.contextHeroLeft}>
+              <div style={styles.contextHeroLabel}>Actual</div>
+              <div style={styles.contextCurrentRow}>
+                <span
+                  style={{
+                    ...styles.contextCurrentDot,
+                    background: currentContextOption.dot,
+                  }}
+                />
+                <span style={styles.contextCurrentText}>
+                  {currentContextOption.label}
+                </span>
+              </div>
 
-    {showContextGroupName ? (
-      <div style={styles.contextCurrentMeta}>{showContextGroupName}</div>
-    ) : null}
-  </div>
-</div>
+              {showContextGroupName ? (
+                <div style={styles.contextCurrentMeta}>{showContextGroupName}</div>
+              ) : null}
+            </div>
+          </div>
 
           <div style={styles.contextGrid}>
             {CONTEXT_OPTIONS.map((option) => {
@@ -829,12 +853,15 @@ export default function PanelPage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Administración</div>
-                  <h2 style={styles.sectionTitle}>Hub administrativo</h2>
+                  <h2 style={styles.sectionTitle}>Accesos prioritarios</h2>
+                  <div style={styles.sectionSubtleCopy}>
+                    Lo que verdaderamente administras desde este hub.
+                  </div>
                 </div>
               </div>
 
               <div style={styles.actionsGrid}>
-                {quickActions.map((action) => (
+                {adminActions.map((action) => (
                   <button
                     key={action.id}
                     type="button"
@@ -863,6 +890,9 @@ export default function PanelPage() {
                 <div>
                   <div style={styles.sectionEyebrow}>Grupos</div>
                   <h2 style={styles.sectionTitle}>Espacios recientes</h2>
+                  <div style={styles.sectionSubtleCopy}>
+                    Vista rápida de tus espacios compartidos más cercanos.
+                  </div>
                 </div>
 
                 <button
@@ -905,101 +935,11 @@ export default function PanelPage() {
             <section style={styles.sectionCard}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionEyebrow}>Insights</div>
-                  <h2 style={styles.sectionTitle}>Lectura operativa</h2>
-                </div>
-              </div>
-
-              {!canUseAdvancedAnalytics ? (
-                <PremiumLock
-                  title="Insights premium"
-                  copy="Carga, fricción y lectura avanzada."
-                />
-              ) : (
-                <div style={styles.insightGrid}>
-                  <div style={styles.insightCard}>
-                    <div style={styles.insightTitle}>Carga</div>
-                    <div style={styles.insightValue}>
-                      {totalEvents === 0
-                        ? "Ligera"
-                        : totalEvents < 5
-                        ? "Controlada"
-                        : totalEvents < 10
-                        ? "Activa"
-                        : "Intensa"}
-                    </div>
-                    <div style={styles.insightHint}>Eventos recientes</div>
-                  </div>
-
-                  <div style={styles.insightCard}>
-                    <div style={styles.insightTitle}>Fricción</div>
-                    <div style={styles.insightValue}>
-                      {conflictsNow === 0
-                        ? "Baja"
-                        : conflictsNow < 3
-                        ? "Moderada"
-                        : "Alta"}
-                    </div>
-                    <div style={styles.insightHint}>Conflictos activos</div>
-                  </div>
-
-                  <div style={styles.insightCard}>
-                    <div style={styles.insightTitle}>Estructura</div>
-                    <div style={styles.insightValue}>
-                      {totalGroups === 0
-                        ? "Vacía"
-                        : totalGroups === 1
-                        ? "Simple"
-                        : "Distribuida"}
-                    </div>
-                    <div style={styles.insightHint}>Espacios creados</div>
-                  </div>
-                </div>
-              )}
-            </section>
-          </div>
-
-          <div style={styles.rightCol}>
-            <section
-              style={{
-                ...styles.planCard,
-                border:
-                  planInfo.tone === "free"
-                    ? "1px solid rgba(56,189,248,0.25)"
-                    : planInfo.tone === "trial"
-                    ? "1px solid rgba(168,85,247,0.35)"
-                    : planInfo.tone === "premium"
-                    ? "1px solid rgba(34,197,94,0.35)"
-                    : "1px solid rgba(251,191,36,0.35)",
-              }}
-            >
-              <div style={styles.planPill}>{planInfo.pill}</div>
-              <h2 style={styles.planTitle}>{planInfo.title}</h2>
-              <p style={styles.planCopy}>{planInfo.copy}</p>
-              <div style={styles.planSupportCopy}>{planInfo.supportingCopy}</div>
-
-              {!planInfo.tone || planInfo.tone === "free" ? (
-                <div style={styles.planMiniNote}>
-                  {groupLimitState.reached
-                    ? "Premium abre más grupos."
-                    : `Free incluye hasta ${groupLimitState.limit ?? "1"} grupo.`}
-                </div>
-              ) : null}
-
-              <button
-                type="button"
-                style={styles.primaryCta}
-                onClick={() => router.push("/planes")}
-              >
-                {planInfo.cta}
-              </button>
-            </section>
-
-            <section style={styles.sectionCard}>
-              <div style={styles.sectionHead}>
-                <div>
                   <div style={styles.sectionEyebrow}>Capturas</div>
                   <h2 style={styles.sectionTitle}>Bandeja de respuestas</h2>
+                  <div style={styles.sectionSubtleCopy}>
+                    Respuestas externas que requieren una decisión o revisión.
+                  </div>
                 </div>
 
                 <button
@@ -1158,8 +1098,107 @@ export default function PanelPage() {
             <section style={styles.sectionCard}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionEyebrow}>Google</div>
-                  <h2 style={styles.sectionTitle}>Google Calendar</h2>
+                  <div style={styles.sectionEyebrow}>Insights</div>
+                  <h2 style={styles.sectionTitle}>Lectura operativa</h2>
+                  <div style={styles.sectionSubtleCopy}>
+                    Una lectura rápida del estado estructural de tu sistema.
+                  </div>
+                </div>
+              </div>
+
+              {!canUseAdvancedAnalytics ? (
+                <PremiumLock
+                  title="Insights premium"
+                  copy="Carga, fricción y lectura avanzada."
+                />
+              ) : (
+                <div style={styles.insightGrid}>
+                  <div style={styles.insightCard}>
+                    <div style={styles.insightTitle}>Carga</div>
+                    <div style={styles.insightValue}>
+                      {totalEvents === 0
+                        ? "Ligera"
+                        : totalEvents < 5
+                        ? "Controlada"
+                        : totalEvents < 10
+                        ? "Activa"
+                        : "Intensa"}
+                    </div>
+                    <div style={styles.insightHint}>Eventos recientes</div>
+                  </div>
+
+                  <div style={styles.insightCard}>
+                    <div style={styles.insightTitle}>Fricción</div>
+                    <div style={styles.insightValue}>
+                      {conflictsNow === 0
+                        ? "Baja"
+                        : conflictsNow < 3
+                        ? "Moderada"
+                        : "Alta"}
+                    </div>
+                    <div style={styles.insightHint}>Conflictos activos</div>
+                  </div>
+
+                  <div style={styles.insightCard}>
+                    <div style={styles.insightTitle}>Estructura</div>
+                    <div style={styles.insightValue}>
+                      {totalGroups === 0
+                        ? "Vacía"
+                        : totalGroups === 1
+                        ? "Simple"
+                        : "Distribuida"}
+                    </div>
+                    <div style={styles.insightHint}>Espacios creados</div>
+                  </div>
+                </div>
+              )}
+            </section>
+          </div>
+
+          <div style={styles.rightCol}>
+            <section
+              style={{
+                ...styles.planCard,
+                border:
+                  planInfo.tone === "free"
+                    ? "1px solid rgba(56,189,248,0.25)"
+                    : planInfo.tone === "trial"
+                    ? "1px solid rgba(168,85,247,0.35)"
+                    : planInfo.tone === "premium"
+                    ? "1px solid rgba(34,197,94,0.35)"
+                    : "1px solid rgba(251,191,36,0.35)",
+              }}
+            >
+              <div style={styles.planPill}>{planInfo.pill}</div>
+              <h2 style={styles.planTitle}>{planInfo.title}</h2>
+              <p style={styles.planCopy}>{planInfo.copy}</p>
+              <div style={styles.planSupportCopy}>{planInfo.supportingCopy}</div>
+
+              {!planInfo.tone || planInfo.tone === "free" ? (
+                <div style={styles.planMiniNote}>
+                  {groupLimitState.reached
+                    ? "Premium abre más grupos."
+                    : `Free incluye hasta ${groupLimitState.limit ?? "1"} grupo.`}
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                style={styles.primaryCta}
+                onClick={() => router.push("/planes")}
+              >
+                {planInfo.cta}
+              </button>
+            </section>
+
+            <section style={styles.sectionCard}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionEyebrow}>Sistema</div>
+                  <h2 style={styles.sectionTitle}>Integraciones</h2>
+                  <div style={styles.sectionSubtleCopy}>
+                    Estado y acceso rápido a Google Calendar.
+                  </div>
                 </div>
 
                 {!canUseGoogleIntegration ? (
@@ -1251,8 +1290,47 @@ export default function PanelPage() {
                 </>
               )}
             </section>
+
+            <section style={styles.sectionCard}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionEyebrow}>Operación diaria</div>
+                  <h2 style={styles.sectionTitle}>Volver al flujo principal</h2>
+                  <div style={styles.sectionSubtleCopy}>
+                    Estos accesos no viven conceptualmente en Panel, pero están aquí
+                    para volver rápido al trabajo diario.
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.actionsGrid}>
+                {operationActions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    style={styles.actionCard}
+                    onClick={() => router.push(action.href)}
+                  >
+                    <div style={styles.actionCardTop}>
+                      <span style={styles.actionTitle}>{action.title}</span>
+                      {action.badge ? (
+                        <span style={styles.badge}>{action.badge}</span>
+                      ) : null}
+                    </div>
+                    <p style={styles.actionHint}>{action.hint}</p>
+                  </button>
+                ))}
+              </div>
+            </section>
           </div>
         </div>
+
+        <section style={styles.footerNote}>
+          Panel ya no compite con tu cuenta. Aquí vives la estructura de
+          SyncPlans: <strong>grupos</strong>, <strong>invitaciones</strong>,{" "}
+          <strong>plan</strong> e <strong>integraciones</strong>. Tu operación
+          diaria sigue ocurriendo fuera de este hub.
+        </section>
       </div>
     </MobileScaffold>
   );
@@ -1496,7 +1574,14 @@ const styles: Record<string, CSSProperties> = {
     maxWidth: 700,
     color: colors.textMuted,
     fontSize: 15,
-    lineHeight: 1.5,
+    lineHeight: 1.55,
+  },
+
+  heroMicroCopy: {
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: colors.textSecondary,
   },
 
   heroActionStack: {
@@ -1612,32 +1697,38 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: 6,
   },
 
-sectionTitle: {
-  margin: 0,
-  fontSize: 21,
-  fontWeight: 900,
-  lineHeight: 1.08,
-},
+  sectionTitle: {
+    margin: 0,
+    fontSize: 21,
+    fontWeight: 900,
+    lineHeight: 1.08,
+  },
 
-contextHero: {
-  display: "flex",
-  flexDirection: "column",
-  gap: 10,
-  borderRadius: radii.lg,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background:
-    "radial-gradient(700px 220px at 0% 0%, rgba(56,189,248,0.10), transparent 55%), rgba(255,255,255,0.03)",
-  padding: 16,
-},
+  sectionSubtleCopy: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: colors.textMuted,
+  },
 
-contextHeroLeft: {
-  display: "flex",
-  flexDirection: "column",
-  gap: 10,
-  minWidth: 0,
-  width: "100%",
-},
+  contextHero: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    borderRadius: radii.lg,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background:
+      "radial-gradient(700px 220px at 0% 0%, rgba(56,189,248,0.10), transparent 55%), rgba(255,255,255,0.03)",
+    padding: 16,
+  },
 
+  contextHeroLeft: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    minWidth: 0,
+    width: "100%",
+  },
 
   contextHeroLabel: {
     fontSize: 11,
@@ -1647,13 +1738,13 @@ contextHeroLeft: {
     color: colors.textSecondary,
   },
 
-contextCurrentRow: {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  flexWrap: "nowrap",
-  minWidth: 0,
-},
+  contextCurrentRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "nowrap",
+    minWidth: 0,
+  },
 
   contextCurrentDot: {
     width: 12,
@@ -1663,22 +1754,21 @@ contextCurrentRow: {
     flexShrink: 0,
   },
 
-contextCurrentText: {
-  fontSize: 24,
-  lineHeight: 1.05,
-  fontWeight: 950,
-  color: colors.textPrimary,
-  minWidth: 0,
-},
+  contextCurrentText: {
+    fontSize: 24,
+    lineHeight: 1.05,
+    fontWeight: 950,
+    color: colors.textPrimary,
+    minWidth: 0,
+  },
 
-contextCurrentMeta: {
-  fontSize: 13,
-  color: colors.textMuted,
-  lineHeight: 1.5,
-  fontWeight: 700,
-  marginTop: 2,
-},
-
+  contextCurrentMeta: {
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 1.5,
+    fontWeight: 700,
+    marginTop: 2,
+  },
 
   contextGrid: {
     display: "grid",
@@ -2222,5 +2312,15 @@ contextCurrentMeta: {
   insightHint: {
     fontSize: 12,
     color: colors.textMuted,
+  },
+
+  footerNote: {
+    borderRadius: radii.xl,
+    border: `1px solid ${colors.borderSubtle}`,
+    background: "rgba(255,255,255,0.03)",
+    padding: 16,
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: colors.textSecondary,
   },
 };
