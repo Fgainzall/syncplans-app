@@ -267,6 +267,36 @@ function resolveEventOwnerId(event: any): string | null {
   const normalized = String(candidate ?? "").trim();
   return normalized || null;
 }
+
+async function markEventAcceptedForCurrentUser(input: {
+  eventId: string | null;
+  userId: string | null;
+  groupId?: string | null;
+}) {
+  const eventId = String(input.eventId ?? "").trim();
+  const userId = String(input.userId ?? "").trim();
+
+  if (!eventId || !userId) return;
+
+  const payload = {
+    event_id: eventId,
+    user_id: userId,
+    group_id: input.groupId ?? null,
+    response_status: "accepted",
+    comment: null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from("event_responses")
+    .upsert(payload, {
+      onConflict: "event_id,user_id",
+    });
+
+  if (error) {
+    console.error("event_responses upsert failed", error);
+  }
+}
 export default function NewEventDetailsClient() {
   return (
     <Suspense fallback={<main style={styles.page} />}>
@@ -1347,7 +1377,6 @@ const persistEvent = async (payload: {
       end: payload.endIso,
       groupId: payload.groupId,
     });
-
     savedEventId = String(eventIdParam);
 
     if (currentUserId && savedEventId) {
@@ -1420,6 +1449,12 @@ const persistEvent = async (payload: {
       });
     }
   }
+
+  await markEventAcceptedForCurrentUser({
+    eventId: savedEventId,
+    userId: currentUserId,
+    groupId: payload.groupId,
+  });
 
   if (savedEventId && shouldLearnCurrentSelection && selectedGroup?.id) {
     learnGroupSelection({
