@@ -104,6 +104,7 @@ function useIsMobileWidth(maxWidth = 520) {
 export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const router = useRouter();
   const isMobile = useIsMobileWidth(520);
+  const ENABLE_SMART_TRACE = process.env.NEXT_PUBLIC_SYNCPLANS_TRACE === "1";
 
   const [quickCaptureValue, setQuickCaptureValue] = useState("");
   const [quickCaptureBusy, setQuickCaptureBusy] = useState(false);
@@ -366,6 +367,51 @@ const timeSuggestionsLabel = useMemo(() => {
 
   return getSuggestionContextLabel(raw, suggestedContextGroupType);
 }, [quickCaptureValue, timeSuggestions, suggestedContextGroupType]);
+
+useEffect(() => {
+  if (!ENABLE_SMART_TRACE) return;
+
+  const raw = quickCaptureValue.trim();
+  if (!raw) return;
+
+  const parsed = parseQuickCapture(raw);
+
+  const suggestionsTrace = timeSuggestions.map((suggestion) => ({
+    label: suggestion.label,
+    iso: suggestion.date instanceof Date ? suggestion.date.toISOString() : null,
+    score: suggestion.score,
+    trace: suggestion.trace ?? null,
+  }));
+
+  const payload = {
+    raw,
+    parsed: {
+      title: parsed.title,
+      notes: parsed.notes,
+      participants: Array.isArray(parsed.participants) ? parsed.participants : [],
+      date: parsed.date instanceof Date ? parsed.date.toISOString() : null,
+      durationMinutes: parsed.durationMinutes,
+      signals: parsed.signals,
+    },
+    suggestedContextGroupId,
+    suggestedContextGroupType,
+    learnedInterpretationCandidate,
+    smartInterpretation,
+    suggestions: suggestionsTrace,
+  };
+
+  console.groupCollapsed("[SyncPlans][Trace][SummaryQuickCapture]", raw);
+  console.log(payload);
+  console.groupEnd();
+}, [
+  ENABLE_SMART_TRACE,
+  quickCaptureValue,
+  suggestedContextGroupId,
+  suggestedContextGroupType,
+  learnedInterpretationCandidate,
+  smartInterpretation,
+  timeSuggestions,
+]);
   const quickCaptureHeadline = useMemo(() => {
     if (!activeGroupId) return "Escribe lo que tienes en mente";
     if (activeGroupType === "pair") return "Planéalo en una línea";

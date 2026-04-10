@@ -1,12 +1,27 @@
 // src/lib/timeSuggestions.tsx
 
-import type { LearnedTimeProfile } from "@/lib/learningTypes";
+import type {
+  LearnedTimeProfile,
+  LearningScoreResult,
+} from "@/lib/learningTypes";
+
+import type { LearningScoreBreakdown } from "@/lib/learningScoring";
+
 import { scoreHourWithLearning } from "@/lib/learningScoring";
+
+export type SuggestionTrace = {
+  baseScoreBeforeLearning: number;
+  finalScore: number;
+  learningApplied: boolean;
+  learning: LearningScoreResult | null;
+  learningBreakdown: LearningScoreBreakdown | null;
+};
 
 export type Suggestion = {
   date: Date;
   label: string;
   score: number;
+  trace?: SuggestionTrace;
 };
 
 export type SuggestionGroupType = "personal" | "pair" | "family" | "other";
@@ -740,7 +755,10 @@ function scoreSlot(params: {
   groupType: SuggestionGroupType;
   rawText: string;
   learnedProfile?: LearnedTimeProfile | null;
-}) {
+}): {
+  finalScore: number;
+  trace: SuggestionTrace;
+} {
   const {
     events,
     now,
@@ -753,23 +771,23 @@ function scoreSlot(params: {
     learnedProfile,
   } = params;
 
-  let score = 100;
+  let baseScore = 100;
 
-  score += getHourPreferenceBonus(profile.intent, slot.getHours());
-  score += getPreferenceShapeBonus(profile, day, slot.getHours());
-  score -= getRecencyPenalty(now, slot, profile.flexibility);
-  score -= getDistancePenaltyForExplicitTemporalSignal(slot, profile);
+  baseScore += getHourPreferenceBonus(profile.intent, slot.getHours());
+  baseScore += getPreferenceShapeBonus(profile, day, slot.getHours());
+  baseScore -= getRecencyPenalty(now, slot, profile.flexibility);
+  baseScore -= getDistancePenaltyForExplicitTemporalSignal(slot, profile);
 
   const eventsCountForDay = countEventsForDay(events, day);
-  score -= eventsCountForDay * 10;
+  baseScore -= eventsCountForDay * 10;
 
   const nearestGap = getNearestGapMinutes(events, slot, durationMinutes);
   if (Number.isFinite(nearestGap)) {
-    if (nearestGap < 45) score -= 28;
-    else if (nearestGap < 90) score -= 14;
-    else if (nearestGap >= 180) score += 10;
+    if (nearestGap < 45) baseScore -= 28;
+    else if (nearestGap < 90) baseScore -= 14;
+    else if (nearestGap >= 180) baseScore += 10;
   } else {
-    score += 12;
+    baseScore += 12;
   }
 
   if (isWeekend(day)) {
@@ -780,19 +798,28 @@ function scoreSlot(params: {
       profile.intent === "sports" ||
       profile.intent === "celebration"
     ) {
-      score += 6;
+      baseScore += 6;
     }
   }
 
-  score += getContextualBoost(profile, groupType, day, slot.getHours(), rawText);
+  baseScore += getContextualBoost(profile, groupType, day, slot.getHours(), rawText);
 
   const learningResult = scoreHourWithLearning(
     slot.getHours(),
     learnedProfile,
-    score,
+    baseScore,
   );
 
-  return learningResult.finalScore;
+  return {
+    finalScore: learningResult.finalScore,
+    trace: {
+      baseScoreBeforeLearning: baseScore,
+      finalScore: learningResult.finalScore,
+      learningApplied: Math.abs(Number(learningResult.learning?.boost ?? 0)) > 0,
+      learning: learningResult.learning ?? null,
+      learningBreakdown: learningResult.breakdown ?? null,
+    },
+  };
 }
 
 function decorateRankedLabel(baseLabel: string, index: number) {
@@ -829,7 +856,7 @@ export function getSuggestedTimeSlots(
       if (slot.getTime() <= now.getTime()) continue;
       if (!isSlotFree(events, slot, durationMinutes)) continue;
 
-      const score = scoreSlot({
+      const scored = scoreSlot({
         events,
         now,
         slot,
@@ -844,7 +871,8 @@ export function getSuggestedTimeSlots(
       const candidate: Suggestion = {
         date: slot,
         label: buildBaseLabel(slot),
-        score,
+        score: scored.finalScore,
+        trace: scored.trace,
       };
 
       if (!bestForDay || candidate.score > bestForDay.score) {

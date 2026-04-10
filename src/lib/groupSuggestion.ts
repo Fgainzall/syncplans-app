@@ -7,10 +7,45 @@ import {
 } from "@/lib/learningGroupProfile";
 import type { LearnedGroupDecisionProfile } from "@/lib/learningGroupProfile";
 
+export type GroupSuggestionTrace = {
+  rawText: string;
+  decision:
+    | "heuristic_only"
+    | "learning_only"
+    | "heuristic_and_learning_agree"
+    | "heuristic_conflict_learning_ignored"
+    | "learning_override"
+    | "heuristic_kept_learning_weak"
+    | "empty_input"
+    | "no_signals_or_candidates"
+    | "no_profiles"
+    | "learning_below_threshold"
+    | "learning_group_not_found";
+  heuristic: {
+    type: "pair" | "family" | "other" | null;
+    confidence: number;
+    reason: string | null;
+    strongMatch: boolean;
+  };
+  learning: {
+    groupId: string | null;
+    type: "pair" | "family" | "other" | null;
+    confidence: number;
+    reason: string | null;
+    minConfidenceReached: boolean;
+    overrideThresholdReached: boolean;
+  };
+  candidates: Array<{
+    id: string;
+    type: "pair" | "family" | "other";
+  }>;
+};
+
 export type GroupSuggestion = {
   type: "pair" | "family" | "other" | null;
   confidence: number;
   reason?: string;
+  trace?: GroupSuggestionTrace;
 };
 
 export type SuggestGroupFromLearningInput = {
@@ -128,13 +163,50 @@ function isStrongHeuristicMatch(suggestion: GroupSuggestion): boolean {
   return Boolean(suggestion.type && suggestion.confidence >= 2);
 }
 
+function buildTrace(params: {
+  rawText: string;
+  decision: GroupSuggestionTrace["decision"];
+  heuristic: GroupSuggestion;
+  learningGroupId?: string | null;
+  learningType?: "pair" | "family" | "other" | null;
+  learningConfidence?: number;
+  learningReason?: string | null;
+  candidates: NormalizedCandidateGroup[];
+}): GroupSuggestionTrace {
+  const heuristicStrong = isStrongHeuristicMatch(params.heuristic);
+  const learningConfidence = clampConfidence(params.learningConfidence ?? 0);
+
+  return {
+    rawText: params.rawText,
+    decision: params.decision,
+    heuristic: {
+      type: params.heuristic.type ?? null,
+      confidence: Number(params.heuristic.confidence ?? 0),
+      reason: params.heuristic.reason ?? null,
+      strongMatch: heuristicStrong,
+    },
+    learning: {
+      groupId: String(params.learningGroupId ?? "").trim() || null,
+      type: params.learningType ?? null,
+      confidence: learningConfidence,
+      reason: params.learningReason ?? null,
+      minConfidenceReached: learningConfidence >= 0.2,
+      overrideThresholdReached: learningConfidence >= 0.62,
+    },
+    candidates: params.candidates.map((candidate) => ({
+      id: candidate.id,
+      type: candidate.type,
+    })),
+  };
+}
+
 export function suggestGroupFromText(
   title: string,
   notes?: string,
 ): GroupSuggestion {
   const text = normalizeText(`${title} ${notes ?? ""}`);
 
-  if (!text) return { type: null, confidence: 0 };
+  if (!text) return { type: null, confidence: 0, trace: undefined };
 
   const pairScore = scoreSuggestion(text, PAIR_KEYWORDS);
   const familyScore = scoreSuggestion(text, FAMILY_KEYWORDS);
@@ -143,7 +215,7 @@ export function suggestGroupFromText(
   const max = Math.max(pairScore, familyScore, otherScore);
 
   if (max === 0) {
-    return { type: null, confidence: 0 };
+    return { type: null, confidence: 0, trace: undefined };
   }
 
   const leaders = [
@@ -165,13 +237,14 @@ export function suggestGroupFromText(
   ].filter((item) => item.score === max);
 
   if (leaders.length !== 1) {
-    return { type: null, confidence: max };
+    return { type: null, confidence: max, trace: undefined };
   }
 
   return {
     type: leaders[0].type,
     confidence: leaders[0].score,
     reason: leaders[0].reason,
+    trace: undefined,
   };
 }
 
@@ -186,8 +259,28 @@ export function suggestGroupWithLearning(
   const signals = Array.isArray(input.signals) ? input.signals : [];
   const candidateGroups = normalizeCandidateGroups(input.candidateGroups);
 
-  if (!rawText || signals.length === 0 || candidateGroups.length === 0) {
-    return heuristic;
+  if (!rawText) {
+    return {
+      ...heuristic,
+      trace: buildTrace({
+        rawText,
+        decision: "empty_input",
+        heuristic,
+        candidates: candidateGroups,
+      }),
+    };
+  }
+
+  if (signals.length === 0 || candidateGroups.length === 0) {
+    return {
+      ...heuristic,
+      trace: buildTrace({
+        rawText,
+        decision: "no_signals_or_candidates",
+        heuristic,
+        candidates: candidateGroups,
+      }),
+    };
   }
 
   const profiles: LearnedGroupDecisionProfile[] = candidateGroups
@@ -202,7 +295,15 @@ export function suggestGroupWithLearning(
     );
 
   if (profiles.length === 0) {
-    return heuristic;
+    return {
+      ...heuristic,
+      trace: buildTrace({
+        rawText,
+        decision: "no_profiles",
+        heuristic,
+        candidates: candidateGroups,
+      }),
+    };
   }
 
   const learned = getBestGroupFromLearning({
@@ -211,14 +312,36 @@ export function suggestGroupWithLearning(
   });
 
   if (!learned.groupId || learned.confidence < 0.2) {
-    return heuristic;
+    return {
+      ...heuristic,
+      trace: buildTrace({
+        rawText,
+        decision: "learning_below_threshold",
+        heuristic,
+        learningGroupId: learned.groupId ?? null,
+        learningConfidence: learned.confidence,
+        learningReason: learned.reason ?? null,
+        candidates: candidateGroups,
+      }),
+    };
   }
 
   const matchedGroup = candidateGroups.find((group) => group.id === learned.groupId);
   const learnedType = matchedGroup?.type ?? null;
 
   if (!learnedType) {
-    return heuristic;
+    return {
+      ...heuristic,
+      trace: buildTrace({
+        rawText,
+        decision: "learning_group_not_found",
+        heuristic,
+        learningGroupId: learned.groupId,
+        learningConfidence: learned.confidence,
+        learningReason: learned.reason ?? null,
+        candidates: candidateGroups,
+      }),
+    };
   }
 
   if (!heuristic.type) {
@@ -226,6 +349,16 @@ export function suggestGroupWithLearning(
       type: learnedType,
       confidence: clampConfidence(learned.confidence),
       reason: learned.reason,
+      trace: buildTrace({
+        rawText,
+        decision: "learning_only",
+        heuristic,
+        learningGroupId: learned.groupId,
+        learningType: learnedType,
+        learningConfidence: learned.confidence,
+        learningReason: learned.reason ?? null,
+        candidates: candidateGroups,
+      }),
     };
   }
 
@@ -234,6 +367,16 @@ export function suggestGroupWithLearning(
       type: heuristic.type,
       confidence: clampConfidence(Math.max(heuristic.confidence, learned.confidence)),
       reason: `heuristic_and_learning | ${heuristic.reason ?? "heuristic"} | ${learned.reason}`,
+      trace: buildTrace({
+        rawText,
+        decision: "heuristic_and_learning_agree",
+        heuristic,
+        learningGroupId: learned.groupId,
+        learningType: learnedType,
+        learningConfidence: learned.confidence,
+        learningReason: learned.reason ?? null,
+        candidates: candidateGroups,
+      }),
     };
   }
 
@@ -241,6 +384,16 @@ export function suggestGroupWithLearning(
     return {
       ...heuristic,
       reason: `${heuristic.reason ?? "heuristic"} | learning_conflict_ignored`,
+      trace: buildTrace({
+        rawText,
+        decision: "heuristic_conflict_learning_ignored",
+        heuristic,
+        learningGroupId: learned.groupId,
+        learningType: learnedType,
+        learningConfidence: learned.confidence,
+        learningReason: learned.reason ?? null,
+        candidates: candidateGroups,
+      }),
     };
   }
 
@@ -249,11 +402,31 @@ export function suggestGroupWithLearning(
       type: learnedType,
       confidence: clampConfidence(learned.confidence),
       reason: `learning_override | ${learned.reason}`,
+      trace: buildTrace({
+        rawText,
+        decision: "learning_override",
+        heuristic,
+        learningGroupId: learned.groupId,
+        learningType: learnedType,
+        learningConfidence: learned.confidence,
+        learningReason: learned.reason ?? null,
+        candidates: candidateGroups,
+      }),
     };
   }
 
   return {
     ...heuristic,
     reason: `${heuristic.reason ?? "heuristic"} | learning_not_strong_enough_to_override`,
+    trace: buildTrace({
+      rawText,
+      decision: "heuristic_kept_learning_weak",
+      heuristic,
+      learningGroupId: learned.groupId,
+      learningType: learnedType,
+      learningConfidence: learned.confidence,
+      learningReason: learned.reason ?? null,
+      candidates: candidateGroups,
+    }),
   };
 }
