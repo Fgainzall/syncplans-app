@@ -90,12 +90,29 @@ export default function EventTimelineCard({
     displayName: proposalActorName,
     relativeDate: proposalTime,
   });
-  const statusUi = getTimelineEventStatusUi({
-    conflictsCount,
-    responses: proposalResponseGroup ?? [],
-    trustSignal,
-    invite,
-  });
+const safeResponses =
+  trustSignal?.label === "resolved" || trustSignal?.label === "auto_adjusted"
+    ? []
+    : (proposalResponseGroup ?? []).filter(
+        (row) => String(row?.response ?? "").toLowerCase() !== "pending"
+      );
+
+const safeConflictsCount =
+  trustSignal?.label === "resolved" || trustSignal?.label === "auto_adjusted"
+    ? 0
+    : conflictsCount;
+
+const safeInvite =
+  trustSignal?.label === "resolved" || trustSignal?.label === "auto_adjusted"
+    ? null
+    : invite;
+
+const statusUi = getTimelineEventStatusUi({
+  conflictsCount: safeConflictsCount,
+  responses: safeResponses,
+  trustSignal,
+  invite: safeInvite,
+});
   const primaryAction = getTimelinePrimaryAction({
     eventId,
     status: statusUi.status,
