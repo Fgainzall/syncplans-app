@@ -18,6 +18,10 @@ import {
   getSuggestedTimeSlots,
   getSuggestionContextLabel,
 } from "@/lib/timeSuggestions";
+import supabase from "@/lib/supabaseClient";
+import { getLearningSignals } from "@/lib/learningSignals";
+import { buildLearnedTimeProfile } from "@/lib/learningProfile";
+import type { LearnedTimeProfile } from "@/lib/learningTypes";
 import SummaryQuickCaptureCard from "./SummaryQuickCaptureCard";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
 import {
@@ -95,6 +99,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const [quickCaptureValue, setQuickCaptureValue] = useState("");
   const [quickCaptureBusy, setQuickCaptureBusy] = useState(false);
+  const [learnedQuickCaptureProfile, setLearnedQuickCaptureProfile] =
+    useState<LearnedTimeProfile | null>(null);
 
   const {
     booting,
@@ -167,6 +173,90 @@ const normalizeSuggestionGroupType = useCallback(
   []
 );
 
+const suggestedContextGroupId = useMemo(() => {
+  if (smartInterpretation?.intent === "group" && smartInterpretation.groupId) {
+    return String(smartInterpretation.groupId);
+  }
+
+  if (activeGroupId) {
+    return String(activeGroupId);
+  }
+
+  return null;
+}, [smartInterpretation, activeGroupId]);
+
+const suggestedContextGroup = useMemo(() => {
+  if (!suggestedContextGroupId) return null;
+
+  return (
+    groups.find((group) => String(group.id) === String(suggestedContextGroupId)) ??
+    null
+  );
+}, [groups, suggestedContextGroupId]);
+
+const suggestedContextGroupType = useMemo(() => {
+  return normalizeSuggestionGroupType(
+    String(suggestedContextGroup?.type ?? activeGroupType)
+  );
+}, [suggestedContextGroup, activeGroupType, normalizeSuggestionGroupType]);
+
+useEffect(() => {
+  let cancelled = false;
+
+  async function hydrateLearnedQuickCaptureProfile() {
+    const raw = quickCaptureValue.trim();
+
+    if (!raw) {
+      if (!cancelled) setLearnedQuickCaptureProfile(null);
+      return;
+    }
+
+    try {
+      const signals = await getLearningSignals({ daysBack: 120 });
+
+      if (cancelled) return;
+
+      if (suggestedContextGroupId) {
+        const profile = buildLearnedTimeProfile(signals, {
+          scope: "group",
+          groupId: suggestedContextGroupId,
+        });
+
+        setLearnedQuickCaptureProfile(profile);
+        return;
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (cancelled) return;
+
+      const userId = String(user?.id ?? "").trim();
+
+      if (!userId) {
+        setLearnedQuickCaptureProfile(null);
+        return;
+      }
+
+      const profile = buildLearnedTimeProfile(signals, {
+        scope: "user",
+        userId,
+      });
+
+      setLearnedQuickCaptureProfile(profile);
+    } catch {
+      if (!cancelled) setLearnedQuickCaptureProfile(null);
+    }
+  }
+
+  void hydrateLearnedQuickCaptureProfile();
+
+  return () => {
+    cancelled = true;
+  };
+}, [quickCaptureValue, suggestedContextGroupId]);
+
 const timeSuggestions = useMemo(() => {
   const raw = quickCaptureValue.trim();
   if (!raw) return [];
@@ -175,19 +265,22 @@ const timeSuggestions = useMemo(() => {
 
   if (parsed.date) return [];
 
-  const suggestionGroupType = normalizeSuggestionGroupType(activeGroupType);
-
-  return getSuggestedTimeSlots(events, suggestionGroupType, raw);
-}, [quickCaptureValue, events, activeGroupType, normalizeSuggestionGroupType]);
+  return getSuggestedTimeSlots(events, suggestedContextGroupType, raw, {
+    learnedProfile: learnedQuickCaptureProfile,
+  });
+}, [
+  quickCaptureValue,
+  events,
+  suggestedContextGroupType,
+  learnedQuickCaptureProfile,
+]);
 
 const timeSuggestionsLabel = useMemo(() => {
   const raw = quickCaptureValue.trim();
   if (!raw || timeSuggestions.length === 0) return null;
 
-  const suggestionGroupType = normalizeSuggestionGroupType(activeGroupType);
-
-  return getSuggestionContextLabel(raw, suggestionGroupType);
-}, [quickCaptureValue, timeSuggestions, activeGroupType, normalizeSuggestionGroupType]);
+  return getSuggestionContextLabel(raw, suggestedContextGroupType);
+}, [quickCaptureValue, timeSuggestions, suggestedContextGroupType]);
   const quickCaptureHeadline = useMemo(() => {
     if (!activeGroupId) return "Escribe lo que tienes en mente";
     if (activeGroupType === "pair") return "Planéalo en una línea";

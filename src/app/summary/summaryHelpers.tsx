@@ -656,18 +656,21 @@ export function buildSmartInterpretation(input: {
   const groups = Array.isArray(input.groups) ? input.groups : [];
   const activeGroupId = String(input.activeGroupId ?? "").trim() || null;
 
-  const learned = learnedGroupMatch(raw);
-  const learnedGroupId = String(learned?.groupId ?? "").trim();
-  const learnedGroupStillExists =
-    !!learnedGroupId &&
-    groups.some((group) => String(group.id) === learnedGroupId);
+  if (!raw) {
+    if (activeGroupId) {
+      return {
+        intent: "group",
+        groupId: activeGroupId,
+        confidence: "low",
+        reason: "active_group",
+      };
+    }
 
-  if (learnedGroupStillExists) {
     return {
-      intent: "group",
-      groupId: learnedGroupId,
-      confidence: learned?.shouldAutoApply ? "high" : "medium",
-      reason: "learned",
+      intent: "personal",
+      groupId: null,
+      confidence: "low",
+      reason: "none",
     };
   }
 
@@ -714,6 +717,21 @@ export function buildSmartInterpretation(input: {
         reason: "social_hint",
       };
     }
+  }
+
+  const learned = learnedGroupMatch(raw);
+  const learnedGroupId = String(learned?.groupId ?? "").trim();
+  const learnedGroupStillExists =
+    !!learnedGroupId &&
+    groups.some((group) => String(group.id) === learnedGroupId);
+
+  if (learnedGroupStillExists) {
+    return {
+      intent: "group",
+      groupId: learnedGroupId,
+      confidence: learned?.shouldAutoApply ? "medium" : "low",
+      reason: "learned",
+    };
   }
 
   if (activeGroupId) {

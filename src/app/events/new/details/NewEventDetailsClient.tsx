@@ -26,14 +26,18 @@ import {
 } from "@/lib/conflicts";
 import supabase from "@/lib/supabaseClient";
 import { getSettingsFromDb, type NotificationSettings } from "@/lib/settings";
-
+import { getLearningSignals } from "@/lib/learningSignals";
+import type { LearningSignal } from "@/lib/learningTypes";
 // ✅ DB real (RLS)
 import {
   getMyGroups,
   getGroupTypeLabel,
   getSharedGroupBetweenUsers,
 } from "@/lib/groupsDb";
-
+import {
+  suggestGroupWithLearning,
+  type GroupSuggestion,
+} from "@/lib/groupSuggestion";
 // ✅ DB Source of Truth
 import {
   createEventForGroup,
@@ -127,100 +131,6 @@ type PreflightConflict = {
 
 type PostSaveFormFingerprint = string;
 
-
-type GroupSuggestion = {
-  type: "pair" | "family" | "other" | null;
-  confidence: number;
-  reason?: string;
-};
-
-const PAIR_KEYWORDS = [
-  "cena",
-  "salida",
-  "salir",
-  "date",
-  "aniversario",
-  "película",
-  "pelicula",
-  "cine",
-  "comer",
-  "desayuno juntos",
-  "almuerzo juntos",
-  "con fer",
-  "con ara",
-];
-
-const FAMILY_KEYWORDS = [
-  "familia",
-  "mamá",
-  "mama",
-  "papá",
-  "papa",
-  "cumple",
-  "cumpleaños",
-  "almuerzo familiar",
-  "reunión familiar",
-  "reunion familiar",
-  "abuelos",
-  "tíos",
-  "tios",
-  "primos",
-];
-
-const OTHER_KEYWORDS = [
-  "pádel",
-  "padel",
-  "fútbol",
-  "futbol",
-  "fulbito",
-  "amigos",
-  "asado",
-  "reunión",
-  "reunion",
-  "partido",
-  "after",
-  "previa",
-];
-
-function scoreSuggestion(text: string, keywords: string[]) {
-  let hits = 0;
-  for (const keyword of keywords) {
-    if (text.includes(keyword)) hits += 1;
-  }
-  return hits;
-}
-
-function suggestGroupFromText(title: string, notes?: string): GroupSuggestion {
-  const text = `${title} ${notes ?? ""}`.toLowerCase().trim();
-
-  if (!text) return { type: null, confidence: 0 };
-
-  const pairScore = scoreSuggestion(text, PAIR_KEYWORDS);
-  const familyScore = scoreSuggestion(text, FAMILY_KEYWORDS);
-  const otherScore = scoreSuggestion(text, OTHER_KEYWORDS);
-
-  const max = Math.max(pairScore, familyScore, otherScore);
-
-  if (max === 0) {
-    return { type: null, confidence: 0 };
-  }
-
-  const leaders = [
-    { type: "pair" as const, score: pairScore, reason: "Suena más a un plan de pareja" },
-    { type: "family" as const, score: familyScore, reason: "Suena más a un plan familiar" },
-    { type: "other" as const, score: otherScore, reason: "Suena más a un plan compartido" },
-  ].filter((item) => item.score === max);
-
-  if (leaders.length !== 1) {
-    return { type: null, confidence: max };
-  }
-
-  return {
-    type: leaders[0].type,
-    confidence: leaders[0].score,
-    reason: leaders[0].reason,
-  };
-}
 
 function getConflictCounterpart(
   conflict: ReturnType<typeof computeVisibleConflicts>[number],
@@ -467,7 +377,7 @@ function NewEventDetailsInner() {
     for (const g of groups || []) map.set(g.id, g);
     return Array.from(map.values());
   }, [groups]);
-
+const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
   const [preflightOpen, setPreflightOpen] = useState(false);
   const [preflightItems, setPreflightItems] = useState<PreflightConflict[]>([]);
   const [preflightDefaultChoice, setPreflightDefaultChoice] =
@@ -936,16 +846,49 @@ function NewEventDetailsInner() {
     );
   }, [learnedGroupMatch, uniqueGroups]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function hydrateLearningSignals() {
+      try {
+        const signals = await getLearningSignals({ daysBack: 120 });
+
+        if (!cancelled) {
+          setLearningSignals(Array.isArray(signals) ? signals : []);
+        }
+      } catch {
+        if (!cancelled) {
+          setLearningSignals([]);
+        }
+      }
+    }
+
+    void hydrateLearningSignals();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const groupSuggestion = useMemo(() => {
     if (effectiveType !== "group") return null;
     if (autoSharedGroupId) return null;
     if (sharedGroupDetectionState === "matched") return null;
     if (learnedGroupCandidate?.id && learnedGroupMatch?.shouldAutoApply) return null;
 
-    const suggestion = suggestGroupFromText(title, notes);
-    if (!suggestion.type || suggestion.confidence <= 0) return null;
+ const suggestion = suggestGroupWithLearning({
+  title,
+  notes,
+  signals: learningSignals,
+  candidateGroups: uniqueGroups.map((group) => ({
+    id: group.id,
+    type: group.type ?? null,
+  })),
+});
 
-    return suggestion;
+if (!suggestion.type || suggestion.confidence <= 0) return null;
+
+return suggestion;
   }, [
     effectiveType,
     autoSharedGroupId,
