@@ -846,6 +846,15 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     );
   }, [learnedGroupMatch, uniqueGroups]);
 
+  const candidateGroupOptions = useMemo(
+    () =>
+      uniqueGroups.map((group) => ({
+        id: group.id,
+        type: group.type ?? null,
+      })),
+    [uniqueGroups]
+  );
+
   useEffect(() => {
     let cancelled = false;
 
@@ -880,10 +889,7 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
   title,
   notes,
   signals: learningSignals,
-  candidateGroups: uniqueGroups.map((group) => ({
-    id: group.id,
-    type: group.type ?? null,
-  })),
+  candidateGroups: candidateGroupOptions,
 });
 
 if (!suggestion.type || suggestion.confidence <= 0) return null;
@@ -897,6 +903,8 @@ return suggestion;
     learnedGroupMatch,
     title,
     notes,
+    learningSignals,
+    candidateGroupOptions,
   ]);
 
   const suggestedGroupCandidate = useMemo(() => {

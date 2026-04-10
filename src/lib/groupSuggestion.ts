@@ -6,6 +6,7 @@ import {
   getBestGroupFromLearning,
 } from "@/lib/learningGroupProfile";
 import type { LearnedGroupDecisionProfile } from "@/lib/learningGroupProfile";
+
 export type GroupSuggestion = {
   type: "pair" | "family" | "other" | null;
   confidence: number;
@@ -65,10 +66,15 @@ const OTHER_KEYWORDS = [
   "previa",
 ];
 
+type NormalizedCandidateGroup = {
+  id: string;
+  type: "pair" | "family" | "other";
+};
+
 function normalizeText(value: string): string {
   return String(value ?? "")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .trim();
 }
@@ -81,7 +87,9 @@ function scoreSuggestion(text: string, keywords: string[]) {
   return hits;
 }
 
-function normalizeSuggestedType(value: string | null | undefined): "pair" | "family" | "other" | null {
+function normalizeSuggestedType(
+  value: string | null | undefined,
+): "pair" | "family" | "other" | null {
   const raw = String(value ?? "").trim().toLowerCase();
 
   if (raw === "pair") return "pair";
@@ -92,9 +100,37 @@ function normalizeSuggestedType(value: string | null | undefined): "pair" | "fam
   return null;
 }
 
+function normalizeCandidateGroups(
+  candidateGroups: SuggestGroupFromLearningInput["candidateGroups"],
+): NormalizedCandidateGroup[] {
+  const seen = new Set<string>();
+  const normalized: NormalizedCandidateGroup[] = [];
+
+  for (const group of Array.isArray(candidateGroups) ? candidateGroups : []) {
+    const id = String(group?.id ?? "").trim();
+    const type = normalizeSuggestedType(group?.type ?? null);
+
+    if (!id || !type || seen.has(id)) continue;
+
+    seen.add(id);
+    normalized.push({ id, type });
+  }
+
+  return normalized;
+}
+
+function clampConfidence(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, Number(value.toFixed(4))));
+}
+
+function isStrongHeuristicMatch(suggestion: GroupSuggestion): boolean {
+  return Boolean(suggestion.type && suggestion.confidence >= 2);
+}
+
 export function suggestGroupFromText(
   title: string,
-  notes?: string
+  notes?: string,
 ): GroupSuggestion {
   const text = normalizeText(`${title} ${notes ?? ""}`);
 
@@ -148,9 +184,7 @@ export function suggestGroupWithLearning(
 
   const heuristic = suggestGroupFromText(title, notes);
   const signals = Array.isArray(input.signals) ? input.signals : [];
-  const candidateGroups = Array.isArray(input.candidateGroups)
-    ? input.candidateGroups
-    : [];
+  const candidateGroups = normalizeCandidateGroups(input.candidateGroups);
 
   if (!rawText || signals.length === 0 || candidateGroups.length === 0) {
     return heuristic;
@@ -159,11 +193,12 @@ export function suggestGroupWithLearning(
   const profiles: LearnedGroupDecisionProfile[] = candidateGroups
     .map((group) =>
       buildLearnedGroupDecisionProfile(signals, {
-        groupId: String(group.id ?? "").trim(),
+        groupId: group.id,
       }),
     )
     .filter(
-      (profile): profile is LearnedGroupDecisionProfile => profile !== null,
+      (profile): profile is LearnedGroupDecisionProfile =>
+        profile !== null && profile.totalSignals > 0,
     );
 
   if (profiles.length === 0) {
@@ -179,11 +214,8 @@ export function suggestGroupWithLearning(
     return heuristic;
   }
 
-  const matchedGroup = candidateGroups.find(
-    (group) => String(group.id ?? "").trim() === learned.groupId,
-  );
-
-  const learnedType = normalizeSuggestedType(matchedGroup?.type);
+  const matchedGroup = candidateGroups.find((group) => group.id === learned.groupId);
+  const learnedType = matchedGroup?.type ?? null;
 
   if (!learnedType) {
     return heuristic;
@@ -192,7 +224,7 @@ export function suggestGroupWithLearning(
   if (!heuristic.type) {
     return {
       type: learnedType,
-      confidence: learned.confidence,
+      confidence: clampConfidence(learned.confidence),
       reason: learned.reason,
     };
   }
@@ -200,18 +232,28 @@ export function suggestGroupWithLearning(
   if (heuristic.type === learnedType) {
     return {
       type: heuristic.type,
-      confidence: Math.max(heuristic.confidence, learned.confidence),
-      reason: `${heuristic.reason ?? "heuristic"} + ${learned.reason}`,
+      confidence: clampConfidence(Math.max(heuristic.confidence, learned.confidence)),
+      reason: `heuristic_and_learning | ${heuristic.reason ?? "heuristic"} | ${learned.reason}`,
     };
   }
 
-  if (learned.confidence >= 0.55 && learned.confidence > heuristic.confidence) {
+  if (isStrongHeuristicMatch(heuristic) && learned.confidence < 0.7) {
+    return {
+      ...heuristic,
+      reason: `${heuristic.reason ?? "heuristic"} | learning_conflict_ignored`,
+    };
+  }
+
+  if (learned.confidence >= 0.62 && learned.confidence > heuristic.confidence + 0.1) {
     return {
       type: learnedType,
-      confidence: learned.confidence,
-      reason: learned.reason,
+      confidence: clampConfidence(learned.confidence),
+      reason: `learning_override | ${learned.reason}`,
     };
   }
 
-  return heuristic;
+  return {
+    ...heuristic,
+    reason: `${heuristic.reason ?? "heuristic"} | learning_not_strong_enough_to_override`,
+  };
 }

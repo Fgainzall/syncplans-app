@@ -21,7 +21,14 @@ import {
 import supabase from "@/lib/supabaseClient";
 import { getLearningSignals } from "@/lib/learningSignals";
 import { buildLearnedTimeProfile } from "@/lib/learningProfile";
-import type { LearnedTimeProfile } from "@/lib/learningTypes";
+import {
+  buildLearnedGroupDecisionProfile,
+  getBestGroupFromLearning,
+} from "@/lib/learningGroupProfile";
+import type {
+  LearnedTimeProfile,
+  LearningSignal,
+} from "@/lib/learningTypes";
 import SummaryQuickCaptureCard from "./SummaryQuickCaptureCard";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
 import {
@@ -59,6 +66,7 @@ import {
   proposalResponseTone,
   resolutionForConflict,
   startOfTodayLocal,
+  type SmartInterpretationLearnedCandidate,
   type SummaryEvent,
 } from "./summaryHelpers";
 type Props = {
@@ -99,8 +107,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const [quickCaptureValue, setQuickCaptureValue] = useState("");
   const [quickCaptureBusy, setQuickCaptureBusy] = useState(false);
-  const [learnedQuickCaptureProfile, setLearnedQuickCaptureProfile] =
-    useState<LearnedTimeProfile | null>(null);
+  const [learningSignals, setLearningSignals] = useState<LearningSignal[] | null>(null);
+  const [learningSignalsLoaded, setLearningSignalsLoaded] = useState(false);
+  const [learningUserId, setLearningUserId] = useState<string | null>(null);
 
   const {
     booting,
@@ -148,6 +157,49 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     () => formatQuickCapturePreview(quickCaptureValue),
     [quickCaptureValue]
   );
+  const learnedInterpretationCandidate = useMemo<SmartInterpretationLearnedCandidate | null>(() => {
+    const raw = quickCaptureValue.trim();
+    if (!raw) return null;
+    if (!Array.isArray(learningSignals) || learningSignals.length === 0) return null;
+
+    const candidateGroups = (groups ?? []).filter((group) => {
+      const groupId = String(group?.id ?? "").trim();
+      return !!groupId;
+    });
+
+    if (candidateGroups.length === 0) return null;
+
+    const profiles = candidateGroups
+      .map((group) =>
+        buildLearnedGroupDecisionProfile(learningSignals, {
+          groupId: String(group.id ?? "").trim(),
+        })
+      )
+      .filter((profile) => profile !== null);
+
+    if (profiles.length === 0) return null;
+
+    const learned = getBestGroupFromLearning({
+      rawText: raw,
+      profiles,
+    });
+
+    if (!learned.groupId) return null;
+
+    const confidence: SmartInterpretationLearnedCandidate["confidence"] =
+      learned.confidence >= 0.65
+        ? "high"
+        : learned.confidence >= 0.35
+        ? "medium"
+        : "low";
+
+    return {
+      groupId: learned.groupId,
+      confidence,
+      reason: learned.reason,
+    };
+  }, [quickCaptureValue, learningSignals, groups]);
+
 const smartInterpretation = useMemo(() => {
   const raw = quickCaptureValue.trim();
   if (!raw) return null;
@@ -156,8 +208,9 @@ const smartInterpretation = useMemo(() => {
     raw,
     groups,
     activeGroupId,
+    learnedCandidate: learnedInterpretationCandidate,
   });
-}, [quickCaptureValue, groups, activeGroupId]);
+}, [quickCaptureValue, groups, activeGroupId, learnedInterpretationCandidate]);
 
 const smartInterpretationLabel = useMemo(() => {
   return getSmartInterpretationLabel(smartInterpretation, groups);
@@ -203,29 +256,8 @@ const suggestedContextGroupType = useMemo(() => {
 useEffect(() => {
   let cancelled = false;
 
-  async function hydrateLearnedQuickCaptureProfile() {
-    const raw = quickCaptureValue.trim();
-
-    if (!raw) {
-      if (!cancelled) setLearnedQuickCaptureProfile(null);
-      return;
-    }
-
+  async function hydrateLearningUser() {
     try {
-      const signals = await getLearningSignals({ daysBack: 120 });
-
-      if (cancelled) return;
-
-      if (suggestedContextGroupId) {
-        const profile = buildLearnedTimeProfile(signals, {
-          scope: "group",
-          groupId: suggestedContextGroupId,
-        });
-
-        setLearnedQuickCaptureProfile(profile);
-        return;
-      }
-
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -233,29 +265,82 @@ useEffect(() => {
       if (cancelled) return;
 
       const userId = String(user?.id ?? "").trim();
-
-      if (!userId) {
-        setLearnedQuickCaptureProfile(null);
-        return;
-      }
-
-      const profile = buildLearnedTimeProfile(signals, {
-        scope: "user",
-        userId,
-      });
-
-      setLearnedQuickCaptureProfile(profile);
+      setLearningUserId(userId || null);
     } catch {
-      if (!cancelled) setLearnedQuickCaptureProfile(null);
+      if (!cancelled) {
+        setLearningUserId(null);
+      }
     }
   }
 
-  void hydrateLearnedQuickCaptureProfile();
+  void hydrateLearningUser();
 
   return () => {
     cancelled = true;
   };
-}, [quickCaptureValue, suggestedContextGroupId]);
+}, []);
+
+useEffect(() => {
+  let cancelled = false;
+
+  async function hydrateLearningSignals() {
+    const raw = quickCaptureValue.trim();
+    if (!raw || learningSignalsLoaded) return;
+
+    try {
+      const signals = await getLearningSignals({ daysBack: 120 });
+
+      if (cancelled) return;
+
+      setLearningSignals(Array.isArray(signals) ? signals : []);
+    } catch {
+      if (!cancelled) {
+        setLearningSignals([]);
+      }
+    } finally {
+      if (!cancelled) {
+        setLearningSignalsLoaded(true);
+      }
+    }
+  }
+
+  void hydrateLearningSignals();
+
+  return () => {
+    cancelled = true;
+  };
+}, [quickCaptureValue, learningSignalsLoaded]);
+
+const learnedQuickCaptureProfile = useMemo((): LearnedTimeProfile | null => {
+  const raw = quickCaptureValue.trim();
+
+  if (!raw) return null;
+  if (!learningSignalsLoaded) return null;
+
+  const signals = Array.isArray(learningSignals) ? learningSignals : [];
+
+  if (suggestedContextGroupId) {
+    return buildLearnedTimeProfile(signals, {
+      scope: "group",
+      groupId: suggestedContextGroupId,
+    });
+  }
+
+  if (!learningUserId) {
+    return null;
+  }
+
+  return buildLearnedTimeProfile(signals, {
+    scope: "user",
+    userId: learningUserId,
+  });
+}, [
+  quickCaptureValue,
+  learningSignals,
+  learningSignalsLoaded,
+  suggestedContextGroupId,
+  learningUserId,
+]);
 
 const timeSuggestions = useMemo(() => {
   const raw = quickCaptureValue.trim();
@@ -444,6 +529,7 @@ const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
       raw,
       groups,
       activeGroupId,
+      learnedCandidate: learnedInterpretationCandidate,
     });
 
     params.set("qc", "1");
@@ -466,7 +552,7 @@ const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
 
     router.push(`/events/new/details?${params.toString()}`);
   },
-  [groups, activeGroupId, router]
+  [groups, activeGroupId, learnedInterpretationCandidate, router]
 );
 
 const navigateFromSuggestedSlot = useCallback(
@@ -481,6 +567,7 @@ const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
       raw,
       groups,
       activeGroupId,
+      learnedCandidate: learnedInterpretationCandidate,
     });
 
     params.set("qc", "1");
@@ -504,7 +591,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
     router.push(`/events/new/details?${params.toString()}`);
   },
-  [groups, activeGroupId, router]
+  [groups, activeGroupId, learnedInterpretationCandidate, router]
 );
 
   const handleQuickCaptureSubmit = useCallback(() => {

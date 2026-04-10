@@ -50,7 +50,19 @@ export type SmartInterpretation = {
   intent: "personal" | "group";
   groupId: string | null;
   confidence: "low" | "medium" | "high";
-  reason: "learned" | "name_match" | "social_hint" | "active_group" | "none";
+  reason:
+    | "learned"
+    | "learned_legacy"
+    | "name_match"
+    | "social_hint"
+    | "active_group"
+    | "none";
+};
+
+export type SmartInterpretationLearnedCandidate = {
+  groupId: string | null;
+  confidence?: "low" | "medium" | "high" | null;
+  reason?: string | null;
 };
 
 export function safeDate(iso?: string | null) {
@@ -651,10 +663,17 @@ export function buildSmartInterpretation(input: {
   raw: string;
   groups: GroupRow[];
   activeGroupId: string | null;
+  learnedCandidate?: SmartInterpretationLearnedCandidate | null;
 }): SmartInterpretation {
   const raw = String(input.raw ?? "").trim();
   const groups = Array.isArray(input.groups) ? input.groups : [];
   const activeGroupId = String(input.activeGroupId ?? "").trim() || null;
+  const learnedCandidateGroupId =
+    String(input.learnedCandidate?.groupId ?? "").trim() || null;
+
+  const learnedCandidateStillExists =
+    !!learnedCandidateGroupId &&
+    groups.some((group) => String(group.id) === learnedCandidateGroupId);
 
   if (!raw) {
     if (activeGroupId) {
@@ -719,17 +738,11 @@ export function buildSmartInterpretation(input: {
     }
   }
 
-  const learned = learnedGroupMatch(raw);
-  const learnedGroupId = String(learned?.groupId ?? "").trim();
-  const learnedGroupStillExists =
-    !!learnedGroupId &&
-    groups.some((group) => String(group.id) === learnedGroupId);
-
-  if (learnedGroupStillExists) {
+  if (learnedCandidateStillExists) {
     return {
       intent: "group",
-      groupId: learnedGroupId,
-      confidence: learned?.shouldAutoApply ? "medium" : "low",
+      groupId: learnedCandidateGroupId,
+      confidence: input.learnedCandidate?.confidence ?? "medium",
       reason: "learned",
     };
   }
@@ -740,6 +753,21 @@ export function buildSmartInterpretation(input: {
       groupId: activeGroupId,
       confidence: "low",
       reason: "active_group",
+    };
+  }
+
+  const learned = learnedGroupMatch(raw);
+  const learnedGroupId = String(learned?.groupId ?? "").trim();
+  const learnedGroupStillExists =
+    !!learnedGroupId &&
+    groups.some((group) => String(group.id) === learnedGroupId);
+
+  if (learnedGroupStillExists) {
+    return {
+      intent: "group",
+      groupId: learnedGroupId,
+      confidence: learned?.shouldAutoApply ? "low" : "low",
+      reason: "learned_legacy",
     };
   }
 
