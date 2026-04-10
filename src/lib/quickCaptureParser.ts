@@ -1,4 +1,3 @@
-
 export type ParsedQuickCaptureSignals = {
   hasExplicitDate: boolean;
   hasExplicitTime: boolean;
@@ -92,7 +91,31 @@ const NAME_STOPWORDS = new Set([
   "finde",
   "fin",
   "casa",
+  "chicos",
+  "amigos",
+  "familia",
+  "equipo",
+  "grupo",
+  "todos",
+  "nosotros",
+  "ustedes",
 ]);
+
+const GENERIC_GROUP_PHRASES = [
+  "los chicos",
+  "las chicas",
+  "los amigos",
+  "las amigas",
+  "amigos",
+  "amigas",
+  "familia",
+  "mi familia",
+  "equipo",
+  "grupo",
+  "todos",
+  "nosotros",
+  "ustedes",
+];
 
 function normalizeText(input: string) {
   return String(input ?? "")
@@ -214,15 +237,29 @@ function normalizePossibleName(value: string) {
     .join(" ");
 }
 
+function normalizeGenericGroupLabel(rawChunk: string): string | null {
+  const value = normalizeForMatching(rawChunk);
+
+  if (!value) return null;
+  if (value === "los chicos" || value === "las chicas") return "Amigos";
+  if (value === "los amigos" || value === "las amigas") return "Amigos";
+  if (value === "amigos" || value === "amigas") return "Amigos";
+  if (value === "familia" || value === "mi familia") return "Familia";
+  if (value === "equipo" || value === "grupo") return "Equipo";
+  if (value === "todos" || value === "nosotros" || value === "ustedes") return "Grupo";
+
+  return null;
+}
+
 function extractParticipants(raw: string): string[] {
   const normalizedRaw = normalizeForMatching(raw);
   const seen = new Set<string>();
   const participants: string[] = [];
 
   const patterns = [
-    /\bcon\s+([a-záéíóúñ]+(?:\s+y\s+[a-záéíóúñ]+){0,2})\b/gi,
-    /\bjunto a\s+([a-záéíóúñ]+(?:\s+y\s+[a-záéíóúñ]+){0,2})\b/gi,
-    /\ben casa de\s+([a-záéíóúñ]+(?:\s+y\s+[a-záéíóúñ]+){0,2})\b/gi,
+    /\bcon\s+([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,3}(?:\s+y\s+[a-záéíóúñ]+){0,2})\b/gi,
+    /\bjunto a\s+([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,3}(?:\s+y\s+[a-záéíóúñ]+){0,2})\b/gi,
+    /\ben casa de\s+([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,3}(?:\s+y\s+[a-záéíóúñ]+){0,2})\b/gi,
   ];
 
   for (const pattern of patterns) {
@@ -230,6 +267,16 @@ function extractParticipants(raw: string): string[] {
     while ((match = pattern.exec(normalizedRaw)) !== null) {
       const chunk = String(match[1] ?? "").trim();
       if (!chunk) continue;
+
+      const genericLabel = normalizeGenericGroupLabel(chunk);
+      if (genericLabel) {
+        const key = normalizeForMatching(genericLabel);
+        if (!seen.has(key)) {
+          seen.add(key);
+          participants.push(genericLabel);
+        }
+        continue;
+      }
 
       const rawNames = chunk
         .split(/\s+y\s+/i)
@@ -268,14 +315,21 @@ function extractParticipants(raw: string): string[] {
 }
 
 function removeParticipantPhrases(raw: string): string {
-  return collapseSpaces(
-    String(raw ?? "")
-      .replace(
-        /\b(con|junto a|en casa de)\s+[a-záéíóúñ]+(?:\s+y\s+[a-záéíóúñ]+){0,2}\b/gi,
-        " "
-      )
-      .replace(/\b(mi novia|mi novio|mi pareja|mi esposa|mi esposo|mi familia)\b/gi, " ")
+  let text = String(raw ?? "");
+
+  text = text.replace(
+    /\b(con|junto a|en casa de)\s+(los chicos|las chicas|los amigos|las amigas|amigos|amigas|familia|mi familia|equipo|grupo|todos|nosotros|ustedes)\b/gi,
+    " "
   );
+
+  text = text.replace(
+    /\b(con|junto a|en casa de)\s+[a-záéíóúñ]+(?:\s+y\s+[a-záéíóúñ]+){0,2}\b/gi,
+    " "
+  );
+
+  text = text.replace(/\b(mi novia|mi novio|mi pareja|mi esposa|mi esposo|mi familia)\b/gi, " ");
+
+  return collapseSpaces(text);
 }
 
 function detectSignals(raw: string, participants: string[]): ParsedQuickCaptureSignals {
@@ -309,7 +363,7 @@ function detectSignals(raw: string, participants: string[]): ParsedQuickCaptureS
     );
 
   const mentionsPluralGroup =
-    /\b(amigos|familia|primos|tios|tíos|equipo|grupo|todos|nosotros|ustedes)\b/.test(
+    /\b(amigos|familia|primos|tios|tíos|equipo|grupo|todos|nosotros|ustedes|chicos|chicas)\b/.test(
       normalized
     );
 
@@ -656,15 +710,43 @@ function cleanFallbackTitle(raw: string): string {
   return cleaned.slice(0, 60);
 }
 
+function shouldAppendParticipantToTitle(
+  baseTitle: string,
+  participant: string,
+  allParticipants: string[],
+) {
+  const normalizedBase = normalizeForMatching(baseTitle);
+  const normalizedParticipant = normalizeForMatching(participant);
+
+  if (!normalizedParticipant) return false;
+  if (normalizedParticipant === "grupo") return false;
+  if (GENERIC_GROUP_PHRASES.includes(normalizedParticipant)) return false;
+  if (normalizedParticipant === "amigos" && /padel|pádel|fulbito|futbol|fútbol|tenis|reunion|reunión|asado|after|previa/.test(normalizedBase)) {
+    return false;
+  }
+  if (normalizedParticipant === "familia" && /almuerzo|cena|viaje|cumple|cumpleanos|cumpleaños/.test(normalizedBase)) {
+    return false;
+  }
+  return true;
+}
+
 function buildSemanticTitle(baseTitle: string, participants: string[]): string {
   const safeBase = formatTitle(baseTitle);
   if (!safeBase) return "";
 
-  if (participants.length === 0) return safeBase;
-  if (participants.length === 1) return `${safeBase} con ${participants[0]}`;
-  if (participants.length === 2) return `${safeBase} con ${participants[0]} y ${participants[1]}`;
+  const attachableParticipants = participants.filter((participant) =>
+    shouldAppendParticipantToTitle(safeBase, participant, participants),
+  );
 
-  return `${safeBase} con ${participants[0]} y ${participants.length - 1} más`;
+  if (attachableParticipants.length === 0) return safeBase;
+  if (attachableParticipants.length === 1) {
+    return `${safeBase} con ${attachableParticipants[0]}`;
+  }
+  if (attachableParticipants.length === 2) {
+    return `${safeBase} con ${attachableParticipants[0]} y ${attachableParticipants[1]}`;
+  }
+
+  return `${safeBase} con ${attachableParticipants[0]} y ${attachableParticipants.length - 1} más`;
 }
 
 export function parseQuickCapture(input: string): ParsedQuickCapture {
