@@ -31,6 +31,7 @@ import {
   type GroupType,
   type ConflictItem,
   computeVisibleConflicts,
+  conflictKey,
   filterIgnoredConflicts,
   groupMeta,
 } from "@/lib/conflicts";
@@ -49,6 +50,7 @@ import {
   getProposalResponseLabel,
   getProposalResponseTone,
 } from "@/lib/naming";
+import { buildEventContext } from "@/lib/eventContext";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
 import {
   getMyConflictResolutionsMap,
@@ -67,10 +69,6 @@ import {
   type ProposalResponseRow,
 } from "@/lib/proposalResponsesDb";
 import { filterVisibleEvents, isEventOwnedByUser } from "@/lib/tempeventVisibility";
-import {
-  getEventDecisionSnapshot,
-  resolveConflictResolution,
-} from "@/lib/decisionEngine";
 
 type CalendarEventWithOwner = CalendarEvent & {
   user_id?: string | null;
@@ -198,27 +196,42 @@ function resolutionForConflict(
   conflict: ConflictItem,
   resMap: Record<string, Resolution>
 ): Resolution | undefined {
-  return (
-    resolveConflictResolution(
-      {
-        id: conflict.id,
-        existing: conflict.existingEventId,
-        incoming: conflict.incomingEventId,
-      },
-      resMap
-    ) ?? undefined
-  );
+  const exact = resMap[String(conflict.id)];
+  if (exact) return exact;
+
+  const a = String(conflict.existingEventId ?? "");
+  const b = String(conflict.incomingEventId ?? "");
+  if (!a || !b) return undefined;
+
+  const stableKey = conflictKey(a, b);
+  if (resMap[stableKey]) return resMap[stableKey];
+
+  const [x, y] = [a, b].sort();
+  const legacyPrefix = `cx::${x}::${y}::`;
+
+  for (const key of Object.keys(resMap)) {
+    if (key.startsWith(legacyPrefix)) return resMap[key];
+  }
+
+  return undefined;
 }
-function proposalResponseLabel(
-  response: string | null | undefined
-): string | null {
-  return getProposalResponseLabel(response);
+function proposalResponseLabel(response: string | null | undefined): string | null {
+  const safe = String(response ?? "").trim().toLowerCase();
+  if (!safe) return null;
+  if (safe === "pending") return "Pendiente";
+  if (safe === "accepted") return "Aceptada";
+  if (safe === "adjusted") return "Ajustada";
+  return null;
 }
 
 function proposalResponseTone(
   response: string | null | undefined
 ): "pending" | "accepted" | "adjusted" | "neutral" {
-  return getProposalResponseTone(response);
+  const safe = String(response ?? "").trim().toLowerCase();
+  if (safe === "pending") return "pending";
+  if (safe === "accepted") return "accepted";
+  if (safe === "adjusted") return "adjusted";
+  return "neutral";
 }
 
 function getCalendarEventStatus(input: {
@@ -230,12 +243,14 @@ function getCalendarEventStatus(input: {
   const key = String(input.eventId ?? "").trim();
   if (!key) return null;
 
-  const status = getEventDecisionSnapshot({
-    conflictsCount: input.inConflict ? 1 : 0,
+  const ctx = buildEventContext({
+    eventId: key,
+    conflictEventIds: input.inConflict ? new Set([key]) : new Set(),
     proposalResponses: input.proposalRow ? [input.proposalRow] : [],
     trustSignal: input.trustSignal ?? null,
-  }).status;
+  });
 
+  const status = ctx?.status ?? null;
   if (status === "scheduled") return null;
   return status;
 }

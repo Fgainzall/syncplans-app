@@ -14,10 +14,7 @@ import { type ProposalResponseRow } from "@/lib/proposalResponsesDb";
 import { type GroupRow } from "@/lib/groupsDb";
 import { parseIsoLike, toDateMs } from "@/lib/dateUtils";
 import { deriveEventStatus } from "@/lib/naming";
-import {
-  getEventDecisionSnapshot,
-  resolveConflictResolution,
-} from "@/lib/decisionEngine";
+import { buildEventContext } from "@/lib/eventContext";
 
 export type SummaryEvent = {
   id: string;
@@ -141,16 +138,24 @@ export function resolutionForConflict(
   conflict: ConflictItem,
   resMap: Record<string, Resolution>
 ): Resolution | undefined {
-  return (
-    resolveConflictResolution(
-      {
-        id: conflict.id,
-        existing: conflict.existingEventId,
-        incoming: conflict.incomingEventId,
-      },
-      resMap
-    ) ?? undefined
-  );
+  const exact = resMap[String(conflict.id)];
+  if (exact) return exact;
+
+  const a = String(conflict.existingEventId ?? "");
+  const b = String(conflict.incomingEventId ?? "");
+  if (!a || !b) return undefined;
+
+  const stableKey = conflictKey(a, b);
+  if (resMap[stableKey]) return resMap[stableKey];
+
+  const [x, y] = [a, b].sort();
+  const legacyPrefix = `cx::${x}::${y}::`;
+
+  for (const key of Object.keys(resMap)) {
+    if (key.startsWith(legacyPrefix)) return resMap[key];
+  }
+
+  return undefined;
 }
 
 export function buildConflictAlert(
@@ -545,10 +550,13 @@ export function getUnifiedEventStatus(input: {
   const key = String(input.eventId ?? "").trim();
   if (!key) return null;
 
-  return getEventDecisionSnapshot({
-    conflictsCount: input.conflictEventIds.has(key) ? 1 : 0,
+  const ctx = buildEventContext({
+    eventId: key,
+    conflictEventIds: input.conflictEventIds,
     proposalResponses: input.proposalResponseGroupsMap[key] ?? [],
-  }).status;
+  });
+
+  return ctx?.status ?? null;
 }
 
 export function textSuggestsSharedPlan(raw: string) {

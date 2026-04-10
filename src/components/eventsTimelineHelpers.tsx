@@ -5,7 +5,7 @@ import type {
   CalendarEvent,
 } from "@/lib/conflicts";
 import { computeVisibleConflicts } from "@/lib/conflicts";
-import { deriveEventStatus } from "@/lib/naming";
+import { buildEventContext } from "@/lib/eventContext";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
 import type { ConflictTrustSignal } from "@/lib/conflictResolutionsLogDb";
 import type { PublicInviteRow } from "@/lib/invitationsDb";
@@ -98,20 +98,31 @@ export function getTimelineEventStatusUi(input: {
   responses: ProposalResponseRow[];
   trustSignal: ConflictTrustSignal | null;
   invite: PublicInviteRow | null;
+  eventId?: string | null;
 }) {
+  const eventId = String(input.eventId ?? "").trim() || "timeline-event";
   const responses = Array.isArray(input.responses) ? input.responses : [];
+  const conflictsCount = Number(input.conflictsCount ?? 0);
 
-  const status = deriveEventStatus({
-    conflictsCount: Number(input.conflictsCount ?? 0),
-    responseStatuses: responses.map((row) => row?.response),
-    inviteStatus: input.invite?.status,
-    hasInviteProposedDate: Boolean(input.invite?.proposed_date),
-    hasTrustSignal: Boolean(input.trustSignal),
+  const ctx = buildEventContext({
+    eventId,
+    conflictEventIds: conflictsCount > 0 ? new Set([eventId]) : new Set(),
+    proposalResponses: responses,
+    invite: input.invite
+      ? {
+          status: input.invite.status ?? null,
+          proposed_date: input.invite.proposed_date ?? null,
+        }
+      : null,
+    trustSignal: input.trustSignal ?? null,
   });
 
-  return getEventStatusUi(status, {
-    conflictsCount: Number(input.conflictsCount ?? 0),
-  });
+  return (
+    ctx?.statusUi ??
+    getEventStatusUi("scheduled", {
+      conflictsCount,
+    })
+  );
 }
 
 export function getTimelinePrimaryAction(input: {
