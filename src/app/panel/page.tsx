@@ -564,7 +564,7 @@ export default function PanelPage() {
     {
       id: "groups",
       title: "Grupos",
-      hint: "Pareja, familia y compartidos",
+      hint: "Crear, abrir y ordenar espacios compartidos",
       href: "/groups",
       badge: totalGroups > 0 ? `${totalGroups}` : undefined,
       featured: true,
@@ -572,32 +572,33 @@ export default function PanelPage() {
     {
       id: "invitations",
       title: "Invitaciones",
-      hint: "Entradas y accesos",
+      hint: "Aceptar, revisar y destrabar accesos",
       href: "/invitations",
       featured: true,
     },
     {
       id: "settings",
       title: "Ajustes",
-      hint: "Cuenta e integraciones",
+      hint: "Cuenta, preferencias e integraciones",
       href: "/settings",
+      featured: true,
     },
     {
       id: "plans",
       title: "Plan",
-      hint: "Nivel y beneficios",
+      hint: "Nivel actual y beneficios activos",
       href: "/planes",
     },
     {
       id: "calendar",
       title: "Calendario",
-      hint: "Volver a la operación",
+      hint: "Volver a coordinar en el día a día",
       href: "/calendar",
     },
     {
       id: "events",
       title: "Eventos",
-      hint: "Lista completa",
+      hint: "Abrir la línea completa de actividad",
       href: "/events",
       badge: totalEvents > 0 ? `${totalEvents}` : undefined,
     },
@@ -679,7 +680,10 @@ export default function PanelPage() {
 
   return (
     <MobileScaffold maxWidth={1120}>
-      <PremiumHeader title="Panel" subtitle="Gestión" />
+      <PremiumHeader
+        title="Panel"
+        subtitle="Tu hub administrativo para grupos, invitaciones, plan e integraciones."
+      />
 
       <div style={styles.stack}>
         {error ? <div style={styles.errorBanner}>{error}</div> : null}
@@ -688,9 +692,9 @@ export default function PanelPage() {
           <div style={styles.heroTopRow}>
             <div style={styles.heroTextWrap}>
               <div style={styles.eyebrow}>Panel</div>
-              <h1 style={styles.heroTitle}>Gestiona tu espacio</h1>
+              <h1 style={styles.heroTitle}>Hub administrativo</h1>
           <p style={styles.heroCopy}>
-  Grupos, invitaciones y plan.
+  Desde aquí organizas la estructura de SyncPlans: grupos, invitaciones, plan, integraciones y señales externas. La operación diaria sigue viviendo en Calendario, Eventos y Conflictos.
 </p>
             </div>
 
@@ -700,14 +704,14 @@ export default function PanelPage() {
                 style={styles.primaryHeroCta}
                 onClick={() => router.push("/groups")}
               >
-                Grupos
+                Abrir grupos
               </button>
               <button
                 type="button"
                 style={styles.secondaryHeroCta}
                 onClick={() => router.push("/invitations")}
               >
-                Invitaciones
+                Ver invitaciones
               </button>
             </div>
           </div>
@@ -716,12 +720,12 @@ export default function PanelPage() {
             <MetricCard
               label="Grupos"
               value={loading ? "—" : String(totalGroups)}
-              hint="Espacios activos"
+              hint="Espacios compartidos"
             />
             <MetricCard
               label="Eventos"
               value={loading ? "—" : String(totalEvents)}
-              hint="Registrados"
+              hint="Carga visible"
             />
             <MetricCard
               label="Google"
@@ -734,12 +738,12 @@ export default function PanelPage() {
                   ? "Revisar"
                   : "Pendiente"
               }
-              hint="Integración"
+              hint="Estado externo"
             />
             <MetricCard
               label="Conflictos"
               value={loading ? "—" : String(conflictsNow)}
-              hint="Abiertos"
+              hint="Pendientes"
               danger={conflictsNow > 0}
             />
           </div>
@@ -824,8 +828,8 @@ export default function PanelPage() {
             <section style={styles.sectionCard}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionEyebrow}>Gestión</div>
-                  <h2 style={styles.sectionTitle}>Accesos</h2>
+                  <div style={styles.sectionEyebrow}>Administración</div>
+                  <h2 style={styles.sectionTitle}>Hub administrativo</h2>
                 </div>
               </div>
 
@@ -858,7 +862,7 @@ export default function PanelPage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Grupos</div>
-                  <h2 style={styles.sectionTitle}>Activos</h2>
+                  <h2 style={styles.sectionTitle}>Espacios recientes</h2>
                 </div>
 
                 <button
@@ -902,7 +906,7 @@ export default function PanelPage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Insights</div>
-                  <h2 style={styles.sectionTitle}>Lectura rápida</h2>
+                  <h2 style={styles.sectionTitle}>Lectura operativa</h2>
                 </div>
               </div>
 
@@ -995,7 +999,7 @@ export default function PanelPage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Capturas</div>
-                  <h2 style={styles.sectionTitle}>Sugeridas</h2>
+                  <h2 style={styles.sectionTitle}>Bandeja de respuestas</h2>
                 </div>
 
                 <button
@@ -1155,7 +1159,7 @@ export default function PanelPage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Google</div>
-                  <h2 style={styles.sectionTitle}>Integración</h2>
+                  <h2 style={styles.sectionTitle}>Google Calendar</h2>
                 </div>
 
                 {!canUseGoogleIntegration ? (
