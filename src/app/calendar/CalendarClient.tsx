@@ -1402,12 +1402,16 @@ function EventRow({
     : null;
   const proposalRow = proposalResponsesMap?.[String(e.id)];
   const proposalLabel = proposalResponseLabel(proposalRow?.response);
-  const calendarEventStatus = getCalendarEventStatus({
-    eventId: e.id,
-    inConflict,
-    proposalRow,
-    trustSignal,
-  });
+const isActuallyPending =
+  proposalRow?.response === "pending" ||
+  (!proposalRow && inConflict); // fallback solo si no hay respuesta
+
+const calendarEventStatus = getCalendarEventStatus({
+  eventId: e.id,
+  inConflict: isActuallyPending,
+  proposalRow,
+  trustSignal,
+});
   const statusUi = calendarEventStatus
     ? getEventStatusUi(calendarEventStatus, {
         conflictsCount: inConflict ? 1 : 0,
