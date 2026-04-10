@@ -60,6 +60,13 @@ type QuickAction = {
   featured?: boolean;
 };
 
+type CompactAction = {
+  id: string;
+  label: string;
+  href: string;
+  badge?: string;
+};
+
 type ConnectionState = "connected" | "needs_reauth" | "disconnected";
 
 type GoogleStatus = {
@@ -92,24 +99,9 @@ type PremiumLockProps = {
 type PlanTone = "free" | "trial" | "premium" | "founder";
 
 const CONTEXT_OPTIONS: ContextOption[] = [
-  {
-    key: "solo",
-    label: "Personal",
-    hint: "Tu agenda individual",
-    dot: "#FBBF24",
-  },
-  {
-    key: "pair",
-    label: "Pareja",
-    hint: "Coordinación de dos",
-    dot: "#F87171",
-  },
-  {
-    key: "family",
-    label: "Familia",
-    hint: "Varios miembros",
-    dot: "#60A5FA",
-  },
+  { key: "solo", label: "Personal", hint: "Tu agenda individual", dot: "#FBBF24" },
+  { key: "pair", label: "Pareja", hint: "Coordinación de dos", dot: "#F87171" },
+  { key: "family", label: "Familia", hint: "Varios miembros", dot: "#60A5FA" },
 ];
 
 async function ensureActiveGroupForMode(
@@ -199,9 +191,7 @@ export default function PanelPage() {
 
   const [googleEvents, setGoogleEvents] = useState<ExternalEvent[]>([]);
   const [googleEventsLoading, setGoogleEventsLoading] = useState(false);
-  const [googleEventsError, setGoogleEventsError] = useState<string | null>(
-    null
-  );
+  const [googleEventsError, setGoogleEventsError] = useState<string | null>(null);
 
   const [contextState, setContextState] = useState<GroupState>(() =>
     getGroupState()
@@ -340,9 +330,7 @@ export default function PanelPage() {
 
   const openEventFromCapture = useCallback(
     (capture: PublicInviteCaptureItem) => {
-      router.push(
-        `/events?focusEventId=${encodeURIComponent(capture.event_id)}`
-      );
+      router.push(`/events?focusEventId=${encodeURIComponent(capture.event_id)}`);
     },
     [router]
   );
@@ -367,8 +355,7 @@ export default function PanelPage() {
           ok: false,
           connected: false,
           connection_state: "disconnected",
-          error:
-            json?.error || "No se pudo leer el estado de Google Calendar.",
+          error: json?.error || "No se pudo leer el estado de Google Calendar.",
         });
         return;
       }
@@ -380,8 +367,7 @@ export default function PanelPage() {
         ok: false,
         connected: false,
         connection_state: "disconnected",
-        error:
-          err?.message || "Error inesperado al consultar Google Calendar.",
+        error: err?.message || "Error inesperado al consultar Google Calendar.",
       });
     } finally {
       setGoogleLoading(false);
@@ -458,14 +444,9 @@ export default function PanelPage() {
   }, []);
 
   useEffect(() => {
-    const refreshSuggestedCaptures = () => {
-      loadCaptures();
-    };
-
+    const refreshSuggestedCaptures = () => loadCaptures();
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        loadCaptures();
-      }
+      if (document.visibilityState === "visible") loadCaptures();
     };
 
     window.addEventListener("focus", refreshSuggestedCaptures);
@@ -504,8 +485,7 @@ export default function PanelPage() {
   const canUseAdvancedAnalytics = hasPremiumAccess(profile);
 
   const currentContextOption =
-    CONTEXT_OPTIONS.find((x) => x.key === contextState.mode) ??
-    CONTEXT_OPTIONS[0];
+    CONTEXT_OPTIONS.find((x) => x.key === contextState.mode) ?? CONTEXT_OPTIONS[0];
 
   const currentContextGroupName = normalizeGroupLabel(
     contextState.groupName ?? null
@@ -594,51 +574,30 @@ export default function PanelPage() {
     },
   ];
 
-  const operationActions: QuickAction[] = [
-    {
-      id: "summary",
-      title: "Resumen",
-      hint: "Volver a la lectura diaria",
-      href: "/summary",
-      featured: true,
-    },
-    {
-      id: "calendar",
-      title: "Calendario",
-      hint: "Seguir coordinando en el día a día",
-      href: "/calendar",
-    },
+  const operationActions: CompactAction[] = [
+    { id: "summary", label: "Resumen", href: "/summary" },
+    { id: "calendar", label: "Calendario", href: "/calendar" },
     {
       id: "conflicts",
-      title: "Conflictos",
-      hint: "Resolver choques pendientes",
+      label: "Conflictos",
       href: "/conflicts/detected",
       badge: conflictsNow > 0 ? `${conflictsNow}` : undefined,
     },
     {
       id: "events",
-      title: "Eventos",
-      hint: "Abrir la línea completa de actividad",
+      label: "Eventos",
       href: "/events",
       badge: totalEvents > 0 ? `${totalEvents}` : undefined,
     },
   ];
 
-  const groupsPreview = useMemo(() => groups.slice(0, 3), [groups]);
+  const groupsPreview = useMemo(() => groups.slice(0, 2), [groups]);
 
   const googlePill = useMemo(() => {
-    if (googleLoading) {
-      return { label: "Revisando", tone: "neutral" as const };
-    }
-    if (connectionState === "connected") {
-      return { label: "Conectado", tone: "ok" as const };
-    }
-    if (connectionState === "needs_reauth") {
-      return { label: "Reconectar", tone: "warn" as const };
-    }
-    if (googleStatus && !googleStatus.ok) {
-      return { label: "Error", tone: "bad" as const };
-    }
+    if (googleLoading) return { label: "Revisando", tone: "neutral" as const };
+    if (connectionState === "connected") return { label: "Conectado", tone: "ok" as const };
+    if (connectionState === "needs_reauth") return { label: "Reconectar", tone: "warn" as const };
+    if (googleStatus && !googleStatus.ok) return { label: "Error", tone: "bad" as const };
     return { label: "No conectado", tone: "neutral" as const };
   }, [connectionState, googleLoading, googleStatus]);
 
@@ -661,19 +620,19 @@ export default function PanelPage() {
       : "Google Calendar no conectado";
 
   let heroSummary =
-    "Desde aquí organizas la estructura de SyncPlans: grupos, invitaciones, plan e integraciones.";
+    "Desde aquí organizas grupos, invitaciones, plan e integraciones sin mezclarlo con la operación diaria.";
 
   if (!loading) {
     if (conflictsNow > 0) {
-      heroSummary = `Tienes ${conflictsNow} conflicto${
+      heroSummary = `Tu sistema tiene ${conflictsNow} conflicto${
         conflictsNow === 1 ? "" : "s"
       } pendiente${conflictsNow === 1 ? "" : "s"}, ${totalGroups} grupo${
         totalGroups === 1 ? "" : "s"
-      } y ${totalEvents} evento${totalEvents === 1 ? "" : "s"} visibles en tu sistema.`;
+      } y ${totalEvents} evento${totalEvents === 1 ? "" : "s"} visibles.`;
     } else if (totalGroups > 0) {
-      heroSummary = `Tu estructura ya tiene ${totalGroups} grupo${
+      heroSummary = `Ya tienes ${totalGroups} grupo${
         totalGroups === 1 ? "" : "s"
-      }. Panel es el lugar para gestionar esa base sin mezclarla con la operación diaria.`;
+      } creado${totalGroups === 1 ? "" : "s"}. Panel es el lugar para gestionar esa estructura.`;
     }
   }
 
@@ -770,20 +729,16 @@ export default function PanelPage() {
           </div>
         </section>
 
-        <section style={styles.sectionCard}>
+        <section style={styles.sectionCardCompact}>
           <div style={styles.sectionHead}>
             <div>
               <div style={styles.sectionEyebrow}>Contexto</div>
               <h2 style={styles.sectionTitle}>Modo activo</h2>
-              <div style={styles.sectionSubtleCopy}>
-                Cambia rápido entre tus contextos sin salir del hub.
-              </div>
             </div>
           </div>
 
-          <div style={styles.contextHero}>
+          <div style={styles.contextHeroCompact}>
             <div style={styles.contextHeroLeft}>
-              <div style={styles.contextHeroLabel}>Actual</div>
               <div style={styles.contextCurrentRow}>
                 <span
                   style={{
@@ -791,14 +746,13 @@ export default function PanelPage() {
                     background: currentContextOption.dot,
                   }}
                 />
-                <span style={styles.contextCurrentText}>
+                <span style={styles.contextCurrentTextSmall}>
                   {currentContextOption.label}
                 </span>
+                {showContextGroupName ? (
+                  <span style={styles.contextInlineMeta}>{showContextGroupName}</span>
+                ) : null}
               </div>
-
-              {showContextGroupName ? (
-                <div style={styles.contextCurrentMeta}>{showContextGroupName}</div>
-              ) : null}
             </div>
           </div>
 
@@ -827,20 +781,10 @@ export default function PanelPage() {
                       }}
                     />
                     <span style={styles.contextCardLabel}>{option.label}</span>
-                    {active ? (
-                      <span style={styles.contextBadge}>Activo</span>
-                    ) : null}
+                    {active ? <span style={styles.contextBadge}>Activo</span> : null}
                   </div>
 
                   <div style={styles.contextCardHint}>{option.hint}</div>
-
-                  <div style={styles.contextCardFoot}>
-                    {saving
-                      ? "Actualizando..."
-                      : active
-                      ? "En uso"
-                      : "Cambiar"}
-                  </div>
                 </button>
               );
             })}
@@ -855,7 +799,7 @@ export default function PanelPage() {
                   <div style={styles.sectionEyebrow}>Administración</div>
                   <h2 style={styles.sectionTitle}>Accesos prioritarios</h2>
                   <div style={styles.sectionSubtleCopy}>
-                    Lo que verdaderamente administras desde este hub.
+                    Lo que verdaderamente administras desde aquí.
                   </div>
                 </div>
               </div>
@@ -867,17 +811,13 @@ export default function PanelPage() {
                     type="button"
                     style={{
                       ...styles.actionCard,
-                      ...(action.featured
-                        ? styles.actionCardFeatured
-                        : undefined),
+                      ...(action.featured ? styles.actionCardFeatured : undefined),
                     }}
                     onClick={() => router.push(action.href)}
                   >
                     <div style={styles.actionCardTop}>
                       <span style={styles.actionTitle}>{action.title}</span>
-                      {action.badge ? (
-                        <span style={styles.badge}>{action.badge}</span>
-                      ) : null}
+                      {action.badge ? <span style={styles.badge}>{action.badge}</span> : null}
                     </div>
                     <p style={styles.actionHint}>{action.hint}</p>
                   </button>
@@ -885,14 +825,11 @@ export default function PanelPage() {
               </div>
             </section>
 
-            <section style={styles.sectionCard}>
+            <section style={styles.sectionCardCompact}>
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Grupos</div>
                   <h2 style={styles.sectionTitle}>Espacios recientes</h2>
-                  <div style={styles.sectionSubtleCopy}>
-                    Vista rápida de tus espacios compartidos más cercanos.
-                  </div>
                 </div>
 
                 <button
@@ -907,16 +844,14 @@ export default function PanelPage() {
               {groupsPreview.length === 0 ? (
                 <EmptyBlock copy="Aún no tienes grupos." />
               ) : (
-                <div style={styles.list}>
+                <div style={styles.listCompact}>
                   {groupsPreview.map((group) => (
                     <div key={group.id} style={styles.listItem}>
                       <div style={styles.listCopyWrap}>
                         <div style={styles.listTitle}>
                           {group.name || getGroupTypeLabel(group.type)}
                         </div>
-                        <div style={styles.listMeta}>
-                          {getGroupTypeLabel(group.type)}
-                        </div>
+                        <div style={styles.listMeta}>{getGroupTypeLabel(group.type)}</div>
                       </div>
 
                       <button
@@ -932,14 +867,11 @@ export default function PanelPage() {
               )}
             </section>
 
-            <section style={styles.sectionCard}>
+            <section style={styles.sectionCardCompact}>
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Capturas</div>
                   <h2 style={styles.sectionTitle}>Bandeja de respuestas</h2>
-                  <div style={styles.sectionSubtleCopy}>
-                    Respuestas externas que requieren una decisión o revisión.
-                  </div>
                 </div>
 
                 <button
@@ -961,8 +893,8 @@ export default function PanelPage() {
               ) : captures.length === 0 ? (
                 <EmptyBlock copy="No hay respuestas pendientes." />
               ) : (
-                <div style={styles.list}>
-                  {captures.slice(0, 3).map((capture) => {
+                <div style={styles.listCompact}>
+                  {captures.slice(0, 2).map((capture) => {
                     const hasProposal = Boolean(capture.proposed_date);
                     const statusTone =
                       capture.status === "accepted"
@@ -970,13 +902,9 @@ export default function PanelPage() {
                         : hasProposal
                         ? "warn"
                         : "bad";
-                    const actorLabel = getCaptureActorLabel(capture);
-                    const receivedLabel = formatRelativeCaptureTime(
-                      capture.created_at
-                    );
 
                     return (
-                      <div key={capture.invite_id} style={styles.captureCard}>
+                      <div key={capture.invite_id} style={styles.captureCardCompact}>
                         <div style={styles.captureTopRow}>
                           <div style={styles.captureHeaderCopy}>
                             <div style={styles.listTitle}>
@@ -984,10 +912,10 @@ export default function PanelPage() {
                             </div>
                             <div style={styles.captureSubline}>
                               {capture.status === "accepted"
-                                ? `${actorLabel} confirmó`
+                                ? "Aceptado"
                                 : hasProposal
-                                ? `${actorLabel} propuso moverlo`
-                                : `${actorLabel} rechazó`}
+                                ? `Propuso: ${formatCaptureDate(capture.proposed_date)}`
+                                : "Rechazado"}
                             </div>
                           </div>
 
@@ -1003,34 +931,6 @@ export default function PanelPage() {
                           />
                         </div>
 
-                        <div style={styles.captureMetaRow}>
-                          <span style={styles.captureMetaPill}>
-                            {receivedLabel}
-                          </span>
-
-                          {capture.contact ? (
-                            <span style={styles.captureMetaPill}>
-                              {capture.contact}
-                            </span>
-                          ) : null}
-                        </div>
-
-                        <div style={styles.captureMeta}>
-                          {capture.status === "accepted"
-                            ? "Ya puedes abrir este evento."
-                            : hasProposal
-                            ? `Nueva fecha: ${formatCaptureDate(
-                                capture.proposed_date
-                              )}`
-                            : "Puedes reprogramarlo o revisarlo."}
-                        </div>
-
-                        {capture.message ? (
-                          <div style={styles.captureMessage}>
-                            “{capture.message}”
-                          </div>
-                        ) : null}
-
                         <div style={styles.captureActions}>
                           {capture.status === "accepted" ? (
                             <button
@@ -1045,13 +945,10 @@ export default function PanelPage() {
                               <button
                                 type="button"
                                 style={styles.primarySmallButton}
-                                onClick={() =>
-                                  handleTakeCaptureProposal(capture)
-                                }
+                                onClick={() => handleTakeCaptureProposal(capture)}
                               >
                                 Tomar fecha
                               </button>
-
                               <button
                                 type="button"
                                 style={styles.secondarySmallButton}
@@ -1059,33 +956,15 @@ export default function PanelPage() {
                               >
                                 Revisar
                               </button>
-
-                              <button
-                                type="button"
-                                style={styles.secondarySmallButton}
-                                onClick={() => openEventFromCapture(capture)}
-                              >
-                                Ver evento
-                              </button>
                             </>
                           ) : (
-                            <>
-                              <button
-                                type="button"
-                                style={styles.primarySmallButton}
-                                onClick={() => handleRescheduleCapture(capture)}
-                              >
-                                Reprogramar
-                              </button>
-
-                              <button
-                                type="button"
-                                style={styles.secondarySmallButton}
-                                onClick={() => openEventFromCapture(capture)}
-                              >
-                                Ver evento
-                              </button>
-                            </>
+                            <button
+                              type="button"
+                              style={styles.primarySmallButton}
+                              onClick={() => handleRescheduleCapture(capture)}
+                            >
+                              Reprogramar
+                            </button>
                           )}
                         </div>
                       </div>
@@ -1095,63 +974,27 @@ export default function PanelPage() {
               )}
             </section>
 
-            <section style={styles.sectionCard}>
+            <section style={styles.sectionCardCompact}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionEyebrow}>Insights</div>
-                  <h2 style={styles.sectionTitle}>Lectura operativa</h2>
-                  <div style={styles.sectionSubtleCopy}>
-                    Una lectura rápida del estado estructural de tu sistema.
-                  </div>
+                  <div style={styles.sectionEyebrow}>Operación diaria</div>
+                  <h2 style={styles.sectionTitle}>Volver al flujo principal</h2>
                 </div>
               </div>
 
-              {!canUseAdvancedAnalytics ? (
-                <PremiumLock
-                  title="Insights premium"
-                  copy="Carga, fricción y lectura avanzada."
-                />
-              ) : (
-                <div style={styles.insightGrid}>
-                  <div style={styles.insightCard}>
-                    <div style={styles.insightTitle}>Carga</div>
-                    <div style={styles.insightValue}>
-                      {totalEvents === 0
-                        ? "Ligera"
-                        : totalEvents < 5
-                        ? "Controlada"
-                        : totalEvents < 10
-                        ? "Activa"
-                        : "Intensa"}
-                    </div>
-                    <div style={styles.insightHint}>Eventos recientes</div>
-                  </div>
-
-                  <div style={styles.insightCard}>
-                    <div style={styles.insightTitle}>Fricción</div>
-                    <div style={styles.insightValue}>
-                      {conflictsNow === 0
-                        ? "Baja"
-                        : conflictsNow < 3
-                        ? "Moderada"
-                        : "Alta"}
-                    </div>
-                    <div style={styles.insightHint}>Conflictos activos</div>
-                  </div>
-
-                  <div style={styles.insightCard}>
-                    <div style={styles.insightTitle}>Estructura</div>
-                    <div style={styles.insightValue}>
-                      {totalGroups === 0
-                        ? "Vacía"
-                        : totalGroups === 1
-                        ? "Simple"
-                        : "Distribuida"}
-                    </div>
-                    <div style={styles.insightHint}>Espacios creados</div>
-                  </div>
-                </div>
-              )}
+              <div style={styles.pillActionsRow}>
+                {operationActions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    style={styles.pillAction}
+                    onClick={() => router.push(action.href)}
+                  >
+                    <span>{action.label}</span>
+                    {action.badge ? <span style={styles.pillBadge}>{action.badge}</span> : null}
+                  </button>
+                ))}
+              </div>
             </section>
           </div>
 
@@ -1191,7 +1034,7 @@ export default function PanelPage() {
               </button>
             </section>
 
-            <section style={styles.sectionCard}>
+            <section style={styles.sectionCardCompact}>
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Sistema</div>
@@ -1218,7 +1061,6 @@ export default function PanelPage() {
                   <div style={styles.integrationBox}>
                     <div style={styles.integrationCopyWrap}>
                       <div style={styles.integrationLine}>{googleLine}</div>
-
                       {googleStatus?.error ? (
                         <div style={styles.errorText}>{googleStatus.error}</div>
                       ) : null}
@@ -1245,19 +1087,6 @@ export default function PanelPage() {
 
                   {connectionState === "connected" ? (
                     <div style={styles.googleEventsWrap}>
-                      <div style={styles.miniSectionHead}>
-                        <span style={styles.miniSectionTitle}>
-                          Próximos de Google
-                        </span>
-                        <button
-                          type="button"
-                          style={styles.inlineLink}
-                          onClick={fetchGoogleEvents}
-                        >
-                          Recargar
-                        </button>
-                      </div>
-
                       {googleEventsError ? (
                         <div style={styles.errorText}>{googleEventsError}</div>
                       ) : null}
@@ -1267,8 +1096,8 @@ export default function PanelPage() {
                       ) : googleEvents.length === 0 ? (
                         <EmptyBlock copy="No encontramos eventos próximos." />
                       ) : (
-                        <div style={styles.list}>
-                          {googleEvents.slice(0, 3).map((event) => (
+                        <div style={styles.listCompact}>
+                          {googleEvents.slice(0, 2).map((event) => (
                             <div key={event.id} style={styles.listItemColumn}>
                               <div style={styles.listTitle}>
                                 {event.title || "Evento sin título"}
@@ -1276,11 +1105,6 @@ export default function PanelPage() {
                               <div style={styles.listMeta}>
                                 {formatExternalEventRange(event)}
                               </div>
-                              {event.location ? (
-                                <div style={styles.listMeta}>
-                                  {event.location}
-                                </div>
-                              ) : null}
                             </div>
                           ))}
                         </div>
@@ -1291,46 +1115,60 @@ export default function PanelPage() {
               )}
             </section>
 
-            <section style={styles.sectionCard}>
+            <section style={styles.sectionCardCompact}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionEyebrow}>Operación diaria</div>
-                  <h2 style={styles.sectionTitle}>Volver al flujo principal</h2>
-                  <div style={styles.sectionSubtleCopy}>
-                    Estos accesos no viven conceptualmente en Panel, pero están aquí
-                    para volver rápido al trabajo diario.
-                  </div>
+                  <div style={styles.sectionEyebrow}>Insights</div>
+                  <h2 style={styles.sectionTitle}>Lectura operativa</h2>
                 </div>
               </div>
 
-              <div style={styles.actionsGrid}>
-                {operationActions.map((action) => (
-                  <button
-                    key={action.id}
-                    type="button"
-                    style={styles.actionCard}
-                    onClick={() => router.push(action.href)}
-                  >
-                    <div style={styles.actionCardTop}>
-                      <span style={styles.actionTitle}>{action.title}</span>
-                      {action.badge ? (
-                        <span style={styles.badge}>{action.badge}</span>
-                      ) : null}
+              {!canUseAdvancedAnalytics ? (
+                <PremiumLock
+                  title="Insights premium"
+                  copy="Carga, fricción y lectura avanzada."
+                />
+              ) : (
+                <div style={styles.insightGrid}>
+                  <div style={styles.insightCardCompact}>
+                    <div style={styles.insightTitle}>Carga</div>
+                    <div style={styles.insightValue}>
+                      {totalEvents === 0
+                        ? "Ligera"
+                        : totalEvents < 5
+                        ? "Controlada"
+                        : totalEvents < 10
+                        ? "Activa"
+                        : "Intensa"}
                     </div>
-                    <p style={styles.actionHint}>{action.hint}</p>
-                  </button>
-                ))}
-              </div>
+                  </div>
+
+                  <div style={styles.insightCardCompact}>
+                    <div style={styles.insightTitle}>Fricción</div>
+                    <div style={styles.insightValue}>
+                      {conflictsNow === 0
+                        ? "Baja"
+                        : conflictsNow < 3
+                        ? "Moderada"
+                        : "Alta"}
+                    </div>
+                  </div>
+
+                  <div style={styles.insightCardCompact}>
+                    <div style={styles.insightTitle}>Estructura</div>
+                    <div style={styles.insightValue}>
+                      {totalGroups === 0
+                        ? "Vacía"
+                        : totalGroups === 1
+                        ? "Simple"
+                        : "Distribuida"}
+                    </div>
+                  </div>
+                </div>
+              )}
             </section>
           </div>
         </div>
-
-        <section style={styles.footerNote}>
-          Panel ya no compite con tu cuenta. Aquí vives la estructura de
-          SyncPlans: <strong>grupos</strong>, <strong>invitaciones</strong>,{" "}
-          <strong>plan</strong> e <strong>integraciones</strong>. Tu operación
-          diaria sigue ocurriendo fuera de este hub.
-        </section>
       </div>
     </MobileScaffold>
   );
@@ -1436,41 +1274,6 @@ function formatCaptureDate(value: string | null) {
   }
 }
 
-function formatRelativeCaptureTime(value: string | null) {
-  if (!value) return "Recientemente";
-
-  try {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "Recientemente";
-
-    const diffMs = Date.now() - date.getTime();
-    const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
-
-    if (diffMinutes < 1) return "Ahora";
-    if (diffMinutes < 60) return `Hace ${diffMinutes} min`;
-
-    const diffHours = Math.round(diffMinutes / 60);
-    if (diffHours < 24) return `Hace ${diffHours} h`;
-
-    const diffDays = Math.round(diffHours / 24);
-    if (diffDays < 7)
-      return `Hace ${diffDays} día${diffDays === 1 ? "" : "s"}`;
-
-    return date.toLocaleDateString("es-PE", {
-      day: "2-digit",
-      month: "short",
-    });
-  } catch {
-    return "Recientemente";
-  }
-}
-
-function getCaptureActorLabel(capture: PublicInviteCaptureItem) {
-  const contact = String(capture.contact ?? "").trim();
-  if (contact) return contact;
-  return "Alguien";
-}
-
 function formatExternalEventRange(event: ExternalEvent) {
   try {
     const start = new Date(event.start);
@@ -1532,11 +1335,11 @@ const styles: Record<string, CSSProperties> = {
     border: `1px solid ${colors.borderSubtle}`,
     background:
       "radial-gradient(1200px 420px at 0% 0%, rgba(56,189,248,0.16), transparent 55%), radial-gradient(760px 320px at 100% 0%, rgba(168,85,247,0.13), transparent 55%), rgba(15,23,42,0.94)",
-    padding: 22,
+    padding: 20,
     boxShadow: shadows.card,
     display: "flex",
     flexDirection: "column",
-    gap: 18,
+    gap: 16,
   },
 
   heroTopRow: {
@@ -1563,7 +1366,7 @@ const styles: Record<string, CSSProperties> = {
 
   heroTitle: {
     margin: 0,
-    fontSize: "clamp(28px, 4vw, 42px)",
+    fontSize: "clamp(28px, 4vw, 40px)",
     lineHeight: 1.02,
     fontWeight: 950,
     maxWidth: 760,
@@ -1578,9 +1381,9 @@ const styles: Record<string, CSSProperties> = {
   },
 
   heroMicroCopy: {
-    marginTop: 10,
+    marginTop: 8,
     fontSize: 13,
-    lineHeight: 1.55,
+    lineHeight: 1.5,
     color: colors.textSecondary,
   },
 
@@ -1615,15 +1418,15 @@ const styles: Record<string, CSSProperties> = {
 
   metricsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-    gap: 12,
+    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+    gap: 10,
   },
 
   metricCard: {
     borderRadius: radii.lg,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.04)",
-    padding: 14,
+    padding: 12,
   },
 
   metricLabel: {
@@ -1636,7 +1439,7 @@ const styles: Record<string, CSSProperties> = {
 
   metricValue: {
     marginTop: 8,
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 950,
     lineHeight: 1,
   },
@@ -1645,7 +1448,7 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 6,
     fontSize: 12,
     color: colors.textMuted,
-    lineHeight: 1.45,
+    lineHeight: 1.4,
   },
 
   mainGrid: {
@@ -1658,14 +1461,14 @@ const styles: Record<string, CSSProperties> = {
   leftCol: {
     display: "flex",
     flexDirection: "column",
-    gap: spacing.lg,
+    gap: spacing.md,
     minWidth: 0,
   },
 
   rightCol: {
     display: "flex",
     flexDirection: "column",
-    gap: spacing.lg,
+    gap: spacing.md,
     minWidth: 0,
   },
 
@@ -1674,10 +1477,21 @@ const styles: Record<string, CSSProperties> = {
     border: `1px solid ${colors.borderSubtle}`,
     background: colors.surfaceLow,
     boxShadow: shadows.card,
-    padding: 20,
+    padding: 18,
     display: "flex",
     flexDirection: "column",
-    gap: 16,
+    gap: 14,
+  },
+
+  sectionCardCompact: {
+    borderRadius: radii.xl,
+    border: `1px solid ${colors.borderSubtle}`,
+    background: colors.surfaceLow,
+    boxShadow: shadows.card,
+    padding: 16,
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
   },
 
   sectionHead: {
@@ -1694,55 +1508,44 @@ const styles: Record<string, CSSProperties> = {
     letterSpacing: 0.65,
     fontWeight: 900,
     color: colors.textSecondary,
-    marginBottom: 6,
+    marginBottom: 4,
   },
 
   sectionTitle: {
     margin: 0,
-    fontSize: 21,
+    fontSize: 20,
     fontWeight: 900,
     lineHeight: 1.08,
   },
 
   sectionSubtleCopy: {
-    marginTop: 6,
+    marginTop: 4,
     fontSize: 13,
-    lineHeight: 1.55,
+    lineHeight: 1.5,
     color: colors.textMuted,
   },
 
-  contextHero: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
+  contextHeroCompact: {
     borderRadius: radii.lg,
     border: "1px solid rgba(255,255,255,0.08)",
     background:
       "radial-gradient(700px 220px at 0% 0%, rgba(56,189,248,0.10), transparent 55%), rgba(255,255,255,0.03)",
-    padding: 16,
+    padding: 12,
   },
 
   contextHeroLeft: {
     display: "flex",
     flexDirection: "column",
-    gap: 10,
+    gap: 8,
     minWidth: 0,
     width: "100%",
-  },
-
-  contextHeroLabel: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: 0.65,
-    color: colors.textSecondary,
   },
 
   contextCurrentRow: {
     display: "flex",
     alignItems: "center",
     gap: 10,
-    flexWrap: "nowrap",
+    flexWrap: "wrap",
     minWidth: 0,
   },
 
@@ -1754,26 +1557,25 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
 
-  contextCurrentText: {
-    fontSize: 24,
+  contextCurrentTextSmall: {
+    fontSize: 20,
     lineHeight: 1.05,
     fontWeight: 950,
     color: colors.textPrimary,
     minWidth: 0,
   },
 
-  contextCurrentMeta: {
-    fontSize: 13,
+  contextInlineMeta: {
+    fontSize: 12,
     color: colors.textMuted,
-    lineHeight: 1.5,
+    lineHeight: 1.4,
     fontWeight: 700,
-    marginTop: 2,
   },
 
   contextGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 12,
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gap: 10,
   },
 
   contextCard: {
@@ -1781,14 +1583,13 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.09)",
     background:
       "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(15,23,42,0.98))",
-    padding: 16,
+    padding: 14,
     textAlign: "left",
     cursor: "pointer",
     color: colors.textPrimary,
     display: "flex",
     flexDirection: "column",
-    gap: 10,
-    transition: "transform 160ms ease, border-color 160ms ease",
+    gap: 8,
   },
 
   contextCardActive: {
@@ -1819,7 +1620,7 @@ const styles: Record<string, CSSProperties> = {
   },
 
   contextCardLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 900,
     lineHeight: 1.2,
     color: colors.textPrimary,
@@ -1840,21 +1641,14 @@ const styles: Record<string, CSSProperties> = {
   contextCardHint: {
     margin: 0,
     color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 1.55,
-  },
-
-  contextCardFoot: {
     fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 1.5,
-    fontWeight: 700,
+    lineHeight: 1.45,
   },
 
   actionsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 12,
+    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+    gap: 10,
   },
 
   actionCard: {
@@ -1862,14 +1656,14 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.09)",
     background:
       "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(15,23,42,0.96))",
-    padding: 16,
+    padding: 14,
     textAlign: "left",
     cursor: "pointer",
     color: colors.textPrimary,
     display: "flex",
     flexDirection: "column",
-    gap: 10,
-    minHeight: 110,
+    gap: 8,
+    minHeight: 96,
   },
 
   actionCardFeatured: {
@@ -1896,7 +1690,7 @@ const styles: Record<string, CSSProperties> = {
     margin: 0,
     color: colors.textMuted,
     fontSize: 13,
-    lineHeight: 1.55,
+    lineHeight: 1.45,
   },
 
   badge: {
@@ -1910,16 +1704,45 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: "nowrap",
   },
 
+  pillActionsRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+
+  pillAction: {
+    borderRadius: 999,
+    padding: "10px 14px",
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    color: colors.textPrimary,
+    fontWeight: 800,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  pillBadge: {
+    borderRadius: 999,
+    padding: "2px 7px",
+    fontSize: 11,
+    fontWeight: 900,
+    border: "1px solid rgba(56,189,248,0.34)",
+    background: "rgba(56,189,248,0.12)",
+    color: colors.textPrimary,
+  },
+
   planCard: {
     borderRadius: radii.xl,
     border: "1px solid rgba(251,191,36,0.20)",
     background:
       "radial-gradient(900px 320px at 0% 0%, rgba(251,191,36,0.14), transparent 55%), rgba(15,23,42,0.96)",
     boxShadow: shadows.card,
-    padding: 20,
+    padding: 18,
     display: "flex",
     flexDirection: "column",
-    gap: 12,
+    gap: 10,
   },
 
   planPill: {
@@ -1944,24 +1767,24 @@ const styles: Record<string, CSSProperties> = {
     margin: 0,
     color: colors.textMuted,
     fontSize: 14,
-    lineHeight: 1.6,
+    lineHeight: 1.55,
   },
 
   planSupportCopy: {
     margin: 0,
     fontSize: 12,
-    lineHeight: 1.55,
+    lineHeight: 1.5,
     color: colors.textSecondary,
   },
 
   planMiniNote: {
-    marginTop: 12,
+    marginTop: 6,
     borderRadius: 14,
     border: "1px solid rgba(56,189,248,0.18)",
     background: "rgba(56,189,248,0.08)",
     padding: "10px 12px",
     fontSize: 13,
-    lineHeight: 1.55,
+    lineHeight: 1.5,
     color: "rgba(226,232,240,0.84)",
   },
 
@@ -1986,17 +1809,17 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
   },
 
-  list: {
+  listCompact: {
     display: "flex",
     flexDirection: "column",
-    gap: 10,
+    gap: 8,
   },
 
   listItem: {
     borderRadius: radii.lg,
     border: "1px solid rgba(255,255,255,0.07)",
     background: "rgba(255,255,255,0.03)",
-    padding: 14,
+    padding: 12,
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
@@ -2011,14 +1834,14 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: radii.lg,
     border: "1px solid rgba(255,255,255,0.07)",
     background: "rgba(255,255,255,0.03)",
-    padding: 14,
+    padding: 12,
     display: "flex",
     flexDirection: "column",
     gap: 4,
   },
 
   listTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 850,
     color: colors.textPrimary,
   },
@@ -2026,29 +1849,29 @@ const styles: Record<string, CSSProperties> = {
   listMeta: {
     fontSize: 12,
     color: colors.textMuted,
-    lineHeight: 1.5,
+    lineHeight: 1.45,
   },
 
   integrationBox: {
     borderRadius: radii.lg,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
-    padding: 14,
+    padding: 12,
     display: "flex",
     justifyContent: "space-between",
-    gap: 14,
+    gap: 12,
     flexWrap: "wrap",
     alignItems: "center",
   },
 
   integrationCopyWrap: {
     minWidth: 0,
-    flex: "1 1 240px",
+    flex: "1 1 220px",
   },
 
   integrationLine: {
     fontSize: 14,
-    lineHeight: 1.55,
+    lineHeight: 1.5,
     color: colors.textPrimary,
   },
 
@@ -2078,14 +1901,13 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
   },
 
-  captureCard: {
+  captureCardCompact: {
     borderRadius: radii.lg,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.04)",
-    padding: 14,
+    padding: 12,
     display: "grid",
-    gap: 10,
-    minHeight: 110,
+    gap: 8,
   },
 
   captureTopRow: {
@@ -2110,43 +1932,9 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
   },
 
-  captureMetaRow: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-
-  captureMetaPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: 800,
-  },
-
-  captureMeta: {
-    fontSize: 13,
-    color: colors.textMuted,
-    lineHeight: 1.5,
-  },
-
-  captureMessage: {
-    fontSize: 13,
-    color: colors.textPrimary,
-    lineHeight: 1.5,
-    padding: "10px 12px",
-    borderRadius: radii.md,
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.06)",
-  },
-
   captureActions: {
     display: "flex",
-    gap: 10,
+    gap: 8,
     flexWrap: "wrap",
   },
 
@@ -2155,7 +1943,7 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid rgba(56,189,248,0.25)",
     background:
       "linear-gradient(135deg, rgba(56,189,248,0.08), rgba(168,85,247,0.08))",
-    padding: 16,
+    padding: 14,
     display: "flex",
     flexDirection: "column",
     gap: 10,
@@ -2208,20 +1996,7 @@ const styles: Record<string, CSSProperties> = {
   googleEventsWrap: {
     display: "flex",
     flexDirection: "column",
-    gap: 10,
-  },
-
-  miniSectionHead: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-  },
-
-  miniSectionTitle: {
-    fontSize: 13,
-    fontWeight: 900,
-    color: colors.textPrimary,
+    gap: 8,
   },
 
   inlineLink: {
@@ -2257,10 +2032,10 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: radii.lg,
     border: "1px dashed rgba(148,163,184,0.28)",
     background: "rgba(255,255,255,0.02)",
-    padding: 16,
+    padding: 14,
     color: colors.textMuted,
     fontSize: 14,
-    lineHeight: 1.55,
+    lineHeight: 1.5,
   },
 
   errorBanner: {
@@ -2281,19 +2056,19 @@ const styles: Record<string, CSSProperties> = {
 
   insightGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-    gap: 10,
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 8,
   },
 
-  insightCard: {
+  insightCardCompact: {
     borderRadius: radii.lg,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.04)",
-    padding: 14,
+    padding: 12,
     display: "flex",
     flexDirection: "column",
     gap: 6,
-    minHeight: 110,
+    minHeight: 84,
   },
 
   insightTitle: {
@@ -2304,23 +2079,8 @@ const styles: Record<string, CSSProperties> = {
   },
 
   insightValue: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 900,
     color: colors.textPrimary,
-  },
-
-  insightHint: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-
-  footerNote: {
-    borderRadius: radii.xl,
-    border: `1px solid ${colors.borderSubtle}`,
-    background: "rgba(255,255,255,0.03)",
-    padding: 16,
-    fontSize: 13,
-    lineHeight: 1.6,
-    color: colors.textSecondary,
   },
 };
