@@ -710,18 +710,26 @@ export function buildSmartInterpretation(input: {
 
   const typeHint = detectGroupTypeHint(raw);
 
-  if (typeHint) {
-    const hintedGroupId = findGroupByType(typeHint, groups);
+if (typeHint) {
+  const hintedGroupId = findGroupByType(typeHint, groups);
 
-    if (hintedGroupId) {
-      return {
-        intent: "group",
-        groupId: hintedGroupId,
-        confidence: "high",
-        reason: "social_hint",
-      };
-    }
+  if (hintedGroupId) {
+    return {
+      intent: "group",
+      groupId: hintedGroupId,
+      confidence: "high",
+      reason: "social_hint",
+    };
   }
+
+  // 🔥 FIX: aunque no haya match exacto, ES compartido
+  return {
+    intent: "group",
+    groupId: activeGroupId || null,
+    confidence: "medium",
+    reason: "social_hint",
+  };
+}
 
   if (textSuggestsSharedPlan(raw)) {
     const fallbackGroupId =

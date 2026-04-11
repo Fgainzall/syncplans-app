@@ -129,16 +129,16 @@ export function useSummaryData({
     return user;
   }, [router]);
 
-  const loadSummary = useCallback(async () => {
-    setLoading(true);
+ const loadSummary = useCallback(async () => {
+  setLoading(true);
 
-    try {
-      const user = await requireSessionOrRedirect();
-      if (!user) return;
+  try {
+    const user = await requireSessionOrRedirect();
+    if (!user) return;
 
-      const gs = await getMyGroups();
-      setGroups(gs);
+    const gs = await getMyGroups();
 
+    setGroups(gs);
       const activeId = await getActiveGroupIdFromDb().catch(() => null);
 
       const validActive =
