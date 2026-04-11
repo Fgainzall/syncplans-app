@@ -58,6 +58,8 @@ import {
 } from "@/lib/conflictResolutionsDb";
 import {
   getMyDeclinedEventIds,
+  getMyEventResponsesMap,
+  type EventResponseStatus,
   declineEventForCurrentUser,
 } from "@/lib/eventResponsesDb";
 import {
@@ -239,6 +241,7 @@ function getCalendarEventStatus(input: {
   inConflict?: boolean;
   proposalRow?: ProposalResponseRow | null;
   trustSignal?: ConflictTrustSignal | null;
+  eventResponseStatus?: EventResponseStatus | null;
 }) {
   const key = String(input.eventId ?? "").trim();
   if (!key) return null;
@@ -259,6 +262,15 @@ const ctx = buildEventContext({
 });
 
   const status = ctx?.status ?? null;
+  const eventResponseStatus = input.eventResponseStatus ?? null;
+
+  // Fix quirúrgico del badge mensual:
+  // si el usuario actual ya aceptó el evento en event_responses,
+  // no debemos seguir mostrando un pendiente heredado de proposal/conflict.
+  if (status === "pending" && eventResponseStatus === "accepted") {
+    return null;
+  }
+
   if (status === "scheduled") return null;
   return status;
 }
@@ -305,6 +317,9 @@ export default function CalendarClient(
     () => new Set()
   );
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
+  const [eventResponsesMap, setEventResponsesMap] = useState<
+    Record<string, EventResponseStatus>
+  >({});
   const [trustSignals, setTrustSignals] = useState<
     Record<string, ConflictTrustSignal>
   >({});
@@ -424,14 +439,16 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
 
         const groupIds = (myGroups || []).map((g: any) => String(g.id));
 
-        const [rawEvents, nextResMap, nextDeclined] = await Promise.all([
+        const [rawEvents, nextResMap, nextDeclined, nextEventResponses] = await Promise.all([
           getEventsForGroups(groupIds) as Promise<any[]>,
           getMyConflictResolutionsMap().catch(() => ({})),
           getMyDeclinedEventIds().catch(() => new Set<string>()),
+          getMyEventResponsesMap().catch(() => ({})),
         ]);
 
         setResMap(nextResMap ?? {});
         setDeclinedEventIds(nextDeclined ?? new Set());
+        setEventResponsesMap(nextEventResponses ?? {});
 
 
         const groupTypeByIdLocal = new Map<string, "family" | "pair" | "other">(
@@ -1220,6 +1237,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
                   groupTypeById,
                   trustSignals,
                   proposalResponsesMap,
+                  eventResponsesMap,
                   conflictEventIdsInGrid,
                   onEdit: handleEditEvent,
                   today,
@@ -1264,6 +1282,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
                       currentUserId={currentUserId}
                       trustSignal={trustSignals[String(e.id)]}
                       proposalResponsesMap={proposalResponsesMap}
+                      eventResponsesMap={eventResponsesMap}
                       inConflict={conflictEventIdsInGrid.has(String(e.id))}
                     />
                   ))
@@ -1299,6 +1318,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
                     currentUserId={currentUserId}
                     isMobile={isMobile}
                     proposalResponsesMap={proposalResponsesMap}
+                    eventResponsesMap={eventResponsesMap}
                     inConflict={conflictEventIdsInGrid.has(String(e.id))}
                   />
                 ))
@@ -1381,6 +1401,7 @@ function EventRow({
   trustSignal,
   isMobile,
   proposalResponsesMap,
+  eventResponsesMap,
   inConflict = false,
 }: {
   e: CalendarEventWithOwner;
@@ -1393,6 +1414,7 @@ function EventRow({
   trustSignal?: ConflictTrustSignal | null;
   isMobile?: boolean;
   proposalResponsesMap?: Record<string, ProposalResponseRow>;
+  eventResponsesMap?: Record<string, EventResponseStatus>;
   inConflict?: boolean;
 }) {
   const resolvedType: GroupType = e.groupId
@@ -1422,6 +1444,7 @@ const calendarEventStatus = getCalendarEventStatus({
   inConflict: isActuallyPending,
   proposalRow,
   trustSignal,
+  eventResponseStatus: eventResponsesMap?.[String(e.id)] ?? null,
 });
   const statusUi = calendarEventStatus
     ? getEventStatusUi(calendarEventStatus, {
@@ -1550,6 +1573,7 @@ function renderMonthCells(opts: {
   groupTypeById: Map<string, "pair" | "family" | "other">;
   trustSignals: Record<string, ConflictTrustSignal>;
   proposalResponsesMap: Record<string, ProposalResponseRow>;
+  eventResponsesMap: Record<string, EventResponseStatus>;
   conflictEventIdsInGrid: Set<string>;
   onEdit: (e: CalendarEventWithOwner) => void;
   today: Date;
@@ -1567,6 +1591,7 @@ function renderMonthCells(opts: {
     groupTypeById,
     trustSignals,
     proposalResponsesMap,
+    eventResponsesMap,
     conflictEventIdsInGrid,
     onEdit,
     today,
@@ -1718,6 +1743,7 @@ const calendarEventStatus = getCalendarEventStatus({
   proposalRow:
     proposalRow?.response === "pending" ? null : proposalRow,
   trustSignal,
+  eventResponseStatus: eventResponsesMap[String(e.id)] ?? null,
 });
         const cellStatusUi = calendarEventStatus
           ? getEventStatusUi(calendarEventStatus, {
