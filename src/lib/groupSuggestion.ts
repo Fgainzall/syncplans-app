@@ -71,6 +71,8 @@ const PAIR_KEYWORDS = [
   "novio",
   "esposa",
   "esposo",
+  "juntos",
+  "juntas",
 ];
 
 const FAMILY_KEYWORDS = [
@@ -79,6 +81,9 @@ const FAMILY_KEYWORDS = [
   "mamá",
   "papa",
   "papá",
+  "papas",
+  "papás",
+  "padres",
   "cumple",
   "cumpleaños",
   "almuerzo familiar",
@@ -100,10 +105,12 @@ const OTHER_KEYWORDS = [
   "after",
   "previa",
   "chicos",
-"team",
-"equipo",
-"gente",
-"banda"
+  "team",
+  "equipo",
+  "gente",
+  "banda",
+  "grupo",
+  "juntada",
 ];
 
 type NormalizedCandidateGroup = {
@@ -116,15 +123,31 @@ function normalizeText(value: string): string {
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
+    .replace(/[.,;:!?()]/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
+}
+
+function hasWholePhrase(text: string, phrase: string) {
+  const normalizedText = ` ${normalizeText(text)} `;
+  const normalizedPhrase = normalizeText(phrase);
+  return normalizedText.includes(` ${normalizedPhrase} `);
 }
 
 function scoreSuggestion(text: string, keywords: string[]) {
   let hits = 0;
   for (const keyword of keywords) {
-    if (text.includes(normalizeText(keyword))) hits += 1;
+    if (hasWholePhrase(text, keyword)) hits += 1;
   }
   return hits;
+}
+
+function countPatternHits(text: string, patterns: RegExp[]) {
+  const normalized = normalizeText(text);
+  return patterns.reduce(
+    (acc, pattern) => acc + (pattern.test(normalized) ? 1 : 0),
+    0,
+  );
 }
 
 function normalizeSuggestedType(
@@ -212,16 +235,32 @@ export function suggestGroupFromText(
   const text = normalizeText(`${title} ${notes ?? ""}`);
 
   if (!text) return { type: null, confidence: 0, trace: undefined };
-if (text.includes("con los chicos") || text.includes("con amigos")) {
-  return {
-    type: "other",
-    confidence: 3,
-    reason: "context_social_group",
-  };
-}
-  const pairScore = scoreSuggestion(text, PAIR_KEYWORDS);
-  const familyScore = scoreSuggestion(text, FAMILY_KEYWORDS);
-  const otherScore = scoreSuggestion(text, OTHER_KEYWORDS);
+
+  const pairScore =
+    scoreSuggestion(text, PAIR_KEYWORDS) +
+    countPatternHits(text, [
+      /\bcon\s+mi\s+(pareja|novi[oa]|espos[oa])\b/,
+      /\bjuntos\b/,
+      /\bjuntas\b/,
+    ]);
+
+  const familyScore =
+    scoreSuggestion(text, FAMILY_KEYWORDS) +
+    countPatternHits(text, [
+      /\bcon\s+mi\s+familia\b/,
+      /\bcon\s+mis\s+(papas|papás|padres|hijos|abuelos)\b/,
+      /\balmuerzo\s+con\s+mis\s+(papas|papás|padres)\b/,
+    ]);
+
+  const otherScore =
+    scoreSuggestion(text, OTHER_KEYWORDS) +
+    countPatternHits(text, [
+      /\bcon\s+los\s+chicos\b/,
+      /\bcon\s+amigos\b/,
+      /\bcon\s+el\s+team\b/,
+      /\bcon\s+[a-záéíóúñ]+\s+y\s+[a-záéíóúñ]+\b/,
+      /\b(fulbito|padel|pádel|asado)\b/,
+    ]);
 
   const max = Math.max(pairScore, familyScore, otherScore);
 

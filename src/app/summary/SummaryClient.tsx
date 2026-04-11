@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import { useRouter } from "next/navigation";
 import { parseQuickCapture } from "@/lib/quickCaptureParser";
-import { suggestGroupFromText } from "@/lib/groupSuggestion";
+import { suggestGroupWithLearning } from "@/lib/groupSuggestion";
 import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
@@ -214,70 +214,47 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     []
   );
 
+
   const resolveSmartInterpretation = useCallback(
     (rawInput: string): SmartInterpretation | null => {
       const raw = String(rawInput ?? "").trim();
       if (!raw) return null;
 
-      const baseInterpretation = buildSmartInterpretation({
+      const parsed = parseQuickCapture(raw);
+
+      const learningBackedSuggestion = suggestGroupWithLearning({
+        title: parsed.title,
+        notes: parsed.notes,
+        signals: learningSignals ?? [],
+        candidateGroups: groups.map((group) => ({
+          id: String(group.id ?? "").trim(),
+          type: String(group.type ?? ""),
+        })),
+      });
+
+      const effectiveLearnedCandidate =
+        learnedInterpretationCandidate ??
+        (learningBackedSuggestion.trace?.learning?.groupId
+          ? {
+              groupId: learningBackedSuggestion.trace.learning.groupId,
+              confidence:
+                learningBackedSuggestion.trace.learning.confidence >= 0.65
+                  ? "high"
+                  : learningBackedSuggestion.trace.learning.confidence >= 0.35
+                  ? "medium"
+                  : "low",
+              reason: learningBackedSuggestion.trace.learning.reason ?? null,
+            }
+          : null);
+
+      return buildSmartInterpretation({
         raw,
         groups,
         activeGroupId,
-        learnedCandidate: learnedInterpretationCandidate,
+        learnedCandidate: effectiveLearnedCandidate,
       });
-
-      const parsed = parseQuickCapture(raw);
-      const textGroupSuggestion = suggestGroupFromText(parsed.title, parsed.notes);
-
-      if (baseInterpretation.intent === "group" && baseInterpretation.groupId) {
-        return baseInterpretation;
-      }
-
-      if (textGroupSuggestion.type !== "other") {
-        return baseInterpretation;
-      }
-
-      const activeGroupMatchesOther =
-        !!activeGroup &&
-        normalizeSuggestionGroupType(String(activeGroup?.type ?? "")) === "other";
-
-      const fallbackOtherGroup =
-        (activeGroupMatchesOther ? activeGroup : null) ??
-        groups.find(
-          (group) =>
-            normalizeSuggestionGroupType(String(group?.type ?? "")) === "other"
-        ) ??
-        null;
-
-      if (!fallbackOtherGroup?.id) {
-        const anyGroup = activeGroup ?? groups.find((group) => group?.id) ?? null;
-
-        if (anyGroup?.id) {
-          return {
-            intent: "group",
-            groupId: String(anyGroup.id),
-            confidence: "low",
-            reason: "social_hint",
-          };
-        }
-
-        return baseInterpretation;
-      }
-
-      return {
-        intent: "group",
-        groupId: String(fallbackOtherGroup.id),
-        confidence: textGroupSuggestion.confidence >= 3 ? "high" : "medium",
-        reason: "social_hint",
-      };
     },
-    [
-      groups,
-      activeGroupId,
-      activeGroup,
-      learnedInterpretationCandidate,
-      normalizeSuggestionGroupType,
-    ]
+    [groups, activeGroupId, learnedInterpretationCandidate, learningSignals]
   );
 
   const smartInterpretation = useMemo(() => {

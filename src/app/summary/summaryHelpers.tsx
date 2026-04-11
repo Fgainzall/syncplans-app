@@ -588,36 +588,136 @@ export function extractPersonFromText(raw: string): string | null {
   return match ? match[1] : null;
 }
 
-export function findGroupByName(
-  name: string,
-  groups: GroupRow[]
-): string | null {
-  const normalized = name.toLowerCase();
 
-  for (const group of groups) {
-    const groupName = String(group.name ?? "").toLowerCase();
+function normalizeSemanticText(value: string) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[.,;:!?()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-    if (groupName.includes(normalized)) {
-      return group.id;
+function tokenizeSemanticText(value: string) {
+  return normalizeSemanticText(value)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function uniqueById(groups: GroupRow[]) {
+  const seen = new Set<string>();
+  return groups.filter((group) => {
+    const id = String(group?.id ?? "").trim();
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+function scoreGroupNameAgainstTokens(group: GroupRow, tokens: string[]) {
+  const groupTokens = tokenizeSemanticText(String(group?.name ?? ""));
+  if (!groupTokens.length || !tokens.length) return 0;
+
+  let score = 0;
+  for (const token of tokens) {
+    if (token.length < 2) continue;
+    if (groupTokens.includes(token)) score += 4;
+    else if (
+      groupTokens.some(
+        (candidate) => candidate.startsWith(token) || token.startsWith(candidate),
+      )
+    ) {
+      score += 2;
     }
+  }
+
+  return score;
+}
+
+function extractMentionChunks(raw: string): string[] {
+  const text = normalizeSemanticText(raw);
+  const chunks = new Set<string>();
+  const patterns = [
+    /\bcon\s+([a-zñ\s]+?)(?=\s+(?:el|la|los|las)\s+(?:lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b|\s+(?:hoy|mañana|manana|este|esta|para|en|a las|a la)\b|$)/g,
+    /\bjunto a\s+([a-zñ\s]+?)(?=\s+(?:hoy|mañana|manana|este|esta|para|en)\b|$)/g,
+    /\ben casa de\s+([a-zñ\s]+?)(?=\s+(?:hoy|mañana|manana|este|esta|para|en)\b|$)/g,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const value = String(match[1] ?? "").trim();
+      if (value) chunks.add(value);
+    }
+  }
+
+  return Array.from(chunks);
+}
+
+function detectMentionKind(raw: string): "pair" | "family" | "other" | null {
+  const text = normalizeSemanticText(raw);
+
+  if (
+    /\b(mi\s+familia|mis\s+(papas|papás|padres|hijos|abuelos)|mama|mamá|papa|papá|familia)\b/.test(
+      text,
+    )
+  ) {
+    return "family";
+  }
+
+  if (
+    /\b(mi\s+pareja|mi\s+novi[oa]|mi\s+espos[oa]|pareja|novi[oa]|espos[oa])\b/.test(
+      text,
+    )
+  ) {
+    return "pair";
+  }
+
+  if (
+    /\b(los\s+chicos|las\s+chicas|amigos|team|equipo|grupo|con\s+[a-zñ]+\s+y\s+[a-zñ]+)\b/.test(
+      text,
+    )
+  ) {
+    return "other";
   }
 
   return null;
 }
 
+export function findGroupByName(
+  name: string,
+  groups: GroupRow[]
+): string | null {
+  const tokens = tokenizeSemanticText(name).filter((token) => token.length >= 2);
+  if (!tokens.length) return null;
+
+  const ranked = uniqueById(groups)
+    .map((group) => ({
+      id: String(group.id),
+      score: scoreGroupNameAgainstTokens(group, tokens),
+    }))
+    .filter((candidate) => candidate.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return ranked[0]?.id ?? null;
+}
+
 export function detectGroupTypeHint(
   raw: string
 ): "pair" | "family" | "other" | null {
-  const text = String(raw ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
+  const text = normalizeSemanticText(raw);
 
   if (
     text.includes("familia") ||
     text.includes("familiar") ||
     text.includes("hijos") ||
-    text.includes("casa")
+    text.includes("mama") ||
+    text.includes("papa") ||
+    text.includes("papas") ||
+    text.includes("padres") ||
+    text.includes("abuelos") ||
+    text.includes("almuerzo con mis papas")
   ) {
     return "family";
   }
@@ -636,14 +736,16 @@ export function detectGroupTypeHint(
     text.includes("amigos") ||
     text.includes("fulbito") ||
     text.includes("padel") ||
-    text.includes("pádel") ||
+    text.includes("asado") ||
     text.includes("equipo") ||
-    text.includes("grupo")
+    text.includes("grupo") ||
+    text.includes("team") ||
+    text.includes("chicos")
   ) {
     return "other";
   }
 
-  return null;
+  return detectMentionKind(text);
 }
 
 export function findGroupByType(
@@ -651,12 +753,88 @@ export function findGroupByType(
   groups: GroupRow[]
 ): string | null {
   const match =
-    groups.find(
+    uniqueById(groups).find(
       (group) =>
         normalizeSummaryGroupType(String(group.type ?? "")) === groupType
     ) ?? null;
 
   return match ? String(match.id) : null;
+}
+
+function findBestTypedGroup(params: {
+  groups: GroupRow[];
+  groupType: "pair" | "family" | "other";
+  activeGroupId: string | null;
+  raw: string;
+}): string | null {
+  const candidates = uniqueById(params.groups).filter(
+    (group) =>
+      normalizeSummaryGroupType(String(group.type ?? "")) === params.groupType
+  );
+
+  if (candidates.length === 0) return null;
+
+  const activeTyped =
+    params.activeGroupId &&
+    candidates.find((group) => String(group.id) === String(params.activeGroupId));
+
+  if (activeTyped) return String(activeTyped.id);
+
+  const mentionChunks = extractMentionChunks(params.raw);
+
+  const ranked = candidates
+    .map((group) => ({
+      id: String(group.id),
+      score: mentionChunks.reduce(
+        (acc, chunk) =>
+          acc + scoreGroupNameAgainstTokens(group, tokenizeSemanticText(chunk)),
+        0,
+      ),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  if ((ranked[0]?.score ?? 0) > 0) return ranked[0].id;
+  if (candidates.length === 1) return String(candidates[0].id);
+
+  return String(candidates[0].id);
+}
+
+function findDirectGroupMatch(raw: string, groups: GroupRow[]): string | null {
+  const mentionChunks = extractMentionChunks(raw);
+
+  for (const chunk of mentionChunks) {
+    const matched = findGroupByName(chunk, groups);
+    if (matched) return matched;
+  }
+
+  return null;
+}
+
+function selectPairGroupFromSinglePersonMention(
+  raw: string,
+  groups: GroupRow[],
+  activeGroupId: string | null,
+): string | null {
+  const mentionChunks = extractMentionChunks(raw);
+  if (mentionChunks.length !== 1) return null;
+
+  const tokens = tokenizeSemanticText(mentionChunks[0]).filter(Boolean);
+  if (tokens.length !== 1) return null;
+
+  const pairGroups = uniqueById(groups).filter(
+    (group) => normalizeSummaryGroupType(String(group.type ?? "")) === "pair",
+  );
+
+  if (pairGroups.length === 0) return null;
+
+  const activePair =
+    activeGroupId &&
+    pairGroups.find((group) => String(group.id) === String(activeGroupId));
+
+  if (activePair) return String(activePair.id);
+  if (pairGroups.length === 1) return String(pairGroups[0].id);
+
+  return null;
 }
 
 export function buildSmartInterpretation(input: {
@@ -693,45 +871,88 @@ export function buildSmartInterpretation(input: {
     };
   }
 
-  const person = extractPersonFromText(raw);
-
-  if (person) {
-    const matchedGroupId = findGroupByName(person, groups);
-
-    if (matchedGroupId) {
-      return {
-        intent: "group",
-        groupId: matchedGroupId,
-        confidence: "high",
-        reason: "name_match",
-      };
-    }
-  }
-
-  const typeHint = detectGroupTypeHint(raw);
-
-if (typeHint) {
-  const hintedGroupId = findGroupByType(typeHint, groups);
-
-  if (hintedGroupId) {
+  const directGroupId = findDirectGroupMatch(raw, groups);
+  if (directGroupId) {
     return {
       intent: "group",
-      groupId: hintedGroupId,
+      groupId: directGroupId,
       confidence: "high",
+      reason: "name_match",
+    };
+  }
+
+  const pairFromSingleMention = selectPairGroupFromSinglePersonMention(
+    raw,
+    groups,
+    activeGroupId,
+  );
+  if (pairFromSingleMention && !detectMentionKind(raw) && !detectGroupTypeHint(raw)) {
+    return {
+      intent: "group",
+      groupId: pairFromSingleMention,
+      confidence: "medium",
       reason: "social_hint",
     };
   }
 
-  // 🔥 FIX: aunque no haya match exacto, ES compartido
-  return {
-    intent: "group",
-    groupId: activeGroupId || null,
-    confidence: "medium",
-    reason: "social_hint",
-  };
-}
+  if (
+    learnedCandidateStillExists &&
+    (input.learnedCandidate?.confidence === "high" ||
+      (!detectGroupTypeHint(raw) && !textSuggestsSharedPlan(raw)))
+  ) {
+    return {
+      intent: "group",
+      groupId: learnedCandidateGroupId,
+      confidence: input.learnedCandidate?.confidence ?? "medium",
+      reason: "learned",
+    };
+  }
+
+  const typeHint = detectGroupTypeHint(raw);
+  if (typeHint) {
+    const hintedGroupId = findBestTypedGroup({
+      groups,
+      groupType: typeHint,
+      activeGroupId,
+      raw,
+    });
+
+    if (hintedGroupId) {
+      return {
+        intent: "group",
+        groupId: hintedGroupId,
+        confidence: "high",
+        reason: "social_hint",
+      };
+    }
+
+    if (learnedCandidateStillExists) {
+      return {
+        intent: "group",
+        groupId: learnedCandidateGroupId,
+        confidence: input.learnedCandidate?.confidence ?? "medium",
+        reason: "learned",
+      };
+    }
+
+    return {
+      intent: "group",
+      groupId: activeGroupId || null,
+      confidence: "medium",
+      reason: "social_hint",
+    };
+  }
 
   if (textSuggestsSharedPlan(raw)) {
+    if (learnedCandidateStillExists) {
+      return {
+        intent: "group",
+        groupId: learnedCandidateGroupId,
+        confidence: input.learnedCandidate?.confidence ?? "medium",
+        reason: "learned",
+      };
+    }
+
     const fallbackGroupId =
       activeGroupId ||
       (groups.length === 1 ? String(groups[0]?.id ?? "").trim() || null : null);
@@ -774,7 +995,7 @@ if (typeHint) {
     return {
       intent: "group",
       groupId: learnedGroupId,
-      confidence: learned?.shouldAutoApply ? "low" : "low",
+      confidence: "low",
       reason: "learned_legacy",
     };
   }
