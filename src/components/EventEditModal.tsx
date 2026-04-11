@@ -3,6 +3,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import supabase from "@/lib/supabaseClient";
+import { acceptEventForCurrentUser } from "@/lib/eventResponsesDb";
 import type { GroupType } from "@/lib/conflicts";
 
 type EditableGroupType = "personal" | "couple" | "family";
@@ -14,8 +15,9 @@ type EditEventShape = {
   end: string;
   description?: string;
   groupType?: EditableGroupType | GroupType | null;
-  groupId?: string | null; // 🔥 NUEVO
+  groupId?: string | null;
 };
+
 type EventEditModalProps = {
   isOpen: boolean;
   onClose: () => void;
@@ -82,7 +84,6 @@ export function EventEditModal({
 
   const hasId = !!initialEvent?.id;
 
-  // Cargar datos cuando abre o cambia initialEvent
   useEffect(() => {
     if (!isOpen) return;
 
@@ -105,30 +106,24 @@ export function EventEditModal({
 
     const gtRaw = (ie.groupType ?? "personal") as any;
     const normalized: EditableGroupType =
-      gtRaw === "family" ? "family" : gtRaw === "couple" || gtRaw === "pair"
-      ? "couple"
-      : "personal";
+      gtRaw === "family"
+        ? "family"
+        : gtRaw === "couple" || gtRaw === "pair"
+        ? "couple"
+        : "personal";
     setGroupType(normalized);
 
-    // all day guess: si empieza a las 00:00 y termina a las 23:59 o 23:00
     const s = new Date(ie.start);
     const e = new Date(ie.end);
     const isAllDayGuess =
-      s.getHours() === 0 &&
-      s.getMinutes() === 0 &&
-      e.getHours() >= 23;
+      s.getHours() === 0 && s.getMinutes() === 0 && e.getHours() >= 23;
     setAllDay(isAllDayGuess);
 
     setError(null);
   }, [isOpen, initialEvent]);
 
   const canSave = useMemo(() => {
-    return (
-      !!title.trim() &&
-      !!startLocal &&
-      !!endLocal &&
-      !saving
-    );
+    return !!title.trim() && !!startLocal && !!endLocal && !saving;
   }, [title, startLocal, endLocal, saving]);
 
   if (!isOpen) return null;
@@ -139,15 +134,12 @@ export function EventEditModal({
   };
 
   const handleToggleAllDay = () => {
-    if (!startLocal) {
-      // si no hay fecha aún, nada
-      return;
-    }
+    if (!startLocal) return;
+
     const d = new Date(startLocal);
     if (Number.isNaN(d.getTime())) return;
 
     if (!allDay) {
-      // Activar "Todo el día" → 00:00 a 23:59 del mismo día
       const pad = (n: number) => String(n).padStart(2, "0");
       const yyyy = d.getFullYear();
       const mm = pad(d.getMonth() + 1);
@@ -156,13 +148,13 @@ export function EventEditModal({
       setEndLocal(`${yyyy}-${mm}-${dd}T23:59`);
       setAllDay(true);
     } else {
-      // Desactivar: mantenemos fechas actuales, sólo cambiamos flag
       setAllDay(false);
     }
   };
 
   const handleSave = async () => {
     if (!canSave) return;
+
     setSaving(true);
     setError(null);
 
@@ -177,33 +169,33 @@ export function EventEditModal({
       }
 
       if (!hasId) {
-        // No permitimos crear desde aquí: sólo edición
         setError("No se encontró el ID del evento.");
         setSaving(false);
         return;
       }
-let newGroupId: string | null = null;
 
-if (groupType !== "personal" && groups?.length) {
-  const targetType =
-    groupType === "couple" ? "pair" : "family";
+      let newGroupId: string | null = null;
 
-  const match = groups.find(
-    (g: { id: string; type: string }) =>
-      g.type === targetType || g.type === groupType
-  );
+      if (groupType !== "personal" && groups?.length) {
+        const targetType = groupType === "couple" ? "pair" : "family";
 
-  newGroupId = match?.id ?? null;
-}
+        const match = groups.find(
+          (g: { id: string; type: string }) =>
+            g.type === targetType || g.type === groupType
+        );
+
+        newGroupId = match?.id ?? null;
+      }
+
       const { error: dbError } = await supabase
         .from("events")
         .update({
-  title: title.trim(),
-  start: startIso,
-  end: endIso,
-  notes: description.trim() || null,
-  group_id: newGroupId,
-})
+          title: title.trim(),
+          start: startIso,
+          end: endIso,
+          notes: description.trim() || null,
+          group_id: newGroupId,
+        })
         .eq("id", initialEvent!.id);
 
       if (dbError) {
@@ -213,9 +205,19 @@ if (groupType !== "personal" && groups?.length) {
         return;
       }
 
+      // Muy importante:
+      // si guardamos desde el modal del calendario, marcamos la respuesta del
+      // usuario actual como aceptada para cerrar el loop real del badge.
+      await acceptEventForCurrentUser(
+        String(initialEvent!.id),
+        newGroupId,
+        "Accepted from calendar edit modal"
+      );
+
       if (onSaved) {
         await onSaved();
       }
+
       setSaving(false);
       onClose();
     } catch (e: any) {
@@ -263,7 +265,6 @@ if (groupType !== "personal" && groups?.length) {
           e.stopPropagation();
         }}
       >
-        {/* Header */}
         <div style={headerStyles}>
           <div>
             <div style={badgeStyles}>SYNCPLANS</div>
@@ -281,9 +282,7 @@ if (groupType !== "personal" && groups?.length) {
           </button>
         </div>
 
-        {/* Form */}
         <div style={formStyles}>
-          {/* Título */}
           <div style={fieldStyles}>
             <label style={labelStyles}>Título</label>
             <input
@@ -294,7 +293,6 @@ if (groupType !== "personal" && groups?.length) {
             />
           </div>
 
-          {/* Inicio / Fin */}
           <div style={{ ...fieldStyles, gap: 10 }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyles}>Inicio</label>
@@ -316,7 +314,6 @@ if (groupType !== "personal" && groups?.length) {
             </div>
           </div>
 
-          {/* Calendario */}
           <div style={fieldStyles}>
             <label style={labelStyles}>Calendario</label>
             <div style={groupRowStyles}>
@@ -338,19 +335,19 @@ if (groupType !== "personal" && groups?.length) {
                       opacity: on ? 1 : 0.75,
                     }}
                   >
-<div
-  style={{
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    background:
-      g.key === "personal"
-        ? "rgba(250,204,21,1)"              // Amarillo (personal)
-        : g.key === "couple"
-        ? "rgba(248,113,113,0.95)"          // Rojo (pareja)
-        : "rgba(59,130,246,0.95)",          // Azul (familia)
-  }}
-/>
+                    <div
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: 999,
+                        background:
+                          g.key === "personal"
+                            ? "rgba(250,204,21,1)"
+                            : g.key === "couple"
+                            ? "rgba(248,113,113,0.95)"
+                            : "rgba(59,130,246,0.95)",
+                      }}
+                    />
 
                     <div style={{ textAlign: "left" }}>
                       <div style={{ fontSize: 13, fontWeight: 700 }}>
@@ -366,14 +363,12 @@ if (groupType !== "personal" && groups?.length) {
                         {g.hint}
                       </div>
                     </div>
-  
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Notas */}
           <div style={fieldStyles}>
             <label style={labelStyles}>Notas</label>
             <textarea
@@ -385,7 +380,6 @@ if (groupType !== "personal" && groups?.length) {
             />
           </div>
 
-          {/* Todo el día */}
           <div style={allDayRowStyles}>
             <div>
               <div style={allDayTitleStyles}>Todo el día</div>
@@ -410,10 +404,20 @@ if (groupType !== "personal" && groups?.length) {
 
           {error && <div style={errorStyles}>{error}</div>}
           {deleteError && <div style={errorStyles}>{deleteError}</div>}
-          {hideError && <div style={{ ...errorStyles, color: "rgba(253,230,138,0.96)", borderColor: "rgba(245,158,11,0.28)", background: "rgba(120,53,15,0.18)" }}>{hideError}</div>}
+          {hideError && (
+            <div
+              style={{
+                ...errorStyles,
+                color: "rgba(253,230,138,0.96)",
+                borderColor: "rgba(245,158,11,0.28)",
+                background: "rgba(120,53,15,0.18)",
+              }}
+            >
+              {hideError}
+            </div>
+          )}
         </div>
 
-        {/* Footer */}
         <div style={footerStyles}>
           {canDelete && onDelete ? (
             <button
@@ -435,7 +439,8 @@ if (groupType !== "personal" && groups?.length) {
               disabled={!hasId || saving}
               style={{
                 ...dangerBtnStyles,
-                background: "linear-gradient(180deg, rgba(245,158,11,0.24), rgba(180,83,9,0.22))",
+                background:
+                  "linear-gradient(180deg, rgba(245,158,11,0.24), rgba(180,83,9,0.22))",
                 border: "1px solid rgba(245,158,11,0.35)",
                 color: "rgba(255,237,213,0.96)",
                 boxShadow: "0 16px 34px rgba(120,53,15,0.20)",
@@ -478,10 +483,6 @@ if (groupType !== "personal" && groups?.length) {
     </div>
   );
 }
-
-/* =========================
-   Styles inline (premium)
-   ========================= */
 
 const overlayStyles: React.CSSProperties = {
   position: "fixed",
