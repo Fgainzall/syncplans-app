@@ -354,6 +354,7 @@ function NewEventDetailsInner() {
   const typeParam = (sp.get("type") || "personal") as NewType;
   const dateParam = sp.get("date");
   const groupIdParam = sp.get("groupId");
+  const hasExplicitGroupParam = !!String(groupIdParam ?? "").trim();
 
   const initialStart = useMemo(() => {
     const base = dateParam ? new Date(dateParam) : new Date();
@@ -414,7 +415,7 @@ function NewEventDetailsInner() {
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [groups, setGroups] = useState<DbGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>(
-    groupIdParam || ""
+    hasExplicitGroupParam ? String(groupIdParam) : ""
   );
   const [autoSharedGroupId, setAutoSharedGroupId] = useState<string>("");
   const [autoSharedGroupLabel, setAutoSharedGroupLabel] = useState<string>("");
@@ -554,7 +555,7 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
         setActiveGroupId(gid);
         setGroups(unique);
 
-        let preferredGroupId = groupIdParam || "";
+              let preferredGroupId = hasExplicitGroupParam ? String(groupIdParam) : "";
         let detectedSharedGroupLabel = "";
 
         if (!preferredGroupId && isSharedProposal && proposalEventIdParam) {
@@ -596,8 +597,9 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
           setSharedGroupDetectionState("none");
         }
 
-        const fallbackGroupId =
-          preferredGroupId || gid || (unique && unique.length ? unique[0].id : "");
+        const fallbackGroupId = hasExplicitGroupParam
+          ? preferredGroupId
+          : preferredGroupId || gid || (unique && unique.length ? unique[0].id : "");
 
         if (preferredGroupId) {
           setAutoSharedGroupId(preferredGroupId);
@@ -608,11 +610,20 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
           setAutoSharedGroupLabel("");
         }
 
-        if (fallbackGroupId) setSelectedGroupId(fallbackGroupId);
+           if (hasExplicitGroupParam) {
+          if (preferredGroupId) setSelectedGroupId(preferredGroupId);
+        } else if (fallbackGroupId) {
+          setSelectedGroupId(fallbackGroupId);
+        }
 
         const shouldAutoRouteToGroup =
-          (typeParam === "group" && !groupIdParam) ||
-          (!!preferredGroupId && isSharedProposal && typeParam !== "group");
+          (!hasExplicitGroupParam &&
+            typeParam === "group" &&
+            !groupIdParam) ||
+          (!hasExplicitGroupParam &&
+            !!preferredGroupId &&
+            isSharedProposal &&
+            typeParam !== "group");
 
         if (shouldAutoRouteToGroup) {
           const next = buildUrl(
@@ -781,14 +792,14 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     if (effectiveType !== "group") return;
     if (!autoSharedGroupId) return;
     if (lockedToActiveGroup) return;
-    if (groupIdParam) return;
+    if (hasExplicitGroupParam) return;
     if (selectedGroupId === autoSharedGroupId) return;
     setSelectedGroupId(autoSharedGroupId);
   }, [
     effectiveType,
     autoSharedGroupId,
     lockedToActiveGroup,
-    groupIdParam,
+    hasExplicitGroupParam,
     selectedGroupId,
   ]);
 
@@ -991,7 +1002,7 @@ return suggestion;
       setSuggestedPreselectedGroupId("");
       return;
     }
-    if (groupIdParam) {
+      if (hasExplicitGroupParam) {
       setSuggestedPreselectedGroupId("");
       return;
     }
@@ -2316,7 +2327,7 @@ const handleSharePostSave = async () => {
                   </div>
                 ) : (
                   <>
-{autoSharedGroupId && !groupIdParam && !lockedToActiveGroup ? (
+{autoSharedGroupId && !hasExplicitGroupParam && !lockedToActiveGroup ? (
   <div
     style={{
       marginBottom: 12,
@@ -2344,7 +2355,7 @@ const handleSharePostSave = async () => {
 
 {!autoSharedGroupId &&
 isSharedProposal &&
-!groupIdParam &&
+!hasExplicitGroupParam &&
 !lockedToActiveGroup &&
 sharedGroupDetectionState === "none" ? (
   <div
@@ -2462,9 +2473,9 @@ sharedGroupDetectionState === "ambiguous" ? (
 
                     <select
                       value={selectedGroupId}
-                      disabled={
-                        lockedToActiveGroup || (!!autoSharedGroupId && !groupIdParam)
-                      }
+                     disabled={
+  lockedToActiveGroup || (!!autoSharedGroupId && !hasExplicitGroupParam)
+}
                       onChange={(e) => {
                         groupManualSelectionRef.current = true;
                         setSuggestedPreselectedGroupId("");
@@ -2472,14 +2483,14 @@ sharedGroupDetectionState === "ambiguous" ? (
                       }}
                       style={{
                         ...styles.select,
-                        opacity:
-                          lockedToActiveGroup || (!!autoSharedGroupId && !groupIdParam)
-                            ? 0.7
-                            : 1,
-                        cursor:
-                          lockedToActiveGroup || (!!autoSharedGroupId && !groupIdParam)
-                            ? "not-allowed"
-                            : "pointer",
+                 opacity:
+  lockedToActiveGroup || (!!autoSharedGroupId && !hasExplicitGroupParam)
+    ? 0.7
+    : 1,
+cursor:
+  lockedToActiveGroup || (!!autoSharedGroupId && !hasExplicitGroupParam)
+    ? "not-allowed"
+    : "pointer",
                       }}
                     >
                       {uniqueGroups.map((g) => (
@@ -2499,7 +2510,7 @@ sharedGroupDetectionState === "ambiguous" ? (
                       <span style={{ marginLeft: 8, opacity: 0.9 }}>
                         · (grupo activo)
                       </span>
-                    ) : autoSharedGroupId && !groupIdParam ? (
+                    ) : autoSharedGroupId && !hasExplicitGroupParam ? (
                       <span style={{ marginLeft: 8, opacity: 0.9 }}>
                         · (detectado automáticamente)
                       </span>
