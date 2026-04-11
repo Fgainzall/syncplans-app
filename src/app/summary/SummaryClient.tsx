@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { useRouter } from "next/navigation";
 import { parseQuickCapture } from "@/lib/quickCaptureParser";
+import { suggestGroupFromText } from "@/lib/groupSuggestion";
 import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
@@ -66,6 +67,7 @@ import {
   proposalResponseTone,
   resolutionForConflict,
   startOfTodayLocal,
+  type SmartInterpretation,
   type SmartInterpretationLearnedCandidate,
   type SummaryEvent,
 } from "./summaryHelpers";
@@ -104,7 +106,7 @@ function useIsMobileWidth(maxWidth = 520) {
 export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const router = useRouter();
   const isMobile = useIsMobileWidth(520);
-  const ENABLE_SMART_TRACE = true;
+  const ENABLE_SMART_TRACE = process.env.NEXT_PUBLIC_SYNCPLANS_TRACE === "1";
 
   const [quickCaptureValue, setQuickCaptureValue] = useState("");
   const [quickCaptureBusy, setQuickCaptureBusy] = useState(false);
@@ -201,21 +203,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [quickCaptureValue, learningSignals, groups]);
 
-const smartInterpretation = useMemo(() => {
-  const raw = quickCaptureValue.trim();
-  if (!raw) return null;
-
-  return buildSmartInterpretation({
-    raw,
-    groups,
-    activeGroupId,
-    learnedCandidate: learnedInterpretationCandidate,
-  });
-}, [quickCaptureValue, groups, activeGroupId, learnedInterpretationCandidate]);
-
-const smartInterpretationLabel = useMemo(() => {
-  return getSmartInterpretationLabel(smartInterpretation, groups);
-}, [smartInterpretation, groups]);
 
 const normalizeSuggestionGroupType = useCallback(
   (value: string | null | undefined): "personal" | "pair" | "family" | "other" => {
@@ -226,6 +213,69 @@ const normalizeSuggestionGroupType = useCallback(
   },
   []
 );
+
+const resolveSmartInterpretation = useCallback(
+  (rawInput: string): SmartInterpretation | null => {
+    const raw = String(rawInput ?? "").trim();
+    if (!raw) return null;
+
+    const baseInterpretation = buildSmartInterpretation({
+      raw,
+      groups,
+      activeGroupId,
+      learnedCandidate: learnedInterpretationCandidate,
+    });
+
+    const parsed = parseQuickCapture(raw);
+    const textGroupSuggestion = suggestGroupFromText(parsed.title, parsed.notes);
+
+    if (baseInterpretation.intent === "group" && baseInterpretation.groupId) {
+      return baseInterpretation;
+    }
+
+    if (textGroupSuggestion.type !== "other") {
+      return baseInterpretation;
+    }
+
+    const activeGroupMatchesOther =
+      !!activeGroup &&
+      normalizeSuggestionGroupType(String(activeGroup?.type ?? "")) === "other";
+
+    const fallbackOtherGroup =
+      (activeGroupMatchesOther ? activeGroup : null) ??
+      groups.find(
+        (group) =>
+          normalizeSuggestionGroupType(String(group?.type ?? "")) === "other"
+      ) ??
+      null;
+
+    if (!fallbackOtherGroup?.id) {
+      return baseInterpretation;
+    }
+
+    return {
+      intent: "group",
+      groupId: String(fallbackOtherGroup.id),
+      confidence: textGroupSuggestion.confidence >= 3 ? "high" : "medium",
+      reason: "social_hint",
+    };
+  },
+  [
+    groups,
+    activeGroupId,
+    activeGroup,
+    learnedInterpretationCandidate,
+    normalizeSuggestionGroupType,
+  ]
+);
+
+const smartInterpretation = useMemo(() => {
+  return resolveSmartInterpretation(quickCaptureValue);
+}, [quickCaptureValue, resolveSmartInterpretation]);
+
+const smartInterpretationLabel = useMemo(() => {
+  return getSmartInterpretationLabel(smartInterpretation, groups);
+}, [smartInterpretation, groups]);
 
 const suggestedContextGroupId = useMemo(() => {
   if (smartInterpretation?.intent === "group" && smartInterpretation.groupId) {
@@ -382,6 +432,7 @@ useEffect(() => {
     score: suggestion.score,
     trace: suggestion.trace ?? null,
   }));
+
   const payload = {
     raw,
     parsed: {
@@ -395,6 +446,7 @@ useEffect(() => {
     suggestedContextGroupId,
     suggestedContextGroupType,
     learnedInterpretationCandidate,
+    textGroupSuggestion: suggestGroupFromText(parsed.title, parsed.notes),
     smartInterpretation,
     suggestions: suggestionsTrace,
   };
@@ -570,18 +622,13 @@ const navigateFromQuickCapture = useCallback(
     const parsed = parseQuickCapture(raw);
     const params = new URLSearchParams();
 const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
-    const smart = buildSmartInterpretation({
-      raw,
-      groups,
-      activeGroupId,
-      learnedCandidate: learnedInterpretationCandidate,
-    });
+    const smart = resolveSmartInterpretation(raw);
 
     params.set("qc", "1");
     params.set("capture_source", "summary");
     params.set("raw_text", raw);
 
-    if (smart.intent === "group" && smart.groupId) {
+    if (smart?.intent === "group" && smart.groupId) {
       params.set("type", "group");
       params.set("groupId", smart.groupId);
     } else {
@@ -597,7 +644,7 @@ const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
 
     router.push(`/events/new/details?${params.toString()}`);
   },
-  [groups, activeGroupId, learnedInterpretationCandidate, router]
+  [resolveSmartInterpretation, router]
 );
 
 const navigateFromSuggestedSlot = useCallback(
@@ -608,18 +655,13 @@ const navigateFromSuggestedSlot = useCallback(
     const parsed = parseQuickCapture(raw);
     const params = new URLSearchParams();
 const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
-    const smart = buildSmartInterpretation({
-      raw,
-      groups,
-      activeGroupId,
-      learnedCandidate: learnedInterpretationCandidate,
-    });
+    const smart = resolveSmartInterpretation(raw);
 
     params.set("qc", "1");
     params.set("capture_source", "summary");
     params.set("raw_text", raw);
 
-    if (smart.intent === "group" && smart.groupId) {
+    if (smart?.intent === "group" && smart.groupId) {
       params.set("type", "group");
       params.set("groupId", smart.groupId);
     } else {
@@ -636,7 +678,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
     router.push(`/events/new/details?${params.toString()}`);
   },
-  [groups, activeGroupId, learnedInterpretationCandidate, router]
+  [resolveSmartInterpretation, router]
 );
 
   const handleQuickCaptureSubmit = useCallback(() => {
