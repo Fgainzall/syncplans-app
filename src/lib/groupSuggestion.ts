@@ -99,6 +99,11 @@ const OTHER_KEYWORDS = [
   "partido",
   "after",
   "previa",
+  "chicos",
+"team",
+"equipo",
+"gente",
+"banda"
 ];
 
 type NormalizedCandidateGroup = {
@@ -207,7 +212,13 @@ export function suggestGroupFromText(
   const text = normalizeText(`${title} ${notes ?? ""}`);
 
   if (!text) return { type: null, confidence: 0, trace: undefined };
-
+if (text.includes("con los chicos") || text.includes("con amigos")) {
+  return {
+    type: "other",
+    confidence: 3,
+    reason: "context_social_group",
+  };
+}
   const pairScore = scoreSuggestion(text, PAIR_KEYWORDS);
   const familyScore = scoreSuggestion(text, FAMILY_KEYWORDS);
   const otherScore = scoreSuggestion(text, OTHER_KEYWORDS);
