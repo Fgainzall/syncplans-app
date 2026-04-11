@@ -454,6 +454,14 @@ useEffect(() => {
   console.groupCollapsed("[SyncPlans][Trace][SummaryQuickCapture]", raw);
   console.log(payload);
   console.groupEnd();
+  console.log(
+  "GROUPS SNAPSHOT:",
+  (groups ?? []).map((group) => ({
+    id: String(group?.id ?? ""),
+    name: String(group?.name ?? ""),
+    type: String(group?.type ?? ""),
+  }))
+);
 }, [
   ENABLE_SMART_TRACE,
   quickCaptureValue,
