@@ -927,17 +927,27 @@ export function buildSmartInterpretation(input: {
     }
 
     if (learnedCandidateStillExists) {
-      return {
-        intent: "group",
-        groupId: learnedCandidateGroupId,
-        confidence: input.learnedCandidate?.confidence ?? "medium",
-        reason: "learned",
-      };
+      const learnedGroup = groups.find(
+        (group) => String(group.id) === learnedCandidateGroupId,
+      );
+
+      const learnedMatchesHint =
+        !!learnedGroup &&
+        normalizeSummaryGroupType(String(learnedGroup.type ?? "")) === typeHint;
+
+      if (learnedMatchesHint) {
+        return {
+          intent: "group",
+          groupId: learnedCandidateGroupId,
+          confidence: input.learnedCandidate?.confidence ?? "medium",
+          reason: "learned",
+        };
+      }
     }
 
     return {
       intent: "group",
-      groupId: activeGroupId || null,
+      groupId: null,
       confidence: "medium",
       reason: "social_hint",
     };
