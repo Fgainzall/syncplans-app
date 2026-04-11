@@ -243,12 +243,20 @@ function getCalendarEventStatus(input: {
   const key = String(input.eventId ?? "").trim();
   if (!key) return null;
 
-  const ctx = buildEventContext({
-    eventId: key,
-    conflictEventIds: input.inConflict ? new Set([key]) : new Set(),
-    proposalResponses: input.proposalRow ? [input.proposalRow] : [],
-    trustSignal: input.trustSignal ?? null,
-  });
+const trustLabel = String(input.trustSignal?.label ?? "").trim().toLowerCase();
+const isResolvedByTrust =
+  trustLabel === "resolved" || trustLabel === "auto_adjusted";
+
+const safeProposalRow =
+  input.proposalRow?.response === "pending" ? null : input.proposalRow;
+
+const ctx = buildEventContext({
+  eventId: key,
+  conflictEventIds:
+    !isResolvedByTrust && input.inConflict ? new Set([key]) : new Set(),
+  proposalResponses: safeProposalRow ? [safeProposalRow] : [],
+  trustSignal: input.trustSignal ?? null,
+});
 
   const status = ctx?.status ?? null;
   if (status === "scheduled") return null;
@@ -1692,14 +1700,25 @@ cells.push(
             : "Resuelto"
           : null;
         const proposalRow = proposalResponsesMap[String(e.id)];
-        const proposalLabel = proposalResponseLabel(proposalRow?.response);
-        const isConflictEvent = conflictEventIdsInGrid.has(String(e.id));
-        const calendarEventStatus = getCalendarEventStatus({
-          eventId: e.id,
-          inConflict: isConflictEvent,
-          proposalRow,
-          trustSignal,
-        });
+
+const proposalLabel =
+  proposalRow?.response === "pending"
+    ? null
+    : proposalResponseLabel(proposalRow?.response);
+
+const isConflictEvent = conflictEventIdsInGrid.has(String(e.id));
+
+const isActuallyPending =
+  proposalRow?.response === "pending" ||
+  (!proposalRow && isConflictEvent);
+
+const calendarEventStatus = getCalendarEventStatus({
+  eventId: e.id,
+  inConflict: isActuallyPending,
+  proposalRow:
+    proposalRow?.response === "pending" ? null : proposalRow,
+  trustSignal,
+});
         const cellStatusUi = calendarEventStatus
           ? getEventStatusUi(calendarEventStatus, {
               conflictsCount: isConflictEvent ? 1 : 0,
