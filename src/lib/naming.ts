@@ -1,4 +1,4 @@
-// src/lib/naming.ts
+// src/lib/naming.tsx
 
 /**
  * Fuente única de verdad semántica para SyncPlans.
@@ -156,12 +156,13 @@ export type CanonicalInviteStatus = "pending" | "accepted" | "rejected";
 
 export function normalizeInviteStatus(
   value: string | null | undefined
-): CanonicalInviteStatus {
+): CanonicalInviteStatus | null {
   const safe = String(value ?? "").trim().toLowerCase();
 
   if (safe === "accepted") return "accepted";
   if (safe === "rejected") return "rejected";
-  return "pending";
+  if (safe === "pending") return "pending";
+  return null;
 }
 
 /* =========================================================
