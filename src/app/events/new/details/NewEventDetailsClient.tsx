@@ -968,47 +968,47 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     candidateGroupOptions,
   ]);
 
-  const suggestedGroupCandidate = useMemo(() => {
-    if (
-      canonicalGroupSuggestion?.mode === "auto_apply" &&
-      canonicalGroupSuggestion.groupId
-    ) {
-      return (
-        uniqueGroups.find(
-          (group) => group.id === String(canonicalGroupSuggestion.groupId)
-        ) || null
-      );
-    }
+const suggestedGroupCandidate = useMemo(() => {
+  if (
+    canonicalGroupSuggestion?.mode === "auto_apply" &&
+    canonicalGroupSuggestion.groupId
+  ) {
+    return (
+      uniqueGroups.find(
+        (group) => group.id === String(canonicalGroupSuggestion.groupId)
+      ) || null
+    );
+  }
 
-    if (
-      canonicalGroupSuggestion?.mode === "suggest_only" &&
-      canonicalGroupSuggestion.type
-    ) {
-      const compatibleGroups = uniqueGroups.filter(
-        (group) => normalizeDbGroupType(group.type) === canonicalGroupSuggestion.type
-      );
+  if (
+    canonicalGroupSuggestion?.mode === "suggest_only" &&
+    canonicalGroupSuggestion.type
+  ) {
+    const compatibleGroups = uniqueGroups.filter(
+      (group) => normalizeDbGroupType(group.type) === canonicalGroupSuggestion.type
+    );
 
-      if (!compatibleGroups.length) return null;
+    if (!compatibleGroups.length) return null;
 
-      return (
-        compatibleGroups.find((group) => group.id === activeGroupId) ||
-        compatibleGroups[0] ||
-        null
-      );
-    }
+    return (
+      compatibleGroups.find((group) => group.id === activeGroupId) ||
+      compatibleGroups[0] ||
+      null
+    );
+  }
 
-    if (learnedGroupCandidate?.id && learnedGroupMatch?.shouldAutoApply) {
-      return learnedGroupCandidate;
-    }
+  // legacy = solo referencia pasiva
+  if (!canonicalGroupSuggestion?.type && learnedGroupCandidate?.id) {
+    return learnedGroupCandidate;
+  }
 
-    return null;
-  }, [
-    canonicalGroupSuggestion,
-    uniqueGroups,
-    activeGroupId,
-    learnedGroupCandidate,
-    learnedGroupMatch,
-  ]);
+  return null;
+}, [
+  canonicalGroupSuggestion,
+  uniqueGroups,
+  activeGroupId,
+  learnedGroupCandidate,
+]);
 
   useEffect(() => {
     if (effectiveType !== "group") {
@@ -1033,9 +1033,7 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     }
     if (groupManualSelectionRef.current) return;
 
-    const canAutoPreselect =
-      canonicalGroupSuggestion?.mode === "auto_apply" ||
-      !!learnedGroupMatch?.shouldAutoApply;
+const canAutoPreselect = canonicalGroupSuggestion?.mode === "auto_apply";
 
     if (!canAutoPreselect) {
       setSuggestedPreselectedGroupId("");
@@ -1048,16 +1046,15 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
       setSelectedGroupId(suggestedGroupCandidate.id);
     }
   }, [
-    effectiveType,
-    lockedToActiveGroup,
-    hasExplicitGroupParam,
-    autoSharedGroupId,
-    sharedGroupDetectionState,
-    suggestedGroupCandidate,
-    selectedGroupId,
-    canonicalGroupSuggestion,
-    learnedGroupMatch,
-  ]);
+  effectiveType,
+  lockedToActiveGroup,
+  hasExplicitGroupParam,
+  autoSharedGroupId,
+  sharedGroupDetectionState,
+  suggestedGroupCandidate,
+  selectedGroupId,
+  canonicalGroupSuggestion,
+]);
 
 
   const dateRangeLabel = useMemo(() => {
@@ -2416,6 +2413,7 @@ sharedGroupDetectionState === "ambiguous" ? (
 ) : null}
 
 {learnedGroupCandidate?.id &&
+!canonicalGroupSuggestion?.type &&
 !autoSharedGroupId &&
 !groupIdParam &&
 !lockedToActiveGroup ? (
@@ -2431,17 +2429,7 @@ sharedGroupDetectionState === "ambiguous" ? (
       color: "rgba(235,255,241,0.90)",
     }}
   >
-    {learnedGroupMatch?.shouldAutoApply &&
-    suggestedPreselectedGroupId &&
-    selectedGroup?.id === suggestedPreselectedGroupId ? (
-      <>
-        🧠 Como normalmente este tipo de plan termina ahí, preseleccionamos <b>{learnedGroupCandidate.name || getGroupTypeLabel(learnedGroupCandidate.type)}</b>. Puedes cambiarlo abajo si esta vez prefieres otro.
-      </>
-    ) : (
-      <>
-        🧠 Sugerencia inteligente: en planes parecidos normalmente terminas usando <b>{learnedGroupCandidate.name || getGroupTypeLabel(learnedGroupCandidate.type)}</b>. Te lo mostramos como referencia, sin forzarlo.
-      </>
-    )}
+    🧠 Referencia por historial: en planes parecidos normalmente terminas usando <b>{learnedGroupCandidate.name || getGroupTypeLabel(learnedGroupCandidate.type)}</b>. Te lo mostramos como ayuda, sin forzarlo.
   </div>
 ) : null}
 
