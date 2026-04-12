@@ -34,10 +34,7 @@ import {
   getGroupTypeLabel,
   getSharedGroupBetweenUsers,
 } from "@/lib/groupsDb";
-import {
-  suggestGroupWithLearning,
-  type GroupSuggestion,
-} from "@/lib/groupSuggestion";
+import { suggestCanonicalGroupWithLearning } from "@/lib/groupSuggestion";
 // ✅ DB Source of Truth
 import {
   createEventForGroup,
@@ -946,28 +943,25 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     };
   }, []);
 
-  const groupSuggestion = useMemo(() => {
+  const canonicalGroupSuggestion = useMemo(() => {
     if (effectiveType !== "group") return null;
     if (autoSharedGroupId) return null;
     if (sharedGroupDetectionState === "matched") return null;
-    if (learnedGroupCandidate?.id && learnedGroupMatch?.shouldAutoApply) return null;
 
- const suggestion = suggestGroupWithLearning({
-  title,
-  notes,
-  signals: learningSignals,
-  candidateGroups: candidateGroupOptions,
-});
+    const suggestion = suggestCanonicalGroupWithLearning({
+      title,
+      notes,
+      signals: learningSignals,
+      candidateGroups: candidateGroupOptions,
+    });
 
-if (!suggestion.type || suggestion.confidence <= 0) return null;
+    if (!suggestion.type || suggestion.mode === "none") return null;
 
-return suggestion;
+    return suggestion;
   }, [
     effectiveType,
     autoSharedGroupId,
     sharedGroupDetectionState,
-    learnedGroupCandidate,
-    learnedGroupMatch,
     title,
     notes,
     learningSignals,
@@ -975,23 +969,46 @@ return suggestion;
   ]);
 
   const suggestedGroupCandidate = useMemo(() => {
+    if (
+      canonicalGroupSuggestion?.mode === "auto_apply" &&
+      canonicalGroupSuggestion.groupId
+    ) {
+      return (
+        uniqueGroups.find(
+          (group) => group.id === String(canonicalGroupSuggestion.groupId)
+        ) || null
+      );
+    }
+
+    if (
+      canonicalGroupSuggestion?.mode === "suggest_only" &&
+      canonicalGroupSuggestion.type
+    ) {
+      const compatibleGroups = uniqueGroups.filter(
+        (group) => normalizeDbGroupType(group.type) === canonicalGroupSuggestion.type
+      );
+
+      if (!compatibleGroups.length) return null;
+
+      return (
+        compatibleGroups.find((group) => group.id === activeGroupId) ||
+        compatibleGroups[0] ||
+        null
+      );
+    }
+
     if (learnedGroupCandidate?.id && learnedGroupMatch?.shouldAutoApply) {
       return learnedGroupCandidate;
     }
-    if (!groupSuggestion?.type) return null;
 
-    const compatibleGroups = uniqueGroups.filter(
-      (group) => normalizeDbGroupType(group.type) === groupSuggestion.type
-    );
-
-    if (!compatibleGroups.length) return null;
-
-    return (
-      compatibleGroups.find((group) => group.id === activeGroupId) ||
-      compatibleGroups[0] ||
-      null
-    );
-  }, [learnedGroupCandidate, learnedGroupMatch, groupSuggestion, uniqueGroups, activeGroupId]);
+    return null;
+  }, [
+    canonicalGroupSuggestion,
+    uniqueGroups,
+    activeGroupId,
+    learnedGroupCandidate,
+    learnedGroupMatch,
+  ]);
 
   useEffect(() => {
     if (effectiveType !== "group") {
@@ -1002,7 +1019,7 @@ return suggestion;
       setSuggestedPreselectedGroupId("");
       return;
     }
-      if (hasExplicitGroupParam) {
+    if (hasExplicitGroupParam) {
       setSuggestedPreselectedGroupId("");
       return;
     }
@@ -1017,7 +1034,8 @@ return suggestion;
     if (groupManualSelectionRef.current) return;
 
     const canAutoPreselect =
-      !!groupSuggestion?.type || !!learnedGroupMatch?.shouldAutoApply;
+      canonicalGroupSuggestion?.mode === "auto_apply" ||
+      !!learnedGroupMatch?.shouldAutoApply;
 
     if (!canAutoPreselect) {
       setSuggestedPreselectedGroupId("");
@@ -1032,12 +1050,12 @@ return suggestion;
   }, [
     effectiveType,
     lockedToActiveGroup,
-    groupIdParam,
+    hasExplicitGroupParam,
     autoSharedGroupId,
     sharedGroupDetectionState,
     suggestedGroupCandidate,
     selectedGroupId,
-    groupSuggestion,
+    canonicalGroupSuggestion,
     learnedGroupMatch,
   ]);
 
@@ -2427,7 +2445,7 @@ sharedGroupDetectionState === "ambiguous" ? (
   </div>
 ) : null}
 
-{groupSuggestion?.type &&
+{canonicalGroupSuggestion?.type &&
 !autoSharedGroupId &&
 !groupIdParam &&
 !lockedToActiveGroup ? (
@@ -2443,29 +2461,35 @@ sharedGroupDetectionState === "ambiguous" ? (
       color: "rgba(226,242,255,0.88)",
     }}
   >
-    {suggestedPreselectedGroupId && selectedGroup?.id === suggestedPreselectedGroupId ? (
+    {canonicalGroupSuggestion.mode === "auto_apply" &&
+    suggestedPreselectedGroupId &&
+    selectedGroup?.id === suggestedPreselectedGroupId ? (
       <>
-        ✨ Preseleccionamos{' '}
+        ✨ Preseleccionamos{" "}
         <b>
-          {groupSuggestion.type === "pair"
+          {canonicalGroupSuggestion.type === "pair"
             ? "Pareja"
-            : groupSuggestion.type === "family"
+            : canonicalGroupSuggestion.type === "family"
             ? "Familia"
             : "Compartido"}
-        </b>{' '}
-        porque este plan parece encajar mejor ahí. Si esta vez no aplica, puedes cambiarlo abajo.
+        </b>{" "}
+        porque la sugerencia es suficientemente clara. Si esta vez no aplica, puedes cambiarlo abajo.
       </>
-    ) : (
+    ) : canonicalGroupSuggestion.mode === "suggest_only" ? (
       <>
-        💡 Sugerencia: este plan parece encajar mejor en{' '}
+        💡 Sugerencia: este plan parece encajar mejor en{" "}
         <b>
-          {groupSuggestion.type === "pair"
+          {canonicalGroupSuggestion.type === "pair"
             ? "Pareja"
-            : groupSuggestion.type === "family"
+            : canonicalGroupSuggestion.type === "family"
             ? "Familia"
             : "Compartido"}
         </b>
-        . Puedes seleccionarlo abajo si tiene sentido para ti.
+        . Te lo mostramos como sugerencia, sin forzarlo.
+      </>
+    ) : (
+      <>
+        🤔 Hay señales, pero no son lo bastante fuertes para decidir solas. Revísalo antes de guardar.
       </>
     )}
   </div>

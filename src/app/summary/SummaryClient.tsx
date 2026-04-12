@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import { useRouter } from "next/navigation";
 import { parseQuickCapture } from "@/lib/quickCaptureParser";
-import { suggestGroupWithLearning } from "@/lib/groupSuggestion";
+import { suggestCanonicalGroupWithLearning } from "@/lib/groupSuggestion";
 import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
@@ -22,10 +22,6 @@ import {
 import supabase from "@/lib/supabaseClient";
 import { getLearningSignals } from "@/lib/learningSignals";
 import { buildLearnedTimeProfile } from "@/lib/learningProfile";
-import {
-  buildLearnedGroupDecisionProfile,
-  getBestGroupFromLearning,
-} from "@/lib/learningGroupProfile";
 import type {
   LearnedTimeProfile,
   LearningSignal,
@@ -67,7 +63,6 @@ import {
   resolutionForConflict,
   startOfTodayLocal,
   type SmartInterpretation,
-  type SmartInterpretationLearnedCandidate,
   type SummaryEvent,
 } from "./summaryHelpers";
 
@@ -160,49 +155,30 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     [quickCaptureValue]
   );
 
-  const learnedInterpretationCandidate =
-    useMemo<SmartInterpretationLearnedCandidate | null>(() => {
-      const raw = quickCaptureValue.trim();
-      if (!raw) return null;
-      if (!Array.isArray(learningSignals) || learningSignals.length === 0) return null;
+  const suggestionCandidateGroups = useMemo(
+    () =>
+      groups
+        .map((group) => ({
+          id: String(group?.id ?? "").trim(),
+          type: String(group?.type ?? ""),
+        }))
+        .filter((group) => !!group.id),
+    [groups]
+  );
 
-      const candidateGroups = (groups ?? []).filter((group) => {
-        const groupId = String(group?.id ?? "").trim();
-        return !!groupId;
-      });
+  const canonicalQuickCaptureSuggestion = useMemo(() => {
+    const raw = quickCaptureValue.trim();
+    if (!raw) return null;
 
-      if (candidateGroups.length === 0) return null;
+    const parsed = parseQuickCapture(raw);
 
-      const profiles = candidateGroups
-        .map((group) =>
-          buildLearnedGroupDecisionProfile(learningSignals, {
-            groupId: String(group.id ?? "").trim(),
-          })
-        )
-        .filter((profile) => profile !== null);
-
-      if (profiles.length === 0) return null;
-
-      const learned = getBestGroupFromLearning({
-        rawText: raw,
-        profiles,
-      });
-
-      if (!learned.groupId) return null;
-
-      const confidence: SmartInterpretationLearnedCandidate["confidence"] =
-        learned.confidence >= 0.65
-          ? "high"
-          : learned.confidence >= 0.35
-          ? "medium"
-          : "low";
-
-      return {
-        groupId: learned.groupId,
-        confidence,
-        reason: learned.reason,
-      };
-    }, [quickCaptureValue, learningSignals, groups]);
+    return suggestCanonicalGroupWithLearning({
+      title: parsed.title,
+      notes: parsed.notes,
+      signals: learningSignals ?? [],
+      candidateGroups: suggestionCandidateGroups,
+    });
+  }, [quickCaptureValue, learningSignals, suggestionCandidateGroups]);
 
   const normalizeSuggestionGroupType = useCallback(
     (value: string | null | undefined): "personal" | "pair" | "family" | "other" => {
@@ -222,31 +198,32 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
       const parsed = parseQuickCapture(raw);
 
-      const learningBackedSuggestion = suggestGroupWithLearning({
+      const canonicalSuggestion = suggestCanonicalGroupWithLearning({
         title: parsed.title,
         notes: parsed.notes,
         signals: learningSignals ?? [],
-        candidateGroups: groups.map((group) => ({
-          id: String(group.id ?? "").trim(),
-          type: String(group.type ?? ""),
-        })),
+        candidateGroups: suggestionCandidateGroups,
       });
 
-      const effectiveLearnedCandidate =
-        learnedInterpretationCandidate ??
-        (learningBackedSuggestion.trace?.learning?.groupId
-          ? {
-              groupId: learningBackedSuggestion.trace.learning.groupId,
-              confidence:
-                learningBackedSuggestion.trace.learning.confidence >= 0.65
-                  ? "high"
-                  : learningBackedSuggestion.trace.learning.confidence >= 0.35
-                  ? "medium"
-                  : "low",
-              reason: learningBackedSuggestion.trace.learning.reason ?? null,
-            }
-          : null);
-
+const effectiveLearnedCandidate: {
+  groupId: string;
+  confidence: "low" | "medium" | "high";
+  reason: string | null;
+} | null =
+  canonicalSuggestion.mode === "auto_apply" &&
+  canonicalSuggestion.groupId &&
+  canonicalSuggestion.trace?.learning?.groupId
+    ? {
+        groupId: canonicalSuggestion.groupId,
+        confidence:
+          canonicalSuggestion.trace.learning.confidence >= 0.65
+            ? "high"
+            : canonicalSuggestion.trace.learning.confidence >= 0.35
+            ? "medium"
+            : "low",
+        reason: canonicalSuggestion.trace.learning.reason ?? null,
+      }
+    : null;
       return buildSmartInterpretation({
         raw,
         groups,
@@ -254,7 +231,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         learnedCandidate: effectiveLearnedCandidate,
       });
     },
-    [groups, activeGroupId, learnedInterpretationCandidate, learningSignals]
+    [groups, activeGroupId, learningSignals, suggestionCandidateGroups]
   );
 
   const smartInterpretation = useMemo(() => {
@@ -266,8 +243,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [smartInterpretation, groups]);
 
   const suggestedContextGroupId = useMemo(() => {
-    if (smartInterpretation?.intent === "group" && smartInterpretation.groupId) {
-      return String(smartInterpretation.groupId);
+    if (
+      canonicalQuickCaptureSuggestion?.mode === "auto_apply" &&
+      canonicalQuickCaptureSuggestion.groupId
+    ) {
+      return String(canonicalQuickCaptureSuggestion.groupId);
     }
 
     if (activeGroupId) {
@@ -275,7 +255,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     }
 
     return null;
-  }, [smartInterpretation, activeGroupId]);
+  }, [canonicalQuickCaptureSuggestion, activeGroupId]);
 
   const suggestedContextGroup = useMemo(() => {
     if (!suggestedContextGroupId) return null;
@@ -565,15 +545,23 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       const parsed = parseQuickCapture(raw);
       const params = new URLSearchParams();
       const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
-      const smart = resolveSmartInterpretation(raw);
+      const canonicalSuggestion = suggestCanonicalGroupWithLearning({
+        title: parsed.title,
+        notes: parsed.notes,
+        signals: learningSignals ?? [],
+        candidateGroups: suggestionCandidateGroups,
+      });
 
       params.set("qc", "1");
       params.set("capture_source", "summary");
       params.set("raw_text", raw);
 
-      if (smart?.intent === "group" && smart.groupId) {
+      if (
+        canonicalSuggestion.mode === "auto_apply" &&
+        canonicalSuggestion.groupId
+      ) {
         params.set("type", "group");
-        params.set("groupId", smart.groupId);
+        params.set("groupId", canonicalSuggestion.groupId);
       } else {
         params.set("type", "personal");
       }
@@ -587,7 +575,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
       router.push(`/events/new/details?${params.toString()}`);
     },
-    [resolveSmartInterpretation, router]
+    [learningSignals, router, suggestionCandidateGroups]
   );
 
   const navigateFromSuggestedSlot = useCallback(
@@ -598,15 +586,23 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       const parsed = parseQuickCapture(raw);
       const params = new URLSearchParams();
       const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
-      const smart = resolveSmartInterpretation(raw);
+      const canonicalSuggestion = suggestCanonicalGroupWithLearning({
+        title: parsed.title,
+        notes: parsed.notes,
+        signals: learningSignals ?? [],
+        candidateGroups: suggestionCandidateGroups,
+      });
 
       params.set("qc", "1");
       params.set("capture_source", "summary");
       params.set("raw_text", raw);
 
-      if (smart?.intent === "group" && smart.groupId) {
+      if (
+        canonicalSuggestion.mode === "auto_apply" &&
+        canonicalSuggestion.groupId
+      ) {
         params.set("type", "group");
-        params.set("groupId", smart.groupId);
+        params.set("groupId", canonicalSuggestion.groupId);
       } else {
         params.set("type", "personal");
       }
@@ -621,7 +617,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
       router.push(`/events/new/details?${params.toString()}`);
     },
-    [resolveSmartInterpretation, router]
+    [learningSignals, router, suggestionCandidateGroups]
   );
 
   const handleQuickCaptureSubmit = useCallback(() => {

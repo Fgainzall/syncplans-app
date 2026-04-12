@@ -7,6 +7,33 @@ import {
 } from "@/lib/learningGroupProfile";
 import type { LearnedGroupDecisionProfile } from "@/lib/learningGroupProfile";
 
+export type GroupSuggestionMode =
+  | "auto_apply"
+  | "suggest_only"
+  | "ambiguous"
+  | "none";
+
+export type GroupSuggestionReason =
+  | "semantic"
+  | "name_match"
+  | "learned"
+  | "context"
+  | "fallback"
+  | "conflict";
+
+export type GroupSuggestionConfidence = "high" | "medium" | "low";
+
+export type GroupSuggestionType = "pair" | "family" | "other";
+
+export type CanonicalGroupSuggestion = {
+  groupId: string | null;
+  type: GroupSuggestionType | null;
+  confidence: GroupSuggestionConfidence;
+  mode: GroupSuggestionMode;
+  reason: GroupSuggestionReason;
+  trace?: GroupSuggestionTrace;
+};
+
 export type GroupSuggestionTrace = {
   rawText: string;
   decision:
@@ -16,20 +43,22 @@ export type GroupSuggestionTrace = {
     | "heuristic_conflict_learning_ignored"
     | "learning_override"
     | "heuristic_kept_learning_weak"
+    | "heuristic_vs_learning_ambiguous"
     | "empty_input"
     | "no_signals_or_candidates"
     | "no_profiles"
     | "learning_below_threshold"
     | "learning_group_not_found";
   heuristic: {
-    type: "pair" | "family" | "other" | null;
-    confidence: number;
+    type: GroupSuggestionType | null;
+    score: number;
+    normalizedConfidence: number;
     reason: string | null;
     strongMatch: boolean;
   };
   learning: {
     groupId: string | null;
-    type: "pair" | "family" | "other" | null;
+    type: GroupSuggestionType | null;
     confidence: number;
     reason: string | null;
     minConfidenceReached: boolean;
@@ -37,12 +66,19 @@ export type GroupSuggestionTrace = {
   };
   candidates: Array<{
     id: string;
-    type: "pair" | "family" | "other";
+    type: GroupSuggestionType;
   }>;
+  final: {
+    groupId: string | null;
+    type: GroupSuggestionType | null;
+    confidence: GroupSuggestionConfidence;
+    mode: GroupSuggestionMode;
+    reason: GroupSuggestionReason;
+  };
 };
 
 export type GroupSuggestion = {
-  type: "pair" | "family" | "other" | null;
+  type: GroupSuggestionType | null;
   confidence: number;
   reason?: string;
   trace?: GroupSuggestionTrace;
@@ -115,26 +151,53 @@ const OTHER_KEYWORDS = [
 
 type NormalizedCandidateGroup = {
   id: string;
-  type: "pair" | "family" | "other";
+  type: GroupSuggestionType;
 };
+
+type HeuristicGroupSuggestion = {
+  type: GroupSuggestionType | null;
+  score: number;
+  confidence: number;
+  reason?: string;
+  trace?: GroupSuggestionTrace;
+};
+
+type TraceBuildInput = {
+  rawText: string;
+  decision: GroupSuggestionTrace["decision"];
+  heuristic: HeuristicGroupSuggestion;
+  learningGroupId?: string | null;
+  learningType?: GroupSuggestionType | null;
+  learningConfidence?: number;
+  learningReason?: string | null;
+  candidates: NormalizedCandidateGroup[];
+  final: CanonicalGroupSuggestion;
+};
+
+const LEARNING_MIN_CONFIDENCE = 0.2;
+const LEARNING_OVERRIDE_THRESHOLD = 0.62;
+const LEARNING_STRONG_THRESHOLD = 0.7;
+const AUTO_APPLY_LEARNING_THRESHOLD = 0.78;
+const MEDIUM_LEARNING_THRESHOLD = 0.45;
+const HEURISTIC_STRONG_SCORE = 2;
 
 function normalizeText(value: string): string {
   return String(value ?? "")
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[.,;:!?()]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function hasWholePhrase(text: string, phrase: string) {
+function hasWholePhrase(text: string, phrase: string): boolean {
   const normalizedText = ` ${normalizeText(text)} `;
   const normalizedPhrase = normalizeText(phrase);
   return normalizedText.includes(` ${normalizedPhrase} `);
 }
 
-function scoreSuggestion(text: string, keywords: string[]) {
+function scoreSuggestion(text: string, keywords: string[]): number {
   let hits = 0;
   for (const keyword of keywords) {
     if (hasWholePhrase(text, keyword)) hits += 1;
@@ -142,7 +205,7 @@ function scoreSuggestion(text: string, keywords: string[]) {
   return hits;
 }
 
-function countPatternHits(text: string, patterns: RegExp[]) {
+function countPatternHits(text: string, patterns: RegExp[]): number {
   const normalized = normalizeText(text);
   return patterns.reduce(
     (acc, pattern) => acc + (pattern.test(normalized) ? 1 : 0),
@@ -152,7 +215,7 @@ function countPatternHits(text: string, patterns: RegExp[]) {
 
 function normalizeSuggestedType(
   value: string | null | undefined,
-): "pair" | "family" | "other" | null {
+): GroupSuggestionType | null {
   const raw = String(value ?? "").trim().toLowerCase();
 
   if (raw === "pair") return "pair";
@@ -182,34 +245,163 @@ function normalizeCandidateGroups(
   return normalized;
 }
 
-function clampConfidence(value: number): number {
+function clampUnit(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(1, Number(value.toFixed(4))));
 }
 
-function isStrongHeuristicMatch(suggestion: GroupSuggestion): boolean {
-  return Boolean(suggestion.type && suggestion.confidence >= 2);
+function clampScore(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Number(value.toFixed(4)));
 }
 
-function buildTrace(params: {
-  rawText: string;
-  decision: GroupSuggestionTrace["decision"];
-  heuristic: GroupSuggestion;
-  learningGroupId?: string | null;
-  learningType?: "pair" | "family" | "other" | null;
-  learningConfidence?: number;
-  learningReason?: string | null;
+function heuristicScoreToUnit(score: number): number {
+  if (!Number.isFinite(score) || score <= 0) return 0;
+  if (score >= 3) return 1;
+  if (score >= 2) return 0.8;
+  return 0.55;
+}
+
+function unitToConfidenceBand(value: number): GroupSuggestionConfidence {
+  if (value >= 0.78) return "high";
+  if (value >= 0.45) return "medium";
+  return "low";
+}
+
+function isStrongHeuristicMatch(suggestion: HeuristicGroupSuggestion): boolean {
+  return Boolean(suggestion.type && suggestion.score >= HEURISTIC_STRONG_SCORE);
+}
+
+function countCandidatesByType(
+  candidates: NormalizedCandidateGroup[],
+  type: GroupSuggestionType | null,
+): number {
+  if (!type) return 0;
+  return candidates.filter((candidate) => candidate.type === type).length;
+}
+
+function buildCanonicalSuggestion(params: {
+  heuristic: HeuristicGroupSuggestion;
   candidates: NormalizedCandidateGroup[];
-}): GroupSuggestionTrace {
+  learningGroupId?: string | null;
+  learningType?: GroupSuggestionType | null;
+  learningConfidence?: number;
+  preferHeuristic?: boolean;
+  preferLearning?: boolean;
+  forceAmbiguous?: boolean;
+}): CanonicalGroupSuggestion {
+  const heuristic = params.heuristic;
+  const learningConfidence = clampUnit(params.learningConfidence ?? 0);
+  const heuristicConfidence = clampUnit(heuristic.confidence);
+
+  const typeCandidateCount = countCandidatesByType(
+    params.candidates,
+    heuristic.type ?? params.learningType ?? null,
+  );
+  const multipleCandidatesSameType = typeCandidateCount > 1;
+
+  if (params.forceAmbiguous) {
+    return {
+      groupId: null,
+      type: heuristic.type ?? params.learningType ?? null,
+      confidence: "low",
+      mode: "ambiguous",
+      reason: "conflict",
+    };
+  }
+
+  if (params.preferLearning && params.learningGroupId && params.learningType) {
+    const mode: GroupSuggestionMode =
+      learningConfidence >= AUTO_APPLY_LEARNING_THRESHOLD
+        ? "auto_apply"
+        : "suggest_only";
+
+    return {
+      groupId: params.learningGroupId,
+      type: params.learningType,
+      confidence: unitToConfidenceBand(learningConfidence),
+      mode,
+      reason: "learned",
+    };
+  }
+
+  if (params.preferHeuristic && heuristic.type) {
+    if (multipleCandidatesSameType) {
+      return {
+        groupId: null,
+        type: heuristic.type,
+        confidence: unitToConfidenceBand(heuristicConfidence),
+        mode: "suggest_only",
+        reason: "semantic",
+      };
+    }
+
+    const onlyCandidateOfType = params.candidates.find(
+      (candidate) => candidate.type === heuristic.type,
+    );
+
+    if (onlyCandidateOfType && heuristicConfidence >= 0.8) {
+      return {
+        groupId: onlyCandidateOfType.id,
+        type: heuristic.type,
+        confidence: unitToConfidenceBand(heuristicConfidence),
+        mode: "auto_apply",
+        reason: "semantic",
+      };
+    }
+
+    return {
+      groupId: onlyCandidateOfType?.id ?? null,
+      type: heuristic.type,
+      confidence: unitToConfidenceBand(heuristicConfidence),
+      mode: "suggest_only",
+      reason: "semantic",
+    };
+  }
+
+  if (params.learningGroupId && params.learningType) {
+    return {
+      groupId: params.learningGroupId,
+      type: params.learningType,
+      confidence: unitToConfidenceBand(learningConfidence),
+      mode:
+        learningConfidence >= MEDIUM_LEARNING_THRESHOLD
+          ? "suggest_only"
+          : "ambiguous",
+      reason: "learned",
+    };
+  }
+
+  if (heuristic.type) {
+    return {
+      groupId: null,
+      type: heuristic.type,
+      confidence: unitToConfidenceBand(heuristicConfidence),
+      mode: heuristicConfidence >= 0.45 ? "suggest_only" : "ambiguous",
+      reason: "semantic",
+    };
+  }
+
+  return {
+    groupId: null,
+    type: null,
+    confidence: "low",
+    mode: "none",
+    reason: "fallback",
+  };
+}
+
+function buildTrace(params: TraceBuildInput): GroupSuggestionTrace {
   const heuristicStrong = isStrongHeuristicMatch(params.heuristic);
-  const learningConfidence = clampConfidence(params.learningConfidence ?? 0);
+  const learningConfidence = clampUnit(params.learningConfidence ?? 0);
 
   return {
     rawText: params.rawText,
     decision: params.decision,
     heuristic: {
       type: params.heuristic.type ?? null,
-      confidence: Number(params.heuristic.confidence ?? 0),
+      score: clampScore(params.heuristic.score),
+      normalizedConfidence: clampUnit(params.heuristic.confidence),
       reason: params.heuristic.reason ?? null,
       strongMatch: heuristicStrong,
     },
@@ -218,13 +410,21 @@ function buildTrace(params: {
       type: params.learningType ?? null,
       confidence: learningConfidence,
       reason: params.learningReason ?? null,
-      minConfidenceReached: learningConfidence >= 0.2,
-      overrideThresholdReached: learningConfidence >= 0.62,
+      minConfidenceReached: learningConfidence >= LEARNING_MIN_CONFIDENCE,
+      overrideThresholdReached:
+        learningConfidence >= LEARNING_OVERRIDE_THRESHOLD,
     },
     candidates: params.candidates.map((candidate) => ({
       id: candidate.id,
       type: candidate.type,
     })),
+    final: {
+      groupId: params.final.groupId,
+      type: params.final.type,
+      confidence: params.final.confidence,
+      mode: params.final.mode,
+      reason: params.final.reason,
+    },
   };
 }
 
@@ -234,7 +434,9 @@ export function suggestGroupFromText(
 ): GroupSuggestion {
   const text = normalizeText(`${title} ${notes ?? ""}`);
 
-  if (!text) return { type: null, confidence: 0, trace: undefined };
+  if (!text) {
+    return { type: null, confidence: 0, trace: undefined };
+  }
 
   const pairScore =
     scoreSuggestion(text, PAIR_KEYWORDS) +
@@ -298,37 +500,58 @@ export function suggestGroupFromText(
   };
 }
 
-export function suggestGroupWithLearning(
+export function suggestCanonicalGroupWithLearning(
   input: SuggestGroupFromLearningInput,
-): GroupSuggestion {
+): CanonicalGroupSuggestion {
   const title = String(input.title ?? "").trim();
   const notes = String(input.notes ?? "").trim();
   const rawText = `${title} ${notes}`.trim();
 
-  const heuristic = suggestGroupFromText(title, notes);
+  const heuristicBase = suggestGroupFromText(title, notes);
+  const heuristic: HeuristicGroupSuggestion = {
+    type: heuristicBase.type,
+    score: clampScore(heuristicBase.confidence),
+    confidence: heuristicScoreToUnit(heuristicBase.confidence),
+    reason: heuristicBase.reason,
+    trace: heuristicBase.trace,
+  };
+
   const signals = Array.isArray(input.signals) ? input.signals : [];
   const candidateGroups = normalizeCandidateGroups(input.candidateGroups);
 
   if (!rawText) {
+    const final = buildCanonicalSuggestion({
+      heuristic,
+      candidates: candidateGroups,
+    });
+
     return {
-      ...heuristic,
+      ...final,
       trace: buildTrace({
         rawText,
         decision: "empty_input",
         heuristic,
         candidates: candidateGroups,
+        final,
       }),
     };
   }
 
   if (signals.length === 0 || candidateGroups.length === 0) {
+    const final = buildCanonicalSuggestion({
+      heuristic,
+      candidates: candidateGroups,
+      preferHeuristic: Boolean(heuristic.type),
+    });
+
     return {
-      ...heuristic,
+      ...final,
       trace: buildTrace({
         rawText,
         decision: "no_signals_or_candidates",
         heuristic,
         candidates: candidateGroups,
+        final,
       }),
     };
   }
@@ -345,13 +568,20 @@ export function suggestGroupWithLearning(
     );
 
   if (profiles.length === 0) {
+    const final = buildCanonicalSuggestion({
+      heuristic,
+      candidates: candidateGroups,
+      preferHeuristic: Boolean(heuristic.type),
+    });
+
     return {
-      ...heuristic,
+      ...final,
       trace: buildTrace({
         rawText,
         decision: "no_profiles",
         heuristic,
         candidates: candidateGroups,
+        final,
       }),
     };
   }
@@ -361,9 +591,17 @@ export function suggestGroupWithLearning(
     profiles,
   });
 
-  if (!learned.groupId || learned.confidence < 0.2) {
+  if (!learned.groupId || learned.confidence < LEARNING_MIN_CONFIDENCE) {
+    const final = buildCanonicalSuggestion({
+      heuristic,
+      candidates: candidateGroups,
+      preferHeuristic: Boolean(heuristic.type),
+      learningGroupId: learned.groupId ?? null,
+      learningConfidence: learned.confidence,
+    });
+
     return {
-      ...heuristic,
+      ...final,
       trace: buildTrace({
         rawText,
         decision: "learning_below_threshold",
@@ -372,16 +610,27 @@ export function suggestGroupWithLearning(
         learningConfidence: learned.confidence,
         learningReason: learned.reason ?? null,
         candidates: candidateGroups,
+        final,
       }),
     };
   }
 
-  const matchedGroup = candidateGroups.find((group) => group.id === learned.groupId);
+  const matchedGroup = candidateGroups.find(
+    (group) => group.id === learned.groupId,
+  );
   const learnedType = matchedGroup?.type ?? null;
 
   if (!learnedType) {
+    const final = buildCanonicalSuggestion({
+      heuristic,
+      candidates: candidateGroups,
+      preferHeuristic: Boolean(heuristic.type),
+      learningGroupId: learned.groupId ?? null,
+      learningConfidence: learned.confidence,
+    });
+
     return {
-      ...heuristic,
+      ...final,
       trace: buildTrace({
         rawText,
         decision: "learning_group_not_found",
@@ -390,15 +639,23 @@ export function suggestGroupWithLearning(
         learningConfidence: learned.confidence,
         learningReason: learned.reason ?? null,
         candidates: candidateGroups,
+        final,
       }),
     };
   }
 
   if (!heuristic.type) {
+    const final = buildCanonicalSuggestion({
+      heuristic,
+      candidates: candidateGroups,
+      learningGroupId: learned.groupId,
+      learningType: learnedType,
+      learningConfidence: learned.confidence,
+      preferLearning: true,
+    });
+
     return {
-      type: learnedType,
-      confidence: clampConfidence(learned.confidence),
-      reason: learned.reason,
+      ...final,
       trace: buildTrace({
         rawText,
         decision: "learning_only",
@@ -408,15 +665,28 @@ export function suggestGroupWithLearning(
         learningConfidence: learned.confidence,
         learningReason: learned.reason ?? null,
         candidates: candidateGroups,
+        final,
       }),
     };
   }
 
   if (heuristic.type === learnedType) {
+    const final = buildCanonicalSuggestion({
+      heuristic,
+      candidates: candidateGroups,
+      learningGroupId: learned.groupId,
+      learningType: learnedType,
+      learningConfidence: learned.confidence,
+      preferLearning:
+        learned.confidence >= LEARNING_OVERRIDE_THRESHOLD &&
+        learned.confidence > heuristic.confidence,
+      preferHeuristic:
+        !(learned.confidence >= LEARNING_OVERRIDE_THRESHOLD &&
+          learned.confidence > heuristic.confidence),
+    });
+
     return {
-      type: heuristic.type,
-      confidence: clampConfidence(Math.max(heuristic.confidence, learned.confidence)),
-      reason: `heuristic_and_learning | ${heuristic.reason ?? "heuristic"} | ${learned.reason}`,
+      ...final,
       trace: buildTrace({
         rawText,
         decision: "heuristic_and_learning_agree",
@@ -426,14 +696,26 @@ export function suggestGroupWithLearning(
         learningConfidence: learned.confidence,
         learningReason: learned.reason ?? null,
         candidates: candidateGroups,
+        final,
       }),
     };
   }
 
-  if (isStrongHeuristicMatch(heuristic) && learned.confidence < 0.7) {
+  if (
+    isStrongHeuristicMatch(heuristic) &&
+    learned.confidence < LEARNING_STRONG_THRESHOLD
+  ) {
+    const final = buildCanonicalSuggestion({
+      heuristic,
+      candidates: candidateGroups,
+      learningGroupId: learned.groupId,
+      learningType: learnedType,
+      learningConfidence: learned.confidence,
+      preferHeuristic: true,
+    });
+
     return {
-      ...heuristic,
-      reason: `${heuristic.reason ?? "heuristic"} | learning_conflict_ignored`,
+      ...final,
       trace: buildTrace({
         rawText,
         decision: "heuristic_conflict_learning_ignored",
@@ -443,15 +725,26 @@ export function suggestGroupWithLearning(
         learningConfidence: learned.confidence,
         learningReason: learned.reason ?? null,
         candidates: candidateGroups,
+        final,
       }),
     };
   }
 
-  if (learned.confidence >= 0.62 && learned.confidence > heuristic.confidence + 0.1) {
+  if (
+    learned.confidence >= LEARNING_OVERRIDE_THRESHOLD &&
+    learned.confidence > heuristic.confidence + 0.1
+  ) {
+    const final = buildCanonicalSuggestion({
+      heuristic,
+      candidates: candidateGroups,
+      learningGroupId: learned.groupId,
+      learningType: learnedType,
+      learningConfidence: learned.confidence,
+      preferLearning: true,
+    });
+
     return {
-      type: learnedType,
-      confidence: clampConfidence(learned.confidence),
-      reason: `learning_override | ${learned.reason}`,
+      ...final,
       trace: buildTrace({
         rawText,
         decision: "learning_override",
@@ -461,22 +754,116 @@ export function suggestGroupWithLearning(
         learningConfidence: learned.confidence,
         learningReason: learned.reason ?? null,
         candidates: candidateGroups,
+        final,
       }),
     };
   }
 
+  const final = buildCanonicalSuggestion({
+    heuristic,
+    candidates: candidateGroups,
+    learningGroupId: learned.groupId,
+    learningType: learnedType,
+    learningConfidence: learned.confidence,
+    forceAmbiguous: true,
+  });
+
   return {
-    ...heuristic,
-    reason: `${heuristic.reason ?? "heuristic"} | learning_not_strong_enough_to_override`,
+    ...final,
     trace: buildTrace({
       rawText,
-      decision: "heuristic_kept_learning_weak",
+      decision: "heuristic_vs_learning_ambiguous",
       heuristic,
       learningGroupId: learned.groupId,
       learningType: learnedType,
       learningConfidence: learned.confidence,
       learningReason: learned.reason ?? null,
       candidates: candidateGroups,
+      final,
     }),
+  };
+}
+
+function canonicalToLegacyConfidence(
+  canonical: CanonicalGroupSuggestion,
+): number {
+  const trace = canonical.trace;
+
+  if (!trace) {
+    return canonical.mode === "none" ? 0 : 0.3;
+  }
+
+  if (
+    trace.decision === "learning_only" ||
+    trace.decision === "learning_override"
+  ) {
+    return clampUnit(trace.learning.confidence);
+  }
+
+  if (
+    trace.decision === "heuristic_only" ||
+    trace.decision === "heuristic_conflict_learning_ignored" ||
+    trace.decision === "heuristic_kept_learning_weak"
+  ) {
+    return clampScore(trace.heuristic.score);
+  }
+
+  if (trace.decision === "heuristic_and_learning_agree") {
+    return Math.max(
+      clampScore(trace.heuristic.score),
+      clampUnit(trace.learning.confidence),
+    );
+  }
+
+  if (trace.decision === "heuristic_vs_learning_ambiguous") {
+    if (trace.heuristic.strongMatch) {
+      return clampScore(trace.heuristic.score);
+    }
+    return Math.min(clampUnit(trace.learning.confidence), 0.3);
+  }
+
+  if (
+    trace.decision === "empty_input" ||
+    trace.decision === "no_signals_or_candidates" ||
+    trace.decision === "no_profiles" ||
+    trace.decision === "learning_below_threshold" ||
+    trace.decision === "learning_group_not_found"
+  ) {
+    if (trace.heuristic.score > 0) return clampScore(trace.heuristic.score);
+    return canonical.mode === "none" ? 0 : 0.3;
+  }
+
+  return canonical.mode === "none" ? 0 : 0.3;
+}
+
+/**
+ * Compat layer:
+ * mantiene la firma vieja para no romper Summary / Details hoy.
+ * Internamente ya usa la decisión canónica nueva.
+ *
+ * Importante:
+ * preserva lo mejor posible la escala legacy híbrida:
+ * - heurística -> score entero (1, 2, 3...)
+ * - learning -> confidence 0..1
+ */
+export function suggestGroupWithLearning(
+  input: SuggestGroupFromLearningInput,
+): GroupSuggestion {
+  const canonical = suggestCanonicalGroupWithLearning(input);
+
+  const legacyReason =
+    canonical.mode === "auto_apply"
+      ? `${canonical.reason} | auto_apply`
+      : canonical.mode === "suggest_only"
+        ? `${canonical.reason} | suggest_only`
+        : canonical.mode === "ambiguous"
+          ? `${canonical.reason} | ambiguous`
+          : canonical.reason;
+
+  return {
+    type: canonical.type,
+    confidence: canonicalToLegacyConfidence(canonical),
+    reason: legacyReason,
+    trace: canonical.trace,
   };
 }
