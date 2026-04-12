@@ -224,12 +224,15 @@ const effectiveLearnedCandidate: {
         reason: canonicalSuggestion.trace.learning.reason ?? null,
       }
     : null;
-      return buildSmartInterpretation({
-        raw,
-        groups,
-        activeGroupId,
-        learnedCandidate: effectiveLearnedCandidate,
-      });
+  const interpretationActiveGroupId =
+  canonicalSuggestion.mode === "auto_apply" ? activeGroupId : null;
+
+return buildSmartInterpretation({
+  raw,
+  groups,
+  activeGroupId: interpretationActiveGroupId,
+  learnedCandidate: effectiveLearnedCandidate,
+});
     },
     [groups, activeGroupId, learningSignals, suggestionCandidateGroups]
   );
