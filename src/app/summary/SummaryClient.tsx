@@ -242,21 +242,17 @@ const effectiveLearnedCandidate: {
     return getSmartInterpretationLabel(smartInterpretation, groups);
   }, [smartInterpretation, groups]);
 
-  const suggestedContextGroupId = useMemo(() => {
-    if (
-      canonicalQuickCaptureSuggestion?.mode === "auto_apply" &&
-      canonicalQuickCaptureSuggestion.groupId
-    ) {
-      return String(canonicalQuickCaptureSuggestion.groupId);
-    }
+const suggestedContextGroupId = useMemo(() => {
+  if (
+    canonicalQuickCaptureSuggestion?.mode === "auto_apply" &&
+    canonicalQuickCaptureSuggestion.groupId
+  ) {
+    return String(canonicalQuickCaptureSuggestion.groupId);
+  }
 
-    if (activeGroupId) {
-      return String(activeGroupId);
-    }
-
-    return null;
-  }, [canonicalQuickCaptureSuggestion, activeGroupId]);
-
+  // ❗ FASE 5: NO asumir grupo si es ambiguo o suggest_only
+  return null;
+}, [canonicalQuickCaptureSuggestion]);
   const suggestedContextGroup = useMemo(() => {
     if (!suggestedContextGroupId) return null;
 
