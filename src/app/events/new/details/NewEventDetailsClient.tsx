@@ -867,14 +867,14 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     }
 
     if (isSharedProposal) {
-      return "Estás respondiendo a una propuesta compartida. Puedes aceptarla como está o ajustarla antes de guardarla.";
+"Alguien te propuso este plan. Puedes aceptarlo tal cual o ajustarlo antes de guardarlo."
     }
 
     if (effectiveType === "group") {
       const groupName = selectedGroup?.name ?? "Grupo";
-      return `Se compartirá con ${groupName}.`;
+     return `Esto se verá con ${groupName}. Si no es el lugar correcto, puedes cambiarlo.`;
     }
-    return "Solo aparecerá en tu calendario.";
+  return "Esto solo lo verás tú.";
   }, [effectiveType, selectedGroup, isSharedProposal, proposalResponse]);
 
 

@@ -1037,43 +1037,41 @@ export function getSmartInterpretationLabel(
 ) {
   if (!interpretation) return null;
 
-  if (interpretation.intent === "personal") {
-    return "→ Esto quedará como plan personal";
-  }
-
   const group =
     groups.find(
       (candidate) =>
         String(candidate.id) === String(interpretation.groupId ?? "")
     ) ?? null;
 
-  const groupLabel = group ? humanGroupName(group) : "grupo";
+  const groupLabel = group ? humanGroupName(group) : "este grupo";
+
+  if (interpretation.intent === "personal") {
+    return "Parece algo solo para ti. Lo dejamos como plan personal.";
+  }
 
   if (interpretation.reason === "learned") {
     return interpretation.confidence === "high"
-      ? `→ Normalmente esto termina en ${groupLabel}`
-      : `→ Esto probablemente encaja en ${groupLabel}`;
+      ? `Esto normalmente termina en ${groupLabel}. Lo preparo ahí.`
+      : `Esto podría encajar en ${groupLabel}. Revísalo antes de guardar.`;
   }
 
   if (interpretation.reason === "name_match") {
-    return group
-      ? `→ Lo prepararé en ${groupLabel}`
-      : "→ Esto quedará como plan compartido";
+    return `Mencionaste algo claro. Lo preparo en ${groupLabel}.`;
   }
 
   if (interpretation.reason === "social_hint") {
     return group
-      ? `→ Suena a plan compartido · lo prepararé en ${groupLabel}`
-      : "→ Esto quedará como plan compartido";
+      ? `Suena a plan compartido. Lo preparo en ${groupLabel}.`
+      : "Suena a plan compartido, pero prefiero no asumir el grupo.";
   }
 
   if (interpretation.reason === "active_group") {
     return group
-      ? `→ Tomaré ${groupLabel} como punto de partida`
-      : "→ Esto quedará como plan compartido";
+      ? `Tomo ${groupLabel} como punto de partida.`
+      : "Uso tu grupo activo como referencia.";
   }
 
-  return "→ Esto quedará como plan compartido";
+  return "Puede ser compartido, pero prefiero que lo confirmes.";
 }
 
 export function canUseNativeShare() {
