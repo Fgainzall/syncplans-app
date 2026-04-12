@@ -25,6 +25,8 @@ export type GroupSuggestionConfidence = "high" | "medium" | "low";
 
 export type GroupSuggestionType = "pair" | "family" | "other";
 
+export type GroupSuggestionWinner = "heuristic" | "learning" | "none" | "mixed";
+
 export type CanonicalGroupSuggestion = {
   groupId: string | null;
   type: GroupSuggestionType | null;
@@ -49,6 +51,10 @@ export type GroupSuggestionTrace = {
     | "no_profiles"
     | "learning_below_threshold"
     | "learning_group_not_found";
+  explanation: {
+    winner: GroupSuggestionWinner;
+    summary: string;
+  };
   heuristic: {
     type: GroupSuggestionType | null;
     score: number;
@@ -403,6 +409,85 @@ function buildCanonicalSuggestion(params: {
   };
 }
 
+function getTraceWinner(
+  decision: GroupSuggestionTrace["decision"],
+): GroupSuggestionWinner {
+  switch (decision) {
+    case "heuristic_only":
+    case "heuristic_conflict_learning_ignored":
+    case "heuristic_kept_learning_weak":
+      return "heuristic";
+
+    case "learning_only":
+    case "learning_override":
+      return "learning";
+
+    case "heuristic_and_learning_agree":
+      return "mixed";
+
+    case "heuristic_vs_learning_ambiguous":
+    case "empty_input":
+    case "no_signals_or_candidates":
+    case "no_profiles":
+    case "learning_below_threshold":
+    case "learning_group_not_found":
+    default:
+      return "none";
+  }
+}
+
+function buildTraceSummary(params: {
+  decision: GroupSuggestionTrace["decision"];
+  heuristic: HeuristicGroupSuggestion;
+  learningConfidence: number;
+  learningReason?: string | null;
+  final: CanonicalGroupSuggestion;
+}): string {
+  const heuristicType = params.heuristic.type ?? "none";
+  const finalType = params.final.type ?? "none";
+
+  switch (params.decision) {
+    case "heuristic_only":
+      return `Heurística decidió ${heuristicType} sin apoyo de learning.`;
+
+    case "learning_only":
+      return `Learning decidió ${finalType} sin señal heurística clara.`;
+
+    case "heuristic_and_learning_agree":
+      return `Heurística y learning coincidieron en ${finalType}.`;
+
+    case "heuristic_conflict_learning_ignored":
+      return `Heurística mantuvo ${heuristicType} porque learning no alcanzó fuerza suficiente para contradecirla.`;
+
+    case "heuristic_kept_learning_weak":
+      return `Heurística se mantuvo porque learning fue demasiado débil.`;
+
+    case "learning_override":
+      return `Learning sobreescribió la heurística por mayor confianza (${params.learningConfidence.toFixed(2)}).`;
+
+    case "heuristic_vs_learning_ambiguous":
+      return `Hubo conflicto entre heurística y learning, así que la decisión quedó ambigua.`;
+
+    case "empty_input":
+      return "No hubo texto suficiente para sugerir un grupo.";
+
+    case "no_signals_or_candidates":
+      return "Faltan señales de learning o grupos candidatos para decidir mejor.";
+
+    case "no_profiles":
+      return "No se encontraron perfiles útiles de learning para los grupos candidatos.";
+
+    case "learning_below_threshold":
+      return `Learning quedó por debajo del threshold mínimo (${params.learningConfidence.toFixed(2)}).`;
+
+    case "learning_group_not_found":
+      return "Learning devolvió un grupo que no pudo mapearse a los candidatos disponibles.";
+
+    default:
+      return params.learningReason?.trim() || "No hay explicación adicional.";
+  }
+}
+
 function buildTrace(params: TraceBuildInput): GroupSuggestionTrace {
   const heuristicStrong = isStrongHeuristicMatch(params.heuristic);
   const learningConfidence = clampUnit(params.learningConfidence ?? 0);
@@ -410,6 +495,16 @@ function buildTrace(params: TraceBuildInput): GroupSuggestionTrace {
   return {
     rawText: params.rawText,
     decision: params.decision,
+    explanation: {
+      winner: getTraceWinner(params.decision),
+      summary: buildTraceSummary({
+        decision: params.decision,
+        heuristic: params.heuristic,
+        learningConfidence,
+        learningReason: params.learningReason ?? null,
+        final: params.final,
+      }),
+    },
     heuristic: {
       type: params.heuristic.type ?? null,
       score: clampScore(params.heuristic.score),
