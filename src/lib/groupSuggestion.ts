@@ -174,11 +174,20 @@ type TraceBuildInput = {
   final: CanonicalGroupSuggestion;
 };
 
-const LEARNING_MIN_CONFIDENCE = 0.2;
-const LEARNING_OVERRIDE_THRESHOLD = 0.62;
-const LEARNING_STRONG_THRESHOLD = 0.7;
-const AUTO_APPLY_LEARNING_THRESHOLD = 0.78;
-const MEDIUM_LEARNING_THRESHOLD = 0.45;
+/**
+ * Fase 6.1 — calibración fina del motor canónico
+ *
+ * Intención:
+ * - subir el listón para que learning dé menos auto_apply silencioso
+ * - exigir más señal antes de override contra heurística
+ * - empujar casos medianos a suggest_only / ambiguous
+ * - mantener los casos fuertes funcionando sin reescribir la lógica
+ */
+const LEARNING_MIN_CONFIDENCE = 0.26;
+const LEARNING_OVERRIDE_THRESHOLD = 0.68;
+const LEARNING_STRONG_THRESHOLD = 0.76;
+const AUTO_APPLY_LEARNING_THRESHOLD = 0.84;
+const MEDIUM_LEARNING_THRESHOLD = 0.52;
 const HEURISTIC_STRONG_SCORE = 2;
 
 function normalizeText(value: string): string {
@@ -263,8 +272,8 @@ function heuristicScoreToUnit(score: number): number {
 }
 
 function unitToConfidenceBand(value: number): GroupSuggestionConfidence {
-  if (value >= 0.78) return "high";
-  if (value >= 0.45) return "medium";
+  if (value >= AUTO_APPLY_LEARNING_THRESHOLD) return "high";
+  if (value >= MEDIUM_LEARNING_THRESHOLD) return "medium";
   return "low";
 }
 
@@ -377,7 +386,10 @@ function buildCanonicalSuggestion(params: {
       groupId: null,
       type: heuristic.type,
       confidence: unitToConfidenceBand(heuristicConfidence),
-      mode: heuristicConfidence >= 0.45 ? "suggest_only" : "ambiguous",
+      mode:
+        heuristicConfidence >= MEDIUM_LEARNING_THRESHOLD
+          ? "suggest_only"
+          : "ambiguous",
       reason: "semantic",
     };
   }
