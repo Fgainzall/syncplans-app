@@ -30,36 +30,7 @@ export default function CalendarPage({ searchParams }: { searchParams: SearchPar
     : null;
 
   return (
-    <Suspense
-      fallback={
-        <main
-          style={{
-            minHeight: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background:
-              "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
-            color: "rgba(255,255,255,0.85)",
-            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-          }}
-        >
-          <div
-            style={{
-              padding: "16px 20px",
-              borderRadius: 18,
-              border: "1px solid rgba(255,255,255,0.10)",
-              background: "rgba(5,8,22,0.86)",
-              boxShadow: "0 24px 70px rgba(0,0,0,0.55)",
-              fontSize: 14,
-              fontWeight: 800,
-            }}
-          >
-            Cargando tu calendario…
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={null}>
       <CalendarClient highlightId={highlightId} appliedToast={appliedToast} />
     </Suspense>
   );

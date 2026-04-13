@@ -374,6 +374,7 @@ function BottomNav() {
                 <Link
                   key={item.key}
                   href={item.path}
+                  scroll={false}
                   aria-label={item.aria}
                   aria-current={active ? "page" : undefined}
                   style={{

@@ -140,7 +140,10 @@ function normalizeGroupLabel(input?: string | null) {
 }
 
 function useIsMobileWidth(maxWidth = layout.mobileBreakpoint) {
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return window.matchMedia(`(max-width: ${maxWidth}px)`).matches;
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -252,6 +255,7 @@ export default function PremiumHeader({
   const router = useRouter();
   const pathname = usePathname();
   const isMobile = useIsMobileWidth();
+  const [headerReady, setHeaderReady] = useState(false);
 
   const [group, setGroup] = useState<GroupState | null>(null);
   const [openNotif, setOpenNotif] = useState(false);
@@ -300,6 +304,11 @@ export default function PremiumHeader({
   useEffect(() => {
     applyThemeVars(activeMode);
   }, [activeMode]);
+
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() => setHeaderReady(true));
+    return () => window.cancelAnimationFrame(id);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -392,7 +401,7 @@ export default function PremiumHeader({
     return cleaned;
   }, [group, activeTab.label]);
 
-  const hasHeaderConflicts = conflictSummary.count > 0;
+  const hasHeaderConflicts = headerReady && conflictSummary.count > 0;
 
   const openConflictCenter = useCallback(() => {
     setUserMenuOpen(false);
@@ -401,12 +410,13 @@ export default function PremiumHeader({
       router.push(
         `/conflicts/detected?eventId=${encodeURIComponent(
           conflictSummary.latestEventId
-        )}`
+        )}`,
+        { scroll: false }
       );
       return;
     }
 
-    router.push("/conflicts/detected");
+    router.push("/conflicts/detected", { scroll: false });
   }, [conflictSummary.latestEventId, router]);
 
   const finalTitle = title ?? getAutoTitle(pathname);
@@ -419,30 +429,32 @@ export default function PremiumHeader({
   }, [profile]);
   const upgradeMessage = useMemo(() => getUpgradeMessage(pathname), [pathname]);
   const shouldShowHeaderUpgrade = useMemo(() => {
+    if (!headerReady) return false;
     if (hasPremium) return false;
     if (pathname.startsWith("/planes")) return false;
     if (pathname.startsWith("/auth")) return false;
     return true;
-  }, [hasPremium, pathname]);
+  }, [hasPremium, headerReady, pathname]);
 
   async function onNewEvent() {
     try {
       if (activeMode === "solo") {
-        router.push("/events/new/details?type=personal");
+        router.push("/events/new/details?type=personal", { scroll: false });
         return;
       }
 
       const gid = await ensureActiveGroupForMode(activeMode);
       if (!gid) {
-        router.push("/groups/new");
+        router.push("/groups/new", { scroll: false });
         return;
       }
 
       router.push(
-        `/events/new/details?type=group&groupId=${encodeURIComponent(gid)}`
+        `/events/new/details?type=group&groupId=${encodeURIComponent(gid)}` ,
+        { scroll: false }
       );
     } catch {
-      router.push("/events/new/details?type=personal");
+      router.push("/events/new/details?type=personal", { scroll: false });
     }
   }
 
@@ -571,7 +583,7 @@ export default function PremiumHeader({
                       style={styles.menuItem}
                       onClick={() => {
                         setUserMenuOpen(false);
-                        router.push("/groups");
+                        router.push("/groups", { scroll: false });
                       }}
                     >
                       Grupos
@@ -582,7 +594,7 @@ export default function PremiumHeader({
                       style={styles.menuItem}
                       onClick={() => {
                         setUserMenuOpen(false);
-                        router.push("/members");
+                        router.push("/members", { scroll: false });
                       }}
                     >
                       Miembros
@@ -593,7 +605,7 @@ export default function PremiumHeader({
                       style={styles.menuItem}
                       onClick={() => {
                         setUserMenuOpen(false);
-                        router.push("/invitations");
+                        router.push("/invitations", { scroll: false });
                       }}
                     >
                       Invitaciones
@@ -604,7 +616,7 @@ export default function PremiumHeader({
                       style={styles.menuItem}
                       onClick={() => {
                         setUserMenuOpen(false);
-                        router.push("/settings");
+                        router.push("/settings", { scroll: false });
                       }}
                     >
                       Ajustes
@@ -615,7 +627,7 @@ export default function PremiumHeader({
                       style={styles.menuItem}
                       onClick={() => {
                         setUserMenuOpen(false);
-                        router.push("/planes");
+                        router.push("/planes", { scroll: false });
                       }}
                     >
                       Planes
@@ -779,7 +791,7 @@ export default function PremiumHeader({
                         style={styles.menuItem}
                         onClick={() => {
                           setUserMenuOpen(false);
-                          router.push("/groups");
+                          router.push("/groups", { scroll: false });
                         }}
                       >
                         Grupos
@@ -790,7 +802,7 @@ export default function PremiumHeader({
                         style={styles.menuItem}
                         onClick={() => {
                           setUserMenuOpen(false);
-                          router.push("/members");
+                          router.push("/members", { scroll: false });
                         }}
                       >
                         Miembros
@@ -801,7 +813,7 @@ export default function PremiumHeader({
                         style={styles.menuItem}
                         onClick={() => {
                           setUserMenuOpen(false);
-                          router.push("/invitations");
+                          router.push("/invitations", { scroll: false });
                         }}
                       >
                         Invitaciones
@@ -812,7 +824,7 @@ export default function PremiumHeader({
                         style={styles.menuItem}
                         onClick={() => {
                           setUserMenuOpen(false);
-                          router.push("/settings");
+                          router.push("/settings", { scroll: false });
                         }}
                       >
                         Ajustes
@@ -823,7 +835,7 @@ export default function PremiumHeader({
                         style={styles.menuItem}
                         onClick={() => {
                           setUserMenuOpen(false);
-                          router.push("/planes");
+                          router.push("/planes", { scroll: false });
                         }}
                       >
                         Planes
@@ -863,7 +875,7 @@ export default function PremiumHeader({
                 <button
                   key={item.label}
                   type="button"
-                  onClick={() => router.push(item.path)}
+                  onClick={() => router.push(item.path, { scroll: false })}
                   style={{
                     ...styles.navPill,
                     ...(item.active ? styles.navPillActive : {}),
@@ -907,6 +919,7 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: shadows.card,
     backdropFilter: "blur(16px)",
     marginBottom: spacing.xl,
+    minHeight: 196,
   },
   mobileWrap: {
     position: "sticky",
@@ -921,6 +934,7 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: shadows.card,
     backdropFilter: "blur(16px)",
     marginBottom: spacing.lg,
+    minHeight: 184,
   },
   backgroundGlow: {
     position: "absolute",
