@@ -28,10 +28,10 @@ export default function RegisterClient() {
   const sp = useSearchParams();
 
   const nextParam = sp.get("next");
-  const nextTarget = useMemo(
-    () => (nextParam && nextParam.startsWith("/") ? nextParam : "/summary"),
-    [nextParam],
-  );
+const nextTarget = useMemo(
+  () => (nextParam && nextParam.startsWith("/") ? nextParam : "/onboarding"),
+  [nextParam],
+);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");

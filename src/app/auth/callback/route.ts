@@ -5,8 +5,8 @@ import { createServerClient } from "@supabase/ssr";
 export const dynamic = "force-dynamic";
 
 function safeNext(nextRaw: string | null) {
-  const n = (nextRaw ?? "/summary").trim();
-  return n.startsWith("/") ? n : "/summary";
+  const n = (nextRaw ?? "/onboarding").trim();
+  return n.startsWith("/") ? n : "/onboarding";
 }
 
 export async function GET(request: NextRequest) {
