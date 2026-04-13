@@ -17,7 +17,7 @@ export default function HomeSessionRedirect() {
         } = await supabase.auth.getSession();
 
         if (active && session) {
-         router.replace("/onboarding");
+          router.replace("/onboarding");
         }
       } catch {
         // noop
@@ -30,7 +30,7 @@ export default function HomeSessionRedirect() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (active && session) {
-        router.replace("/summary");
+        router.replace("/onboarding");
       }
     });
 
