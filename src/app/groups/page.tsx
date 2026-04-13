@@ -178,14 +178,14 @@ export default function GroupsPage() {
 
   const headerSubtitle =
     summary.total === 0
-      ? "Personas con las que te organizas."
+      ? "Aquí nace la coordinación compartida."
       : `Tienes ${summary.total} grupo${
           summary.total === 1 ? "" : "s"
         } sosteniendo tu coordinación compartida.`;
 
   const invitationsLabel =
     pendingInvites === 0
-      ? "Pendientes"
+      ? "Invitaciones"
       : `Invitaciones (${pendingInvites})`;
 
   if (booting) {
@@ -194,7 +194,7 @@ export default function GroupsPage() {
         <Section>
           <PremiumHeader
             title="Grupos"
-            subtitle="Crea la base desde la que luego todos ven lo mismo."
+            subtitle="Prepara la base desde la que luego todo se coordina mejor."
           />
 
           <Card style={styles.surfaceCard}>
@@ -229,7 +229,7 @@ export default function GroupsPage() {
       <Section>
         <PremiumHeader
           title="Grupos"
-          subtitle="Crea espacios compartidos, suma personas y haz que todos se organicen sobre la misma verdad."
+          subtitle="Crea la base compartida desde la que luego SyncPlans puede detectar choques, ordenar y decidir mejor."
         />
 
         <Card style={styles.surfaceCard}>
@@ -266,32 +266,27 @@ export default function GroupsPage() {
               <div style={styles.heroLeft}>
                 <div style={styles.heroPill}>
                   <span style={styles.heroDot} />
-                  Personas con las que te organizas
+                  Tu base compartida
                 </div>
 
                 <h2 style={styles.heroTitle}>
-                  La coordinación empieza a sentirse real cuando la otra persona entra
+                  Grupos desde donde empieza la coordinación
                 </h2>
 
                 <p style={styles.heroText}>
-                  Los grupos son la base. El valor aparece cuando alguien
-                  más ve el mismo espacio, el mismo plan y las mismas decisiones
-                  contigo.
+                  Cada grupo abre un espacio real de coordinación. Desde aquí defines con quién compartes planes, respuestas y futuros choques antes de que terminen en chat o confusión.
                 </p>
 
                 <div style={styles.heroTip}>
                   <div style={styles.heroTipLabel}>Tip</div>
                   <p style={styles.heroTipText}>
-                    Crea primero el grupo. Luego guarda un plan compartido y
-                    usa ese momento para <b>invitar a la otra persona</b>. Así
-                    el grupo deja de ser estructura y se vuelve coordinación
-                    real.
+                    Empieza por el grupo que más se coordina contigo. Cuando haya otra persona dentro, Summary, Eventos y Conflictos empiezan a tener mucho más valor de retorno.
                   </p>
                 </div>
               </div>
 
               <Card tone="strong" style={styles.heroSummary}>
-                <div style={styles.heroSummaryTitle}>Tu base compartida</div>
+                <div style={styles.heroSummaryTitle}>Resumen de tus grupos</div>
 
                 <div style={styles.heroSummaryRow}>
                   <span style={styles.heroSummaryDotPair} />
@@ -318,8 +313,7 @@ export default function GroupsPage() {
                 </div>
 
                 <div style={styles.heroSummaryHint}>
-                  Cuando sumas a alguien, ese espacio deja de ser solo tuyo y se
-                  convierte en una sola verdad compartida.
+                  El grupo activo define desde dónde arrancan los planes compartidos y qué choques ve SyncPlans primero.
                 </div>
               </Card>
             </Card>
@@ -417,15 +411,11 @@ export default function GroupsPage() {
               </Card>
             ) : filteredGroups.length === 0 ? (
               <Card tone="muted" style={styles.emptyState}>
-                <h2 style={styles.emptyTitle}>Aún no tienes grupos</h2>
+                <h2 style={styles.emptyTitle}>Todavía no abriste tu primera base compartida</h2>
                 <p style={styles.emptySub}>
-                  Crea tu primer grupo para abrir el espacio donde luego vas a
-                  compartir planes, invitar a la otra persona y coordinar sin
-                  mensajes cruzados.
+                  Crea tu primer grupo de pareja, familia o compartido para
+                  empezar a coordinar con otros.
                 </p>
-                <div style={{ ...styles.emptySub, marginTop: -4, fontSize: 13 }}>
-                  Ruta sugerida: <b>crear grupo</b> → <b>guardar plan compartido</b> → <b>invitar a alguien</b>.
-                </div>
                 <div style={styles.emptyActions}>
                   <button
                     type="button"

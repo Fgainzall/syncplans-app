@@ -102,7 +102,7 @@ type PremiumLockProps = {
 type PlanTone = "free" | "trial" | "premium" | "founder";
 
 const CONTEXT_OPTIONS: ContextOption[] = [
-  { key: "solo", label: "Personal", hint: "Tu tiempo individual", dot: "#FBBF24" },
+  { key: "solo", label: "Personal", hint: "Tu agenda individual", dot: "#FBBF24" },
   { key: "pair", label: "Pareja", hint: "Coordinación de dos", dot: "#F87171" },
   { key: "family", label: "Familia", hint: "Varios miembros", dot: "#60A5FA" },
 ];
@@ -550,7 +550,7 @@ export default function PanelPage() {
     {
       id: "groups",
       title: "Grupos",
-      hint: "Crear y ordenar espacios donde todos vean lo mismo",
+      hint: "Crear, abrir y ordenar espacios compartidos",
       href: "/groups",
       badge: totalGroups > 0 ? `${totalGroups}` : undefined,
       featured: true,
@@ -558,7 +558,7 @@ export default function PanelPage() {
     {
       id: "invitations",
       title: "Invitaciones",
-      hint: "Aceptar, revisar y destrabar quién entra a coordinar",
+      hint: "Aceptar, revisar y destrabar accesos",
       href: "/invitations",
       featured: true,
     },
@@ -572,7 +572,7 @@ export default function PanelPage() {
     {
       id: "plans",
       title: "Plan",
-      hint: "Nivel actual y ventajas activas",
+      hint: "Nivel actual y beneficios activos",
       href: "/planes",
     },
   ];
@@ -623,22 +623,22 @@ export default function PanelPage() {
       : "Google Calendar no conectado";
 
   let heroSummary =
-    "Desde aquí preparas la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones.";
+    "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones.";
 
   if (!loading) {
     if (totalGroups === 0) {
       heroSummary =
-        "El primer recorrido ideal es simple: crea tu primer grupo, guarda un plan compartido y deja que desde ahí empiece la coordinación real.";
+        "El siguiente salto de SyncPlans no es abrir más pantallas, sino crear tu primer grupo y traer la coordinación recurrente dentro del producto.";
     } else if (conflictsNow > 0) {
-      heroSummary = `Hoy tu sistema tiene ${conflictsNow} conflicto${
+      heroSummary = `Tu sistema hoy tiene ${conflictsNow} conflicto${
         conflictsNow === 1 ? "" : "s"
       } pendiente${conflictsNow === 1 ? "" : "s"}, ${totalGroups} grupo${
         totalGroups === 1 ? "" : "s"
-      } y ${totalEvents} plan${totalEvents === 1 ? "" : "es"} visible${totalEvents === 1 ? "" : "s"}.`;
+      } y ${totalEvents} evento${totalEvents === 1 ? "" : "s"} visibles.`;
     } else if (totalGroups > 0) {
       heroSummary = `Ya tienes ${totalGroups} grupo${
         totalGroups === 1 ? "" : "s"
-      } creado${totalGroups === 1 ? "" : "s"}. Aquí mantienes la estructura para que coordinar siga siendo simple.`;
+      } creado${totalGroups === 1 ? "" : "s"}. Panel es el lugar para gestionar esa estructura.`;
     }
   }
 
@@ -670,7 +670,7 @@ export default function PanelPage() {
     <MobileScaffold maxWidth={1120}>
       <PremiumHeader
         title="Panel"
-        subtitle="El lugar donde preparas la base de la coordinación: grupos, invitaciones, plan e integraciones."
+        subtitle="Tu base de control: aquí ajustas la estructura que luego hace que volver a SyncPlans valga la pena."
       />
 
       <div style={styles.stack}>
@@ -680,16 +680,16 @@ export default function PanelPage() {
           <div style={styles.heroTopRow}>
             <div style={styles.heroTextWrap}>
               <div style={styles.eyebrow}>Panel</div>
-              <h1 style={styles.heroTitle}>Base de la coordinación</h1>
+              <h1 style={styles.heroTitle}>Centro de control compartido</h1>
               <p style={styles.heroCopy}>{heroSummary}</p>
               <div style={styles.heroMicroCopy}>
                 {totalGroups === 0 ? (
                   <>
-                    Crea la estructura primero. Después guarda un plan compartido y usa ese primer caso para sentir el valor antes de explorar el resto del producto.
+                    Crea la estructura primero. Cuando entra otra persona, aparecen motivos reales para volver: invitaciones, respuestas, conflictos y decisiones compartidas.
                   </>
                 ) : (
                   <>
-                    La operación diaria sigue viviendo en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Eventos</strong> y <strong>Conflictos</strong>. Aquí solo preparas la base para que todo eso funcione sin fricción.
+                    La operación diaria vive en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Eventos</strong> y <strong>Conflictos</strong>. Aquí afinas la base que mantiene ese loop funcionando sin fricción.
                   </>
                 )}
               </div>
@@ -722,7 +722,7 @@ export default function PanelPage() {
             <MetricCard
               label="Eventos"
               value={loading ? "—" : String(totalEvents)}
-              hint="Carga visible"
+              hint="Planes visibles"
             />
             <MetricCard
               label="Google"
@@ -814,9 +814,9 @@ export default function PanelPage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Administración</div>
-                  <h2 style={styles.sectionTitle}>Accesos prioritarios</h2>
+                  <h2 style={styles.sectionTitle}>Accesos que sostienen el hábito</h2>
                   <div style={styles.sectionSubtleCopy}>
-                    Las piezas que convierten a SyncPlans en una capa de coordinación y no en otro calendario.
+                    Lo que ajustas aquí es lo que luego alimenta el retorno diario: grupos, respuestas, permisos y contexto compartido.
                   </div>
                 </div>
               </div>
@@ -860,11 +860,11 @@ export default function PanelPage() {
 
               {groupsPreview.length === 0 ? (
                 <EmptyBlock
-                  copy="Aún no tienes grupos. Empieza por crear uno: luego te llevaremos al primer plan compartido, que es donde aparece el wow moment real."
+                  copy="Aún no tienes grupos. Empieza aquí para que luego aparezcan decisiones, respuestas y coordinación real en el resto del producto."
                   primaryLabel="Crear grupo"
                   onPrimary={() => router.push("/groups/new")}
-                  secondaryLabel="Ir al resumen"
-                  onSecondary={() => router.push("/summary")}
+                  secondaryLabel="Ver invitaciones"
+                  onSecondary={() => router.push("/invitations")}
                 />
               ) : (
                 <div style={styles.listCompact}>
@@ -894,7 +894,7 @@ export default function PanelPage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Capturas</div>
-                  <h2 style={styles.sectionTitle}>Bandeja de respuestas</h2>
+                  <h2 style={styles.sectionTitle}>Respuestas que reactivan el flujo</h2>
                 </div>
 
                 <button
@@ -909,7 +909,7 @@ export default function PanelPage() {
               {!canUseCaptures ? (
                 <PremiumLock
                   title="Capturas premium"
-                  copy="Respuestas externas convertidas en acciones."
+                  copy="Respuestas externas que vuelven a entrar al flujo de coordinación."
                 />
               ) : capturesLoading ? (
                 <EmptyBlock copy="Buscando respuestas…" />
@@ -1117,7 +1117,7 @@ export default function PanelPage() {
                       {googleEventsLoading ? (
                         <EmptyBlock copy="Cargando eventos…" />
                       ) : googleEvents.length === 0 ? (
-                        <EmptyBlock copy="No encontramos eventos próximos." />
+                        <EmptyBlock copy="No encontramos nada cercano que necesite seguimiento." />
                       ) : (
                         <div style={styles.listCompact}>
                           {googleEvents.slice(0, 2).map((event) => (

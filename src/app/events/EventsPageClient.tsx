@@ -231,15 +231,15 @@ export default function EventsPage() {
     });
 
     if (visibleEvents.length === 0) {
-      return "Revisa tus planes personales y compartidos sin perder contexto.";
+      return "Revisa lo que sigue, limpia ruido y decide rápido sobre tus planes personales y compartidos.";
     }
 
     const personal = visibleEvents.filter((e) => !e.group_id).length;
     const groupEvents = visibleEvents.filter((e) => !!e.group_id).length;
 
-    return `Tu lista combina ${personal} plan${
-      personal === 1 ? "" : "es"
-    } personales y ${groupEvents} compartido${groupEvents === 1 ? "" : "s"}. Filtra, revisa y decide sin perder contexto.`;
+    return `Aquí ves ${personal} evento${
+      personal === 1 ? "" : "s"
+    } personales y ${groupEvents} compartido${groupEvents === 1 ? "" : "s"}. Entra para decidir, ajustar o limpiar sin perder contexto.`;
   }, [events, declinedEventIds, hiddenEventIds]);
 
   function toggleSelection(id: string) {
@@ -401,14 +401,14 @@ export default function EventsPage() {
         <Section>
           <PremiumHeader
             title="Eventos"
-            subtitle="Revisa tus planes personales y compartidos sin perder contexto."
+            subtitle="Revisa rápido qué sigue, qué urge y qué puedes ajustar sin perder contexto."
           />
           <Card style={S.cardShell}>
             <div style={S.loadingRow}>
               <div style={S.loadingDot} />
               <div>
                 <div style={S.loadingTitle}>Cargando tus eventos…</div>
-                <div style={S.loadingSub}>Preparando tu vista de coordinación</div>
+                <div style={S.loadingSub}>Preparando tu lista para hoy</div>
               </div>
             </div>
           </Card>
@@ -458,17 +458,15 @@ export default function EventsPage() {
         <Card style={S.cardShell} className="spEvt-card">
           <div style={S.titleRow}>
             <div>
-              <div style={S.kicker}>Tus planes, con contexto</div>
-              <h1 style={S.h1}>Planes visibles</h1>
+              <div style={S.kicker}>Todo lo que aún requiere seguimiento</div>
+              <h1 style={S.h1}>Eventos en seguimiento</h1>
               <p style={S.sub}>
-                Mira tus próximos planes personales y compartidos en un solo
-                lugar. Desde aquí puedes editar, filtrar y limpiar sin perder
-                claridad.
+                Aquí no solo ves eventos: detectas qué sigue, qué urge y qué ya puedes limpiar para mantener la coordinación ligera.
               </p>
             </div>
 
             <aside style={S.factBox} className="spEvt-factBox">
-              <div style={S.factLabel}>Lectura rápida</div>
+              <div style={S.factLabel}>Resumen rápido</div>
               <div style={S.factRow}>
                 <span style={S.factDotPersonal} />
                 <span>{valueVisibility.personalCount} personales</span>
@@ -480,7 +478,7 @@ export default function EventsPage() {
 
               {totalGroups > 0 && (
                 <div style={S.factHint}>
-                  Tienes {totalGroups} grupo{totalGroups === 1 ? "" : "s"} alimentando esta coordinación.
+                  Tienes {totalGroups} grupo{totalGroups === 1 ? "" : "s"} alimentando esta vista compartida.
                 </div>
               )}
             </aside>
@@ -489,9 +487,9 @@ export default function EventsPage() {
           {valueVisibility.hasValue && (
             <div style={S.valueRail}>
               <div style={S.valueRailCopy}>
-                <div style={S.valueRailEyebrow}>Claridad visible</div>
+                <div style={S.valueRailEyebrow}>Motivo de regreso</div>
                 <div style={S.valueRailTitle}>
-                  Aquí ya se nota lo que SyncPlans está ordenando.
+                  Aquí aparece rápido lo que sí merece tu atención.
                 </div>
                 <div style={S.valueRailSub}>
                   {valueVisibility.personalCount} personal · {valueVisibility.groupCount} compartido
@@ -509,7 +507,7 @@ export default function EventsPage() {
                   }
                   style={S.valueRailBtn}
                 >
-                  {valueVisibility.next24h > 0 ? "Ver tiempo cercano" : "Volver al resumen"}
+                  {valueVisibility.next24h > 0 ? "Ir a lo urgente" : "Volver a resumen"}
                 </button>
               </div>
             </div>
@@ -555,8 +553,8 @@ export default function EventsPage() {
             <div style={S.urgentBlock}>
               <div style={S.urgentHeader}>
                 <div>
-                  <div style={S.urgentKicker}>Foco operativo</div>
-                  <div style={S.urgentTitle}>Requiere atención</div>
+                  <div style={S.urgentKicker}>Para resolver hoy</div>
+                  <div style={S.urgentTitle}>No lo dejes enfriarse</div>
                 </div>
 
                 <div style={S.urgentCount}>
@@ -584,7 +582,7 @@ export default function EventsPage() {
               </div>
 
               {urgentEvents.length > 3 && (
-                <div style={S.urgentFooter}>+{urgentEvents.length - 3} más para revisar pronto</div>
+                <div style={S.urgentFooter}>+{urgentEvents.length - 3} más esperando revisión cercana</div>
               )}
             </div>
           )}

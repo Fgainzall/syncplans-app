@@ -411,7 +411,7 @@ const timeSuggestionsLabel = useMemo(() => {
     if (booting) {
       return {
         title: "Cargando…",
-        subtitle: "Preparando tu resumen",
+        subtitle: "Preparando lo que requiere tu atención",
         tone: "neutral" as const,
       };
     }
@@ -441,18 +441,10 @@ const timeSuggestionsLabel = useMemo(() => {
     };
   }, [booting, upcomingStats]);
 
-  const title = "Centro de coordinación";
-  const summarySubtitle = activeGroupId ? `Hoy · ${activeLabel} · una sola verdad compartida` : "Hoy · Personal · claridad para decidir";
+  const title = "Resumen";
+  const summarySubtitle = activeGroupId ? `Hoy · ${activeLabel} · decide rápido` : "Hoy · Personal · decide rápido";
   const showCreateGroupNudge = groups.length === 0;
-  const showFirstSharedEventNudge = groups.length > 0 && upcomingStats.group === 0;
-  const firstSharedEventHref = useMemo(() => {
-    const params = new URLSearchParams();
-    params.set("type", "group");
-    if (activeGroupId) params.set("groupId", String(activeGroupId));
-    params.set("wow", "1");
-    params.set("from", "summary");
-    return `/events/new/details?${params.toString()}`;
-  }, [activeGroupId]);
+  const showInviteNudge = groups.length > 0 && upcomingStats.group === 0;
 
   const moodAccentBorder =
     mood.tone === "clear"
@@ -858,16 +850,14 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 className="spSum-conflictBanner"
               >
                 <div style={styles.conflictBannerLeft}>
-                  <div style={styles.conflictBannerEyebrow}>Decisión pendiente</div>
+                  <div style={styles.conflictBannerEyebrow}>Atención</div>
                   <div style={styles.conflictBannerTitle}>
-                    Tienes {conflictAlert.count} conflicto{conflictAlert.count === 1 ? "" : "s"} que ya puedes resolver
+                    Tienes {conflictAlert.count} conflicto{conflictAlert.count === 1 ? "" : "s"} pendiente{conflictAlert.count === 1 ? "" : "s"} por resolver
                   </div>
-                  <div style={styles.conflictBannerSub}>
-                    Entra, decide una vez y deja claro qué plan se mantiene.
-                  </div>
+                  <div style={styles.conflictBannerSub}>Revísalo ahora para evitar cruces y conversaciones innecesarias.</div>
                 </div>
 
-                <div style={styles.conflictBannerCta}>Resolver</div>
+                <div style={styles.conflictBannerCta}>Revisar</div>
               </button>
             ) : null}
 
@@ -916,18 +906,18 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 <div style={styles.valueRailCopy}>
                   <div style={styles.valueRailEyebrow}>Valor visible</div>
                   <div style={styles.valueRailTitle}>
-                    SyncPlans ya está ordenando algo real por ti.
+                    Lo importante ya está priorizado para que vuelvas y avances rápido.
                   </div>
                   <div style={styles.valueRailSub}>
                     {valueMoments.resolvedDecisions > 0
-                      ? `${valueMoments.resolvedDecisions} decisión${valueMoments.resolvedDecisions === 1 ? "" : "es"} reciente${valueMoments.resolvedDecisions === 1 ? "" : "s"} ya resuelta${valueMoments.resolvedDecisions === 1 ? "" : "s"}`
+                      ? `${valueMoments.resolvedDecisions} decisión${valueMoments.resolvedDecisions === 1 ? "" : "es"} reciente${valueMoments.resolvedDecisions === 1 ? "" : "s"} ya destrabada${valueMoments.resolvedDecisions === 1 ? "" : "s"}`
                       : null}
                     {valueMoments.resolvedDecisions > 0 && valueMoments.autoAdjusted > 0 ? " · " : ""}
                     {valueMoments.autoAdjusted > 0
                       ? `${valueMoments.autoAdjusted} ajuste${valueMoments.autoAdjusted === 1 ? "" : "s"} automático${valueMoments.autoAdjusted === 1 ? "" : "s"} aplicado${valueMoments.autoAdjusted === 1 ? "" : "s"}`
                       : null}
                     {(valueMoments.resolvedDecisions > 0 || valueMoments.autoAdjusted > 0) && valueMoments.agendaFeelsClear ? " · " : ""}
-                    {valueMoments.agendaFeelsClear ? "tu coordinación visible está clara en este momento" : null}
+                    {valueMoments.agendaFeelsClear ? "tu agenda visible está clara en este momento" : null}
                     {(valueMoments.resolvedDecisions > 0 || valueMoments.autoAdjusted > 0 || valueMoments.agendaFeelsClear) && pendingAttention.captures > 0 ? " · " : ""}
                     {pendingAttention.captures > 0
                       ? `${pendingAttention.captures} respuesta${pendingAttention.captures === 1 ? "" : "s"} externa${pendingAttention.captures === 1 ? "" : "s"} ya entró${pendingAttention.captures === 1 ? "" : "aron"} al flujo`
@@ -941,7 +931,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                     style={styles.valueRailPrimary}
                     onClick={() => router.push(valueMoments.resolvedDecisions > 0 ? "/events" : "/calendar")}
                   >
-                    {valueMoments.resolvedDecisions > 0 ? "Ver decisiones reflejadas" : "Ver tu mapa de tiempo"}
+                    {valueMoments.resolvedDecisions > 0 ? "Ver lo ya resuelto" : "Abrir tiempo visible"}
                   </button>
                 </div>
               </div>
@@ -952,7 +942,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 <div style={styles.returnRailCopy}>
                   <div style={styles.returnRailEyebrow}>Necesita tu atención</div>
                   <div style={styles.returnRailTitle}>
-                    Hay cosas vivas esperando una decisión tuya.
+                    Aquí está el motivo real para volver ahora mismo.
                   </div>
                   <div style={styles.returnRailSub}>
                     {pendingAttention.invites > 0
@@ -980,7 +970,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                       style={styles.returnRailPrimary}
                       onClick={() => router.push("/invitations")}
                     >
-                      Revisar invitaciones
+                      Resolver primero invitaciones
                     </button>
                   ) : pendingAttention.conflicts > 0 ? (
                     <button
@@ -988,7 +978,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                       style={styles.returnRailPrimary}
                       onClick={openConflictCenter}
                     >
-                      Resolver conflictos
+                      Resolver choques ahora
                     </button>
                   ) : (
                     <button
@@ -996,7 +986,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                       style={styles.returnRailPrimary}
                       onClick={() => router.push("/events")}
                     >
-                      Ir a eventos
+                      Abrir pendientes
                     </button>
                   )}
 
@@ -1006,7 +996,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                       style={styles.returnRailSecondary}
                       onClick={() => router.push("/events")}
                     >
-                      Revisar pendientes
+                      Ver respuestas y ajustes
                     </button>
                   ) : null}
                 </div>
@@ -1018,29 +1008,31 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               <div style={styles.decisionChipsRow}>
                 {decisionSummary.pendingProposals > 0 ? (
                   <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipPending }}>
-                    {decisionSummary.pendingProposals} propuesta{decisionSummary.pendingProposals === 1 ? "" : "s"} esperando decisión
+                    {decisionSummary.pendingProposals} propuesta{decisionSummary.pendingProposals === 1 ? "" : "s"} por decidir ahora
                   </button>
                 ) : null}
 
                 {decisionSummary.adjustedProposals > 0 ? (
                   <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipInfo }}>
-                    {decisionSummary.adjustedProposals} ajuste{decisionSummary.adjustedProposals === 1 ? "" : "s"} pendiente{decisionSummary.adjustedProposals === 1 ? "" : "s"}
+                    {decisionSummary.adjustedProposals} ajuste{decisionSummary.adjustedProposals === 1 ? "" : "s"} por confirmar
                   </button>
                 ) : null}
               </div>
             ) : null}
 
-            {!booting && (showCreateGroupNudge || showFirstSharedEventNudge) ? (
+            {!booting && (showCreateGroupNudge || showInviteNudge) ? (
               <div style={styles.coordinationPrompt}>
                 <div>
-                  <div style={styles.coordinationPromptEyebrow}>Ruta rápida</div>
+                  <div style={styles.coordinationPromptEyebrow}>Crecimiento natural</div>
                   <div style={styles.coordinationPromptTitle}>
-                    {showCreateGroupNudge ? "Tu primer momento de claridad empieza creando un grupo" : "Ya puedes sentir el valor con un primer plan compartido"}
+                    {showCreateGroupNudge
+                      ? "Aquí empieza la coordinación compartida"
+                      : "Tu siguiente paso es traer a alguien"}
                   </div>
                   <div style={styles.coordinationPromptCopy}>
                     {showCreateGroupNudge
-                      ? "Haz esto en orden: crea el grupo, guarda un plan dentro de él y luego compártelo. Así SyncPlans deja de ser solo una agenda y empieza a coordinar decisiones reales."
-                      : "Te falta una sola cosa para verlo claro: guardar un plan dentro de un grupo. Después podrás compartirlo, detectar choques y decidir desde el mismo lugar."}
+                      ? "SyncPlans gana sentido real cuando dejas de organizar solo y creas tu primer grupo de pareja, familia o compartido."
+                      : "Ya tienes estructura. Ahora conviértela en hábito: invita, revisa respuestas y haz que las decisiones pasen dentro de SyncPlans."}
                   </div>
                 </div>
 
@@ -1049,17 +1041,17 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                     type="button"
                     style={styles.coordinationPromptPrimary}
                     onClick={() =>
-                      router.push(showCreateGroupNudge ? "/groups/new" : firstSharedEventHref)
+                      router.push(showCreateGroupNudge ? "/groups/new" : "/invitations")
                     }
                   >
-                    {showCreateGroupNudge ? "Empezar ahora" : "Crear plan compartido"}
+                    {showCreateGroupNudge ? "Crear grupo" : "Ver invitaciones"}
                   </button>
                   <button
                     type="button"
                     style={styles.coordinationPromptSecondary}
-                    onClick={() => router.push("/groups")}
+                    onClick={() => router.push(showCreateGroupNudge ? "/groups" : "/groups")}
                   >
-                    Ver grupos
+                    {showCreateGroupNudge ? "Ver estructura" : "Abrir grupos"}
                   </button>
                 </div>
               </div>
@@ -1075,25 +1067,19 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               </div>
             ) : !nextEvent ? (
               <div style={styles.emptyBlock}>
-                <div style={styles.emptyTitle}>Sin eventos próximos</div>
-                <div style={styles.emptySub}>
-                  {showCreateGroupNudge
-                    ? "Empieza creando un grupo. Después guarda tu primer plan compartido para sentir cómo SyncPlans ordena la coordinación, no solo la agenda."
-                    : showFirstSharedEventNudge
-                    ? "Ya tienes grupo. Ahora te falta guardar tu primer plan compartido para que todos miren la misma verdad desde un solo lugar."
-                    : "Todavía no tienes nada cerca. Puedes crear un plan nuevo o abrir tu mapa de tiempo."}
-                </div>
+                <div style={styles.emptyTitle}>Todavía no hay nada que coordinar cerca</div>
+                <div style={styles.emptySub}>Crea un plan rápido o abre el calendario para dejar algo listo antes de que aparezcan cruces.</div>
                 <button
-                  onClick={() => router.push(showCreateGroupNudge ? "/groups/new" : showFirstSharedEventNudge ? firstSharedEventHref : "/events/new/details?type=personal")}
+                  onClick={() => router.push("/events/new/details?type=personal")}
                   style={styles.emptyBtn}
                 >
-                  {showCreateGroupNudge ? "Crear grupo →" : showFirstSharedEventNudge ? "Crear plan compartido →" : "Crear plan nuevo →"}
+                  Crear algo ahora →
                 </button>
               </div>
             ) : (
               <>
                 <div style={styles.nextBlock}>
-                  <div style={styles.nextLabel}>Lo próximo que coordina tu día</div>
+                  <div style={styles.nextLabel}>Lo siguiente</div>
                   <button
                     onClick={() => router.push("/calendar")}
                     style={{
@@ -1332,8 +1318,8 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
-                <div style={styles.quickTitle}>Poner algo en común</div>
-                <div style={styles.quickSub}>Crear un plan desde cero</div>
+                <div style={styles.quickTitle}>Crear plan</div>
+                <div style={styles.quickSub}>Empezar algo nuevo</div>
               </button>
 
               <button
@@ -1341,7 +1327,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
-                <div style={styles.quickTitle}>{pendingInviteCount > 0 ? "Revisar invitaciones" : "Ver mapa de tiempo"}</div>
+                <div style={styles.quickTitle}>{pendingInviteCount > 0 ? "Revisar invitaciones" : "Abrir calendario"}</div>
                 <div style={styles.quickSub}>{pendingInviteCount > 0 ? "Hay algo esperando tu respuesta" : "Ver todo con contexto"}</div>
               </button>
 

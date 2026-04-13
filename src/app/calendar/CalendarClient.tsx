@@ -1060,7 +1060,7 @@ const valueVisibility = useMemo(() => {
         <Section>
           <PremiumHeader
             title="Calendario"
-            subtitle="Mira el tiempo compartido con claridad y detecta choques antes de discutirlos."
+            subtitle="Entra, ubica choques y decide rápido qué se mantiene abierto."
             rightSlot={
               <button
                 onClick={handleRefresh}
@@ -1079,9 +1079,9 @@ const valueVisibility = useMemo(() => {
             <div style={styles.loadingRow}>
               <div style={styles.loadingDot} />
               <div>
-                <div style={styles.loadingTitle}>Cargando tu mapa de tiempo…</div>
+                <div style={styles.loadingTitle}>Cargando tu tiempo visible…</div>
                 <div style={styles.loadingSub}>
-                  Preparando tus planes, grupos y contexto compartido
+                  Preparando tus eventos y grupos
                 </div>
               </div>
             </div>
@@ -1109,7 +1109,7 @@ const valueVisibility = useMemo(() => {
       <Section>
         <PremiumHeader
           title="Calendario"
-          subtitle="Mira el tiempo compartido con claridad y detecta choques antes de discutirlos."
+          subtitle="Visualiza tu tiempo con claridad y detecta choques rápido."
           rightSlot={
             <button
               onClick={handleRefresh}
@@ -1129,7 +1129,7 @@ const valueVisibility = useMemo(() => {
             <div style={styles.overviewLeft}>
               <div style={styles.overviewEyebrow}>Vista actual</div>
               <h2 style={styles.overviewTitle}>
-                {tab === "month" ? "Mapa mensual" : "Secuencia de planes"}
+                {tab === "month" ? "Vista mensual" : "Vista agenda"}
               </h2>
               <div style={styles.overviewSub}>
                 {monthTitle}
@@ -1183,7 +1183,7 @@ const valueVisibility = useMemo(() => {
                 }}
               >
                 <span style={styles.statusDotSuccess} />
-                Sin conflictos
+                Todo despejado
               </div>
             )}
 
@@ -1202,9 +1202,9 @@ const valueVisibility = useMemo(() => {
           <Card style={styles.valueRailCard}>
             <div style={styles.valueRailTop}>
               <div style={styles.valueRailCopy}>
-                <div style={styles.valueRailEyebrow}>Claridad compartida</div>
+                <div style={styles.valueRailEyebrow}>Retorno útil</div>
                 <div style={styles.valueRailTitle}>
-                  Tu calendario ya muestra qué está resuelto y qué sigue abierto.
+                  Aquí se ve rápido qué ya quedó resuelto y qué todavía pide decisión.
                 </div>
                 <div style={styles.valueRailSub}>
                   {valueVisibility.resolved > 0
@@ -1227,7 +1227,7 @@ const valueVisibility = useMemo(() => {
                   onClick={valueVisibility.pending > 0 ? openConflicts : handleRefresh}
                   style={styles.valueRailBtn}
                 >
-                  {valueVisibility.pending > 0 ? "Revisar lo pendiente" : "Actualizar vista"}
+                  {valueVisibility.pending > 0 ? "Resolver lo abierto" : "Actualizar tiempo visible"}
                 </button>
               </div>
             </div>
@@ -1323,7 +1323,7 @@ const valueVisibility = useMemo(() => {
 
               <div style={styles.dayList}>
                 {(eventsByDay.get(ymd(selectedDay)) || []).length === 0 ? (
-                  <div style={styles.emptyHint}>No hay eventos este día.</div>
+                  <div style={styles.emptyHint}>Nada pendiente este día. Puedes dejar algo listo desde aquí.</div>
                 ) : (
                   (eventsByDay.get(ymd(selectedDay)) || []).map((e) => (
                     <EventRow
@@ -1347,7 +1347,7 @@ const valueVisibility = useMemo(() => {
         ) : (
           <Card style={styles.agendaCard}>
             <div style={styles.agendaTop}>
-              <div style={styles.agendaTitle}>Planes del periodo</div>
+              <div style={styles.agendaTitle}>Seguimiento del mes</div>
               <div style={styles.agendaSub}>
                 Mostrando {agendaEvents.length} evento
                 {agendaEvents.length === 1 ? "" : "s"}
@@ -1357,7 +1357,7 @@ const valueVisibility = useMemo(() => {
             <div style={styles.agendaList}>
               {agendaEvents.length === 0 ? (
                 <div style={styles.emptyHint}>
-                  No hay eventos para mostrar con estos filtros.
+                  No hay nada por revisar con estos filtros ahora mismo.
                 </div>
               ) : (
                 agendaEvents.map((e) => (
