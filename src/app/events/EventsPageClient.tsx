@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
+import MobileScaffold from "@/components/MobileScaffold";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
 import EventsFiltersBar from "@/components/events/EventsFiltersBar";
@@ -396,7 +397,7 @@ export default function EventsPage() {
 
   if (booting) {
     return (
-      <div style={S.pageBg}>
+      <MobileScaffold maxWidth={1120} style={S.pageBg}>
         <Section>
           <PremiumHeader
             title="Eventos"
@@ -412,12 +413,12 @@ export default function EventsPage() {
             </div>
           </Card>
         </Section>
-      </div>
+      </MobileScaffold>
     );
   }
 
   return (
-    <div style={S.pageBg}>
+    <MobileScaffold maxWidth={1120} style={S.pageBg}>
       {toast && (
         <div
           style={{
@@ -634,7 +635,7 @@ export default function EventsPage() {
           </button>
         </section>
       </Section>
-    </div>
+    </MobileScaffold>
   );
 }
 

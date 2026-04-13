@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import AppHero from "@/components/AppHero";
+import MobileScaffold from "@/components/MobileScaffold";
 
 import {
   CalendarEvent,
@@ -435,7 +436,7 @@ const returnPressure = useMemo(() => {
 
   if (booting) {
     return (
-      <div style={styles.page}>
+      <MobileScaffold maxWidth={1120} style={styles.page}>
         <div style={styles.shell} className="spDet-shell">
           <AppHero
             mobileNav="bottom"
@@ -451,12 +452,12 @@ const returnPressure = useMemo(() => {
             </div>
           </div>
         </div>
-      </div>
+      </MobileScaffold>
     );
   }
 
   return (
-    <div style={styles.page}>
+    <MobileScaffold maxWidth={1120} style={styles.page}>
       <div style={styles.shell} className="spDet-shell">
         <div style={styles.topRow} className="spDet-topRow">
                  <AppHero
@@ -688,7 +689,7 @@ const returnPressure = useMemo(() => {
           )}
         </section>
       </div>
-    </div>
+    </MobileScaffold>
   );
 }
 

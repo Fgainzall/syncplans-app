@@ -11,6 +11,7 @@ import React, {
 import { usePathname, useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
+import MobileScaffold from "@/components/MobileScaffold";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
 import { EventEditModal } from "@/components/EventEditModal";
@@ -1055,7 +1056,7 @@ const valueVisibility = useMemo(() => {
 
   if (booting) {
     return (
-      <div style={styles.page}>
+      <MobileScaffold maxWidth={1120} style={styles.page}>
         <Section>
           <PremiumHeader
             title="Calendario"
@@ -1086,14 +1087,14 @@ const valueVisibility = useMemo(() => {
             </div>
           </Card>
         </Section>
-      </div>
+      </MobileScaffold>
     );
   }
 
   const monthTitle = prettyMonthRange(monthStart, monthEnd);
 
   return (
-    <div style={styles.page}>
+    <MobileScaffold maxWidth={1120} style={styles.page}>
       {toast && (
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
@@ -1435,7 +1436,7 @@ onHide={
           }}
         />
       </Section>
-    </div>
+    </MobileScaffold>
   );
 }
 
