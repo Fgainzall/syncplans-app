@@ -165,7 +165,7 @@ export default function InvitationsPage() {
       <Section>
         <PremiumHeader
           title="Invitaciones"
-          subtitle="Gestiona accesos pendientes y acepta nuevos espacios compartidos."
+          subtitle="Responde invitaciones y entra a los espacios donde toca coordinar con otros."
         />
 
         <Card style={styles.surfaceCard}>
@@ -175,8 +175,8 @@ export default function InvitationsPage() {
                 <div style={styles.kicker}>Tu bandeja</div>
                 <h1 style={styles.h1}>Invitaciones</h1>
                 <p style={styles.sub}>
-                  Grupos a los que te han invitado. Acepta para unirte y empezar
-                  a coordinar desde un mismo lugar.
+                  Grupos a los que te han invitado. Acepta cuando quieras entrar
+                  al mismo contexto que el resto y dejar de coordinar desde fuera.
                 </p>
               </div>
 
@@ -206,13 +206,13 @@ export default function InvitationsPage() {
                 </div>
 
                 <h2 style={styles.heroTitle}>
-                  Todo lo que aún está esperando tu decisión
+                  Lo que te falta para ver lo mismo que el resto
                 </h2>
 
                 <p style={styles.heroText}>
-                  Aquí aparecen los grupos a los que te han invitado. Cuando
-                  aceptas, pasas a formar parte del espacio compartido y SyncPlans
-                  puede empezar a coordinar mejor tu tiempo con los demás.
+                  Aquí aparecen los espacios a los que te invitaron. Aceptar no
+                  es solo entrar: es empezar a ver el mismo grupo, los mismos
+                  planes y las mismas decisiones que los demás.
                 </p>
               </div>
 
@@ -224,7 +224,7 @@ export default function InvitationsPage() {
                   {pendingCount === 1 ? "" : "s"}
                 </div>
                 <div style={styles.heroSummaryHint}>
-                  Aceptar te lleva al flujo guiado de incorporación al grupo.
+                  Aceptar te mete al mismo espacio compartido y destraba coordinación real.
                 </div>
               </Card>
             </Card>
@@ -237,7 +237,7 @@ export default function InvitationsPage() {
                     Hay {pendingCount} invitación{pendingCount === 1 ? "" : "es"} esperando tu respuesta.
                   </div>
                   <div style={styles.attentionSub}>
-                    Aceptar destraba coordinación real. Rechazar limpia tu bandeja y evita ruido.
+                    Aceptar te pone dentro del mismo contexto. Rechazar limpia la bandeja y evita ruido.
                   </div>
                 </div>
 
@@ -247,7 +247,7 @@ export default function InvitationsPage() {
                       onClick={() => onAccept(firstPendingInvite.id)}
                       style={styles.primaryBtn}
                     >
-                      Resolver la primera
+                      Ver la primera invitación
                     </button>
                   ) : null}
                   <button
@@ -288,7 +288,7 @@ export default function InvitationsPage() {
             ) : isEmpty ? (
               <Card tone="muted" style={styles.emptyCard}>
                 <div style={styles.emptyTitle}>
-                  No tienes invitaciones pendientes
+                  No tienes invitaciones pendientes por ahora
                 </div>
                 <div style={styles.emptySub}>
                   Tu bandeja está limpia. Cuando alguien te invite a un grupo, aparecerá aquí para que puedas decidir rápido.

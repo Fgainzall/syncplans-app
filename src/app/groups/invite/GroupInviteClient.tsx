@@ -110,12 +110,12 @@ export default function GroupInviteClient() {
       setCopied(true);
       showToast({
         title: "Copiado ✅",
-        subtitle: "Listo. Pégalo en WhatsApp / iMessage.",
+        subtitle: "Listo. Envíalo por donde te sea más fácil.",
       });
     } catch {
       showToast({
         title: "No pude copiar automático",
-        subtitle: "Copia el link manualmente (abajo).",
+        subtitle: "Cópialo manualmente desde abajo.",
       });
     }
   }
@@ -164,7 +164,7 @@ export default function GroupInviteClient() {
 
       showToast({
         title: "✅ Invitación creada",
-        subtitle: `A: ${invitedEmail}${link ? " · Link listo" : ""}`,
+        subtitle: `A: ${invitedEmail}${link ? " · Ya puede entrar al mismo espacio" : ""}`,
       });
 
       if (link) {
@@ -233,7 +233,7 @@ export default function GroupInviteClient() {
         >
           <PremiumHeader
             title="Invitar a grupo"
-            subtitle="Envía una invitación para que alguien se una al grupo correcto."
+            subtitle="Suma a alguien al mismo espacio para coordinar desde una sola verdad compartida."
           />
           <LogoutButton />
         </div>
@@ -268,7 +268,7 @@ export default function GroupInviteClient() {
             <h1
               style={{ margin: "10px 0 6px", fontSize: 26, letterSpacing: "-0.6px" }}
             >
-              Comparte tu calendario sin fricción
+              Haz que la otra persona vea lo mismo que tú
             </h1>
 
             <div
@@ -279,8 +279,9 @@ export default function GroupInviteClient() {
                 maxWidth: 650,
               }}
             >
-              Envía una invitación. La otra persona acepta y se vuelve miembro
-              del grupo automáticamente (con RLS seguro).
+              Envía una invitación y abre el mismo espacio compartido para la
+              otra persona. Cuando entre, ya no dependerán de mensajes sueltos
+              para saber qué quedó acordado.
             </div>
 
             <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
@@ -317,7 +318,7 @@ export default function GroupInviteClient() {
                         marginTop: 6,
                       }}
                     >
-                      Crea uno para poder invitar.
+                      Crea uno para poder invitar a la otra persona y coordinar desde el mismo lugar.
                     </div>
 
                     <button
@@ -369,7 +370,7 @@ export default function GroupInviteClient() {
 
                     {selected ? (
                       <div style={{ fontSize: 12, opacity: 0.72 }}>
-                        Seleccionado: <b>{selected.name}</b> · tipo{" "}
+                        Este será el espacio que verá la otra persona al entrar: <b>{selected.name}</b> · tipo{" "}
                         <b>
                           {selected.type === "family"
                             ? "Familia"
@@ -510,7 +511,7 @@ export default function GroupInviteClient() {
                     opacity: canInvite ? 1 : 0.55,
                   }}
                 >
-                  {busy ? "Enviando…" : "Enviar invitación"}
+                  {busy ? "Enviando…" : "Invitar a esta persona"}
                 </button>
               </div>
 
@@ -532,7 +533,7 @@ export default function GroupInviteClient() {
                       fontWeight: 900,
                     }}
                   >
-                    Link de invitación
+                    Link para sumar a alguien
                   </div>
                   <div
                     style={{
@@ -599,7 +600,7 @@ export default function GroupInviteClient() {
                     fontSize: 12,
                   }}
                 >
-                  Tip: el link se arma así:{" "}
+                  Si prefieres, copia este formato y compártelo manualmente:{" "}
                   <span style={{ marginLeft: 6, fontFamily: "ui-monospace" }}>
                     /invitations/accept?invite=UUID
                   </span>

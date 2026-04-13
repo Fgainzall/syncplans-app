@@ -185,7 +185,7 @@ export default function GroupsPage() {
 
   const invitationsLabel =
     pendingInvites === 0
-      ? "Invitaciones"
+      ? "Pendientes"
       : `Invitaciones (${pendingInvites})`;
 
   if (booting) {
@@ -229,7 +229,7 @@ export default function GroupsPage() {
       <Section>
         <PremiumHeader
           title="Grupos"
-          subtitle="Organiza tus espacios compartidos y define desde dónde se coordina el tiempo."
+          subtitle="Crea espacios compartidos, suma personas y haz que todos vean lo mismo."
         />
 
         <Card style={styles.surfaceCard}>
@@ -270,21 +270,22 @@ export default function GroupsPage() {
                 </div>
 
                 <h2 style={styles.heroTitle}>
-                  Grupos para coordinar sin fricciones
+                  La coordinación mejora de verdad cuando la otra persona entra
                 </h2>
 
                 <p style={styles.heroText}>
-                  Cada grupo tiene su propio calendario compartido. Aquí decides
-                  con quién se cruzan tus planes: pareja, familia o grupos
-                  compartidos como amigos, deporte o equipos.
+                  Los grupos son la base. Pero el valor aparece cuando alguien
+                  más ve el mismo espacio, el mismo plan y las mismas decisiones
+                  contigo.
                 </p>
 
                 <div style={styles.heroTip}>
                   <div style={styles.heroTipLabel}>Tip</div>
                   <p style={styles.heroTipText}>
-                    Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>.
-                    Después puedes sumar grupos compartidos y dejar que
-                    SyncPlans te señale los choques con claridad.
+                    Crea primero el grupo. Luego guarda un plan compartido y
+                    usa ese momento para <b>invitar a la otra persona</b>. Así
+                    el grupo deja de ser estructura y se vuelve coordinación
+                    real.
                   </p>
                 </div>
               </div>
@@ -317,8 +318,8 @@ export default function GroupsPage() {
                 </div>
 
                 <div style={styles.heroSummaryHint}>
-                  El grupo activo se usa como base para eventos compartidos y
-                  conflictos.
+                  Cuando sumas a alguien, ese espacio deja de ser solo tuyo y se
+                  convierte en una sola verdad compartida.
                 </div>
               </Card>
             </Card>
@@ -418,9 +419,13 @@ export default function GroupsPage() {
               <Card tone="muted" style={styles.emptyState}>
                 <h2 style={styles.emptyTitle}>Aún no tienes grupos</h2>
                 <p style={styles.emptySub}>
-                  Crea tu primer grupo de pareja, familia o compartido para
-                  empezar a coordinar con otros.
+                  Crea tu primer grupo para abrir el espacio donde luego vas a
+                  compartir planes, invitar a la otra persona y coordinar sin
+                  mensajes cruzados.
                 </p>
+                <div style={{ ...styles.emptySub, marginTop: -4, fontSize: 13 }}>
+                  Ruta sugerida: <b>crear grupo</b> → <b>guardar plan</b> → <b>invitar a alguien</b>.
+                </div>
                 <div style={styles.emptyActions}>
                   <button
                     type="button"

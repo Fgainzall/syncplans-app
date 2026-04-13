@@ -498,7 +498,7 @@ export default function AcceptInviteClient() {
                     maxWidth: 700,
                   }}
                 >
-                  Estás a un click de sumar este grupo a tu coordinación real.
+                  Estás a un click de entrar al mismo espacio que el resto y dejar de coordinar desde fuera.
                 </div>
 
                 {shouldShowExternalNudge ? (
@@ -650,7 +650,7 @@ export default function AcceptInviteClient() {
                         fontSize: 12,
                       }}
                     >
-                      Al aceptar, este grupo quedará activo y SyncPlans revisará si sus eventos chocan con tu agenda actual.
+                      Al aceptar, este grupo quedará activo y pasarás a ver el mismo espacio compartido para coordinar con más claridad.
                     </div>
                   )}
                 </div>

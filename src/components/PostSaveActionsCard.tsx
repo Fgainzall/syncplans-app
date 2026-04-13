@@ -44,8 +44,8 @@ function getBodyText(props: Props) {
 
   if (props.isShared) {
     return props.title
-      ? `"${props.title}" ya quedó en un lugar compartido. Este es el momento donde SyncPlans empieza a aportar valor real: ahora puedes compartirlo, detectar cruces y decidir desde el mismo contexto.`
-      : "Tu plan ya quedó en un lugar compartido. Este es el momento donde SyncPlans empieza a aportar valor real: ahora puedes compartirlo, detectar cruces y decidir desde el mismo contexto.";
+      ? `"${props.title}" ya quedó en un lugar compartido. Este es el mejor momento para sumar a la otra persona: cuando entre, verá exactamente lo mismo que tú y podrán coordinar desde el mismo contexto.`
+      : "Tu plan ya quedó en un lugar compartido. Este es el mejor momento para sumar a la otra persona: cuando entre, verá exactamente lo mismo que tú y podrán coordinar desde el mismo contexto.";
   }
 
   return props.title
@@ -82,7 +82,7 @@ export default function PostSaveActionsCard(props: Props) {
             disabled={props.sharingPostSave}
             style={{ ...S.ghostBtn, opacity: props.sharingPostSave ? 0.7 : 1 }}
           >
-            {props.sharingPostSave ? "Compartiendo…" : "Compartir con alguien"}
+            {props.sharingPostSave ? "Preparando link…" : "Invitar o compartir ahora"}
           </button>
         ) : null}
 
@@ -93,13 +93,13 @@ export default function PostSaveActionsCard(props: Props) {
 
       {props.postSaveShareUrl ? (
         <div style={S.shareBox}>
-          <div style={S.shareLabel}>Link listo para compartir</div>
+          <div style={S.shareLabel}>Link listo para sumar a alguien</div>
 
           <div style={S.shareUrl}>{props.postSaveShareUrl}</div>
 
           <div style={S.shareActions}>
             <button type="button" onClick={props.onCopyLink} style={S.ghostBtn}>
-              Copiar link
+              Copiar invitación
             </button>
 
             <button
