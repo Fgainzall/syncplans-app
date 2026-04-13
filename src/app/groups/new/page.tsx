@@ -65,7 +65,7 @@ export default function NewGroupPage() {
         key: "pair" as const,
         label: "Pareja",
         title: "Crea tu pareja",
-        hint: "Comparte eventos y detecta choques con tu pareja.",
+        hint: "Primero crean este espacio. Luego guardan planes compartidos y SyncPlans empieza a coordinar de verdad.",
         soft: "rgba(96,165,250,0.14)",
         border: "rgba(96,165,250,0.28)",
       };
@@ -75,7 +75,7 @@ export default function NewGroupPage() {
         key: "family" as const,
         label: "Familia",
         title: "Crea tu familia",
-        hint: "Coordina horarios familiares con visibilidad total.",
+        hint: "Primero ordenan este espacio. Luego los planes compartidos y los cruces se resuelven desde un solo lugar.",
         soft: "rgba(34,197,94,0.12)",
         border: "rgba(34,197,94,0.24)",
       };
@@ -85,7 +85,7 @@ export default function NewGroupPage() {
       key: "other" as const,
       label: "Compartido",
       title: "Crea tu grupo compartido",
-      hint: "Para amigos, equipos, pichangas o cualquier grupo con el que quieras coordinar.",
+      hint: "Empieza creando este espacio. Después podrás guardar planes compartidos y mover la coordinación fuera del chat.",
       soft: "rgba(147,51,234,0.16)",
       border: "rgba(147,51,234,0.32)",
     };
@@ -148,8 +148,8 @@ export default function NewGroupPage() {
         );
       }
 
-      setToast({ title: "Grupo creado ✅", subtitle: "Abriendo detalle…" });
-      window.setTimeout(() => router.push(`/groups/${gid}`), 450);
+      setToast({ title: "Grupo creado ✅", subtitle: "Ahora vamos con tu primer plan compartido…" });
+      window.setTimeout(() => router.push(`/events/new/details?type=group&groupId=${encodeURIComponent(String(gid))}&wow=1&from=first-group`), 450);
     } catch (err: any) {
       setToast({
         title: "No se pudo crear",

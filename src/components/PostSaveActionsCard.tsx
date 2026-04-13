@@ -42,13 +42,19 @@ function getBodyText(props: Props) {
       : "La propuesta ya quedó aceptada y convertida en plan. ¿Qué quieres hacer ahora?";
   }
 
+  if (props.isShared) {
+    return props.title
+      ? `"${props.title}" ya quedó en un lugar compartido. Este es el momento donde SyncPlans empieza a aportar valor real: ahora puedes compartirlo, detectar cruces y decidir desde el mismo contexto.`
+      : "Tu plan ya quedó en un lugar compartido. Este es el momento donde SyncPlans empieza a aportar valor real: ahora puedes compartirlo, detectar cruces y decidir desde el mismo contexto.";
+  }
+
   return props.title
     ? `"${props.title}" ya quedó listo. ¿Qué quieres hacer ahora?`
     : "Tu evento ya quedó listo. ¿Qué quieres hacer ahora?";
 }
 
 function getCreateAnotherLabel(props: Props) {
-  if (!props.isProposal) return "Crear otro similar";
+  if (!props.isProposal) return props.isShared ? "Crear otro plan compartido" : "Crear otro similar";
   return props.proposalResponse === "adjust"
     ? "Crear otra propuesta para ajustar"
     : "Crear otra propuesta similar";
@@ -76,7 +82,7 @@ export default function PostSaveActionsCard(props: Props) {
             disabled={props.sharingPostSave}
             style={{ ...S.ghostBtn, opacity: props.sharingPostSave ? 0.7 : 1 }}
           >
-            {props.sharingPostSave ? "Compartiendo…" : "Compartir"}
+            {props.sharingPostSave ? "Compartiendo…" : "Compartir con alguien"}
           </button>
         ) : null}
 

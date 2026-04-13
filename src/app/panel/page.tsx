@@ -628,7 +628,7 @@ export default function PanelPage() {
   if (!loading) {
     if (totalGroups === 0) {
       heroSummary =
-        "El siguiente salto de SyncPlans no es llenar más pantallas, sino crear tu primer grupo y mover la coordinación fuera del chat.";
+        "El primer recorrido ideal es simple: crea tu primer grupo, guarda un plan compartido y desde ahí empieza la coordinación real.";
     } else if (conflictsNow > 0) {
       heroSummary = `Tu sistema hoy tiene ${conflictsNow} conflicto${
         conflictsNow === 1 ? "" : "s"
@@ -685,7 +685,7 @@ export default function PanelPage() {
               <div style={styles.heroMicroCopy}>
                 {totalGroups === 0 ? (
                   <>
-                    Crea la estructura primero. Cuando entra otra persona, SyncPlans deja de ser agenda y empieza a convertirse en coordinación real.
+                    Crea la estructura primero. Después guarda un plan compartido y usa ese primer caso para sentir el valor antes de explorar el resto del producto.
                   </>
                 ) : (
                   <>
@@ -860,11 +860,11 @@ export default function PanelPage() {
 
               {groupsPreview.length === 0 ? (
                 <EmptyBlock
-                  copy="Aún no tienes grupos. Este es el mejor lugar para arrancar la coordinación compartida."
+                  copy="Aún no tienes grupos. Empieza por crear uno: luego te llevaremos al primer plan compartido, que es donde aparece el wow moment real."
                   primaryLabel="Crear grupo"
                   onPrimary={() => router.push("/groups/new")}
-                  secondaryLabel="Ver invitaciones"
-                  onSecondary={() => router.push("/invitations")}
+                  secondaryLabel="Ir al resumen"
+                  onSecondary={() => router.push("/summary")}
                 />
               ) : (
                 <div style={styles.listCompact}>

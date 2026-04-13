@@ -351,6 +351,9 @@ function NewEventDetailsInner() {
   const typeParam = (sp.get("type") || "personal") as NewType;
   const dateParam = sp.get("date");
   const groupIdParam = sp.get("groupId");
+  const wowParam = sp.get("wow");
+  const fromParam = sp.get("from");
+  const isFirstWowMomentFlow = wowParam === "1" || fromParam === "first-group" || fromParam === "summary";
   const hasExplicitGroupParam = !!String(groupIdParam ?? "").trim();
 
   const initialStart = useMemo(() => {
@@ -503,6 +506,9 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
 
     const fromParam = sp.get("from");
     if (fromParam) params.set("from", fromParam);
+
+    const wowParam = sp.get("wow");
+    if (wowParam) params.set("wow", wowParam);
 
     if (quickCaptureParam === "1") params.set("qc", "1");
     if (quickCaptureTitleParam) params.set("title", quickCaptureTitleParam);
@@ -2167,6 +2173,25 @@ const handleSharePostSave = async () => {
           onSecondaryClick={isSharedProposal ? handleReviewProposalLater : goBack}
         />
 
+        {isFirstWowMomentFlow && !isEditing ? (
+          <section
+            style={{
+              ...styles.card,
+              borderColor: "rgba(56,189,248,0.24)",
+              background: "linear-gradient(180deg, rgba(56,189,248,0.10), rgba(255,255,255,0.03))",
+              gap: 10,
+            }}
+          >
+            <div style={styles.sectionIntro}>
+              <div style={styles.sectionEyebrow}>Ruta guiada</div>
+              <div style={styles.sectionTitle}>Paso 2: crea el primer plan compartido</div>
+              <div style={styles.sectionSub}>
+                Ya tienes la estructura. Ahora guarda un plan dentro de este grupo y verás por qué SyncPlans no es solo un calendario: desde aquí puedes compartir, detectar cruces y decidir sobre algo real.
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         <section style={styles.card}>
           <div style={styles.primaryStack}>
             <div style={styles.sectionIntro}>
@@ -2331,7 +2356,7 @@ const handleSharePostSave = async () => {
                   <div style={styles.emptyInline}>
                     <div style={styles.emptyInlineTitle}>No tienes grupos</div>
                     <div style={styles.emptyInlineSub}>
-                      Crea uno y luego podrás guardar aquí planes compartidos.
+                      El primer valor compartido empieza creando el grupo. Después vuelves aquí y guardas el primer plan para activar el flujo completo.
                     </div>
                     <button
                       onClick={() => router.push("/groups/new")}

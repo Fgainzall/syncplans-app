@@ -444,7 +444,15 @@ const timeSuggestionsLabel = useMemo(() => {
   const title = "Resumen";
   const summarySubtitle = activeGroupId ? `Hoy · ${activeLabel}` : "Hoy · Personal";
   const showCreateGroupNudge = groups.length === 0;
-  const showInviteNudge = groups.length > 0 && upcomingStats.group === 0;
+  const showFirstSharedEventNudge = groups.length > 0 && upcomingStats.group === 0;
+  const firstSharedEventHref = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("type", "group");
+    if (activeGroupId) params.set("groupId", String(activeGroupId));
+    params.set("wow", "1");
+    params.set("from", "summary");
+    return `/events/new/details?${params.toString()}`;
+  }, [activeGroupId]);
 
   const moodAccentBorder =
     mood.tone === "clear"
@@ -1020,19 +1028,17 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               </div>
             ) : null}
 
-            {!booting && (showCreateGroupNudge || showInviteNudge) ? (
+            {!booting && (showCreateGroupNudge || showFirstSharedEventNudge) ? (
               <div style={styles.coordinationPrompt}>
                 <div>
-                  <div style={styles.coordinationPromptEyebrow}>Crecimiento natural</div>
+                  <div style={styles.coordinationPromptEyebrow}>Ruta rápida</div>
                   <div style={styles.coordinationPromptTitle}>
-                    {showCreateGroupNudge
-                      ? "Aquí empieza la coordinación compartida"
-                      : "Tu siguiente paso es traer a alguien"}
+                    {showCreateGroupNudge ? "Tu primer wow moment empieza creando un grupo" : "Ya puedes sentir el valor con un primer plan compartido"}
                   </div>
                   <div style={styles.coordinationPromptCopy}>
                     {showCreateGroupNudge
-                      ? "SyncPlans gana sentido real cuando dejas de organizar solo y creas tu primer grupo de pareja, familia o compartido."
-                      : "Ya tienes estructura. Ahora conviértela en hábito: invita, revisa respuestas y haz que las decisiones pasen dentro de SyncPlans."}
+                      ? "Haz esto en orden: crea el grupo, crea un plan dentro de él y luego compártelo. Así SyncPlans deja de parecer un calendario y empieza a coordinar por ti."
+                      : "Te falta una sola cosa para verlo claro: guardar un plan dentro de un grupo. Después podrás compartirlo, detectar choques y decidir desde un mismo lugar."}
                   </div>
                 </div>
 
@@ -1041,17 +1047,17 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                     type="button"
                     style={styles.coordinationPromptPrimary}
                     onClick={() =>
-                      router.push(showCreateGroupNudge ? "/groups/new" : "/invitations")
+                      router.push(showCreateGroupNudge ? "/groups/new" : firstSharedEventHref)
                     }
                   >
-                    {showCreateGroupNudge ? "Crear grupo" : "Ver invitaciones"}
+                    {showCreateGroupNudge ? "Empezar ahora" : "Crear plan compartido"}
                   </button>
                   <button
                     type="button"
                     style={styles.coordinationPromptSecondary}
-                    onClick={() => router.push(showCreateGroupNudge ? "/groups" : "/groups")}
+                    onClick={() => router.push("/groups")}
                   >
-                    {showCreateGroupNudge ? "Ver estructura" : "Abrir grupos"}
+                    Ver grupos
                   </button>
                 </div>
               </div>
@@ -1068,12 +1074,18 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
             ) : !nextEvent ? (
               <div style={styles.emptyBlock}>
                 <div style={styles.emptyTitle}>Sin eventos próximos</div>
-                <div style={styles.emptySub}>Todavía no tienes nada cerca. Puedes crear un plan nuevo o abrir el calendario.</div>
+                <div style={styles.emptySub}>
+                  {showCreateGroupNudge
+                    ? "Empieza creando un grupo. Después haremos tu primer plan compartido para que sientas el valor real de SyncPlans."
+                    : showFirstSharedEventNudge
+                    ? "Ya tienes grupo. Ahora te falta guardar tu primer plan compartido para que todo empiece a coordinarse desde un solo lugar."
+                    : "Todavía no tienes nada cerca. Puedes crear un plan nuevo o abrir el calendario."}
+                </div>
                 <button
-                  onClick={() => router.push("/events/new/details?type=personal")}
+                  onClick={() => router.push(showCreateGroupNudge ? "/groups/new" : showFirstSharedEventNudge ? firstSharedEventHref : "/events/new/details?type=personal")}
                   style={styles.emptyBtn}
                 >
-                  Crear plan →
+                  {showCreateGroupNudge ? "Crear grupo →" : showFirstSharedEventNudge ? "Crear plan compartido →" : "Crear plan →"}
                 </button>
               </div>
             ) : (
