@@ -19,9 +19,9 @@ export default function OnboardingProfile() {
         return;
       }
 
-      // Si nunca ha pasado por onboarding, marcamos flag y lo llevamos
-      // al nuevo flujo 1–4 (oscuro, ultra-premium)
-      window.localStorage.setItem(ONBOARDING_KEY, "1");
+      // Si nunca ha pasado por onboarding, lo llevamos al flujo 1–4.
+      // OJO: no marcamos el flag todavía. Solo debe marcarse cuando
+      // el usuario termine el onboarding o decida saltarlo.
       router.replace("/onboarding/1");
       return;
     } catch {

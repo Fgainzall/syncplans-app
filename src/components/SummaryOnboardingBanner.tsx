@@ -46,13 +46,13 @@ export default function SummaryOnboardingBanner({
         </div>
 
         <div style={{ fontSize: 16, fontWeight: 900 }}>
-          Dale a SyncPlans algo de qué defenderte
+          Dale a SyncPlans una primera semana que coordinar
         </div>
 
-        <div style={{ fontSize: 13, opacity: 0.85, maxWidth: 420 }}>
-          Crea tu primer evento o un grupo con alguien con quien compartes
-          tiempo. Desde ahí, SyncPlans empieza a detectar choques y a mostrar
-          una sola versión verdadera de la agenda para todos.
+        <div style={{ fontSize: 13, opacity: 0.85, maxWidth: 460 }}>
+          Crea tu primer evento o arma un grupo compartido. Desde ahí,
+          SyncPlans ya puede detectar cruces, ordenar decisiones y dejar una
+          sola versión clara de la semana para todos.
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
@@ -76,7 +76,7 @@ export default function SummaryOnboardingBanner({
           </button>
 
           <button
-            onClick={() => router.push("/groups")}
+            onClick={() => router.push("/groups/new")}
             style={{
               padding: "8px 14px",
               borderRadius: 999,
@@ -88,7 +88,7 @@ export default function SummaryOnboardingBanner({
               fontSize: 13,
             }}
           >
-            Crear grupo con alguien
+            Crear mi primer grupo
           </button>
         </div>
       </div>

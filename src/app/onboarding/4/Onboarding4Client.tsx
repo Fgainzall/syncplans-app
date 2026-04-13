@@ -11,6 +11,14 @@ import {
   shadows,
 } from "@/styles/design-tokens";
 
+const ONBOARDING_KEY = "syncplans_onboarded_v1";
+
+function completeOnboarding() {
+  try {
+    window.localStorage.setItem(ONBOARDING_KEY, "1");
+  } catch {}
+}
+
 export default function Onboarding4Client() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -24,11 +32,13 @@ export default function Onboarding4Client() {
   }
 
   function handleStartSolo() {
+    completeOnboarding();
     router.replace(nextFinal);
   }
 
   function handleCreateGroup() {
-    router.replace(nextFinal);
+    completeOnboarding();
+    router.replace("/groups/new");
   }
 
   function handleLogin() {
