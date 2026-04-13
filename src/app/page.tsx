@@ -20,9 +20,9 @@ export default async function HomePage() {
       data: { session },
     } = await supabase.auth.getSession();
 
-    if (session) {
-      redirect("/summary");
-    }
+  if (session) {
+  redirect("/onboarding");
+}
   } catch {
     // Si falla el chequeo server de sesión, igual mostramos la home.
   }
