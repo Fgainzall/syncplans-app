@@ -31,6 +31,9 @@ import {
 } from "@/lib/conflicts";
 import { useSummaryData } from "./useSummaryData";
 import {
+
+/* SYNCPLANS: prioritize create group as primary action on empty state */
+
   addDays,
   buildCaptureShareUrl,
   buildConflictAlert,
@@ -403,6 +406,8 @@ const timeSuggestionsLabel = useMemo(() => {
 
   const title = "Resumen";
   const summarySubtitle = activeGroupId ? `Hoy · ${activeLabel}` : "Hoy · Personal";
+  const showCreateGroupNudge = groups.length === 0;
+  const showInviteNudge = groups.length > 0 && upcomingStats.group === 0;
 
   const moodAccentBorder =
     mood.tone === "clear"
@@ -835,6 +840,43 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                     {decisionSummary.adjustedProposals} ajuste{decisionSummary.adjustedProposals === 1 ? "" : "s"} pendiente{decisionSummary.adjustedProposals === 1 ? "" : "s"}
                   </button>
                 ) : null}
+              </div>
+            ) : null}
+
+            {!booting && (showCreateGroupNudge || showInviteNudge) ? (
+              <div style={styles.coordinationPrompt}>
+                <div>
+                  <div style={styles.coordinationPromptEyebrow}>Crecimiento natural</div>
+                  <div style={styles.coordinationPromptTitle}>
+                    {showCreateGroupNudge
+                      ? "Aquí empieza la coordinación compartida"
+                      : "Tu siguiente paso es traer a alguien"}
+                  </div>
+                  <div style={styles.coordinationPromptCopy}>
+                    {showCreateGroupNudge
+                      ? "SyncPlans gana sentido real cuando dejas de organizar solo y creas tu primer grupo de pareja, familia o compartido."
+                      : "Ya tienes estructura. Ahora conviértela en hábito: invita, revisa respuestas y haz que las decisiones pasen dentro de SyncPlans."}
+                  </div>
+                </div>
+
+                <div style={styles.coordinationPromptActions}>
+                  <button
+                    type="button"
+                    style={styles.coordinationPromptPrimary}
+                    onClick={() =>
+                      router.push(showCreateGroupNudge ? "/groups/new" : "/invitations")
+                    }
+                  >
+                    {showCreateGroupNudge ? "Crear grupo" : "Ver invitaciones"}
+                  </button>
+                  <button
+                    type="button"
+                    style={styles.coordinationPromptSecondary}
+                    onClick={() => router.push(showCreateGroupNudge ? "/groups" : "/groups")}
+                  >
+                    {showCreateGroupNudge ? "Ver estructura" : "Abrir grupos"}
+                  </button>
+                </div>
               </div>
             ) : null}
 

@@ -51,6 +51,9 @@ import {
 } from "@/lib/groups";
 import { colors, radii, shadows, spacing } from "@/styles/design-tokens";
 
+/* SYNCPLANS: reinforce coordination narrative in panel */
+
+
 type QuickAction = {
   id: string;
   title: string;
@@ -623,7 +626,10 @@ export default function PanelPage() {
     "Desde aquí organizas grupos, invitaciones, plan e integraciones sin mezclarlo con la operación diaria.";
 
   if (!loading) {
-    if (conflictsNow > 0) {
+    if (totalGroups === 0) {
+      heroSummary =
+        "El siguiente salto de SyncPlans no es crear más cosas, sino crear tu primer grupo y sacar la coordinación del chat.";
+    } else if (conflictsNow > 0) {
       heroSummary = `Tu sistema tiene ${conflictsNow} conflicto${
         conflictsNow === 1 ? "" : "s"
       } pendiente${conflictsNow === 1 ? "" : "s"}, ${totalGroups} grupo${
@@ -635,6 +641,11 @@ export default function PanelPage() {
       } creado${totalGroups === 1 ? "" : "s"}. Panel es el lugar para gestionar esa estructura.`;
     }
   }
+
+  const heroPrimaryCtaLabel = totalGroups === 0 ? "Crear grupo" : "Abrir grupos";
+  const heroPrimaryCtaHref = totalGroups === 0 ? "/groups/new" : "/groups";
+  const heroSecondaryCtaLabel = totalGroups === 0 ? "Ver invitaciones" : "Revisar invitaciones";
+
 
   async function handleContextChange(nextMode: UsageMode) {
     if (contextSaving === nextMode || contextState.mode === nextMode) return;
@@ -672,9 +683,18 @@ export default function PanelPage() {
               <h1 style={styles.heroTitle}>Hub administrativo</h1>
               <p style={styles.heroCopy}>{heroSummary}</p>
               <div style={styles.heroMicroCopy}>
-                La operación diaria sigue viviendo en <strong>Resumen</strong>,{" "}
-                <strong>Calendario</strong>, <strong>Eventos</strong> y{" "}
-                <strong>Conflictos</strong>.
+                {totalGroups === 0 ? (
+                  <>
+                    Crea la estructura primero. Cuando entre otra persona, la app
+                    empieza a resolver coordinación real.
+                  </>
+                ) : (
+                  <>
+                    La operación diaria sigue viviendo en <strong>Resumen</strong>,{" "}
+                    <strong>Calendario</strong>, <strong>Eventos</strong> y{" "}
+                    <strong>Conflictos</strong>.
+                  </>
+                )}
               </div>
             </div>
 
@@ -682,16 +702,16 @@ export default function PanelPage() {
               <button
                 type="button"
                 style={styles.primaryHeroCta}
-                onClick={() => router.push("/groups")}
+                onClick={() => router.push(heroPrimaryCtaHref)}
               >
-                Abrir grupos
+                {heroPrimaryCtaLabel}
               </button>
               <button
                 type="button"
                 style={styles.secondaryHeroCta}
                 onClick={() => router.push("/invitations")}
               >
-                Ver invitaciones
+                {heroSecondaryCtaLabel}
               </button>
             </div>
           </div>
@@ -842,7 +862,13 @@ export default function PanelPage() {
               </div>
 
               {groupsPreview.length === 0 ? (
-                <EmptyBlock copy="Aún no tienes grupos." />
+                <EmptyBlock
+                  copy="Aún no tienes grupos. Este es el mejor lugar para arrancar la coordinación compartida."
+                  primaryLabel="Crear grupo"
+                  onPrimary={() => router.push("/groups/new")}
+                  secondaryLabel="Ver invitaciones"
+                  onSecondary={() => router.push("/invitations")}
+                />
               ) : (
                 <div style={styles.listCompact}>
                   {groupsPreview.map((group) => (
@@ -1252,8 +1278,36 @@ function StatusPill({
   );
 }
 
-function EmptyBlock({ copy }: { copy: string }) {
-  return <div style={styles.emptyBlock}>{copy}</div>;
+function EmptyBlock({
+  copy,
+  primaryLabel,
+  onPrimary,
+  secondaryLabel,
+  onSecondary,
+}: {
+  copy: string;
+  primaryLabel?: string;
+  onPrimary?: () => void;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
+}) {
+  return (
+    <div style={styles.emptyBlockWrap}>
+      <div style={styles.emptyBlock}>{copy}</div>
+      {primaryLabel && onPrimary ? (
+        <div style={styles.emptyActionsRow}>
+          <button type="button" style={styles.emptyPrimaryBtn} onClick={onPrimary}>
+            {primaryLabel}
+          </button>
+          {secondaryLabel && onSecondary ? (
+            <button type="button" style={styles.emptySecondaryBtn} onClick={onSecondary}>
+              {secondaryLabel}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function formatCaptureDate(value: string | null) {
@@ -2028,6 +2082,35 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
 
+  emptyBlockWrap: {
+    display: "grid",
+    gap: 12,
+  },
+  emptyActionsRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  emptyPrimaryBtn: {
+    border: `1px solid ${colors.borderStrong}`,
+    background: colors.accentPrimary,
+    color: colors.textPrimary,
+    borderRadius: radii.md,
+    padding: "10px 14px",
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  emptySecondaryBtn: {
+    border: `1px solid ${colors.borderSubtle}`,
+    background: colors.surfaceLow,
+    color: colors.textSecondary,
+    borderRadius: radii.md,
+    padding: "10px 14px",
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
   emptyBlock: {
     borderRadius: radii.lg,
     border: "1px dashed rgba(148,163,184,0.28)",
