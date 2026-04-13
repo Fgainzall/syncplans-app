@@ -191,7 +191,7 @@ export async function loadEventsForGroupConflict(groupId?: string | null) {
 }
 
 /**
- * Utilidad por si luego quieres usarla en otros módulos.
+ * Utilidad por si luego quieres usarla en otros mÃ³dulos.
  */
 export async function getVisibleCalendarEventsForGroup(
   groupId?: string | null

@@ -342,8 +342,8 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
 const returnPressure = useMemo(() => {
   if (summary.pending > 0) {
     return {
-      title: `Hay ${summary.pending} conflicto${summary.pending === 1 ? "" : "s"} esperando una decisión tuya.`,
-      copy: "Cuanto antes lo cierres, menos espacio dejas para dudas, mensajes cruzados y cambios de último minuto.",
+      title: `Hay ${summary.pending} conflicto${summary.pending === 1 ? "" : "s"} esperando una decisión clara.`,
+      copy: "Resuélvelo ahora para que todos tengan una sola versión de lo que sí va.",
       primaryLabel: "Resolver ahora",
       primaryAction: "resolve" as const,
     };
@@ -351,8 +351,8 @@ const returnPressure = useMemo(() => {
 
   if (summary.decided > 0) {
     return {
-      title: `Ya tienes ${summary.decided} decisión${summary.decided === 1 ? "" : "es"} lista${summary.decided === 1 ? "" : "s"} para aplicar.`,
-      copy: "No te quedes a medio camino: aplicar deja la agenda limpia y coherente para todos.",
+      title: `Ya tienes ${summary.decided} decisión${summary.decided === 1 ? "" : "es"} lista${summary.decided === 1 ? "" : "s"} para cerrar.`,
+      copy: "Aplica esas decisiones y deja la agenda clara para todos de una vez.",
       primaryLabel: "Aplicar decisiones",
       primaryAction: "apply" as const,
     };
@@ -468,7 +468,7 @@ const returnPressure = useMemo(() => {
                 ? "Tu agenda está sincronizada."
                 : isFocusedView
                 ? "Te llevamos directo al conflicto más relevante para que no se pierda entre el resto."
-                : "Detecta y resuelve choques de horario en segundos."
+                : "Detecta qué se cruza y decide qué plan se mantiene."
             }
           />
         </div>
@@ -479,23 +479,23 @@ const returnPressure = useMemo(() => {
             <h1 style={styles.h1}>
               {summary.pending === 0
                 ? "Todo claro por aquí"
-                : "Tranquilo, esto se soluciona en segundos"}
+                : "Aquí decides qué plan sigue"}
             </h1>
             <div style={styles.sub}>
               {summary.pending === 0
                 ? "No encontramos choques pendientes visibles para este contexto."
-                : `Detectamos ${summary.pending} conflicto(s) pendiente(s). Decide una vez y listo.`}
+                : `Detectamos ${summary.pending} conflicto(s) pendiente(s). Elige una salida clara y SyncPlans se encarga del resto.`}
             </div>
           </div>
 
           <div style={styles.heroRight}>
             {summary.pending > 0 ? (
               <button onClick={resumeNext} style={styles.primaryBtn}>
-                Resolver ahora ✨
+                Resolver ahora
               </button>
             ) : isFocusedView ? (
               <button onClick={openFocusedCompare} style={styles.primaryBtn}>
-                Revisar este conflicto
+                Resolver este conflicto
               </button>
             ) : (
               <button
@@ -538,7 +538,7 @@ const returnPressure = useMemo(() => {
         {returnPressure ? (
           <section style={styles.returnCard}>
             <div style={styles.returnCopy}>
-              <div style={styles.returnEyebrow}>Pendiente vivo</div>
+              <div style={styles.returnEyebrow}>Decisión pendiente</div>
               <div style={styles.returnTitle}>{returnPressure.title}</div>
               <div style={styles.returnSub}>{returnPressure.copy}</div>
             </div>

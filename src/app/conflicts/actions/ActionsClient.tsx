@@ -938,7 +938,7 @@ await trackEvent({
                     <div style={styles.decisionBox}>
                       {resolution === "none" ? (
                         <span>
-                          Ambos eventos seguirán visibles y este cruce dejará de molestarte aquí para que puedas revisarlo más adelante con calma.
+                          Ambos eventos seguirán visibles. Este cruce dejará de aparecer como pendiente aquí para que puedas revisarlo más adelante con calma.
                         </span>
                       ) : (
                         <span>
@@ -955,19 +955,19 @@ await trackEvent({
 
         {summary ? (
           <section style={styles.sectionCard}>
-            <div style={styles.sectionTitle}>Resultado</div>
+            <div style={styles.sectionTitle}>Lo que pasará al aplicar</div>
             <div style={styles.summaryGrid}>
               <div style={styles.summaryPill}>
-                Con decisión: {summary.resolvedCount}
+                Decisiones listas: {summary.resolvedCount}
               </div>
               <div style={styles.summaryPill}>
-                Retirados: {summary.deletedCount}
+                Eventos retirados: {summary.deletedCount}
               </div>
               <div style={styles.summaryPill}>
-                No se pudieron tocar: {summary.blockedCount}
+                No se pudieron mover: {summary.blockedCount}
               </div>
               <div style={styles.summaryPill}>
-                Silenciados: {summary.ignoredCount}
+                Conflictos silenciados: {summary.ignoredCount}
               </div>
               <div style={styles.summaryPill}>
                 Ocultos para ti: {summary.softRejectedCount}
@@ -1004,7 +1004,7 @@ await trackEvent({
                 : null),
             }}
           >
-            {applying ? "Aplicando..." : "Aplicar y volver al resumen"}
+            {applying ? "Aplicando..." : "Aplicar decisiones y volver al resumen"}
           </button>
         </section>
 

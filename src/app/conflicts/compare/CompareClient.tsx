@@ -147,10 +147,10 @@ function groupLabel(groupType?: string | null) {
 }
 
 function resolutionLabel(value: Resolution | null) {
-  if (value === "keep_existing") return "Se mantiene el Evento A";
-  if (value === "replace_with_new") return "Se mantiene el Evento B";
-  if (value === "none") return "Se mantienen ambos";
-  return "Todavía no has elegido una salida";
+  if (value === "keep_existing") return "Se mantiene el plan actual";
+  if (value === "replace_with_new") return "Se mantiene el plan nuevo";
+  if (value === "none") return "Se mantienen ambos por ahora";
+  return "Todavía no has elegido qué hacer";
 }
 
 function parseIndex(value: string | null): number | null {
@@ -530,6 +530,15 @@ export default function CompareClient() {
           </div>
         </section>
 
+        <section style={styles.decisionGuide}>
+          <div style={styles.decisionGuideEyebrow}>Qué decides aquí</div>
+          <div style={styles.decisionGuideTitle}>Elige qué plan debe seguir.</div>
+          <div style={styles.decisionGuideSub}>
+            Puedes mantener el actual, quedarte con el nuevo o dejar ambos por ahora.
+            Debajo de cada opción te explicamos qué pasará.
+          </div>
+        </section>
+
         <section
           style={{
             ...styles.compareGrid,
@@ -651,7 +660,7 @@ export default function CompareClient() {
             <div>
               <div style={styles.middleTitle}>Otra opción</div>
               <div style={styles.middleSub}>
-                Si ahora no quieres descartar ninguno, puedes conservar ambos y seguir. SyncPlans dejará el contexto claro para revisarlo después.
+                Si todavía no quieres descartar ninguno, puedes mantener ambos por ahora. SyncPlans dejará claro que este cruce sigue pendiente para revisarlo después.
               </div>
             </div>
 
@@ -663,7 +672,7 @@ export default function CompareClient() {
                 ...(bothSelected ? styles.secondaryChoiceBtnSelected : {}),
               }}
             >
-              {saving && bothSelected ? "Guardando…" : "Conservar ambos"}
+              {saving && bothSelected ? "Guardando…" : "Mantener ambos"}
             </button>
           </div>
         </section>
@@ -685,7 +694,7 @@ export default function CompareClient() {
               ...(decisionReady ? null : styles.primaryBtnMuted),
             }}
           >
-            {decisionReady ? "Seguir al cierre" : "Ir al cierre"}
+            {decisionReady ? "Ir al cierre con esta decisión" : "Ir al cierre"}
           </button>
         </section>
 
@@ -936,6 +945,34 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,214,102,0.30)",
     background: "rgba(255,214,102,0.10)",
     color: "#FFF0C7",
+  },
+  decisionGuide: {
+    marginTop: 16,
+    marginBottom: 4,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    borderRadius: 22,
+    padding: 18,
+    display: "grid",
+    gap: 6,
+  },
+  decisionGuideEyebrow: {
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: "uppercase",
+    color: "#9FB3FF",
+    fontWeight: 800,
+  },
+  decisionGuideTitle: {
+    fontSize: 20,
+    fontWeight: 800,
+    color: "#F8FBFF",
+  },
+  decisionGuideSub: {
+    fontSize: 14,
+    lineHeight: 1.6,
+    color: "rgba(230,236,255,0.80)",
+    maxWidth: 780,
   },
   footerBar: {
     marginTop: 20,

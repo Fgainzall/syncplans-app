@@ -858,14 +858,16 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 className="spSum-conflictBanner"
               >
                 <div style={styles.conflictBannerLeft}>
-                  <div style={styles.conflictBannerEyebrow}>Atención</div>
+                  <div style={styles.conflictBannerEyebrow}>Decisión pendiente</div>
                   <div style={styles.conflictBannerTitle}>
-                    Tienes {conflictAlert.count} conflicto{conflictAlert.count === 1 ? "" : "s"} pendiente{conflictAlert.count === 1 ? "" : "s"} por resolver
+                    Tienes {conflictAlert.count} conflicto{conflictAlert.count === 1 ? "" : "s"} que ya puedes resolver
                   </div>
-                  <div style={styles.conflictBannerSub}>Revísalo ahora para evitar cruces y conversaciones innecesarias.</div>
+                  <div style={styles.conflictBannerSub}>
+                    Entra, decide una vez y deja claro qué plan se mantiene.
+                  </div>
                 </div>
 
-                <div style={styles.conflictBannerCta}>Revisar</div>
+                <div style={styles.conflictBannerCta}>Resolver</div>
               </button>
             ) : null}
 
