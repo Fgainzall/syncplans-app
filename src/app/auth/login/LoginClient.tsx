@@ -229,16 +229,15 @@ const nextTarget = useMemo(
   return (
     <AuthCard
       mode="login"
-      title="Bienvenido de vuelta"
-      subtitle="Entra a SyncPlans y sigue coordinando tu tiempo compartido desde una sola verdad."
+      title="Vuelve a coordinar con claridad"
+      subtitle="Entra a SyncPlans y retoma tus planes compartidos desde una sola referencia."
       onToggleMode={() =>
         router.push(`/auth/register?next=${encodeURIComponent(nextTarget)}`)
       }
     >
       <>
         <p style={introTextStyle}>
-          Accede a tu calendario personal, tus grupos y los conflictos pendientes
-          sin perderte entre mensajes o planes cruzados.
+          Entra para retomar tus planes compartidos, tus acuerdos y lo que todavía necesita decisión.
         </p>
 
         <form onSubmit={onSubmit} style={formStyle}>

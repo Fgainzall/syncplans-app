@@ -129,7 +129,7 @@ const nextTarget = useMemo(
     <AuthCard
       mode="register"
       title="Crea tu cuenta"
-      subtitle="Empieza con tu calendario personal y después invita a quien comparte tiempo contigo."
+      subtitle="Empieza a coordinar mejor con las personas que comparten tiempo contigo."
       onToggleMode={() =>
         router.push(`/auth/login?next=${encodeURIComponent(nextTarget)}`)
       }
@@ -173,8 +173,7 @@ const nextTarget = useMemo(
         ) : (
           <>
             <p style={introTextStyle}>
-              SyncPlans te ayuda a ordenar tu agenda, compartir planes y detectar
-              choques antes de que se conviertan en discusión.
+              SyncPlans te ayuda a coordinar planes con claridad, detectar cruces a tiempo y evitar discusiones innecesarias.
             </p>
 
             <form onSubmit={onSubmit} style={formStyle}>

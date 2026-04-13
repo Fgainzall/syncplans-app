@@ -61,10 +61,10 @@ export default function AuthCard({
 
           <div className="sp-auth-hero-copy">
             <h1 className="sp-auth-hero-title">
-              El calendario que evita discusiones.
+              Menos fricción. Más coordinación.
             </h1>
             <p className="sp-auth-hero-subtitle">
-              Coordina tu tiempo compartido con una sola verdad para todos.
+              Una sola referencia compartida para decidir mejor con otras personas.
             </p>
           </div>
 
@@ -72,9 +72,9 @@ export default function AuthCard({
             <div className="sp-auth-hero-bullet">
               <span className="sp-auth-hero-dot" />
               <div>
-                <div className="sp-auth-hero-bullet-title">Pareja y familia</div>
+                <div className="sp-auth-hero-bullet-title">Tiempo compartido</div>
                 <div className="sp-auth-hero-bullet-text">
-                  Comparte eventos sin perder tu agenda personal.
+                  Coordina con pareja, familia o grupos sin confusión innecesaria.
                 </div>
               </div>
             </div>
@@ -83,10 +83,10 @@ export default function AuthCard({
               <span className="sp-auth-hero-dot" />
               <div>
                 <div className="sp-auth-hero-bullet-title">
-                  Conflictos visibles
+                  Cruces visibles
                 </div>
                 <div className="sp-auth-hero-bullet-text">
-                  Nada se mueve sin que todos lo vean primero.
+                  Cuando algo se pisa, se ve antes de que se vuelva problema.
                 </div>
               </div>
             </div>
@@ -95,17 +95,17 @@ export default function AuthCard({
               <span className="sp-auth-hero-dot" />
               <div>
                 <div className="sp-auth-hero-bullet-title">
-                  Decidir, no discutir
+                  Acordar con claridad
                 </div>
                 <div className="sp-auth-hero-bullet-text">
-                  Menos “yo te avisé”, más claridad compartida.
+                  Menos malentendidos. Más acuerdos sobre el tiempo.
                 </div>
               </div>
             </div>
           </div>
 
           <div className="sp-auth-hero-footer">
-            Hecho para parejas, familias y grupos que coordinan de verdad.
+            Hecho para personas que comparten tiempo y quieren menos fricción.
           </div>
         </section>
 
