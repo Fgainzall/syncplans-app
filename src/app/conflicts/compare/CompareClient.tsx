@@ -186,7 +186,10 @@ export default function CompareClient() {
   const [toast, setToast] = useState<null | { title: string; sub?: string }>(
     null
   );
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return window.innerWidth < 920;
+  });
 
   const loadScreenData = useCallback(async () => {
     const [eventsForConflicts, dbMap, declinedSet, ignoredSet] = await Promise.all([
@@ -411,14 +414,14 @@ export default function CompareClient() {
     if (focusEventId) qp.set("eventId", focusEventId);
     if (activeConflict?.id != null) qp.set("conflict", String(activeConflict.id));
     if (activeConflictIndex != null) qp.set("i", String(activeConflictIndex));
-    router.push(`/conflicts/actions?${qp.toString()}`);
+    router.push(`/conflicts/actions?${qp.toString()}`, { scroll: false });
   };
 
   const goBack = () => {
     const qp = new URLSearchParams();
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     if (focusEventId) qp.set("eventId", focusEventId);
-    router.push(`/conflicts/detected?${qp.toString()}`);
+    router.push(`/conflicts/detected?${qp.toString()}`, { scroll: false });
   };
 
   const existing = activeConflict?.existingEvent;

@@ -7,7 +7,7 @@ export const revalidate = 0;
 
 export default function ConflictsComparePage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-[#050816]" />}>
+    <Suspense fallback={null}>
       <CompareClient />
     </Suspense>
   );

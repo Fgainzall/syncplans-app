@@ -212,7 +212,10 @@ export default function ActionsClient() {
   const [toast, setToast] = useState<null | { title: string; sub?: string }>(
     null
   );
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return window.innerWidth < 920;
+  });
   const applyInFlightRef = useRef(false);
 
   const loadScreenData = useCallback(async () => {
@@ -371,7 +374,7 @@ export default function ActionsClient() {
     if (focusEventId) qp.set("eventId", focusEventId);
     if (focusConflictId) qp.set("conflict", focusConflictId);
     if (focusIndex) qp.set("i", focusIndex);
-    router.push(`/conflicts/compare?${qp.toString()}`);
+    router.push(`/conflicts/compare?${qp.toString()}`, { scroll: false });
   };
 
   const goToSummary = (result?: ApplySummary) => {
@@ -388,7 +391,7 @@ export default function ActionsClient() {
       qp.set("fallbackKeepBoth", String(result.fallbackKeepBothCount));
     }
 
-    router.push(`/summary?${qp.toString()}`);
+    router.push(`/summary?${qp.toString()}`, { scroll: false });
   };
 
   const applyAll = async () => {
