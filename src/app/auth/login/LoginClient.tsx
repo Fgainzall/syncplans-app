@@ -35,10 +35,10 @@ export default function LoginClient() {
   const sp = useSearchParams();
 
   const nextParam = sp.get("next");
-  const nextTarget = useMemo(
-    () => (nextParam && nextParam.startsWith("/") ? nextParam : "/summary"),
-    [nextParam]
-  );
+const nextTarget = useMemo(
+  () => (nextParam && nextParam.startsWith("/") ? nextParam : "/onboarding"),
+  [nextParam]
+);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
