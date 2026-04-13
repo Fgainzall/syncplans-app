@@ -231,15 +231,15 @@ export default function EventsPage() {
     });
 
     if (visibleEvents.length === 0) {
-      return "Mira y gestiona tu lista de eventos personales y compartidos.";
+      return "Revisa tus planes personales y compartidos sin perder contexto.";
     }
 
     const personal = visibleEvents.filter((e) => !e.group_id).length;
     const groupEvents = visibleEvents.filter((e) => !!e.group_id).length;
 
-    return `Tu lista combina ${personal} evento${
-      personal === 1 ? "" : "s"
-    } personales y ${groupEvents} en grupos. Filtra, revisa y limpia sin perder contexto.`;
+    return `Tu lista combina ${personal} plan${
+      personal === 1 ? "" : "es"
+    } personales y ${groupEvents} compartido${groupEvents === 1 ? "" : "s"}. Filtra, revisa y decide sin perder contexto.`;
   }, [events, declinedEventIds, hiddenEventIds]);
 
   function toggleSelection(id: string) {
@@ -401,14 +401,14 @@ export default function EventsPage() {
         <Section>
           <PremiumHeader
             title="Eventos"
-            subtitle="Mira y gestiona tu lista de eventos personales y compartidos."
+            subtitle="Revisa tus planes personales y compartidos sin perder contexto."
           />
           <Card style={S.cardShell}>
             <div style={S.loadingRow}>
               <div style={S.loadingDot} />
               <div>
                 <div style={S.loadingTitle}>Cargando tus eventos…</div>
-                <div style={S.loadingSub}>Preparando tu lista para hoy</div>
+                <div style={S.loadingSub}>Preparando tu vista de coordinación</div>
               </div>
             </div>
           </Card>
@@ -458,17 +458,17 @@ export default function EventsPage() {
         <Card style={S.cardShell} className="spEvt-card">
           <div style={S.titleRow}>
             <div>
-              <div style={S.kicker}>Tu agenda, capa por capa</div>
-              <h1 style={S.h1}>Lista de eventos</h1>
+              <div style={S.kicker}>Tus planes, con contexto</div>
+              <h1 style={S.h1}>Planes visibles</h1>
               <p style={S.sub}>
-                Mira tus próximos eventos personales y de grupos en un solo
-                lugar. Desde aquí puedes editar, filtrar y eliminar sin perder
+                Mira tus próximos planes personales y compartidos en un solo
+                lugar. Desde aquí puedes editar, filtrar y limpiar sin perder
                 claridad.
               </p>
             </div>
 
             <aside style={S.factBox} className="spEvt-factBox">
-              <div style={S.factLabel}>Resumen rápido</div>
+              <div style={S.factLabel}>Lectura rápida</div>
               <div style={S.factRow}>
                 <span style={S.factDotPersonal} />
                 <span>{valueVisibility.personalCount} personales</span>
@@ -480,7 +480,7 @@ export default function EventsPage() {
 
               {totalGroups > 0 && (
                 <div style={S.factHint}>
-                  Tienes {totalGroups} grupo{totalGroups === 1 ? "" : "s"} conectado{totalGroups === 1 ? "" : "s"} a tu agenda.
+                  Tienes {totalGroups} grupo{totalGroups === 1 ? "" : "s"} alimentando esta coordinación.
                 </div>
               )}
             </aside>

@@ -441,8 +441,8 @@ const timeSuggestionsLabel = useMemo(() => {
     };
   }, [booting, upcomingStats]);
 
-  const title = "Resumen";
-  const summarySubtitle = activeGroupId ? `Hoy · ${activeLabel}` : "Hoy · Personal";
+  const title = "Centro de coordinación";
+  const summarySubtitle = activeGroupId ? `Hoy · ${activeLabel} · una sola verdad compartida` : "Hoy · Personal · claridad para decidir";
   const showCreateGroupNudge = groups.length === 0;
   const showFirstSharedEventNudge = groups.length > 0 && upcomingStats.group === 0;
   const firstSharedEventHref = useMemo(() => {
@@ -927,7 +927,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                       ? `${valueMoments.autoAdjusted} ajuste${valueMoments.autoAdjusted === 1 ? "" : "s"} automático${valueMoments.autoAdjusted === 1 ? "" : "s"} aplicado${valueMoments.autoAdjusted === 1 ? "" : "s"}`
                       : null}
                     {(valueMoments.resolvedDecisions > 0 || valueMoments.autoAdjusted > 0) && valueMoments.agendaFeelsClear ? " · " : ""}
-                    {valueMoments.agendaFeelsClear ? "tu agenda visible está clara en este momento" : null}
+                    {valueMoments.agendaFeelsClear ? "tu coordinación visible está clara en este momento" : null}
                     {(valueMoments.resolvedDecisions > 0 || valueMoments.autoAdjusted > 0 || valueMoments.agendaFeelsClear) && pendingAttention.captures > 0 ? " · " : ""}
                     {pendingAttention.captures > 0
                       ? `${pendingAttention.captures} respuesta${pendingAttention.captures === 1 ? "" : "s"} externa${pendingAttention.captures === 1 ? "" : "s"} ya entró${pendingAttention.captures === 1 ? "" : "aron"} al flujo`
@@ -941,7 +941,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                     style={styles.valueRailPrimary}
                     onClick={() => router.push(valueMoments.resolvedDecisions > 0 ? "/events" : "/calendar")}
                   >
-                    {valueMoments.resolvedDecisions > 0 ? "Ver valor en eventos" : "Abrir calendario"}
+                    {valueMoments.resolvedDecisions > 0 ? "Ver decisiones reflejadas" : "Ver tu mapa de tiempo"}
                   </button>
                 </div>
               </div>
@@ -1035,12 +1035,12 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 <div>
                   <div style={styles.coordinationPromptEyebrow}>Ruta rápida</div>
                   <div style={styles.coordinationPromptTitle}>
-                    {showCreateGroupNudge ? "Tu primer wow moment empieza creando un grupo" : "Ya puedes sentir el valor con un primer plan compartido"}
+                    {showCreateGroupNudge ? "Tu primer momento de claridad empieza creando un grupo" : "Ya puedes sentir el valor con un primer plan compartido"}
                   </div>
                   <div style={styles.coordinationPromptCopy}>
                     {showCreateGroupNudge
-                      ? "Haz esto en orden: crea el grupo, crea un plan dentro de él y luego compártelo. Así SyncPlans deja de parecer un calendario y empieza a coordinar por ti."
-                      : "Te falta una sola cosa para verlo claro: guardar un plan dentro de un grupo. Después podrás compartirlo, detectar choques y decidir desde un mismo lugar."}
+                      ? "Haz esto en orden: crea el grupo, guarda un plan dentro de él y luego compártelo. Así SyncPlans deja de ser solo una agenda y empieza a coordinar decisiones reales."
+                      : "Te falta una sola cosa para verlo claro: guardar un plan dentro de un grupo. Después podrás compartirlo, detectar choques y decidir desde el mismo lugar."}
                   </div>
                 </div>
 
@@ -1078,22 +1078,22 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 <div style={styles.emptyTitle}>Sin eventos próximos</div>
                 <div style={styles.emptySub}>
                   {showCreateGroupNudge
-                    ? "Empieza creando un grupo. Después haremos tu primer plan compartido para que sientas el valor real de SyncPlans."
+                    ? "Empieza creando un grupo. Después guarda tu primer plan compartido para sentir cómo SyncPlans ordena la coordinación, no solo la agenda."
                     : showFirstSharedEventNudge
-                    ? "Ya tienes grupo. Ahora te falta guardar tu primer plan compartido para que todo empiece a coordinarse desde un solo lugar."
-                    : "Todavía no tienes nada cerca. Puedes crear un plan nuevo o abrir el calendario."}
+                    ? "Ya tienes grupo. Ahora te falta guardar tu primer plan compartido para que todos miren la misma verdad desde un solo lugar."
+                    : "Todavía no tienes nada cerca. Puedes crear un plan nuevo o abrir tu mapa de tiempo."}
                 </div>
                 <button
                   onClick={() => router.push(showCreateGroupNudge ? "/groups/new" : showFirstSharedEventNudge ? firstSharedEventHref : "/events/new/details?type=personal")}
                   style={styles.emptyBtn}
                 >
-                  {showCreateGroupNudge ? "Crear grupo →" : showFirstSharedEventNudge ? "Crear plan compartido →" : "Crear plan →"}
+                  {showCreateGroupNudge ? "Crear grupo →" : showFirstSharedEventNudge ? "Crear plan compartido →" : "Crear plan nuevo →"}
                 </button>
               </div>
             ) : (
               <>
                 <div style={styles.nextBlock}>
-                  <div style={styles.nextLabel}>Sigue</div>
+                  <div style={styles.nextLabel}>Lo próximo que coordina tu día</div>
                   <button
                     onClick={() => router.push("/calendar")}
                     style={{
@@ -1332,8 +1332,8 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
-                <div style={styles.quickTitle}>Crear plan</div>
-                <div style={styles.quickSub}>Empezar algo nuevo</div>
+                <div style={styles.quickTitle}>Poner algo en común</div>
+                <div style={styles.quickSub}>Crear un plan desde cero</div>
               </button>
 
               <button
@@ -1341,7 +1341,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
-                <div style={styles.quickTitle}>{pendingInviteCount > 0 ? "Revisar invitaciones" : "Abrir calendario"}</div>
+                <div style={styles.quickTitle}>{pendingInviteCount > 0 ? "Revisar invitaciones" : "Ver mapa de tiempo"}</div>
                 <div style={styles.quickSub}>{pendingInviteCount > 0 ? "Hay algo esperando tu respuesta" : "Ver todo con contexto"}</div>
               </button>
 

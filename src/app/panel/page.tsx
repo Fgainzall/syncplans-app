@@ -102,7 +102,7 @@ type PremiumLockProps = {
 type PlanTone = "free" | "trial" | "premium" | "founder";
 
 const CONTEXT_OPTIONS: ContextOption[] = [
-  { key: "solo", label: "Personal", hint: "Tu agenda individual", dot: "#FBBF24" },
+  { key: "solo", label: "Personal", hint: "Tu tiempo individual", dot: "#FBBF24" },
   { key: "pair", label: "Pareja", hint: "Coordinación de dos", dot: "#F87171" },
   { key: "family", label: "Familia", hint: "Varios miembros", dot: "#60A5FA" },
 ];
@@ -550,7 +550,7 @@ export default function PanelPage() {
     {
       id: "groups",
       title: "Grupos",
-      hint: "Crear, abrir y ordenar espacios compartidos",
+      hint: "Crear y ordenar espacios donde todos vean lo mismo",
       href: "/groups",
       badge: totalGroups > 0 ? `${totalGroups}` : undefined,
       featured: true,
@@ -558,7 +558,7 @@ export default function PanelPage() {
     {
       id: "invitations",
       title: "Invitaciones",
-      hint: "Aceptar, revisar y destrabar accesos",
+      hint: "Aceptar, revisar y destrabar quién entra a coordinar",
       href: "/invitations",
       featured: true,
     },
@@ -572,7 +572,7 @@ export default function PanelPage() {
     {
       id: "plans",
       title: "Plan",
-      hint: "Nivel actual y beneficios activos",
+      hint: "Nivel actual y ventajas activas",
       href: "/planes",
     },
   ];
@@ -623,22 +623,22 @@ export default function PanelPage() {
       : "Google Calendar no conectado";
 
   let heroSummary =
-    "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones.";
+    "Desde aquí preparas la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones.";
 
   if (!loading) {
     if (totalGroups === 0) {
       heroSummary =
-        "El primer recorrido ideal es simple: crea tu primer grupo, guarda un plan compartido y desde ahí empieza la coordinación real.";
+        "El primer recorrido ideal es simple: crea tu primer grupo, guarda un plan compartido y deja que desde ahí empiece la coordinación real.";
     } else if (conflictsNow > 0) {
-      heroSummary = `Tu sistema hoy tiene ${conflictsNow} conflicto${
+      heroSummary = `Hoy tu sistema tiene ${conflictsNow} conflicto${
         conflictsNow === 1 ? "" : "s"
       } pendiente${conflictsNow === 1 ? "" : "s"}, ${totalGroups} grupo${
         totalGroups === 1 ? "" : "s"
-      } y ${totalEvents} evento${totalEvents === 1 ? "" : "s"} visibles.`;
+      } y ${totalEvents} plan${totalEvents === 1 ? "" : "es"} visible${totalEvents === 1 ? "" : "s"}.`;
     } else if (totalGroups > 0) {
       heroSummary = `Ya tienes ${totalGroups} grupo${
         totalGroups === 1 ? "" : "s"
-      } creado${totalGroups === 1 ? "" : "s"}. Panel es el lugar para gestionar esa estructura.`;
+      } creado${totalGroups === 1 ? "" : "s"}. Aquí mantienes la estructura para que coordinar siga siendo simple.`;
     }
   }
 
@@ -670,7 +670,7 @@ export default function PanelPage() {
     <MobileScaffold maxWidth={1120}>
       <PremiumHeader
         title="Panel"
-        subtitle="El lugar donde administras la estructura de SyncPlans: grupos, invitaciones, plan e integraciones."
+        subtitle="El lugar donde preparas la base de la coordinación: grupos, invitaciones, plan e integraciones."
       />
 
       <div style={styles.stack}>
@@ -680,7 +680,7 @@ export default function PanelPage() {
           <div style={styles.heroTopRow}>
             <div style={styles.heroTextWrap}>
               <div style={styles.eyebrow}>Panel</div>
-              <h1 style={styles.heroTitle}>Centro de estructura</h1>
+              <h1 style={styles.heroTitle}>Base de la coordinación</h1>
               <p style={styles.heroCopy}>{heroSummary}</p>
               <div style={styles.heroMicroCopy}>
                 {totalGroups === 0 ? (
@@ -689,7 +689,7 @@ export default function PanelPage() {
                   </>
                 ) : (
                   <>
-                    La operación diaria sigue viviendo en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Eventos</strong> y <strong>Conflictos</strong>. Aquí solo administras la base sobre la que todo eso funciona.
+                    La operación diaria sigue viviendo en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Eventos</strong> y <strong>Conflictos</strong>. Aquí solo preparas la base para que todo eso funcione sin fricción.
                   </>
                 )}
               </div>

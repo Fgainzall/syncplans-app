@@ -181,7 +181,7 @@ export default function GroupsPage() {
       ? "Personas con las que te organizas."
       : `Tienes ${summary.total} grupo${
           summary.total === 1 ? "" : "s"
-        } para coordinar tu tiempo.`;
+        } sosteniendo tu coordinación compartida.`;
 
   const invitationsLabel =
     pendingInvites === 0
@@ -194,7 +194,7 @@ export default function GroupsPage() {
         <Section>
           <PremiumHeader
             title="Grupos"
-            subtitle="Organiza tu estructura compartida sin fricción."
+            subtitle="Crea la base desde la que luego todos ven lo mismo."
           />
 
           <Card style={styles.surfaceCard}>
@@ -229,7 +229,7 @@ export default function GroupsPage() {
       <Section>
         <PremiumHeader
           title="Grupos"
-          subtitle="Crea espacios compartidos, suma personas y haz que todos vean lo mismo."
+          subtitle="Crea espacios compartidos, suma personas y haz que todos se organicen sobre la misma verdad."
         />
 
         <Card style={styles.surfaceCard}>
@@ -270,11 +270,11 @@ export default function GroupsPage() {
                 </div>
 
                 <h2 style={styles.heroTitle}>
-                  La coordinación mejora de verdad cuando la otra persona entra
+                  La coordinación empieza a sentirse real cuando la otra persona entra
                 </h2>
 
                 <p style={styles.heroText}>
-                  Los grupos son la base. Pero el valor aparece cuando alguien
+                  Los grupos son la base. El valor aparece cuando alguien
                   más ve el mismo espacio, el mismo plan y las mismas decisiones
                   contigo.
                 </p>
@@ -291,7 +291,7 @@ export default function GroupsPage() {
               </div>
 
               <Card tone="strong" style={styles.heroSummary}>
-                <div style={styles.heroSummaryTitle}>Resumen de tus grupos</div>
+                <div style={styles.heroSummaryTitle}>Tu base compartida</div>
 
                 <div style={styles.heroSummaryRow}>
                   <span style={styles.heroSummaryDotPair} />
@@ -424,7 +424,7 @@ export default function GroupsPage() {
                   mensajes cruzados.
                 </p>
                 <div style={{ ...styles.emptySub, marginTop: -4, fontSize: 13 }}>
-                  Ruta sugerida: <b>crear grupo</b> → <b>guardar plan</b> → <b>invitar a alguien</b>.
+                  Ruta sugerida: <b>crear grupo</b> → <b>guardar plan compartido</b> → <b>invitar a alguien</b>.
                 </div>
                 <div style={styles.emptyActions}>
                   <button

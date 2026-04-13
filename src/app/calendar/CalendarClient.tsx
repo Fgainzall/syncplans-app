@@ -1060,7 +1060,7 @@ const valueVisibility = useMemo(() => {
         <Section>
           <PremiumHeader
             title="Calendario"
-            subtitle="Visualiza tu tiempo con claridad y detecta choques rápido."
+            subtitle="Mira el tiempo compartido con claridad y detecta choques antes de discutirlos."
             rightSlot={
               <button
                 onClick={handleRefresh}
@@ -1079,9 +1079,9 @@ const valueVisibility = useMemo(() => {
             <div style={styles.loadingRow}>
               <div style={styles.loadingDot} />
               <div>
-                <div style={styles.loadingTitle}>Cargando tu calendario…</div>
+                <div style={styles.loadingTitle}>Cargando tu mapa de tiempo…</div>
                 <div style={styles.loadingSub}>
-                  Preparando tus eventos y grupos
+                  Preparando tus planes, grupos y contexto compartido
                 </div>
               </div>
             </div>
@@ -1109,7 +1109,7 @@ const valueVisibility = useMemo(() => {
       <Section>
         <PremiumHeader
           title="Calendario"
-          subtitle="Visualiza tu tiempo con claridad y detecta choques rápido."
+          subtitle="Mira el tiempo compartido con claridad y detecta choques antes de discutirlos."
           rightSlot={
             <button
               onClick={handleRefresh}
@@ -1129,7 +1129,7 @@ const valueVisibility = useMemo(() => {
             <div style={styles.overviewLeft}>
               <div style={styles.overviewEyebrow}>Vista actual</div>
               <h2 style={styles.overviewTitle}>
-                {tab === "month" ? "Vista mensual" : "Vista agenda"}
+                {tab === "month" ? "Mapa mensual" : "Secuencia de planes"}
               </h2>
               <div style={styles.overviewSub}>
                 {monthTitle}
@@ -1347,7 +1347,7 @@ const valueVisibility = useMemo(() => {
         ) : (
           <Card style={styles.agendaCard}>
             <div style={styles.agendaTop}>
-              <div style={styles.agendaTitle}>Agenda del mes</div>
+              <div style={styles.agendaTitle}>Planes del periodo</div>
               <div style={styles.agendaSub}>
                 Mostrando {agendaEvents.length} evento
                 {agendaEvents.length === 1 ? "" : "s"}
