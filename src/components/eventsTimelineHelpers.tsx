@@ -101,33 +101,19 @@ export function getTimelineEventStatusUi(input: {
   eventId?: string | null;
 }) {
   const eventId = String(input.eventId ?? "").trim() || "timeline-event";
-  const trustLabel = String(input.trustSignal?.label ?? "").trim().toLowerCase();
-
-  const isResolved =
-    trustLabel === "resolved" || trustLabel === "auto_adjusted";
-
-  const responses = isResolved
-    ? []
-    : (Array.isArray(input.responses) ? input.responses : []).filter(
-        (row) => String(row?.response ?? "").trim().toLowerCase() !== "pending"
-      );
-
-  const conflictsCount = isResolved ? 0 : Number(input.conflictsCount ?? 0);
-
-  const invite = isResolved
-    ? null
-    : input.invite
-      ? {
-          status: input.invite.status ?? null,
-          proposed_date: input.invite.proposed_date ?? null,
-        }
-      : null;
+  const responses = Array.isArray(input.responses) ? input.responses : [];
+  const conflictsCount = Number(input.conflictsCount ?? 0);
 
   const ctx = buildEventContext({
     eventId,
     conflictEventIds: conflictsCount > 0 ? new Set([eventId]) : new Set(),
     proposalResponses: responses,
-    invite,
+    invite: input.invite
+      ? {
+          status: input.invite.status ?? null,
+          proposed_date: input.invite.proposed_date ?? null,
+        }
+      : null,
     trustSignal: input.trustSignal ?? null,
   });
 
@@ -148,21 +134,21 @@ export function getTimelinePrimaryAction(input: {
 
   if (input.status === "conflicted") {
     return {
-      label: "Resolver",
+      label: "Revisar cruce",
       href: `/conflicts/detected?eventId=${encodeURIComponent(eventId)}`,
     };
   }
 
   if (input.status === "pending") {
     return {
-      label: "Decidir",
+      label: "Ver pendiente",
       href: `/events/new/details?eventId=${encodeURIComponent(eventId)}`,
     };
   }
 
   if (input.status === "adjusted") {
     return {
-      label: "Revisar ajuste",
+      label: "Ver cambio",
       href: `/events/new/details?eventId=${encodeURIComponent(eventId)}`,
     };
   }
@@ -299,16 +285,22 @@ export function getExternalLabel(ev: TimelineEvent) {
 export function getProposalInsight(response: string | null | undefined) {
   const safe = String(response ?? "").trim().toLowerCase();
 
-if (safe === "pending") {
-  return null;
-}
+  if (safe === "pending") {
+    return {
+      kicker: "Propuesta abierta",
+      title: "Esta propuesta sigue por confirmar",
+      subtitle:
+        "Todavía no quedó cerrada. Vale la pena revisarla para decidir cómo seguir.",
+      tone: "pending" as const,
+    };
+  }
 
   if (safe === "accepted") {
     return {
       kicker: "Propuesta aceptada",
-      title: "Esta propuesta ya fue aceptada",
+      title: "Esta propuesta ya quedó confirmada",
       subtitle:
-        "La otra parte confirmó que este plan le funciona como está.",
+        "La otra parte dijo que este horario le funciona como está.",
       tone: "accepted" as const,
     };
   }
@@ -316,9 +308,9 @@ if (safe === "pending") {
   if (safe === "adjusted") {
     return {
       kicker: "Propuesta ajustada",
-      title: "Esta propuesta fue ajustada",
+      title: "Esta propuesta llegó con cambios",
       subtitle:
-        "La otra parte cambió algo antes de dejarla lista para avanzar.",
+        "La otra parte movió algo antes de dejarla lista para revisar.",
       tone: "adjusted" as const,
     };
   }
@@ -382,10 +374,10 @@ export function buildProposalContextLine(input: {
 
   const verb =
     safeResponse === "accepted"
-      ? "la aceptó"
+      ? "la confirmó"
       : safeResponse === "adjusted"
       ? "la ajustó"
-      : "la dejó pendiente";
+      : "la dejó por confirmar";
 
   return safeDate ? `${safeName} ${verb} ${safeDate}` : `${safeName} ${verb}`;
 }
@@ -417,17 +409,17 @@ export function formatProposedDate(value: string | null | undefined) {
 export function getInvitePresentation(invite: PublicInviteRow | null) {
   if (!invite) {
     return {
-      label: "Sin respuesta todavía",
+      label: "Sin respuesta",
       tone: "neutral" as const,
-      detail: "Aún no hay una respuesta registrada para este link.",
+      detail: "Todavía no hay una respuesta registrada para este link.",
     };
   }
 
   if (invite.status === "pending") {
     return {
-      label: "Pendiente",
+      label: "Por responder",
       tone: "pending" as const,
-      detail: "El link fue compartido, pero todavía no hubo respuesta.",
+      detail: "El link ya fue compartido, pero todavía no hubo respuesta.",
     };
   }
 
@@ -441,16 +433,16 @@ export function getInvitePresentation(invite: PublicInviteRow | null) {
 
   if (invite.status === "rejected" && invite.proposed_date) {
     return {
-      label: "Propuso nueva fecha",
+      label: "Propuso otro horario",
       tone: "proposed" as const,
-      detail: "La persona rechazó el horario original y sugirió otra fecha.",
+      detail: "La persona no puede en este horario y sugirió una alternativa.",
     };
   }
 
   return {
-    label: "Rechazado",
+    label: "No puede en este horario",
     tone: "rejected" as const,
-    detail: "La persona externa rechazó este plan.",
+    detail: "La persona externa rechazó este horario.",
   };
 }
 

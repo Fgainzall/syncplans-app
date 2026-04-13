@@ -8,7 +8,6 @@ import React, {
 } from "react";
 import { useRouter } from "next/navigation";
 import { parseQuickCapture } from "@/lib/quickCaptureParser";
-import { suggestCanonicalGroupWithLearning } from "@/lib/groupSuggestion";
 import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
@@ -22,10 +21,7 @@ import {
 import supabase from "@/lib/supabaseClient";
 import { getLearningSignals } from "@/lib/learningSignals";
 import { buildLearnedTimeProfile } from "@/lib/learningProfile";
-import type {
-  LearnedTimeProfile,
-  LearningSignal,
-} from "@/lib/learningTypes";
+import type { LearnedTimeProfile } from "@/lib/learningTypes";
 import SummaryQuickCaptureCard from "./SummaryQuickCaptureCard";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
 import {
@@ -44,6 +40,7 @@ import {
   buildSmartInterpretation,
   buildWhatsAppShareText,
   canUseClipboard,
+  canUseNativeShare,
   cleanTemporalNoise,
   eventOverlapsWindow,
   fmtDay,
@@ -62,10 +59,8 @@ import {
   proposalResponseTone,
   resolutionForConflict,
   startOfTodayLocal,
-  type SmartInterpretation,
   type SummaryEvent,
 } from "./summaryHelpers";
-
 type Props = {
   highlightId: string | null;
   appliedToast: string | null;
@@ -104,9 +99,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const [quickCaptureValue, setQuickCaptureValue] = useState("");
   const [quickCaptureBusy, setQuickCaptureBusy] = useState(false);
-  const [learningSignals, setLearningSignals] = useState<LearningSignal[] | null>(null);
-  const [learningSignalsLoaded, setLearningSignalsLoaded] = useState(false);
-  const [learningUserId, setLearningUserId] = useState<string | null>(null);
+  const [learnedQuickCaptureProfile, setLearnedQuickCaptureProfile] =
+    useState<LearnedTimeProfile | null>(null);
 
   const {
     booting,
@@ -154,237 +148,139 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     () => formatQuickCapturePreview(quickCaptureValue),
     [quickCaptureValue]
   );
+const smartInterpretation = useMemo(() => {
+  const raw = quickCaptureValue.trim();
+  if (!raw) return null;
 
-  const suggestionCandidateGroups = useMemo(
-    () =>
-      groups
-        .map((group) => ({
-          id: String(group?.id ?? "").trim(),
-          type: String(group?.type ?? ""),
-        }))
-        .filter((group) => !!group.id),
-    [groups]
-  );
+  return buildSmartInterpretation({
+    raw,
+    groups,
+    activeGroupId,
+  });
+}, [quickCaptureValue, groups, activeGroupId]);
 
-  const canonicalQuickCaptureSuggestion = useMemo(() => {
-    const raw = quickCaptureValue.trim();
-    if (!raw) return null;
+const smartInterpretationLabel = useMemo(() => {
+  return getSmartInterpretationLabel(smartInterpretation, groups);
+}, [smartInterpretation, groups]);
 
-    const parsed = parseQuickCapture(raw);
-
-    return suggestCanonicalGroupWithLearning({
-      title: parsed.title,
-      notes: parsed.notes,
-      signals: learningSignals ?? [],
-      candidateGroups: suggestionCandidateGroups,
-    });
-  }, [quickCaptureValue, learningSignals, suggestionCandidateGroups]);
-
-  const normalizeSuggestionGroupType = useCallback(
-    (value: string | null | undefined): "personal" | "pair" | "family" | "other" => {
-      if (value === "pair" || value === "couple") return "pair";
-      if (value === "family") return "family";
-      if (value === "other" || value === "shared") return "other";
-      return "personal";
-    },
-    []
-  );
-
-
-  const resolveSmartInterpretation = useCallback(
-    (rawInput: string): SmartInterpretation | null => {
-      const raw = String(rawInput ?? "").trim();
-      if (!raw) return null;
-
-      const parsed = parseQuickCapture(raw);
-
-      const canonicalSuggestion = suggestCanonicalGroupWithLearning({
-        title: parsed.title,
-        notes: parsed.notes,
-        signals: learningSignals ?? [],
-        candidateGroups: suggestionCandidateGroups,
-      });
-
-const effectiveLearnedCandidate: {
-  groupId: string;
-  confidence: "low" | "medium" | "high";
-  reason: string | null;
-} | null =
-  canonicalSuggestion.mode === "auto_apply" &&
-  canonicalSuggestion.groupId &&
-  canonicalSuggestion.trace?.learning?.groupId
-    ? {
-        groupId: canonicalSuggestion.groupId,
-        confidence:
-          canonicalSuggestion.trace.learning.confidence >= 0.65
-            ? "high"
-            : canonicalSuggestion.trace.learning.confidence >= 0.35
-            ? "medium"
-            : "low",
-        reason: canonicalSuggestion.trace.learning.reason ?? null,
-      }
-    : null;
-  const interpretationActiveGroupId =
-  canonicalSuggestion.mode === "auto_apply" ? activeGroupId : null;
-
-return buildSmartInterpretation({
-  raw,
-  groups,
-  activeGroupId: interpretationActiveGroupId,
-  learnedCandidate: effectiveLearnedCandidate,
-});
-    },
-    [groups, activeGroupId, learningSignals, suggestionCandidateGroups]
-  );
-
-  const smartInterpretation = useMemo(() => {
-    return resolveSmartInterpretation(quickCaptureValue);
-  }, [quickCaptureValue, resolveSmartInterpretation, groups, activeGroupId]);
-
-  const smartInterpretationLabel = useMemo(() => {
-    return getSmartInterpretationLabel(smartInterpretation, groups);
-  }, [smartInterpretation, groups]);
+const normalizeSuggestionGroupType = useCallback(
+  (value: string | null | undefined): "personal" | "pair" | "family" | "other" => {
+    if (value === "pair" || value === "couple") return "pair";
+    if (value === "family") return "family";
+    if (value === "other" || value === "shared") return "other";
+    return "personal";
+  },
+  []
+);
 
 const suggestedContextGroupId = useMemo(() => {
-  if (
-    canonicalQuickCaptureSuggestion?.mode === "auto_apply" &&
-    canonicalQuickCaptureSuggestion.groupId
-  ) {
-    return String(canonicalQuickCaptureSuggestion.groupId);
+  if (smartInterpretation?.intent === "group" && smartInterpretation.groupId) {
+    return String(smartInterpretation.groupId);
   }
 
-  // ❗ FASE 5: NO asumir grupo si es ambiguo o suggest_only
+  if (activeGroupId) {
+    return String(activeGroupId);
+  }
+
   return null;
-}, [canonicalQuickCaptureSuggestion]);
-  const suggestedContextGroup = useMemo(() => {
-    if (!suggestedContextGroupId) return null;
+}, [smartInterpretation, activeGroupId]);
 
-    return (
-      groups.find((group) => String(group.id) === String(suggestedContextGroupId)) ??
-      null
-    );
-  }, [groups, suggestedContextGroupId]);
+const suggestedContextGroup = useMemo(() => {
+  if (!suggestedContextGroupId) return null;
 
-  const suggestedContextGroupType = useMemo(() => {
-    return normalizeSuggestionGroupType(
-      String(suggestedContextGroup?.type ?? activeGroupType)
-    );
-  }, [suggestedContextGroup, activeGroupType, normalizeSuggestionGroupType]);
+  return (
+    groups.find((group) => String(group.id) === String(suggestedContextGroupId)) ??
+    null
+  );
+}, [groups, suggestedContextGroupId]);
 
-  useEffect(() => {
-    let cancelled = false;
+const suggestedContextGroupType = useMemo(() => {
+  return normalizeSuggestionGroupType(
+    String(suggestedContextGroup?.type ?? activeGroupType)
+  );
+}, [suggestedContextGroup, activeGroupType, normalizeSuggestionGroupType]);
 
-    async function hydrateLearningUser() {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+useEffect(() => {
+  let cancelled = false;
 
-        if (cancelled) return;
-
-        const userId = String(user?.id ?? "").trim();
-        setLearningUserId(userId || null);
-      } catch {
-        if (!cancelled) {
-          setLearningUserId(null);
-        }
-      }
-    }
-
-    void hydrateLearningUser();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function hydrateLearningSignals() {
-      const raw = quickCaptureValue.trim();
-      if (!raw || learningSignalsLoaded) return;
-
-      try {
-        const signals = await getLearningSignals({ daysBack: 120 });
-
-        if (cancelled) return;
-
-        setLearningSignals(Array.isArray(signals) ? signals : []);
-      } catch {
-        if (!cancelled) {
-          setLearningSignals([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLearningSignalsLoaded(true);
-        }
-      }
-    }
-
-    void hydrateLearningSignals();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [quickCaptureValue, learningSignalsLoaded]);
-
-  const learnedQuickCaptureProfile = useMemo((): LearnedTimeProfile | null => {
+  async function hydrateLearnedQuickCaptureProfile() {
     const raw = quickCaptureValue.trim();
 
-    if (!raw) return null;
-    if (!learningSignalsLoaded) return null;
+    if (!raw) {
+      if (!cancelled) setLearnedQuickCaptureProfile(null);
+      return;
+    }
 
-    const signals = Array.isArray(learningSignals) ? learningSignals : [];
+    try {
+      const signals = await getLearningSignals({ daysBack: 120 });
 
-    if (suggestedContextGroupId) {
-      return buildLearnedTimeProfile(signals, {
-        scope: "group",
-        groupId: suggestedContextGroupId,
+      if (cancelled) return;
+
+      if (suggestedContextGroupId) {
+        const profile = buildLearnedTimeProfile(signals, {
+          scope: "group",
+          groupId: suggestedContextGroupId,
+        });
+
+        setLearnedQuickCaptureProfile(profile);
+        return;
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (cancelled) return;
+
+      const userId = String(user?.id ?? "").trim();
+
+      if (!userId) {
+        setLearnedQuickCaptureProfile(null);
+        return;
+      }
+
+      const profile = buildLearnedTimeProfile(signals, {
+        scope: "user",
+        userId,
       });
+
+      setLearnedQuickCaptureProfile(profile);
+    } catch {
+      if (!cancelled) setLearnedQuickCaptureProfile(null);
     }
+  }
 
-    if (!learningUserId) {
-      return null;
-    }
+  void hydrateLearnedQuickCaptureProfile();
 
-    return buildLearnedTimeProfile(signals, {
-      scope: "user",
-      userId: learningUserId,
-    });
-  }, [
-    quickCaptureValue,
-    learningSignals,
-    learningSignalsLoaded,
-    suggestedContextGroupId,
-    learningUserId,
-  ]);
+  return () => {
+    cancelled = true;
+  };
+}, [quickCaptureValue, suggestedContextGroupId]);
 
-  const timeSuggestions = useMemo(() => {
-    const raw = quickCaptureValue.trim();
-    if (!raw) return [];
+const timeSuggestions = useMemo(() => {
+  const raw = quickCaptureValue.trim();
+  if (!raw) return [];
 
-    const parsed = parseQuickCapture(raw);
+  const parsed = parseQuickCapture(raw);
 
-    if (parsed.date) return [];
+  if (parsed.date) return [];
 
-    return getSuggestedTimeSlots(events, suggestedContextGroupType, raw, {
-      learnedProfile: learnedQuickCaptureProfile,
-    });
-  }, [
-    quickCaptureValue,
-    events,
-    suggestedContextGroupType,
-    learnedQuickCaptureProfile,
-  ]);
+  return getSuggestedTimeSlots(events, suggestedContextGroupType, raw, {
+    learnedProfile: learnedQuickCaptureProfile,
+  });
+}, [
+  quickCaptureValue,
+  events,
+  suggestedContextGroupType,
+  learnedQuickCaptureProfile,
+]);
 
-  const timeSuggestionsLabel = useMemo(() => {
-    const raw = quickCaptureValue.trim();
-    if (!raw || timeSuggestions.length === 0) return null;
+const timeSuggestionsLabel = useMemo(() => {
+  const raw = quickCaptureValue.trim();
+  if (!raw || timeSuggestions.length === 0) return null;
 
-    return getSuggestionContextLabel(raw, suggestedContextGroupType);
-  }, [quickCaptureValue, timeSuggestions, suggestedContextGroupType]);
-
+  return getSuggestionContextLabel(raw, suggestedContextGroupType);
+}, [quickCaptureValue, timeSuggestions, suggestedContextGroupType]);
   const quickCaptureHeadline = useMemo(() => {
     if (!activeGroupId) return "Escribe lo que tienes en mente";
     if (activeGroupType === "pair") return "Planéalo en una línea";
@@ -513,15 +409,15 @@ const suggestedContextGroupId = useMemo(() => {
     mood.tone === "clear"
       ? "rgba(34,197,94,0.85)"
       : mood.tone === "busy"
-      ? "rgba(251,191,36,0.9)"
-      : "rgba(56,189,248,0.9)";
+        ? "rgba(251,191,36,0.9)"
+        : "rgba(56,189,248,0.9)";
 
   const moodAccentGlow =
     mood.tone === "clear"
       ? "rgba(34,197,94,0.35)"
       : mood.tone === "busy"
-      ? "rgba(251,191,36,0.35)"
-      : "rgba(56,189,248,0.35)";
+        ? "rgba(251,191,36,0.35)"
+        : "rgba(56,189,248,0.35)";
 
   const openConflictCenter = useCallback(() => {
     if (conflictAlert.latestEventId) {
@@ -536,88 +432,80 @@ const suggestedContextGroupId = useMemo(() => {
     router.push("/conflicts/detected");
   }, [router, conflictAlert]);
 
-  const navigateFromQuickCapture = useCallback(
-    (value: string) => {
-      const raw = String(value || "").trim();
-      if (!raw) return;
+const navigateFromQuickCapture = useCallback(
+  (value: string) => {
+    const raw = String(value || "").trim();
+    if (!raw) return;
 
-      const parsed = parseQuickCapture(raw);
-      const params = new URLSearchParams();
-      const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
-      const canonicalSuggestion = suggestCanonicalGroupWithLearning({
-        title: parsed.title,
-        notes: parsed.notes,
-        signals: learningSignals ?? [],
-        candidateGroups: suggestionCandidateGroups,
-      });
+    const parsed = parseQuickCapture(raw);
+    const params = new URLSearchParams();
+const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
+    const smart = buildSmartInterpretation({
+      raw,
+      groups,
+      activeGroupId,
+    });
 
-      params.set("qc", "1");
-      params.set("capture_source", "summary");
-      params.set("raw_text", raw);
+    params.set("qc", "1");
+    params.set("capture_source", "summary");
+    params.set("raw_text", raw);
 
-      if (
-        canonicalSuggestion.mode === "auto_apply" &&
-        canonicalSuggestion.groupId
-      ) {
-        params.set("type", "group");
-        params.set("groupId", canonicalSuggestion.groupId);
-      } else {
-        params.set("type", "personal");
-      }
+    if (smart.intent === "group" && smart.groupId) {
+      params.set("type", "group");
+      params.set("groupId", smart.groupId);
+    } else {
+      params.set("type", "personal");
+    }
 
-      if (parsed.title) params.set("title", parsed.title);
-      if (parsed.date) params.set("date", parsed.date.toISOString());
-      if (parsed.durationMinutes) {
-        params.set("duration", String(parsed.durationMinutes));
-      }
-      if (cleanedNotes) params.set("notes", cleanedNotes);
+    if (parsed.title) params.set("title", parsed.title);
+    if (parsed.date) params.set("date", parsed.date.toISOString());
+    if (parsed.durationMinutes) {
+      params.set("duration", String(parsed.durationMinutes));
+    }
+    if (cleanedNotes) params.set("notes", cleanedNotes);
 
-      router.push(`/events/new/details?${params.toString()}`);
-    },
-    [learningSignals, router, suggestionCandidateGroups]
-  );
+    router.push(`/events/new/details?${params.toString()}`);
+  },
+  [groups, activeGroupId, router]
+);
 
-  const navigateFromSuggestedSlot = useCallback(
-    (value: string, suggestedDate: Date) => {
-      const raw = String(value || "").trim();
-      if (!raw) return;
+const navigateFromSuggestedSlot = useCallback(
+  (value: string, suggestedDate: Date) => {
+    const raw = String(value || "").trim();
+    if (!raw) return;
 
-      const parsed = parseQuickCapture(raw);
-      const params = new URLSearchParams();
-      const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
-      const canonicalSuggestion = suggestCanonicalGroupWithLearning({
-        title: parsed.title,
-        notes: parsed.notes,
-        signals: learningSignals ?? [],
-        candidateGroups: suggestionCandidateGroups,
-      });
+    const parsed = parseQuickCapture(raw);
+    const params = new URLSearchParams();
+const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
+    const smart = buildSmartInterpretation({
+      raw,
+      groups,
+      activeGroupId,
+    });
 
-      params.set("qc", "1");
-      params.set("capture_source", "summary");
-      params.set("raw_text", raw);
+    params.set("qc", "1");
+    params.set("capture_source", "summary");
+    params.set("raw_text", raw);
 
-      if (
-        canonicalSuggestion.mode === "auto_apply" &&
-        canonicalSuggestion.groupId
-      ) {
-        params.set("type", "group");
-        params.set("groupId", canonicalSuggestion.groupId);
-      } else {
-        params.set("type", "personal");
-      }
+    if (smart.intent === "group" && smart.groupId) {
+      params.set("type", "group");
+      params.set("groupId", smart.groupId);
+    } else {
+      params.set("type", "personal");
+    }
 
-      if (parsed.title) params.set("title", parsed.title);
-      if (cleanedNotes) params.set("notes", cleanedNotes);
-      if (parsed.durationMinutes) {
-        params.set("duration", String(parsed.durationMinutes));
-      }
+    if (parsed.title) params.set("title", parsed.title);
+if (cleanedNotes) params.set("notes", cleanedNotes);
+    if (parsed.durationMinutes) {
+      params.set("duration", String(parsed.durationMinutes));
+    }
 
-      params.set("date", suggestedDate.toISOString());
+    params.set("date", suggestedDate.toISOString());
 
-      router.push(`/events/new/details?${params.toString()}`);
-    },
-    [learningSignals, router, suggestionCandidateGroups]
-  );
+    router.push(`/events/new/details?${params.toString()}`);
+  },
+  [groups, activeGroupId, router]
+);
 
   const handleQuickCaptureSubmit = useCallback(() => {
     const raw = quickCaptureValue.trim();
@@ -694,6 +582,7 @@ const suggestedContextGroupId = useMemo(() => {
     }
   }, [quickCaptureValue, showToast]);
 
+
   const handleShareToWhatsApp = useCallback(() => {
     const raw = quickCaptureValue.trim();
 
@@ -751,6 +640,7 @@ const suggestedContextGroupId = useMemo(() => {
     },
     [proposalProfilesMap, proposalResponsesMap]
   );
+
 
   const conflictEventIds = useMemo(() => {
     const next = new Set<string>();
@@ -861,22 +751,22 @@ const suggestedContextGroupId = useMemo(() => {
         <Section style={styles.shell} className="spSum-shell">
           <PremiumHeader title={title} subtitle={summarySubtitle} />
 
-          <SummaryQuickCaptureCard
-            value={quickCaptureValue}
-            busy={quickCaptureBusy}
-            preview={quickCapturePreview}
-            interpretation={smartInterpretation}
-            interpretationLabel={smartInterpretationLabel}
-            examples={quickCaptureExamples}
-            activeGroupName={activeLabel}
-            activeGroupType={activeGroupType}
-            groups={groups}
-            onChange={setQuickCaptureValue}
-            onSubmit={handleQuickCaptureSubmit}
-            onShare={handleCopyCaptureLink}
-            onWhatsApp={handleShareToWhatsApp}
-            onExampleClick={handleQuickCaptureExample}
-          />
+         <SummaryQuickCaptureCard
+  value={quickCaptureValue}
+  busy={quickCaptureBusy}
+  preview={quickCapturePreview}
+  interpretation={smartInterpretation}
+  interpretationLabel={smartInterpretationLabel}
+  examples={quickCaptureExamples}
+  activeGroupName={activeLabel}
+  activeGroupType={activeGroupType}
+  groups={groups}
+  onChange={setQuickCaptureValue}
+  onSubmit={handleQuickCaptureSubmit}
+  onShare={handleCopyCaptureLink}
+  onWhatsApp={handleShareToWhatsApp}
+  onExampleClick={handleQuickCaptureExample}
+/>
 
           <Card style={styles.card} className="spSum-card">
             {conflictAlert.count > 0 ? (
@@ -1197,7 +1087,7 @@ const suggestedContextGroupId = useMemo(() => {
                             : styles.decisionBadgeManual),
                         }}
                       >
-                        {decision.isFallback ? "Auto" : "Resuelto"}
+                        {decision.isFallback ? "Automático" : "Resuelto"}
                       </div>
                     </div>
                   </div>
@@ -1612,12 +1502,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.9)",
   },
   captureInterpretationHint: {
-    marginTop: 6,
-    fontSize: 12,
-    lineHeight: 1.4,
-    color: "rgba(125,211,252,0.92)",
-    fontWeight: 800,
-  },
+  marginTop: 6,
+  fontSize: 12,
+  lineHeight: 1.4,
+  color: "rgba(125,211,252,0.92)",
+  fontWeight: 800,
+},
   captureSuggestionsWrap: {
     marginTop: 10,
     display: "grid",

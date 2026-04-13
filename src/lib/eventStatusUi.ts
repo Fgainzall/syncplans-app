@@ -1,5 +1,3 @@
-// src/lib/eventStatusUi.ts
-
 import type { CSSProperties } from "react";
 import {
   getEventStatusLabel,
@@ -99,19 +97,19 @@ function getPriority(status: CanonicalEventStatus): number {
 }
 
 function getCompactLabel(status: CanonicalEventStatus): string {
-  if (status === "conflicted") return "Choque";
-  if (status === "pending") return "Pend.";
-  if (status === "adjusted") return "Ajust.";
-  if (status === "confirmed") return "OK";
+  if (status === "conflicted") return "Cruce";
+  if (status === "pending") return "Decidir";
+  if (status === "adjusted") return "Cambio";
+  if (status === "confirmed") return "Listo";
   return "Plan";
 }
 
 function getCtaLabel(status: CanonicalEventStatus): string {
-  if (status === "conflicted") return "Resolver ahora";
-  if (status === "pending") return "Tomar decisión";
-  if (status === "adjusted") return "Revisar cambio";
+  if (status === "conflicted") return "Revisar cruce";
+  if (status === "pending") return "Ver pendiente";
+  if (status === "adjusted") return "Ver cambio";
   if (status === "confirmed") return "Ver plan";
-  return "Abrir plan";
+  return "Abrir";
 }
 
 export function getEventStatusUi(

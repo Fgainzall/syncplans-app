@@ -13,7 +13,11 @@ import { type ConflictResolutionLogRow } from "@/lib/conflictResolutionsLogDb";
 import { type ProposalResponseRow } from "@/lib/proposalResponsesDb";
 import { type GroupRow } from "@/lib/groupsDb";
 import { parseIsoLike, toDateMs } from "@/lib/dateUtils";
-import { deriveEventStatus } from "@/lib/naming";
+import {
+  deriveEventStatus,
+  getProposalResponseLabel as getCanonicalProposalResponseLabel,
+  getProposalResponseTone as getCanonicalProposalResponseTone,
+} from "@/lib/naming";
 import { buildEventContext } from "@/lib/eventContext";
 
 export type SummaryEvent = {
@@ -50,19 +54,7 @@ export type SmartInterpretation = {
   intent: "personal" | "group";
   groupId: string | null;
   confidence: "low" | "medium" | "high";
-  reason:
-    | "learned"
-    | "learned_legacy"
-    | "name_match"
-    | "social_hint"
-    | "active_group"
-    | "none";
-};
-
-export type SmartInterpretationLearnedCandidate = {
-  groupId: string | null;
-  confidence?: "low" | "medium" | "high" | null;
-  reason?: string | null;
+  reason: "learned" | "name_match" | "social_hint" | "active_group" | "none";
 };
 
 export function safeDate(iso?: string | null) {
@@ -104,8 +96,8 @@ export function buildProposalLine({
     r === "accepted"
       ? "la aceptó"
       : r === "adjusted"
-        ? "la ajustó"
-        : "la dejó pendiente";
+      ? "la ajustó"
+      : "la dejó pendiente";
 
   return time ? `${n} ${verb} ${time}` : `${n} ${verb}`;
 }
@@ -536,22 +528,17 @@ export function buildShareToastLabel(input: string): string {
 export function proposalResponseLabel(
   response: string | null | undefined
 ): string | null {
-  const safe = String(response ?? "").trim().toLowerCase();
+  const safe = String(response ?? "").trim();
   if (!safe) return null;
-  if (safe === "pending") return "Pendiente";
-  if (safe === "accepted") return "Aceptada";
-  if (safe === "adjusted") return "Ajustada";
-  return null;
+  return getCanonicalProposalResponseLabel(safe);
 }
 
 export function proposalResponseTone(
   response: string | null | undefined
 ): "pending" | "accepted" | "adjusted" | "neutral" {
-  const safe = String(response ?? "").trim().toLowerCase();
-  if (safe === "pending") return "pending";
-  if (safe === "accepted") return "accepted";
-  if (safe === "adjusted") return "adjusted";
-  return "neutral";
+  const safe = String(response ?? "").trim();
+  if (!safe) return "neutral";
+  return getCanonicalProposalResponseTone(safe);
 }
 
 export function getUnifiedEventStatus(input: {
@@ -588,139 +575,36 @@ export function extractPersonFromText(raw: string): string | null {
   return match ? match[1] : null;
 }
 
-function normalizeSemanticText(value: string) {
-  return String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[.,;:!?()]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+export function findGroupByName(
+  name: string,
+  groups: GroupRow[]
+): string | null {
+  const normalized = name.toLowerCase();
 
-function tokenizeSemanticText(value: string) {
-  return normalizeSemanticText(value)
-    .split(" ")
-    .map((token) => token.trim())
-    .filter(Boolean);
-}
+  for (const group of groups) {
+    const groupName = String(group.name ?? "").toLowerCase();
 
-function uniqueById(groups: GroupRow[]) {
-  const seen = new Set<string>();
-  return groups.filter((group) => {
-    const id = String(group?.id ?? "").trim();
-    if (!id || seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-}
-
-function scoreGroupNameAgainstTokens(group: GroupRow, tokens: string[]) {
-  const groupTokens = tokenizeSemanticText(String(group?.name ?? ""));
-  if (!groupTokens.length || !tokens.length) return 0;
-
-  let score = 0;
-  for (const token of tokens) {
-    if (token.length < 2) continue;
-    if (groupTokens.includes(token)) score += 4;
-    else if (
-      groupTokens.some(
-        (candidate) =>
-          candidate.startsWith(token) || token.startsWith(candidate),
-      )
-    ) {
-      score += 2;
+    if (groupName.includes(normalized)) {
+      return group.id;
     }
-  }
-
-  return score;
-}
-
-function extractMentionChunks(raw: string): string[] {
-  const text = normalizeSemanticText(raw);
-  const chunks = new Set<string>();
-  const patterns = [
-    /\bcon\s+([a-zñ\s]+?)(?=\s+(?:el|la|los|las)\s+(?:lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b|\s+(?:hoy|mañana|manana|este|esta|para|en|a las|a la)\b|$)/g,
-    /\bjunto a\s+([a-zñ\s]+?)(?=\s+(?:hoy|mañana|manana|este|esta|para|en)\b|$)/g,
-    /\ben casa de\s+([a-zñ\s]+?)(?=\s+(?:hoy|mañana|manana|este|esta|para|en)\b|$)/g,
-  ];
-
-  for (const pattern of patterns) {
-    for (const match of text.matchAll(pattern)) {
-      const value = String(match[1] ?? "").trim();
-      if (value) chunks.add(value);
-    }
-  }
-
-  return Array.from(chunks);
-}
-
-function detectMentionKind(raw: string): "pair" | "family" | "other" | null {
-  const text = normalizeSemanticText(raw);
-
-  if (
-    /\b(mi\s+familia|la\s+familia|plan\s+familiar|salida\s+familiar|mis\s+(papas|padres|hijos|abuelos)|mi\s+(mama|papa|hijo|hija|abuelo|abuela)|mama|papa|familia)\b/.test(
-      text,
-    )
-  ) {
-    return "family";
-  }
-
-  if (
-    /\b(mi\s+pareja|mi\s+novi[oa]|mi\s+espos[oa]|pareja|novi[oa]|espos[oa])\b/.test(
-      text,
-    )
-  ) {
-    return "pair";
-  }
-
-  if (
-    /\b(los\s+chicos|las\s+chicas|amigos|team|equipo|grupo|con\s+[a-zñ]+\s+y\s+[a-zñ]+)\b/.test(
-      text,
-    )
-  ) {
-    return "other";
   }
 
   return null;
 }
 
-export function findGroupByName(
-  name: string,
-  groups: GroupRow[]
-): string | null {
-  const tokens = tokenizeSemanticText(name).filter((token) => token.length >= 2);
-  if (!tokens.length) return null;
-
-  const ranked = uniqueById(groups)
-    .map((group) => ({
-      id: String(group.id),
-      score: scoreGroupNameAgainstTokens(group, tokens),
-    }))
-    .filter((candidate) => candidate.score > 0)
-    .sort((a, b) => b.score - a.score);
-
-  return ranked[0]?.id ?? null;
-}
-
 export function detectGroupTypeHint(
   raw: string
 ): "pair" | "family" | "other" | null {
-  const text = normalizeSemanticText(raw);
+  const text = String(raw ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
   if (
     text.includes("familia") ||
     text.includes("familiar") ||
     text.includes("hijos") ||
-    text.includes("hijo") ||
-    text.includes("hija") ||
-    text.includes("mama") ||
-    text.includes("papa") ||
-    text.includes("papas") ||
-    text.includes("padres") ||
-    text.includes("abuelos") ||
-    text.includes("abuelo") ||
-    text.includes("abuela")
+    text.includes("casa")
   ) {
     return "family";
   }
@@ -739,16 +623,14 @@ export function detectGroupTypeHint(
     text.includes("amigos") ||
     text.includes("fulbito") ||
     text.includes("padel") ||
-    text.includes("asado") ||
+    text.includes("pádel") ||
     text.includes("equipo") ||
-    text.includes("grupo") ||
-    text.includes("team") ||
-    text.includes("chicos")
+    text.includes("grupo")
   ) {
     return "other";
   }
 
-  return detectMentionKind(text);
+  return null;
 }
 
 export function findGroupByType(
@@ -756,7 +638,7 @@ export function findGroupByType(
   groups: GroupRow[]
 ): string | null {
   const match =
-    uniqueById(groups).find(
+    groups.find(
       (group) =>
         normalizeSummaryGroupType(String(group.type ?? "")) === groupType
     ) ?? null;
@@ -764,115 +646,14 @@ export function findGroupByType(
   return match ? String(match.id) : null;
 }
 
-function findBestTypedGroup(params: {
-  groups: GroupRow[];
-  groupType: "pair" | "family" | "other";
-  activeGroupId: string | null;
-  raw: string;
-}): string | null {
-  const candidates = uniqueById(params.groups).filter(
-    (group) =>
-      normalizeSummaryGroupType(String(group.type ?? "")) === params.groupType
-  );
-
-  if (candidates.length === 0) return null;
-
-  const activeTyped =
-    params.activeGroupId &&
-    candidates.find((group) => String(group.id) === String(params.activeGroupId));
-
-  if (activeTyped) return String(activeTyped.id);
-
-  const mentionChunks = extractMentionChunks(params.raw);
-
-  const ranked = candidates
-    .map((group) => ({
-      id: String(group.id),
-      score: mentionChunks.reduce(
-        (acc, chunk) =>
-          acc + scoreGroupNameAgainstTokens(group, tokenizeSemanticText(chunk)),
-        0,
-      ),
-    }))
-    .sort((a, b) => b.score - a.score);
-
-  if ((ranked[0]?.score ?? 0) > 0) return ranked[0].id;
-  if (candidates.length === 1) return String(candidates[0].id);
-
-  return String(candidates[0].id);
-}
-
-function findDirectGroupMatch(raw: string, groups: GroupRow[]): string | null {
-  const mentionChunks = extractMentionChunks(raw);
-
-  for (const chunk of mentionChunks) {
-    const matched = findGroupByName(chunk, groups);
-    if (matched) return matched;
-  }
-
-  return null;
-}
-
-function selectPairGroupFromSinglePersonMention(
-  raw: string,
-  groups: GroupRow[],
-  activeGroupId: string | null,
-): string | null {
-  const mentionChunks = extractMentionChunks(raw);
-  if (mentionChunks.length !== 1) return null;
-
-  const tokens = tokenizeSemanticText(mentionChunks[0]).filter(Boolean);
-  if (tokens.length !== 1) return null;
-
-  const pairGroups = uniqueById(groups).filter(
-    (group) => normalizeSummaryGroupType(String(group.type ?? "")) === "pair",
-  );
-
-  if (pairGroups.length === 0) return null;
-
-  const activePair =
-    activeGroupId &&
-    pairGroups.find((group) => String(group.id) === String(activeGroupId));
-
-  if (activePair) return String(activePair.id);
-  if (pairGroups.length === 1) return String(pairGroups[0].id);
-
-  return null;
-}
-
-function getGroupById(groups: GroupRow[], groupId: string | null) {
-  if (!groupId) return null;
-  return (
-    groups.find((group) => String(group.id) === String(groupId)) ?? null
-  );
-}
-
-function groupMatchesType(
-  groups: GroupRow[],
-  groupId: string | null,
-  groupType: "pair" | "family" | "other",
-) {
-  const group = getGroupById(groups, groupId);
-  if (!group) return false;
-  return normalizeSummaryGroupType(String(group.type ?? "")) === groupType;
-}
-
 export function buildSmartInterpretation(input: {
   raw: string;
   groups: GroupRow[];
   activeGroupId: string | null;
-  learnedCandidate?: SmartInterpretationLearnedCandidate | null;
 }): SmartInterpretation {
   const raw = String(input.raw ?? "").trim();
   const groups = Array.isArray(input.groups) ? input.groups : [];
   const activeGroupId = String(input.activeGroupId ?? "").trim() || null;
-  const learnedCandidateGroupId =
-    String(input.learnedCandidate?.groupId ?? "").trim() || null;
-  const typeHint = detectGroupTypeHint(raw);
-
-  const learnedCandidateStillExists =
-    !!learnedCandidateGroupId &&
-    groups.some((group) => String(group.id) === learnedCandidateGroupId);
 
   if (!raw) {
     if (activeGroupId) {
@@ -892,37 +673,25 @@ export function buildSmartInterpretation(input: {
     };
   }
 
-  const directGroupId = findDirectGroupMatch(raw, groups);
-  if (directGroupId) {
-    return {
-      intent: "group",
-      groupId: directGroupId,
-      confidence: "high",
-      reason: "name_match",
-    };
+  const person = extractPersonFromText(raw);
+
+  if (person) {
+    const matchedGroupId = findGroupByName(person, groups);
+
+    if (matchedGroupId) {
+      return {
+        intent: "group",
+        groupId: matchedGroupId,
+        confidence: "high",
+        reason: "name_match",
+      };
+    }
   }
 
-  const pairFromSingleMention = selectPairGroupFromSinglePersonMention(
-    raw,
-    groups,
-    activeGroupId,
-  );
-  if (pairFromSingleMention && !detectMentionKind(raw) && !typeHint) {
-    return {
-      intent: "group",
-      groupId: pairFromSingleMention,
-      confidence: "high",
-      reason: "name_match",
-    };
-  }
+  const typeHint = detectGroupTypeHint(raw);
 
   if (typeHint) {
-    const hintedGroupId = findBestTypedGroup({
-      groups,
-      groupType: typeHint,
-      activeGroupId,
-      raw,
-    });
+    const hintedGroupId = findGroupByType(typeHint, groups);
 
     if (hintedGroupId) {
       return {
@@ -932,50 +701,9 @@ export function buildSmartInterpretation(input: {
         reason: "social_hint",
       };
     }
-
-    if (
-      learnedCandidateStillExists &&
-      groupMatchesType(groups, learnedCandidateGroupId, typeHint)
-    ) {
-      return {
-        intent: "group",
-        groupId: learnedCandidateGroupId,
-        confidence: input.learnedCandidate?.confidence ?? "medium",
-        reason: "learned",
-      };
-    }
-
-    return {
-      intent: "group",
-      groupId: null,
-      confidence: "medium",
-      reason: "social_hint",
-    };
-  }
-
-  if (
-    learnedCandidateStillExists &&
-    (input.learnedCandidate?.confidence === "high" ||
-      !textSuggestsSharedPlan(raw))
-  ) {
-    return {
-      intent: "group",
-      groupId: learnedCandidateGroupId,
-      confidence: input.learnedCandidate?.confidence ?? "medium",
-      reason: "learned",
-    };
   }
 
   if (textSuggestsSharedPlan(raw)) {
-    if (learnedCandidateStillExists) {
-      return {
-        intent: "group",
-        groupId: learnedCandidateGroupId,
-        confidence: input.learnedCandidate?.confidence ?? "medium",
-        reason: "learned",
-      };
-    }
-
     const fallbackGroupId =
       activeGroupId ||
       (groups.length === 1 ? String(groups[0]?.id ?? "").trim() || null : null);
@@ -990,24 +718,6 @@ export function buildSmartInterpretation(input: {
     }
   }
 
-  if (learnedCandidateStillExists) {
-    return {
-      intent: "group",
-      groupId: learnedCandidateGroupId,
-      confidence: input.learnedCandidate?.confidence ?? "medium",
-      reason: "learned",
-    };
-  }
-
-  if (activeGroupId) {
-    return {
-      intent: "group",
-      groupId: activeGroupId,
-      confidence: "low",
-      reason: "active_group",
-    };
-  }
-
   const learned = learnedGroupMatch(raw);
   const learnedGroupId = String(learned?.groupId ?? "").trim();
   const learnedGroupStillExists =
@@ -1018,8 +728,17 @@ export function buildSmartInterpretation(input: {
     return {
       intent: "group",
       groupId: learnedGroupId,
+      confidence: learned?.shouldAutoApply ? "medium" : "low",
+      reason: "learned",
+    };
+  }
+
+  if (activeGroupId) {
+    return {
+      intent: "group",
+      groupId: activeGroupId,
       confidence: "low",
-      reason: "learned_legacy",
+      reason: "active_group",
     };
   }
 
@@ -1037,41 +756,33 @@ export function getSmartInterpretationLabel(
 ) {
   if (!interpretation) return null;
 
+  if (interpretation.intent === "personal") {
+    return "→ Esto quedará como plan personal";
+  }
+
   const group =
     groups.find(
       (candidate) =>
         String(candidate.id) === String(interpretation.groupId ?? "")
     ) ?? null;
 
-  const groupLabel = group ? humanGroupName(group) : "este grupo";
-
-  if (interpretation.intent === "personal") {
-    return "Parece algo solo para ti. Lo dejamos como plan personal.";
-  }
+  const groupLabel = group ? humanGroupName(group) : "grupo";
 
   if (interpretation.reason === "learned") {
     return interpretation.confidence === "high"
-      ? `Esto normalmente termina en ${groupLabel}. Lo preparo ahí.`
-      : `Esto podría encajar en ${groupLabel}. Revísalo antes de guardar.`;
-  }
-
-  if (interpretation.reason === "name_match") {
-    return `Mencionaste algo claro. Lo preparo en ${groupLabel}.`;
+      ? `→ Normalmente esto termina en ${groupLabel}`
+      : `→ Esto probablemente encaja en ${groupLabel}`;
   }
 
   if (interpretation.reason === "social_hint") {
-    return group
-      ? `Suena a plan compartido. Lo preparo en ${groupLabel}.`
-      : "Suena a plan compartido, pero prefiero no asumir el grupo.";
+    return `→ Suena a plan compartido · lo prepararé en ${groupLabel}`;
   }
 
   if (interpretation.reason === "active_group") {
-    return group
-      ? `Tomo ${groupLabel} como punto de partida.`
-      : "Uso tu grupo activo como referencia.";
+    return `→ Tomaré ${groupLabel} como punto de partida`;
   }
 
-  return "Puede ser compartido, pero prefiero que lo confirmes.";
+  return `→ Esto quedará como plan compartido`;
 }
 
 export function canUseNativeShare() {

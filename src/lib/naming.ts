@@ -1,4 +1,4 @@
-// src/lib/naming.tsx
+// src/lib/naming.ts
 
 /**
  * Fuente única de verdad semántica para SyncPlans.
@@ -127,9 +127,9 @@ export function getProposalResponseLabel(
 ): string {
   const normalized = normalizeProposalResponse(value);
 
-  if (normalized === "accepted") return "Aceptado";
-  if (normalized === "adjusted") return "Ajustado";
-  return "Pendiente";
+  if (normalized === "accepted") return "Aceptada";
+  if (normalized === "adjusted") return "Ajustada";
+  return "Por confirmar";
 }
 
 export function getProposalResponseActorLabel(
@@ -156,13 +156,12 @@ export type CanonicalInviteStatus = "pending" | "accepted" | "rejected";
 
 export function normalizeInviteStatus(
   value: string | null | undefined
-): CanonicalInviteStatus | null {
+): CanonicalInviteStatus {
   const safe = String(value ?? "").trim().toLowerCase();
 
   if (safe === "accepted") return "accepted";
   if (safe === "rejected") return "rejected";
-  if (safe === "pending") return "pending";
-  return null;
+  return "pending";
 }
 
 /* =========================================================
@@ -227,10 +226,10 @@ export function getEventStatusLabel(
   status: CanonicalEventStatus
 ): string {
   if (status === "conflicted") return "Requiere decisión";
-  if (status === "pending") return "Pendiente";
-  if (status === "adjusted") return "Ajustado";
+  if (status === "pending") return "Por confirmar";
+  if (status === "adjusted") return "Con cambios";
   if (status === "confirmed") return "Confirmado";
-  return "Programado";
+  return "Agendado";
 }
 
 export function getEventStatusSubtitle(
