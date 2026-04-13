@@ -820,6 +820,8 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
     return idx >= 0 ? idx : 0;
   }, [conflicts, gridStart, gridEnd]);
 
+  
+
   /* =========================
      Filtros y vistas
      ========================= */
@@ -871,6 +873,49 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
     });
   }, [filteredEvents, gridStart, gridEnd]);
 
+const valueVisibility = useMemo(() => {
+  let resolved = 0;
+  let pending = 0;
+  let adjusted = 0;
+
+  for (const event of visibleEvents) {
+    const trustSignal = trustSignals[String(event.id)];
+    const proposalRow = proposalResponsesMap[String(event.id)];
+    const isConflictEvent = conflictEventIdsInGrid.has(String(event.id));
+    const proposalResponse = String(proposalRow?.response ?? "").trim().toLowerCase();
+
+    if (proposalResponse === "adjusted") {
+      adjusted += 1;
+      continue;
+    }
+
+    if (proposalResponse === "pending") {
+      pending += 1;
+      continue;
+    }
+
+    if (trustSignal?.label === "auto_adjusted") {
+      adjusted += 1;
+      continue;
+    }
+
+    if (trustSignal?.label) {
+      resolved += 1;
+      continue;
+    }
+
+    if (isConflictEvent) {
+      pending += 1;
+    }
+  }
+
+  return {
+    resolved,
+    pending,
+    adjusted,
+    hasValue: resolved > 0 || adjusted > 0 || pending > 0,
+  };
+}, [visibleEvents, trustSignals, proposalResponsesMap, conflictEventIdsInGrid]);
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalendarEventWithOwner[]>();
 
@@ -1152,6 +1197,42 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
             </button>
           </div>
         </Card>
+        {valueVisibility.hasValue ? (
+          <Card style={styles.valueRailCard}>
+            <div style={styles.valueRailTop}>
+              <div style={styles.valueRailCopy}>
+                <div style={styles.valueRailEyebrow}>Claridad compartida</div>
+                <div style={styles.valueRailTitle}>
+                  Tu calendario ya muestra qué está resuelto y qué sigue abierto.
+                </div>
+                <div style={styles.valueRailSub}>
+                  {valueVisibility.resolved > 0
+                    ? `${valueVisibility.resolved} resuelto${valueVisibility.resolved === 1 ? "" : "s"}`
+                    : null}
+                  {valueVisibility.resolved > 0 && valueVisibility.adjusted > 0 ? " · " : ""}
+                  {valueVisibility.adjusted > 0
+                    ? `${valueVisibility.adjusted} ajustado${valueVisibility.adjusted === 1 ? "" : "s"}`
+                    : null}
+                  {(valueVisibility.resolved > 0 || valueVisibility.adjusted > 0) && valueVisibility.pending > 0 ? " · " : ""}
+                  {valueVisibility.pending > 0
+                    ? `${valueVisibility.pending} pendiente${valueVisibility.pending === 1 ? "" : "s"}`
+                    : null}
+                </div>
+              </div>
+
+              <div style={styles.valueRailActions}>
+                <button
+                  type="button"
+                  onClick={valueVisibility.pending > 0 ? openConflicts : handleRefresh}
+                  style={styles.valueRailBtn}
+                >
+                  {valueVisibility.pending > 0 ? "Revisar lo pendiente" : "Actualizar vista"}
+                </button>
+              </div>
+            </div>
+          </Card>
+        ) : null}
+
         <CalendarFilters
           tab={tab}
           scope={scope}
@@ -2552,6 +2633,63 @@ primaryBtnGroup: {
     fontSize: 12,
     fontWeight: 900,
   },
+valueRailCard: {
+  borderRadius: 18,
+  border: "1px solid rgba(52,211,153,0.20)",
+  background:
+    "linear-gradient(135deg, rgba(20,83,45,0.72), rgba(15,23,42,0.82))",
+  boxShadow: "0 18px 46px rgba(0,0,0,0.18)",
+  padding: "12px 14px",
+  marginBottom: 8,
+},
+valueRailTop: {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 14,
+  alignItems: "center",
+  flexWrap: "wrap",
+},
+valueRailCopy: {
+  minWidth: 0,
+  flex: "1 1 320px",
+  display: "grid",
+  gap: 4,
+},
+valueRailEyebrow: {
+  fontSize: 11,
+  fontWeight: 900,
+  letterSpacing: 0.8,
+  textTransform: "uppercase",
+  color: "rgba(134,239,172,0.90)",
+},
+valueRailTitle: {
+  fontSize: 16,
+  lineHeight: 1.25,
+  fontWeight: 900,
+  letterSpacing: "-0.02em",
+  color: "rgba(255,255,255,0.98)",
+},
+valueRailSub: {
+  fontSize: 13,
+  lineHeight: 1.55,
+  color: "rgba(220,252,231,0.82)",
+},
+valueRailActions: {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+  alignItems: "center",
+},
+valueRailBtn: {
+  borderRadius: 999,
+  border: "1px solid rgba(74,222,128,0.24)",
+  background: "rgba(34,197,94,0.18)",
+  padding: "10px 14px",
+  fontSize: 13,
+  color: "rgba(255,255,255,0.96)",
+  fontWeight: 900,
+  cursor: "pointer",
+},
 overviewCard: {
   borderRadius: 18,
   border: "1px solid rgba(255,255,255,0.08)",

@@ -159,8 +159,6 @@ export default function EventsPage() {
     };
   }, [router]);
 
-
-
   const totalGroups = groups.length;
   const focusedEventId = searchParams.get("focusEventId");
 
@@ -195,9 +193,7 @@ export default function EventsPage() {
         const notes = String(e.notes ?? "").toLowerCase();
         const groupName = String(e.group?.name ?? "").toLowerCase();
 
-        return (
-          title.includes(q) || notes.includes(q) || groupName.includes(q)
-        );
+        return title.includes(q) || notes.includes(q) || groupName.includes(q);
       });
     }
 
@@ -208,6 +204,24 @@ export default function EventsPage() {
     if (filters.view === "history") return [];
     return filteredEvents.filter((e) => isWithinNext24Hours(e.start));
   }, [filteredEvents, filters.view]);
+
+  const valueVisibility = useMemo(() => {
+    const visibleEvents = filterVisibleEvents(events, {
+      declinedIds: declinedEventIds,
+      hiddenIds: hiddenEventIds,
+    });
+
+    const personalCount = visibleEvents.filter((e) => !e.group_id).length;
+    const groupCount = visibleEvents.filter((e) => !!e.group_id).length;
+    const next24h = visibleEvents.filter((e) => isWithinNext24Hours(e.start)).length;
+
+    return {
+      personalCount,
+      groupCount,
+      next24h,
+      hasValue: visibleEvents.length > 0,
+    };
+  }, [events, declinedEventIds, hiddenEventIds]);
 
   const headerSubtitle = useMemo(() => {
     const visibleEvents = filterVisibleEvents(events, {
@@ -230,11 +244,8 @@ export default function EventsPage() {
   function toggleSelection(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -441,10 +452,7 @@ export default function EventsPage() {
       )}
 
       <Section>
-        <PremiumHeader
-          title="Eventos"
-          subtitle={headerSubtitle}
-        />
+        <PremiumHeader title="Eventos" subtitle={headerSubtitle} />
 
         <Card style={S.cardShell} className="spEvt-card">
           <div style={S.titleRow}>
@@ -462,64 +470,57 @@ export default function EventsPage() {
               <div style={S.factLabel}>Resumen rápido</div>
               <div style={S.factRow}>
                 <span style={S.factDotPersonal} />
-                <span>
-                  {
-                    filterVisibleEvents(events, {
-                      declinedIds: declinedEventIds,
-                      hiddenIds: hiddenEventIds,
-                    }).filter(
-                      (e) => !e.group_id
-                    ).length
-                  }{" "}
-                  personales
-                </span>
+                <span>{valueVisibility.personalCount} personales</span>
               </div>
               <div style={S.factRow}>
                 <span style={S.factDotGroup} />
-                <span>
-                  {
-                    filterVisibleEvents(events, {
-                      declinedIds: declinedEventIds,
-                      hiddenIds: hiddenEventIds,
-                    }).filter(
-                      (e) => !!e.group_id
-                    ).length
-                  }{" "}
-                  en grupos
-                </span>
+                <span>{valueVisibility.groupCount} en grupos</span>
               </div>
 
               {totalGroups > 0 && (
                 <div style={S.factHint}>
-                  Tienes {totalGroups} grupo{totalGroups === 1 ? "" : "s"}{" "}
-                  conectado{totalGroups === 1 ? "" : "s"} a tu agenda.
+                  Tienes {totalGroups} grupo{totalGroups === 1 ? "" : "s"} conectado{totalGroups === 1 ? "" : "s"} a tu agenda.
                 </div>
               )}
             </aside>
           </div>
 
+          {valueVisibility.hasValue && (
+            <div style={S.valueRail}>
+              <div style={S.valueRailCopy}>
+                <div style={S.valueRailEyebrow}>Claridad visible</div>
+                <div style={S.valueRailTitle}>
+                  Aquí ya se nota lo que SyncPlans está ordenando.
+                </div>
+                <div style={S.valueRailSub}>
+                  {valueVisibility.personalCount} personal · {valueVisibility.groupCount} compartido
+                  {valueVisibility.next24h > 0
+                    ? ` · ${valueVisibility.next24h} requiere atención en las próximas 24 horas`
+                    : " · sin urgencias inmediatas ahora mismo"}
+                </div>
+              </div>
+
+              <div style={S.valueRailActions}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(valueVisibility.next24h > 0 ? "/calendar" : "/summary")
+                  }
+                  style={S.valueRailBtn}
+                >
+                  {valueVisibility.next24h > 0 ? "Ver tiempo cercano" : "Volver al resumen"}
+                </button>
+              </div>
+            </div>
+          )}
+
           <EventsFiltersBar
             view={filters.view}
             scope={filters.scope}
             query={filters.query}
-            onChangeView={(view) =>
-              setFilters((f) => ({
-                ...f,
-                view,
-              }))
-            }
-            onChangeScope={(scope) =>
-              setFilters((f) => ({
-                ...f,
-                scope,
-              }))
-            }
-            onChangeQuery={(query) =>
-              setFilters((f) => ({
-                ...f,
-                query,
-              }))
-            }
+            onChangeView={(view) => setFilters((f) => ({ ...f, view }))}
+            onChangeScope={(scope) => setFilters((f) => ({ ...f, scope }))}
+            onChangeQuery={(query) => setFilters((f) => ({ ...f, query }))}
           />
 
           {events.length > 0 && (
@@ -527,23 +528,16 @@ export default function EventsPage() {
               type="button"
               onClick={sendTodayDigest}
               disabled={sendingDigest}
-              style={{
-                ...S.digestBtn,
-                ...(sendingDigest ? S.digestBtnLoading : {}),
-              }}
+              style={{ ...S.digestBtn, ...(sendingDigest ? S.digestBtnLoading : {}) }}
             >
-              {sendingDigest
-                ? "Enviando resumen de hoy…"
-                : "Enviar resumen de hoy (demo)"}
+              {sendingDigest ? "Enviando resumen de hoy…" : "Enviar resumen de hoy (demo)"}
             </button>
           )}
 
           {anySelected && (
             <div style={S.bulkBar}>
               <span style={S.bulkLabel}>
-                {selectedIds.size} evento
-                {selectedIds.size === 1 ? "" : "s"} seleccionado
-                {selectedIds.size === 1 ? "" : "s"}
+                {selectedIds.size} evento{selectedIds.size === 1 ? "" : "s"} seleccionado{selectedIds.size === 1 ? "" : "s"}
               </span>
               <button
                 type="button"
@@ -565,8 +559,7 @@ export default function EventsPage() {
                 </div>
 
                 <div style={S.urgentCount}>
-                  {urgentEvents.length} evento
-                  {urgentEvents.length === 1 ? "" : "s"}
+                  {urgentEvents.length} evento{urgentEvents.length === 1 ? "" : "s"}
                 </div>
               </div>
 
@@ -590,9 +583,7 @@ export default function EventsPage() {
               </div>
 
               {urgentEvents.length > 3 && (
-                <div style={S.urgentFooter}>
-                  +{urgentEvents.length - 3} más para revisar pronto
-                </div>
+                <div style={S.urgentFooter}>+{urgentEvents.length - 3} más para revisar pronto</div>
               )}
             </div>
           )}
@@ -609,9 +600,7 @@ export default function EventsPage() {
             </div>
           ) : filteredEvents.length === 0 ? (
             <EventsEmptyState
-              onCreateFirstEvent={() =>
-                router.push("/events/new/details?type=personal")
-              }
+              onCreateFirstEvent={() => router.push("/events/new/details?type=personal")}
             />
           ) : (
             <EventsTimeline
@@ -659,35 +648,6 @@ const S: Record<string, React.CSSProperties> = {
     width: "100%",
     maxWidth: 900,
     margin: "0 auto",
-  },
-  pageShell: {
-    maxWidth: 1120,
-    margin: "0 auto",
-    padding: "10px 14px 80px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-  stickyTop: {
-    position: "sticky",
-    top: 0,
-    zIndex: 10,
-    paddingBottom: 8,
-    marginBottom: 4,
-    background:
-      "linear-gradient(to bottom, rgba(8,15,28,1) 0%, rgba(8,15,28,0.92) 55%, rgba(8,15,28,0.0) 100%)",
-    backdropFilter: "blur(14px)",
-  },
-  card: {
-    width: "100%",
-    maxWidth: 900,
-    margin: "0 auto",
-    borderRadius: 24,
-    border: "1px solid rgba(31,41,55,0.95)",
-    background:
-      "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.25), transparent 55%), radial-gradient(circle at 100% 0%, rgba(56,189,248,0.18), transparent 55%), rgba(15,23,42,0.98)",
-    padding: 16,
-    boxShadow: "0 24px 60px rgba(0,0,0,0.85)",
   },
   titleRow: {
     display: "flex",
@@ -761,6 +721,58 @@ const S: Record<string, React.CSSProperties> = {
     marginTop: 2,
     fontSize: 11,
     color: "rgba(148,163,184,0.96)",
+  },
+  valueRail: {
+    marginBottom: 14,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+    padding: "14px 14px",
+    borderRadius: 18,
+    border: "1px solid rgba(52,211,153,0.22)",
+    background:
+      "linear-gradient(135deg, rgba(20,83,45,0.72), rgba(15,23,42,0.84))",
+  },
+  valueRailCopy: {
+    minWidth: 0,
+    flex: "1 1 360px",
+    display: "grid",
+    gap: 4,
+  },
+  valueRailEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    color: "rgba(134,239,172,0.9)",
+  },
+  valueRailTitle: {
+    fontSize: 16,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  valueRailSub: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(220,252,231,0.82)",
+  },
+  valueRailActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  valueRailBtn: {
+    borderRadius: 999,
+    border: "1px solid rgba(74,222,128,0.24)",
+    background: "rgba(34,197,94,0.18)",
+    padding: "10px 14px",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.96)",
+    fontWeight: 900,
+    cursor: "pointer",
   },
   digestBtn: {
     marginTop: 10,

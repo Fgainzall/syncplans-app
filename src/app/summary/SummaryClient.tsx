@@ -761,6 +761,23 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     conflictAlert.count,
   ]);
 
+  const valueMoments = useMemo(() => {
+    const resolvedDecisions = visibleDecisions.filter((decision) => !decision.isFallback).length;
+    const autoAdjusted = visibleDecisions.filter((decision) => decision.isFallback).length;
+    const agendaFeelsClear = conflictAlert.count === 0 && upcomingStats.total > 0;
+
+    return {
+      resolvedDecisions,
+      autoAdjusted,
+      agendaFeelsClear,
+      hasValue:
+        resolvedDecisions > 0 ||
+        autoAdjusted > 0 ||
+        agendaFeelsClear ||
+        pendingAttention.captures > 0,
+    };
+  }, [visibleDecisions, conflictAlert.count, upcomingStats.total, pendingAttention.captures]);
+
   const getStatusBadgeForEvent = useCallback(
     (eventId: string | null | undefined) => {
       const status = getUnifiedEventStatus({
@@ -883,6 +900,42 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 <div style={styles.stateKpiHint}>Eventos visibles</div>
               </div>
             </div>
+
+            {valueMoments.hasValue ? (
+              <div style={styles.valueRail}>
+                <div style={styles.valueRailCopy}>
+                  <div style={styles.valueRailEyebrow}>Valor visible</div>
+                  <div style={styles.valueRailTitle}>
+                    SyncPlans ya está ordenando algo real por ti.
+                  </div>
+                  <div style={styles.valueRailSub}>
+                    {valueMoments.resolvedDecisions > 0
+                      ? `${valueMoments.resolvedDecisions} decisión${valueMoments.resolvedDecisions === 1 ? "" : "es"} reciente${valueMoments.resolvedDecisions === 1 ? "" : "s"} ya resuelta${valueMoments.resolvedDecisions === 1 ? "" : "s"}`
+                      : null}
+                    {valueMoments.resolvedDecisions > 0 && valueMoments.autoAdjusted > 0 ? " · " : ""}
+                    {valueMoments.autoAdjusted > 0
+                      ? `${valueMoments.autoAdjusted} ajuste${valueMoments.autoAdjusted === 1 ? "" : "s"} automático${valueMoments.autoAdjusted === 1 ? "" : "s"} aplicado${valueMoments.autoAdjusted === 1 ? "" : "s"}`
+                      : null}
+                    {(valueMoments.resolvedDecisions > 0 || valueMoments.autoAdjusted > 0) && valueMoments.agendaFeelsClear ? " · " : ""}
+                    {valueMoments.agendaFeelsClear ? "tu agenda visible está clara en este momento" : null}
+                    {(valueMoments.resolvedDecisions > 0 || valueMoments.autoAdjusted > 0 || valueMoments.agendaFeelsClear) && pendingAttention.captures > 0 ? " · " : ""}
+                    {pendingAttention.captures > 0
+                      ? `${pendingAttention.captures} respuesta${pendingAttention.captures === 1 ? "" : "s"} externa${pendingAttention.captures === 1 ? "" : "s"} ya entró${pendingAttention.captures === 1 ? "" : "aron"} al flujo`
+                      : null}
+                  </div>
+                </div>
+
+                <div style={styles.valueRailActions}>
+                  <button
+                    type="button"
+                    style={styles.valueRailPrimary}
+                    onClick={() => router.push(valueMoments.resolvedDecisions > 0 ? "/events" : "/calendar")}
+                  >
+                    {valueMoments.resolvedDecisions > 0 ? "Ver valor en eventos" : "Abrir calendario"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             {pendingAttention.total > 0 ? (
               <div style={styles.returnRail}>
@@ -2193,6 +2246,59 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
   },
 
+  valueRail: {
+    marginTop: 14,
+    marginBottom: 2,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+    padding: "14px 14px",
+    borderRadius: 18,
+    border: "1px solid rgba(52,211,153,0.22)",
+    background:
+      "linear-gradient(135deg, rgba(20,83,45,0.76), rgba(15,23,42,0.84))",
+  },
+  valueRailCopy: {
+    minWidth: 0,
+    flex: "1 1 360px",
+    display: "grid",
+    gap: 4,
+  },
+  valueRailEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(134,239,172,0.90)",
+  },
+  valueRailTitle: {
+    fontSize: 16,
+    lineHeight: 1.25,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+  },
+  valueRailSub: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(220,252,231,0.84)",
+  },
+  valueRailActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  valueRailPrimary: {
+    borderRadius: 999,
+    padding: "10px 14px",
+    border: "1px solid rgba(74,222,128,0.26)",
+    background: "rgba(34,197,94,0.20)",
+    color: "rgba(255,255,255,0.96)",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
   returnRail: {
     marginTop: 14,
     marginBottom: 2,
