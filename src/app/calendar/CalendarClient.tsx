@@ -159,7 +159,10 @@ function prettyTimeRange(startIso: string, endIso: string) {
 
 /** ✅ detecta móvil por ancho */
 function useIsMobileWidth(maxWidth = 720) {
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return window.matchMedia(`(max-width: ${maxWidth}px)`).matches;
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -983,23 +986,25 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
     router.push(
       `/events/new/details?type=group&date=${encodeURIComponent(
         d.toISOString()
-      )}`
+      )}`,
+      { scroll: false }
     );
   };
 
   const openConflicts = () => {
     if (latestConflictEventId) {
       router.push(
-        `/conflicts/detected?eventId=${encodeURIComponent(latestConflictEventId)}`
+        `/conflicts/detected?eventId=${encodeURIComponent(latestConflictEventId)}`,
+        { scroll: false }
       );
       return;
     }
 
-    router.push("/conflicts/detected");
+    router.push("/conflicts/detected", { scroll: false });
   };
 
   const resolveNow = () =>
-    router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`);
+    router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`, { scroll: false });
 
   const currentMonthIndex = anchor.getMonth();
   const currentYear = anchor.getFullYear();

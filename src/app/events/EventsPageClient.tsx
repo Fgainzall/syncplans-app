@@ -611,7 +611,7 @@ export default function EventsPage() {
           ) : filteredEvents.length === 0 ? (
             <EventsEmptyState
               onCreateFirstEvent={() =>
-                router.push("/events/new/details?type=personal")
+                router.push("/events/new/details?type=personal", { scroll: false })
               }
             />
           ) : (

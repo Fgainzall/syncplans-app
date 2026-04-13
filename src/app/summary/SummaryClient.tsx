@@ -67,7 +67,10 @@ type Props = {
 };
 
 function useIsMobileWidth(maxWidth = 520) {
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return window.matchMedia(`(max-width: ${maxWidth}px)`).matches;
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -424,12 +427,13 @@ const timeSuggestionsLabel = useMemo(() => {
       router.push(
         `/conflicts/detected?eventId=${encodeURIComponent(
           conflictAlert.latestEventId
-        )}`
+        )}`,
+        { scroll: false }
       );
       return;
     }
 
-    router.push("/conflicts/detected");
+    router.push("/conflicts/detected", { scroll: false });
   }, [router, conflictAlert]);
 
 const navigateFromQuickCapture = useCallback(
@@ -464,7 +468,7 @@ const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
     }
     if (cleanedNotes) params.set("notes", cleanedNotes);
 
-    router.push(`/events/new/details?${params.toString()}`);
+    router.push(`/events/new/details?${params.toString()}`, { scroll: false });
   },
   [groups, activeGroupId, router]
 );
@@ -502,7 +506,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
     params.set("date", suggestedDate.toISOString());
 
-    router.push(`/events/new/details?${params.toString()}`);
+    router.push(`/events/new/details?${params.toString()}`, { scroll: false });
   },
   [groups, activeGroupId, router]
 );
@@ -546,7 +550,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     const raw = quickCaptureValue.trim();
 
     if (!raw) {
-      router.push("/capture?source=summary");
+      router.push("/capture?source=summary", { scroll: false });
       return;
     }
 
@@ -554,7 +558,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     params.set("text", raw);
     params.set("source", "summary");
 
-    router.push(`/capture?${params.toString()}`);
+    router.push(`/capture?${params.toString()}`, { scroll: false });
   }, [router, quickCaptureValue]);
 
   const handleCopyCaptureLink = useCallback(async () => {
@@ -831,13 +835,13 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               decisionSummary.adjustedProposals > 0) ? (
               <div style={styles.decisionChipsRow}>
                 {decisionSummary.pendingProposals > 0 ? (
-                  <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipPending }}>
+                  <button onClick={() => router.push("/events", { scroll: false })} style={{ ...styles.decisionChip, ...styles.decisionChipPending }}>
                     {decisionSummary.pendingProposals} propuesta{decisionSummary.pendingProposals === 1 ? "" : "s"} esperando decisión
                   </button>
                 ) : null}
 
                 {decisionSummary.adjustedProposals > 0 ? (
-                  <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipInfo }}>
+                  <button onClick={() => router.push("/events", { scroll: false })} style={{ ...styles.decisionChip, ...styles.decisionChipInfo }}>
                     {decisionSummary.adjustedProposals} ajuste{decisionSummary.adjustedProposals === 1 ? "" : "s"} pendiente{decisionSummary.adjustedProposals === 1 ? "" : "s"}
                   </button>
                 ) : null}
@@ -857,7 +861,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 <div style={styles.emptyTitle}>Sin eventos próximos</div>
                 <div style={styles.emptySub}>Todavía no tienes nada cerca. Puedes crear un plan nuevo o abrir el calendario.</div>
                 <button
-                  onClick={() => router.push("/events/new/details?type=personal")}
+                  onClick={() => router.push("/events/new/details?type=personal", { scroll: false })}
                   style={styles.emptyBtn}
                 >
                   Crear plan →
@@ -868,7 +872,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 <div style={styles.nextBlock}>
                   <div style={styles.nextLabel}>Sigue</div>
                   <button
-                    onClick={() => router.push("/calendar")}
+                    onClick={() => router.push("/calendar", { scroll: false })}
                     style={{
                       ...styles.nextCard,
                       ...(highlightId &&
@@ -962,7 +966,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                       return (
                         <button
                           key={e.id ?? `${e.title}-${start.toISOString()}`}
-                          onClick={() => router.push("/calendar")}
+                          onClick={() => router.push("/calendar", { scroll: false })}
                           style={{
                             ...styles.eventRow,
                             ...(isHighlighted ? styles.eventRowHighlight : {}),
@@ -1027,7 +1031,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
                 {showSeeMore && (
                   <button
-                    onClick={() => router.push("/calendar")}
+                    onClick={() => router.push("/calendar", { scroll: false })}
                     style={styles.seeMoreBtn}
                     className="spSum-seeMore"
                   >
@@ -1042,7 +1046,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
             <div style={styles.sectionHeadMini}>
               <div style={styles.sectionTitle}>Decisiones</div>
               <button
-                onClick={() => router.push("/calendar")}
+                onClick={() => router.push("/calendar", { scroll: false })}
                 style={styles.decisionsCta}
               >
                 Calendario →
@@ -1101,7 +1105,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
             <div style={styles.quickGrid} className="spSum-quickGrid">
               <button
-                onClick={() => router.push("/events/new/details?type=personal")}
+                onClick={() => router.push("/events/new/details?type=personal", { scroll: false })}
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
@@ -1110,7 +1114,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               </button>
 
               <button
-                onClick={() => router.push("/calendar")}
+                onClick={() => router.push("/calendar", { scroll: false })}
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >

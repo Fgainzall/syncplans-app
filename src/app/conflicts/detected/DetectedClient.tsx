@@ -73,7 +73,10 @@ function normalizeForConflicts(gt: string | null | undefined): GroupType {
 }
 /** móvil por ancho */
 function useIsMobileWidth(maxWidth = 520) {
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return window.matchMedia(`(max-width: ${maxWidth}px)`).matches;
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -383,7 +386,7 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     if (focusEventId) qp.set("eventId", focusEventId);
 
-    router.push(`/conflicts/compare?${qp.toString()}`);
+    router.push(`/conflicts/compare?${qp.toString()}`, { scroll: false });
   };
 
   const resumeNext = () => {
@@ -396,7 +399,7 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     if (focusEventId) qp.set("eventId", focusEventId);
 
-    router.push(`/conflicts/compare?${qp.toString()}`);
+    router.push(`/conflicts/compare?${qp.toString()}`, { scroll: false });
   };
 
   const goActions = () => {
@@ -409,7 +412,7 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     if (focusEventId) qp.set("eventId", focusEventId);
 
-    router.push(`/conflicts/actions?${qp.toString()}`);
+    router.push(`/conflicts/actions?${qp.toString()}`, { scroll: false });
   };
 
   if (booting) {
@@ -487,7 +490,7 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
               </button>
             ) : (
               <button
-                onClick={() => router.push("/calendar")}
+                onClick={() => router.push("/calendar", { scroll: false })}
                 style={styles.secondaryBtn}
               >
                 Ir al calendario
@@ -516,7 +519,7 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
                 Resolver conflicto
               </button>
 
-              <button onClick={() => router.push("/calendar")} style={styles.secondaryBtn}>
+              <button onClick={() => router.push("/calendar", { scroll: false })} style={styles.secondaryBtn}>
                 Volver al calendario
               </button>
             </div>
@@ -534,7 +537,7 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
 </div>
             <div style={styles.upgradeNudgeActions}>
               <button
-                onClick={() => router.push("/planes")}
+                onClick={() => router.push("/planes", { scroll: false })}
                 style={styles.primaryBtn}
               >
                 Ver cómo funciona

@@ -665,7 +665,7 @@ export default function PremiumHeader({
                 </div>
                 <button
                   type="button"
-                  onClick={() => router.push("/planes")}
+                  onClick={() => router.push("/planes", { scroll: false })}
                   style={styles.mobileUpgradeButton}
                 >
                   Ver planes
@@ -729,7 +729,7 @@ export default function PremiumHeader({
                   {shouldShowHeaderUpgrade ? (
                     <button
                       type="button"
-                      onClick={() => router.push("/planes")}
+                      onClick={() => router.push("/planes", { scroll: false })}
                       style={styles.desktopUpgradeChip}
                     >
                       <span style={styles.upgradeMiniBadgeDesktop}>
