@@ -13,7 +13,6 @@ import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
-import MobileScaffold from "@/components/MobileScaffold";
 import { EventEditModal } from "@/components/EventEditModal";
 import { CalendarFilters } from "./CalendarFilters";
 import { getMyGroups } from "@/lib/groupsDb";
@@ -47,8 +46,8 @@ import {
   deriveEventStatus,
   normalizeGroupType,
   normalizeProposalResponse,
-  getProposalResponseLabel as getCanonicalProposalResponseLabel,
-  getProposalResponseTone as getCanonicalProposalResponseTone,
+  getProposalResponseLabel,
+  getProposalResponseTone,
 } from "@/lib/naming";
 import { buildEventContext } from "@/lib/eventContext";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
@@ -159,10 +158,7 @@ function prettyTimeRange(startIso: string, endIso: string) {
 
 /** ✅ detecta móvil por ancho */
 function useIsMobileWidth(maxWidth = 720) {
-  const [isMobile, setIsMobile] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return window.matchMedia(`(max-width: ${maxWidth}px)`).matches;
-  });
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -219,17 +215,22 @@ function resolutionForConflict(
   return undefined;
 }
 function proposalResponseLabel(response: string | null | undefined): string | null {
-  const safe = String(response ?? "").trim();
+  const safe = String(response ?? "").trim().toLowerCase();
   if (!safe) return null;
-  return getCanonicalProposalResponseLabel(safe);
+  if (safe === "pending") return "Pendiente";
+  if (safe === "accepted") return "Aceptada";
+  if (safe === "adjusted") return "Ajustada";
+  return null;
 }
 
 function proposalResponseTone(
   response: string | null | undefined
 ): "pending" | "accepted" | "adjusted" | "neutral" {
-  const safe = String(response ?? "").trim();
-  if (!safe) return "neutral";
-  return getCanonicalProposalResponseTone(safe);
+  const safe = String(response ?? "").trim().toLowerCase();
+  if (safe === "pending") return "pending";
+  if (safe === "accepted") return "accepted";
+  if (safe === "adjusted") return "adjusted";
+  return "neutral";
 }
 
 function getCalendarEventStatus(input: {
@@ -986,32 +987,30 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
     router.push(
       `/events/new/details?type=group&date=${encodeURIComponent(
         d.toISOString()
-      )}`,
-      { scroll: false }
+      )}`
     );
   };
 
   const openConflicts = () => {
     if (latestConflictEventId) {
       router.push(
-        `/conflicts/detected?eventId=${encodeURIComponent(latestConflictEventId)}`,
-        { scroll: false }
+        `/conflicts/detected?eventId=${encodeURIComponent(latestConflictEventId)}`
       );
       return;
     }
 
-    router.push("/conflicts/detected", { scroll: false });
+    router.push("/conflicts/detected");
   };
 
   const resolveNow = () =>
-    router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`, { scroll: false });
+    router.push(`/conflicts/compare?i=${firstRelevantConflictIndex}`);
 
   const currentMonthIndex = anchor.getMonth();
   const currentYear = anchor.getFullYear();
 
   if (booting) {
     return (
-      <MobileScaffold maxWidth={1120} style={styles.page}>
+      <div style={styles.page}>
         <Section>
           <PremiumHeader
             title="Calendario"
@@ -1042,14 +1041,14 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
             </div>
           </Card>
         </Section>
-      </MobileScaffold>
+      </div>
     );
   }
 
   const monthTitle = prettyMonthRange(monthStart, monthEnd);
 
   return (
-    <MobileScaffold maxWidth={1120} style={styles.page}>
+    <div style={styles.page}>
       {toast && (
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
@@ -1355,7 +1354,7 @@ onHide={
           }}
         />
       </Section>
-    </MobileScaffold>
+    </div>
   );
 }
 
@@ -1681,7 +1680,7 @@ cells.push(
         const trustSignal = trustSignals[String(e.id)];
         const trustShortLabel = trustSignal
           ? trustSignal.label === "auto_adjusted"
-            ? "Ajuste"
+            ? "Auto"
             : "Resuelto"
           : null;
         const proposalRow = proposalResponsesMap[String(e.id)];

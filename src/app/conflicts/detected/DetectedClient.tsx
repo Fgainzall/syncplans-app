@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import AppHero from "@/components/AppHero";
-import MobileScaffold from "@/components/MobileScaffold";
 
 import {
   CalendarEvent,
@@ -73,10 +72,7 @@ function normalizeForConflicts(gt: string | null | undefined): GroupType {
 }
 /** móvil por ancho */
 function useIsMobileWidth(maxWidth = 520) {
-  const [isMobile, setIsMobile] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return window.matchMedia(`(max-width: ${maxWidth}px)`).matches;
-  });
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -386,7 +382,7 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     if (focusEventId) qp.set("eventId", focusEventId);
 
-    router.push(`/conflicts/compare?${qp.toString()}`, { scroll: false });
+    router.push(`/conflicts/compare?${qp.toString()}`);
   };
 
   const resumeNext = () => {
@@ -399,7 +395,7 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     if (focusEventId) qp.set("eventId", focusEventId);
 
-    router.push(`/conflicts/compare?${qp.toString()}`, { scroll: false });
+    router.push(`/conflicts/compare?${qp.toString()}`);
   };
 
   const goActions = () => {
@@ -412,17 +408,12 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     if (focusEventId) qp.set("eventId", focusEventId);
 
-    router.push(`/conflicts/actions?${qp.toString()}`, { scroll: false });
+    router.push(`/conflicts/actions?${qp.toString()}`);
   };
 
   if (booting) {
     return (
-      <MobileScaffold
-        maxWidth={1180}
-        paddingDesktop="18px 12px 120px"
-        paddingMobile="14px 12px 120px"
-        style={styles.page}
-      >
+      <div style={styles.page}>
         <div style={styles.shell} className="spDet-shell">
           <AppHero
             mobileNav="bottom"
@@ -438,17 +429,12 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
             </div>
           </div>
         </div>
-      </MobileScaffold>
+      </div>
     );
   }
 
   return (
-    <MobileScaffold
-      maxWidth={1180}
-      paddingDesktop="18px 12px 120px"
-      paddingMobile="14px 12px 120px"
-      style={styles.page}
-    >
+    <div style={styles.page}>
       <div style={styles.shell} className="spDet-shell">
         <div style={styles.topRow} className="spDet-topRow">
                  <AppHero
@@ -456,10 +442,10 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
             title="Conflictos"
             subtitle={
               summary.pending === 0
-                ? "Tu agenda está clara por ahora."
+                ? "Tu agenda está sincronizada."
                 : isFocusedView
-                ? "Te traje directo al cruce más importante para que no se pierda entre el resto."
-                : "Detecta y resuelve choques de horario sin perder el contexto."
+                ? "Te llevamos directo al conflicto más relevante para que no se pierda entre el resto."
+                : "Detecta y resuelve choques de horario en segundos."
             }
           />
         </div>
@@ -470,12 +456,12 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
             <h1 style={styles.h1}>
               {summary.pending === 0
                 ? "Todo claro por aquí"
-                : "Vamos a ordenar esto rápido"}
+                : "Tranquilo, esto se soluciona en segundos"}
             </h1>
             <div style={styles.sub}>
               {summary.pending === 0
                 ? "No encontramos choques pendientes visibles para este contexto."
-                : `Detectamos ${summary.pending} conflicto(s) pendiente(s). Revísalos una vez y sigue con tu día.`}
+                : `Detectamos ${summary.pending} conflicto(s) pendiente(s). Decide una vez y listo.`}
             </div>
           </div>
 
@@ -490,7 +476,7 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
               </button>
             ) : (
               <button
-                onClick={() => router.push("/calendar", { scroll: false })}
+                onClick={() => router.push("/calendar")}
                 style={styles.secondaryBtn}
               >
                 Ir al calendario
@@ -510,8 +496,8 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
                     focusSummary.relatedCount === 1 ? "" : "s"
                   } ${focusSummary.pendingCount > 0 ? "pendiente" : "relacionado"}${
                     focusSummary.relatedCount === 1 ? "" : "s"
-                  } y por eso lo pusimos primero.`
-                : "Llegaste desde una alerta específica. Si ya no aparece ningún conflicto pendiente, es probable que ya lo hayas resuelto o lo hayas dejado pasar."}
+                  } y por eso lo trajimos arriba.`
+                : "Llegaste desde una alerta específica. Si ya no aparece conflicto pendiente, puede que ya haya sido resuelto o ignorado."}
             </div>
 
             <div style={styles.focusActions}>
@@ -519,7 +505,7 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
                 Resolver conflicto
               </button>
 
-              <button onClick={() => router.push("/calendar", { scroll: false })} style={styles.secondaryBtn}>
+              <button onClick={() => router.push("/calendar")} style={styles.secondaryBtn}>
                 Volver al calendario
               </button>
             </div>
@@ -530,14 +516,15 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
           <section style={styles.upgradeNudgeCard}>
             <div style={styles.upgradeNudgeBadge}>Premium</div>
          <div style={styles.upgradeNudgeTitle}>
-  Resolver conflictos está bien. Coordinar para que aparezcan menos, mejor.
+  Resolver conflictos está bien. Coordinar sin que aparezcan es otra cosa.
 </div>
 <div style={styles.upgradeNudgeCopy}>
-  Cuando compartes tiempo con otras personas, los choques no deberían agarrarte por sorpresa. Premium te da más contexto para anticiparlos, decidir mejor y reducir fricción.
+  Cuando compartes tiempo con otros, los choques no deberían sorprenderte.
+  Premium te da más contexto para anticiparlos, decidir mejor y reducir fricción.
 </div>
             <div style={styles.upgradeNudgeActions}>
               <button
-                onClick={() => router.push("/planes", { scroll: false })}
+                onClick={() => router.push("/planes")}
                 style={styles.primaryBtn}
               >
                 Ver cómo funciona
@@ -557,7 +544,7 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
             <div>
               <div style={styles.listTitle}>Conflictos detectados</div>
               <div style={styles.listSub}>
-                Entra en uno, compáralos con calma y elige la salida que tenga más sentido.
+                Toca uno para compararlos y decidir.
               </div>
             </div>
 
@@ -635,13 +622,14 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
           {showSeeMore && (
             <div style={styles.moreWrap}>
               <div style={styles.moreText}>
-                Hay más conflictos, pero en móvil mostramos primero los más relevantes para que no se vuelva una lista interminable.
+                Hay más conflictos, pero en móvil limitamos la lista para evitar
+                scroll infinito.
               </div>
             </div>
           )}
         </section>
       </div>
-    </MobileScaffold>
+    </div>
   );
 }
 

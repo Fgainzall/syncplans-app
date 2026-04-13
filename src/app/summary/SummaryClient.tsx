@@ -11,7 +11,6 @@ import { parseQuickCapture } from "@/lib/quickCaptureParser";
 import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
-import MobileScaffold from "@/components/MobileScaffold";
 import { getDisplayName } from "@/lib/profilesDb";
 import { filterOutDeclinedEvents } from "@/lib/eventResponsesDb";
 import {
@@ -67,10 +66,7 @@ type Props = {
 };
 
 function useIsMobileWidth(maxWidth = 520) {
-  const [isMobile, setIsMobile] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return window.matchMedia(`(max-width: ${maxWidth}px)`).matches;
-  });
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -427,13 +423,12 @@ const timeSuggestionsLabel = useMemo(() => {
       router.push(
         `/conflicts/detected?eventId=${encodeURIComponent(
           conflictAlert.latestEventId
-        )}`,
-        { scroll: false }
+        )}`
       );
       return;
     }
 
-    router.push("/conflicts/detected", { scroll: false });
+    router.push("/conflicts/detected");
   }, [router, conflictAlert]);
 
 const navigateFromQuickCapture = useCallback(
@@ -468,7 +463,7 @@ const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
     }
     if (cleanedNotes) params.set("notes", cleanedNotes);
 
-    router.push(`/events/new/details?${params.toString()}`, { scroll: false });
+    router.push(`/events/new/details?${params.toString()}`);
   },
   [groups, activeGroupId, router]
 );
@@ -506,7 +501,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
     params.set("date", suggestedDate.toISOString());
 
-    router.push(`/events/new/details?${params.toString()}`, { scroll: false });
+    router.push(`/events/new/details?${params.toString()}`);
   },
   [groups, activeGroupId, router]
 );
@@ -550,7 +545,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     const raw = quickCaptureValue.trim();
 
     if (!raw) {
-      router.push("/capture?source=summary", { scroll: false });
+      router.push("/capture?source=summary");
       return;
     }
 
@@ -558,7 +553,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     params.set("text", raw);
     params.set("source", "summary");
 
-    router.push(`/capture?${params.toString()}`, { scroll: false });
+    router.push(`/capture?${params.toString()}`);
   }, [router, quickCaptureValue]);
 
   const handleCopyCaptureLink = useCallback(async () => {
@@ -747,13 +742,8 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
         </div>
       )}
 
-      <MobileScaffold
-        maxWidth={1120}
-        paddingDesktop="10px 0 110px"
-        paddingMobile="10px 0 110px"
-      >
-        <Section style={styles.shell} className="spSum-shell">
-          <PremiumHeader title={title} subtitle={summarySubtitle} />
+      <Section style={styles.shell} className="spSum-shell">
+        <PremiumHeader title={title} subtitle={summarySubtitle} />
 
          <SummaryQuickCaptureCard
   value={quickCaptureValue}
@@ -835,13 +825,13 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               decisionSummary.adjustedProposals > 0) ? (
               <div style={styles.decisionChipsRow}>
                 {decisionSummary.pendingProposals > 0 ? (
-                  <button onClick={() => router.push("/events", { scroll: false })} style={{ ...styles.decisionChip, ...styles.decisionChipPending }}>
+                  <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipPending }}>
                     {decisionSummary.pendingProposals} propuesta{decisionSummary.pendingProposals === 1 ? "" : "s"} esperando decisión
                   </button>
                 ) : null}
 
                 {decisionSummary.adjustedProposals > 0 ? (
-                  <button onClick={() => router.push("/events", { scroll: false })} style={{ ...styles.decisionChip, ...styles.decisionChipInfo }}>
+                  <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipInfo }}>
                     {decisionSummary.adjustedProposals} ajuste{decisionSummary.adjustedProposals === 1 ? "" : "s"} pendiente{decisionSummary.adjustedProposals === 1 ? "" : "s"}
                   </button>
                 ) : null}
@@ -861,7 +851,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 <div style={styles.emptyTitle}>Sin eventos próximos</div>
                 <div style={styles.emptySub}>Todavía no tienes nada cerca. Puedes crear un plan nuevo o abrir el calendario.</div>
                 <button
-                  onClick={() => router.push("/events/new/details?type=personal", { scroll: false })}
+                  onClick={() => router.push("/events/new/details?type=personal")}
                   style={styles.emptyBtn}
                 >
                   Crear plan →
@@ -872,7 +862,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 <div style={styles.nextBlock}>
                   <div style={styles.nextLabel}>Sigue</div>
                   <button
-                    onClick={() => router.push("/calendar", { scroll: false })}
+                    onClick={() => router.push("/calendar")}
                     style={{
                       ...styles.nextCard,
                       ...(highlightId &&
@@ -966,7 +956,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                       return (
                         <button
                           key={e.id ?? `${e.title}-${start.toISOString()}`}
-                          onClick={() => router.push("/calendar", { scroll: false })}
+                          onClick={() => router.push("/calendar")}
                           style={{
                             ...styles.eventRow,
                             ...(isHighlighted ? styles.eventRowHighlight : {}),
@@ -1031,7 +1021,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
                 {showSeeMore && (
                   <button
-                    onClick={() => router.push("/calendar", { scroll: false })}
+                    onClick={() => router.push("/calendar")}
                     style={styles.seeMoreBtn}
                     className="spSum-seeMore"
                   >
@@ -1046,7 +1036,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
             <div style={styles.sectionHeadMini}>
               <div style={styles.sectionTitle}>Decisiones</div>
               <button
-                onClick={() => router.push("/calendar", { scroll: false })}
+                onClick={() => router.push("/calendar")}
                 style={styles.decisionsCta}
               >
                 Calendario →
@@ -1091,7 +1081,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                             : styles.decisionBadgeManual),
                         }}
                       >
-                        {decision.isFallback ? "Automático" : "Resuelto"}
+                        {decision.isFallback ? "Auto" : "Resuelto"}
                       </div>
                     </div>
                   </div>
@@ -1105,7 +1095,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
             <div style={styles.quickGrid} className="spSum-quickGrid">
               <button
-                onClick={() => router.push("/events/new/details?type=personal", { scroll: false })}
+                onClick={() => router.push("/events/new/details?type=personal")}
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
@@ -1114,7 +1104,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               </button>
 
               <button
-                onClick={() => router.push("/calendar", { scroll: false })}
+                onClick={() => router.push("/calendar")}
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
@@ -1132,8 +1122,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               </button>
             </div>
           </Card>
-        </Section>
-      </MobileScaffold>
+      </Section>
 
       <style>{`
         @media (max-width: 720px) {

@@ -5,7 +5,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
-import MobileScaffold from "@/components/MobileScaffold";
 import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
@@ -386,7 +385,7 @@ export default function EventsPage() {
 
   if (booting) {
     return (
-      <MobileScaffold maxWidth={1120} style={S.pageBg}>
+      <div style={S.pageBg}>
         <Section>
           <PremiumHeader
             title="Eventos"
@@ -402,12 +401,12 @@ export default function EventsPage() {
             </div>
           </Card>
         </Section>
-      </MobileScaffold>
+      </div>
     );
   }
 
   return (
-    <MobileScaffold maxWidth={1120} style={S.pageBg}>
+    <div style={S.pageBg}>
       {toast && (
         <div
           style={{
@@ -611,7 +610,7 @@ export default function EventsPage() {
           ) : filteredEvents.length === 0 ? (
             <EventsEmptyState
               onCreateFirstEvent={() =>
-                router.push("/events/new/details?type=personal", { scroll: false })
+                router.push("/events/new/details?type=personal")
               }
             />
           ) : (
@@ -646,7 +645,7 @@ export default function EventsPage() {
           </button>
         </section>
       </Section>
-    </MobileScaffold>
+    </div>
   );
 }
 
