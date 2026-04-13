@@ -27,6 +27,9 @@ import {
 } from "@/lib/groupsDb";
 
 import {
+
+/* SYNCPLANS: emphasize groups and coordination role */
+
   type DashboardStats,
   type AnyProfile,
   buildDashboardStats,
@@ -47,7 +50,7 @@ function getRecommendationHref(
 ) {
   switch (ctaTarget) {
     case "groups_new":
-      return "/groups";
+      return "/groups/new";
     case "calendar":
       return "/calendar";
     case "events_new":
@@ -1160,7 +1163,7 @@ export default function ProfilePage() {
           <div style={styles.headerRow}>
             <PremiumHeader
               title="Cuenta"
-              subtitle="Tu cuenta, tus preferencias y tu forma de coordinar dentro de SyncPlans."
+              subtitle="Tu identidad, tu plan y la forma en que SyncPlans te representa cuando compartes tu tiempo."
               rightSlot={<LogoutButton />}
               mobileNav="bottom"
             />
@@ -1194,7 +1197,7 @@ export default function ProfilePage() {
           <div style={styles.headerRow}>
             <PremiumHeader
               title="Cuenta"
-              subtitle="Tu cuenta, tus preferencias y tu forma de coordinar dentro de SyncPlans."
+              subtitle="Tu identidad, tu plan y la forma en que SyncPlans te representa cuando compartes tu tiempo."
               rightSlot={<LogoutButton />}
               mobileNav="bottom"
             />
@@ -1247,7 +1250,7 @@ export default function ProfilePage() {
         stats.totalGroups === 1 ? "" : "s"
       } activo${stats.totalGroups === 1 ? "" : "s"}.`;
     } else if (stats.totalGroups > 0) {
-      heroSummary = `Tu cuenta ya está conectada a ${stats.totalGroups} grupo${
+      heroSummary = `Tu cuenta ya participa en ${stats.totalGroups} grupo${
         stats.totalGroups === 1 ? "" : "s"
       } y SyncPlans está listo para coordinar con menos fricción.`;
     } else {
@@ -1275,7 +1278,7 @@ export default function ProfilePage() {
         <div style={styles.headerRow}>
           <PremiumHeader
             title="Cuenta"
-            subtitle="Tu identidad, tus preferencias y cómo SyncPlans te representa cuando compartes tu tiempo."
+            subtitle="Tu identidad, tu plan y cómo SyncPlans te representa cuando la coordinación deja de vivir en mensajes sueltos."
             mobileNav="bottom"
           />
         </div>
@@ -1379,8 +1382,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Perfil</div>
                   <h2 style={styles.sectionTitle}>Tu identidad en SyncPlans</h2>
                   <div style={styles.sectionSub}>
-                    Mantén tu nombre y tu información básica al día para que la
-                    coordinación compartida se vea clara y consistente en toda la app.
+                    Mantén tu nombre y tu información básica al día para que la coordinación compartida tenga una sola verdad visible en toda la app.
                   </div>
                 </div>
 
@@ -1453,8 +1455,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Preferencias</div>
                   <h2 style={styles.sectionTitle}>Cómo prefieres coordinar</h2>
                   <div style={styles.sectionSub}>
-                    Estas señales ayudan a SyncPlans a entender mejor tu estilo
-                    cuando compartes decisiones, tiempos y disponibilidad.
+                    Estas señales ayudan a SyncPlans a leer mejor tu estilo cuando toca decidir, ceder, proponer o ordenar tiempo compartido.
                   </div>
                 </div>
 
@@ -1597,10 +1598,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Espacios compartidos</div>
                   <h2 style={styles.sectionTitle}>Tu estructura compartida</h2>
                   <div style={styles.sectionSub}>
-                    Tus grupos siguen formando parte de tu cuenta, pero la gestión
-                    operativa ya vive en Panel. Aquí solo ves una lectura rápida y
-                    accesos claros para seguir administrando sin mezclar esta pantalla
-                    con tareas de sistema.
+                    Tus grupos siguen formando parte de tu cuenta, pero la operación ya vive en Panel. Aquí solo mantienes una lectura clara de tu estructura para no confundir identidad con administración.
                   </div>
                 </div>
 
@@ -1701,8 +1699,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Cuenta</div>
                   <h2 style={styles.sectionTitle}>Estado de tu cuenta</h2>
                   <div style={styles.sectionSub}>
-                    Lo esencial para entender cómo está tu cuenta hoy, sin convertir
-                    esta pantalla en otro centro operativo.
+                    Lo esencial para entender en qué estado está tu cuenta hoy, sin convertir esta pantalla en otro hub administrativo.
                   </div>
                 </div>
               </div>
@@ -1782,8 +1779,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Recomendación</div>
                   <h2 style={styles.sectionTitle}>Siguiente mejora sugerida</h2>
                   <div style={styles.sectionSub}>
-                    Una recomendación concreta para mejorar tu cuenta sin distraerte
-                    del flujo principal del producto.
+                    Una recomendación concreta para fortalecer tu cuenta sin sacarte del flujo principal del producto.
                   </div>
                 </div>
               </div>
@@ -1809,8 +1805,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Resumen diario</div>
                   <h2 style={styles.sectionTitle}>Entrega automática por correo</h2>
                   <div style={styles.sectionSub}>
-                    Controla si quieres recibir un resumen diario de tu coordinación
-                    y a qué hora local prefieres recibirlo.
+                    Controla si quieres recibir una lectura diaria de tu coordinación y a qué hora local prefieres que llegue.
                   </div>
                 </div>
               </div>
@@ -1862,8 +1857,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Sesión</div>
                   <h2 style={styles.sectionTitle}>Control de acceso</h2>
                   <div style={styles.sectionSub}>
-                    Desde aquí puedes cerrar tu sesión actual. Para operar en la app,
-                    usa Resumen, Calendario, Conflictos o Panel.
+                    Desde aquí puedes cerrar tu sesión actual. La coordinación diaria sigue viviendo en Resumen, Calendario, Conflictos y Panel.
                   </div>
                 </div>
               </div>
@@ -1876,11 +1870,7 @@ export default function ProfilePage() {
         </div>
 
         <section style={styles.footer}>
-          Tu cuenta define cómo apareces y cómo prefieres coordinar dentro de
-          SyncPlans. La operación diaria vive en <strong>Resumen</strong>,{" "}
-          <strong>Calendario</strong>, <strong>Conflictos</strong> y{" "}
-          <strong>Panel</strong>. Esta pantalla ya no compite con ese flujo: lo
-          complementa.
+          Tu cuenta define cómo apareces, qué plan tienes y qué señales usa SyncPlans para representarte mejor. La coordinación diaria vive en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Conflictos</strong> y <strong>Panel</strong>. Esta pantalla ya no compite con ese flujo: lo ordena y le da contexto.
         </section>
       </MobileScaffold>
     </main>

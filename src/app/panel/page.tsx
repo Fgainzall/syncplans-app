@@ -506,7 +506,7 @@ export default function PanelPage() {
     if (normalizedTier.startsWith("founder")) {
       return {
         pill: "Founder",
-        title: "Acceso fundador",
+        title: "Founder activo",
         copy: "Ventaja temprana activa.",
         cta: "Ver beneficios",
         tone: "founder" as PlanTone,
@@ -518,7 +518,7 @@ export default function PanelPage() {
       return {
         pill: "Trial",
         title: "Premium en prueba",
-        copy: "Ya estás probando una coordinación más clara.",
+        copy: "Ya estás probando una coordinación más clara, más visible y menos dependiente del chat.",
         cta: "Mantener Premium",
         tone: "trial" as PlanTone,
         supportingCopy: "Evita volver al desorden.",
@@ -529,7 +529,7 @@ export default function PanelPage() {
       return {
         pill: "Premium",
         title: "Premium activo",
-        copy: "Tu coordinación premium ya está funcionando.",
+        copy: "Tu coordinación premium ya está funcionando sobre una estructura más sólida.",
         cta: "Gestionar plan",
         tone: "premium" as PlanTone,
         supportingCopy: "Más claridad. Menos fricción.",
@@ -539,7 +539,7 @@ export default function PanelPage() {
     return {
       pill: "Free",
       title: "Plan actual",
-      copy: "Tu base gratuita ya está activa.",
+      copy: "Tu base gratuita ya está activa y lista para crecer cuando la coordinación se vuelva más compleja.",
       cta: "Ver planes",
       tone: "free" as PlanTone,
       supportingCopy: "Premium entra cuando coordinar crece.",
@@ -623,14 +623,14 @@ export default function PanelPage() {
       : "Google Calendar no conectado";
 
   let heroSummary =
-    "Desde aquí organizas grupos, invitaciones, plan e integraciones sin mezclarlo con la operación diaria.";
+    "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones.";
 
   if (!loading) {
     if (totalGroups === 0) {
       heroSummary =
-        "El siguiente salto de SyncPlans no es crear más cosas, sino crear tu primer grupo y sacar la coordinación del chat.";
+        "El siguiente salto de SyncPlans no es llenar más pantallas, sino crear tu primer grupo y mover la coordinación fuera del chat.";
     } else if (conflictsNow > 0) {
-      heroSummary = `Tu sistema tiene ${conflictsNow} conflicto${
+      heroSummary = `Tu sistema hoy tiene ${conflictsNow} conflicto${
         conflictsNow === 1 ? "" : "s"
       } pendiente${conflictsNow === 1 ? "" : "s"}, ${totalGroups} grupo${
         totalGroups === 1 ? "" : "s"
@@ -670,7 +670,7 @@ export default function PanelPage() {
     <MobileScaffold maxWidth={1120}>
       <PremiumHeader
         title="Panel"
-        subtitle="Tu hub administrativo para grupos, invitaciones, plan e integraciones."
+        subtitle="El lugar donde administras la estructura de SyncPlans: grupos, invitaciones, plan e integraciones."
       />
 
       <div style={styles.stack}>
@@ -680,19 +680,16 @@ export default function PanelPage() {
           <div style={styles.heroTopRow}>
             <div style={styles.heroTextWrap}>
               <div style={styles.eyebrow}>Panel</div>
-              <h1 style={styles.heroTitle}>Hub administrativo</h1>
+              <h1 style={styles.heroTitle}>Centro de estructura</h1>
               <p style={styles.heroCopy}>{heroSummary}</p>
               <div style={styles.heroMicroCopy}>
                 {totalGroups === 0 ? (
                   <>
-                    Crea la estructura primero. Cuando entre otra persona, la app
-                    empieza a resolver coordinación real.
+                    Crea la estructura primero. Cuando entra otra persona, SyncPlans deja de ser agenda y empieza a convertirse en coordinación real.
                   </>
                 ) : (
                   <>
-                    La operación diaria sigue viviendo en <strong>Resumen</strong>,{" "}
-                    <strong>Calendario</strong>, <strong>Eventos</strong> y{" "}
-                    <strong>Conflictos</strong>.
+                    La operación diaria sigue viviendo en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Eventos</strong> y <strong>Conflictos</strong>. Aquí solo administras la base sobre la que todo eso funciona.
                   </>
                 )}
               </div>
@@ -819,7 +816,7 @@ export default function PanelPage() {
                   <div style={styles.sectionEyebrow}>Administración</div>
                   <h2 style={styles.sectionTitle}>Accesos prioritarios</h2>
                   <div style={styles.sectionSubtleCopy}>
-                    Lo que verdaderamente administras desde aquí.
+                    Las piezas que convierten a SyncPlans en una capa de coordinación y no en otro calendario.
                   </div>
                 </div>
               </div>
@@ -1066,7 +1063,7 @@ export default function PanelPage() {
                   <div style={styles.sectionEyebrow}>Sistema</div>
                   <h2 style={styles.sectionTitle}>Integraciones</h2>
                   <div style={styles.sectionSubtleCopy}>
-                    Estado y acceso rápido a Google Calendar.
+                    Estado y acceso rápido a Google Calendar sin salir de SyncPlans.
                   </div>
                 </div>
 
