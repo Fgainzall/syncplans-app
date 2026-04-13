@@ -178,7 +178,7 @@ export default function GroupsPage() {
 
   const headerSubtitle =
     summary.total === 0
-      ? "Los espacios donde empieza la coordinación compartida."
+      ? "Personas con las que te organizas."
       : `Tienes ${summary.total} grupo${
           summary.total === 1 ? "" : "s"
         } para coordinar tu tiempo.`;
@@ -187,8 +187,6 @@ export default function GroupsPage() {
     pendingInvites === 0
       ? "Invitaciones"
       : `Invitaciones (${pendingInvites})`;
-  const showInvitePush = groups.length > 0;
-  const isFilteredEmpty = groups.length > 0 && filteredGroups.length === 0;
 
   if (booting) {
     return (
@@ -196,7 +194,7 @@ export default function GroupsPage() {
         <Section>
           <PremiumHeader
             title="Grupos"
-            subtitle="Aquí viven los espacios donde SyncPlans deja de ser agenda y pasa a ser coordinación compartida."
+            subtitle="Organiza tu estructura compartida sin fricción."
           />
 
           <Card style={styles.surfaceCard}>
@@ -231,7 +229,7 @@ export default function GroupsPage() {
       <Section>
         <PremiumHeader
           title="Grupos"
-          subtitle="Aquí defines desde qué espacio se coordina el tiempo y con quién existe una sola verdad compartida."
+          subtitle="Organiza tus espacios compartidos y define desde dónde se coordina el tiempo."
         />
 
         <Card style={styles.surfaceCard}>
@@ -239,7 +237,7 @@ export default function GroupsPage() {
             <div style={styles.headerRow}>
               <div style={styles.headerCopy}>
                 <div style={styles.kicker}>Personas con las que te organizas</div>
-                <h1 style={styles.h1}>Espacios compartidos</h1>
+                <h1 style={styles.h1}>Grupos</h1>
                 <p style={styles.sub}>{headerSubtitle}</p>
               </div>
 
@@ -276,14 +274,17 @@ export default function GroupsPage() {
                 </h2>
 
                 <p style={styles.heroText}>
-                  Cada grupo tiene su propia verdad compartida. Aquí decides con quién se cruzan tus planes: pareja, familia o espacios compartidos como amigos, deporte o equipos. El grupo no es el final del flujo: es el punto donde empieza la coordinación real.
+                  Cada grupo tiene su propio calendario compartido. Aquí decides
+                  con quién se cruzan tus planes: pareja, familia o grupos
+                  compartidos como amigos, deporte o equipos.
                 </p>
 
-                <div style={styles.heroClave}>
+                <div style={styles.heroTip}>
                   <div style={styles.heroTipLabel}>Tip</div>
                   <p style={styles.heroTipText}>
                     Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>.
-                    Después invita a la otra persona y deja que SyncPlans convierta agendas separadas en una sola lectura clara dentro del mismo sistema.
+                    Después puedes sumar grupos compartidos y dejar que
+                    SyncPlans te señale los choques con claridad.
                   </p>
                 </div>
               </div>
@@ -316,40 +317,12 @@ export default function GroupsPage() {
                 </div>
 
                 <div style={styles.heroSummaryHint}>
-                  El grupo activo se usa como base para eventos compartidos, decisiones y conflictos.
+                  El grupo activo se usa como base para eventos compartidos y
+                  conflictos.
                 </div>
               </Card>
             </Card>
 
-            {showInvitePush ? (
-              <Card tone="muted" style={styles.invitePushCard}>
-                <div style={styles.invitePushCopy}>
-                  <div style={styles.invitePushEyebrow}>Siguiente paso</div>
-                  <div style={styles.invitePushTitle}>
-                    Haz que estos grupos se muevan entre personas
-                  </div>
-                  <div style={styles.invitePushText}>
-                    La estructura ya existe. Ahora conviértela en coordinación real: revisa invitaciones pendientes o trae a alguien más al sistema para que las decisiones no se queden en mensajes sueltos.
-                  </div>
-                </div>
-                <div style={styles.invitePushActions}>
-                  <button
-                    type="button"
-                    style={styles.primary}
-                    onClick={() => router.push("/invitations")}
-                  >
-                    {invitationsLabel}
-                  </button>
-                  <button
-                    type="button"
-                    style={styles.secondary}
-                    onClick={() => router.push("/groups/new")}
-                  >
-                    + Nuevo grupo
-                  </button>
-                </div>
-              </Card>
-            ) : null}
 
             {reachedGroupLimit ? (
               <Card tone="muted" style={styles.limitBanner}>
@@ -357,7 +330,7 @@ export default function GroupsPage() {
                   <div>
                     <div style={styles.limitBannerBadge}>Free</div>
                     <div style={styles.limitBannerTitle}>
-                      Ya usaste el grupo incluido en Free.
+                      Ya usaste tu grupo incluido en Free.
                     </div>
                   </div>
 
@@ -371,7 +344,9 @@ export default function GroupsPage() {
                 </div>
 
                 <p style={styles.limitBannerCopy}>
-                  Tu base ya está creada. Premium abre más espacios compartidos cuando necesitas coordinar más de {groupLimitState.limit} grupo sin romper la continuidad del sistema.
+                  Tu base ya está creada. Premium abre más espacios compartidos
+                  cuando necesitas coordinar más de {groupLimitState.limit} grupo
+                  sin salirte del mismo sistema.
                 </p>
               </Card>
             ) : null}
@@ -441,14 +416,15 @@ export default function GroupsPage() {
               </Card>
             ) : filteredGroups.length === 0 ? (
               <Card tone="muted" style={styles.emptyState}>
-                <h2 style={styles.emptyTitle}>
-                  {isFilteredEmpty ? "No hay espacios en esta categoría" : "Aún no tienes grupos"}
-                </h2>
+                <h2 style={styles.emptyTitle}>Aún no tienes grupos</h2>
                 <p style={styles.emptySub}>
-                  {isFilteredEmpty
-                    ? "Prueba otro filtro o crea un nuevo espacio compartido para esta parte de tu vida."
-                    : "Crea tu primer grupo de pareja, familia o compartido para que SyncPlans deje de ser solo tu agenda y empiece a coordinar entre personas."}
+                  Este es el primer paso del recorrido: crea el espacio compartido
+                  y luego te llevaremos directo a tu primer plan para que sientas
+                  valor real rápido.
                 </p>
+                <div style={{ ...styles.emptySub, marginTop: -4, fontSize: 13 }}>
+                  Ruta sugerida: <b>crear grupo</b> → <b>crear plan compartido</b> → <b>compartir o invitar</b>.
+                </div>
                 <div style={styles.emptyActions}>
                   <button
                     type="button"
@@ -462,9 +438,9 @@ export default function GroupsPage() {
                   <button
                     type="button"
                     style={styles.secondary}
-                    onClick={() => router.push("/invitations")}
+                    onClick={() => router.push("/summary")}
                   >
-                    {invitationsLabel}
+                    Volver al resumen
                   </button>
                 </div>
               </Card>
@@ -779,43 +755,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
 
-  invitePushCard: {
-    display: "flex",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 14,
-    padding: 16,
-    border: "1px solid rgba(96,165,250,0.24)",
-    background: "linear-gradient(135deg, rgba(15,23,42,0.96), rgba(17,24,39,0.92))",
-  },
-  invitePushCopy: {
-    maxWidth: 720,
-  },
-  invitePushEyebrow: {
-    fontSize: 11,
-    fontWeight: 800,
-    textTransform: "uppercase",
-    letterSpacing: "0.12em",
-    color: "rgba(147,197,253,0.96)",
-    marginBottom: 6,
-  },
-  invitePushTitle: {
-    fontSize: 16,
-    fontWeight: 900,
-    color: "#f8fafc",
-  },
-  invitePushText: {
-    marginTop: 6,
-    fontSize: 13,
-    lineHeight: 1.6,
-    color: "rgba(226,232,240,0.92)",
-  },
-  invitePushActions: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 10,
-  },
   limitBanner: {
     display: "grid",
     gap: 12,
