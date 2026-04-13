@@ -745,13 +745,13 @@ await trackEvent({
           title: "Aplicado con ajuste automático",
           sub:
             fallbackKeepBothCount === 1
-              ? "Un conflicto no pudo reemplazar todos los eventos. Mantuvimos ambos para evitar inconsistencias."
-              : `${fallbackKeepBothCount} conflictos no pudieron reemplazar todos los eventos. Mantuvimos ambos para evitar inconsistencias.`,
+              ? "Uno de los cambios no pudo completarse. Mantuvimos ambos para no romper nada."
+              : `${fallbackKeepBothCount} cambios no pudieron completarse. Mantuvimos ambos para no romper nada.`,
         });
       } else {
         setToast({
           title: "Cambios aplicados",
-          sub: "El conflicto ya quedó procesado y el resumen se actualizará.",
+          sub: "Perfecto. El cambio ya quedó aplicado y ahora te devuelvo al resumen.",
         });
       }
 
@@ -812,13 +812,13 @@ await trackEvent({
           <div style={styles.kicker}>Cierre</div>
           <h1 style={styles.h1}>
             {focusEventId
-              ? "Aplica la decisión de este conflicto"
-              : "Aplica las decisiones guardadas"}
+              ? "Cierra este conflicto"
+              : "Aplica lo que ya decidiste"}
           </h1>
           <div style={styles.sub}>
             {focusEventId
-              ? "Aquí cerramos el conflicto que vienes revisando. SyncPlans aplicará solo las decisiones vinculadas a este evento y luego te devolverá al resumen."
-              : "Aquí cerramos el flujo. SyncPlans aplicará lo que decidiste en la comparación y luego te devolverá al resumen."}
+              ? "Aquí cerramos el conflicto que vienes revisando. SyncPlans aplicará solo las decisiones ligadas a este evento y luego te devolverá al resumen."
+              : "Aquí cerramos el flujo. SyncPlans aplicará lo que ya decidiste y luego te devolverá al resumen."}
           </div>
 
           <div
@@ -849,18 +849,18 @@ await trackEvent({
         <section style={styles.sectionCard}>
           <div style={styles.sectionHead}>
             <div>
-              <div style={styles.sectionTitle}>Qué se va a ejecutar</div>
+              <div style={styles.sectionTitle}>Esto es lo que va a pasar</div>
               <div style={styles.sectionSub}>
                 {focusEventId
-                  ? "Solo se aplicarán las resoluciones guardadas para este evento."
-                  : "Solo se aplicarán conflictos que ya tengan una resolución elegida."}
+                  ? "Solo se aplicarán las decisiones guardadas para este evento."
+                  : "Solo se aplicarán conflictos que ya tengan una salida elegida."}
               </div>
             </div>
           </div>
 
           {!resolvedConflicts.length ? (
             <div style={styles.emptyBox}>
-              Aún no hay decisiones guardadas para aplicar.
+              Todavía no hay decisiones listas para aplicar.
             </div>
           ) : (
             <div style={styles.stack}>
@@ -897,10 +897,10 @@ await trackEvent({
                     >
                       <div style={styles.conflictBadge}>
                         {resolution === "keep_existing"
-                          ? "Conservar Evento A"
+                          ? "Se mantiene el Evento A"
                           : resolution === "replace_with_new"
-                            ? "Conservar Evento B"
-                            : "Mantener ambos"}
+                            ? "Se mantiene el Evento B"
+                            : "Se conservan ambos"}
                       </div>
 
                       <div style={styles.conflictMeta}>
@@ -935,15 +935,11 @@ await trackEvent({
                     <div style={styles.decisionBox}>
                       {resolution === "none" ? (
                         <span>
-                          Ambos eventos se mantendrán visibles y el conflicto quedará
-                          ignorado para no reaparecer.
+                          Ambos eventos seguirán visibles y este cruce dejará de molestarte aquí para que puedas revisarlo más adelante con calma.
                         </span>
                       ) : (
                         <span>
-                          Se conservará <strong>{keptTitle}</strong> y se intentará
-                          retirar <strong>{affectedTitle}</strong>. Si ese evento no te
-                          pertenece, SyncPlans hará fallback automático a mantener ambos,
-                          lo ocultará para ti y notificará al creador.
+                          Se conservará <strong>{keptTitle}</strong> y se intentará retirar <strong>{affectedTitle}</strong>. Si ese evento no te pertenece o no puede tocarse, SyncPlans mantendrá ambos para evitar inconsistencias, lo ocultará para ti y avisará al creador.
                         </span>
                       )}
                     </div>
@@ -956,28 +952,28 @@ await trackEvent({
 
         {summary ? (
           <section style={styles.sectionCard}>
-            <div style={styles.sectionTitle}>Resultado listo</div>
+            <div style={styles.sectionTitle}>Resultado</div>
             <div style={styles.summaryGrid}>
               <div style={styles.summaryPill}>
-                Resueltos: {summary.resolvedCount}
+                Con decisión: {summary.resolvedCount}
               </div>
               <div style={styles.summaryPill}>
-                Eliminados: {summary.deletedCount}
+                Retirados: {summary.deletedCount}
               </div>
               <div style={styles.summaryPill}>
-                Bloqueados: {summary.blockedCount}
+                No se pudieron tocar: {summary.blockedCount}
               </div>
               <div style={styles.summaryPill}>
-                Ignorados: {summary.ignoredCount}
+                Silenciados: {summary.ignoredCount}
               </div>
               <div style={styles.summaryPill}>
-                Soft-reject: {summary.softRejectedCount}
+                Ocultos para ti: {summary.softRejectedCount}
               </div>
               <div style={styles.summaryPill}>
-                Notificados: {summary.notifiedCount}
+                Avisos enviados: {summary.notifiedCount}
               </div>
               <div style={styles.summaryPill}>
-                Fallback keep both: {summary.fallbackKeepBothCount}
+                Mantuvimos ambos: {summary.fallbackKeepBothCount}
               </div>
             </div>
           </section>

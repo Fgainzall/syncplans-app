@@ -147,10 +147,10 @@ function groupLabel(groupType?: string | null) {
 }
 
 function resolutionLabel(value: Resolution | null) {
-  if (value === "keep_existing") return "Conservar Evento A";
-  if (value === "replace_with_new") return "Conservar Evento B";
-  if (value === "none") return "Mantener ambos";
-  return "Aún no elegiste una resolución";
+  if (value === "keep_existing") return "Se mantiene el Evento A";
+  if (value === "replace_with_new") return "Se mantiene el Evento B";
+  if (value === "none") return "Se mantienen ambos";
+  return "Todavía no has elegido una salida";
 }
 
 function parseIndex(value: string | null): number | null {
@@ -382,7 +382,7 @@ export default function CompareClient() {
 
       setToast({
         title: "Decisión guardada",
-        sub: "La resolución ya quedó persistida para este conflicto.",
+        sub: "Perfecto. Ya quedó guardada y no tendrás que decidirlo otra vez aquí.",
       });
     } catch (e: any) {
       setToast({
@@ -458,9 +458,9 @@ export default function CompareClient() {
         <div style={styles.shell}>
           <PremiumHeader />
           <section style={styles.emptyCard}>
-            <div style={styles.emptyTitle}>No encontramos ese conflicto</div>
+            <div style={styles.emptyTitle}>Este conflicto ya no está pendiente</div>
             <div style={styles.emptySub}>
-              Puede que ya haya sido resuelto o que el evento ya no esté visible.
+              Puede que ya lo hayas resuelto, que se haya ocultado o que ese evento ya no siga visible en este contexto.
             </div>
             <div style={styles.footerBar}>
               <button onClick={goBack} style={styles.secondaryBtn}>
@@ -498,8 +498,12 @@ export default function CompareClient() {
 
         <section style={styles.hero}>
           <div style={styles.kicker}>Comparar</div>
-          <h1 style={styles.h1}>Elige qué hacer con este choque</h1>
-          <div style={styles.sub}>{focusSummaryText}</div>
+          <h1 style={styles.h1}>Decide sin darle más vueltas</h1>
+          <div style={styles.sub}>
+            {focusEventId
+              ? "Te traje directo al cruce relevante. Compara ambos planes y elige la salida que tenga más sentido."
+              : "Compara los dos planes con calma. Guarda una decisión ahora y SyncPlans la aplicará después sin que tengas que repetir nada."}
+          </div>
 
           <div
             style={{
@@ -578,7 +582,7 @@ export default function CompareClient() {
                 ...(existingSelected ? styles.choiceBtnSelected : {}),
               }}
             >
-              {saving && existingSelected ? "Guardando…" : "Conservar este"}
+              {saving && existingSelected ? "Guardando…" : "Quedarme con este"}
             </button>
           </article>
 
@@ -629,7 +633,7 @@ export default function CompareClient() {
                 ...(incomingSelected ? styles.choiceBtnSelected : {}),
               }}
             >
-              {saving && incomingSelected ? "Guardando…" : "Conservar este"}
+              {saving && incomingSelected ? "Guardando…" : "Quedarme con este"}
             </button>
           </article>
         </section>
@@ -644,8 +648,7 @@ export default function CompareClient() {
             <div>
               <div style={styles.middleTitle}>Otra opción</div>
               <div style={styles.middleSub}>
-                También puedes mantener ambos y decidir más adelante en el uso
-                real del calendario.
+                Si ahora no quieres descartar ninguno, puedes conservar ambos y seguir. SyncPlans dejará el contexto claro para revisarlo después.
               </div>
             </div>
 
@@ -657,7 +660,7 @@ export default function CompareClient() {
                 ...(bothSelected ? styles.secondaryChoiceBtnSelected : {}),
               }}
             >
-              {saving && bothSelected ? "Guardando…" : "Mantener ambos"}
+              {saving && bothSelected ? "Guardando…" : "Conservar ambos"}
             </button>
           </div>
         </section>
@@ -679,7 +682,7 @@ export default function CompareClient() {
               ...(decisionReady ? null : styles.primaryBtnMuted),
             }}
           >
-            {decisionReady ? "Seguir a cierre" : "Ir al cierre"}
+            {decisionReady ? "Seguir al cierre" : "Ir al cierre"}
           </button>
         </section>
 

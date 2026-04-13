@@ -453,10 +453,10 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
             title="Conflictos"
             subtitle={
               summary.pending === 0
-                ? "Tu agenda está sincronizada."
+                ? "Tu agenda está clara por ahora."
                 : isFocusedView
-                ? "Te llevamos directo al conflicto más relevante para que no se pierda entre el resto."
-                : "Detecta y resuelve choques de horario en segundos."
+                ? "Te traje directo al cruce más importante para que no se pierda entre el resto."
+                : "Detecta y resuelve choques de horario sin perder el contexto."
             }
           />
         </div>
@@ -467,12 +467,12 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
             <h1 style={styles.h1}>
               {summary.pending === 0
                 ? "Todo claro por aquí"
-                : "Tranquilo, esto se soluciona en segundos"}
+                : "Vamos a ordenar esto rápido"}
             </h1>
             <div style={styles.sub}>
               {summary.pending === 0
                 ? "No encontramos choques pendientes visibles para este contexto."
-                : `Detectamos ${summary.pending} conflicto(s) pendiente(s). Decide una vez y listo.`}
+                : `Detectamos ${summary.pending} conflicto(s) pendiente(s). Revísalos una vez y sigue con tu día.`}
             </div>
           </div>
 
@@ -507,8 +507,8 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
                     focusSummary.relatedCount === 1 ? "" : "s"
                   } ${focusSummary.pendingCount > 0 ? "pendiente" : "relacionado"}${
                     focusSummary.relatedCount === 1 ? "" : "s"
-                  } y por eso lo trajimos arriba.`
-                : "Llegaste desde una alerta específica. Si ya no aparece conflicto pendiente, puede que ya haya sido resuelto o ignorado."}
+                  } y por eso lo pusimos primero.`
+                : "Llegaste desde una alerta específica. Si ya no aparece ningún conflicto pendiente, es probable que ya lo hayas resuelto o lo hayas dejado pasar."}
             </div>
 
             <div style={styles.focusActions}>
@@ -527,11 +527,10 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
           <section style={styles.upgradeNudgeCard}>
             <div style={styles.upgradeNudgeBadge}>Premium</div>
          <div style={styles.upgradeNudgeTitle}>
-  Resolver conflictos está bien. Coordinar sin que aparezcan es otra cosa.
+  Resolver conflictos está bien. Coordinar para que aparezcan menos, mejor.
 </div>
 <div style={styles.upgradeNudgeCopy}>
-  Cuando compartes tiempo con otros, los choques no deberían sorprenderte.
-  Premium te da más contexto para anticiparlos, decidir mejor y reducir fricción.
+  Cuando compartes tiempo con otras personas, los choques no deberían agarrarte por sorpresa. Premium te da más contexto para anticiparlos, decidir mejor y reducir fricción.
 </div>
             <div style={styles.upgradeNudgeActions}>
               <button
@@ -555,7 +554,7 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
             <div>
               <div style={styles.listTitle}>Conflictos detectados</div>
               <div style={styles.listSub}>
-                Toca uno para compararlos y decidir.
+                Entra en uno, compáralos con calma y elige la salida que tenga más sentido.
               </div>
             </div>
 
@@ -633,8 +632,7 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
           {showSeeMore && (
             <div style={styles.moreWrap}>
               <div style={styles.moreText}>
-                Hay más conflictos, pero en móvil limitamos la lista para evitar
-                scroll infinito.
+                Hay más conflictos, pero en móvil mostramos primero los más relevantes para que no se vuelva una lista interminable.
               </div>
             </div>
           )}
