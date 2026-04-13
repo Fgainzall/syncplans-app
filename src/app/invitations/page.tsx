@@ -147,6 +147,7 @@ export default function InvitationsPage() {
 
   const isEmpty = !loading && !error && pendingInvites.length === 0;
   const pendingCount = pendingInvites.length;
+  const firstPendingInvite = pendingInvites[0] ?? null;
 
   return (
     <MobileScaffold maxWidth={1120} style={styles.page}>
@@ -228,6 +229,37 @@ export default function InvitationsPage() {
               </Card>
             </Card>
 
+            {pendingCount > 0 ? (
+              <Card tone="muted" style={styles.attentionCard}>
+                <div style={styles.attentionCopy}>
+                  <div style={styles.attentionEyebrow}>Pendiente vivo</div>
+                  <div style={styles.attentionTitle}>
+                    Hay {pendingCount} invitación{pendingCount === 1 ? "" : "es"} esperando tu respuesta.
+                  </div>
+                  <div style={styles.attentionSub}>
+                    Aceptar destraba coordinación real. Rechazar limpia tu bandeja y evita ruido.
+                  </div>
+                </div>
+
+                <div style={styles.attentionActions}>
+                  {firstPendingInvite ? (
+                    <button
+                      onClick={() => onAccept(firstPendingInvite.id)}
+                      style={styles.primaryBtn}
+                    >
+                      Resolver la primera
+                    </button>
+                  ) : null}
+                  <button
+                    onClick={() => router.push("/summary")}
+                    style={styles.ghostBtn}
+                  >
+                    Volver al resumen
+                  </button>
+                </div>
+              </Card>
+            ) : null}
+
             {booting ? (
               <Card tone="muted" style={styles.stateCard}>
                 <div style={styles.loadingRow}>
@@ -259,7 +291,21 @@ export default function InvitationsPage() {
                   No tienes invitaciones pendientes
                 </div>
                 <div style={styles.emptySub}>
-                  Cuando alguien te invite a un grupo, aparecerá aquí.
+                  Tu bandeja está limpia. Cuando alguien te invite a un grupo, aparecerá aquí para que puedas decidir rápido.
+                </div>
+                <div style={styles.emptyActions}>
+                  <button
+                    onClick={() => router.push("/groups")}
+                    style={styles.primaryBtn}
+                  >
+                    Ir a grupos
+                  </button>
+                  <button
+                    onClick={() => router.push("/summary")}
+                    style={styles.ghostBtn}
+                  >
+                    Volver al resumen
+                  </button>
                 </div>
               </Card>
             ) : (
@@ -280,6 +326,9 @@ export default function InvitationsPage() {
                           <div style={styles.inviteSub}>
                             {labelForGroupType(invite.group_type)} ·{" "}
                             {safeDateLabel(invite.created_at)}
+                          </div>
+                          <div style={styles.inviteMicroCopy}>
+                            Esta decisión habilita o cierra tu acceso a este espacio compartido.
                           </div>
                         </div>
 
@@ -480,12 +529,58 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: "center",
   },
 
+  attentionCard: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 16,
+    flexWrap: "wrap",
+    alignItems: "center",
+    border: "1px solid rgba(96,165,250,0.20)",
+    background:
+      "linear-gradient(135deg, rgba(30,41,59,0.92), rgba(15,23,42,0.92))",
+  },
+  attentionCopy: {
+    minWidth: 0,
+    flex: "1 1 340px",
+    display: "grid",
+    gap: 4,
+  },
+  attentionEyebrow: {
+    fontSize: 11,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    color: "rgba(147,197,253,0.95)",
+    fontWeight: 900,
+  },
+  attentionTitle: {
+    fontSize: 18,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+  },
+  attentionSub: {
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: "rgba(226,232,240,0.82)",
+  },
+  attentionActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
   stateCard: {
     padding: 18,
   },
 
   emptyCard: {
     textAlign: "center",
+  },
+  emptyActions: {
+    marginTop: 14,
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "center",
   },
   emptyTitle: {
     fontSize: 18,
@@ -569,6 +664,11 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(226,232,240,0.78)",
     lineHeight: 1.55,
     fontSize: 13,
+  },
+  inviteMicroCopy: {
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: "rgba(148,163,184,0.96)",
   },
 
   badgePending: {

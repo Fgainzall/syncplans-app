@@ -338,6 +338,28 @@ const summary = useMemo(() => {
 
 const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
 
+const returnPressure = useMemo(() => {
+  if (summary.pending > 0) {
+    return {
+      title: `Hay ${summary.pending} conflicto${summary.pending === 1 ? "" : "s"} esperando una decisión tuya.`,
+      copy: "Cuanto antes lo cierres, menos espacio dejas para dudas, mensajes cruzados y cambios de último minuto.",
+      primaryLabel: "Resolver ahora",
+      primaryAction: "resolve" as const,
+    };
+  }
+
+  if (summary.decided > 0) {
+    return {
+      title: `Ya tienes ${summary.decided} decisión${summary.decided === 1 ? "" : "es"} lista${summary.decided === 1 ? "" : "s"} para aplicar.`,
+      copy: "No te quedes a medio camino: aplicar deja la agenda limpia y coherente para todos.",
+      primaryLabel: "Aplicar decisiones",
+      primaryAction: "apply" as const,
+    };
+  }
+
+  return null;
+}, [summary.pending, summary.decided]);
+
   /**
    * Si entramos desde una notificación con eventId
    * y ya no hay conflicto pendiente real para ese evento,
@@ -512,6 +534,31 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
           </section>
         ) : null}
 
+        {returnPressure ? (
+          <section style={styles.returnCard}>
+            <div style={styles.returnCopy}>
+              <div style={styles.returnEyebrow}>Pendiente vivo</div>
+              <div style={styles.returnTitle}>{returnPressure.title}</div>
+              <div style={styles.returnSub}>{returnPressure.copy}</div>
+            </div>
+
+            <div style={styles.returnActions}>
+              <button
+                onClick={returnPressure.primaryAction === "apply" ? goActions : resumeNext}
+                style={styles.primaryBtn}
+              >
+                {returnPressure.primaryLabel}
+              </button>
+              <button
+                onClick={() => router.push("/calendar")}
+                style={styles.secondaryBtn}
+              >
+                Ver calendario
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         {shouldShowUpgradeNudge ? (
           <section style={styles.upgradeNudgeCard}>
             <div style={styles.upgradeNudgeBadge}>Premium</div>
@@ -568,8 +615,20 @@ const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
             <div style={styles.emptyWrap}>
               <div style={styles.emptyTitle}>No hay conflictos visibles</div>
               <div style={styles.emptySub}>
-                Ya no quedan choques pendientes para este contexto.
+                {summary.decided > 0
+                  ? "Ya no quedan choques pendientes visibles. Si corresponde, aplica las decisiones que dejaste listas."
+                  : "Ya no quedan choques pendientes para este contexto."}
               </div>
+              {summary.decided > 0 ? (
+                <div style={styles.emptyActions}>
+                  <button onClick={goActions} style={styles.primaryBtn}>
+                    Aplicar decisiones
+                  </button>
+                  <button onClick={() => router.push("/calendar")} style={styles.secondaryBtn}>
+                    Volver al calendario
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div style={styles.items}>
@@ -710,6 +769,51 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     fontWeight: 800,
     cursor: "pointer",
+  },
+  returnCard: {
+    marginTop: 16,
+    borderRadius: 24,
+    border: "1px solid rgba(96,165,250,0.18)",
+    background:
+      "linear-gradient(135deg, rgba(14,37,68,0.82), rgba(15,23,42,0.88))",
+    boxShadow: "0 22px 56px rgba(0,0,0,0.20)",
+    padding: 18,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 16,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  returnCopy: {
+    minWidth: 0,
+    flex: "1 1 360px",
+    display: "grid",
+    gap: 4,
+  },
+  returnEyebrow: {
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: "uppercase" as const,
+    fontWeight: 900,
+    color: "rgba(147,197,253,0.95)",
+  },
+  returnTitle: {
+    fontSize: 18,
+    lineHeight: 1.2,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+  },
+  returnSub: {
+    fontSize: 14,
+    lineHeight: 1.6,
+    color: "rgba(235,241,255,0.78)",
+    maxWidth: 820,
+  },
+  returnActions: {
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+    alignItems: "center",
   },
   upgradeNudgeCard: {
     marginTop: 16,
@@ -862,6 +966,12 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     lineHeight: 1.6,
     color: "rgba(235,241,255,0.72)",
+  },
+  emptyActions: {
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+    marginTop: 8,
   },
   moreWrap: {
     padding: "12px 18px 18px",

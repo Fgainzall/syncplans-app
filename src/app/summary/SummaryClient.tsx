@@ -31,9 +31,10 @@ import {
 } from "@/lib/conflicts";
 import { useSummaryData } from "./useSummaryData";
 import {
-
-/* SYNCPLANS: prioritize create group as primary action on empty state */
-
+  getMyInvitations,
+  getPendingPublicInviteCaptures,
+} from "@/lib/invitationsDb";
+import {
   addDays,
   buildCaptureShareUrl,
   buildConflictAlert,
@@ -103,6 +104,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [quickCaptureBusy, setQuickCaptureBusy] = useState(false);
   const [learnedQuickCaptureProfile, setLearnedQuickCaptureProfile] =
     useState<LearnedTimeProfile | null>(null);
+  const [pendingInviteCount, setPendingInviteCount] = useState(0);
+  const [pendingCaptureCount, setPendingCaptureCount] = useState(0);
 
   const {
     booting,
@@ -121,6 +124,40 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     proposalProfilesMap,
     showToast,
   } = useSummaryData({ appliedToast });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydratePendingAttention = async () => {
+      try {
+        const [invites, captures] = await Promise.all([
+          getMyInvitations().catch(() => []),
+          getPendingPublicInviteCaptures(6).catch(() => []),
+        ]);
+
+        if (cancelled) return;
+
+        setPendingInviteCount(Array.isArray(invites) ? invites.length : 0);
+        setPendingCaptureCount(Array.isArray(captures) ? captures.length : 0);
+      } catch {
+        if (cancelled) return;
+        setPendingInviteCount(0);
+        setPendingCaptureCount(0);
+      }
+    };
+
+    void hydratePendingAttention();
+
+    const onFocus = () => {
+      void hydratePendingAttention();
+    };
+
+    window.addEventListener("focus", onFocus);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+    };
+  }, []);
 
   const activeGroup = useMemo(() => {
     if (!activeGroupId) return null;
@@ -703,6 +740,27 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     };
   }, [conflictEventIds, proposalResponseGroupsMap]);
 
+  const pendingAttention = useMemo(() => {
+    return {
+      invites: pendingInviteCount,
+      captures: pendingCaptureCount,
+      proposals: decisionSummary.pendingProposals + decisionSummary.adjustedProposals,
+      conflicts: conflictAlert.count,
+      total:
+        pendingInviteCount +
+        pendingCaptureCount +
+        decisionSummary.pendingProposals +
+        decisionSummary.adjustedProposals +
+        conflictAlert.count,
+    };
+  }, [
+    pendingInviteCount,
+    pendingCaptureCount,
+    decisionSummary.pendingProposals,
+    decisionSummary.adjustedProposals,
+    conflictAlert.count,
+  ]);
+
   const getStatusBadgeForEvent = useCallback(
     (eventId: string | null | undefined) => {
       const status = getUnifiedEventStatus({
@@ -825,6 +883,72 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 <div style={styles.stateKpiHint}>Eventos visibles</div>
               </div>
             </div>
+
+            {pendingAttention.total > 0 ? (
+              <div style={styles.returnRail}>
+                <div style={styles.returnRailCopy}>
+                  <div style={styles.returnRailEyebrow}>Necesita tu atención</div>
+                  <div style={styles.returnRailTitle}>
+                    Hay cosas vivas esperando una decisión tuya.
+                  </div>
+                  <div style={styles.returnRailSub}>
+                    {pendingAttention.invites > 0
+                      ? `${pendingAttention.invites} invitación${pendingAttention.invites === 1 ? "" : "es"} pendiente${pendingAttention.invites === 1 ? "" : "s"}`
+                      : null}
+                    {pendingAttention.invites > 0 && pendingAttention.conflicts > 0 ? " · " : ""}
+                    {pendingAttention.conflicts > 0
+                      ? `${pendingAttention.conflicts} conflicto${pendingAttention.conflicts === 1 ? "" : "s"} abierto${pendingAttention.conflicts === 1 ? "" : "s"}`
+                      : null}
+                    {(pendingAttention.invites > 0 || pendingAttention.conflicts > 0) && pendingAttention.proposals > 0 ? " · " : ""}
+                    {pendingAttention.proposals > 0
+                      ? `${pendingAttention.proposals} propuesta${pendingAttention.proposals === 1 ? "" : "s"} o ajuste${pendingAttention.proposals === 1 ? "" : "s"} por revisar`
+                      : null}
+                    {(pendingAttention.invites > 0 || pendingAttention.conflicts > 0 || pendingAttention.proposals > 0) && pendingAttention.captures > 0 ? " · " : ""}
+                    {pendingAttention.captures > 0
+                      ? `${pendingAttention.captures} respuesta${pendingAttention.captures === 1 ? "" : "s"} externa${pendingAttention.captures === 1 ? "" : "s"} por revisar`
+                      : null}
+                  </div>
+                </div>
+
+                <div style={styles.returnRailActions}>
+                  {pendingAttention.invites > 0 ? (
+                    <button
+                      type="button"
+                      style={styles.returnRailPrimary}
+                      onClick={() => router.push("/invitations")}
+                    >
+                      Revisar invitaciones
+                    </button>
+                  ) : pendingAttention.conflicts > 0 ? (
+                    <button
+                      type="button"
+                      style={styles.returnRailPrimary}
+                      onClick={openConflictCenter}
+                    >
+                      Resolver conflictos
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      style={styles.returnRailPrimary}
+                      onClick={() => router.push("/events")}
+                    >
+                      Ir a eventos
+                    </button>
+                  )}
+
+                  {(pendingAttention.proposals > 0 || pendingAttention.captures > 0) ? (
+                    <button
+                      type="button"
+                      style={styles.returnRailSecondary}
+                      onClick={() => router.push("/events")}
+                    >
+                      Revisar pendientes
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
 
             {(decisionSummary.pendingProposals > 0 ||
               decisionSummary.adjustedProposals > 0) ? (
@@ -1146,21 +1270,21 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               </button>
 
               <button
-                onClick={() => router.push("/calendar")}
+                onClick={pendingInviteCount > 0 ? () => router.push("/invitations") : () => router.push("/calendar")}
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
-                <div style={styles.quickTitle}>Abrir calendario</div>
-                <div style={styles.quickSub}>Ver todo con contexto</div>
+                <div style={styles.quickTitle}>{pendingInviteCount > 0 ? "Revisar invitaciones" : "Abrir calendario"}</div>
+                <div style={styles.quickSub}>{pendingInviteCount > 0 ? "Hay algo esperando tu respuesta" : "Ver todo con contexto"}</div>
               </button>
 
               <button
-                onClick={openConflictCenter}
+                onClick={conflictAlert.count > 0 ? openConflictCenter : () => router.push("/events")}
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
-                <div style={styles.quickTitle}>Resolver conflictos</div>
-                <div style={styles.quickSub}>Entrar al centro de conflictos</div>
+                <div style={styles.quickTitle}>{conflictAlert.count > 0 ? "Resolver conflictos" : "Abrir eventos"}</div>
+                <div style={styles.quickSub}>{conflictAlert.count > 0 ? "Entrar al centro de conflictos" : "Ver respuestas y pendientes"}</div>
               </button>
             </div>
           </Card>
@@ -2069,6 +2193,69 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
   },
 
+  returnRail: {
+    marginTop: 14,
+    marginBottom: 2,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+    padding: "14px 14px",
+    borderRadius: 18,
+    border: "1px solid rgba(96,165,250,0.22)",
+    background:
+      "linear-gradient(135deg, rgba(8,47,73,0.72), rgba(30,41,59,0.82))",
+  },
+  returnRailCopy: {
+    minWidth: 0,
+    flex: "1 1 360px",
+    display: "grid",
+    gap: 4,
+  },
+  returnRailEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.90)",
+  },
+  returnRailTitle: {
+    fontSize: 16,
+    lineHeight: 1.25,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+  },
+  returnRailSub: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.82)",
+  },
+  returnRailActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  returnRailPrimary: {
+    borderRadius: 999,
+    padding: "10px 14px",
+    border: "1px solid rgba(96,165,250,0.26)",
+    background: "rgba(59,130,246,0.20)",
+    color: "rgba(255,255,255,0.96)",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  returnRailSecondary: {
+    borderRadius: 999,
+    padding: "10px 14px",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
   decisionChipsRow: {
     display: "flex",
     flexWrap: "wrap" as const,
