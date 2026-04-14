@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import MobileScaffold from "@/components/MobileScaffold";
@@ -40,6 +40,7 @@ type UiToast =
 
 export default function GroupsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [booting, setBooting] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -78,6 +79,30 @@ export default function GroupsPage() {
       alive = false;
     };
   }, [router]);
+
+  useEffect(() => {
+    const accepted = searchParams.get("accepted");
+    const declined = searchParams.get("declined");
+    const joined = searchParams.get("joined");
+
+    if (accepted === "1") {
+      setToast({
+        title: "Ya entraste al espacio compartido ✅",
+        subtitle: joined
+          ? "Tu grupo ya está activo. Desde aquí verás la misma coordinación que el resto."
+          : "Desde aquí ya no dependes de mensajes sueltos para entender qué quedó acordado.",
+      });
+      window.setTimeout(() => setToast(null), 3200);
+    }
+
+    if (declined === "1") {
+      setToast({
+        title: "Invitación descartada",
+        subtitle: "Tu bandeja quedó limpia. Puedes volver a grupos cuando quieras.",
+      });
+      window.setTimeout(() => setToast(null), 2800);
+    }
+  }, [searchParams]);
 
   async function refreshData(withToast: boolean) {
     try {
@@ -181,7 +206,7 @@ export default function GroupsPage() {
       ? "Aquí empieza la coordinación compartida."
       : `Tienes ${summary.total} grupo${
           summary.total === 1 ? "" : "s"
-        } que ya pueden mover coordinación real.`;
+        } donde la coordinación ya puede vivirse dentro del sistema.`;
 
   const invitationsLabel =
     pendingInvites === 0
@@ -229,7 +254,7 @@ export default function GroupsPage() {
       <Section>
         <PremiumHeader
           title="Grupos"
-          subtitle="Crea el espacio donde otras personas empiezan a ver la misma versión de la semana que tú."
+          subtitle="Aquí ves los espacios compartidos donde la coordinación deja de depender de mensajes sueltos."
         />
 
         <Card style={styles.surfaceCard}>

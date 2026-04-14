@@ -269,8 +269,8 @@ export default function AcceptInviteClient() {
       }
 
       showToast({
-        title: "✅ Ya entraste al grupo",
-        subtitle: "Ahora esta coordinación puede vivir dentro del sistema, no solo en el chat.",
+        title: "✅ Ya entraste al mismo espacio",
+        subtitle: "Desde aquí ya no dependes de mensajes sueltos para entender qué quedó acordado.",
       });
 
       navTimerRef.current = window.setTimeout(() => {
@@ -401,7 +401,7 @@ export default function AcceptInviteClient() {
                 opacity: 0.8,
               }}
             >
-              Invitación
+              Segundo usuario
             </div>
 
             <h1
@@ -411,7 +411,7 @@ export default function AcceptInviteClient() {
                 letterSpacing: "-0.6px",
               }}
             >
-              Aceptar invitación
+              Entra al mismo espacio que el resto
             </h1>
 
             {!inviteId || !isUuid(inviteId) ? (
@@ -498,7 +498,37 @@ export default function AcceptInviteClient() {
                     maxWidth: 700,
                   }}
                 >
-                  Estás a un click de meter este grupo dentro de una coordinación compartida de verdad.
+                  Aceptar esta invitación no solo te deja entrar. Hace que empieces a ver el mismo grupo, los mismos planes y las mismas decisiones que ya están moviendo los demás.
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 14,
+                    display: "grid",
+                    gap: 10,
+                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  }}
+                >
+                  {[
+                    "Ves el mismo contexto que el resto",
+                    "Los próximos planes dejan de quedar en el aire",
+                    "Si ya existe un choque, te llevamos directo a resolverlo",
+                  ].map((item) => (
+                    <div
+                      key={item}
+                      style={{
+                        borderRadius: 14,
+                        border: "1px solid rgba(255,255,255,0.10)",
+                        background: "rgba(255,255,255,0.03)",
+                        padding: "12px 12px",
+                        fontSize: 12,
+                        lineHeight: 1.45,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {item}
+                    </div>
+                  ))}
                 </div>
 
                 {shouldShowExternalNudge ? (

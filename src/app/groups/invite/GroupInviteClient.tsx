@@ -164,7 +164,7 @@ export default function GroupInviteClient() {
 
       showToast({
         title: "✅ Invitación creada",
-        subtitle: `A: ${invitedEmail}${link ? " · Ya puede entrar al mismo espacio" : ""}`,
+        subtitle: `A: ${invitedEmail}${link ? " · Ya puede entrar al mismo espacio compartido" : ""}`,
       });
 
       if (link) {
@@ -280,8 +280,38 @@ export default function GroupInviteClient() {
               }}
             >
               Envía una invitación y abre el mismo espacio compartido para la
-              otra persona. Cuando entre, ya no dependerán de mensajes sueltos
-              para saber qué quedó acordado.
+              otra persona. La idea no es solo sumarla: es hacer que vea lo
+              mismo que tú desde el primer momento, sin perseguir acuerdos por chat.
+            </div>
+
+            <div
+              style={{
+                marginTop: 14,
+                display: "grid",
+                gap: 10,
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              }}
+            >
+              {[
+                "El invitado verá el mismo grupo y el mismo contexto",
+                "Aceptar reduce fricción antes de que aparezcan malos entendidos",
+                "Si luego hay conflicto, SyncPlans lo pone en una sola verdad compartida",
+              ].map((item) => (
+                <div
+                  key={item}
+                  style={{
+                    borderRadius: 14,
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    background: "rgba(255,255,255,0.03)",
+                    padding: "12px 12px",
+                    fontSize: 12,
+                    lineHeight: 1.45,
+                    fontWeight: 800,
+                  }}
+                >
+                  {item}
+                </div>
+              ))}
             </div>
 
             <div style={{ marginTop: 14, display: "grid", gap: 12 }}>

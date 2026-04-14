@@ -211,8 +211,8 @@ export default function InvitationsPage() {
 
                 <p style={styles.heroText}>
                   Aquí aparecen los espacios a los que te invitaron. Aceptar no
-                  es solo entrar: es empezar a ver el mismo grupo, los mismos
-                  planes y las mismas decisiones que los demás.
+                  es solo entrar: es dejar de coordinar desde fuera y pasar a ver
+                  el mismo grupo, los mismos planes y las mismas decisiones que los demás.
                 </p>
               </div>
 
@@ -237,7 +237,7 @@ export default function InvitationsPage() {
                     Hay {pendingCount} invitación{pendingCount === 1 ? "" : "es"} esperando tu respuesta.
                   </div>
                   <div style={styles.attentionSub}>
-                    Aceptar te pone dentro del mismo contexto. Rechazar limpia la bandeja y evita ruido.
+                    Aceptar te pone dentro del mismo contexto desde hoy. Rechazar limpia la bandeja y evita dejar coordinaciones a medias.
                   </div>
                 </div>
 
@@ -328,7 +328,7 @@ export default function InvitationsPage() {
                             {safeDateLabel(invite.created_at)}
                           </div>
                           <div style={styles.inviteMicroCopy}>
-                            Esta decisión habilita o cierra tu acceso a este espacio compartido.
+                            Si aceptas, entras al mismo espacio donde ya se están moviendo planes y decisiones.
                           </div>
                         </div>
 
