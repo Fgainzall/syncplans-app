@@ -527,12 +527,11 @@ export default function AcceptInviteClient() {
                     </div>
 
                     <div style={{ fontWeight: 900, fontSize: 16 }}>
-                      Aceptar una invitación está bien. Coordinar lo que viene después es otra cosa.
+                      Aceptar la invitación es solo el inicio. Hacer que esa nueva coordinación no termine en fricción es donde Premium cobra sentido.
                     </div>
 
                     <div style={{ fontSize: 13, opacity: 0.78, lineHeight: 1.55 }}>
-                      Premium te ayuda a convertir esta nueva coordinación en una sola verdad compartida,
-                      con más contexto para anticipar choques y menos fricción para decidir.
+                      Premium te ayuda a convertir esta nueva coordinación en una sola verdad compartida, con más contexto para anticipar choques, responder mejor y evitar que todo vuelva al chat.
                     </div>
 
                     <div
@@ -546,7 +545,7 @@ export default function AcceptInviteClient() {
                     >
                       <div>• Anticipa conflictos cuando entra una agenda nueva.</div>
                       <div>• Da más claridad cuando varias personas empiezan a coordinar.</div>
-                      <div>• Evita interpretar manualmente qué cambió y qué no.</div>
+                      <div>• Evita reconstruir manualmente qué cambió y qué no.</div>
                     </div>
 
                     <div style={{ display: "flex", gap: 10, marginTop: 6, flexWrap: "wrap" }}>
@@ -563,7 +562,7 @@ export default function AcceptInviteClient() {
                           cursor: "pointer",
                         }}
                       >
-                        Entender cómo funciona
+                        Ver por qué vale
                       </button>
 
                       <button

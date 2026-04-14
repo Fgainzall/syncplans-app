@@ -507,10 +507,10 @@ export default function PanelPage() {
       return {
         pill: "Founder",
         title: "Founder activo",
-        copy: "Ventaja temprana activa.",
+        copy: "Tu acceso preferente ya protege una capa premium real.",
         cta: "Ver beneficios",
         tone: "founder" as PlanTone,
-        supportingCopy: "Mantienes una posición preferencial.",
+        supportingCopy: "Entraste antes y eso se debe sentir especial.",
       };
     }
 
@@ -518,10 +518,10 @@ export default function PanelPage() {
       return {
         pill: "Trial",
         title: "Premium en prueba",
-        copy: "Ya estás probando una coordinación más clara, más visible y menos dependiente del chat.",
+        copy: "Ya estás probando una coordinación con más contexto, menos desgaste y menos dependencia del chat.",
         cta: "Mantener Premium",
         tone: "trial" as PlanTone,
-        supportingCopy: "Evita volver al desorden.",
+        supportingCopy: "La diferencia se nota cuando toca decidir.",
       };
     }
 
@@ -529,20 +529,20 @@ export default function PanelPage() {
       return {
         pill: "Premium",
         title: "Premium activo",
-        copy: "Tu coordinación premium ya está funcionando sobre una estructura más sólida.",
+        copy: "Tu capa premium ya está reduciendo fricción justo donde más duele: contexto, decisiones e integración.",
         cta: "Gestionar plan",
         tone: "premium" as PlanTone,
-        supportingCopy: "Más claridad. Menos fricción.",
+        supportingCopy: "Más visibilidad compartida. Menos desgaste operativo.",
       };
     }
 
     return {
       pill: "Free",
       title: "Plan actual",
-      copy: "Tu base gratuita ya está activa y lista para crecer cuando la coordinación se vuelva más compleja.",
+      copy: "Free te deja empezar bien. Premium entra cuando coordinar con otros ya no cabe en improvisación.",
       cta: "Ver planes",
       tone: "free" as PlanTone,
-      supportingCopy: "Premium entra cuando coordinar crece.",
+      supportingCopy: "No vende más pantallas: compra menos fricción.",
     };
   }, [premiumActive, tier, trialActive]);
 
@@ -572,7 +572,7 @@ export default function PanelPage() {
     {
       id: "plans",
       title: "Plan",
-      hint: "Nivel actual y beneficios activos",
+      hint: "Plan actual y capa de valor desbloqueada",
       href: "/planes",
     },
   ];
@@ -1043,8 +1043,8 @@ export default function PanelPage() {
               {!planInfo.tone || planInfo.tone === "free" ? (
                 <div style={styles.planMiniNote}>
                   {groupLimitState.reached
-                    ? "Premium abre más grupos."
-                    : `Free incluye hasta ${groupLimitState.limit ?? "1"} grupo.`}
+                    ? "Premium abre más espacios cuando la coordinación ya te quedó chica."
+                    : `Free incluye hasta ${groupLimitState.limit ?? "1"} grupo. Premium aparece cuando un solo espacio ya no alcanza.`}
                 </div>
               ) : null}
 
@@ -1077,7 +1077,7 @@ export default function PanelPage() {
               {!canUseGoogleIntegration ? (
                 <PremiumLock
                   title="Google premium"
-                  copy="Contexto externo sin salir de SyncPlans."
+                  copy="Trae contexto externo al lugar donde realmente decides."
                 />
               ) : (
                 <>
@@ -1149,7 +1149,7 @@ export default function PanelPage() {
               {!canUseAdvancedAnalytics ? (
                 <PremiumLock
                   title="Insights premium"
-                  copy="Carga, fricción y lectura avanzada."
+                  copy="Lectura más profunda del desgaste y la coordinación."
                 />
               ) : (
                 <div style={styles.insightGrid}>

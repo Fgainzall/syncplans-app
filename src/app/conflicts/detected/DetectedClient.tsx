@@ -564,18 +564,17 @@ const returnPressure = useMemo(() => {
           <section style={styles.upgradeNudgeCard}>
             <div style={styles.upgradeNudgeBadge}>Premium</div>
          <div style={styles.upgradeNudgeTitle}>
-  Resolver conflictos está bien. Coordinar sin que aparezcan es otra cosa.
+  Resolver conflictos ayuda. Tener más contexto para que aparezcan menos es donde Premium empieza a pagarse solo.
 </div>
 <div style={styles.upgradeNudgeCopy}>
-  Cuando compartes tiempo con otros, los choques no deberían sorprenderte.
-  Premium te da más contexto para anticiparlos, decidir mejor y reducir fricción.
+  Cuando compartes tiempo con otros, los choques no deberían agarrarte sin contexto. Premium suma señales e integración para anticiparlos mejor y decidir con menos desgaste.
 </div>
             <div style={styles.upgradeNudgeActions}>
               <button
                 onClick={() => router.push("/planes")}
                 style={styles.primaryBtn}
               >
-                Ver cómo funciona
+                Ver valor Premium
               </button>
               <button
                 onClick={resumeNext}

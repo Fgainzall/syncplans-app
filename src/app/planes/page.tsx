@@ -231,14 +231,14 @@ export default function PlanesPage() {
     <MobileScaffold>
       <PremiumHeader
         title="Planes"
-        subtitle="No se trata de vender más calendario. Se trata de reducir fricción real, ganar claridad y coordinar mejor el tiempo compartido."
+        subtitle="Premium no existe para darte más pantallas. Existe para bajar fricción, sostener claridad compartida y hacer que coordinar con otros desgaste menos."
       />
 
       <div style={sectionWrapperStyle}>
         <section style={decisionHeroStyle}>
           <div style={decisionHeroTopStyle}>
             <div style={decisionHeroTextStyle}>
-              <div style={decisionEyebrowStyle}>Conversión</div>
+              <div style={decisionEyebrowStyle}>Valor real</div>
               <h2 style={decisionTitleStyle}>
                 {loading ? "Cargando estado del plan..." : getDecisionHeadline(planState)}
               </h2>
@@ -297,8 +297,8 @@ export default function PlanesPage() {
                 {loading
                   ? "Cargando..."
                   : planState.hasPremiumAccess
-                  ? "Premium habilitado"
-                  : "Solo base Free"}
+                  ? "Capa premium activa"
+                  : "Base Free activa"}
               </strong>
             </div>
 
@@ -336,8 +336,7 @@ export default function PlanesPage() {
           <div style={betaNoteStyle}>
             <p style={betaNoteTitleStyle}>Beta privada</p>
             <p style={betaNoteBodyStyle}>
-              Sin cobros automáticos por ahora. Premium abrirá más espacios cuando
-              la coordinación crezca.
+              Sin cobros automáticos por ahora. Esta pantalla existe para que entiendas qué parte del desgaste diario desaparece cuando Premium entra en la coordinación.
             </p>
           </div>
         </section>
@@ -347,9 +346,7 @@ export default function PlanesPage() {
             <div>
               <h3 style={plansTitleStyle}>Planes de SyncPlans</h3>
               <p style={plansSubtitleStyle}>
-                La diferencia real entre planes no es “tener más calendario”,
-                sino cuánto contexto, cuánta coordinación y cuánta tranquilidad
-                quieres recuperar cuando varias personas comparten el tiempo.
+                La diferencia real entre planes no es “tener más funciones”. Es cuánto contexto, cuánta visibilidad y cuánta fricción quieres sacar de la coordinación cuando ya no estás organizándote solo.
               </p>
             </div>
           </header>
@@ -437,8 +434,8 @@ export default function PlanesPage() {
 
                     <p style={planCtaHintStyle}>
                       {card.id === "free"
-                        ? "Free te deja entrar. Premium aparece cuando la coordinación compartida ya importa de verdad."
-                        : "Este plan está pensado para reducir fricción real, no para acumular funciones decorativas."}
+                        ? "Free te deja empezar. Premium entra cuando ya notaste que improvisar cuesta más que ordenar bien."
+                        : "Este plan está pensado para proteger claridad compartida, no para inflar una lista de features."}
                     </p>
                   </div>
                 </article>

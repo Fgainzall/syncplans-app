@@ -280,7 +280,7 @@ export default function GroupsPage() {
                 <div style={styles.heroTip}>
                   <div style={styles.heroTipLabel}>Tip</div>
                   <p style={styles.heroTipText}>
-                    Empieza por el grupo que más se coordina contigo. Cuando haya otra persona dentro, Summary, Eventos y Conflictos empiezan a tener mucho más valor de retorno.
+                    Empieza por el grupo que más se coordina contigo. Cuando ya existe más de un espacio compartido, Premium se vuelve lógico porque evita partir la coordinación entre varios lugares.
                   </p>
                 </div>
               </div>
@@ -339,9 +339,7 @@ export default function GroupsPage() {
                 </div>
 
                 <p style={styles.limitBannerCopy}>
-                  Tu base ya está creada. Premium abre más espacios compartidos
-                  cuando necesitas coordinar más de {groupLimitState.limit} grupo
-                  sin salirte del mismo sistema.
+                  Tu base ya está creada. Premium abre más espacios cuando la coordinación deja de caber en un solo grupo y necesitas mantener todo dentro de la misma verdad compartida.
                 </p>
               </Card>
             ) : null}
@@ -413,8 +411,7 @@ export default function GroupsPage() {
               <Card tone="muted" style={styles.emptyState}>
                 <h2 style={styles.emptyTitle}>Todavía no abriste tu primera base compartida</h2>
                 <p style={styles.emptySub}>
-                  Crea tu primer grupo de pareja, familia o compartido para
-                  empezar a coordinar con otros.
+                  Crea tu primer grupo de pareja, familia o compartido para empezar a coordinar con otros desde una sola base compartida.
                 </p>
                 <div style={styles.emptyActions}>
                   <button

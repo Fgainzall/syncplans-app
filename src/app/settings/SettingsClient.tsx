@@ -511,9 +511,9 @@ refreshGoogleStatusWithRetry().catch(() => {});
 
             {!canUseGooglePremium ? (
               <PremiumSettingsGate
-                title="Ver horarios fuera está bien. Decidir con ese contexto dentro de SyncPlans es otra cosa."
-                copy="Premium desbloquea Google Calendar para que importes contexto externo, detectes choques antes y coordines sin saltar entre apps."
-                cta="Entender cómo funciona"
+                title="Mirar tu agenda externa ayuda. Coordinar con ese contexto, sin salir de SyncPlans, es donde Premium empieza a valer."
+                copy="Premium trae tu contexto externo al mismo sistema donde decides, respondes y resuelves choques. La mejora no es ver otro calendario: es evitar perseguir información en varias partes."
+                cta="Ver por qué importa"
                 onClick={() => router.push("/planes")}
               />
             ) : (
@@ -596,7 +596,7 @@ refreshGoogleStatusWithRetry().catch(() => {});
 
                   {googleConnected ? (
                     <div style={styles.googleValueStrip}>
-                      Ya añadiste contexto externo. El valor real está en usarlo para anticipar choques, no solo para mirar otro calendario.
+                      Ya añadiste contexto externo. El salto premium no es mirar otra agenda: es usar esa información para anticipar choques y decidir sin perseguir mensajes.
                     </div>
                   ) : null}
                 </div>
@@ -661,8 +661,7 @@ refreshGoogleStatusWithRetry().catch(() => {});
             </div>
 
             <div style={styles.note}>
-              <b>Pro tip:</b> Esto te deja ver el valor “real” del producto sin
-              depender del calendario.
+              <b>Pro tip:</b> Este correo deja claro por qué SyncPlans vale: te devuelve claridad operativa aunque no abras la grilla del calendario.
             </div>
           </section>
 
@@ -687,7 +686,7 @@ refreshGoogleStatusWithRetry().catch(() => {});
 function PremiumSettingsGate({
   title,
   copy,
-  cta = "Descubrir Premium",
+  cta = "Ver valor Premium",
   onClick,
 }: {
   title: string;
