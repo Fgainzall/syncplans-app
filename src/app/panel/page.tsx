@@ -507,10 +507,10 @@ export default function PanelPage() {
       return {
         pill: "Founder",
         title: "Founder activo",
-        copy: "Tu acceso preferente ya protege una capa premium real.",
+        copy: "Ventaja temprana activa.",
         cta: "Ver beneficios",
         tone: "founder" as PlanTone,
-        supportingCopy: "Entraste antes y eso se debe sentir especial.",
+        supportingCopy: "Mantienes una posición preferencial.",
       };
     }
 
@@ -518,10 +518,10 @@ export default function PanelPage() {
       return {
         pill: "Trial",
         title: "Premium en prueba",
-        copy: "Ya estás probando una coordinación con más contexto, menos desgaste y menos dependencia del chat.",
+        copy: "Ya estás probando una coordinación más clara, más visible y menos dependiente del chat.",
         cta: "Mantener Premium",
         tone: "trial" as PlanTone,
-        supportingCopy: "La diferencia se nota cuando toca decidir.",
+        supportingCopy: "Evita volver al desorden.",
       };
     }
 
@@ -529,20 +529,20 @@ export default function PanelPage() {
       return {
         pill: "Premium",
         title: "Premium activo",
-        copy: "Tu capa premium ya está reduciendo fricción justo donde más duele: contexto, decisiones e integración.",
+        copy: "Tu coordinación premium ya está funcionando sobre una estructura más sólida.",
         cta: "Gestionar plan",
         tone: "premium" as PlanTone,
-        supportingCopy: "Más visibilidad compartida. Menos desgaste operativo.",
+        supportingCopy: "Más claridad. Menos fricción.",
       };
     }
 
     return {
       pill: "Free",
       title: "Plan actual",
-      copy: "Free te deja empezar bien. Premium entra cuando coordinar con otros ya no cabe en improvisación.",
+      copy: "Tu base gratuita ya está activa y lista para crecer cuando la coordinación se vuelva más compleja.",
       cta: "Ver planes",
       tone: "free" as PlanTone,
-      supportingCopy: "No vende más pantallas: compra menos fricción.",
+      supportingCopy: "Premium entra cuando coordinar crece.",
     };
   }, [premiumActive, tier, trialActive]);
 
@@ -572,7 +572,7 @@ export default function PanelPage() {
     {
       id: "plans",
       title: "Plan",
-      hint: "Plan actual y capa de valor desbloqueada",
+      hint: "Nivel actual y beneficios activos",
       href: "/planes",
     },
   ];
@@ -623,12 +623,12 @@ export default function PanelPage() {
       : "Google Calendar no conectado";
 
   let heroSummary =
-    "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones.";
+    "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones. También es donde conviertes una cuenta individual en un sistema compartido.";
 
   if (!loading) {
     if (totalGroups === 0) {
       heroSummary =
-        "El siguiente salto de SyncPlans no es abrir más pantallas, sino crear tu primer grupo y traer la coordinación recurrente dentro del producto.";
+        "El siguiente salto de SyncPlans no es llenar más pantallas, sino crear tu primer grupo, traer a la otra persona y mover la coordinación fuera del chat.";
     } else if (conflictsNow > 0) {
       heroSummary = `Tu sistema hoy tiene ${conflictsNow} conflicto${
         conflictsNow === 1 ? "" : "s"
@@ -638,13 +638,13 @@ export default function PanelPage() {
     } else if (totalGroups > 0) {
       heroSummary = `Ya tienes ${totalGroups} grupo${
         totalGroups === 1 ? "" : "s"
-      } creado${totalGroups === 1 ? "" : "s"}. Panel es el lugar para gestionar esa estructura.`;
+      } creado${totalGroups === 1 ? "" : "s"}. Desde aquí decides cómo escala tu coordinación y a quién conviene meter dentro ahora.`;
     }
   }
 
   const heroPrimaryCtaLabel = totalGroups === 0 ? "Crear grupo" : "Abrir grupos";
   const heroPrimaryCtaHref = totalGroups === 0 ? "/groups/new" : "/groups";
-  const heroSecondaryCtaLabel = totalGroups === 0 ? "Ver invitaciones" : "Revisar invitaciones";
+  const heroSecondaryCtaLabel = totalGroups === 0 ? "Ver invitaciones" : "Traer a alguien";
 
 
   async function handleContextChange(nextMode: UsageMode) {
@@ -670,7 +670,7 @@ export default function PanelPage() {
     <MobileScaffold maxWidth={1120}>
       <PremiumHeader
         title="Panel"
-        subtitle="Tu base de control: aquí ajustas la estructura que luego hace que volver a SyncPlans valga la pena."
+        subtitle="El lugar donde conviertes SyncPlans en un sistema que suma gente, ordena decisiones y escala mejor."
       />
 
       <div style={styles.stack}>
@@ -680,16 +680,16 @@ export default function PanelPage() {
           <div style={styles.heroTopRow}>
             <div style={styles.heroTextWrap}>
               <div style={styles.eyebrow}>Panel</div>
-              <h1 style={styles.heroTitle}>Centro de control compartido</h1>
+              <h1 style={styles.heroTitle}>Centro de estructura</h1>
               <p style={styles.heroCopy}>{heroSummary}</p>
               <div style={styles.heroMicroCopy}>
                 {totalGroups === 0 ? (
                   <>
-                    Crea la estructura primero. Cuando entra otra persona, aparecen motivos reales para volver: invitaciones, respuestas, conflictos y decisiones compartidas.
+                    Crea la estructura primero. Cuando entra otra persona, SyncPlans deja de ser agenda y empieza a convertirse en coordinación real.
                   </>
                 ) : (
                   <>
-                    La operación diaria vive en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Eventos</strong> y <strong>Conflictos</strong>. Aquí afinas la base que mantiene ese loop funcionando sin fricción.
+                    La operación diaria sigue viviendo en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Eventos</strong> y <strong>Conflictos</strong>. Aquí solo administras la base sobre la que todo eso funciona.
                   </>
                 )}
               </div>
@@ -722,7 +722,7 @@ export default function PanelPage() {
             <MetricCard
               label="Eventos"
               value={loading ? "—" : String(totalEvents)}
-              hint="Planes visibles"
+              hint="Carga visible"
             />
             <MetricCard
               label="Google"
@@ -814,9 +814,9 @@ export default function PanelPage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Administración</div>
-                  <h2 style={styles.sectionTitle}>Accesos que sostienen el hábito</h2>
+                  <h2 style={styles.sectionTitle}>Accesos prioritarios</h2>
                   <div style={styles.sectionSubtleCopy}>
-                    Lo que ajustas aquí es lo que luego alimenta el retorno diario: grupos, respuestas, permisos y contexto compartido.
+                    Las piezas que convierten a SyncPlans en una capa de coordinación y no en otro calendario.
                   </div>
                 </div>
               </div>
@@ -860,7 +860,7 @@ export default function PanelPage() {
 
               {groupsPreview.length === 0 ? (
                 <EmptyBlock
-                  copy="Aún no tienes grupos. Empieza aquí para que luego aparezcan decisiones, respuestas y coordinación real en el resto del producto."
+                  copy="Aún no tienes grupos. Este es el mejor lugar para arrancar la coordinación compartida y darle una razón real a otra persona para entrar."
                   primaryLabel="Crear grupo"
                   onPrimary={() => router.push("/groups/new")}
                   secondaryLabel="Ver invitaciones"
@@ -894,7 +894,7 @@ export default function PanelPage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Capturas</div>
-                  <h2 style={styles.sectionTitle}>Respuestas que reactivan el flujo</h2>
+                  <h2 style={styles.sectionTitle}>Bandeja de respuestas</h2>
                 </div>
 
                 <button
@@ -909,7 +909,7 @@ export default function PanelPage() {
               {!canUseCaptures ? (
                 <PremiumLock
                   title="Capturas premium"
-                  copy="Respuestas externas que vuelven a entrar al flujo de coordinación."
+                  copy="Respuestas externas convertidas en acciones."
                 />
               ) : capturesLoading ? (
                 <EmptyBlock copy="Buscando respuestas…" />
@@ -1043,8 +1043,8 @@ export default function PanelPage() {
               {!planInfo.tone || planInfo.tone === "free" ? (
                 <div style={styles.planMiniNote}>
                   {groupLimitState.reached
-                    ? "Premium abre más espacios cuando la coordinación ya te quedó chica."
-                    : `Free incluye hasta ${groupLimitState.limit ?? "1"} grupo. Premium aparece cuando un solo espacio ya no alcanza.`}
+                    ? "Premium abre más grupos."
+                    : `Free incluye hasta ${groupLimitState.limit ?? "1"} grupo.`}
                 </div>
               ) : null}
 
@@ -1077,7 +1077,7 @@ export default function PanelPage() {
               {!canUseGoogleIntegration ? (
                 <PremiumLock
                   title="Google premium"
-                  copy="Trae contexto externo al lugar donde realmente decides."
+                  copy="Contexto externo sin salir de SyncPlans."
                 />
               ) : (
                 <>
@@ -1117,7 +1117,7 @@ export default function PanelPage() {
                       {googleEventsLoading ? (
                         <EmptyBlock copy="Cargando eventos…" />
                       ) : googleEvents.length === 0 ? (
-                        <EmptyBlock copy="No encontramos nada cercano que necesite seguimiento." />
+                        <EmptyBlock copy="No encontramos eventos próximos." />
                       ) : (
                         <div style={styles.listCompact}>
                           {googleEvents.slice(0, 2).map((event) => (
@@ -1149,7 +1149,7 @@ export default function PanelPage() {
               {!canUseAdvancedAnalytics ? (
                 <PremiumLock
                   title="Insights premium"
-                  copy="Lectura más profunda del desgaste y la coordinación."
+                  copy="Carga, fricción y lectura avanzada."
                 />
               ) : (
                 <div style={styles.insightGrid}>

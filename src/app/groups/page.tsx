@@ -178,10 +178,10 @@ export default function GroupsPage() {
 
   const headerSubtitle =
     summary.total === 0
-      ? "Aquí nace la coordinación compartida."
+      ? "Personas con las que te organizas."
       : `Tienes ${summary.total} grupo${
           summary.total === 1 ? "" : "s"
-        } sosteniendo tu coordinación compartida.`;
+        } para coordinar tu tiempo.`;
 
   const invitationsLabel =
     pendingInvites === 0
@@ -194,7 +194,7 @@ export default function GroupsPage() {
         <Section>
           <PremiumHeader
             title="Grupos"
-            subtitle="Prepara la base desde la que luego todo se coordina mejor."
+            subtitle="Crea la estructura desde la que SyncPlans deja de depender solo de ti."
           />
 
           <Card style={styles.surfaceCard}>
@@ -229,7 +229,7 @@ export default function GroupsPage() {
       <Section>
         <PremiumHeader
           title="Grupos"
-          subtitle="Crea la base compartida desde la que luego SyncPlans puede detectar choques, ordenar y decidir mejor."
+          subtitle="Crea los espacios donde la coordinación se comparte de verdad y deja de vivir solo en tu cabeza."
         />
 
         <Card style={styles.surfaceCard}>
@@ -266,21 +266,21 @@ export default function GroupsPage() {
               <div style={styles.heroLeft}>
                 <div style={styles.heroPill}>
                   <span style={styles.heroDot} />
-                  Tu base compartida
+                  Personas con las que te organizas
                 </div>
 
                 <h2 style={styles.heroTitle}>
-                  Grupos desde donde empieza la coordinación
+                  Grupos para coordinar sin fricciones
                 </h2>
 
                 <p style={styles.heroText}>
-                  Cada grupo abre un espacio real de coordinación. Desde aquí defines con quién compartes planes, respuestas y futuros choques antes de que terminen en chat o confusión.
+                  Cada grupo abre un espacio real para coordinar con otras personas. Aquí decides quién entra al sistema: pareja, familia o grupos compartidos como amigos, deporte o equipos.
                 </p>
 
                 <div style={styles.heroTip}>
                   <div style={styles.heroTipLabel}>Tip</div>
                   <p style={styles.heroTipText}>
-                    Empieza por el grupo que más se coordina contigo. Cuando ya existe más de un espacio compartido, Premium se vuelve lógico porque evita partir la coordinación entre varios lugares.
+                    Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>. Después suma a la otra persona: ahí es cuando SyncPlans deja de ser una estructura bonita y empieza a coordinar tiempo real.
                   </p>
                 </div>
               </div>
@@ -313,7 +313,7 @@ export default function GroupsPage() {
                 </div>
 
                 <div style={styles.heroSummaryHint}>
-                  El grupo activo define desde dónde arrancan los planes compartidos y qué choques ve SyncPlans primero.
+                  El grupo activo es la base desde la que se crean planes, se comparan agendas y se detectan choques.
                 </div>
               </Card>
             </Card>
@@ -339,7 +339,9 @@ export default function GroupsPage() {
                 </div>
 
                 <p style={styles.limitBannerCopy}>
-                  Tu base ya está creada. Premium abre más espacios cuando la coordinación deja de caber en un solo grupo y necesitas mantener todo dentro de la misma verdad compartida.
+                  Tu base ya está creada. Premium abre más espacios compartidos
+                  cuando necesitas coordinar más de {groupLimitState.limit} grupo
+                  sin salirte del mismo sistema.
                 </p>
               </Card>
             ) : null}
@@ -409,9 +411,10 @@ export default function GroupsPage() {
               </Card>
             ) : filteredGroups.length === 0 ? (
               <Card tone="muted" style={styles.emptyState}>
-                <h2 style={styles.emptyTitle}>Todavía no abriste tu primera base compartida</h2>
+                <h2 style={styles.emptyTitle}>Aún no tienes espacios compartidos</h2>
                 <p style={styles.emptySub}>
-                  Crea tu primer grupo de pareja, familia o compartido para empezar a coordinar con otros desde una sola base compartida.
+                  Crea tu primer grupo de pareja, familia o compartido para
+                  sacar la coordinación del chat y empezar a moverla dentro de SyncPlans.
                 </p>
                 <div style={styles.emptyActions}>
                   <button
@@ -421,7 +424,7 @@ export default function GroupsPage() {
                       reachedGroupLimit ? router.push("/planes") : router.push("/groups/new")
                     }
                   >
-                    {reachedGroupLimit ? "Ver planes" : "Crear grupo"}
+                    {reachedGroupLimit ? "Ver planes" : "Crear primer grupo"}
                   </button>
                 </div>
               </Card>

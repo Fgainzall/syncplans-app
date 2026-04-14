@@ -498,7 +498,7 @@ export default function AcceptInviteClient() {
                     maxWidth: 700,
                   }}
                 >
-                  Estás a un click de entrar al mismo espacio que el resto y dejar de coordinar desde fuera.
+                  Estás a un click de meter este grupo dentro de tu coordinación real.
                 </div>
 
                 {shouldShowExternalNudge ? (
@@ -527,11 +527,11 @@ export default function AcceptInviteClient() {
                     </div>
 
                     <div style={{ fontWeight: 900, fontSize: 16 }}>
-                      Aceptar la invitación es solo el inicio. Hacer que esa nueva coordinación no termine en fricción es donde Premium cobra sentido.
+                      Aceptar una invitación es solo el inicio. El valor aparece cuando ambos empiezan a decidir dentro.
                     </div>
 
                     <div style={{ fontSize: 13, opacity: 0.78, lineHeight: 1.55 }}>
-                      Premium te ayuda a convertir esta nueva coordinación en una sola verdad compartida, con más contexto para anticipar choques, responder mejor y evitar que todo vuelva al chat.
+                      Premium te ayuda a convertir esta nueva coordinación en una sola verdad compartida, con más contexto para anticipar choques, menos fricción para decidir y una llegada más clara para todos los que entran.
                     </div>
 
                     <div
@@ -544,8 +544,8 @@ export default function AcceptInviteClient() {
                       }}
                     >
                       <div>• Anticipa conflictos cuando entra una agenda nueva.</div>
-                      <div>• Da más claridad cuando varias personas empiezan a coordinar.</div>
-                      <div>• Evita reconstruir manualmente qué cambió y qué no.</div>
+                      <div>• Da más claridad cuando entra una persona nueva y la coordinación se vuelve compartida.</div>
+                      <div>• Evita interpretar manualmente qué cambió y qué no.</div>
                     </div>
 
                     <div style={{ display: "flex", gap: 10, marginTop: 6, flexWrap: "wrap" }}>
@@ -562,7 +562,7 @@ export default function AcceptInviteClient() {
                           cursor: "pointer",
                         }}
                       >
-                        Ver por qué vale
+                        Entender cómo funciona
                       </button>
 
                       <button
@@ -639,7 +639,7 @@ export default function AcceptInviteClient() {
                         fontSize: 12,
                       }}
                     >
-                      Esta invitación ya no está pendiente. Puedes volver a tus grupos.
+                      Esta invitación ya no está pendiente. Puedes volver a tus grupos y seguir activando la coordinación desde ahí.
                     </div>
                   ) : (
                     <div
@@ -649,7 +649,7 @@ export default function AcceptInviteClient() {
                         fontSize: 12,
                       }}
                     >
-                      Al aceptar, este grupo quedará activo y pasarás a ver el mismo espacio compartido para coordinar con más claridad.
+                      Al aceptar, este grupo quedará activo y SyncPlans revisará si sus eventos chocan con tu agenda actual para que el aterrizaje no se quede a medias.
                     </div>
                   )}
                 </div>
@@ -714,7 +714,7 @@ export default function AcceptInviteClient() {
                     }}
                     title={!pending ? "Esta invitación ya no está pendiente" : ""}
                   >
-                    {busy === "accept" ? "Aceptando…" : "Aceptar invitación"}
+                    {busy === "accept" ? "Aceptando…" : "Aceptar y entrar"}
                   </button>
                 </div>
               </>
