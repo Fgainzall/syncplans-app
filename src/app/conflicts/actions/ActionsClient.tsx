@@ -754,7 +754,7 @@ await trackEvent({
       } else {
         setToast({
           title: "Cambios aplicados",
-          sub: "Perfecto. El cambio ya quedó aplicado y ahora te devuelvo al resumen.",
+          sub: "Listo, ya quedó claro para todos. Ahora te devuelvo al resumen.",
         });
       }
 

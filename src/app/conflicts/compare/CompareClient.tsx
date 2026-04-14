@@ -385,7 +385,7 @@ export default function CompareClient() {
 
       setToast({
         title: "Decisión guardada",
-        sub: "Perfecto. Ya quedó guardada y no tendrás que decidirlo otra vez aquí.",
+        sub: "Listo, ya quedó claro para todos. Ahora solo falta aplicarlo.",
       });
     } catch (e: any) {
       setToast({
@@ -504,8 +504,8 @@ export default function CompareClient() {
           <h1 style={styles.h1}>Decide sin darle más vueltas</h1>
           <div style={styles.sub}>
             {focusEventId
-              ? "Te traje directo al cruce relevante. Compara ambos planes y elige la salida que tenga más sentido."
-              : "Compara los dos planes con calma. Guarda una decisión ahora y SyncPlans la aplicará después sin que tengas que repetir nada."}
+              ? "Te traje directo al cruce relevante. Compara ambos planes y sal de aquí con una decisión clara."
+              : "Compara los dos planes una vez. Guarda tu decisión ahora y luego SyncPlans la aplicará sin hacerte repetir el mismo análisis."}
           </div>
 
           <div
@@ -534,8 +534,7 @@ export default function CompareClient() {
           <div style={styles.decisionGuideEyebrow}>Qué decides aquí</div>
           <div style={styles.decisionGuideTitle}>Elige qué plan debe seguir.</div>
           <div style={styles.decisionGuideSub}>
-            Puedes mantener el actual, quedarte con el nuevo o dejar ambos por ahora.
-            Debajo de cada opción te explicamos qué pasará.
+            Este es el momento importante: cuando decides aquí, el conflicto deja de ser una duda y pasa a tener una salida concreta dentro de SyncPlans.
           </div>
         </section>
 
@@ -694,7 +693,7 @@ export default function CompareClient() {
               ...(decisionReady ? null : styles.primaryBtnMuted),
             }}
           >
-            {decisionReady ? "Ir al cierre con esta decisión" : "Ir al cierre"}
+            {decisionReady ? "Seguir al cierre" : "Ir al cierre"}
           </button>
         </section>
 

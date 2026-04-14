@@ -854,10 +854,10 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                   <div style={styles.conflictBannerTitle}>
                     Tienes {conflictAlert.count} conflicto{conflictAlert.count === 1 ? "" : "s"} pendiente{conflictAlert.count === 1 ? "" : "s"} por resolver
                   </div>
-                  <div style={styles.conflictBannerSub}>Revísalo ahora para evitar cruces, conversaciones repetidas y decisiones fuera del sistema.</div>
+                  <div style={styles.conflictBannerSub}>Revísalo ahora y deja una sola versión clara para todos antes de que el ruido vuelva al chat.</div>
                 </div>
 
-                <div style={styles.conflictBannerCta}>Revisar</div>
+                <div style={styles.conflictBannerCta}>Resolver</div>
               </button>
             ) : null}
 

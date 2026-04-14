@@ -343,7 +343,7 @@ const returnPressure = useMemo(() => {
   if (summary.pending > 0) {
     return {
       title: `Hay ${summary.pending} conflicto${summary.pending === 1 ? "" : "s"} esperando una decisión tuya.`,
-      copy: "Cuanto antes lo cierres, menos espacio dejas para dudas, mensajes cruzados y cambios de último minuto.",
+      copy: "Si lo resuelves ahora, evitas que el cruce siga viviendo en mensajes sueltos o en interpretaciones distintas.",
       primaryLabel: "Resolver ahora",
       primaryAction: "resolve" as const,
     };
@@ -352,7 +352,7 @@ const returnPressure = useMemo(() => {
   if (summary.decided > 0) {
     return {
       title: `Ya tienes ${summary.decided} decisión${summary.decided === 1 ? "" : "es"} lista${summary.decided === 1 ? "" : "s"} para aplicar.`,
-      copy: "No te quedes a medio camino: aplicar deja la agenda limpia y coherente para todos.",
+      copy: "Un último paso y queda claro para todos dentro de SyncPlans.",
       primaryLabel: "Aplicar decisiones",
       primaryAction: "apply" as const,
     };
@@ -467,8 +467,8 @@ const returnPressure = useMemo(() => {
               summary.pending === 0
                 ? "Tu agenda está sincronizada."
                 : isFocusedView
-                ? "Te llevamos directo al conflicto más relevante para que no se pierda entre el resto."
-                : "Detecta, decide y vuelve a dejar una sola versión clara y compartida para todos."
+                ? "Te trajimos directo al cruce que más conviene cerrar ahora."
+                : "Aquí conviertes un cruce confuso en una sola decisión clara para todos."
             }
           />
         </div>
@@ -479,12 +479,12 @@ const returnPressure = useMemo(() => {
             <h1 style={styles.h1}>
               {summary.pending === 0
                 ? "Todo claro por aquí"
-                : "Tranquilo, esto se destraba rápido"}
+                : "Esto se resuelve en un minuto"}
             </h1>
             <div style={styles.sub}>
               {summary.pending === 0
                 ? "No encontramos choques pendientes visibles para este contexto."
-                : `Detectamos ${summary.pending} conflicto(s) pendiente(s). Decide una vez y evita que el mismo choque siga viviendo por fuera del sistema o en conversaciones separadas.`}
+                : `Detectamos ${summary.pending} conflicto${summary.pending === 1 ? "" : "s"} pendiente${summary.pending === 1 ? "" : "s"}. Decide una vez aquí y evita seguir aclarando lo mismo por fuera del sistema.`}
             </div>
           </div>
 
@@ -591,7 +591,7 @@ const returnPressure = useMemo(() => {
             <div>
               <div style={styles.listTitle}>Conflictos detectados</div>
               <div style={styles.listSub}>
-                Toca uno para compararlos y decidir.
+                Toca uno, compáralos lado a lado y deja una decisión clara.
               </div>
             </div>
 
@@ -648,7 +648,7 @@ const returnPressure = useMemo(() => {
                     <div style={styles.itemHead}>
                       <div style={styles.badges}>
                         <span style={styles.badgeDanger}>
-                          Choque · {ymd(new Date(c.overlapStart))}
+                          Choque real · {ymd(new Date(c.overlapStart))}
                         </span>
 
                         <span style={styles.badgePending}>Pendiente</span>
