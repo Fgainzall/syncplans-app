@@ -250,8 +250,8 @@ export default function AcceptInviteClient() {
 
       if (conflictResult.conflictCount > 0) {
         showToast({
-          title: "⚠️ Hay conflictos por revisar",
-          subtitle: "Te llevo a resolverlos ahora.",
+          title: "⚠️ Entraste justo donde ya hay choques por revisar",
+          subtitle: "Te llevo directo para que la llegada no se quede a medias.",
         });
 
         const qp = new URLSearchParams();
@@ -269,8 +269,8 @@ export default function AcceptInviteClient() {
       }
 
       showToast({
-        title: "✅ Invitación aceptada",
-        subtitle: "Ya eres parte del grupo.",
+        title: "✅ Ya entraste al grupo",
+        subtitle: "Ahora esta coordinación puede vivir dentro del sistema, no solo en el chat.",
       });
 
       navTimerRef.current = window.setTimeout(() => {
@@ -498,7 +498,7 @@ export default function AcceptInviteClient() {
                     maxWidth: 700,
                   }}
                 >
-                  Estás a un click de meter este grupo dentro de tu coordinación real.
+                  Estás a un click de meter este grupo dentro de una coordinación compartida de verdad.
                 </div>
 
                 {shouldShowExternalNudge ? (
@@ -527,11 +527,11 @@ export default function AcceptInviteClient() {
                     </div>
 
                     <div style={{ fontWeight: 900, fontSize: 16 }}>
-                      Aceptar una invitación es solo el inicio. El valor aparece cuando ambos empiezan a decidir dentro.
+                      Aceptar una invitación es solo el inicio. El valor real aparece cuando ambos empiezan a decidir y responder dentro.
                     </div>
 
                     <div style={{ fontSize: 13, opacity: 0.78, lineHeight: 1.55 }}>
-                      Premium te ayuda a convertir esta nueva coordinación en una sola verdad compartida, con más contexto para anticipar choques, menos fricción para decidir y una llegada más clara para todos los que entran.
+                      Premium te ayuda a convertir esta nueva coordinación en una sola verdad compartida, con más contexto para anticipar choques, menos fricción para decidir y una llegada mucho más clara para cada persona que entra.
                     </div>
 
                     <div
@@ -649,7 +649,7 @@ export default function AcceptInviteClient() {
                         fontSize: 12,
                       }}
                     >
-                      Al aceptar, este grupo quedará activo y SyncPlans revisará si sus eventos chocan con tu agenda actual para que el aterrizaje no se quede a medias.
+                      Al aceptar, este grupo quedará activo y SyncPlans revisará si sus eventos chocan con tu agenda actual para que la llegada de esta nueva coordinación no se quede a medias.
                     </div>
                   )}
                 </div>

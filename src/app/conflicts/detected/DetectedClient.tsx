@@ -441,7 +441,7 @@ const returnPressure = useMemo(() => {
           <AppHero
             mobileNav="bottom"
             title="Conflictos"
-            subtitle="Analizando tu agenda para encontrar choques y ayudarte a cerrar lo que todavía no está alineado."
+            subtitle="Analizando tu agenda para encontrar choques y ayudarte a cerrar lo que todavía no quedó alineado entre personas."
           />
 
           <div style={styles.loadingCard}>
@@ -468,7 +468,7 @@ const returnPressure = useMemo(() => {
                 ? "Tu agenda está sincronizada."
                 : isFocusedView
                 ? "Te llevamos directo al conflicto más relevante para que no se pierda entre el resto."
-                : "Detecta, decide y vuelve a dejar una sola versión clara para todos."
+                : "Detecta, decide y vuelve a dejar una sola versión clara y compartida para todos."
             }
           />
         </div>
@@ -479,12 +479,12 @@ const returnPressure = useMemo(() => {
             <h1 style={styles.h1}>
               {summary.pending === 0
                 ? "Todo claro por aquí"
-                : "Tranquilo, esto se soluciona en segundos"}
+                : "Tranquilo, esto se destraba rápido"}
             </h1>
             <div style={styles.sub}>
               {summary.pending === 0
                 ? "No encontramos choques pendientes visibles para este contexto."
-                : `Detectamos ${summary.pending} conflicto(s) pendiente(s). Decide una vez y evita que el mismo choque siga viviendo por fuera.`}
+                : `Detectamos ${summary.pending} conflicto(s) pendiente(s). Decide una vez y evita que el mismo choque siga viviendo por fuera del sistema o en conversaciones separadas.`}
             </div>
           </div>
 
@@ -519,7 +519,7 @@ const returnPressure = useMemo(() => {
                     focusSummary.relatedCount === 1 ? "" : "s"
                   } ${focusSummary.pendingCount > 0 ? "pendiente" : "relacionado"}${
                     focusSummary.relatedCount === 1 ? "" : "s"
-                  } y por eso lo trajimos arriba.`
+                  } y por eso lo trajimos arriba: aquí conviene decidir antes de que el ruido vuelva al chat.`
                 : "Llegaste desde una alerta específica. Si ya no aparece conflicto pendiente, puede que ya haya sido resuelto o ignorado."}
             </div>
 

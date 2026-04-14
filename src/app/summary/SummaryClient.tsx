@@ -442,7 +442,7 @@ const timeSuggestionsLabel = useMemo(() => {
   }, [booting, upcomingStats]);
 
   const title = "Resumen";
-  const summarySubtitle = activeGroupId ? `Hoy · ${activeLabel}` : "Hoy · Personal";
+  const summarySubtitle = activeGroupId ? `Hoy · ${activeLabel} · coordinación viva` : "Hoy · Personal · coordinación viva";
   const showCreateGroupNudge = groups.length === 0;
   const showInviteNudge = groups.length > 0 && upcomingStats.group === 0;
 
@@ -854,7 +854,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                   <div style={styles.conflictBannerTitle}>
                     Tienes {conflictAlert.count} conflicto{conflictAlert.count === 1 ? "" : "s"} pendiente{conflictAlert.count === 1 ? "" : "s"} por resolver
                   </div>
-                  <div style={styles.conflictBannerSub}>Revísalo ahora para evitar cruces y conversaciones innecesarias.</div>
+                  <div style={styles.conflictBannerSub}>Revísalo ahora para evitar cruces, conversaciones repetidas y decisiones fuera del sistema.</div>
                 </div>
 
                 <div style={styles.conflictBannerCta}>Revisar</div>
@@ -1027,12 +1027,12 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                   <div style={styles.coordinationPromptTitle}>
                     {showCreateGroupNudge
                       ? "Aquí empieza la coordinación compartida"
-                      : "El siguiente salto es meter a la otra persona dentro"}
+                      : "El siguiente salto es meter a la otra persona dentro de verdad"}
                   </div>
                   <div style={styles.coordinationPromptCopy}>
                     {showCreateGroupNudge
                       ? "SyncPlans gana sentido real cuando dejas de organizar solo y creas tu primer grupo de pareja, familia o compartido."
-                      : "Ya tienes estructura. Ahora toca densidad: trae a la otra persona, revisa respuestas y haz que las decisiones dejen de vivir en el chat para pasar dentro de SyncPlans."}
+                      : "Ya tienes estructura. Ahora toca densidad: trae a la otra persona, revisa respuestas y haz que las decisiones dejen de vivir en el chat para pasar dentro de SyncPlans de verdad."}
                   </div>
                 </div>
 
@@ -1044,7 +1044,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                       router.push(showCreateGroupNudge ? "/groups/new" : "/invitations")
                     }
                   >
-                    {showCreateGroupNudge ? "Crear grupo" : "Ver invitaciones"}
+                    {showCreateGroupNudge ? "Crear grupo" : "Traer a alguien"}
                   </button>
                   <button
                     type="button"
@@ -1067,8 +1067,8 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               </div>
             ) : !nextEvent ? (
               <div style={styles.emptyBlock}>
-                <div style={styles.emptyTitle}>Sin eventos próximos</div>
-                <div style={styles.emptySub}>Todavía no tienes nada cerca. Puedes crear un plan nuevo o abrir el calendario.</div>
+                <div style={styles.emptyTitle}>Sin coordinación cercana todavía</div>
+                <div style={styles.emptySub}>Todavía no tienes nada cerca dentro del sistema. Puedes crear un plan nuevo, abrir el calendario o empezar a traer a alguien más.</div>
                 <button
                   onClick={() => router.push("/events/new/details?type=personal")}
                   style={styles.emptyBtn}
@@ -1328,7 +1328,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 className="spSum-quickCard"
               >
                 <div style={styles.quickTitle}>{pendingInviteCount > 0 ? "Revisar invitaciones" : "Abrir calendario"}</div>
-                <div style={styles.quickSub}>{pendingInviteCount > 0 ? "Hay algo esperando tu respuesta" : "Ver todo con contexto"}</div>
+                <div style={styles.quickSub}>{pendingInviteCount > 0 ? "Hay alguien esperando entrar o responder" : "Ver todo con contexto"}</div>
               </button>
 
               <button
@@ -1337,7 +1337,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                 className="spSum-quickCard"
               >
                 <div style={styles.quickTitle}>{conflictAlert.count > 0 ? "Resolver conflictos" : "Abrir eventos"}</div>
-                <div style={styles.quickSub}>{conflictAlert.count > 0 ? "Entrar al centro de conflictos" : "Ver respuestas y pendientes"}</div>
+                <div style={styles.quickSub}>{conflictAlert.count > 0 ? "Entrar al centro de conflictos" : "Ver respuestas, pendientes y valor compartido"}</div>
               </button>
             </div>
           </Card>

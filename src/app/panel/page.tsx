@@ -623,12 +623,12 @@ export default function PanelPage() {
       : "Google Calendar no conectado";
 
   let heroSummary =
-    "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones. También es donde conviertes una cuenta individual en un sistema compartido.";
+    "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones. También es donde conviertes una cuenta individual en un sistema compartido que puede crecer mejor.";
 
   if (!loading) {
     if (totalGroups === 0) {
       heroSummary =
-        "El siguiente salto de SyncPlans no es llenar más pantallas, sino crear tu primer grupo, traer a la otra persona y mover la coordinación fuera del chat.";
+        "El siguiente salto de SyncPlans no es llenar más pantallas, sino crear tu primer grupo, traer a la otra persona y mover la coordinación fuera del chat y dentro del sistema.";
     } else if (conflictsNow > 0) {
       heroSummary = `Tu sistema hoy tiene ${conflictsNow} conflicto${
         conflictsNow === 1 ? "" : "s"
@@ -638,7 +638,7 @@ export default function PanelPage() {
     } else if (totalGroups > 0) {
       heroSummary = `Ya tienes ${totalGroups} grupo${
         totalGroups === 1 ? "" : "s"
-      } creado${totalGroups === 1 ? "" : "s"}. Desde aquí decides cómo escala tu coordinación y a quién conviene meter dentro ahora.`;
+      } creado${totalGroups === 1 ? "" : "s"}. Desde aquí decides cómo escala tu coordinación, a quién conviene meter dentro ahora y dónde el valor compartido todavía está incompleto.`;
     }
   }
 
@@ -670,7 +670,7 @@ export default function PanelPage() {
     <MobileScaffold maxWidth={1120}>
       <PremiumHeader
         title="Panel"
-        subtitle="El lugar donde conviertes SyncPlans en un sistema que suma gente, ordena decisiones y escala mejor."
+        subtitle="El lugar donde conviertes SyncPlans en un sistema que suma gente, ordena decisiones y hace crecer la coordinación desde dentro."
       />
 
       <div style={styles.stack}>
@@ -685,7 +685,7 @@ export default function PanelPage() {
               <div style={styles.heroMicroCopy}>
                 {totalGroups === 0 ? (
                   <>
-                    Crea la estructura primero. Cuando entra otra persona, SyncPlans deja de ser agenda y empieza a convertirse en coordinación real.
+                    Crea la estructura primero. Cuando entra otra persona, SyncPlans deja de ser una herramienta ordenada y empieza a convertirse en coordinación real.
                   </>
                 ) : (
                   <>
@@ -816,7 +816,7 @@ export default function PanelPage() {
                   <div style={styles.sectionEyebrow}>Administración</div>
                   <h2 style={styles.sectionTitle}>Accesos prioritarios</h2>
                   <div style={styles.sectionSubtleCopy}>
-                    Las piezas que convierten a SyncPlans en una capa de coordinación y no en otro calendario.
+                    Las piezas que convierten a SyncPlans en una capa de coordinación compartida y no en otro calendario.
                   </div>
                 </div>
               </div>
@@ -860,7 +860,7 @@ export default function PanelPage() {
 
               {groupsPreview.length === 0 ? (
                 <EmptyBlock
-                  copy="Aún no tienes grupos. Este es el mejor lugar para arrancar la coordinación compartida y darle una razón real a otra persona para entrar."
+                  copy="Aún no tienes grupos. Este es el mejor lugar para arrancar la coordinación compartida y darle a otra persona una razón real para entrar y quedarse."
                   primaryLabel="Crear grupo"
                   onPrimary={() => router.push("/groups/new")}
                   secondaryLabel="Ver invitaciones"

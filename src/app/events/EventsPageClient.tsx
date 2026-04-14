@@ -231,7 +231,7 @@ export default function EventsPage() {
     });
 
     if (visibleEvents.length === 0) {
-      return "Mira lo que ya estás coordinando y detecta qué sigue dependiendo de ti o de otros.";
+      return "Mira lo que ya está dentro del sistema y detecta qué sigue dependiendo de ti o de otros.";
     }
 
     const personal = visibleEvents.filter((e) => !e.group_id).length;
@@ -401,7 +401,7 @@ export default function EventsPage() {
         <Section>
           <PremiumHeader
             title="Eventos"
-            subtitle="Mira qué ya está claro y qué todavía necesita respuesta dentro de tu coordinación."
+            subtitle="Mira qué ya está claro dentro del sistema y qué todavía necesita respuesta para no quedarse afuera."
           />
           <Card style={S.cardShell}>
             <div style={S.loadingRow}>
@@ -458,10 +458,10 @@ export default function EventsPage() {
         <Card style={S.cardShell} className="spEvt-card">
           <div style={S.titleRow}>
             <div>
-              <div style={S.kicker}>Tu agenda, capa por capa</div>
+              <div style={S.kicker}>Lo que ya está dentro del sistema</div>
               <h1 style={S.h1}>Lista de eventos</h1>
               <p style={S.sub}>
-                Mira tus eventos personales y compartidos en un solo lugar. Desde aquí puedes revisar qué ya está ordenado, qué depende de otra persona y qué conviene destrabar antes de que se convierta en fricción.
+                Mira tus eventos personales y compartidos en un solo lugar. Desde aquí puedes revisar qué ya está ordenado, qué depende de otra persona y qué conviene destrabar antes de que vuelva a escaparse al chat o a la memoria.
               </p>
             </div>
 
@@ -478,7 +478,7 @@ export default function EventsPage() {
 
               {totalGroups > 0 && (
                 <div style={S.factHint}>
-                  Tienes {totalGroups} grupo{totalGroups === 1 ? "" : "s"} conectado{totalGroups === 1 ? "" : "s"}. Cuantos más estén dentro, menos cosas se te quedan afuera.
+                  Tienes {totalGroups} grupo{totalGroups === 1 ? "" : "s"} conectado{totalGroups === 1 ? "" : "s"}. Cuanta más gente entra, menos cosas se quedan afuera y más valor real gana esta lista.
                 </div>
               )}
             </aside>
@@ -489,7 +489,7 @@ export default function EventsPage() {
               <div style={S.valueRailCopy}>
                 <div style={S.valueRailEyebrow}>Claridad visible</div>
                 <div style={S.valueRailTitle}>
-                  Aquí ya se empieza a ver la coordinación compartida en serio.
+                  Aquí ya se empieza a ver qué parte de tu coordinación vive dentro del sistema de verdad.
                 </div>
                 <div style={S.valueRailSub}>
                   {valueVisibility.personalCount} personal · {valueVisibility.groupCount} compartido
@@ -507,7 +507,7 @@ export default function EventsPage() {
                   }
                   style={S.valueRailBtn}
                 >
-                  {valueVisibility.next24h > 0 ? "Ver lo que viene" : "Volver al resumen"}
+                  {valueVisibility.next24h > 0 ? "Ver lo que viene juntos" : "Volver al resumen"}
                 </button>
               </div>
             </div>

@@ -194,7 +194,7 @@ export default function GroupsPage() {
         <Section>
           <PremiumHeader
             title="Grupos"
-            subtitle="Crea la estructura desde la que SyncPlans deja de depender solo de ti."
+            subtitle="Crea la estructura desde la que SyncPlans empieza a coordinar con otros de verdad."
           />
 
           <Card style={styles.surfaceCard}>
@@ -229,7 +229,7 @@ export default function GroupsPage() {
       <Section>
         <PremiumHeader
           title="Grupos"
-          subtitle="Crea los espacios donde la coordinación se comparte de verdad y deja de vivir solo en tu cabeza."
+          subtitle="Crea los espacios donde la coordinación deja de vivir solo en tu cabeza y empieza a compartirse de verdad."
         />
 
         <Card style={styles.surfaceCard}>
@@ -270,17 +270,17 @@ export default function GroupsPage() {
                 </div>
 
                 <h2 style={styles.heroTitle}>
-                  Grupos para coordinar sin fricciones
+                  Grupos para que la coordinación deje de depender solo de ti
                 </h2>
 
                 <p style={styles.heroText}>
-                  Cada grupo abre un espacio real para coordinar con otras personas. Aquí decides quién entra al sistema: pareja, familia o grupos compartidos como amigos, deporte o equipos.
+                  Cada grupo abre un espacio real para coordinar con otras personas. Aquí decides quién entra a la misma versión de la verdad: pareja, familia o grupos compartidos como amigos, deporte o equipos.
                 </p>
 
                 <div style={styles.heroTip}>
                   <div style={styles.heroTipLabel}>Tip</div>
                   <p style={styles.heroTipText}>
-                    Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>. Después suma a la otra persona: ahí es cuando SyncPlans deja de ser una estructura bonita y empieza a coordinar tiempo real.
+                    Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>. Después suma a la otra persona: ahí es cuando SyncPlans deja de ser una estructura ordenada y empieza a mover coordinación real dentro del sistema.
                   </p>
                 </div>
               </div>
@@ -313,7 +313,7 @@ export default function GroupsPage() {
                 </div>
 
                 <div style={styles.heroSummaryHint}>
-                  El grupo activo es la base desde la que se crean planes, se comparan agendas y se detectan choques.
+                  El grupo activo es la base desde la que se crean planes, se comparan agendas y se vuelve visible qué parte de la coordinación ya está realmente dentro.
                 </div>
               </Card>
             </Card>
