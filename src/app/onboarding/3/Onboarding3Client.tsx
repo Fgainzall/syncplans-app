@@ -4,6 +4,8 @@ import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BrandLogo from "@/components/BrandLogo";
 
+const ONBOARDING_KEY = "syncplans_onboarded_v1";
+
 export default function Onboarding3Client() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -12,12 +14,12 @@ export default function Onboarding3Client() {
   const nextFinal = nextRaw && nextRaw.startsWith("/") ? nextRaw : "/summary";
   const qsNext = `?next=${encodeURIComponent(nextFinal)}`;
 
-  function handleNext() {
-    router.push(`/onboarding/4${qsNext}`);
-  }
-
   function handleBack() {
     router.push(`/onboarding/2${qsNext}`);
+  }
+
+  function handleNext() {
+    router.push(`/onboarding/4${qsNext}`);
   }
 
   function handleLogin() {
@@ -25,85 +27,67 @@ export default function Onboarding3Client() {
   }
 
   return (
-    <main style={styles.page}>
-      <div style={styles.glowA} aria-hidden />
-      <div style={styles.glowB} aria-hidden />
+    <main style={S.page}>
+      <div style={S.glowA} aria-hidden />
+      <div style={S.glowB} aria-hidden />
 
-      <section style={styles.shell} className="ob-shell">
-        <header style={styles.topBar} className="ob-topBar">
-          <div style={styles.brandRow}>
+      <section style={S.shell} className="ob-shell">
+        <header style={S.topBar}>
+          <div style={S.brandRow}>
             <BrandLogo variant="mark" size={30} />
-            <div style={styles.brandMeta}>
-              <span style={styles.step}>Paso 3 de 4</span>
-              <span style={styles.stepTitle}>Cómo se siente</span>
+            <div style={S.brandMeta}>
+              <span style={S.step}>Paso 3 de 4</span>
+              <span style={S.stepTitle}>Cómo se siente</span>
             </div>
           </div>
 
-          <button type="button" onClick={handleLogin} style={styles.ghostButtonTop}>
+          <button type="button" onClick={handleLogin} style={S.ghostTopButton}>
             Ya tengo cuenta
           </button>
         </header>
 
-        <div style={styles.progressRow}>
-          <span style={{ ...styles.progressDot, opacity: 0.42 }} />
-          <span style={{ ...styles.progressDot, opacity: 0.42 }} />
-          <span style={{ ...styles.progressDot, opacity: 1 }} />
-          <span style={styles.progressDot} />
-        </div>
-
-        <div style={styles.grid} className="ob-grid">
-          <section style={styles.copyCard}>
-            <div style={styles.kicker}>Más simple de lo que parece</div>
-            <h1 style={styles.title} className="ob-title">
-              Entrar rápido. Entender rápido. <span style={styles.titleAccent}>Coordinar mejor.</span>
+        <div style={S.hero} className="ob-hero">
+          <section style={S.mainCard}>
+            <div style={S.kicker}>Valor inmediato</div>
+            <h1 style={S.title}>
+              No entras a llenar pantallas.
+              <br />
+              <span style={S.titleAccent}>Entras a aclarar la semana.</span>
             </h1>
-            <p style={styles.lead}>
-              El objetivo no es enseñarte todas las funciones. Es llevarte al punto donde ya puedes crear algo útil y sentir por qué invitar a otra persona sí cambia la experiencia.
+            <p style={S.lead}>
+              El primer valor llega rápido: crear algo útil, compartirlo y detectar si
+              algo se cruza antes de que moleste.
             </p>
 
-            <div style={styles.steps}>
-              <div style={styles.stepCard}>
-                <div style={styles.stepNumber}>1</div>
-                <div>
-                  <div style={styles.stepCardTitle}>Crea o entra a un espacio compartido</div>
-                  <div style={styles.stepCardBody}>Empieza con pareja, familia o el grupo con el que sí te organizas de verdad.</div>
-                </div>
-              </div>
-              <div style={styles.stepCard}>
-                <div style={styles.stepNumber}>2</div>
-                <div>
-                  <div style={styles.stepCardTitle}>Anota un plan en una línea</div>
-                  <div style={styles.stepCardBody}>No necesitas montar todo. Basta con escribir algo simple para llevarlo directo a revisión.</div>
-                </div>
-              </div>
-              <div style={styles.stepCard}>
-                <div style={styles.stepNumber}>3</div>
-                <div>
-                  <div style={styles.stepCardTitle}>Resuelve antes de que se vuelva roce</div>
-                  <div style={styles.stepCardBody}>Si algo se cruza, SyncPlans lo hace visible cuando todavía es fácil decidir mejor.</div>
-                </div>
-              </div>
+            <div style={S.flowRow} className="ob-flowRow">
+              <FlowStep number="1" title="Creas algo simple" body="Un plan, una cita, una salida." />
+              <FlowStep number="2" title="Todos ven lo mismo" body="No depende de memoria ni chat." />
+              <FlowStep number="3" title="Deciden mejor" body="Si se cruza, se nota a tiempo." />
             </div>
 
-            <div style={styles.actions} className="ob-actions">
-              <button type="button" onClick={handleBack} style={styles.secondaryButton}>
+            <div style={S.actions} className="ob-actions">
+              <button type="button" onClick={handleBack} style={S.secondaryButton}>
                 Atrás
               </button>
-              <button type="button" onClick={handleNext} style={styles.primaryButton}>
+              <button type="button" onClick={handleNext} style={S.primaryButton}>
                 Seguir
               </button>
             </div>
           </section>
 
-          <aside style={styles.previewCard}>
-            <div style={styles.previewTag}>Primer valor</div>
-            <h2 style={styles.previewHeading}>No necesitas aprender una app completa para sentir el cambio.</h2>
-            <p style={styles.previewBody}>
-              Lo importante es llegar rápido a una coordinación más clara: menos ambigüedad, menos mensajes cruzados y más sensación de orden compartido.
+          <aside style={S.sideCard}>
+            <div style={S.sideTag}>Resultado</div>
+            <h2 style={S.sideHeading}>Entrar rápido. Entender rápido. Coordinar mejor.</h2>
+            <p style={S.sideBody}>
+              No hace falta aprender toda la app para sentir el valor. Basta con llegar a la primera decisión compartida bien tomada.
             </p>
-            <div style={styles.finalCard}>Lo siguiente es elegir cómo empezar: solo o creando tu primer grupo compartido.</div>
           </aside>
         </div>
+
+        <footer style={S.footer}>
+          <Dots active={2} />
+          <span style={S.footerText}>Ahora: elegir cómo quieres empezar.</span>
+        </footer>
       </section>
 
       <style>{responsiveCss}</style>
@@ -111,70 +95,82 @@ export default function Onboarding3Client() {
   );
 }
 
+function FlowStep({ number, title, body }: { number: string; title: string; body: string }) {
+  return (
+    <div style={S.flowCard}>
+      <div style={S.flowNumber}>{number}</div>
+      <div>
+        <div style={S.flowTitle}>{title}</div>
+        <div style={S.flowBody}>{body}</div>
+      </div>
+    </div>
+  );
+}
+
+function Dots({ active }: { active: number }) {
+  return (
+    <div style={S.dots}>
+      {[0, 1, 2, 3].map((index) => (
+        <span
+          key={index}
+          style={{ ...S.dot, opacity: index === active ? 1 : 0.35, transform: index === active ? "scale(1)" : "scale(0.9)" }}
+        />
+      ))}
+    </div>
+  );
+}
+
+const S: Record<string, React.CSSProperties> = {
+  page: { minHeight: "100dvh", background: "#050816", color: "#F8FAFC", position: "relative", overflow: "hidden", padding: "20px 14px", display: "grid", alignItems: "center" },
+  glowA: { position: "absolute", left: -120, bottom: -80, width: 300, height: 300, borderRadius: 999, background: "rgba(56,189,248,0.12)", filter: "blur(72px)" },
+  glowB: { position: "absolute", right: -120, top: -80, width: 320, height: 320, borderRadius: 999, background: "rgba(129,140,248,0.12)", filter: "blur(72px)" },
+  shell: { position: "relative", zIndex: 1, width: "100%", maxWidth: 1100, margin: "0 auto", borderRadius: 28, border: "1px solid rgba(148,163,184,0.14)", background: "rgba(9,14,30,0.84)", backdropFilter: "blur(14px)", padding: 20, display: "grid", gap: 16 },
+  topBar: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" },
+  brandRow: { display: "flex", alignItems: "center", gap: 12 },
+  brandMeta: { display: "grid", gap: 2 },
+  step: { fontSize: 12, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em" },
+  stepTitle: { fontSize: 15, fontWeight: 800, color: "#E2E8F0" },
+  ghostTopButton: { minHeight: 42, padding: "0 14px", borderRadius: 999, border: "1px solid rgba(148,163,184,0.22)", background: "rgba(255,255,255,0.02)", color: "#E2E8F0", fontWeight: 700, cursor: "pointer" },
+  hero: { display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(280px,0.9fr)", gap: 16, alignItems: "stretch" },
+  mainCard: { borderRadius: 24, border: "1px solid rgba(148,163,184,0.14)", background: "rgba(15,23,42,0.68)", padding: 22, display: "grid", gap: 16, alignContent: "center" },
+  kicker: { display: "inline-flex", width: "fit-content", padding: "8px 12px", borderRadius: 999, background: "rgba(129,140,248,0.12)", border: "1px solid rgba(129,140,248,0.18)", color: "#C7D2FE", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" },
+  title: { margin: 0, fontSize: 42, lineHeight: 1.02, letterSpacing: "-0.05em", fontWeight: 850, maxWidth: 620 },
+  titleAccent: { color: "#C7D2FE" },
+  lead: { margin: 0, fontSize: 17, lineHeight: 1.65, color: "#CBD5E1", maxWidth: 580 },
+  flowRow: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 10 },
+  flowCard: { borderRadius: 18, border: "1px solid rgba(148,163,184,0.14)", background: "rgba(255,255,255,0.03)", padding: 16, display: "grid", gap: 10 },
+  flowNumber: { width: 36, height: 36, borderRadius: 12, display: "grid", placeItems: "center", background: "linear-gradient(135deg, rgba(56,189,248,0.18), rgba(129,140,248,0.24))", color: "#F8FAFC", fontWeight: 800 },
+  flowTitle: { fontSize: 15, fontWeight: 800, color: "#F8FAFC", marginBottom: 4 },
+  flowBody: { fontSize: 13, lineHeight: 1.6, color: "#CBD5E1" },
+  actions: { display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 },
+  secondaryButton: { minHeight: 48, padding: "0 18px", borderRadius: 14, border: "1px solid rgba(148,163,184,0.18)", background: "transparent", color: "#E2E8F0", fontWeight: 700, cursor: "pointer" },
+  primaryButton: { minHeight: 48, padding: "0 20px", borderRadius: 14, border: "none", background: "linear-gradient(135deg, #38BDF8 0%, #818CF8 100%)", color: "#04111D", fontWeight: 800, cursor: "pointer" },
+  sideCard: { borderRadius: 24, border: "1px solid rgba(148,163,184,0.14)", background: "linear-gradient(180deg, rgba(129,140,248,0.10) 0%, rgba(15,23,42,0.8) 100%)", padding: 22, display: "grid", gap: 12, alignContent: "center" },
+  sideTag: { fontSize: 12, fontWeight: 800, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase" },
+  sideHeading: { margin: 0, fontSize: 28, lineHeight: 1.08, letterSpacing: "-0.03em" },
+  sideBody: { margin: 0, fontSize: 15, lineHeight: 1.65, color: "#CBD5E1" },
+  footer: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" },
+  footerText: { fontSize: 13, color: "#94A3B8" },
+  dots: { display: "flex", gap: 8, alignItems: "center" },
+  dot: { width: 8, height: 8, borderRadius: 999, background: "#818CF8" },
+};
+
 const responsiveCss = `
-  @media (max-width: 980px) {
-    .ob-grid {
-      grid-template-columns: 1fr !important;
+  @media (max-width: 900px) {
+    .ob-hero,
+    .ob-flowRow {
+      grid-template-columns: 1fr;
     }
   }
 
   @media (max-width: 640px) {
     .ob-shell {
-      padding: 18px !important;
-      border-radius: 22px !important;
+      padding: 16px;
+      border-radius: 24px;
     }
 
-    .ob-topBar {
-      align-items: flex-start !important;
-      flex-direction: column !important;
-    }
-
-    .ob-title {
-      font-size: 36px !important;
-      line-height: 1 !important;
-      letter-spacing: -0.05em !important;
-    }
-
-    .ob-actions {
-      flex-direction: column !important;
-    }
-
-    .ob-actions button {
-      width: 100% !important;
+    .ob-actions > button {
+      flex: 1 1 0;
     }
   }
 `;
-
-const styles: Record<string, React.CSSProperties> = {
-  page: { minHeight: "100dvh", background: "#050816", color: "#F8FAFC", position: "relative", overflow: "hidden", padding: "18px 14px 24px" },
-  glowA: { position: "absolute", inset: "auto auto -10% -10%", width: 420, height: 420, borderRadius: 999, background: "rgba(56,189,248,0.10)", filter: "blur(88px)", pointerEvents: "none" },
-  glowB: { position: "absolute", inset: "-10% -5% auto auto", width: 360, height: 360, borderRadius: 999, background: "rgba(168,85,247,0.12)", filter: "blur(88px)", pointerEvents: "none" },
-  shell: { position: "relative", zIndex: 1, maxWidth: 1120, margin: "0 auto", borderRadius: 28, border: "1px solid rgba(148,163,184,0.14)", background: "linear-gradient(180deg, rgba(9,14,30,0.88) 0%, rgba(6,10,24,0.94) 100%)", backdropFilter: "blur(16px)", padding: 24, display: "grid", gap: 18, overflow: "hidden" },
-  topBar: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  brandRow: { display: "flex", alignItems: "center", gap: 12 },
-  brandMeta: { display: "grid", gap: 2 },
-  step: { fontSize: 11, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 800 },
-  stepTitle: { fontSize: 15, fontWeight: 800, color: "#E2E8F0" },
-  ghostButtonTop: { minHeight: 42, padding: "0 16px", borderRadius: 999, border: "1px solid rgba(56,189,248,0.18)", background: "rgba(56,189,248,0.08)", color: "#BAE6FD", fontWeight: 700, cursor: "pointer" },
-  progressRow: { display: "flex", gap: 8, alignItems: "center" },
-  progressDot: { width: 26, height: 6, borderRadius: 999, background: "linear-gradient(135deg, rgba(129,140,248,0.92), rgba(56,189,248,0.92))", opacity: 0.26 },
-  grid: { display: "grid", gridTemplateColumns: "minmax(0, 1.15fr) minmax(280px, 0.85fr)", gap: 18 },
-  copyCard: { borderRadius: 24, border: "1px solid rgba(148,163,184,0.14)", background: "rgba(15,23,42,0.64)", padding: 22, display: "grid", gap: 18 },
-  kicker: { display: "inline-flex", width: "fit-content", borderRadius: 999, padding: "8px 12px", background: "rgba(129,140,248,0.12)", border: "1px solid rgba(129,140,248,0.18)", color: "#C7D2FE", fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" },
-  title: { margin: 0, fontSize: 48, lineHeight: 0.98, letterSpacing: "-0.055em", maxWidth: 720, fontWeight: 850 },
-  titleAccent: { color: "#C7D2FE" },
-  lead: { margin: 0, fontSize: 17, lineHeight: 1.72, color: "#CBD5E1", maxWidth: 650 },
-  steps: { display: "grid", gap: 12 },
-  stepCard: { borderRadius: 18, border: "1px solid rgba(148,163,184,0.14)", background: "rgba(255,255,255,0.03)", padding: 18, display: "grid", gridTemplateColumns: "44px minmax(0,1fr)", gap: 14, alignItems: "start" },
-  stepNumber: { width: 44, height: 44, borderRadius: 14, display: "grid", placeItems: "center", background: "linear-gradient(135deg, rgba(56,189,248,0.18), rgba(129,140,248,0.22))", color: "#F8FAFC", fontSize: 18, fontWeight: 800 },
-  stepCardTitle: { fontSize: 15, fontWeight: 800, color: "#F8FAFC", marginBottom: 6 },
-  stepCardBody: { fontSize: 14, lineHeight: 1.65, color: "#CBD5E1" },
-  actions: { display: "flex", gap: 12, flexWrap: "wrap" },
-  secondaryButton: { minHeight: 48, padding: "0 18px", borderRadius: 14, border: "1px solid rgba(148,163,184,0.18)", background: "transparent", color: "#E2E8F0", fontWeight: 700, cursor: "pointer" },
-  primaryButton: { minHeight: 48, padding: "0 20px", borderRadius: 14, border: "none", background: "linear-gradient(135deg, #38BDF8 0%, #818CF8 100%)", color: "#04111D", fontWeight: 800, cursor: "pointer" },
-  previewCard: { borderRadius: 24, border: "1px solid rgba(148,163,184,0.14)", background: "linear-gradient(180deg, rgba(129,140,248,0.10) 0%, rgba(15,23,42,0.76) 100%)", padding: 22, display: "grid", gap: 14, alignContent: "start" },
-  previewTag: { display: "inline-flex", width: "fit-content", padding: "8px 12px", borderRadius: 999, background: "rgba(255,255,255,0.08)", color: "#E2E8F0", fontSize: 12, fontWeight: 700 },
-  previewHeading: { margin: 0, fontSize: 28, lineHeight: 1.1, letterSpacing: "-0.03em" },
-  previewBody: { margin: 0, fontSize: 15, lineHeight: 1.72, color: "#CBD5E1" },
-  finalCard: { borderRadius: 18, padding: 18, border: "1px solid rgba(148,163,184,0.14)", background: "rgba(255,255,255,0.04)", color: "#E2E8F0", lineHeight: 1.68, fontWeight: 700 },
-};
