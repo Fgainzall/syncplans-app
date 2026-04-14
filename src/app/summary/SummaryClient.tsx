@@ -442,7 +442,7 @@ const timeSuggestionsLabel = useMemo(() => {
   }, [booting, upcomingStats]);
 
   const title = "Resumen";
-  const summarySubtitle = activeGroupId ? `Hoy · ${activeLabel} · coordinación viva` : "Hoy · Personal · coordinación viva";
+  const summarySubtitle = activeGroupId ? `Hoy · ${activeLabel} · tu siguiente paso` : "Hoy · Personal · tu siguiente paso";
   const showCreateGroupNudge = groups.length === 0;
   const showInviteNudge = groups.length > 0 && upcomingStats.group === 0;
 
@@ -1026,13 +1026,13 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                   <div style={styles.coordinationPromptEyebrow}>Expansión natural</div>
                   <div style={styles.coordinationPromptTitle}>
                     {showCreateGroupNudge
-                      ? "Aquí empieza la coordinación compartida"
-                      : "El siguiente salto es meter a la otra persona dentro de verdad"}
+                      ? "Tu siguiente paso es crear el primer espacio compartido"
+                      : "El siguiente salto es traer a la otra persona dentro del sistema"}
                   </div>
                   <div style={styles.coordinationPromptCopy}>
                     {showCreateGroupNudge
-                      ? "SyncPlans gana sentido real cuando dejas de organizar solo y creas tu primer grupo de pareja, familia o compartido."
-                      : "Ya tienes estructura. Ahora toca densidad: trae a la otra persona, revisa respuestas y haz que las decisiones dejen de vivir en el chat para pasar dentro de SyncPlans de verdad."}
+                      ? "Puedes seguir creando cosas solo, pero el producto despega de verdad cuando abres tu primer grupo y dejas de coordinar únicamente desde tu cabeza o el chat."
+                      : "Ya tienes estructura. Ahora toca meter a la otra persona dentro de verdad para que respuestas, conflictos y decisiones también vivan aquí."}
                   </div>
                 </div>
 
@@ -1051,7 +1051,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
                     style={styles.coordinationPromptSecondary}
                     onClick={() => router.push(showCreateGroupNudge ? "/groups" : "/groups")}
                   >
-                    {showCreateGroupNudge ? "Ver estructura" : "Abrir grupos"}
+                    {showCreateGroupNudge ? "Ver grupos" : "Abrir grupos"}
                   </button>
                 </div>
               </div>
@@ -1067,13 +1067,13 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               </div>
             ) : !nextEvent ? (
               <div style={styles.emptyBlock}>
-                <div style={styles.emptyTitle}>Sin coordinación cercana todavía</div>
-                <div style={styles.emptySub}>Todavía no tienes nada cerca dentro del sistema. Puedes crear un plan nuevo, abrir el calendario o empezar a traer a alguien más.</div>
+                <div style={styles.emptyTitle}>{showCreateGroupNudge ? "Todavía no activaste el loop compartido" : "Sin coordinación cercana todavía"}</div>
+                <div style={styles.emptySub}>{showCreateGroupNudge ? "Empieza creando tu primer grupo. Ese es el paso que convierte SyncPlans en una referencia compartida y no solo en una agenda ordenada." : "Todavía no tienes nada cerca dentro del sistema. Puedes crear un plan nuevo, abrir el calendario o empezar a traer a alguien más."}</div>
                 <button
-                  onClick={() => router.push("/events/new/details?type=personal")}
+                  onClick={() => router.push(showCreateGroupNudge ? "/groups/new" : "/events/new/details?type=personal")}
                   style={styles.emptyBtn}
                 >
-                  Crear plan →
+                  {showCreateGroupNudge ? "Crear grupo →" : "Crear plan →"}
                 </button>
               </div>
             ) : (
@@ -1314,12 +1314,12 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
 
             <div style={styles.quickGrid} className="spSum-quickGrid">
               <button
-                onClick={() => router.push("/events/new/details?type=personal")}
+                onClick={() => router.push(showCreateGroupNudge ? "/groups/new" : "/events/new/details?type=personal")}
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
-                <div style={styles.quickTitle}>Crear plan</div>
-                <div style={styles.quickSub}>Empezar algo nuevo</div>
+                <div style={styles.quickTitle}>{showCreateGroupNudge ? "Crear grupo" : "Crear plan"}</div>
+                <div style={styles.quickSub}>{showCreateGroupNudge ? "Abrir la primera coordinación compartida" : "Empezar algo nuevo"}</div>
               </button>
 
               <button

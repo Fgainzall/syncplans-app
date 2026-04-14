@@ -31,7 +31,6 @@ export default function Onboarding1Client() {
   }
 
   function handleLogin() {
-    completeOnboarding();
     router.push(`/auth/login${qsNext}`);
   }
 
@@ -45,7 +44,7 @@ export default function Onboarding1Client() {
           <div style={styles.brandRow}>
             <BrandLogo variant="mark" size={30} />
             <div style={styles.brandMeta}>
-              <span style={styles.step}>Paso 1 de 3</span>
+              <span style={styles.step}>Paso 1 de 4</span>
               <span style={styles.stepTitle}>El problema</span>
             </div>
           </div>
@@ -83,7 +82,7 @@ export default function Onboarding1Client() {
                 Saltar
               </button>
               <button type="button" onClick={handleNext} style={styles.primaryButton}>
-                Seguir
+                Ver por qué
               </button>
             </div>
           </section>

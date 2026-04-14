@@ -25,13 +25,11 @@ export default function Onboarding3Client() {
     router.push(`/onboarding/2${qsNext}`);
   }
 
-  function handleRegister() {
-    completeOnboarding();
-    router.push(`/auth/register${qsNext}`);
+  function handleNext() {
+    router.push(`/onboarding/4${qsNext}`);
   }
 
   function handleLogin() {
-    completeOnboarding();
     router.push(`/auth/login${qsNext}`);
   }
 
@@ -45,41 +43,40 @@ export default function Onboarding3Client() {
           <div style={styles.brandRow}>
             <BrandLogo variant="mark" size={30} />
             <div style={styles.brandMeta}>
-              <span style={styles.step}>Paso 3 de 3</span>
-              <span style={styles.stepTitle}>Cómo funciona</span>
+              <span style={styles.step}>Paso 3 de 4</span>
+              <span style={styles.stepTitle}>En la práctica</span>
             </div>
           </div>
         </header>
 
         <div style={styles.grid}>
           <section style={styles.copyCard}>
-            <div style={styles.kicker}>Simple, directo y compartido</div>
-            <h1 style={styles.title}>Una sola verdad para coordinar mejor.</h1>
+            <div style={styles.kicker}>Así se siente el primer valor</div>
+            <h1 style={styles.title}>No entras a llenar un calendario. Entras a aclarar la semana.</h1>
             <p style={styles.lead}>
-              Así se entiende SyncPlans en segundos: no viene a complicarte, viene a
-              ayudarte a ponerte de acuerdo.
+              El primer valor aparece cuando dejas algo listo en segundos y todos parten de la misma versión de lo que toca hacer.
             </p>
 
             <div style={styles.steps}>
               <div style={styles.stepCard}>
                 <div style={styles.stepNumber}>1</div>
                 <div>
-                  <div style={styles.stepCardTitle}>Comparte con quien importa</div>
-                  <div style={styles.stepCardBody}>Empieza con las personas con las que realmente coordinas tiempo.</div>
+                  <div style={styles.stepCardTitle}>Crea o entra a un espacio compartido</div>
+                  <div style={styles.stepCardBody}>Empieza con pareja, familia o el grupo con el que sí te organizas de verdad.</div>
                 </div>
               </div>
               <div style={styles.stepCard}>
                 <div style={styles.stepNumber}>2</div>
                 <div>
-                  <div style={styles.stepCardTitle}>Organiza planes en un mismo lugar</div>
-                  <div style={styles.stepCardBody}>Todos parten de la misma referencia, no de mensajes sueltos.</div>
+                  <div style={styles.stepCardTitle}>Anota un plan en una línea</div>
+                  <div style={styles.stepCardBody}>No necesitas montar todo. Basta con escribir algo simple para llevarlo directo a revisión.</div>
                 </div>
               </div>
               <div style={styles.stepCard}>
                 <div style={styles.stepNumber}>3</div>
                 <div>
-                  <div style={styles.stepCardTitle}>Decidan con claridad cuando algo se cruza</div>
-                  <div style={styles.stepCardBody}>En vez de discutir tarde, pueden resolver antes y mejor.</div>
+                  <div style={styles.stepCardTitle}>Resuelve antes de que se vuelva roce</div>
+                  <div style={styles.stepCardBody}>Si algo se cruza, SyncPlans lo hace visible cuando todavía es fácil decidir mejor.</div>
                 </div>
               </div>
             </div>
@@ -88,8 +85,8 @@ export default function Onboarding3Client() {
               <button type="button" onClick={handleBack} style={styles.secondaryButton}>
                 Atrás
               </button>
-              <button type="button" onClick={handleRegister} style={styles.primaryButton}>
-                Crear cuenta
+              <button type="button" onClick={handleNext} style={styles.primaryButton}>
+                Seguir
               </button>
               <button type="button" onClick={handleLogin} style={styles.ghostButton}>
                 Ya tengo cuenta
@@ -98,14 +95,13 @@ export default function Onboarding3Client() {
           </section>
 
           <aside style={styles.previewCard}>
-            <div style={styles.previewTag}>Resultado</div>
-            <h2 style={styles.previewHeading}>Menos suposiciones. Más acuerdos.</h2>
+            <div style={styles.previewTag}>Primer valor</div>
+            <h2 style={styles.previewHeading}>Entrar rápido. Entender rápido. Coordinar mejor.</h2>
             <p style={styles.previewBody}>
-              Esa es la idea central del producto. Si esa frase se entiende, el valor de
-              SyncPlans ya se siente antes de usarlo a fondo.
+              El objetivo no es enseñarte todas las funciones. Es llevarte al punto donde ya puedes crear algo útil y sentir por qué invitar a otra persona sí cambia la experiencia.
             </p>
             <div style={styles.finalCard}>
-              El siguiente paso ya no es explicarlo. Es empezar a usarlo.
+              Lo siguiente es elegir cómo empezar: solo o creando tu primer grupo compartido.
             </div>
           </aside>
         </div>

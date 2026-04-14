@@ -178,10 +178,10 @@ export default function GroupsPage() {
 
   const headerSubtitle =
     summary.total === 0
-      ? "Personas con las que te organizas."
+      ? "Aquí empieza la coordinación compartida."
       : `Tienes ${summary.total} grupo${
           summary.total === 1 ? "" : "s"
-        } para coordinar tu tiempo.`;
+        } que ya pueden mover coordinación real.`;
 
   const invitationsLabel =
     pendingInvites === 0
@@ -229,7 +229,7 @@ export default function GroupsPage() {
       <Section>
         <PremiumHeader
           title="Grupos"
-          subtitle="Crea los espacios donde la coordinación deja de vivir solo en tu cabeza y empieza a compartirse de verdad."
+          subtitle="Crea el espacio donde otras personas empiezan a ver la misma versión de la semana que tú."
         />
 
         <Card style={styles.surfaceCard}>
@@ -270,17 +270,17 @@ export default function GroupsPage() {
                 </div>
 
                 <h2 style={styles.heroTitle}>
-                  Grupos para que la coordinación deje de depender solo de ti
+                  El primer grupo convierte SyncPlans en una referencia compartida de verdad
                 </h2>
 
                 <p style={styles.heroText}>
-                  Cada grupo abre un espacio real para coordinar con otras personas. Aquí decides quién entra a la misma versión de la verdad: pareja, familia o grupos compartidos como amigos, deporte o equipos.
+                  Cada grupo abre un espacio real para coordinar con otras personas. Este es el punto donde la app deja de ser solo una estructura ordenada y empieza a crear claridad compartida entre quienes sí necesitan ponerse de acuerdo.
                 </p>
 
                 <div style={styles.heroTip}>
-                  <div style={styles.heroTipLabel}>Tip</div>
+                  <div style={styles.heroTipLabel}>Primer paso recomendado</div>
                   <p style={styles.heroTipText}>
-                    Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>. Después suma a la otra persona: ahí es cuando SyncPlans deja de ser una estructura ordenada y empieza a mover coordinación real dentro del sistema.
+                    Empieza por el grupo que más fricción te evita hoy: <b>Pareja</b>, <b>Familia</b> o un compartido. Luego invita a la otra persona para que el valor ya no dependa solo de que tú recuerdes todo.
                   </p>
                 </div>
               </div>
@@ -411,10 +411,9 @@ export default function GroupsPage() {
               </Card>
             ) : filteredGroups.length === 0 ? (
               <Card tone="muted" style={styles.emptyState}>
-                <h2 style={styles.emptyTitle}>Aún no tienes espacios compartidos</h2>
+                <h2 style={styles.emptyTitle}>Todavía no has creado tu primer espacio compartido</h2>
                 <p style={styles.emptySub}>
-                  Crea tu primer grupo de pareja, familia o compartido para
-                  sacar la coordinación del chat y empezar a moverla dentro de SyncPlans.
+                  Crear tu primer grupo es el paso que activa el valor central de SyncPlans: una sola referencia compartida para dejar de coordinar por memoria o mensajes sueltos.
                 </p>
                 <div style={styles.emptyActions}>
                   <button
@@ -424,7 +423,7 @@ export default function GroupsPage() {
                       reachedGroupLimit ? router.push("/planes") : router.push("/groups/new")
                     }
                   >
-                    {reachedGroupLimit ? "Ver planes" : "Crear primer grupo"}
+                    {reachedGroupLimit ? "Ver planes" : "Crear mi primer grupo"}
                   </button>
                 </div>
               </Card>

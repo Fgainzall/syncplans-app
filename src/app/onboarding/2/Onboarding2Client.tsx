@@ -44,7 +44,7 @@ export default function Onboarding2Client() {
           <div style={styles.brandRow}>
             <BrandLogo variant="mark" size={30} />
             <div style={styles.brandMeta}>
-              <span style={styles.step}>Paso 2 de 3</span>
+              <span style={styles.step}>Paso 2 de 4</span>
               <span style={styles.stepTitle}>El beneficio</span>
             </div>
           </div>
@@ -56,7 +56,7 @@ export default function Onboarding2Client() {
 
         <div style={styles.grid}>
           <section style={styles.copyCard}>
-            <div style={styles.kicker}>Lo que cambia cuando todos ven lo mismo</div>
+            <div style={styles.kicker}>Lo que cambia cuando todos parten de la misma referencia</div>
             <h1 style={styles.title}>SyncPlans reduce fricción antes de que se vuelva discusión.</h1>
             <p style={styles.lead}>
               No se trata de llenar más pantallas. Se trata de que dos o más personas
@@ -83,7 +83,7 @@ export default function Onboarding2Client() {
                 Atrás
               </button>
               <button type="button" onClick={handleNext} style={styles.primaryButton}>
-                Seguir
+                Ver cómo funciona
               </button>
             </div>
           </section>
