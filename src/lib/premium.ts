@@ -172,38 +172,38 @@ export function getPlanSnapshot(
   let planTag = "Plan Free";
   let statusLabel = "Modo Free";
   let planDescription =
-    "Organiza tu tiempo compartido con lo esencial, sin pagar durante la beta.";
+    "Empieza con la base necesaria para ordenar tu tiempo y validar el hábito compartido sin pagar durante la beta.";
 
   if (founder) {
     planLabel = "Founder";
     planTag = "Plan Founder";
     statusLabel = "Founder activo";
     planDescription =
-      "Acceso preferencial para quienes apostaron por SyncPlans desde el inicio.";
+      "Acceso preferencial para quienes apostaron por SyncPlans desde el inicio y ayudaron a construir la capa premium antes que nadie.";
   } else if (trialActive) {
     planLabel = "Prueba Premium";
     planTag = "Prueba Premium";
     statusLabel = "Prueba Premium activa";
     planDescription =
-      "Estás probando las funciones avanzadas que reducen la fricción al coordinar.";
+      "Estás probando la capa que da más claridad, menos fricción y más control cuando coordinar con otros ya importa de verdad.";
   } else if (premiumAccess && billingCycle === "yearly") {
     planLabel = "Premium Anual";
     planTag = "Plan Premium";
     statusLabel = "Premium anual activo";
     planDescription =
-      "Acceso completo para quienes ya usan SyncPlans como sistema real de coordinación.";
+      "Acceso completo para quienes ya usan SyncPlans como sistema real de coordinación y quieren sostener esa claridad en el tiempo.";
   } else if (premiumAccess && billingCycle === "monthly") {
     planLabel = "Premium Mensual";
     planTag = "Plan Premium";
     statusLabel = "Premium mensual activo";
     planDescription =
-      "Acceso completo con flexibilidad mes a mes para coordinar mejor sin fricción.";
+      "Acceso completo con flexibilidad mes a mes para reducir fricción, sumar contexto y decidir mejor sin depender del chat.";
   } else if (premiumAccess) {
     planLabel = "Premium";
     planTag = "Plan Premium";
     statusLabel = "Premium activo";
     planDescription =
-      "Tienes acceso a las funciones avanzadas para convertir coordinación en decisiones reales.";
+      "Tienes acceso a la capa premium que convierte coordinación en decisiones más claras, visibles y controlables.";
   }
 
   return {
@@ -345,20 +345,20 @@ export function getPlanAccessState(
   }
 
   let planStatusHint =
-    "Estás usando SyncPlans desde la base Free mientras terminamos de definir el empaquetado final de valor.";
+    "Estás usando la base Free para empezar. Premium entra cuando necesitas más claridad, menos fricción y más control sobre la coordinación compartida.";
 
   if (accessSource === "founder") {
     planStatusHint =
       "Tu acceso Founder mantiene beneficios preferenciales y se trata como una capa premium estable durante la beta.";
   } else if (accessSource === "trial") {
     planStatusHint =
-      "Tu trial te da acceso a funciones premium para que valides el valor real antes de cualquier cobro.";
+      "Tu trial te deja probar la diferencia entre registrar cosas y coordinar de verdad antes de cualquier cobro.";
   } else if (currentPlanCardId === "premium_yearly") {
     planStatusHint =
-      "Tu acceso Premium Anual está pensado para una coordinación sostenida y con menos fricción.";
+      "Tu acceso Premium Anual está pensado para una coordinación sostenida, con más claridad compartida y menos desgaste operativo.";
   } else if (currentPlanCardId === "premium_monthly") {
     planStatusHint =
-      "Tu acceso Premium Mensual te da flexibilidad mientras validas cuánto valor te aporta SyncPlans.";
+      "Tu acceso Premium Mensual te da flexibilidad mientras validas cuánto valor real te aporta tener más contexto y menos fricción.";
   }
 
   return {

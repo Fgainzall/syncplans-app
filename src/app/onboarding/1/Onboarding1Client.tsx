@@ -1,4 +1,3 @@
-// src/app/onboarding/1/Onboarding1Client.tsx
 "use client";
 
 import React from "react";
@@ -39,8 +38,8 @@ export default function Onboarding1Client() {
       <div style={styles.glowA} aria-hidden />
       <div style={styles.glowB} aria-hidden />
 
-      <section style={styles.shell}>
-        <header style={styles.topBar}>
+      <section style={styles.shell} className="ob-shell">
+        <header style={styles.topBar} className="ob-topBar">
           <div style={styles.brandRow}>
             <BrandLogo variant="mark" size={30} />
             <div style={styles.brandMeta}>
@@ -54,30 +53,43 @@ export default function Onboarding1Client() {
           </button>
         </header>
 
-        <div style={styles.grid}>
+        <div style={styles.progressRow}>
+          <span style={{ ...styles.progressDot, opacity: 1 }} />
+          <span style={styles.progressDot} />
+          <span style={styles.progressDot} />
+          <span style={styles.progressDot} />
+        </div>
+
+        <div style={styles.grid} className="ob-grid">
           <section style={styles.copyCard}>
-            <div style={styles.kicker}>Coordinar con otros no debería sentirse complicado</div>
-            <h1 style={styles.title}>El problema no es el tiempo. Es ponerse de acuerdo.</h1>
-            <p style={styles.lead}>
-              Entre trabajo, pareja, familia, amigos y pendientes, es muy fácil que dos
-              personas entiendan la misma semana de formas distintas.
-            </p>
+            <div style={styles.kicker}>Coordinar no debería sentirse pesado</div>
+
+            <div style={styles.copyStack}>
+              <h1 style={styles.title} className="ob-title">
+                El problema no es el tiempo. <span style={styles.titleAccent}>Es ponerse de acuerdo.</span>
+              </h1>
+
+              <p style={styles.lead}>
+                Entre trabajo, pareja, familia, amigos y pendientes, es muy fácil que dos
+                personas entiendan la misma semana de formas distintas.
+              </p>
+            </div>
 
             <div style={styles.quoteBox}>
-              <div style={styles.quoteLabel}>Frases demasiado comunes</div>
+              <div style={styles.quoteLabel}>Lo que suele pasar</div>
               <div style={styles.quoteList}>
-                <span style={styles.quote}>“Pensé que era otro día.”</span>
-                <span style={styles.quote}>“No vi ese mensaje.”</span>
-                <span style={styles.quote}>“Yo ya tenía algo.”</span>
+                <span style={styles.quote}>Pensé que era otro día</span>
+                <span style={styles.quote}>No vi ese mensaje</span>
+                <span style={styles.quote}>Yo ya tenía algo</span>
               </div>
             </div>
 
             <p style={styles.support}>
-              Cuando la coordinación falla, aparecen roces, confusión y discusiones que se
-              pudieron evitar mucho antes.
+              Cuando la coordinación falla, el problema casi nunca empieza grande.
+              Empieza con pequeñas ambigüedades que terminan convirtiéndose en roce.
             </p>
 
-            <div style={styles.actions}>
+            <div style={styles.actions} className="ob-actions">
               <button type="button" onClick={handleSkip} style={styles.secondaryButton}>
                 Saltar
               </button>
@@ -89,14 +101,16 @@ export default function Onboarding1Client() {
 
           <aside style={styles.previewCard}>
             <div style={styles.previewBadge}>Situación real</div>
+
             <div style={styles.timeline}>
-              <div style={styles.timelineItem}>
+              <div style={styles.timelineItemStrong}>
                 <div>
                   <div style={styles.timelineDay}>Viernes</div>
                   <div style={styles.timelineTitle}>Cena reservada</div>
                 </div>
                 <div style={styles.timelineTime}>20:30</div>
               </div>
+
               <div style={styles.timelineItemMuted}>
                 <div>
                   <div style={styles.timelineDay}>Viernes</div>
@@ -109,16 +123,55 @@ export default function Onboarding1Client() {
             <div style={styles.alertCard}>
               <div style={styles.alertTitle}>Mismo horario. Distintas expectativas.</div>
               <div style={styles.alertBody}>
-                El problema empieza cuando nadie ve el cruce a tiempo y cada uno ya dio por
-                hecho algo distinto.
+                El problema empieza cuando nadie ve el cruce a tiempo y cada uno ya dio por hecho algo distinto.
               </div>
+            </div>
+
+            <div style={styles.previewFoot}>
+              SyncPlans existe para que esa conversación llegue antes, con más claridad y menos fricción.
             </div>
           </aside>
         </div>
       </section>
+
+      <style>{responsiveCss}</style>
     </main>
   );
 }
+
+const responsiveCss = `
+  @media (max-width: 980px) {
+    .ob-grid {
+      grid-template-columns: 1fr !important;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .ob-shell {
+      padding: 18px !important;
+      border-radius: 22px !important;
+    }
+
+    .ob-topBar {
+      align-items: flex-start !important;
+      flex-direction: column !important;
+    }
+
+    .ob-title {
+      font-size: 38px !important;
+      line-height: 0.98 !important;
+      letter-spacing: -0.05em !important;
+    }
+
+    .ob-actions {
+      flex-direction: column !important;
+    }
+
+    .ob-actions button {
+      width: 100% !important;
+    }
+  }
+`;
 
 const styles: Record<string, React.CSSProperties> = {
   page: {
@@ -127,25 +180,29 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#F8FAFC",
     position: "relative",
     overflow: "hidden",
-    padding: "24px 16px",
+    padding: "18px 14px 24px",
   },
   glowA: {
     position: "absolute",
-    inset: "auto auto 0 -10%",
-    width: 420,
-    height: 420,
+    left: "-12%",
+    bottom: "-4%",
+    width: 380,
+    height: 380,
     borderRadius: 999,
     background: "rgba(56,189,248,0.14)",
-    filter: "blur(80px)",
+    filter: "blur(84px)",
+    pointerEvents: "none",
   },
   glowB: {
     position: "absolute",
-    inset: "-10% -10% auto auto",
-    width: 360,
-    height: 360,
+    right: "-10%",
+    top: "-8%",
+    width: 320,
+    height: 320,
     borderRadius: 999,
     background: "rgba(168,85,247,0.12)",
-    filter: "blur(80px)",
+    filter: "blur(82px)",
+    pointerEvents: "none",
   },
   shell: {
     position: "relative",
@@ -154,43 +211,58 @@ const styles: Record<string, React.CSSProperties> = {
     margin: "0 auto",
     borderRadius: 28,
     border: "1px solid rgba(148,163,184,0.14)",
-    background: "rgba(9,14,30,0.82)",
-    backdropFilter: "blur(14px)",
+    background: "linear-gradient(180deg, rgba(9,14,30,0.88) 0%, rgba(6,10,24,0.94) 100%)",
+    backdropFilter: "blur(16px)",
     padding: 24,
     display: "grid",
-    gap: 20,
+    gap: 18,
+    overflow: "hidden",
   },
   topBar: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    flexWrap: "wrap",
   },
   brandRow: { display: "flex", alignItems: "center", gap: 12 },
   brandMeta: { display: "grid", gap: 2 },
-  step: { fontSize: 12, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em" },
-  stepTitle: { fontSize: 14, fontWeight: 700, color: "#E2E8F0" },
+  step: {
+    fontSize: 11,
+    color: "#94A3B8",
+    textTransform: "uppercase",
+    letterSpacing: "0.12em",
+    fontWeight: 800,
+  },
+  stepTitle: { fontSize: 15, fontWeight: 800, color: "#E2E8F0" },
   ghostTopButton: {
     minHeight: 42,
-    padding: "0 14px",
+    padding: "0 16px",
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.22)",
-    background: "transparent",
+    background: "rgba(255,255,255,0.03)",
     color: "#E2E8F0",
     fontWeight: 700,
     cursor: "pointer",
   },
+  progressRow: { display: "flex", gap: 8, alignItems: "center" },
+  progressDot: {
+    width: 26,
+    height: 6,
+    borderRadius: 999,
+    background: "linear-gradient(135deg, rgba(56,189,248,0.92), rgba(129,140,248,0.92))",
+    opacity: 0.28,
+  },
   grid: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.15fr) minmax(300px, 0.85fr)",
+    gridTemplateColumns: "minmax(0, 1.1fr) minmax(300px, 0.9fr)",
     gap: 18,
+    alignItems: "stretch",
   },
   copyCard: {
     borderRadius: 24,
     border: "1px solid rgba(148,163,184,0.14)",
     background: "rgba(15,23,42,0.64)",
-    padding: 24,
+    padding: 22,
     display: "grid",
     gap: 18,
   },
@@ -207,8 +279,17 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: "0.06em",
     textTransform: "uppercase",
   },
-  title: { margin: 0, fontSize: 42, lineHeight: 1.02, letterSpacing: "-0.04em", maxWidth: 620, fontWeight: 800 },
-  lead: { margin: 0, fontSize: 17, lineHeight: 1.7, color: "#CBD5E1", maxWidth: 620 },
+  copyStack: { display: "grid", gap: 14 },
+  title: {
+    margin: 0,
+    fontSize: 56,
+    lineHeight: 0.96,
+    letterSpacing: "-0.06em",
+    maxWidth: 720,
+    fontWeight: 850,
+  },
+  titleAccent: { color: "#C7D2FE" },
+  lead: { margin: 0, fontSize: 17, lineHeight: 1.7, color: "#CBD5E1", maxWidth: 640 },
   quoteBox: {
     borderRadius: 20,
     border: "1px solid rgba(148,163,184,0.14)",
@@ -217,18 +298,19 @@ const styles: Record<string, React.CSSProperties> = {
     display: "grid",
     gap: 12,
   },
-  quoteLabel: { fontSize: 13, fontWeight: 700, color: "#94A3B8" },
+  quoteLabel: { fontSize: 13, fontWeight: 800, color: "#94A3B8" },
   quoteList: { display: "flex", flexWrap: "wrap", gap: 10 },
   quote: {
     display: "inline-flex",
     padding: "10px 14px",
     borderRadius: 999,
-    background: "rgba(15,23,42,0.9)",
+    background: "rgba(8,15,30,0.86)",
     border: "1px solid rgba(148,163,184,0.16)",
     color: "#F8FAFC",
     fontSize: 14,
+    fontWeight: 600,
   },
-  support: { margin: 0, fontSize: 15, lineHeight: 1.7, color: "#94A3B8", maxWidth: 640 },
+  support: { margin: 0, fontSize: 15, lineHeight: 1.72, color: "#94A3B8", maxWidth: 640 },
   actions: { display: "flex", gap: 12, flexWrap: "wrap" },
   secondaryButton: {
     minHeight: 48,
@@ -253,8 +335,8 @@ const styles: Record<string, React.CSSProperties> = {
   previewCard: {
     borderRadius: 24,
     border: "1px solid rgba(148,163,184,0.14)",
-    background: "linear-gradient(180deg, rgba(56,189,248,0.08) 0%, rgba(15,23,42,0.76) 100%)",
-    padding: 24,
+    background: "linear-gradient(180deg, rgba(56,189,248,0.09) 0%, rgba(15,23,42,0.78) 100%)",
+    padding: 22,
     display: "grid",
     gap: 16,
     alignContent: "start",
@@ -270,14 +352,14 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
   },
   timeline: { display: "grid", gap: 12 },
-  timelineItem: {
+  timelineItemStrong: {
     display: "flex",
     justifyContent: "space-between",
     gap: 12,
     padding: 16,
     borderRadius: 18,
-    background: "rgba(8,15,30,0.78)",
-    border: "1px solid rgba(56,189,248,0.20)",
+    background: "rgba(8,15,30,0.82)",
+    border: "1px solid rgba(56,189,248,0.22)",
   },
   timelineItemMuted: {
     display: "flex",
@@ -289,8 +371,8 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(148,163,184,0.14)",
   },
   timelineDay: { fontSize: 12, color: "#94A3B8", marginBottom: 4 },
-  timelineTitle: { fontSize: 15, fontWeight: 700, color: "#F8FAFC" },
-  timelineTime: { fontSize: 14, fontWeight: 700, color: "#CBD5E1" },
+  timelineTitle: { fontSize: 15, fontWeight: 800, color: "#F8FAFC" },
+  timelineTime: { fontSize: 14, fontWeight: 800, color: "#CBD5E1" },
   alertCard: {
     borderRadius: 20,
     padding: 18,
@@ -300,5 +382,6 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
   },
   alertTitle: { fontSize: 15, fontWeight: 800, color: "#FCA5A5" },
-  alertBody: { fontSize: 14, lineHeight: 1.65, color: "#FECACA" },
+  alertBody: { fontSize: 14, lineHeight: 1.68, color: "#FECACA" },
+  previewFoot: { fontSize: 14, lineHeight: 1.7, color: "#CBD5E1" },
 };

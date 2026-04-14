@@ -31,18 +31,18 @@ type PlanCardConfig = {
 };
 
 const freeFeatures: string[] = [
-  "Tu calendario personal y la base para empezar a coordinar sin caos.",
-  `Hasta ${FREE_GROUP_LIMIT} grupo incluido para arrancar sin fricción y validar el hábito compartido.`,
-  "Detección básica de conflictos al guardar nuevos eventos.",
+  "La base para empezar a ordenar tu tiempo sin improvisar desde el día uno.",
+  `Hasta ${FREE_GROUP_LIMIT} grupo incluido para empezar sin fricción y probar si SyncPlans ya te está ahorrando desgaste real.`,
+  "Detección básica de conflictos para que el sistema ya empiece a avisarte cuando algo choca.",
   "Sin tarjetas ni cobros automáticos durante la beta privada.",
 ];
 
 const premiumCoreFeatures: string[] = [
   "Más de un grupo cuando tu coordinación ya no cabe en un solo espacio compartido.",
-  "Coordinación externa más útil: respuestas, propuestas y acciones dentro de la app.",
-  "Más contexto para decidir conflictos sin perseguir mensajes por fuera.",
-  "Panel y métricas para entender qué está pasando en el tiempo compartido.",
-  "Integraciones y automatizaciones premium a medida que SyncPlans madure.",
+  "Más contexto dentro del sistema: respuestas, propuestas y acciones sin perseguir mensajes por fuera.",
+  "Más claridad para decidir conflictos sin reconstruir la historia en chats sueltos.",
+  "Más visibilidad desde el panel para entender qué está pasando en el tiempo compartido.",
+  "Integraciones premium para traer contexto externo al mismo lugar donde decides.",
 ];
 
 const premiumMonthlyFeatures: string[] = [
@@ -52,7 +52,7 @@ const premiumMonthlyFeatures: string[] = [
 
 const premiumYearlyFeatures: string[] = [
   ...premiumCoreFeatures,
-  "Mejor relación valor / precio para hogares o parejas que ya usan SyncPlans como hábito.",
+  "Mejor relación valor / precio para parejas, familias y grupos que ya usan SyncPlans como hábito.",
   "Pensado para una coordinación sostenida, no para un uso esporádico.",
 ];
 
@@ -65,12 +65,12 @@ function buildPlanCards(): PlanCardConfig[] {
       price: "US$0",
       priceSuffix: "/ mes",
       description:
-        "La puerta de entrada para ordenar el tiempo compartido y entender el problema antes de pagar por resolverlo mejor.",
+        "La base para empezar a coordinar sin ruido y entender el valor antes de pagar por una capa más potente.",
       idealFor:
         "Ideal si recién estás empezando y todavía quieres validar el hábito.",
       features: freeFeatures,
       emotionalHook:
-        "Free te deja empezar. Premium aparece cuando coordinar bien ya no es opcional.",
+        "Free te deja empezar. Premium aparece cuando la coordinación ya no puede depender de memoria, chats y buena suerte.",
     },
     {
       id: "premium_monthly",
@@ -79,14 +79,14 @@ function buildPlanCards(): PlanCardConfig[] {
       price: "US$X",
       priceSuffix: "/ mes",
       description:
-        "Para quien ya sintió el valor de coordinar mejor y quiere menos fricción sin comprometerse todavía a largo plazo.",
+        "Para quien ya sintió el valor de coordinar mejor y quiere más claridad, menos fricción y más control sin comprometerse todavía a largo plazo.",
       idealFor:
-        "Ideal si ya usas SyncPlans en serio, pero todavía quieres flexibilidad.",
+        "Ideal si ya usas SyncPlans en serio y quieres probar Premium con flexibilidad.",
       badge: "Recomendado",
       highlight: true,
       features: premiumMonthlyFeatures,
       emotionalHook:
-        "La diferencia no es más calendario. Es menos fricción todas las semanas.",
+        "La diferencia no es más calendario. Es menos desgaste todas las semanas.",
     },
     {
       id: "premium_yearly",
@@ -95,23 +95,23 @@ function buildPlanCards(): PlanCardConfig[] {
       price: "US$Y",
       priceSuffix: "/ año",
       description:
-        "Para parejas y familias que ya entendieron que la tranquilidad compartida vale más que resolver todo por chat.",
+        "Para parejas, familias y grupos que ya entendieron que la tranquilidad compartida vale más que resolver todo por chat.",
       idealFor:
         "Ideal si SyncPlans ya se volvió parte de la rutina.",
       features: premiumYearlyFeatures,
       emotionalHook:
-        "Cuando la coordinación importa de verdad, la tranquilidad compartida vale más que el precio.",
+        "Cuando coordinar bien ya es parte de tu rutina, la tranquilidad compartida vale más que el precio.",
     },
   ];
 }
 
 function getCurrentPlanNote(state: PlanAccessState): string {
   if (state.isFounder) {
-    return "Tu acceso Founder se trata como una capa premium estable y preferencial durante la beta.";
+    return "Tu acceso Founder ya vive en una capa preferencial y estable dentro de SyncPlans.";
   }
 
   if (state.accessSource === "trial") {
-    return "Hoy tienes acceso premium por trial, así que esta pantalla debe ayudarte a entender el valor antes que el precio.";
+    return "Hoy tienes acceso premium por trial, así que esta pantalla debe ayudarte a medir el valor real antes que el precio.";
   }
 
   if (state.currentPlanCardId === "premium_yearly") {
@@ -122,7 +122,7 @@ function getCurrentPlanNote(state: PlanAccessState): string {
     return "Tu acceso actual corresponde a Premium Mensual.";
   }
 
-  return `Hoy estás usando SyncPlans desde la base Free con hasta ${FREE_GROUP_LIMIT} grupo incluido.`;
+  return `Hoy estás usando SyncPlans desde la base Free con hasta ${FREE_GROUP_LIMIT} grupo incluido antes de que la coordinación se vuelva más compleja.`;
 }
 
 function getDecisionHeadline(state: PlanAccessState): string {
@@ -130,19 +130,19 @@ function getDecisionHeadline(state: PlanAccessState): string {
   if (state.accessSource === "trial")
     return "Ahora mismo ya estás sintiendo el valor completo de Premium.";
   if (state.hasPremiumAccess)
-    return "Tu coordinación ya funciona con menos fricción.";
-  return "Free sirve para empezar. Premium aparece cuando coordinar con otros deja de ser una prueba y pide más claridad.";
+    return "Tu coordinación ya funciona con más claridad, menos fricción y más control.";
+  return "Free sirve para empezar. Premium aparece cuando coordinar con otros deja de ser una prueba y te pide más claridad, menos fricción y más control.";
 }
 
 function getDecisionCopy(state: PlanAccessState): string {
   if (state.isFounder) {
-    return "Founder no necesita urgencia. Necesita reconocer que entraste antes y conservas una posición especial.";
+    return "Founder no necesita presión. Necesita reconocer que entraste antes y conservas una posición especial dentro de la capa premium.";
   }
   if (state.accessSource === "trial") {
-    return "La decisión no es pagar por más funciones. Es no volver al modo improvisado después de haber probado claridad real.";
+    return "La decisión no es pagar por más funciones. Es no volver al modo improvisado después de haber probado más claridad, menos fricción y más control.";
   }
   if (state.hasPremiumAccess) {
-    return "Cuando Premium está activo, el valor no se nota en una lista. Se nota en menos desgaste, menos mensajes sueltos y mejores decisiones.";
+    return "Cuando Premium está activo, el valor no se nota en una lista. Se nota en menos desgaste, menos mensajes sueltos y mejores decisiones compartidas.";
   }
   return "El problema no es guardar eventos. El problema es alinear personas, contexto y decisiones sin perseguir chats ni versiones distintas de la realidad.";
 }
@@ -151,7 +151,7 @@ function getWhyPayBullets(state: PlanAccessState): string[] {
   if (state.isFounder) {
     return [
       "Porque Founder reconoce tu entrada temprana y tu confianza inicial.",
-      "Porque tu acceso ya vive cerca de la capa premium sin fricción extra.",
+      "Porque tu acceso ya vive dentro de una capa premium preferencial, sin fricción extra.",
       "Porque esta posición debe sentirse especial, no genérica.",
     ];
   }
@@ -160,7 +160,7 @@ function getWhyPayBullets(state: PlanAccessState): string[] {
     return [
       "Porque ya viste la diferencia entre registrar cosas y coordinarlas bien.",
       "Porque Premium reduce fricción justo donde más se siente: decisiones, contexto e integración.",
-      "Porque volver atrás se nota cuando todos dejan de ver la misma verdad.",
+      "Porque volver atrás se nota cuando todos dejan de ver la misma verdad compartida.",
     ];
   }
 
@@ -174,7 +174,7 @@ function getWhyPayBullets(state: PlanAccessState): string[] {
 
   return [
     `Porque Free te deja empezar con hasta ${FREE_GROUP_LIMIT} grupo, pero la coordinación real suele crecer más allá de un solo espacio.`,
-    "Porque el problema no es guardar eventos, sino alinear personas.",
+    "Porque el problema no es guardar eventos, sino alinear personas, contexto y decisiones.",
     "Porque Premium convierte respuestas, contexto e integración en decisiones dentro del sistema.",
     "Porque coordinar bien cuesta menos que corregir enredos después.",
   ];
@@ -231,14 +231,14 @@ export default function PlanesPage() {
     <MobileScaffold>
       <PremiumHeader
         title="Planes"
-        subtitle="Premium no existe para darte más pantallas. Existe para bajar fricción, sostener claridad compartida y hacer que coordinar con otros desgaste menos."
+        subtitle="Premium no existe para darte más pantallas. Existe para darte más claridad, menos fricción y más control cuando coordinar con otros ya importa de verdad."
       />
 
       <div style={sectionWrapperStyle}>
         <section style={decisionHeroStyle}>
           <div style={decisionHeroTopStyle}>
             <div style={decisionHeroTextStyle}>
-              <div style={decisionEyebrowStyle}>Valor real</div>
+              <div style={decisionEyebrowStyle}>Premium real</div>
               <h2 style={decisionTitleStyle}>
                 {loading ? "Cargando estado del plan..." : getDecisionHeadline(planState)}
               </h2>
@@ -346,7 +346,7 @@ export default function PlanesPage() {
             <div>
               <h3 style={plansTitleStyle}>Planes de SyncPlans</h3>
               <p style={plansSubtitleStyle}>
-                La diferencia real entre planes no es “tener más funciones”. Es cuánto contexto, cuánta visibilidad y cuánta fricción quieres sacar de la coordinación cuando ya no estás organizándote solo.
+                La diferencia real entre planes no es “tener más funciones”. Es cuánto contexto, cuánta visibilidad y cuánta fricción quieres sacar de la coordinación cuando ya no te organizas solo ni quieres volver al caos.
               </p>
             </div>
           </header>
@@ -428,14 +428,14 @@ export default function PlanesPage() {
                       {isCurrent
                         ? "Ya estás en este plan"
                         : card.id === "free"
-                        ? "Continuar con Free"
+                        ? "Seguir con Free"
                         : "Próximamente activación Premium"}
                     </button>
 
                     <p style={planCtaHintStyle}>
                       {card.id === "free"
                         ? "Free te deja empezar. Premium entra cuando ya notaste que improvisar cuesta más que ordenar bien."
-                        : "Este plan está pensado para proteger claridad compartida, no para inflar una lista de features."}
+                        : "Este plan está pensado para proteger claridad compartida, no para inflar una lista de funciones."}
                     </p>
                   </div>
                 </article>

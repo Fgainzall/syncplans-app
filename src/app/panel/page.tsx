@@ -507,10 +507,10 @@ export default function PanelPage() {
       return {
         pill: "Founder",
         title: "Founder activo",
-        copy: "Ventaja temprana activa.",
+        copy: "Entraste antes y conservas una capa preferencial dentro del valor premium.",
         cta: "Ver beneficios",
         tone: "founder" as PlanTone,
-        supportingCopy: "Mantienes una posición preferencial.",
+        supportingCopy: "Tu acceso reconoce esa ventaja temprana.",
       };
     }
 
@@ -518,10 +518,10 @@ export default function PanelPage() {
       return {
         pill: "Trial",
         title: "Premium en prueba",
-        copy: "Ya estás probando una coordinación más clara, más visible y menos dependiente del chat.",
+        copy: "Ya estás probando una coordinación con más claridad, menos fricción y más control sobre lo compartido.",
         cta: "Mantener Premium",
         tone: "trial" as PlanTone,
-        supportingCopy: "Evita volver al desorden.",
+        supportingCopy: "Evita volver al modo improvisado.",
       };
     }
 
@@ -529,20 +529,20 @@ export default function PanelPage() {
       return {
         pill: "Premium",
         title: "Premium activo",
-        copy: "Tu coordinación premium ya está funcionando sobre una estructura más sólida.",
+        copy: "Tu coordinación premium ya está funcionando con más claridad compartida, menos desgaste y mejor visibilidad.",
         cta: "Gestionar plan",
         tone: "premium" as PlanTone,
-        supportingCopy: "Más claridad. Menos fricción.",
+        supportingCopy: "Más claridad. Menos fricción. Más control.",
       };
     }
 
     return {
       pill: "Free",
       title: "Plan actual",
-      copy: "Tu base gratuita ya está activa y lista para crecer cuando la coordinación se vuelva más compleja.",
+      copy: "Tu base gratuita ya está activa. Premium entra cuando coordinar con otros ya pide más contexto, más visibilidad y menos desgaste.",
       cta: "Ver planes",
       tone: "free" as PlanTone,
-      supportingCopy: "Premium entra cuando coordinar crece.",
+      supportingCopy: "Premium aparece cuando el sistema compartido crece.",
     };
   }, [premiumActive, tier, trialActive]);
 
@@ -1043,8 +1043,8 @@ export default function PanelPage() {
               {!planInfo.tone || planInfo.tone === "free" ? (
                 <div style={styles.planMiniNote}>
                   {groupLimitState.reached
-                    ? "Premium abre más grupos."
-                    : `Free incluye hasta ${groupLimitState.limit ?? "1"} grupo.`}
+                    ? "Premium abre más grupos y más control cuando la coordinación crece."
+                    : `Free incluye hasta ${groupLimitState.limit ?? "1"} grupo antes de que Premium empiece a tener sentido.`}
                 </div>
               ) : null}
 

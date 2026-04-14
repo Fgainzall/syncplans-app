@@ -225,7 +225,7 @@ function getAutoSubtitle(pathname: string) {
     return "Ajusta la experiencia, permisos e integraciones de tu espacio.";
   }
   if (pathname.startsWith("/planes")) {
-    return "Compara planes y desbloquea funciones premium.";
+    return "Compara cómo Free y Premium reducen fricción a medida que tu coordinación crece.";
   }
   return "Organiza tu día sin conflictos de horario.";
 }
@@ -235,15 +235,15 @@ function getUpgradeMessage(pathname: string) {
     return "Más claridad cuando tu coordinación compartida crece.";
   }
   if (pathname.startsWith("/invitations")) {
-    return "Más contexto cuando nuevas personas entran a coordinar.";
+    return "Más control cuando nuevas personas entran a coordinar.";
   }
   if (pathname.startsWith("/calendar")) {
-    return "Más contexto para anticipar choques antes de reaccionar.";
+    return "Más claridad para anticipar choques antes de reaccionar.";
   }
   if (pathname.startsWith("/panel")) {
     return "Más visibilidad para sostener la coordinación sin fricción.";
   }
-  return "Menos fricción y más claridad para coordinar mejor.";
+  return "Más claridad, menos fricción y más control para coordinar mejor.";
 }
 
 export default function PremiumHeader({
@@ -668,7 +668,7 @@ export default function PremiumHeader({
                   onClick={() => router.push("/planes", { scroll: false })}
                   style={styles.mobileUpgradeButton}
                 >
-                  Ver planes
+                  Ver valor
                 </button>
               </div>
             ) : null}
