@@ -1060,7 +1060,7 @@ const valueVisibility = useMemo(() => {
         <Section>
           <PremiumHeader
             title="Calendario"
-            subtitle="Entra, ubica choques y decide rápido qué se mantiene abierto."
+            subtitle="El calendario acompaña la coordinación. Aquí ubicas rápido qué necesita decisión."
             rightSlot={
               <button
                 onClick={handleRefresh}
@@ -1109,7 +1109,7 @@ const valueVisibility = useMemo(() => {
       <Section>
         <PremiumHeader
           title="Calendario"
-          subtitle="Visualiza tu tiempo con claridad y detecta choques rápido."
+          subtitle="El calendario acompaña la coordinación. Aquí ves rápido qué necesita decisión y qué ya quedó claro."
           rightSlot={
             <button
               onClick={handleRefresh}
@@ -1127,13 +1127,18 @@ const valueVisibility = useMemo(() => {
         <Card style={styles.overviewCard} className="spCal-overviewCard">
           <div style={styles.overviewTop}>
             <div style={styles.overviewLeft}>
-              <div style={styles.overviewEyebrow}>Vista actual</div>
+              <div style={styles.overviewEyebrow}>Calendario como soporte</div>
               <h2 style={styles.overviewTitle}>
-                {tab === "month" ? "Vista mensual" : "Vista agenda"}
+                {tab === "month" ? "Lo que está visible" : "Seguimiento de lo visible"}
               </h2>
               <div style={styles.overviewSub}>
                 {monthTitle}
                 {error ? ` · ${error}` : ""}
+                {!error
+                  ? conflictCount > 0
+                    ? " · Aquí solo ubicamos rápido dónde tocar decisión."
+                    : " · Úsalo para ubicar rápido, no para perderte en una agenda fría."
+                  : ""}
               </div>
             </div>
 
@@ -1142,13 +1147,13 @@ const valueVisibility = useMemo(() => {
                 onClick={() => openNewEventPersonal()}
                 style={styles.primaryBtnPersonal}
               >
-                + Personal
+                + Plan personal
               </button>
               <button
                 onClick={() => openNewEventGroup()}
                 style={styles.primaryBtnGroup}
               >
-                + Grupo
+                + Plan compartido
               </button>
             </div>
           </div>
@@ -1168,11 +1173,11 @@ const valueVisibility = useMemo(() => {
               <div style={styles.statusCluster}>
                 <button onClick={openConflicts} style={styles.statusPillDanger}>
                   <span style={styles.statusDotDanger} />
-                  {conflictCount} conflicto{conflictCount === 1 ? "" : "s"}
+                  {conflictCount} choque{conflictCount === 1 ? "" : "s"} abierto{conflictCount === 1 ? "" : "s"}
                 </button>
 
                 <button onClick={resolveNow} style={styles.statusPillAction}>
-                  Revisar
+                  Resolver ahora
                 </button>
               </div>
             ) : (
@@ -1183,7 +1188,7 @@ const valueVisibility = useMemo(() => {
                 }}
               >
                 <span style={styles.statusDotSuccess} />
-                Todo despejado
+                Sin choques abiertos
               </div>
             )}
 
@@ -1202,9 +1207,9 @@ const valueVisibility = useMemo(() => {
           <Card style={styles.valueRailCard}>
             <div style={styles.valueRailTop}>
               <div style={styles.valueRailCopy}>
-                <div style={styles.valueRailEyebrow}>Retorno útil</div>
+                <div style={styles.valueRailEyebrow}>Señales compartidas</div>
                 <div style={styles.valueRailTitle}>
-                  Aquí se ve rápido qué ya quedó resuelto y qué todavía pide decisión.
+                  Aquí ubicas rápido qué ya quedó claro y qué todavía necesita una decisión compartida.
                 </div>
                 <div style={styles.valueRailSub}>
                   {valueVisibility.resolved > 0
@@ -1227,7 +1232,7 @@ const valueVisibility = useMemo(() => {
                   onClick={valueVisibility.pending > 0 ? openConflicts : handleRefresh}
                   style={styles.valueRailBtn}
                 >
-                  {valueVisibility.pending > 0 ? "Resolver lo abierto" : "Actualizar tiempo visible"}
+                  {valueVisibility.pending > 0 ? "Resolver lo pendiente" : "Refrescar señales"}
                 </button>
               </div>
             </div>
@@ -1310,20 +1315,20 @@ const valueVisibility = useMemo(() => {
                     onClick={() => openNewEventPersonal(selectedDay)}
                     style={styles.ghostBtnSmallPersonal}
                   >
-                    + Personal
+                    + Plan personal
                   </button>
                   <button
                     onClick={() => openNewEventGroup(selectedDay)}
                     style={styles.ghostBtnSmallGroup}
                   >
-                    + Grupo
+                    + Plan compartido
                   </button>
                 </div>
               </div>
 
               <div style={styles.dayList}>
                 {(eventsByDay.get(ymd(selectedDay)) || []).length === 0 ? (
-                  <div style={styles.emptyHint}>Nada pendiente este día. Puedes dejar algo listo desde aquí.</div>
+                  <div style={styles.emptyHint}>Nada abierto este día. Puedes dejar un plan claro desde aquí.</div>
                 ) : (
                   (eventsByDay.get(ymd(selectedDay)) || []).map((e) => (
                     <EventRow
@@ -1347,7 +1352,7 @@ const valueVisibility = useMemo(() => {
         ) : (
           <Card style={styles.agendaCard}>
             <div style={styles.agendaTop}>
-              <div style={styles.agendaTitle}>Seguimiento del mes</div>
+              <div style={styles.agendaTitle}>Seguimiento visible</div>
               <div style={styles.agendaSub}>
                 Mostrando {agendaEvents.length} evento
                 {agendaEvents.length === 1 ? "" : "s"}

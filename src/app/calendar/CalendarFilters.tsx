@@ -91,7 +91,7 @@ export function CalendarFilters({
               ...(tab === "month" ? styles.segmentOn : {}),
             }}
           >
-            Mes
+            Calendario
           </button>
           <button
             onClick={() => onChangeTab("agenda")}
@@ -100,7 +100,7 @@ export function CalendarFilters({
               ...(tab === "agenda" ? styles.segmentOn : {}),
             }}
           >
-            Agenda
+            Seguimiento
           </button>
         </div>
 
@@ -112,9 +112,9 @@ export function CalendarFilters({
               ...styles.segmentBtn,
               ...(scope === "active" ? styles.segmentOn : {}),
             }}
-            title="Personal + grupo activo + conflictos"
+            title="Personal + grupo activo + señales compartidas"
           >
-            Activo
+            Compartido
           </button>
           <button
             onClick={() => onChangeScope("personal")}
@@ -132,7 +132,7 @@ export function CalendarFilters({
               ...(scope === "all" ? styles.segmentOn : {}),
             }}
           >
-            Todo
+            Todo visible
           </button>
         </div>
 
@@ -210,7 +210,7 @@ export function CalendarFilters({
         </div>
       </div>
 
-      {/* Chips de grupos (Personal / Pareja / Familia) */}
+      {/* Chips de grupos visibles */}
       <div style={styles.groupRow}>
         {(
           ["personal", "pair", "family"] as any as GroupType[]

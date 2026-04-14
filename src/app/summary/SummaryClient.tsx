@@ -778,6 +778,107 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     };
   }, [visibleDecisions, conflictAlert.count, upcomingStats.total, pendingAttention.captures]);
 
+  const primaryAction = useMemo(() => {
+    if (conflictAlert.count > 0) {
+      return {
+        eyebrow: "Lo más urgente ahora",
+        title: `Resuelve ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"} antes de que vuelva el ruido`,
+        subtitle:
+          "Este es el punto donde SyncPlans más valor devuelve: decidir una vez y dejarlo claro para todos.",
+        primaryLabel: "Resolver conflictos",
+        primaryAction: openConflictCenter,
+        secondaryLabel: "Abrir calendario",
+        secondaryAction: () => router.push("/calendar"),
+      };
+    }
+
+    if (pendingInviteCount > 0) {
+      return {
+        eyebrow: "Lo más útil ahora",
+        title: `Hay ${pendingInviteCount} invitación${pendingInviteCount === 1 ? "" : "es"} esperando una decisión`,
+        subtitle:
+          "Si alguien está por entrar, este es el siguiente paso que más ayuda a que la coordinación se vuelva compartida de verdad.",
+        primaryLabel: "Revisar invitaciones",
+        primaryAction: () => router.push("/invitations"),
+        secondaryLabel: showInviteNudge ? "Abrir grupos" : "Abrir eventos",
+        secondaryAction: () => router.push(showInviteNudge ? "/groups" : "/events"),
+      };
+    }
+
+    if (pendingAttention.proposals > 0 || pendingAttention.captures > 0) {
+      return {
+        eyebrow: "Lo más útil ahora",
+        title: "Hay respuestas y ajustes esperando que cierres el ciclo",
+        subtitle:
+          "Responder esto rápido mantiene a SyncPlans como referencia viva, no como una lista bonita que luego nadie mira.",
+        primaryLabel: "Revisar pendientes",
+        primaryAction: () => router.push("/events"),
+        secondaryLabel: "Abrir calendario",
+        secondaryAction: () => router.push("/calendar"),
+      };
+    }
+
+    if (showCreateGroupNudge) {
+      return {
+        eyebrow: "Siguiente mejor paso",
+        title: "Abre tu primer espacio compartido",
+        subtitle:
+          "El producto cambia de categoría cuando dejas de coordinar solo y creas el primer grupo desde donde otros también ven lo mismo.",
+        primaryLabel: "Crear grupo",
+        primaryAction: () => router.push("/groups/new"),
+        secondaryLabel: "Ver grupos",
+        secondaryAction: () => router.push("/groups"),
+      };
+    }
+
+    if (showInviteNudge) {
+      return {
+        eyebrow: "Siguiente mejor paso",
+        title: "Trae a la otra persona dentro del sistema",
+        subtitle:
+          "Ya tienes estructura. Ahora toca meter a alguien más para que respuestas, conflictos y decisiones también vivan aquí.",
+        primaryLabel: "Traer a alguien",
+        primaryAction: () => router.push("/groups"),
+        secondaryLabel: "Abrir eventos",
+        secondaryAction: () => router.push("/events"),
+      };
+    }
+
+    if (!nextEvent) {
+      return {
+        eyebrow: "Siguiente mejor paso",
+        title: "Crea el próximo plan para que la semana no se quede vacía",
+        subtitle:
+          "Si no hay nada cerca, conviene meter algo útil ya y seguir construyendo hábito desde aquí.",
+        primaryLabel: "Crear plan",
+        primaryAction: () => router.push("/events/new/details?type=personal"),
+        secondaryLabel: "Abrir calendario",
+        secondaryAction: () => router.push("/calendar"),
+      };
+    }
+
+    return {
+      eyebrow: "Tu base de esta semana",
+      title: "Tu agenda ya tiene contexto. Elige dónde quieres actuar.",
+      subtitle:
+        "Cuando no hay nada urgente, lo mejor es revisar calendario o eventos sin perder el hilo compartido.",
+      primaryLabel: "Abrir calendario",
+      primaryAction: () => router.push("/calendar"),
+      secondaryLabel: "Abrir eventos",
+      secondaryAction: () => router.push("/events"),
+    };
+  }, [
+    conflictAlert.count,
+    nextEvent,
+    openConflictCenter,
+    pendingAttention.captures,
+    pendingAttention.proposals,
+    pendingInviteCount,
+    router,
+    showCreateGroupNudge,
+    showInviteNudge,
+  ]);
+
   const getStatusBadgeForEvent = useCallback(
     (eventId: string | null | undefined) => {
       const status = getUnifiedEventStatus({
@@ -901,6 +1002,31 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               </div>
             </div>
 
+            <div style={styles.returnRail}>
+              <div style={styles.returnRailCopy}>
+                <div style={styles.returnRailEyebrow}>{primaryAction.eyebrow}</div>
+                <div style={styles.returnRailTitle}>{primaryAction.title}</div>
+                <div style={styles.returnRailSub}>{primaryAction.subtitle}</div>
+              </div>
+
+              <div style={styles.returnRailActions}>
+                <button
+                  type="button"
+                  style={styles.returnRailPrimary}
+                  onClick={primaryAction.primaryAction}
+                >
+                  {primaryAction.primaryLabel}
+                </button>
+                <button
+                  type="button"
+                  style={styles.returnRailSecondary}
+                  onClick={primaryAction.secondaryAction}
+                >
+                  {primaryAction.secondaryLabel}
+                </button>
+              </div>
+            </div>
+
             {valueMoments.hasValue ? (
               <div style={styles.valueRail}>
                 <div style={styles.valueRailCopy}>
@@ -937,72 +1063,6 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               </div>
             ) : null}
 
-            {pendingAttention.total > 0 ? (
-              <div style={styles.returnRail}>
-                <div style={styles.returnRailCopy}>
-                  <div style={styles.returnRailEyebrow}>Necesita tu atención</div>
-                  <div style={styles.returnRailTitle}>
-                    Hay cosas vivas esperando una decisión tuya.
-                  </div>
-                  <div style={styles.returnRailSub}>
-                    {pendingAttention.invites > 0
-                      ? `${pendingAttention.invites} invitación${pendingAttention.invites === 1 ? "" : "es"} pendiente${pendingAttention.invites === 1 ? "" : "s"}`
-                      : null}
-                    {pendingAttention.invites > 0 && pendingAttention.conflicts > 0 ? " · " : ""}
-                    {pendingAttention.conflicts > 0
-                      ? `${pendingAttention.conflicts} conflicto${pendingAttention.conflicts === 1 ? "" : "s"} abierto${pendingAttention.conflicts === 1 ? "" : "s"}`
-                      : null}
-                    {(pendingAttention.invites > 0 || pendingAttention.conflicts > 0) && pendingAttention.proposals > 0 ? " · " : ""}
-                    {pendingAttention.proposals > 0
-                      ? `${pendingAttention.proposals} propuesta${pendingAttention.proposals === 1 ? "" : "s"} o ajuste${pendingAttention.proposals === 1 ? "" : "s"} por revisar`
-                      : null}
-                    {(pendingAttention.invites > 0 || pendingAttention.conflicts > 0 || pendingAttention.proposals > 0) && pendingAttention.captures > 0 ? " · " : ""}
-                    {pendingAttention.captures > 0
-                      ? `${pendingAttention.captures} respuesta${pendingAttention.captures === 1 ? "" : "s"} externa${pendingAttention.captures === 1 ? "" : "s"} por revisar`
-                      : null}
-                  </div>
-                </div>
-
-                <div style={styles.returnRailActions}>
-                  {pendingAttention.invites > 0 ? (
-                    <button
-                      type="button"
-                      style={styles.returnRailPrimary}
-                      onClick={() => router.push("/invitations")}
-                    >
-                      Revisar invitaciones
-                    </button>
-                  ) : pendingAttention.conflicts > 0 ? (
-                    <button
-                      type="button"
-                      style={styles.returnRailPrimary}
-                      onClick={openConflictCenter}
-                    >
-                      Resolver conflictos
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      style={styles.returnRailPrimary}
-                      onClick={() => router.push("/events")}
-                    >
-                      Ir a eventos
-                    </button>
-                  )}
-
-                  {(pendingAttention.proposals > 0 || pendingAttention.captures > 0) ? (
-                    <button
-                      type="button"
-                      style={styles.returnRailSecondary}
-                      onClick={() => router.push("/events")}
-                    >
-                      Revisar pendientes
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-
             {(decisionSummary.pendingProposals > 0 ||
               decisionSummary.adjustedProposals > 0) ? (
               <div style={styles.decisionChipsRow}>
@@ -1020,43 +1080,6 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
               </div>
             ) : null}
 
-            {!booting && (showCreateGroupNudge || showInviteNudge) ? (
-              <div style={styles.coordinationPrompt}>
-                <div>
-                  <div style={styles.coordinationPromptEyebrow}>Expansión natural</div>
-                  <div style={styles.coordinationPromptTitle}>
-                    {showCreateGroupNudge
-                      ? "Tu siguiente paso es crear el primer espacio compartido"
-                      : "El siguiente salto es traer a la otra persona dentro del sistema"}
-                  </div>
-                  <div style={styles.coordinationPromptCopy}>
-                    {showCreateGroupNudge
-                      ? "Puedes seguir creando cosas solo, pero el producto despega de verdad cuando abres tu primer grupo y dejas de coordinar únicamente desde tu cabeza o el chat."
-                      : "Ya tienes estructura. Ahora toca meter a la otra persona dentro de verdad para que respuestas, conflictos y decisiones también vivan aquí."}
-                  </div>
-                </div>
-
-                <div style={styles.coordinationPromptActions}>
-                  <button
-                    type="button"
-                    style={styles.coordinationPromptPrimary}
-                    onClick={() =>
-                      router.push(showCreateGroupNudge ? "/groups/new" : "/invitations")
-                    }
-                  >
-                    {showCreateGroupNudge ? "Crear grupo" : "Traer a alguien"}
-                  </button>
-                  <button
-                    type="button"
-                    style={styles.coordinationPromptSecondary}
-                    onClick={() => router.push(showCreateGroupNudge ? "/groups" : "/groups")}
-                  >
-                    {showCreateGroupNudge ? "Ver grupos" : "Abrir grupos"}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
             {booting ? (
               <div style={styles.loadingCard}>
                 <div style={styles.loadingDot} />
@@ -1068,9 +1091,9 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
             ) : !nextEvent ? (
               <div style={styles.emptyBlock}>
                 <div style={styles.emptyTitle}>{showCreateGroupNudge ? "Todavía no activaste el loop compartido" : "Sin coordinación cercana todavía"}</div>
-                <div style={styles.emptySub}>{showCreateGroupNudge ? "Empieza creando tu primer grupo. Ese es el paso que convierte SyncPlans en una referencia compartida y no solo en una agenda ordenada." : "Todavía no tienes nada cerca dentro del sistema. Puedes crear un plan nuevo, abrir el calendario o empezar a traer a alguien más."}</div>
+                <div style={styles.emptySub}>{showCreateGroupNudge ? "Empieza creando tu primer grupo. Ese es el paso que convierte SyncPlans en una referencia compartida y no solo en una agenda ordenada." : "Todavía no tienes nada cerca dentro del sistema. Conviene meter el próximo plan aquí para que la semana no dependa de memoria, chat o improvisación."}</div>
                 <button
-                  onClick={() => router.push(showCreateGroupNudge ? "/groups/new" : "/events/new/details?type=personal")}
+                  onClick={primaryAction.primaryAction}
                   style={styles.emptyBtn}
                 >
                   {showCreateGroupNudge ? "Crear grupo →" : "Crear plan →"}
@@ -1310,34 +1333,34 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
           </Card>
 
           <Card style={styles.card} className="spSum-card">
-            <div style={styles.sectionTitle}>Acciones</div>
+            <div style={styles.sectionTitle}>Accesos rápidos</div>
 
             <div style={styles.quickGrid} className="spSum-quickGrid">
               <button
-                onClick={() => router.push(showCreateGroupNudge ? "/groups/new" : "/events/new/details?type=personal")}
+                onClick={primaryAction.primaryAction}
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
-                <div style={styles.quickTitle}>{showCreateGroupNudge ? "Crear grupo" : "Crear plan"}</div>
-                <div style={styles.quickSub}>{showCreateGroupNudge ? "Abrir la primera coordinación compartida" : "Empezar algo nuevo"}</div>
+                <div style={styles.quickTitle}>{primaryAction.primaryLabel}</div>
+                <div style={styles.quickSub}>{primaryAction.subtitle}</div>
               </button>
 
               <button
-                onClick={pendingInviteCount > 0 ? () => router.push("/invitations") : () => router.push("/calendar")}
+                onClick={() => router.push("/calendar")}
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
-                <div style={styles.quickTitle}>{pendingInviteCount > 0 ? "Revisar invitaciones" : "Abrir calendario"}</div>
-                <div style={styles.quickSub}>{pendingInviteCount > 0 ? "Hay alguien esperando entrar o responder" : "Ver todo con contexto"}</div>
+                <div style={styles.quickTitle}>"Abrir calendario"</div>
+                <div style={styles.quickSub}>"Ver semana y contexto compartido"</div>
               </button>
 
               <button
-                onClick={conflictAlert.count > 0 ? openConflictCenter : () => router.push("/events")}
+                onClick={() => router.push("/events")}
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
-                <div style={styles.quickTitle}>{conflictAlert.count > 0 ? "Resolver conflictos" : "Abrir eventos"}</div>
-                <div style={styles.quickSub}>{conflictAlert.count > 0 ? "Entrar al centro de conflictos" : "Ver respuestas, pendientes y valor compartido"}</div>
+                <div style={styles.quickTitle}>"Abrir eventos"</div>
+                <div style={styles.quickSub}>"Ver respuestas, estados y pendientes"</div>
               </button>
             </div>
           </Card>

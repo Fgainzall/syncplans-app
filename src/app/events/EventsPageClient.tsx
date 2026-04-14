@@ -206,6 +206,33 @@ export default function EventsPage() {
     return filteredEvents.filter((e) => isWithinNext24Hours(e.start));
   }, [filteredEvents, filters.view]);
 
+  const statusSnapshot = useMemo(() => {
+    const now = new Date();
+    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const visibleEvents = filterVisibleEvents(events, {
+      declinedIds: declinedEventIds,
+      hiddenIds: hiddenEventIds,
+    });
+
+    const nextCount = visibleEvents.filter((e) => new Date(e.start) >= now).length;
+    const responseCount = visibleEvents.filter(
+      (e) => !!e.group_id && new Date(e.start) >= now
+    ).length;
+    const resolvedCount = visibleEvents.filter((e) => new Date(e.end) < now).length;
+    const soonCount = visibleEvents.filter((e) => {
+      const start = new Date(e.start);
+      return start >= now && start <= nextWeek;
+    }).length;
+
+    return {
+      nextCount,
+      responseCount,
+      resolvedCount,
+      soonCount,
+    };
+  }, [events, declinedEventIds, hiddenEventIds]);
+
   const valueVisibility = useMemo(() => {
     const visibleEvents = filterVisibleEvents(events, {
       declinedIds: declinedEventIds,
@@ -231,7 +258,7 @@ export default function EventsPage() {
     });
 
     if (visibleEvents.length === 0) {
-      return "Mira lo que ya está dentro del sistema y detecta qué sigue dependiendo de ti o de otros.";
+      return "Mira qué parte de tu coordinación ya tiene forma, qué necesita respuesta y qué conviene mover antes de que vuelva a perderse.";
     }
 
     const personal = visibleEvents.filter((e) => !e.group_id).length;
@@ -239,7 +266,7 @@ export default function EventsPage() {
 
     return `Tu lista combina ${personal} evento${
       personal === 1 ? "" : "s"
-    } personales y ${groupEvents} en grupos. Desde aquí ves qué ya está claro y qué todavía necesita respuesta, ajuste o seguimiento.`;
+    } personales y ${groupEvents} en grupos. Desde aquí se ve qué ya está claro, qué todavía necesita respuesta y qué merece seguimiento antes de que se enfríe.`;
   }, [events, declinedEventIds, hiddenEventIds]);
 
   function toggleSelection(id: string) {
@@ -459,9 +486,9 @@ export default function EventsPage() {
           <div style={S.titleRow}>
             <div>
               <div style={S.kicker}>Lo que ya está dentro del sistema</div>
-              <h1 style={S.h1}>Lista de eventos</h1>
+              <h1 style={S.h1}>Eventos con estado real</h1>
               <p style={S.sub}>
-                Mira tus eventos personales y compartidos en un solo lugar. Desde aquí puedes revisar qué ya está ordenado, qué depende de otra persona y qué conviene destrabar antes de que vuelva a escaparse al chat o a la memoria.
+                No es solo una lista. Aquí ves qué está próximo, qué depende de otra persona, qué ya quedó resuelto y dónde te conviene entrar para mover coordinación real, no solo mirar una agenda.
               </p>
             </div>
 
@@ -513,6 +540,48 @@ export default function EventsPage() {
             </div>
           )}
 
+          <div style={S.statusGrid}>
+            <button
+              type="button"
+              style={S.statusCard}
+              onClick={() => setFilters((f) => ({ ...f, view: "upcoming" }))}
+            >
+              <div style={S.statusLabel}>Próximos</div>
+              <div style={S.statusValue}>{statusSnapshot.nextCount}</div>
+              <div style={S.statusHint}>Lo que sigue vivo en tu agenda compartida</div>
+            </button>
+
+            <button
+              type="button"
+              style={S.statusCard}
+              onClick={() => setFilters((f) => ({ ...f, view: "upcoming", scope: "groups" }))}
+            >
+              <div style={S.statusLabel}>Por responder</div>
+              <div style={S.statusValue}>{statusSnapshot.responseCount}</div>
+              <div style={S.statusHint}>Planes de grupo donde coordinar con alguien más importa</div>
+            </button>
+
+            <button
+              type="button"
+              style={S.statusCard}
+              onClick={() => setFilters((f) => ({ ...f, view: "history" }))}
+            >
+              <div style={S.statusLabel}>Resueltos</div>
+              <div style={S.statusValue}>{statusSnapshot.resolvedCount}</div>
+              <div style={S.statusHint}>Eventos que ya pasaron y dejaron una salida clara</div>
+            </button>
+
+            <button
+              type="button"
+              style={S.statusCard}
+              onClick={() => setFilters((f) => ({ ...f, view: "upcoming" }))}
+            >
+              <div style={S.statusLabel}>Pronto</div>
+              <div style={S.statusValue}>{statusSnapshot.soonCount}</div>
+              <div style={S.statusHint}>Lo que conviene revisar en los próximos 7 días</div>
+            </button>
+          </div>
+
           <EventsFiltersBar
             view={filters.view}
             scope={filters.scope}
@@ -529,7 +598,7 @@ export default function EventsPage() {
               disabled={sendingDigest}
               style={{ ...S.digestBtn, ...(sendingDigest ? S.digestBtnLoading : {}) }}
             >
-              {sendingDigest ? "Enviando resumen de hoy…" : "Enviar resumen de hoy (demo)"}
+              {sendingDigest ? "Preparando resumen de hoy…" : "Enviar resumen operativo de hoy (demo)"}
             </button>
           )}
 
@@ -554,7 +623,7 @@ export default function EventsPage() {
               <div style={S.urgentHeader}>
                 <div>
                   <div style={S.urgentKicker}>Foco operativo</div>
-                  <div style={S.urgentTitle}>Requiere atención</div>
+                  <div style={S.urgentTitle}>Lo que pide movimiento ahora</div>
                 </div>
 
                 <div style={S.urgentCount}>
@@ -574,7 +643,7 @@ export default function EventsPage() {
                       </div>
 
                       <div style={S.urgentMeta}>
-                        {e.group?.name ? `En ${e.group.name}` : "Personal"}
+                        {e.group?.name ? `Compartido en ${e.group.name}` : "Personal"}
                       </div>
                     </div>
                   </div>
@@ -894,6 +963,40 @@ const S: Record<string, React.CSSProperties> = {
     marginTop: 10,
     fontSize: 11,
     color: "rgba(254,226,226,0.82)",
+  },
+  statusGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+    gap: 10,
+    marginBottom: 14,
+  },
+  statusCard: {
+    textAlign: "left",
+    borderRadius: 18,
+    border: "1px solid rgba(148,163,184,0.16)",
+    background: "rgba(15,23,42,0.88)",
+    padding: "13px 14px",
+    cursor: "pointer",
+    display: "grid",
+    gap: 4,
+  },
+  statusLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
+    color: "rgba(125,211,252,0.92)",
+  },
+  statusValue: {
+    fontSize: 24,
+    fontWeight: 950,
+    lineHeight: 1,
+    color: "rgba(248,250,252,0.98)",
+  },
+  statusHint: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(191,219,254,0.78)",
   },
   loadingList: {
     marginTop: 12,

@@ -25,7 +25,7 @@ export default function EventsFiltersBar({
 }: EventsFiltersBarProps) {
   return (
     <div style={S.filters} className="spEvt-filters">
-      {/* Tabs de vista (Próximos / Historial / Todos) */}
+      {/* Tabs de vista (PrÃ³ximos / Ya pasaron / Todo visible) */}
       <div style={S.tabs}>
         <div style={S.segment}>
           <button
@@ -36,7 +36,7 @@ export default function EventsFiltersBar({
             }}
             onClick={() => onChangeView("upcoming")}
           >
-            Próximos
+            PrÃ³ximos
           </button>
           <button
             type="button"
@@ -46,7 +46,7 @@ export default function EventsFiltersBar({
             }}
             onClick={() => onChangeView("history")}
           >
-            Historial
+            Ya pasaron
           </button>
           <button
             type="button"
@@ -56,11 +56,11 @@ export default function EventsFiltersBar({
             }}
             onClick={() => onChangeView("all")}
           >
-            Todos
+            Todo visible
           </button>
         </div>
 
-        {/* Tabs de scope (Todo / Personal / Grupos) */}
+        {/* Tabs de scope (Todo / Personal / Compartido) */}
         <div style={S.segment}>
           <button
             type="button"
@@ -70,7 +70,7 @@ export default function EventsFiltersBar({
             }}
             onClick={() => onChangeScope("all")}
           >
-            Todo
+            Todo visible
           </button>
           <button
             type="button"
@@ -90,7 +90,7 @@ export default function EventsFiltersBar({
             }}
             onClick={() => onChangeScope("groups")}
           >
-            Grupos
+            Compartido
           </button>
         </div>
       </div>
@@ -99,7 +99,7 @@ export default function EventsFiltersBar({
       <input
         style={S.search}
         className="spEvt-search"
-        placeholder="Buscar por título, notas o grupo…"
+        placeholder="Buscar por tÃ­tulo, nota o espacio compartidoâ€¦"
         value={query}
         onChange={(e) => onChangeQuery(e.target.value)}
       />
