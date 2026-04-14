@@ -924,7 +924,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
       )}
 
       <Section style={styles.shell} className="spSum-shell">
-        <PremiumHeader title={title} subtitle={summarySubtitle} />
+        <PremiumHeader title={title} subtitle={summarySubtitle} sticky={false} />
 
          <SummaryQuickCaptureCard
   value={quickCaptureValue}

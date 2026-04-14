@@ -52,6 +52,7 @@ type PremiumHeaderProps = {
   mobileNav?: MobileNavVariant;
   highlightId?: string | null;
   appliedToast?: UiToast;
+  sticky?: boolean;
 };
 
 type HeaderUser = {
@@ -225,7 +226,7 @@ function getAutoSubtitle(pathname: string) {
     return "Ajusta la experiencia, permisos e integraciones de tu espacio.";
   }
   if (pathname.startsWith("/planes")) {
-    return "Compara cómo Free y Premium reducen fricción a medida que tu coordinación crece.";
+    return "Compara planes y desbloquea funciones premium.";
   }
   return "Organiza tu día sin conflictos de horario.";
 }
@@ -235,15 +236,15 @@ function getUpgradeMessage(pathname: string) {
     return "Más claridad cuando tu coordinación compartida crece.";
   }
   if (pathname.startsWith("/invitations")) {
-    return "Más control cuando nuevas personas entran a coordinar.";
+    return "Más contexto cuando nuevas personas entran a coordinar.";
   }
   if (pathname.startsWith("/calendar")) {
-    return "Más claridad para anticipar choques antes de reaccionar.";
+    return "Más contexto para anticipar choques antes de reaccionar.";
   }
   if (pathname.startsWith("/panel")) {
     return "Más visibilidad para sostener la coordinación sin fricción.";
   }
-  return "Más claridad, menos fricción y más control para coordinar mejor.";
+  return "Menos fricción y más claridad para coordinar mejor.";
 }
 
 export default function PremiumHeader({
@@ -251,6 +252,7 @@ export default function PremiumHeader({
   subtitle,
   rightSlot,
   mobileNav: _mobileNav = "bottom",
+  sticky = true,
 }: PremiumHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -517,7 +519,7 @@ export default function PremiumHeader({
 
   return (
     <>
-      <header style={isMobile ? styles.mobileWrap : styles.desktopWrap}>
+      <header style={isMobile ? { ...styles.mobileWrap, position: sticky ? "sticky" : "relative" } : { ...styles.desktopWrap, position: sticky ? "sticky" : "relative" } }>
         <div style={styles.backgroundGlow} />
 
         {isMobile ? (
@@ -668,7 +670,7 @@ export default function PremiumHeader({
                   onClick={() => router.push("/planes", { scroll: false })}
                   style={styles.mobileUpgradeButton}
                 >
-                  Ver valor
+                  Ver planes
                 </button>
               </div>
             ) : null}
