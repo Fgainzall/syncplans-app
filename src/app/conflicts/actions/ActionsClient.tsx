@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { trackEvent } from "@/lib/analytics";
+import { trackEvent, trackEventOnce, trackScreenView } from "@/lib/analytics";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 import supabase from "@/lib/supabaseClient";
@@ -287,6 +287,29 @@ export default function ActionsClient() {
       alive = false;
     };
   }, [router, loadScreenData]);
+
+  useEffect(() => {
+    if (!currentUserId || booting) return;
+
+    void trackScreenView({
+      screen: "conflicts_actions",
+      userId: currentUserId,
+      metadata: {
+        groupId: groupIdFromUrl ?? null,
+        focusEventId: focusEventId ?? null,
+        focusConflictId: focusConflictId ?? null,
+        focusIndex: focusIndex ?? null,
+      },
+    });
+  }, [
+    booting,
+    currentUserId,
+    groupIdFromUrl,
+    focusConflictId,
+    focusEventId,
+    focusIndex,
+  ]);
+
 
   const visibleEventsForConflicts = useMemo(() => {
     return filterOutDeclinedEvents(
@@ -728,19 +751,33 @@ export default function ActionsClient() {
         notifiedCount,
         fallbackKeepBothCount,
       };
-await trackEvent({
-  event: "conflict_resolved",
-  userId: currentUserId,
-  metadata: {
-    resolvedCount: result.resolvedCount,
-    deletedCount: result.deletedCount,
-    blockedCount: result.blockedCount,
-    ignoredCount: result.ignoredCount,
-    softRejectedCount: result.softRejectedCount,
-    notifiedCount: result.notifiedCount,
-    fallbackKeepBothCount: result.fallbackKeepBothCount,
-  },
-});
+      const analyticsMetadata = {
+        resolvedCount: result.resolvedCount,
+        deletedCount: result.deletedCount,
+        blockedCount: result.blockedCount,
+        ignoredCount: result.ignoredCount,
+        softRejectedCount: result.softRejectedCount,
+        notifiedCount: result.notifiedCount,
+        fallbackKeepBothCount: result.fallbackKeepBothCount,
+        groupId: groupIdFromUrl ?? null,
+        focusEventId: focusEventId ?? null,
+        focusConflictId: focusConflictId ?? null,
+        source: "conflicts_actions",
+      };
+
+      await trackEvent({
+        event: "conflict_resolved",
+        userId: currentUserId,
+        metadata: analyticsMetadata,
+      });
+
+      await trackEventOnce({
+        event: "first_conflict_resolved",
+        userId: currentUserId,
+        scope: "local",
+        onceKey: `funnel:first_conflict_resolved:${currentUserId}`,
+        metadata: analyticsMetadata,
+      });
       setSummary(result);
 
       if (fallbackKeepBothCount > 0) {

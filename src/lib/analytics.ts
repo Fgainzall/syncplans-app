@@ -84,3 +84,62 @@ export async function trackScreenView({
     },
   });
 }
+
+export type AnalyticsStorageScope = "local" | "session";
+
+function getStorage(scope: AnalyticsStorageScope) {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return scope === "session" ? window.sessionStorage : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function getOnceStorageKey(onceKey: string) {
+  return `sp:analytics-once:${onceKey}`;
+}
+
+export function hasTrackedEventOnce(
+  onceKey: string,
+  scope: AnalyticsStorageScope = "local"
+) {
+  const storage = getStorage(scope);
+  if (!storage) return false;
+
+  try {
+    return storage.getItem(getOnceStorageKey(onceKey)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export async function trackEventOnce({
+  onceKey,
+  scope = "local",
+  event,
+  userId,
+  entityId,
+  metadata,
+}: TrackParams & { onceKey: string; scope?: AnalyticsStorageScope }) {
+  const storage = getStorage(scope);
+  const storageKey = getOnceStorageKey(onceKey);
+
+  try {
+    if (storage?.getItem(storageKey) === "1") return false;
+  } catch {}
+
+  await trackEvent({
+    event,
+    userId,
+    entityId,
+    metadata,
+  });
+
+  try {
+    storage?.setItem(storageKey, "1");
+  } catch {}
+
+  return true;
+}

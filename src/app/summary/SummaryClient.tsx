@@ -23,6 +23,7 @@ import { buildLearnedTimeProfile } from "@/lib/learningProfile";
 import type { LearnedTimeProfile } from "@/lib/learningTypes";
 import SummaryQuickCaptureCard from "./SummaryQuickCaptureCard";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
+import { trackEvent, trackScreenView } from "@/lib/analytics";
 import {
   computeVisibleConflicts,
   filterIgnoredConflicts,
@@ -106,6 +107,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     useState<LearnedTimeProfile | null>(null);
   const [pendingInviteCount, setPendingInviteCount] = useState(0);
   const [pendingCaptureCount, setPendingCaptureCount] = useState(0);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const {
     booting,
@@ -124,6 +126,53 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     proposalProfilesMap,
     showToast,
   } = useSummaryData({ appliedToast });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function hydrateCurrentUser() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (cancelled) return;
+        setCurrentUserId(String(user?.id ?? "").trim() || null);
+      } catch {
+        if (!cancelled) setCurrentUserId(null);
+      }
+    }
+
+    void hydrateCurrentUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const summaryAnalyticsBase = useMemo(
+    () => ({
+      screen: "summary",
+      activeGroupId: activeGroupId ?? null,
+      pendingInviteCount,
+      pendingCaptureCount,
+      unreadConflictCount: unreadConflictAlert.count,
+    }),
+    [
+      activeGroupId,
+      pendingInviteCount,
+      pendingCaptureCount,
+      unreadConflictAlert.count,
+    ]
+  );
+
+  useEffect(() => {
+    void trackScreenView({
+      screen: "summary",
+      userId: currentUserId,
+      metadata: summaryAnalyticsBase,
+    });
+  }, [currentUserId, summaryAnalyticsBase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -456,6 +505,31 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         ? "rgba(251,191,36,0.9)"
         : "rgba(56,189,248,0.9)";
 
+  const trackSummaryCta = useCallback(
+    (cta: string, target: string, metadata?: Record<string, unknown>) => {
+      void trackEvent({
+        event: "summary_cta_clicked",
+        userId: currentUserId,
+        entityId: activeGroupId ? String(activeGroupId) : null,
+        metadata: {
+          ...summaryAnalyticsBase,
+          cta,
+          target,
+          ...(metadata ?? {}),
+        },
+      });
+    },
+    [activeGroupId, currentUserId, summaryAnalyticsBase]
+  );
+
+  const navigateFromSummary = useCallback(
+    (cta: string, target: string, metadata?: Record<string, unknown>) => {
+      trackSummaryCta(cta, target, metadata);
+      router.push(target);
+    },
+    [router, trackSummaryCta]
+  );
+
   const moodAccentGlow =
     mood.tone === "clear"
       ? "rgba(34,197,94,0.35)"
@@ -465,16 +539,22 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const openConflictCenter = useCallback(() => {
     if (conflictAlert.latestEventId) {
-      router.push(
-        `/conflicts/detected?eventId=${encodeURIComponent(
-          conflictAlert.latestEventId
-        )}`
-      );
+      const target = `/conflicts/detected?eventId=${encodeURIComponent(
+        conflictAlert.latestEventId
+      )}`;
+      trackSummaryCta("resolve_conflicts", target, {
+        conflictCount: conflictAlert.count,
+        latestEventId: conflictAlert.latestEventId,
+      });
+      router.push(target);
       return;
     }
 
+    trackSummaryCta("resolve_conflicts", "/conflicts/detected", {
+      conflictCount: conflictAlert.count,
+    });
     router.push("/conflicts/detected");
-  }, [router, conflictAlert]);
+  }, [router, conflictAlert, trackSummaryCta]);
 
   const buildQuickCaptureParams = useCallback(
     (value: string, suggestedDate?: Date) => {
@@ -522,9 +602,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       const params = buildQuickCaptureParams(value);
       if (!params) return;
 
-      router.push(`/events/new/details?${params.toString()}`);
+      const target = `/events/new/details?${params.toString()}`;
+      trackSummaryCta("quick_capture_submit", target, {
+        hasRawText: true,
+      });
+      router.push(target);
     },
-    [buildQuickCaptureParams, router]
+    [buildQuickCaptureParams, router, trackSummaryCta]
   );
 
   const navigateFromSuggestedSlot = useCallback(
@@ -532,9 +616,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       const params = buildQuickCaptureParams(value, suggestedDate);
       if (!params) return;
 
-      router.push(`/events/new/details?${params.toString()}`);
+      const target = `/events/new/details?${params.toString()}`;
+      trackSummaryCta("suggested_slot_selected", target, {
+        suggestedDate: suggestedDate.toISOString(),
+      });
+      router.push(target);
     },
-    [buildQuickCaptureParams, router]
+    [buildQuickCaptureParams, router, trackSummaryCta]
   );
 
   const handleQuickCaptureSubmit = useCallback(() => {
@@ -576,7 +664,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     const raw = quickCaptureValue.trim();
 
     if (!raw) {
-      router.push("/capture?source=summary");
+      navigateFromSummary("open_capture", "/capture?source=summary", {
+        hasDraftText: false,
+      });
       return;
     }
 
@@ -584,8 +674,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     params.set("text", raw);
     params.set("source", "summary");
 
-    router.push(`/capture?${params.toString()}`);
-  }, [router, quickCaptureValue]);
+    navigateFromSummary("open_capture", `/capture?${params.toString()}`, {
+      hasDraftText: true,
+    });
+  }, [navigateFromSummary, quickCaptureValue]);
 
   const handleCopyCaptureLink = useCallback(async () => {
     const raw = quickCaptureValue.trim();
@@ -777,7 +869,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         primaryLabel: "Resolver conflictos",
         primaryAction: openConflictCenter,
         secondaryLabel: "Abrir calendario",
-        secondaryAction: () => router.push("/calendar"),
+        secondaryAction: () => navigateFromSummary("primary_secondary_calendar", "/calendar", { block: "primary_action" }),
       };
     }
 
@@ -788,9 +880,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         subtitle:
           "Si alguien está por entrar, este es el siguiente paso que más ayuda a que la coordinación se vuelva compartida de verdad.",
         primaryLabel: "Revisar invitaciones",
-        primaryAction: () => router.push("/invitations"),
+        primaryAction: () => navigateFromSummary("review_invitations", "/invitations", { block: "primary_action" }),
         secondaryLabel: showInviteNudge ? "Abrir grupos" : "Abrir eventos",
-        secondaryAction: () => router.push(showInviteNudge ? "/groups" : "/events"),
+        secondaryAction: () => navigateFromSummary(showInviteNudge ? "open_groups" : "open_events", showInviteNudge ? "/groups" : "/events", { block: "primary_action" }),
       };
     }
 
@@ -801,9 +893,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         subtitle:
           "Responder esto rápido mantiene a SyncPlans como referencia viva, no como una lista bonita que luego nadie mira.",
         primaryLabel: "Revisar pendientes",
-        primaryAction: () => router.push("/events"),
+        primaryAction: () => navigateFromSummary("review_pending", "/events", { block: "primary_action" }),
         secondaryLabel: "Abrir calendario",
-        secondaryAction: () => router.push("/calendar"),
+        secondaryAction: () => navigateFromSummary("primary_secondary_calendar", "/calendar", { block: "primary_action" }),
       };
     }
 
@@ -814,9 +906,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         subtitle:
           "El producto cambia de categoría cuando dejas de coordinar solo y creas el primer grupo desde donde otros también ven lo mismo.",
         primaryLabel: "Crear grupo",
-        primaryAction: () => router.push("/groups/new"),
+        primaryAction: () => navigateFromSummary("create_group", "/groups/new", { block: "primary_action" }),
         secondaryLabel: "Ver grupos",
-        secondaryAction: () => router.push("/groups"),
+        secondaryAction: () => navigateFromSummary("open_groups", "/groups", { block: "primary_action" }),
       };
     }
 
@@ -827,9 +919,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         subtitle:
           "Ya tienes estructura. Ahora toca meter a alguien más para que respuestas, conflictos y decisiones también vivan aquí.",
         primaryLabel: "Traer a alguien",
-        primaryAction: () => router.push("/groups"),
+        primaryAction: () => navigateFromSummary("bring_someone_in", "/groups", { block: "primary_action" }),
         secondaryLabel: "Abrir eventos",
-        secondaryAction: () => router.push("/events"),
+        secondaryAction: () => navigateFromSummary("open_events", "/events", { block: "primary_action" }),
       };
     }
 
@@ -840,9 +932,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         subtitle:
           "Si no hay nada cerca, conviene meter algo útil ya y seguir construyendo hábito desde aquí.",
         primaryLabel: "Crear plan",
-        primaryAction: () => router.push("/events/new/details?type=personal"),
+        primaryAction: () => navigateFromSummary("create_plan", "/events/new/details?type=personal", { block: "primary_action" }),
         secondaryLabel: "Abrir calendario",
-        secondaryAction: () => router.push("/calendar"),
+        secondaryAction: () => navigateFromSummary("primary_secondary_calendar", "/calendar", { block: "primary_action" }),
       };
     }
 
@@ -852,9 +944,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       subtitle:
         "Cuando no hay nada urgente, lo mejor es revisar calendario o eventos sin perder el hilo compartido.",
       primaryLabel: "Abrir calendario",
-      primaryAction: () => router.push("/calendar"),
+      primaryAction: () => navigateFromSummary("open_calendar", "/calendar", { block: "primary_action" }),
       secondaryLabel: "Abrir eventos",
-      secondaryAction: () => router.push("/events"),
+      secondaryAction: () => navigateFromSummary("open_events", "/events", { block: "primary_action" }),
     };
   }, [
     conflictAlert.count,
@@ -863,6 +955,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     pendingAttention.captures,
     pendingAttention.proposals,
     pendingInviteCount,
+    navigateFromSummary,
     router,
     showCreateGroupNudge,
     showInviteNudge,
@@ -1044,7 +1137,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                   <button
                     type="button"
                     style={styles.valueRailPrimary}
-                    onClick={() => router.push(valueMoments.resolvedDecisions > 0 ? "/events" : "/calendar")}
+                    onClick={() => navigateFromSummary(valueMoments.resolvedDecisions > 0 ? "value_visibility_events" : "value_visibility_calendar", valueMoments.resolvedDecisions > 0 ? "/events" : "/calendar", { block: "value_visibility" })}
                   >
                     {valueMoments.resolvedDecisions > 0 ? "Ver valor en eventos" : "Abrir calendario"}
                   </button>
@@ -1056,13 +1149,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               decisionSummary.adjustedProposals > 0) ? (
               <div style={styles.decisionChipsRow}>
                 {decisionSummary.pendingProposals > 0 ? (
-                  <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipPending }}>
+                  <button onClick={() => navigateFromSummary("decision_chip_pending", "/events", { block: "decision_summary" })} style={{ ...styles.decisionChip, ...styles.decisionChipPending }}>
                     {decisionSummary.pendingProposals} propuesta{decisionSummary.pendingProposals === 1 ? "" : "s"} esperando decisión
                   </button>
                 ) : null}
 
                 {decisionSummary.adjustedProposals > 0 ? (
-                  <button onClick={() => router.push("/events")} style={{ ...styles.decisionChip, ...styles.decisionChipInfo }}>
+                  <button onClick={() => navigateFromSummary("decision_chip_adjusted", "/events", { block: "decision_summary" })} style={{ ...styles.decisionChip, ...styles.decisionChipInfo }}>
                     {decisionSummary.adjustedProposals} ajuste{decisionSummary.adjustedProposals === 1 ? "" : "s"} pendiente{decisionSummary.adjustedProposals === 1 ? "" : "s"}
                   </button>
                 ) : null}
@@ -1093,7 +1186,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 <div style={styles.nextBlock}>
                   <div style={styles.nextLabel}>Sigue</div>
                   <button
-                    onClick={() => router.push("/calendar")}
+                    onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
                     style={{
                       ...styles.nextCard,
                       ...(highlightId &&
@@ -1187,7 +1280,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                       return (
                         <button
                           key={e.id ?? `${e.title}-${start.toISOString()}`}
-                          onClick={() => router.push("/calendar")}
+                          onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
                           style={{
                             ...styles.eventRow,
                             ...(isHighlighted ? styles.eventRowHighlight : {}),
@@ -1252,7 +1345,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
                 {showSeeMore && (
                   <button
-                    onClick={() => router.push("/calendar")}
+                    onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
                     style={styles.seeMoreBtn}
                     className="spSum-seeMore"
                   >
@@ -1267,7 +1360,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             <div style={styles.sectionHeadMini}>
               <div style={styles.sectionTitle}>Decisiones</div>
               <button
-                onClick={() => router.push("/calendar")}
+                onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
                 style={styles.decisionsCta}
               >
                 Calendario →
@@ -1335,7 +1428,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               </button>
 
               <button
-                onClick={() => router.push("/calendar")}
+                onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
@@ -1344,7 +1437,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               </button>
 
               <button
-                onClick={() => router.push("/events")}
+                onClick={() => navigateFromSummary("open_events", "/events", { block: "summary_events" })}
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >

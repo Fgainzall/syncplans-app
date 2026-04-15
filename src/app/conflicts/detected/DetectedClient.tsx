@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import AppHero from "@/components/AppHero";
 import MobileScaffold from "@/components/MobileScaffold";
+import { trackEvent, trackEventOnce, trackScreenView } from "@/lib/analytics";
 
 import {
   CalendarEvent,
@@ -128,6 +129,17 @@ export default function DetectedClient() {
     () => new Set()
   );
   const [profile, setProfile] = useState<Profile | null>(null);
+
+  useEffect(() => {
+    void trackScreenView({
+      screen: "conflicts_detected",
+      metadata: {
+        source: focusEventId ? "notification_or_focus" : "conflicts_tab",
+        groupId: groupIdFromUrl ?? null,
+        focusEventId: focusEventId ?? null,
+      },
+    });
+  }, [focusEventId, groupIdFromUrl]);
 
   useEffect(() => {
     let alive = true;
@@ -361,6 +373,49 @@ const returnPressure = useMemo(() => {
   return null;
 }, [summary.pending, summary.decided]);
 
+  useEffect(() => {
+    if (booting) return;
+    if (pendingConflicts.length === 0) return;
+
+    const firstConflict = pendingConflicts[0];
+
+    const metadata = {
+      screen: "conflicts_detected",
+      source: focusEventId ? "notification_or_focus" : "conflicts_tab",
+      groupId: groupIdFromUrl ?? null,
+      focusEventId: focusEventId ?? null,
+      pendingCount: pendingConflicts.length,
+      visibleCount: allVisibleConflicts.length,
+      decidedCount: summary.decided,
+      firstConflictId: firstConflict?.id ?? null,
+      firstExistingEventId: firstConflict?.existingEventId ?? null,
+      firstIncomingEventId: firstConflict?.incomingEventId ?? null,
+      hasPremium,
+      isFocusedView,
+    };
+
+    void trackEvent({
+      event: "conflict_seen",
+      metadata,
+    });
+
+    void trackEventOnce({
+      event: "first_conflict_seen",
+      scope: "local",
+      onceKey: "funnel:first_conflict_seen",
+      metadata,
+    });
+  }, [
+    booting,
+    pendingConflicts,
+    allVisibleConflicts.length,
+    summary.decided,
+    groupIdFromUrl,
+    focusEventId,
+    hasPremium,
+    isFocusedView,
+  ]);
+
   /**
    * Si entramos desde una notificación con eventId
    * y ya no hay conflicto pendiente real para ese evento,
@@ -405,6 +460,23 @@ const returnPressure = useMemo(() => {
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     if (focusEventId) qp.set("eventId", focusEventId);
 
+    const selectedConflict = pendingConflicts[safe];
+
+    void trackEvent({
+      event: "conflict_compare_opened",
+      metadata: {
+        screen: "conflicts_detected",
+        source: focusEventId ? "notification_or_focus" : "conflicts_tab",
+        index: safe,
+        pendingCount: pendingConflicts.length,
+        conflictId: selectedConflict?.id ?? null,
+        existingEventId: selectedConflict?.existingEventId ?? null,
+        incomingEventId: selectedConflict?.incomingEventId ?? null,
+        groupId: groupIdFromUrl ?? null,
+        focusEventId: focusEventId ?? null,
+      },
+    });
+
     router.push(`/conflicts/compare?${qp.toString()}`);
   };
 
@@ -417,6 +489,23 @@ const returnPressure = useMemo(() => {
     const qp = new URLSearchParams();
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
     if (focusEventId) qp.set("eventId", focusEventId);
+
+    const selectedConflict = pendingConflicts[0] ?? null;
+
+    void trackEvent({
+      event: "conflict_compare_opened",
+      metadata: {
+        screen: "conflicts_detected",
+        source: focusEventId ? "notification_or_focus" : "conflicts_tab",
+        index: 0,
+        pendingCount: pendingConflicts.length,
+        conflictId: selectedConflict?.id ?? null,
+        existingEventId: selectedConflict?.existingEventId ?? null,
+        incomingEventId: selectedConflict?.incomingEventId ?? null,
+        groupId: groupIdFromUrl ?? null,
+        focusEventId: focusEventId ?? null,
+      },
+    });
 
     router.push(`/conflicts/compare?${qp.toString()}`);
   };

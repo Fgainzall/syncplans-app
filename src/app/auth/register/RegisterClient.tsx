@@ -4,11 +4,14 @@
 import React, {
   useMemo,
   useState,
+  useEffect,
+  useCallback,
   type CSSProperties,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import AuthCard from "@/components/AuthCard";
+import { trackEvent, trackEventOnce, trackScreenView } from "@/lib/analytics";
 
 function getAppOrigin() {
   const env =
@@ -28,10 +31,13 @@ export default function RegisterClient() {
   const sp = useSearchParams();
 
   const nextParam = sp.get("next");
-const nextTarget = useMemo(
-  () => (nextParam && nextParam.startsWith("/") ? nextParam : "/onboarding"),
-  [nextParam],
-);
+  const inviteParam = sp.get("invite");
+  const sourceParam = sp.get("source");
+
+  const nextTarget = useMemo(
+    () => (nextParam && nextParam.startsWith("/") ? nextParam : "/onboarding"),
+    [nextParam],
+  );
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -43,6 +49,35 @@ const nextTarget = useMemo(
   const [error, setError] = useState<string | null>(null);
 
   const passwordsMatch = password.trim() === password2.trim();
+
+  const analyticsBase = useMemo(
+    () => ({
+      screen: "register",
+      next_target: nextTarget,
+      invite_id: inviteParam || undefined,
+      source: sourceParam || undefined,
+      entry_path: typeof window !== "undefined" ? window.location.pathname : "/auth/register",
+    }),
+    [inviteParam, nextTarget, sourceParam],
+  );
+
+  useEffect(() => {
+    void trackScreenView({
+      screen: "register",
+      metadata: analyticsBase,
+    });
+  }, [analyticsBase]);
+
+  const markSignupStarted = useCallback(() => {
+    void trackEventOnce({
+      event: "signup_started",
+      scope: "session",
+      onceKey: inviteParam
+        ? `signup-started:${nextTarget}:${inviteParam}`
+        : `signup-started:${nextTarget}`,
+      metadata: analyticsBase,
+    });
+  }, [analyticsBase, inviteParam, nextTarget]);
 
   const canSubmit = useMemo(() => {
     const trimmedName = name.trim();
@@ -62,6 +97,7 @@ const nextTarget = useMemo(
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    markSignupStarted();
     if (!canSubmit) return;
 
     setError(null);
@@ -86,11 +122,9 @@ const nextTarget = useMemo(
 
     try {
       const origin = getAppOrigin();
-      const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(
-        nextTarget,
-      )}`;
+      const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(nextTarget)}`;
 
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email: trimmedEmail,
         password: trimmedPass,
         options: {
@@ -107,6 +141,19 @@ const nextTarget = useMemo(
         setLoading(false);
         return;
       }
+
+      const userId = data.user?.id ?? null;
+
+      void trackEvent({
+        event: "signup_completed",
+        userId,
+        metadata: {
+          ...analyticsBase,
+          method: "email_password",
+          has_email_confirmation: true,
+          redirected_to: nextTarget,
+        },
+      });
 
       setDone(true);
       setLoading(false);
@@ -187,7 +234,11 @@ const nextTarget = useMemo(
                   autoComplete="name"
                   placeholder="Cómo quieres que te vean"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onFocus={markSignupStarted}
+                  onChange={(e) => {
+                    markSignupStarted();
+                    setName(e.target.value);
+                  }}
                   style={inputStyle}
                   disabled={loading}
                 />
@@ -204,7 +255,11 @@ const nextTarget = useMemo(
                   autoComplete="email"
                   placeholder="tu@correo.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onFocus={markSignupStarted}
+                  onChange={(e) => {
+                    markSignupStarted();
+                    setEmail(e.target.value);
+                  }}
                   style={inputStyle}
                   disabled={loading}
                 />
@@ -220,7 +275,11 @@ const nextTarget = useMemo(
                   autoComplete="new-password"
                   placeholder="Mínimo 6 caracteres"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onFocus={markSignupStarted}
+                  onChange={(e) => {
+                    markSignupStarted();
+                    setPassword(e.target.value);
+                  }}
                   style={inputStyle}
                   disabled={loading}
                 />
@@ -236,7 +295,11 @@ const nextTarget = useMemo(
                   autoComplete="new-password"
                   placeholder="Repite tu contraseña"
                   value={password2}
-                  onChange={(e) => setPassword2(e.target.value)}
+                  onFocus={markSignupStarted}
+                  onChange={(e) => {
+                    markSignupStarted();
+                    setPassword2(e.target.value);
+                  }}
                   style={inputStyle}
                   disabled={loading}
                 />
