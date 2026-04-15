@@ -2,45 +2,45 @@
 
 import { useMemo, useState } from "react";
 import type { EventTemplate } from "@/lib/eventTemplates";
-
-/* Helpers */
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
 }
 
-export function toInputLocal(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(
-    d.getDate()
-  )}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+function toInputLocal(date: Date) {
+  const year = date.getFullYear();
+  const month = pad2(date.getMonth() + 1);
+  const day = pad2(date.getDate());
+  const hours = pad2(date.getHours());
+  const minutes = pad2(date.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-export function fromInputLocal(s: string) {
-  return new Date(s);
+function fromInputLocal(value: string) {
+  return new Date(value);
 }
 
-export function addMinutes(d: Date, mins: number) {
-  const x = new Date(d);
-  x.setMinutes(x.getMinutes() + mins);
-  return x;
+function addMinutes(date: Date, minutes: number) {
+  return new Date(date.getTime() + minutes * 60_000);
 }
 
-export function roundToNextQuarterHour(d: Date) {
-  const x = new Date(d);
-  x.setSeconds(0, 0);
+function roundToNextQuarterHour(date: Date) {
+  const rounded = new Date(date);
+  rounded.setSeconds(0, 0);
 
-  const m = x.getMinutes();
-  const rounded = Math.ceil(m / 15) * 15;
+  const minutes = rounded.getMinutes();
+  const remainder = minutes % 15;
 
-  x.setMinutes(rounded % 60);
-  if (rounded >= 60) x.setHours(x.getHours() + 1);
+  if (remainder !== 0) {
+    rounded.setMinutes(minutes + (15 - remainder));
+  }
 
-  return x;
+  return rounded;
 }
 
-export function getSafeDurationMinutes(start: Date, end: Date) {
-  const diff = end.getTime() - start.getTime();
-  if (!Number.isFinite(diff) || diff <= 0) return 60;
-  return Math.max(15, Math.round(diff / 60000));
+function getSafeDurationMinutes(value: number | string | null | undefined) {
+  const parsed = typeof value === "number" ? value : Number(value ?? 60);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 60;
+  return parsed;
 }
 
 type SelectedGroup = {
