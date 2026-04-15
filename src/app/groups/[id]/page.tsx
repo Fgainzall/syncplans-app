@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import MobileScaffold from "@/components/MobileScaffold";
@@ -40,6 +40,10 @@ type UiToast =
 
 export default function GroupsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const cameFromInvite = searchParams.get("from") === "invite_accept";
+  const wasAccepted = searchParams.get("accepted") === "1";
 
   const [booting, setBooting] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -234,6 +238,34 @@ export default function GroupsPage() {
 
         <Card style={styles.surfaceCard}>
           <Section style={styles.contentStack}>
+            {cameFromInvite && wasAccepted ? (
+              <Card tone="muted" style={styles.joinedBanner}>
+                <div style={styles.joinedBadge}>Ya estás dentro</div>
+                <h2 style={styles.joinedTitle}>
+                  Ahora compartes el mismo espacio que el resto
+                </h2>
+                <p style={styles.joinedText}>
+                  Desde aquí verás lo mismo que los demás, podrás coordinar sin
+                  mensajes cruzados y tomar decisiones con más claridad.
+                </p>
+                <div style={styles.joinedActions}>
+                  <button
+                    type="button"
+                    style={styles.primary}
+                    onClick={() => router.push("/calendar")}
+                  >
+                    Ver calendario
+                  </button>
+                  <button
+                    type="button"
+                    style={styles.secondary}
+                    onClick={() => router.push("/events/new")}
+                  >
+                    Crear plan compartido
+                  </button>
+                </div>
+              </Card>
+            ) : null}
             <div style={styles.headerRow}>
               <div style={styles.headerCopy}>
                 <div style={styles.kicker}>Personas con las que te organizas</div>
@@ -470,6 +502,10 @@ function GroupRow({
   onActivate: (id: string) => void;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const cameFromInvite = searchParams.get("from") === "invite_accept";
+  const wasAccepted = searchParams.get("accepted") === "1";
   const meta = metaForGroupType(g.type);
 
   return (
@@ -592,6 +628,43 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: "rgba(255,255,255,0.70)",
     fontWeight: 650,
+  },
+
+  joinedBanner: {
+    marginTop: 4,
+    padding: 16,
+    borderRadius: 18,
+    border: "1px solid rgba(56,189,248,0.28)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(37,99,235,0.08))",
+  },
+  joinedBadge: {
+    display: "inline-flex",
+    padding: "6px 10px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    background: "rgba(56,189,248,0.14)",
+    border: "1px solid rgba(56,189,248,0.28)",
+  },
+  joinedTitle: {
+    margin: "10px 0 0 0",
+    fontSize: 18,
+    fontWeight: 950,
+  },
+  joinedText: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 1.65,
+    color: "rgba(226,232,240,0.92)",
+  },
+  joinedActions: {
+    marginTop: 12,
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
   },
 
   surfaceCard: {

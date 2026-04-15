@@ -35,6 +35,68 @@ function labelType(t?: string | null) {
   return t ? String(t) : "Grupo";
 }
 
+function labelRole(role?: string | null) {
+  const s = String(role ?? "member").toLowerCase();
+  if (s === "owner") return "Owner";
+  if (s === "admin") return "Admin";
+  return "Miembro";
+}
+
+function getValueBullets(inv: GroupInvitation | null) {
+  const type = String(inv?.group_type ?? "").toLowerCase();
+
+  if (type === "pair" || type === "couple") {
+    return [
+      "Ambos ven el mismo contexto y dejan de coordinar desde mensajes sueltos.",
+      "Los planes compartidos dejan de depender de interpretaciones distintas.",
+      "Si algo ya choca con tu agenda, SyncPlans te lo muestra apenas entras.",
+    ];
+  }
+
+  if (type === "family") {
+    return [
+      "Todos parten de la misma versión de lo que ya quedó acordado.",
+      "Las agendas nuevas no se suman a ciegas: entran con contexto.",
+      "Si hay cruces importantes, el sistema te lleva directo a revisarlos.",
+    ];
+  }
+
+  return [
+    "Entras al mismo espacio que ya están usando los demás.",
+    "Los próximos planes dejan de quedar repartidos entre mensajes, memoria y supuestos.",
+    "Si tu llegada genera un choque real, SyncPlans lo hace visible desde el inicio.",
+  ];
+}
+
+function getHeroTitle(inv: GroupInvitation | null, pending: boolean) {
+  const groupName = String(inv?.group_name ?? "").trim();
+
+  if (!inv) return "Entra al mismo espacio que el resto";
+  if (!pending) {
+    return groupName
+      ? `Ya tienes acceso a ${groupName}`
+      : "Esta invitación ya fue respondida";
+  }
+
+  return groupName
+    ? `Entra a ${groupName} sin coordinar desde fuera`
+    : "Entra al mismo espacio que el resto";
+}
+
+function getHeroSubtitle(inv: GroupInvitation | null, pending: boolean) {
+  const groupLabel = labelType(inv?.group_type);
+
+  if (!inv) {
+    return "Aceptar esta invitación te mete al mismo flujo, los mismos planes y las mismas decisiones que ya están moviendo los demás.";
+  }
+
+  if (!pending) {
+    return "La invitación ya no está pendiente. Desde aquí puedes volver al grupo y seguir coordinando con el mismo contexto que el resto.";
+  }
+
+  return `Te están abriendo la puerta a un espacio ${groupLabel.toLowerCase()} compartido. Aceptar no es solo entrar: es dejar de depender de mensajes sueltos para entender qué sigue, qué cambió y qué ya quedó acordado.`;
+}
+
 function StatusPill({ status }: { status: string }) {
   const s = (status || "").toLowerCase();
   const meta =
@@ -245,6 +307,7 @@ export default function AcceptInviteClient() {
   const pending = status === "pending";
   const hasPremium = hasPremiumAccess(profile);
   const shouldShowExternalNudge = !hasPremium && pending;
+  const valueBullets = useMemo(() => getValueBullets(inv), [inv]);
 
   useEffect(() => {
     if (!shouldShowExternalNudge || !inviteId || !inv) return;
@@ -318,8 +381,8 @@ export default function AcceptInviteClient() {
 
       if (conflictResult.conflictCount > 0) {
         showToast({
-          title: "⚠️ Entraste justo donde ya hay choques por revisar",
-          subtitle: "Te llevo directo para que la llegada no se quede a medias.",
+          title: "⚠️ Entraste y ya hay algo importante por revisar",
+          subtitle: "Te llevo directo al choque para que tu llegada empiece con claridad, no con ruido.",
         });
 
         const qp = new URLSearchParams();
@@ -337,15 +400,13 @@ export default function AcceptInviteClient() {
       }
 
       showToast({
-        title: "✅ Ya entraste al mismo espacio",
-        subtitle: "Desde aquí ya no dependes de mensajes sueltos para entender qué quedó acordado.",
+        title: "✅ Ya entraste al mismo contexto que el resto",
+        subtitle: "Ahora te llevo al grupo para que veas los planes y lo que ya está en movimiento.",
       });
 
       navTimerRef.current = window.setTimeout(() => {
         router.push(
-          `/groups?joined=${encodeURIComponent(
-            inv.group_id
-          )}&accepted=1&activeGroup=${encodeURIComponent(inv.group_id)}`
+          `/groups/${encodeURIComponent(inv.group_id)}?accepted=1&from=invite_accept`
         );
       }, 700);
     } catch (e: any) {
@@ -384,7 +445,7 @@ export default function AcceptInviteClient() {
 
       showToast({
         title: "Invitación rechazada",
-        subtitle: "No se agregó el grupo.",
+        subtitle: "No te agregamos al grupo. Puedes volver a tus grupos cuando quieras.",
       });
 
       navTimerRef.current = window.setTimeout(() => {
@@ -453,6 +514,7 @@ export default function AcceptInviteClient() {
             alignItems: "center",
             justifyContent: "space-between",
             gap: 14,
+            flexWrap: "wrap",
           }}
         >
           <PremiumHeader />
@@ -489,11 +551,13 @@ export default function AcceptInviteClient() {
             <h1
               style={{
                 margin: "10px 0 6px",
-                fontSize: 26,
-                letterSpacing: "-0.6px",
+                fontSize: 28,
+                letterSpacing: "-0.7px",
+                lineHeight: 1.08,
+                maxWidth: 760,
               }}
             >
-              Entra al mismo espacio que el resto
+              {getHeroTitle(inv, pending)}
             </h1>
 
             {!inviteId || !isUuid(inviteId) ? (
@@ -574,13 +638,64 @@ export default function AcceptInviteClient() {
                 <div
                   style={{
                     marginTop: 10,
-                    opacity: 0.72,
-                    fontSize: 13,
-                    lineHeight: 1.45,
-                    maxWidth: 700,
+                    opacity: 0.76,
+                    fontSize: 14,
+                    lineHeight: 1.55,
+                    maxWidth: 760,
                   }}
                 >
-                  Aceptar esta invitación no solo te deja entrar. Hace que empieces a ver el mismo grupo, los mismos planes y las mismas decisiones que ya están moviendo los demás.
+                  {getHeroSubtitle(inv, pending)}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 16,
+                    padding: 14,
+                    borderRadius: 16,
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    background: "rgba(0,0,0,0.18)",
+                    display: "grid",
+                    gap: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 950, fontSize: 20 }}>
+                        {inv.group_name || "Grupo"}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: 6,
+                          opacity: 0.75,
+                          fontSize: 13,
+                          lineHeight: 1.45,
+                        }}
+                      >
+                        Entrar aquí te suma a un espacio <b>{labelType(inv.group_type).toLowerCase()}</b> como <b>{labelRole(inv.role)}</b>.
+                        {pending
+                          ? " Si aceptas hoy, este grupo quedará activo para que empieces a ver lo mismo que los demás desde ya."
+                          : " Desde aquí ya puedes volver al grupo y seguir coordinando dentro del mismo contexto compartido."}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                      }}
+                    >
+                      <StatusPill status={status || "pending"} />
+                    </div>
+                  </div>
                 </div>
 
                 <div
@@ -588,23 +703,19 @@ export default function AcceptInviteClient() {
                     marginTop: 14,
                     display: "grid",
                     gap: 10,
-                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
                   }}
                 >
-                  {[
-                    "Ves el mismo contexto que el resto",
-                    "Los próximos planes dejan de quedar en el aire",
-                    "Si ya existe un choque, te llevamos directo a resolverlo",
-                  ].map((item) => (
+                  {valueBullets.map((item) => (
                     <div
                       key={item}
                       style={{
                         borderRadius: 14,
                         border: "1px solid rgba(255,255,255,0.10)",
                         background: "rgba(255,255,255,0.03)",
-                        padding: "12px 12px",
-                        fontSize: 12,
-                        lineHeight: 1.45,
+                        padding: "13px 12px",
+                        fontSize: 12.5,
+                        lineHeight: 1.52,
                         fontWeight: 800,
                       }}
                     >
@@ -612,6 +723,38 @@ export default function AcceptInviteClient() {
                     </div>
                   ))}
                 </div>
+
+                {pending ? (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      borderRadius: 16,
+                      border: "1px solid rgba(255,255,255,0.09)",
+                      background: "rgba(255,255,255,0.03)",
+                      padding: 14,
+                      display: "grid",
+                      gap: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 11,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        fontWeight: 900,
+                        opacity: 0.76,
+                      }}
+                    >
+                      Qué pasa después de aceptar
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 900 }}>
+                      No te soltamos en una pantalla fría.
+                    </div>
+                    <div style={{ fontSize: 13, opacity: 0.78, lineHeight: 1.55 }}>
+                      Si al entrar ya existe un choque importante, te llevamos directo a revisarlo. Si no, entras al grupo para ver el contexto compartido y empezar a coordinar desde dentro.
+                    </div>
+                  </div>
+                ) : null}
 
                 {shouldShowExternalNudge ? (
                   <div
@@ -639,11 +782,11 @@ export default function AcceptInviteClient() {
                     </div>
 
                     <div style={{ fontWeight: 900, fontSize: 16 }}>
-                      Aceptar una invitación es solo el inicio. El valor real aparece cuando ambos empiezan a decidir y responder dentro.
+                      Entrar al grupo resuelve el acceso. Premium mejora lo que pasa después: más claridad compartida, menos fricción y mejor anticipación cuando la coordinación crece.
                     </div>
 
                     <div style={{ fontSize: 13, opacity: 0.78, lineHeight: 1.55 }}>
-                      Premium te ayuda a convertir esta nueva coordinación en una sola verdad compartida, con más contexto para anticipar choques, menos fricción para decidir y una llegada mucho más clara para cada persona que entra.
+                      Es la capa que hace que una nueva persona no entre a interpretar a ciegas qué cambió, qué choca y qué merece atención primero.
                     </div>
 
                     <div
@@ -656,8 +799,8 @@ export default function AcceptInviteClient() {
                       }}
                     >
                       <div>• Anticipa conflictos cuando entra una agenda nueva.</div>
-                      <div>• Da más claridad cuando entra una persona nueva y la coordinación se vuelve compartida.</div>
-                      <div>• Evita interpretar manualmente qué cambió y qué no.</div>
+                      <div>• Da más contexto cuando la coordinación deja de ser individual.</div>
+                      <div>• Reduce el esfuerzo de interpretar manualmente qué pasó.</div>
                     </div>
 
                     <div style={{ display: "flex", gap: 10, marginTop: 6, flexWrap: "wrap" }}>
@@ -689,7 +832,7 @@ export default function AcceptInviteClient() {
                           cursor: "pointer",
                         }}
                       >
-                        Entender cómo funciona
+                        Ver cómo ayuda
                       </button>
 
                       <button
@@ -710,76 +853,24 @@ export default function AcceptInviteClient() {
                   </div>
                 ) : null}
 
-                <div
-                  style={{
-                    marginTop: 12,
-                    padding: 14,
-                    borderRadius: 16,
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    background: "rgba(0,0,0,0.18)",
-                  }}
-                >
+                {!pending ? (
                   <div
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      flexWrap: "wrap",
+                      marginTop: 12,
+                      padding: 14,
+                      borderRadius: 16,
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      background: "rgba(255,255,255,0.03)",
+                      fontSize: 13,
+                      lineHeight: 1.55,
+                      opacity: 0.82,
                     }}
                   >
-                    <div>
-                      <div
-                        style={{
-                          fontWeight: 950,
-                          fontSize: 18,
-                        }}
-                      >
-                        {inv.group_name || "Grupo"}
-                      </div>
-                      <div
-                        style={{
-                          marginTop: 6,
-                          opacity: 0.75,
-                          fontSize: 13,
-                        }}
-                      >
-                        Tipo: <b>{labelType(inv.group_type)}</b> · Rol: <b>{inv.role || "member"}</b>
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                      }}
-                    >
-                      <StatusPill status={status || "pending"} />
-                    </div>
+                    {status === "accepted"
+                      ? "Ya formas parte de este grupo. Vuelve a entrar para seguir coordinando con el mismo contexto que los demás."
+                      : "Esta invitación ya no está pendiente. Puedes volver a tus grupos cuando quieras."}
                   </div>
-
-                  {!pending ? (
-                    <div
-                      style={{
-                        marginTop: 10,
-                        opacity: 0.75,
-                        fontSize: 12,
-                      }}
-                    >
-                      Esta invitación ya no está pendiente. Puedes volver a tus grupos y seguir activando la coordinación desde ahí.
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        marginTop: 10,
-                        opacity: 0.75,
-                        fontSize: 12,
-                      }}
-                    >
-                      Al aceptar, este grupo quedará activo y SyncPlans revisará si sus eventos chocan con tu agenda actual para que la llegada de esta nueva coordinación no se quede a medias.
-                    </div>
-                  )}
-                </div>
+                ) : null}
 
                 <div
                   style={{
@@ -836,12 +927,12 @@ export default function AcceptInviteClient() {
                       color: "rgba(255,255,255,0.95)",
                       cursor: !!busy || !pending ? "not-allowed" : "pointer",
                       fontWeight: 900,
-                      minWidth: 220,
+                      minWidth: 260,
                       opacity: pending ? 1 : 0.55,
                     }}
                     title={!pending ? "Esta invitación ya no está pendiente" : ""}
                   >
-                    {busy === "accept" ? "Aceptando…" : "Aceptar y entrar"}
+                    {busy === "accept" ? "Aceptando…" : "Aceptar y entrar al grupo"}
                   </button>
                 </div>
               </>

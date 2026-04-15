@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import supabase from "@/lib/supabaseClient";
 import { trackEvent, trackScreenView } from "@/lib/analytics";
+
 type PublicInviteStatus = "pending" | "accepted" | "rejected";
 
 type PublicInviteRow = {
@@ -192,6 +192,7 @@ function getStatusBadgeStyle(
       };
   }
 }
+
 async function trackPublicInviteEvent(input: {
   userId?: string | null;
   eventType: "invite_opened" | "invite_accepted" | "invite_declined";
@@ -205,6 +206,7 @@ async function trackPublicInviteEvent(input: {
     metadata: input.metadata,
   });
 }
+
 export default function InviteClient({ token }: Props) {
   const [invite, setInvite] = useState<PublicInviteRow | null>(null);
   const [event, setEvent] = useState<PublicInviteEvent | null>(null);
@@ -213,14 +215,16 @@ export default function InviteClient({ token }: Props) {
     "accepted" | "rejected" | null
   >(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    void trackScreenView({ screen: "public_invite", metadata: { token_present: !!token } });
-  }, [token]);
-
   const [message, setMessage] = useState("");
   const [proposedDate, setProposedDate] = useState("");
   const [mode, setMode] = useState<ResponseMode>("idle");
+
+  useEffect(() => {
+    void trackScreenView({
+      screen: "public_invite",
+      metadata: { token_present: Boolean(token) },
+    });
+  }, [token]);
 
   useEffect(() => {
     let cancelled = false;
@@ -247,6 +251,10 @@ export default function InviteClient({ token }: Props) {
 
           setInvite(nextInvite);
           setEvent(nextEvent);
+          setMessage(nextInvite?.message ?? "");
+          setProposedDate(toDateTimeLocalValue(nextInvite?.proposed_date));
+          setMode("idle");
+
           if (nextInvite) {
             await trackPublicInviteEvent({
               userId: null,
@@ -266,9 +274,6 @@ export default function InviteClient({ token }: Props) {
               },
             });
           }
-          setMessage(nextInvite?.message ?? "");
-          setProposedDate(toDateTimeLocalValue(nextInvite?.proposed_date));
-          setMode("idle");
         }
       } catch (err) {
         if (!cancelled) {
@@ -300,8 +305,24 @@ export default function InviteClient({ token }: Props) {
   const canSubmit = !loading && !!invite && submittingAction === null;
   const canAccept = canSubmit;
   const canReject = canSubmit;
-  const canSendProposal =
-    canSubmit && proposedDate.trim().length > 0;
+  const canSendProposal = canSubmit && proposedDate.trim().length > 0;
+
+  const inviteeLabel = String(invite?.contact ?? "").trim() || "la persona invitada";
+  const eventTitle = String(event?.title ?? "").trim() || "este plan";
+  const hasSoftFinalState = invite?.status === "accepted" || invite?.status === "rejected";
+
+  const headerMessage = useMemo(() => {
+    if (invite?.status === "accepted") {
+      return "Tu respuesta ya quedó guardada. Desde aquí ya no dependes de mensajes sueltos para dejar claro si vas o no vas.";
+    }
+    if (invite?.status === "rejected" && invite?.proposed_date) {
+      return "Ya propusiste una alternativa. Ahora la otra persona podrá revisar una opción concreta en vez de seguir coordinando por fuera.";
+    }
+    if (invite?.status === "rejected") {
+      return "Tu rechazo ya quedó guardado. Así el plan no queda ambiguo ni abierto a confusiones.";
+    }
+    return "Responde este plan sin tener cuenta y deja una sola respuesta clara para todos.";
+  }, [invite?.status, invite?.proposed_date]);
 
   async function handleRespond(nextStatus: "accepted" | "rejected") {
     try {
@@ -330,10 +351,15 @@ export default function InviteClient({ token }: Props) {
 
       const updatedInvite = (json?.invite ?? null) as PublicInviteRow | null;
       setInvite(updatedInvite);
+      setMessage(updatedInvite?.message ?? payload.message ?? "");
+      setProposedDate(toDateTimeLocalValue(updatedInvite?.proposed_date));
+      setMode("idle");
+
       if (updatedInvite) {
         await trackPublicInviteEvent({
           userId: null,
-          eventType: nextStatus === "accepted" ? "invite_accepted" : "invite_declined",
+          eventType:
+            nextStatus === "accepted" ? "invite_accepted" : "invite_declined",
           entityId: updatedInvite.id ?? event?.id ?? null,
           metadata: {
             screen: "public_invite",
@@ -350,9 +376,6 @@ export default function InviteClient({ token }: Props) {
           },
         });
       }
-      setMessage(updatedInvite?.message ?? payload.message ?? "");
-      setProposedDate(toDateTimeLocalValue(updatedInvite?.proposed_date));
-      setMode("idle");
     } catch (err) {
       setError(
         err instanceof Error
@@ -396,6 +419,10 @@ export default function InviteClient({ token }: Props) {
 
       const updatedInvite = (json?.invite ?? null) as PublicInviteRow | null;
       setInvite(updatedInvite);
+      setMessage(updatedInvite?.message ?? payload.message ?? "");
+      setProposedDate(toDateTimeLocalValue(updatedInvite?.proposed_date));
+      setMode("idle");
+
       if (updatedInvite) {
         await trackPublicInviteEvent({
           userId: null,
@@ -417,9 +444,6 @@ export default function InviteClient({ token }: Props) {
           },
         });
       }
-      setMessage(updatedInvite?.message ?? payload.message ?? "");
-      setProposedDate(toDateTimeLocalValue(updatedInvite?.proposed_date));
-      setMode("idle");
     } catch (err) {
       setError(
         err instanceof Error
@@ -436,48 +460,50 @@ export default function InviteClient({ token }: Props) {
       style={{
         minHeight: "100dvh",
         background:
-          "linear-gradient(180deg, rgba(248,250,252,1) 0%, rgba(241,245,249,1) 100%)",
-        padding: "24px 16px 40px",
+          "radial-gradient(900px 520px at 10% -10%, rgba(99,102,241,0.12), transparent 48%), linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
+        padding: "24px 16px 48px",
       }}
     >
       <div
         style={{
-          maxWidth: 560,
+          maxWidth: 620,
           margin: "0 auto",
         }}
       >
         <div
           style={{
-            background: "#fff",
-            borderRadius: 24,
+            background: "rgba(255,255,255,0.94)",
+            borderRadius: 28,
             padding: 24,
-            boxShadow: "0 20px 60px rgba(15,23,42,0.10)",
+            boxShadow: "0 24px 70px rgba(15,23,42,0.10)",
             border: "1px solid rgba(15,23,42,0.06)",
+            backdropFilter: "blur(10px)",
           }}
         >
           <div style={{ marginBottom: 20 }}>
             <div
               style={{
                 fontSize: 13,
-                fontWeight: 700,
-                letterSpacing: 0.3,
+                fontWeight: 800,
+                letterSpacing: 0.35,
                 textTransform: "uppercase",
-                color: "#64748b",
+                color: "#6366f1",
                 marginBottom: 8,
               }}
             >
-              SyncPlans
+              SyncPlans · respuesta externa
             </div>
 
             <h1
               style={{
                 margin: 0,
-                fontSize: 28,
-                lineHeight: 1.1,
+                fontSize: 30,
+                lineHeight: 1.06,
                 color: "#0f172a",
+                letterSpacing: "-0.03em",
               }}
             >
-              Invitación externa
+              Responde este plan sin coordinar por fuera
             </h1>
 
             <p
@@ -485,11 +511,12 @@ export default function InviteClient({ token }: Props) {
                 marginTop: 10,
                 marginBottom: 0,
                 fontSize: 15,
-                lineHeight: 1.6,
+                lineHeight: 1.65,
                 color: "#475569",
+                maxWidth: 520,
               }}
             >
-              Responde este plan aunque no tengas cuenta dentro de la app.
+              {headerMessage}
             </p>
           </div>
 
@@ -497,7 +524,7 @@ export default function InviteClient({ token }: Props) {
             <div
               style={{
                 padding: 18,
-                borderRadius: 16,
+                borderRadius: 18,
                 background: "#f8fafc",
                 color: "#475569",
               }}
@@ -508,7 +535,7 @@ export default function InviteClient({ token }: Props) {
             <div
               style={{
                 padding: 18,
-                borderRadius: 16,
+                borderRadius: 18,
                 background: "#fef2f2",
                 color: "#991b1b",
                 border: "1px solid #fecaca",
@@ -520,7 +547,7 @@ export default function InviteClient({ token }: Props) {
             <div
               style={{
                 padding: 18,
-                borderRadius: 16,
+                borderRadius: 18,
                 background: "#fff7ed",
                 color: "#9a3412",
                 border: "1px solid #fdba74",
@@ -530,52 +557,158 @@ export default function InviteClient({ token }: Props) {
             </div>
           ) : (
             <>
-              {event ? (
-                <section
+              <section
+                style={{
+                  borderRadius: 22,
+                  padding: 18,
+                  background: "linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%)",
+                  border: "1px solid rgba(99,102,241,0.16)",
+                  marginBottom: 16,
+                  display: "grid",
+                  gap: 14,
+                }}
+              >
+                <div
                   style={{
-                    borderRadius: 18,
-                    padding: 18,
-                    background: "#eef2ff",
-                    border: "1px solid rgba(99,102,241,0.18)",
-                    marginBottom: 18,
+                    display: "grid",
+                    gap: 8,
                   }}
                 >
                   <div
                     style={{
                       fontSize: 12,
-                      fontWeight: 800,
-                      letterSpacing: 0.3,
+                      fontWeight: 900,
+                      letterSpacing: 0.35,
                       textTransform: "uppercase",
                       color: "#6366f1",
-                      marginBottom: 8,
                     }}
                   >
-                    Evento
+                    Plan compartido
                   </div>
 
                   <strong
                     style={{
                       display: "block",
                       color: "#0f172a",
-                      fontSize: 18,
-                      lineHeight: 1.3,
+                      fontSize: 20,
+                      lineHeight: 1.25,
                     }}
                   >
-                    {event.title || "Evento sin título"}
+                    {eventTitle}
                   </strong>
 
                   <div
                     style={{
-                      marginTop: 8,
                       color: "#475569",
                       fontSize: 14,
                       lineHeight: 1.6,
                     }}
                   >
-                    {formatEventDate(event.start, event.end)}
+                    {formatEventDate(event?.start, event?.end)}
                   </div>
-                </section>
-              ) : null}
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 10,
+                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  }}
+                >
+                  <div
+                    style={{
+                      borderRadius: 16,
+                      padding: 12,
+                      background: "rgba(255,255,255,0.72)",
+                      border: "1px solid rgba(15,23,42,0.06)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 900,
+                        letterSpacing: 0.35,
+                        textTransform: "uppercase",
+                        color: "#64748b",
+                        marginBottom: 6,
+                      }}
+                    >
+                      Respuesta clara
+                    </div>
+                    <div
+                      style={{
+                        color: "#0f172a",
+                        fontSize: 13,
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      Lo que respondas aquí queda visible para la otra parte sin depender de mensajes sueltos.
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      borderRadius: 16,
+                      padding: 12,
+                      background: "rgba(255,255,255,0.72)",
+                      border: "1px solid rgba(15,23,42,0.06)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 900,
+                        letterSpacing: 0.35,
+                        textTransform: "uppercase",
+                        color: "#64748b",
+                        marginBottom: 6,
+                      }}
+                    >
+                      Menos fricción
+                    </div>
+                    <div
+                      style={{
+                        color: "#0f172a",
+                        fontSize: 13,
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      Puedes aceptar, rechazar o proponer una nueva fecha desde el mismo enlace.
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      borderRadius: 16,
+                      padding: 12,
+                      background: "rgba(255,255,255,0.72)",
+                      border: "1px solid rgba(15,23,42,0.06)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 900,
+                        letterSpacing: 0.35,
+                        textTransform: "uppercase",
+                        color: "#64748b",
+                        marginBottom: 6,
+                      }}
+                    >
+                      Sin cuenta
+                    </div>
+                    <div
+                      style={{
+                        color: "#0f172a",
+                        fontSize: 13,
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      Puedes responder ahora mismo aunque todavía no uses SyncPlans dentro de la app.
+                    </div>
+                  </div>
+                </div>
+              </section>
 
               <section
                 style={{
@@ -625,8 +758,8 @@ export default function InviteClient({ token }: Props) {
                   <div>{statusInfo.description}</div>
 
                   <div>
-                    <strong style={{ color: "#0f172a" }}>Contacto:</strong>{" "}
-                    {invite.contact || "No especificado"}
+                    <strong style={{ color: "#0f172a" }}>Invitación enviada a:</strong>{" "}
+                    {inviteeLabel}
                   </div>
 
                   <div>
@@ -648,6 +781,39 @@ export default function InviteClient({ token }: Props) {
                     </div>
                   ) : null}
                 </div>
+              </section>
+
+              <section
+                style={{
+                  borderRadius: 18,
+                  padding: 16,
+                  background: "rgba(99,102,241,0.06)",
+                  border: "1px solid rgba(99,102,241,0.14)",
+                  marginBottom: 18,
+                  color: "#312e81",
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                }}
+              >
+                {hasSoftFinalState ? (
+                  invite?.status === "accepted" ? (
+                    <span>
+                      Ya confirmaste este plan. La otra parte ahora ve una respuesta clara y no tiene que volver a preguntarte por otro canal.
+                    </span>
+                  ) : invite?.proposed_date ? (
+                    <span>
+                      Ya propusiste una nueva fecha. Esto ayuda a convertir un “no puedo” en una alternativa concreta y más fácil de decidir.
+                    </span>
+                  ) : (
+                    <span>
+                      Ya rechazaste este plan. Eso evita que el evento quede ambiguo o que alguien asuma que sigues disponible.
+                    </span>
+                  )
+                ) : (
+                  <span>
+                    Aquí no solo respondes. También dejas una sola versión clara de lo que pasará con este plan.
+                  </span>
+                )}
               </section>
 
               <section
@@ -728,7 +894,7 @@ export default function InviteClient({ token }: Props) {
                         color: "#64748b",
                       }}
                     >
-                      Esta acción rechazará el horario original y enviará una alternativa.
+                      Esta acción rechaza el horario original y envía una alternativa concreta para seguir coordinando.
                     </div>
                   </div>
                 ) : null}
@@ -738,7 +904,7 @@ export default function InviteClient({ token }: Props) {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 1fr 1fr",
+                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
                     gap: 12,
                   }}
                 >
@@ -751,14 +917,14 @@ export default function InviteClient({ token }: Props) {
                       borderRadius: 16,
                       padding: "14px 16px",
                       fontSize: 15,
-                      fontWeight: 700,
+                      fontWeight: 800,
                       background: "#0f172a",
                       color: "#fff",
                       cursor: canAccept ? "pointer" : "not-allowed",
                       opacity: canAccept ? 1 : 0.5,
                     }}
                   >
-                    {submittingAction === "accepted" ? "Procesando..." : "Aceptar"}
+                    {submittingAction === "accepted" ? "Procesando..." : "Aceptar plan"}
                   </button>
 
                   <button
@@ -773,14 +939,14 @@ export default function InviteClient({ token }: Props) {
                       borderRadius: 16,
                       padding: "14px 16px",
                       fontSize: 15,
-                      fontWeight: 700,
+                      fontWeight: 800,
                       background: "#fff",
                       color: "#0f172a",
                       cursor: canSubmit ? "pointer" : "not-allowed",
                       opacity: canSubmit ? 1 : 0.7,
                     }}
                   >
-                    Proponer nueva fecha
+                    Proponer fecha
                   </button>
 
                   <button
@@ -792,7 +958,7 @@ export default function InviteClient({ token }: Props) {
                       borderRadius: 16,
                       padding: "14px 16px",
                       fontSize: 15,
-                      fontWeight: 700,
+                      fontWeight: 800,
                       background: "#fff",
                       color: "#0f172a",
                       cursor: canReject ? "pointer" : "not-allowed",
@@ -819,7 +985,7 @@ export default function InviteClient({ token }: Props) {
                       borderRadius: 16,
                       padding: "14px 16px",
                       fontSize: 15,
-                      fontWeight: 700,
+                      fontWeight: 800,
                       background: "#0f172a",
                       color: "#fff",
                       cursor: canSendProposal ? "pointer" : "not-allowed",
@@ -843,7 +1009,7 @@ export default function InviteClient({ token }: Props) {
                       borderRadius: 16,
                       padding: "14px 16px",
                       fontSize: 15,
-                      fontWeight: 700,
+                      fontWeight: 800,
                       background: "#fff",
                       color: "#0f172a",
                       cursor:
