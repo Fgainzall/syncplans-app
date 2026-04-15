@@ -181,6 +181,30 @@ function getWhyPayBullets(state: PlanAccessState): string[] {
   ];
 }
 
+
+function useIsCompactWidth(maxWidth = 720) {
+  const [isCompact, setIsCompact] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const media = window.matchMedia(`(max-width: ${maxWidth}px)`);
+    const apply = () => setIsCompact(media.matches);
+
+    apply();
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", apply);
+      return () => media.removeEventListener("change", apply);
+    }
+
+    media.addListener(apply);
+    return () => media.removeListener(apply);
+  }, [maxWidth]);
+
+  return isCompact;
+}
+
 function getShortPlanDescription(state: PlanAccessState): string {
   if (state.isFounder) return "Acceso preferente";
   if (state.accessSource === "trial") return "Probando Premium";
@@ -192,6 +216,7 @@ function getShortPlanDescription(state: PlanAccessState): string {
 export default function PlanesPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const isCompact = useIsCompactWidth();
 
   useEffect(() => {
     let active = true;
@@ -240,36 +265,36 @@ export default function PlanesPage() {
         subtitle="Premium no existe para darte más pantallas. Existe para darte más claridad, menos fricción y más control cuando coordinar con otros ya importa de verdad."
       />
 
-      <div style={sectionWrapperStyle}>
-        <section style={decisionHeroStyle}>
-          <div style={decisionHeroTopStyle}>
-            <div style={decisionHeroTextStyle}>
+      <div style={{ ...sectionWrapperStyle, ...(isCompact ? sectionWrapperCompactStyle : null) }}>
+        <section style={{ ...decisionHeroStyle, ...(isCompact ? decisionHeroCompactStyle : null) }}>
+          <div style={{ ...decisionHeroTopStyle, ...(isCompact ? decisionHeroTopCompactStyle : null) }}>
+            <div style={{ ...decisionHeroTextStyle, ...(isCompact ? decisionHeroTextCompactStyle : null) }}>
               <div style={decisionEyebrowStyle}>Premium real</div>
-              <h2 style={decisionTitleStyle}>
+              <h2 style={{ ...decisionTitleStyle, ...(isCompact ? decisionTitleCompactStyle : null) }}>
                 {loading ? "Cargando estado del plan..." : getDecisionHeadline(planState)}
               </h2>
-              <p style={decisionCopyStyle}>
+              <p style={{ ...decisionCopyStyle, ...(isCompact ? decisionCopyCompactStyle : null) }}>
                 {loading ? "Leyendo tu información de cuenta..." : getDecisionCopy(planState)}
               </p>
             </div>
 
-            <div style={decisionSidePillStyle}>
+            <div style={{ ...decisionSidePillStyle, ...(isCompact ? decisionSidePillCompactStyle : null) }}>
               {loading ? "Leyendo..." : planState.statusLabel}
             </div>
           </div>
 
-          <div style={decisionBulletsGridStyle}>
+          <div style={{ ...decisionBulletsGridStyle, ...(isCompact ? decisionBulletsGridCompactStyle : null) }}>
             {whyPayBullets.map((item) => (
-              <div key={item} style={decisionBulletCardStyle}>
+              <div key={item} style={{ ...decisionBulletCardStyle, ...(isCompact ? decisionBulletCardCompactStyle : null) }}>
                 <span style={decisionBulletDotStyle} />
-                <span style={decisionBulletTextStyle}>{item}</span>
+                <span style={{ ...decisionBulletTextStyle, ...(isCompact ? decisionBulletTextCompactStyle : null) }}>{item}</span>
               </div>
             ))}
           </div>
         </section>
 
-        <section style={planCardStyle}>
-          <div style={planHeaderRowStyle}>
+        <section style={{ ...planCardStyle, ...(isCompact ? planCardCompactStyle : null) }}>
+          <div style={{ ...planHeaderRowStyle, ...(isCompact ? planHeaderRowCompactStyle : null) }}>
             <div style={planLabelColumnStyle}>
               <div style={planPillStyle}>
                 <span style={planDotStyle} />
@@ -278,15 +303,15 @@ export default function PlanesPage() {
                 </span>
               </div>
 
-              <h2 style={planTitleStyle}>
+              <h2 style={{ ...planTitleStyle, ...(isCompact ? planTitleCompactStyle : null) }}>
                 {loading ? " " : planState.planLabel}
               </h2>
 
-              <p style={planSubtitleStyle}>{shortPlanDescription}</p>
+              <p style={{ ...planSubtitleStyle, ...(isCompact ? planSubtitleCompactStyle : null) }}>{shortPlanDescription}</p>
             </div>
 
-            <div style={planActionsColumnStyle}>
-              <div style={planStatusPillStyle}>
+            <div style={{ ...planActionsColumnStyle, ...(isCompact ? planActionsColumnCompactStyle : null) }}>
+              <div style={{ ...planStatusPillStyle, ...(isCompact ? planStatusPillCompactStyle : null) }}>
                 {loading ? "Leyendo estado..." : planState.statusLabel}
               </div>
             </div>
@@ -296,7 +321,7 @@ export default function PlanesPage() {
             {loading ? "" : getCurrentPlanNote(planState)}
           </p>
 
-          <div style={statusSummaryGridStyle}>
+          <div style={{ ...statusSummaryGridStyle, ...(isCompact ? statusSummaryGridCompactStyle : null) }}>
             <div style={statusSummaryItemStyle}>
               <span style={statusSummaryLabelStyle}>Acceso</span>
               <strong style={statusSummaryValueStyle}>
@@ -347,7 +372,7 @@ export default function PlanesPage() {
           </div>
         </section>
 
-        <section style={plansSectionStyle}>
+        <section style={{ ...plansSectionStyle, ...(isCompact ? plansSectionCompactStyle : null) }}>
           <header style={plansHeaderRowStyle}>
             <div>
               <h3 style={plansTitleStyle}>Planes de SyncPlans</h3>
@@ -357,7 +382,7 @@ export default function PlanesPage() {
             </div>
           </header>
 
-          <div style={plansGridStyle}>
+          <div style={{ ...plansGridStyle, ...(isCompact ? plansGridCompactStyle : null) }}>
             {cards.map((card) => {
               const isCurrent = planState.currentPlanCardId === card.id;
               const founderEquivalent =
@@ -921,4 +946,104 @@ const planCtaHintStyle: CSSProperties = {
   fontSize: 11,
   lineHeight: 1.5,
   color: colors.textMuted,
+};
+
+const sectionWrapperCompactStyle: CSSProperties = {
+  maxWidth: 680,
+  padding: `${spacing.sm}px ${spacing.sm}px ${spacing.xl}px`,
+  gap: spacing.md,
+};
+
+const decisionHeroCompactStyle: CSSProperties = {
+  padding: `${spacing.md}px ${spacing.md}px`,
+  gap: spacing.sm,
+};
+
+const decisionHeroTopCompactStyle: CSSProperties = {
+  flexDirection: "column",
+  alignItems: "stretch",
+  gap: spacing.sm,
+};
+
+const decisionHeroTextCompactStyle: CSSProperties = {
+  gap: 6,
+};
+
+const decisionTitleCompactStyle: CSSProperties = {
+  fontSize: 18,
+  lineHeight: 1.06,
+  letterSpacing: -0.5,
+  maxWidth: "16ch",
+};
+
+const decisionCopyCompactStyle: CSSProperties = {
+  fontSize: 13,
+  lineHeight: 1.45,
+  maxWidth: "34ch",
+};
+
+const decisionSidePillCompactStyle: CSSProperties = {
+  alignSelf: "flex-start",
+  padding: "7px 10px",
+  fontSize: 11,
+};
+
+const decisionBulletsGridCompactStyle: CSSProperties = {
+  gridTemplateColumns: "1fr",
+  gap: 8,
+};
+
+const decisionBulletCardCompactStyle: CSSProperties = {
+  padding: `10px 12px`,
+  gap: 10,
+};
+
+const decisionBulletTextCompactStyle: CSSProperties = {
+  fontSize: 12,
+  lineHeight: 1.45,
+};
+
+const planCardCompactStyle: CSSProperties = {
+  padding: `${spacing.md}px ${spacing.md}px`,
+  gap: spacing.sm,
+};
+
+const planHeaderRowCompactStyle: CSSProperties = {
+  gridTemplateColumns: "1fr",
+  gap: spacing.sm,
+};
+
+const planActionsColumnCompactStyle: CSSProperties = {
+  justifyContent: "flex-start",
+};
+
+const planTitleCompactStyle: CSSProperties = {
+  fontSize: 16,
+  lineHeight: 1.1,
+};
+
+const planSubtitleCompactStyle: CSSProperties = {
+  fontSize: 13,
+  lineHeight: 1.4,
+  maxWidth: "32ch",
+};
+
+const planStatusPillCompactStyle: CSSProperties = {
+  alignSelf: "flex-start",
+  fontSize: 10,
+};
+
+const statusSummaryGridCompactStyle: CSSProperties = {
+  gridTemplateColumns: "1fr",
+};
+
+const plansSectionCompactStyle: CSSProperties = {
+  padding: `${spacing.md}px ${spacing.md}px`,
+  gap: spacing.sm,
+};
+
+const plansGridCompactStyle: CSSProperties = {
+  marginTop: spacing.sm,
+  gridTemplateColumns: "1fr",
+  gap: spacing.sm,
 };
