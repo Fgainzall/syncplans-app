@@ -259,7 +259,7 @@ export default function GroupInviteClient() {
         >
           <PremiumHeader
             title="Invitar a grupo"
-            subtitle="Suma a alguien al mismo espacio para coordinar desde una sola verdad compartida."
+            subtitle="Convierte un grupo en coordinación real: misma vista, mismo contexto y menos fricción desde el primer momento."
           />
           <LogoutButton />
         </div>
@@ -305,9 +305,7 @@ export default function GroupInviteClient() {
                 maxWidth: 650,
               }}
             >
-              Envía una invitación y abre el mismo espacio compartido para la
-              otra persona. La idea no es solo sumarla: es hacer que vea lo
-              mismo que tú desde el primer momento, sin perseguir acuerdos por chat.
+              Invitar no debería sentirse como un trámite. Aquí abres el mismo espacio compartido para que la otra persona vea el mismo grupo, el mismo contexto y las mismas decisiones desde el inicio, sin perseguir acuerdos por chat.
             </div>
 
             <div
@@ -319,9 +317,9 @@ export default function GroupInviteClient() {
               }}
             >
               {[
-                "El invitado verá el mismo grupo y el mismo contexto",
-                "Aceptar reduce fricción antes de que aparezcan malos entendidos",
-                "Si luego hay conflicto, SyncPlans lo pone en una sola verdad compartida",
+                "El invitado entra viendo el mismo grupo y el mismo contexto",
+                "Aceptar la invitación reduce fricción antes de que aparezcan malos entendidos",
+                "Después de aceptar, el siguiente paso natural es crear o revisar planes juntos",
               ].map((item) => (
                 <div
                   key={item}
@@ -373,7 +371,7 @@ export default function GroupInviteClient() {
                         marginTop: 6,
                       }}
                     >
-                      Crea uno para poder invitar a la otra persona y coordinar desde el mismo lugar.
+                      Primero crea un grupo. Después podrás invitar, compartir el mismo contexto y convertir ese espacio en coordinación real.
                     </div>
 
                     <button
@@ -563,7 +561,7 @@ export default function GroupInviteClient() {
                     opacity: canInvite ? 1 : 0.55,
                   }}
                 >
-                  {busy ? "Enviando…" : "Invitar a esta persona"}
+                  {busy ? "Enviando…" : "Enviar invitación"}
                 </button>
               </div>
 
@@ -584,7 +582,7 @@ export default function GroupInviteClient() {
                       fontWeight: 900,
                     }}
                   >
-                    Link para sumar a alguien
+                    Invitación lista para compartir
                   </div>
                   <div
                     style={{
@@ -597,6 +595,21 @@ export default function GroupInviteClient() {
                     }}
                   >
                     {inviteLink}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: 12,
+                      borderRadius: 14,
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "rgba(255,255,255,0.04)",
+                      fontSize: 12,
+                      lineHeight: 1.5,
+                      opacity: 0.88,
+                    }}
+                  >
+                    Siguiente paso sugerido: comparte este link y luego lleva a la otra persona a <b>Grupos</b> o <b>Calendario</b> para que vea el mismo espacio compartido desde el primer minuto.
                   </div>
 
                   <div

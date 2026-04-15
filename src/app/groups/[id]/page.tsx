@@ -233,7 +233,7 @@ export default function GroupsPage() {
       <Section>
         <PremiumHeader
           title="Grupos"
-          subtitle="Organiza tus espacios compartidos y define desde dónde se coordina el tiempo."
+          subtitle="Convierte cada grupo en un espacio operativo: mismo contexto, mismas personas y menos fricción para decidir."
         />
 
         <Card style={styles.surfaceCard}>
@@ -242,11 +242,10 @@ export default function GroupsPage() {
               <Card tone="muted" style={styles.joinedBanner}>
                 <div style={styles.joinedBadge}>Ya estás dentro</div>
                 <h2 style={styles.joinedTitle}>
-                  Ahora compartes el mismo espacio que el resto
+                  Ya entraste al mismo espacio compartido
                 </h2>
                 <p style={styles.joinedText}>
-                  Desde aquí verás lo mismo que los demás, podrás coordinar sin
-                  mensajes cruzados y tomar decisiones con más claridad.
+                  Desde aquí todos parten de la misma base. Ese es el verdadero valor del grupo: menos mensajes cruzados, más contexto compartido y una ruta más corta hacia la acción.
                 </p>
                 <div style={styles.joinedActions}>
                   <button
@@ -306,9 +305,7 @@ export default function GroupsPage() {
                 </h2>
 
                 <p style={styles.heroText}>
-                  Cada grupo tiene su propio calendario compartido. Aquí decides
-                  con quién se cruzan tus planes: pareja, familia o grupos
-                  compartidos como amigos, deporte o equipos.
+                  Un grupo no es solo una carpeta. Es el espacio desde donde SyncPlans coordina con otras personas. Aquí se concentra el contexto compartido que luego termina en calendario, eventos, invitaciones y decisiones más claras.
                 </p>
 
                 <div style={styles.heroTip}>
@@ -349,8 +346,7 @@ export default function GroupsPage() {
                 </div>
 
                 <div style={styles.heroSummaryHint}>
-                  El grupo activo se usa como base para eventos compartidos y
-                  conflictos.
+                  El grupo activo define desde dónde se crean planes compartidos y desde qué contexto se leen mejor los choques.
                 </div>
               </Card>
             </Card>
@@ -450,9 +446,7 @@ export default function GroupsPage() {
               <Card tone="muted" style={styles.emptyState}>
                 <h2 style={styles.emptyTitle}>Aún no tienes grupos</h2>
                 <p style={styles.emptySub}>
-                  Este es el primer paso del recorrido: crea el espacio compartido
-                  y luego te llevaremos directo a tu primer plan para que sientas
-                  valor real rápido.
+                  Este es el primer paso del loop compartido: crea el espacio, genera el primer plan y deja que SyncPlans convierta ese grupo en coordinación real lo más rápido posible.
                 </p>
                 <div style={{ ...styles.emptySub, marginTop: -4, fontSize: 13 }}>
                   Ruta sugerida: <b>crear grupo</b> → <b>crear plan compartido</b> → <b>compartir o invitar</b>.

@@ -349,7 +349,7 @@ export default function PlanesPage() {
     <MobileScaffold>
       <PremiumHeader
         title="Planes"
-        subtitle="Premium no existe para darte más pantallas. Existe para darte más claridad, menos fricción y más control cuando coordinar con otros ya importa de verdad."
+        subtitle="Premium aparece cuando SyncPlans ya te evita desgaste real: más claridad compartida, menos fricción y mejor contexto para coordinar con otros."
       />
 
       <div style={{ ...sectionWrapperStyle, ...(isCompact ? sectionWrapperCompactStyle : null) }}>
@@ -464,9 +464,23 @@ export default function PlanesPage() {
           <div style={betaNoteStyle}>
             <p style={betaNoteTitleStyle}>Beta privada</p>
             <p style={betaNoteBodyStyle}>
-              Sin cobros automáticos por ahora. Esta pantalla existe para que entiendas qué parte del desgaste diario desaparece cuando Premium entra en la coordinación.
+              Sin cobros automáticos por ahora. Esta pantalla existe para conectar el upgrade con momentos reales del producto: más grupos, más contexto compartido y menos desgaste al coordinar.
             </p>
           </div>
+        </section>
+
+        <section style={{ ...proofStripStyle, ...(isCompact ? proofStripCompactStyle : null) }}>
+          {[
+            { label: "Se vuelve lógico cuando", value: "Ya coordinas con otros", copy: "Premium tiene más sentido cuando grupos, invitaciones y decisiones compartidas ya son parte del uso." },
+            { label: "La señal correcta", value: "Menos desgaste", copy: "El valor no aparece en una lista de funciones. Aparece cuando vuelves menos al chat y más a una sola verdad compartida." },
+            { label: "El cambio real", value: "Más contexto", copy: "Más contexto dentro del sistema significa decisiones más rápidas y menos reconstrucción de lo que pasó." },
+          ].map((item) => (
+            <article key={item.label} style={proofCardStyle}>
+              <span style={proofLabelStyle}>{item.label}</span>
+              <strong style={proofValueStyle}>{item.value}</strong>
+              <p style={proofCopyStyle}>{item.copy}</p>
+            </article>
+          ))}
         </section>
 
         <section style={{ ...plansSectionStyle, ...(isCompact ? plansSectionCompactStyle : null) }}>
@@ -474,7 +488,7 @@ export default function PlanesPage() {
             <div>
               <h3 style={plansTitleStyle}>Planes de SyncPlans</h3>
               <p style={plansSubtitleStyle}>
-                La diferencia real entre planes no es “tener más funciones”. Es cuánto contexto, cuánta visibilidad y cuánta fricción quieres sacar de la coordinación cuando ya no te organizas solo ni quieres volver al caos.
+                La diferencia real entre planes no es “tener más funciones”. Es cuánto contexto compartido, cuánta visibilidad y cuánta fricción quieres sacar de la coordinación cuando ya no te organizas solo.
               </p>
             </div>
           </header>
@@ -485,7 +499,7 @@ export default function PlanesPage() {
               <div style={interestBannerTextWrapStyle}>
                 <strong style={interestBannerTitleStyle}>Gracias. Ya registramos intención real por {interestPlanId === "premium_yearly" ? "Premium Anual" : "Premium Mensual"} dentro de esta beta.</strong>
                 <p style={interestBannerBodyStyle}>
-                  Todavía no estamos cobrando ni activando desde esta pantalla. Este click sí nos sirve para medir qué tan deseable se siente Premium antes de abrir pagos reales.
+                  Todavía no estamos cobrando ni activando desde esta pantalla. Este click sí nos sirve para medir intención real justo después de que el producto ya empezó a demostrar valor.
                 </p>
               </div>
             </div>
