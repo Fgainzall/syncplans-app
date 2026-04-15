@@ -12,6 +12,7 @@ import Card from "@/components/ui/Card";
 import EventsFiltersBar from "@/components/events/EventsFiltersBar";
 import EventsEmptyState from "@/components/events/EventsEmptyState";
 import EventsTimeline from "@/components/EventsTimeline";
+import { trackEvent, trackEventOnce, trackScreenView } from "@/lib/analytics";
 
 import {
   getMyEvents,
@@ -21,6 +22,8 @@ import {
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { getMyDeclinedEventIds } from "@/lib/eventResponsesDb";
 import { filterVisibleEvents } from "@/lib/tempeventVisibility";
+import { getMyProfile } from "@/lib/profilesDb";
+import { hasPremiumAccess } from "@/lib/premium";
 
 type ViewMode = "upcoming" | "history" | "all";
 type Scope = "personal" | "groups" | "all";
@@ -105,6 +108,18 @@ export default function EventsPage() {
     type: "success" | "error";
     message: string;
   } | null>(null);
+  const [hasPremium, setHasPremium] = useState(false);
+  const focusedEventId = searchParams.get("focusEventId");
+
+  useEffect(() => {
+    void trackScreenView({
+      screen: "events",
+      metadata: {
+        source: focusedEventId ? "focused_event" : "events_tab",
+        focusedEventId: focusedEventId ?? null,
+      },
+    });
+  }, [focusedEventId]);
 
   useEffect(() => {
     let alive = true;
@@ -117,7 +132,7 @@ export default function EventsPage() {
           return;
         }
 
-        const [eventsRes, groupsRes, declinedRes] = await Promise.all([
+        const [eventsRes, groupsRes, declinedRes, profileRes] = await Promise.all([
           getMyEvents().catch((err) => {
             console.error("Error getMyEvents en /events:", err);
             return [] as DbEventRow[];
@@ -129,6 +144,10 @@ export default function EventsPage() {
           getMyDeclinedEventIds().catch((err) => {
             console.error("Error getMyDeclinedEventIds en /events:", err);
             return new Set<string>();
+          }),
+          getMyProfile().catch((err) => {
+            console.error("Error getMyProfile en /events:", err);
+            return null;
           }),
         ]);
 
@@ -144,6 +163,7 @@ export default function EventsPage() {
         setEvents(withGroup);
         setGroups(groupsRes);
         setDeclinedEventIds(declinedRes);
+        setHasPremium(hasPremiumAccess(profileRes));
       } catch (err) {
         console.error("Error booting events:", err);
       } finally {
@@ -161,7 +181,6 @@ export default function EventsPage() {
   }, [router]);
 
   const totalGroups = groups.length;
-  const focusedEventId = searchParams.get("focusEventId");
 
   const filteredEvents = useMemo(() => {
     let list = filterVisibleEvents(events, {
@@ -250,6 +269,73 @@ export default function EventsPage() {
       hasValue: visibleEvents.length > 0,
     };
   }, [events, declinedEventIds, hiddenEventIds]);
+
+  const premiumContext = useMemo(() => {
+    const sharedDensity = valueVisibility.groupCount;
+    const next24h = valueVisibility.next24h;
+    const hasSharedCoordination = totalGroups > 0 || sharedDensity > 0;
+
+    if (hasPremium) return null;
+    if (!valueVisibility.hasValue && totalGroups === 0) return null;
+
+    const shouldShow =
+      next24h > 0 ||
+      statusSnapshot.soonCount >= 3 ||
+      sharedDensity >= 2 ||
+      totalGroups >= 1;
+
+    if (!shouldShow) return null;
+
+    if (next24h > 0) {
+      return {
+        variant: "urgency" as const,
+        eyebrow: "Premium cuando más importa",
+        title: "Cuando tu semana se aprieta, Premium te ayuda a ver antes dónde conviene entrar.",
+        body:
+          "Más claridad compartida, menos idas y vueltas y mejor contexto para decidir qué mover antes de que el ruido vuelva a aparecer.",
+        cta: "Ver ventajas Premium",
+      };
+    }
+
+    if (hasSharedCoordination) {
+      return {
+        variant: "shared" as const,
+        eyebrow: "Más valor compartido",
+        title: "Cuando más gente y más planes viven aquí, Premium empieza a sentirse lógico.",
+        body:
+          "Te ayuda a coordinar con más claridad, anticipar mejor y convertir actividad compartida en menos fricción real.",
+        cta: "Explorar Premium",
+      };
+    }
+
+    return {
+      variant: "momentum" as const,
+      eyebrow: "Más claridad operativa",
+      title: "Ya estás usando SyncPlans de verdad. Premium lo vuelve todavía más claro.",
+      body:
+        "No cambia tu flujo free: lo mejora con más contexto, mejor lectura del tiempo compartido y decisiones más rápidas.",
+      cta: "Conocer Premium",
+    };
+  }, [hasPremium, statusSnapshot.soonCount, totalGroups, valueVisibility]);
+
+  useEffect(() => {
+    if (!premiumContext) return;
+
+    void trackEventOnce({
+      event: "premium_viewed",
+      scope: "local",
+      onceKey: `events:premium_viewed:${premiumContext.variant}:${focusedEventId ?? "all"}`,
+      metadata: {
+        source: "events",
+        variant: premiumContext.variant,
+        focusedEventId: focusedEventId ?? null,
+        totalGroups,
+        sharedGroupCount: valueVisibility.groupCount,
+        next24hCount: valueVisibility.next24h,
+        upcomingCount: statusSnapshot.soonCount,
+      },
+    });
+  }, [premiumContext, totalGroups, valueVisibility.groupCount, valueVisibility.next24h, statusSnapshot.soonCount]);
 
   const headerSubtitle = useMemo(() => {
     const visibleEvents = filterVisibleEvents(events, {
@@ -535,6 +621,47 @@ export default function EventsPage() {
                   style={S.valueRailBtn}
                 >
                   {valueVisibility.next24h > 0 ? "Ver lo que viene juntos" : "Volver al resumen"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {premiumContext && (
+            <div style={S.premiumRail}>
+              <div style={S.premiumRailCopy}>
+                <div style={S.premiumRailEyebrow}>{premiumContext.eyebrow}</div>
+                <div style={S.premiumRailTitle}>{premiumContext.title}</div>
+                <div style={S.premiumRailSub}>{premiumContext.body}</div>
+              </div>
+
+              <div style={S.premiumRailActions}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void trackEvent({
+                      event: "premium_cta_clicked",
+                      metadata: {
+                        source: "events",
+                        variant: premiumContext.variant,
+                        cta: premiumContext.cta,
+                        focusedEventId: focusedEventId ?? null,
+                        totalGroups,
+                        sharedGroupCount: valueVisibility.groupCount,
+                      },
+                    });
+                    router.push("/planes");
+                  }}
+                  style={S.premiumRailBtnPrimary}
+                >
+                  {premiumContext.cta}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => router.push(valueVisibility.next24h > 0 ? "/calendar" : "/summary")}
+                  style={S.premiumRailBtnSecondary}
+                >
+                  Seguir con mi flujo
                 </button>
               </div>
             </div>
@@ -840,6 +967,69 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 13,
     color: "rgba(255,255,255,0.96)",
     fontWeight: 900,
+    cursor: "pointer",
+  },
+  premiumRail: {
+    marginBottom: 14,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+    padding: "15px 15px",
+    borderRadius: 20,
+    border: "1px solid rgba(251,191,36,0.22)",
+    background:
+      "radial-gradient(circle at 100% 0%, rgba(251,191,36,0.14), transparent 48%), linear-gradient(135deg, rgba(17,24,39,0.94), rgba(30,41,59,0.92))",
+    boxShadow: "0 18px 46px rgba(0,0,0,0.26)",
+  },
+  premiumRailCopy: {
+    minWidth: 0,
+    flex: "1 1 360px",
+    display: "grid",
+    gap: 5,
+  },
+  premiumRailEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 0.85,
+    textTransform: "uppercase",
+    color: "rgba(252,211,77,0.96)",
+  },
+  premiumRailTitle: {
+    fontSize: 16,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.99)",
+  },
+  premiumRailSub: {
+    fontSize: 13,
+    lineHeight: 1.58,
+    color: "rgba(226,232,240,0.86)",
+  },
+  premiumRailActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  premiumRailBtnPrimary: {
+    borderRadius: 999,
+    border: "1px solid rgba(245,158,11,0.34)",
+    background: "linear-gradient(135deg, rgba(245,158,11,0.24), rgba(251,191,36,0.18))",
+    padding: "10px 14px",
+    fontSize: 13,
+    color: "rgba(255,248,235,0.98)",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  premiumRailBtnSecondary: {
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.32)",
+    background: "rgba(15,23,42,0.58)",
+    padding: "10px 14px",
+    fontSize: 13,
+    color: "rgba(226,232,240,0.96)",
+    fontWeight: 800,
     cursor: "pointer",
   },
   digestBtn: {

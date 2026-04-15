@@ -351,6 +351,30 @@ const summary = useMemo(() => {
 
 const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
 
+const premiumNudge = useMemo(() => {
+  if (!shouldShowUpgradeNudge) return null;
+
+  if (isFocusedView) {
+    return {
+      title:
+        "Cuando un cruce ya te trajo hasta aquí, Premium ayuda a que el próximo no vuelva a empezar en mensajes sueltos.",
+      copy:
+        "Premium suma más contexto compartido para anticipar choques antes, decidir más rápido y dejar menos espacio para interpretaciones distintas cuando coordinan entre personas.",
+      primaryLabel: "Ver ventajas Premium",
+      secondaryLabel: "Seguir resolviendo",
+    };
+  }
+
+  return {
+    title:
+      "Resolver conflictos está bien. Anticiparlos con más claridad compartida es todavía mejor.",
+    copy:
+      "Si ya estás coordinando de verdad dentro de SyncPlans, Premium te ayuda a detectar mejor los cruces, decidir con menos ida y vuelta y sostener una sola versión clara del tiempo compartido.",
+    primaryLabel: "Desbloquear Premium",
+    secondaryLabel: "Seguir resolviendo",
+  };
+}, [shouldShowUpgradeNudge, isFocusedView]);
+
 const returnPressure = useMemo(() => {
   if (summary.pending > 0) {
     return {
@@ -440,6 +464,47 @@ const returnPressure = useMemo(() => {
     });
   }, [focusEventId, pendingConflicts, booting]);
 
+  useEffect(() => {
+    if (booting) return;
+    if (!shouldShowUpgradeNudge || !premiumNudge) return;
+
+    const metadata = {
+      screen: "conflicts_detected",
+      placement: isFocusedView ? "focused_conflict" : "detected_list",
+      source: focusEventId ? "notification_or_focus" : "conflicts_tab",
+      pendingCount: summary.pending,
+      decidedCount: summary.decided,
+      visibleCount: summary.totalVisible,
+      groupId: groupIdFromUrl ?? null,
+      focusEventId: focusEventId ?? null,
+      hasPremium,
+      isFocusedView,
+    };
+
+    void trackEvent({
+      event: "premium_viewed",
+      metadata,
+    });
+
+    void trackEventOnce({
+      event: "premium_viewed",
+      scope: "local",
+      onceKey: `premium_viewed:conflicts_detected:${isFocusedView ? "focused" : "list"}`,
+      metadata,
+    });
+  }, [
+    booting,
+    shouldShowUpgradeNudge,
+    premiumNudge,
+    isFocusedView,
+    focusEventId,
+    summary.pending,
+    summary.decided,
+    summary.totalVisible,
+    groupIdFromUrl,
+    hasPremium,
+  ]);
+
   const LIST_LIMIT = isMobile ? 5 : 50;
 
   const visibleConflicts = useMemo(
@@ -521,6 +586,26 @@ const returnPressure = useMemo(() => {
     if (focusEventId) qp.set("eventId", focusEventId);
 
     router.push(`/conflicts/actions?${qp.toString()}`);
+  };
+
+  const openPremiumPlans = () => {
+    void trackEvent({
+      event: "premium_cta_clicked",
+      metadata: {
+        screen: "conflicts_detected",
+        placement: isFocusedView ? "focused_conflict" : "detected_list",
+        source: focusEventId ? "notification_or_focus" : "conflicts_tab",
+        pendingCount: summary.pending,
+        decidedCount: summary.decided,
+        visibleCount: summary.totalVisible,
+        groupId: groupIdFromUrl ?? null,
+        focusEventId: focusEventId ?? null,
+        hasPremium,
+        isFocusedView,
+      },
+    });
+
+    router.push("/planes");
   };
 
   if (booting) {
@@ -649,27 +734,29 @@ const returnPressure = useMemo(() => {
           </section>
         ) : null}
 
-        {shouldShowUpgradeNudge ? (
+        {shouldShowUpgradeNudge && premiumNudge ? (
           <section style={styles.upgradeNudgeCard}>
-            <div style={styles.upgradeNudgeBadge}>Premium</div>
-         <div style={styles.upgradeNudgeTitle}>
-  Resolver conflictos está bien. Hacer que la otra persona vea lo mismo desde el inicio es mejor.
-</div>
-<div style={styles.upgradeNudgeCopy}>
-  Cuando compartes tiempo con otros, los choques no deberían sorprenderte. Premium te da más contexto para anticiparlos, decidir mejor y reducir fricción mientras la coordinación gana densidad dentro de SyncPlans.
-</div>
+            <div style={styles.upgradeNudgeTop}>
+              <div style={styles.upgradeNudgeBadge}>Premium</div>
+              <div style={styles.upgradeNudgeEyebrow}>Mejor coordinación compartida</div>
+            </div>
+
+            <div style={styles.upgradeNudgeTitle}>{premiumNudge.title}</div>
+
+            <div style={styles.upgradeNudgeCopy}>{premiumNudge.copy}</div>
+
+            <div style={styles.upgradeNudgeBullets}>
+              <span style={styles.upgradeNudgeBullet}>Menos idas y vueltas</span>
+              <span style={styles.upgradeNudgeBullet}>Más claridad compartida</span>
+              <span style={styles.upgradeNudgeBullet}>Decisiones más rápidas</span>
+            </div>
+
             <div style={styles.upgradeNudgeActions}>
-              <button
-                onClick={() => router.push("/planes")}
-                style={styles.primaryBtn}
-              >
-                Ver cómo funciona
+              <button onClick={openPremiumPlans} style={styles.primaryBtn}>
+                {premiumNudge.primaryLabel}
               </button>
-              <button
-                onClick={resumeNext}
-                style={styles.secondaryBtn}
-              >
-                Seguir resolviendo
+              <button onClick={resumeNext} style={styles.secondaryBtn}>
+                {premiumNudge.secondaryLabel}
               </button>
             </div>
           </section>
@@ -915,6 +1002,12 @@ const styles: Record<string, React.CSSProperties> = {
     display: "grid",
     gap: 10,
   },
+  upgradeNudgeTop: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
   upgradeNudgeBadge: {
     alignSelf: "flex-start",
     borderRadius: 999,
@@ -927,6 +1020,14 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
+  upgradeNudgeEyebrow: {
+    fontSize: 11,
+    lineHeight: 1.2,
+    letterSpacing: 1.3,
+    textTransform: "uppercase",
+    fontWeight: 900,
+    color: "rgba(191,219,254,0.86)",
+  },
   upgradeNudgeTitle: {
     fontSize: 20,
     lineHeight: 1.2,
@@ -938,6 +1039,20 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.6,
     color: "rgba(235,241,255,0.78)",
     maxWidth: 820,
+  },
+  upgradeNudgeBullets: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  upgradeNudgeBullet: {
+    borderRadius: 999,
+    padding: "7px 10px",
+    fontSize: 12,
+    fontWeight: 800,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(243,247,255,0.88)",
   },
   upgradeNudgeActions: {
     display: "flex",
@@ -1123,5 +1238,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     lineHeight: 1.6,
     color: "rgba(255,232,242,0.76)",
+  },
+  focusActions: {
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+    marginTop: 6,
   },
 };

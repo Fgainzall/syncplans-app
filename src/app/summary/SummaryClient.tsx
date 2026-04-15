@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -11,7 +12,7 @@ import { parseQuickCapture } from "@/lib/quickCaptureParser";
 import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
-import { getDisplayName } from "@/lib/profilesDb";
+import { getDisplayName, getMyProfile, type Profile } from "@/lib/profilesDb";
 import { filterOutDeclinedEvents } from "@/lib/eventResponsesDb";
 import {
   getSuggestedTimeSlots,
@@ -24,6 +25,7 @@ import type { LearnedTimeProfile } from "@/lib/learningTypes";
 import SummaryQuickCaptureCard from "./SummaryQuickCaptureCard";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
 import { trackEvent, trackScreenView } from "@/lib/analytics";
+import { hasPremiumAccess } from "@/lib/premium";
 import {
   computeVisibleConflicts,
   filterIgnoredConflicts,
@@ -108,6 +110,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [pendingInviteCount, setPendingInviteCount] = useState(0);
   const [pendingCaptureCount, setPendingCaptureCount] = useState(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [dismissedPremiumNudge, setDismissedPremiumNudge] = useState(false);
+  const premiumNudgeTrackedRef = useRef(false);
 
   const {
     booting,
@@ -132,14 +137,24 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
     async function hydrateCurrentUser() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const [
+          {
+            data: { user },
+          },
+          fetchedProfile,
+        ] = await Promise.all([
+          supabase.auth.getUser(),
+          getMyProfile().catch(() => null),
+        ]);
 
         if (cancelled) return;
         setCurrentUserId(String(user?.id ?? "").trim() || null);
+        setProfile(fetchedProfile ?? null);
       } catch {
-        if (!cancelled) setCurrentUserId(null);
+        if (!cancelled) {
+          setCurrentUserId(null);
+          setProfile(null);
+        }
       }
     }
 
@@ -859,6 +874,92 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [visibleDecisions, conflictAlert.count, upcomingStats.total, pendingAttention.captures]);
 
+  const hasPremium = useMemo(() => hasPremiumAccess(profile), [profile]);
+
+  const premiumNudge = useMemo(() => {
+    if (hasPremium || dismissedPremiumNudge) return null;
+
+    if (conflictAlert.count > 0) {
+      return {
+        context: "conflicts",
+        eyebrow: "Premium encaja aquí",
+        title: "Anticípate mejor cuando la coordinación ya se volvió sensible",
+        subtitle:
+          "Si SyncPlans ya te está ayudando a bajar ruido, Premium suma más contexto para decidir antes, con menos idas y vueltas y más claridad compartida.",
+        primaryLabel: "Ver ventajas Premium",
+        secondaryLabel: "Seguir resolviendo",
+      };
+    }
+
+    if (groups.length > 0 && (upcomingStats.group > 0 || pendingInviteCount > 0)) {
+      return {
+        context: "shared_coordination",
+        eyebrow: "Hazlo más compartido",
+        title: "Cuando ya coordinas con otros, Premium se vuelve más lógico",
+        subtitle:
+          "La versión gratis ya te mostró valor. Premium empuja más claridad entre personas, mejor lectura del contexto y menos fricción cuando la agenda compartida empieza a crecer.",
+        primaryLabel: "Explorar Premium",
+        secondaryLabel: "Seguir así por ahora",
+      };
+    }
+
+    if (upcomingStats.total >= 4 || valueMoments.hasValue) {
+      return {
+        context: "weekly_density",
+        eyebrow: "Más valor sobre una base real",
+        title: "Ya estás usando SyncPlans de verdad: ahora toca subir el nivel",
+        subtitle:
+          "Premium no se trata de meter más funciones porque sí. Se trata de darte más claridad, menos desgaste y una coordinación que se sienta todavía más liviana.",
+        primaryLabel: "Ver cómo mejora Premium",
+        secondaryLabel: "Después lo veo",
+      };
+    }
+
+    return null;
+  }, [
+    hasPremium,
+    dismissedPremiumNudge,
+    conflictAlert.count,
+    groups.length,
+    upcomingStats.group,
+    upcomingStats.total,
+    pendingInviteCount,
+    valueMoments.hasValue,
+  ]);
+
+  useEffect(() => {
+    if (!premiumNudge || premiumNudgeTrackedRef.current) return;
+
+    premiumNudgeTrackedRef.current = true;
+    void trackEvent({
+      event: "premium_viewed",
+      userId: currentUserId,
+      entityId: activeGroupId ? String(activeGroupId) : null,
+      metadata: {
+        ...summaryAnalyticsBase,
+        placement: "summary",
+        context: premiumNudge.context,
+      },
+    });
+  }, [premiumNudge, currentUserId, activeGroupId, summaryAnalyticsBase]);
+
+  const handlePremiumSummaryClick = useCallback(() => {
+    if (!premiumNudge) return;
+
+    void trackEvent({
+      event: "premium_cta_clicked",
+      userId: currentUserId,
+      entityId: activeGroupId ? String(activeGroupId) : null,
+      metadata: {
+        ...summaryAnalyticsBase,
+        placement: "summary",
+        context: premiumNudge.context,
+      },
+    });
+
+    router.push("/planes");
+  }, [premiumNudge, currentUserId, activeGroupId, summaryAnalyticsBase, router]);
+
   const primaryAction = useMemo(() => {
     if (conflictAlert.count > 0) {
       return {
@@ -1140,6 +1241,33 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                     onClick={() => navigateFromSummary(valueMoments.resolvedDecisions > 0 ? "value_visibility_events" : "value_visibility_calendar", valueMoments.resolvedDecisions > 0 ? "/events" : "/calendar", { block: "value_visibility" })}
                   >
                     {valueMoments.resolvedDecisions > 0 ? "Ver valor en eventos" : "Abrir calendario"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {premiumNudge ? (
+              <div style={styles.premiumRail}>
+                <div style={styles.premiumRailCopy}>
+                  <div style={styles.premiumRailEyebrow}>{premiumNudge.eyebrow}</div>
+                  <div style={styles.premiumRailTitle}>{premiumNudge.title}</div>
+                  <div style={styles.premiumRailSub}>{premiumNudge.subtitle}</div>
+                </div>
+
+                <div style={styles.premiumRailActions}>
+                  <button
+                    type="button"
+                    style={styles.premiumRailPrimary}
+                    onClick={handlePremiumSummaryClick}
+                  >
+                    {premiumNudge.primaryLabel}
+                  </button>
+                  <button
+                    type="button"
+                    style={styles.premiumRailSecondary}
+                    onClick={() => setDismissedPremiumNudge(true)}
+                  >
+                    {premiumNudge.secondaryLabel}
                   </button>
                 </div>
               </div>
@@ -2351,6 +2479,71 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
   },
 
+  premiumRail: {
+    marginTop: 14,
+    marginBottom: 2,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+    padding: "14px 14px",
+    borderRadius: 18,
+    border: "1px solid rgba(196,181,253,0.26)",
+    background:
+      "linear-gradient(135deg, rgba(76,29,149,0.74), rgba(15,23,42,0.88))",
+    boxShadow: "0 18px 40px rgba(76,29,149,0.20)",
+  },
+  premiumRailCopy: {
+    minWidth: 0,
+    flex: "1 1 360px",
+    display: "grid",
+    gap: 4,
+  },
+  premiumRailEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(233,213,255,0.92)",
+  },
+  premiumRailTitle: {
+    fontSize: 16,
+    lineHeight: 1.25,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  premiumRailSub: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(243,232,255,0.84)",
+  },
+  premiumRailActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  premiumRailPrimary: {
+    borderRadius: 999,
+    padding: "10px 14px",
+    border: "1px solid rgba(216,180,254,0.34)",
+    background: "rgba(168,85,247,0.24)",
+    color: "rgba(255,255,255,0.98)",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  premiumRailSecondary: {
+    borderRadius: 999,
+    padding: "10px 14px",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.06)",
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
   valueRail: {
     marginTop: 14,
     marginBottom: 2,
