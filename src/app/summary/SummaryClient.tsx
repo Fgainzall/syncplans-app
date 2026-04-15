@@ -1107,7 +1107,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       )}
 
       <Section style={styles.shell} className="spSum-shell">
-        <PremiumHeader title={title} subtitle={summarySubtitle} sticky={false} />
+        <PremiumHeader hideUpgradeCta title={title} subtitle={summarySubtitle} sticky={false} />
 
          <SummaryQuickCaptureCard
   value={quickCaptureValue}

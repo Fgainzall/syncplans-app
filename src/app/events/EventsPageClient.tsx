@@ -512,7 +512,7 @@ export default function EventsPage() {
     return (
       <MobileScaffold maxWidth={1120} style={S.pageBg}>
         <Section>
-          <PremiumHeader
+          <PremiumHeader hideUpgradeCta
             title="Eventos"
             subtitle="Mira qué ya está claro dentro del sistema y qué todavía necesita respuesta para no quedarse afuera."
           />
@@ -566,7 +566,7 @@ export default function EventsPage() {
       )}
 
       <Section>
-        <PremiumHeader title="Eventos" subtitle={headerSubtitle} />
+        <PremiumHeader hideUpgradeCta title="Eventos" subtitle={headerSubtitle} />
 
         <Card style={S.cardShell} className="spEvt-card">
           <div style={S.titleRow}>

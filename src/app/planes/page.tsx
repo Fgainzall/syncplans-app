@@ -287,7 +287,10 @@ export default function PlanesPage() {
 
   useEffect(() => {
     void trackScreenView({ screen: "planes", metadata: { area: "premium" } });
-    void trackEvent({ event: "premium_page_viewed", metadata: { screen: "planes", area: "premium" } });
+    void trackEvent({
+      event: "premium_viewed",
+      metadata: { screen: "planes", area: "premium", placement: "plans_page" },
+    });
   }, []);
 
   const cards = useMemo(() => buildPlanCards(), []);
@@ -307,7 +310,7 @@ export default function PlanesPage() {
 
     if (card.id === "free") {
       await trackEvent({
-        event: "premium_cta_clicked",
+        event: "plan_navigation_clicked",
         metadata: {
           screen: "planes",
           source: "plans_card",

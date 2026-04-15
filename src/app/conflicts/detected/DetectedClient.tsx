@@ -481,14 +481,9 @@ const returnPressure = useMemo(() => {
       isFocusedView,
     };
 
-    void trackEvent({
-      event: "premium_viewed",
-      metadata,
-    });
-
     void trackEventOnce({
       event: "premium_viewed",
-      scope: "local",
+      scope: "session",
       onceKey: `premium_viewed:conflicts_detected:${isFocusedView ? "focused" : "list"}`,
       metadata,
     });

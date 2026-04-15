@@ -54,6 +54,7 @@ type PremiumHeaderProps = {
   highlightId?: string | null;
   appliedToast?: UiToast;
   sticky?: boolean;
+  hideUpgradeCta?: boolean;
 };
 
 type HeaderUser = {
@@ -275,6 +276,7 @@ export default function PremiumHeader({
   rightSlot,
   mobileNav: _mobileNav = "bottom",
   sticky = true,
+  hideUpgradeCta = false,
 }: PremiumHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -455,8 +457,9 @@ export default function PremiumHeader({
     if (hasPremium) return false;
     if (pathname.startsWith("/planes")) return false;
     if (pathname.startsWith("/auth")) return false;
+    if (hideUpgradeCta) return false;
     return true;
-  }, [hasPremium, headerReady, pathname]);
+  }, [hasPremium, headerReady, pathname, hideUpgradeCta]);
 
 
   useEffect(() => {

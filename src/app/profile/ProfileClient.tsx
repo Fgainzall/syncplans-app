@@ -1213,6 +1213,7 @@ export default function ProfilePage() {
         >
           <div style={styles.headerRow}>
             <PremiumHeader
+            hideUpgradeCta
               title="Cuenta"
               subtitle="Tu identidad, tu plan y la forma en que SyncPlans te representa cuando compartes tu tiempo."
               rightSlot={<LogoutButton />}
@@ -1247,6 +1248,7 @@ export default function ProfilePage() {
         >
           <div style={styles.headerRow}>
             <PremiumHeader
+            hideUpgradeCta
               title="Cuenta"
               subtitle="Tu identidad, tu plan y la forma en que SyncPlans te representa cuando compartes tu tiempo."
               rightSlot={<LogoutButton />}
@@ -1383,6 +1385,7 @@ export default function ProfilePage() {
       >
         <div style={styles.headerRow}>
           <PremiumHeader
+            hideUpgradeCta
             title="Cuenta"
             subtitle="Tu identidad, tu plan y cómo SyncPlans te representa cuando la coordinación deja de vivir en mensajes sueltos."
             mobileNav="bottom"
