@@ -26,7 +26,7 @@ import {
 } from "@/lib/notificationsDb";
 import { createConflictResolutionLog } from "@/lib/conflictResolutionsLogDb";
 import { upsertProposalResponse } from "@/lib/proposalResponsesDb";
-import { trackEvent } from "@/lib/analytics";
+import { trackEvent, trackEventOnce } from "@/lib/analytics";
 import type { NotificationSettings } from "@/lib/settings";
 
 export type PreflightChoice =
@@ -554,19 +554,35 @@ export function useEventSave({
         }
 
         if (savedEventId) {
+          const createdEventMetadata = {
+            screen: "event_details",
+            source: "event_details_create",
+            type: payload.groupId ? "group" : "personal",
+            group_id: payload.groupId ?? null,
+            group_type: payload.groupType ?? null,
+            capture_source: sp.get("capture_source") ?? null,
+            proposal_source: sp.get("proposalSource") ?? null,
+            quick_capture: sp.get("qc") === "1",
+          };
+
           await trackEvent({
             event: "event_created",
             userId: currentUserId,
             entityId: savedEventId,
+            metadata: createdEventMetadata,
+          });
+
+          await trackEventOnce({
+            event: "first_event_created",
+            userId: currentUserId,
+            entityId: savedEventId,
+            scope: "local",
+            onceKey: currentUserId
+              ? `first-event-created:${currentUserId}`
+              : "first-event-created",
             metadata: {
-              screen: "event_details",
-              source: "event_details_create",
-              type: payload.groupId ? "group" : "personal",
-              group_id: payload.groupId ?? null,
-              group_type: payload.groupType ?? null,
-              capture_source: sp.get("capture_source") ?? null,
-              proposal_source: sp.get("proposalSource") ?? null,
-              quick_capture: sp.get("qc") === "1",
+              ...createdEventMetadata,
+              is_first_time: true,
             },
           });
         }

@@ -94,8 +94,15 @@ export default function GroupInviteClient() {
   }, []);
 
   useEffect(() => {
-    void trackScreenView({ screen: "group_invite", metadata: { area: "groups" } });
-  }, []);
+    void trackScreenView({
+      screen: "group_invite",
+      metadata: {
+        area: "groups",
+        source: "group_invite",
+        group_id_prefilled: groupIdFromUrl || null,
+      },
+    });
+  }, [groupIdFromUrl]);
 
   const selected = useMemo(
     () => groups.find((g) => g.id === selectedGroupId) || null,
@@ -171,6 +178,11 @@ export default function GroupInviteClient() {
         metadata: {
           screen: "group_invite",
           source: "group_invite",
+          invite_kind: "group_internal",
+          invite_id: inviteId ? String(inviteId) : null,
+          invited_email_domain: invitedEmail.includes("@")
+            ? invitedEmail.split("@").pop() ?? null
+            : null,
           group_id: selectedGroupId,
           group_type: selected?.type ?? null,
           role,

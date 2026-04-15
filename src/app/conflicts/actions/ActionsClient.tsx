@@ -804,10 +804,7 @@ export default function ActionsClient() {
     } catch (e: any) {
       setToast({
         title: "No se pudo aplicar",
-        sub:
-          typeof e?.message === "string" && e.message.trim()
-            ? e.message
-            : "Intenta nuevamente.",
+        sub: humanizeConflictActionError(e, "Intenta nuevamente."),
       });
     } finally {
       applyInFlightRef.current = false;

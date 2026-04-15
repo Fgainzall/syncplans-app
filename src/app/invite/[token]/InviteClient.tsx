@@ -192,9 +192,9 @@ function getStatusBadgeStyle(
       };
   }
 }
-async function insertInviteAnalytics(input: {
+async function trackPublicInviteEvent(input: {
   userId?: string | null;
-  eventType: "invite_opened" | "invite_accepted" | "invite_rejected";
+  eventType: "invite_opened" | "invite_accepted" | "invite_declined";
   entityId?: string | null;
   metadata?: Record<string, unknown>;
 }) {
@@ -246,21 +246,26 @@ export default function InviteClient({ token }: Props) {
           const nextEvent = (json?.event ?? null) as PublicInviteEvent | null;
 
           setInvite(nextInvite);
-          if (nextInvite) {
-           await insertInviteAnalytics({
-  userId: null,
-  eventType: "invite_opened",
-  entityId: invite?.id ?? event?.id ?? null,
-  metadata: {
-    source: "public_invite",
-    invite_id: invite?.id ?? null,
-    event_id: invite?.event_id ?? event?.id ?? null,
-    invite_status: invite?.status ?? null,
-    contact: invite?.contact ?? null,
-  },
-});
-          }
           setEvent(nextEvent);
+          if (nextInvite) {
+            await trackPublicInviteEvent({
+              userId: null,
+              eventType: "invite_opened",
+              entityId: nextInvite.id ?? nextEvent?.id ?? null,
+              metadata: {
+                screen: "public_invite",
+                source: "public_invite",
+                invite_kind: "public_link",
+                token_present: true,
+                invite_id: nextInvite.id ?? null,
+                event_id: nextInvite.event_id ?? nextEvent?.id ?? null,
+                invite_status: nextInvite.status ?? null,
+                contact: nextInvite.contact ?? null,
+                has_message: Boolean(nextInvite.message),
+                has_proposed_date: Boolean(nextInvite.proposed_date),
+              },
+            });
+          }
           setMessage(nextInvite?.message ?? "");
           setProposedDate(toDateTimeLocalValue(nextInvite?.proposed_date));
           setMode("idle");
@@ -326,18 +331,24 @@ export default function InviteClient({ token }: Props) {
       const updatedInvite = (json?.invite ?? null) as PublicInviteRow | null;
       setInvite(updatedInvite);
       if (updatedInvite) {
-       await insertInviteAnalytics({
-  userId: null,
-  eventType: "invite_rejected",
-  entityId: invite?.id ?? event?.id ?? null,
-  metadata: {
-    source: "public_invite",
-    invite_id: invite?.id ?? null,
-    event_id: invite?.event_id ?? event?.id ?? null,
-    invite_status: "rejected",
-    contact: invite?.contact ?? null,
-  },
-});
+        await trackPublicInviteEvent({
+          userId: null,
+          eventType: nextStatus === "accepted" ? "invite_accepted" : "invite_declined",
+          entityId: updatedInvite.id ?? event?.id ?? null,
+          metadata: {
+            screen: "public_invite",
+            source: "public_invite",
+            invite_kind: "public_link",
+            token_present: true,
+            invite_id: updatedInvite.id ?? null,
+            event_id: updatedInvite.event_id ?? event?.id ?? null,
+            invite_status: nextStatus,
+            response_mode: nextStatus,
+            contact: updatedInvite.contact ?? null,
+            has_message: Boolean(payload.message),
+            has_proposed_date: false,
+          },
+        });
       }
       setMessage(updatedInvite?.message ?? payload.message ?? "");
       setProposedDate(toDateTimeLocalValue(updatedInvite?.proposed_date));
@@ -385,6 +396,27 @@ export default function InviteClient({ token }: Props) {
 
       const updatedInvite = (json?.invite ?? null) as PublicInviteRow | null;
       setInvite(updatedInvite);
+      if (updatedInvite) {
+        await trackPublicInviteEvent({
+          userId: null,
+          eventType: "invite_declined",
+          entityId: updatedInvite.id ?? event?.id ?? null,
+          metadata: {
+            screen: "public_invite",
+            source: "public_invite",
+            invite_kind: "public_link",
+            token_present: true,
+            invite_id: updatedInvite.id ?? null,
+            event_id: updatedInvite.event_id ?? event?.id ?? null,
+            invite_status: "rejected",
+            response_mode: "propose_new_date",
+            contact: updatedInvite.contact ?? null,
+            has_message: Boolean(payload.message),
+            has_proposed_date: Boolean(payload.proposedDate),
+            proposed_date: payload.proposedDate,
+          },
+        });
+      }
       setMessage(updatedInvite?.message ?? payload.message ?? "");
       setProposedDate(toDateTimeLocalValue(updatedInvite?.proposed_date));
       setMode("idle");

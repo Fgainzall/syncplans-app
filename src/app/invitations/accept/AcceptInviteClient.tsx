@@ -18,7 +18,7 @@ import {
 } from "@/lib/invitationsDb";
 import { getMyProfile, type Profile } from "@/lib/profilesDb";
 import { hasPremiumAccess } from "@/lib/premium";
-import { trackEvent, trackScreenView } from "@/lib/analytics";
+import { trackEvent, trackEventOnce, trackScreenView } from "@/lib/analytics";
 
 function isUuid(x: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -127,6 +127,7 @@ export default function AcceptInviteClient() {
     null
   );
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const toastTimerRef = useRef<number | null>(null);
   const navTimerRef = useRef<number | null>(null);
@@ -180,6 +181,8 @@ export default function AcceptInviteClient() {
           return;
         }
 
+        setCurrentUserId(data.session.user.id);
+
         const [r, fetchedProfile] = await Promise.all([
           getInvitationById(inviteId),
           getMyProfile().catch(() => null),
@@ -209,13 +212,58 @@ export default function AcceptInviteClient() {
 
   useEffect(() => {
     if (!inviteId) return;
-    void trackScreenView({ screen: "invitation_accept", metadata: { area: "invitations", invite_id: inviteId } });
-  }, [inviteId]);
+    void trackScreenView({
+      screen: "invitation_accept",
+      userId: currentUserId ?? undefined,
+      metadata: { area: "invitations", invite_id: inviteId },
+    });
+  }, [inviteId, currentUserId]);
+
+  useEffect(() => {
+    if (!inviteId || !inv) return;
+
+    void trackEventOnce({
+      event: "invite_opened",
+      userId: currentUserId ?? undefined,
+      entityId: inviteId,
+      scope: "session",
+      onceKey: `funnel:invite_opened:${inviteId}`,
+      metadata: {
+        screen: "invitation_accept",
+        source: "invitation_accept",
+        invite_kind: "group_internal",
+        invite_id: inviteId,
+        group_id: inv.group_id,
+        group_type: inv.group_type ?? null,
+        role: inv.role ?? null,
+        status: String(inv.status ?? "pending").toLowerCase(),
+      },
+    });
+  }, [inviteId, inv, currentUserId]);
 
   const status = String(inv?.status ?? "").toLowerCase();
   const pending = status === "pending";
   const hasPremium = hasPremiumAccess(profile);
   const shouldShowExternalNudge = !hasPremium && pending;
+
+  useEffect(() => {
+    if (!shouldShowExternalNudge || !inviteId || !inv) return;
+
+    void trackEventOnce({
+      event: "premium_viewed",
+      userId: currentUserId ?? undefined,
+      entityId: inviteId,
+      scope: "session",
+      onceKey: `premium_viewed:invitation_accept:${inviteId}`,
+      metadata: {
+        screen: "invitation_accept",
+        source: "invitation_accept_nudge",
+        group_id: inv.group_id,
+        group_type: inv.group_type ?? null,
+        invite_kind: "group_internal",
+      },
+    });
+  }, [shouldShowExternalNudge, inviteId, inv, currentUserId]);
 
   async function onAccept() {
     if (!inviteId || !inv || busy) return;
@@ -230,12 +278,15 @@ export default function AcceptInviteClient() {
 
       void trackEvent({
         event: "invite_accepted",
+        userId: currentUserId ?? undefined,
         entityId: inviteId,
         metadata: {
           screen: "invitation_accept",
           source: "invitation_accept",
+          invite_kind: "group_internal",
           group_id: inv.group_id,
           group_type: inv.group_type ?? null,
+          role: inv.role ?? null,
         },
       });
 
@@ -317,12 +368,15 @@ export default function AcceptInviteClient() {
 
       void trackEvent({
         event: "invite_declined",
+        userId: currentUserId ?? undefined,
         entityId: inviteId,
         metadata: {
           screen: "invitation_accept",
           source: "invitation_accept",
+          invite_kind: "group_internal",
           group_id: inv.group_id,
           group_type: inv.group_type ?? null,
+          role: inv.role ?? null,
         },
       });
 
@@ -608,7 +662,22 @@ export default function AcceptInviteClient() {
 
                     <div style={{ display: "flex", gap: 10, marginTop: 6, flexWrap: "wrap" }}>
                       <button
-                        onClick={() => { void trackEvent({ event: "premium_cta_clicked", metadata: { screen: "invitation_accept", source: "external_nudge", target: "/planes" } }); router.push("/planes"); }}
+                        onClick={() => {
+                          void trackEvent({
+                            event: "premium_cta_clicked",
+                            userId: currentUserId ?? undefined,
+                            entityId: inviteId || undefined,
+                            metadata: {
+                              screen: "invitation_accept",
+                              source: "external_nudge",
+                              target: "/planes",
+                              invite_kind: "group_internal",
+                              group_id: inv?.group_id ?? null,
+                              group_type: inv?.group_type ?? null,
+                            },
+                          });
+                          router.push("/planes");
+                        }}
                         style={{
                           padding: "10px 12px",
                           borderRadius: 12,
