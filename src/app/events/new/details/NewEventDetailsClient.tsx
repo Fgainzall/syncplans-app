@@ -53,7 +53,11 @@ import {
   getLearnedGroupMatch,
   learnGroupSelection,
 } from "@/lib/groupLearning";
-/* Helpers */
+
+/* -------------------------------------------------------------------------- */
+/* Helpers locales puros                                                       */
+/* -------------------------------------------------------------------------- */
+
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -92,6 +96,10 @@ function getSafeDurationMinutes(start: Date, end: Date) {
   if (!Number.isFinite(diff) || diff <= 0) return 60;
   return Math.max(15, Math.round(diff / 60000));
 }
+
+/* -------------------------------------------------------------------------- */
+/* Types locales                                                               */
+/* -------------------------------------------------------------------------- */
 
 type DbGroup = {
   id: string;
@@ -873,14 +881,15 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     }
 
     if (isSharedProposal) {
-"Alguien te propuso este plan. Puedes aceptarlo tal cual o ajustarlo antes de guardarlo."
+      return "Alguien te propuso este plan. Puedes aceptarlo tal cual o ajustarlo antes de guardarlo.";
     }
 
     if (effectiveType === "group") {
       const groupName = selectedGroup?.name ?? "Grupo";
-     return `Esto se verá con ${groupName}. Si no es el lugar correcto, puedes cambiarlo.`;
+      return `Esto se verá con ${groupName}. Si no es el lugar correcto, puedes cambiarlo.`;
     }
-  return "Esto solo lo verás tú.";
+
+    return "Esto solo lo verás tú.";
   }, [effectiveType, selectedGroup, isSharedProposal, proposalResponse]);
 
 
@@ -1446,18 +1455,22 @@ const persistEvent = async (payload: {
     }
 
     if (currentUserId && savedEventId) {
-      await trackEvent({
-        event: "event_edited",
-        userId: currentUserId,
-        entityId: savedEventId,
+      const analyticsPayload = {
+        user_id: currentUserId,
+        event_type: "event_edited",
+        entity_id: savedEventId,
         metadata: {
-          screen: "event_details",
           type: payload.groupId ? "group" : "personal",
-          group_id: payload.groupId ?? null,
-          source: "event_details_edit",
-          capture_source: sp.get("capture_source") ?? null,
         },
-      });
+      };
+
+      const { error: analyticsError } = await supabase
+        .from("events_analytics")
+        .insert(analyticsPayload);
+
+      if (analyticsError) {
+        console.error("event_edited analytics insert failed", analyticsError);
+      }
     }
 
     const proposalSource = sp.get("proposalSource");
@@ -1514,14 +1527,7 @@ const persistEvent = async (payload: {
         userId: currentUserId,
         entityId: savedEventId,
         metadata: {
-          screen: "event_details",
-          source: "event_details_create",
           type: payload.groupId ? "group" : "personal",
-          group_id: payload.groupId ?? null,
-          group_type: payload.groupType ?? null,
-          capture_source: sp.get("capture_source") ?? null,
-          proposal_source: sp.get("proposalSource") ?? null,
-          quick_capture: sp.get("qc") === "1",
         },
       });
     }
@@ -1619,6 +1625,23 @@ const finalizeKeepBothRedirect = async (
   }, 500);
 };
 
+const runConflictNotificationForSavedEvent = async (savedEventId: string) => {
+  return createConflictNotificationForEvent(savedEventId).catch(() => ({
+    created: 0,
+    conflictCount: 0,
+    targetEventId: savedEventId,
+  }));
+};
+
+const buildSavePayload = () => ({
+  groupType,
+  groupId: effectiveType === "group" ? selectedGroupId : null,
+  title: title.trim(),
+  notes: notes.trim() ? notes.trim() : undefined,
+  startIso: new Date(startDate).toISOString(),
+  endIso: new Date(endDate).toISOString(),
+});
+
 const doSave = async (
   payload: {
     groupType: GroupType;
@@ -1645,13 +1668,9 @@ const doSave = async (
     }
 
     if (options?.keepBothRedirect) {
-      const conflictResult = await createConflictNotificationForEvent(
+      const conflictResult = await runConflictNotificationForSavedEvent(
         savedEventId
-      ).catch(() => ({
-        created: 0,
-        conflictCount: 0,
-        targetEventId: savedEventId,
-      }));
+      );
 
       if (conflictResult.conflictCount > 0) {
         await finalizeKeepBothRedirect(savedEventId, payload);
@@ -1666,13 +1685,9 @@ const doSave = async (
       return savedEventId;
     }
 
-    const conflictResult = await createConflictNotificationForEvent(
+    const conflictResult = await runConflictNotificationForSavedEvent(
       savedEventId
-    ).catch(() => ({
-      created: 0,
-      conflictCount: 0,
-      targetEventId: savedEventId,
-    }));
+    );
 
     if (conflictResult.conflictCount > 0) {
       setToast({
@@ -1812,14 +1827,7 @@ const preflight = async (payload: {
       return;
     }
 
-    const payload = {
-      groupType,
-      groupId: effectiveType === "group" ? selectedGroupId : null,
-      title: title.trim(),
-      notes: notes.trim() ? notes.trim() : undefined,
-      startIso: new Date(startDate).toISOString(),
-      endIso: new Date(endDate).toISOString(),
-    };
+    const payload = buildSavePayload();
 
     setPendingPayload(payload);
     const pf = await preflight(payload);

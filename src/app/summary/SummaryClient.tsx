@@ -7,7 +7,6 @@ import React, {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { trackEvent, trackScreenView } from "@/lib/analytics";
 import { parseQuickCapture } from "@/lib/quickCaptureParser";
 import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
@@ -179,10 +178,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return activeLabel;
   }, [activeGroupId, activeLabel]);
 
-  useEffect(() => {
-    void trackScreenView({ screen: "summary", metadata: { area: "home" } });
-  }, []);
-
   const quickCaptureExamples = useMemo(
     () => getQuickCaptureExamples(activeGroupType, activeLabel, !!activeGroupId),
     [activeGroupType, activeLabel, activeGroupId]
@@ -192,139 +187,142 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     () => formatQuickCapturePreview(quickCaptureValue),
     [quickCaptureValue]
   );
-const smartInterpretation = useMemo(() => {
-  const raw = quickCaptureValue.trim();
-  if (!raw) return null;
 
-  return buildSmartInterpretation({
-    raw,
-    groups,
-    activeGroupId,
-  });
-}, [quickCaptureValue, groups, activeGroupId]);
-
-const smartInterpretationLabel = useMemo(() => {
-  return getSmartInterpretationLabel(smartInterpretation, groups);
-}, [smartInterpretation, groups]);
-
-const normalizeSuggestionGroupType = useCallback(
-  (value: string | null | undefined): "personal" | "pair" | "family" | "other" => {
-    if (value === "pair" || value === "couple") return "pair";
-    if (value === "family") return "family";
-    if (value === "other" || value === "shared") return "other";
-    return "personal";
-  },
-  []
-);
-
-const suggestedContextGroupId = useMemo(() => {
-  if (smartInterpretation?.intent === "group" && smartInterpretation.groupId) {
-    return String(smartInterpretation.groupId);
-  }
-
-  if (activeGroupId) {
-    return String(activeGroupId);
-  }
-
-  return null;
-}, [smartInterpretation, activeGroupId]);
-
-const suggestedContextGroup = useMemo(() => {
-  if (!suggestedContextGroupId) return null;
-
-  return (
-    groups.find((group) => String(group.id) === String(suggestedContextGroupId)) ??
-    null
-  );
-}, [groups, suggestedContextGroupId]);
-
-const suggestedContextGroupType = useMemo(() => {
-  return normalizeSuggestionGroupType(
-    String(suggestedContextGroup?.type ?? activeGroupType)
-  );
-}, [suggestedContextGroup, activeGroupType, normalizeSuggestionGroupType]);
-
-useEffect(() => {
-  let cancelled = false;
-
-  async function hydrateLearnedQuickCaptureProfile() {
+  const smartInterpretation = useMemo(() => {
     const raw = quickCaptureValue.trim();
+    if (!raw) return null;
 
-    if (!raw) {
-      if (!cancelled) setLearnedQuickCaptureProfile(null);
-      return;
+    return buildSmartInterpretation({
+      raw,
+      groups,
+      activeGroupId,
+    });
+  }, [quickCaptureValue, groups, activeGroupId]);
+
+  const smartInterpretationLabel = useMemo(() => {
+    return getSmartInterpretationLabel(smartInterpretation, groups);
+  }, [smartInterpretation, groups]);
+
+  const normalizeSuggestionGroupType = useCallback(
+    (
+      value: string | null | undefined
+    ): "personal" | "pair" | "family" | "other" => {
+      if (value === "pair" || value === "couple") return "pair";
+      if (value === "family") return "family";
+      if (value === "other" || value === "shared") return "other";
+      return "personal";
+    },
+    []
+  );
+
+  const suggestedContextGroupId = useMemo(() => {
+    if (smartInterpretation?.intent === "group" && smartInterpretation.groupId) {
+      return String(smartInterpretation.groupId);
     }
 
-    try {
-      const signals = await getLearningSignals({ daysBack: 120 });
+    if (activeGroupId) {
+      return String(activeGroupId);
+    }
 
-      if (cancelled) return;
+    return null;
+  }, [smartInterpretation, activeGroupId]);
 
-      if (suggestedContextGroupId) {
+  const suggestedContextGroup = useMemo(() => {
+    if (!suggestedContextGroupId) return null;
+
+    return (
+      groups.find((group) => String(group.id) === String(suggestedContextGroupId)) ??
+      null
+    );
+  }, [groups, suggestedContextGroupId]);
+
+  const suggestedContextGroupType = useMemo(() => {
+    return normalizeSuggestionGroupType(
+      String(suggestedContextGroup?.type ?? activeGroupType)
+    );
+  }, [suggestedContextGroup, activeGroupType, normalizeSuggestionGroupType]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function hydrateLearnedQuickCaptureProfile() {
+      const raw = quickCaptureValue.trim();
+
+      if (!raw) {
+        if (!cancelled) setLearnedQuickCaptureProfile(null);
+        return;
+      }
+
+      try {
+        const signals = await getLearningSignals({ daysBack: 120 });
+
+        if (cancelled) return;
+
+        if (suggestedContextGroupId) {
+          const profile = buildLearnedTimeProfile(signals, {
+            scope: "group",
+            groupId: suggestedContextGroupId,
+          });
+
+          setLearnedQuickCaptureProfile(profile);
+          return;
+        }
+
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (cancelled) return;
+
+        const userId = String(user?.id ?? "").trim();
+
+        if (!userId) {
+          setLearnedQuickCaptureProfile(null);
+          return;
+        }
+
         const profile = buildLearnedTimeProfile(signals, {
-          scope: "group",
-          groupId: suggestedContextGroupId,
+          scope: "user",
+          userId,
         });
 
         setLearnedQuickCaptureProfile(profile);
-        return;
+      } catch {
+        if (!cancelled) setLearnedQuickCaptureProfile(null);
       }
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (cancelled) return;
-
-      const userId = String(user?.id ?? "").trim();
-
-      if (!userId) {
-        setLearnedQuickCaptureProfile(null);
-        return;
-      }
-
-      const profile = buildLearnedTimeProfile(signals, {
-        scope: "user",
-        userId,
-      });
-
-      setLearnedQuickCaptureProfile(profile);
-    } catch {
-      if (!cancelled) setLearnedQuickCaptureProfile(null);
     }
-  }
 
-  void hydrateLearnedQuickCaptureProfile();
+    void hydrateLearnedQuickCaptureProfile();
 
-  return () => {
-    cancelled = true;
-  };
-}, [quickCaptureValue, suggestedContextGroupId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [quickCaptureValue, suggestedContextGroupId]);
 
-const timeSuggestions = useMemo(() => {
-  const raw = quickCaptureValue.trim();
-  if (!raw) return [];
+  const timeSuggestions = useMemo(() => {
+    const raw = quickCaptureValue.trim();
+    if (!raw) return [];
 
-  const parsed = parseQuickCapture(raw);
+    const parsed = parseQuickCapture(raw);
 
-  if (parsed.date) return [];
+    if (parsed.date) return [];
 
-  return getSuggestedTimeSlots(events, suggestedContextGroupType, raw, {
-    learnedProfile: learnedQuickCaptureProfile,
-  });
-}, [
-  quickCaptureValue,
-  events,
-  suggestedContextGroupType,
-  learnedQuickCaptureProfile,
-]);
+    return getSuggestedTimeSlots(events, suggestedContextGroupType, raw, {
+      learnedProfile: learnedQuickCaptureProfile,
+    });
+  }, [
+    quickCaptureValue,
+    events,
+    suggestedContextGroupType,
+    learnedQuickCaptureProfile,
+  ]);
 
-const timeSuggestionsLabel = useMemo(() => {
-  const raw = quickCaptureValue.trim();
-  if (!raw || timeSuggestions.length === 0) return null;
+  const timeSuggestionsLabel = useMemo(() => {
+    const raw = quickCaptureValue.trim();
+    if (!raw || timeSuggestions.length === 0) return null;
 
-  return getSuggestionContextLabel(raw, suggestedContextGroupType);
-}, [quickCaptureValue, timeSuggestions, suggestedContextGroupType]);
+    return getSuggestionContextLabel(raw, suggestedContextGroupType);
+  }, [quickCaptureValue, timeSuggestions, suggestedContextGroupType]);
   const quickCaptureHeadline = useMemo(() => {
     if (!activeGroupId) return "Escribe lo que tienes en mente";
     if (activeGroupType === "pair") return "Planéalo en una línea";
@@ -466,7 +464,6 @@ const timeSuggestionsLabel = useMemo(() => {
         : "rgba(56,189,248,0.35)";
 
   const openConflictCenter = useCallback(() => {
-    void trackEvent({ event: "conflict_center_opened", metadata: { screen: "summary", latest_event_id: conflictAlert.latestEventId ?? null, conflict_count: conflictAlert.count ?? 0 } });
     if (conflictAlert.latestEventId) {
       router.push(
         `/conflicts/detected?eventId=${encodeURIComponent(
@@ -479,82 +476,66 @@ const timeSuggestionsLabel = useMemo(() => {
     router.push("/conflicts/detected");
   }, [router, conflictAlert]);
 
-const navigateFromQuickCapture = useCallback(
-  (value: string) => {
-    const raw = String(value || "").trim();
-    if (!raw) return;
+  const buildQuickCaptureParams = useCallback(
+    (value: string, suggestedDate?: Date) => {
+      const raw = String(value || "").trim();
+      if (!raw) return null;
 
-    void trackEvent({ event: "quick_capture_submitted", metadata: { screen: "summary", source: "summary", raw_length: raw.length } });
+      const parsed = parseQuickCapture(raw);
+      const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
+      const smart = buildSmartInterpretation({
+        raw,
+        groups,
+        activeGroupId,
+      });
+      const params = new URLSearchParams();
 
-    const parsed = parseQuickCapture(raw);
-    const params = new URLSearchParams();
-const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
-    const smart = buildSmartInterpretation({
-      raw,
-      groups,
-      activeGroupId,
-    });
+      params.set("qc", "1");
+      params.set("capture_source", "summary");
+      params.set("raw_text", raw);
 
-    params.set("qc", "1");
-    params.set("capture_source", "summary");
-    params.set("raw_text", raw);
+      if (smart.intent === "group" && smart.groupId) {
+        params.set("type", "group");
+        params.set("groupId", smart.groupId);
+      } else {
+        params.set("type", "personal");
+      }
 
-    if (smart.intent === "group" && smart.groupId) {
-      params.set("type", "group");
-      params.set("groupId", smart.groupId);
-    } else {
-      params.set("type", "personal");
-    }
+      if (parsed.title) params.set("title", parsed.title);
+      if (parsed.durationMinutes) {
+        params.set("duration", String(parsed.durationMinutes));
+      }
+      if (cleanedNotes) params.set("notes", cleanedNotes);
 
-    if (parsed.title) params.set("title", parsed.title);
-    if (parsed.date) params.set("date", parsed.date.toISOString());
-    if (parsed.durationMinutes) {
-      params.set("duration", String(parsed.durationMinutes));
-    }
-    if (cleanedNotes) params.set("notes", cleanedNotes);
+      const resolvedDate = suggestedDate ?? parsed.date ?? null;
+      if (resolvedDate) {
+        params.set("date", resolvedDate.toISOString());
+      }
 
-    router.push(`/events/new/details?${params.toString()}`);
-  },
-  [groups, activeGroupId, router]
-);
+      return params;
+    },
+    [groups, activeGroupId]
+  );
 
-const navigateFromSuggestedSlot = useCallback(
-  (value: string, suggestedDate: Date) => {
-    const raw = String(value || "").trim();
-    if (!raw) return;
+  const navigateFromQuickCapture = useCallback(
+    (value: string) => {
+      const params = buildQuickCaptureParams(value);
+      if (!params) return;
 
-    const parsed = parseQuickCapture(raw);
-    const params = new URLSearchParams();
-const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
-    const smart = buildSmartInterpretation({
-      raw,
-      groups,
-      activeGroupId,
-    });
+      router.push(`/events/new/details?${params.toString()}`);
+    },
+    [buildQuickCaptureParams, router]
+  );
 
-    params.set("qc", "1");
-    params.set("capture_source", "summary");
-    params.set("raw_text", raw);
+  const navigateFromSuggestedSlot = useCallback(
+    (value: string, suggestedDate: Date) => {
+      const params = buildQuickCaptureParams(value, suggestedDate);
+      if (!params) return;
 
-    if (smart.intent === "group" && smart.groupId) {
-      params.set("type", "group");
-      params.set("groupId", smart.groupId);
-    } else {
-      params.set("type", "personal");
-    }
-
-    if (parsed.title) params.set("title", parsed.title);
-if (cleanedNotes) params.set("notes", cleanedNotes);
-    if (parsed.durationMinutes) {
-      params.set("duration", String(parsed.durationMinutes));
-    }
-
-    params.set("date", suggestedDate.toISOString());
-
-    router.push(`/events/new/details?${params.toString()}`);
-  },
-  [groups, activeGroupId, router]
-);
+      router.push(`/events/new/details?${params.toString()}`);
+    },
+    [buildQuickCaptureParams, router]
+  );
 
   const handleQuickCaptureSubmit = useCallback(() => {
     const raw = quickCaptureValue.trim();
@@ -595,7 +576,6 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     const raw = quickCaptureValue.trim();
 
     if (!raw) {
-      void trackEvent({ event: "quick_capture_opened", metadata: { screen: "summary", source: "summary_empty" } });
       router.push("/capture?source=summary");
       return;
     }
@@ -604,7 +584,6 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     params.set("text", raw);
     params.set("source", "summary");
 
-    void trackEvent({ event: "quick_capture_opened", metadata: { screen: "summary", source: "summary_prefilled", raw_length: raw.length } });
     router.push(`/capture?${params.toString()}`);
   }, [router, quickCaptureValue]);
 
@@ -625,7 +604,6 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     }
 
     try {
-      void trackEvent({ event: "quick_capture_shared", metadata: { screen: "summary", source: "copy_link", raw_length: raw.length } });
       const fullUrl = buildCaptureShareUrl(raw, "copy_link");
       await navigator.clipboard.writeText(fullUrl);
       showToast("Link copiado ✅", "Ya puedes pegarlo donde quieras.");
@@ -643,7 +621,6 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
       return;
     }
 
-    void trackEvent({ event: "quick_capture_shared", metadata: { screen: "summary", source: "whatsapp", raw_length: raw.length } });
     const fullUrl = buildCaptureShareUrl(raw, "whatsapp");
     const message = buildWhatsAppShareText(raw, fullUrl);
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;

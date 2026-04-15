@@ -44,11 +44,7 @@ import {
   toYmdKey,
 } from "@/lib/dateUtils";
 import {
-  deriveEventStatus,
   normalizeGroupType,
-  normalizeProposalResponse,
-  getProposalResponseLabel,
-  getProposalResponseTone,
 } from "@/lib/naming";
 import { buildEventContext } from "@/lib/eventContext";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
@@ -253,6 +249,108 @@ function getCalendarEventStatus(input: {
   const status = ctx?.status ?? null;
   if (status === "scheduled") return null;
   return status;
+}
+
+function getTrustSignalLabel(
+  trustSignal: ConflictTrustSignal | null | undefined,
+  opts: { compact?: boolean } = {}
+) {
+  if (!trustSignal) return null;
+  if (trustSignal.label === "auto_adjusted") {
+    return opts.compact ? "Auto" : "Ajuste automático";
+  }
+  return "Resuelto";
+}
+
+function getCalendarStatusPresentation(input: {
+  eventId: string | null | undefined;
+  inConflict?: boolean;
+  proposalRow?: ProposalResponseRow | null;
+  trustSignal?: ConflictTrustSignal | null;
+  compact?: boolean;
+  pendingStyle: React.CSSProperties;
+  resolvedStyle: React.CSSProperties;
+}) {
+  const proposalLabel = proposalResponseLabel(input.proposalRow?.response);
+  const trustLabel = getTrustSignalLabel(input.trustSignal, {
+    compact: input.compact,
+  });
+
+  const calendarEventStatus = getCalendarEventStatus({
+    eventId: input.eventId,
+    inConflict: input.inConflict,
+    proposalRow: input.proposalRow,
+    trustSignal: input.trustSignal,
+  });
+
+  const statusUi = calendarEventStatus
+    ? getEventStatusUi(calendarEventStatus, {
+        conflictsCount: input.inConflict ? 1 : 0,
+      })
+    : null;
+
+  const fallbackStatusStyle = proposalLabel
+    ? input.pendingStyle
+    : input.resolvedStyle;
+
+  return {
+    label:
+      (input.compact ? statusUi?.compactLabel : statusUi?.label) ??
+      proposalLabel ??
+      trustLabel,
+    style: statusUi?.badgeStyle ?? fallbackStatusStyle,
+  };
+}
+
+function getValueVisibilitySummary(input: {
+  visibleEvents: CalendarEventWithOwner[];
+  trustSignals: Record<string, ConflictTrustSignal>;
+  proposalResponsesMap: Record<string, ProposalResponseRow>;
+  conflictEventIdsInGrid: Set<string>;
+}) {
+  let resolved = 0;
+  let pending = 0;
+  let adjusted = 0;
+
+  for (const event of input.visibleEvents) {
+    const trustSignal = input.trustSignals[String(event.id)];
+    const proposalRow = input.proposalResponsesMap[String(event.id)];
+    const isConflictEvent = input.conflictEventIdsInGrid.has(String(event.id));
+    const proposalResponse = String(proposalRow?.response ?? "")
+      .trim()
+      .toLowerCase();
+
+    if (proposalResponse === "adjusted") {
+      adjusted += 1;
+      continue;
+    }
+
+    if (proposalResponse === "pending") {
+      pending += 1;
+      continue;
+    }
+
+    if (trustSignal?.label === "auto_adjusted") {
+      adjusted += 1;
+      continue;
+    }
+
+    if (trustSignal?.label) {
+      resolved += 1;
+      continue;
+    }
+
+    if (isConflictEvent) {
+      pending += 1;
+    }
+  }
+
+  return {
+    resolved,
+    pending,
+    adjusted,
+    hasValue: resolved > 0 || adjusted > 0 || pending > 0,
+  };
 }
 
 /** ✅ Props del Calendar */
@@ -875,47 +973,12 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
   }, [filteredEvents, gridStart, gridEnd]);
 
 const valueVisibility = useMemo(() => {
-  let resolved = 0;
-  let pending = 0;
-  let adjusted = 0;
-
-  for (const event of visibleEvents) {
-    const trustSignal = trustSignals[String(event.id)];
-    const proposalRow = proposalResponsesMap[String(event.id)];
-    const isConflictEvent = conflictEventIdsInGrid.has(String(event.id));
-    const proposalResponse = String(proposalRow?.response ?? "").trim().toLowerCase();
-
-    if (proposalResponse === "adjusted") {
-      adjusted += 1;
-      continue;
-    }
-
-    if (proposalResponse === "pending") {
-      pending += 1;
-      continue;
-    }
-
-    if (trustSignal?.label === "auto_adjusted") {
-      adjusted += 1;
-      continue;
-    }
-
-    if (trustSignal?.label) {
-      resolved += 1;
-      continue;
-    }
-
-    if (isConflictEvent) {
-      pending += 1;
-    }
-  }
-
-  return {
-    resolved,
-    pending,
-    adjusted,
-    hasValue: resolved > 0 || adjusted > 0 || pending > 0,
-  };
+  return getValueVisibilitySummary({
+    visibleEvents,
+    trustSignals,
+    proposalResponsesMap,
+    conflictEventIdsInGrid,
+  });
 }, [visibleEvents, trustSignals, proposalResponsesMap, conflictEventIdsInGrid]);
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalendarEventWithOwner[]>();
@@ -1481,29 +1544,17 @@ function EventRow({
   const isHighlighted =
     highlightId && String(e.id) === String(highlightId);
   const canDelete = isEventOwnedByUser(e, currentUserId);
-  const trustLabel = trustSignal
-    ? trustSignal.label === "auto_adjusted"
-      ? "Ajuste automático"
-      : "Resuelto"
-    : null;
   const proposalRow = proposalResponsesMap?.[String(e.id)];
-  const proposalLabel = proposalResponseLabel(proposalRow?.response);
-  const calendarEventStatus = getCalendarEventStatus({
+  const statusPresentation = getCalendarStatusPresentation({
     eventId: e.id,
     inConflict,
     proposalRow,
     trustSignal,
+    pendingStyle: styles.eventTrustBadgePending,
+    resolvedStyle: styles.eventTrustBadgeResolved,
   });
-  const statusUi = calendarEventStatus
-    ? getEventStatusUi(calendarEventStatus, {
-        conflictsCount: inConflict ? 1 : 0,
-      })
-    : null;
-  const fallbackStatusStyle = proposalLabel
-    ? styles.eventTrustBadgePending
-    : styles.eventTrustBadgeResolved;
-  const statusLabel = statusUi?.label ?? proposalLabel ?? trustLabel;
-  const statusStyle = statusUi?.badgeStyle ?? fallbackStatusStyle;
+  const statusLabel = statusPresentation.label;
+  const statusStyle = statusPresentation.style;
 
   return (
     <div
@@ -1765,32 +1816,19 @@ cells.push(
 
         const meta = groupMeta(resolvedType);
         const trustSignal = trustSignals[String(e.id)];
-        const trustShortLabel = trustSignal
-          ? trustSignal.label === "auto_adjusted"
-            ? "Auto"
-            : "Resuelto"
-          : null;
         const proposalRow = proposalResponsesMap[String(e.id)];
-        const proposalLabel = proposalResponseLabel(proposalRow?.response);
         const isConflictEvent = conflictEventIdsInGrid.has(String(e.id));
-        const calendarEventStatus = getCalendarEventStatus({
+        const cellStatusPresentation = getCalendarStatusPresentation({
           eventId: e.id,
           inConflict: isConflictEvent,
           proposalRow,
           trustSignal,
+          compact: true,
+          pendingStyle: styles.cellTrustPillPending,
+          resolvedStyle: styles.cellTrustPillResolved,
         });
-        const cellStatusUi = calendarEventStatus
-          ? getEventStatusUi(calendarEventStatus, {
-              conflictsCount: isConflictEvent ? 1 : 0,
-            })
-          : null;
-        const fallbackCellStatusStyle = proposalLabel
-          ? styles.cellTrustPillPending
-          : styles.cellTrustPillResolved;
-        const cellStatusLabel =
-          cellStatusUi?.compactLabel ?? proposalLabel ?? trustShortLabel;
-        const cellStatusStyle =
-          cellStatusUi?.badgeStyle ?? fallbackCellStatusStyle;
+        const cellStatusLabel = cellStatusPresentation.label;
+        const cellStatusStyle = cellStatusPresentation.style;
 
         return (
           <div
