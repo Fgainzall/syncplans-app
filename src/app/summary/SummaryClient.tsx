@@ -1176,12 +1176,56 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                     </>
                   ) : null}
                 </div>
+
+                {pendingAttention.total > 0 ? (
+                  <div style={styles.attentionRow}>
+                    {pendingAttention.conflicts > 0 ? (
+                      <button
+                        type="button"
+                        style={{ ...styles.attentionChip, ...styles.attentionChipDanger }}
+                        onClick={openConflictCenter}
+                      >
+                        {pendingAttention.conflicts} conflicto{pendingAttention.conflicts === 1 ? "" : "s"}
+                      </button>
+                    ) : null}
+
+                    {pendingAttention.invites > 0 ? (
+                      <button
+                        type="button"
+                        style={{ ...styles.attentionChip, ...styles.attentionChipInfo }}
+                        onClick={() => navigateFromSummary("attention_invites", "/invitations", { block: "summary_attention" })}
+                      >
+                        {pendingAttention.invites} invitación{pendingAttention.invites === 1 ? "" : "es"}
+                      </button>
+                    ) : null}
+
+                    {pendingAttention.captures > 0 ? (
+                      <button
+                        type="button"
+                        style={{ ...styles.attentionChip, ...styles.attentionChipNeutral }}
+                        onClick={() => navigateFromSummary("attention_events", "/events", { block: "summary_attention" })}
+                      >
+                        {pendingAttention.captures} respuesta{pendingAttention.captures === 1 ? "" : "s"} externa{pendingAttention.captures === 1 ? "" : "s"}
+                      </button>
+                    ) : null}
+
+                    {pendingAttention.proposals > 0 ? (
+                      <button
+                        type="button"
+                        style={{ ...styles.attentionChip, ...styles.attentionChipSoft }}
+                        onClick={() => navigateFromSummary("attention_proposals", "/events", { block: "summary_attention" })}
+                      >
+                        {pendingAttention.proposals} propuesta{pendingAttention.proposals === 1 ? "" : "s"}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
 
               <div style={styles.stateKpi}>
-                <div style={styles.stateKpiLabel}>7 días</div>
+                <div style={styles.stateKpiLabel}>Próximos 7 días</div>
                 <div style={styles.stateKpiNumber}>{upcomingStats.total}</div>
-                <div style={styles.stateKpiHint}>Eventos visibles</div>
+                <div style={styles.stateKpiHint}>Eventos visibles con contexto real</div>
               </div>
             </div>
 
@@ -1560,8 +1604,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
-                <div style={styles.quickTitle}>"Abrir calendario"</div>
-                <div style={styles.quickSub}>"Ver semana y contexto compartido"</div>
+                <div style={styles.quickTitle}>Abrir calendario</div>
+                <div style={styles.quickSub}>Ver semana y contexto compartido</div>
               </button>
 
               <button
@@ -1569,8 +1613,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 style={styles.quickCard}
                 className="spSum-quickCard"
               >
-                <div style={styles.quickTitle}>"Abrir eventos"</div>
-                <div style={styles.quickSub}>"Ver respuestas, estados y pendientes"</div>
+                <div style={styles.quickTitle}>Abrir eventos</div>
+                <div style={styles.quickSub}>Ver respuestas, estados y pendientes</div>
               </button>
             </div>
           </Card>
@@ -2084,6 +2128,46 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 8,
     flexWrap: "wrap",
+  },
+  attentionRow: {
+    marginTop: 14,
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  attentionChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 34,
+    padding: "8px 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.95)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  attentionChipDanger: {
+    border: "1px solid rgba(251,191,36,0.24)",
+    background: "rgba(251,191,36,0.12)",
+    color: "rgba(255,247,205,0.98)",
+  },
+  attentionChipInfo: {
+    border: "1px solid rgba(56,189,248,0.24)",
+    background: "rgba(56,189,248,0.12)",
+    color: "rgba(224,242,254,0.98)",
+  },
+  attentionChipNeutral: {
+    border: "1px solid rgba(94,234,212,0.22)",
+    background: "rgba(13,148,136,0.16)",
+    color: "rgba(204,251,241,0.98)",
+  },
+  attentionChipSoft: {
+    border: "1px solid rgba(196,181,253,0.24)",
+    background: "rgba(124,58,237,0.14)",
+    color: "rgba(237,233,254,0.98)",
   },
   stateStat: {
     fontSize: 12,

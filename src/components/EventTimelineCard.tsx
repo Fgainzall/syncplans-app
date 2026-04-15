@@ -120,9 +120,9 @@ export default function EventTimelineCard({
   });
 
   const conflictSummary =
-    conflictsCount > 0
+    safeConflictsCount > 0
       ? buildConflictSummary(
-          Array.from({ length: conflictsCount }, (_, idx) => ({
+          Array.from({ length: safeConflictsCount }, (_, idx) => ({
             id: String(idx),
           } as any))
         )
@@ -200,13 +200,23 @@ export default function EventTimelineCard({
             />
 
             <div style={S.titleBlock}>
+              <div style={S.titleEyebrowRow}>
+                <span style={S.timePill}>
+                  {start} – {end}
+                </span>
+                {ev.group?.name ? (
+                  <span style={S.contextPill}>{ev.group.name}</span>
+                ) : null}
+                {externalLabel ? (
+                  <span style={S.contextPillMuted}>{externalLabel}</span>
+                ) : null}
+              </div>
+
               <div style={S.titleText}>{ev.title || "Sin título"}</div>
 
               <div style={S.metaLine}>
-                <span style={S.metaStrong}>
-                  {start} – {end}
-                </span>
-                {ev.group?.name ? <span>· {ev.group.name}</span> : null}
+                <span style={S.metaStrong}>{statusUi.label}</span>
+                <span>· Evento con lectura compartida</span>
               </div>
             </div>
           </div>
@@ -220,7 +230,7 @@ export default function EventTimelineCard({
                 type="button"
                 disabled={shareState?.loading}
               >
-                {shareState?.loading ? "Generando…" : "Compartir"}
+                {shareState?.loading ? "Generando…" : "Invitar"}
               </button>
             ) : null}
 
@@ -292,25 +302,11 @@ export default function EventTimelineCard({
               background: signal.badgeBg,
               borderColor: signal.badgeBorder,
               color: signal.badgeText,
-              opacity: 0.8,
+              opacity: 0.88,
             }}
           >
             {signal.label}
           </span>
-
-          {externalLabel ? (
-            <span
-              style={{
-                ...S.signalBadge,
-                background: "rgba(22,78,99,0.9)",
-                borderColor: "rgba(103,232,249,0.22)",
-                color: "rgba(207,250,254,0.98)",
-                opacity: 0.8,
-              }}
-            >
-              {externalLabel}
-            </span>
-          ) : null}
         </div>
 
         {proposalInsight ? (
@@ -569,20 +565,60 @@ const S: Record<string, React.CSSProperties> = {
     minWidth: 0,
     display: "flex",
     flexDirection: "column",
-    gap: 6,
+    gap: 7,
     flex: 1,
   },
-  titleText: {
-    fontSize: 15,
+  titleEyebrowRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 7,
+    flexWrap: "wrap",
+  },
+  timePill: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "5px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    fontSize: 11,
     fontWeight: 900,
+    color: "rgba(241,245,249,0.96)",
+  },
+  contextPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "5px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.16)",
+    background: "rgba(56,189,248,0.10)",
+    fontSize: 11,
+    fontWeight: 800,
+    color: "rgba(224,242,254,0.96)",
+  },
+  contextPillMuted: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "5px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    fontSize: 11,
+    fontWeight: 800,
+    color: "rgba(203,213,225,0.88)",
+  },
+  titleText: {
+    fontSize: 17,
+    fontWeight: 950,
     color: "rgba(255,255,255,0.98)",
-    lineHeight: 1.38,
+    lineHeight: 1.35,
     whiteSpace: "normal",
     overflowWrap: "anywhere",
     wordBreak: "break-word",
+    letterSpacing: "-0.02em",
   },
   metaLine: {
-    fontSize: 11,
+    fontSize: 12,
     color: "rgba(203,213,225,0.76)",
     display: "flex",
     gap: 6,
@@ -598,6 +634,7 @@ const S: Record<string, React.CSSProperties> = {
     gap: 8,
     flexWrap: "wrap",
     alignItems: "center",
+    marginTop: 2,
   },
   signalsRow: {
     display: "flex",
@@ -608,9 +645,9 @@ const S: Record<string, React.CSSProperties> = {
   signalBadge: {
     borderRadius: 999,
     border: "1px solid transparent",
-    padding: "5px 9px",
+    padding: "6px 10px",
     fontSize: 11,
-    fontWeight: 800,
+    fontWeight: 900,
     lineHeight: 1,
   },
   proposalInsightCard: {

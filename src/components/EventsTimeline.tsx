@@ -80,6 +80,19 @@ export default function EventsTimeline({
     }));
   }, [sorted, refreshTick]);
 
+const timelineSummary = useMemo(() => {
+  const shared = sorted.filter((ev) => !!ev.group_id).length;
+  const external = sorted.filter((ev) => !!ev.external_source).length;
+
+  return {
+    total: sorted.length,
+    shared,
+    external,
+    selected: selectedIds.size,
+    days: groupedByDay.length,
+  };
+}, [sorted, selectedIds, groupedByDay.length]);
+
   useEffect(() => {
     if (!focusedEventId) return;
 
@@ -266,6 +279,27 @@ ${link}`;
 
   return (
     <div style={S.wrapper}>
+      <div style={S.headerCard}>
+        <div style={S.headerCopy}>
+          <div style={S.headerEyebrow}>Eventos visibles</div>
+          <div style={S.headerTitle}>Aquí es donde SyncPlans se vuelve tangible.</div>
+          <div style={S.headerSub}>
+            Tus planes no solo se listan: aquí también se ve qué es compartido, qué viene de fuera y qué ya requiere una decisión real.
+          </div>
+        </div>
+
+        <div style={S.headerStats}>
+          <span style={S.headerStat}>{timelineSummary.total} total</span>
+          <span style={S.headerStat}>{timelineSummary.shared} compartido{timelineSummary.shared === 1 ? "" : "s"}</span>
+          {timelineSummary.external > 0 ? (
+            <span style={S.headerStat}>{timelineSummary.external} externo{timelineSummary.external === 1 ? "" : "s"}</span>
+          ) : null}
+          {timelineSummary.selected > 0 ? (
+            <span style={S.headerStatAccent}>{timelineSummary.selected} seleccionado{timelineSummary.selected === 1 ? "" : "s"}</span>
+          ) : null}
+        </div>
+      </div>
+
       {groupedByDay.map(({ dayKey, dayEvents }) => {
         const firstDate = new Date(dayEvents[0].start);
         const dayLabel = getDayHeaderLabel(firstDate);
@@ -332,10 +366,77 @@ const S: Record<string, React.CSSProperties> = {
     gap: 16,
     marginTop: 12,
   },
-  daySection: {
+  headerCard: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+    padding: 16,
     borderRadius: 20,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.032)",
+    background: "linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.025))",
+    boxShadow: "0 16px 40px rgba(0,0,0,0.14)",
+  },
+  headerCopy: {
+    minWidth: 0,
+    flex: "1 1 360px",
+    display: "grid",
+    gap: 4,
+  },
+  headerEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    color: "rgba(125,211,252,0.9)",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 950,
+    color: "rgba(255,255,255,0.98)",
+    letterSpacing: "-0.02em",
+  },
+  headerSub: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(203,213,225,0.84)",
+    maxWidth: 720,
+  },
+  headerStats: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    alignContent: "flex-start",
+  },
+  headerStat: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 34,
+    padding: "8px 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(241,245,249,0.96)",
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  headerStatAccent: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 34,
+    padding: "8px 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.22)",
+    background: "rgba(56,189,248,0.12)",
+    color: "rgba(224,242,254,0.98)",
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  daySection: {
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))",
     padding: 15,
     boxShadow: "0 16px 40px rgba(0,0,0,0.14)",
   },
@@ -348,18 +449,22 @@ const S: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
   },
   dayTitle: {
-    fontWeight: 900,
-    fontSize: 15,
+    fontWeight: 950,
+    fontSize: 16,
     color: "rgba(255,255,255,0.95)",
     textTransform: "capitalize",
     letterSpacing: "-0.01em",
   },
   dayCount: {
     fontSize: 11,
-    fontWeight: 700,
+    fontWeight: 800,
     color: "rgba(148,163,184,0.95)",
     textTransform: "uppercase",
     letterSpacing: 0.4,
+    padding: "6px 9px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
   },
   dayList: {
     display: "flex",
