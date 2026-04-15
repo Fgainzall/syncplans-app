@@ -188,6 +188,19 @@ export default function GroupsPage() {
       ? "Invitaciones"
       : `Invitaciones (${pendingInvites})`;
 
+  const activeGroup = useMemo(
+    () => groups.find((group) => group.is_active) ?? groups[0] ?? null,
+    [groups]
+  );
+
+  const groupMomentumText = useMemo(() => {
+    if (!activeGroup) {
+      return "Tu primer grupo será la base desde la que SyncPlans empieza a coordinar contigo y con otros.";
+    }
+
+    return `${activeGroup.name || getGroupTypeLabel(activeGroup.type as any)} es hoy tu mejor punto para entrar al mismo contexto, crear planes y dejar de coordinar desde fuera.`;
+  }, [activeGroup]);
+
   if (booting) {
     return (
       <MobileScaffold maxWidth={1120} style={styles.page}>
@@ -318,6 +331,49 @@ export default function GroupsPage() {
               </Card>
             </Card>
 
+            <Card tone="muted" style={styles.momentumCard}>
+              <div style={styles.momentumCopy}>
+                <div style={styles.momentumEyebrow}>Dónde se vuelve real</div>
+                <div style={styles.momentumTitle}>
+                  {activeGroup
+                    ? `${activeGroup.name || "Tu grupo activo"} puede ser el centro de tu coordinación compartida`
+                    : "Tu primer grupo puede convertirse en tu contexto compartido"}
+                </div>
+                <div style={styles.momentumSub}>{groupMomentumText}</div>
+              </div>
+
+              <div style={styles.momentumActions}>
+                {activeGroup ? (
+                  <button
+                    type="button"
+                    style={styles.primary}
+                    onClick={() => router.push(`/groups/${activeGroup.id}`)}
+                  >
+                    Abrir grupo activo
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    style={styles.primary}
+                    onClick={() =>
+                      reachedGroupLimit ? router.push("/planes") : router.push("/groups/new")
+                    }
+                  >
+                    {reachedGroupLimit ? "Ver planes" : "Crear primer grupo"}
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  style={styles.secondary}
+                  onClick={() =>
+                    pendingInvites > 0 ? router.push("/invitations") : router.push("/summary")
+                  }
+                >
+                  {pendingInvites > 0 ? "Revisar invitaciones" : "Volver al resumen"}
+                </button>
+              </div>
+            </Card>
 
             {reachedGroupLimit ? (
               <Card tone="muted" style={styles.limitBanner}>
@@ -411,10 +467,9 @@ export default function GroupsPage() {
               </Card>
             ) : filteredGroups.length === 0 ? (
               <Card tone="muted" style={styles.emptyState}>
-                <h2 style={styles.emptyTitle}>Aún no tienes espacios compartidos</h2>
+                <h2 style={styles.emptyTitle}>Aún no tienes un espacio compartido activo</h2>
                 <p style={styles.emptySub}>
-                  Crea tu primer grupo de pareja, familia o compartido para
-                  sacar la coordinación del chat y empezar a moverla dentro de SyncPlans.
+                  Crea tu primer grupo de pareja, familia o compartido para sacar la coordinación del chat y empezar a moverla dentro de SyncPlans, con todos viendo la misma versión de la verdad.
                 </p>
                 <div style={styles.emptyActions}>
                   <button
@@ -480,6 +535,11 @@ function GroupRow({
             </span>
             <span style={styles.dotSeparator}>•</span>
             <span style={styles.groupMetaRole}>{roleLabel(g.role)}</span>
+          </div>
+          <div style={styles.groupMicroCopy}>
+            {g.is_active
+              ? "Este grupo ya define el contexto desde el que estás creando y revisando planes."
+              : "Puedes activarlo para que SyncPlans use este contexto al crear y revisar coordinación compartida."}
           </div>
         </div>
       </div>
@@ -637,6 +697,44 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 18,
     flexWrap: "wrap",
     alignItems: "stretch",
+  },
+  momentumCard: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 16,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  momentumCopy: {
+    flex: "1 1 320px",
+    minWidth: 0,
+  },
+  momentumEyebrow: {
+    fontSize: 11,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    color: "rgba(148,163,184,0.95)",
+    fontWeight: 900,
+    marginBottom: 6,
+  },
+  momentumTitle: {
+    fontSize: 18,
+    fontWeight: 950,
+    lineHeight: 1.2,
+    color: "rgba(255,255,255,0.96)",
+  },
+  momentumSub: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 1.65,
+    color: "rgba(226,232,240,0.84)",
+    maxWidth: 720,
+  },
+  momentumActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    flex: "1 1 240px",
   },
   heroLeft: {
     flex: 1,

@@ -148,6 +148,14 @@ export default function InvitationsPage() {
   const isEmpty = !loading && !error && pendingInvites.length === 0;
   const pendingCount = pendingInvites.length;
   const firstPendingInvite = pendingInvites[0] ?? null;
+  const invitationValueSteps = useMemo(
+    () => [
+      "Aceptas y entras al mismo grupo que ya usa el resto.",
+      "Si tu llegada destapa un choque, SyncPlans te lo muestra de frente.",
+      "Si no, aterrizas en el grupo para ver qué ya está en movimiento.",
+    ],
+    []
+  );
 
   return (
     <MobileScaffold maxWidth={1120} style={styles.page}>
@@ -260,6 +268,17 @@ export default function InvitationsPage() {
               </Card>
             ) : null}
 
+            {pendingCount > 0 ? (
+              <div style={styles.stepsGrid}>
+                {invitationValueSteps.map((step, index) => (
+                  <Card key={step} tone="muted" style={styles.stepCard}>
+                    <div style={styles.stepNumber}>0{index + 1}</div>
+                    <div style={styles.stepText}>{step}</div>
+                  </Card>
+                ))}
+              </div>
+            ) : null}
+
             {booting ? (
               <Card tone="muted" style={styles.stateCard}>
                 <div style={styles.loadingRow}>
@@ -328,7 +347,7 @@ export default function InvitationsPage() {
                             {safeDateLabel(invite.created_at)}
                           </div>
                           <div style={styles.inviteMicroCopy}>
-                            Si aceptas, entras al mismo espacio donde ya se están moviendo planes y decisiones.
+                            Si aceptas, dejas de mirar esta coordinación desde fuera y entras al mismo espacio donde ya se están moviendo planes y decisiones.
                           </div>
                         </div>
 
@@ -341,7 +360,7 @@ export default function InvitationsPage() {
                           disabled={busy}
                           style={styles.primaryBtn}
                         >
-                          Aceptar
+                          Aceptar y entrar
                         </button>
                         <button
                           onClick={() => onDecline(invite.id)}
@@ -495,6 +514,30 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     lineHeight: 1.55,
     color: "rgba(148,163,184,0.96)",
+  },
+
+  stepsGrid: {
+    display: "grid",
+    gap: 12,
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  },
+  stepCard: {
+    display: "grid",
+    gap: 8,
+    minHeight: 104,
+  },
+  stepNumber: {
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    color: "rgba(96,165,250,0.95)",
+  },
+  stepText: {
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: "rgba(226,232,240,0.94)",
+    fontWeight: 800,
   },
 
   primaryBtn: {

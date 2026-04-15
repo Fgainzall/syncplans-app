@@ -97,6 +97,22 @@ function getHeroSubtitle(inv: GroupInvitation | null, pending: boolean) {
   return `Te están abriendo la puerta a un espacio ${groupLabel.toLowerCase()} compartido. Aceptar no es solo entrar: es dejar de depender de mensajes sueltos para entender qué sigue, qué cambió y qué ya quedó acordado.`;
 }
 
+function getFlowSteps(pending: boolean) {
+  if (!pending) {
+    return [
+      "El grupo ya puede quedar como tu contexto activo.",
+      "Vuelves directo al espacio compartido para ver qué sigue.",
+      "Si aparece algo importante, el sistema lo hace visible ahí mismo.",
+    ];
+  }
+
+  return [
+    "Aceptas y entras al mismo grupo que ya usa el resto.",
+    "Si tu llegada destapa un choque, te llevamos directo a revisarlo.",
+    "Si no hay choque, aterrizas en el grupo para ver el contexto compartido.",
+  ];
+}
+
 function StatusPill({ status }: { status: string }) {
   const s = (status || "").toLowerCase();
   const meta =
@@ -308,6 +324,7 @@ export default function AcceptInviteClient() {
   const hasPremium = hasPremiumAccess(profile);
   const shouldShowExternalNudge = !hasPremium && pending;
   const valueBullets = useMemo(() => getValueBullets(inv), [inv]);
+  const flowSteps = useMemo(() => getFlowSteps(pending), [pending]);
 
   useEffect(() => {
     if (!shouldShowExternalNudge || !inviteId || !inv) return;
@@ -381,8 +398,8 @@ export default function AcceptInviteClient() {
 
       if (conflictResult.conflictCount > 0) {
         showToast({
-          title: "⚠️ Entraste y ya hay algo importante por revisar",
-          subtitle: "Te llevo directo al choque para que tu llegada empiece con claridad, no con ruido.",
+          title: "⚠️ Ya estás dentro y hay algo importante por revisar",
+          subtitle: "Tu llegada activó un choque visible. Te llevo directo para que entres con claridad, no con ruido.",
         });
 
         const qp = new URLSearchParams();
@@ -401,7 +418,7 @@ export default function AcceptInviteClient() {
 
       showToast({
         title: "✅ Ya entraste al mismo contexto que el resto",
-        subtitle: "Ahora te llevo al grupo para que veas los planes y lo que ya está en movimiento.",
+        subtitle: "Ahora te llevo al grupo activo para que veas qué ya está en movimiento y qué te toca revisar primero.",
       });
 
       navTimerRef.current = window.setTimeout(() => {
@@ -720,6 +737,44 @@ export default function AcceptInviteClient() {
                       }}
                     >
                       {item}
+                    </div>
+                  ))}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 14,
+                    display: "grid",
+                    gap: 10,
+                    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+                  }}
+                >
+                  {flowSteps.map((step, index) => (
+                    <div
+                      key={step}
+                      style={{
+                        borderRadius: 14,
+                        border: "1px solid rgba(255,255,255,0.10)",
+                        background: "rgba(255,255,255,0.03)",
+                        padding: "13px 12px",
+                        display: "grid",
+                        gap: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 11,
+                          letterSpacing: "0.10em",
+                          textTransform: "uppercase",
+                          fontWeight: 900,
+                          color: "rgba(96,165,250,0.94)",
+                        }}
+                      >
+                        Paso 0{index + 1}
+                      </div>
+                      <div style={{ fontSize: 13, lineHeight: 1.55, fontWeight: 800 }}>
+                        {step}
+                      </div>
                     </div>
                   ))}
                 </div>
