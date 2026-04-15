@@ -1,4 +1,3 @@
-
 import React from "react";
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import type { PublicInviteRow } from "@/lib/invitationsDb";
@@ -90,36 +89,44 @@ export default function EventTimelineCard({
     displayName: proposalActorName,
     relativeDate: proposalTime,
   });
-const safeResponses =
-  trustSignal?.label === "resolved" || trustSignal?.label === "auto_adjusted"
-    ? []
-    : (proposalResponseGroup ?? []).filter(
-        (row) => String(row?.response ?? "").toLowerCase() !== "pending"
-      );
 
-const safeConflictsCount =
-  trustSignal?.label === "resolved" || trustSignal?.label === "auto_adjusted"
-    ? 0
-    : conflictsCount;
+  const safeResponses =
+    trustSignal?.label === "resolved" || trustSignal?.label === "auto_adjusted"
+      ? []
+      : (proposalResponseGroup ?? []).filter(
+          (row) => String(row?.response ?? "").toLowerCase() !== "pending"
+        );
 
-const safeInvite =
-  trustSignal?.label === "resolved" || trustSignal?.label === "auto_adjusted"
-    ? null
-    : invite;
+  const safeConflictsCount =
+    trustSignal?.label === "resolved" || trustSignal?.label === "auto_adjusted"
+      ? 0
+      : conflictsCount;
 
-const statusUi = getTimelineEventStatusUi({
-  conflictsCount: safeConflictsCount,
-  responses: safeResponses,
-  trustSignal,
-  invite: safeInvite,
-});
+  const safeInvite =
+    trustSignal?.label === "resolved" || trustSignal?.label === "auto_adjusted"
+      ? null
+      : invite;
+
+  const statusUi = getTimelineEventStatusUi({
+    conflictsCount: safeConflictsCount,
+    responses: safeResponses,
+    trustSignal,
+    invite: safeInvite,
+  });
+
   const primaryAction = getTimelinePrimaryAction({
     eventId,
     status: statusUi.status,
   });
-  const conflictSummary = conflictsCount > 0
-    ? buildConflictSummary(Array.from({ length: conflictsCount }, (_, idx) => ({ id: String(idx) } as any)))
-    : null;
+
+  const conflictSummary =
+    conflictsCount > 0
+      ? buildConflictSummary(
+          Array.from({ length: conflictsCount }, (_, idx) => ({
+            id: String(idx),
+          } as any))
+        )
+      : null;
 
   const start = new Date(ev.start).toLocaleTimeString([], {
     hour: "2-digit",
@@ -183,7 +190,7 @@ const statusUi = getTimelineEventStatusUi({
       </label>
 
       <div style={S.eventMain}>
-        <div style={S.titleRow}>
+        <div style={S.topBlock}>
           <div style={S.titleWrap}>
             <span
               style={{
@@ -191,11 +198,12 @@ const statusUi = getTimelineEventStatusUi({
                 background: signal.dot,
               }}
             />
+
             <div style={S.titleBlock}>
               <div style={S.titleText}>{ev.title || "Sin título"}</div>
 
               <div style={S.metaLine}>
-                <span>
+                <span style={S.metaStrong}>
                   {start} – {end}
                 </span>
                 {ev.group?.name ? <span>· {ev.group.name}</span> : null}
@@ -203,24 +211,22 @@ const statusUi = getTimelineEventStatusUi({
             </div>
           </div>
 
-          <div style={S.actions}>
+          <div style={S.mobileActionsRow}>
             {isOwnerView ? (
               <button
                 onClick={() => void onCreateShareLink(ev)}
-                style={isShareOpen ? activeIconBtn : iconBtn}
+                style={isShareOpen ? activeShareBtn : shareBtn}
                 title="Compartir"
                 type="button"
                 disabled={shareState?.loading}
               >
-                {shareState?.loading ? "…" : "🔗"}
+                {shareState?.loading ? "Generando…" : "Compartir"}
               </button>
             ) : null}
 
             <button
-              onClick={() =>
-                router.push(`/events/new/details?eventId=${eventId}`)
-              }
-              style={iconBtn}
+              onClick={() => router.push(`/events/new/details?eventId=${eventId}`)}
+              style={secondaryBtn}
               title="Editar"
               type="button"
             >
@@ -230,7 +236,7 @@ const statusUi = getTimelineEventStatusUi({
             {canDelete ? (
               <button
                 onClick={() => void onDelete(eventId)}
-                style={iconBtn}
+                style={ghostDangerBtn}
                 title="Eliminar"
                 type="button"
               >
@@ -263,9 +269,7 @@ const statusUi = getTimelineEventStatusUi({
             >
               {statusUi.label}
             </div>
-            <div style={S.stateCardSub}>
-              {conflictSummary || statusUi.subtitle}
-            </div>
+            <div style={S.stateCardSub}>{conflictSummary || statusUi.subtitle}</div>
           </div>
 
           <div style={S.stateCardActions}>
@@ -317,12 +321,8 @@ const statusUi = getTimelineEventStatusUi({
             }}
           >
             <div style={S.proposalInsightCopy}>
-              <div style={S.proposalInsightKicker}>
-                {proposalInsight.kicker}
-              </div>
-              <div style={S.proposalInsightTitle}>
-                {proposalInsight.title}
-              </div>
+              <div style={S.proposalInsightKicker}>{proposalInsight.kicker}</div>
+              <div style={S.proposalInsightTitle}>{proposalInsight.title}</div>
               <div style={S.proposalInsightSub}>
                 {proposalContextLine || proposalInsight.subtitle}
               </div>
@@ -346,17 +346,15 @@ const statusUi = getTimelineEventStatusUi({
         {canAcceptProposal ? (
           <div style={S.inlineProposalStrip}>
             <div style={S.inlineProposalCopy}>
-              <div style={S.inlineProposalKicker}>
-                Propuesta externa
-              </div>
+              <div style={S.inlineProposalKicker}>Propuesta externa</div>
               <div style={S.inlineProposalTitle}>
                 {proposedDateLabel
                   ? `Te propusieron mover este plan a ${proposedDateLabel}`
                   : "Te propusieron una nueva fecha para este plan"}
               </div>
               <div style={S.inlineProposalSub}>
-                Si te sirve, entra directo con esta fecha y guarda la
-                decisión pasando por el flujo real de conflictos.
+                Si te sirve, entra directo con esta fecha y guarda la decisión
+                pasando por el flujo real de conflictos.
               </div>
             </div>
 
@@ -406,9 +404,7 @@ const statusUi = getTimelineEventStatusUi({
               <div style={S.inviteStatusTopRow}>
                 <div style={S.inviteStatusLabelWrap}>
                   <div style={S.inviteStatusKicker}>Estado actual</div>
-                  <div style={S.inviteStatusText}>
-                    {invitePresentation.label}
-                  </div>
+                  <div style={S.inviteStatusText}>{invitePresentation.label}</div>
                 </div>
 
                 <span
@@ -421,9 +417,7 @@ const statusUi = getTimelineEventStatusUi({
                 </span>
               </div>
 
-              <div style={S.inviteStatusDetail}>
-                {invitePresentation.detail}
-              </div>
+              <div style={S.inviteStatusDetail}>{invitePresentation.detail}</div>
 
               {invite?.message ? (
                 <div style={S.inviteMetaBlock}>
@@ -445,13 +439,12 @@ const statusUi = getTimelineEventStatusUi({
             {canAcceptProposal ? (
               <div style={S.proposalActionBox}>
                 <div style={S.proposalActionTitle}>
-                  Esta propuesta ya puede convertirse en una decisión
-                  real dentro de SyncPlans
+                  Esta propuesta ya puede convertirse en una decisión real dentro
+                  de SyncPlans
                 </div>
                 <div style={S.proposalActionSub}>
-                  Entraremos con la fecha sugerida precargada para
-                  confirmar y guardar pasando por el flujo real de
-                  conflictos.
+                  Entraremos con la fecha sugerida precargada para confirmar y
+                  guardar pasando por el flujo real de conflictos.
                 </div>
 
                 <div style={S.inlineProposalActions}>
@@ -481,8 +474,8 @@ const statusUi = getTimelineEventStatusUi({
             ) : shareState?.link ? (
               <>
                 <div style={S.shareStatus}>
-                  Este es el link activo de este plan. Puedes copiarlo o
-                  enviarlo por WhatsApp.
+                  Este es el link activo de este plan. Puedes copiarlo o enviarlo
+                  por WhatsApp.
                 </div>
 
                 <div style={S.shareLinkBox}>{shareState.link}</div>
@@ -522,8 +515,8 @@ const S: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "stretch",
     gap: 10,
-    padding: "12px 13px",
-    borderRadius: 16,
+    padding: "14px 14px",
+    borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.11)",
     background: "rgba(6,10,20,0.58)",
     boxShadow: "0 12px 28px rgba(0,0,0,0.12)",
@@ -537,7 +530,12 @@ const S: Record<string, React.CSSProperties> = {
     boxShadow:
       "0 0 0 1px rgba(56,189,248,0.16), 0 14px 34px rgba(56,189,248,0.12)",
   },
-  checkWrap: { display: "flex", alignItems: "flex-start", paddingTop: 2 },
+  checkWrap: {
+    display: "flex",
+    alignItems: "flex-start",
+    paddingTop: 4,
+    flexShrink: 0,
+  },
   checkbox: { width: 16, height: 16, cursor: "pointer" },
   eventMain: {
     flex: 1,
@@ -546,24 +544,24 @@ const S: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     gap: 10,
   },
-  titleRow: {
+  topBlock: {
     display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
+    flexDirection: "column",
+    gap: 10,
+    minWidth: 0,
   },
   titleWrap: {
     display: "flex",
     alignItems: "flex-start",
-    gap: 11,
+    gap: 12,
     minWidth: 0,
-    flex: 1,
+    width: "100%",
   },
   dot: {
     width: 10,
     height: 10,
     borderRadius: "50%",
-    marginTop: 6,
+    marginTop: 7,
     flexShrink: 0,
     boxShadow: "0 0 0 4px rgba(255,255,255,0.04)",
   },
@@ -571,26 +569,36 @@ const S: Record<string, React.CSSProperties> = {
     minWidth: 0,
     display: "flex",
     flexDirection: "column",
-    gap: 5,
+    gap: 6,
+    flex: 1,
   },
   titleText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: 900,
     color: "rgba(255,255,255,0.98)",
-    lineHeight: 1.35,
+    lineHeight: 1.38,
     whiteSpace: "normal",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
   },
   metaLine: {
     fontSize: 11,
     color: "rgba(203,213,225,0.76)",
     display: "flex",
-    gap: 5,
+    gap: 6,
     flexWrap: "wrap",
-    lineHeight: 1.45,
+    lineHeight: 1.5,
   },
-  actions: { display: "flex", gap: 7, flexShrink: 0 },
+  metaStrong: {
+    color: "rgba(241,245,249,0.95)",
+    fontWeight: 800,
+  },
+  mobileActionsRow: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
   signalsRow: {
     display: "flex",
     gap: 7,
@@ -614,10 +622,31 @@ const S: Record<string, React.CSSProperties> = {
     gap: 10,
     flexWrap: "wrap",
   },
-  proposalInsightCopy: { display: "flex", flexDirection: "column", gap: 4, minWidth: 0, flex: 1 },
-  proposalInsightKicker: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 800, color: "rgba(226,232,240,0.92)" },
-  proposalInsightTitle: { fontSize: 13, fontWeight: 900, color: "rgba(255,255,255,0.98)", lineHeight: 1.4 },
-  proposalInsightSub: { fontSize: 12, color: "rgba(226,232,240,0.82)", lineHeight: 1.5 },
+  proposalInsightCopy: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    minWidth: 0,
+    flex: 1,
+  },
+  proposalInsightKicker: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    fontWeight: 800,
+    color: "rgba(226,232,240,0.92)",
+  },
+  proposalInsightTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.98)",
+    lineHeight: 1.4,
+  },
+  proposalInsightSub: {
+    fontSize: 12,
+    color: "rgba(226,232,240,0.82)",
+    lineHeight: 1.5,
+  },
   stateCard: {
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.18)",
@@ -630,9 +659,19 @@ const S: Record<string, React.CSSProperties> = {
     gap: 10,
     flexWrap: "wrap",
   },
-  stateCardCopy: { display: "flex", flexDirection: "column", gap: 4, minWidth: 0, flex: 1 },
+  stateCardCopy: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    minWidth: 0,
+    flex: 1,
+  },
   stateCardLabel: { fontSize: 12, fontWeight: 900, letterSpacing: "-0.01em" },
-  stateCardSub: { fontSize: 12, color: "rgba(255,255,255,0.82)", lineHeight: 1.5 },
+  stateCardSub: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.82)",
+    lineHeight: 1.5,
+  },
   stateCardActions: { display: "flex", alignItems: "center", gap: 8 },
   stateCardPrimaryBtn: {
     borderRadius: 999,
@@ -649,15 +688,32 @@ const S: Record<string, React.CSSProperties> = {
     marginTop: 6,
     borderRadius: 16,
     border: "1px solid rgba(103,232,249,0.16)",
-    background: "linear-gradient(180deg, rgba(6,182,212,0.09), rgba(15,23,42,0.52))",
+    background:
+      "linear-gradient(180deg, rgba(6,182,212,0.09), rgba(15,23,42,0.52))",
     padding: 13,
     display: "flex",
     flexDirection: "column",
     gap: 11,
   },
-  sharePanelHeader: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
-  shareKicker: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 800, color: "rgba(125,211,252,0.92)" },
-  shareTitle: { fontSize: 15, fontWeight: 900, color: "rgba(255,255,255,0.98)", letterSpacing: "-0.01em" },
+  sharePanelHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  shareKicker: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    fontWeight: 800,
+    color: "rgba(125,211,252,0.92)",
+  },
+  shareTitle: {
+    fontSize: 15,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.98)",
+    letterSpacing: "-0.01em",
+  },
   shareCloseBtn: {
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.12)",
@@ -711,27 +767,76 @@ const S: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     gap: 10,
   },
-  inviteStatusTopRow: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
+  inviteStatusTopRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+    flexWrap: "wrap",
+  },
   inviteStatusLabelWrap: { display: "flex", flexDirection: "column", gap: 4 },
-  inviteStatusKicker: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 800, color: "rgba(148,163,184,0.95)" },
-  inviteStatusText: { fontSize: 15, fontWeight: 900, color: "rgba(255,255,255,0.98)", letterSpacing: "-0.01em" },
-  inviteStatusDetail: { fontSize: 12, lineHeight: 1.45, color: "rgba(226,232,240,0.9)" },
+  inviteStatusKicker: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    fontWeight: 800,
+    color: "rgba(148,163,184,0.95)",
+  },
+  inviteStatusText: {
+    fontSize: 15,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.98)",
+    letterSpacing: "-0.01em",
+  },
+  inviteStatusDetail: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.9)",
+  },
   inviteMetaBlock: { display: "flex", flexDirection: "column", gap: 4 },
-  inviteMetaTitle: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 800, color: "rgba(125,211,252,0.9)" },
-  inviteMetaValue: { fontSize: 12, lineHeight: 1.45, color: "rgba(240,249,255,0.95)", whiteSpace: "pre-wrap", wordBreak: "break-word" },
+  inviteMetaTitle: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    fontWeight: 800,
+    color: "rgba(125,211,252,0.9)",
+  },
+  inviteMetaValue: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(240,249,255,0.95)",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+  },
   inlineProposalStrip: {
     borderRadius: 14,
     border: "1px solid rgba(165,180,252,0.24)",
-    background: "linear-gradient(180deg, rgba(79,70,229,0.16), rgba(30,41,59,0.42))",
+    background:
+      "linear-gradient(180deg, rgba(79,70,229,0.16), rgba(30,41,59,0.42))",
     padding: 12,
     display: "flex",
     flexDirection: "column",
     gap: 10,
   },
   inlineProposalCopy: { display: "flex", flexDirection: "column", gap: 4 },
-  inlineProposalKicker: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 800, color: "rgba(199,210,254,0.95)" },
-  inlineProposalTitle: { fontSize: 13, fontWeight: 900, color: "rgba(238,242,255,0.98)", lineHeight: 1.4 },
-  inlineProposalSub: { fontSize: 12, lineHeight: 1.5, color: "rgba(224,231,255,0.84)" },
+  inlineProposalKicker: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    fontWeight: 800,
+    color: "rgba(199,210,254,0.95)",
+  },
+  inlineProposalTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "rgba(238,242,255,0.98)",
+    lineHeight: 1.4,
+  },
+  inlineProposalSub: {
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: "rgba(224,231,255,0.84)",
+  },
   inlineProposalActions: { display: "flex", gap: 8, flexWrap: "wrap" },
   proposalActionBox: {
     borderRadius: 14,
@@ -742,8 +847,16 @@ const S: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     gap: 8,
   },
-  proposalActionTitle: { fontSize: 13, fontWeight: 900, color: "rgba(224,231,255,0.98)" },
-  proposalActionSub: { fontSize: 12, lineHeight: 1.5, color: "rgba(224,231,255,0.86)" },
+  proposalActionTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "rgba(224,231,255,0.98)",
+  },
+  proposalActionSub: {
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: "rgba(224,231,255,0.86)",
+  },
   proposalPrimaryBtn: {
     alignSelf: "flex-start",
     borderRadius: 999,
@@ -768,19 +881,41 @@ const S: Record<string, React.CSSProperties> = {
   },
 };
 
-const iconBtn: React.CSSProperties = {
-  border: "1px solid rgba(255,255,255,0.14)",
-  background: "rgba(255,255,255,0.045)",
-  borderRadius: 11,
-  padding: "7px 9px",
+const baseActionBtn: React.CSSProperties = {
+  borderRadius: 999,
   cursor: "pointer",
-  fontSize: 13,
+  fontSize: 12,
+  fontWeight: 800,
+  padding: "8px 12px",
+  lineHeight: 1.1,
+  whiteSpace: "nowrap",
   boxShadow: "0 8px 20px rgba(0,0,0,0.10)",
 };
 
-const activeIconBtn: React.CSSProperties = {
-  ...iconBtn,
-  border: "1px solid rgba(96,165,250,0.28)",
-  background: "rgba(59,130,246,0.12)",
+const secondaryBtn: React.CSSProperties = {
+  ...baseActionBtn,
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "rgba(255,255,255,0.045)",
+  color: "rgba(248,250,252,0.96)",
+};
+
+const shareBtn: React.CSSProperties = {
+  ...baseActionBtn,
+  border: "1px solid rgba(103,232,249,0.24)",
+  background: "rgba(6,182,212,0.12)",
+  color: "rgba(236,254,255,0.98)",
+};
+
+const activeShareBtn: React.CSSProperties = {
+  ...shareBtn,
+  border: "1px solid rgba(96,165,250,0.32)",
+  background: "rgba(59,130,246,0.14)",
   boxShadow: "0 10px 24px rgba(59,130,246,0.16)",
+};
+
+const ghostDangerBtn: React.CSSProperties = {
+  ...baseActionBtn,
+  border: "1px solid rgba(248,113,113,0.18)",
+  background: "rgba(127,29,29,0.14)",
+  color: "rgba(254,226,226,0.96)",
 };
