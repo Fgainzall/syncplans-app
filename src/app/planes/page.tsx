@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
 
 import MobileScaffold from "@/components/MobileScaffold";
 import PremiumHeader from "@/components/PremiumHeader";
@@ -213,9 +214,51 @@ function getShortPlanDescription(state: PlanAccessState): string {
   return "Base activa";
 }
 
+
+function getOutcomeCards(state: PlanAccessState) {
+  if (state.isFounder) {
+    return [
+      { label: "Posición", value: "Founder", copy: "Entraste antes y tu acceso ya vive en una capa preferencial." },
+      { label: "Valor", value: "Estable", copy: "Tu lugar no depende de un upsell agresivo ni de presión comercial." },
+      { label: "Lectura", value: "Reconocimiento", copy: "Founder debe sentirse especial porque llegaste cuando todavía todo se estaba construyendo." },
+    ];
+  }
+
+  if (state.accessSource === "trial" || state.hasPremiumAccess) {
+    return [
+      { label: "Menos ruido", value: "Más contexto", copy: "Más respuestas, más visibilidad y menos ida y vuelta fuera del sistema." },
+      { label: "Decisión", value: "Más rápida", copy: "Resolver deja de depender de reconstruir chats y versiones cruzadas." },
+      { label: "Sensación", value: "Más control", copy: "La coordinación se vuelve más clara, más compartida y menos frágil." },
+    ];
+  }
+
+  return [
+    { label: "Free", value: `Hasta ${FREE_GROUP_LIMIT} grupo`, copy: "Suficiente para empezar y validar si SyncPlans ya te evita desgaste real." },
+    { label: "Premium", value: "Más claridad", copy: "Cuando ya coordinas con otros, aparece una capa más potente de contexto y control." },
+    { label: "Resultado", value: "Menos fricción", copy: "La diferencia no es más app. Es menos desgaste cada semana." },
+  ];
+}
+
+function getPlanButtonLabel(card: PlanCardConfig, isCurrent: boolean, founderEquivalent: boolean) {
+  if (isCurrent) return "Ya tienes este acceso";
+  if (founderEquivalent) return "Tu acceso ya cubre esta capa";
+  if (card.id === "free") return "Seguir con Free";
+  return "Quiero este plan";
+}
+
+function getPlanHint(card: PlanCardConfig, state: PlanAccessState, isCurrent: boolean, founderEquivalent: boolean) {
+  if (isCurrent) return "Ya estás en esta capa, así que aquí la clave es medir si el valor que sientes coincide con lo que promete tu plan.";
+  if (founderEquivalent) return "Founder ya vive en una capa preferencial. Aquí no necesitas hacer upgrade, sino entender el valor que ya conservas.";
+  if (card.id === "free") return "Free te deja empezar. Subir solo tiene sentido cuando la coordinación ya te pide más claridad y menos desgaste.";
+  if (state.accessSource === "trial") return "Todavía estás probando Premium. Este click sirve para leer intención real dentro de la beta, no para cobrarte ahora.";
+  return "Durante la beta privada no se cobra ni se activa desde aquí. Este paso nos sirve para medir intención real de upgrade.";
+}
+
 export default function PlanesPage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [interestPlanId, setInterestPlanId] = useState<PlanCardId | null>(null);
   const isCompact = useIsCompactWidth();
 
   useEffect(() => {
@@ -257,6 +300,47 @@ export default function PlanesPage() {
         : getShortPlanDescription(planState),
     [loading, planState]
   );
+  const outcomeCards = useMemo(() => getOutcomeCards(planState), [planState]);
+
+  const handlePlanClick = async (card: PlanCardConfig, isCurrent: boolean, founderEquivalent: boolean) => {
+    if (isCurrent || founderEquivalent) return;
+
+    if (card.id === "free") {
+      await trackEvent({
+        event: "premium_cta_clicked",
+        metadata: {
+          screen: "planes",
+          source: "plans_card",
+          target: "free",
+          current_access: planState.accessSource,
+        },
+      });
+      router.push("/summary");
+      return;
+    }
+
+    setInterestPlanId(card.id);
+
+    await trackEvent({
+      event: "premium_cta_clicked",
+      metadata: {
+        screen: "planes",
+        source: "plans_card",
+        target: card.id,
+        current_access: planState.accessSource,
+        billing_cycle: card.id === "premium_yearly" ? "yearly" : "monthly",
+      },
+    });
+
+    await trackEvent({
+      event: "premium_interest_registered",
+      metadata: {
+        screen: "planes",
+        target: card.id,
+        current_access: planState.accessSource,
+      },
+    });
+  };
 
   return (
     <MobileScaffold>
@@ -291,6 +375,16 @@ export default function PlanesPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section style={{ ...proofStripStyle, ...(isCompact ? proofStripCompactStyle : null) }}>
+          {outcomeCards.map((item) => (
+            <article key={item.label} style={proofCardStyle}>
+              <span style={proofLabelStyle}>{item.label}</span>
+              <strong style={proofValueStyle}>{item.value}</strong>
+              <p style={proofCopyStyle}>{item.copy}</p>
+            </article>
+          ))}
         </section>
 
         <section style={{ ...planCardStyle, ...(isCompact ? planCardCompactStyle : null) }}>
@@ -382,6 +476,18 @@ export default function PlanesPage() {
             </div>
           </header>
 
+          {interestPlanId ? (
+            <div style={interestBannerStyle}>
+              <div style={interestBannerBadgeStyle}>Interés registrado</div>
+              <div style={interestBannerTextWrapStyle}>
+                <strong style={interestBannerTitleStyle}>Gracias. Ya registramos intención real por {interestPlanId === "premium_yearly" ? "Premium Anual" : "Premium Mensual"} dentro de esta beta.</strong>
+                <p style={interestBannerBodyStyle}>
+                  Todavía no estamos cobrando ni activando desde esta pantalla. Este click sí nos sirve para medir qué tan deseable se siente Premium antes de abrir pagos reales.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
           <div style={{ ...plansGridStyle, ...(isCompact ? plansGridCompactStyle : null) }}>
             {cards.map((card) => {
               const isCurrent = planState.currentPlanCardId === card.id;
@@ -452,21 +558,22 @@ export default function PlanesPage() {
                       type="button"
                       style={{
                         ...planPrimaryButtonStyle,
-                        opacity: isCurrent ? 0.8 : 1,
+                        ...(card.id !== "free" && !isCurrent && !founderEquivalent
+                          ? planPrimaryButtonActiveStyle
+                          : null),
+                        opacity: isCurrent || founderEquivalent ? 0.75 : 1,
+                        cursor: isCurrent || founderEquivalent ? "default" : "pointer",
                       }}
-                      disabled
+                      disabled={isCurrent || founderEquivalent}
+                      onClick={() => {
+                        void handlePlanClick(card, isCurrent, founderEquivalent);
+                      }}
                     >
-                      {isCurrent
-                        ? "Ya estás en este plan"
-                        : card.id === "free"
-                        ? "Seguir con Free"
-                        : "Próximamente activación Premium"}
+                      {getPlanButtonLabel(card, isCurrent, founderEquivalent)}
                     </button>
 
                     <p style={planCtaHintStyle}>
-                      {card.id === "free"
-                        ? "Free te deja empezar. Premium entra cuando ya notaste que improvisar cuesta más que ordenar bien."
-                        : "Este plan está pensado para proteger claridad compartida, no para inflar una lista de funciones."}
+                      {getPlanHint(card, planState, isCurrent, founderEquivalent)}
                     </p>
                   </div>
                 </article>
@@ -739,6 +846,90 @@ const betaNoteBodyStyle: CSSProperties = {
   color: colors.textSecondary,
 };
 
+const proofStripStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: spacing.sm,
+};
+
+const proofStripCompactStyle: CSSProperties = {
+  gridTemplateColumns: "1fr",
+};
+
+const proofCardStyle: CSSProperties = {
+  borderRadius: radii.lg,
+  border: `1px solid ${colors.borderSubtle}`,
+  background: colors.surfaceLow,
+  padding: `${spacing.md}px ${spacing.md}px`,
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+};
+
+const proofLabelStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: 0.32,
+  color: colors.textMuted,
+};
+
+const proofValueStyle: CSSProperties = {
+  fontSize: 18,
+  fontWeight: 900,
+  color: colors.textPrimary,
+};
+
+const proofCopyStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 12,
+  lineHeight: 1.55,
+  color: colors.textSecondary,
+};
+
+const interestBannerStyle: CSSProperties = {
+  borderRadius: radii.lg,
+  border: `1px solid ${colors.accentPrimary}`,
+  background: "linear-gradient(135deg, rgba(56,189,248,0.12), rgba(37,99,235,0.16))",
+  padding: `${spacing.md}px ${spacing.md}px`,
+  display: "flex",
+  alignItems: "flex-start",
+  gap: spacing.md,
+  flexWrap: "wrap",
+};
+
+const interestBannerBadgeStyle: CSSProperties = {
+  padding: "5px 9px",
+  borderRadius: 999,
+  fontSize: 11,
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: 0.28,
+  color: colors.textPrimary,
+  border: `1px solid ${colors.accentPrimary}`,
+  background: "rgba(255,255,255,0.08)",
+};
+
+const interestBannerTextWrapStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+  flex: 1,
+  minWidth: 0,
+};
+
+const interestBannerTitleStyle: CSSProperties = {
+  fontSize: 13,
+  color: colors.textPrimary,
+};
+
+const interestBannerBodyStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 12,
+  lineHeight: 1.55,
+  color: colors.textSecondary,
+};
+
 const plansSectionStyle: CSSProperties = {
   borderRadius: radii.xl,
   background: colors.surfaceRaised,
@@ -938,7 +1129,13 @@ const planPrimaryButtonStyle: CSSProperties = {
   color: colors.textPrimary,
   fontSize: 13,
   fontWeight: 800,
-  cursor: "not-allowed",
+  transition: "transform 160ms ease, box-shadow 160ms ease, background 160ms ease",
+};
+
+const planPrimaryButtonActiveStyle: CSSProperties = {
+  border: `1px solid ${colors.accentPrimary}`,
+  background: "linear-gradient(135deg, rgba(56,189,248,0.18), rgba(37,99,235,0.22))",
+  boxShadow: shadows.card,
 };
 
 const planCtaHintStyle: CSSProperties = {

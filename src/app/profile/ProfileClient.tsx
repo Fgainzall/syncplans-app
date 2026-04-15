@@ -21,6 +21,7 @@ import {
 } from "@/lib/profilesDb";
 
 import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
+import { trackEvent, trackEventOnce } from "@/lib/analytics";
 import {
   getMyGroups,
   type GroupRow,
@@ -439,6 +440,56 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     cursor: "pointer",
     whiteSpace: "nowrap",
+  },
+
+  premiumContextCard: {
+    borderRadius: 20,
+    border: "1px solid rgba(56,189,248,0.22)",
+    background:
+      "radial-gradient(680px 320px at 0% 0%, rgba(56,189,248,0.12), transparent 58%), radial-gradient(520px 260px at 100% 0%, rgba(124,58,237,0.10), transparent 56%), rgba(15,23,42,0.9)",
+    boxShadow: "0 18px 42px rgba(2,6,23,0.22)",
+    padding: 16,
+    display: "grid",
+    gap: 10,
+  },
+
+  premiumContextEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 0.72,
+    textTransform: "uppercase",
+    color: "rgba(125,211,252,0.92)",
+  },
+
+  premiumContextTitle: {
+    fontSize: 16,
+    lineHeight: 1.26,
+    fontWeight: 950,
+    color: "rgba(255,255,255,0.96)",
+  },
+
+  premiumContextText: {
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: "rgba(226,232,240,0.86)",
+  },
+
+  premiumContextRow: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+  },
+
+  premiumContextBadge: {
+    padding: "7px 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    fontSize: 11,
+    fontWeight: 900,
+    color: "rgba(226,232,240,0.88)",
   },
 
   statusCard: {
@@ -1239,6 +1290,41 @@ export default function ProfilePage() {
   const anyProfile = profile as unknown as AnyProfile;
   const { planLabel, planHint, planCtaLabel } = getPlanInfo(anyProfile);
 
+  const premiumActive = String(planLabel).toLowerCase().includes("premium") || String(planLabel).toLowerCase().includes("fundador");
+  const premiumContextKey = conflictsNow > 0
+    ? "conflicts"
+    : totalGroups > 0 && eventsLast7 >= 3
+      ? "shared_load"
+      : totalGroups > 0
+        ? "groups"
+        : "account";
+
+  const premiumContextTitle = premiumContextKey === "conflicts"
+    ? "Premium te ayuda cuando la coordinación ya se está tensando"
+    : premiumContextKey === "shared_load"
+      ? "Premium gana valor cuando tu semana ya se coordina de verdad"
+      : premiumContextKey === "groups"
+        ? "Premium se vuelve más útil cuando ya compartes tiempo con otros"
+        : "Premium cobra sentido cuando quieres más claridad que solo una cuenta base";
+
+  const premiumContextText = premiumContextKey === "conflicts"
+    ? `Ya tienes ${conflictsNow} conflicto${conflictsNow === 1 ? "" : "s"} pendiente${conflictsNow === 1 ? "" : "s"}. Premium suma más contexto para anticipar mejor, decidir más rápido y reducir idas y vueltas cuando el tiempo compartido empieza a chocar.`
+    : premiumContextKey === "shared_load"
+      ? `Tu cuenta ya mueve ${eventsLast7} eventos visibles en los últimos 7 días y ${totalGroups} grupo${totalGroups === 1 ? "" : "s"}. Premium se siente más lógico cuando SyncPlans deja de ser solo referencia y se vuelve capa real de coordinación.`
+      : premiumContextKey === "groups"
+        ? `Ya participas en ${totalGroups} grupo${totalGroups === 1 ? "" : "s"}. Premium no añade ruido: añade más claridad, mejores señales y una experiencia más fuerte cuando la coordinación compartida importa de verdad.`
+        : "Tu cuenta ya está lista. Premium tiene más sentido cuando quieres una experiencia más completa, más clara y mejor preparada para coordinar con menos fricción.";
+
+  const premiumContextBadge = premiumContextKey === "conflicts"
+    ? "Más útil con conflictos"
+    : premiumContextKey === "shared_load"
+      ? "Más útil con uso real"
+      : premiumContextKey === "groups"
+        ? "Más útil con grupos"
+        : "Más claridad compartida";
+
+  const premiumContextCta = premiumActive ? "Ver tu plan" : (planCtaLabel || "Ver planes");
+
   let heroSummary =
     "Estamos cargando tu cuenta para darte una lectura más clara de tu estado dentro de SyncPlans.";
 
@@ -1266,6 +1352,26 @@ export default function ProfilePage() {
     "La base de tu cuenta está en orden. Cuando quieras operar, vuelve a Panel, Calendario o Conflictos.";
   const recommendationCtaLabel = recommendation?.ctaLabel ?? "Ir al panel";
   const recommendationHref = getRecommendationHref(recommendation?.ctaTarget);
+
+  useEffect(() => {
+    if (!profile?.id || premiumActive) return;
+
+    void trackEventOnce({
+      onceKey: `profile-premium-viewed:${premiumContextKey}` ,
+      scope: "session",
+      event: "premium_viewed",
+      userId: String(profile.id),
+      metadata: {
+        screen: "profile",
+        area: "account_status",
+        context: premiumContextKey,
+        total_groups: totalGroups,
+        events_last_7: eventsLast7,
+        conflicts_now: conflictsNow,
+        plan_label: planLabel,
+      },
+    });
+  }, [profile?.id, premiumActive, premiumContextKey, totalGroups, eventsLast7, conflictsNow, planLabel]);
 
   return (
     <main style={styles.page}>
@@ -1728,13 +1834,68 @@ export default function ProfilePage() {
                     <button
                       type="button"
                       style={styles.planPrimaryBtn}
-                      onClick={() => router.push("/planes")}
+                      onClick={() => {
+                        if (profile?.id) {
+                          void trackEvent({
+                            event: "premium_cta_clicked",
+                            userId: String(profile.id),
+                            metadata: {
+                              screen: "profile",
+                              area: "plan_status",
+                              context: premiumActive ? "manage_plan" : premiumContextKey,
+                              plan_label: planLabel,
+                            },
+                          });
+                        }
+                        router.push("/planes");
+                      }}
                     >
-                      {planCtaLabel}
+                      {premiumContextCta}
                     </button>
                   </div>
                 </div>
               </div>
+
+              {!premiumActive ? (
+                <>
+                  <div style={{ height: 12 }} />
+
+                  <div style={styles.premiumContextCard}>
+                    <div style={styles.premiumContextEyebrow}>Premium contextual</div>
+                    <div style={styles.premiumContextTitle}>{premiumContextTitle}</div>
+                    <div style={styles.premiumContextText}>{premiumContextText}</div>
+
+                    <div style={styles.premiumContextRow}>
+                      <span style={styles.premiumContextBadge}>{premiumContextBadge}</span>
+
+                      <button
+                        type="button"
+                        style={styles.planPrimaryBtn}
+                        onClick={() => {
+                          if (profile?.id) {
+                            void trackEvent({
+                              event: "premium_cta_clicked",
+                              userId: String(profile.id),
+                              metadata: {
+                                screen: "profile",
+                                area: "premium_context",
+                                context: premiumContextKey,
+                                total_groups: totalGroups,
+                                events_last_7: eventsLast7,
+                                conflicts_now: conflictsNow,
+                                plan_label: planLabel,
+                              },
+                            });
+                          }
+                          router.push("/planes");
+                        }}
+                      >
+                        Ver planes
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : null}
 
               <div style={{ height: 12 }} />
 

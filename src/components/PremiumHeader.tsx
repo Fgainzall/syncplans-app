@@ -23,6 +23,7 @@ import {
 import {
   hasPremiumAccess,
 } from "@/lib/premium";
+import { trackEvent, trackEventOnce } from "@/lib/analytics";
 import {
   colors,
   layout,
@@ -144,6 +145,23 @@ function getConflictChipLabel(count: number) {
   return `Tienes ${count} conflicto${count === 1 ? "" : "s"}`;
 }
 
+
+function getUpgradeCtaLabel(pathname: string) {
+  if (pathname.startsWith("/conflicts")) return "Ver Premium";
+  if (pathname.startsWith("/calendar")) return "Anticipar mejor";
+  if (pathname.startsWith("/groups")) return "Ver Premium";
+  if (pathname.startsWith("/panel")) return "Elevar control";
+  return "Ver Premium";
+}
+
+function getUpgradeIntentLabel(pathname: string) {
+  if (pathname.startsWith("/conflicts")) return "Conflictos";
+  if (pathname.startsWith("/calendar")) return "Más contexto";
+  if (pathname.startsWith("/groups")) return "Coordinación";
+  if (pathname.startsWith("/panel")) return "Más control";
+  if (pathname.startsWith("/invitations")) return "Invitaciones";
+  return "Premium";
+}
 function useIsMobileWidth(maxWidth = layout.mobileBreakpoint) {
   const [isMobile, setIsMobile] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
@@ -429,11 +447,9 @@ export default function PremiumHeader({
   const finalSubtitle = subtitle ?? getAutoSubtitle(pathname);
 
   const hasPremium = useMemo(() => hasPremiumAccess(profile), [profile]);
-  const headerPlanBadge = useMemo(() => {
-    const tier = String((profile as any)?.plan_tier ?? "").toLowerCase();
-    return tier === "trial" ? "Trial" : "Free";
-  }, [profile]);
   const upgradeMessage = useMemo(() => getUpgradeMessage(pathname), [pathname]);
+  const upgradeCtaLabel = useMemo(() => getUpgradeCtaLabel(pathname), [pathname]);
+  const upgradeIntentLabel = useMemo(() => getUpgradeIntentLabel(pathname), [pathname]);
   const shouldShowHeaderUpgrade = useMemo(() => {
     if (!headerReady) return false;
     if (hasPremium) return false;
@@ -441,6 +457,35 @@ export default function PremiumHeader({
     if (pathname.startsWith("/auth")) return false;
     return true;
   }, [hasPremium, headerReady, pathname]);
+
+
+  useEffect(() => {
+    if (!shouldShowHeaderUpgrade) return;
+
+    trackEventOnce({
+      onceKey: `premium_header_view:${pathname}:${isMobile ? "mobile" : "desktop"}`,
+      scope: "session",
+      event: "premium_viewed",
+      metadata: {
+        source: "premium_header",
+        pathname,
+        device: isMobile ? "mobile" : "desktop",
+        context: activeMode,
+      },
+    });
+  }, [activeMode, isMobile, pathname, shouldShowHeaderUpgrade]);
+
+  const openPremiumFromHeader = useCallback((surface: "mobile" | "desktop") => {
+    trackEvent({
+      event: "premium_cta_clicked",
+      metadata: {
+        source: `premium_header_${surface}`,
+        pathname,
+        context: activeMode,
+      },
+    });
+    router.push("/planes", { scroll: false });
+  }, [activeMode, pathname, router]);
 
   async function onNewEvent() {
     try {
@@ -665,16 +710,16 @@ export default function PremiumHeader({
               <div style={styles.mobileUpgradeBar}>
                 <div style={styles.mobileUpgradeCopy}>
                   <span style={styles.upgradeMiniBadge}>
-                    {headerPlanBadge}
+                    {upgradeIntentLabel}
                   </span>
                   <span>{upgradeMessage}</span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => router.push("/planes", { scroll: false })}
+                  onClick={() => openPremiumFromHeader("mobile")}
                   style={styles.mobileUpgradeButton}
                 >
-                  Ver planes
+                  {upgradeCtaLabel}
                 </button>
               </div>
             ) : null}
@@ -735,11 +780,11 @@ export default function PremiumHeader({
                   {shouldShowHeaderUpgrade ? (
                     <button
                       type="button"
-                      onClick={() => router.push("/planes", { scroll: false })}
+                      onClick={() => openPremiumFromHeader("desktop")}
                       style={styles.desktopUpgradeChip}
                     >
                       <span style={styles.upgradeMiniBadgeDesktop}>
-                        {headerPlanBadge}
+                        {upgradeIntentLabel}
                       </span>
                       {upgradeMessage}
                     </button>
