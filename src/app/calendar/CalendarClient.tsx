@@ -272,6 +272,7 @@ function getCalendarStatusPresentation(input: {
   resolvedStyle: React.CSSProperties;
 }) {
   const proposalLabel = proposalResponseLabel(input.proposalRow?.response);
+  const proposalTone = proposalResponseTone(input.proposalRow?.response);
   const trustLabel = getTrustSignalLabel(input.trustSignal, {
     compact: input.compact,
   });
@@ -293,7 +294,18 @@ function getCalendarStatusPresentation(input: {
     ? input.pendingStyle
     : input.resolvedStyle;
 
+  const derivedStatus =
+    calendarEventStatus ??
+    (proposalTone === "adjusted"
+      ? "adjusted"
+      : proposalTone === "pending"
+      ? "pending"
+      : trustLabel
+      ? "resolved"
+      : null);
+
   return {
+    status: derivedStatus,
     label:
       (input.compact ? statusUi?.compactLabel : statusUi?.label) ??
       proposalLabel ??
@@ -1829,6 +1841,9 @@ cells.push(
         });
         const cellStatusLabel = cellStatusPresentation.label;
         const cellStatusStyle = cellStatusPresentation.style;
+        const showCellStatusPill =
+          cellStatusPresentation.status === "resolved" ||
+          cellStatusPresentation.status === "adjusted";
 
         return (
           <div
@@ -1860,7 +1875,7 @@ cells.push(
               {e.title || "Evento"}
             </span>
 
-            {cellStatusLabel ? (
+            {showCellStatusPill && cellStatusLabel ? (
               <span
                 style={{
                   ...styles.cellTrustPill,
