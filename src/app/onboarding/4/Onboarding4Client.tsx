@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BrandLogo from "@/components/BrandLogo";
+import { trackEvent, trackScreenView } from "@/lib/analytics";
 
 const ONBOARDING_KEY = "syncplans_onboarded_v1";
 function completeOnboarding() { try { window.localStorage.setItem(ONBOARDING_KEY, "1"); } catch {} }
@@ -14,6 +15,13 @@ export default function Onboarding4Client() {
   const nextFinal = nextRaw && nextRaw.startsWith("/") ? nextRaw : "/summary";
   const qsNext = `?next=${encodeURIComponent(nextFinal)}`;
 
+  useEffect(() => {
+    void trackScreenView({
+      screen: "onboarding_step_4",
+      metadata: { flow: "core", step: 4 },
+    });
+  }, []);
+
   return (
     <main style={S.page}>
       <div style={S.glowA} aria-hidden />
@@ -24,7 +32,7 @@ export default function Onboarding4Client() {
             <BrandLogo variant="mark" size={30} />
             <div style={S.brandMeta}><span style={S.step}>Paso 4 de 4</span><span style={S.stepTitle}>Empezar</span></div>
           </div>
-          <button type="button" onClick={() => router.push(`/auth/login${qsNext}`)} style={S.topGhost}>Ya tengo cuenta</button>
+          <button type="button" onClick={() => { void trackEvent({ event: "onboarding_login_clicked", metadata: { screen: "onboarding_step_4", step: 4 } }); router.push(`/auth/login${qsNext}`); }} style={S.topGhost}>Ya tengo cuenta</button>
         </header>
 
         <div style={S.heroGrid} className="ob-grid">
@@ -39,9 +47,9 @@ export default function Onboarding4Client() {
             </div>
 
             <div style={S.actions}>
-              <button type="button" onClick={() => router.push(`/onboarding/3${qsNext}`)} style={S.secondaryButton}>Atrás</button>
-              <button type="button" onClick={() => { completeOnboarding(); router.replace('/groups/new'); }} style={S.primaryButton}>Crear grupo</button>
-              <button type="button" onClick={() => { completeOnboarding(); router.replace(nextFinal); }} style={S.ghostButton}>Empezar solo</button>
+              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_step_back", metadata: { from_step: 4, to_step: 3, screen: "onboarding_step_4" } }); router.push(`/onboarding/3${qsNext}`); }} style={S.secondaryButton}>Atrás</button>
+              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_completed", metadata: { screen: "onboarding_step_4", entry_point: "create_group", destination: "/groups/new" } }); completeOnboarding(); router.replace('/groups/new'); }} style={S.primaryButton}>Crear grupo</button>
+              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_completed", metadata: { screen: "onboarding_step_4", entry_point: "solo", destination: nextFinal } }); completeOnboarding(); router.replace(nextFinal); }} style={S.ghostButton}>Empezar solo</button>
             </div>
           </section>
 

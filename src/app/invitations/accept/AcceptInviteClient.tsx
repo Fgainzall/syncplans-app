@@ -18,6 +18,7 @@ import {
 } from "@/lib/invitationsDb";
 import { getMyProfile, type Profile } from "@/lib/profilesDb";
 import { hasPremiumAccess } from "@/lib/premium";
+import { trackEvent, trackScreenView } from "@/lib/analytics";
 
 function isUuid(x: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -206,6 +207,11 @@ export default function AcceptInviteClient() {
     };
   }, [inviteId, router]);
 
+  useEffect(() => {
+    if (!inviteId) return;
+    void trackScreenView({ screen: "invitation_accept", metadata: { area: "invitations", invite_id: inviteId } });
+  }, [inviteId]);
+
   const status = String(inv?.status ?? "").toLowerCase();
   const pending = status === "pending";
   const hasPremium = hasPremiumAccess(profile);
@@ -221,6 +227,17 @@ export default function AcceptInviteClient() {
       if (!res?.ok) {
         throw new Error(res?.error || "No se pudo aceptar.");
       }
+
+      void trackEvent({
+        event: "invite_accepted",
+        entityId: inviteId,
+        metadata: {
+          screen: "invitation_accept",
+          source: "invitation_accept",
+          group_id: inv.group_id,
+          group_type: inv.group_type ?? null,
+        },
+      });
 
       setInv((prev) => (prev ? { ...prev, status: "accepted" as any } : prev));
 
@@ -297,6 +314,17 @@ export default function AcceptInviteClient() {
     try {
       const res = await declineInvitation(inviteId);
       if (!res?.ok) throw new Error(res?.error || "No se pudo rechazar.");
+
+      void trackEvent({
+        event: "invite_declined",
+        entityId: inviteId,
+        metadata: {
+          screen: "invitation_accept",
+          source: "invitation_accept",
+          group_id: inv.group_id,
+          group_type: inv.group_type ?? null,
+        },
+      });
 
       setInv((prev) => (prev ? { ...prev, status: "declined" as any } : prev));
 
@@ -580,7 +608,7 @@ export default function AcceptInviteClient() {
 
                     <div style={{ display: "flex", gap: 10, marginTop: 6, flexWrap: "wrap" }}>
                       <button
-                        onClick={() => router.push("/planes")}
+                        onClick={() => { void trackEvent({ event: "premium_cta_clicked", metadata: { screen: "invitation_accept", source: "external_nudge", target: "/planes" } }); router.push("/planes"); }}
                         style={{
                           padding: "10px 12px",
                           borderRadius: 12,

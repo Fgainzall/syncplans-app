@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
+import { trackEvent, trackScreenView } from "@/lib/analytics";
 import { parseQuickCapture } from "@/lib/quickCaptureParser";
 import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
@@ -177,6 +178,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     if (!activeGroupId) return "Personal";
     return activeLabel;
   }, [activeGroupId, activeLabel]);
+
+  useEffect(() => {
+    void trackScreenView({ screen: "summary", metadata: { area: "home" } });
+  }, []);
 
   const quickCaptureExamples = useMemo(
     () => getQuickCaptureExamples(activeGroupType, activeLabel, !!activeGroupId),
@@ -461,6 +466,7 @@ const timeSuggestionsLabel = useMemo(() => {
         : "rgba(56,189,248,0.35)";
 
   const openConflictCenter = useCallback(() => {
+    void trackEvent({ event: "conflict_center_opened", metadata: { screen: "summary", latest_event_id: conflictAlert.latestEventId ?? null, conflict_count: conflictAlert.count ?? 0 } });
     if (conflictAlert.latestEventId) {
       router.push(
         `/conflicts/detected?eventId=${encodeURIComponent(
@@ -477,6 +483,8 @@ const navigateFromQuickCapture = useCallback(
   (value: string) => {
     const raw = String(value || "").trim();
     if (!raw) return;
+
+    void trackEvent({ event: "quick_capture_submitted", metadata: { screen: "summary", source: "summary", raw_length: raw.length } });
 
     const parsed = parseQuickCapture(raw);
     const params = new URLSearchParams();
@@ -587,6 +595,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     const raw = quickCaptureValue.trim();
 
     if (!raw) {
+      void trackEvent({ event: "quick_capture_opened", metadata: { screen: "summary", source: "summary_empty" } });
       router.push("/capture?source=summary");
       return;
     }
@@ -595,6 +604,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     params.set("text", raw);
     params.set("source", "summary");
 
+    void trackEvent({ event: "quick_capture_opened", metadata: { screen: "summary", source: "summary_prefilled", raw_length: raw.length } });
     router.push(`/capture?${params.toString()}`);
   }, [router, quickCaptureValue]);
 
@@ -615,6 +625,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
     }
 
     try {
+      void trackEvent({ event: "quick_capture_shared", metadata: { screen: "summary", source: "copy_link", raw_length: raw.length } });
       const fullUrl = buildCaptureShareUrl(raw, "copy_link");
       await navigator.clipboard.writeText(fullUrl);
       showToast("Link copiado ✅", "Ya puedes pegarlo donde quieras.");
@@ -632,6 +643,7 @@ if (cleanedNotes) params.set("notes", cleanedNotes);
       return;
     }
 
+    void trackEvent({ event: "quick_capture_shared", metadata: { screen: "summary", source: "whatsapp", raw_length: raw.length } });
     const fullUrl = buildCaptureShareUrl(raw, "whatsapp");
     const message = buildWhatsAppShareText(raw, fullUrl);
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;

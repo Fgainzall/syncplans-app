@@ -15,6 +15,7 @@ import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import PremiumHeader from "@/components/PremiumHeader";
 
 import MobileScaffold from "@/components/MobileScaffold";
+import { trackEvent, trackScreenView } from "@/lib/analytics";
 
 /* Helpers de fecha para el resumen */
 function startOfDay(dateISO: string) {
@@ -142,6 +143,10 @@ const googleActionLabel =
     : "Conectar";
 
   const canUseGooglePremium = hasPremiumAccess(profile);
+  useEffect(() => {
+    void trackScreenView({ screen: "settings", metadata: { area: "settings" } });
+  }, []);
+
   async function refreshGoogleStatus() {
     try {
       setGoogleLoading(true);
@@ -200,10 +205,17 @@ const googleActionLabel =
     }
     await refreshGoogleStatus();
   }
-
-  function handleGoogleConnect() {
-    window.location.href = "/api/google/connect";
-  }
+function handleGoogleConnect() {
+  void trackEvent({
+    event: "google_connect_started",
+    metadata: {
+      screen: "settings",
+      source: "settings_google_card",
+      connection_state: googleState,
+    },
+  });
+  window.location.href = "/api/google/connect";
+}
 
   // ✅ /api/google/sync necesita Authorization (mismo patrón que status)
   async function handleGoogleSyncNow() {
@@ -514,7 +526,7 @@ refreshGoogleStatusWithRetry().catch(() => {});
                 title="Mirar tu agenda externa ayuda. Decidir con ese contexto, sin salir de SyncPlans, es donde Premium empieza a valer."
                 copy="Premium trae tu contexto externo al mismo sistema donde decides, respondes y resuelves choques. La mejora no es ver otro calendario: es tener más claridad, menos fricción y más control sin perseguir información en varias partes."
                 cta="Ver por qué importa"
-                onClick={() => router.push("/planes")}
+                onClick={() => { void trackEvent({ event: "premium_cta_clicked", metadata: { screen: "settings", source: "premium_settings_card", target: "/planes" } }); router.push("/planes"); }}
               />
             ) : (
               <>

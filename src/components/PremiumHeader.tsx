@@ -30,6 +30,7 @@ import {
   shadows,
   spacing,
 } from "@/styles/design-tokens";
+import { trackEvent } from "@/lib/analytics";
 
 type TabKey = UsageMode | "other";
 
@@ -262,6 +263,20 @@ export default function PremiumHeader({
   const [group, setGroup] = useState<GroupState | null>(null);
   const [openNotif, setOpenNotif] = useState(false);
   const [openIntegrations, setOpenIntegrations] = useState(false);
+
+  const trackPremiumClick = useCallback((source: string) => {
+    void trackEvent({
+      event: "premium_cta_clicked",
+      metadata: { screen: pathname || "unknown", source, target: "/planes" },
+    });
+  }, [pathname]);
+
+  const trackIntegrationOpen = useCallback((source: string) => {
+    void trackEvent({
+      event: "google_connect_started",
+      metadata: { screen: pathname || "unknown", source, entry_mode: "drawer" },
+    });
+  }, [pathname]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [conflictSummary, setConflictSummary] = useState<HeaderConflictSummary>({
     count: 0,
@@ -629,6 +644,7 @@ export default function PremiumHeader({
                       style={styles.menuItem}
                       onClick={() => {
                         setUserMenuOpen(false);
+                        trackPremiumClick("premium_header");
                         router.push("/planes", { scroll: false });
                       }}
                     >
@@ -667,7 +683,7 @@ export default function PremiumHeader({
                 </div>
                 <button
                   type="button"
-                  onClick={() => router.push("/planes", { scroll: false })}
+                  onClick={() => { trackPremiumClick("premium_header_banner"); router.push("/planes", { scroll: false }); }}
                   style={styles.mobileUpgradeButton}
                 >
                   Ver planes
@@ -681,6 +697,7 @@ export default function PremiumHeader({
                 style={styles.secondaryButton}
                 onClick={() => {
                   setUserMenuOpen(false);
+                  trackIntegrationOpen("premium_header");
                   setOpenIntegrations(true);
                 }}
                 title="Conectar y sincronizar calendarios externos"
@@ -731,7 +748,7 @@ export default function PremiumHeader({
                   {shouldShowHeaderUpgrade ? (
                     <button
                       type="button"
-                      onClick={() => router.push("/planes", { scroll: false })}
+                      onClick={() => { trackPremiumClick("premium_header_banner"); router.push("/planes", { scroll: false }); }}
                       style={styles.desktopUpgradeChip}
                     >
                       <span style={styles.upgradeMiniBadgeDesktop}>
@@ -837,7 +854,8 @@ export default function PremiumHeader({
                         style={styles.menuItem}
                         onClick={() => {
                           setUserMenuOpen(false);
-                          router.push("/planes", { scroll: false });
+                          trackPremiumClick("premium_header");
+                        router.push("/planes", { scroll: false });
                         }}
                       >
                         Planes
@@ -854,7 +872,7 @@ export default function PremiumHeader({
                 <button
                   type="button"
                   style={styles.secondaryButton}
-                  onClick={() => setOpenIntegrations(true)}
+                  onClick={() => { trackIntegrationOpen("premium_header"); setOpenIntegrations(true); }}
                   title="Conectar y sincronizar calendarios externos"
                 >
                   Conectar

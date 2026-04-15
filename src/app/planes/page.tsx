@@ -15,6 +15,7 @@ import {
 } from "@/lib/premium";
 
 import { colors, radii, shadows, spacing } from "@/styles/design-tokens";
+import { trackEvent, trackScreenView } from "@/lib/analytics";
 
 type PlanCardConfig = {
   id: PlanCardId;
@@ -214,6 +215,11 @@ export default function PlanesPage() {
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    void trackScreenView({ screen: "planes", metadata: { area: "premium" } });
+    void trackEvent({ event: "premium_page_viewed", metadata: { screen: "planes", area: "premium" } });
   }, []);
 
   const cards = useMemo(() => buildPlanCards(), []);

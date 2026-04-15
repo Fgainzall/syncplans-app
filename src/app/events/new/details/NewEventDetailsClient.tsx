@@ -1446,22 +1446,18 @@ const persistEvent = async (payload: {
     }
 
     if (currentUserId && savedEventId) {
-      const analyticsPayload = {
-        user_id: currentUserId,
-        event_type: "event_edited",
-        entity_id: savedEventId,
+      await trackEvent({
+        event: "event_edited",
+        userId: currentUserId,
+        entityId: savedEventId,
         metadata: {
+          screen: "event_details",
           type: payload.groupId ? "group" : "personal",
+          group_id: payload.groupId ?? null,
+          source: "event_details_edit",
+          capture_source: sp.get("capture_source") ?? null,
         },
-      };
-
-      const { error: analyticsError } = await supabase
-        .from("events_analytics")
-        .insert(analyticsPayload);
-
-      if (analyticsError) {
-        console.error("event_edited analytics insert failed", analyticsError);
-      }
+      });
     }
 
     const proposalSource = sp.get("proposalSource");
@@ -1518,7 +1514,14 @@ const persistEvent = async (payload: {
         userId: currentUserId,
         entityId: savedEventId,
         metadata: {
+          screen: "event_details",
+          source: "event_details_create",
           type: payload.groupId ? "group" : "personal",
+          group_id: payload.groupId ?? null,
+          group_type: payload.groupType ?? null,
+          capture_source: sp.get("capture_source") ?? null,
+          proposal_source: sp.get("proposalSource") ?? null,
+          quick_capture: sp.get("qc") === "1",
         },
       });
     }

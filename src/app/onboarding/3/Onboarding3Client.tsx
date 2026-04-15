@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BrandLogo from "@/components/BrandLogo";
+import { trackEvent, trackScreenView } from "@/lib/analytics";
 
 const ONBOARDING_KEY = "syncplans_onboarded_v1";
 function completeOnboarding() { try { window.localStorage.setItem(ONBOARDING_KEY, "1"); } catch {} }
@@ -14,6 +15,13 @@ export default function Onboarding3Client() {
   const nextFinal = nextRaw && nextRaw.startsWith("/") ? nextRaw : "/summary";
   const qsNext = `?next=${encodeURIComponent(nextFinal)}`;
 
+  useEffect(() => {
+    void trackScreenView({
+      screen: "onboarding_step_3",
+      metadata: { flow: "core", step: 3 },
+    });
+  }, []);
+
   return (
     <main style={S.page}>
       <div style={S.glowA} aria-hidden />
@@ -24,7 +32,7 @@ export default function Onboarding3Client() {
             <BrandLogo variant="mark" size={30} />
             <div style={S.brandMeta}><span style={S.step}>Paso 3 de 4</span><span style={S.stepTitle}>La decisión</span></div>
           </div>
-          <button type="button" onClick={() => { completeOnboarding(); router.replace(nextFinal); }} style={S.topGhost}>Saltar</button>
+          <button type="button" onClick={() => { void trackEvent({ event: "onboarding_skipped", metadata: { screen: "onboarding_step_3", step: 3, destination: nextFinal } }); completeOnboarding(); router.replace(nextFinal); }} style={S.topGhost}>Saltar</button>
         </header>
 
         <div style={S.heroGrid} className="ob-grid">
@@ -38,8 +46,8 @@ export default function Onboarding3Client() {
               <div style={S.stepCard}><span style={S.stepNum}>3</span><div><strong>Te ayuda a decidir.</strong><br />Mantener, mover o revisar después.</div></div>
             </div>
             <div style={S.actions}>
-              <button type="button" onClick={() => router.push(`/onboarding/2${qsNext}`)} style={S.secondaryButton}>Atrás</button>
-              <button type="button" onClick={() => router.push(`/onboarding/4${qsNext}`)} style={S.primaryButton}>Seguir</button>
+              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_step_back", metadata: { from_step: 3, to_step: 2, screen: "onboarding_step_3" } }); router.push(`/onboarding/2${qsNext}`); }} style={S.secondaryButton}>Atrás</button>
+              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_step_advanced", metadata: { from_step: 3, to_step: 4, screen: "onboarding_step_3" } }); router.push(`/onboarding/4${qsNext}`); }} style={S.primaryButton}>Seguir</button>
             </div>
           </section>
           <aside style={S.visualCard}>

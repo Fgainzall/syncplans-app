@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BrandLogo from "@/components/BrandLogo";
+import { trackEvent, trackScreenView } from "@/lib/analytics";
 
 const ONBOARDING_KEY = "syncplans_onboarded_v1";
 function completeOnboarding() { try { window.localStorage.setItem(ONBOARDING_KEY, "1"); } catch {} }
@@ -13,6 +14,13 @@ export default function Onboarding2Client() {
   const nextRaw = sp.get("next");
   const nextFinal = nextRaw && nextRaw.startsWith("/") ? nextRaw : "/summary";
   const qsNext = `?next=${encodeURIComponent(nextFinal)}`;
+
+  useEffect(() => {
+    void trackScreenView({
+      screen: "onboarding_step_2",
+      metadata: { flow: "core", step: 2 },
+    });
+  }, []);
 
   return (
     <main style={S.page}>
@@ -27,7 +35,7 @@ export default function Onboarding2Client() {
               <span style={S.stepTitle}>La diferencia</span>
             </div>
           </div>
-          <button type="button" onClick={() => { completeOnboarding(); router.replace(nextFinal); }} style={S.topGhost}>Saltar</button>
+          <button type="button" onClick={() => { void trackEvent({ event: "onboarding_skipped", metadata: { screen: "onboarding_step_2", step: 2, destination: nextFinal } }); completeOnboarding(); router.replace(nextFinal); }} style={S.topGhost}>Saltar</button>
         </header>
 
         <div style={S.heroGrid} className="ob-grid">
@@ -43,8 +51,8 @@ export default function Onboarding2Client() {
             </div>
 
             <div style={S.actions}>
-              <button type="button" onClick={() => router.push(`/onboarding/1${qsNext}`)} style={S.secondaryButton}>Atrás</button>
-              <button type="button" onClick={() => router.push(`/onboarding/3${qsNext}`)} style={S.primaryButton}>Seguir</button>
+              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_step_back", metadata: { from_step: 2, to_step: 1, screen: "onboarding_step_2" } }); router.push(`/onboarding/1${qsNext}`); }} style={S.secondaryButton}>Atrás</button>
+              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_step_advanced", metadata: { from_step: 2, to_step: 3, screen: "onboarding_step_2" } }); router.push(`/onboarding/3${qsNext}`); }} style={S.primaryButton}>Seguir</button>
             </div>
           </section>
 

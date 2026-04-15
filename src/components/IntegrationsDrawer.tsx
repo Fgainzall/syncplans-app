@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import supabase from "@/lib/supabaseClient";
+import { trackEvent, trackScreenView } from "@/lib/analytics";
 
 type GoogleStatus = {
   ok: boolean;
@@ -118,6 +119,11 @@ export default function IntegrationsDrawer({
     };
   }, [clearToastTimer]);
 
+useEffect(() => {
+  if (!open) return;
+  void trackScreenView({ screen: "integrations_drawer", metadata: { area: "google", source: "drawer" } });
+}, [open]);
+
 const connected = !!status?.connected;
 const connectionState =
   status?.connection_state ??
@@ -138,8 +144,12 @@ const googlePill = useMemo(() => {
 }, [connectionState, loading, status]);
 
   const onConnect = useCallback(() => {
+    void trackEvent({
+      event: "google_connect_started",
+      metadata: { screen: "integrations_drawer", source: "drawer_button", connection_state: connectionState },
+    });
     window.location.href = "/api/google/connect";
-  }, []);
+  }, [connectionState]);
 
   const onSyncNow = useCallback(async () => {
     if (syncing) return;
@@ -181,6 +191,8 @@ const googlePill = useMemo(() => {
       }
 
       const imported = Number(json?.imported ?? 0);
+
+      void trackEvent({ event: "google_sync_completed", metadata: { screen: "integrations_drawer", source: "sync_button", imported } });
 
       setToast({
         title: "Sincronizado ✅",

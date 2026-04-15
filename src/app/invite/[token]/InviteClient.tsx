@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import supabase from "@/lib/supabaseClient";
+import { trackEvent, trackScreenView } from "@/lib/analytics";
 type PublicInviteStatus = "pending" | "accepted" | "rejected";
 
 type PublicInviteRow = {
@@ -197,22 +198,12 @@ async function insertInviteAnalytics(input: {
   entityId?: string | null;
   metadata?: Record<string, unknown>;
 }) {
-  const analyticsPayload = {
-    user_id: input.userId ?? null,
-    event_type: input.eventType,
-    entity_id: input.entityId ?? null,
-    metadata: input.metadata ?? {},
-  };
-
-  console.log("INVITE ANALYTICS", analyticsPayload);
-
-  const { error } = await supabase
-    .from("events_analytics")
-    .insert(analyticsPayload);
-
-  if (error) {
-    console.error("invite analytics insert failed", error);
-  }
+  await trackEvent({
+    event: input.eventType,
+    userId: input.userId,
+    entityId: input.entityId,
+    metadata: input.metadata,
+  });
 }
 export default function InviteClient({ token }: Props) {
   const [invite, setInvite] = useState<PublicInviteRow | null>(null);
@@ -222,6 +213,10 @@ export default function InviteClient({ token }: Props) {
     "accepted" | "rejected" | null
   >(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void trackScreenView({ screen: "public_invite", metadata: { token_present: !!token } });
+  }, [token]);
 
   const [message, setMessage] = useState("");
   const [proposedDate, setProposedDate] = useState("");

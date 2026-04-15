@@ -10,6 +10,7 @@ const AnyPremiumHeader = PremiumHeader as React.ComponentType<any>;
 import { createGroup, getMyGroups } from "@/lib/groupsDb";
 import { getMyProfile, type Profile } from "@/lib/profilesDb";
 import { getGroupLimitState } from "@/lib/premium";
+import { trackEvent, trackScreenView } from "@/lib/analytics";
 
 type GType = "pair" | "family" | "other";
 
@@ -99,6 +100,10 @@ export default function NewGroupPage() {
     return e;
   }, [name]);
 
+  useEffect(() => {
+    void trackScreenView({ screen: "groups_new", metadata: { area: "groups", step: "create" } });
+  }, []);
+
   const groupLimitState = useMemo(
     () => getGroupLimitState(profile, existingGroupsCount),
     [profile, existingGroupsCount]
@@ -111,12 +116,19 @@ export default function NewGroupPage() {
 
   const save = async () => {
     if (reachedGroupLimit) {
+      void trackEvent({
+        event: "premium_gate_seen",
+        metadata: { screen: "groups_new", gate: "group_limit", existing_groups_count: existingGroupsCount },
+      });
       setToast({
         title: "Límite Free alcanzado",
         subtitle:
           "En Free puedes crear 1 grupo. Premium abre más espacios compartidos sin fricción.",
       });
-      window.setTimeout(() => router.push("/planes"), 500);
+      window.setTimeout(() => {
+        void trackEvent({ event: "premium_cta_clicked", metadata: { screen: "groups_new", source: "group_limit_toast", target: "/planes" } });
+        router.push("/planes");
+      }, 500);
       return;
     }
 
@@ -147,6 +159,12 @@ export default function NewGroupPage() {
           "Grupo creado pero no se recibió el ID (respuesta inválida)."
         );
       }
+
+      void trackEvent({
+        event: "group_created",
+        entityId: String(gid),
+        metadata: { screen: "groups_new", source: "groups_new", group_type: type, existing_groups_count: existingGroupsCount },
+      });
 
       setToast({ title: "Grupo creado ✅", subtitle: "Ahora vamos con tu primer plan compartido…" });
       window.setTimeout(() => router.push(`/events/new/details?type=group&groupId=${encodeURIComponent(String(gid))}&wow=1&from=first-group`), 450);
@@ -242,7 +260,7 @@ export default function NewGroupPage() {
               cuando tu coordinación ya crece más allá de una sola pareja, familia o grupo compartido.
             </div>
             <div style={styles.limitActions}>
-              <button onClick={() => router.push("/planes")} style={styles.primaryBtn}>
+              <button onClick={() => { void trackEvent({ event: "premium_cta_clicked", metadata: { screen: "groups_new", source: "limit_card", target: "/planes" } }); router.push("/planes"); }} style={styles.primaryBtn}>
                 Ver planes
               </button>
               <button onClick={goBack} style={styles.ghostBtn}>
