@@ -621,7 +621,6 @@ export default function PremiumHeader({
                         {headerUser?.name ?? "Tú"}
                       </div>
                     </div>
-
                     <button
                       type="button"
                       style={styles.menuItem}
@@ -632,6 +631,7 @@ export default function PremiumHeader({
                     >
                       Profile
                     </button>
+
 
                     <button
                       type="button"
@@ -807,7 +807,6 @@ export default function PremiumHeader({
                           {headerUser?.name ?? "Tú"}
                         </div>
                       </div>
-
                       <button
                         type="button"
                         style={styles.menuItem}
@@ -818,6 +817,7 @@ export default function PremiumHeader({
                       >
                         Profile
                       </button>
+
 
                       <button
                         type="button"
@@ -1358,11 +1358,10 @@ const styles: Record<string, CSSProperties> = {
     minWidth: 220,
     borderRadius: 16,
     border: `1px solid ${colors.borderSubtle}`,
-    background: "#08111F",
-    boxShadow: "0 24px 70px rgba(0,0,0,0.50), 0 0 0 1px rgba(255,255,255,0.02)",
+    background: "rgb(10,18,36)",
+    boxShadow: "0 22px 48px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.03)",
     padding: 8,
     zIndex: 80,
-    backdropFilter: "none",
   },
   mobileMenu: {
     position: "absolute",
@@ -1371,11 +1370,10 @@ const styles: Record<string, CSSProperties> = {
     minWidth: 190,
     borderRadius: 16,
     border: `1px solid ${colors.borderSubtle}`,
-    background: "#08111F",
-    boxShadow: "0 24px 70px rgba(0,0,0,0.50), 0 0 0 1px rgba(255,255,255,0.02)",
+    background: "rgb(10,18,36)",
+    boxShadow: "0 22px 48px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.03)",
     padding: 8,
     zIndex: 80,
-    backdropFilter: "none",
   },
   menuHeader: {
     display: "flex",

@@ -233,11 +233,64 @@ function InvitationsIcon({ active }: { active: boolean }) {
   );
 }
 
+function SettingsIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 8.75a3.25 3.25 0 1 0 0 6.5 3.25 3.25 0 0 0 0-6.5Z"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+      />
+      <path
+        d="M19 12a7.2 7.2 0 0 0-.08-1l1.45-1.13-1.4-2.42-1.74.42a7.5 7.5 0 0 0-1.72-1l-.28-1.77h-2.8l-.28 1.77c-.6.22-1.18.55-1.72 1l-1.74-.42-1.4 2.42L5.08 11c-.05.33-.08.66-.08 1s.03.67.08 1l-1.45 1.13 1.4 2.42 1.74-.42c.54.45 1.12.78 1.72 1l.28 1.77h2.8l.28-1.77c.6-.22 1.18-.55 1.72-1l1.74.42 1.4-2.42L18.92 13c.05-.33.08-.66.08-1Z"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PlansIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M7 6.5h10"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M7 12h10"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M7 17.5h6"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <rect
+        x="4"
+        y="4"
+        width="16"
+        height="16"
+        rx="3"
+        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
 const NAV_ITEMS: NavItem[] = [
   { key: "summary", label: "Resumen", path: "/summary", aria: "Ir a Resumen" },
   { key: "calendar", label: "Calendario", path: "/calendar", aria: "Ir a Calendario" },
   { key: "events", label: "Eventos", path: "/events", aria: "Ir a Eventos" },
-  { key: "conflicts", label: "Choques", path: "/conflicts/detected", aria: "Ir a Conflictos" },
+  { key: "conflicts", label: "Conflictos", path: "/conflicts/detected", aria: "Ir a Conflictos" },
   { key: "panel", label: "Panel", path: "/panel", aria: "Ir a Panel" },
   { key: "groups", label: "Grupos", path: "/groups", aria: "Ir a Grupos" },
   { key: "members", label: "Miembros", path: "/members", aria: "Ir a Miembros" },
@@ -297,7 +350,7 @@ function BottomNav() {
   };
 
   return (
-    <nav style={S.outer} aria-label="NavegaciÃ³n principal">
+    <nav style={S.outer} aria-label="NavegaciĂłn principal">
       <div style={S.wrap}>
         <div style={S.viewport}>
           <div style={S.track}>
@@ -366,14 +419,14 @@ const S: Record<string, React.CSSProperties> = {
     pointerEvents: "auto",
     width: "min(100%, 560px)",
     margin: "0 auto",
-    borderRadius: 20,
+    borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(8,12,20,0.88)",
+    background: "rgba(8,12,20,0.90)",
     boxShadow:
-      "0 20px 50px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.04)",
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
-    padding: 4,
+      "0 18px 40px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.04)",
+    backdropFilter: "blur(18px)",
+    WebkitBackdropFilter: "blur(18px)",
+    padding: 3,
   },
 
   viewport: {
@@ -391,15 +444,15 @@ const S: Record<string, React.CSSProperties> = {
   track: {
     display: "inline-flex",
     alignItems: "stretch",
-    gap: 10,
+    gap: 6,
     minWidth: "max-content",
     paddingBottom: 2,
   },
 
   item: {
-    minWidth: 92,
-    minHeight: 62,
-    padding: "9px 10px 11px",
+    minWidth: 68,
+    minHeight: 52,
+    padding: "7px 7px 9px",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.06)",
     background: "rgba(255,255,255,0.025)",
@@ -427,9 +480,9 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   iconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
+    width: 26,
+    height: 26,
+    borderRadius: 9,
     display: "grid",
     placeItems: "center",
     color: "inherit",
@@ -442,7 +495,7 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   label: {
-    fontSize: 10,
+    fontSize: 8.5,
     lineHeight: 1,
     fontWeight: 800,
     letterSpacing: "0.01em",

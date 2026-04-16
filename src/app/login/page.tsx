@@ -1,5 +1,6 @@
 // src/app/login/page.tsx
 import { redirect } from "next/navigation";
+import { supabaseServer } from "@/lib/supabaseServer";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -16,11 +17,25 @@ function asString(v: string | string[] | undefined): string | null {
 }
 
 function safeNext(raw: string | null): string {
-  if (!raw) return "/calendar";
-  return raw.startsWith("/") ? raw : "/calendar";
+  if (!raw) return "/summary";
+  return raw.startsWith("/") ? raw : "/summary";
 }
 
-export default function Page({ searchParams }: PageProps) {
+export default async function Page({ searchParams }: PageProps) {
   const next = safeNext(asString(searchParams?.next));
+
+  try {
+    const supabase = await supabaseServer();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (session) {
+      redirect(next);
+    }
+  } catch {
+    // Si falla la lectura server-side de sesión, seguimos al login real sin romper el flujo.
+  }
+
   redirect(`/auth/login?next=${encodeURIComponent(next)}`);
 }
