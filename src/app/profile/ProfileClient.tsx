@@ -1202,6 +1202,49 @@ export default function ProfilePage() {
     }
   };
 
+  const totalGroups = stats?.totalGroups ?? 0;
+  const eventsLast7 = stats?.eventsLast7 ?? 0;
+  const conflictsNow = stats?.conflictsNow ?? 0;
+
+  const safeAnyProfile = (profile ?? {}) as AnyProfile;
+  const {
+    planLabel: safePlanLabel,
+    planHint: safePlanHint,
+    planCtaLabel: safePlanCtaLabel,
+  } = getPlanInfo(safeAnyProfile);
+
+  const premiumActive =
+    String(safePlanLabel).toLowerCase().includes("premium") ||
+    String(safePlanLabel).toLowerCase().includes("fundador");
+  const premiumContextKey =
+    conflictsNow > 0
+      ? "conflicts"
+      : totalGroups > 0 && eventsLast7 >= 3
+        ? "shared_load"
+        : totalGroups > 0
+          ? "groups"
+          : "account";
+
+  useEffect(() => {
+    if (!profile?.id || premiumActive) return;
+
+    void trackEventOnce({
+      onceKey: `profile-premium-viewed:${premiumContextKey}`,
+      scope: "session",
+      event: "premium_viewed",
+      userId: String(profile.id),
+      metadata: {
+        screen: "profile",
+        area: "account_status",
+        context: premiumContextKey,
+        total_groups: totalGroups,
+        events_last_7: eventsLast7,
+        conflicts_now: conflictsNow,
+        plan_label: safePlanLabel,
+      },
+    });
+  }, [profile?.id, premiumActive, premiumContextKey, totalGroups, eventsLast7, conflictsNow, safePlanLabel]);
+
   if (booting) {
     return (
       <main style={styles.page}>
@@ -1281,25 +1324,14 @@ export default function ProfilePage() {
 
   const hasNameCompleted = !!firstName.trim() && !!lastName.trim();
 
-  const totalGroups = stats?.totalGroups ?? 0;
-  const eventsLast7 = stats?.eventsLast7 ?? 0;
-  const conflictsNow = stats?.conflictsNow ?? 0;
-
   const digestEnabled = (profile as any).daily_digest_enabled ?? false;
   const digestHour = (profile as any).daily_digest_hour_local ?? 7;
   const digestTz = (profile as any).daily_digest_timezone ?? "America/Lima";
 
   const anyProfile = profile as unknown as AnyProfile;
-  const { planLabel, planHint, planCtaLabel } = getPlanInfo(anyProfile);
-
-  const premiumActive = String(planLabel).toLowerCase().includes("premium") || String(planLabel).toLowerCase().includes("fundador");
-  const premiumContextKey = conflictsNow > 0
-    ? "conflicts"
-    : totalGroups > 0 && eventsLast7 >= 3
-      ? "shared_load"
-      : totalGroups > 0
-        ? "groups"
-        : "account";
+  const planLabel = safePlanLabel;
+  const planHint = safePlanHint;
+  const planCtaLabel = safePlanCtaLabel;
 
   const premiumContextTitle = premiumContextKey === "conflicts"
     ? "Premium te ayuda cuando la coordinación ya se está tensando"
@@ -1354,26 +1386,6 @@ export default function ProfilePage() {
     "La base de tu cuenta está en orden. Cuando quieras operar, vuelve a Panel, Calendario o Conflictos.";
   const recommendationCtaLabel = recommendation?.ctaLabel ?? "Ir al panel";
   const recommendationHref = getRecommendationHref(recommendation?.ctaTarget);
-
-  useEffect(() => {
-    if (!profile?.id || premiumActive) return;
-
-    void trackEventOnce({
-      onceKey: `profile-premium-viewed:${premiumContextKey}` ,
-      scope: "session",
-      event: "premium_viewed",
-      userId: String(profile.id),
-      metadata: {
-        screen: "profile",
-        area: "account_status",
-        context: premiumContextKey,
-        total_groups: totalGroups,
-        events_last_7: eventsLast7,
-        conflicts_now: conflictsNow,
-        plan_label: planLabel,
-      },
-    });
-  }, [profile?.id, premiumActive, premiumContextKey, totalGroups, eventsLast7, conflictsNow, planLabel]);
 
   return (
     <main style={styles.page}>
