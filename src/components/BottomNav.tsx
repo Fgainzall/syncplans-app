@@ -12,9 +12,7 @@ type BottomNavKey =
   | "panel"
   | "groups"
   | "members"
-  | "invitations"
-  | "settings"
-  | "planes";
+  | "invitations";
 
 type NavItem = {
   key: BottomNavKey;
@@ -235,70 +233,15 @@ function InvitationsIcon({ active }: { active: boolean }) {
   );
 }
 
-function SettingsIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 8.75a3.25 3.25 0 1 0 0 6.5 3.25 3.25 0 0 0 0-6.5Z"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-      />
-      <path
-        d="M19 12a7.2 7.2 0 0 0-.08-1l1.45-1.13-1.4-2.42-1.74.42a7.5 7.5 0 0 0-1.72-1l-.28-1.77h-2.8l-.28 1.77c-.6.22-1.18.55-1.72 1l-1.74-.42-1.4 2.42L5.08 11c-.05.33-.08.66-.08 1s.03.67.08 1l-1.45 1.13 1.4 2.42 1.74-.42c.54.45 1.12.78 1.72 1l.28 1.77h2.8l.28-1.77c.6-.22 1.18-.55 1.72-1l1.74.42 1.4-2.42L18.92 13c.05-.33.08-.66.08-1Z"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function PlansIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M7 6.5h10"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <path
-        d="M7 12h10"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <path
-        d="M7 17.5h6"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <rect
-        x="4"
-        y="4"
-        width="16"
-        height="16"
-        rx="3"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
-}
-
 const NAV_ITEMS: NavItem[] = [
   { key: "summary", label: "Resumen", path: "/summary", aria: "Ir a Resumen" },
   { key: "calendar", label: "Calendario", path: "/calendar", aria: "Ir a Calendario" },
   { key: "events", label: "Eventos", path: "/events", aria: "Ir a Eventos" },
-  { key: "conflicts", label: "Conflictos", path: "/conflicts/detected", aria: "Ir a Conflictos" },
+  { key: "conflicts", label: "Choques", path: "/conflicts/detected", aria: "Ir a Conflictos" },
   { key: "panel", label: "Panel", path: "/panel", aria: "Ir a Panel" },
   { key: "groups", label: "Grupos", path: "/groups", aria: "Ir a Grupos" },
   { key: "members", label: "Miembros", path: "/members", aria: "Ir a Miembros" },
   { key: "invitations", label: "Invitaciones", path: "/invitations", aria: "Ir a Invitaciones" },
-  { key: "settings", label: "Ajustes", path: "/settings", aria: "Ir a Ajustes" },
-  { key: "planes", label: "Planes", path: "/planes", aria: "Ir a Planes" },
 ];
 
 function shouldHideBottomNav(pathname: string) {
@@ -329,10 +272,6 @@ function iconFor(key: BottomNavKey, active: boolean) {
       return <MembersIcon active={active} />;
     case "invitations":
       return <InvitationsIcon active={active} />;
-    case "settings":
-      return <SettingsIcon active={active} />;
-    case "planes":
-      return <PlansIcon active={active} />;
     default:
       return null;
   }
@@ -354,13 +293,11 @@ function BottomNav() {
     if (key === "groups") return pathname.startsWith("/groups");
     if (key === "members") return pathname.startsWith("/members");
     if (key === "invitations") return pathname.startsWith("/invitations");
-    if (key === "settings") return pathname.startsWith("/settings");
-    if (key === "planes") return pathname.startsWith("/planes");
     return false;
   };
 
   return (
-    <nav style={S.outer} aria-label="NavegaciĂłn principal">
+    <nav style={S.outer} aria-label="NavegaciÃ³n principal">
       <div style={S.wrap}>
         <div style={S.viewport}>
           <div style={S.track}>
@@ -454,15 +391,15 @@ const S: Record<string, React.CSSProperties> = {
   track: {
     display: "inline-flex",
     alignItems: "stretch",
-    gap: 8,
+    gap: 10,
     minWidth: "max-content",
     paddingBottom: 2,
   },
 
   item: {
-    minWidth: 74,
-    minHeight: 58,
-    padding: "8px 8px 10px",
+    minWidth: 92,
+    minHeight: 62,
+    padding: "9px 10px 11px",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.06)",
     background: "rgba(255,255,255,0.025)",
@@ -490,8 +427,8 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   iconWrap: {
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
     borderRadius: 10,
     display: "grid",
     placeItems: "center",
@@ -505,7 +442,7 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   label: {
-    fontSize: 9,
+    fontSize: 10,
     lineHeight: 1,
     fontWeight: 800,
     letterSpacing: "0.01em",

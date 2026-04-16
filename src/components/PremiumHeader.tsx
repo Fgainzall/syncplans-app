@@ -557,16 +557,6 @@ export default function PremiumHeader({
       path: "/invitations",
       active: pathname.startsWith("/invitations"),
     },
-    {
-      label: "Ajustes",
-      path: "/settings",
-      active: pathname.startsWith("/settings"),
-    },
-    {
-      label: "Planes",
-      path: "/planes",
-      active: pathname.startsWith("/planes"),
-    },
   ];
 
   return (
@@ -637,32 +627,10 @@ export default function PremiumHeader({
                       style={styles.menuItem}
                       onClick={() => {
                         setUserMenuOpen(false);
-                        router.push("/groups", { scroll: false });
+                        router.push("/profile", { scroll: false });
                       }}
                     >
-                      Grupos
-                    </button>
-
-                    <button
-                      type="button"
-                      style={styles.menuItem}
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        router.push("/members", { scroll: false });
-                      }}
-                    >
-                      Miembros
-                    </button>
-
-                    <button
-                      type="button"
-                      style={styles.menuItem}
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        router.push("/invitations", { scroll: false });
-                      }}
-                    >
-                      Invitaciones
+                      Profile
                     </button>
 
                     <button
@@ -845,32 +813,10 @@ export default function PremiumHeader({
                         style={styles.menuItem}
                         onClick={() => {
                           setUserMenuOpen(false);
-                          router.push("/groups", { scroll: false });
+                          router.push("/profile", { scroll: false });
                         }}
                       >
-                        Grupos
-                      </button>
-
-                      <button
-                        type="button"
-                        style={styles.menuItem}
-                        onClick={() => {
-                          setUserMenuOpen(false);
-                          router.push("/members", { scroll: false });
-                        }}
-                      >
-                        Miembros
-                      </button>
-
-                      <button
-                        type="button"
-                        style={styles.menuItem}
-                        onClick={() => {
-                          setUserMenuOpen(false);
-                          router.push("/invitations", { scroll: false });
-                        }}
-                      >
-                        Invitaciones
+                        Profile
                       </button>
 
                       <button
@@ -1412,10 +1358,11 @@ const styles: Record<string, CSSProperties> = {
     minWidth: 220,
     borderRadius: 16,
     border: `1px solid ${colors.borderSubtle}`,
-    background: "rgba(15,23,42,0.97)",
-    boxShadow: shadows.soft,
+    background: "#08111F",
+    boxShadow: "0 24px 70px rgba(0,0,0,0.50), 0 0 0 1px rgba(255,255,255,0.02)",
     padding: 8,
     zIndex: 80,
+    backdropFilter: "none",
   },
   mobileMenu: {
     position: "absolute",
@@ -1424,10 +1371,11 @@ const styles: Record<string, CSSProperties> = {
     minWidth: 190,
     borderRadius: 16,
     border: `1px solid ${colors.borderSubtle}`,
-    background: "rgba(15,23,42,0.97)",
-    boxShadow: shadows.soft,
+    background: "#08111F",
+    boxShadow: "0 24px 70px rgba(0,0,0,0.50), 0 0 0 1px rgba(255,255,255,0.02)",
     padding: 8,
     zIndex: 80,
+    backdropFilter: "none",
   },
   menuHeader: {
     display: "flex",
