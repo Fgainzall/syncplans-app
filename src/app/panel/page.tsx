@@ -169,22 +169,53 @@ function formatCaptureDate(value?: string | null) {
   });
 }
 
+function formatExternalEventRange(event: ExternalEvent) {
+  const start = new Date(event.start);
+  const end = event.end ? new Date(event.end) : null;
+
+  if (Number.isNaN(start.getTime())) return "Sin fecha";
+
+  const day = start.toLocaleDateString([], {
+    day: "2-digit",
+    month: "short",
+  });
+
+  const startTime = start.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  if (!end || Number.isNaN(end.getTime())) {
+    return `${day} · ${startTime}`;
+  }
+
+  const endTime = end.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return `${day} · ${startTime}–${endTime}`;
+}
+
 function MetricCard({
   label,
   value,
   hint,
   danger = false,
+  compact = false,
 }: {
   label: string;
   value: string;
   hint: string;
   danger?: boolean;
+  compact?: boolean;
 }) {
   return (
     <div
       style={{
         ...styles.metricCard,
         ...(danger ? styles.metricCardDanger : null),
+        ...(compact ? styles.metricCardCompact : null),
       }}
     >
       <div style={styles.metricLabel}>{label}</div>
@@ -277,33 +308,7 @@ function PremiumLock({ title, copy }: PremiumLockProps) {
     </div>
   );
 }
-function formatExternalEventRange(event: ExternalEvent) {
-  const start = new Date(event.start);
-  const end = event.end ? new Date(event.end) : null;
 
-  if (Number.isNaN(start.getTime())) return "Sin fecha";
-
-  const day = start.toLocaleDateString([], {
-    day: "2-digit",
-    month: "short",
-  });
-
-  const startTime = start.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  if (!end || Number.isNaN(end.getTime())) {
-    return `${day} · ${startTime}`;
-  }
-
-  const endTime = end.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  return `${day} · ${startTime}–${endTime}`;
-}
 export default function PanelPage() {
   const router = useRouter();
 
@@ -715,7 +720,7 @@ export default function PanelPage() {
     },
   ];
 
-  const groupsPreview = useMemo(() => groups.slice(0, isMobile ? 3 : 4), [groups, isMobile]);
+  const groupsPreview = useMemo(() => groups.slice(0, isMobile ? 2 : 4), [groups, isMobile]);
 
   const googlePill = useMemo(() => {
     if (googleLoading) return { label: "Revisando", tone: "neutral" as const };
@@ -744,34 +749,21 @@ export default function PanelPage() {
         : "Google Calendar no conectado";
 
   let heroSummary =
-    "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones. Es el lugar donde SyncPlans deja de parecer una app suelta y se convierte en sistema.";
+    "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones.";
   let heroSummaryMobile =
-    "Administra grupos, invitaciones, plan e integraciones.";
+    totalGroups === 0
+      ? "Activa tu primer espacio compartido."
+      : `${totalGroups} grupos activos. Gestiona estructura y accesos.`;
 
-  if (!loading) {
-    if (totalGroups === 0) {
-      heroSummary =
-        "El siguiente salto de SyncPlans no es llenar más pantallas, sino crear tu primer grupo, traer a la otra persona y mover la coordinación fuera del chat y dentro del sistema.";
-      heroSummaryMobile = "Crea tu primer grupo para activar la capa compartida.";
-    } else if (conflictsNow > 0) {
-      heroSummary = `Tu sistema hoy tiene ${conflictsNow} conflicto${
-        conflictsNow === 1 ? "" : "s"
-      } pendiente${conflictsNow === 1 ? "" : "s"}, ${totalGroups} grupo${
-        totalGroups === 1 ? "" : "s"
-      } y ${totalEvents} evento${totalEvents === 1 ? "" : "s"} visibles.`;
-      heroSummaryMobile = `${conflictsNow} conflicto${conflictsNow === 1 ? "" : "s"} pendiente${conflictsNow === 1 ? "" : "s"} · ${totalGroups} grupo${totalGroups === 1 ? "" : "s"}`;
-    } else if (totalGroups > 0) {
-      heroSummary = `Ya tienes ${totalGroups} grupo${
-        totalGroups === 1 ? "" : "s"
-      } creado${totalGroups === 1 ? "" : "s"}. Desde aquí decides cómo escala tu coordinación y qué parte del sistema necesita más estructura.`;
-      heroSummaryMobile = `${totalGroups} grupo${totalGroups === 1 ? "" : "s"} activo${totalGroups === 1 ? "" : "s"}. Gestiona estructura y accesos.`;
-    }
+  if (!loading && totalGroups === 0) {
+    heroSummary =
+      "Crea tu primer grupo y trae a la otra persona dentro del sistema. Ese es el salto que convierte SyncPlans en coordinación compartida real.";
   }
 
   const heroPrimaryCtaLabel = totalGroups === 0 ? "Crear grupo" : "Abrir grupos";
   const heroPrimaryCtaHref = totalGroups === 0 ? "/groups/new" : "/groups";
   const heroSecondaryCtaLabel = totalGroups === 0 ? "Ver invitaciones" : "Invitar a alguien";
-  const showHeroConflictNote = conflictsNow > 0;
+  const showHeroConflictNote = conflictsNow > 0 && !isMobile;
 
   async function handleContextChange(nextMode: UsageMode) {
     if (contextSaving === nextMode || contextState.mode === nextMode) return;
@@ -821,7 +813,7 @@ export default function PanelPage() {
         subtitle={
           isMobile
             ? "Tu hub de grupos, invitaciones, plan e integraciones."
-            : "El lugar donde conviertes SyncPlans en un sistema que suma gente, ordena decisiones y hace crecer la coordinación desde dentro."
+            : "El lugar donde administras la estructura compartida sin confundirlo con la operación diaria."
         }
       />
 
@@ -832,16 +824,12 @@ export default function PanelPage() {
           <div style={styles.heroTopRow}>
             <div style={styles.heroTextWrap}>
               <div style={styles.eyebrow}>Panel</div>
-              <h1 style={styles.heroTitle}>Hub administrativo</h1>
+              <h1 style={styles.heroTitle}>{isMobile ? "Hub administrativo" : "Centro de estructura"}</h1>
               <p style={styles.heroCopy}>{isMobile ? heroSummaryMobile : heroSummary}</p>
 
               {!isMobile ? (
                 <div style={styles.heroMicroCopy}>
-                  {totalGroups === 0 ? (
-                    <>Crea la estructura primero. Cuando entra otra persona, SyncPlans deja de ser una herramienta ordenada y empieza a convertirse en coordinación real.</>
-                  ) : (
-                    <>La operación diaria sigue viviendo en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Eventos</strong> y <strong>Conflictos</strong>. Aquí administras la base sobre la que todo eso funciona.</>
-                  )}
+                  La operación diaria vive en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Eventos</strong> y <strong>Conflictos</strong>. Aquí administras la base.
                 </div>
               ) : null}
             </div>
@@ -873,9 +861,14 @@ export default function PanelPage() {
             </div>
           ) : null}
 
-          <div style={styles.metricsGrid}>
-            <MetricCard label="Grupos" value={loading ? "—" : String(totalGroups)} hint="Espacios compartidos" />
-            <MetricCard label="Eventos" value={loading ? "—" : String(totalEvents)} hint="Carga visible" />
+          <div
+            style={{
+              ...styles.metricsGrid,
+              gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))",
+            }}
+          >
+            <MetricCard label="Grupos" value={loading ? "—" : String(totalGroups)} hint="Espacios compartidos" compact={isMobile} />
+            <MetricCard label="Eventos" value={loading ? "—" : String(totalEvents)} hint="Carga visible" compact={isMobile} />
             <MetricCard
               label="Google"
               value={
@@ -888,12 +881,14 @@ export default function PanelPage() {
                       : "Pendiente"
               }
               hint="Estado externo"
+              compact={isMobile}
             />
             <MetricCard
               label="Conflictos"
               value={loading ? "—" : String(conflictsNow)}
               hint="Pendientes"
               danger={conflictsNow > 0}
+              compact={isMobile}
             />
           </div>
         </section>
@@ -903,15 +898,15 @@ export default function PanelPage() {
             <div>
               <div style={styles.sectionEyebrow}>Accesos principales</div>
               <h2 style={styles.sectionTitle}>Administra lo importante</h2>
-              {!isMobile ? (
-                <div style={styles.sectionSubtleCopy}>
-                  Este panel existe para ordenar estructura, no para duplicar la operación diaria.
-                </div>
-              ) : null}
             </div>
           </div>
 
-          <div style={styles.quickGrid}>
+          <div
+            style={{
+              ...styles.quickGrid,
+              gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))",
+            }}
+          >
             {adminActions.map((action) => (
               <button
                 key={action.id}
@@ -932,74 +927,12 @@ export default function PanelPage() {
           </div>
         </section>
 
-        <section style={styles.sectionCardCompact}>
-          <div style={styles.sectionHead}>
-            <div>
-              <div style={styles.sectionEyebrow}>Contexto</div>
-              <h2 style={styles.sectionTitle}>Modo activo</h2>
-            </div>
-          </div>
-
-          <div style={styles.contextHeroCompact}>
-            <div style={styles.contextHeroLeft}>
-              <div style={styles.contextCurrentRow}>
-                <span
-                  style={{
-                    ...styles.contextCurrentDot,
-                    background: currentContextOption.dot,
-                  }}
-                />
-                <span style={styles.contextCurrentTextSmall}>
-                  {currentContextOption.label}
-                </span>
-                {showContextGroupName ? (
-                  <span style={styles.contextInlineMeta}>{showContextGroupName}</span>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          <div
-            style={{
-              ...styles.contextGrid,
-              ...(isMobile ? { gridTemplateColumns: "1fr", gap: 8 } : null),
-            }}
-          >
-            {CONTEXT_OPTIONS.map((option) => {
-              const active = option.key === contextState.mode;
-              const saving = contextSaving === option.key;
-
-              return (
-                <button
-                  key={option.key}
-                  type="button"
-                  onClick={() => handleContextChange(option.key)}
-                  disabled={saving}
-                  style={{
-                    ...styles.contextCard,
-                    ...(active ? styles.contextCardActive : null),
-                    ...(saving ? styles.contextCardBusy : null),
-                  }}
-                >
-                  <div style={styles.contextCardTop}>
-                    <span
-                      style={{
-                        ...styles.contextCardDot,
-                        background: option.dot,
-                      }}
-                    />
-                    <span style={styles.contextCardLabel}>{option.label}</span>
-                    {active ? <span style={styles.contextBadge}>Activo</span> : null}
-                  </div>
-
-                  <div style={styles.contextCardHint}>{option.hint}</div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        <div style={styles.mainGrid}>
+        <div
+          style={{
+            ...styles.mainGrid,
+            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.15fr) minmax(300px, 0.85fr)",
+          }}
+        >
           <div style={styles.leftCol}>
             <section style={styles.sectionCardCompact}>
               <div style={styles.sectionHead}>
@@ -1019,7 +952,7 @@ export default function PanelPage() {
 
               {groupsPreview.length === 0 ? (
                 <EmptyBlock
-                  copy="Aún no tienes grupos. Este es el mejor lugar para arrancar la coordinación compartida y darle a otra persona una razón real para entrar y quedarse."
+                  copy="Aún no tienes grupos. Este es el mejor lugar para arrancar la coordinación compartida."
                   primaryLabel="Crear grupo"
                   onPrimary={() => router.push("/groups/new")}
                   secondaryLabel="Ver invitaciones"
@@ -1054,11 +987,6 @@ export default function PanelPage() {
                 <div>
                   <div style={styles.sectionEyebrow}>Capturas</div>
                   <h2 style={styles.sectionTitle}>Bandeja de respuestas</h2>
-                  {!isMobile ? (
-                    <div style={styles.sectionSubtleCopy}>
-                      Respuestas externas que puedes convertir en acción sin salir del sistema.
-                    </div>
-                  ) : null}
                 </div>
 
                 <button
@@ -1167,31 +1095,6 @@ export default function PanelPage() {
                 </div>
               )}
             </section>
-
-            {!isMobile ? (
-              <section style={styles.sectionCardCompact}>
-                <div style={styles.sectionHead}>
-                  <div>
-                    <div style={styles.sectionEyebrow}>Operación diaria</div>
-                    <h2 style={styles.sectionTitle}>Volver al flujo principal</h2>
-                  </div>
-                </div>
-
-                <div style={styles.pillActionsRow}>
-                  {operationActions.map((action) => (
-                    <button
-                      key={action.id}
-                      type="button"
-                      style={styles.pillAction}
-                      onClick={() => router.push(action.href)}
-                    >
-                      <span>{action.label}</span>
-                      {action.badge ? <span style={styles.pillBadge}>{action.badge}</span> : null}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ) : null}
           </div>
 
           <div style={styles.rightCol}>
@@ -1211,7 +1114,6 @@ export default function PanelPage() {
               <div style={styles.planPill}>{planInfo.pill}</div>
               <h2 style={styles.planTitle}>{planInfo.title}</h2>
               <p style={styles.planCopy}>{isMobile ? planInfo.supportingCopy : planInfo.copy}</p>
-              {!isMobile ? <div style={styles.planSupportCopy}>{planInfo.supportingCopy}</div> : null}
 
               {planInfo.tone === "free" ? (
                 <div style={styles.planMiniNote}>
@@ -1235,11 +1137,6 @@ export default function PanelPage() {
                 <div>
                   <div style={styles.sectionEyebrow}>Sistema</div>
                   <h2 style={styles.sectionTitle}>Integraciones</h2>
-                  {!isMobile ? (
-                    <div style={styles.sectionSubtleCopy}>
-                      Estado y acceso rápido a Google Calendar sin salir de SyncPlans.
-                    </div>
-                  ) : null}
                 </div>
               </div>
 
@@ -1308,7 +1205,7 @@ export default function PanelPage() {
                               {event.title || "Evento externo"}
                             </div>
                             <div style={styles.snapshotItemMeta}>
-                             {formatExternalEventRange(event)}
+                              {formatExternalEventRange(event)}
                             </div>
                           </div>
                         ))}
@@ -1319,30 +1216,95 @@ export default function PanelPage() {
               )}
             </section>
 
-            {isMobile ? (
-              <section style={styles.sectionCardCompact}>
-                <div style={styles.sectionHead}>
-                  <div>
-                    <div style={styles.sectionEyebrow}>Operación diaria</div>
-                    <h2 style={styles.sectionTitle}>Volver al flujo principal</h2>
+            <section style={styles.sectionCardCompact}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionEyebrow}>Operación diaria</div>
+                  <h2 style={styles.sectionTitle}>Volver al flujo principal</h2>
+                </div>
+              </div>
+
+              <div style={styles.pillActionsRow}>
+                {operationActions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    style={styles.pillAction}
+                    onClick={() => router.push(action.href)}
+                  >
+                    <span>{action.label}</span>
+                    {action.badge ? <span style={styles.pillBadge}>{action.badge}</span> : null}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section style={styles.sectionCardCompact}>
+              <div style={styles.sectionHead}>
+                <div>
+                  <div style={styles.sectionEyebrow}>Contexto</div>
+                  <h2 style={styles.sectionTitle}>Modo activo</h2>
+                </div>
+              </div>
+
+              <div style={styles.contextHeroCompact}>
+                <div style={styles.contextHeroLeft}>
+                  <div style={styles.contextCurrentRow}>
+                    <span
+                      style={{
+                        ...styles.contextCurrentDot,
+                        background: currentContextOption.dot,
+                      }}
+                    />
+                    <span style={styles.contextCurrentTextSmall}>
+                      {currentContextOption.label}
+                    </span>
+                    {showContextGroupName ? (
+                      <span style={styles.contextInlineMeta}>{showContextGroupName}</span>
+                    ) : null}
                   </div>
                 </div>
+              </div>
 
-                <div style={styles.pillActionsRow}>
-                  {operationActions.map((action) => (
+              <div
+                style={{
+                  ...styles.contextGrid,
+                  gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+                }}
+              >
+                {CONTEXT_OPTIONS.map((option) => {
+                  const active = option.key === contextState.mode;
+                  const saving = contextSaving === option.key;
+
+                  return (
                     <button
-                      key={action.id}
+                      key={option.key}
                       type="button"
-                      style={styles.pillAction}
-                      onClick={() => router.push(action.href)}
+                      onClick={() => handleContextChange(option.key)}
+                      disabled={saving}
+                      style={{
+                        ...styles.contextCard,
+                        ...(active ? styles.contextCardActive : null),
+                        ...(saving ? styles.contextCardBusy : null),
+                      }}
                     >
-                      <span>{action.label}</span>
-                      {action.badge ? <span style={styles.pillBadge}>{action.badge}</span> : null}
+                      <div style={styles.contextCardTop}>
+                        <span
+                          style={{
+                            ...styles.contextCardDot,
+                            background: option.dot,
+                          }}
+                        />
+                        <span style={styles.contextCardLabel}>{option.label}</span>
+                        {active ? <span style={styles.contextBadge}>Activo</span> : null}
+                      </div>
+
+                      <div style={styles.contextCardHint}>{option.hint}</div>
                     </button>
-                  ))}
-                </div>
-              </section>
-            ) : null}
+                  );
+                })}
+              </div>
+            </section>
           </div>
         </div>
       </div>
@@ -1373,20 +1335,20 @@ const styles: Record<string, CSSProperties> = {
       "radial-gradient(1200px 620px at 20% -10%, rgba(56,189,248,0.10), transparent 60%), radial-gradient(900px 520px at 100% 0%, rgba(124,58,237,0.10), transparent 58%), rgba(10,15,30,0.78)",
     boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
     backdropFilter: "blur(16px)",
-    padding: 18,
+    padding: 16,
     display: "grid",
-    gap: 16,
+    gap: 14,
   },
   heroTopRow: {
     display: "flex",
     justifyContent: "space-between",
-    gap: 16,
+    gap: 14,
     flexWrap: "wrap",
     alignItems: "flex-start",
   },
   heroTextWrap: {
     minWidth: 0,
-    flex: "1 1 520px",
+    flex: "1 1 420px",
   },
   eyebrow: {
     fontSize: 11,
@@ -1397,24 +1359,24 @@ const styles: Record<string, CSSProperties> = {
   },
   heroTitle: {
     margin: "8px 0 0",
-    fontSize: "clamp(28px, 4vw, 40px)",
-    lineHeight: 1.03,
+    fontSize: "clamp(26px, 4vw, 38px)",
+    lineHeight: 1.04,
     letterSpacing: "-0.04em",
     fontWeight: 950,
     color: "rgba(255,255,255,0.98)",
   },
   heroCopy: {
     margin: "10px 0 0",
-    maxWidth: 760,
+    maxWidth: 640,
     fontSize: 14,
-    lineHeight: 1.58,
+    lineHeight: 1.55,
     color: "rgba(226,232,240,0.78)",
     fontWeight: 600,
   },
   heroMicroCopy: {
     marginTop: 10,
     fontSize: 13,
-    lineHeight: 1.55,
+    lineHeight: 1.5,
     color: "rgba(226,232,240,0.66)",
     fontWeight: 600,
   },
@@ -1422,9 +1384,10 @@ const styles: Record<string, CSSProperties> = {
     display: "grid",
     gap: 10,
     minWidth: 220,
+    flex: "0 0 220px",
   },
   primaryHeroCta: {
-    minHeight: 46,
+    minHeight: 48,
     borderRadius: 14,
     border: "1px solid rgba(96,165,250,0.30)",
     background: "rgba(59,130,246,0.18)",
@@ -1468,7 +1431,6 @@ const styles: Record<string, CSSProperties> = {
   },
   metricsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
     gap: 10,
   },
   metricCard: {
@@ -1478,7 +1440,11 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.035)",
     padding: "14px 14px",
-    minHeight: 92,
+    minHeight: 90,
+  },
+  metricCardCompact: {
+    minHeight: 82,
+    padding: "12px 12px",
   },
   metricCardDanger: {
     border: "1px solid rgba(248,113,113,0.18)",
@@ -1534,16 +1500,8 @@ const styles: Record<string, CSSProperties> = {
     letterSpacing: "-0.02em",
     color: "rgba(255,255,255,0.98)",
   },
-  sectionSubtleCopy: {
-    marginTop: 6,
-    fontSize: 13,
-    lineHeight: 1.5,
-    color: "rgba(226,232,240,0.66)",
-    fontWeight: 600,
-  },
   quickGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
     gap: 10,
   },
   quickCard: {
@@ -1555,6 +1513,7 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     textAlign: "left",
     cursor: "pointer",
+    minHeight: 110,
   },
   quickCardFeatured: {
     border: "1px solid rgba(96,165,250,0.18)",
@@ -1564,12 +1523,13 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     justifyContent: "space-between",
     gap: 8,
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   quickTitle: {
     fontSize: 15,
     fontWeight: 900,
     color: "rgba(255,255,255,0.96)",
+    lineHeight: 1.2,
   },
   quickHint: {
     fontSize: 12,
@@ -1585,109 +1545,14 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 999,
-    background: "rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.12)",
     color: "rgba(255,255,255,0.96)",
     fontSize: 11,
     fontWeight: 900,
-  },
-  contextHeroCompact: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 12,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  contextHeroLeft: {
-    minWidth: 0,
-  },
-  contextCurrentRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  contextCurrentDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 999,
     flexShrink: 0,
-  },
-  contextCurrentTextSmall: {
-    fontSize: 18,
-    fontWeight: 900,
-    color: "rgba(255,255,255,0.97)",
-  },
-  contextInlineMeta: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "5px 9px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(226,232,240,0.72)",
-    fontSize: 11,
-    fontWeight: 800,
-  },
-  contextGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: 10,
-  },
-  contextCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.035)",
-    padding: 14,
-    display: "grid",
-    gap: 8,
-    textAlign: "left",
-    cursor: "pointer",
-  },
-  contextCardActive: {
-    border: "1px solid rgba(96,165,250,0.28)",
-    background: "rgba(59,130,246,0.10)",
-    boxShadow: "0 0 0 1px rgba(59,130,246,0.18) inset",
-  },
-  contextCardBusy: {
-    opacity: 0.7,
-  },
-  contextCardTop: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  contextCardDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    flexShrink: 0,
-  },
-  contextCardLabel: {
-    fontSize: 14,
-    fontWeight: 900,
-    color: "rgba(255,255,255,0.96)",
-  },
-  contextBadge: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "3px 8px",
-    borderRadius: 999,
-    border: "1px solid rgba(96,165,250,0.24)",
-    background: "rgba(59,130,246,0.16)",
-    color: "rgba(219,234,254,0.98)",
-    fontSize: 10,
-    fontWeight: 900,
-  },
-  contextCardHint: {
-    fontSize: 12,
-    lineHeight: 1.45,
-    color: "rgba(226,232,240,0.68)",
-    fontWeight: 600,
   },
   mainGrid: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.2fr) minmax(280px, 0.8fr)",
     gap: 14,
     alignItems: "start",
   },
@@ -1871,6 +1736,100 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 10,
     fontWeight: 900,
   },
+  contextHeroCompact: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  contextHeroLeft: {
+    minWidth: 0,
+  },
+  contextCurrentRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  contextCurrentDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    flexShrink: 0,
+  },
+  contextCurrentTextSmall: {
+    fontSize: 18,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.97)",
+  },
+  contextInlineMeta: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "5px 9px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(226,232,240,0.72)",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+  contextGrid: {
+    display: "grid",
+    gap: 10,
+  },
+  contextCard: {
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    padding: 14,
+    display: "grid",
+    gap: 8,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  contextCardActive: {
+    border: "1px solid rgba(96,165,250,0.28)",
+    background: "rgba(59,130,246,0.10)",
+    boxShadow: "0 0 0 1px rgba(59,130,246,0.18) inset",
+  },
+  contextCardBusy: {
+    opacity: 0.7,
+  },
+  contextCardTop: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  contextCardDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    flexShrink: 0,
+  },
+  contextCardLabel: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.96)",
+  },
+  contextBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "3px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(96,165,250,0.24)",
+    background: "rgba(59,130,246,0.16)",
+    color: "rgba(219,234,254,0.98)",
+    fontSize: 10,
+    fontWeight: 900,
+  },
+  contextCardHint: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.68)",
+    fontWeight: 600,
+  },
   planCard: {
     borderRadius: 22,
     background: "rgba(10,15,30,0.76)",
@@ -1903,12 +1862,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 14,
     lineHeight: 1.55,
     color: "rgba(226,232,240,0.78)",
-    fontWeight: 600,
-  },
-  planSupportCopy: {
-    fontSize: 13,
-    lineHeight: 1.5,
-    color: "rgba(226,232,240,0.64)",
     fontWeight: 600,
   },
   planMiniNote: {
