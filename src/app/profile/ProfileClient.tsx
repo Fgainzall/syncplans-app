@@ -1387,7 +1387,7 @@ export default function ProfilePage() {
           <PremiumHeader
             hideUpgradeCta
             title="Cuenta"
-            subtitle="Tu identidad, tu plan y cómo SyncPlans te representa cuando la coordinación deja de vivir en mensajes sueltos."
+            subtitle="Tu identidad, tu plan y la lectura de cuenta que sostiene tu coordinación compartida, sin convertir esta pantalla en otro hub."
             mobileNav="bottom"
           />
         </div>
@@ -1432,7 +1432,7 @@ export default function ProfilePage() {
                 style={styles.heroPrimaryBtn}
                 onClick={() => router.push("/settings")}
               >
-                Abrir ajustes
+                Gestionar cuenta
               </button>
 
               <button
@@ -1440,7 +1440,7 @@ export default function ProfilePage() {
                 style={styles.heroSecondaryBtn}
                 onClick={() => router.push("/panel")}
               >
-                Volver al panel
+                Ir al panel
               </button>
             </div>
           </div>
@@ -1808,7 +1808,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Cuenta</div>
                   <h2 style={styles.sectionTitle}>Estado de tu cuenta</h2>
                   <div style={styles.sectionSub}>
-                    Lo esencial para entender en qué estado está tu cuenta hoy, sin convertir esta pantalla en otro hub administrativo.
+                    Aquí se consolida tu estado de cuenta, tu plan y tu preparación para coordinar mejor. La operación diaria sigue viviendo en Summary, Events y Panel.
                   </div>
                 </div>
               </div>
@@ -1864,7 +1864,7 @@ export default function ProfilePage() {
                   <div style={{ height: 12 }} />
 
                   <div style={styles.premiumContextCard}>
-                    <div style={styles.premiumContextEyebrow}>Premium contextual</div>
+                    <div style={styles.premiumContextEyebrow}>Premium según tu uso</div>
                     <div style={styles.premiumContextTitle}>{premiumContextTitle}</div>
                     <div style={styles.premiumContextText}>{premiumContextText}</div>
 
@@ -1943,13 +1943,13 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Recomendación</div>
                   <h2 style={styles.sectionTitle}>Siguiente mejora sugerida</h2>
                   <div style={styles.sectionSub}>
-                    Una recomendación concreta para fortalecer tu cuenta sin sacarte del flujo principal del producto.
+                    Una sola siguiente acción útil para mejorar tu cuenta sin competir con el loop principal del producto.
                   </div>
                 </div>
               </div>
 
               <div style={styles.recoCard}>
-                <div style={styles.recoTitle}>{recommendationTitle}</div>
+                <div style={styles.recoTitle}>Próximo mejor paso</div>
                 <div style={styles.recoMain}>{recommendationTitle}</div>
                 <div style={styles.recoHint}>{recommendationHint}</div>
 
@@ -1969,7 +1969,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Resumen diario</div>
                   <h2 style={styles.sectionTitle}>Entrega automática por correo</h2>
                   <div style={styles.sectionSub}>
-                    Controla si quieres recibir una lectura diaria de tu coordinación y a qué hora local prefieres que llegue.
+                    Controla si quieres recibir una lectura diaria simple de tu coordinación y a qué hora local prefieres verla en tu correo.
                   </div>
                 </div>
               </div>
