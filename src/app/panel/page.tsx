@@ -1,3 +1,4 @@
+
 // src/app/panel/page.tsx
 "use client";
 
@@ -49,10 +50,6 @@ import {
   type GroupState,
   type UsageMode,
 } from "@/lib/groups";
-import { colors, radii, shadows, spacing } from "@/styles/design-tokens";
-
-/* SYNCPLANS: reinforce coordination narrative in panel */
-
 
 type QuickAction = {
   id: string;
@@ -157,6 +154,107 @@ function normalizeGroupLabel(input?: string | null) {
   return raw;
 }
 
+function formatCaptureDate(value?: string | null) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "Sin fecha";
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return "Sin fecha";
+
+  return date.toLocaleString([], {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function MetricCard({
+  label,
+  value,
+  hint,
+  danger = false,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  danger?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        ...styles.metricCard,
+        ...(danger ? styles.metricCardDanger : null),
+      }}
+    >
+      <div style={styles.metricLabel}>{label}</div>
+      <div style={styles.metricValue}>{value}</div>
+      <div style={styles.metricHint}>{hint}</div>
+    </div>
+  );
+}
+
+function StatusPill({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "neutral" | "ok" | "warn" | "bad";
+}) {
+  return (
+    <span
+      style={{
+        ...styles.statusPill,
+        ...(tone === "ok"
+          ? styles.statusPillOk
+          : tone === "warn"
+            ? styles.statusPillWarn
+            : tone === "bad"
+              ? styles.statusPillBad
+              : styles.statusPillNeutral),
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function EmptyBlock({
+  copy,
+  primaryLabel,
+  onPrimary,
+  secondaryLabel,
+  onSecondary,
+}: {
+  copy: string;
+  primaryLabel?: string;
+  onPrimary?: () => void;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
+}) {
+  return (
+    <div style={styles.emptyBlock}>
+      <p style={styles.emptyCopy}>{copy}</p>
+
+      {primaryLabel || secondaryLabel ? (
+        <div style={styles.emptyActions}>
+          {primaryLabel && onPrimary ? (
+            <button type="button" style={styles.primarySmallButton} onClick={onPrimary}>
+              {primaryLabel}
+            </button>
+          ) : null}
+
+          {secondaryLabel && onSecondary ? (
+            <button type="button" style={styles.secondarySmallButton} onClick={onSecondary}>
+              {secondaryLabel}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function PremiumLock({ title, copy }: PremiumLockProps) {
   const router = useRouter();
 
@@ -179,7 +277,33 @@ function PremiumLock({ title, copy }: PremiumLockProps) {
     </div>
   );
 }
+function formatExternalEventRange(event: ExternalEvent) {
+  const start = new Date(event.start);
+  const end = event.end ? new Date(event.end) : null;
 
+  if (Number.isNaN(start.getTime())) return "Sin fecha";
+
+  const day = start.toLocaleDateString([], {
+    day: "2-digit",
+    month: "short",
+  });
+
+  const startTime = start.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  if (!end || Number.isNaN(end.getTime())) {
+    return `${day} · ${startTime}`;
+  }
+
+  const endTime = end.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return `${day} · ${startTime}–${endTime}`;
+}
 export default function PanelPage() {
   const router = useRouter();
 
@@ -191,14 +315,11 @@ export default function PanelPage() {
 
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
-
   const [googleEvents, setGoogleEvents] = useState<ExternalEvent[]>([]);
   const [googleEventsLoading, setGoogleEventsLoading] = useState(false);
   const [googleEventsError, setGoogleEventsError] = useState<string | null>(null);
 
-  const [contextState, setContextState] = useState<GroupState>(() =>
-    getGroupState()
-  );
+  const [contextState, setContextState] = useState<GroupState>(() => getGroupState());
   const [contextSaving, setContextSaving] = useState<UsageMode | null>(null);
   const [captures, setCaptures] = useState<PublicInviteCaptureItem[]>([]);
   const [capturesLoading, setCapturesLoading] = useState(true);
@@ -219,9 +340,7 @@ export default function PanelPage() {
         getMyEvents().catch(() => [] as DbEventRow[]),
         getMyGroups().catch(() => [] as GroupRow[]),
         getMyProfile().catch(() => null as Profile | null),
-        getMyConflictResolutionsMap().catch(
-          () => ({} as Record<string, string>)
-        ),
+        getMyConflictResolutionsMap().catch(() => ({} as Record<string, string>)),
         getMyDeclinedEventIds().catch(() => new Set<string>()),
       ]);
 
@@ -235,9 +354,7 @@ export default function PanelPage() {
       setProfile(fetchedProfile);
     } catch (err: any) {
       console.error("Error cargando panel:", err);
-      setError(
-        err?.message || "No se pudo cargar el panel. Intenta recargar."
-      );
+      setError(err?.message || "No se pudo cargar el panel. Intenta recargar.");
     } finally {
       setLoading(false);
     }
@@ -398,9 +515,7 @@ export default function PanelPage() {
 
       if (!res.ok || !json?.ok) {
         setGoogleEvents([]);
-        setGoogleEventsError(
-          json?.error || "No se pudieron leer los eventos de Google."
-        );
+        setGoogleEventsError(json?.error || "No se pudieron leer los eventos de Google.");
         return;
       }
 
@@ -412,9 +527,7 @@ export default function PanelPage() {
     } catch (err: any) {
       console.error("Error leyendo eventos de Google:", err);
       setGoogleEvents([]);
-      setGoogleEventsError(
-        err?.message || "Error inesperado al leer eventos de Google."
-      );
+      setGoogleEventsError(err?.message || "Error inesperado al leer eventos de Google.");
     } finally {
       setGoogleEventsLoading(false);
     }
@@ -430,10 +543,7 @@ export default function PanelPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const syncViewport = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
+    const syncViewport = () => setIsMobile(window.innerWidth < 768);
     syncViewport();
     window.addEventListener("resize", syncViewport);
     return () => window.removeEventListener("resize", syncViewport);
@@ -498,14 +608,11 @@ export default function PanelPage() {
   const premiumActive = isPremiumUser(profile);
   const canUseCaptures = hasPremiumAccess(profile);
   const canUseGoogleIntegration = hasPremiumAccess(profile);
-  const canUseAdvancedAnalytics = hasPremiumAccess(profile);
 
   const currentContextOption =
     CONTEXT_OPTIONS.find((x) => x.key === contextState.mode) ?? CONTEXT_OPTIONS[0];
 
-  const currentContextGroupName = normalizeGroupLabel(
-    contextState.groupName ?? null
-  );
+  const currentContextGroupName = normalizeGroupLabel(contextState.groupName ?? null);
 
   const showContextGroupName =
     currentContextGroupName &&
@@ -573,6 +680,7 @@ export default function PanelPage() {
       title: "Invitaciones",
       hint: "Aceptar, revisar y destrabar accesos",
       href: "/invitations",
+      badge: captures.length > 0 ? `${captures.length}` : undefined,
       featured: true,
     },
     {
@@ -607,7 +715,7 @@ export default function PanelPage() {
     },
   ];
 
-  const groupsPreview = useMemo(() => groups.slice(0, 2), [groups]);
+  const groupsPreview = useMemo(() => groups.slice(0, isMobile ? 3 : 4), [groups, isMobile]);
 
   const googlePill = useMemo(() => {
     if (googleLoading) return { label: "Revisando", tone: "neutral" as const };
@@ -621,8 +729,8 @@ export default function PanelPage() {
     connectionState === "connected"
       ? "Gestionar"
       : connectionState === "needs_reauth"
-      ? "Reconectar"
-      : "Conectar";
+        ? "Reconectar"
+        : "Conectar";
 
   const googleLine =
     connectionState === "connected"
@@ -630,20 +738,21 @@ export default function PanelPage() {
         ? `Conectado con ${googleStatus.account.email}`
         : "Google Calendar conectado"
       : connectionState === "needs_reauth"
-      ? googleStatus?.account?.email
-        ? `${googleStatus.account.email} necesita reconexión`
-        : "La conexión necesita reconexión"
-      : "Google Calendar no conectado";
+        ? googleStatus?.account?.email
+          ? `${googleStatus.account.email} necesita reconexión`
+          : "La conexión necesita reconexión"
+        : "Google Calendar no conectado";
 
   let heroSummary =
-    "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones. También es donde conviertes una cuenta individual en un sistema compartido que puede crecer mejor.";
+    "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones. Es el lugar donde SyncPlans deja de parecer una app suelta y se convierte en sistema.";
   let heroSummaryMobile =
-    "Administra grupos, invitaciones, plan e integraciones sin salir del hub.";
+    "Administra grupos, invitaciones, plan e integraciones.";
 
   if (!loading) {
     if (totalGroups === 0) {
       heroSummary =
         "El siguiente salto de SyncPlans no es llenar más pantallas, sino crear tu primer grupo, traer a la otra persona y mover la coordinación fuera del chat y dentro del sistema.";
+      heroSummaryMobile = "Crea tu primer grupo para activar la capa compartida.";
     } else if (conflictsNow > 0) {
       heroSummary = `Tu sistema hoy tiene ${conflictsNow} conflicto${
         conflictsNow === 1 ? "" : "s"
@@ -654,15 +763,15 @@ export default function PanelPage() {
     } else if (totalGroups > 0) {
       heroSummary = `Ya tienes ${totalGroups} grupo${
         totalGroups === 1 ? "" : "s"
-      } creado${totalGroups === 1 ? "" : "s"}. Desde aquí decides cómo escala tu coordinación, a quién conviene meter dentro ahora y dónde el valor compartido todavía está incompleto.`;
-      heroSummaryMobile = `${totalGroups} grupo${totalGroups === 1 ? "" : "s"} activo${totalGroups === 1 ? "" : "s"}. Usa el panel para gestionar estructura y accesos.`;
+      } creado${totalGroups === 1 ? "" : "s"}. Desde aquí decides cómo escala tu coordinación y qué parte del sistema necesita más estructura.`;
+      heroSummaryMobile = `${totalGroups} grupo${totalGroups === 1 ? "" : "s"} activo${totalGroups === 1 ? "" : "s"}. Gestiona estructura y accesos.`;
     }
   }
 
   const heroPrimaryCtaLabel = totalGroups === 0 ? "Crear grupo" : "Abrir grupos";
   const heroPrimaryCtaHref = totalGroups === 0 ? "/groups/new" : "/groups";
-  const heroSecondaryCtaLabel = totalGroups === 0 ? "Ver invitaciones" : "Traer a alguien";
-
+  const heroSecondaryCtaLabel = totalGroups === 0 ? "Ver invitaciones" : "Invitar a alguien";
+  const showHeroConflictNote = conflictsNow > 0;
 
   async function handleContextChange(nextMode: UsageMode) {
     if (contextSaving === nextMode || contextState.mode === nextMode) return;
@@ -683,6 +792,28 @@ export default function PanelPage() {
     }
   }
 
+  if (loading && !stats) {
+    return (
+      <MobileScaffold maxWidth={1120}>
+        <PremiumHeader
+          title="Panel"
+          subtitle="Tu hub de grupos, invitaciones, plan e integraciones."
+        />
+        <div style={styles.stack}>
+          <section style={styles.heroCard}>
+            <div style={styles.loadingBlock}>
+              <div style={styles.loadingDot} />
+              <div>
+                <div style={styles.loadingTitle}>Cargando panel…</div>
+                <div style={styles.loadingSub}>Preparando tu estructura</div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </MobileScaffold>
+    );
+  }
+
   return (
     <MobileScaffold maxWidth={1120}>
       <PremiumHeader
@@ -701,18 +832,15 @@ export default function PanelPage() {
           <div style={styles.heroTopRow}>
             <div style={styles.heroTextWrap}>
               <div style={styles.eyebrow}>Panel</div>
-              <h1 style={styles.heroTitle}>Centro de estructura</h1>
+              <h1 style={styles.heroTitle}>Hub administrativo</h1>
               <p style={styles.heroCopy}>{isMobile ? heroSummaryMobile : heroSummary}</p>
+
               {!isMobile ? (
                 <div style={styles.heroMicroCopy}>
                   {totalGroups === 0 ? (
-                    <>
-                      Crea la estructura primero. Cuando entra otra persona, SyncPlans deja de ser una herramienta ordenada y empieza a convertirse en coordinación real.
-                    </>
+                    <>Crea la estructura primero. Cuando entra otra persona, SyncPlans deja de ser una herramienta ordenada y empieza a convertirse en coordinación real.</>
                   ) : (
-                    <>
-                      La operación diaria sigue viviendo en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Eventos</strong> y <strong>Conflictos</strong>. Aquí solo administras la base sobre la que todo eso funciona.
-                    </>
+                    <>La operación diaria sigue viviendo en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Eventos</strong> y <strong>Conflictos</strong>. Aquí administras la base sobre la que todo eso funciona.</>
                   )}
                 </div>
               ) : null}
@@ -736,27 +864,28 @@ export default function PanelPage() {
             </div>
           </div>
 
+          {showHeroConflictNote ? (
+            <div style={styles.heroAlert}>
+              <div style={styles.heroAlertEyebrow}>Atención</div>
+              <div style={styles.heroAlertText}>
+                Hay {conflictsNow} conflicto{conflictsNow === 1 ? "" : "s"} activo{conflictsNow === 1 ? "" : "s"}. Resuélvelos desde Conflictos; aquí solo administras estructura.
+              </div>
+            </div>
+          ) : null}
+
           <div style={styles.metricsGrid}>
-            <MetricCard
-              label="Grupos"
-              value={loading ? "—" : String(totalGroups)}
-              hint="Espacios compartidos"
-            />
-            <MetricCard
-              label="Eventos"
-              value={loading ? "—" : String(totalEvents)}
-              hint="Carga visible"
-            />
+            <MetricCard label="Grupos" value={loading ? "—" : String(totalGroups)} hint="Espacios compartidos" />
+            <MetricCard label="Eventos" value={loading ? "—" : String(totalEvents)} hint="Carga visible" />
             <MetricCard
               label="Google"
               value={
                 loading
                   ? "—"
                   : connectionState === "connected"
-                  ? "Activo"
-                  : connectionState === "needs_reauth"
-                  ? "Revisar"
-                  : "Pendiente"
+                    ? "Activo"
+                    : connectionState === "needs_reauth"
+                      ? "Revisar"
+                      : "Pendiente"
               }
               hint="Estado externo"
             />
@@ -766,6 +895,40 @@ export default function PanelPage() {
               hint="Pendientes"
               danger={conflictsNow > 0}
             />
+          </div>
+        </section>
+
+        <section style={styles.sectionCardCompact}>
+          <div style={styles.sectionHead}>
+            <div>
+              <div style={styles.sectionEyebrow}>Accesos principales</div>
+              <h2 style={styles.sectionTitle}>Administra lo importante</h2>
+              {!isMobile ? (
+                <div style={styles.sectionSubtleCopy}>
+                  Este panel existe para ordenar estructura, no para duplicar la operación diaria.
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div style={styles.quickGrid}>
+            {adminActions.map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                style={{
+                  ...styles.quickCard,
+                  ...(action.featured ? styles.quickCardFeatured : null),
+                }}
+                onClick={() => router.push(action.href)}
+              >
+                <div style={styles.quickCardTop}>
+                  <div style={styles.quickTitle}>{action.title}</div>
+                  {action.badge ? <span style={styles.quickBadge}>{action.badge}</span> : null}
+                </div>
+                <div style={styles.quickHint}>{action.hint}</div>
+              </button>
+            ))}
           </div>
         </section>
 
@@ -786,17 +949,22 @@ export default function PanelPage() {
                     background: currentContextOption.dot,
                   }}
                 />
-                <span style={{ ...styles.contextCurrentTextSmall, ...(isMobile ? { fontSize: 18 } : {}) }}>
+                <span style={styles.contextCurrentTextSmall}>
                   {currentContextOption.label}
                 </span>
                 {showContextGroupName ? (
-                  <span style={{ ...styles.contextInlineMeta, ...(isMobile ? { fontSize: 11 } : {}) }}>{showContextGroupName}</span>
+                  <span style={styles.contextInlineMeta}>{showContextGroupName}</span>
                 ) : null}
               </div>
             </div>
           </div>
 
-          <div style={{ ...styles.contextGrid, ...(isMobile ? { gridTemplateColumns: "1fr", gap: 8 } : {}) }}>
+          <div
+            style={{
+              ...styles.contextGrid,
+              ...(isMobile ? { gridTemplateColumns: "1fr", gap: 8 } : null),
+            }}
+          >
             {CONTEXT_OPTIONS.map((option) => {
               const active = option.key === contextState.mode;
               const saving = contextSaving === option.key;
@@ -809,23 +977,22 @@ export default function PanelPage() {
                   disabled={saving}
                   style={{
                     ...styles.contextCard,
-                    ...(isMobile ? { padding: 11, gap: 6 } : {}),
-                    ...(active ? styles.contextCardActive : {}),
-                    ...(saving ? styles.contextCardBusy : {}),
+                    ...(active ? styles.contextCardActive : null),
+                    ...(saving ? styles.contextCardBusy : null),
                   }}
                 >
-                  <div style={{ ...styles.contextCardTop, ...(isMobile ? { gap: 8 } : {}) }}>
+                  <div style={styles.contextCardTop}>
                     <span
                       style={{
                         ...styles.contextCardDot,
                         background: option.dot,
                       }}
                     />
-                    <span style={{ ...styles.contextCardLabel, ...(isMobile ? { fontSize: 14 } : {}) }}>{option.label}</span>
-                    {active ? <span style={{ ...styles.contextBadge, ...(isMobile ? { padding: "3px 7px", fontSize: 10 } : {}) }}>Activo</span> : null}
+                    <span style={styles.contextCardLabel}>{option.label}</span>
+                    {active ? <span style={styles.contextBadge}>Activo</span> : null}
                   </div>
 
-                  <div style={{ ...styles.contextCardHint, ...(isMobile ? { fontSize: 11, lineHeight: 1.35 } : {}) }}>{option.hint}</div>
+                  <div style={styles.contextCardHint}>{option.hint}</div>
                 </button>
               );
             })}
@@ -834,8 +1001,6 @@ export default function PanelPage() {
 
         <div style={styles.mainGrid}>
           <div style={styles.leftCol}>
-            {!isMobile ? (
-            <>
             <section style={styles.sectionCardCompact}>
               <div style={styles.sectionHead}>
                 <div>
@@ -889,6 +1054,11 @@ export default function PanelPage() {
                 <div>
                   <div style={styles.sectionEyebrow}>Capturas</div>
                   <h2 style={styles.sectionTitle}>Bandeja de respuestas</h2>
+                  {!isMobile ? (
+                    <div style={styles.sectionSubtleCopy}>
+                      Respuestas externas que puedes convertir en acción sin salir del sistema.
+                    </div>
+                  ) : null}
                 </div>
 
                 <button
@@ -903,36 +1073,34 @@ export default function PanelPage() {
               {!canUseCaptures ? (
                 <PremiumLock
                   title="Capturas premium"
-                  copy="Respuestas externas convertidas en acciones."
+                  copy="Respuestas externas convertidas en acciones dentro del flujo."
                 />
               ) : capturesLoading ? (
                 <EmptyBlock copy="Buscando respuestas…" />
               ) : captures.length === 0 ? (
                 <EmptyBlock copy="No hay respuestas pendientes." />
               ) : (
-                <div style={styles.listCompact}>
-                  {captures.slice(0, 2).map((capture) => {
+                <div style={styles.captureList}>
+                  {captures.slice(0, isMobile ? 2 : 3).map((capture) => {
                     const hasProposal = Boolean(capture.proposed_date);
                     const statusTone =
                       capture.status === "accepted"
                         ? "ok"
                         : hasProposal
-                        ? "warn"
-                        : "bad";
+                          ? "warn"
+                          : "bad";
 
                     return (
                       <div key={capture.invite_id} style={styles.captureCardCompact}>
                         <div style={styles.captureTopRow}>
                           <div style={styles.captureHeaderCopy}>
-                            <div style={styles.listTitle}>
-                              {capture.event_title || "Evento"}
-                            </div>
+                            <div style={styles.listTitle}>{capture.event_title || "Evento"}</div>
                             <div style={styles.captureSubline}>
                               {capture.status === "accepted"
                                 ? "Aceptado"
                                 : hasProposal
-                                ? `Propuso: ${formatCaptureDate(capture.proposed_date)}`
-                                : "Rechazado"}
+                                  ? `Propuso: ${formatCaptureDate(capture.proposed_date)}`
+                                  : "Rechazado"}
                             </div>
                           </div>
 
@@ -941,8 +1109,8 @@ export default function PanelPage() {
                               capture.status === "accepted"
                                 ? "Aceptado"
                                 : hasProposal
-                                ? "Cambio"
-                                : "Rechazado"
+                                  ? "Cambio"
+                                  : "Rechazado"
                             }
                             tone={statusTone}
                           />
@@ -950,28 +1118,37 @@ export default function PanelPage() {
 
                         <div style={styles.captureActions}>
                           {capture.status === "accepted" ? (
-                            <button
-                              type="button"
-                              style={styles.primarySmallButton}
-                              onClick={() => openEventFromCapture(capture)}
-                            >
-                              Ver evento
-                            </button>
-                          ) : hasProposal ? (
                             <>
                               <button
                                 type="button"
                                 style={styles.primarySmallButton}
                                 onClick={() => handleTakeCaptureProposal(capture)}
                               >
-                                Tomar fecha
+                                Aplicar
                               </button>
                               <button
                                 type="button"
                                 style={styles.secondarySmallButton}
+                                onClick={() => openEventFromCapture(capture)}
+                              >
+                                Ver evento
+                              </button>
+                            </>
+                          ) : hasProposal ? (
+                            <>
+                              <button
+                                type="button"
+                                style={styles.primarySmallButton}
                                 onClick={() => handleReviewCapture(capture)}
                               >
                                 Revisar
+                              </button>
+                              <button
+                                type="button"
+                                style={styles.secondarySmallButton}
+                                onClick={() => handleRescheduleCapture(capture)}
+                              >
+                                Reprogramar
                               </button>
                             </>
                           ) : (
@@ -991,29 +1168,29 @@ export default function PanelPage() {
               )}
             </section>
 
-            <section style={styles.sectionCardCompact}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Operación diaria</div>
-                  <h2 style={styles.sectionTitle}>Volver al flujo principal</h2>
+            {!isMobile ? (
+              <section style={styles.sectionCardCompact}>
+                <div style={styles.sectionHead}>
+                  <div>
+                    <div style={styles.sectionEyebrow}>Operación diaria</div>
+                    <h2 style={styles.sectionTitle}>Volver al flujo principal</h2>
+                  </div>
                 </div>
-              </div>
 
-              <div style={styles.pillActionsRow}>
-                {operationActions.map((action) => (
-                  <button
-                    key={action.id}
-                    type="button"
-                    style={styles.pillAction}
-                    onClick={() => router.push(action.href)}
-                  >
-                    <span>{action.label}</span>
-                    {action.badge ? <span style={styles.pillBadge}>{action.badge}</span> : null}
-                  </button>
-                ))}
-              </div>
-            </section>
-            </>
+                <div style={styles.pillActionsRow}>
+                  {operationActions.map((action) => (
+                    <button
+                      key={action.id}
+                      type="button"
+                      style={styles.pillAction}
+                      onClick={() => router.push(action.href)}
+                    >
+                      <span>{action.label}</span>
+                      {action.badge ? <span style={styles.pillBadge}>{action.badge}</span> : null}
+                    </button>
+                  ))}
+                </div>
+              </section>
             ) : null}
           </div>
 
@@ -1025,10 +1202,10 @@ export default function PanelPage() {
                   planInfo.tone === "free"
                     ? "1px solid rgba(56,189,248,0.25)"
                     : planInfo.tone === "trial"
-                    ? "1px solid rgba(168,85,247,0.35)"
-                    : planInfo.tone === "premium"
-                    ? "1px solid rgba(34,197,94,0.35)"
-                    : "1px solid rgba(251,191,36,0.35)",
+                      ? "1px solid rgba(168,85,247,0.35)"
+                      : planInfo.tone === "premium"
+                        ? "1px solid rgba(34,197,94,0.35)"
+                        : "1px solid rgba(251,191,36,0.35)",
               }}
             >
               <div style={styles.planPill}>{planInfo.pill}</div>
@@ -1036,7 +1213,7 @@ export default function PanelPage() {
               <p style={styles.planCopy}>{isMobile ? planInfo.supportingCopy : planInfo.copy}</p>
               {!isMobile ? <div style={styles.planSupportCopy}>{planInfo.supportingCopy}</div> : null}
 
-              {!planInfo.tone || planInfo.tone === "free" ? (
+              {planInfo.tone === "free" ? (
                 <div style={styles.planMiniNote}>
                   {groupLimitState.reached
                     ? "Premium abre más grupos y más control cuando la coordinación crece."
@@ -1064,131 +1241,107 @@ export default function PanelPage() {
                     </div>
                   ) : null}
                 </div>
-
-                {!canUseGoogleIntegration ? (
-                  <span style={styles.googlePremiumBadge}>Premium</span>
-                ) : (
-                  <StatusPill label={googlePill.label} tone={googlePill.tone} />
-                )}
               </div>
 
               {!canUseGoogleIntegration ? (
                 <PremiumLock
-                  title="Google premium"
-                  copy="Contexto externo sin salir de SyncPlans."
+                  title="Google Calendar"
+                  copy="Conecta calendarios externos cuando Premium ya tenga sentido para tu coordinación."
                 />
               ) : (
                 <>
-                  <div style={styles.integrationBox}>
-                    <div style={styles.integrationCopyWrap}>
-                      <div style={styles.integrationLine}>{googleLine}</div>
-                      {googleStatus?.error ? (
-                        <div style={styles.errorText}>{googleStatus.error}</div>
-                      ) : null}
+                  <div style={styles.integrationCard}>
+                    <div style={styles.integrationTop}>
+                      <div>
+                        <div style={styles.integrationTitle}>Google Calendar</div>
+                        <div style={styles.integrationLine}>{googleLine}</div>
+                      </div>
+
+                      <StatusPill label={googlePill.label} tone={googlePill.tone} />
                     </div>
+
+                    {googleStatus?.error ? (
+                      <div style={styles.integrationError}>{googleStatus.error}</div>
+                    ) : null}
 
                     <div style={styles.integrationActions}>
                       <button
                         type="button"
                         style={styles.primarySmallButton}
-                        onClick={() => router.push("/settings?tab=integrations")}
+                        onClick={() => router.push("/settings/google-calendar")}
                       >
                         {googlePrimaryCta}
                       </button>
-                      <button
-                        type="button"
-                        style={styles.secondarySmallButton}
-                        onClick={fetchGoogleStatus}
-                        disabled={googleLoading}
-                      >
-                        Actualizar
-                      </button>
+                      {connectionState === "connected" ? (
+                        <button
+                          type="button"
+                          style={styles.secondarySmallButton}
+                          onClick={fetchGoogleEvents}
+                        >
+                          Actualizar snapshot
+                        </button>
+                      ) : null}
                     </div>
                   </div>
 
-                  {connectionState === "connected" ? (
-                    <div style={styles.googleEventsWrap}>
-                      {googleEventsError ? (
-                        <div style={styles.errorText}>{googleEventsError}</div>
-                      ) : null}
-
-                      {googleEventsLoading ? (
-                        <EmptyBlock copy="Cargando eventos…" />
-                      ) : googleEvents.length === 0 ? (
-                        <EmptyBlock copy="No encontramos eventos próximos." />
-                      ) : (
-                        <div style={styles.listCompact}>
-                          {googleEvents.slice(0, 2).map((event) => (
-                            <div key={event.id} style={styles.listItemColumn}>
-                              <div style={styles.listTitle}>
-                                {event.title || "Evento sin título"}
-                              </div>
-                              <div style={styles.listMeta}>
-                                {formatExternalEventRange(event)}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                  <div style={styles.googleSnapshot}>
+                    <div style={styles.snapshotHead}>
+                      <div style={styles.snapshotTitle}>Snapshot externo</div>
+                      <div style={styles.snapshotMeta}>
+                        {googleEventsLoading
+                          ? "Cargando…"
+                          : `${googleEvents.length} evento${googleEvents.length === 1 ? "" : "s"}`}
+                      </div>
                     </div>
-                  ) : null}
+
+                    {googleEventsError ? (
+                      <div style={styles.snapshotEmpty}>{googleEventsError}</div>
+                    ) : googleEventsLoading ? (
+                      <div style={styles.snapshotEmpty}>Leyendo eventos de Google…</div>
+                    ) : googleEvents.length === 0 ? (
+                      <div style={styles.snapshotEmpty}>Aún no hay eventos externos visibles.</div>
+                    ) : (
+                      <div style={styles.snapshotList}>
+                        {googleEvents.slice(0, 3).map((event) => (
+                          <div key={event.id} style={styles.snapshotItem}>
+                            <div style={styles.snapshotItemTitle}>
+                              {event.title || "Evento externo"}
+                            </div>
+                            <div style={styles.snapshotItemMeta}>
+                             {formatExternalEventRange(event)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </section>
 
-{!isMobile ? (
-            <section style={styles.sectionCardCompact}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Insights</div>
-                  <h2 style={styles.sectionTitle}>Lectura operativa</h2>
-                </div>
-              </div>
-
-              {!canUseAdvancedAnalytics ? (
-                <PremiumLock
-                  title="Insights premium"
-                  copy="Carga, fricción y lectura avanzada."
-                />
-              ) : (
-                <div style={styles.insightGrid}>
-                  <div style={styles.insightCardCompact}>
-                    <div style={styles.insightTitle}>Carga</div>
-                    <div style={styles.insightValue}>
-                      {totalEvents === 0
-                        ? "Ligera"
-                        : totalEvents < 5
-                        ? "Controlada"
-                        : totalEvents < 10
-                        ? "Activa"
-                        : "Intensa"}
-                    </div>
-                  </div>
-
-                  <div style={styles.insightCardCompact}>
-                    <div style={styles.insightTitle}>Fricción</div>
-                    <div style={styles.insightValue}>
-                      {conflictsNow === 0
-                        ? "Baja"
-                        : conflictsNow < 3
-                        ? "Moderada"
-                        : "Alta"}
-                    </div>
-                  </div>
-
-                  <div style={styles.insightCardCompact}>
-                    <div style={styles.insightTitle}>Estructura</div>
-                    <div style={styles.insightValue}>
-                      {totalGroups === 0
-                        ? "Vacía"
-                        : totalGroups === 1
-                        ? "Simple"
-                        : "Distribuida"}
-                    </div>
+            {isMobile ? (
+              <section style={styles.sectionCardCompact}>
+                <div style={styles.sectionHead}>
+                  <div>
+                    <div style={styles.sectionEyebrow}>Operación diaria</div>
+                    <h2 style={styles.sectionTitle}>Volver al flujo principal</h2>
                   </div>
                 </div>
-              )}
-            </section>
+
+                <div style={styles.pillActionsRow}>
+                  {operationActions.map((action) => (
+                    <button
+                      key={action.id}
+                      type="button"
+                      style={styles.pillAction}
+                      onClick={() => router.push(action.href)}
+                    >
+                      <span>{action.label}</span>
+                      {action.badge ? <span style={styles.pillBadge}>{action.badge}</span> : null}
+                    </button>
+                  ))}
+                </div>
+              </section>
             ) : null}
           </div>
         </div>
@@ -1197,970 +1350,758 @@ export default function PanelPage() {
   );
 }
 
-function MetricCard({
-  label,
-  value,
-  hint,
-  danger = false,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  danger?: boolean;
-}) {
-  return (
-    <div style={styles.metricCard}>
-      <div style={styles.metricLabel}>{label}</div>
-      <div
-        style={{
-          ...styles.metricValue,
-          color: danger ? colors.accentDanger : colors.textPrimary,
-        }}
-      >
-        {value}
-      </div>
-      <div style={styles.metricHint}>{hint}</div>
-    </div>
-  );
-}
-
-function StatusPill({
-  label,
-  tone = "neutral",
-}: {
-  label: string;
-  tone?: "ok" | "warn" | "bad" | "neutral";
-}) {
-  const toneStyles =
-    tone === "ok"
-      ? {
-          borderColor: "rgba(56,189,248,0.45)",
-          color: colors.textPrimary,
-          dot: colors.accentPrimary,
-        }
-      : tone === "warn"
-      ? {
-          borderColor: "rgba(251,191,36,0.38)",
-          color: "#fde68a",
-          dot: "#fbbf24",
-        }
-      : tone === "bad"
-      ? {
-          borderColor: "rgba(251,113,133,0.38)",
-          color: "#fecdd3",
-          dot: "#fb7185",
-        }
-      : {
-          borderColor: "rgba(148,163,184,0.28)",
-          color: colors.textSecondary,
-          dot: "rgba(148,163,184,0.85)",
-        };
-
-  return (
-    <span
-      style={{
-        ...styles.statusPill,
-        borderColor: toneStyles.borderColor,
-        color: toneStyles.color,
-      }}
-    >
-      <span
-        style={{
-          ...styles.statusDot,
-          background: toneStyles.dot,
-        }}
-      />
-      {label}
-    </span>
-  );
-}
-
-function EmptyBlock({
-  copy,
-  primaryLabel,
-  onPrimary,
-  secondaryLabel,
-  onSecondary,
-}: {
-  copy: string;
-  primaryLabel?: string;
-  onPrimary?: () => void;
-  secondaryLabel?: string;
-  onSecondary?: () => void;
-}) {
-  return (
-    <div style={styles.emptyBlockWrap}>
-      <div style={styles.emptyBlock}>{copy}</div>
-      {primaryLabel && onPrimary ? (
-        <div style={styles.emptyActionsRow}>
-          <button type="button" style={styles.emptyPrimaryBtn} onClick={onPrimary}>
-            {primaryLabel}
-          </button>
-          {secondaryLabel && onSecondary ? (
-            <button type="button" style={styles.emptySecondaryBtn} onClick={onSecondary}>
-              {secondaryLabel}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function formatCaptureDate(value: string | null) {
-  if (!value) return "Fecha no disponible";
-
-  try {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "Fecha no disponible";
-
-    return date.toLocaleString("es-PE", {
-      day: "2-digit",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "Fecha no disponible";
-  }
-}
-
-function formatExternalEventRange(event: ExternalEvent) {
-  try {
-    const start = new Date(event.start);
-    const end = new Date(event.end);
-
-    const sameDay =
-      start.getFullYear() === end.getFullYear() &&
-      start.getMonth() === end.getMonth() &&
-      start.getDate() === end.getDate();
-
-    if (event.allDay) {
-      return start.toLocaleDateString("es-PE", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
-    }
-
-    if (sameDay) {
-      return `${start.toLocaleDateString("es-PE", {
-        day: "2-digit",
-        month: "short",
-      })} · ${start.toLocaleTimeString("es-PE", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })} – ${end.toLocaleTimeString("es-PE", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })}`;
-    }
-
-    return `${start.toLocaleDateString("es-PE", {
-      day: "2-digit",
-      month: "short",
-    })} ${start.toLocaleTimeString("es-PE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })} · ${end.toLocaleDateString("es-PE", {
-      day: "2-digit",
-      month: "short",
-    })} ${end.toLocaleTimeString("es-PE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-  } catch {
-    return "Fecha no disponible";
-  }
-}
-
 const styles: Record<string, CSSProperties> = {
   stack: {
     display: "flex",
     flexDirection: "column",
-    gap: spacing.lg,
+    gap: 14,
+    paddingBottom: 24,
   },
-
+  errorBanner: {
+    borderRadius: 16,
+    border: "1px solid rgba(248,113,113,0.18)",
+    background: "rgba(127,29,29,0.22)",
+    color: "rgba(254,226,226,0.95)",
+    padding: "12px 14px",
+    fontSize: 13,
+    fontWeight: 700,
+  },
   heroCard: {
-    borderRadius: radii.xl,
-    border: `1px solid ${colors.borderSubtle}`,
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.08)",
     background:
-      "radial-gradient(1200px 420px at 0% 0%, rgba(56,189,248,0.16), transparent 55%), radial-gradient(760px 320px at 100% 0%, rgba(168,85,247,0.13), transparent 55%), rgba(15,23,42,0.94)",
-    padding: 20,
-    boxShadow: shadows.card,
-    display: "flex",
-    flexDirection: "column",
+      "radial-gradient(1200px 620px at 20% -10%, rgba(56,189,248,0.10), transparent 60%), radial-gradient(900px 520px at 100% 0%, rgba(124,58,237,0.10), transparent 58%), rgba(10,15,30,0.78)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
+    backdropFilter: "blur(16px)",
+    padding: 18,
+    display: "grid",
     gap: 16,
   },
-
   heroTopRow: {
     display: "flex",
-    gap: 18,
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    gap: 16,
     flexWrap: "wrap",
+    alignItems: "flex-start",
   },
-
   heroTextWrap: {
     minWidth: 0,
     flex: "1 1 520px",
   },
-
   eyebrow: {
     fontSize: 11,
     fontWeight: 900,
     textTransform: "uppercase",
-    letterSpacing: 0.8,
-    color: colors.accentPrimary,
-    marginBottom: 8,
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.88)",
   },
-
   heroTitle: {
-    margin: 0,
+    margin: "8px 0 0",
     fontSize: "clamp(28px, 4vw, 40px)",
-    lineHeight: 1.02,
+    lineHeight: 1.03,
+    letterSpacing: "-0.04em",
     fontWeight: 950,
-    maxWidth: 760,
+    color: "rgba(255,255,255,0.98)",
   },
-
   heroCopy: {
     margin: "10px 0 0",
-    maxWidth: 700,
-    color: colors.textMuted,
-    fontSize: 15,
-    lineHeight: 1.55,
+    maxWidth: 760,
+    fontSize: 14,
+    lineHeight: 1.58,
+    color: "rgba(226,232,240,0.78)",
+    fontWeight: 600,
   },
-
   heroMicroCopy: {
-    marginTop: 8,
+    marginTop: 10,
     fontSize: 13,
-    lineHeight: 1.5,
-    color: colors.textSecondary,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.66)",
+    fontWeight: 600,
   },
-
   heroActionStack: {
     display: "grid",
     gap: 10,
-    minWidth: 180,
-    alignSelf: "flex-start",
-    flex: "0 0 auto",
+    minWidth: 220,
   },
-
   primaryHeroCta: {
-    borderRadius: 999,
-    padding: "12px 16px",
-    border: "1px solid rgba(56,189,248,0.38)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.30), rgba(168,85,247,0.22))",
-    color: colors.textPrimary,
+    minHeight: 46,
+    borderRadius: 14,
+    border: "1px solid rgba(96,165,250,0.30)",
+    background: "rgba(59,130,246,0.18)",
+    color: "rgba(255,255,255,0.98)",
+    fontSize: 14,
     fontWeight: 900,
     cursor: "pointer",
+    padding: "0 16px",
   },
-
   secondaryHeroCta: {
-    borderRadius: 999,
-    padding: "11px 16px",
-    border: `1px solid ${colors.borderSubtle}`,
-    background: "rgba(255,255,255,0.04)",
-    color: colors.textPrimary,
+    minHeight: 44,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 13,
     fontWeight: 800,
     cursor: "pointer",
+    padding: "0 16px",
   },
-
-  metricsGrid: {
+  heroAlert: {
+    borderRadius: 16,
+    border: "1px solid rgba(251,191,36,0.22)",
+    background: "rgba(120,53,15,0.34)",
+    padding: "12px 14px",
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-    gap: 10,
+    gap: 4,
   },
-
-  metricCard: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    padding: 12,
-  },
-
-  metricLabel: {
+  heroAlertEyebrow: {
     fontSize: 11,
     fontWeight: 900,
-    color: colors.textSecondary,
     textTransform: "uppercase",
-    letterSpacing: 0.55,
+    letterSpacing: "0.08em",
+    color: "rgba(253,224,71,0.90)",
   },
-
-  metricValue: {
-    marginTop: 8,
-    fontSize: 24,
-    fontWeight: 950,
-    lineHeight: 1,
+  heroAlertText: {
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: "rgba(255,247,205,0.92)",
+    fontWeight: 700,
   },
-
-  metricHint: {
-    marginTop: 6,
-    fontSize: 12,
-    color: colors.textMuted,
-    lineHeight: 1.4,
-  },
-
-  mainGrid: {
+  metricsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-    gap: spacing.lg,
-    alignItems: "start",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: 10,
   },
-
-  leftCol: {
-    display: "flex",
-    flexDirection: "column",
-    gap: spacing.md,
-    minWidth: 0,
+  metricCard: {
+    display: "grid",
+    gap: 6,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    padding: "14px 14px",
+    minHeight: 92,
   },
-
-  rightCol: {
-    display: "flex",
-    flexDirection: "column",
-    gap: spacing.md,
-    minWidth: 0,
+  metricCardDanger: {
+    border: "1px solid rgba(248,113,113,0.18)",
+    background: "rgba(127,29,29,0.16)",
   },
-
-  sectionCard: {
-    borderRadius: radii.xl,
-    border: `1px solid ${colors.borderSubtle}`,
-    background: colors.surfaceLow,
-    boxShadow: shadows.card,
-    padding: 18,
-    display: "flex",
-    flexDirection: "column",
+  metricLabel: {
+    fontSize: 12,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.72)",
+  },
+  metricValue: {
+    fontSize: 24,
+    lineHeight: 1,
+    fontWeight: 950,
+    letterSpacing: "-0.04em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  metricHint: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.64)",
+    fontWeight: 600,
+  },
+  sectionCardCompact: {
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(10,15,30,0.76)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.24)",
+    backdropFilter: "blur(14px)",
+    padding: 16,
+    display: "grid",
     gap: 14,
   },
-
-  sectionCardCompact: {
-    borderRadius: radii.xl,
-    border: `1px solid ${colors.borderSubtle}`,
-    background: colors.surfaceLow,
-    boxShadow: shadows.card,
-    padding: 16,
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-
   sectionHead: {
     display: "flex",
-    gap: 12,
     justifyContent: "space-between",
+    gap: 12,
     alignItems: "flex-start",
     flexWrap: "wrap",
   },
-
   sectionEyebrow: {
     fontSize: 11,
+    fontWeight: 900,
     textTransform: "uppercase",
-    letterSpacing: 0.65,
-    fontWeight: 900,
-    color: colors.textSecondary,
-    marginBottom: 4,
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.84)",
   },
-
   sectionTitle: {
-    margin: 0,
+    margin: "4px 0 0",
     fontSize: 20,
+    lineHeight: 1.15,
     fontWeight: 900,
-    lineHeight: 1.08,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.98)",
   },
-
   sectionSubtleCopy: {
-    marginTop: 4,
+    marginTop: 6,
     fontSize: 13,
     lineHeight: 1.5,
-    color: colors.textMuted,
+    color: "rgba(226,232,240,0.66)",
+    fontWeight: 600,
   },
-
-  contextHeroCompact: {
-    borderRadius: radii.lg,
+  quickGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: 10,
+  },
+  quickCard: {
+    borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
-    background:
-      "radial-gradient(700px 220px at 0% 0%, rgba(56,189,248,0.10), transparent 55%), rgba(255,255,255,0.03)",
-    padding: 12,
-  },
-
-  contextHeroLeft: {
-    display: "flex",
-    flexDirection: "column",
+    background: "rgba(255,255,255,0.04)",
+    padding: 14,
+    display: "grid",
     gap: 8,
-    minWidth: 0,
-    width: "100%",
+    textAlign: "left",
+    cursor: "pointer",
   },
-
+  quickCardFeatured: {
+    border: "1px solid rgba(96,165,250,0.18)",
+    background: "rgba(59,130,246,0.10)",
+  },
+  quickCardTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 8,
+    alignItems: "center",
+  },
+  quickTitle: {
+    fontSize: 15,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.96)",
+  },
+  quickHint: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.70)",
+    fontWeight: 600,
+  },
+  quickBadge: {
+    minWidth: 22,
+    height: 22,
+    padding: "0 7px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.10)",
+    color: "rgba(255,255,255,0.96)",
+    fontSize: 11,
+    fontWeight: 900,
+  },
+  contextHeroCompact: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  contextHeroLeft: {
+    minWidth: 0,
+  },
   contextCurrentRow: {
     display: "flex",
     alignItems: "center",
     gap: 10,
     flexWrap: "wrap",
-    minWidth: 0,
   },
-
   contextCurrentDot: {
     width: 12,
     height: 12,
     borderRadius: 999,
-    boxShadow: "0 0 0 4px rgba(255,255,255,0.05)",
     flexShrink: 0,
   },
-
   contextCurrentTextSmall: {
-    fontSize: 20,
-    lineHeight: 1.05,
-    fontWeight: 950,
-    color: colors.textPrimary,
-    minWidth: 0,
+    fontSize: 18,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.97)",
   },
-
   contextInlineMeta: {
-    fontSize: 12,
-    color: colors.textMuted,
-    lineHeight: 1.4,
-    fontWeight: 700,
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "5px 9px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(226,232,240,0.72)",
+    fontSize: 11,
+    fontWeight: 800,
   },
-
   contextGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
     gap: 10,
   },
-
   contextCard: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.09)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(15,23,42,0.98))",
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
     padding: 14,
+    display: "grid",
+    gap: 8,
     textAlign: "left",
     cursor: "pointer",
-    color: colors.textPrimary,
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
   },
-
   contextCardActive: {
-    border: "1px solid rgba(56,189,248,0.24)",
-    background:
-      "linear-gradient(180deg, rgba(56,189,248,0.10), rgba(15,23,42,0.98))",
-    boxShadow: "0 12px 28px rgba(56,189,248,0.08)",
+    border: "1px solid rgba(96,165,250,0.28)",
+    background: "rgba(59,130,246,0.10)",
+    boxShadow: "0 0 0 1px rgba(59,130,246,0.18) inset",
   },
-
   contextCardBusy: {
-    opacity: 0.78,
-    cursor: "wait",
+    opacity: 0.7,
   },
-
   contextCardTop: {
     display: "flex",
     alignItems: "center",
-    gap: 10,
-    minWidth: 0,
+    gap: 8,
     flexWrap: "wrap",
   },
-
   contextCardDot: {
     width: 10,
     height: 10,
     borderRadius: 999,
     flexShrink: 0,
   },
-
   contextCardLabel: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 900,
-    lineHeight: 1.2,
-    color: colors.textPrimary,
+    color: "rgba(255,255,255,0.96)",
   },
-
   contextBadge: {
-    marginLeft: "auto",
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "3px 8px",
     borderRadius: 999,
-    padding: "4px 8px",
-    fontSize: 11,
+    border: "1px solid rgba(96,165,250,0.24)",
+    background: "rgba(59,130,246,0.16)",
+    color: "rgba(219,234,254,0.98)",
+    fontSize: 10,
     fontWeight: 900,
-    border: "1px solid rgba(56,189,248,0.34)",
-    background: "rgba(56,189,248,0.12)",
-    color: colors.textPrimary,
-    whiteSpace: "nowrap",
   },
-
   contextCardHint: {
-    margin: 0,
-    color: colors.textMuted,
     fontSize: 12,
     lineHeight: 1.45,
+    color: "rgba(226,232,240,0.68)",
+    fontWeight: 600,
   },
-
-  actionsGrid: {
+  mainGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+    gridTemplateColumns: "minmax(0, 1.2fr) minmax(280px, 0.8fr)",
+    gap: 14,
+    alignItems: "start",
+  },
+  leftCol: {
+    display: "grid",
+    gap: 14,
+  },
+  rightCol: {
+    display: "grid",
+    gap: 14,
+  },
+  ghostButton: {
+    minHeight: 38,
+    padding: "0 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  listCompact: {
+    display: "grid",
     gap: 10,
   },
-
-  actionCard: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.09)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(15,23,42,0.96))",
-    padding: 14,
-    textAlign: "left",
-    cursor: "pointer",
-    color: colors.textPrimary,
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-    minHeight: 96,
-  },
-
-  actionCardFeatured: {
-    background:
-      "linear-gradient(180deg, rgba(56,189,248,0.12), rgba(15,23,42,0.96))",
-    border: "1px solid rgba(56,189,248,0.18)",
-    boxShadow: "0 10px 24px rgba(56,189,248,0.08)",
-  },
-
-  actionCardTop: {
+  listItem: {
     display: "flex",
     justifyContent: "space-between",
+    gap: 12,
     alignItems: "center",
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    padding: "12px 13px",
+  },
+  listCopyWrap: {
+    minWidth: 0,
+    display: "grid",
+    gap: 4,
+  },
+  listTitle: {
+    fontSize: 14,
+    lineHeight: 1.35,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.96)",
+  },
+  listMeta: {
+    fontSize: 12,
+    lineHeight: 1.4,
+    color: "rgba(226,232,240,0.66)",
+    fontWeight: 700,
+  },
+  inlineLink: {
+    minHeight: 36,
+    padding: "0 12px",
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+  captureList: {
+    display: "grid",
     gap: 10,
   },
-
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: 900,
-    lineHeight: 1.2,
+  captureCardCompact: {
+    display: "grid",
+    gap: 10,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    padding: "12px 13px",
   },
-
-  actionHint: {
-    margin: 0,
-    color: colors.textMuted,
-    fontSize: 13,
+  captureTopRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
+  captureHeaderCopy: {
+    minWidth: 0,
+    display: "grid",
+    gap: 4,
+  },
+  captureSubline: {
+    fontSize: 12,
     lineHeight: 1.45,
+    color: "rgba(226,232,240,0.68)",
+    fontWeight: 700,
   },
-
-  badge: {
+  captureActions: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  statusPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 28,
+    padding: "0 10px",
     borderRadius: 999,
-    padding: "4px 8px",
     fontSize: 11,
     fontWeight: 900,
-    border: "1px solid rgba(56,189,248,0.34)",
-    background: "rgba(56,189,248,0.12)",
-    color: colors.textPrimary,
-    whiteSpace: "nowrap",
   },
-
+  statusPillNeutral: {
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.92)",
+  },
+  statusPillOk: {
+    border: "1px solid rgba(74,222,128,0.22)",
+    background: "rgba(20,83,45,0.84)",
+    color: "rgba(220,252,231,0.98)",
+  },
+  statusPillWarn: {
+    border: "1px solid rgba(251,191,36,0.22)",
+    background: "rgba(120,53,15,0.84)",
+    color: "rgba(254,243,199,0.98)",
+  },
+  statusPillBad: {
+    border: "1px solid rgba(248,113,113,0.20)",
+    background: "rgba(127,29,29,0.84)",
+    color: "rgba(254,226,226,0.98)",
+  },
+  primarySmallButton: {
+    minHeight: 38,
+    padding: "0 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(96,165,250,0.28)",
+    background: "rgba(59,130,246,0.18)",
+    color: "rgba(255,255,255,0.98)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  secondarySmallButton: {
+    minHeight: 38,
+    padding: "0 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
   pillActionsRow: {
     display: "flex",
-    flexWrap: "wrap",
     gap: 10,
+    flexWrap: "wrap",
   },
-
   pillAction: {
+    minHeight: 40,
+    padding: "0 12px",
     borderRadius: 999,
-    padding: "10px 14px",
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-    color: colors.textPrimary,
-    fontWeight: 800,
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.95)",
+    fontSize: 12,
+    fontWeight: 900,
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
     gap: 8,
   },
-
   pillBadge: {
+    minWidth: 20,
+    height: 20,
+    padding: "0 6px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
     borderRadius: 999,
-    padding: "2px 7px",
-    fontSize: 11,
+    background: "rgba(255,255,255,0.10)",
+    fontSize: 10,
     fontWeight: 900,
-    border: "1px solid rgba(56,189,248,0.34)",
-    background: "rgba(56,189,248,0.12)",
-    color: colors.textPrimary,
   },
-
   planCard: {
-    borderRadius: radii.xl,
-    border: "1px solid rgba(251,191,36,0.20)",
-    background:
-      "radial-gradient(900px 320px at 0% 0%, rgba(251,191,36,0.14), transparent 55%), rgba(15,23,42,0.96)",
-    boxShadow: shadows.card,
-    padding: 18,
-    display: "flex",
-    flexDirection: "column",
+    borderRadius: 22,
+    background: "rgba(10,15,30,0.76)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.24)",
+    backdropFilter: "blur(14px)",
+    padding: 16,
+    display: "grid",
     gap: 10,
   },
-
   planPill: {
-    alignSelf: "flex-start",
+    width: "fit-content",
     borderRadius: 999,
     padding: "6px 10px",
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.94)",
     fontSize: 11,
     fontWeight: 900,
-    border: "1px solid rgba(251,191,36,0.34)",
-    background: "rgba(251,191,36,0.10)",
-    color: colors.textPrimary,
   },
-
   planTitle: {
     margin: 0,
-    fontSize: 24,
-    lineHeight: 1.08,
+    fontSize: 22,
+    lineHeight: 1.1,
     fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
   },
-
   planCopy: {
     margin: 0,
-    color: colors.textMuted,
     fontSize: 14,
     lineHeight: 1.55,
+    color: "rgba(226,232,240,0.78)",
+    fontWeight: 600,
   },
-
   planSupportCopy: {
-    margin: 0,
-    fontSize: 12,
-    lineHeight: 1.5,
-    color: colors.textSecondary,
-  },
-
-  planMiniNote: {
-    marginTop: 6,
-    borderRadius: 14,
-    border: "1px solid rgba(56,189,248,0.18)",
-    background: "rgba(56,189,248,0.08)",
-    padding: "10px 12px",
     fontSize: 13,
     lineHeight: 1.5,
-    color: "rgba(226,232,240,0.84)",
+    color: "rgba(226,232,240,0.64)",
+    fontWeight: 600,
   },
-
+  planMiniNote: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.68)",
+    fontWeight: 700,
+  },
   primaryCta: {
-    borderRadius: 999,
-    padding: "12px 16px",
-    border: "1px solid rgba(56,189,248,0.38)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.28), rgba(168,85,247,0.22))",
-    color: colors.textPrimary,
+    minHeight: 44,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.08)",
+    color: "rgba(255,255,255,0.98)",
+    fontSize: 14,
     fontWeight: 900,
     cursor: "pointer",
+    padding: "0 14px",
   },
-
-  ghostButton: {
-    borderRadius: 999,
-    padding: "10px 14px",
-    border: `1px solid ${colors.borderSubtle}`,
-    background: "rgba(255,255,255,0.03)",
-    color: colors.textPrimary,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-
-  listCompact: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-  },
-
-  listItem: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.07)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 12,
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-  },
-
-  listCopyWrap: {
-    minWidth: 0,
-  },
-
-  listItemColumn: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.07)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 12,
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
-
-  listTitle: {
-    fontSize: 14,
-    fontWeight: 850,
-    color: colors.textPrimary,
-  },
-
-  listMeta: {
-    fontSize: 12,
-    color: colors.textMuted,
-    lineHeight: 1.45,
-  },
-
-  integrationBox: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 12,
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
-
-  integrationCopyWrap: {
-    minWidth: 0,
-    flex: "1 1 220px",
-  },
-
-  integrationLine: {
-    fontSize: 14,
-    lineHeight: 1.5,
-    color: colors.textPrimary,
-  },
-
-  integrationActions: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-
-  primarySmallButton: {
-    borderRadius: 999,
-    padding: "10px 14px",
-    border: "1px solid rgba(56,189,248,0.38)",
-    background: "rgba(56,189,248,0.14)",
-    color: colors.textPrimary,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-
-  secondarySmallButton: {
-    borderRadius: 999,
-    padding: "10px 14px",
-    border: `1px solid ${colors.borderSubtle}`,
-    background: "rgba(255,255,255,0.03)",
-    color: colors.textPrimary,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-
-  captureCardCompact: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    padding: 12,
+  integrationCard: {
     display: "grid",
-    gap: 8,
+    gap: 10,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    padding: "12px 13px",
   },
-
-  captureTopRow: {
+  integrationTop: {
     display: "flex",
     justifyContent: "space-between",
     gap: 12,
     alignItems: "flex-start",
     flexWrap: "wrap",
   },
-
-  captureHeaderCopy: {
-    minWidth: 0,
-    flex: "1 1 220px",
-    display: "grid",
-    gap: 4,
+  integrationTitle: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.96)",
   },
-
-  captureSubline: {
+  integrationLine: {
+    marginTop: 4,
     fontSize: 12,
-    color: colors.textSecondary,
     lineHeight: 1.45,
+    color: "rgba(226,232,240,0.70)",
     fontWeight: 700,
   },
-
-  captureActions: {
+  integrationError: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(254,226,226,0.96)",
+    fontWeight: 700,
+  },
+  integrationActions: {
     display: "flex",
     gap: 8,
     flexWrap: "wrap",
   },
-
-  premiumLockCard: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(56,189,248,0.25)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.08), rgba(168,85,247,0.08))",
-    padding: 14,
+  googleSnapshot: {
+    display: "grid",
+    gap: 10,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: "12px 13px",
+  },
+  snapshotHead: {
     display: "flex",
-    flexDirection: "column",
+    justifyContent: "space-between",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  snapshotTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.96)",
+  },
+  snapshotMeta: {
+    fontSize: 12,
+    color: "rgba(226,232,240,0.66)",
+    fontWeight: 700,
+  },
+  snapshotList: {
+    display: "grid",
+    gap: 8,
+  },
+  snapshotItem: {
+    display: "grid",
+    gap: 4,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.06)",
+    background: "rgba(255,255,255,0.03)",
+    padding: "10px 11px",
+  },
+  snapshotItemTitle: {
+    fontSize: 13,
+    fontWeight: 800,
+    color: "rgba(255,255,255,0.94)",
+  },
+  snapshotItemMeta: {
+    fontSize: 12,
+    color: "rgba(226,232,240,0.64)",
+    fontWeight: 700,
+  },
+  snapshotEmpty: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.68)",
+    fontWeight: 700,
+  },
+  premiumLockCard: {
+    borderRadius: 16,
+    border: "1px solid rgba(196,181,253,0.18)",
+    background: "rgba(76,29,149,0.18)",
+    padding: "14px 14px",
+    display: "grid",
     gap: 10,
   },
-
   premiumLockHeader: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
+    display: "grid",
+    gap: 8,
   },
-
   premiumLockBadge: {
-    alignSelf: "flex-start",
-    fontSize: 11,
-    fontWeight: 900,
-    padding: "4px 8px",
+    width: "fit-content",
     borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.4)",
-    background: "rgba(56,189,248,0.12)",
-    color: colors.textPrimary,
+    padding: "5px 9px",
+    border: "1px solid rgba(216,180,254,0.24)",
+    background: "rgba(168,85,247,0.18)",
+    color: "rgba(243,232,255,0.98)",
+    fontSize: 10,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
   },
-
   premiumLockTitle: {
     margin: 0,
     fontSize: 16,
     fontWeight: 900,
-    color: colors.textPrimary,
+    color: "rgba(255,255,255,0.98)",
   },
-
   premiumLockCopy: {
     margin: 0,
     fontSize: 13,
     lineHeight: 1.5,
-    color: colors.textMuted,
+    color: "rgba(243,232,255,0.84)",
+    fontWeight: 600,
   },
-
-  googlePremiumBadge: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "7px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.38)",
-    background: "rgba(56,189,248,0.10)",
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: 800,
-    whiteSpace: "nowrap",
-  },
-
-  googleEventsWrap: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-  },
-
-  inlineLink: {
-    border: "none",
-    background: "transparent",
-    color: colors.accentPrimary,
-    fontWeight: 800,
-    cursor: "pointer",
-    padding: 0,
-    flexShrink: 0,
-  },
-
-  statusPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    borderRadius: 999,
-    padding: "7px 10px",
-    border: "1px solid rgba(148,163,184,0.28)",
-    fontSize: 12,
-    fontWeight: 800,
-    whiteSpace: "nowrap",
-  },
-
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    flexShrink: 0,
-  },
-
-  emptyBlockWrap: {
+  emptyBlock: {
+    borderRadius: 16,
+    border: "1px dashed rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.03)",
+    padding: "14px 14px",
     display: "grid",
     gap: 12,
   },
-  emptyActionsRow: {
+  emptyCopy: {
+    margin: 0,
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.70)",
+    fontWeight: 600,
+  },
+  emptyActions: {
     display: "flex",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  emptyPrimaryBtn: {
-    border: `1px solid ${colors.borderStrong}`,
-    background: colors.accentPrimary,
-    color: colors.textPrimary,
-    borderRadius: radii.md,
-    padding: "10px 14px",
-    fontSize: 13,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  emptySecondaryBtn: {
-    border: `1px solid ${colors.borderSubtle}`,
-    background: colors.surfaceLow,
-    color: colors.textSecondary,
-    borderRadius: radii.md,
-    padding: "10px 14px",
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  emptyBlock: {
-    borderRadius: radii.lg,
-    border: "1px dashed rgba(148,163,184,0.28)",
-    background: "rgba(255,255,255,0.02)",
-    padding: 14,
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 1.5,
-  },
-
-  errorBanner: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(251,113,133,0.35)",
-    background: "rgba(127,29,29,0.18)",
-    color: "#fecdd3",
-    padding: 14,
-    fontSize: 14,
-    lineHeight: 1.5,
-  },
-
-  errorText: {
-    color: "#fecdd3",
-    fontSize: 12,
-    lineHeight: 1.5,
-  },
-
-  insightGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
     gap: 8,
+    flexWrap: "wrap",
   },
-
-  insightCardCompact: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    padding: 12,
+  loadingBlock: {
     display: "flex",
-    flexDirection: "column",
-    gap: 6,
-    minHeight: 84,
+    alignItems: "center",
+    gap: 12,
+    padding: "14px 12px",
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.03)",
   },
-
-  insightTitle: {
-    fontSize: 11,
-    fontWeight: 900,
-    color: colors.textSecondary,
-    textTransform: "uppercase",
+  loadingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 0 8px rgba(56,189,248,0.10)",
+    flexShrink: 0,
   },
-
-  insightValue: {
-    fontSize: 17,
+  loadingTitle: {
+    fontSize: 14,
     fontWeight: 900,
-    color: colors.textPrimary,
+    color: "rgba(255,255,255,0.96)",
+  },
+  loadingSub: {
+    fontSize: 12,
+    color: "rgba(226,232,240,0.66)",
+    marginTop: 2,
+    fontWeight: 600,
   },
 };

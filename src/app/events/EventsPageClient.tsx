@@ -1,3 +1,4 @@
+
 // src/app/events/EventsPageClient.tsx
 "use client";
 
@@ -12,7 +13,7 @@ import Card from "@/components/ui/Card";
 import EventsFiltersBar from "@/components/events/EventsFiltersBar";
 import EventsEmptyState from "@/components/events/EventsEmptyState";
 import EventsTimeline from "@/components/EventsTimeline";
-import { trackEvent, trackEventOnce, trackScreenView } from "@/lib/analytics";
+import { trackEventOnce, trackScreenView } from "@/lib/analytics";
 
 import {
   getMyEvents,
@@ -121,7 +122,6 @@ export default function EventsPage() {
     if (typeof window === "undefined") return;
 
     const syncViewport = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-
     syncViewport();
     window.addEventListener("resize", syncViewport);
     return () => window.removeEventListener("resize", syncViewport);
@@ -228,7 +228,6 @@ export default function EventsPage() {
         const title = String(e.title ?? "").toLowerCase();
         const notes = String(e.notes ?? "").toLowerCase();
         const groupName = String(e.group?.name ?? "").toLowerCase();
-
         return title.includes(q) || notes.includes(q) || groupName.includes(q);
       });
     }
@@ -246,7 +245,8 @@ export default function EventsPage() {
     return filteredEvents.slice(0, mobileVisibleCount);
   }, [filteredEvents, isMobile, mobileVisibleCount]);
 
-  const hasMoreTimelineEvents = isMobile && filteredEvents.length > timelineEvents.length;
+  const hasMoreTimelineEvents =
+    isMobile && filteredEvents.length > timelineEvents.length;
 
   const statusSnapshot = useMemo(() => {
     const now = new Date();
@@ -267,12 +267,7 @@ export default function EventsPage() {
       return start >= now && start <= nextWeek;
     }).length;
 
-    return {
-      nextCount,
-      responseCount,
-      resolvedCount,
-      soonCount,
-    };
+    return { nextCount, responseCount, resolvedCount, soonCount };
   }, [events, declinedEventIds, hiddenEventIds]);
 
   const valueVisibility = useMemo(() => {
@@ -358,7 +353,14 @@ export default function EventsPage() {
         upcomingCount: statusSnapshot.soonCount,
       },
     });
-  }, [premiumContext, totalGroups, valueVisibility.groupCount, valueVisibility.next24h, statusSnapshot.soonCount]);
+  }, [
+    premiumContext,
+    focusedEventId,
+    totalGroups,
+    valueVisibility.groupCount,
+    valueVisibility.next24h,
+    statusSnapshot.soonCount,
+  ]);
 
   const headerSubtitle = useMemo(() => {
     const visibleEvents = filterVisibleEvents(events, {
@@ -375,7 +377,7 @@ export default function EventsPage() {
 
     return `Tu lista combina ${personal} evento${
       personal === 1 ? "" : "s"
-    } personales y ${groupEvents} en grupos. Desde aquí se ve qué ya está claro, qué todavía necesita respuesta y qué merece seguimiento antes de que se enfríe.`;
+    } personales y ${groupEvents} en grupos. Desde aquí se ve qué ya está claro, qué todavía necesita respuesta y qué merece seguimiento.`;
   }, [events, declinedEventIds, hiddenEventIds]);
 
   function toggleSelection(id: string) {
@@ -540,16 +542,24 @@ export default function EventsPage() {
       : `${filteredEvents.length} evento${filteredEvents.length === 1 ? "" : "s"} visibles para decidir más rápido.`
     : headerSubtitle;
 
-  const showTopNarrative = !isMobile;
-  const showDigestButton = !isMobile && events.length > 0;
-  const showValueRail = !isMobile && valueVisibility.hasValue;
-  const showPremiumRail = !isMobile && !!premiumContext;
+  const showTopNarrative = !isMobile && urgentEvents.length === 0;
+  const showDigestButton = !isMobile && events.length > 0 && !anySelected;
+  const showValueRail =
+    !isMobile &&
+    valueVisibility.hasValue &&
+    urgentEvents.length === 0 &&
+    !premiumContext;
+  const showPremiumRail =
+    !isMobile &&
+    !!premiumContext &&
+    urgentEvents.length === 0;
 
   if (booting) {
     return (
       <MobileScaffold maxWidth={1120} style={S.pageBg}>
         <Section>
-          <PremiumHeader hideUpgradeCta
+          <PremiumHeader
+            hideUpgradeCta
             title="Eventos"
             subtitle="Mira qué ya está claro dentro del sistema y qué todavía necesita respuesta para no quedarse afuera."
           />
@@ -570,31 +580,14 @@ export default function EventsPage() {
   return (
     <MobileScaffold maxWidth={1120} style={S.pageBg}>
       {toast && (
-        <div
-          style={{
-            position: "fixed",
-            left: 0,
-            right: 0,
-            bottom: 80,
-            display: "flex",
-            justifyContent: "center",
-            pointerEvents: "none",
-            zIndex: 30,
-          }}
-        >
+        <div style={S.toastViewport}>
           <div
             style={{
-              pointerEvents: "auto",
-              borderRadius: 999,
-              padding: "10px 14px",
-              fontSize: 13,
-              fontWeight: 600,
+              ...S.toastPill,
               background:
                 toast.type === "success"
                   ? "rgba(34,197,94,0.95)"
                   : "rgba(248,113,113,0.95)",
-              color: "white",
-              boxShadow: "0 18px 40px rgba(0,0,0,0.65)",
             }}
           >
             {toast.message}
@@ -607,148 +600,140 @@ export default function EventsPage() {
 
         <Card style={S.cardShell} className="spEvt-card">
           <div style={S.titleRow}>
-            <div>
+            <div style={S.heroCopy}>
               <div style={S.kicker}>Lo que ya está dentro del sistema</div>
               <h1 style={S.h1}>Eventos con estado real</h1>
-              {showTopNarrative && (
+              {showTopNarrative ? (
                 <p style={S.sub}>
-                  No es solo una lista. Aquí ves qué está próximo, qué depende de otra persona, qué ya quedó resuelto y dónde te conviene entrar para mover coordinación real, no solo mirar una agenda.
+                  Aquí ves qué está próximo, qué depende de otra persona y dónde conviene entrar
+                  primero para mover coordinación real.
                 </p>
-              )}
+              ) : null}
             </div>
 
             <aside style={S.factBox} className="spEvt-factBox">
               <div style={S.factLabel}>Resumen rápido</div>
-              <div style={S.factRow}>
-                <span style={S.factDotPersonal} />
-                <span>{valueVisibility.personalCount} personales</span>
-              </div>
-              <div style={S.factRow}>
-                <span style={S.factDotGroup} />
-                <span>{valueVisibility.groupCount} en grupos</span>
-              </div>
-
-              {showTopNarrative && totalGroups > 0 && (
-                <div style={S.factHint}>
-                  Tienes {totalGroups} grupo{totalGroups === 1 ? "" : "s"} conectado{totalGroups === 1 ? "" : "s"}. Cuanta más gente entra, menos cosas se quedan afuera y más valor real gana esta lista.
+              <div style={S.factGrid}>
+                <div style={S.factItem}>
+                  <span style={S.factDotPersonal} />
+                  <span>{valueVisibility.personalCount} personales</span>
                 </div>
-              )}
+                <div style={S.factItem}>
+                  <span style={S.factDotGroup} />
+                  <span>{valueVisibility.groupCount} en grupos</span>
+                </div>
+              </div>
+              {!isMobile && totalGroups > 0 ? (
+                <div style={S.factHint}>
+                  {totalGroups} grupo{totalGroups === 1 ? "" : "s"} conectado{totalGroups === 1 ? "" : "s"}.
+                </div>
+              ) : null}
             </aside>
           </div>
 
-          {showValueRail && (
-            <div style={{ ...S.valueRail, ...(isMobile ? { padding: "11px 12px", borderRadius: 16, gap: 10 } : {}) }}>
-              <div style={S.valueRailCopy}>
-                <div style={{ ...S.valueRailEyebrow, ...(isMobile ? { fontSize: 10, letterSpacing: 0.7 } : {}) }}>{isMobile ? "Dentro del sistema" : "Claridad visible"}</div>
-                <div style={{ ...S.valueRailTitle, ...(isMobile ? { fontSize: 12, lineHeight: 1.2 } : {}) }}>
-                  {isMobile
-                    ? "Eventos con estado real"
-                    : "Aquí ya se empieza a ver qué parte de tu coordinación vive dentro del sistema de verdad."}
+          {!loading && urgentEvents.length > 0 ? (
+            <div style={S.focusRail}>
+              <div style={S.focusHeader}>
+                <div>
+                  <div style={S.focusEyebrow}>Foco operativo</div>
+                  <div style={S.focusTitle}>Lo que pide movimiento ahora</div>
                 </div>
-                <div style={{ ...S.valueRailSub, ...(isMobile ? { fontSize: 12, lineHeight: 1.35 } : {}) }}>
-                  {valueVisibility.personalCount} personales · {valueVisibility.groupCount} en grupos
-                  {isMobile
-                    ? ""
-                    : valueVisibility.next24h > 0
-                      ? ` · ${valueVisibility.next24h} requiere atención en las próximas 24 horas`
-                      : " · sin urgencias inmediatas ahora mismo"}
+                <div style={S.focusCount}>
+                  {urgentEvents.length} evento{urgentEvents.length === 1 ? "" : "s"}
                 </div>
               </div>
 
-              <div style={S.valueRailActions}>
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(valueVisibility.next24h > 0 ? "/calendar" : "/summary")
-                  }
-                  style={{ ...S.valueRailBtn, ...(isMobile ? { padding: "8px 11px", fontSize: 12 } : {}) }}
-                >
-                  {valueVisibility.next24h > 0 ? "Ver lo que viene juntos" : "Volver al resumen"}
-                </button>
+              <div style={S.focusList}>
+                {urgentEvents.slice(0, isMobile ? 2 : 3).map((e) => (
+                  <button
+                    key={String(e.id)}
+                    type="button"
+                    style={S.focusItem}
+                    onClick={() =>
+                      router.push(`/events?focusEventId=${encodeURIComponent(String(e.id))}`)
+                    }
+                  >
+                    <div style={S.focusItemMain}>
+                      <div style={S.focusName}>{e.title || "Sin título"}</div>
+                      <div style={S.focusMeta}>
+                        {shortDateLabel(e.start)} · {shortTimeLabel(e.start)}
+                        {e.group?.name ? ` · ${e.group.name}` : " · Personal"}
+                      </div>
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
-          )}
+          ) : null}
 
-          {showPremiumRail && premiumContext && (
+          {showValueRail ? (
+            <div style={S.secondaryRail}>
+              <div>
+                <div style={S.secondaryEyebrow}>Lectura rápida</div>
+                <div style={S.secondaryTitle}>Tu lista ya tiene contexto útil.</div>
+                <div style={S.secondarySub}>
+                  {valueVisibility.personalCount} personales · {valueVisibility.groupCount} compartidos · {statusSnapshot.soonCount} por revisar pronto.
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {showPremiumRail && premiumContext ? (
             <div style={S.premiumRail}>
-              <div style={S.premiumRailCopy}>
-                <div style={S.premiumRailEyebrow}>{premiumContext.eyebrow}</div>
-                <div style={S.premiumRailTitle}>{premiumContext.title}</div>
-                <div style={S.premiumRailSub}>{premiumContext.body}</div>
+              <div style={S.premiumCopy}>
+                <div style={S.premiumEyebrow}>{premiumContext.eyebrow}</div>
+                <div style={S.premiumTitle}>{premiumContext.title}</div>
+                <div style={S.premiumSub}>{premiumContext.body}</div>
               </div>
-
-              <div style={S.premiumRailActions}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void trackEvent({
-                      event: "premium_cta_clicked",
-                      metadata: {
-                        source: "events",
-                        variant: premiumContext.variant,
-                        cta: premiumContext.cta,
-                        focusedEventId: focusedEventId ?? null,
-                        totalGroups,
-                        sharedGroupCount: valueVisibility.groupCount,
-                      },
-                    });
-                    router.push("/planes");
-                  }}
-                  style={S.premiumRailBtnPrimary}
-                >
-                  {premiumContext.cta}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => router.push(valueVisibility.next24h > 0 ? "/calendar" : "/summary")}
-                  style={S.premiumRailBtnSecondary}
-                >
-                  Seguir con mi flujo
-                </button>
-              </div>
+              <button
+                type="button"
+                style={S.premiumBtn}
+                onClick={() => router.push("/planes")}
+              >
+                {premiumContext.cta}
+              </button>
             </div>
-          )}
+          ) : null}
 
-          <div style={{ ...S.statusGrid, ...(isMobile ? { gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, marginBottom: 12 } : {}) }}>
+          <div style={S.statusGrid}>
             <button
               type="button"
-              style={{ ...S.statusCard, ...(isMobile ? { padding: "10px 11px", borderRadius: 16, gap: 3 } : {}) }}
+              style={{ ...S.statusCard, ...(filters.view === "upcoming" ? S.statusCardActive : {}) }}
               onClick={() => setFilters((f) => ({ ...f, view: "upcoming" }))}
             >
               <div style={S.statusLabel}>Próximos</div>
-              <div style={{ ...S.statusValue, ...(isMobile ? { fontSize: 18 } : {}) }}>{statusSnapshot.nextCount}</div>
-              {!isMobile && <div style={S.statusHint}>Lo que sigue vivo en tu agenda compartida</div>}
+              <div style={S.statusValue}>{statusSnapshot.nextCount}</div>
+              {!isMobile ? <div style={S.statusHint}>Lo que sigue dentro del sistema</div> : null}
             </button>
 
             <button
               type="button"
-              style={{ ...S.statusCard, ...(isMobile ? { padding: "10px 11px", borderRadius: 16, gap: 3 } : {}) }}
-              onClick={() => setFilters((f) => ({ ...f, view: "upcoming", scope: "groups" }))}
+              style={{ ...S.statusCard, ...(filters.scope === "groups" ? S.statusCardActive : {}) }}
+              onClick={() => setFilters((f) => ({ ...f, scope: f.scope === "groups" ? "all" : "groups" }))}
             >
-              <div style={S.statusLabel}>Por responder</div>
-              <div style={{ ...S.statusValue, ...(isMobile ? { fontSize: 18 } : {}) }}>{statusSnapshot.responseCount}</div>
-              {!isMobile && <div style={S.statusHint}>Planes de grupo donde coordinar con alguien más importa</div>}
+              <div style={S.statusLabel}>Compartidos</div>
+              <div style={S.statusValue}>{statusSnapshot.responseCount}</div>
+              {!isMobile ? <div style={S.statusHint}>Planes donde coordinar con alguien más importa</div> : null}
             </button>
 
             <button
               type="button"
-              style={{ ...S.statusCard, ...(isMobile ? { padding: "10px 11px", borderRadius: 16, gap: 3 } : {}) }}
+              style={{ ...S.statusCard, ...(filters.view === "history" ? S.statusCardActive : {}) }}
               onClick={() => setFilters((f) => ({ ...f, view: "history" }))}
             >
               <div style={S.statusLabel}>Resueltos</div>
-              <div style={{ ...S.statusValue, ...(isMobile ? { fontSize: 18 } : {}) }}>{statusSnapshot.resolvedCount}</div>
-              {!isMobile && <div style={S.statusHint}>Eventos que ya pasaron y dejaron una salida clara</div>}
+              <div style={S.statusValue}>{statusSnapshot.resolvedCount}</div>
+              {!isMobile ? <div style={S.statusHint}>Eventos que ya pasaron y dejaron salida clara</div> : null}
             </button>
 
             <button
               type="button"
-              style={{ ...S.statusCard, ...(isMobile ? { padding: "10px 11px", borderRadius: 16, gap: 3 } : {}) }}
+              style={S.statusCard}
               onClick={() => setFilters((f) => ({ ...f, view: "upcoming" }))}
             >
-              <div style={S.statusLabel}>Pronto</div>
-              <div style={{ ...S.statusValue, ...(isMobile ? { fontSize: 18 } : {}) }}>{statusSnapshot.soonCount}</div>
-              {!isMobile && <div style={S.statusHint}>Lo que conviene revisar en los próximos 7 días</div>}
+              <div style={S.statusLabel}>7 días</div>
+              <div style={S.statusValue}>{statusSnapshot.soonCount}</div>
+              {!isMobile ? <div style={S.statusHint}>Lo que conviene revisar pronto</div> : null}
             </button>
           </div>
 
@@ -761,18 +746,20 @@ export default function EventsPage() {
             onChangeQuery={(query) => setFilters((f) => ({ ...f, query }))}
           />
 
-          {showDigestButton && (
-            <button
-              type="button"
-              onClick={sendTodayDigest}
-              disabled={sendingDigest}
-              style={{ ...S.digestBtn, ...(sendingDigest ? S.digestBtnLoading : {}) }}
-            >
-              {sendingDigest ? "Preparando resumen de hoy…" : "Enviar resumen operativo de hoy (demo)"}
-            </button>
-          )}
+          {showDigestButton ? (
+            <div style={S.auxRow}>
+              <button
+                type="button"
+                onClick={sendTodayDigest}
+                disabled={sendingDigest}
+                style={{ ...S.digestBtn, ...(sendingDigest ? S.digestBtnLoading : {}) }}
+              >
+                {sendingDigest ? "Preparando resumen de hoy…" : "Enviar resumen operativo de hoy (demo)"}
+              </button>
+            </div>
+          ) : null}
 
-          {anySelected && (
+          {anySelected ? (
             <div style={S.bulkBar}>
               <span style={S.bulkLabel}>
                 {selectedIds.size} evento{selectedIds.size === 1 ? "" : "s"} seleccionado{selectedIds.size === 1 ? "" : "s"}
@@ -786,45 +773,7 @@ export default function EventsPage() {
                 {deleting ? "Eliminando…" : "Eliminar selección"}
               </button>
             </div>
-          )}
-
-          {!loading && urgentEvents.length > 0 && (
-            <div style={S.urgentBlock}>
-              <div style={S.urgentHeader}>
-                <div>
-                  <div style={S.urgentKicker}>Foco operativo</div>
-                  <div style={S.urgentTitle}>Lo que pide movimiento ahora</div>
-                </div>
-
-                <div style={S.urgentCount}>
-                  {urgentEvents.length} evento{urgentEvents.length === 1 ? "" : "s"}
-                </div>
-              </div>
-
-              <div style={S.urgentList}>
-                {urgentEvents.slice(0, 3).map((e) => (
-                  <div key={String(e.id)} style={S.urgentItem}>
-                    <div style={S.urgentItemMain}>
-                      <div style={S.urgentNameRow}>
-                        <span style={S.urgentName}>{e.title || "Sin título"}</span>
-                        <span style={S.urgentWhen}>
-                          {shortDateLabel(e.start)} · {shortTimeLabel(e.start)}
-                        </span>
-                      </div>
-
-                      <div style={S.urgentMeta}>
-                        {e.group?.name ? `Compartido en ${e.group.name}` : "Personal"}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {urgentEvents.length > 3 && (
-                <div style={S.urgentFooter}>+{urgentEvents.length - 3} más para revisar pronto</div>
-              )}
-            </div>
-          )}
+          ) : null}
 
           {loading ? (
             <div style={S.loadingList}>
@@ -844,23 +793,23 @@ export default function EventsPage() {
             <>
               <EventsTimeline
                 events={timelineEvents}
-              selectedIds={selectedIds}
-              focusedEventId={focusedEventId}
-              onToggleSelected={toggleSelection}
-              onEventsRemoved={(removedIds) => {
-                const removed = new Set(removedIds.map(String));
-                setEvents((prev) =>
-                  prev.filter((event) => !removed.has(String(event.id)))
-                );
-                setSelectedIds((prev) => {
-                  const next = new Set(prev);
-                  for (const id of removed) next.delete(id);
-                  return next;
-                });
-              }}
+                selectedIds={selectedIds}
+                focusedEventId={focusedEventId}
+                onToggleSelected={toggleSelection}
+                onEventsRemoved={(removedIds) => {
+                  const removed = new Set(removedIds.map(String));
+                  setEvents((prev) =>
+                    prev.filter((event) => !removed.has(String(event.id)))
+                  );
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    for (const id of removed) next.delete(id);
+                    return next;
+                  });
+                }}
               />
 
-              {hasMoreTimelineEvents && (
+              {hasMoreTimelineEvents ? (
                 <div style={S.mobileLoadMoreWrap}>
                   <button
                     type="button"
@@ -875,7 +824,7 @@ export default function EventsPage() {
                     Mostrando {timelineEvents.length} de {filteredEvents.length} eventos
                   </div>
                 </div>
-              )}
+              ) : null}
             </>
           )}
         </Card>
@@ -901,7 +850,7 @@ export default function EventsPage() {
           .spEvt-factBox {
             min-width: 100% !important;
             max-width: none !important;
-            padding: 10px 12px !important;
+            padding: 12px !important;
           }
         }
       `}</style>
@@ -911,402 +860,422 @@ export default function EventsPage() {
 
 const S: Record<string, React.CSSProperties> = {
   pageBg: {
+    minHeight: "100vh",
     background:
-      "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
-    color: "rgba(255,255,255,0.92)",
+      "radial-gradient(1200px 620px at 20% -10%, rgba(56,189,248,0.14), transparent 60%), radial-gradient(900px 520px at 100% 0%, rgba(124,58,237,0.12), transparent 58%), #050816",
   },
   cardShell: {
-    width: "100%",
-    maxWidth: 900,
-    margin: "0 auto",
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(10,15,30,0.76)",
+    backdropFilter: "blur(16px)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
+    padding: 18,
+  },
+  toastViewport: {
+    position: "fixed",
+    left: 0,
+    right: 0,
+    bottom: 80,
+    display: "flex",
+    justifyContent: "center",
+    pointerEvents: "none",
+    zIndex: 30,
+  },
+  toastPill: {
+    pointerEvents: "auto",
+    borderRadius: 999,
+    padding: "10px 14px",
+    fontSize: 13,
+    fontWeight: 700,
+    color: "white",
+    boxShadow: "0 18px 40px rgba(0,0,0,0.65)",
   },
   titleRow: {
     display: "flex",
-    justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: 16,
-    marginBottom: 16,
+    justifyContent: "space-between",
+    gap: 14,
     flexWrap: "wrap",
+  },
+  heroCopy: {
+    minWidth: 0,
+    flex: "1 1 520px",
   },
   kicker: {
     fontSize: 11,
-    fontWeight: 800,
-    letterSpacing: 1,
+    fontWeight: 900,
     textTransform: "uppercase",
-    color: "rgba(129,199,255,0.98)",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.88)",
   },
   h1: {
-    margin: 0,
-    marginTop: 4,
-    fontSize: 22,
+    margin: "8px 0 0",
+    fontSize: "clamp(28px, 4vw, 40px)",
+    lineHeight: 1.03,
+    letterSpacing: "-0.04em",
     fontWeight: 950,
-    color: "rgba(248,250,252,1)",
+    color: "rgba(255,255,255,0.98)",
   },
   sub: {
-    margin: 0,
-    marginTop: 6,
-    fontSize: 13,
-    lineHeight: 1.5,
-    color: "rgba(209,213,219,0.98)",
+    margin: "10px 0 0",
+    maxWidth: 760,
+    fontSize: 14,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.76)",
+    fontWeight: 600,
   },
   factBox: {
-    minWidth: 160,
-    maxWidth: 210,
-    alignSelf: "stretch",
+    minWidth: 240,
+    maxWidth: 280,
     borderRadius: 18,
-    border: "1px solid rgba(30,64,175,0.9)",
-    background:
-      "radial-gradient(circle at 100% 0%, rgba(59,130,246,0.35), transparent 55%), rgba(15,23,42,0.96)",
-    padding: 10,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    padding: 14,
+    display: "grid",
+    gap: 10,
   },
   factLabel: {
     fontSize: 11,
-    fontWeight: 800,
-    color: "rgba(191,219,254,0.96)",
+    fontWeight: 900,
     textTransform: "uppercase",
-    letterSpacing: 0.6,
+    letterSpacing: "0.08em",
+    color: "rgba(255,255,255,0.66)",
   },
-  factRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    fontSize: 12,
-    color: "rgba(229,231,235,0.98)",
-  },
-  factDotPersonal: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    background: "rgba(56,189,248,0.98)",
-  },
-  factDotGroup: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    background: "rgba(239,68,68,0.98)",
-  },
-  factHint: {
-    marginTop: 2,
-    fontSize: 11,
-    color: "rgba(148,163,184,0.96)",
-  },
-  valueRail: {
-    marginBottom: 14,
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 14,
-    flexWrap: "wrap",
-    padding: "14px 14px",
-    borderRadius: 18,
-    border: "1px solid rgba(52,211,153,0.22)",
-    background:
-      "linear-gradient(135deg, rgba(20,83,45,0.72), rgba(15,23,42,0.84))",
-  },
-  valueRailCopy: {
-    minWidth: 0,
-    flex: "1 1 360px",
+  factGrid: {
     display: "grid",
-    gap: 4,
-  },
-  valueRailEyebrow: {
-    fontSize: 11,
-    fontWeight: 900,
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    color: "rgba(134,239,172,0.9)",
-  },
-  valueRailTitle: {
-    fontSize: 16,
-    fontWeight: 900,
-    letterSpacing: "-0.02em",
-    color: "rgba(255,255,255,0.98)",
-  },
-  valueRailSub: {
-    fontSize: 13,
-    lineHeight: 1.55,
-    color: "rgba(220,252,231,0.82)",
-  },
-  valueRailActions: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  valueRailBtn: {
-    borderRadius: 999,
-    border: "1px solid rgba(74,222,128,0.24)",
-    background: "rgba(34,197,94,0.18)",
-    padding: "10px 14px",
-    fontSize: 13,
-    color: "rgba(255,255,255,0.96)",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  premiumRail: {
-    marginBottom: 14,
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 14,
-    flexWrap: "wrap",
-    padding: "15px 15px",
-    borderRadius: 20,
-    border: "1px solid rgba(251,191,36,0.22)",
-    background:
-      "radial-gradient(circle at 100% 0%, rgba(251,191,36,0.14), transparent 48%), linear-gradient(135deg, rgba(17,24,39,0.94), rgba(30,41,59,0.92))",
-    boxShadow: "0 18px 46px rgba(0,0,0,0.26)",
-  },
-  premiumRailCopy: {
-    minWidth: 0,
-    flex: "1 1 360px",
-    display: "grid",
-    gap: 5,
-  },
-  premiumRailEyebrow: {
-    fontSize: 11,
-    fontWeight: 900,
-    letterSpacing: 0.85,
-    textTransform: "uppercase",
-    color: "rgba(252,211,77,0.96)",
-  },
-  premiumRailTitle: {
-    fontSize: 16,
-    fontWeight: 900,
-    letterSpacing: "-0.02em",
-    color: "rgba(255,255,255,0.99)",
-  },
-  premiumRailSub: {
-    fontSize: 13,
-    lineHeight: 1.58,
-    color: "rgba(226,232,240,0.86)",
-  },
-  premiumRailActions: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  premiumRailBtnPrimary: {
-    borderRadius: 999,
-    border: "1px solid rgba(245,158,11,0.34)",
-    background: "linear-gradient(135deg, rgba(245,158,11,0.24), rgba(251,191,36,0.18))",
-    padding: "10px 14px",
-    fontSize: 13,
-    color: "rgba(255,248,235,0.98)",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  premiumRailBtnSecondary: {
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.32)",
-    background: "rgba(15,23,42,0.58)",
-    padding: "10px 14px",
-    fontSize: 13,
-    color: "rgba(226,232,240,0.96)",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  digestBtn: {
-    marginTop: 10,
-    padding: "8px 11px",
-    borderRadius: 999,
-    border: "1px solid rgba(59,130,246,0.85)",
-    background: "rgba(15,23,42,0.96)",
-    color: "rgba(191,219,254,0.98)",
-    fontSize: 12,
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  digestBtnLoading: {
-    opacity: 0.7,
-    cursor: "default",
-  },
-  bulkBar: {
-    marginTop: 10,
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.75)",
-    background: "rgba(30,64,175,0.88)",
-    padding: "8px 11px",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
-  },
-  bulkLabel: {
-    fontSize: 12,
-    color: "rgba(219,234,254,0.98)",
-  },
-  bulkDelete: {
-    borderRadius: 999,
-    border: "1px solid rgba(248,113,113,0.95)",
-    background: "rgba(127,29,29,0.96)",
-    padding: "6px 10px",
-    fontSize: 12,
-    color: "white",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  urgentBlock: {
-    marginTop: 14,
-    marginBottom: 2,
-    borderRadius: 18,
-    border: "1px solid rgba(248,113,113,0.30)",
-    background:
-      "radial-gradient(circle at 0% 0%, rgba(239,68,68,0.22), transparent 58%), rgba(15,23,42,0.97)",
-    padding: 12,
-    boxShadow: "0 10px 28px rgba(0,0,0,0.28)",
-  },
-  urgentHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 10,
-    flexWrap: "wrap",
-  },
-  urgentKicker: {
-    fontSize: 10,
-    fontWeight: 900,
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    color: "rgba(254,202,202,0.9)",
-  },
-  urgentTitle: {
-    marginTop: 2,
-    fontSize: 16,
-    fontWeight: 900,
-    color: "rgba(255,245,245,1)",
-  },
-  urgentCount: {
-    fontSize: 12,
-    fontWeight: 700,
-    color: "rgba(254,226,226,0.92)",
-    borderRadius: 999,
-    border: "1px solid rgba(248,113,113,0.22)",
-    background: "rgba(127,29,29,0.28)",
-    padding: "6px 10px",
-  },
-  urgentList: {
-    display: "flex",
-    flexDirection: "column",
     gap: 8,
   },
-  urgentItem: {
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.06)",
-    background: "rgba(255,255,255,0.03)",
-    padding: "10px 11px",
-  },
-  urgentItemMain: {
+  factItem: {
     display: "flex",
-    flexDirection: "column",
-    gap: 4,
+    alignItems: "center",
+    gap: 8,
+    fontSize: 13,
+    fontWeight: 700,
+    color: "rgba(255,255,255,0.92)",
   },
-  urgentNameRow: {
+  factDotPersonal: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(251,191,36,0.95)",
+    boxShadow: "0 0 0 5px rgba(251,191,36,0.12)",
+  },
+  factDotGroup: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 0 5px rgba(56,189,248,0.12)",
+  },
+  factHint: {
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.68)",
+    fontWeight: 600,
+  },
+  focusRail: {
+    marginTop: 16,
+    borderRadius: 18,
+    border: "1px solid rgba(251,191,36,0.22)",
+    background:
+      "linear-gradient(135deg, rgba(120,53,15,0.42), rgba(30,41,59,0.62))",
+    padding: 14,
+    display: "grid",
+    gap: 12,
+  },
+  focusHeader: {
     display: "flex",
     justifyContent: "space-between",
+    gap: 12,
     alignItems: "center",
-    gap: 10,
     flexWrap: "wrap",
   },
-  urgentName: {
-    fontSize: 13,
-    fontWeight: 800,
-    color: "rgba(255,255,255,0.98)",
+  focusEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(253,224,71,0.92)",
   },
-  urgentWhen: {
+  focusTitle: {
+    marginTop: 4,
+    fontSize: 16,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.97)",
+  },
+  focusCount: {
+    borderRadius: 999,
+    padding: "8px 10px",
+    background: "rgba(251,191,36,0.16)",
+    border: "1px solid rgba(251,191,36,0.20)",
+    color: "rgba(254,243,199,0.98)",
     fontSize: 12,
-    fontWeight: 700,
-    color: "rgba(252,165,165,0.95)",
+    fontWeight: 900,
   },
-  urgentMeta: {
-    fontSize: 11,
-    color: "rgba(203,213,225,0.86)",
-  },
-  urgentFooter: {
-    marginTop: 10,
-    fontSize: 11,
-    color: "rgba(254,226,226,0.82)",
-  },
-  statusGrid: {
+  focusList: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-    gap: 10,
-    marginBottom: 14,
+    gap: 8,
   },
-  statusCard: {
+  focusItem: {
+    display: "flex",
+    width: "100%",
     textAlign: "left",
-    borderRadius: 18,
-    border: "1px solid rgba(148,163,184,0.16)",
-    background: "rgba(15,23,42,0.88)",
-    padding: "13px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
+    padding: "12px 13px",
+    color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
+  },
+  focusItemMain: {
+    display: "grid",
+    gap: 4,
+    minWidth: 0,
+  },
+  focusName: {
+    fontSize: 14,
+    fontWeight: 900,
+    lineHeight: 1.35,
+  },
+  focusMeta: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.72)",
+    fontWeight: 700,
+  },
+  secondaryRail: {
+    marginTop: 14,
+    borderRadius: 18,
+    border: "1px solid rgba(56,189,248,0.18)",
+    background: "rgba(8,47,73,0.34)",
+    padding: "14px 15px",
+  },
+  secondaryEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.88)",
+  },
+  secondaryTitle: {
+    marginTop: 4,
+    fontSize: 16,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.97)",
+  },
+  secondarySub: {
+    marginTop: 5,
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.74)",
+    fontWeight: 600,
+  },
+  premiumRail: {
+    marginTop: 14,
+    borderRadius: 18,
+    border: "1px solid rgba(196,181,253,0.24)",
+    background:
+      "linear-gradient(135deg, rgba(76,29,149,0.72), rgba(15,23,42,0.88))",
+    padding: "14px 15px",
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  premiumCopy: {
+    minWidth: 0,
+    flex: "1 1 360px",
     display: "grid",
     gap: 4,
   },
-  statusLabel: {
+  premiumEyebrow: {
     fontSize: 11,
     fontWeight: 900,
-    letterSpacing: 0.7,
     textTransform: "uppercase",
-    color: "rgba(125,211,252,0.92)",
+    letterSpacing: "0.08em",
+    color: "rgba(233,213,255,0.92)",
+  },
+  premiumTitle: {
+    fontSize: 16,
+    lineHeight: 1.3,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.98)",
+  },
+  premiumSub: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(243,232,255,0.84)",
+    fontWeight: 600,
+  },
+  premiumBtn: {
+    borderRadius: 999,
+    padding: "10px 14px",
+    border: "1px solid rgba(216,180,254,0.34)",
+    background: "rgba(168,85,247,0.24)",
+    color: "rgba(255,255,255,0.98)",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  statusGrid: {
+    marginTop: 16,
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: 10,
+  },
+  statusCard: {
+    display: "grid",
+    gap: 6,
+    textAlign: "left",
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    padding: "14px 14px",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    minHeight: 92,
+  },
+  statusCardActive: {
+    border: "1px solid rgba(56,189,248,0.32)",
+    boxShadow: "0 0 0 1px rgba(56,189,248,0.18) inset",
+    background: "rgba(56,189,248,0.08)",
+  },
+  statusLabel: {
+    fontSize: 12,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.74)",
   },
   statusValue: {
     fontSize: 24,
-    fontWeight: 950,
     lineHeight: 1,
-    color: "rgba(248,250,252,0.98)",
+    fontWeight: 950,
+    letterSpacing: "-0.04em",
+    color: "rgba(255,255,255,0.98)",
   },
   statusHint: {
     fontSize: 12,
     lineHeight: 1.45,
-    color: "rgba(191,219,254,0.78)",
+    color: "rgba(226,232,240,0.64)",
+    fontWeight: 600,
+  },
+  auxRow: {
+    marginTop: 14,
+    display: "flex",
+    justifyContent: "flex-start",
+  },
+  digestBtn: {
+    minHeight: 42,
+    padding: "0 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 900,
+  },
+  digestBtnLoading: {
+    opacity: 0.7,
+    cursor: "wait",
+  },
+  bulkBar: {
+    marginTop: 14,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+    borderRadius: 16,
+    border: "1px solid rgba(248,113,113,0.16)",
+    background: "rgba(127,29,29,0.24)",
+    padding: "12px 14px",
+  },
+  bulkLabel: {
+    fontSize: 13,
+    fontWeight: 800,
+    color: "rgba(254,226,226,0.95)",
+  },
+  bulkDelete: {
+    minHeight: 40,
+    padding: "0 14px",
+    borderRadius: 12,
+    border: "1px solid rgba(252,165,165,0.22)",
+    background: "rgba(248,113,113,0.18)",
+    color: "rgba(255,255,255,0.98)",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 900,
   },
   loadingList: {
-    marginTop: 12,
-    borderRadius: 18,
-    border: "1px solid rgba(30,64,175,0.95)",
-    background:
-      "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.22), transparent 55%), rgba(15,23,42,0.96)",
-    padding: 14,
+    marginTop: 14,
   },
   loadingRow: {
     display: "flex",
-    gap: 10,
     alignItems: "center",
+    gap: 12,
+    padding: "14px 12px",
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.03)",
   },
   loadingDot: {
-    width: 12,
-    height: 12,
+    width: 10,
+    height: 10,
     borderRadius: 999,
     background: "rgba(56,189,248,0.95)",
-    boxShadow: "0 0 20px rgba(56,189,248,0.70)",
+    boxShadow: "0 0 0 8px rgba(56,189,248,0.10)",
+    flexShrink: 0,
   },
   loadingTitle: {
-    fontSize: 13,
-    fontWeight: 800,
-    color: "rgba(248,250,252,0.98)",
+    fontSize: 14,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.96)",
   },
   loadingSub: {
     fontSize: 12,
-    color: "rgba(148,163,184,0.96)",
+    color: "rgba(226,232,240,0.66)",
+    marginTop: 2,
+    fontWeight: 600,
+  },
+  mobileLoadMoreWrap: {
+    marginTop: 14,
+    display: "grid",
+    justifyItems: "center",
+    gap: 8,
+  },
+  mobileLoadMoreBtn: {
+    minHeight: 42,
+    padding: "0 16px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.96)",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  mobileLoadMoreHint: {
+    fontSize: 12,
+    color: "rgba(226,232,240,0.64)",
+    fontWeight: 600,
   },
   footerSection: {
-    width: "100%",
-    maxWidth: 900,
-    margin: "16px auto 0",
     display: "flex",
     justifyContent: "center",
+    marginTop: 14,
+    paddingBottom: 8,
   },
   refreshBtn: {
+    minHeight: 42,
+    padding: "0 16px",
     borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.75)",
-    background: "rgba(15,23,42,0.96)",
-    padding: "8px 14px",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.95)",
     fontSize: 13,
-    color: "rgba(229,231,235,0.98)",
+    fontWeight: 900,
     cursor: "pointer",
   },
 };

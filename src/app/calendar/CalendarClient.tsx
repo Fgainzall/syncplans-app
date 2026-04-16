@@ -931,7 +931,36 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
     return idx >= 0 ? idx : 0;
   }, [conflicts, gridStart, gridEnd]);
 
-  
+  const conflictLead = useMemo(() => {
+    if (conflicts.length === 0) return null;
+
+    const target = conflicts[firstRelevantConflictIndex] ?? conflicts[0];
+    if (!target) return null;
+
+    const existing = events.find(
+      (event) => String(event.id) === String(target.existingEventId)
+    );
+    const incoming = events.find(
+      (event) => String(event.id) === String(target.incomingEventId)
+    );
+
+    const titleA = existing?.title?.trim() || 'Plan existente';
+    const titleB = incoming?.title?.trim() || 'Plan nuevo';
+    const referenceEvent = incoming ?? existing ?? null;
+    const referenceDate = referenceEvent
+      ? parseIsoLike(referenceEvent.start) ?? new Date(referenceEvent.start)
+      : null;
+    const when =
+      referenceEvent && referenceDate
+        ? `${prettyDay(referenceDate)} · ${prettyTimeRange(referenceEvent.start, referenceEvent.end)}`
+        : null;
+
+    return {
+      titleA,
+      titleB,
+      when,
+    };
+  }, [conflicts, firstRelevantConflictIndex, events]);
 
   /* =========================
      Filtros y vistas
@@ -1278,6 +1307,32 @@ const valueVisibility = useMemo(() => {
             </button>
           </div>
         </Card>
+
+        {conflictCount > 0 ? (
+          <button type="button" onClick={resolveNow} style={styles.conflictBanner}>
+            <div style={styles.conflictBannerLeft}>
+              <div style={styles.conflictBannerEyebrow}>Conflicto pendiente</div>
+              <div style={styles.conflictBannerTitle}>
+                {conflictCount === 1
+                  ? 'Hay una decisión abierta en este calendario'
+                  : `Hay ${conflictCount} decisiones abiertas en este calendario`}
+              </div>
+              <div style={styles.conflictBannerSub}>
+                {conflictLead
+                  ? `${conflictLead.titleA} vs ${conflictLead.titleB}${
+                      conflictLead.when ? ` · ${conflictLead.when}` : ''
+                    }.`
+                  : 'Hay un cruce visible entre dos planes.'}{' '}
+                El calendario te ayuda a ubicarlo rápido; la resolución vive en Conflictos para que salgas con una sola decisión clara.
+              </div>
+            </div>
+
+            <div style={styles.conflictBannerCta}>
+              {conflictCount === 1 ? 'Resolver ahora' : 'Revisar choques'}
+            </div>
+          </button>
+        ) : null}
+
         {valueVisibility.hasValue ? (
           <Card style={styles.valueRailCard}>
             <div style={styles.valueRailTop}>

@@ -445,6 +445,38 @@ export default function CompareClient() {
     return "Compara ambos eventos, guarda una decisión y luego pasa al cierre final.";
   }, [focusEventId, focusConflicts.length]);
 
+  const decisionImpact = useMemo(() => {
+    if (selectedResolution === "keep_existing") {
+      return {
+        title: "Mantendrás el plan actual",
+        sub: "Esto prioriza lo que ya estaba en agenda y deja el cierre final listo para aplicarlo sin volver a comparar todo.",
+        next: "Siguiente paso: entrar al cierre y confirmar la acción final.",
+      };
+    }
+
+    if (selectedResolution === "replace_with_new") {
+      return {
+        title: "Mantendrás el plan nuevo",
+        sub: "Esto da prioridad al nuevo evento y evita que el conflicto siga abierto como una duda compartida.",
+        next: "Siguiente paso: entrar al cierre y aplicar el cambio de forma clara.",
+      };
+    }
+
+    if (selectedResolution === "none") {
+      return {
+        title: "Ambos planes seguirán visibles por ahora",
+        sub: "Esto conserva las dos opciones, pero el cruce seguirá marcado para revisarlo después con más contexto.",
+        next: "Siguiente paso: pasar al cierre sabiendo que no se descartará nada todavía.",
+      };
+    }
+
+    return {
+      title: "Todavía no elegiste una salida",
+      sub: "Elegir aquí evita volver a pensar lo mismo después. Una decisión simple ahora le devuelve claridad al grupo.",
+      next: "Siguiente paso: selecciona una opción para seguir al cierre con más contexto.",
+    };
+  }, [selectedResolution]);
+
   if (booting) {
     return (
       <main style={styles.page}>
@@ -534,8 +566,9 @@ export default function CompareClient() {
           <div style={styles.decisionGuideEyebrow}>Qué decides aquí</div>
           <div style={styles.decisionGuideTitle}>Elige qué plan debe seguir.</div>
           <div style={styles.decisionGuideSub}>
-            Este es el momento importante: cuando decides aquí, el conflicto deja de ser una duda y pasa a tener una salida concreta dentro de SyncPlans.
+            Este es el momento importante: cuando decides aquí, el conflicto deja de ser una duda repetida y pasa a tener una salida concreta dentro de SyncPlans.
           </div>
+          <div style={styles.decisionGuideFocus}>{focusSummaryText}</div>
         </section>
 
         <section
@@ -649,6 +682,13 @@ export default function CompareClient() {
           </article>
         </section>
 
+        <section style={styles.impactCard}>
+          <div style={styles.impactEyebrow}>Lo que cambia si decides ahora</div>
+          <div style={styles.impactTitle}>{decisionImpact.title}</div>
+          <div style={styles.impactSub}>{decisionImpact.sub}</div>
+          <div style={styles.impactNext}>{decisionImpact.next}</div>
+        </section>
+
         <section style={styles.middleCard}>
           <div
             style={{
@@ -693,7 +733,7 @@ export default function CompareClient() {
               ...(decisionReady ? null : styles.primaryBtnMuted),
             }}
           >
-            {decisionReady ? "Seguir al cierre" : "Ir al cierre"}
+            {decisionReady ? "Confirmar y seguir al cierre" : "Ir al cierre"}
           </button>
         </section>
 
@@ -972,6 +1012,49 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.6,
     color: "rgba(230,236,255,0.80)",
     maxWidth: 780,
+  },
+  decisionGuideFocus: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "#DCE5FF",
+    fontWeight: 700,
+  },
+  impactCard: {
+    marginTop: 16,
+    borderRadius: 24,
+    padding: 18,
+    border: "1px solid rgba(103,133,255,0.18)",
+    background:
+      "linear-gradient(180deg, rgba(18,24,52,0.92), rgba(10,14,30,0.92))",
+    display: "grid",
+    gap: 8,
+    boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+  },
+  impactEyebrow: {
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: "uppercase",
+    color: "#AEBEFF",
+    fontWeight: 800,
+  },
+  impactTitle: {
+    fontSize: 20,
+    fontWeight: 900,
+    color: "#F8FBFF",
+    letterSpacing: "-0.02em",
+  },
+  impactSub: {
+    fontSize: 14,
+    lineHeight: 1.6,
+    color: "rgba(235,241,255,0.80)",
+    maxWidth: 760,
+  },
+  impactNext: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "#DCE5FF",
+    fontWeight: 700,
   },
   footerBar: {
     marginTop: 20,

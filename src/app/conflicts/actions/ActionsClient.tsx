@@ -391,6 +391,10 @@ export default function ActionsClient() {
     0
   );
 
+  const readyToRemoveCount = actionableConflicts.length;
+  const keepBothPlannedCount = keepBothConflicts.length;
+  const willAffectCount = readyToRemoveCount + keepBothPlannedCount;
+
   const goBack = () => {
     const qp = new URLSearchParams();
     if (groupIdFromUrl) qp.set("groupId", groupIdFromUrl);
@@ -854,8 +858,8 @@ export default function ActionsClient() {
           </h1>
           <div style={styles.sub}>
             {focusEventId
-              ? "Aquí cerramos el conflicto que vienes revisando. SyncPlans aplicará solo las decisiones ligadas a este evento y luego te devolverá al resumen."
-              : "Aquí cerramos el flujo. SyncPlans aplicará lo que ya decidiste y luego te devolverá al resumen."}
+              ? "Aquí cierras el conflicto que vienes revisando. SyncPlans aplicará solo las decisiones ligadas a este evento, dejará la agenda más clara y luego te devolverá al resumen."
+              : "Aquí cierras el flujo. SyncPlans aplicará lo que ya decidiste, reducirá ruido en la agenda y luego te devolverá al resumen."}
           </div>
 
           <div
@@ -883,21 +887,61 @@ export default function ActionsClient() {
           </div>
         </section>
 
+        <section style={styles.loopCard}>
+          <div style={styles.loopKicker}>Loop de retorno</div>
+          <div style={styles.loopTitle}>Resolver aquí no solo cierra un conflicto: devuelve claridad compartida.</div>
+          <div
+            style={{
+              ...styles.loopGrid,
+              gridTemplateColumns: isMobile
+                ? "minmax(0, 1fr)"
+                : "repeat(3, minmax(0, 1fr))",
+            }}
+          >
+            <div style={styles.loopItem}>
+              <div style={styles.loopItemTitle}>Menos pendiente abierto</div>
+              <div style={styles.loopItemSub}>
+                {pendingCount > 0
+                  ? `Todavía quedan ${pendingCount} cruces por decidir, pero este bloque dejará listo lo que ya definiste.`
+                  : "No quedan decisiones abiertas dentro de este bloque. Lo que sigue es cerrar y volver al resumen con avance real."}
+              </div>
+            </div>
+
+            <div style={styles.loopItem}>
+              <div style={styles.loopItemTitle}>Más agenda clara</div>
+              <div style={styles.loopItemSub}>
+                {readyToRemoveCount > 0
+                  ? `${readyToRemoveCount} decisión${readyToRemoveCount === 1 ? "" : "es"} intentará${readyToRemoveCount === 1 ? "" : "n"} retirar el evento que sobra para que todos vean un panorama más limpio.`
+                  : "Aquí no vas a retirar nada ahora mismo: este cierre sirve para dejar de tratar este cruce como pendiente inmediato."}
+              </div>
+            </div>
+
+            <div style={styles.loopItem}>
+              <div style={styles.loopItemTitle}>Progreso visible</div>
+              <div style={styles.loopItemSub}>
+                {willAffectCount > 0
+                  ? `Después de aplicar, este conflicto dejará de quedarse en tierra de nadie y pasará a un estado claro para ti y para los demás.`
+                  : "Cuando no hay nada listo para aplicar, SyncPlans te protege de cerrar en falso. Primero hay que decidir."}
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section style={styles.sectionCard}>
           <div style={styles.sectionHead}>
             <div>
-              <div style={styles.sectionTitle}>Esto es lo que va a pasar</div>
+              <div style={styles.sectionTitle}>Lo que quedará claro al aplicar</div>
               <div style={styles.sectionSub}>
                 {focusEventId
-                  ? "Solo se aplicarán las decisiones guardadas para este evento."
-                  : "Solo se aplicarán conflictos que ya tengan una salida elegida."}
+                  ? "Solo se aplicarán las decisiones guardadas para este evento. Nada fuera de este foco se tocará."
+                  : "Solo se aplicarán conflictos que ya tengan una salida elegida. Lo pendiente seguirá visible hasta que lo decidas."}
               </div>
             </div>
           </div>
 
           {!resolvedConflicts.length ? (
             <div style={styles.emptyBox}>
-              Todavía no hay decisiones listas para aplicar.
+              Todavía no hay decisiones listas para aplicar. Antes de cerrar, necesitas elegir qué conservar o si prefieres mantener ambos.
             </div>
           ) : (
             <div style={styles.stack}>
@@ -989,7 +1033,7 @@ export default function ActionsClient() {
 
         {summary ? (
           <section style={styles.sectionCard}>
-            <div style={styles.sectionTitle}>Lo que pasará al aplicar</div>
+            <div style={styles.sectionTitle}>Resultado del cierre</div>
             <div style={styles.summaryGrid}>
               <div style={styles.summaryPill}>
                 Decisiones listas: {summary.resolvedCount}
@@ -1038,7 +1082,7 @@ export default function ActionsClient() {
                 : null),
             }}
           >
-            {applying ? "Aplicando..." : "Aplicar decisiones y volver al resumen"}
+            {applying ? "Aplicando..." : "Cerrar conflictos y volver al resumen"}
           </button>
         </section>
 
@@ -1151,6 +1195,52 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 24,
     fontWeight: 900,
     letterSpacing: "-0.03em",
+  },
+  loopCard: {
+    marginTop: 18,
+    borderRadius: 24,
+    padding: 18,
+    border: "1px solid rgba(103,133,255,0.18)",
+    background:
+      "linear-gradient(180deg, rgba(15,20,44,0.9), rgba(9,13,29,0.9))",
+    boxShadow: "0 24px 70px rgba(0,0,0,0.22)",
+  },
+  loopKicker: {
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    color: "#AEBEFF",
+  },
+  loopTitle: {
+    marginTop: 8,
+    fontSize: 20,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+    lineHeight: 1.2,
+  },
+  loopGrid: {
+    marginTop: 14,
+    display: "grid",
+    gap: 12,
+  },
+  loopItem: {
+    borderRadius: 18,
+    padding: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    display: "grid",
+    gap: 6,
+  },
+  loopItemTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "#EEF3FF",
+  },
+  loopItemSub: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(235,241,255,0.74)",
   },
   sectionCard: {
     marginTop: 18,

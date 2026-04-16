@@ -935,9 +935,27 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   ]);
 
   const compactSummaryMobile = isMobile;
-  const showValueRail = !compactSummaryMobile && valueMoments.hasValue;
-  const showPremiumRail = !compactSummaryMobile && !!premiumNudge;
-  const showRecentDecisions = !compactSummaryMobile;
+  const hasUrgentSummaryState =
+    conflictAlert.count > 0 ||
+    pendingInviteCount > 0 ||
+    pendingAttention.proposals > 0 ||
+    pendingAttention.captures > 0;
+  const showValueRail =
+    !compactSummaryMobile &&
+    valueMoments.hasValue &&
+    !premiumNudge &&
+    !hasUrgentSummaryState;
+  const showPremiumRail =
+    !compactSummaryMobile &&
+    !!premiumNudge &&
+    !showValueRail &&
+    !hasUrgentSummaryState &&
+    pendingAttention.total <= 2;
+  const showRecentDecisions =
+    !compactSummaryMobile &&
+    visibleDecisions.length > 0 &&
+    !hasUrgentSummaryState;
+  const showDecisionChips = false;
 
   useEffect(() => {
     if (!premiumNudge || premiumNudgeTrackedRef.current) return;
@@ -1074,6 +1092,76 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     showInviteNudge,
   ]);
 
+  const summaryQuickActions = useMemo(() => {
+    const items: Array<{
+      key: string;
+      title: string;
+      subtitle: string;
+      onClick: () => void;
+    }> = [
+      {
+        key: "primary",
+        title: primaryAction.primaryLabel,
+        subtitle: compactSummaryMobile
+          ? "Haz primero lo que más mueve el día."
+          : primaryAction.subtitle,
+        onClick: primaryAction.primaryAction,
+      },
+      {
+        key: "calendar",
+        title: "Abrir calendario",
+        subtitle: compactSummaryMobile
+          ? "Ver tu semana de un vistazo."
+          : "Ver semana y contexto compartido.",
+        onClick: () =>
+          navigateFromSummary("open_calendar", "/calendar", {
+            block: "summary_calendar",
+          }),
+      },
+    ];
+
+    if (!compactSummaryMobile && !hasUrgentSummaryState) {
+      if (showCreateGroupNudge || showInviteNudge) {
+        items.push({
+          key: "groups",
+          title: showCreateGroupNudge ? "Crear grupo" : "Abrir grupos",
+          subtitle: showCreateGroupNudge
+            ? "Activa la coordinación compartida desde tu primer espacio."
+            : "Trae a alguien más dentro del sistema.",
+          onClick: () =>
+            navigateFromSummary(
+              showCreateGroupNudge ? "create_group" : "open_groups",
+              showCreateGroupNudge ? "/groups/new" : "/groups",
+              {
+                block: "summary_quick_actions",
+              }
+            ),
+        });
+      } else {
+        items.push({
+          key: "events",
+          title: "Abrir eventos",
+          subtitle: "Ver respuestas, estados y pendientes en un solo lugar.",
+          onClick: () =>
+            navigateFromSummary("open_events", "/events", {
+              block: "summary_events",
+            }),
+        });
+      }
+    }
+
+    return items;
+  }, [
+    compactSummaryMobile,
+    hasUrgentSummaryState,
+    navigateFromSummary,
+    primaryAction.primaryAction,
+    primaryAction.primaryLabel,
+    primaryAction.subtitle,
+    showCreateGroupNudge,
+    showInviteNudge,
+  ]);
+
   const getStatusBadgeForEvent = useCallback(
     (eventId: string | null | undefined) => {
       const status = getUnifiedEventStatus({
@@ -1139,7 +1227,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 />
 
           <Card style={styles.card} className="spSum-card">
-            {conflictAlert.count > 0 ? (
+            {compactSummaryMobile && conflictAlert.count > 0 ? (
               <button
                 onClick={openConflictCenter}
                 style={styles.conflictBanner}
@@ -1150,7 +1238,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                   <div style={styles.conflictBannerTitle}>
                     Tienes {conflictAlert.count} conflicto{conflictAlert.count === 1 ? "" : "s"} pendiente{conflictAlert.count === 1 ? "" : "s"} por resolver
                   </div>
-                  <div style={styles.conflictBannerSub}>{compactSummaryMobile ? "Revísalo ahora y deja una sola versión clara para todos." : "Revísalo ahora y deja una sola versión clara para todos antes de que el ruido vuelva al chat."}</div>
+                  <div style={styles.conflictBannerSub}>Revísalo ahora y deja una sola versión clara para todos.</div>
                 </div>
 
                 <div style={styles.conflictBannerCta}>Resolver</div>
@@ -1333,8 +1421,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               </div>
             ) : null}
 
-            {(decisionSummary.pendingProposals > 0 ||
-              decisionSummary.adjustedProposals > 0) ? (
+            {showDecisionChips ? (
               <div style={styles.decisionChipsRow}>
                 {decisionSummary.pendingProposals > 0 ? (
                   <button onClick={() => navigateFromSummary("decision_chip_pending", "/events", { block: "decision_summary" })} style={{ ...styles.decisionChip, ...styles.decisionChipPending }}>
@@ -1545,25 +1632,24 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           </Card>
 
           {showRecentDecisions ? (
-          <Card style={styles.card} className="spSum-card">
-            <div style={styles.sectionHeadMini}>
-              <div style={styles.sectionTitle}>Decisiones</div>
-              <button
-                onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
-                style={styles.decisionsCta}
-              >
-                Calendario →
-              </button>
-            </div>
-
-            {visibleDecisions.length === 0 ? (
-              <div style={styles.decisionsEmpty}>
-                <div style={styles.decisionsEmptyTitle}>Sin decisiones recientes</div>
-                <div style={styles.decisionsEmptySub}>
-                  Aquí aparecerán cuando resuelvas conflictos.
+            <Card style={styles.card} className="spSum-card">
+              <div style={styles.sectionHeadMini}>
+                <div>
+                  <div style={styles.sectionEyebrow}>Señales recientes</div>
+                  <div style={styles.sectionTitle}>Decisiones que ya cerraste</div>
                 </div>
+                <button
+                  onClick={() =>
+                    navigateFromSummary("open_calendar", "/calendar", {
+                      block: "summary_calendar",
+                    })
+                  }
+                  style={styles.decisionsCta}
+                >
+                  Calendario →
+                </button>
               </div>
-            ) : (
+
               <div style={styles.decisionsList}>
                 {visibleDecisions.map((decision) => (
                   <div key={decision.id} style={styles.decisionRow}>
@@ -1600,42 +1686,31 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                   </div>
                 ))}
               </div>
-            )}
-          </Card>
+            </Card>
           ) : null}
 
           <Card style={styles.card} className="spSum-card">
-            <div style={styles.sectionTitle}>{compactSummaryMobile ? "Siguientes pasos" : "Accesos rápidos"}</div>
+            <div style={styles.sectionHeadMini}>
+              <div>
+                <div style={styles.sectionEyebrow}>Después de eso</div>
+                <div style={styles.sectionTitle}>
+                  {compactSummaryMobile ? "Haz ahora" : hasUrgentSummaryState ? "Lo siguiente, sin ruido" : "Siguientes pasos útiles"}
+                </div>
+              </div>
+            </div>
 
             <div style={styles.quickGrid} className="spSum-quickGrid">
-              <button
-                onClick={primaryAction.primaryAction}
-                style={styles.quickCard}
-                className="spSum-quickCard"
-              >
-                <div style={styles.quickTitle}>{primaryAction.primaryLabel}</div>
-                <div style={styles.quickSub}>{compactSummaryMobile ? "Haz primero lo que más mueve el día." : primaryAction.subtitle}</div>
-              </button>
-
-              <button
-                onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
-                style={styles.quickCard}
-                className="spSum-quickCard"
-              >
-                <div style={styles.quickTitle}>Abrir calendario</div>
-                <div style={styles.quickSub}>{compactSummaryMobile ? "Ver tu semana de un vistazo." : "Ver semana y contexto compartido"}</div>
-              </button>
-
-              {!compactSummaryMobile ? (
+              {summaryQuickActions.map((action) => (
                 <button
-                  onClick={() => navigateFromSummary("open_events", "/events", { block: "summary_events" })}
+                  key={action.key}
+                  onClick={action.onClick}
                   style={styles.quickCard}
                   className="spSum-quickCard"
                 >
-                  <div style={styles.quickTitle}>Abrir eventos</div>
-                  <div style={styles.quickSub}>Ver respuestas, estados y pendientes</div>
+                  <div style={styles.quickTitle}>{action.title}</div>
+                  <div style={styles.quickSub}>{action.subtitle}</div>
                 </button>
-              ) : null}
+              ))}
             </div>
           </Card>
       </Section>
@@ -2434,6 +2509,14 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 12,
     flexWrap: "wrap",
+  },
+  sectionEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.82)",
+    marginBottom: 4,
   },
   sectionTitle: {
     fontSize: 18,
