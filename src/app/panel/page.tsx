@@ -202,6 +202,7 @@ export default function PanelPage() {
   const [contextSaving, setContextSaving] = useState<UsageMode | null>(null);
   const [captures, setCaptures] = useState<PublicInviteCaptureItem[]>([]);
   const [capturesLoading, setCapturesLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
 
   const loadCore = useCallback(async () => {
     try {
@@ -427,6 +428,18 @@ export default function PanelPage() {
   }, [loadCore, loadCaptures, fetchGoogleStatus]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncViewport = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
+  }, []);
+
+  useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (!e.key || e.key === "syncplans.groupState.v3") {
         setContextState(getGroupState());
@@ -624,6 +637,8 @@ export default function PanelPage() {
 
   let heroSummary =
     "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones. También es donde conviertes una cuenta individual en un sistema compartido que puede crecer mejor.";
+  let heroSummaryMobile =
+    "Administra grupos, invitaciones, plan e integraciones sin salir del hub.";
 
   if (!loading) {
     if (totalGroups === 0) {
@@ -635,10 +650,12 @@ export default function PanelPage() {
       } pendiente${conflictsNow === 1 ? "" : "s"}, ${totalGroups} grupo${
         totalGroups === 1 ? "" : "s"
       } y ${totalEvents} evento${totalEvents === 1 ? "" : "s"} visibles.`;
+      heroSummaryMobile = `${conflictsNow} conflicto${conflictsNow === 1 ? "" : "s"} pendiente${conflictsNow === 1 ? "" : "s"} · ${totalGroups} grupo${totalGroups === 1 ? "" : "s"}`;
     } else if (totalGroups > 0) {
       heroSummary = `Ya tienes ${totalGroups} grupo${
         totalGroups === 1 ? "" : "s"
       } creado${totalGroups === 1 ? "" : "s"}. Desde aquí decides cómo escala tu coordinación, a quién conviene meter dentro ahora y dónde el valor compartido todavía está incompleto.`;
+      heroSummaryMobile = `${totalGroups} grupo${totalGroups === 1 ? "" : "s"} activo${totalGroups === 1 ? "" : "s"}. Usa el panel para gestionar estructura y accesos.`;
     }
   }
 
@@ -670,7 +687,11 @@ export default function PanelPage() {
     <MobileScaffold maxWidth={1120}>
       <PremiumHeader
         title="Panel"
-        subtitle="El lugar donde conviertes SyncPlans en un sistema que suma gente, ordena decisiones y hace crecer la coordinación desde dentro."
+        subtitle={
+          isMobile
+            ? "Tu hub de grupos, invitaciones, plan e integraciones."
+            : "El lugar donde conviertes SyncPlans en un sistema que suma gente, ordena decisiones y hace crecer la coordinación desde dentro."
+        }
       />
 
       <div style={styles.stack}>
@@ -681,18 +702,20 @@ export default function PanelPage() {
             <div style={styles.heroTextWrap}>
               <div style={styles.eyebrow}>Panel</div>
               <h1 style={styles.heroTitle}>Centro de estructura</h1>
-              <p style={styles.heroCopy}>{heroSummary}</p>
-              <div style={styles.heroMicroCopy}>
-                {totalGroups === 0 ? (
-                  <>
-                    Crea la estructura primero. Cuando entra otra persona, SyncPlans deja de ser una herramienta ordenada y empieza a convertirse en coordinación real.
-                  </>
-                ) : (
-                  <>
-                    La operación diaria sigue viviendo en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Eventos</strong> y <strong>Conflictos</strong>. Aquí solo administras la base sobre la que todo eso funciona.
-                  </>
-                )}
-              </div>
+              <p style={styles.heroCopy}>{isMobile ? heroSummaryMobile : heroSummary}</p>
+              {!isMobile ? (
+                <div style={styles.heroMicroCopy}>
+                  {totalGroups === 0 ? (
+                    <>
+                      Crea la estructura primero. Cuando entra otra persona, SyncPlans deja de ser una herramienta ordenada y empieza a convertirse en coordinación real.
+                    </>
+                  ) : (
+                    <>
+                      La operación diaria sigue viviendo en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Eventos</strong> y <strong>Conflictos</strong>. Aquí solo administras la base sobre la que todo eso funciona.
+                    </>
+                  )}
+                </div>
+              ) : null}
             </div>
 
             <div style={styles.heroActionStack}>
@@ -815,9 +838,11 @@ export default function PanelPage() {
                 <div>
                   <div style={styles.sectionEyebrow}>Administración</div>
                   <h2 style={styles.sectionTitle}>Accesos prioritarios</h2>
-                  <div style={styles.sectionSubtleCopy}>
-                    Las piezas que convierten a SyncPlans en una capa de coordinación compartida y no en otro calendario.
-                  </div>
+                  {!isMobile ? (
+                    <div style={styles.sectionSubtleCopy}>
+                      Las piezas que convierten a SyncPlans en una capa de coordinación compartida y no en otro calendario.
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -836,12 +861,14 @@ export default function PanelPage() {
                       <span style={styles.actionTitle}>{action.title}</span>
                       {action.badge ? <span style={styles.badge}>{action.badge}</span> : null}
                     </div>
-                    <p style={styles.actionHint}>{action.hint}</p>
+                    {!isMobile ? <p style={styles.actionHint}>{action.hint}</p> : null}
                   </button>
                 ))}
               </div>
             </section>
 
+            {!isMobile ? (
+            <>
             <section style={styles.sectionCardCompact}>
               <div style={styles.sectionHead}>
                 <div>
@@ -1019,6 +1046,8 @@ export default function PanelPage() {
                 ))}
               </div>
             </section>
+            </>
+            ) : null}
           </div>
 
           <div style={styles.rightCol}>
@@ -1037,8 +1066,8 @@ export default function PanelPage() {
             >
               <div style={styles.planPill}>{planInfo.pill}</div>
               <h2 style={styles.planTitle}>{planInfo.title}</h2>
-              <p style={styles.planCopy}>{planInfo.copy}</p>
-              <div style={styles.planSupportCopy}>{planInfo.supportingCopy}</div>
+              <p style={styles.planCopy}>{isMobile ? planInfo.supportingCopy : planInfo.copy}</p>
+              {!isMobile ? <div style={styles.planSupportCopy}>{planInfo.supportingCopy}</div> : null}
 
               {!planInfo.tone || planInfo.tone === "free" ? (
                 <div style={styles.planMiniNote}>
@@ -1062,9 +1091,11 @@ export default function PanelPage() {
                 <div>
                   <div style={styles.sectionEyebrow}>Sistema</div>
                   <h2 style={styles.sectionTitle}>Integraciones</h2>
-                  <div style={styles.sectionSubtleCopy}>
-                    Estado y acceso rápido a Google Calendar sin salir de SyncPlans.
-                  </div>
+                  {!isMobile ? (
+                    <div style={styles.sectionSubtleCopy}>
+                      Estado y acceso rápido a Google Calendar sin salir de SyncPlans.
+                    </div>
+                  ) : null}
                 </div>
 
                 {!canUseGoogleIntegration ? (
@@ -1138,6 +1169,7 @@ export default function PanelPage() {
               )}
             </section>
 
+{!isMobile ? (
             <section style={styles.sectionCardCompact}>
               <div style={styles.sectionHead}>
                 <div>
@@ -1190,6 +1222,7 @@ export default function PanelPage() {
                 </div>
               )}
             </section>
+            ) : null}
           </div>
         </div>
       </div>

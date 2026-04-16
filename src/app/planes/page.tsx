@@ -349,7 +349,9 @@ export default function PlanesPage() {
     <MobileScaffold>
       <PremiumHeader
         title="Planes"
-        subtitle="Premium aparece cuando SyncPlans ya te evita desgaste real: más claridad compartida, menos fricción y mejor contexto para coordinar con otros."
+        subtitle={isCompact
+          ? "Compara tu acceso actual y decide si necesitas una capa más potente."
+          : "Premium aparece cuando SyncPlans ya te evita desgaste real: más claridad compartida, menos fricción y mejor contexto para coordinar con otros."}
       />
 
       <div style={{ ...sectionWrapperStyle, ...(isCompact ? sectionWrapperCompactStyle : null) }}>
@@ -371,7 +373,7 @@ export default function PlanesPage() {
           </div>
 
           <div style={{ ...decisionBulletsGridStyle, ...(isCompact ? decisionBulletsGridCompactStyle : null) }}>
-            {whyPayBullets.map((item) => (
+            {(isCompact ? whyPayBullets.slice(0, 3) : whyPayBullets).map((item) => (
               <div key={item} style={{ ...decisionBulletCardStyle, ...(isCompact ? decisionBulletCardCompactStyle : null) }}>
                 <span style={decisionBulletDotStyle} />
                 <span style={{ ...decisionBulletTextStyle, ...(isCompact ? decisionBulletTextCompactStyle : null) }}>{item}</span>
@@ -381,7 +383,7 @@ export default function PlanesPage() {
         </section>
 
         <section style={{ ...proofStripStyle, ...(isCompact ? proofStripCompactStyle : null) }}>
-          {outcomeCards.map((item) => (
+          {(isCompact ? outcomeCards.slice(0, 2) : outcomeCards).map((item) => (
             <article key={item.label} style={proofCardStyle}>
               <span style={proofLabelStyle}>{item.label}</span>
               <strong style={proofValueStyle}>{item.value}</strong>
@@ -415,7 +417,7 @@ export default function PlanesPage() {
           </div>
 
           <p style={planHintTextStyle}>
-            {loading ? "" : getCurrentPlanNote(planState)}
+            {loading ? "" : isCompact ? shortPlanDescription : getCurrentPlanNote(planState)}
           </p>
 
           <div style={{ ...statusSummaryGridStyle, ...(isCompact ? statusSummaryGridCompactStyle : null) }}>
@@ -459,7 +461,7 @@ export default function PlanesPage() {
             </div>
           </div>
 
-          <p style={currentPlanNoteStyle}>{loading ? "" : getCurrentPlanNote(planState)}</p>
+          {!isCompact ? <p style={currentPlanNoteStyle}>{loading ? "" : getCurrentPlanNote(planState)}</p> : null}
 
           <div style={betaNoteStyle}>
             <p style={betaNoteTitleStyle}>Beta privada</p>
@@ -469,26 +471,30 @@ export default function PlanesPage() {
           </div>
         </section>
 
-        <section style={{ ...proofStripStyle, ...(isCompact ? proofStripCompactStyle : null) }}>
-          {[
-            { label: "Se vuelve lógico cuando", value: "Ya coordinas con otros", copy: "Premium tiene más sentido cuando grupos, invitaciones y decisiones compartidas ya son parte del uso." },
-            { label: "La señal correcta", value: "Menos desgaste", copy: "El valor no aparece en una lista de funciones. Aparece cuando vuelves menos al chat y más a una sola verdad compartida." },
-            { label: "El cambio real", value: "Más contexto", copy: "Más contexto dentro del sistema significa decisiones más rápidas y menos reconstrucción de lo que pasó." },
-          ].map((item) => (
-            <article key={item.label} style={proofCardStyle}>
-              <span style={proofLabelStyle}>{item.label}</span>
-              <strong style={proofValueStyle}>{item.value}</strong>
-              <p style={proofCopyStyle}>{item.copy}</p>
-            </article>
-          ))}
-        </section>
+        {!isCompact ? (
+          <section style={{ ...proofStripStyle, ...(isCompact ? proofStripCompactStyle : null) }}>
+            {[
+              { label: "Se vuelve lógico cuando", value: "Ya coordinas con otros", copy: "Premium tiene más sentido cuando grupos, invitaciones y decisiones compartidas ya son parte del uso." },
+              { label: "La señal correcta", value: "Menos desgaste", copy: "El valor no aparece en una lista de funciones. Aparece cuando vuelves menos al chat y más a una sola verdad compartida." },
+              { label: "El cambio real", value: "Más contexto", copy: "Más contexto dentro del sistema significa decisiones más rápidas y menos reconstrucción de lo que pasó." },
+            ].map((item) => (
+              <article key={item.label} style={proofCardStyle}>
+                <span style={proofLabelStyle}>{item.label}</span>
+                <strong style={proofValueStyle}>{item.value}</strong>
+                <p style={proofCopyStyle}>{item.copy}</p>
+              </article>
+            ))}
+          </section>
+        ) : null}
 
         <section style={{ ...plansSectionStyle, ...(isCompact ? plansSectionCompactStyle : null) }}>
           <header style={plansHeaderRowStyle}>
             <div>
               <h3 style={plansTitleStyle}>Planes de SyncPlans</h3>
               <p style={plansSubtitleStyle}>
-                La diferencia real entre planes no es “tener más funciones”. Es cuánto contexto compartido, cuánta visibilidad y cuánta fricción quieres sacar de la coordinación cuando ya no te organizas solo.
+                {isCompact
+                  ? "Tu plan actual arriba. Las opciones abajo."
+                  : "La diferencia real entre planes no es “tener más funciones”. Es cuánto contexto compartido, cuánta visibilidad y cuánta fricción quieres sacar de la coordinación cuando ya no te organizas solo."}
               </p>
             </div>
           </header>
@@ -534,7 +540,7 @@ export default function PlanesPage() {
                         ) : null}
                       </div>
                       <h4 style={planOptionTitleStyle}>{card.label}</h4>
-                      <p style={planOptionDescriptionStyle}>{card.description}</p>
+                      <p style={planOptionDescriptionStyle}>{isCompact ? card.idealFor : card.description}</p>
                     </div>
 
                     <div style={planOptionPriceBlockStyle}>
@@ -557,12 +563,12 @@ export default function PlanesPage() {
                     </div>
                   </div>
 
-                  <p style={planIdealForStyle}>{card.idealFor}</p>
+                  {!isCompact ? <p style={planIdealForStyle}>{card.idealFor}</p> : null}
 
-                  <div style={planEmotionalHookStyle}>{card.emotionalHook}</div>
+                  {!isCompact ? <div style={planEmotionalHookStyle}>{card.emotionalHook}</div> : null}
 
                   <ul style={planFeaturesListStyle}>
-                    {card.features.map((feature) => (
+                    {(isCompact ? card.features.slice(0, 3) : card.features).map((feature) => (
                       <li key={feature} style={planFeatureItemStyle}>
                         <span style={planFeatureBulletStyle} />
                         <span style={planFeatureTextStyle}>{feature}</span>

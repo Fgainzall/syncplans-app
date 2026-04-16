@@ -509,7 +509,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [booting, upcomingStats]);
 
   const title = "Resumen";
-  const summarySubtitle = activeGroupId ? `Hoy · ${activeLabel} · tu siguiente paso` : "Hoy · Personal · tu siguiente paso";
+  const summarySubtitle = isMobile
+    ? activeGroupId
+      ? `Hoy · ${activeLabel}`
+      : "Hoy · Personal"
+    : activeGroupId
+      ? `Hoy · ${activeLabel} · tu siguiente paso`
+      : "Hoy · Personal · tu siguiente paso";
+
   const showCreateGroupNudge = groups.length === 0;
   const showInviteNudge = groups.length > 0 && upcomingStats.group === 0;
 
@@ -927,6 +934,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     valueMoments.hasValue,
   ]);
 
+  const compactSummaryMobile = isMobile;
+  const showValueRail = !compactSummaryMobile && valueMoments.hasValue;
+  const showPremiumRail = !compactSummaryMobile && !!premiumNudge;
+  const showRecentDecisions = !compactSummaryMobile;
+
   useEffect(() => {
     if (!premiumNudge || premiumNudgeTrackedRef.current) return;
 
@@ -1138,7 +1150,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                   <div style={styles.conflictBannerTitle}>
                     Tienes {conflictAlert.count} conflicto{conflictAlert.count === 1 ? "" : "s"} pendiente{conflictAlert.count === 1 ? "" : "s"} por resolver
                   </div>
-                  <div style={styles.conflictBannerSub}>Revísalo ahora y deja una sola versión clara para todos antes de que el ruido vuelva al chat.</div>
+                  <div style={styles.conflictBannerSub}>{compactSummaryMobile ? "Revísalo ahora y deja una sola versión clara para todos." : "Revísalo ahora y deja una sola versión clara para todos antes de que el ruido vuelva al chat."}</div>
                 </div>
 
                 <div style={styles.conflictBannerCta}>Resolver</div>
@@ -1165,14 +1177,18 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
                 <div style={styles.stateStatsRow}>
                   <span style={styles.stateStat}>{upcomingStats.total} total</span>
-                  <span style={styles.stateStatDot}>·</span>
-                  <span style={styles.stateStat}>{upcomingStats.personal} personal</span>
-                  <span style={styles.stateStatDot}>·</span>
-                  <span style={styles.stateStat}>{upcomingStats.group} grupo</span>
-                  {upcomingStats.external > 0 ? (
+                  {!compactSummaryMobile ? (
                     <>
                       <span style={styles.stateStatDot}>·</span>
-                      <span style={styles.stateStat}>{upcomingStats.external} externo</span>
+                      <span style={styles.stateStat}>{upcomingStats.personal} personal</span>
+                      <span style={styles.stateStatDot}>·</span>
+                      <span style={styles.stateStat}>{upcomingStats.group} grupo</span>
+                      {upcomingStats.external > 0 ? (
+                        <>
+                          <span style={styles.stateStatDot}>·</span>
+                          <span style={styles.stateStat}>{upcomingStats.external} externo</span>
+                        </>
+                      ) : null}
                     </>
                   ) : null}
                 </div>
@@ -1199,7 +1215,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                       </button>
                     ) : null}
 
-                    {pendingAttention.captures > 0 ? (
+{!compactSummaryMobile && pendingAttention.captures > 0 ? (
                       <button
                         type="button"
                         style={{ ...styles.attentionChip, ...styles.attentionChipNeutral }}
@@ -1209,7 +1225,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                       </button>
                     ) : null}
 
-                    {pendingAttention.proposals > 0 ? (
+                    {!compactSummaryMobile && pendingAttention.proposals > 0 ? (
                       <button
                         type="button"
                         style={{ ...styles.attentionChip, ...styles.attentionChipSoft }}
@@ -1222,11 +1238,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 ) : null}
               </div>
 
-              <div style={styles.stateKpi}>
+              {!compactSummaryMobile ? <div style={styles.stateKpi}>
                 <div style={styles.stateKpiLabel}>Próximos 7 días</div>
                 <div style={styles.stateKpiNumber}>{upcomingStats.total}</div>
                 <div style={styles.stateKpiHint}>Eventos visibles con contexto real</div>
-              </div>
+              </div> : null}
             </div>
 
             <div style={styles.returnRail}>
@@ -1254,7 +1270,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               </div>
             </div>
 
-            {valueMoments.hasValue ? (
+            {showValueRail ? (
               <div style={styles.valueRail}>
                 <div style={styles.valueRailCopy}>
                   <div style={styles.valueRailEyebrow}>Valor visible</div>
@@ -1290,7 +1306,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               </div>
             ) : null}
 
-            {premiumNudge ? (
+            {showPremiumRail ? (
               <div style={styles.premiumRail}>
                 <div style={styles.premiumRailCopy}>
                   <div style={styles.premiumRailEyebrow}>{premiumNudge.eyebrow}</div>
@@ -1528,6 +1544,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             )}
           </Card>
 
+          {showRecentDecisions ? (
           <Card style={styles.card} className="spSum-card">
             <div style={styles.sectionHeadMini}>
               <div style={styles.sectionTitle}>Decisiones</div>
@@ -1585,9 +1602,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               </div>
             )}
           </Card>
+          ) : null}
 
           <Card style={styles.card} className="spSum-card">
-            <div style={styles.sectionTitle}>Accesos rápidos</div>
+            <div style={styles.sectionTitle}>{compactSummaryMobile ? "Siguientes pasos" : "Accesos rápidos"}</div>
 
             <div style={styles.quickGrid} className="spSum-quickGrid">
               <button
@@ -1596,7 +1614,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 className="spSum-quickCard"
               >
                 <div style={styles.quickTitle}>{primaryAction.primaryLabel}</div>
-                <div style={styles.quickSub}>{primaryAction.subtitle}</div>
+                <div style={styles.quickSub}>{compactSummaryMobile ? "Haz primero lo que más mueve el día." : primaryAction.subtitle}</div>
               </button>
 
               <button
@@ -1605,17 +1623,19 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 className="spSum-quickCard"
               >
                 <div style={styles.quickTitle}>Abrir calendario</div>
-                <div style={styles.quickSub}>Ver semana y contexto compartido</div>
+                <div style={styles.quickSub}>{compactSummaryMobile ? "Ver tu semana de un vistazo." : "Ver semana y contexto compartido"}</div>
               </button>
 
-              <button
-                onClick={() => navigateFromSummary("open_events", "/events", { block: "summary_events" })}
-                style={styles.quickCard}
-                className="spSum-quickCard"
-              >
-                <div style={styles.quickTitle}>Abrir eventos</div>
-                <div style={styles.quickSub}>Ver respuestas, estados y pendientes</div>
-              </button>
+              {!compactSummaryMobile ? (
+                <button
+                  onClick={() => navigateFromSummary("open_events", "/events", { block: "summary_events" })}
+                  style={styles.quickCard}
+                  className="spSum-quickCard"
+                >
+                  <div style={styles.quickTitle}>Abrir eventos</div>
+                  <div style={styles.quickSub}>Ver respuestas, estados y pendientes</div>
+                </button>
+              ) : null}
             </div>
           </Card>
       </Section>

@@ -149,9 +149,9 @@ function getConflictChipLabel(count: number) {
 
 function getUpgradeCtaLabel(pathname: string) {
   if (pathname.startsWith("/conflicts")) return "Ver Premium";
-  if (pathname.startsWith("/calendar")) return "Anticipar mejor";
+  if (pathname.startsWith("/calendar")) return "Mejorar";
   if (pathname.startsWith("/groups")) return "Ver Premium";
-  if (pathname.startsWith("/panel")) return "Elevar control";
+  if (pathname.startsWith("/panel")) return "Mejorar";
   return "Ver Premium";
 }
 
@@ -234,22 +234,22 @@ function getAutoSubtitle(pathname: string) {
     return "Revisa y ordena tus eventos sin perder contexto.";
   }
   if (pathname.startsWith("/summary")) {
-    return "La vista operativa de lo que viene en tu tiempo compartido.";
+    return "Lo importante de tu tiempo compartido.";
   }
   if (pathname.startsWith("/calendar")) {
-    return "Visualiza tu tiempo con claridad y detecta choques rápido.";
+    return "Visualiza tu tiempo y detecta choques.";
   }
   if (pathname.startsWith("/conflicts")) {
     return "Decide conflictos antes de que se conviertan en fricción.";
   }
   if (pathname.startsWith("/panel")) {
-    return "Administra la estructura que sostiene la coordinación.";
+    return "Administra tu coordinación compartida.";
   }
   if (pathname.startsWith("/settings")) {
-    return "Ajusta la experiencia, permisos e integraciones de tu espacio.";
+    return "Ajusta integraciones, permisos y cuenta.";
   }
   if (pathname.startsWith("/planes")) {
-    return "Compara planes y desbloquea funciones premium.";
+    return "Compara planes y desbloquea más.";
   }
   return "Organiza tu día sin conflictos de horario.";
 }
@@ -595,7 +595,7 @@ export default function PremiumHeader({
               </div>
 
               <div style={styles.mobileCenterBlock}>
-                <div style={styles.contextKickerMobile}>Contexto activo</div>
+                <div style={styles.contextKickerMobile}>Activo</div>
 
                 <div style={styles.contextPillMobile}>
                   <span style={{ ...styles.dot, background: activeTab.dot }} />
@@ -980,15 +980,15 @@ const styles: Record<string, CSSProperties> = {
     top: 8,
     zIndex: 20,
     overflow: "visible",
-    borderRadius: 20,
-    padding: 14,
+    borderRadius: 18,
+    padding: 12,
     background:
       "linear-gradient(180deg, rgba(15,23,42,0.96), rgba(15,23,42,0.90))",
     border: `1px solid ${colors.borderSubtle}`,
     boxShadow: shadows.card,
     backdropFilter: "blur(16px)",
-    marginBottom: spacing.lg,
-    minHeight: 184,
+    marginBottom: spacing.md,
+    minHeight: 156,
   },
   backgroundGlow: {
     position: "absolute",
@@ -1014,7 +1014,7 @@ const styles: Record<string, CSSProperties> = {
   desktopActions: {
     display: "flex",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     flexShrink: 0,
   },
 
@@ -1022,9 +1022,9 @@ const styles: Record<string, CSSProperties> = {
     position: "relative",
     zIndex: 1,
     display: "grid",
-    gridTemplateColumns: "40px 1fr 40px",
+    gridTemplateColumns: "36px 1fr 36px",
     alignItems: "start",
-    gap: 10,
+    gap: 8,
   },
   mobileLeftCluster: {
     display: "flex",
@@ -1035,12 +1035,12 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: "column",
     alignItems: "center",
     minWidth: 0,
-    gap: 5,
+    gap: 4,
   },
 
   contextKickerDesktop: {
     margin: 0,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 900,
     color: colors.textSecondary,
     letterSpacing: 0.72,
@@ -1049,7 +1049,7 @@ const styles: Record<string, CSSProperties> = {
   },
   contextKickerMobile: {
     margin: 0,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 900,
     color: colors.textSecondary,
     letterSpacing: 0.68,
@@ -1058,7 +1058,7 @@ const styles: Record<string, CSSProperties> = {
   desktopContextRow: {
     display: "flex",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     flexWrap: "wrap",
     marginBottom: 12,
   },
@@ -1075,15 +1075,15 @@ const styles: Record<string, CSSProperties> = {
   contextPillMobile: {
     display: "inline-flex",
     alignItems: "center",
-    gap: 7,
-    padding: "6px 10px",
+    gap: 6,
+    padding: "5px 9px",
     borderRadius: radii.full,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.05)",
     maxWidth: "100%",
   },
   contextPillText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: 900,
     color: colors.textPrimary,
     whiteSpace: "nowrap",
@@ -1112,12 +1112,12 @@ const styles: Record<string, CSSProperties> = {
   mobileConflictChip: {
     position: "relative",
     zIndex: 1,
-    marginTop: 10,
+    marginTop: 8,
     display: "inline-flex",
     alignItems: "center",
     gap: 8,
     alignSelf: "flex-start",
-    padding: "8px 12px",
+    padding: "7px 11px",
     borderRadius: radii.full,
     border: "1px solid rgba(248,113,113,0.28)",
     background: "rgba(127,29,29,0.42)",
@@ -1135,7 +1135,7 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
   contextSubtleMobile: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 700,
     color: colors.textMuted,
     textAlign: "center",
@@ -1171,8 +1171,8 @@ const styles: Record<string, CSSProperties> = {
 
   mobileTitle: {
     margin: "2px 0 0",
-    fontSize: 18,
-    lineHeight: 1.1,
+    fontSize: 17,
+    lineHeight: 1.05,
     fontWeight: 900,
     letterSpacing: -0.4,
     color: colors.textPrimary,
@@ -1181,9 +1181,9 @@ const styles: Record<string, CSSProperties> = {
   mobileSubtitle: {
     position: "relative",
     zIndex: 1,
-    margin: "12px 0 0",
-    fontSize: 12,
-    lineHeight: 1.5,
+    margin: "8px 0 0",
+    fontSize: 11,
+    lineHeight: 1.35,
     color: colors.textSecondary,
     fontWeight: 600,
   },
@@ -1191,10 +1191,10 @@ const styles: Record<string, CSSProperties> = {
   mobileUpgradeBar: {
     position: "relative",
     zIndex: 1,
-    marginTop: 12,
+    marginTop: 8,
     display: "grid",
-    gap: 8,
-    padding: "10px 12px",
+    gap: 6,
+    padding: "8px 10px",
     borderRadius: 14,
     border: "1px solid rgba(56,189,248,0.18)",
     background:
@@ -1205,14 +1205,14 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
     gap: 8,
     alignItems: "center",
-    fontSize: 12,
-    lineHeight: 1.5,
+    fontSize: 11,
+    lineHeight: 1.35,
     color: colors.textPrimary,
     fontWeight: 700,
   },
   mobileUpgradeButton: {
-    height: 38,
-    padding: "0 14px",
+    height: 34,
+    padding: "0 12px",
     borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.14)",
     background: "rgba(255,255,255,0.06)",
@@ -1246,7 +1246,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 999,
     background: "rgba(255,255,255,0.10)",
     color: "#FFFFFF",
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 900,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -1261,7 +1261,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 999,
     background: "rgba(255,255,255,0.10)",
     color: "#FFFFFF",
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 900,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -1269,8 +1269,8 @@ const styles: Record<string, CSSProperties> = {
 
   iconButton: {
     position: "relative",
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: 12,
     border: `1px solid ${colors.borderSubtle}`,
     background: "rgba(255,255,255,0.04)",
@@ -1285,13 +1285,13 @@ const styles: Record<string, CSSProperties> = {
     position: "absolute",
     top: -6,
     right: -6,
-    minWidth: 20,
-    height: 20,
+    minWidth: 18,
+    height: 18,
     padding: "0 6px",
     borderRadius: radii.full,
     background: "rgba(99,102,241,0.96)",
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 900,
     display: "flex",
     alignItems: "center",
@@ -1301,26 +1301,26 @@ const styles: Record<string, CSSProperties> = {
   },
 
   secondaryButton: {
-    height: 42,
-    padding: "0 16px",
+    height: 38,
+    padding: "0 14px",
     borderRadius: 12,
     border: `1px solid ${colors.borderSubtle}`,
     background: "rgba(255,255,255,0.04)",
     color: colors.textPrimary,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 800,
     cursor: "pointer",
     whiteSpace: "nowrap",
   },
   primaryButton: {
-    height: 42,
-    padding: "0 18px",
+    height: 38,
+    padding: "0 14px",
     borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.14)",
     background:
       "linear-gradient(135deg, rgba(56,189,248,0.26), rgba(168,85,247,0.24))",
     color: colors.textPrimary,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
     whiteSpace: "nowrap",
@@ -1331,7 +1331,7 @@ const styles: Record<string, CSSProperties> = {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
     gap: 8,
-    marginTop: 12,
+    marginTop: 8,
   },
 
   topNav: {
@@ -1339,7 +1339,7 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 1,
     display: "flex",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 8,
     marginTop: 14,
   },
   navPill: {
@@ -1366,7 +1366,7 @@ const styles: Record<string, CSSProperties> = {
     display: "inline-flex",
     alignItems: "center",
     gap: 8,
-    padding: "6px 10px",
+    padding: "5px 9px",
     maxWidth: 220,
     borderRadius: radii.full,
     border: `1px solid ${colors.borderSubtle}`,
@@ -1392,7 +1392,7 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 900,
     color: "#E0F2FE",
   },
@@ -1432,7 +1432,7 @@ const styles: Record<string, CSSProperties> = {
   menuHeader: {
     display: "flex",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     padding: "6px 8px 8px",
   },
   menuAvatar: {
@@ -1444,7 +1444,7 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 900,
     color: "#E0F2FE",
   },

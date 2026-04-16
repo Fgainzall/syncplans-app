@@ -40,13 +40,14 @@ function parsePadding(pad: string): CSSProperties {
 function MobileScaffold({
   children,
   maxWidth = layout.maxWidthDesktop,
-  paddingDesktop = "22px 18px 24px",
-  paddingMobile = "14px 12px 18px",
-  mobileBottomSafe = layout.mobileBottomSafe,
+  paddingDesktop = "20px 18px 22px",
+  paddingMobile = "12px 12px 14px",
+  mobileBottomSafe = Math.max(70, layout.mobileBottomSafe - 8),
   className,
   style,
 }: Props) {
   const desktopPadding = parsePadding(paddingDesktop);
+  const mobilePadding = parsePadding(paddingMobile);
 
   const shellStyle: CSSProperties = {
     minHeight: "100dvh",
@@ -90,10 +91,13 @@ function MobileScaffold({
         @media (max-width: ${layout.mobileBreakpoint}px) {
           .sp-mobile-scaffold-container {
             max-width: min(100%, ${layout.maxWidthMobile}px);
-            padding-top: 14px;
-            padding-left: 12px;
-            padding-right: 12px;
-            padding-bottom: 18px;
+            padding-top: ${(mobilePadding.paddingTop as string) ?? "12px"};
+            padding-left: ${(mobilePadding.paddingLeft as string) ?? (mobilePadding.padding as string) ?? "12px"};
+            padding-right: ${(mobilePadding.paddingRight as string) ?? (mobilePadding.padding as string) ?? "12px"};
+            padding-bottom: max(
+              var(--sp-bottom-safe, 0px),
+              calc(env(safe-area-inset-bottom) + ${mobileBottomSafe}px)
+            );
           }
         }
       `}</style>

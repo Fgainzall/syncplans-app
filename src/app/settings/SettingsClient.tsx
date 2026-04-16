@@ -423,7 +423,7 @@ refreshGoogleStatusWithRetry().catch(() => {});
               <div style={styles.kicker}>Ajustes</div>
               <h1 style={styles.h1}>{title}</h1>
               <div style={styles.sub}>
-                Notificaciones, permisos por grupo y conexiones de calendario.
+                Configura notificaciones, permisos por grupo e integraciones sin ruido extra.
               </div>
 
               {notifScore ? (
@@ -438,20 +438,6 @@ refreshGoogleStatusWithRetry().catch(() => {});
               ) : null}
             </div>
 
-            <div style={styles.heroBtns}>
-              <button
-                onClick={() => router.push("/calendar")}
-                style={styles.ghostBtn}
-              >
-                Volver al calendario →
-              </button>
-              <button
-                onClick={() => router.push("/profile")}
-                style={styles.ghostBtn}
-              >
-                Ir a perfil →
-              </button>
-            </div>
           </section>
 
           {/* CONFIG */}

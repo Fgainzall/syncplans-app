@@ -207,7 +207,7 @@ export default function GroupsPage() {
         <Section>
           <PremiumHeader
             title="Grupos"
-            subtitle="Crea la estructura desde la que SyncPlans empieza a coordinar con otros de verdad."
+            subtitle="Tus espacios compartidos."
           />
 
           <Card style={styles.surfaceCard}>
@@ -270,7 +270,7 @@ export default function GroupsPage() {
                     reachedGroupLimit ? router.push("/planes") : router.push("/groups/new")
                   }
                 >
-                  {reachedGroupLimit ? "Ver planes" : "+ Nuevo grupo"}
+                  {reachedGroupLimit ? "Ver planes" : "+ Grupo"}
                 </button>
               </div>
             </div>
@@ -283,17 +283,17 @@ export default function GroupsPage() {
                 </div>
 
                 <h2 style={styles.heroTitle}>
-                  Grupos para que la coordinación deje de depender solo de ti
+                  Grupos para coordinar mejor
                 </h2>
 
                 <p style={styles.heroText}>
-                  Cada grupo abre un espacio real para coordinar con otras personas. Aquí decides quién entra a la misma versión de la verdad: pareja, familia o grupos compartidos como amigos, deporte o equipos.
+                  Crea espacios de pareja, familia o compartidos para organizarte con otras personas dentro de SyncPlans.
                 </p>
 
                 <div style={styles.heroTip}>
                   <div style={styles.heroTipLabel}>Tip</div>
                   <p style={styles.heroTipText}>
-                    Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>. Después suma a la otra persona: ahí es cuando SyncPlans deja de ser una estructura ordenada y empieza a mover coordinación real dentro del sistema.
+                    Empieza con el grupo que más usas y actívalo como contexto principal.
                   </p>
                 </div>
               </div>
@@ -326,7 +326,7 @@ export default function GroupsPage() {
                 </div>
 
                 <div style={styles.heroSummaryHint}>
-                  El grupo activo es la base desde la que se crean planes, se comparan agendas y se vuelve visible qué parte de la coordinación ya está realmente dentro.
+                  El grupo activo define el contexto principal de coordinación.
                 </div>
               </Card>
             </Card>
@@ -336,8 +336,8 @@ export default function GroupsPage() {
                 <div style={styles.momentumEyebrow}>Dónde se vuelve real</div>
                 <div style={styles.momentumTitle}>
                   {activeGroup
-                    ? `${activeGroup.name || "Tu grupo activo"} puede ser el centro de tu coordinación compartida`
-                    : "Tu primer grupo puede convertirse en tu contexto compartido"}
+                    ? `${activeGroup.name || "Tu grupo activo"} es tu contexto principal`
+                    : "Tu primer grupo puede ser tu contexto principal"}
                 </div>
                 <div style={styles.momentumSub}>{groupMomentumText}</div>
               </div>
@@ -359,7 +359,7 @@ export default function GroupsPage() {
                       reachedGroupLimit ? router.push("/planes") : router.push("/groups/new")
                     }
                   >
-                    {reachedGroupLimit ? "Ver planes" : "Crear primer grupo"}
+                    {reachedGroupLimit ? "Ver planes" : "Crear grupo"}
                   </button>
                 )}
 
@@ -370,7 +370,7 @@ export default function GroupsPage() {
                     pendingInvites > 0 ? router.push("/invitations") : router.push("/summary")
                   }
                 >
-                  {pendingInvites > 0 ? "Revisar invitaciones" : "Volver al resumen"}
+                  {pendingInvites > 0 ? "Invitaciones" : "Resumen"}
                 </button>
               </div>
             </Card>
@@ -467,9 +467,9 @@ export default function GroupsPage() {
               </Card>
             ) : filteredGroups.length === 0 ? (
               <Card tone="muted" style={styles.emptyState}>
-                <h2 style={styles.emptyTitle}>Aún no tienes un espacio compartido activo</h2>
+                <h2 style={styles.emptyTitle}>Aún no tienes grupos</h2>
                 <p style={styles.emptySub}>
-                  Crea tu primer grupo de pareja, familia o compartido para sacar la coordinación del chat y empezar a moverla dentro de SyncPlans, con todos viendo la misma versión de la verdad.
+                  Crea un grupo de pareja, familia o compartido para empezar a coordinar desde SyncPlans.
                 </p>
                 <div style={styles.emptyActions}>
                   <button
@@ -479,7 +479,7 @@ export default function GroupsPage() {
                       reachedGroupLimit ? router.push("/planes") : router.push("/groups/new")
                     }
                   >
-                    {reachedGroupLimit ? "Ver planes" : "Crear primer grupo"}
+                    {reachedGroupLimit ? "Ver planes" : "Crear grupo"}
                   </button>
                 </div>
               </Card>
@@ -538,8 +538,8 @@ function GroupRow({
           </div>
           <div style={styles.groupMicroCopy}>
             {g.is_active
-              ? "Este grupo ya define el contexto desde el que estás creando y revisando planes."
-              : "Puedes activarlo para que SyncPlans use este contexto al crear y revisar coordinación compartida."}
+              ? "Este es tu grupo activo."
+              : "Actívalo para usar este contexto."}
           </div>
         </div>
       </div>
@@ -553,7 +553,7 @@ function GroupRow({
             style={styles.activateBtn}
             onClick={() => onActivate(g.id)}
           >
-            Usar como activo
+            Activar
           </button>
         )}
 
@@ -562,7 +562,7 @@ function GroupRow({
           style={styles.linkBtn}
           onClick={() => router.push(`/groups/${g.id}`)}
         >
-          Ver detalles
+          Detalles
         </button>
       </div>
     </Card>

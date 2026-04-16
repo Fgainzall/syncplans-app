@@ -79,6 +79,10 @@ function shortTimeLabel(value: string | Date) {
   });
 }
 
+const MOBILE_BREAKPOINT = 768;
+const MOBILE_INITIAL_VISIBLE = 8;
+const MOBILE_LOAD_MORE_STEP = 8;
+
 export default function EventsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -103,6 +107,8 @@ export default function EventsPage() {
 
   const [sendingDigest, setSendingDigest] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileVisibleCount, setMobileVisibleCount] = useState(MOBILE_INITIAL_VISIBLE);
 
   const [toast, setToast] = useState<{
     type: "success" | "error";
@@ -110,6 +116,16 @@ export default function EventsPage() {
   } | null>(null);
   const [hasPremium, setHasPremium] = useState(false);
   const focusedEventId = searchParams.get("focusEventId");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncViewport = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
+  }, []);
 
   useEffect(() => {
     void trackScreenView({
@@ -224,6 +240,13 @@ export default function EventsPage() {
     if (filters.view === "history") return [];
     return filteredEvents.filter((e) => isWithinNext24Hours(e.start));
   }, [filteredEvents, filters.view]);
+
+  const timelineEvents = useMemo(() => {
+    if (!isMobile) return filteredEvents;
+    return filteredEvents.slice(0, mobileVisibleCount);
+  }, [filteredEvents, isMobile, mobileVisibleCount]);
+
+  const hasMoreTimelineEvents = isMobile && filteredEvents.length > timelineEvents.length;
 
   const statusSnapshot = useMemo(() => {
     const now = new Date();
@@ -506,7 +529,21 @@ export default function EventsPage() {
     return () => clearTimeout(id);
   }, [toast]);
 
+  useEffect(() => {
+    setMobileVisibleCount(MOBILE_INITIAL_VISIBLE);
+  }, [filters.view, filters.scope, filters.query]);
+
   const anySelected = selectedIds.size > 0;
+  const compactHeaderSubtitle = isMobile
+    ? events.length === 0
+      ? "Ve rápido qué sigue y dónde conviene entrar."
+      : `${filteredEvents.length} evento${filteredEvents.length === 1 ? "" : "s"} visibles para decidir más rápido.`
+    : headerSubtitle;
+
+  const showTopNarrative = !isMobile;
+  const showDigestButton = !isMobile && events.length > 0;
+  const showValueRail = !isMobile && valueVisibility.hasValue;
+  const showPremiumRail = !isMobile && !!premiumContext;
 
   if (booting) {
     return (
@@ -566,16 +603,18 @@ export default function EventsPage() {
       )}
 
       <Section>
-        <PremiumHeader hideUpgradeCta title="Eventos" subtitle={headerSubtitle} />
+        <PremiumHeader hideUpgradeCta title="Eventos" subtitle={compactHeaderSubtitle} />
 
         <Card style={S.cardShell} className="spEvt-card">
           <div style={S.titleRow}>
             <div>
               <div style={S.kicker}>Lo que ya está dentro del sistema</div>
               <h1 style={S.h1}>Eventos con estado real</h1>
-              <p style={S.sub}>
-                No es solo una lista. Aquí ves qué está próximo, qué depende de otra persona, qué ya quedó resuelto y dónde te conviene entrar para mover coordinación real, no solo mirar una agenda.
-              </p>
+              {showTopNarrative && (
+                <p style={S.sub}>
+                  No es solo una lista. Aquí ves qué está próximo, qué depende de otra persona, qué ya quedó resuelto y dónde te conviene entrar para mover coordinación real, no solo mirar una agenda.
+                </p>
+              )}
             </div>
 
             <aside style={S.factBox} className="spEvt-factBox">
@@ -589,7 +628,7 @@ export default function EventsPage() {
                 <span>{valueVisibility.groupCount} en grupos</span>
               </div>
 
-              {totalGroups > 0 && (
+              {showTopNarrative && totalGroups > 0 && (
                 <div style={S.factHint}>
                   Tienes {totalGroups} grupo{totalGroups === 1 ? "" : "s"} conectado{totalGroups === 1 ? "" : "s"}. Cuanta más gente entra, menos cosas se quedan afuera y más valor real gana esta lista.
                 </div>
@@ -597,7 +636,7 @@ export default function EventsPage() {
             </aside>
           </div>
 
-          {valueVisibility.hasValue && (
+          {showValueRail && (
             <div style={S.valueRail}>
               <div style={S.valueRailCopy}>
                 <div style={S.valueRailEyebrow}>Claridad visible</div>
@@ -626,7 +665,7 @@ export default function EventsPage() {
             </div>
           )}
 
-          {premiumContext && (
+          {showPremiumRail && premiumContext && (
             <div style={S.premiumRail}>
               <div style={S.premiumRailCopy}>
                 <div style={S.premiumRailEyebrow}>{premiumContext.eyebrow}</div>
@@ -675,7 +714,7 @@ export default function EventsPage() {
             >
               <div style={S.statusLabel}>Próximos</div>
               <div style={S.statusValue}>{statusSnapshot.nextCount}</div>
-              <div style={S.statusHint}>Lo que sigue vivo en tu agenda compartida</div>
+              {!isMobile && <div style={S.statusHint}>Lo que sigue vivo en tu agenda compartida</div>}
             </button>
 
             <button
@@ -685,7 +724,7 @@ export default function EventsPage() {
             >
               <div style={S.statusLabel}>Por responder</div>
               <div style={S.statusValue}>{statusSnapshot.responseCount}</div>
-              <div style={S.statusHint}>Planes de grupo donde coordinar con alguien más importa</div>
+              {!isMobile && <div style={S.statusHint}>Planes de grupo donde coordinar con alguien más importa</div>}
             </button>
 
             <button
@@ -695,7 +734,7 @@ export default function EventsPage() {
             >
               <div style={S.statusLabel}>Resueltos</div>
               <div style={S.statusValue}>{statusSnapshot.resolvedCount}</div>
-              <div style={S.statusHint}>Eventos que ya pasaron y dejaron una salida clara</div>
+              {!isMobile && <div style={S.statusHint}>Eventos que ya pasaron y dejaron una salida clara</div>}
             </button>
 
             <button
@@ -705,7 +744,7 @@ export default function EventsPage() {
             >
               <div style={S.statusLabel}>Pronto</div>
               <div style={S.statusValue}>{statusSnapshot.soonCount}</div>
-              <div style={S.statusHint}>Lo que conviene revisar en los próximos 7 días</div>
+              {!isMobile && <div style={S.statusHint}>Lo que conviene revisar en los próximos 7 días</div>}
             </button>
           </div>
 
@@ -718,7 +757,7 @@ export default function EventsPage() {
             onChangeQuery={(query) => setFilters((f) => ({ ...f, query }))}
           />
 
-          {events.length > 0 && (
+          {showDigestButton && (
             <button
               type="button"
               onClick={sendTodayDigest}
@@ -798,8 +837,9 @@ export default function EventsPage() {
               onCreateFirstEvent={() => router.push("/events/new/details?type=personal")}
             />
           ) : (
-            <EventsTimeline
-              events={filteredEvents}
+            <>
+              <EventsTimeline
+                events={timelineEvents}
               selectedIds={selectedIds}
               focusedEventId={focusedEventId}
               onToggleSelected={toggleSelection}
@@ -814,7 +854,25 @@ export default function EventsPage() {
                   return next;
                 });
               }}
-            />
+              />
+
+              {hasMoreTimelineEvents && (
+                <div style={S.mobileLoadMoreWrap}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMobileVisibleCount((current) => current + MOBILE_LOAD_MORE_STEP)
+                    }
+                    style={S.mobileLoadMoreBtn}
+                  >
+                    Ver {Math.min(MOBILE_LOAD_MORE_STEP, filteredEvents.length - timelineEvents.length)} más
+                  </button>
+                  <div style={S.mobileLoadMoreHint}>
+                    Mostrando {timelineEvents.length} de {filteredEvents.length} eventos
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </Card>
 
@@ -829,6 +887,20 @@ export default function EventsPage() {
           </button>
         </section>
       </Section>
+
+      <style jsx>{`
+        @media (max-width: 767px) {
+          .spEvt-card {
+            padding: 14px !important;
+          }
+
+          .spEvt-factBox {
+            min-width: 100% !important;
+            max-width: none !important;
+            padding: 10px 12px !important;
+          }
+        }
+      `}</style>
     </MobileScaffold>
   );
 }
