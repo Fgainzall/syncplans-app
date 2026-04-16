@@ -290,17 +290,16 @@ function PlansIcon({ active }: { active: boolean }) {
 
 const NAV_ITEMS: NavItem[] = [
   { key: "summary", label: "Resumen", path: "/summary", aria: "Ir a Resumen" },
-  { key: "calendar", label: "Calend.", path: "/calendar", aria: "Ir a Calendario" },
+  { key: "calendar", label: "Calendario", path: "/calendar", aria: "Ir a Calendario" },
   { key: "events", label: "Eventos", path: "/events", aria: "Ir a Eventos" },
-  { key: "conflicts", label: "Choques", path: "/conflicts/detected", aria: "Ir a Conflictos" },
+  { key: "conflicts", label: "Conflictos", path: "/conflicts/detected", aria: "Ir a Conflictos" },
   { key: "panel", label: "Panel", path: "/panel", aria: "Ir a Panel" },
   { key: "groups", label: "Grupos", path: "/groups", aria: "Ir a Grupos" },
   { key: "members", label: "Miembros", path: "/members", aria: "Ir a Miembros" },
-  { key: "invitations", label: "Invit.", path: "/invitations", aria: "Ir a Invitaciones" },
+  { key: "invitations", label: "Invitaciones", path: "/invitations", aria: "Ir a Invitaciones" },
   { key: "settings", label: "Ajustes", path: "/settings", aria: "Ir a Ajustes" },
   { key: "planes", label: "Planes", path: "/planes", aria: "Ir a Planes" },
 ];
-
 
 function shouldHideBottomNav(pathname: string) {
   return (
@@ -344,6 +343,8 @@ function BottomNav() {
 
   if (shouldHideBottomNav(pathname)) return null;
 
+  const isPanelRelatedPath = (path: string) => path.startsWith("/panel");
+
   const isActive = (key: BottomNavKey) => {
     if (key === "summary") return pathname.startsWith("/summary");
     if (key === "calendar") return pathname.startsWith("/calendar");
@@ -358,15 +359,16 @@ function BottomNav() {
     return false;
   };
 
-  const visibleItems = NAV_ITEMS;
-
   return (
-    <nav style={S.outer} aria-label="NavegaciÃ³n principal">
+    <nav style={S.outer} aria-label="NavegaciĂłn principal">
       <div style={S.wrap}>
         <div style={S.viewport}>
           <div style={S.track}>
-            {visibleItems.map((item) => {
-              const active = isActive(item.key);
+            {NAV_ITEMS.map((item) => {
+              const active =
+                item.key === "panel"
+                  ? isPanelRelatedPath(pathname)
+                  : isActive(item.key);
 
               return (
                 <Link
@@ -409,32 +411,32 @@ function BottomNav() {
 }
 
 const S: Record<string, React.CSSProperties> = {
-  outer: {
+ outer: {
     position: "fixed",
     left: 0,
     right: 0,
     bottom: 0,
     zIndex: 90,
     pointerEvents: "none",
-    paddingLeft: 8,
-    paddingRight: 8,
+    paddingLeft: 10,
+    paddingRight: 10,
     paddingBottom:
-      "calc(env(safe-area-inset-bottom, 0px) + var(--sp-bottom-nav-offset, 8px))",
+      "calc(env(safe-area-inset-bottom, 0px) + var(--sp-bottom-nav-offset, 12px))",
     boxSizing: "border-box",
   },
 
   wrap: {
     pointerEvents: "auto",
-    width: "min(100%, 760px)",
+    width: "min(100%, 560px)",
     margin: "0 auto",
-    borderRadius: 16,
+    borderRadius: 20,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(8,12,20,0.9)",
+    background: "rgba(8,12,20,0.88)",
     boxShadow:
-      "0 18px 42px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)",
-    backdropFilter: "blur(18px)",
-    WebkitBackdropFilter: "blur(18px)",
-    padding: 3,
+      "0 20px 50px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.04)",
+    backdropFilter: "blur(20px)",
+    WebkitBackdropFilter: "blur(20px)",
+    padding: 4,
   },
 
   viewport: {
@@ -450,31 +452,30 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   track: {
-    display: "flex",
+    display: "inline-flex",
     alignItems: "stretch",
-    justifyContent: "space-between",
-    gap: 4,
-    width: "100%",
-    minWidth: 0,
+    gap: 8,
+    minWidth: "max-content",
+    paddingBottom: 2,
   },
 
   item: {
-    minWidth: 0,
-    flex: "1 1 0",
-    minHeight: 50,
-    padding: "6px 4px 7px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.05)",
-    background: "rgba(255,255,255,0.02)",
+    minWidth: 74,
+    minHeight: 58,
+    padding: "8px 8px 10px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.06)",
+    background: "rgba(255,255,255,0.025)",
     color: "rgba(255,255,255,0.76)",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
+    gap: 6,
     textDecoration: "none",
     WebkitTapHighlightColor: "transparent",
     userSelect: "none",
+    flex: "0 0 auto",
     cursor: "pointer",
     transition:
       "background 140ms ease, border-color 140ms ease, transform 120ms ease, box-shadow 140ms ease, color 140ms ease",
@@ -489,9 +490,9 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   iconWrap: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 10,
     display: "grid",
     placeItems: "center",
     color: "inherit",
@@ -504,7 +505,7 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   label: {
-    fontSize: 8,
+    fontSize: 9,
     lineHeight: 1,
     fontWeight: 800,
     letterSpacing: "0.01em",

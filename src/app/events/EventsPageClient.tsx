@@ -587,7 +587,7 @@ export default function EventsPage() {
               pointerEvents: "auto",
               borderRadius: 999,
               padding: "10px 14px",
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 600,
               background:
                 toast.type === "success"
@@ -637,17 +637,21 @@ export default function EventsPage() {
           </div>
 
           {showValueRail && (
-            <div style={S.valueRail}>
+            <div style={{ ...S.valueRail, ...(isMobile ? { padding: "11px 12px", borderRadius: 16, gap: 10 } : {}) }}>
               <div style={S.valueRailCopy}>
-                <div style={S.valueRailEyebrow}>Claridad visible</div>
-                <div style={S.valueRailTitle}>
-                  Aquí ya se empieza a ver qué parte de tu coordinación vive dentro del sistema de verdad.
+                <div style={{ ...S.valueRailEyebrow, ...(isMobile ? { fontSize: 10, letterSpacing: 0.7 } : {}) }}>{isMobile ? "Dentro del sistema" : "Claridad visible"}</div>
+                <div style={{ ...S.valueRailTitle, ...(isMobile ? { fontSize: 12, lineHeight: 1.2 } : {}) }}>
+                  {isMobile
+                    ? "Eventos con estado real"
+                    : "Aquí ya se empieza a ver qué parte de tu coordinación vive dentro del sistema de verdad."}
                 </div>
-                <div style={S.valueRailSub}>
-                  {valueVisibility.personalCount} personal · {valueVisibility.groupCount} compartido
-                  {valueVisibility.next24h > 0
-                    ? ` · ${valueVisibility.next24h} requiere atención en las próximas 24 horas`
-                    : " · sin urgencias inmediatas ahora mismo"}
+                <div style={{ ...S.valueRailSub, ...(isMobile ? { fontSize: 12, lineHeight: 1.35 } : {}) }}>
+                  {valueVisibility.personalCount} personales · {valueVisibility.groupCount} en grupos
+                  {isMobile
+                    ? ""
+                    : valueVisibility.next24h > 0
+                      ? ` · ${valueVisibility.next24h} requiere atención en las próximas 24 horas`
+                      : " · sin urgencias inmediatas ahora mismo"}
                 </div>
               </div>
 
@@ -657,7 +661,7 @@ export default function EventsPage() {
                   onClick={() =>
                     router.push(valueVisibility.next24h > 0 ? "/calendar" : "/summary")
                   }
-                  style={S.valueRailBtn}
+                  style={{ ...S.valueRailBtn, ...(isMobile ? { padding: "8px 11px", fontSize: 12 } : {}) }}
                 >
                   {valueVisibility.next24h > 0 ? "Ver lo que viene juntos" : "Volver al resumen"}
                 </button>
@@ -706,44 +710,44 @@ export default function EventsPage() {
             </div>
           )}
 
-          <div style={S.statusGrid}>
+          <div style={{ ...S.statusGrid, ...(isMobile ? { gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, marginBottom: 12 } : {}) }}>
             <button
               type="button"
-              style={S.statusCard}
+              style={{ ...S.statusCard, ...(isMobile ? { padding: "10px 11px", borderRadius: 16, gap: 3 } : {}) }}
               onClick={() => setFilters((f) => ({ ...f, view: "upcoming" }))}
             >
               <div style={S.statusLabel}>Próximos</div>
-              <div style={S.statusValue}>{statusSnapshot.nextCount}</div>
+              <div style={{ ...S.statusValue, ...(isMobile ? { fontSize: 18 } : {}) }}>{statusSnapshot.nextCount}</div>
               {!isMobile && <div style={S.statusHint}>Lo que sigue vivo en tu agenda compartida</div>}
             </button>
 
             <button
               type="button"
-              style={S.statusCard}
+              style={{ ...S.statusCard, ...(isMobile ? { padding: "10px 11px", borderRadius: 16, gap: 3 } : {}) }}
               onClick={() => setFilters((f) => ({ ...f, view: "upcoming", scope: "groups" }))}
             >
               <div style={S.statusLabel}>Por responder</div>
-              <div style={S.statusValue}>{statusSnapshot.responseCount}</div>
+              <div style={{ ...S.statusValue, ...(isMobile ? { fontSize: 18 } : {}) }}>{statusSnapshot.responseCount}</div>
               {!isMobile && <div style={S.statusHint}>Planes de grupo donde coordinar con alguien más importa</div>}
             </button>
 
             <button
               type="button"
-              style={S.statusCard}
+              style={{ ...S.statusCard, ...(isMobile ? { padding: "10px 11px", borderRadius: 16, gap: 3 } : {}) }}
               onClick={() => setFilters((f) => ({ ...f, view: "history" }))}
             >
               <div style={S.statusLabel}>Resueltos</div>
-              <div style={S.statusValue}>{statusSnapshot.resolvedCount}</div>
+              <div style={{ ...S.statusValue, ...(isMobile ? { fontSize: 18 } : {}) }}>{statusSnapshot.resolvedCount}</div>
               {!isMobile && <div style={S.statusHint}>Eventos que ya pasaron y dejaron una salida clara</div>}
             </button>
 
             <button
               type="button"
-              style={S.statusCard}
+              style={{ ...S.statusCard, ...(isMobile ? { padding: "10px 11px", borderRadius: 16, gap: 3 } : {}) }}
               onClick={() => setFilters((f) => ({ ...f, view: "upcoming" }))}
             >
               <div style={S.statusLabel}>Pronto</div>
-              <div style={S.statusValue}>{statusSnapshot.soonCount}</div>
+              <div style={{ ...S.statusValue, ...(isMobile ? { fontSize: 18 } : {}) }}>{statusSnapshot.soonCount}</div>
               {!isMobile && <div style={S.statusHint}>Lo que conviene revisar en los próximos 7 días</div>}
             </button>
           </div>
@@ -941,7 +945,7 @@ const S: Record<string, React.CSSProperties> = {
   sub: {
     margin: 0,
     marginTop: 6,
-    fontSize: 12,
+    fontSize: 13,
     lineHeight: 1.5,
     color: "rgba(209,213,219,0.98)",
   },
@@ -1021,7 +1025,7 @@ const S: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.98)",
   },
   valueRailSub: {
-    fontSize: 12,
+    fontSize: 13,
     lineHeight: 1.55,
     color: "rgba(220,252,231,0.82)",
   },
@@ -1036,7 +1040,7 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(74,222,128,0.24)",
     background: "rgba(34,197,94,0.18)",
     padding: "10px 14px",
-    fontSize: 12,
+    fontSize: 13,
     color: "rgba(255,255,255,0.96)",
     fontWeight: 900,
     cursor: "pointer",
@@ -1074,7 +1078,7 @@ const S: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.99)",
   },
   premiumRailSub: {
-    fontSize: 12,
+    fontSize: 13,
     lineHeight: 1.58,
     color: "rgba(226,232,240,0.86)",
   },
@@ -1089,7 +1093,7 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(245,158,11,0.34)",
     background: "linear-gradient(135deg, rgba(245,158,11,0.24), rgba(251,191,36,0.18))",
     padding: "10px 14px",
-    fontSize: 12,
+    fontSize: 13,
     color: "rgba(255,248,235,0.98)",
     fontWeight: 900,
     cursor: "pointer",
@@ -1099,7 +1103,7 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(148,163,184,0.32)",
     background: "rgba(15,23,42,0.58)",
     padding: "10px 14px",
-    fontSize: 12,
+    fontSize: 13,
     color: "rgba(226,232,240,0.96)",
     fontWeight: 800,
     cursor: "pointer",
@@ -1158,7 +1162,7 @@ const S: Record<string, React.CSSProperties> = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: 10,
+    gap: 12,
     marginBottom: 10,
     flexWrap: "wrap",
   },
@@ -1208,7 +1212,7 @@ const S: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
   },
   urgentName: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 800,
     color: "rgba(255,255,255,0.98)",
   },
@@ -1252,7 +1256,7 @@ const S: Record<string, React.CSSProperties> = {
   statusValue: {
     fontSize: 24,
     fontWeight: 950,
-    lineHeight: 0.95,
+    lineHeight: 1,
     color: "rgba(248,250,252,0.98)",
   },
   statusHint: {
@@ -1266,7 +1270,7 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(30,64,175,0.95)",
     background:
       "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.22), transparent 55%), rgba(15,23,42,0.96)",
-    padding: 12,
+    padding: 14,
   },
   loadingRow: {
     display: "flex",
@@ -1281,12 +1285,12 @@ const S: Record<string, React.CSSProperties> = {
     boxShadow: "0 0 20px rgba(56,189,248,0.70)",
   },
   loadingTitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 800,
     color: "rgba(248,250,252,0.98)",
   },
   loadingSub: {
-    fontSize: 11,
+    fontSize: 12,
     color: "rgba(148,163,184,0.96)",
   },
   footerSection: {
@@ -1301,7 +1305,7 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(148,163,184,0.75)",
     background: "rgba(15,23,42,0.96)",
     padding: "8px 14px",
-    fontSize: 12,
+    fontSize: 13,
     color: "rgba(229,231,235,0.98)",
     cursor: "pointer",
   },

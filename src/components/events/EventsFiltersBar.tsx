@@ -113,7 +113,7 @@ const S: Record<string, CSSProperties> = {
   filters: {
     display: "flex",
     flexDirection: "column",
-    gap: 10,
+    gap: 6,
   },
   tabs: {
     display: "flex",
@@ -146,7 +146,7 @@ const S: Record<string, CSSProperties> = {
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.60)",
     background: "rgba(15,23,42,0.96)",
-    padding: "8px 12px",
+    padding: "8px 11px",
     color: "rgba(248,250,252,0.98)",
     fontSize: 12,
     outline: "none",

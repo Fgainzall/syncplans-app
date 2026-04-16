@@ -786,17 +786,17 @@ export default function PanelPage() {
                     background: currentContextOption.dot,
                   }}
                 />
-                <span style={styles.contextCurrentTextSmall}>
+                <span style={{ ...styles.contextCurrentTextSmall, ...(isMobile ? { fontSize: 18 } : {}) }}>
                   {currentContextOption.label}
                 </span>
                 {showContextGroupName ? (
-                  <span style={styles.contextInlineMeta}>{showContextGroupName}</span>
+                  <span style={{ ...styles.contextInlineMeta, ...(isMobile ? { fontSize: 11 } : {}) }}>{showContextGroupName}</span>
                 ) : null}
               </div>
             </div>
           </div>
 
-          <div style={styles.contextGrid}>
+          <div style={{ ...styles.contextGrid, ...(isMobile ? { gridTemplateColumns: "1fr", gap: 8 } : {}) }}>
             {CONTEXT_OPTIONS.map((option) => {
               const active = option.key === contextState.mode;
               const saving = contextSaving === option.key;
@@ -809,22 +809,23 @@ export default function PanelPage() {
                   disabled={saving}
                   style={{
                     ...styles.contextCard,
+                    ...(isMobile ? { padding: 11, gap: 6 } : {}),
                     ...(active ? styles.contextCardActive : {}),
                     ...(saving ? styles.contextCardBusy : {}),
                   }}
                 >
-                  <div style={styles.contextCardTop}>
+                  <div style={{ ...styles.contextCardTop, ...(isMobile ? { gap: 8 } : {}) }}>
                     <span
                       style={{
                         ...styles.contextCardDot,
                         background: option.dot,
                       }}
                     />
-                    <span style={styles.contextCardLabel}>{option.label}</span>
-                    {active ? <span style={styles.contextBadge}>Activo</span> : null}
+                    <span style={{ ...styles.contextCardLabel, ...(isMobile ? { fontSize: 14 } : {}) }}>{option.label}</span>
+                    {active ? <span style={{ ...styles.contextBadge, ...(isMobile ? { padding: "3px 7px", fontSize: 10 } : {}) }}>Activo</span> : null}
                   </div>
 
-                  <div style={styles.contextCardHint}>{option.hint}</div>
+                  <div style={{ ...styles.contextCardHint, ...(isMobile ? { fontSize: 11, lineHeight: 1.35 } : {}) }}>{option.hint}</div>
                 </button>
               );
             })}
@@ -837,7 +838,7 @@ export default function PanelPage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Administración</div>
-                  <h2 style={styles.sectionTitle}>Accesos prioritarios</h2>
+                  <h2 style={{ ...styles.sectionTitle, ...(isMobile ? { fontSize: 14 } : {}) }}>Accesos prioritarios</h2>
                   {!isMobile ? (
                     <div style={styles.sectionSubtleCopy}>
                       Las piezas que convierten a SyncPlans en una capa de coordinación compartida y no en otro calendario.
@@ -846,20 +847,21 @@ export default function PanelPage() {
                 </div>
               </div>
 
-              <div style={styles.actionsGrid}>
+              <div style={{ ...styles.actionsGrid, ...(isMobile ? { gridTemplateColumns: "1fr", gap: 8 } : {}) }}>
                 {adminActions.map((action) => (
                   <button
                     key={action.id}
                     type="button"
                     style={{
                       ...styles.actionCard,
+                      ...(isMobile ? { padding: 11, minHeight: 78, gap: 6 } : {}),
                       ...(action.featured ? styles.actionCardFeatured : undefined),
                     }}
                     onClick={() => router.push(action.href)}
                   >
-                    <div style={styles.actionCardTop}>
-                      <span style={styles.actionTitle}>{action.title}</span>
-                      {action.badge ? <span style={styles.badge}>{action.badge}</span> : null}
+                    <div style={{ ...styles.actionCardTop, ...(isMobile ? { gap: 8 } : {}) }}>
+                      <span style={{ ...styles.actionTitle, ...(isMobile ? { fontSize: 14 } : {}) }}>{action.title}</span>
+                      {action.badge ? <span style={{ ...styles.badge, ...(isMobile ? { padding: "3px 7px", fontSize: 10 } : {}) }}>{action.badge}</span> : null}
                     </div>
                     {!isMobile ? <p style={styles.actionHint}>{action.hint}</p> : null}
                   </button>
@@ -1561,7 +1563,7 @@ const styles: Record<string, CSSProperties> = {
     border: `1px solid ${colors.borderSubtle}`,
     background: colors.surfaceLow,
     boxShadow: shadows.card,
-    padding: 16,
+    padding: 18,
     display: "flex",
     flexDirection: "column",
     gap: 14,
@@ -1597,7 +1599,7 @@ const styles: Record<string, CSSProperties> = {
 
   sectionTitle: {
     margin: 0,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 900,
     lineHeight: 1.08,
   },
@@ -1731,8 +1733,8 @@ const styles: Record<string, CSSProperties> = {
 
   actionsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: 8,
+    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+    gap: 10,
   },
 
   actionCard: {
@@ -1740,14 +1742,14 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.09)",
     background:
       "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(15,23,42,0.96))",
-    padding: 12,
+    padding: 14,
     textAlign: "left",
     cursor: "pointer",
     color: colors.textPrimary,
     display: "flex",
     flexDirection: "column",
-    gap: 6,
-    minHeight: 78,
+    gap: 8,
+    minHeight: 96,
   },
 
   actionCardFeatured: {
@@ -1765,7 +1767,7 @@ const styles: Record<string, CSSProperties> = {
   },
 
   actionTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: 900,
     lineHeight: 1.2,
   },
