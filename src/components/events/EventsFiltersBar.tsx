@@ -128,8 +128,8 @@ const S: Record<string, CSSProperties> = {
     overflow: "hidden",
   },
   segmentBtn: {
-    padding: "8px 11px",
-    fontSize: 12,
+    padding: "7px 10px",
+    fontSize: 11,
     background: "transparent",
     border: "none",
     color: "rgba(209,213,219,0.9)",
@@ -146,9 +146,9 @@ const S: Record<string, CSSProperties> = {
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.60)",
     background: "rgba(15,23,42,0.96)",
-    padding: "9px 12px",
+    padding: "8px 12px",
     color: "rgba(248,250,252,0.98)",
-    fontSize: 13,
+    fontSize: 12,
     outline: "none",
   },
 };

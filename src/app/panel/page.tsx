@@ -1561,7 +1561,7 @@ const styles: Record<string, CSSProperties> = {
     border: `1px solid ${colors.borderSubtle}`,
     background: colors.surfaceLow,
     boxShadow: shadows.card,
-    padding: 18,
+    padding: 16,
     display: "flex",
     flexDirection: "column",
     gap: 14,
@@ -1597,7 +1597,7 @@ const styles: Record<string, CSSProperties> = {
 
   sectionTitle: {
     margin: 0,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 900,
     lineHeight: 1.08,
   },
@@ -1731,8 +1731,8 @@ const styles: Record<string, CSSProperties> = {
 
   actionsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-    gap: 10,
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gap: 8,
   },
 
   actionCard: {
@@ -1740,14 +1740,14 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.09)",
     background:
       "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(15,23,42,0.96))",
-    padding: 14,
+    padding: 12,
     textAlign: "left",
     cursor: "pointer",
     color: colors.textPrimary,
     display: "flex",
     flexDirection: "column",
-    gap: 8,
-    minHeight: 96,
+    gap: 6,
+    minHeight: 78,
   },
 
   actionCardFeatured: {
@@ -1765,7 +1765,7 @@ const styles: Record<string, CSSProperties> = {
   },
 
   actionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 900,
     lineHeight: 1.2,
   },

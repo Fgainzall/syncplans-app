@@ -587,7 +587,7 @@ export default function EventsPage() {
               pointerEvents: "auto",
               borderRadius: 999,
               padding: "10px 14px",
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 600,
               background:
                 toast.type === "success"
@@ -941,7 +941,7 @@ const S: Record<string, React.CSSProperties> = {
   sub: {
     margin: 0,
     marginTop: 6,
-    fontSize: 13,
+    fontSize: 12,
     lineHeight: 1.5,
     color: "rgba(209,213,219,0.98)",
   },
@@ -1021,7 +1021,7 @@ const S: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.98)",
   },
   valueRailSub: {
-    fontSize: 13,
+    fontSize: 12,
     lineHeight: 1.55,
     color: "rgba(220,252,231,0.82)",
   },
@@ -1036,7 +1036,7 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(74,222,128,0.24)",
     background: "rgba(34,197,94,0.18)",
     padding: "10px 14px",
-    fontSize: 13,
+    fontSize: 12,
     color: "rgba(255,255,255,0.96)",
     fontWeight: 900,
     cursor: "pointer",
@@ -1074,7 +1074,7 @@ const S: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.99)",
   },
   premiumRailSub: {
-    fontSize: 13,
+    fontSize: 12,
     lineHeight: 1.58,
     color: "rgba(226,232,240,0.86)",
   },
@@ -1089,7 +1089,7 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(245,158,11,0.34)",
     background: "linear-gradient(135deg, rgba(245,158,11,0.24), rgba(251,191,36,0.18))",
     padding: "10px 14px",
-    fontSize: 13,
+    fontSize: 12,
     color: "rgba(255,248,235,0.98)",
     fontWeight: 900,
     cursor: "pointer",
@@ -1099,7 +1099,7 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(148,163,184,0.32)",
     background: "rgba(15,23,42,0.58)",
     padding: "10px 14px",
-    fontSize: 13,
+    fontSize: 12,
     color: "rgba(226,232,240,0.96)",
     fontWeight: 800,
     cursor: "pointer",
@@ -1158,7 +1158,7 @@ const S: Record<string, React.CSSProperties> = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: 12,
+    gap: 10,
     marginBottom: 10,
     flexWrap: "wrap",
   },
@@ -1208,7 +1208,7 @@ const S: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
   },
   urgentName: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 800,
     color: "rgba(255,255,255,0.98)",
   },
@@ -1252,7 +1252,7 @@ const S: Record<string, React.CSSProperties> = {
   statusValue: {
     fontSize: 24,
     fontWeight: 950,
-    lineHeight: 1,
+    lineHeight: 0.95,
     color: "rgba(248,250,252,0.98)",
   },
   statusHint: {
@@ -1266,7 +1266,7 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(30,64,175,0.95)",
     background:
       "radial-gradient(circle at 0% 0%, rgba(59,130,246,0.22), transparent 55%), rgba(15,23,42,0.96)",
-    padding: 14,
+    padding: 12,
   },
   loadingRow: {
     display: "flex",
@@ -1281,12 +1281,12 @@ const S: Record<string, React.CSSProperties> = {
     boxShadow: "0 0 20px rgba(56,189,248,0.70)",
   },
   loadingTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 800,
     color: "rgba(248,250,252,0.98)",
   },
   loadingSub: {
-    fontSize: 12,
+    fontSize: 11,
     color: "rgba(148,163,184,0.96)",
   },
   footerSection: {
@@ -1301,7 +1301,7 @@ const S: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(148,163,184,0.75)",
     background: "rgba(15,23,42,0.96)",
     padding: "8px 14px",
-    fontSize: 13,
+    fontSize: 12,
     color: "rgba(229,231,235,0.98)",
     cursor: "pointer",
   },

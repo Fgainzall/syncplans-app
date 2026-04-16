@@ -290,19 +290,17 @@ function PlansIcon({ active }: { active: boolean }) {
 
 const NAV_ITEMS: NavItem[] = [
   { key: "summary", label: "Resumen", path: "/summary", aria: "Ir a Resumen" },
-  { key: "calendar", label: "Calendario", path: "/calendar", aria: "Ir a Calendario" },
+  { key: "calendar", label: "Calend.", path: "/calendar", aria: "Ir a Calendario" },
   { key: "events", label: "Eventos", path: "/events", aria: "Ir a Eventos" },
   { key: "conflicts", label: "Choques", path: "/conflicts/detected", aria: "Ir a Conflictos" },
   { key: "panel", label: "Panel", path: "/panel", aria: "Ir a Panel" },
   { key: "groups", label: "Grupos", path: "/groups", aria: "Ir a Grupos" },
   { key: "members", label: "Miembros", path: "/members", aria: "Ir a Miembros" },
-  { key: "invitations", label: "Invites", path: "/invitations", aria: "Ir a Invitaciones" },
+  { key: "invitations", label: "Invit.", path: "/invitations", aria: "Ir a Invitaciones" },
   { key: "settings", label: "Ajustes", path: "/settings", aria: "Ir a Ajustes" },
   { key: "planes", label: "Planes", path: "/planes", aria: "Ir a Planes" },
 ];
 
-const PRIMARY_KEYS: BottomNavKey[] = ["summary", "calendar", "events", "conflicts", "panel"];
-const SECONDARY_KEYS: BottomNavKey[] = ["groups", "members", "invitations", "settings", "planes"];
 
 function shouldHideBottomNav(pathname: string) {
   return (
@@ -360,15 +358,10 @@ function BottomNav() {
     return false;
   };
 
-  const activeSecondaryKey = SECONDARY_KEYS.find((key) => isActive(key));
-
-  const primaryItems = NAV_ITEMS.filter((item) => PRIMARY_KEYS.includes(item.key));
-  const visibleItems = activeSecondaryKey
-    ? [...primaryItems, NAV_ITEMS.find((item) => item.key === activeSecondaryKey)!]
-    : primaryItems;
+  const visibleItems = NAV_ITEMS;
 
   return (
-    <nav style={S.outer} aria-label="NavegaciĂłn principal">
+    <nav style={S.outer} aria-label="NavegaciÃ³n principal">
       <div style={S.wrap}>
         <div style={S.viewport}>
           <div style={S.track}>
@@ -423,25 +416,25 @@ const S: Record<string, React.CSSProperties> = {
     bottom: 0,
     zIndex: 90,
     pointerEvents: "none",
-    paddingLeft: 10,
-    paddingRight: 10,
+    paddingLeft: 8,
+    paddingRight: 8,
     paddingBottom:
-      "calc(env(safe-area-inset-bottom, 0px) + var(--sp-bottom-nav-offset, 10px))",
+      "calc(env(safe-area-inset-bottom, 0px) + var(--sp-bottom-nav-offset, 8px))",
     boxSizing: "border-box",
   },
 
   wrap: {
     pointerEvents: "auto",
-    width: "min(100%, 560px)",
+    width: "min(100%, 760px)",
     margin: "0 auto",
-    borderRadius: 18,
+    borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(8,12,20,0.9)",
     boxShadow:
       "0 18px 42px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)",
     backdropFilter: "blur(18px)",
     WebkitBackdropFilter: "blur(18px)",
-    padding: 4,
+    padding: 3,
   },
 
   viewport: {
@@ -460,7 +453,7 @@ const S: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "stretch",
     justifyContent: "space-between",
-    gap: 6,
+    gap: 4,
     width: "100%",
     minWidth: 0,
   },
@@ -468,9 +461,9 @@ const S: Record<string, React.CSSProperties> = {
   item: {
     minWidth: 0,
     flex: "1 1 0",
-    minHeight: 54,
-    padding: "7px 6px 9px",
-    borderRadius: 13,
+    minHeight: 50,
+    padding: "6px 4px 7px",
+    borderRadius: 12,
     border: "1px solid rgba(255,255,255,0.05)",
     background: "rgba(255,255,255,0.02)",
     color: "rgba(255,255,255,0.76)",
@@ -478,7 +471,7 @@ const S: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    gap: 5,
+    gap: 4,
     textDecoration: "none",
     WebkitTapHighlightColor: "transparent",
     userSelect: "none",
@@ -496,9 +489,9 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   iconWrap: {
-    width: 27,
-    height: 27,
-    borderRadius: 9,
+    width: 24,
+    height: 24,
+    borderRadius: 8,
     display: "grid",
     placeItems: "center",
     color: "inherit",
@@ -511,7 +504,7 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   label: {
-    fontSize: 9,
+    fontSize: 8,
     lineHeight: 1,
     fontWeight: 800,
     letterSpacing: "0.01em",
