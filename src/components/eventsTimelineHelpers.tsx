@@ -5,6 +5,7 @@ import type {
   CalendarEvent,
 } from "@/lib/conflicts";
 import { computeVisibleConflicts } from "@/lib/conflicts";
+import { normalizeGroupType as normalizeCanonicalGroupType } from "@/lib/naming";
 import { buildEventContext } from "@/lib/eventContext";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
 import type { ConflictTrustSignal } from "@/lib/conflictResolutionsLogDb";
@@ -36,16 +37,7 @@ export type ConflictByEventId = Record<string, ConflictItem[]>;
 export function normalizeTimelineGroupType(
   value: string | null | undefined
 ): GroupType {
-  const safe = String(value ?? "").trim().toLowerCase();
-
-  if (!safe) return "personal";
-  if (safe === "couple") return "pair";
-  if (safe === "shared") return "other";
-  if (safe === "pair" || safe === "family" || safe === "other") {
-    return safe as GroupType;
-  }
-
-  return "other";
+  return normalizeCanonicalGroupType(value);
 }
 
 export function toConflictCalendarEvent(event: TimelineEvent): CalendarEvent {

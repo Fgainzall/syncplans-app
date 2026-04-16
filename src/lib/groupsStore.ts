@@ -11,6 +11,11 @@ import {
   getActiveGroupIdFromDb,
   setActiveGroupIdInDb,
 } from "@/lib/activeGroup";
+import {
+  getDefaultGroupName,
+  normalizeGroupType as normalizeCanonicalGroupType,
+  type CanonicalGroupType,
+} from "@/lib/naming";
 
 // ✅ Compatibilidad (para no romper imports viejos en la UI)
 export const fetchMyGroups = getMyGroups;
@@ -43,23 +48,11 @@ type GroupsState = {
 };
 
 function normalizeGroupType(t: DbGroupRow["type"]): GroupType {
-  const v = String(t ?? "other");
-  if (
-    v === "pair" ||
-    v === "family" ||
-    v === "other" ||
-    v === "solo" ||
-    v === "personal"
-  )
-    return v;
-  return "other";
+  return normalizeCanonicalGroupType(String(t ?? "")) as GroupType;
 }
 
 function getFallbackGroupName(type: GroupType) {
-  if (type === "pair") return "Pareja";
-  if (type === "family") return "Familia";
-  if (type === "solo" || type === "personal") return "Personal";
-  return "Grupo";
+  return getDefaultGroupName(type as CanonicalGroupType);
 }
 
 function getHumanGroupName(g: DbGroupRow): string {

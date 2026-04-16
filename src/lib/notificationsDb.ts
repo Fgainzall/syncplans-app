@@ -8,6 +8,7 @@ import {
 } from "@/lib/userNotificationSettings";
 import { computeVisibleConflicts, attachEvents } from "@/lib/conflicts";
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
+import { normalizePreferenceGroupType } from "@/lib/naming";
 
 export type NotificationType =
   | "event_created"
@@ -139,13 +140,7 @@ function normalizeNotificationRecord(row: any): NotificationRow {
 }
 
 function normalizeGroupTypeForPrefs(value: unknown): string {
-  const gt = String(value ?? "").trim().toLowerCase();
-
-  if (gt === "couple") return "pair";
-  if (gt === "shared") return "other";
-  if (gt === "solo") return "personal";
-
-  return gt;
+  return normalizePreferenceGroupType(String(value ?? ""));
 }
 
 function extractEventIdsFromPayload(

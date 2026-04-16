@@ -15,8 +15,10 @@ import { type GroupRow } from "@/lib/groupsDb";
 import { parseIsoLike, toDateMs } from "@/lib/dateUtils";
 import {
   deriveEventStatus,
+  getDefaultGroupName,
   getProposalResponseLabel as getCanonicalProposalResponseLabel,
   getProposalResponseTone as getCanonicalProposalResponseTone,
+  normalizeGroupType as normalizeCanonicalGroupType,
 } from "@/lib/naming";
 import { buildEventContext } from "@/lib/eventContext";
 
@@ -117,25 +119,13 @@ export function fmtTime(d: Date) {
 export function humanGroupName(g: GroupRow) {
   const n = String(g.name ?? "").trim();
   if (n) return n;
-
-  const t = String(g.type ?? "").toLowerCase();
-  if (t === "pair" || t === "couple") return "Pareja";
-  if (t === "family") return "Familia";
-  if (t === "solo" || t === "personal") return "Personal";
-  if (t === "other" || t === "shared") return "Compartido";
-
-  return "Grupo";
+  return getDefaultGroupName(String(g.type ?? ""));
 }
 
 export function normalizeSummaryGroupType(
   raw: string | null | undefined
 ): GroupType {
-  const value = String(raw ?? "").trim().toLowerCase();
-
-  if (value === "pair" || value === "couple") return "pair";
-  if (value === "family") return "family";
-  if (value === "other" || value === "shared") return "other";
-  return "personal";
+  return normalizeCanonicalGroupType(raw);
 }
 
 export function resolutionForConflict(

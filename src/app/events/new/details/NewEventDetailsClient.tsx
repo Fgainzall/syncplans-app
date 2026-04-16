@@ -8,6 +8,7 @@ import EventDetailsHero from "@/components/EventDetailsHero";
 import EventDetailsTemplatesSection from "@/components/EventDetailsTemplatesSection";
 import PostSaveActionsCard from "@/components/PostSaveActionsCard";
 import type { EventTemplate } from "@/lib/eventTemplates";
+import { normalizeGroupType as normalizeCanonicalGroupType } from "@/lib/naming";
 import ConflictPreflightModal from "@/components/ConflictPreflightModal";
 import {
   createConflictNotificationForEvent,
@@ -108,12 +109,7 @@ type DbGroup = {
 };
 
 function normalizeDbGroupType(value: unknown): GroupType {
-  const t = String(value ?? "").toLowerCase();
-
-  if (t === "family") return "family";
-  if (t === "other" || t === "shared") return "other" as GroupType;
-  if (t === "pair" || t === "couple") return "pair";
-  return "personal";
+  return normalizeCanonicalGroupType(String(value ?? ""));
 }
 
 type NewType = "personal" | "group";
