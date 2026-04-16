@@ -834,41 +834,6 @@ export default function PanelPage() {
 
         <div style={styles.mainGrid}>
           <div style={styles.leftCol}>
-            <section style={styles.sectionCard}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Administración</div>
-                  <h2 style={{ ...styles.sectionTitle, ...(isMobile ? { fontSize: 14 } : {}) }}>Accesos prioritarios</h2>
-                  {!isMobile ? (
-                    <div style={styles.sectionSubtleCopy}>
-                      Las piezas que convierten a SyncPlans en una capa de coordinación compartida y no en otro calendario.
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div style={{ ...styles.actionsGrid, ...(isMobile ? { gridTemplateColumns: "1fr", gap: 8 } : {}) }}>
-                {adminActions.map((action) => (
-                  <button
-                    key={action.id}
-                    type="button"
-                    style={{
-                      ...styles.actionCard,
-                      ...(isMobile ? { padding: 11, minHeight: 78, gap: 6 } : {}),
-                      ...(action.featured ? styles.actionCardFeatured : undefined),
-                    }}
-                    onClick={() => router.push(action.href)}
-                  >
-                    <div style={{ ...styles.actionCardTop, ...(isMobile ? { gap: 8 } : {}) }}>
-                      <span style={{ ...styles.actionTitle, ...(isMobile ? { fontSize: 14 } : {}) }}>{action.title}</span>
-                      {action.badge ? <span style={{ ...styles.badge, ...(isMobile ? { padding: "3px 7px", fontSize: 10 } : {}) }}>{action.badge}</span> : null}
-                    </div>
-                    {!isMobile ? <p style={styles.actionHint}>{action.hint}</p> : null}
-                  </button>
-                ))}
-              </div>
-            </section>
-
             {!isMobile ? (
             <>
             <section style={styles.sectionCardCompact}>
