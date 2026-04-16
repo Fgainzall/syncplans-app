@@ -15,12 +15,26 @@
 
 export type CanonicalGroupType = "personal" | "pair" | "family" | "other";
 
-export type LegacyGroupType =
-  | "solo"
-  | "couple"
-  | "shared";
+export type LegacyGroupType = "solo" | "couple" | "shared";
 
-export type SupportedGroupType = CanonicalGroupType | LegacyGroupType;
+export type SupportedGroupType =
+  | CanonicalGroupType
+  | LegacyGroupType
+  | (string & {});
+
+export const GROUP_TYPE_LABELS: Record<CanonicalGroupType, string> = {
+  personal: "Personal",
+  pair: "Pareja",
+  family: "Familia",
+  other: "Compartido",
+};
+
+export const GROUP_TYPE_ORDER: CanonicalGroupType[] = [
+  "personal",
+  "pair",
+  "family",
+  "other",
+];
 
 export function normalizeGroupType(
   value: string | null | undefined
@@ -37,6 +51,19 @@ export function normalizeGroupType(
   return "other";
 }
 
+export function normalizeSharedGroupType(
+  value: string | null | undefined
+): Exclude<CanonicalGroupType, "personal"> {
+  const normalized = normalizeGroupType(value);
+  return normalized === "personal" ? "other" : normalized;
+}
+
+export function normalizePreferenceGroupType(
+  value: string | null | undefined
+): CanonicalGroupType {
+  return normalizeGroupType(value);
+}
+
 export function isCanonicalGroupType(
   value: string | null | undefined
 ): value is CanonicalGroupType {
@@ -51,19 +78,24 @@ export function isCanonicalGroupType(
 export function getGroupTypeLabel(
   value: string | null | undefined
 ): string {
-  const normalized = normalizeGroupType(value);
+  return GROUP_TYPE_LABELS[normalizeGroupType(value)];
+}
 
-  if (normalized === "personal") return "Personal";
-  if (normalized === "pair") return "Pareja";
-  if (normalized === "family") return "Familia";
-  return "Compartido";
+export function getDefaultGroupName(
+  value: string | null | undefined
+): string {
+  return getGroupTypeLabel(value);
 }
 
 export function isSharedGroupType(
   value: string | null | undefined
 ): boolean {
   const normalized = normalizeGroupType(value);
-  return normalized === "pair" || normalized === "family" || normalized === "other";
+  return (
+    normalized === "pair" ||
+    normalized === "family" ||
+    normalized === "other"
+  );
 }
 
 /* =========================================================

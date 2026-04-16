@@ -2,23 +2,17 @@
 "use client";
 
 import supabase from "@/lib/supabaseClient";
+import {
+  getDefaultGroupName,
+  getGroupTypeLabel as getCanonicalGroupTypeLabel,
+  normalizeGroupType as normalizeCanonicalGroupType,
+  type CanonicalGroupType,
+} from "@/lib/naming";
 
 /* ======================================================
   Tipos
 ====================================================== */
 
-/**
- * Catálogo canónico de grupos que queremos sostener en la app.
- * - pair
- * - family
- * - other
- *
- * Legacy tolerado al leer:
- * - couple -> pair
- * - shared -> other
- * - solo/personal -> personal (solo para compat)
- */
-export type CanonicalGroupType = "pair" | "family" | "other" | "personal";
 export type GroupType = CanonicalGroupType | "solo";
 
 export type GroupRow = {
@@ -70,14 +64,7 @@ function cleanName(value: string): string {
 export function normalizeGroupType(
   type: GroupType | string | null | undefined
 ): CanonicalGroupType {
-  const t = String(type ?? "").trim().toLowerCase();
-
-  if (t === "pair" || t === "couple") return "pair";
-  if (t === "family") return "family";
-  if (t === "other" || t === "shared") return "other";
-  if (t === "solo" || t === "personal") return "personal";
-
-  return "other";
+  return normalizeCanonicalGroupType(type);
 }
 
 /**
@@ -86,23 +73,13 @@ export function normalizeGroupType(
 export function getGroupTypeLabel(
   type: GroupType | string | null | undefined
 ): string {
-  const normalized = normalizeGroupType(type);
-
-  if (normalized === "pair") return "Pareja";
-  if (normalized === "family") return "Familia";
-  if (normalized === "other") return "Compartido";
-  return "Personal";
+  return getCanonicalGroupTypeLabel(type);
 }
 
 function defaultGroupNameForType(
   type: GroupType | string | null | undefined
 ): string {
-  const normalized = normalizeGroupType(type);
-
-  if (normalized === "pair") return "Pareja";
-  if (normalized === "family") return "Familia";
-  if (normalized === "other") return "Compartido";
-  return "Personal";
+  return getDefaultGroupName(type);
 }
 
 /**

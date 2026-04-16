@@ -3,6 +3,7 @@
 
 import supabase from "@/lib/supabaseClient";
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
+import { normalizeGroupType as normalizeCanonicalGroupType } from "@/lib/naming";
 import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
 import {
   normalizeEventGroupType,
@@ -23,12 +24,7 @@ export type LoadEventsFromDbResult = {
 type GroupTypeMap = Map<string, GroupType>;
 
 function normalizeDbGroupType(raw: string | null | undefined): GroupType {
-  const v = String(raw ?? "").toLowerCase();
-
-  if (v === "family") return "family";
-  if (v === "other" || v === "shared") return "other";
-  if (v === "pair" || v === "couple") return "pair";
-  return "personal";
+  return normalizeCanonicalGroupType(raw);
 }
 
 function buildGroupTypeMap(groups: GroupRow[]): GroupTypeMap {
@@ -191,7 +187,7 @@ export async function loadEventsForGroupConflict(groupId?: string | null) {
 }
 
 /**
- * Utilidad por si luego quieres usarla en otros mÃ³dulos.
+ * Utilidad por si luego quieres usarla en otros mÃƒÂ³dulos.
  */
 export async function getVisibleCalendarEventsForGroup(
   groupId?: string | null
