@@ -10,7 +10,6 @@ import PremiumHeader from "@/components/PremiumHeader";
 import MobileScaffold from "@/components/MobileScaffold";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
-import EventsFiltersBar from "@/components/events/EventsFiltersBar";
 import EventsEmptyState from "@/components/events/EventsEmptyState";
 import EventsTimeline from "@/components/EventsTimeline";
 import { trackEventOnce, trackScreenView } from "@/lib/analytics";
@@ -38,6 +37,44 @@ type FilterState = {
 type EventWithGroup = DbEventRow & {
   group?: GroupRow | null;
 };
+
+type SegmentOption<T extends string> = {
+  value: T;
+  label: string;
+};
+
+function SegmentedChips<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: SegmentOption<T>[];
+  value: T;
+  onChange: (next: T) => void;
+}) {
+  return (
+    <div style={S.segmentedWrap}>
+      {options.map((option) => {
+        const active = option.value === value;
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            style={{
+              ...S.segmentedChip,
+              ...(active ? S.segmentedChipActive : null),
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 
 function localDateKey(value: string | Date) {
   const d = value instanceof Date ? value : new Date(value);
@@ -598,7 +635,7 @@ export default function EventsPage() {
       <Section>
         <PremiumHeader hideUpgradeCta title="Eventos" subtitle={compactHeaderSubtitle} />
 
-        <Card style={S.cardShell} className="spEvt-card">
+        <Card style={{ ...S.cardShell, ...(isMobile ? S.cardShellMobile : null) }} className="spEvt-card">
           <div style={S.titleRow}>
             <div style={S.heroCopy}>
               <div style={S.kicker}>Lo que ya está dentro del sistema</div>
@@ -611,7 +648,7 @@ export default function EventsPage() {
               ) : null}
             </div>
 
-            <aside style={S.factBox} className="spEvt-factBox">
+            <aside style={{ ...S.factBox, ...(isMobile ? S.factBoxMobile : null) }} className="spEvt-factBox">
               <div style={S.factLabel}>Resumen rápido</div>
               <div style={S.factGrid}>
                 <div style={S.factItem}>
@@ -695,7 +732,7 @@ export default function EventsPage() {
             </div>
           ) : null}
 
-          <div style={S.statusGrid}>
+          <div style={{ ...S.statusGrid, gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))" }}>
             <button
               type="button"
               style={{ ...S.statusCard, ...(filters.view === "upcoming" ? S.statusCardActive : {}) }}
@@ -737,14 +774,48 @@ export default function EventsPage() {
             </button>
           </div>
 
-          <EventsFiltersBar
-            view={filters.view}
-            scope={filters.scope}
-            query={filters.query}
-            onChangeView={(view) => setFilters((f) => ({ ...f, view }))}
-            onChangeScope={(scope) => setFilters((f) => ({ ...f, scope }))}
-            onChangeQuery={(query) => setFilters((f) => ({ ...f, query }))}
-          />
+          <div style={S.filtersShell}>
+            <div style={S.filtersGroup}>
+              <div style={S.filtersLabel}>Vista</div>
+              <SegmentedChips<ViewMode>
+                options={[
+                  { value: "upcoming", label: "Próximos" },
+                  { value: "history", label: "Ya pasaron" },
+                  { value: "all", label: "Todo visible" },
+                ]}
+                value={filters.view}
+                onChange={(view) => setFilters((f) => ({ ...f, view }))}
+              />
+            </div>
+
+            <div style={S.filtersGroup}>
+              <div style={S.filtersLabel}>Origen</div>
+              <SegmentedChips<Scope>
+                options={[
+                  { value: "all", label: "Todo visible" },
+                  { value: "personal", label: "Personal" },
+                  { value: "groups", label: "Compartido" },
+                ]}
+                value={filters.scope}
+                onChange={(scope) => setFilters((f) => ({ ...f, scope }))}
+              />
+            </div>
+
+            <label style={S.searchWrap}>
+              <span style={S.searchLabel}>Buscar</span>
+              <input
+                type="search"
+                inputMode="search"
+                autoCapitalize="sentences"
+                autoCorrect="off"
+                spellCheck={false}
+                value={filters.query}
+                onChange={(e) => setFilters((f) => ({ ...f, query: e.target.value }))}
+                placeholder="Buscar por título, nota o espacio compartido"
+                style={S.searchInput}
+              />
+            </label>
+          </div>
 
           {showDigestButton ? (
             <div style={S.auxRow}>
@@ -888,6 +959,8 @@ const S: Record<string, React.CSSProperties> = {
     padding: "10px 14px",
     fontSize: 13,
     fontWeight: 700,
+    minWidth: 0,
+    overflowWrap: "anywhere",
     color: "white",
     boxShadow: "0 18px 40px rgba(0,0,0,0.65)",
   },
@@ -926,7 +999,7 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 600,
   },
   factBox: {
-    minWidth: 240,
+    minWidth: 0,
     maxWidth: 280,
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.10)",
@@ -952,6 +1025,8 @@ const S: Record<string, React.CSSProperties> = {
     gap: 8,
     fontSize: 13,
     fontWeight: 700,
+    minWidth: 0,
+    overflowWrap: "anywhere",
     color: "rgba(255,255,255,0.92)",
   },
   factDotPersonal: {
@@ -1119,6 +1194,79 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     cursor: "pointer",
   },
+  cardShellMobile: {
+    padding: 14,
+    borderRadius: 22,
+  },
+  factBoxMobile: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+  },
+  filtersShell: {
+    marginTop: 16,
+    display: "grid",
+    gap: 12,
+  },
+  filtersGroup: {
+    display: "grid",
+    gap: 8,
+    minWidth: 0,
+  },
+  filtersLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(255,255,255,0.66)",
+  },
+  segmentedWrap: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  segmentedChip: {
+    minHeight: 40,
+    padding: "0 14px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(226,232,240,0.86)",
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: "pointer",
+    maxWidth: "100%",
+    whiteSpace: "normal",
+  },
+  segmentedChipActive: {
+    border: "1px solid rgba(96,165,250,0.32)",
+    background: "linear-gradient(135deg, rgba(59,130,246,0.28), rgba(124,58,237,0.18))",
+    color: "rgba(255,255,255,0.98)",
+    boxShadow: "0 0 0 1px rgba(96,165,250,0.12) inset",
+  },
+  searchWrap: {
+    display: "grid",
+    gap: 8,
+  },
+  searchLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(255,255,255,0.66)",
+  },
+  searchInput: {
+    width: "100%",
+    minHeight: 48,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.035)",
+    color: "rgba(255,255,255,0.96)",
+    padding: "0 16px",
+    fontSize: 16,
+    outline: "none",
+    boxSizing: "border-box",
+  },
   statusGrid: {
     marginTop: 16,
     display: "grid",
@@ -1129,10 +1277,12 @@ const S: Record<string, React.CSSProperties> = {
     display: "grid",
     gap: 6,
     textAlign: "left",
+    minWidth: 0,
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.035)",
     padding: "14px 14px",
+    overflow: "hidden",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     minHeight: 92,
@@ -1144,12 +1294,14 @@ const S: Record<string, React.CSSProperties> = {
   },
   statusLabel: {
     fontSize: 12,
+    lineHeight: 1.25,
     fontWeight: 900,
     color: "rgba(255,255,255,0.74)",
+    overflowWrap: "anywhere",
   },
   statusValue: {
     fontSize: 24,
-    lineHeight: 1,
+    lineHeight: 1.02,
     fontWeight: 950,
     letterSpacing: "-0.04em",
     color: "rgba(255,255,255,0.98)",

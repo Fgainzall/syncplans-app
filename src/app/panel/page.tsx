@@ -218,9 +218,15 @@ function MetricCard({
         ...(compact ? styles.metricCardCompact : null),
       }}
     >
-      <div style={styles.metricLabel}>{label}</div>
-      <div style={styles.metricValue}>{value}</div>
-      <div style={styles.metricHint}>{hint}</div>
+      <div style={{ ...styles.metricLabel, ...(compact ? styles.metricLabelCompact : null) }}>
+        {label}
+      </div>
+      <div style={{ ...styles.metricValue, ...(compact ? styles.metricValueCompact : null) }}>
+        {value}
+      </div>
+      <div style={{ ...styles.metricHint, ...(compact ? styles.metricHintCompact : null) }}>
+        {hint}
+      </div>
     </div>
   );
 }
@@ -675,7 +681,7 @@ export default function PanelPage() {
     {
       id: "groups",
       title: "Grupos",
-      hint: "Crear, abrir y ordenar espacios compartidos",
+      hint: isMobile ? "Crear y abrir espacios compartidos" : "Crear, abrir y ordenar espacios compartidos",
       href: "/groups",
       badge: totalGroups > 0 ? `${totalGroups}` : undefined,
       featured: true,
@@ -683,7 +689,7 @@ export default function PanelPage() {
     {
       id: "invitations",
       title: "Invitaciones",
-      hint: "Aceptar, revisar y destrabar accesos",
+      hint: isMobile ? "Aceptar y revisar accesos" : "Aceptar, revisar y destrabar accesos",
       href: "/invitations",
       badge: captures.length > 0 ? `${captures.length}` : undefined,
       featured: true,
@@ -691,14 +697,14 @@ export default function PanelPage() {
     {
       id: "settings",
       title: "Ajustes",
-      hint: "Cuenta, preferencias e integraciones",
+      hint: isMobile ? "Cuenta e integraciones" : "Cuenta, preferencias e integraciones",
       href: "/settings",
       featured: true,
     },
     {
       id: "plans",
       title: "Plan",
-      hint: "Nivel actual y beneficios activos",
+      hint: isMobile ? "Nivel y beneficios" : "Nivel actual y beneficios activos",
       href: "/planes",
     },
   ];
@@ -834,7 +840,7 @@ export default function PanelPage() {
               ) : null}
             </div>
 
-            <div style={styles.heroActionStack}>
+            <div style={{ ...styles.heroActionStack, ...(isMobile ? styles.heroActionStackMobile : null) }}>
               <button
                 type="button"
                 style={styles.primaryHeroCta}
@@ -914,14 +920,15 @@ export default function PanelPage() {
                 style={{
                   ...styles.quickCard,
                   ...(action.featured ? styles.quickCardFeatured : null),
+                  ...(isMobile ? styles.quickCardCompact : null),
                 }}
                 onClick={() => router.push(action.href)}
               >
-                <div style={styles.quickCardTop}>
-                  <div style={styles.quickTitle}>{action.title}</div>
+                <div style={{ ...styles.quickCardTop, ...(isMobile ? styles.quickCardTopCompact : null) }}>
+                  <div style={{ ...styles.quickTitle, ...(isMobile ? styles.quickTitleCompact : null) }}>{action.title}</div>
                   {action.badge ? <span style={styles.quickBadge}>{action.badge}</span> : null}
                 </div>
-                <div style={styles.quickHint}>{action.hint}</div>
+                <div style={{ ...styles.quickHint, ...(isMobile ? styles.quickHintCompact : null) }}>{action.hint}</div>
               </button>
             ))}
           </div>
@@ -1372,6 +1379,7 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.55,
     color: "rgba(226,232,240,0.78)",
     fontWeight: 600,
+    overflowWrap: "anywhere",
   },
   heroMicroCopy: {
     marginTop: 10,
@@ -1379,12 +1387,19 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.5,
     color: "rgba(226,232,240,0.66)",
     fontWeight: 600,
+    overflowWrap: "anywhere",
   },
   heroActionStack: {
     display: "grid",
     gap: 10,
     minWidth: 220,
     flex: "0 0 220px",
+  },
+  heroActionStackMobile: {
+    width: "100%",
+    minWidth: 0,
+    flex: "1 1 100%",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
   },
   primaryHeroCta: {
     minHeight: 48,
@@ -1441,10 +1456,23 @@ const styles: Record<string, CSSProperties> = {
     background: "rgba(255,255,255,0.035)",
     padding: "14px 14px",
     minHeight: 90,
+    minWidth: 0,
+    overflow: "hidden",
   },
   metricCardCompact: {
     minHeight: 82,
     padding: "12px 12px",
+  },
+  metricLabelCompact: {
+    fontSize: 11,
+  },
+  metricValueCompact: {
+    fontSize: 21,
+    lineHeight: 1.05,
+  },
+  metricHintCompact: {
+    fontSize: 11,
+    lineHeight: 1.35,
   },
   metricCardDanger: {
     border: "1px solid rgba(248,113,113,0.18)",
@@ -1454,11 +1482,13 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     fontWeight: 900,
     color: "rgba(255,255,255,0.72)",
+    overflowWrap: "anywhere",
   },
   metricValue: {
     fontSize: 24,
     lineHeight: 1,
     fontWeight: 950,
+    overflowWrap: "anywhere",
     letterSpacing: "-0.04em",
     color: "rgba(255,255,255,0.98)",
   },
@@ -1467,6 +1497,7 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.45,
     color: "rgba(226,232,240,0.64)",
     fontWeight: 600,
+    overflowWrap: "anywhere",
   },
   sectionCardCompact: {
     borderRadius: 22,
@@ -1514,6 +1545,12 @@ const styles: Record<string, CSSProperties> = {
     textAlign: "left",
     cursor: "pointer",
     minHeight: 110,
+    minWidth: 0,
+    overflow: "hidden",
+  },
+  quickCardCompact: {
+    minHeight: 132,
+    padding: 12,
   },
   quickCardFeatured: {
     border: "1px solid rgba(96,165,250,0.18)",
@@ -1525,20 +1562,34 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     alignItems: "flex-start",
   },
+  quickCardTopCompact: {
+    gap: 6,
+  },
   quickTitle: {
     fontSize: 15,
     fontWeight: 900,
     color: "rgba(255,255,255,0.96)",
     lineHeight: 1.2,
+    overflowWrap: "anywhere",
+  },
+  quickTitleCompact: {
+    fontSize: 14,
+    lineHeight: 1.18,
   },
   quickHint: {
     fontSize: 12,
     lineHeight: 1.45,
     color: "rgba(226,232,240,0.70)",
     fontWeight: 600,
+    overflowWrap: "anywhere",
+  },
+  quickHintCompact: {
+    fontSize: 11,
+    lineHeight: 1.35,
   },
   quickBadge: {
     minWidth: 22,
+    maxWidth: "100%",
     height: 22,
     padding: "0 7px",
     display: "inline-flex",
@@ -1829,6 +1880,7 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.45,
     color: "rgba(226,232,240,0.68)",
     fontWeight: 600,
+    overflowWrap: "anywhere",
   },
   planCard: {
     borderRadius: 22,
@@ -1863,6 +1915,7 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.55,
     color: "rgba(226,232,240,0.78)",
     fontWeight: 600,
+    overflowWrap: "anywhere",
   },
   planMiniNote: {
     fontSize: 12,
@@ -2008,6 +2061,7 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.5,
     color: "rgba(243,232,255,0.84)",
     fontWeight: 600,
+    overflowWrap: "anywhere",
   },
   emptyBlock: {
     borderRadius: 16,
@@ -2023,6 +2077,7 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.55,
     color: "rgba(226,232,240,0.70)",
     fontWeight: 600,
+    overflowWrap: "anywhere",
   },
   emptyActions: {
     display: "flex",
@@ -2056,5 +2111,6 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(226,232,240,0.66)",
     marginTop: 2,
     fontWeight: 600,
+    overflowWrap: "anywhere",
   },
 };
