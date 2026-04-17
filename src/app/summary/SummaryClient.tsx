@@ -609,6 +609,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       }
       if (cleanedNotes) params.set("notes", cleanedNotes);
 
+      if (parsed.startHour !== null) {
+        params.set(
+          "time",
+          `${String(parsed.startHour).padStart(2, "0")}:${String(parsed.startMinutes).padStart(2, "0")}`
+        );
+      }
+
       const resolvedDate = suggestedDate ?? parsed.date ?? null;
       if (resolvedDate) {
         params.set("date", resolvedDate.toISOString());

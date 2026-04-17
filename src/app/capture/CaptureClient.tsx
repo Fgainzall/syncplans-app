@@ -234,6 +234,13 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
       params.set("notes", prettyNotes);
     }
 
+    if (parsed.startHour !== null) {
+      params.set(
+        "time",
+        `${String(parsed.startHour).padStart(2, "0")}:${String(parsed.startMinutes).padStart(2, "0")}`
+      );
+    }
+
     if (hasDate && parsed.date) {
       params.set("date", parsed.date.toISOString());
     }

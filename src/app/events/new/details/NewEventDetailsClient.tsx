@@ -354,6 +354,7 @@ function NewEventDetailsInner() {
 
   const typeParam = (sp.get("type") || "personal") as NewType;
   const dateParam = sp.get("date");
+  const timeParam = sp.get("time");
   const groupIdParam = sp.get("groupId");
   const wowParam = sp.get("wow");
   const fromParam = sp.get("from");
@@ -364,12 +365,23 @@ function NewEventDetailsInner() {
     const base = dateParam ? new Date(dateParam) : new Date();
     const d = new Date(base);
     d.setSeconds(0, 0);
+
+    const timeMatch = String(timeParam ?? "").match(/^(\d{1,2}):(\d{2})$/);
+    if (timeMatch) {
+      const hours = Number(timeMatch[1]);
+      const minutes = Number(timeMatch[2]);
+      if (Number.isFinite(hours) && Number.isFinite(minutes)) {
+        d.setHours(hours, minutes, 0, 0);
+        return d;
+      }
+    }
+
     const m = d.getMinutes();
     const rounded = Math.ceil(m / 15) * 15;
     d.setMinutes(rounded % 60);
     if (rounded >= 60) d.setHours(d.getHours() + 1);
     return d;
-  }, [dateParam]);
+  }, [dateParam, timeParam]);
 
   const [selectedTemplate, setSelectedTemplate] =
     useState<EventTemplate | null>(null);
@@ -518,6 +530,7 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     if (quickCaptureTitleParam) params.set("title", quickCaptureTitleParam);
     if (quickCaptureDurationParam) params.set("duration", quickCaptureDurationParam);
     if (quickCaptureNotesParam) params.set("notes", quickCaptureNotesParam);
+    if (timeParam) params.set("time", timeParam);
     if (captureSourceParam) params.set("capture_source", captureSourceParam);
     if (rawTextParam) params.set("raw_text", rawTextParam);
 
@@ -756,9 +769,27 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     }
 
     const parsedDate = dateParam ? new Date(dateParam) : null;
+    const timeMatch = String(timeParam ?? "").match(/^(\d{1,2}):(\d{2})$/);
+
     if (parsedDate && !Number.isNaN(parsedDate.getTime())) {
+      if (timeMatch) {
+        parsedDate.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
+      }
       setStartLocal(toInputLocal(parsedDate));
       setEndLocal(toInputLocal(addMinutes(parsedDate, safeDuration)));
+    } else if (timeMatch) {
+      setStartLocal((current) => {
+        const start = fromInputLocal(current);
+        if (Number.isNaN(start.getTime())) return current;
+        start.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
+        return toInputLocal(start);
+      });
+      setEndLocal((current) => {
+        const start = fromInputLocal(startLocal);
+        if (Number.isNaN(start.getTime())) return current;
+        start.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
+        return toInputLocal(addMinutes(start, safeDuration));
+      });
     } else {
       setEndLocal((current) => {
         const start = fromInputLocal(startLocal);
@@ -775,6 +806,7 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     quickCaptureDurationParam,
     quickCaptureNotesParam,
     dateParam,
+    timeParam,
     startLocal,
   ]);
 
