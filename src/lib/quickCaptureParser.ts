@@ -251,7 +251,6 @@ function extractParticipants(raw: string): string[] {
   const patterns = [
     /\bcon\s+([^.;:!?]+)/gi,
     /\bjunto a\s+([^.;:!?]+)/gi,
-    /\ben casa de\s+([^.;:!?]+)/gi,
   ];
 
   for (const pattern of patterns) {
@@ -323,7 +322,7 @@ function detectSignals(raw: string, participants: string[]): ParsedQuickCaptureS
     /\b(proxima semana|proximo|próximo|proxima|próxima|siguiente|en dos semanas|la otra semana|semana que viene|este fin de semana|el otro finde)\b/.test(normalized);
 
   const hasExplicitTime =
-    /\bde\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\s+a\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\b/i.test(raw) ||
+    /\bde\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\s+a\s+\d{1,2}(?::(\d{2}))?\s?(am|pm)?\b/i.test(raw) ||
     /\b(a\s+las|alas)?\s*\d{1,2}(?::\d{2})?\s?(am|pm)?\b/i.test(raw) ||
     /\b(mediodia|medianoche)\b/i.test(raw);
 
@@ -383,7 +382,6 @@ function normalizeHourFromCapture(hour: number, period?: string | null) {
 
   if (safePeriod === "pm" && safeHour < 12) safeHour += 12;
   if (safePeriod === "am" && safeHour === 12) safeHour = 0;
-  if (!safePeriod && safeHour >= 1 && safeHour <= 7) safeHour += 12;
 
   return safeHour;
 }
@@ -393,11 +391,13 @@ function inferPeriodFromContext(text: string, anchor: string): "am" | "pm" | nul
   const normalizedAnchor = normalizeForMatching(anchor);
 
   const idx = normalizedText.indexOf(normalizedAnchor);
-  const contextStart = idx >= 0 ? Math.max(0, idx - 8) : 0;
-  const contextEnd = idx >= 0 ? Math.min(normalizedText.length, idx + normalizedAnchor.length + 26) : Math.min(normalizedText.length, 40);
+  const contextStart = idx >= 0 ? Math.max(0, idx - 42) : 0;
+  const contextEnd = idx >= 0 ? Math.min(normalizedText.length, idx + normalizedAnchor.length + 42) : Math.min(normalizedText.length, 84);
   const context = normalizedText.slice(contextStart, contextEnd);
 
+  if (/\b(desayuno|brunch|manana|por la manana|temprano)\b/.test(context)) return "am";
   if (/\b(de la|por la)\s+(noche|tarde)\b/.test(context)) return "pm";
+  if (/\b(cena|parrilla|fulbito|futbol|padel|asado|after)\b/.test(context)) return "pm";
   if (/\b(de la|por la)\s+manana\b/.test(context)) return "am";
   return null;
 }
