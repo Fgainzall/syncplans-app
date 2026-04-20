@@ -434,6 +434,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         baseAlert.latestEventId ?? unreadConflictAlert.latestEventId ?? null,
     };
   }, [visibleEvents, groups, resMap, ignoredConflictKeys, unreadConflictAlert]);
+
   const upcomingAll = useMemo(() => {
     const today = startOfTodayLocal();
     const windowEnd = addDays(today, 7);
@@ -948,7 +949,52 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     pendingInviteCount > 0 ||
     pendingAttention.proposals > 0 ||
     pendingAttention.captures > 0;
-  const showSecondarySummaryFlow = !hasUrgentSummaryState;
+  const urgentFocus = useMemo(() => {
+    if (conflictAlert.count > 0) {
+      return {
+        label: "Urgente ahora",
+        title: `Resuelve ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"}`,
+        subtitle: "Una sola decisión clara aquí evita ruido en todo lo demás.",
+        cta: "Resolver conflictos",
+        action: openConflictCenter,
+      };
+    }
+
+    if (pendingInviteCount > 0) {
+      return {
+        label: "Pendiente clave",
+        title: `${pendingInviteCount} invitación${pendingInviteCount === 1 ? "" : "es"} por responder`,
+        subtitle: "Responder esto desbloquea coordinación real con otras personas.",
+        cta: "Revisar invitaciones",
+        action: () =>
+          navigateFromSummary("review_invitations", "/invitations", {
+            block: "urgent_focus",
+          }),
+      };
+    }
+
+    if (pendingAttention.proposals > 0 || pendingAttention.captures > 0) {
+      return {
+        label: "Pendiente clave",
+        title: "Hay respuestas pendientes por cerrar",
+        subtitle: "Cierra este ciclo y mantén la agenda como referencia viva.",
+        cta: "Revisar pendientes",
+        action: () =>
+          navigateFromSummary("review_pending", "/events", {
+            block: "urgent_focus",
+          }),
+      };
+    }
+
+    return null;
+  }, [
+    conflictAlert.count,
+    openConflictCenter,
+    pendingInviteCount,
+    pendingAttention.proposals,
+    pendingAttention.captures,
+    navigateFromSummary,
+  ]);
   const showValueRail =
     !compactSummaryMobile &&
     valueMoments.hasValue &&
@@ -964,6 +1010,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     !compactSummaryMobile &&
     visibleDecisions.length > 0 &&
     !hasUrgentSummaryState;
+  const showSecondarySummaryFlow = !hasUrgentSummaryState;
   const showDecisionChips = false;
 
   useEffect(() => {
@@ -1292,7 +1339,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                   ) : null}
                 </div>
 
-                {pendingAttention.total > 0 ? (
+                {!hasUrgentSummaryState && pendingAttention.total > 0 ? (
                   <div style={styles.attentionRow}>
                     {pendingAttention.conflicts > 0 ? (
                       <button
@@ -1343,6 +1390,23 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 <div style={styles.stateKpiHint}>Eventos visibles con contexto real</div>
               </div> : null}
             </div>
+
+            {urgentFocus ? (
+              <div style={styles.urgentSingleRail}>
+                <div style={styles.urgentSingleCopy}>
+                  <div style={styles.urgentSingleLabel}>{urgentFocus.label}</div>
+                  <div style={styles.urgentSingleTitle}>{urgentFocus.title}</div>
+                  <div style={styles.urgentSingleSub}>{urgentFocus.subtitle}</div>
+                </div>
+                <button
+                  type="button"
+                  style={styles.urgentSingleBtn}
+                  onClick={urgentFocus.action}
+                >
+                  {urgentFocus.cta}
+                </button>
+              </div>
+            ) : null}
 
             <div style={styles.returnRail}>
               <div style={styles.returnRailCopy}>
@@ -1471,11 +1535,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               ) : (
                 <>
                   <div style={styles.nextBlock}>
-                    <div style={styles.nextLabel}>Sigue</div>
+                    <div style={styles.nextLabel}>Qué sigue ahora</div>
                     <button
                       onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
                       style={{
-                        ...styles.nextCard,
+                        ...styles.nextHeroCard,
                         ...(highlightId &&
                         String(nextEvent?.id ?? "") === String(highlightId)
                           ? styles.eventRowHighlight
@@ -1494,6 +1558,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                         return (
                           <>
                             <div style={styles.eventLeft}>
+                              <div style={styles.nextHeroEyebrow}>Próximo evento</div>
                               <div style={styles.eventWhen}>{when}</div>
                               <div style={styles.eventTitle}>{nextEvent.title}</div>
                               {(() => {
@@ -1544,6 +1609,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                               ) : (
                                 <span style={styles.pillSoft}>Personal</span>
                               )}
+                              <span style={styles.nextHeroHint}>Ver y ajustar</span>
                             </div>
                           </>
                         );
@@ -1643,7 +1709,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               )
             ) : (
               <div style={styles.urgentFocusHint}>
-                Enfócate primero en la decisión principal de arriba. Después vuelves al detalle.
+                Resuelve primero la prioridad de arriba. El detalle vuelve apenas cierres eso.
               </div>
             )}
           </Card>
@@ -2409,6 +2475,41 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     textAlign: "left",
   },
+  nextHeroCard: {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    padding: "16px 16px",
+    borderRadius: 18,
+    border: "1px solid rgba(96,165,250,0.30)",
+    background:
+      "linear-gradient(180deg, rgba(59,130,246,0.18), rgba(30,41,59,0.40))",
+    color: "rgba(255,255,255,0.96)",
+    cursor: "pointer",
+    textAlign: "left",
+    boxShadow: "0 14px 34px rgba(37,99,235,0.20)",
+  },
+  nextHeroEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(191,219,254,0.94)",
+    marginBottom: 2,
+  },
+  nextHeroHint: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "6px 9px",
+    borderRadius: 999,
+    border: "1px solid rgba(147,197,253,0.24)",
+    background: "rgba(59,130,246,0.16)",
+    color: "rgba(219,234,254,0.95)",
+    fontSize: 11,
+    fontWeight: 900,
+  },
   eventsList: {
     marginTop: 12,
     display: "grid",
@@ -2684,17 +2785,6 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.74,
     lineHeight: 1.5,
   },
-  urgentFocusHint: {
-    marginTop: 12,
-    borderRadius: 14,
-    padding: "12px 14px",
-    border: "1px solid rgba(125,211,252,0.22)",
-    background: "rgba(8,47,73,0.38)",
-    color: "rgba(226,232,240,0.9)",
-    fontSize: 13,
-    lineHeight: 1.5,
-    fontWeight: 700,
-  },
 
   premiumRail: {
     marginTop: 14,
@@ -2876,6 +2966,65 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 800,
     cursor: "pointer",
+  },
+  urgentSingleRail: {
+    marginTop: 12,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+    padding: "12px 13px",
+    borderRadius: 16,
+    border: "1px solid rgba(245,158,11,0.26)",
+    background:
+      "linear-gradient(135deg, rgba(120,53,15,0.62), rgba(30,41,59,0.76))",
+  },
+  urgentSingleCopy: {
+    minWidth: 0,
+    flex: "1 1 320px",
+    display: "grid",
+    gap: 4,
+  },
+  urgentSingleLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(254,243,199,0.92)",
+  },
+  urgentSingleTitle: {
+    fontSize: 16,
+    lineHeight: 1.24,
+    fontWeight: 900,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,251,235,0.98)",
+  },
+  urgentSingleSub: {
+    fontSize: 13,
+    lineHeight: 1.48,
+    color: "rgba(255,237,213,0.86)",
+  },
+  urgentSingleBtn: {
+    borderRadius: 999,
+    padding: "10px 14px",
+    border: "1px solid rgba(251,191,36,0.30)",
+    background: "rgba(245,158,11,0.26)",
+    color: "rgba(255,251,235,0.98)",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+    alignSelf: "center",
+  },
+  urgentFocusHint: {
+    marginTop: 12,
+    borderRadius: 14,
+    padding: "12px 14px",
+    border: "1px solid rgba(125,211,252,0.22)",
+    background: "rgba(8,47,73,0.38)",
+    color: "rgba(226,232,240,0.9)",
+    fontSize: 13,
+    lineHeight: 1.5,
+    fontWeight: 700,
   },
   decisionChipsRow: {
     display: "flex",
