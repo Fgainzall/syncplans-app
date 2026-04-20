@@ -1,3 +1,4 @@
+// src/app/onboarding/3/Onboarding3Client.tsx
 "use client";
 
 import React, { useEffect } from "react";
@@ -30,24 +31,24 @@ export default function Onboarding3Client() {
         <header style={S.topBar}>
           <div style={S.brandRow}>
             <BrandLogo variant="mark" size={30} />
-            <div style={S.brandMeta}><span style={S.step}>Paso 3 de 4</span><span style={S.stepTitle}>La decisión</span></div>
+            <div style={S.brandMeta}><span style={S.step}>Paso 3 de 4</span><span style={S.stepTitle}>Prevenir conflictos</span></div>
           </div>
           <button type="button" onClick={() => { void trackEvent({ event: "onboarding_skipped", metadata: { screen: "onboarding_step_3", step: 3, destination: nextFinal } }); completeOnboarding(); router.replace(nextFinal); }} style={S.topGhost}>Saltar</button>
         </header>
 
         <div style={S.heroGrid} className="ob-grid">
           <section style={S.copyCard}>
-            <div style={S.kicker}>Mejor decidir que discutir</div>
-            <h1 style={S.title}>Cuando aparece un cruce, SyncPlans no te deja a ciegas.</h1>
-            <p style={S.lead}>Te muestra el conflicto antes de que escale y te da un espacio claro para elegir qué hacer con calma.</p>
+            <div style={S.kicker}>Mejor decidir juntos que reaccionar tarde</div>
+            <h1 style={S.title}>SyncPlans detecta conflictos temprano y guía una decisión compartida.</h1>
+            <p style={S.lead}>Cuando el choque aparece antes, se evita la discusión de último minuto y cada persona entiende el impacto real de cada opción.</p>
             <div style={S.steps}>
-              <div style={S.stepCard}><span style={S.stepNum}>1</span><div><strong>Detecta el choque.</strong><br />Antes de que uno llegue tarde y el otro se frustre.</div></div>
-              <div style={S.stepCard}><span style={S.stepNum}>2</span><div><strong>Lo pone en contexto.</strong><br />Ves qué se cruza y por qué importa.</div></div>
-              <div style={S.stepCard}><span style={S.stepNum}>3</span><div><strong>Te ayuda a decidir.</strong><br />Mantener, mover o revisar después.</div></div>
+              <div style={S.stepCard}><span style={S.stepNum}>1</span><div><strong>Detecta el choque.</strong><br />Antes del problema, no después.</div></div>
+              <div style={S.stepCard}><span style={S.stepNum}>2</span><div><strong>Explica el contexto.</strong><br />Qué se cruza, a quién afecta y qué tan urgente es.</div></div>
+              <div style={S.stepCard}><span style={S.stepNum}>3</span><div><strong>Ordena la decisión.</strong><br />Mantener, mover o revisar con criterio compartido.</div></div>
             </div>
             <div style={S.actions}>
               <button type="button" onClick={() => { void trackEvent({ event: "onboarding_step_back", metadata: { from_step: 3, to_step: 2, screen: "onboarding_step_3" } }); router.push(`/onboarding/2${qsNext}`); }} style={S.secondaryButton}>Atrás</button>
-              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_step_advanced", metadata: { from_step: 3, to_step: 4, screen: "onboarding_step_3" } }); router.push(`/onboarding/4${qsNext}`); }} style={S.primaryButton}>Seguir</button>
+              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_step_advanced", metadata: { from_step: 3, to_step: 4, screen: "onboarding_step_3" } }); router.push(`/onboarding/4${qsNext}`); }} style={S.primaryButton}>Activar mi espacio</button>
             </div>
           </section>
           <aside style={S.visualCard}>
@@ -58,7 +59,7 @@ export default function Onboarding3Client() {
               <div style={S.optionMuted}>Mover pádel a otro horario</div>
               <div style={S.optionGhost}>Mantener ambos y decidir luego</div>
             </div>
-            <div style={S.footerNote}>No es solo ver agenda. Es poder resolver mejor.</div>
+            <div style={S.footerNote}>No es solo ver agenda. Es resolver en conjunto con menos tensión.</div>
           </aside>
         </div>
       </section>

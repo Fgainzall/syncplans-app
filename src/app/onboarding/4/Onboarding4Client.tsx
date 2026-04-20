@@ -1,3 +1,4 @@
+// src/app/onboarding/4/Onboarding4Client.tsx
 "use client";
 
 import React, { useEffect } from "react";
@@ -30,35 +31,35 @@ export default function Onboarding4Client() {
         <header style={S.topBar}>
           <div style={S.brandRow}>
             <BrandLogo variant="mark" size={30} />
-            <div style={S.brandMeta}><span style={S.step}>Paso 4 de 4</span><span style={S.stepTitle}>Empezar</span></div>
+            <div style={S.brandMeta}><span style={S.step}>Paso 4 de 4</span><span style={S.stepTitle}>Empieza con valor real</span></div>
           </div>
           <button type="button" onClick={() => { void trackEvent({ event: "onboarding_login_clicked", metadata: { screen: "onboarding_step_4", step: 4 } }); router.push(`/auth/login${qsNext}`); }} style={S.topGhost}>Ya tengo cuenta</button>
         </header>
 
         <div style={S.heroGrid} className="ob-grid">
           <section style={S.copyCard}>
-            <div style={S.kicker}>Listo para entrar</div>
-            <h1 style={S.title}>SyncPlans se siente mejor cuando el tiempo ya no depende de acordarse de todo.</h1>
-            <p style={S.lead}>Puedes empezar solo hoy mismo o crear un grupo y probar el valor compartido desde el primer minuto.</p>
+            <div style={S.kicker}>Tu siguiente acción define el impacto</div>
+            <h1 style={S.title}>Empieza hoy y convierte coordinación en una ventaja compartida.</h1>
+            <p style={S.lead}>Si creas un grupo e invitas a alguien ahora, SyncPlans empieza a prevenir conflictos y acelerar decisiones desde el primer día.</p>
 
             <div style={S.choiceGrid}>
-              <div style={S.choicePrimary}><strong>Crear grupo</strong><span>La forma más clara de ver coordinación real desde el inicio.</span></div>
-              <div style={S.choiceSecondary}><strong>Empezar solo</strong><span>Ordena tu semana ahora y suma gente después.</span></div>
+              <div style={S.choicePrimary}><strong>Crear grupo e invitar</strong><span>La forma más rápida de desbloquear el valor completo de SyncPlans.</span></div>
+              <div style={S.choiceSecondary}><strong>Empezar solo</strong><span>Ordena tu semana hoy y comparte cuando quieras.</span></div>
             </div>
 
             <div style={S.actions}>
               <button type="button" onClick={() => { void trackEvent({ event: "onboarding_step_back", metadata: { from_step: 4, to_step: 3, screen: "onboarding_step_4" } }); router.push(`/onboarding/3${qsNext}`); }} style={S.secondaryButton}>Atrás</button>
-              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_completed", metadata: { screen: "onboarding_step_4", entry_point: "create_group", destination: "/groups/new" } }); completeOnboarding(); router.replace('/groups/new'); }} style={S.primaryButton}>Crear grupo</button>
-              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_completed", metadata: { screen: "onboarding_step_4", entry_point: "solo", destination: nextFinal } }); completeOnboarding(); router.replace(nextFinal); }} style={S.ghostButton}>Empezar solo</button>
+              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_completed", metadata: { screen: "onboarding_step_4", entry_point: "create_group", destination: "/groups/new" } }); completeOnboarding(); router.replace('/groups/new'); }} style={S.primaryButton}>Crear grupo e invitar</button>
+              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_completed", metadata: { screen: "onboarding_step_4", entry_point: "solo", destination: nextFinal } }); completeOnboarding(); router.replace(nextFinal); }} style={S.ghostButton}>Comenzar en solo</button>
             </div>
           </section>
 
           <aside style={S.visualCard}>
-            <div style={S.visualTitle}>Lo que ganas al entrar</div>
-            <div style={S.benefit}>Una vista más clara de qué está confirmado, qué se cruza y qué falta decidir.</div>
-            <div style={S.benefit}>Menos mensajes repetidos y menos versiones distintas de la misma semana.</div>
-            <div style={S.benefit}>Más sensación de orden, incluso cuando compartes tiempo con otros.</div>
-            <div style={S.footerBox}>Empieza simple. Después deja que SyncPlans haga más liviana la coordinación.</div>
+            <div style={S.visualTitle}>Lo que activas desde hoy</div>
+            <div style={S.benefit}>Claridad compartida sobre qué está confirmado, qué se cruza y qué falta definir.</div>
+            <div style={S.benefit}>Menos fricción de coordinación: menos mensajes repetidos y menos supuestos.</div>
+            <div style={S.benefit}>Mejores decisiones grupales con una única referencia visible para todos.</div>
+            <div style={S.footerBox}>Empieza en simple. Invita a una persona. Ahí SyncPlans multiplica su valor.</div>
           </aside>
         </div>
       </section>

@@ -1,3 +1,4 @@
+// src/app/onboarding/2/Onboarding2Client.tsx
 "use client";
 
 import React, { useEffect } from "react";
@@ -32,7 +33,7 @@ export default function Onboarding2Client() {
             <BrandLogo variant="mark" size={30} />
             <div style={S.brandMeta}>
               <span style={S.step}>Paso 2 de 4</span>
-              <span style={S.stepTitle}>La diferencia</span>
+              <span style={S.stepTitle}>Menos fricción diaria</span>
             </div>
           </div>
           <button type="button" onClick={() => { void trackEvent({ event: "onboarding_skipped", metadata: { screen: "onboarding_step_2", step: 2, destination: nextFinal } }); completeOnboarding(); router.replace(nextFinal); }} style={S.topGhost}>Saltar</button>
@@ -40,34 +41,34 @@ export default function Onboarding2Client() {
 
         <div style={S.heroGrid} className="ob-grid">
           <section style={S.copyCard}>
-            <div style={S.kicker}>Una sola referencia</div>
-            <h1 style={S.title}>SyncPlans pone una verdad compartida en el centro.</h1>
-            <p style={S.lead}>No reemplaza tu vida. Ordena la coordinación para que nadie tenga que adivinar qué pasa con el tiempo compartido.</p>
+            <div style={S.kicker}>Una referencia común para decidir mejor</div>
+            <h1 style={S.title}>SyncPlans convierte coordinación difusa en acuerdos claros.</h1>
+            <p style={S.lead}>No es “otro calendario bonito”. Es una capa de coordinación que baja la fricción de mensajes, supuestos y cambios de último minuto.</p>
 
             <div style={S.points}>
-              <div style={S.point}><span style={S.pointIcon}>✦</span><div><strong>Hace visible lo importante.</strong><br />Lo que se cruza, lo que sigue y lo que todavía está en el aire.</div></div>
-              <div style={S.point}><span style={S.pointIcon}>✦</span><div><strong>Reduce ida y vuelta innecesaria.</strong><br />Menos mensajes repetidos. Menos confusión. Menos memoria suelta.</div></div>
-              <div style={S.point}><span style={S.pointIcon}>✦</span><div><strong>Te deja decidir mejor.</strong><br />Antes de discutir, ya ves dónde está el problema.</div></div>
+              <div style={S.point}><span style={S.pointIcon}>✦</span><div><strong>Hace visible lo crítico primero.</strong><br />Qué está confirmado, qué choca y qué falta decidir.</div></div>
+              <div style={S.point}><span style={S.pointIcon}>✦</span><div><strong>Reduce ida y vuelta innecesaria.</strong><br />Menos “¿al final qué quedó?” y menos contexto perdido.</div></div>
+              <div style={S.point}><span style={S.pointIcon}>✦</span><div><strong>Mejora decisiones en conjunto.</strong><br />Todos miran la misma información antes de elegir.</div></div>
             </div>
 
             <div style={S.actions}>
               <button type="button" onClick={() => { void trackEvent({ event: "onboarding_step_back", metadata: { from_step: 2, to_step: 1, screen: "onboarding_step_2" } }); router.push(`/onboarding/1${qsNext}`); }} style={S.secondaryButton}>Atrás</button>
-              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_step_advanced", metadata: { from_step: 2, to_step: 3, screen: "onboarding_step_2" } }); router.push(`/onboarding/3${qsNext}`); }} style={S.primaryButton}>Seguir</button>
+              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_step_advanced", metadata: { from_step: 2, to_step: 3, screen: "onboarding_step_2" } }); router.push(`/onboarding/3${qsNext}`); }} style={S.primaryButton}>Ver conflictos resueltos</button>
             </div>
           </section>
 
           <aside style={S.visualCard}>
-            <div style={S.visualTitle}>Lo que cambia</div>
+            <div style={S.visualTitle}>Lo que cambia en la práctica</div>
             <div style={S.compareWrap}>
               <div style={S.compareCardMuted}>
                 <div style={S.compareEyebrow}>Antes</div>
                 <div style={S.compareHeadline}>Cada uno interpreta algo distinto</div>
-                <div style={S.compareBody}>Chats, memoria y supuestos mezclados.</div>
+                <div style={S.compareBody}>Chats, memoria y supuestos mezclados generan ruido.</div>
               </div>
               <div style={S.compareCardStrong}>
                 <div style={S.compareEyebrow}>Con SyncPlans</div>
                 <div style={S.compareHeadline}>Todos parten de la misma referencia</div>
-                <div style={S.compareBody}>Menos ruido. Más claridad. Mejor coordinación.</div>
+                <div style={S.compareBody}>Menos fricción, menos conflictos y decisiones más rápidas.</div>
               </div>
             </div>
           </aside>

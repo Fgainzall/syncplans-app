@@ -1,3 +1,4 @@
+// src/app/onboarding/1/Onboarding1Client.tsx
 "use client";
 
 import React, { useEffect } from "react";
@@ -39,7 +40,7 @@ export default function Onboarding1Client() {
             <BrandLogo variant="mark" size={30} />
             <div style={S.brandMeta}>
               <span style={S.step}>Paso 1 de 4</span>
-              <span style={S.stepTitle}>El problema</span>
+              <span style={S.stepTitle}>No es otro calendario</span>
             </div>
           </div>
 
@@ -50,22 +51,22 @@ export default function Onboarding1Client() {
 
         <div style={S.heroGrid} className="ob-grid">
           <section style={S.copyCard}>
-            <div style={S.kicker}>Coordinar no debería cansar</div>
-            <h1 style={S.title}>El problema no es el tiempo.</h1>
-            <h2 style={S.titleAccent}>Es no tener una sola verdad compartida.</h2>
+            <div style={S.kicker}>En 2 minutos vas a notar la diferencia</div>
+            <h1 style={S.title}>El problema no es agendar.</h1>
+            <h2 style={S.titleAccent}>Es coordinar personas sin una verdad compartida.</h2>
             <p style={S.lead}>
-              Cuando cada uno recuerda algo distinto, la semana se vuelve más pesada de lo que debería.
+              SyncPlans no compite con tu calendario: evita malentendidos, cruces y decisiones tardías cuando hay más de una persona involucrada.
             </p>
 
             <div style={S.chips}>
               <span style={S.chip}>“Pensé que era otro día”</span>
               <span style={S.chip}>“No vi ese mensaje”</span>
-              <span style={S.chip}>“Yo ya tenía algo”</span>
+              <span style={S.chip}>“Yo ya tenía otro plan”</span>
             </div>
 
             <div style={S.actions}>
               <button type="button" onClick={() => { void trackEvent({ event: "onboarding_skipped", metadata: { screen: "onboarding_step_1", step: 1, destination: nextFinal } }); completeOnboarding(); router.replace(nextFinal); }} style={S.secondaryButton}>Saltar</button>
-              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_step_advanced", metadata: { from_step: 1, to_step: 2, screen: "onboarding_step_1" } }); router.push(`/onboarding/2${qsNext}`); }} style={S.primaryButton}>Seguir</button>
+              <button type="button" onClick={() => { void trackEvent({ event: "onboarding_step_advanced", metadata: { from_step: 1, to_step: 2, screen: "onboarding_step_1" } }); router.push(`/onboarding/2${qsNext}`); }} style={S.primaryButton}>Ver por qué funciona</button>
             </div>
           </section>
 
@@ -93,7 +94,7 @@ export default function Onboarding1Client() {
 
             <div style={S.alertCard}>
               <div style={S.alertTitle}>Mismo horario. Dos versiones de la misma noche.</div>
-              <p style={S.alertBody}>Ahí es donde empieza la fricción que SyncPlans quiere evitar.</p>
+              <p style={S.alertBody}>Ese desgaste diario es justo lo que SyncPlans reduce desde el primer uso compartido.</p>
             </div>
           </aside>
         </div>
