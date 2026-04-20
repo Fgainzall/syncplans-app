@@ -427,12 +427,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     );
 
     return {
-      count: Math.max(baseAlert.count, unreadConflictAlert.count),
+      // Founder mode: priorizamos conflictos reales (estado vivo),
+      // no señales históricas de notificaciones no leídas.
+      count: baseAlert.count,
       latestEventId:
-        unreadConflictAlert.latestEventId ?? baseAlert.latestEventId ?? null,
+        baseAlert.latestEventId ?? unreadConflictAlert.latestEventId ?? null,
     };
   }, [visibleEvents, groups, resMap, ignoredConflictKeys, unreadConflictAlert]);
-
   const upcomingAll = useMemo(() => {
     const today = startOfTodayLocal();
     const windowEnd = addDays(today, 7);
