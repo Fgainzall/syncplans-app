@@ -86,6 +86,11 @@ export function useSummaryData({
   >({});
 
   const toastTimeoutRef = useRef<number | null>(null);
+  const inFlightLoadRef = useRef<Promise<void> | null>(null);
+  const reloadQueuedRef = useRef(false);
+  const refreshDebounceTimerRef = useRef<number | null>(null);
+  const lastRefreshTriggerAtRef = useRef(0);
+  const lastLoadErrorToastRef = useRef<{ key: string; at: number } | null>(null);
 
   const clearToastTimer = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -115,6 +120,16 @@ export function useSummaryData({
     return () => clearToastTimer();
   }, [clearToastTimer]);
 
+  useEffect(() => {
+    return () => {
+      if (typeof window === "undefined") return;
+      if (refreshDebounceTimerRef.current) {
+        window.clearTimeout(refreshDebounceTimerRef.current);
+        refreshDebounceTimerRef.current = null;
+      }
+    };
+  }, []);
+
   const requireSessionOrRedirect = useCallback(async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error) throw error;
@@ -129,16 +144,16 @@ export function useSummaryData({
     return user;
   }, [router]);
 
- const loadSummary = useCallback(async () => {
-  setLoading(true);
+  const loadSummaryInternal = useCallback(async () => {
+    setLoading(true);
 
-  try {
-    const user = await requireSessionOrRedirect();
-    if (!user) return;
+    try {
+      const user = await requireSessionOrRedirect();
+      if (!user) return;
 
-    const gs = await getMyGroups();
+      const gs = await getMyGroups();
+      setGroups(gs);
 
-    setGroups(gs);
       const activeId = await getActiveGroupIdFromDb().catch(() => null);
 
       const validActive =
@@ -192,11 +207,63 @@ export function useSummaryData({
       setProposalResponsesMap(proposalResponses ?? {});
       setProposalResponseGroupsMap(proposalResponseGroups ?? {});
     } catch (e: any) {
-      showToast("No se pudo cargar", e?.message || "Intenta nuevamente.");
+      const subtitle = e?.message || "Intenta nuevamente.";
+      const key = `summary-load:${String(subtitle)}`;
+      const now = Date.now();
+      const last = lastLoadErrorToastRef.current;
+
+      if (!last || last.key !== key || now - last.at > 2500) {
+        showToast("No se pudo cargar", subtitle);
+        lastLoadErrorToastRef.current = { key, at: now };
+      }
     } finally {
       setLoading(false);
     }
   }, [requireSessionOrRedirect, showToast]);
+
+  const loadSummary = useCallback(async () => {
+    if (inFlightLoadRef.current) {
+      reloadQueuedRef.current = true;
+      return inFlightLoadRef.current;
+    }
+
+    const runner = (async () => {
+      do {
+        reloadQueuedRef.current = false;
+        await loadSummaryInternal();
+      } while (reloadQueuedRef.current);
+    })();
+
+    inFlightLoadRef.current = runner;
+
+    try {
+      await runner;
+    } finally {
+      inFlightLoadRef.current = null;
+    }
+  }, [loadSummaryInternal]);
+
+  const scheduleSummaryRefresh = useCallback(() => {
+    if (typeof window === "undefined") {
+      void loadSummary();
+      return;
+    }
+
+    const now = Date.now();
+    const elapsed = now - lastRefreshTriggerAtRef.current;
+    const delay = elapsed < 240 ? 240 - elapsed : 0;
+
+    if (refreshDebounceTimerRef.current) {
+      window.clearTimeout(refreshDebounceTimerRef.current);
+      refreshDebounceTimerRef.current = null;
+    }
+
+    refreshDebounceTimerRef.current = window.setTimeout(() => {
+      lastRefreshTriggerAtRef.current = Date.now();
+      refreshDebounceTimerRef.current = null;
+      void loadSummary();
+    }, delay);
+  }, [loadSummary]);
 
   useEffect(() => {
     let cancelled = false;
@@ -262,7 +329,7 @@ export function useSummaryData({
     if (typeof window === "undefined") return;
 
     const handler = () => {
-      void loadSummary();
+      scheduleSummaryRefresh();
     };
 
     window.addEventListener("sp:active-group-changed", handler as EventListener);
@@ -275,18 +342,18 @@ export function useSummaryData({
       );
       window.removeEventListener("sp:events-changed", handler as EventListener);
     };
-  }, [loadSummary]);
+  }, [scheduleSummaryRefresh]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const onFocus = () => {
-      void loadSummary();
+      scheduleSummaryRefresh();
     };
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
-        void loadSummary();
+        scheduleSummaryRefresh();
       }
     };
 
@@ -297,7 +364,7 @@ export function useSummaryData({
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [loadSummary]);
+  }, [scheduleSummaryRefresh]);
 
   return {
     booting,
