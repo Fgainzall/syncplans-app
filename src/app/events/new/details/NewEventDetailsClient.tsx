@@ -255,6 +255,13 @@ function safeTitle(value?: string | null) {
   return v || "Evento sin título";
 }
 
+function normalizeFreeText(value: string) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function resolveEventOwnerId(event: any): string | null {
   const candidate =
     event?.owner_id ??
@@ -920,6 +927,54 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     return "Esto solo lo verás tú.";
   }, [effectiveType, selectedGroup, isSharedProposal, proposalResponse]);
 
+  const quickCaptureReview = useMemo(() => {
+    const fromQuickCapture = quickCaptureParam === "1" && !isEditing;
+    if (!fromQuickCapture) return null;
+
+    const normalizedTitle = normalizeFreeText(title);
+    const normalizedRaw = normalizeFreeText(rawTextParam || "");
+    const normalizedNotes = normalizeFreeText(notes);
+    const hasDateParam = Boolean(String(dateParam ?? "").trim());
+    const hasTimeParam = Boolean(String(timeParam ?? "").trim());
+
+    const titleNeedsReview =
+      !normalizedTitle ||
+      normalizedTitle.length < 3 ||
+      (normalizedRaw && normalizedTitle === normalizedRaw);
+
+    const notesNeedsReview =
+      !normalizedNotes ||
+      (normalizedRaw && normalizedNotes && normalizedNotes === normalizedRaw);
+
+    const missingDateOrTime = !hasDateParam || !hasTimeParam;
+
+    const reviewItems: string[] = [];
+    if (!hasDateParam) reviewItems.push("Falta fecha detectada desde Capture.");
+    if (!hasTimeParam) reviewItems.push("Falta hora detectada desde Capture.");
+    if (titleNeedsReview) {
+      reviewItems.push("Revisa el título: puede estar incompleto o muy genérico.");
+    }
+    if (notesNeedsReview) {
+      reviewItems.push("Revisa notas/contexto para evitar ambigüedad.");
+    }
+
+    return {
+      fromQuickCapture,
+      titleNeedsReview,
+      notesNeedsReview,
+      missingDateOrTime,
+      hasIssues: reviewItems.length > 0,
+      reviewItems,
+    };
+  }, [
+    quickCaptureParam,
+    isEditing,
+    title,
+    rawTextParam,
+    notes,
+    dateParam,
+    timeParam,
+  ]);
 
   const learningInput = useMemo(() => {
     const raw = String(rawTextParam ?? "").trim();
@@ -2251,23 +2306,47 @@ const handleSharePostSave = async () => {
 
             <div style={styles.field}>
               <div style={styles.fieldLabel}>Título</div>
+              {quickCaptureReview?.titleNeedsReview ? (
+                <div style={styles.qcInlineWarn}>
+                  El título llegó con baja claridad. Ajusta una versión más específica.
+                </div>
+              ) : null}
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Ej: Cena viernes / Pádel / Médico"
-                style={styles.inputLg}
+                style={
+                  quickCaptureReview?.titleNeedsReview
+                    ? {
+                        ...styles.inputLg,
+                        border: "1px solid rgba(245, 158, 11, 0.36)",
+                      }
+                    : styles.inputLg
+                }
               />
             </div>
 
             <div style={styles.grid2Tight}>
               <div style={styles.field}>
                 <div style={styles.fieldLabel}>Inicio</div>
+                {quickCaptureReview?.missingDateOrTime ? (
+                  <div style={styles.qcInlineWarn}>
+                    Revisa fecha/hora antes de guardar para evitar confusiones.
+                  </div>
+                ) : null}
                 <input
                   type="datetime-local"
                   value={startLocal}
                   onChange={(e) => setStartLocal(e.target.value)}
                   onBlur={onAutoEnd}
-                  style={styles.input}
+                  style={
+                    quickCaptureReview?.missingDateOrTime
+                      ? {
+                          ...styles.input,
+                          border: "1px solid rgba(245, 158, 11, 0.34)",
+                        }
+                      : styles.input
+                  }
                 />
               </div>
 
@@ -2316,7 +2395,55 @@ const handleSharePostSave = async () => {
                 {dateRangeLabel ? (
                   <span style={styles.quickSummaryPill}>{dateRangeLabel}</span>
                 ) : null}
+                {quickCaptureReview?.missingDateOrTime ? (
+                  <span
+                    style={{
+                      ...styles.quickSummaryPill,
+                      border: "1px solid rgba(245, 158, 11, 0.30)",
+                      background: "rgba(245, 158, 11, 0.10)",
+                    }}
+                  >
+                    Revisar fecha/hora
+                  </span>
+                ) : null}
+                {quickCaptureReview?.titleNeedsReview ? (
+                  <span
+                    style={{
+                      ...styles.quickSummaryPill,
+                      border: "1px solid rgba(245, 158, 11, 0.30)",
+                      background: "rgba(245, 158, 11, 0.10)",
+                    }}
+                  >
+                    Revisar título
+                  </span>
+                ) : null}
+                {quickCaptureReview?.notesNeedsReview ? (
+                  <span
+                    style={{
+                      ...styles.quickSummaryPill,
+                      border: "1px solid rgba(148, 163, 184, 0.26)",
+                      background: "rgba(148, 163, 184, 0.10)",
+                    }}
+                  >
+                    Revisar notas
+                  </span>
+                ) : null}
               </div>
+
+              {quickCaptureReview?.hasIssues ? (
+                <div style={styles.qcReviewBox}>
+                  <div style={styles.qcReviewTitle}>
+                    Lo entendimos, pero conviene revisar esto antes de guardar:
+                  </div>
+                  <ul style={styles.qcReviewList}>
+                    {quickCaptureReview.reviewItems.map((item) => (
+                      <li key={item} style={styles.qcReviewItem}>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -2598,10 +2725,22 @@ cursor:
 
             <div style={styles.field}>
               <div style={styles.fieldLabel}>Notas (opcional)</div>
+              {quickCaptureReview?.notesNeedsReview ? (
+                <div style={styles.qcInlineWarnSoft}>
+                  Si agregas una línea de contexto, el plan queda más claro para todos.
+                </div>
+              ) : null}
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                style={styles.textarea}
+                style={
+                  quickCaptureReview?.notesNeedsReview
+                    ? {
+                        ...styles.textarea,
+                        border: "1px solid rgba(148, 163, 184, 0.30)",
+                      }
+                    : styles.textarea
+                }
                 rows={3}
                 placeholder="Añade un poco de contexto si realmente ayuda."
               />
