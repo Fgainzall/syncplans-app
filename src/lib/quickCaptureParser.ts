@@ -228,7 +228,7 @@ function normalizeGenericGroupLabel(rawChunk: string): string | null {
 
 function splitParticipantChunk(chunk: string): string[] {
   return String(chunk ?? "")
-    .split(/,|\s+y\s+/i)
+    .split(/,|\s+y\s+|\s+e\s+/i)
     .map((part) => normalizePossibleName(part))
     .filter(Boolean) as string[];
 }
@@ -237,6 +237,7 @@ function stripTrailingTimeAndDate(chunk: string) {
   return String(chunk ?? "")
     .replace(/\b(a\s+las|alas|de)\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\b.*$/i, "")
     .replace(/\b(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b.*$/i, "")
+    .replace(/\b(en|por|cerca de|donde)\b.*$/i, "")
     .replace(/[.,;:!?]+$/g, "")
     .trim();
 }
@@ -375,13 +376,30 @@ function detectSignals(raw: string, participants: string[]): ParsedQuickCaptureS
 
 function normalizeHourFromCapture(hour: number, period?: string | null) {
   let safeHour = hour;
-  const safePeriod = String(period ?? "").toLowerCase();
+  const safePeriod = String(period ?? "")
+    .toLowerCase()
+    .replace(/\./g, "")
+    .trim();
 
   if (safePeriod === "pm" && safeHour < 12) safeHour += 12;
   if (safePeriod === "am" && safeHour === 12) safeHour = 0;
   if (!safePeriod && safeHour >= 1 && safeHour <= 7) safeHour += 12;
 
   return safeHour;
+}
+
+function inferPeriodFromContext(text: string, anchor: string): "am" | "pm" | null {
+  const normalizedText = normalizeForMatching(text);
+  const normalizedAnchor = normalizeForMatching(anchor);
+
+  const idx = normalizedText.indexOf(normalizedAnchor);
+  const contextStart = idx >= 0 ? Math.max(0, idx - 8) : 0;
+  const contextEnd = idx >= 0 ? Math.min(normalizedText.length, idx + normalizedAnchor.length + 26) : Math.min(normalizedText.length, 40);
+  const context = normalizedText.slice(contextStart, contextEnd);
+
+  if (/\b(de la|por la)\s+(noche|tarde)\b/.test(context)) return "pm";
+  if (/\b(de la|por la)\s+manana\b/.test(context)) return "am";
+  return null;
 }
 
 function extractTimeRange(text: string): {
@@ -401,13 +419,16 @@ function extractTimeRange(text: string): {
   }
 
   const rangeMatch = String(text ?? "").match(
-    /\bde\s+(\d{1,2})(?::(\d{2}))?\s?(am|pm)?\s+a\s+(\d{1,2})(?::(\d{2}))?\s?(am|pm)?\b/i
+    /\bde\s+(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?)?\s+a\s+(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?)?\b/i
   );
 
   if (rangeMatch) {
-    const startHour = normalizeHourFromCapture(parseInt(rangeMatch[1], 10), rangeMatch[3]);
+    const inferredRangePeriod = inferPeriodFromContext(text, rangeMatch[0] ?? "");
+    const startPeriod = rangeMatch[3] || inferredRangePeriod;
+    const endPeriod = rangeMatch[6] || rangeMatch[3] || inferredRangePeriod;
+    const startHour = normalizeHourFromCapture(parseInt(rangeMatch[1], 10), startPeriod);
     const startMinutes = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : 0;
-    const endHour = normalizeHourFromCapture(parseInt(rangeMatch[4], 10), rangeMatch[6] || rangeMatch[3]);
+    const endHour = normalizeHourFromCapture(parseInt(rangeMatch[4], 10), endPeriod);
     const endMinutes = rangeMatch[5] ? parseInt(rangeMatch[5], 10) : 0;
 
     if (startHour <= 23 && endHour <= 23 && startMinutes <= 59 && endMinutes <= 59) {
@@ -416,14 +437,16 @@ function extractTimeRange(text: string): {
   }
 
   const singleMatch = String(text ?? "").match(
-    /(?:a\s+las\s+|alas\s+)?(\d{1,2})(?:[:h](\d{2}))?\s?(am|pm)?\b/i
+    /(?:a\s+las\s+|alas\s+)?(\d{1,2})(?:[:h](\d{2}))?\s?(a\.?m\.?|p\.?m\.?)?\b/i
   );
 
   if (!singleMatch) {
     return { startHour: null, startMinutes: 0, endHour: null, endMinutes: 0 };
   }
 
-  const startHour = normalizeHourFromCapture(parseInt(singleMatch[1], 10), singleMatch[3]);
+  const inferredSinglePeriod =
+    singleMatch[3] || inferPeriodFromContext(text, singleMatch[0] ?? "");
+  const startHour = normalizeHourFromCapture(parseInt(singleMatch[1], 10), inferredSinglePeriod);
   const startMinutes = singleMatch[2] ? parseInt(singleMatch[2], 10) : 0;
 
   if (startHour > 23 || startMinutes > 59) {
@@ -607,7 +630,7 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
   const participants = extractParticipants(raw);
   const signals = detectSignals(raw, participants);
   const date = extractDay(raw);
-  const timeRange = extractTimeRange(normalized);
+  const timeRange = extractTimeRange(raw);
   const duration = extractDuration(normalized);
 
   let finalDate: Date | null = null;
