@@ -947,6 +947,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     pendingInviteCount > 0 ||
     pendingAttention.proposals > 0 ||
     pendingAttention.captures > 0;
+  const showSecondarySummaryFlow = !hasUrgentSummaryState;
   const showValueRail =
     !compactSummaryMobile &&
     valueMoments.hasValue &&
@@ -1216,22 +1217,24 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       <Section style={styles.shell} className="spSum-shell">
         <PremiumHeader hideUpgradeCta title={title} subtitle={summarySubtitle} sticky={false} />
 
-         <SummaryQuickCaptureCard
-  value={quickCaptureValue}
-  busy={quickCaptureBusy}
-  preview={quickCapturePreview}
-  interpretation={smartInterpretation}
-  interpretationLabel={smartInterpretationLabel}
-  examples={quickCaptureExamples}
-  activeGroupName={activeLabel}
-  activeGroupType={activeGroupType}
-  groups={groups}
-  onChange={setQuickCaptureValue}
-  onSubmit={handleQuickCaptureSubmit}
-  onShare={handleCopyCaptureLink}
-  onWhatsApp={handleShareToWhatsApp}
-  onExampleClick={handleQuickCaptureExample}
-/>
+        {showSecondarySummaryFlow ? (
+          <SummaryQuickCaptureCard
+            value={quickCaptureValue}
+            busy={quickCaptureBusy}
+            preview={quickCapturePreview}
+            interpretation={smartInterpretation}
+            interpretationLabel={smartInterpretationLabel}
+            examples={quickCaptureExamples}
+            activeGroupName={activeLabel}
+            activeGroupType={activeGroupType}
+            groups={groups}
+            onChange={setQuickCaptureValue}
+            onSubmit={handleQuickCaptureSubmit}
+            onShare={handleCopyCaptureLink}
+            onWhatsApp={handleShareToWhatsApp}
+            onExampleClick={handleQuickCaptureExample}
+          />
+        ) : null}
 
           <Card style={styles.card} className="spSum-card">
             {compactSummaryMobile && conflictAlert.count > 0 ? (
@@ -1444,197 +1447,203 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               </div>
             ) : null}
 
-            {booting ? (
-              <div style={styles.loadingCard}>
-                <div style={styles.loadingDot} />
-                <div>
-                  <div style={styles.loadingTitle}>Cargando…</div>
-                  <div style={styles.loadingSub}>Resumen</div>
-                </div>
-              </div>
-            ) : !nextEvent ? (
-              <div style={styles.emptyBlock}>
-                <div style={styles.emptyTitle}>{showCreateGroupNudge ? "Todavía no activaste el loop compartido" : "Sin coordinación cercana todavía"}</div>
-                <div style={styles.emptySub}>{showCreateGroupNudge ? "Empieza creando tu primer grupo. Ese es el paso que convierte SyncPlans en una referencia compartida y no solo en una agenda ordenada." : "Todavía no tienes nada cerca dentro del sistema. Conviene meter el próximo plan aquí para que la semana no dependa de memoria, chat o improvisación."}</div>
-                <button
-                  onClick={primaryAction.primaryAction}
-                  style={styles.emptyBtn}
-                >
-                  {showCreateGroupNudge ? "Crear grupo →" : "Crear plan →"}
-                </button>
-              </div>
-            ) : (
-              <>
-                <div style={styles.nextBlock}>
-                  <div style={styles.nextLabel}>Sigue</div>
-                  <button
-                    onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
-                    style={{
-                      ...styles.nextCard,
-                      ...(highlightId &&
-                      String(nextEvent?.id ?? "") === String(highlightId)
-                        ? styles.eventRowHighlight
-                        : {}),
-                    }}
-                    className="spSum-eventRow"
-                  >
-                    {(() => {
-                      const start = nextEvent.start as Date;
-                      const end = nextEvent.end as Date | null;
-
-                      const when = end
-                        ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
-                        : `${fmtDay(start)} · ${fmtTime(start)}`;
-
-                      return (
-                        <>
-                          <div style={styles.eventLeft}>
-                            <div style={styles.eventWhen}>{when}</div>
-                            <div style={styles.eventTitle}>{nextEvent.title}</div>
-                            {(() => {
-                              const proposalLine = getProposalLineForEvent(nextEvent.id);
-                              return proposalLine ? (
-                                <div style={styles.proposalContextLine}>{proposalLine}</div>
-                              ) : null;
-                            })()}
-                          </div>
-
-                          <div style={styles.eventMeta}>
-                            {(() => {
-                              const statusBadge = getStatusBadgeForEvent(nextEvent.id);
-                              if (statusBadge) {
-                                return (
-                                  <span
-                                    style={{
-                                      ...styles.summaryStatusPill,
-                                      ...statusBadge.style,
-                                    }}
-                                  >
-                                    {statusBadge.label}
-                                  </span>
-                                );
-                              }
-
-                              const proposalBadge = getProposalBadgeForEvent(nextEvent.id);
-                              return proposalBadge ? (
-                                <span
-                                  style={{
-                                    ...styles.proposalPill,
-                                    ...(proposalBadge.tone === "accepted"
-                                      ? styles.proposalPillAccepted
-                                      : proposalBadge.tone === "adjusted"
-                                        ? styles.proposalPillAdjusted
-                                        : styles.proposalPillPending),
-                                  }}
-                                >
-                                  {proposalBadge.label}
-                                </span>
-                              ) : null;
-                            })()}
-                            {nextEvent.isExternal ? (
-                              <span style={styles.pill}>Externo</span>
-                            ) : null}
-                            {nextEvent.groupId ? (
-                              <span style={styles.pillSoft}>Grupo</span>
-                            ) : (
-                              <span style={styles.pillSoft}>Personal</span>
-                            )}
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </button>
-                </div>
-
-                {remainingUpcoming.length > 0 && (
-                  <div style={styles.eventsList} className="spSum-eventsList">
-                    {remainingUpcoming.map((e) => {
-                      const start = e.start as Date;
-                      const end = e.end as Date | null;
-
-                      const when = end
-                        ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
-                        : `${fmtDay(start)} · ${fmtTime(start)}`;
-
-                      const isHighlighted =
-                        highlightId && String(e.id ?? "") === String(highlightId);
-
-                      return (
-                        <button
-                          key={e.id ?? `${e.title}-${start.toISOString()}`}
-                          onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
-                          style={{
-                            ...styles.eventRow,
-                            ...(isHighlighted ? styles.eventRowHighlight : {}),
-                          }}
-                          className="spSum-eventRow"
-                        >
-                          <div style={styles.eventLeft}>
-                            <div style={styles.eventWhen}>{when}</div>
-                            <div style={styles.eventTitle}>{e.title}</div>
-                            {(() => {
-                              const proposalLine = getProposalLineForEvent(e.id);
-                              return proposalLine ? (
-                                <div style={styles.proposalContextLine}>{proposalLine}</div>
-                              ) : null;
-                            })()}
-                          </div>
-
-                          <div style={styles.eventMeta}>
-                            {(() => {
-                              const statusBadge = getStatusBadgeForEvent(e.id);
-                              if (statusBadge) {
-                                return (
-                                  <span
-                                    style={{
-                                      ...styles.summaryStatusPill,
-                                      ...statusBadge.style,
-                                    }}
-                                  >
-                                    {statusBadge.label}
-                                  </span>
-                                );
-                              }
-
-                              const proposalBadge = getProposalBadgeForEvent(e.id);
-                              return proposalBadge ? (
-                                <span
-                                  style={{
-                                    ...styles.proposalPill,
-                                    ...(proposalBadge.tone === "accepted"
-                                      ? styles.proposalPillAccepted
-                                      : proposalBadge.tone === "adjusted"
-                                        ? styles.proposalPillAdjusted
-                                        : styles.proposalPillPending),
-                                  }}
-                                >
-                                  {proposalBadge.label}
-                                </span>
-                              ) : null;
-                            })()}
-                            {e.isExternal ? <span style={styles.pill}>Externo</span> : null}
-                            {e.groupId ? (
-                              <span style={styles.pillSoft}>Grupo</span>
-                            ) : (
-                              <span style={styles.pillSoft}>Personal</span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
+            {showSecondarySummaryFlow ? (
+              booting ? (
+                <div style={styles.loadingCard}>
+                  <div style={styles.loadingDot} />
+                  <div>
+                    <div style={styles.loadingTitle}>Cargando…</div>
+                    <div style={styles.loadingSub}>Resumen</div>
                   </div>
-                )}
-
-                {showSeeMore && (
+                </div>
+              ) : !nextEvent ? (
+                <div style={styles.emptyBlock}>
+                  <div style={styles.emptyTitle}>{showCreateGroupNudge ? "Todavía no activaste el loop compartido" : "Sin coordinación cercana todavía"}</div>
+                  <div style={styles.emptySub}>{showCreateGroupNudge ? "Empieza creando tu primer grupo. Ese es el paso que convierte SyncPlans en una referencia compartida y no solo en una agenda ordenada." : "Todavía no tienes nada cerca dentro del sistema. Conviene meter el próximo plan aquí para que la semana no dependa de memoria, chat o improvisación."}</div>
                   <button
-                    onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
-                    style={styles.seeMoreBtn}
-                    className="spSum-seeMore"
+                    onClick={primaryAction.primaryAction}
+                    style={styles.emptyBtn}
                   >
-                    Ver calendario ({upcomingAll.length}) →
+                    {showCreateGroupNudge ? "Crear grupo →" : "Crear plan →"}
                   </button>
-                )}
-              </>
+                </div>
+              ) : (
+                <>
+                  <div style={styles.nextBlock}>
+                    <div style={styles.nextLabel}>Sigue</div>
+                    <button
+                      onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
+                      style={{
+                        ...styles.nextCard,
+                        ...(highlightId &&
+                        String(nextEvent?.id ?? "") === String(highlightId)
+                          ? styles.eventRowHighlight
+                          : {}),
+                      }}
+                      className="spSum-eventRow"
+                    >
+                      {(() => {
+                        const start = nextEvent.start as Date;
+                        const end = nextEvent.end as Date | null;
+
+                        const when = end
+                          ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
+                          : `${fmtDay(start)} · ${fmtTime(start)}`;
+
+                        return (
+                          <>
+                            <div style={styles.eventLeft}>
+                              <div style={styles.eventWhen}>{when}</div>
+                              <div style={styles.eventTitle}>{nextEvent.title}</div>
+                              {(() => {
+                                const proposalLine = getProposalLineForEvent(nextEvent.id);
+                                return proposalLine ? (
+                                  <div style={styles.proposalContextLine}>{proposalLine}</div>
+                                ) : null;
+                              })()}
+                            </div>
+
+                            <div style={styles.eventMeta}>
+                              {(() => {
+                                const statusBadge = getStatusBadgeForEvent(nextEvent.id);
+                                if (statusBadge) {
+                                  return (
+                                    <span
+                                      style={{
+                                        ...styles.summaryStatusPill,
+                                        ...statusBadge.style,
+                                      }}
+                                    >
+                                      {statusBadge.label}
+                                    </span>
+                                  );
+                                }
+
+                                const proposalBadge = getProposalBadgeForEvent(nextEvent.id);
+                                return proposalBadge ? (
+                                  <span
+                                    style={{
+                                      ...styles.proposalPill,
+                                      ...(proposalBadge.tone === "accepted"
+                                        ? styles.proposalPillAccepted
+                                        : proposalBadge.tone === "adjusted"
+                                          ? styles.proposalPillAdjusted
+                                          : styles.proposalPillPending),
+                                    }}
+                                  >
+                                    {proposalBadge.label}
+                                  </span>
+                                ) : null;
+                              })()}
+                              {nextEvent.isExternal ? (
+                                <span style={styles.pill}>Externo</span>
+                              ) : null}
+                              {nextEvent.groupId ? (
+                                <span style={styles.pillSoft}>Grupo</span>
+                              ) : (
+                                <span style={styles.pillSoft}>Personal</span>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </button>
+                  </div>
+
+                  {remainingUpcoming.length > 0 && (
+                    <div style={styles.eventsList} className="spSum-eventsList">
+                      {remainingUpcoming.map((e) => {
+                        const start = e.start as Date;
+                        const end = e.end as Date | null;
+
+                        const when = end
+                          ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
+                          : `${fmtDay(start)} · ${fmtTime(start)}`;
+
+                        const isHighlighted =
+                          highlightId && String(e.id ?? "") === String(highlightId);
+
+                        return (
+                          <button
+                            key={e.id ?? `${e.title}-${start.toISOString()}`}
+                            onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
+                            style={{
+                              ...styles.eventRow,
+                              ...(isHighlighted ? styles.eventRowHighlight : {}),
+                            }}
+                            className="spSum-eventRow"
+                          >
+                            <div style={styles.eventLeft}>
+                              <div style={styles.eventWhen}>{when}</div>
+                              <div style={styles.eventTitle}>{e.title}</div>
+                              {(() => {
+                                const proposalLine = getProposalLineForEvent(e.id);
+                                return proposalLine ? (
+                                  <div style={styles.proposalContextLine}>{proposalLine}</div>
+                                ) : null;
+                              })()}
+                            </div>
+
+                            <div style={styles.eventMeta}>
+                              {(() => {
+                                const statusBadge = getStatusBadgeForEvent(e.id);
+                                if (statusBadge) {
+                                  return (
+                                    <span
+                                      style={{
+                                        ...styles.summaryStatusPill,
+                                        ...statusBadge.style,
+                                      }}
+                                    >
+                                      {statusBadge.label}
+                                    </span>
+                                  );
+                                }
+
+                                const proposalBadge = getProposalBadgeForEvent(e.id);
+                                return proposalBadge ? (
+                                  <span
+                                    style={{
+                                      ...styles.proposalPill,
+                                      ...(proposalBadge.tone === "accepted"
+                                        ? styles.proposalPillAccepted
+                                        : proposalBadge.tone === "adjusted"
+                                          ? styles.proposalPillAdjusted
+                                          : styles.proposalPillPending),
+                                    }}
+                                  >
+                                    {proposalBadge.label}
+                                  </span>
+                                ) : null;
+                              })()}
+                              {e.isExternal ? <span style={styles.pill}>Externo</span> : null}
+                              {e.groupId ? (
+                                <span style={styles.pillSoft}>Grupo</span>
+                              ) : (
+                                <span style={styles.pillSoft}>Personal</span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {showSeeMore && (
+                    <button
+                      onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
+                      style={styles.seeMoreBtn}
+                      className="spSum-seeMore"
+                    >
+                      Ver calendario ({upcomingAll.length}) →
+                    </button>
+                  )}
+                </>
+              )
+            ) : (
+              <div style={styles.urgentFocusHint}>
+                Enfócate primero en la decisión principal de arriba. Después vuelves al detalle.
+              </div>
             )}
           </Card>
 
@@ -1696,30 +1705,32 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             </Card>
           ) : null}
 
-          <Card style={styles.card} className="spSum-card">
-            <div style={styles.sectionHeadMini}>
-              <div>
-                <div style={styles.sectionEyebrow}>Después de eso</div>
-                <div style={styles.sectionTitle}>
-                  {compactSummaryMobile ? "Haz ahora" : hasUrgentSummaryState ? "Lo siguiente, sin ruido" : "Siguientes pasos útiles"}
+          {showSecondarySummaryFlow ? (
+            <Card style={styles.card} className="spSum-card">
+              <div style={styles.sectionHeadMini}>
+                <div>
+                  <div style={styles.sectionEyebrow}>Después de eso</div>
+                  <div style={styles.sectionTitle}>
+                    {compactSummaryMobile ? "Haz ahora" : "Siguientes pasos útiles"}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div style={styles.quickGrid} className="spSum-quickGrid">
-              {summaryQuickActions.map((action) => (
-                <button
-                  key={action.key}
-                  onClick={action.onClick}
-                  style={styles.quickCard}
-                  className="spSum-quickCard"
-                >
-                  <div style={styles.quickTitle}>{action.title}</div>
-                  <div style={styles.quickSub}>{action.subtitle}</div>
-                </button>
-              ))}
-            </div>
-          </Card>
+              <div style={styles.quickGrid} className="spSum-quickGrid">
+                {summaryQuickActions.map((action) => (
+                  <button
+                    key={action.key}
+                    onClick={action.onClick}
+                    style={styles.quickCard}
+                    className="spSum-quickCard"
+                  >
+                    <div style={styles.quickTitle}>{action.title}</div>
+                    <div style={styles.quickSub}>{action.subtitle}</div>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          ) : null}
       </Section>
 
       <style>{`
@@ -2671,6 +2682,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     opacity: 0.74,
     lineHeight: 1.5,
+  },
+  urgentFocusHint: {
+    marginTop: 12,
+    borderRadius: 14,
+    padding: "12px 14px",
+    border: "1px solid rgba(125,211,252,0.22)",
+    background: "rgba(8,47,73,0.38)",
+    color: "rgba(226,232,240,0.9)",
+    fontSize: 13,
+    lineHeight: 1.5,
+    fontWeight: 700,
   },
 
   premiumRail: {
