@@ -9,6 +9,10 @@ import {
 import { computeVisibleConflicts, attachEvents } from "@/lib/conflicts";
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
 import { normalizePreferenceGroupType } from "@/lib/naming";
+import { getMyConflictResolutionsMap } from "@/lib/conflictResolutionsDb";
+import { getIgnoredConflictKeys } from "@/lib/conflictPrefs";
+import { getMyDeclinedEventIds } from "@/lib/eventResponsesDb";
+import { filterIgnoredConflicts, type CalendarEvent, type ConflictItem } from "@/lib/conflicts";
 
 export type NotificationType =
   | "event_created"
@@ -163,6 +167,93 @@ function extractEventIdsFromPayload(
         .filter(Boolean)
     )
   );
+}
+
+function normalizeConflictEventFromDb(row: any): CalendarEvent | null {
+  const id = String(row?.id ?? "").trim();
+  const start = String(row?.start ?? row?.start_at ?? "").trim();
+  const end = String(row?.end ?? row?.end_at ?? start).trim();
+
+  if (!id || !start || !end) return null;
+
+  return {
+    id,
+    title: String(row?.title ?? "Sin título"),
+    start,
+    end,
+    groupId: row?.group_id ? String(row.group_id) : null,
+    groupType: normalizeGroupTypeForPrefs(row?.group_type ?? row?.groupType ?? "personal"),
+    description:
+      typeof row?.notes === "string"
+        ? row.notes
+        : typeof row?.description === "string"
+          ? row.description
+          : undefined,
+  } satisfies CalendarEvent;
+}
+
+function resolutionForConflictId(
+  conflict: Pick<ConflictItem, "id">,
+  resMap: Record<string, string>
+): string | null {
+  const direct = String(resMap?.[String(conflict.id)] ?? "").trim();
+  return direct || null;
+}
+
+async function getLiveConflictSummary(): Promise<{
+  count: number;
+  latestEventId: string | null;
+}> {
+  const [{ events }, resMap, ignoredConflictKeys, declinedEventIds] =
+    await Promise.all([
+      loadEventsFromDb(),
+      getMyConflictResolutionsMap().catch(() => ({})),
+      getIgnoredConflictKeys().catch(() => new Set<string>()),
+      getMyDeclinedEventIds().catch(() => new Set<string>()),
+    ]);
+
+  const usableEvents = (Array.isArray(events) ? events : [])
+    .map(normalizeConflictEventFromDb)
+    .filter(Boolean)
+    .filter((event) => !declinedEventIds.has(String(event!.id))) as CalendarEvent[];
+
+  if (usableEvents.length === 0) {
+    return { count: 0, latestEventId: null };
+  }
+
+  const computed = filterIgnoredConflicts(
+    computeVisibleConflicts(usableEvents),
+    ignoredConflictKeys
+  ).filter((conflict) => !resolutionForConflictId(conflict, resMap));
+
+  if (computed.length === 0) {
+    return { count: 0, latestEventId: null };
+  }
+
+  const eventsById = new Map(usableEvents.map((event) => [String(event.id), event]));
+  let latestEventId: string | null = null;
+  let latestStartMs = -1;
+
+  for (const conflict of computed) {
+    const candidates = [
+      eventsById.get(String(conflict.existingEventId)),
+      eventsById.get(String(conflict.incomingEventId)),
+    ].filter(Boolean) as CalendarEvent[];
+
+    for (const event of candidates) {
+      const ms = new Date(event.start).getTime();
+      if (Number.isNaN(ms)) continue;
+      if (ms > latestStartMs) {
+        latestStartMs = ms;
+        latestEventId = String(event.id);
+      }
+    }
+  }
+
+  return {
+    count: computed.length,
+    latestEventId,
+  };
 }
 
 /* ======================================================
@@ -637,39 +728,8 @@ export async function getUnreadConflictNotificationsSummary(): Promise<{
   count: number;
   latestEventId: string | null;
 }> {
-  const uid = await requireUid();
-
-  const { data, error } = await supabase
-    .from("notifications")
-    .select("entity_id, payload, created_at")
-    .eq("user_id", uid)
-    .in("type", [...CONFLICT_NOTIFICATION_TYPES])
-    .is("read_at", null)
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-
-  const rows = Array.isArray(data) ? data : [];
-
-  const latestWithEntity = rows.find((r: any) => {
-    const ids = extractEventIdsFromPayload(
-      r?.payload ?? null,
-      r?.entity_id ?? null
-    );
-    return ids.length > 0;
-  });
-
-  const latestEventIds = latestWithEntity
-    ? extractEventIdsFromPayload(
-        latestWithEntity?.payload ?? null,
-        latestWithEntity?.entity_id ?? null
-      )
-    : [];
-
-  return {
-    count: rows.length,
-    latestEventId: latestEventIds[0] ?? null,
-  };
+  await requireUid();
+  return getLiveConflictSummary();
 }
 
 export async function markConflictNotificationsAsRead(options?: {
