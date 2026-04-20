@@ -95,13 +95,8 @@ function formatDateLabel(date: Date | null) {
   }).format(date);
 }
 
-function toTitleCase(value: string) {
-  if (!value.trim()) return "";
-  return value
-    .trim()
-    .split(/\s+/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+function normalizeTitle(value: string) {
+  return value.replace(/\s+/g, " ").trim();
 }
 
 function sentenceCase(value: string) {
@@ -192,12 +187,75 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   const parsed = useMemo(() => parseQuickCapture(draft.trim()), [draft]);
 
   const title = parsed.title?.trim() || "";
+  const normalizedTitle = normalizeTitle(title);
   const rawNotes = parsed.notes?.trim() || "";
   const cleanedNotes = cleanTemporalNoise(rawNotes);
   const prettyNotes = sentenceCase(cleanedNotes);
   const durationMinutes = parsed.durationMinutes || 60;
   const hasDate = Boolean(parsed.date && !Number.isNaN(parsed.date.getTime()));
-  const canContinue = Boolean(draft.trim() && title);
+  const canContinue = Boolean(draft.trim() && normalizedTitle);
+  const hasNotes = Boolean(prettyNotes);
+  const isDraftEmpty = !draft.trim();
+
+  const missingChecks = useMemo(
+    () => ({
+      title: !title,
+      date: !hasDate,
+      notes: !hasNotes,
+    }),
+    [hasDate, hasNotes, title]
+  );
+
+  const clarityScore = useMemo(() => {
+    const score =
+      Number(!missingChecks.title) +
+      Number(!missingChecks.date) +
+      Number(!missingChecks.notes);
+
+    if (score <= 1) return "low";
+    if (score === 2) return "medium";
+    return "high";
+  }, [missingChecks]);
+
+  const parsingStatus = useMemo(() => {
+    if (isDraftEmpty) {
+      return {
+        label: "Escribe una idea para comenzar",
+        tone: "neutral" as const,
+        help: "Cuando escribas algo, te mostramos una vista previa clara antes de crear.",
+      };
+    }
+
+    if (!normalizedTitle) {
+      return {
+        label: "Falta el título del plan",
+        tone: "warn" as const,
+        help: "Agrega qué plan es (ej. cena, reunión, fulbito) para poder continuar.",
+      };
+    }
+
+    if (isSharedIntent && !hasDate) {
+      return {
+        label: "Para compartir mejor, falta cuándo",
+        tone: "warn" as const,
+        help: "Puedes continuar, pero poner fecha/hora ayuda a que ambos tengan el mismo contexto.",
+      };
+    }
+
+    if (!hasDate) {
+      return {
+        label: "Entendí el plan, pero falta cuándo",
+        tone: "warn" as const,
+        help: "Puedes continuar y ajustar luego, pero agregar fecha/hora evita confusiones.",
+      };
+    }
+
+    return {
+      label: "Parsing claro y listo para continuar",
+      tone: "success" as const,
+      help: "Revisa los datos detectados y confirma para pasar al detalle final.",
+    };
+  }, [hasDate, isDraftEmpty, isSharedIntent, normalizedTitle]);
 
   const summaryLine = useMemo(() => {
     if (!hasDate) {
@@ -213,7 +271,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     params.set("from", "capture");
     params.set("capture_source", source);
     params.set("type", "personal");
-    params.set("title", toTitleCase(title));
+    params.set("title", normalizedTitle);
     params.set("duration", String(durationMinutes));
     params.set("raw_text", draft.trim());
 
@@ -490,6 +548,90 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
           </p>
         </header>
 
+        <section
+          style={{
+            marginBottom: 16,
+            borderRadius: 18,
+            padding: "14px 16px",
+            background:
+              parsingStatus.tone === "success"
+                ? "rgba(16, 185, 129, 0.10)"
+                : parsingStatus.tone === "warn"
+                  ? "rgba(245, 158, 11, 0.10)"
+                  : "rgba(148, 163, 184, 0.10)",
+            border:
+              parsingStatus.tone === "success"
+                ? "1px solid rgba(16, 185, 129, 0.22)"
+                : parsingStatus.tone === "warn"
+                  ? "1px solid rgba(245, 158, 11, 0.24)"
+                  : "1px solid rgba(148, 163, 184, 0.2)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 14,
+                  fontWeight: 900,
+                  color:
+                    parsingStatus.tone === "success"
+                      ? "#d1fae5"
+                      : parsingStatus.tone === "warn"
+                        ? "#fef3c7"
+                        : "#e2e8f0",
+                }}
+              >
+                {parsingStatus.label}
+              </p>
+              <p
+                style={{
+                  margin: "5px 0 0 0",
+                  fontSize: 13,
+                  lineHeight: 1.45,
+                  color:
+                    parsingStatus.tone === "success"
+                      ? "rgba(209, 250, 229, 0.88)"
+                      : parsingStatus.tone === "warn"
+                        ? "rgba(254, 243, 199, 0.9)"
+                        : "rgba(226, 232, 240, 0.76)",
+                }}
+              >
+                {parsingStatus.help}
+              </p>
+            </div>
+
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                borderRadius: 999,
+                padding: "7px 11px",
+                border: "1px solid rgba(148, 163, 184, 0.24)",
+                fontSize: 12,
+                fontWeight: 800,
+                color: "rgba(226, 232, 240, 0.9)",
+                background: "rgba(2, 6, 23, 0.4)",
+              }}
+            >
+              Claridad:{" "}
+              {clarityScore === "high"
+                ? "Alta"
+                : clarityScore === "medium"
+                  ? "Media"
+                  : "Baja"}
+            </span>
+          </div>
+        </section>
+
         {clipboardNotice ? (
           <div
             style={{
@@ -659,18 +801,21 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
             >
               <PreviewRow
                 label="Título"
-                value={title ? toTitleCase(title) : "Sin título detectado"}
-                muted={!title}
+                value={normalizedTitle || "Sin título detectado"}
+                muted={missingChecks.title}
+                severity={missingChecks.title ? "warn" : "default"}
               />
               <PreviewRow
                 label="Notas"
                 value={prettyNotes || "Sin notas detectadas"}
-                muted={!prettyNotes}
+                muted={missingChecks.notes}
+                severity={missingChecks.notes ? "neutral" : "default"}
               />
               <PreviewRow
                 label="Fecha"
                 value={hasDate ? formatDateLabel(parsed.date) : "Sin fecha detectada"}
-                muted={!hasDate}
+                muted={missingChecks.date}
+                severity={missingChecks.date ? "warn" : "default"}
               />
               <PreviewRow label="Duración" value={`${durationMinutes} min`} />
             </div>
@@ -690,6 +835,43 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
             >
               {summaryLine}
             </div>
+
+            {(missingChecks.title || missingChecks.date || missingChecks.notes) && (
+              <div
+                style={{
+                  marginTop: 12,
+                  borderRadius: 14,
+                  padding: "11px 12px",
+                  background: "rgba(245, 158, 11, 0.09)",
+                  border: "1px solid rgba(245, 158, 11, 0.20)",
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    color: "#fef3c7",
+                  }}
+                >
+                  Para mayor claridad, te sugiero:
+                </p>
+                <ul
+                  style={{
+                    margin: "8px 0 0 18px",
+                    padding: 0,
+                    display: "grid",
+                    gap: 5,
+                    color: "rgba(254, 243, 199, 0.9)",
+                    fontSize: 13,
+                  }}
+                >
+                  {missingChecks.title ? <li>Agregar el nombre del plan.</li> : null}
+                  {missingChecks.date ? <li>Incluir día y hora (ej. viernes 8pm).</li> : null}
+                  {missingChecks.notes ? <li>Añadir contexto breve (con quién o dónde).</li> : null}
+                </ul>
+              </div>
+            )}
           </div>
 
           <div
@@ -720,8 +902,20 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               }}
             >
               <MiniStep text="Interpreté tu idea" />
-              <MiniStep text="La dejé lista para crear" />
-              <MiniStep text="Puedes confirmarla o cambiar algo antes" />
+              <MiniStep
+                text={
+                  canContinue
+                    ? "La dejé lista para crear"
+                    : "Completa el plan para habilitar continuar"
+                }
+              />
+              <MiniStep
+                text={
+                  hasDate
+                    ? "Puedes confirmarla o cambiar algo antes"
+                    : "Si agregas fecha/hora, todo queda más claro"
+                }
+              />
             </div>
           </div>
         </section>
@@ -769,6 +963,23 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
             marginTop: 22,
           }}
         >
+          {isSharedIntent && !hasDate && canContinue ? (
+            <div
+              style={{
+                width: "100%",
+                borderRadius: 14,
+                padding: "10px 12px",
+                background: "rgba(245, 158, 11, 0.10)",
+                border: "1px solid rgba(245, 158, 11, 0.24)",
+                color: "rgba(254, 243, 199, 0.95)",
+                fontSize: 13,
+                lineHeight: 1.45,
+              }}
+            >
+              Te recomiendo agregar fecha/hora antes de compartir para evitar idas y vueltas.
+            </div>
+          ) : null}
+
           <button
             type="button"
             onClick={handleContinue}
@@ -789,8 +1000,12 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 ? "0 12px 30px rgba(37, 99, 235, 0.26)"
                 : "none",
             }}
-          >
-            {isSharedIntent ? "Sí, hagámoslo así" : "Continuar"}
+            >
+            {isSharedIntent && !hasDate
+              ? "Continuar sin fecha"
+              : isSharedIntent
+                ? "Sí, hagámoslo así"
+                : "Continuar con este plan"}
           </button>
 
           {isSharedIntent ? (
@@ -810,7 +1025,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 opacity: canContinue ? 1 : 0.58,
               }}
             >
-              Cambiar algo
+              Corregir antes
             </button>
           ) : null}
 
@@ -863,10 +1078,12 @@ function PreviewRow({
   label,
   value,
   muted = false,
+  severity = "default",
 }: {
   label: string;
   value: string;
   muted?: boolean;
+  severity?: "default" | "warn" | "neutral";
 }) {
   return (
     <div
@@ -876,7 +1093,12 @@ function PreviewRow({
         padding: "12px 14px",
         borderRadius: 14,
         background: "rgba(2, 6, 23, 0.64)",
-        border: "1px solid rgba(148, 163, 184, 0.12)",
+        border:
+          severity === "warn"
+            ? "1px solid rgba(245, 158, 11, 0.28)"
+            : severity === "neutral"
+              ? "1px solid rgba(148, 163, 184, 0.22)"
+              : "1px solid rgba(148, 163, 184, 0.12)",
       }}
     >
       <span
@@ -885,7 +1107,10 @@ function PreviewRow({
           fontWeight: 800,
           textTransform: "uppercase",
           letterSpacing: "0.08em",
-          color: "rgba(147, 197, 253, 0.92)",
+          color:
+            severity === "warn"
+              ? "rgba(253, 230, 138, 0.95)"
+              : "rgba(147, 197, 253, 0.92)",
         }}
       >
         {label}
