@@ -1353,35 +1353,66 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                       </button>
                     ) : null}
 
-                    {pendingAttention.invites > 0 ? (
-                      <button
-                        type="button"
-                        style={{ ...styles.attentionChip, ...styles.attentionChipInfo }}
-                        onClick={() => navigateFromSummary("attention_invites", "/invitations", { block: "summary_attention" })}
-                      >
-                        {pendingAttention.invites} invitación{pendingAttention.invites === 1 ? "" : "es"}
-                      </button>
-                    ) : null}
+                   {pendingAttention.invites > 0 ? (
+  <button
+    type="button"
+    style={{ ...styles.attentionChip, ...styles.attentionChipInfo }}
+    onClick={() =>
+      navigateFromSummary("attention_invites", "/invitations", {
+        block: "summary_attention",
+      })
+    }
+  >
+    {pendingAttention.invites} invitación{pendingAttention.invites === 1 ? "" : "es"}
+  </button>
+) : null}
+
+{compactSummaryMobile &&
+pendingAttention.captures + pendingAttention.proposals > 0 ? (
+  <button
+    type="button"
+    style={{ ...styles.attentionChip, ...styles.attentionChipSoft }}
+    onClick={() =>
+      navigateFromSummary("attention_pending_mobile", "/events", {
+        block: "summary_attention",
+        captures: pendingAttention.captures,
+        proposals: pendingAttention.proposals,
+      })
+    }
+  >
+    {pendingAttention.captures + pendingAttention.proposals} pendiente
+    {pendingAttention.captures + pendingAttention.proposals === 1 ? "" : "s"}{" "}
+    por revisar
+  </button>
+) : null}
 
 {!compactSummaryMobile && pendingAttention.captures > 0 ? (
-                      <button
-                        type="button"
-                        style={{ ...styles.attentionChip, ...styles.attentionChipNeutral }}
-                        onClick={() => navigateFromSummary("attention_events", "/events", { block: "summary_attention" })}
-                      >
-                        {pendingAttention.captures} respuesta{pendingAttention.captures === 1 ? "" : "s"} externa{pendingAttention.captures === 1 ? "" : "s"}
-                      </button>
-                    ) : null}
+  <button
+    type="button"
+    style={{ ...styles.attentionChip, ...styles.attentionChipNeutral }}
+    onClick={() =>
+      navigateFromSummary("attention_events", "/events", {
+        block: "summary_attention",
+      })
+    }
+  >
+    {pendingAttention.captures} respuesta{pendingAttention.captures === 1 ? "" : "s"} externa{pendingAttention.captures === 1 ? "" : "s"}
+  </button>
+) : null}
 
-                    {!compactSummaryMobile && pendingAttention.proposals > 0 ? (
-                      <button
-                        type="button"
-                        style={{ ...styles.attentionChip, ...styles.attentionChipSoft }}
-                        onClick={() => navigateFromSummary("attention_proposals", "/events", { block: "summary_attention" })}
-                      >
-                        {pendingAttention.proposals} propuesta{pendingAttention.proposals === 1 ? "" : "s"}
-                      </button>
-                    ) : null}
+{!compactSummaryMobile && pendingAttention.proposals > 0 ? (
+  <button
+    type="button"
+    style={{ ...styles.attentionChip, ...styles.attentionChipSoft }}
+    onClick={() =>
+      navigateFromSummary("attention_proposals", "/events", {
+        block: "summary_attention",
+      })
+    }
+  >
+    {pendingAttention.proposals} propuesta{pendingAttention.proposals === 1 ? "" : "s"}
+  </button>
+) : null}
                   </div>
                 ) : null}
               </div>
