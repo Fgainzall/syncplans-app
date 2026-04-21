@@ -293,9 +293,9 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     const params = new URLSearchParams();
     params.set("qc", "1");
     params.set("from", "capture");
-    params.set("capture_source", source);
-    params.set("type", "personal");
-    params.set("title", normalizedTitle);
+params.set("capture_source", source);
+params.set("type", isSharedIntent ? "group" : "personal");
+params.set("title", normalizedTitle);
     params.set("duration", String(durationMinutes));
     params.set("raw_text", draft.trim());
 
