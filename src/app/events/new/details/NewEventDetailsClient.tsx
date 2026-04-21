@@ -762,9 +762,9 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
 
     const incomingTitle = String(quickCaptureTitleParam ?? "").trim();
     const incomingDuration = Number(quickCaptureDurationParam ?? "60");
-    const safeDuration = Number.isFinite(incomingDuration) && incomingDuration >= 15
-      ? Math.round(incomingDuration)
-      : 60;
+   const safeDuration = Number.isFinite(incomingDuration) && incomingDuration > 0
+  ? Math.round(incomingDuration)
+  : 60;
 
     if (incomingTitle) {
       setTitle((current) => (current.trim() ? current : incomingTitle));
