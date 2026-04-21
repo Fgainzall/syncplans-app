@@ -865,34 +865,38 @@ export async function getPendingPublicInviteCaptures(
     );
   }
 
-  const normalizedInvites = (inviteRows ?? [])
-    .map((row: any) => {
-      const safeStatus = normalizeCaptureStatus(row?.status);
-      if (!safeStatus) return null;
+const normalizedInvites = (inviteRows ?? [])
+  .map((row: any) => {
+    const safeStatus = normalizeCaptureStatus(row?.status);
+    if (!safeStatus) return null;
 
-      return {
-        invite_id: String(row?.id ?? ""),
-        token: String(row?.token ?? ""),
-        event_id: String(row?.event_id ?? ""),
-        contact: row?.contact ?? null,
-        status: safeStatus,
-        proposed_date: row?.proposed_date ?? null,
-        message: row?.message ?? null,
-        created_at: row?.created_at ?? null,
-        creator_response: row?.creator_response ?? null,
-      };
-    })
-    .filter(Boolean) as Array<{
-      invite_id: string;
-      token: string;
-      event_id: string;
-      contact: string | null;
-      status: PublicInviteCaptureStatus;
-      proposed_date: string | null;
-      message: string | null;
-      created_at: string | null;
-      creator_response: string | null;
-    }>;
+    const inviteId = String(row?.id ?? "").trim();
+    const eventId = String(row?.event_id ?? "").trim();
+    if (!inviteId || !eventId) return null;
+
+    return {
+      invite_id: inviteId,
+      token: String(row?.token ?? ""),
+      event_id: eventId,
+      contact: row?.contact ?? null,
+      status: safeStatus,
+      proposed_date: row?.proposed_date ?? null,
+      message: row?.message ?? null,
+      created_at: row?.created_at ?? null,
+      creator_response: row?.creator_response ?? null,
+    };
+  })
+  .filter(Boolean) as Array<{
+    invite_id: string;
+    token: string;
+    event_id: string;
+    contact: string | null;
+    status: PublicInviteCaptureStatus;
+    proposed_date: string | null;
+    message: string | null;
+    created_at: string | null;
+    creator_response: string | null;
+  }>;
 
   if (normalizedInvites.length === 0) {
     return [];
