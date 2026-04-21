@@ -928,8 +928,10 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     const normalizedTitle = normalizeFreeText(title);
     const normalizedRaw = normalizeFreeText(rawTextParam || "");
     const normalizedNotes = normalizeFreeText(notes);
-    const hasDateParam = Boolean(String(dateParam ?? "").trim());
-    const hasTimeParam = Boolean(String(timeParam ?? "").trim());
+const hasValidStart = Number.isFinite(startDate.getTime());
+const hasValidEnd =
+  Number.isFinite(endDate.getTime()) &&
+  endDate.getTime() > startDate.getTime();
 
     const titleNeedsReview =
       !normalizedTitle ||
@@ -940,11 +942,15 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
       !normalizedNotes ||
       (normalizedRaw && normalizedNotes && normalizedNotes === normalizedRaw);
 
-    const missingDateOrTime = !hasDateParam || !hasTimeParam;
+   const missingDateOrTime = !hasValidStart || !hasValidEnd;
 
     const reviewItems: string[] = [];
-    if (!hasDateParam) reviewItems.push("Falta fecha detectada desde Capture.");
-    if (!hasTimeParam) reviewItems.push("Falta hora detectada desde Capture.");
+if (!hasValidStart) {
+  reviewItems.push("Falta fecha/hora válida en el formulario.");
+}
+if (hasValidStart && !hasValidEnd) {
+  reviewItems.push("Revisa la duración: la hora de fin debe ser posterior al inicio.");
+}
     if (titleNeedsReview) {
       reviewItems.push("Revisa el título: puede estar incompleto o muy genérico.");
     }
@@ -960,16 +966,15 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
       hasIssues: reviewItems.length > 0,
       reviewItems,
     };
-  }, [
-    quickCaptureParam,
-    isEditing,
-    title,
-    rawTextParam,
-    notes,
-    dateParam,
-    timeParam,
-  ]);
-
+}, [
+  quickCaptureParam,
+  isEditing,
+  title,
+  rawTextParam,
+  notes,
+  startDate,
+  endDate,
+]);
   const learningInput = useMemo(() => {
     const raw = String(rawTextParam ?? "").trim();
     if (raw) return raw;
