@@ -1010,8 +1010,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     !compactSummaryMobile &&
     visibleDecisions.length > 0 &&
     !hasUrgentSummaryState;
-  const showSecondarySummaryFlow = !hasUrgentSummaryState;
-  const showDecisionChips = false;
+const showSecondarySummaryFlow = !hasUrgentSummaryState;
+const showDecisionChips = false;
+const showQuickActionsCard = showSecondarySummaryFlow && (booting || !nextEvent);
 
   useEffect(() => {
     if (!premiumNudge || premiumNudgeTrackedRef.current) return;
@@ -1772,7 +1773,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             </Card>
           ) : null}
 
-          {showSecondarySummaryFlow ? (
+        {showQuickActionsCard ? (
             <Card style={styles.card} className="spSum-card">
               <div style={styles.sectionHeadMini}>
                 <div>
