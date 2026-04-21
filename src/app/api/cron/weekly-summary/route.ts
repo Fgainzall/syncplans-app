@@ -1,4 +1,3 @@
-// src/app/api/cron/weekly-summary/route.ts
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
@@ -17,9 +16,12 @@ const EMAIL_FROM =
   process.env.EMAIL_FROM || "SyncPlans <no-reply@syncplansapp.com>";
 
 // Autorización básica para llamadas de cron
-function isAuthorized(req: Request): boolean {
-  // Si no hay CRON_SECRET configurado, no bloqueamos (útil en desarrollo)
-  if (!CRON_SECRET) return true;
+function getCronAuthError(req: Request): string | null {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (!CRON_SECRET) {
+    return isProduction ? "CRON secret missing in production." : null;
+  }
 
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
@@ -30,14 +32,15 @@ function isAuthorized(req: Request): boolean {
   // - ?token=CRON_SECRET
   // - x-cron-secret: CRON_SECRET
   // - Authorization: Bearer CRON_SECRET
-  if (token && token === CRON_SECRET) return true;
-  if (headerSecret && headerSecret === CRON_SECRET) return true;
+  if (token && token === CRON_SECRET) return null;
+  if (headerSecret && headerSecret === CRON_SECRET) return null;
+
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const bearer = authHeader.slice(7);
-    if (bearer === CRON_SECRET) return true;
+    if (bearer === CRON_SECRET) return null;
   }
 
-  return false;
+  return "Invalid CRON token.";
 }
 
 // Lazy init para que el build no reviente si faltan envs en local
@@ -45,6 +48,7 @@ function getAdminSupabase() {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
     throw new Error("Missing Supabase admin env vars");
   }
+
   return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: {
       autoRefreshToken: false,
@@ -57,171 +61,140 @@ function getResend() {
   if (!RESEND_API_KEY) {
     throw new Error("Missing RESEND_API_KEY env var");
   }
+
   return new Resend(RESEND_API_KEY);
 }
 
 // Timezone fijo (Lima)
 const TZ_OFFSET_HOURS = -5;
 
-// ─────────────────────────────────────────────
-// Helpers de fechas
-// ─────────────────────────────────────────────
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function atLocalMidnight(date: Date) {
+  const copy = new Date(date);
+  copy.setUTCHours(0 - TZ_OFFSET_HOURS, 0, 0, 0);
+  return copy;
+}
+
+function formatDayLabel(dateIso: string | null | undefined) {
+  if (!dateIso) return "Sin fecha";
+  const date = new Date(dateIso);
+  if (Number.isNaN(date.getTime())) return "Sin fecha";
+
+  return new Intl.DateTimeFormat("es-PE", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "America/Lima",
+  }).format(date);
+}
+
+function formatHourLabel(dateIso: string | null | undefined) {
+  if (!dateIso) return "";
+  const date = new Date(dateIso);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("es-PE", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "America/Lima",
+  }).format(date);
+}
+
 function thisWeekRangeISO() {
   const now = new Date();
-  const local = new Date(
-    now.getTime() + TZ_OFFSET_HOURS * 60 * 60 * 1000
-  );
+  const todayLocalMidnight = atLocalMidnight(now);
 
-  // Lunes como inicio de semana
-  const day = local.getDay(); // 0 = domingo, 1 = lunes...
-  const diffToMonday = (day + 6) % 7;
+  const day = todayLocalMidnight.getUTCDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
 
-  const start = new Date(
-    local.getFullYear(),
-    local.getMonth(),
-    local.getDate() - diffToMonday,
-    0,
-    0,
-    0
-  );
-  const end = new Date(start);
-  end.setDate(end.getDate() + 7);
+  const weekStart = addDays(todayLocalMidnight, mondayOffset);
+  const weekEnd = addDays(weekStart, 7);
 
-  const label = `${start.toLocaleDateString("es-PE", {
+  const label = `${new Intl.DateTimeFormat("es-PE", {
     day: "numeric",
     month: "short",
-  })} – ${end.toLocaleDateString("es-PE", {
+    timeZone: "America/Lima",
+  }).format(weekStart)} - ${new Intl.DateTimeFormat("es-PE", {
     day: "numeric",
     month: "short",
-  })}`;
+    timeZone: "America/Lima",
+  }).format(addDays(weekEnd, -1))}`;
 
   return {
-    startISO: start.toISOString(),
-    endISO: end.toISOString(),
+    startISO: weekStart.toISOString(),
+    endISO: weekEnd.toISOString(),
     label,
   };
 }
 
-function toLocalDate(iso: string) {
-  const d = new Date(iso);
-  return new Date(d.getTime() + TZ_OFFSET_HOURS * 60 * 60 * 1000);
-}
-
-// ─────────────────────────────────────────────
-// Tipos
-// ─────────────────────────────────────────────
-type WeeklyUserRow = {
-  user_id: string;
-};
-
-type WeeklyEventRow = {
-  title: string | null;
-  start: string;
-  end: string;
-  group_id: string | null;
-};
-
-// ─────────────────────────────────────────────
-// Render de correo
-// ─────────────────────────────────────────────
 function renderWeeklyHtml(opts: {
-  dateLabel: string;
-  events: WeeklyEventRow[];
-  busiestLabel: string | null;
+  userName: string;
+  label: string;
+  events: Array<{ title: string; start: string | null; end: string | null }>;
 }) {
-  const { dateLabel, events, busiestLabel } = opts;
-  const total = events.length;
-  const shared = events.filter((e) => e.group_id).length;
-  const personal = total - shared;
-
-  const rows = events
-    .slice(0, 10) // top 10 para no hacer correos infinitos
-    .map((e) => {
-      const localStart = toLocalDate(e.start);
-      const dayLabel = localStart.toLocaleDateString("es-PE", {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-      });
-      const timeLabel = localStart.toLocaleTimeString("es-PE", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      const title = e.title || "Evento sin título";
-      const scope = e.group_id ? "Compartido" : "Personal";
-
-      return `
-        <tr>
-          <td style="padding: 6px 10px; font-size: 12px; color: #9CA3AF; white-space: nowrap; vertical-align: top;">
-            ${dayLabel}<br />
-            <span style="font-size: 11px; color:#6B7280;">${timeLabel}</span>
-          </td>
-          <td style="padding: 6px 10px; font-size: 13px; color: #E5E7EB; vertical-align: top;">
-            ${title}
-            <div style="margin-top: 2px; font-size: 11px; color: #9CA3AF;">
-              ${scope}
-            </div>
-          </td>
-        </tr>
-      `;
-    })
-    .join("");
-
-  const busiestBlock = busiestLabel
-    ? `<p style="margin: 0 0 8px; font-size: 13px; color: #E5E7EB;">
-         <strong>Día más cargado:</strong> ${busiestLabel}
-       </p>`
-    : "";
+  const { userName, label, events } = opts;
 
   return `
-    <div style="font-family:system-ui,-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;background:#020617;color:#E5E7EB;padding:24px;">
-      <div style="max-width:520px;margin:0 auto;background:#020617;border-radius:18px;border:1px solid rgba(148,163,184,0.25);box-shadow:0 18px 60px rgba(15,23,42,0.9);padding:20px 18px;">
-        <h1 style="font-size:18px;margin:0 0 4px;">Tu semana en SyncPlans</h1>
-        <p style="margin:0 0 12px;font-size:13px;color:#9CA3AF;">
-          ${dateLabel}
-        </p>
-
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-          <div style="flex:1;min-width:120px;border-radius:999px;background:rgba(15,23,42,0.9);border:1px solid rgba(148,163,184,0.35);padding:8px 12px;">
-            <div style="font-size:11px;color:#9CA3AF;margin-bottom:2px;">Total</div>
-            <div style="font-size:16px;font-weight:600;color:#F9FAFB;">${total}</div>
+    <div style="background:#F8FAFC;padding:24px 12px;font-family:Inter,Arial,sans-serif;color:#0F172A;">
+      <div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:20px;overflow:hidden;">
+        <div style="padding:24px 24px 12px;background:linear-gradient(135deg,#0F172A 0%, #111827 100%);color:#F8FAFC;">
+          <div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.75;font-weight:700;">
+            Resumen semanal
           </div>
-          <div style="flex:1;min-width:120px;border-radius:999px;background:rgba(15,23,42,0.9);border:1px solid rgba(148,163,184,0.35);padding:8px 12px;">
-            <div style="font-size:11px;color:#9CA3AF;margin-bottom:2px;">Compartidos</div>
-            <div style="font-size:16px;font-weight:600;color:#F9FAFB;">${shared}</div>
-          </div>
-          <div style="flex:1;min-width:120px;border-radius:999px;background:rgba(15,23,42,0.9);border:1px solid rgba(148,163,184,0.35);padding:8px 12px;">
-            <div style="font-size:11px;color:#9CA3AF;margin-bottom:2px;">Personales</div>
-            <div style="font-size:16px;font-weight:600;color:#F9FAFB;">${personal}</div>
-          </div>
+          <h1 style="margin:10px 0 8px;font-size:28px;line-height:1.05;">
+            Hola ${userName || "Fernando"}
+          </h1>
+          <p style="margin:0;font-size:14px;line-height:1.6;opacity:.88;">
+            Esta es tu semana en SyncPlans (${label}).
+          </p>
         </div>
 
-        ${busiestBlock}
+        <div style="padding:20px 24px 24px;">
+          ${
+            events.length === 0
+              ? `<div style="padding:18px;border:1px dashed #CBD5E1;border-radius:16px;background:#F8FAFC;color:#475569;font-size:14px;line-height:1.6;">
+                   No encontramos eventos para esta semana.
+                 </div>`
+              : events
+                  .slice(0, 10)
+                  .map(
+                    (event) => `
+                      <div style="padding:14px 0;border-bottom:1px solid #E2E8F0;">
+                        <div style="font-size:16px;font-weight:700;color:#0F172A;">
+                          ${event.title || "Evento"}
+                        </div>
+                        <div style="margin-top:4px;font-size:13px;color:#64748B;">
+                          ${formatDayLabel(event.start)} ${
+                            formatHourLabel(event.start)
+                              ? `• ${formatHourLabel(event.start)}`
+                              : ""
+                          }
+                        </div>
+                      </div>
+                    `
+                  )
+                  .join("")
+          }
 
-        ${
-          rows
-            ? `
-          <table style="width:100%;border-collapse:collapse;margin-top:12px;">
-            <tbody>
-              ${rows}
-            </tbody>
-          </table>
-        `
-            : ""
-        }
+          ${
+            events.length > 10
+              ? `<p style="margin:8px 0 0;font-size:11px;color:#6B7280;">
+                   Tienes más eventos en la semana. Solo mostramos los primeros 10 aquí.
+                 </p>`
+              : ""
+          }
 
-        ${
-          events.length > 10
-            ? `<p style="margin:8px 0 0;font-size:11px;color:#6B7280;">
-                 Tienes más eventos en la semana. Solo mostramos los primeros 10 aquí.
-               </p>`
-            : ""
-        }
-
-        <p style="margin:16px 0 0;font-size:11px;color:#6B7280;line-height:1.5;">
-          Este correo no añade nada nuevo a tu agenda. Solo resume lo que ya está en SyncPlans 
-          para que tú decidas con calma qué conservar, qué mover y qué hablar.
-        </p>
+          <p style="margin:16px 0 0;font-size:11px;color:#6B7280;line-height:1.5;">
+            Este correo no añade nada nuevo a tu agenda. Solo resume lo que ya está en SyncPlans
+            para que tú decidas con calma qué conservar, qué mover y qué hablar.
+          </p>
+        </div>
       </div>
     </div>
   `;
@@ -233,9 +206,11 @@ function renderWeeklyHtml(opts: {
 export async function POST(req: Request) {
   try {
     // 1️⃣ Seguridad
-    if (!isAuthorized(req)) {
+    const authError = getCronAuthError(req);
+
+    if (authError) {
       return NextResponse.json(
-        { ok: false, message: "Unauthorized" },
+        { ok: false, message: authError },
         { status: 401 }
       );
     }
@@ -254,6 +229,7 @@ export async function POST(req: Request) {
       console.error("[weekly-summary] error fetching users", usersErr);
       throw usersErr;
     }
+
     if (!users || users.length === 0) {
       return NextResponse.json({ ok: true, sent: 0 });
     }
@@ -261,108 +237,54 @@ export async function POST(req: Request) {
     let sent = 0;
 
     // 3️⃣ Recorremos usuario por usuario
-    for (const u of users as WeeklyUserRow[]) {
-      const uid = u.user_id;
+    for (const u of users) {
       try {
-        const { data: adminUser, error: adminErr } =
-          await supabase.auth.admin.getUserById(uid);
+        const { data: profile, error: profileErr } = await supabase
+          .from("profiles")
+          .select("first_name, email")
+          .eq("id", u.user_id)
+          .maybeSingle();
 
-        if (adminErr) {
-          console.error(
-            "[weekly-summary] error fetching auth user",
-            uid,
-            adminErr
-          );
+        if (profileErr) {
+          console.error("[weekly-summary] error fetching profile", profileErr);
           continue;
         }
 
-        const email = adminUser?.user?.email;
-        if (!email) {
-          console.warn(
-            "[weekly-summary] user without email, skipping",
-            uid
-          );
-          continue;
-        }
+        const email = String((profile as any)?.email ?? "").trim();
+        if (!email) continue;
 
-        // 4️⃣ Eventos de la semana para este usuario
-        const { data: events, error: evErr } = await supabase
+        const { data: events, error: eventsErr } = await supabase
           .from("events")
-          .select("title, start, end, group_id")
-          .eq("user_id", uid)
+          .select("title, start, end")
+          .eq("user_id", u.user_id)
           .gte("start", startISO)
           .lt("start", endISO)
           .order("start", { ascending: true });
 
-        if (evErr) {
-          console.error(
-            "[weekly-summary] error fetching events",
-            uid,
-            evErr
-          );
-          continue;
-        }
-        if (!events || events.length === 0) {
-          continue;
-        }
-
-        const typedEvents = events as WeeklyEventRow[];
-        const total = typedEvents.length;
-
-        // Día más cargado
-        const byDay: Record<string, number> = {};
-        for (const ev of typedEvents) {
-          const local = toLocalDate(ev.start);
-          const key = local.toISOString().slice(0, 10); // YYYY-MM-DD
-          byDay[key] = (byDay[key] || 0) + 1;
-        }
-
-        let busiestKey: string | null = null;
-        let busiestCount = 0;
-        for (const [k, v] of Object.entries(byDay)) {
-          if (v > busiestCount) {
-            busiestCount = v;
-            busiestKey = k;
-          }
-        }
-
-        let busiestLabel: string | null = null;
-        if (busiestKey) {
-          const [y, m, d] = busiestKey.split("-").map(Number);
-          const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
-          busiestLabel = dt.toLocaleDateString("es-PE", {
-            weekday: "long",
-            day: "numeric",
-            month: "short",
-          });
-        }
-
-        if (total === 0) {
+        if (eventsErr) {
+          console.error("[weekly-summary] error fetching events", eventsErr);
           continue;
         }
 
         const html = renderWeeklyHtml({
-          dateLabel: label,
-          events: typedEvents,
-          busiestLabel,
+          userName: String((profile as any)?.first_name ?? "").trim(),
+          label,
+          events: (events ?? []) as Array<{
+            title: string;
+            start: string | null;
+            end: string | null;
+          }>,
         });
 
         try {
-          const res = await resend.emails.send({
+          await resend.emails.send({
             from: EMAIL_FROM,
             to: email,
-            subject: `Tu semana en SyncPlans (${label})`,
+            subject: `Tu semana en SyncPlans · ${label}`,
             html,
           });
 
-          if (res.error) {
-            console.error(
-              `[weekly-summary] error sending email to ${email}`,
-              res.error
-            );
-          } else {
-            sent++;
-          }
+          sent += 1;
         } catch (sendErr) {
           console.error(
             `[weekly-summary] unexpected error sending email to ${email}`,
