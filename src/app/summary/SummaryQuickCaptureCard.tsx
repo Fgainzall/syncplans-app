@@ -1,3 +1,4 @@
+// src/app/summary/SummaryQuickCaptureCard.tsx
 import React from "react";
 import type { GroupRow } from "@/lib/groupsDb";
 import type { GroupType } from "@/lib/conflicts";
@@ -154,83 +155,6 @@ export default function SummaryQuickCaptureCard({
 
         <div
           style={{
-            display: "flex",
-            gap: 10,
-            flexWrap: "wrap",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => void onWhatsApp()}
-            disabled={!hasValue || busy}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minHeight: 42,
-              borderRadius: 999,
-              border: "1px solid rgba(74,222,128,0.24)",
-              background: "rgba(20,83,45,0.34)",
-              color: "rgba(220,252,231,0.96)",
-              padding: "0 16px",
-              fontSize: 13,
-              fontWeight: 800,
-              cursor: !hasValue || busy ? "not-allowed" : "pointer",
-              opacity: !hasValue || busy ? 0.6 : 1,
-            }}
-          >
-            WhatsApp
-          </button>
-
-          <button
-            type="button"
-            onClick={() => void onShare()}
-            disabled={!hasValue || busy}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minHeight: 42,
-              borderRadius: 999,
-              border: "1px solid rgba(148,163,184,0.22)",
-              background: "rgba(15,23,42,0.82)",
-              color: "rgba(226,232,240,0.96)",
-              padding: "0 16px",
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: !hasValue || busy ? "not-allowed" : "pointer",
-              opacity: !hasValue || busy ? 0.6 : 1,
-            }}
-          >
-            Copiar link
-          </button>
-
-          {onOpenCapture ? (
-            <button
-              type="button"
-              onClick={() => void onOpenCapture()}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: 42,
-                borderRadius: 999,
-                border: "1px solid rgba(96,165,250,0.24)",
-                background: "rgba(8,15,29,0.82)",
-                color: "rgba(226,242,255,0.96)",
-                padding: "0 16px",
-                fontSize: 13,
-                fontWeight: 800,
-                cursor: "pointer",
-              }}
-            >
-              Abrir capture completo
-            </button>
-          ) : null}
-        </div>
-
-        <div
-          style={{
             borderRadius: 16,
             border: "1px solid rgba(255,255,255,0.08)",
             background: "rgba(255,255,255,0.04)",
@@ -314,6 +238,97 @@ export default function SummaryQuickCaptureCard({
         >
           {busy ? "Preparando..." : isShared ? "Convertir en plan" : "Crear plan"}
         </button>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 800,
+              color: "rgba(148,163,184,0.86)",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}
+          >
+            Acciones secundarias
+          </span>
+
+          <button
+            type="button"
+            onClick={() => void onWhatsApp()}
+            disabled={!hasValue || busy}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: 34,
+              borderRadius: 999,
+              border: "1px solid rgba(74,222,128,0.2)",
+              background: "rgba(20,83,45,0.2)",
+              color: "rgba(220,252,231,0.92)",
+              padding: "0 12px",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: !hasValue || busy ? "not-allowed" : "pointer",
+              opacity: !hasValue || busy ? 0.6 : 0.9,
+            }}
+          >
+            WhatsApp
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void onShare()}
+            disabled={!hasValue || busy}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: 34,
+              borderRadius: 999,
+              border: "1px solid rgba(148,163,184,0.2)",
+              background: "rgba(15,23,42,0.66)",
+              color: "rgba(226,232,240,0.92)",
+              padding: "0 12px",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: !hasValue || busy ? "not-allowed" : "pointer",
+              opacity: !hasValue || busy ? 0.6 : 0.9,
+            }}
+          >
+            Copiar link
+          </button>
+
+          {onOpenCapture ? (
+            <button
+              type="button"
+              onClick={() => void onOpenCapture()}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: 34,
+                borderRadius: 999,
+                border: "1px solid rgba(96,165,250,0.2)",
+                background: "rgba(8,15,29,0.66)",
+                color: "rgba(226,242,255,0.92)",
+                padding: "0 12px",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                opacity: 0.9,
+              }}
+            >
+              Abrir capture completo
+            </button>
+          ) : null}
+        </div>
 
         {preview ? (
           <div

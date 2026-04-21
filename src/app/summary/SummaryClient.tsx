@@ -1,3 +1,4 @@
+// src/app/summary/SummaryClient.tsx
 "use client";
 
 import React, {
@@ -1010,9 +1011,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     !compactSummaryMobile &&
     visibleDecisions.length > 0 &&
     !hasUrgentSummaryState;
-const showSecondarySummaryFlow = !hasUrgentSummaryState;
-const showDecisionChips = false;
-const showQuickActionsCard = showSecondarySummaryFlow && (booting || !nextEvent);
+  const showSecondarySummaryFlow = !hasUrgentSummaryState;
+  const showDecisionChips = false;
+  const showQuickActionsCard = showSecondarySummaryFlow && (booting || !nextEvent);
 
   useEffect(() => {
     if (!premiumNudge || premiumNudgeTrackedRef.current) return;
@@ -1053,7 +1054,7 @@ const showQuickActionsCard = showSecondarySummaryFlow && (booting || !nextEvent)
         eyebrow: "Lo más urgente ahora",
         title: `Resuelve ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"} antes de que vuelva el ruido`,
         subtitle:
-          "Este es el punto donde SyncPlans más valor devuelve: decidir una vez y dejarlo claro para todos.",
+          "Decide una vez y deja una versión clara para todos.",
         primaryLabel: "Resolver conflictos",
         primaryAction: openConflictCenter,
         secondaryLabel: "Abrir calendario",
@@ -1066,7 +1067,7 @@ const showQuickActionsCard = showSecondarySummaryFlow && (booting || !nextEvent)
         eyebrow: "Lo más útil ahora",
         title: `Hay ${pendingInviteCount} invitación${pendingInviteCount === 1 ? "" : "es"} esperando una decisión`,
         subtitle:
-          "Si alguien está por entrar, este es el siguiente paso que más ayuda a que la coordinación se vuelva compartida de verdad.",
+          "Responder esto desbloquea coordinación compartida.",
         primaryLabel: "Revisar invitaciones",
         primaryAction: () => navigateFromSummary("review_invitations", "/invitations", { block: "primary_action" }),
         secondaryLabel: showInviteNudge ? "Abrir grupos" : "Abrir eventos",
@@ -1079,7 +1080,7 @@ const showQuickActionsCard = showSecondarySummaryFlow && (booting || !nextEvent)
         eyebrow: "Lo más útil ahora",
         title: "Hay respuestas y ajustes esperando que cierres el ciclo",
         subtitle:
-          "Responder esto rápido mantiene a SyncPlans como referencia viva, no como una lista bonita que luego nadie mira.",
+          "Ciérralo ahora y mantén la agenda como referencia viva.",
         primaryLabel: "Revisar pendientes",
         primaryAction: () => navigateFromSummary("review_pending", "/events", { block: "primary_action" }),
         secondaryLabel: "Abrir calendario",
@@ -1092,7 +1093,7 @@ const showQuickActionsCard = showSecondarySummaryFlow && (booting || !nextEvent)
         eyebrow: "Siguiente mejor paso",
         title: "Abre tu primer espacio compartido",
         subtitle:
-          "El producto cambia de categoría cuando dejas de coordinar solo y creas el primer grupo desde donde otros también ven lo mismo.",
+          "Crear tu primer grupo activa la coordinación compartida.",
         primaryLabel: "Crear grupo",
         primaryAction: () => navigateFromSummary("create_group", "/groups/new", { block: "primary_action" }),
         secondaryLabel: "Ver grupos",
@@ -1105,7 +1106,7 @@ const showQuickActionsCard = showSecondarySummaryFlow && (booting || !nextEvent)
         eyebrow: "Siguiente mejor paso",
         title: "Trae a la otra persona dentro del sistema",
         subtitle:
-          "Ya tienes estructura. Ahora toca meter a alguien más para que respuestas, conflictos y decisiones también vivan aquí.",
+          "Invita a alguien para resolver respuestas y conflictos aquí.",
         primaryLabel: "Traer a alguien",
         primaryAction: () => navigateFromSummary("bring_someone_in", "/groups", { block: "primary_action" }),
         secondaryLabel: "Abrir eventos",
@@ -1118,7 +1119,7 @@ const showQuickActionsCard = showSecondarySummaryFlow && (booting || !nextEvent)
         eyebrow: "Siguiente mejor paso",
         title: "Crea el próximo plan para que la semana no se quede vacía",
         subtitle:
-          "Si no hay nada cerca, conviene meter algo útil ya y seguir construyendo hábito desde aquí.",
+          "Si no hay nada cerca, crea un plan y mantén el hábito.",
         primaryLabel: "Crear plan",
         primaryAction: () => navigateFromSummary("create_plan", "/events/new/details?type=personal", { block: "primary_action" }),
         secondaryLabel: "Abrir calendario",
@@ -1130,7 +1131,7 @@ const showQuickActionsCard = showSecondarySummaryFlow && (booting || !nextEvent)
       eyebrow: "Tu base de esta semana",
       title: "Tu agenda ya tiene contexto. Elige dónde quieres actuar.",
       subtitle:
-        "Cuando no hay nada urgente, lo mejor es revisar calendario o eventos sin perder el hilo compartido.",
+        "Sin urgencias, revisa calendario o eventos en un paso.",
       primaryLabel: "Abrir calendario",
       primaryAction: () => navigateFromSummary("open_calendar", "/calendar", { block: "primary_action" }),
       secondaryLabel: "Abrir eventos",
@@ -1439,21 +1440,21 @@ const showQuickActionsCard = showSecondarySummaryFlow && (booting || !nextEvent)
                 <div style={styles.valueRailCopy}>
                   <div style={styles.valueRailEyebrow}>Valor visible</div>
                   <div style={styles.valueRailTitle}>
-                    SyncPlans ya está ordenando algo real por ti.
+                    Ya hay valor real visible esta semana.
                   </div>
                   <div style={styles.valueRailSub}>
                     {valueMoments.resolvedDecisions > 0
-                      ? `${valueMoments.resolvedDecisions} decisión${valueMoments.resolvedDecisions === 1 ? "" : "es"} reciente${valueMoments.resolvedDecisions === 1 ? "" : "s"} ya resuelta${valueMoments.resolvedDecisions === 1 ? "" : "s"}`
+                      ? `${valueMoments.resolvedDecisions} decisión${valueMoments.resolvedDecisions === 1 ? "" : "es"} resuelta${valueMoments.resolvedDecisions === 1 ? "" : "s"}`
                       : null}
                     {valueMoments.resolvedDecisions > 0 && valueMoments.autoAdjusted > 0 ? " · " : ""}
                     {valueMoments.autoAdjusted > 0
-                      ? `${valueMoments.autoAdjusted} ajuste${valueMoments.autoAdjusted === 1 ? "" : "s"} automático${valueMoments.autoAdjusted === 1 ? "" : "s"} aplicado${valueMoments.autoAdjusted === 1 ? "" : "s"}`
+                      ? `${valueMoments.autoAdjusted} ajuste${valueMoments.autoAdjusted === 1 ? "" : "s"} automático${valueMoments.autoAdjusted === 1 ? "" : "s"}`
                       : null}
                     {(valueMoments.resolvedDecisions > 0 || valueMoments.autoAdjusted > 0) && valueMoments.agendaFeelsClear ? " · " : ""}
-                    {valueMoments.agendaFeelsClear ? "tu agenda visible está clara en este momento" : null}
+                    {valueMoments.agendaFeelsClear ? "agenda clara ahora" : null}
                     {(valueMoments.resolvedDecisions > 0 || valueMoments.autoAdjusted > 0 || valueMoments.agendaFeelsClear) && pendingAttention.captures > 0 ? " · " : ""}
                     {pendingAttention.captures > 0
-                      ? `${pendingAttention.captures} respuesta${pendingAttention.captures === 1 ? "" : "s"} externa${pendingAttention.captures === 1 ? "" : "s"} ya entró${pendingAttention.captures === 1 ? "" : "aron"} al flujo`
+                      ? `${pendingAttention.captures} respuesta${pendingAttention.captures === 1 ? "" : "s"} externa${pendingAttention.captures === 1 ? "" : "s"} recibida${pendingAttention.captures === 1 ? "" : "s"}`
                       : null}
                   </div>
                 </div>
@@ -1773,7 +1774,7 @@ const showQuickActionsCard = showSecondarySummaryFlow && (booting || !nextEvent)
             </Card>
           ) : null}
 
-        {showQuickActionsCard ? (
+          {showQuickActionsCard ? (
             <Card style={styles.card} className="spSum-card">
               <div style={styles.sectionHeadMini}>
                 <div>
