@@ -1,5 +1,4 @@
--- SyncPlans schema snapshot (mínimo útil, sin RLS/policies)
--- Última actualización: 2026-04-21
+-- SP-003: initial core schema migration (minimal, no RLS/policies/functions)
 
 create extension if not exists pgcrypto;
 
@@ -175,8 +174,3 @@ create table if not exists public.user_settings (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-
--- Nota honesta de alcance:
--- Este snapshot prioriza tablas críticas usadas por la app.
--- Quedan fuera objetos no críticos (funciones RPC, policies RLS, triggers, vistas)
--- para mantener el bloque SP-003 pequeño y verificable.
