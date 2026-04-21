@@ -1,3 +1,4 @@
+// src/app/capture/CaptureClient.tsx
 "use client";
 
 import Link from "next/link";
@@ -6,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { parseQuickCapture } from "@/lib/quickCaptureParser";
 import supabase from "@/lib/supabaseClient";
 import { upsertProposalResponse } from "@/lib/proposalResponsesDb";
+import { trackEvent } from "@/lib/analytics";
 
 type CaptureClientProps = {
   initialText?: string;
@@ -144,6 +146,28 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   useEffect(() => {
     setDraft(incomingText);
   }, [incomingText]);
+
+  useEffect(() => {
+    void trackEvent({
+      event: "capture_opened",
+      metadata: {
+        screen: "capture",
+        source,
+        intent: isSharedIntent ? "shared" : "personal",
+        has_prefill: Boolean(incomingText.trim()),
+      },
+    });
+
+    void trackEvent({
+      event: "quick_capture_started",
+      metadata: {
+        screen: "capture",
+        source,
+        intent: isSharedIntent ? "shared" : "personal",
+        has_prefill: Boolean(incomingText.trim()),
+      },
+    });
+  }, [incomingText, isSharedIntent, source]);
 
   useEffect(() => {
     if (!inputRef.current) return;
@@ -308,11 +332,33 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
 
   function handleContinue() {
     if (!canContinue) return;
+    void trackEvent({
+      event: "quick_capture_submitted",
+      metadata: {
+        screen: "capture",
+        source,
+        intent: isSharedIntent ? "shared" : "personal",
+        action: "accept",
+        has_date: hasDate,
+        has_notes: hasNotes,
+      },
+    });
     router.push(buildDetailsUrl("accept"));
   }
 
   function handleAdjustBeforeCreate() {
     if (!canContinue) return;
+    void trackEvent({
+      event: "quick_capture_submitted",
+      metadata: {
+        screen: "capture",
+        source,
+        intent: isSharedIntent ? "shared" : "personal",
+        action: "adjust",
+        has_date: hasDate,
+        has_notes: hasNotes,
+      },
+    });
     router.push(buildDetailsUrl("adjust"));
   }
 

@@ -21,6 +21,10 @@ export default function Onboarding2Client() {
       screen: "onboarding_step_2",
       metadata: { flow: "core", step: 2 },
     });
+    void trackEvent({
+      event: "onboarding_step_viewed",
+      metadata: { flow: "core", step: 2, screen: "onboarding_step_2" },
+    });
   }, []);
 
   return (

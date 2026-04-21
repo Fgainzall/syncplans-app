@@ -1,3 +1,4 @@
+// src/app/events/new/details/hooks/useEventSave.ts
 // src/app/events/new/details/hooks/useEventSave.tsx
 
 import { useRef, useState } from "react";
@@ -596,6 +597,23 @@ export function useEventSave({
             | "pair"
             | "family"
             | "other",
+        });
+      }
+
+      if (savedEventId) {
+        await trackEvent({
+          event: "event_saved",
+          userId: currentUserId,
+          entityId: savedEventId,
+          metadata: {
+            screen: "event_details",
+            source: isEditing ? "event_details_edit" : "event_details_create",
+            mode: isEditing ? "edit" : "create",
+            type: payload.groupId ? "group" : "personal",
+            group_id: payload.groupId ?? null,
+            capture_source: sp.get("capture_source") ?? null,
+            quick_capture: sp.get("qc") === "1",
+          },
         });
       }
 
