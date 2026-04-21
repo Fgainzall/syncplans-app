@@ -464,8 +464,8 @@ function extractDuration(text: string): number {
     if (end > start) return Math.max(30, end - start);
   }
 
-  const minMatch = String(text ?? "").match(/(\d+)\s?(min|mins|m)\b/i);
-  if (minMatch) return Math.max(15, parseInt(minMatch[1], 10));
+const minMatch = String(text ?? "").match(/(\d+)\s?(min|mins|m)\b/i);
+if (minMatch) return Math.max(1, parseInt(minMatch[1], 10));
 
   const hourMatch = String(text ?? "").match(/(\d+)\s?(h|hora|horas)\b/i);
   if (hourMatch) return Math.max(30, parseInt(hourMatch[1], 10) * 60);
