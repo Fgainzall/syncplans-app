@@ -5,6 +5,31 @@ type RouteContext = {
   params: Promise<{ token: string }>;
 };
 
+const PUBLIC_INVITE_TTL_HOURS = Math.max(
+  1,
+  Number(process.env.PUBLIC_INVITE_TTL_HOURS ?? 168)
+);
+
+function normalizeToken(token: string | null | undefined) {
+  return String(token ?? "").trim();
+}
+
+function isTokenFormatValid(token: string) {
+  return token.startsWith("spi_") && token.length >= 12;
+}
+
+function isInviteExpired(createdAt: string | null | undefined) {
+  if (!createdAt) return false;
+
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return false;
+
+  const expiresAt =
+    created.getTime() + PUBLIC_INVITE_TTL_HOURS * 60 * 60 * 1000;
+
+  return Date.now() > expiresAt;
+}
+
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -23,10 +48,14 @@ function getAdminClient() {
 
 export async function GET(_: NextRequest, context: RouteContext) {
   try {
-    const { token } = await context.params;
+    const { token: tokenParam } = await context.params;
+    const token = normalizeToken(tokenParam);
 
-    if (!token) {
-      return NextResponse.json({ error: "Token inválido." }, { status: 400 });
+    if (!token || !isTokenFormatValid(token)) {
+      return NextResponse.json(
+        { error: "Token inválido.", code: "invalid_token" },
+        { status: 400 }
+      );
     }
 
     const supabase = getAdminClient();
@@ -39,15 +68,42 @@ export async function GET(_: NextRequest, context: RouteContext) {
 
     if (inviteError) {
       return NextResponse.json(
-        { error: inviteError.message || "No se pudo cargar la invitación." },
+        {
+          error:
+            inviteError.message || "No se pudo cargar la invitación.",
+        },
         { status: 500 }
       );
     }
 
     if (!invite) {
       return NextResponse.json(
-        { error: "Invitación no encontrada." },
+        {
+          error: "Token inválido o inexistente.",
+          code: "invalid_token",
+        },
         { status: 404 }
+      );
+    }
+
+    if (isInviteExpired(invite.created_at)) {
+      return NextResponse.json(
+        {
+          error: "Este enlace de invitación expiró.",
+          code: "token_expired",
+        },
+        { status: 410 }
+      );
+    }
+
+    if (String(invite.status ?? "pending").toLowerCase() !== "pending") {
+      return NextResponse.json(
+        {
+          error: "Este enlace ya fue usado.",
+          code: "token_used",
+          invite,
+        },
+        { status: 409 }
       );
     }
 
@@ -59,7 +115,9 @@ export async function GET(_: NextRequest, context: RouteContext) {
 
     if (eventError) {
       return NextResponse.json(
-        { error: eventError.message || "No se pudo cargar el evento." },
+        {
+          error: eventError.message || "No se pudo cargar el evento.",
+        },
         { status: 500 }
       );
     }
@@ -86,21 +144,44 @@ export async function GET(_: NextRequest, context: RouteContext) {
 
 export async function POST(req: NextRequest, context: RouteContext) {
   try {
-    const { token } = await context.params;
+    const { token: tokenParam } = await context.params;
+    const token = normalizeToken(tokenParam);
 
-    if (!token) {
-      return NextResponse.json({ error: "Token inválido." }, { status: 400 });
+    if (!token || !isTokenFormatValid(token)) {
+      return NextResponse.json(
+        { error: "Token inválido.", code: "invalid_token" },
+        { status: 400 }
+      );
     }
 
     const body = await req.json().catch(() => null);
 
     const status = body?.status;
     const message =
-      typeof body?.message === "string" ? body.message.trim() || null : null;
-    const proposedDate =
-      typeof body?.proposedDate === "string" && body.proposedDate.trim()
-        ? new Date(body.proposedDate).toISOString()
+      typeof body?.message === "string"
+        ? body.message.trim() || null
         : null;
+
+    let proposedDate: string | null = null;
+
+    if (
+      typeof body?.proposedDate === "string" &&
+      body.proposedDate.trim()
+    ) {
+      const parsed = new Date(body.proposedDate);
+
+      if (Number.isNaN(parsed.getTime())) {
+        return NextResponse.json(
+          {
+            error: "Fecha propuesta inválida.",
+            code: "invalid_proposed_date",
+          },
+          { status: 400 }
+        );
+      }
+
+      proposedDate = parsed.toISOString();
+    }
 
     if (status !== "accepted" && status !== "rejected") {
       return NextResponse.json(
@@ -111,17 +192,19 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     const supabase = getAdminClient();
 
-    const { data: currentInvite, error: currentInviteError } = await supabase
-      .from("public_invites")
-      .select("*")
-      .eq("token", token)
-      .maybeSingle();
+    const { data: currentInvite, error: currentInviteError } =
+      await supabase
+        .from("public_invites")
+        .select("*")
+        .eq("token", token)
+        .maybeSingle();
 
     if (currentInviteError) {
       return NextResponse.json(
         {
           error:
-            currentInviteError.message || "No se pudo cargar la invitación.",
+            currentInviteError.message ||
+            "No se pudo cargar la invitación.",
         },
         { status: 500 }
       );
@@ -129,28 +212,77 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     if (!currentInvite) {
       return NextResponse.json(
-        { error: "Invitación no encontrada." },
+        {
+          error: "Token inválido o inexistente.",
+          code: "invalid_token",
+        },
         { status: 404 }
       );
     }
 
-   const updatePayload = {
-  status,
-  message,
-  proposed_date: proposedDate,
-};
+    if (isInviteExpired(currentInvite.created_at)) {
+      return NextResponse.json(
+        {
+          error: "Este enlace de invitación expiró.",
+          code: "token_expired",
+        },
+        { status: 410 }
+      );
+    }
+
+    if (
+      String(currentInvite.status ?? "pending").toLowerCase() !==
+      "pending"
+    ) {
+      return NextResponse.json(
+        {
+          error: "Este enlace ya fue usado.",
+          code: "token_used",
+          invite: currentInvite,
+        },
+        { status: 409 }
+      );
+    }
+
+    const updatePayload = {
+      status,
+      message,
+      proposed_date: proposedDate,
+    };
 
     const { data: invite, error: updateError } = await supabase
       .from("public_invites")
       .update(updatePayload)
       .eq("id", currentInvite.id)
+      .eq("status", "pending")
       .select("*")
       .maybeSingle();
 
     if (updateError) {
       return NextResponse.json(
-        { error: updateError.message || "No se pudo guardar la respuesta." },
+        {
+          error:
+            updateError.message ||
+            "No se pudo guardar la respuesta.",
+        },
         { status: 500 }
+      );
+    }
+
+    if (!invite) {
+      const { data: latestInvite } = await supabase
+        .from("public_invites")
+        .select("*")
+        .eq("id", currentInvite.id)
+        .maybeSingle();
+
+      return NextResponse.json(
+        {
+          error: "Este enlace ya fue usado.",
+          code: "token_used",
+          invite: latestInvite ?? null,
+        },
+        { status: 409 }
       );
     }
 

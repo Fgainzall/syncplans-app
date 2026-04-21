@@ -75,11 +75,7 @@ function normalizeInviteRow(row: any): GroupInviteRow {
 
 async function loadGroupsMeta(groupIds: string[]) {
   const safeIds = Array.from(
-    new Set(
-      (groupIds ?? [])
-        .map((id) => String(id ?? "").trim())
-        .filter(Boolean)
-    )
+    new Set((groupIds ?? []).map((id) => String(id ?? "").trim()).filter(Boolean))
   );
 
   const map = new Map<string, { name: string | null; type: string | null }>();
@@ -253,8 +249,7 @@ export async function inviteToGroup(input: {
         ok: true,
         id: inviteId ?? undefined,
         invite_id: inviteId ?? undefined,
-        invited_email:
-          result?.invited_email ?? result?.email ?? invitedEmail,
+        invited_email: result?.invited_email ?? result?.email ?? invitedEmail,
         email_sent:
           typeof result?.email_sent === "boolean" ? result.email_sent : null,
         email_error: result?.email_error ?? null,
@@ -303,8 +298,7 @@ export async function inviteToGroup(input: {
         ok: true,
         id: inviteId ?? undefined,
         invite_id: inviteId ?? undefined,
-        invited_email:
-          result?.invited_email ?? result?.email ?? invitedEmail,
+        invited_email: result?.invited_email ?? result?.email ?? invitedEmail,
         email_sent:
           typeof result?.email_sent === "boolean" ? result.email_sent : null,
         email_error: result?.email_error ?? null,
@@ -572,11 +566,26 @@ export type RespondToPublicInviteInput = {
 };
 
 const PUBLIC_INVITES_TABLE = "public_invites";
+const PUBLIC_INVITE_TTL_HOURS = 168;
 
 function makePublicInviteToken() {
   const random = Math.random().toString(36).slice(2);
   const stamp = Date.now().toString(36);
   return `spi_${stamp}_${random}`;
+}
+
+function isPublicInviteExpiredByCreatedAt(
+  createdAt: string | null | undefined
+) {
+  if (!createdAt) return false;
+
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return false;
+
+  const expiresAt =
+    created.getTime() + PUBLIC_INVITE_TTL_HOURS * 60 * 60 * 1000;
+
+  return Date.now() > expiresAt;
 }
 
 /**
@@ -763,6 +772,26 @@ export async function getPublicInviteByToken(
 export async function respondToPublicInvite(
   input: RespondToPublicInviteInput
 ): Promise<PublicInviteRow> {
+  const safeToken = String(input.token ?? "").trim();
+
+  if (!safeToken) {
+    throw new Error("Token inválido.");
+  }
+
+  const currentInvite = await getPublicInviteByToken(safeToken);
+
+  if (!currentInvite) {
+    throw new Error("Token inválido o inexistente.");
+  }
+
+  if (isPublicInviteExpiredByCreatedAt(currentInvite.created_at)) {
+    throw new Error("Este enlace de invitación expiró.");
+  }
+
+  if (currentInvite.status !== "pending") {
+    throw new Error("Este enlace ya fue usado.");
+  }
+
   const payload = {
     status: input.status,
     proposed_date: input.proposedDate ?? null,
@@ -772,7 +801,8 @@ export async function respondToPublicInvite(
   const { data, error } = await (supabase as any)
     .from(PUBLIC_INVITES_TABLE)
     .update(payload)
-    .eq("token", input.token)
+    .eq("token", safeToken)
+    .eq("status", "pending")
     .select("*")
     .single();
 
@@ -836,23 +866,22 @@ export async function getPendingPublicInviteCaptures(
   }
 
   const normalizedInvites = (inviteRows ?? [])
-.map((row: any) => {
-  const status = String(row?.status ?? "pending").toLowerCase();
-  const safeStatus: PublicInviteStatus =
-    status === "accepted" || status === "rejected" ? status : "pending";
+    .map((row: any) => {
+      const safeStatus = normalizeCaptureStatus(row?.status);
+      if (!safeStatus) return null;
 
-  return {
-    id: String(row?.id ?? ""),
-    event_id: String(row?.event_id ?? ""),
-    contact: row?.contact ?? null,
-    token: String(row?.token ?? ""),
-    status: safeStatus,
-    message: row?.message ?? null,
-    proposed_date: row?.proposed_date ?? null,
-    created_at: row?.created_at ?? null,
-    creator_response: row?.creator_response ?? null,
-  };
-})
+      return {
+        invite_id: String(row?.id ?? ""),
+        token: String(row?.token ?? ""),
+        event_id: String(row?.event_id ?? ""),
+        contact: row?.contact ?? null,
+        status: safeStatus,
+        proposed_date: row?.proposed_date ?? null,
+        message: row?.message ?? null,
+        created_at: row?.created_at ?? null,
+        creator_response: row?.creator_response ?? null,
+      };
+    })
     .filter(Boolean) as Array<{
       invite_id: string;
       token: string;
@@ -950,6 +979,7 @@ export async function getPendingPublicInviteCaptures(
 
   return dedupedByEvent.slice(0, safeLimit);
 }
+
 export async function markPublicInviteCaptureHandled(
   token: string,
   response: string = "handled"
