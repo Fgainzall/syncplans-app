@@ -90,7 +90,9 @@ export function useSummaryData({
   const reloadQueuedRef = useRef(false);
   const refreshDebounceTimerRef = useRef<number | null>(null);
   const lastRefreshTriggerAtRef = useRef(0);
+  const lastRefreshRef = useRef<number>(0);
   const lastLoadErrorToastRef = useRef<{ key: string; at: number } | null>(null);
+  const SECONDARY_REFRESH_GUARD_MS = 9000;
 
   const clearToastTimer = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -259,11 +261,23 @@ export function useSummaryData({
     }
 
     refreshDebounceTimerRef.current = window.setTimeout(() => {
-      lastRefreshTriggerAtRef.current = Date.now();
+      const now = Date.now();
+      lastRefreshTriggerAtRef.current = now;
+      lastRefreshRef.current = now;
       refreshDebounceTimerRef.current = null;
       void loadSummary();
     }, delay);
   }, [loadSummary]);
+
+  const shouldRefreshNow = useCallback(() => {
+    const now = Date.now();
+    if (now - lastRefreshRef.current < SECONDARY_REFRESH_GUARD_MS) {
+      return false;
+    }
+
+    lastRefreshRef.current = now;
+    return true;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -310,6 +324,7 @@ export function useSummaryData({
       try {
         setBooting(true);
         await loadSummary();
+        lastRefreshRef.current = Date.now();
 
         const cleanToast = buildAppliedToastMessage(appliedToast);
         if (cleanToast) {
@@ -348,11 +363,13 @@ export function useSummaryData({
     if (typeof window === "undefined") return;
 
     const onFocus = () => {
+      if (!shouldRefreshNow()) return;
       scheduleSummaryRefresh();
     };
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
+        if (!shouldRefreshNow()) return;
         scheduleSummaryRefresh();
       }
     };
@@ -364,7 +381,7 @@ export function useSummaryData({
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [scheduleSummaryRefresh]);
+  }, [scheduleSummaryRefresh, shouldRefreshNow]);
 
   return {
     booting,
