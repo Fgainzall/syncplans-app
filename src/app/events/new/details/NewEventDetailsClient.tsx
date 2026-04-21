@@ -784,19 +784,13 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
       }
       setStartLocal(toInputLocal(parsedDate));
       setEndLocal(toInputLocal(addMinutes(parsedDate, safeDuration)));
-    } else if (timeMatch) {
-      setStartLocal((current) => {
-        const start = fromInputLocal(current);
-        if (Number.isNaN(start.getTime())) return current;
-        start.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
-        return toInputLocal(start);
-      });
-      setEndLocal((current) => {
-        const start = fromInputLocal(startLocal);
-        if (Number.isNaN(start.getTime())) return current;
-        start.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
-        return toInputLocal(addMinutes(start, safeDuration));
-      });
+     } else if (timeMatch) {
+      const nextStart = fromInputLocal(startLocal);
+      if (!Number.isNaN(nextStart.getTime())) {
+        nextStart.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
+        setStartLocal(toInputLocal(nextStart));
+        setEndLocal(toInputLocal(addMinutes(nextStart, safeDuration)));
+      }
     } else {
       setEndLocal((current) => {
         const start = fromInputLocal(startLocal);
