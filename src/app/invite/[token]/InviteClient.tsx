@@ -242,6 +242,22 @@ export default function InviteClient({ token }: Props) {
         const json = await res.json();
 
         if (!res.ok) {
+          const code = String(json?.code ?? "").trim().toLowerCase();
+          const inviteFromError = (json?.invite ?? null) as PublicInviteRow | null;
+          const eventFromError = (json?.event ?? null) as PublicInviteEvent | null;
+
+          if (res.status === 409 && code === "token_used" && inviteFromError) {
+            if (!cancelled) {
+              setInvite(inviteFromError);
+              setEvent(eventFromError);
+              setMessage(inviteFromError.message ?? "");
+              setProposedDate(toDateTimeLocalValue(inviteFromError.proposed_date));
+              setMode("idle");
+              setError(null);
+            }
+            return;
+          }
+
           throw new Error(json?.error || "No se pudo cargar la invitación.");
         }
 
@@ -992,9 +1008,7 @@ export default function InviteClient({ token }: Props) {
                       opacity: canSendProposal ? 1 : 0.5,
                     }}
                   >
-                    {submittingAction === "rejected"
-                      ? "Enviando..."
-                      : "Enviar propuesta"}
+                    {submittingAction === "rejected" ? "Enviando..." : "Enviar propuesta"}
                   </button>
 
                   <button
