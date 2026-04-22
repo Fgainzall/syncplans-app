@@ -59,6 +59,28 @@ export type SmartInterpretation = {
   reason: "learned" | "name_match" | "social_hint" | "active_group" | "none";
 };
 
+export type SummaryActivationMode = "first_time" | "active";
+
+export type SummaryActivationInput = {
+  groups: GroupRow[];
+  upcomingTotal: number;
+  pendingInviteCount?: number;
+  pendingCaptureCount?: number;
+  recentDecisions?: RecentDecision[];
+  hasConflicts?: boolean;
+};
+
+export type SummaryActivationState = {
+  mode: SummaryActivationMode;
+  isFirstTime: boolean;
+  shouldUseSimpleSummary: boolean;
+  reason:
+    | "empty_workspace"
+    | "light_workspace"
+    | "already_active"
+    | "has_conflicts";
+};
+
 export function safeDate(iso?: string | null) {
   return parseIsoLike(iso ?? null);
 }
@@ -98,8 +120,8 @@ export function buildProposalLine({
     r === "accepted"
       ? "la aceptó"
       : r === "adjusted"
-      ? "la ajustó"
-      : "la dejó pendiente";
+        ? "la ajustó"
+        : "la dejó pendiente";
 
   return time ? `${n} ${verb} ${time}` : `${n} ${verb}`;
 }
@@ -776,7 +798,9 @@ export function getSmartInterpretationLabel(
 }
 
 export function canUseNativeShare() {
-  return typeof navigator !== "undefined" && typeof navigator.share === "function";
+  return (
+    typeof navigator !== "undefined" && typeof navigator.share === "function"
+  );
 }
 
 export function canUseClipboard() {
@@ -787,4 +811,88 @@ export function canUseClipboard() {
     !!navigator.clipboard &&
     typeof navigator.clipboard.writeText === "function"
   );
+}
+
+export function isFirstTimeSummary(input: SummaryActivationInput): boolean {
+  const groupsCount = Array.isArray(input.groups) ? input.groups.length : 0;
+  const upcomingTotal = Number(input.upcomingTotal ?? 0);
+  const pendingInviteCount = Number(input.pendingInviteCount ?? 0);
+  const pendingCaptureCount = Number(input.pendingCaptureCount ?? 0);
+  const recentDecisionsCount = Array.isArray(input.recentDecisions)
+    ? input.recentDecisions.length
+    : 0;
+  const hasConflicts = !!input.hasConflicts;
+
+  if (hasConflicts) return false;
+
+  if (
+    groupsCount === 0 &&
+    upcomingTotal === 0 &&
+    pendingInviteCount === 0 &&
+    pendingCaptureCount === 0 &&
+    recentDecisionsCount === 0
+  ) {
+    return true;
+  }
+
+  if (
+    groupsCount === 0 &&
+    upcomingTotal <= 1 &&
+    pendingInviteCount === 0 &&
+    pendingCaptureCount === 0 &&
+    recentDecisionsCount === 0
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+export function getSummaryActivationState(
+  input: SummaryActivationInput
+): SummaryActivationState {
+  const hasConflicts = !!input.hasConflicts;
+
+  if (hasConflicts) {
+    return {
+      mode: "active",
+      isFirstTime: false,
+      shouldUseSimpleSummary: false,
+      reason: "has_conflicts",
+    };
+  }
+
+  const groupsCount = Array.isArray(input.groups) ? input.groups.length : 0;
+  const upcomingTotal = Number(input.upcomingTotal ?? 0);
+
+  if (
+    groupsCount === 0 &&
+    upcomingTotal === 0 &&
+    Number(input.pendingInviteCount ?? 0) === 0 &&
+    Number(input.pendingCaptureCount ?? 0) === 0 &&
+    (Array.isArray(input.recentDecisions) ? input.recentDecisions.length : 0) === 0
+  ) {
+    return {
+      mode: "first_time",
+      isFirstTime: true,
+      shouldUseSimpleSummary: true,
+      reason: "empty_workspace",
+    };
+  }
+
+  if (isFirstTimeSummary(input)) {
+    return {
+      mode: "first_time",
+      isFirstTime: true,
+      shouldUseSimpleSummary: true,
+      reason: "light_workspace",
+    };
+  }
+
+  return {
+    mode: "active",
+    isFirstTime: false,
+    shouldUseSimpleSummary: false,
+    reason: "already_active",
+  };
 }

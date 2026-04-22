@@ -55,6 +55,7 @@ import {
   formatQuickCapturePreview,
   getQuickCaptureExamples,
   getSmartInterpretationLabel,
+  getSummaryActivationState,
   getUnifiedEventStatus,
   getWeekMoodLabel,
   getWeekSubtitle,
@@ -511,15 +512,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [booting, upcomingStats]);
 
-  const title = "Resumen";
-  const summarySubtitle = isMobile
-    ? activeGroupId
-      ? `Hoy · ${activeLabel}`
-      : "Hoy · Personal"
-    : activeGroupId
-      ? `Hoy · ${activeLabel} · tu siguiente paso`
-      : "Hoy · Personal · tu siguiente paso";
-
   const showCreateGroupNudge = groups.length === 0;
   const showInviteNudge = groups.length > 0 && upcomingStats.group === 0;
 
@@ -756,6 +748,41 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [quickCaptureValue, showToast]);
 
   const visibleDecisions = useMemo(() => recentDecisions.slice(0, 3), [recentDecisions]);
+
+  const summaryActivation = useMemo(
+    () =>
+      getSummaryActivationState({
+        groups,
+        upcomingTotal: upcomingStats.total,
+        pendingInviteCount,
+        pendingCaptureCount,
+        recentDecisions: visibleDecisions,
+        hasConflicts: conflictAlert.count > 0,
+      }),
+    [
+      groups,
+      upcomingStats.total,
+      pendingInviteCount,
+      pendingCaptureCount,
+      visibleDecisions,
+      conflictAlert.count,
+    ]
+  );
+
+  const isFirstTimeMode = summaryActivation.shouldUseSimpleSummary;
+
+  const title = "Resumen";
+  const summarySubtitle = isFirstTimeMode
+    ? isMobile
+      ? "Tu primer paso en SyncPlans"
+      : "Empieza con una sola versión clara de tu tiempo"
+    : isMobile
+      ? activeGroupId
+        ? `Hoy · ${activeLabel}`
+        : "Hoy · Personal"
+      : activeGroupId
+        ? `Hoy · ${activeLabel} · tu siguiente paso`
+        : "Hoy · Personal · tu siguiente paso";
 
   const getProposalBadgeForEvent = useCallback(
     (eventId: string | null | undefined) => {
@@ -1000,20 +1027,24 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     !compactSummaryMobile &&
     valueMoments.hasValue &&
     !premiumNudge &&
-    !hasUrgentSummaryState;
+    !hasUrgentSummaryState &&
+    !isFirstTimeMode;
   const showPremiumRail =
     !compactSummaryMobile &&
     !!premiumNudge &&
     !showValueRail &&
     !hasUrgentSummaryState &&
-    pendingAttention.total <= 2;
+    pendingAttention.total <= 2 &&
+    !isFirstTimeMode;
   const showRecentDecisions =
     !compactSummaryMobile &&
     visibleDecisions.length > 0 &&
-    !hasUrgentSummaryState;
+    !hasUrgentSummaryState &&
+    !isFirstTimeMode;
   const showSecondarySummaryFlow = !hasUrgentSummaryState;
   const showDecisionChips = false;
-  const showQuickActionsCard = showSecondarySummaryFlow && (booting || !nextEvent);
+  const showQuickActionsCard =
+    showSecondarySummaryFlow && (booting || !nextEvent || isFirstTimeMode);
 
   useEffect(() => {
     if (!premiumNudge || premiumNudgeTrackedRef.current) return;
@@ -1088,6 +1119,22 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       };
     }
 
+    if (isFirstTimeMode) {
+      return {
+        eyebrow: "Empieza aquí",
+        title: "Coordina mejor tu tiempo compartido",
+        subtitle:
+          "Evita cruces, alinea agendas y deja una sola versión clara desde el inicio.",
+        primaryLabel: showCreateGroupNudge ? "Crear grupo" : "Crear primer plan",
+        primaryAction: () =>
+          showCreateGroupNudge
+            ? navigateFromSummary("create_group", "/groups/new", { block: "primary_action" })
+            : navigateFromSummary("create_plan", "/events/new/details?type=personal", { block: "primary_action" }),
+        secondaryLabel: "Conectar Google",
+        secondaryAction: () => navigateFromSummary("connect_google", "/settings", { block: "primary_action" }),
+      };
+    }
+
     if (showCreateGroupNudge) {
       return {
         eyebrow: "Siguiente mejor paso",
@@ -1148,9 +1195,42 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     router,
     showCreateGroupNudge,
     showInviteNudge,
+    isFirstTimeMode,
   ]);
 
   const summaryQuickActions = useMemo(() => {
+    if (isFirstTimeMode) {
+      return [
+        {
+          key: "create_group",
+          title: "Crear grupo",
+          subtitle: "Activa la coordinación compartida desde el primer paso.",
+          onClick: () =>
+            navigateFromSummary("create_group", "/groups/new", {
+              block: "summary_quick_actions",
+            }),
+        },
+        {
+          key: "create_plan",
+          title: "Crear primer plan",
+          subtitle: "Prueba SyncPlans con algo simple y veloz.",
+          onClick: () =>
+            navigateFromSummary("create_plan", "/events/new/details?type=personal", {
+              block: "summary_quick_actions",
+            }),
+        },
+        {
+          key: "connect_google",
+          title: "Conectar Google",
+          subtitle: "Trae tu agenda actual para tener más contexto.",
+          onClick: () =>
+            navigateFromSummary("connect_google", "/settings", {
+              block: "summary_quick_actions",
+            }),
+        },
+      ];
+    }
+
     const items: Array<{
       key: string;
       title: string;
@@ -1218,6 +1298,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     primaryAction.subtitle,
     showCreateGroupNudge,
     showInviteNudge,
+    isFirstTimeMode,
   ]);
 
   const getStatusBadgeForEvent = useCallback(
@@ -1265,7 +1346,262 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       )}
 
       <Section style={styles.shell} className="spSum-shell">
-        <PremiumHeader hideUpgradeCta title={title} subtitle={summarySubtitle} sticky={false} />
+        <PremiumHeader
+          hideUpgradeCta
+          title={title}
+          subtitle={summarySubtitle}
+          sticky={false}
+        />
+
+        <Card
+          style={{
+            ...styles.card,
+            padding: compactSummaryMobile ? 16 : 18,
+            borderRadius: compactSummaryMobile ? 20 : 24,
+            background:
+              "linear-gradient(180deg, rgba(56,189,248,0.08), rgba(124,58,237,0.06) 38%, rgba(255,255,255,0.035) 100%)",
+            border: "1px solid rgba(125,211,252,0.14)",
+            boxShadow: "0 24px 72px rgba(0,0,0,0.24)",
+          }}
+          className="spSum-card"
+        >
+          <div
+            style={{
+              display: "grid",
+              gap: 14,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: 14,
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ minWidth: 0, flex: "1 1 420px" }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 900,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    color: "rgba(125,211,252,0.88)",
+                    marginBottom: 8,
+                  }}
+                >
+                  Tu centro de coordinación
+                </div>
+
+                <div
+                  style={{
+                    fontSize: compactSummaryMobile ? 24 : 30,
+                    lineHeight: compactSummaryMobile ? 1.06 : 1.02,
+                    fontWeight: 950,
+                    letterSpacing: "-0.04em",
+                    color: "rgba(255,255,255,0.98)",
+                  }}
+                >
+                  {primaryAction.title}
+                </div>
+
+                {isFirstTimeMode ? (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      width: "fit-content",
+                      padding: "7px 11px",
+                      borderRadius: 999,
+                      border: "1px solid rgba(125,211,252,0.18)",
+                      background: "rgba(56,189,248,0.10)",
+                      color: "rgba(224,242,254,0.94)",
+                      fontSize: 12,
+                      fontWeight: 850,
+                    }}
+                  >
+                    No es otro calendario: es coordinación clara entre personas
+                  </div>
+                ) : null}
+
+                <div
+                  style={{
+                    marginTop: 8,
+                    maxWidth: 760,
+                    fontSize: compactSummaryMobile ? 13 : 14,
+                    lineHeight: 1.58,
+                    color: "rgba(226,232,240,0.78)",
+                    fontWeight: 650,
+                  }}
+                >
+                  {primaryAction.subtitle}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={primaryAction.primaryAction}
+                  style={{
+                    minHeight: 46,
+                    padding: "0 16px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(96,165,250,0.24)",
+                    background:
+                      "linear-gradient(135deg, rgba(56,189,248,0.24), rgba(124,58,237,0.24))",
+                    color: "rgba(255,255,255,0.98)",
+                    fontSize: 13,
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    boxShadow: "0 14px 30px rgba(8,12,28,0.20)",
+                  }}
+                >
+                  {primaryAction.primaryLabel}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={primaryAction.secondaryAction}
+                  style={{
+                    minHeight: 46,
+                    padding: "0 16px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.05)",
+                    color: "rgba(255,255,255,0.92)",
+                    fontSize: 13,
+                    fontWeight: 850,
+                    cursor: "pointer",
+                  }}
+                >
+                  {primaryAction.secondaryLabel}
+                </button>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+                alignItems: "center",
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 32,
+                  padding: "7px 11px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  background: "rgba(255,255,255,0.05)",
+                  color: "rgba(255,255,255,0.95)",
+                  fontSize: 12,
+                  fontWeight: 900,
+                }}
+              >
+                {contextLabel}
+              </span>
+
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 32,
+                  padding: "7px 11px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  background: "rgba(255,255,255,0.04)",
+                  color: "rgba(226,232,240,0.84)",
+                  fontSize: 12,
+                  fontWeight: 800,
+                }}
+              >
+                {upcomingStats.total} evento{upcomingStats.total === 1 ? "" : "s"} en 7
+                días
+              </span>
+
+              {conflictAlert.count > 0 ? (
+                <button
+                  type="button"
+                  onClick={openConflictCenter}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    minHeight: 32,
+                    padding: "7px 11px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(251,191,36,0.24)",
+                    background: "rgba(251,191,36,0.12)",
+                    color: "rgba(255,243,205,0.98)",
+                    fontSize: 12,
+                    fontWeight: 900,
+                    cursor: "pointer",
+                  }}
+                >
+                  {conflictAlert.count} conflicto
+                  {conflictAlert.count === 1 ? "" : "s"}
+                </button>
+              ) : null}
+
+              {pendingInviteCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigateFromSummary("hero_invites", "/invitations", {
+                      block: "summary_hero",
+                    })
+                  }
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    minHeight: 32,
+                    padding: "7px 11px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(56,189,248,0.24)",
+                    background: "rgba(56,189,248,0.10)",
+                    color: "rgba(224,242,254,0.98)",
+                    fontSize: 12,
+                    fontWeight: 900,
+                    cursor: "pointer",
+                  }}
+                >
+                  {pendingInviteCount} invitación
+                  {pendingInviteCount === 1 ? "" : "es"}
+                </button>
+              ) : null}
+
+              {loading && !booting ? (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    minHeight: 32,
+                    padding: "7px 11px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(125,211,252,0.16)",
+                    background: "rgba(56,189,248,0.10)",
+                    color: "rgba(224,242,254,0.92)",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  Actualizando…
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </Card>
 
         {showSecondarySummaryFlow ? (
           <SummaryQuickCaptureCard
@@ -1274,7 +1610,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             preview={quickCapturePreview}
             interpretation={smartInterpretation}
             interpretationLabel={smartInterpretationLabel}
-            examples={quickCaptureExamples}
+            examples={isFirstTimeMode ? quickCaptureExamples.slice(0, 2) : quickCaptureExamples}
             activeGroupName={activeLabel}
             activeGroupType={activeGroupType}
             groups={groups}
@@ -1283,469 +1619,663 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             onShare={handleCopyCaptureLink}
             onWhatsApp={handleShareToWhatsApp}
             onExampleClick={handleQuickCaptureExample}
+            headline={
+              isFirstTimeMode
+                ? "Pruébalo con una idea simple"
+                : quickCaptureHeadline
+            }
+            subcopy={
+              isFirstTimeMode
+                ? "Escribe algo como lo pensarías normalmente y SyncPlans lo convierte en un plan claro."
+                : quickCaptureSubcopy
+            }
+            onOpenCapture={isFirstTimeMode ? undefined : handleOpenCapture}
+            timeSuggestionsLabel={isFirstTimeMode ? null : timeSuggestionsLabel}
+            timeSuggestions={isFirstTimeMode ? [] : timeSuggestions}
+            onSuggestedSlotClick={
+              isFirstTimeMode
+                ? undefined
+                : (date: Date) => navigateFromSuggestedSlot(quickCaptureValue, date)
+            }
           />
         ) : null}
 
-          <Card style={styles.card} className="spSum-card">
-            {compactSummaryMobile && conflictAlert.count > 0 ? (
-              <button
-                onClick={openConflictCenter}
-                style={styles.conflictBanner}
-                className="spSum-conflictBanner"
-              >
-                <div style={styles.conflictBannerLeft}>
-                  <div style={styles.conflictBannerEyebrow}>Atención</div>
-                  <div style={styles.conflictBannerTitle}>
-                    Tienes {conflictAlert.count} conflicto{conflictAlert.count === 1 ? "" : "s"} pendiente{conflictAlert.count === 1 ? "" : "s"} por resolver
-                  </div>
-                  <div style={styles.conflictBannerSub}>Revísalo ahora y deja una sola versión clara para todos.</div>
-                </div>
-
-                <div style={styles.conflictBannerCta}>Resolver</div>
-              </button>
-            ) : null}
-
-            <div
-              style={{
-                ...styles.stateRow,
-                boxShadow: `0 0 18px ${moodAccentGlow}`,
-                borderColor: moodAccentBorder,
-              }}
+        <Card style={styles.card} className="spSum-card">
+          {compactSummaryMobile && conflictAlert.count > 0 ? (
+            <button
+              onClick={openConflictCenter}
+              style={styles.conflictBanner}
+              className="spSum-conflictBanner"
             >
-              <div style={styles.stateLeft}>
-                <div style={styles.stateLabelRow}>
+              <div style={styles.conflictBannerLeft}>
+                <div style={styles.conflictBannerEyebrow}>Atención</div>
+                <div style={styles.conflictBannerTitle}>
+                  Tienes {conflictAlert.count} conflicto
+                  {conflictAlert.count === 1 ? "" : "s"} pendiente
+                  {conflictAlert.count === 1 ? "" : "s"} por resolver
+                </div>
+                <div style={styles.conflictBannerSub}>
+                  Revísalo ahora y deja una sola versión clara para todos.
+                </div>
+              </div>
+
+              <div style={styles.conflictBannerCta}>Resolver</div>
+            </button>
+          ) : null}
+
+          <div
+            style={{
+              ...styles.stateRow,
+              boxShadow: `0 0 18px ${moodAccentGlow}`,
+              borderColor: moodAccentBorder,
+              padding: compactSummaryMobile ? 14 : 18,
+              borderRadius: compactSummaryMobile ? 18 : 20,
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.03))",
+            }}
+          >
+            <div style={styles.stateLeft}>
+              <div
+                style={{
+                  ...styles.stateLabelRow,
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
                   <span style={styles.statePill}>{contextLabel}</span>
                   {loading && !booting ? (
                     <span style={styles.stateLoadingBadge}>Actualizando…</span>
                   ) : null}
                 </div>
 
-                <div style={styles.stateMoodTitle}>{mood.title}</div>
-                <div style={styles.stateMoodSub}>{mood.subtitle}</div>
+                {!compactSummaryMobile ? (
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      padding: "8px 10px",
+                      borderRadius: 999,
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      fontSize: 12,
+                      fontWeight: 850,
+                      color: "rgba(226,232,240,0.8)",
+                    }}
+                  >
+                    {mood.title}
+                  </div>
+                ) : null}
+              </div>
 
-                <div style={styles.stateStatsRow}>
-                  <span style={styles.stateStat}>{upcomingStats.total} total</span>
-                  {!compactSummaryMobile ? (
-                    <>
-                      <span style={styles.stateStatDot}>·</span>
-                      <span style={styles.stateStat}>{upcomingStats.personal} personal</span>
-                      <span style={styles.stateStatDot}>·</span>
-                      <span style={styles.stateStat}>{upcomingStats.group} grupo</span>
-                      {upcomingStats.external > 0 ? (
-                        <>
-                          <span style={styles.stateStatDot}>·</span>
-                          <span style={styles.stateStat}>{upcomingStats.external} externo</span>
-                        </>
-                      ) : null}
-                    </>
+              <div
+                style={{
+                  ...styles.stateMoodTitle,
+                  marginTop: 12,
+                  fontSize: compactSummaryMobile ? 22 : 26,
+                  lineHeight: 1.02,
+                  letterSpacing: "-0.03em",
+                }}
+              >
+                {mood.title}
+              </div>
+
+              <div
+                style={{
+                  ...styles.stateMoodSub,
+                  marginTop: 8,
+                  maxWidth: 720,
+                  fontSize: compactSummaryMobile ? 13 : 14,
+                  lineHeight: 1.55,
+                }}
+              >
+                {mood.subtitle}
+              </div>
+
+              <div
+                style={{
+                  ...styles.stateStatsRow,
+                  marginTop: 14,
+                  rowGap: 6,
+                }}
+              >
+                <span style={styles.stateStat}>{upcomingStats.total} total</span>
+                {!compactSummaryMobile ? (
+                  <>
+                    <span style={styles.stateStatDot}>·</span>
+                    <span style={styles.stateStat}>
+                      {upcomingStats.personal} personal
+                    </span>
+                    <span style={styles.stateStatDot}>·</span>
+                    <span style={styles.stateStat}>{upcomingStats.group} grupo</span>
+                    {upcomingStats.external > 0 ? (
+                      <>
+                        <span style={styles.stateStatDot}>·</span>
+                        <span style={styles.stateStat}>
+                          {upcomingStats.external} externo
+                        </span>
+                      </>
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
+
+              {!hasUrgentSummaryState && pendingAttention.total > 0 ? (
+                <div style={styles.attentionRow}>
+                  {pendingAttention.conflicts > 0 ? (
+                    <button
+                      type="button"
+                      style={{
+                        ...styles.attentionChip,
+                        ...styles.attentionChipDanger,
+                      }}
+                      onClick={openConflictCenter}
+                    >
+                      {pendingAttention.conflicts} conflicto
+                      {pendingAttention.conflicts === 1 ? "" : "s"}
+                    </button>
+                  ) : null}
+
+                  {pendingAttention.invites > 0 ? (
+                    <button
+                      type="button"
+                      style={{
+                        ...styles.attentionChip,
+                        ...styles.attentionChipInfo,
+                      }}
+                      onClick={() =>
+                        navigateFromSummary("attention_invites", "/invitations", {
+                          block: "summary_attention",
+                        })
+                      }
+                    >
+                      {pendingAttention.invites} invitación
+                      {pendingAttention.invites === 1 ? "" : "es"}
+                    </button>
+                  ) : null}
+
+                  {compactSummaryMobile &&
+                  pendingAttention.captures + pendingAttention.proposals > 0 ? (
+                    <button
+                      type="button"
+                      style={{
+                        ...styles.attentionChip,
+                        ...styles.attentionChipSoft,
+                      }}
+                      onClick={() =>
+                        navigateFromSummary("attention_pending_mobile", "/events", {
+                          block: "summary_attention",
+                          captures: pendingAttention.captures,
+                          proposals: pendingAttention.proposals,
+                        })
+                      }
+                    >
+                      {pendingAttention.captures + pendingAttention.proposals} pendiente
+                      {pendingAttention.captures + pendingAttention.proposals === 1
+                        ? ""
+                        : "s"}{" "}
+                      por revisar
+                    </button>
+                  ) : null}
+
+                  {!compactSummaryMobile && pendingAttention.captures > 0 ? (
+                    <button
+                      type="button"
+                      style={{
+                        ...styles.attentionChip,
+                        ...styles.attentionChipNeutral,
+                      }}
+                      onClick={() =>
+                        navigateFromSummary("attention_events", "/events", {
+                          block: "summary_attention",
+                        })
+                      }
+                    >
+                      {pendingAttention.captures} respuesta
+                      {pendingAttention.captures === 1 ? "" : "s"} externa
+                      {pendingAttention.captures === 1 ? "" : "s"}
+                    </button>
+                  ) : null}
+
+                  {!compactSummaryMobile && pendingAttention.proposals > 0 ? (
+                    <button
+                      type="button"
+                      style={{
+                        ...styles.attentionChip,
+                        ...styles.attentionChipSoft,
+                      }}
+                      onClick={() =>
+                        navigateFromSummary("attention_proposals", "/events", {
+                          block: "summary_attention",
+                        })
+                      }
+                    >
+                      {pendingAttention.proposals} propuesta
+                      {pendingAttention.proposals === 1 ? "" : "s"}
+                    </button>
                   ) : null}
                 </div>
+              ) : null}
+            </div>
 
-                {!hasUrgentSummaryState && pendingAttention.total > 0 ? (
-                  <div style={styles.attentionRow}>
-                    {pendingAttention.conflicts > 0 ? (
-                      <button
-                        type="button"
-                        style={{ ...styles.attentionChip, ...styles.attentionChipDanger }}
-                        onClick={openConflictCenter}
-                      >
-                        {pendingAttention.conflicts} conflicto{pendingAttention.conflicts === 1 ? "" : "s"}
-                      </button>
-                    ) : null}
-
-                   {pendingAttention.invites > 0 ? (
-  <button
-    type="button"
-    style={{ ...styles.attentionChip, ...styles.attentionChipInfo }}
-    onClick={() =>
-      navigateFromSummary("attention_invites", "/invitations", {
-        block: "summary_attention",
-      })
-    }
-  >
-    {pendingAttention.invites} invitación{pendingAttention.invites === 1 ? "" : "es"}
-  </button>
-) : null}
-
-{compactSummaryMobile &&
-pendingAttention.captures + pendingAttention.proposals > 0 ? (
-  <button
-    type="button"
-    style={{ ...styles.attentionChip, ...styles.attentionChipSoft }}
-    onClick={() =>
-      navigateFromSummary("attention_pending_mobile", "/events", {
-        block: "summary_attention",
-        captures: pendingAttention.captures,
-        proposals: pendingAttention.proposals,
-      })
-    }
-  >
-    {pendingAttention.captures + pendingAttention.proposals} pendiente
-    {pendingAttention.captures + pendingAttention.proposals === 1 ? "" : "s"}{" "}
-    por revisar
-  </button>
-) : null}
-
-{!compactSummaryMobile && pendingAttention.captures > 0 ? (
-  <button
-    type="button"
-    style={{ ...styles.attentionChip, ...styles.attentionChipNeutral }}
-    onClick={() =>
-      navigateFromSummary("attention_events", "/events", {
-        block: "summary_attention",
-      })
-    }
-  >
-    {pendingAttention.captures} respuesta{pendingAttention.captures === 1 ? "" : "s"} externa{pendingAttention.captures === 1 ? "" : "s"}
-  </button>
-) : null}
-
-{!compactSummaryMobile && pendingAttention.proposals > 0 ? (
-  <button
-    type="button"
-    style={{ ...styles.attentionChip, ...styles.attentionChipSoft }}
-    onClick={() =>
-      navigateFromSummary("attention_proposals", "/events", {
-        block: "summary_attention",
-      })
-    }
-  >
-    {pendingAttention.proposals} propuesta{pendingAttention.proposals === 1 ? "" : "s"}
-  </button>
-) : null}
-                  </div>
-                ) : null}
-              </div>
-
-              {!compactSummaryMobile ? <div style={styles.stateKpi}>
+            {!compactSummaryMobile ? (
+              <div style={styles.stateKpi}>
                 <div style={styles.stateKpiLabel}>Próximos 7 días</div>
                 <div style={styles.stateKpiNumber}>{upcomingStats.total}</div>
-                <div style={styles.stateKpiHint}>Eventos visibles con contexto real</div>
-              </div> : null}
-            </div>
-
-            {urgentFocus ? (
-              <div style={styles.urgentSingleRail}>
-                <div style={styles.urgentSingleCopy}>
-                  <div style={styles.urgentSingleLabel}>{urgentFocus.label}</div>
-                  <div style={styles.urgentSingleTitle}>{urgentFocus.title}</div>
-                  <div style={styles.urgentSingleSub}>{urgentFocus.subtitle}</div>
+                <div style={styles.stateKpiHint}>
+                  Eventos visibles con contexto real
                 </div>
-                <button
-                  type="button"
-                  style={styles.urgentSingleBtn}
-                  onClick={urgentFocus.action}
-                >
-                  {urgentFocus.cta}
-                </button>
               </div>
             ) : null}
+          </div>
 
-            <div style={styles.returnRail}>
-              <div style={styles.returnRailCopy}>
-                <div style={styles.returnRailEyebrow}>{primaryAction.eyebrow}</div>
-                <div style={styles.returnRailTitle}>{primaryAction.title}</div>
-                <div style={styles.returnRailSub}>{primaryAction.subtitle}</div>
+          {urgentFocus ? (
+            <div style={styles.urgentSingleRail}>
+              <div style={styles.urgentSingleCopy}>
+                <div style={styles.urgentSingleLabel}>{urgentFocus.label}</div>
+                <div style={styles.urgentSingleTitle}>{urgentFocus.title}</div>
+                <div style={styles.urgentSingleSub}>{urgentFocus.subtitle}</div>
+              </div>
+              <button
+                type="button"
+                style={styles.urgentSingleBtn}
+                onClick={urgentFocus.action}
+              >
+                {urgentFocus.cta}
+              </button>
+            </div>
+          ) : null}
+
+          <div style={styles.returnRail}>
+            <div style={styles.returnRailCopy}>
+              <div style={styles.returnRailEyebrow}>{primaryAction.eyebrow}</div>
+              <div style={styles.returnRailTitle}>{primaryAction.title}</div>
+              <div style={styles.returnRailSub}>{primaryAction.subtitle}</div>
+            </div>
+
+            <div style={styles.returnRailActions}>
+              <button
+                type="button"
+                style={styles.returnRailPrimary}
+                onClick={primaryAction.primaryAction}
+              >
+                {primaryAction.primaryLabel}
+              </button>
+              <button
+                type="button"
+                style={styles.returnRailSecondary}
+                onClick={primaryAction.secondaryAction}
+              >
+                {primaryAction.secondaryLabel}
+              </button>
+            </div>
+          </div>
+
+          {showValueRail ? (
+            <div style={styles.valueRail}>
+              <div style={styles.valueRailCopy}>
+                <div style={styles.valueRailEyebrow}>Valor visible</div>
+                <div style={styles.valueRailTitle}>
+                  Ya hay valor real visible esta semana.
+                </div>
+                <div style={styles.valueRailSub}>
+                  {valueMoments.resolvedDecisions > 0
+                    ? `${valueMoments.resolvedDecisions} decisión${valueMoments.resolvedDecisions === 1 ? "" : "es"} resuelta${valueMoments.resolvedDecisions === 1 ? "" : "s"}`
+                    : null}
+                  {valueMoments.resolvedDecisions > 0 &&
+                  valueMoments.autoAdjusted > 0
+                    ? " · "
+                    : ""}
+                  {valueMoments.autoAdjusted > 0
+                    ? `${valueMoments.autoAdjusted} ajuste${valueMoments.autoAdjusted === 1 ? "" : "s"} automático${valueMoments.autoAdjusted === 1 ? "" : "s"}`
+                    : null}
+                  {(valueMoments.resolvedDecisions > 0 ||
+                    valueMoments.autoAdjusted > 0) &&
+                  valueMoments.agendaFeelsClear
+                    ? " · "
+                    : ""}
+                  {valueMoments.agendaFeelsClear ? "agenda clara ahora" : null}
+                  {(valueMoments.resolvedDecisions > 0 ||
+                    valueMoments.autoAdjusted > 0 ||
+                    valueMoments.agendaFeelsClear) &&
+                  pendingAttention.captures > 0
+                    ? " · "
+                    : ""}
+                  {pendingAttention.captures > 0
+                    ? `${pendingAttention.captures} respuesta${pendingAttention.captures === 1 ? "" : "s"} externa${pendingAttention.captures === 1 ? "" : "s"} recibida${pendingAttention.captures === 1 ? "" : "s"}`
+                    : null}
+                </div>
               </div>
 
-              <div style={styles.returnRailActions}>
+              <div style={styles.valueRailActions}>
                 <button
                   type="button"
-                  style={styles.returnRailPrimary}
+                  style={styles.valueRailPrimary}
+                  onClick={() =>
+                    navigateFromSummary(
+                      valueMoments.resolvedDecisions > 0
+                        ? "value_visibility_events"
+                        : "value_visibility_calendar",
+                      valueMoments.resolvedDecisions > 0
+                        ? "/events"
+                        : "/calendar",
+                      { block: "value_visibility" }
+                    )
+                  }
+                >
+                  {valueMoments.resolvedDecisions > 0
+                    ? "Ver valor en eventos"
+                    : "Abrir calendario"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {showPremiumRail ? (
+            <div style={styles.premiumRail}>
+              <div style={styles.premiumRailCopy}>
+                <div style={styles.premiumRailEyebrow}>{premiumNudge.eyebrow}</div>
+                <div style={styles.premiumRailTitle}>{premiumNudge.title}</div>
+                <div style={styles.premiumRailSub}>{premiumNudge.subtitle}</div>
+              </div>
+
+              <div style={styles.premiumRailActions}>
+                <button
+                  type="button"
+                  style={styles.premiumRailPrimary}
+                  onClick={handlePremiumSummaryClick}
+                >
+                  {premiumNudge.primaryLabel}
+                </button>
+                <button
+                  type="button"
+                  style={styles.premiumRailSecondary}
+                  onClick={() => setDismissedPremiumNudge(true)}
+                >
+                  {premiumNudge.secondaryLabel}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {showDecisionChips ? (
+            <div style={styles.decisionChipsRow}>
+              {decisionSummary.pendingProposals > 0 ? (
+                <button
+                  onClick={() =>
+                    navigateFromSummary("decision_chip_pending", "/events", {
+                      block: "decision_summary",
+                    })
+                  }
+                  style={{
+                    ...styles.decisionChip,
+                    ...styles.decisionChipPending,
+                  }}
+                >
+                  {decisionSummary.pendingProposals} propuesta
+                  {decisionSummary.pendingProposals === 1 ? "" : "s"} esperando
+                  decisión
+                </button>
+              ) : null}
+
+              {decisionSummary.adjustedProposals > 0 ? (
+                <button
+                  onClick={() =>
+                    navigateFromSummary("decision_chip_adjusted", "/events", {
+                      block: "decision_summary",
+                    })
+                  }
+                  style={{ ...styles.decisionChip, ...styles.decisionChipInfo }}
+                >
+                  {decisionSummary.adjustedProposals} ajuste
+                  {decisionSummary.adjustedProposals === 1 ? "" : "s"} pendiente
+                  {decisionSummary.adjustedProposals === 1 ? "" : "s"}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {showSecondarySummaryFlow ? (
+            booting ? (
+              <div style={styles.loadingCard}>
+                <div style={styles.loadingDot} />
+                <div>
+                  <div style={styles.loadingTitle}>Cargando…</div>
+                  <div style={styles.loadingSub}>Resumen</div>
+                </div>
+              </div>
+            ) : !nextEvent ? (
+              <div style={styles.emptyBlock}>
+                <div style={styles.emptyTitle}>
+                  {showCreateGroupNudge
+                    ? "Todavía no activaste el loop compartido"
+                    : "Sin coordinación cercana todavía"}
+                </div>
+                <div style={styles.emptySub}>
+                  {showCreateGroupNudge
+                    ? "Empieza creando tu primer grupo. Ese es el paso que convierte SyncPlans en una referencia compartida y no solo en una agenda ordenada."
+                    : "Todavía no tienes nada cerca dentro del sistema. Conviene meter el próximo plan aquí para que la semana no dependa de memoria, chat o improvisación."}
+                </div>
+                <button
                   onClick={primaryAction.primaryAction}
+                  style={styles.emptyBtn}
                 >
-                  {primaryAction.primaryLabel}
-                </button>
-                <button
-                  type="button"
-                  style={styles.returnRailSecondary}
-                  onClick={primaryAction.secondaryAction}
-                >
-                  {primaryAction.secondaryLabel}
+                  {showCreateGroupNudge ? "Crear grupo →" : "Crear plan →"}
                 </button>
               </div>
-            </div>
-
-            {showValueRail ? (
-              <div style={styles.valueRail}>
-                <div style={styles.valueRailCopy}>
-                  <div style={styles.valueRailEyebrow}>Valor visible</div>
-                  <div style={styles.valueRailTitle}>
-                    Ya hay valor real visible esta semana.
-                  </div>
-                  <div style={styles.valueRailSub}>
-                    {valueMoments.resolvedDecisions > 0
-                      ? `${valueMoments.resolvedDecisions} decisión${valueMoments.resolvedDecisions === 1 ? "" : "es"} resuelta${valueMoments.resolvedDecisions === 1 ? "" : "s"}`
-                      : null}
-                    {valueMoments.resolvedDecisions > 0 && valueMoments.autoAdjusted > 0 ? " · " : ""}
-                    {valueMoments.autoAdjusted > 0
-                      ? `${valueMoments.autoAdjusted} ajuste${valueMoments.autoAdjusted === 1 ? "" : "s"} automático${valueMoments.autoAdjusted === 1 ? "" : "s"}`
-                      : null}
-                    {(valueMoments.resolvedDecisions > 0 || valueMoments.autoAdjusted > 0) && valueMoments.agendaFeelsClear ? " · " : ""}
-                    {valueMoments.agendaFeelsClear ? "agenda clara ahora" : null}
-                    {(valueMoments.resolvedDecisions > 0 || valueMoments.autoAdjusted > 0 || valueMoments.agendaFeelsClear) && pendingAttention.captures > 0 ? " · " : ""}
-                    {pendingAttention.captures > 0
-                      ? `${pendingAttention.captures} respuesta${pendingAttention.captures === 1 ? "" : "s"} externa${pendingAttention.captures === 1 ? "" : "s"} recibida${pendingAttention.captures === 1 ? "" : "s"}`
-                      : null}
-                  </div>
-                </div>
-
-                <div style={styles.valueRailActions}>
-                  <button
-                    type="button"
-                    style={styles.valueRailPrimary}
-                    onClick={() => navigateFromSummary(valueMoments.resolvedDecisions > 0 ? "value_visibility_events" : "value_visibility_calendar", valueMoments.resolvedDecisions > 0 ? "/events" : "/calendar", { block: "value_visibility" })}
-                  >
-                    {valueMoments.resolvedDecisions > 0 ? "Ver valor en eventos" : "Abrir calendario"}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {showPremiumRail ? (
-              <div style={styles.premiumRail}>
-                <div style={styles.premiumRailCopy}>
-                  <div style={styles.premiumRailEyebrow}>{premiumNudge.eyebrow}</div>
-                  <div style={styles.premiumRailTitle}>{premiumNudge.title}</div>
-                  <div style={styles.premiumRailSub}>{premiumNudge.subtitle}</div>
-                </div>
-
-                <div style={styles.premiumRailActions}>
-                  <button
-                    type="button"
-                    style={styles.premiumRailPrimary}
-                    onClick={handlePremiumSummaryClick}
-                  >
-                    {premiumNudge.primaryLabel}
-                  </button>
-                  <button
-                    type="button"
-                    style={styles.premiumRailSecondary}
-                    onClick={() => setDismissedPremiumNudge(true)}
-                  >
-                    {premiumNudge.secondaryLabel}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {showDecisionChips ? (
-              <div style={styles.decisionChipsRow}>
-                {decisionSummary.pendingProposals > 0 ? (
-                  <button onClick={() => navigateFromSummary("decision_chip_pending", "/events", { block: "decision_summary" })} style={{ ...styles.decisionChip, ...styles.decisionChipPending }}>
-                    {decisionSummary.pendingProposals} propuesta{decisionSummary.pendingProposals === 1 ? "" : "s"} esperando decisión
-                  </button>
-                ) : null}
-
-                {decisionSummary.adjustedProposals > 0 ? (
-                  <button onClick={() => navigateFromSummary("decision_chip_adjusted", "/events", { block: "decision_summary" })} style={{ ...styles.decisionChip, ...styles.decisionChipInfo }}>
-                    {decisionSummary.adjustedProposals} ajuste{decisionSummary.adjustedProposals === 1 ? "" : "s"} pendiente{decisionSummary.adjustedProposals === 1 ? "" : "s"}
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-
-            {showSecondarySummaryFlow ? (
-              booting ? (
-                <div style={styles.loadingCard}>
-                  <div style={styles.loadingDot} />
-                  <div>
-                    <div style={styles.loadingTitle}>Cargando…</div>
-                    <div style={styles.loadingSub}>Resumen</div>
-                  </div>
-                </div>
-              ) : !nextEvent ? (
-                <div style={styles.emptyBlock}>
-                  <div style={styles.emptyTitle}>{showCreateGroupNudge ? "Todavía no activaste el loop compartido" : "Sin coordinación cercana todavía"}</div>
-                  <div style={styles.emptySub}>{showCreateGroupNudge ? "Empieza creando tu primer grupo. Ese es el paso que convierte SyncPlans en una referencia compartida y no solo en una agenda ordenada." : "Todavía no tienes nada cerca dentro del sistema. Conviene meter el próximo plan aquí para que la semana no dependa de memoria, chat o improvisación."}</div>
-                  <button
-                    onClick={primaryAction.primaryAction}
-                    style={styles.emptyBtn}
-                  >
-                    {showCreateGroupNudge ? "Crear grupo →" : "Crear plan →"}
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div style={styles.nextBlock}>
-                    <div style={styles.nextLabel}>Qué sigue ahora</div>
-                    <button
-                      onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
-                      style={{
-                        ...styles.nextHeroCard,
-                        ...(highlightId &&
-                        String(nextEvent?.id ?? "") === String(highlightId)
-                          ? styles.eventRowHighlight
-                          : {}),
-                      }}
-                      className="spSum-eventRow"
-                    >
-                      {(() => {
-                        const start = nextEvent.start as Date;
-                        const end = nextEvent.end as Date | null;
-
-                        const when = end
-                          ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
-                          : `${fmtDay(start)} · ${fmtTime(start)}`;
-
-                        return (
-                          <>
-                            <div style={styles.eventLeft}>
-                              <div style={styles.nextHeroEyebrow}>Próximo evento</div>
-                              <div style={styles.eventWhen}>{when}</div>
-                              <div style={styles.eventTitle}>{nextEvent.title}</div>
-                              {(() => {
-                                const proposalLine = getProposalLineForEvent(nextEvent.id);
-                                return proposalLine ? (
-                                  <div style={styles.proposalContextLine}>{proposalLine}</div>
-                                ) : null;
-                              })()}
-                            </div>
-
-                            <div style={styles.eventMeta}>
-                              {(() => {
-                                const statusBadge = getStatusBadgeForEvent(nextEvent.id);
-                                if (statusBadge) {
-                                  return (
-                                    <span
-                                      style={{
-                                        ...styles.summaryStatusPill,
-                                        ...statusBadge.style,
-                                      }}
-                                    >
-                                      {statusBadge.label}
-                                    </span>
-                                  );
-                                }
-
-                                const proposalBadge = getProposalBadgeForEvent(nextEvent.id);
-                                return proposalBadge ? (
-                                  <span
-                                    style={{
-                                      ...styles.proposalPill,
-                                      ...(proposalBadge.tone === "accepted"
-                                        ? styles.proposalPillAccepted
-                                        : proposalBadge.tone === "adjusted"
-                                          ? styles.proposalPillAdjusted
-                                          : styles.proposalPillPending),
-                                    }}
-                                  >
-                                    {proposalBadge.label}
-                                  </span>
-                                ) : null;
-                              })()}
-                              {nextEvent.isExternal ? (
-                                <span style={styles.pill}>Externo</span>
-                              ) : null}
-                              {nextEvent.groupId ? (
-                                <span style={styles.pillSoft}>Grupo</span>
-                              ) : (
-                                <span style={styles.pillSoft}>Personal</span>
-                              )}
-                              <span style={styles.nextHeroHint}>Ver y ajustar</span>
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </button>
-                  </div>
-
-                  {remainingUpcoming.length > 0 && (
-                    <div style={styles.eventsList} className="spSum-eventsList">
-                      {remainingUpcoming.map((e) => {
-                        const start = e.start as Date;
-                        const end = e.end as Date | null;
-
-                        const when = end
-                          ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
-                          : `${fmtDay(start)} · ${fmtTime(start)}`;
-
-                        const isHighlighted =
-                          highlightId && String(e.id ?? "") === String(highlightId);
-
-                        return (
-                          <button
-                            key={e.id ?? `${e.title}-${start.toISOString()}`}
-                            onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
-                            style={{
-                              ...styles.eventRow,
-                              ...(isHighlighted ? styles.eventRowHighlight : {}),
-                            }}
-                            className="spSum-eventRow"
-                          >
-                            <div style={styles.eventLeft}>
-                              <div style={styles.eventWhen}>{when}</div>
-                              <div style={styles.eventTitle}>{e.title}</div>
-                              {(() => {
-                                const proposalLine = getProposalLineForEvent(e.id);
-                                return proposalLine ? (
-                                  <div style={styles.proposalContextLine}>{proposalLine}</div>
-                                ) : null;
-                              })()}
-                            </div>
-
-                            <div style={styles.eventMeta}>
-                              {(() => {
-                                const statusBadge = getStatusBadgeForEvent(e.id);
-                                if (statusBadge) {
-                                  return (
-                                    <span
-                                      style={{
-                                        ...styles.summaryStatusPill,
-                                        ...statusBadge.style,
-                                      }}
-                                    >
-                                      {statusBadge.label}
-                                    </span>
-                                  );
-                                }
-
-                                const proposalBadge = getProposalBadgeForEvent(e.id);
-                                return proposalBadge ? (
-                                  <span
-                                    style={{
-                                      ...styles.proposalPill,
-                                      ...(proposalBadge.tone === "accepted"
-                                        ? styles.proposalPillAccepted
-                                        : proposalBadge.tone === "adjusted"
-                                          ? styles.proposalPillAdjusted
-                                          : styles.proposalPillPending),
-                                    }}
-                                  >
-                                    {proposalBadge.label}
-                                  </span>
-                                ) : null;
-                              })()}
-                              {e.isExternal ? <span style={styles.pill}>Externo</span> : null}
-                              {e.groupId ? (
-                                <span style={styles.pillSoft}>Grupo</span>
-                              ) : (
-                                <span style={styles.pillSoft}>Personal</span>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {showSeeMore && (
-                    <button
-                      onClick={() => navigateFromSummary("open_calendar", "/calendar", { block: "summary_calendar" })}
-                      style={styles.seeMoreBtn}
-                      className="spSum-seeMore"
-                    >
-                      Ver calendario ({upcomingAll.length}) →
-                    </button>
-                  )}
-                </>
-              )
             ) : (
-              <div style={styles.urgentFocusHint}>
-                Resuelve primero la prioridad de arriba. El detalle vuelve apenas cierres eso.
-              </div>
-            )}
-          </Card>
+              <>
+                <div style={styles.nextBlock}>
+                  <div style={styles.nextLabel}>Qué sigue ahora</div>
+                  <button
+                    onClick={() =>
+                      navigateFromSummary("open_calendar", "/calendar", {
+                        block: "summary_calendar",
+                      })
+                    }
+                    style={{
+                      ...styles.nextHeroCard,
+                      ...(highlightId &&
+                      String(nextEvent?.id ?? "") === String(highlightId)
+                        ? styles.eventRowHighlight
+                        : {}),
+                    }}
+                    className="spSum-eventRow"
+                  >
+                    {(() => {
+                      const start = nextEvent.start as Date;
+                      const end = nextEvent.end as Date | null;
+
+                      const when = end
+                        ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
+                        : `${fmtDay(start)} · ${fmtTime(start)}`;
+
+                      return (
+                        <>
+                          <div style={styles.eventLeft}>
+                            <div style={styles.nextHeroEyebrow}>Próximo evento</div>
+                            <div style={styles.eventWhen}>{when}</div>
+                            <div style={styles.eventTitle}>{nextEvent.title}</div>
+                            {(() => {
+                              const proposalLine = getProposalLineForEvent(
+                                nextEvent.id
+                              );
+                              return proposalLine ? (
+                                <div style={styles.proposalContextLine}>
+                                  {proposalLine}
+                                </div>
+                              ) : null;
+                            })()}
+                          </div>
+
+                          <div style={styles.eventMeta}>
+                            {(() => {
+                              const statusBadge = getStatusBadgeForEvent(
+                                nextEvent.id
+                              );
+                              if (statusBadge) {
+                                return (
+                                  <span
+                                    style={{
+                                      ...styles.summaryStatusPill,
+                                      ...statusBadge.style,
+                                    }}
+                                  >
+                                    {statusBadge.label}
+                                  </span>
+                                );
+                              }
+
+                              const proposalBadge = getProposalBadgeForEvent(
+                                nextEvent.id
+                              );
+                              return proposalBadge ? (
+                                <span
+                                  style={{
+                                    ...styles.proposalPill,
+                                    ...(proposalBadge.tone === "accepted"
+                                      ? styles.proposalPillAccepted
+                                      : proposalBadge.tone === "adjusted"
+                                        ? styles.proposalPillAdjusted
+                                        : styles.proposalPillPending),
+                                  }}
+                                >
+                                  {proposalBadge.label}
+                                </span>
+                              ) : null;
+                            })()}
+                            {nextEvent.isExternal ? (
+                              <span style={styles.pill}>Externo</span>
+                            ) : null}
+                            {nextEvent.groupId ? (
+                              <span style={styles.pillSoft}>Grupo</span>
+                            ) : (
+                              <span style={styles.pillSoft}>Personal</span>
+                            )}
+                            <span style={styles.nextHeroHint}>Ver y ajustar</span>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </button>
+                </div>
+
+                {remainingUpcoming.length > 0 && (
+                  <div style={styles.eventsList} className="spSum-eventsList">
+                    {remainingUpcoming.map((e) => {
+                      const start = e.start as Date;
+                      const end = e.end as Date | null;
+
+                      const when = end
+                        ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
+                        : `${fmtDay(start)} · ${fmtTime(start)}`;
+
+                      const isHighlighted =
+                        highlightId && String(e.id ?? "") === String(highlightId);
+
+                      return (
+                        <button
+                          key={e.id ?? `${e.title}-${start.toISOString()}`}
+                          onClick={() =>
+                            navigateFromSummary("open_calendar", "/calendar", {
+                              block: "summary_calendar",
+                            })
+                          }
+                          style={{
+                            ...styles.eventRow,
+                            ...(isHighlighted ? styles.eventRowHighlight : {}),
+                          }}
+                          className="spSum-eventRow"
+                        >
+                          <div style={styles.eventLeft}>
+                            <div style={styles.eventWhen}>{when}</div>
+                            <div style={styles.eventTitle}>{e.title}</div>
+                            {(() => {
+                              const proposalLine = getProposalLineForEvent(e.id);
+                              return proposalLine ? (
+                                <div style={styles.proposalContextLine}>
+                                  {proposalLine}
+                                </div>
+                              ) : null;
+                            })()}
+                          </div>
+
+                          <div style={styles.eventMeta}>
+                            {(() => {
+                              const statusBadge = getStatusBadgeForEvent(e.id);
+                              if (statusBadge) {
+                                return (
+                                  <span
+                                    style={{
+                                      ...styles.summaryStatusPill,
+                                      ...statusBadge.style,
+                                    }}
+                                  >
+                                    {statusBadge.label}
+                                  </span>
+                                );
+                              }
+
+                              const proposalBadge = getProposalBadgeForEvent(e.id);
+                              return proposalBadge ? (
+                                <span
+                                  style={{
+                                    ...styles.proposalPill,
+                                    ...(proposalBadge.tone === "accepted"
+                                      ? styles.proposalPillAccepted
+                                      : proposalBadge.tone === "adjusted"
+                                        ? styles.proposalPillAdjusted
+                                        : styles.proposalPillPending),
+                                  }}
+                                >
+                                  {proposalBadge.label}
+                                </span>
+                              ) : null;
+                            })()}
+                            {e.isExternal ? (
+                              <span style={styles.pill}>Externo</span>
+                            ) : null}
+                            {e.groupId ? (
+                              <span style={styles.pillSoft}>Grupo</span>
+                            ) : (
+                              <span style={styles.pillSoft}>Personal</span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {showSeeMore && (
+                  <button
+                    onClick={() =>
+                      navigateFromSummary("open_calendar", "/calendar", {
+                        block: "summary_calendar",
+                      })
+                    }
+                    style={styles.seeMoreBtn}
+                    className="spSum-seeMore"
+                  >
+                    Ver calendario ({upcomingAll.length}) →
+                  </button>
+                )}
+              </>
+            )
+          ) : (
+            <div style={styles.urgentFocusHint}>
+              Resuelve primero la prioridad de arriba. El detalle vuelve apenas
+              cierres eso.
+            </div>
+          )}
+        </Card>
 
           {showRecentDecisions ? (
             <Card style={styles.card} className="spSum-card">

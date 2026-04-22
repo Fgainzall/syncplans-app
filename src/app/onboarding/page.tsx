@@ -1,36 +1,35 @@
 // src/app/onboarding/page.tsx
-"use client";
+import { redirect } from "next/navigation";
+import { supabaseServer } from "@/lib/supabaseServer";
+import { getMyOnboardingState } from "@/lib/profilesDb";
 
-import React, { useEffect } from "react";
-import { useRouter } from "next/navigation";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
-const ONBOARDING_KEY = "syncplans_onboarded_v1";
+const LOGIN_PATH = "/auth/login?next=%2Fonboarding";
+const ONBOARDING_START_PATH = "/onboarding/1";
+const AUTHENTICATED_HOME_PATH = "/summary";
 
-export default function OnboardingProfile() {
-  const router = useRouter();
+export default async function OnboardingPage() {
+  try {
+    const supabase = await supabaseServer();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-  useEffect(() => {
-    try {
-      const flag = window.localStorage.getItem(ONBOARDING_KEY);
-
-      // Si ya marcamos onboarding completado, vamos directo al resumen
-      if (flag) {
-        router.replace("/summary");
-        return;
-      }
-
-      // Si nunca ha pasado por onboarding, lo llevamos al flujo 1–4.
-      // OJO: no marcamos el flag todavía. Solo debe marcarse cuando
-      // el usuario termine el onboarding o decida saltarlo.
-      router.replace("/onboarding/1");
-      return;
-    } catch {
-      // Si localStorage falla por cualquier motivo, al menos lo llevamos
-      // al flujo 1–4 para que no se quede colgado
-      router.replace("/onboarding/1");
+    if (!session) {
+      redirect(LOGIN_PATH);
     }
-  }, [router]);
 
-  // No mostramos UI aquí, solo actuamos como "router de entrada"
-  return null;
+    const onboardingState = await getMyOnboardingState();
+
+    if (onboardingState.completed) {
+      redirect(AUTHENTICATED_HOME_PATH);
+    }
+
+    redirect(ONBOARDING_START_PATH);
+  } catch {
+    redirect(LOGIN_PATH);
+  }
 }

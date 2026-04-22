@@ -12,6 +12,11 @@ export type CoordinationPrefs = {
   decision_style: "decide_fast" | "discuss" | "depends";
 };
 
+export type OnboardingState = {
+  completed: boolean;
+  completed_at: string | null;
+};
+
 export type Profile = {
   id: string;
   first_name: string | null;
@@ -27,11 +32,17 @@ export type Profile = {
   plan_status?: string | null; // 'trial', 'active', 'canceled', 'cancelled', etc.
   trial_ends_at?: string | null; // ISO string o null
 
-  // 👇 NUEVO: Resumen diario por correo
+  // 👇 Resumen diario por correo
   daily_digest_enabled?: boolean | null;
   daily_digest_hour_local?: number | null;
   daily_digest_timezone?: string | null;
+
+  // 👇 Nuevo: onboarding persistente (si la columna ya existe en DB)
+  onboarding_completed?: boolean | null;
+  onboarding_completed_at?: string | null;
 };
+
+type ProfileRow = Record<string, any>;
 
 async function requireUid(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
@@ -57,6 +68,47 @@ export function normalizeCoordinationPrefs(
     blocked_note: prefs?.blocked_note ?? "",
     decision_style: prefs?.decision_style ?? "depends",
   };
+}
+
+function mapProfileRow(row: ProfileRow): Profile {
+  return {
+    id: row.id,
+    first_name: row.first_name ?? null,
+    last_name: row.last_name ?? null,
+    avatar_url: row.avatar_url ?? null,
+    display_name: row.display_name ?? null,
+    coordination_prefs: row.coordination_prefs ?? null,
+    plan_tier: row.plan_tier ?? null,
+    plan_status: row.plan_status ?? null,
+    trial_ends_at: row.trial_ends_at ?? null,
+    daily_digest_enabled: row.daily_digest_enabled ?? null,
+    daily_digest_hour_local: row.daily_digest_hour_local ?? null,
+    daily_digest_timezone: row.daily_digest_timezone ?? null,
+    onboarding_completed: row.onboarding_completed ?? null,
+    onboarding_completed_at: row.onboarding_completed_at ?? null,
+  };
+}
+
+export function getOnboardingStateFromProfile(
+  profile?: Profile | null
+): OnboardingState {
+  return {
+    completed: profile?.onboarding_completed === true,
+    completed_at: profile?.onboarding_completed_at ?? null,
+  };
+}
+
+export function isOnboardingCompleted(profile?: Profile | null): boolean {
+  return getOnboardingStateFromProfile(profile).completed;
+}
+
+function getOnboardingSchemaErrorMessage(): string {
+  return [
+    'Falta soportar onboarding persistente en la tabla "profiles".',
+    "Antes de usar estas helpers, crea las columnas:",
+    "- onboarding_completed boolean default false",
+    "- onboarding_completed_at timestamptz null",
+  ].join(" ");
 }
 
 /**
@@ -90,22 +142,102 @@ export async function getMyProfile(): Promise<Profile | null> {
   if (error) throw error;
   if (!data) return null;
 
-  const p = data as any;
+  return mapProfileRow(data as ProfileRow);
+}
 
-  return {
-    id: p.id,
-    first_name: p.first_name ?? null,
-    last_name: p.last_name ?? null,
-    avatar_url: p.avatar_url ?? null,
-    display_name: p.display_name ?? null,
-    coordination_prefs: p.coordination_prefs ?? null,
-    plan_tier: p.plan_tier ?? null,
-    plan_status: p.plan_status ?? null,
-    trial_ends_at: p.trial_ends_at ?? null,
-    daily_digest_enabled: p.daily_digest_enabled ?? null,
-    daily_digest_hour_local: p.daily_digest_hour_local ?? null,
-    daily_digest_timezone: p.daily_digest_timezone ?? null,
-  };
+/**
+ * Lee el estado de onboarding desde profiles usando `select("*")`
+ * para no romper el app si la columna todavía no existe.
+ */
+export async function getMyOnboardingState(): Promise<OnboardingState> {
+  const uid = await requireUid();
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", uid)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) {
+    return {
+      completed: false,
+      completed_at: null,
+    };
+  }
+
+  return getOnboardingStateFromProfile(mapProfileRow(data as ProfileRow));
+}
+
+/**
+ * Marca el onboarding como completado.
+ * OJO: esta función requiere que la tabla `profiles` ya tenga
+ * `onboarding_completed` y `onboarding_completed_at`.
+ */
+export async function markMyOnboardingCompleted(): Promise<OnboardingState> {
+  const uid = await requireUid();
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      onboarding_completed: true,
+      onboarding_completed_at: now,
+    })
+    .eq("id", uid)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    const message = String(error.message ?? "").toLowerCase();
+    if (message.includes("onboarding_completed")) {
+      throw new Error(getOnboardingSchemaErrorMessage());
+    }
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error(
+      'No se pudo marcar el onboarding como completado en la tabla "profiles".'
+    );
+  }
+
+  return getOnboardingStateFromProfile(mapProfileRow(data as ProfileRow));
+}
+
+/**
+ * Permite resetear onboarding durante pruebas.
+ * OJO: esta función requiere que la tabla `profiles` ya tenga
+ * `onboarding_completed` y `onboarding_completed_at`.
+ */
+export async function resetMyOnboardingState(): Promise<OnboardingState> {
+  const uid = await requireUid();
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      onboarding_completed: false,
+      onboarding_completed_at: null,
+    })
+    .eq("id", uid)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    const message = String(error.message ?? "").toLowerCase();
+    if (message.includes("onboarding_completed")) {
+      throw new Error(getOnboardingSchemaErrorMessage());
+    }
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error(
+      'No se pudo resetear el onboarding en la tabla "profiles".'
+    );
+  }
+
+  return getOnboardingStateFromProfile(mapProfileRow(data as ProfileRow));
 }
 
 /**
@@ -161,22 +293,7 @@ export async function createMyProfile(input: {
 
   if (error) throw error;
 
-  const p = data as any;
-
-  return {
-    id: p.id,
-    first_name: p.first_name ?? null,
-    last_name: p.last_name ?? null,
-    avatar_url: p.avatar_url ?? null,
-    display_name: p.display_name ?? null,
-    coordination_prefs: p.coordination_prefs ?? null,
-    plan_tier: p.plan_tier ?? null,
-    plan_status: p.plan_status ?? null,
-    trial_ends_at: p.trial_ends_at ?? null,
-    daily_digest_enabled: p.daily_digest_enabled ?? null,
-    daily_digest_hour_local: p.daily_digest_hour_local ?? null,
-    daily_digest_timezone: p.daily_digest_timezone ?? null,
-  };
+  return mapProfileRow(data as ProfileRow);
 }
 
 /**
@@ -190,7 +307,6 @@ export async function updateMyCoordinationPrefs(
   const uid = await requireUid();
   const normalized = normalizeCoordinationPrefs(prefs);
 
-  // 1) Intentar leer perfil actual para no pisar datos
   let existing: Profile | null = null;
   try {
     existing = await getMyProfile();
@@ -198,15 +314,12 @@ export async function updateMyCoordinationPrefs(
     existing = null;
   }
 
-  // 2) Construir SIEMPRE un display_name no nulo
   let displayName: string | null = null;
 
-  // a) Si ya hay display_name, lo respetamos
   if (existing?.display_name && existing.display_name.trim()) {
     displayName = existing.display_name.trim();
   }
 
-  // b) Si no, intentamos con first_name + last_name
   if (!displayName) {
     const first = existing?.first_name?.trim() ?? "";
     const last = existing?.last_name?.trim() ?? "";
@@ -216,7 +329,6 @@ export async function updateMyCoordinationPrefs(
     }
   }
 
-  // c) Si aún no hay, usamos metadata del usuario o el email
   if (!displayName) {
     const { data: userData } = await supabase.auth.getUser();
     const u = userData?.user;
@@ -232,7 +344,7 @@ export async function updateMyCoordinationPrefs(
     displayName = (metaName || emailName).trim() || "Usuario SyncPlans";
   }
 
-  const payload: any = {
+  const payload: ProfileRow = {
     id: uid,
     coordination_prefs: normalized,
     display_name: displayName,
@@ -261,22 +373,7 @@ export async function updateMyCoordinationPrefs(
 
   if (error) throw error;
 
-  const p = data as any;
-
-  return {
-    id: p.id,
-    first_name: p.first_name ?? null,
-    last_name: p.last_name ?? null,
-    avatar_url: p.avatar_url ?? null,
-    display_name: p.display_name ?? null,
-    coordination_prefs: p.coordination_prefs ?? null,
-    plan_tier: p.plan_tier ?? null,
-    plan_status: p.plan_status ?? null,
-    trial_ends_at: p.trial_ends_at ?? null,
-    daily_digest_enabled: p.daily_digest_enabled ?? null,
-    daily_digest_hour_local: p.daily_digest_hour_local ?? null,
-    daily_digest_timezone: p.daily_digest_timezone ?? null,
-  };
+  return mapProfileRow(data as ProfileRow);
 }
 
 /**
@@ -291,7 +388,7 @@ export async function updateMyPlanDebug(input: {
 }): Promise<Profile> {
   const uid = await requireUid();
 
-  const payload: Record<string, any> = { id: uid };
+  const payload: ProfileRow = { id: uid };
 
   if (input.plan_tier !== undefined) {
     payload.plan_tier = input.plan_tier;
@@ -326,33 +423,17 @@ export async function updateMyPlanDebug(input: {
 
   if (error) throw error;
 
-  const p = data as any;
-
-  return {
-    id: p.id,
-    first_name: p.first_name ?? null,
-    last_name: p.last_name ?? null,
-    avatar_url: p.avatar_url ?? null,
-    display_name: p.display_name ?? null,
-    coordination_prefs: p.coordination_prefs ?? null,
-    plan_tier: p.plan_tier ?? null,
-    plan_status: p.plan_status ?? null,
-    trial_ends_at: p.trial_ends_at ?? null,
-    daily_digest_enabled: p.daily_digest_enabled ?? null,
-    daily_digest_hour_local: p.daily_digest_hour_local ?? null,
-    daily_digest_timezone: p.daily_digest_timezone ?? null,
-  };
+  return mapProfileRow(data as ProfileRow);
 }
 
 /**
  * Obtiene perfiles por un listado de ids (para Members, etc.)
  */
 export async function getProfilesByIds(ids: string[]): Promise<Profile[]> {
- const uniqueIds = Array.from(
-  new Set(
-    ids.map((id) => String(id ?? "").trim()).filter(Boolean)
-  )
-);
+  const uniqueIds = Array.from(
+    new Set(ids.map((id) => String(id ?? "").trim()).filter(Boolean))
+  );
+
   if (uniqueIds.length === 0) return [];
 
   const { data, error } = await supabase
@@ -377,24 +458,11 @@ export async function getProfilesByIds(ids: string[]): Promise<Profile[]> {
 
   if (error) throw error;
 
-  return (data ?? []).map((p: any) => ({
-    id: p.id,
-    first_name: p.first_name ?? null,
-    last_name: p.last_name ?? null,
-    avatar_url: p.avatar_url ?? null,
-    display_name: p.display_name ?? null,
-    coordination_prefs: p.coordination_prefs ?? null,
-    plan_tier: p.plan_tier ?? null,
-    plan_status: p.plan_status ?? null,
-    trial_ends_at: p.trial_ends_at ?? null,
-    daily_digest_enabled: p.daily_digest_enabled ?? null,
-    daily_digest_hour_local: p.daily_digest_hour_local ?? null,
-    daily_digest_timezone: p.daily_digest_timezone ?? null,
-  }));
+  return (data ?? []).map((profileRow: ProfileRow) => mapProfileRow(profileRow));
 }
 
 /**
- * NUEVO: actualizar ajustes de resumen diario por correo.
+ * Actualizar ajustes de resumen diario por correo.
  */
 export async function updateDailyDigestSettings(input: {
   daily_digest_enabled: boolean;
@@ -438,18 +506,16 @@ export async function updateDailyDigestSettings(input: {
     displayName = (metaName || emailName).trim() || "Usuario SyncPlans";
   }
 
-  const { error } = await supabase
-    .from("profiles")
-    .upsert(
-      {
-        id: uid,
-        display_name: displayName,
-        daily_digest_enabled: input.daily_digest_enabled,
-        daily_digest_hour_local: input.daily_digest_hour_local,
-        daily_digest_timezone: input.daily_digest_timezone,
-      },
-      { onConflict: "id" }
-    );
+  const { error } = await supabase.from("profiles").upsert(
+    {
+      id: uid,
+      display_name: displayName,
+      daily_digest_enabled: input.daily_digest_enabled,
+      daily_digest_hour_local: input.daily_digest_hour_local,
+      daily_digest_timezone: input.daily_digest_timezone,
+    },
+    { onConflict: "id" }
+  );
 
   if (error) throw error;
 }
@@ -480,13 +546,14 @@ export function getInitials(p: {
   if (a || b) return `${a}${b}`;
   return "U";
 }
+
 export async function getProfilesMapByIds(
   ids: string[]
 ): Promise<Record<string, Profile>> {
   const profiles = await getProfilesByIds(ids);
 
-  return profiles.reduce<Record<string, Profile>>((acc, p) => {
-    acc[p.id] = p;
+  return profiles.reduce<Record<string, Profile>>((acc, profile) => {
+    acc[profile.id] = profile;
     return acc;
   }, {});
 }
