@@ -6,9 +6,8 @@ type GoogleAccountRow = {
   email: string | null;
   access_token: string | null;
   refresh_token: string | null;
-  expiry_date: string | null;
+  expires_at: string | null;
 };
-
 type GoogleCalendarListItem = {
   id: string;
   summary?: string;
@@ -259,7 +258,7 @@ export async function POST(req: Request) {
 
     const { data: ga, error: gaError } = await supabaseAdmin
       .from("google_accounts")
-      .select("user_id, email, access_token, refresh_token, expiry_date")
+.select("user_id, email, access_token, refresh_token, expires_at")
       .eq("user_id", user.id)
       .maybeSingle<GoogleAccountRow>();
 
@@ -278,7 +277,7 @@ export async function POST(req: Request) {
     const refreshToken = ga.refresh_token ?? null;
 
     const nowMs = Date.now();
-    const expiryMs = ga.expiry_date ? new Date(ga.expiry_date).getTime() : 0;
+   const expiryMs = ga.expires_at ? new Date(ga.expires_at).getTime() : 0;
     const isExpired =
       !accessToken || !expiryMs || Number.isNaN(expiryMs) || expiryMs <= nowMs + 60_000;
 
@@ -299,10 +298,10 @@ export async function POST(req: Request) {
 
       const { error: updateTokenError } = await supabaseAdmin
         .from("google_accounts")
-        .update({
-          access_token: accessToken,
-          expiry_date: nextExpiry,
-        })
+       .update({
+  access_token: accessToken,
+  expires_at: nextExpiry,
+})
         .eq("user_id", user.id);
 
       if (updateTokenError) {
