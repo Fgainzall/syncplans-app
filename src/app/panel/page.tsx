@@ -1172,7 +1172,7 @@ export default function PanelPage() {
                       <button
                         type="button"
                         style={styles.primarySmallButton}
-                        onClick={() => router.push("/settings/google-calendar")}
+                       onClick={() => router.push("/settings")}
                       >
                         {googlePrimaryCta}
                       </button>
