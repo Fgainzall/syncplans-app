@@ -1273,7 +1273,7 @@ const styles: Record<string, CSSProperties> = {
   },
 mobileActionsRow: {
   position: "relative",
-  zIndex: 0,
+  zIndex: 1,
   display: "grid",
   gridTemplateColumns: "1fr 1fr",
   gap: 8,
@@ -1307,7 +1307,7 @@ mobileActionsRow: {
 userMenuAnchor: {
   position: "relative",
   display: "inline-flex",
-  zIndex: 220,
+  zIndex: 9998,
   isolation: "isolate",
 },
   userChip: {
@@ -1363,12 +1363,13 @@ desktopMenu: {
   background: "#071126",
   boxShadow: "0 24px 60px rgba(0,0,0,0.62)",
   padding: 8,
-  zIndex: 260,
+  zIndex: 9999,
   opacity: 1,
   isolation: "isolate",
   overflow: "hidden",
   backdropFilter: "none",
   WebkitBackdropFilter: "none",
+  pointerEvents: "auto",
 },
 mobileMenu: {
   position: "absolute",
@@ -1380,12 +1381,13 @@ mobileMenu: {
   background: "#071126",
   boxShadow: "0 24px 60px rgba(0,0,0,0.62)",
   padding: 8,
-  zIndex: 260,
+  zIndex: 9999,
   opacity: 1,
   isolation: "isolate",
   overflow: "hidden",
   backdropFilter: "none",
   WebkitBackdropFilter: "none",
+  pointerEvents: "auto",
 },
   menuHeader: {
     display: "flex",
