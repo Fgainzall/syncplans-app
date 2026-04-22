@@ -611,56 +611,63 @@ export default function PremiumHeader({
                   </div>
                 </button>
 
-                {userMenuOpen && (
-                  <div style={styles.mobileMenu}>
-                    <div style={styles.menuHeader}>
-                      <div style={styles.menuAvatar}>
-                        {headerUser?.initials ?? "T"}
-                      </div>
-                      <div style={styles.menuName}>
-                        {headerUser?.name ?? "Tú"}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      style={styles.menuItem}
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        router.push("/profile", { scroll: false });
-                      }}
-                    >
-                      Profile
-                    </button>
+             {userMenuOpen && (
+  <>
+    <div
+      style={styles.userMenuBackdrop}
+      onMouseDown={() => setUserMenuOpen(false)}
+    />
 
+    <div style={styles.desktopMenu}>
+      <div style={styles.menuHeader}>
+        <div style={styles.menuAvatar}>
+          {headerUser?.initials ?? "T"}
+        </div>
+        <div style={styles.menuName}>
+          {headerUser?.name ?? "Tú"}
+        </div>
+      </div>
 
-                    <button
-                      type="button"
-                      style={styles.menuItem}
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        router.push("/settings", { scroll: false });
-                      }}
-                    >
-                      Ajustes
-                    </button>
+      <button
+        type="button"
+        style={styles.menuItem}
+        onClick={() => {
+          setUserMenuOpen(false);
+          router.push("/profile", { scroll: false });
+        }}
+      >
+        Profile
+      </button>
 
-                    <button
-                      type="button"
-                      style={styles.menuItem}
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        router.push("/planes", { scroll: false });
-                      }}
-                    >
-                      Planes
-                    </button>
+      <button
+        type="button"
+        style={styles.menuItem}
+        onClick={() => {
+          setUserMenuOpen(false);
+          router.push("/settings", { scroll: false });
+        }}
+      >
+        Ajustes
+      </button>
 
-                    <div style={styles.menuDivider} />
-                    <div style={styles.logoutWrap}>
-                      <LogoutButton />
-                    </div>
-                  </div>
-                )}
+      <button
+        type="button"
+        style={styles.menuItem}
+        onClick={() => {
+          setUserMenuOpen(false);
+          router.push("/planes", { scroll: false });
+        }}
+      >
+        Planes
+      </button>
+
+      <div style={styles.menuDivider} />
+      <div style={styles.logoutWrap}>
+        <LogoutButton />
+      </div>
+    </div>
+  </>
+)}
               </div>
             </div>
 
@@ -797,56 +804,63 @@ export default function PremiumHeader({
                     </span>
                   </button>
 
-                  {userMenuOpen && (
-                    <div style={styles.desktopMenu}>
-                      <div style={styles.menuHeader}>
-                        <div style={styles.menuAvatar}>
-                          {headerUser?.initials ?? "T"}
-                        </div>
-                        <div style={styles.menuName}>
-                          {headerUser?.name ?? "Tú"}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        style={styles.menuItem}
-                        onClick={() => {
-                          setUserMenuOpen(false);
-                          router.push("/profile", { scroll: false });
-                        }}
-                      >
-                        Profile
-                      </button>
+                 {userMenuOpen && (
+  <>
+    <div
+      style={styles.userMenuBackdrop}
+      onMouseDown={() => setUserMenuOpen(false)}
+    />
 
+    <div style={styles.mobileMenu}>
+      <div style={styles.menuHeader}>
+        <div style={styles.menuAvatar}>
+          {headerUser?.initials ?? "T"}
+        </div>
+        <div style={styles.menuName}>
+          {headerUser?.name ?? "Tú"}
+        </div>
+      </div>
 
-                      <button
-                        type="button"
-                        style={styles.menuItem}
-                        onClick={() => {
-                          setUserMenuOpen(false);
-                          router.push("/settings", { scroll: false });
-                        }}
-                      >
-                        Ajustes
-                      </button>
+      <button
+        type="button"
+        style={styles.menuItem}
+        onClick={() => {
+          setUserMenuOpen(false);
+          router.push("/profile", { scroll: false });
+        }}
+      >
+        Profile
+      </button>
 
-                      <button
-                        type="button"
-                        style={styles.menuItem}
-                        onClick={() => {
-                          setUserMenuOpen(false);
-                          router.push("/planes", { scroll: false });
-                        }}
-                      >
-                        Planes
-                      </button>
+      <button
+        type="button"
+        style={styles.menuItem}
+        onClick={() => {
+          setUserMenuOpen(false);
+          router.push("/settings", { scroll: false });
+        }}
+      >
+        Ajustes
+      </button>
 
-                      <div style={styles.menuDivider} />
-                      <div style={styles.logoutWrap}>
-                        <LogoutButton />
-                      </div>
-                    </div>
-                  )}
+      <button
+        type="button"
+        style={styles.menuItem}
+        onClick={() => {
+          setUserMenuOpen(false);
+          router.push("/planes", { scroll: false });
+        }}
+      >
+        Planes
+      </button>
+
+      <div style={styles.menuDivider} />
+      <div style={styles.logoutWrap}>
+        <LogoutButton />
+      </div>
+    </div>
+  </>
+)}
                 </div>
 
                 <button
@@ -921,6 +935,13 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: spacing.xl,
     minHeight: 196,
   },
+  userMenuBackdrop: {
+  position: "fixed",
+  inset: 0,
+  background: "transparent",
+  zIndex: 9997,
+  pointerEvents: "auto",
+},
   mobileWrap: {
     position: "sticky",
     top: 8,
