@@ -368,6 +368,35 @@ function StatusPill({ badge }: { badge: StatusBadge }) {
   return <span style={{ ...styles.statusPill, ...badge.style }}>{badge.label}</span>;
 }
 
+function FocusRail({
+  eyebrow,
+  title,
+  subtitle,
+  cta,
+  onClick,
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  cta: string;
+  onClick: () => void;
+}) {
+  return (
+    <Card style={styles.focusRailCard}>
+      <div style={styles.focusRailCopy}>
+        <div style={styles.focusRailEyebrow}>{eyebrow}</div>
+        <div style={styles.focusRailTitle}>{title}</div>
+        <div style={styles.focusRailSubtitle}>{subtitle}</div>
+      </div>
+
+      <button type="button" onClick={onClick} style={styles.focusRailBtn}>
+        {cta}
+      </button>
+    </Card>
+  );
+}
+
+
 function ProposalPill({ badge }: { badge: ProposalBadge }) {
   return <span style={{ ...styles.statusPill, ...toneBadgeStyle(badge.tone) }}>{badge.label}</span>;
 }
@@ -1781,29 +1810,46 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     navigateFromSummary,
   ]);
 
-  const showValueRail =
-    !compactSummaryMobile &&
-    valueMoments.hasValue &&
-    !premiumNudge &&
-    !hasUrgentSummaryState &&
-    !isFirstTimeMode;
+  const inviteFocus = useMemo(() => {
+    if (hasUrgentSummaryState || !showInviteNudge) return null;
 
-  const showPremiumRail =
-    !compactSummaryMobile &&
-    !!premiumNudge &&
-    !showValueRail &&
-    !hasUrgentSummaryState &&
-    pendingAttention.total <= 2 &&
-    !isFirstTimeMode;
+    return {
+      eyebrow: "Siguiente mejor paso",
+      title: "Invita a tu pareja y conviértanlo en una sola agenda compartida",
+      subtitle:
+        "El valor de SyncPlans aparece de verdad cuando ambos ven lo mismo en el mismo lugar.",
+      cta: "Abrir grupos",
+      action: () =>
+        navigateFromSummary("open_groups", "/groups", {
+          block: "invite_focus",
+        }),
+    };
+  }, [hasUrgentSummaryState, showInviteNudge, navigateFromSummary]);
 
-  const showRecentDecisions =
-    !compactSummaryMobile &&
-    visibleDecisions.length > 0 &&
-    !hasUrgentSummaryState &&
-    !isFirstTimeMode;
+  const createGroupFocus = useMemo(() => {
+    if (hasUrgentSummaryState || !showCreateGroupNudge || isFirstTimeMode) return null;
+
+    return {
+      eyebrow: "Siguiente mejor paso",
+      title: "Crea tu primer espacio compartido",
+      subtitle:
+        "Ese paso convierte a SyncPlans en una referencia real de coordinación, no solo en una agenda personal bonita.",
+      cta: "Crear grupo",
+      action: () =>
+        navigateFromSummary("create_group", "/groups/new", {
+          block: "create_group_focus",
+        }),
+    };
+  }, [hasUrgentSummaryState, showCreateGroupNudge, isFirstTimeMode, navigateFromSummary]);
+
+  const showValueRail = false;
+
+  const showPremiumRail = false;
+
+  const showRecentDecisions = false;
 
   const showQuickActions =
-    !hasUrgentSummaryState && (booting || !nextEvent || isFirstTimeMode || compactSummaryMobile);
+    isFirstTimeMode || (!hasUrgentSummaryState && !nextEvent && !showInviteNudge);
 
   return (
     <div style={styles.page} className="spSum-page">
@@ -1838,6 +1884,33 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           }
         />
 
+        {urgentFocus ? (
+          <Rail
+            eyebrow={urgentFocus.label}
+            title={urgentFocus.title}
+            subtitle={urgentFocus.subtitle}
+            primaryLabel={urgentFocus.cta}
+            onPrimary={urgentFocus.action}
+            variant="urgent"
+          />
+        ) : createGroupFocus ? (
+          <FocusRail
+            eyebrow={createGroupFocus.eyebrow}
+            title={createGroupFocus.title}
+            subtitle={createGroupFocus.subtitle}
+            cta={createGroupFocus.cta}
+            onClick={createGroupFocus.action}
+          />
+        ) : inviteFocus ? (
+          <FocusRail
+            eyebrow={inviteFocus.eyebrow}
+            title={inviteFocus.title}
+            subtitle={inviteFocus.subtitle}
+            cta={inviteFocus.cta}
+            onClick={inviteFocus.action}
+          />
+        ) : null}
+
         <SummaryQuickCaptureCard
           value={quickCaptureValue}
           busy={quickCaptureBusy}
@@ -1869,62 +1942,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           }
         />
 
-        {urgentFocus ? (
-          <Rail
-            eyebrow={urgentFocus.label}
-            title={urgentFocus.title}
-            subtitle={urgentFocus.subtitle}
-            primaryLabel={urgentFocus.cta}
-            onPrimary={urgentFocus.action}
-            variant="urgent"
-          />
-        ) : null}
-
-        {showValueRail ? (
-          <Rail
-            eyebrow="Valor visible"
-            title="Ya hay valor real visible esta semana."
-            subtitle={[
-              valueMoments.resolvedDecisions > 0
-                ? `${valueMoments.resolvedDecisions} decisión${valueMoments.resolvedDecisions === 1 ? "" : "es"} resuelta${valueMoments.resolvedDecisions === 1 ? "" : "s"}`
-                : null,
-              valueMoments.autoAdjusted > 0
-                ? `${valueMoments.autoAdjusted} ajuste${valueMoments.autoAdjusted === 1 ? "" : "s"} automático${valueMoments.autoAdjusted === 1 ? "" : "s"}`
-                : null,
-              valueMoments.agendaFeelsClear ? "agenda clara ahora" : null,
-              pendingAttention.captures > 0
-                ? `${pendingAttention.captures} respuesta${pendingAttention.captures === 1 ? "" : "s"} externa${pendingAttention.captures === 1 ? "" : "s"} recibida${pendingAttention.captures === 1 ? "" : "s"}`
-                : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-            primaryLabel={valueMoments.resolvedDecisions > 0 ? "Ver valor en eventos" : "Abrir calendario"}
-            onPrimary={() =>
-              navigateFromSummary(
-                valueMoments.resolvedDecisions > 0
-                  ? "value_visibility_events"
-                  : "value_visibility_calendar",
-                valueMoments.resolvedDecisions > 0 ? "/events" : "/calendar",
-                { block: "value_visibility" }
-              )
-            }
-            variant="value"
-          />
-        ) : null}
-
-        {showPremiumRail && premiumNudge ? (
-          <Rail
-            eyebrow={premiumNudge.eyebrow}
-            title={premiumNudge.title}
-            subtitle={premiumNudge.subtitle}
-            primaryLabel={premiumNudge.primaryLabel}
-            secondaryLabel={premiumNudge.secondaryLabel}
-            onPrimary={handlePremiumSummaryClick}
-            onSecondary={() => setDismissedPremiumNudge(true)}
-            variant="premium"
-          />
-        ) : null}
-
         <UpcomingSection
           booting={booting}
           nextEvent={nextEvent}
@@ -1943,17 +1960,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           showCreateGroupNudge={showCreateGroupNudge}
           onPrimaryEmptyAction={primaryAction.primaryAction}
         />
-
-        {showRecentDecisions ? (
-          <RecentDecisionsSection
-            decisions={visibleDecisions}
-            onOpenCalendar={() =>
-              navigateFromSummary("open_calendar", "/calendar", {
-                block: "summary_calendar",
-              })
-            }
-          />
-        ) : null}
 
         {showQuickActions ? <QuickActionsSection actions={summaryQuickActions} /> : null}
       </Section>
@@ -2653,7 +2659,7 @@ const styles: Record<string, CSSProperties> = {
   quickGrid: {
     marginTop: 14,
     display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 12,
   },
   quickCard: {
@@ -2680,5 +2686,55 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 13,
     opacity: 0.74,
     lineHeight: 1.5,
+  },
+  focusRailCard: {
+    borderRadius: 20,
+    border: "1px solid rgba(96,165,250,0.18)",
+    background:
+      "linear-gradient(135deg, rgba(15,23,42,0.88), rgba(30,41,59,0.76))",
+    padding: 16,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    alignItems: "center",
+    flexWrap: "wrap",
+    boxShadow: "0 18px 42px rgba(0,0,0,0.18)",
+  },
+  focusRailCopy: {
+    minWidth: 0,
+    flex: "1 1 360px",
+    display: "grid",
+    gap: 4,
+  },
+  focusRailEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.88)",
+  },
+  focusRailTitle: {
+    fontSize: 18,
+    fontWeight: 950,
+    lineHeight: 1.18,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  focusRailSubtitle: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.78)",
+    maxWidth: 680,
+  },
+  focusRailBtn: {
+    minHeight: 44,
+    padding: "0 16px",
+    borderRadius: 999,
+    border: "1px solid rgba(125,211,252,0.24)",
+    background: "rgba(56,189,248,0.12)",
+    color: "rgba(240,249,255,0.98)",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
   },
 }
