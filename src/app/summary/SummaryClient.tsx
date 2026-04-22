@@ -103,7 +103,7 @@ type PremiumNudge = {
 
 type ProposalBadge = {
   label: string;
-  tone: "pending" | "accepted" | "adjusted";
+  tone: "pending" | "accepted" | "adjusted" | "neutral";
 };
 
 type StatusBadge = {
@@ -138,7 +138,7 @@ function useIsMobileWidth(maxWidth = 520) {
   return isMobile;
 }
 
-function toneBadgeStyle(tone: "pending" | "accepted" | "adjusted"): CSSProperties {
+function toneBadgeStyle(tone: "pending" | "accepted" | "adjusted" | "neutral"): CSSProperties {
   if (tone === "accepted") {
     return {
       border: "1px solid rgba(52,211,153,0.24)",
@@ -152,6 +152,14 @@ function toneBadgeStyle(tone: "pending" | "accepted" | "adjusted"): CSSPropertie
       border: "1px solid rgba(56,189,248,0.24)",
       background: "rgba(56,189,248,0.12)",
       color: "rgba(224,242,254,0.96)",
+    };
+  }
+
+  if (tone === "neutral") {
+    return {
+      border: "1px solid rgba(148,163,184,0.22)",
+      background: "rgba(148,163,184,0.10)",
+      color: "rgba(226,232,240,0.92)",
     };
   }
 
