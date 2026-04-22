@@ -1397,7 +1397,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                     marginBottom: 8,
                   }}
                 >
-                  Tu centro de coordinación
+                  Hoy en SyncPlans
                 </div>
 
                 <div
@@ -1428,7 +1428,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                       fontWeight: 850,
                     }}
                   >
-                    No es otro calendario: es coordinación clara entre personas
+                    No es otro calendario: es claridad compartida para dos
                   </div>
                 ) : null}
 
@@ -1661,7 +1661,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                   {conflictAlert.count === 1 ? "" : "s"} por resolver
                 </div>
                 <div style={styles.conflictBannerSub}>
-                  Revísalo ahora y deja una sola versión clara para todos.
+                  Revísalo ahora y evita ruido más tarde.
                 </div>
               </div>
 
@@ -1899,31 +1899,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             </div>
           ) : null}
 
-          <div style={styles.returnRail}>
-            <div style={styles.returnRailCopy}>
-              <div style={styles.returnRailEyebrow}>{primaryAction.eyebrow}</div>
-              <div style={styles.returnRailTitle}>{primaryAction.title}</div>
-              <div style={styles.returnRailSub}>{primaryAction.subtitle}</div>
-            </div>
-
-            <div style={styles.returnRailActions}>
-              <button
-                type="button"
-                style={styles.returnRailPrimary}
-                onClick={primaryAction.primaryAction}
-              >
-                {primaryAction.primaryLabel}
-              </button>
-              <button
-                type="button"
-                style={styles.returnRailSecondary}
-                onClick={primaryAction.secondaryAction}
-              >
-                {primaryAction.secondaryLabel}
-              </button>
-            </div>
-          </div>
-
           {showValueRail ? (
             <div style={styles.valueRail}>
               <div style={styles.valueRailCopy}>
@@ -2079,7 +2054,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             ) : (
               <>
                 <div style={styles.nextBlock}>
-                  <div style={styles.nextLabel}>Qué sigue ahora</div>
+                  <div style={styles.nextLabel}>Próximo plan</div>
                   <button
                     onClick={() =>
                       navigateFromSummary("open_calendar", "/calendar", {
@@ -2345,9 +2320,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             <Card style={styles.card} className="spSum-card">
               <div style={styles.sectionHeadMini}>
                 <div>
-                  <div style={styles.sectionEyebrow}>Después de eso</div>
+                  <div style={styles.sectionEyebrow}>Acciones rápidas</div>
                   <div style={styles.sectionTitle}>
-                    {compactSummaryMobile ? "Haz ahora" : "Siguientes pasos útiles"}
+                    {compactSummaryMobile ? "Haz ahora" : "Lo siguiente, sin dar vueltas"}
                   </div>
                 </div>
               </div>
@@ -2448,12 +2423,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
   shell: {
     width: "100%",
-    maxWidth: 1120,
+    maxWidth: 1080,
     margin: "0 auto",
     padding: "18px 18px 0",
     display: "flex",
     flexDirection: "column",
-    gap: 16,
+    gap: 14,
   },
   toastWrap: {
     position: "fixed",
@@ -2468,9 +2443,9 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: 360,
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(7,11,22,0.72)",
+    background: "rgba(7,11,22,0.92)",
     boxShadow: "0 24px 70px rgba(0,0,0,0.45)",
-    backdropFilter: "blur(14px)",
+    backdropFilter: "blur(12px)",
     padding: "12px 14px",
   },
   toastTitle: {
@@ -2486,10 +2461,10 @@ const styles: Record<string, React.CSSProperties> = {
   card: {
     borderRadius: 22,
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.035)",
+    background: "rgba(10,14,28,0.72)",
     padding: 16,
     boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
-    backdropFilter: "blur(14px)",
+    backdropFilter: "blur(12px)",
   },
   captureCard: {
     borderRadius: 24,
@@ -2712,7 +2687,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "7px 10px",
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.035)",
+    background: "rgba(10,14,28,0.72)",
     fontSize: 11,
     fontWeight: 800,
     opacity: 0.86,
@@ -3058,7 +3033,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.96)",
     cursor: "pointer",
     textAlign: "left",
-    boxShadow: "0 14px 34px rgba(37,99,235,0.20)",
+    boxShadow: "0 18px 42px rgba(37,99,235,0.18)",
   },
   nextHeroEyebrow: {
     fontSize: 11,
