@@ -1148,18 +1148,24 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       };
     }
 
-    if (showInviteNudge) {
-      return {
-        eyebrow: "Siguiente mejor paso",
-        title: "Trae a la otra persona dentro del sistema",
-        subtitle:
-          "Invita a alguien para resolver respuestas y conflictos aquí.",
-        primaryLabel: "Traer a alguien",
-        primaryAction: () => navigateFromSummary("bring_someone_in", "/groups", { block: "primary_action" }),
-        secondaryLabel: "Abrir eventos",
-        secondaryAction: () => navigateFromSummary("open_events", "/events", { block: "primary_action" }),
-      };
-    }
+ if (showInviteNudge) {
+  return {
+    eyebrow: "Siguiente mejor paso",
+    title: "Invita a la otra persona",
+    subtitle:
+      "Coordinen en un solo lugar y eviten cruces, dudas y mensajes perdidos.",
+    primaryLabel: "Invitar ahora",
+    primaryAction: () =>
+      navigateFromSummary("invite_someone", "/groups", {
+        block: "primary_action",
+      }),
+    secondaryLabel: "Abrir eventos",
+    secondaryAction: () =>
+      navigateFromSummary("open_events", "/events", {
+        block: "primary_action",
+      }),
+  };
+}
 
     if (!nextEvent) {
       return {
@@ -1263,9 +1269,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         items.push({
           key: "groups",
           title: showCreateGroupNudge ? "Crear grupo" : "Abrir grupos",
-          subtitle: showCreateGroupNudge
-            ? "Activa la coordinación compartida desde tu primer espacio."
-            : "Trae a alguien más dentro del sistema.",
+         subtitle: showCreateGroupNudge
+  ? "Activa la coordinación compartida desde tu primer espacio."
+  : "Invita a la otra persona y empiecen a coordinar mejor.",
           onClick: () =>
             navigateFromSummary(
               showCreateGroupNudge ? "create_group" : "open_groups",
