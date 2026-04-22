@@ -36,7 +36,7 @@ export default function RegisterClient() {
 
   const nextTarget = useMemo(
     () => (nextParam && nextParam.startsWith("/") ? nextParam : "/onboarding"),
-    [nextParam],
+    [nextParam]
   );
 
   const [name, setName] = useState("");
@@ -56,9 +56,12 @@ export default function RegisterClient() {
       next_target: nextTarget,
       invite_id: inviteParam || undefined,
       source: sourceParam || undefined,
-      entry_path: typeof window !== "undefined" ? window.location.pathname : "/auth/register",
+      entry_path:
+        typeof window !== "undefined"
+          ? window.location.pathname
+          : "/auth/register",
     }),
-    [inviteParam, nextTarget, sourceParam],
+    [inviteParam, nextTarget, sourceParam]
   );
 
   useEffect(() => {
@@ -122,7 +125,9 @@ export default function RegisterClient() {
 
     try {
       const origin = getAppOrigin();
-      const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(nextTarget)}`;
+      const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(
+        nextTarget
+      )}`;
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: trimmedEmail,
@@ -175,8 +180,8 @@ export default function RegisterClient() {
   return (
     <AuthCard
       mode="register"
-      title="Crea tu cuenta"
-      subtitle="Empieza a coordinar mejor con las personas que comparten tiempo contigo."
+      title="Empieza con una sola agenda clara"
+      subtitle="Crea tu cuenta y empieza a organizarte en pareja con menos cruces, menos olvidos y más claridad."
       onToggleMode={() =>
         router.push(`/auth/login?next=${encodeURIComponent(nextTarget)}`)
       }
@@ -188,7 +193,7 @@ export default function RegisterClient() {
               <div style={successTitleStyle}>Cuenta creada ✅</div>
               <p style={successTextStyle}>
                 Te enviamos un correo para confirmar tu registro. Apenas abras
-                ese link, volverás a SyncPlans y podrás entrar con normalidad.
+                ese link, volverás a SyncPlans y podrás empezar con normalidad.
               </p>
             </div>
 
@@ -213,15 +218,18 @@ export default function RegisterClient() {
             </button>
 
             <p style={helperTextStyle}>
-              No olvides revisar spam o promociones si el correo no aparece de
-              inmediato.
+              Revisa spam o promociones si el correo no aparece de inmediato.
             </p>
           </>
         ) : (
           <>
-            <p style={introTextStyle}>
-              SyncPlans te ayuda a coordinar planes con claridad, detectar cruces a tiempo y evitar discusiones innecesarias.
-            </p>
+            <div style={introCardStyle}>
+              <div style={introTitleStyle}>La idea no es aprender una app</div>
+              <p style={introTextStyle}>
+                La idea es llegar rápido a lo importante: crear el primer plan,
+                invitar a tu pareja y empezar a coordinar con una sola referencia.
+              </p>
+            </div>
 
             <form onSubmit={onSubmit} style={formStyle}>
               <div style={fieldStyle}>
@@ -313,7 +321,11 @@ export default function RegisterClient() {
 
               {error && <div style={errorBoxStyle}>{error}</div>}
 
-              <button type="submit" disabled={!canSubmit} style={primaryButtonStyle}>
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                style={primaryButtonStyle}
+              >
                 {loading ? "Creando cuenta…" : "Crear cuenta"}
               </button>
             </form>
@@ -330,8 +342,8 @@ export default function RegisterClient() {
             </button>
 
             <p style={helperTextStyle}>
-              Después podrás crear grupos, invitar personas y empezar a coordinar
-              eventos compartidos.
+              Después entrarás al onboarding para crear tu espacio e invitar a tu
+              pareja con claridad.
             </p>
           </>
         )}
@@ -339,6 +351,22 @@ export default function RegisterClient() {
     </AuthCard>
   );
 }
+
+const introCardStyle: CSSProperties = {
+  display: "grid",
+  gap: 4,
+  padding: "12px 12px",
+  borderRadius: 16,
+  border: "1px solid rgba(148,163,184,0.14)",
+  background: "rgba(15,23,42,0.42)",
+};
+
+const introTitleStyle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 850,
+  color: "rgba(248,250,252,0.98)",
+  lineHeight: 1.35,
+};
 
 const introTextStyle: CSSProperties = {
   margin: 0,

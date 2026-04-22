@@ -1,3 +1,4 @@
+// src/app/auth/login/LoginClient.tsx
 "use client";
 
 import React, {
@@ -35,10 +36,10 @@ export default function LoginClient() {
   const sp = useSearchParams();
 
   const nextParam = sp.get("next");
-const nextTarget = useMemo(
-  () => (nextParam && nextParam.startsWith("/") ? nextParam : "/onboarding"),
-  [nextParam]
-);
+  const nextTarget = useMemo(
+    () => (nextParam && nextParam.startsWith("/") ? nextParam : "/summary"),
+    [nextParam]
+  );
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,6 +52,7 @@ const nextTarget = useMemo(
 
   const redirectTimerRef = useRef<number | null>(null);
   const slowUiTimerRef = useRef<number | null>(null);
+  const redirectingRef = useRef(false);
 
   const isBusy = loadingEmail || loadingGoogle || isRedirecting;
 
@@ -66,8 +68,12 @@ const nextTarget = useMemo(
   }
 
   function startRedirect(nextPath: string) {
+    if (redirectingRef.current) return;
+    redirectingRef.current = true;
+
     setIsRedirecting(true);
     setSlowMessage(null);
+    clearTimers();
 
     router.replace(nextPath);
     router.refresh();
@@ -140,10 +146,11 @@ const nextTarget = useMemo(
     setLoadingEmail(true);
 
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password.trim(),
-      });
+      const { data, error: signInError } =
+        await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password: password.trim(),
+        });
 
       if (signInError) {
         const msg = String(signInError.message || "").toLowerCase();
@@ -180,6 +187,7 @@ const nextTarget = useMemo(
       setLoadingEmail(false);
       setIsRedirecting(false);
       setSlowMessage(null);
+      redirectingRef.current = false;
       clearTimers();
     }
   }
@@ -229,16 +237,20 @@ const nextTarget = useMemo(
   return (
     <AuthCard
       mode="login"
-      title="Vuelve a coordinar con claridad"
-      subtitle="Entra a SyncPlans y retoma tus planes compartidos desde una sola referencia."
+      title="Vuelve a tener claridad entre ustedes"
+      subtitle="Entra a SyncPlans y retoma tus planes compartidos desde una sola agenda clara."
       onToggleMode={() =>
         router.push(`/auth/register?next=${encodeURIComponent(nextTarget)}`)
       }
     >
       <>
-        <p style={introTextStyle}>
-          Entra para retomar tus planes compartidos, tus acuerdos y lo que todavía necesita decisión.
-        </p>
+        <div style={introCardStyle}>
+          <div style={introTitleStyle}>Entrar debería tomar segundos</div>
+          <p style={introTextStyle}>
+            Vuelve a tus próximos planes, a los choques detectados y a lo que
+            todavía necesitan decidir juntos.
+          </p>
+        </div>
 
         <form onSubmit={onSubmit} style={formStyle}>
           <div style={fieldStyle}>
@@ -332,6 +344,22 @@ const nextTarget = useMemo(
     </AuthCard>
   );
 }
+
+const introCardStyle: CSSProperties = {
+  display: "grid",
+  gap: 4,
+  padding: "12px 12px",
+  borderRadius: 16,
+  border: "1px solid rgba(148,163,184,0.14)",
+  background: "rgba(15,23,42,0.42)",
+};
+
+const introTitleStyle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 850,
+  color: "rgba(248,250,252,0.98)",
+  lineHeight: 1.35,
+};
 
 const introTextStyle: CSSProperties = {
   margin: 0,

@@ -1,5 +1,6 @@
-// src/app/page.tsx
+// src/app/home/page.tsx
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import BrandLogo from "@/components/BrandLogo";
 import {
   colors,
@@ -7,69 +8,67 @@ import {
   radii,
   shadows,
 } from "@/styles/design-tokens";
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default function MarketingHomePage() {
-  const nextAfterAuth = encodeURIComponent("/summary");
+const NEXT_AFTER_AUTH = encodeURIComponent("/summary");
 
+export default function MarketingHomePage() {
   return (
     <main style={S.page}>
-      <div aria-hidden style={S.backgroundGlow} />
-      <div aria-hidden style={S.backgroundGrid} />
+      <div aria-hidden style={S.glowA} />
+      <div aria-hidden style={S.glowB} />
+      <div aria-hidden style={S.grid} />
 
       <section style={S.shell} className="sp-shell">
         <header style={S.topBar} className="sp-topBar">
-        <div style={S.brandWrap} className="sp-brandWrap">
-  <BrandLogo size={28} showWordmark={false} />
-  <div style={S.brandMeta} className="sp-brandMeta">
-    <span style={S.brandName}>SyncPlans</span>
-    <span style={S.brandEyebrow}>Coordinación compartida</span>
-    <span style={S.brandSubline}>Menos fricción al compartir tu tiempo</span>
-  </div>
-</div>
-
-          <div style={S.topActions}>
-            <Link
-              href={`/auth/login?next=${nextAfterAuth}`}
-              style={S.topLogin}
-              className="sp-topLogin"
-            >
-              Iniciar sesión
-            </Link>
+          <div style={S.brandWrap}>
+            <BrandLogo size={28} showWordmark={false} />
+            <div style={S.brandMeta}>
+              <span style={S.brandName}>SyncPlans</span>
+              <span style={S.brandEyebrow}>Organización en pareja</span>
+            </div>
           </div>
+
+          <Link
+            href={`/auth/login?next=${NEXT_AFTER_AUTH}`}
+            style={S.topLogin}
+            className="sp-topLogin"
+          >
+            Iniciar sesión
+          </Link>
         </header>
 
-        <section style={S.heroGrid} className="sp-heroGrid">
-          <div style={S.heroCol}>
-            <div style={S.heroIntro}>
-              <div style={S.badge}>
-                Menos choques. Menos confusión. Más claridad.
-              </div>
+        <section style={S.hero} className="sp-hero">
+          <div style={S.leftCol}>
+            <div style={S.badge}>
+              Una sola agenda. Menos cruces. Menos discusiones.
+            </div>
 
+            <div style={S.copyBlock}>
               <h1 style={S.title} className="sp-title">
-                El calendario que ayuda a{" "}
-                <span style={S.titleAccent}>coordinar de verdad</span>.
+                La forma más simple de{" "}
+                <span style={S.titleAccent}>organizarse en pareja</span>
               </h1>
 
               <p style={S.lead} className="sp-lead">
-                SyncPlans detecta cruces de agenda, ordena decisiones y mantiene
-                una sola versión de la verdad cuando compartes tu tiempo con tu
-                pareja, tu familia o tu grupo.
+                Comparte planes, detecta choques antes del problema y mantengan
+                claro qué va, qué cambió y qué toca resolver juntos.
               </p>
             </div>
 
             <div style={S.ctaRow} className="sp-ctaRow">
               <Link
-                href={`/auth/register?next=${nextAfterAuth}`}
+                href={`/auth/register?next=${NEXT_AFTER_AUTH}`}
                 style={S.primaryCta}
                 className="sp-primaryCta"
               >
-                Crear cuenta
+                Empezar gratis
               </Link>
 
               <Link
-                href={`/onboarding/1?next=${nextAfterAuth}`}
+                href={`/onboarding/1?next=${NEXT_AFTER_AUTH}`}
                 style={S.secondaryCta}
                 className="sp-secondaryCta"
               >
@@ -77,60 +76,59 @@ export default function MarketingHomePage() {
               </Link>
             </div>
 
-            <div style={S.microLine}>
-              Ideal para parejas ocupadas. También sirve para familia y grupos.
+            <div style={S.supportLine}>
+              Empieza con tu pareja. Luego puedes expandir a familia o grupos,
+              pero la entrada correcta empieza aquí.
             </div>
 
-            <div style={S.statsRow} className="sp-statsRow">
-              <StatPill
-                kicker="Antes del problema"
-                value="Choques visibles"
+            <div style={S.proofGrid} className="sp-proofGrid">
+              <ProofCard
+                title="Qué sigue"
+                body="Tu próximo plan en un solo lugar, sin volver al chat para confirmar."
               />
-              <StatPill
-                kicker="Durante la decisión"
-                value="Menos ambigüedad"
+              <ProofCard
+                title="Qué choca"
+                body="Choques visibles antes de que se conviertan en confusión o cambios de último minuto."
               />
-              <StatPill
-                kicker="Después del acuerdo"
-                value="Todos ven lo mismo"
+              <ProofCard
+                title="Qué hacer ya"
+                body="Crear un plan e invitar a tu pareja en minutos, sin aprender una app complicada."
               />
             </div>
 
-            <div style={S.valuePanel}>
-              <div style={S.valuePanelHeader}>
-                <div style={S.valuePanelEyebrow}>Por qué se siente distinto</div>
-                <div style={S.valuePanelTitle}>
-                  No es otro calendario compartido.
-                </div>
+            <section style={S.storyCard}>
+              <div style={S.storyEyebrow}>Por qué se siente distinto</div>
+              <div style={S.storyTitle}>
+                No es otro calendario. Es menos fricción entre ustedes.
               </div>
 
-              <div style={S.valueList}>
-                <ValueItem
-                  title="Detecta conflictos antes de que escalen"
-                  body="Visualiza choques entre eventos antes de guardar o confirmar."
+              <div style={S.storyList}>
+                <StoryItem
+                  title="Todo en un mismo lugar"
+                  body="Menos mensajes cruzados, menos memoria repartida y menos dudas sobre qué quedó."
                 />
-                <ValueItem
-                  title="Todos ven lo mismo"
-                  body="Menos mensajes cruzados y menos ambigüedad sobre qué quedó."
+                <StoryItem
+                  title="La claridad aparece antes"
+                  body="SyncPlans hace visible un choque antes de guardar algo que luego complique el día."
                 />
-                <ValueItem
-                  title="Decidir pesa menos que discutir"
-                  body="Conservar, mover o revisar después con una lógica compartida."
+                <StoryItem
+                  title="La activación importante es real"
+                  body="El valor no es terminar un onboarding. Es crear el primer plan y traer a tu pareja rápido."
                 />
               </div>
-            </div>
+            </section>
           </div>
 
-          <div style={S.previewCol}>
-            <PreviewCard nextAfterAuth={nextAfterAuth} />
+          <div style={S.rightCol}>
+            <PreviewCard />
           </div>
         </section>
       </section>
 
       <style>{`
         @media (max-width: 1180px) {
-          .sp-heroGrid {
-            grid-template-columns: minmax(0, 1fr) minmax(300px, 390px) !important;
+          .sp-hero {
+            grid-template-columns: minmax(0, 1fr) minmax(320px, 400px) !important;
             gap: 22px !important;
           }
         }
@@ -141,20 +139,14 @@ export default function MarketingHomePage() {
             border-radius: 24px !important;
           }
 
-          .sp-topBar {
-            gap: 12px !important;
-            align-items: center !important;
-            margin-bottom: 18px !important;
-          }
-
-          .sp-heroGrid {
+          .sp-hero {
             grid-template-columns: 1fr !important;
             gap: 18px !important;
           }
 
           .sp-title {
             font-size: 40px !important;
-            line-height: 1.03 !important;
+            line-height: 1.02 !important;
           }
 
           .sp-lead {
@@ -168,12 +160,13 @@ export default function MarketingHomePage() {
           }
 
           .sp-primaryCta,
-          .sp-secondaryCta {
+          .sp-secondaryCta,
+          .sp-topLogin {
             width: 100% !important;
             justify-content: center !important;
           }
 
-          .sp-statsRow {
+          .sp-proofGrid {
             grid-template-columns: 1fr !important;
           }
         }
@@ -181,18 +174,7 @@ export default function MarketingHomePage() {
         @media (max-width: 640px) {
           .sp-topBar {
             flex-wrap: wrap !important;
-          }
-  .sp-brandWrap {
-    align-items: flex-start !important;
-    gap: 10px !important;
-  }
-
-  .sp-brandMeta {
-    gap: 1px !important;
-  }
-          .sp-topLogin {
-            width: 100% !important;
-            justify-content: center !important;
+            gap: 12px !important;
           }
 
           .sp-title {
@@ -210,40 +192,7 @@ export default function MarketingHomePage() {
   );
 }
 
-function ValueItem({
-  title,
-  body,
-}: {
-  title: string;
-  body: string;
-}) {
-  return (
-    <div style={S.valueItem}>
-      <div style={S.valueDot} />
-      <div style={{ display: "grid", gap: 4 }}>
-        <div style={S.valueTitle}>{title}</div>
-        <div style={S.valueBody}>{body}</div>
-      </div>
-    </div>
-  );
-}
-
-function StatPill({
-  kicker,
-  value,
-}: {
-  kicker: string;
-  value: string;
-}) {
-  return (
-    <div style={S.statPill}>
-      <div style={S.statKicker}>{kicker}</div>
-      <div style={S.statValue}>{value}</div>
-    </div>
-  );
-}
-
-function PreviewCard({ nextAfterAuth }: { nextAfterAuth: string }) {
+function PreviewCard() {
   return (
     <div style={S.previewCard}>
       <div style={S.previewChrome}>
@@ -253,130 +202,120 @@ function PreviewCard({ nextAfterAuth }: { nextAfterAuth: string }) {
       </div>
 
       <div style={S.previewHeader}>
-        <div style={S.previewHeaderLeft}>
-          <span style={S.previewHeaderTitle}>Vista rápida</span>
-          <span style={S.previewHeaderMeta}>Pareja · Conflictos · Claridad</span>
+        <div style={S.previewHeaderText}>
+          <span style={S.previewKicker}>Así se ve</span>
+          <span style={S.previewTitle}>Tu home en pareja</span>
         </div>
 
-        <div style={S.previewStatus}>En vivo</div>
+        <div style={S.previewStatus}>Claro</div>
       </div>
 
-      <div style={S.previewSummary}>
-        <div style={S.previewSummaryLabel}>Hoy</div>
-        <div style={S.previewSummaryTitle}>Dos planes compiten por el mismo espacio</div>
-        <div style={S.previewSummaryBody}>
-          SyncPlans lo hace visible antes de que termine en mensajes cruzados.
-        </div>
-      </div>
-
-      <div style={S.previewCalendar}>
-        <div style={S.weekHeader}>
-          {["L", "M", "M", "J", "V", "S", "D"].map((day, index) => (
-            <span key={`${day}-${index}`} style={S.weekDay}>
-              {day}
-            </span>
-          ))}
+      <div style={S.previewStack}>
+        <div style={S.previewPrimaryBlock}>
+          <div style={S.previewBlockLabel}>Próximo plan</div>
+          <div style={S.previewBlockTitle}>Cena juntos · Hoy 8:00 p. m.</div>
+          <div style={S.previewBlockBody}>
+            Los dos ven lo mismo y no necesitan volver al chat para confirmar.
+          </div>
         </div>
 
-        <div style={S.eventsStack}>
-          <MiniEvent
-            title="Cena con Ara"
-            time="20:00"
-            tone="danger"
+        <div style={S.previewMiniGrid}>
+          <MiniPanel
+            label="Conflicto detectado"
+            title="Entreno vs cena"
+            body="La app lo muestra antes de que se convierta en problema."
           />
-          <MiniEvent
-            title="Entreno"
-            time="19:00"
-            tone="warning"
+          <MiniPanel
+            label="Crear rápido"
+            title="Nuevo plan"
+            body="Cena, viaje, cita o reunión. Todo parte desde un solo lugar."
           />
+        </div>
 
-          <div style={S.conflictBox}>
-            <div style={S.conflictIcon}>✦</div>
-            <div style={{ display: "grid", gap: 4 }}>
-              <div style={S.conflictTitle}>SyncPlans detectó un choque</div>
-              <div style={S.conflictBody}>
-                Antes de guardar, te ayuda a decidir qué hacer con claridad.
-              </div>
-            </div>
+        <div style={S.previewInviteBlock}>
+          <div style={S.previewInviteBadge}>Invitar a tu pareja</div>
+          <div style={S.previewInviteTitle}>El momento importante llega rápido</div>
+          <div style={S.previewInviteBody}>
+            Entras, creas el primer plan y compartes la agenda en pocos minutos.
           </div>
         </div>
       </div>
 
       <div style={S.previewActions}>
         <Link
-          href={`/auth/register?next=${nextAfterAuth}`}
+          href={`/auth/register?next=${NEXT_AFTER_AUTH}`}
           style={S.previewPrimary}
         >
           Empezar
         </Link>
 
         <Link
-          href={`/auth/login?next=${nextAfterAuth}`}
+          href={`/auth/login?next=${NEXT_AFTER_AUTH}`}
           style={S.previewSecondary}
         >
           Ya tengo cuenta
         </Link>
       </div>
 
-      <div style={S.previewFootnote}>Empieza solo. Invita después.</div>
+      <div style={S.previewFootnote}>
+        Primero pareja. Después, si quieres, expandes.
+      </div>
     </div>
   );
 }
 
-function MiniEvent({
+function MiniPanel({
+  label,
   title,
-  time,
-  tone,
+  body,
+}: {
+  label: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div style={S.previewMiniCard}>
+      <div style={S.previewMiniLabel}>{label}</div>
+      <div style={S.previewMiniTitle}>{title}</div>
+      <div style={S.previewMiniBody}>{body}</div>
+    </div>
+  );
+}
+
+function ProofCard({
+  title,
+  body,
 }: {
   title: string;
-  time: string;
-  tone: "danger" | "warning";
+  body: string;
 }) {
-  const toneMap = {
-    danger: {
-      dot: "#FB7185",
-      bg: "rgba(251, 113, 133, 0.12)",
-      border: "rgba(251, 113, 133, 0.22)",
-    },
-    warning: {
-      dot: "#FBBF24",
-      bg: "rgba(251, 191, 36, 0.12)",
-      border: "rgba(251, 191, 36, 0.22)",
-    },
-  } as const;
-
-  const currentTone = toneMap[tone];
-
   return (
-    <div
-      style={{
-        borderRadius: 16,
-        padding: "12px 12px",
-        background: currentTone.bg,
-        border: `1px solid ${currentTone.border}`,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
-      }}
-    >
-      <div style={S.eventLeft}>
-        <span
-          style={{
-            ...S.eventDot,
-            background: currentTone.dot,
-            boxShadow: `0 0 0 6px ${currentTone.dot}22`,
-          }}
-        />
-        <span style={S.eventTitle}>{title}</span>
-      </div>
-
-      <span style={S.timePill}>{time}</span>
+    <div style={S.proofCard}>
+      <div style={S.proofTitle}>{title}</div>
+      <div style={S.proofBody}>{body}</div>
     </div>
   );
 }
 
-const S: Record<string, React.CSSProperties> = {
+function StoryItem({
+  title,
+  body,
+}: {
+  title: string;
+  body: string;
+}) {
+  return (
+    <div style={S.storyItem}>
+      <div style={S.storyDot} />
+      <div style={{ display: "grid", gap: 4 }}>
+        <div style={S.storyItemTitle}>{title}</div>
+        <div style={S.storyItemBody}>{body}</div>
+      </div>
+    </div>
+  );
+}
+
+const S: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     background: colors.appBackground,
@@ -389,26 +328,31 @@ const S: Record<string, React.CSSProperties> = {
     justifyContent: "center",
   },
 
-  backgroundGlow: {
+  glowA: {
     position: "absolute",
     inset: 0,
-    background: `
-      radial-gradient(980px 580px at 12% 8%, rgba(56,189,248,0.15), transparent 60%),
-      radial-gradient(860px 520px at 86% 12%, rgba(168,85,247,0.10), transparent 62%),
-      radial-gradient(720px 440px at 52% 96%, rgba(34,197,94,0.07), transparent 60%)
-    `,
+    background:
+      "radial-gradient(900px 520px at 12% 10%, rgba(56,189,248,0.16), transparent 62%)",
     pointerEvents: "none",
   },
 
-  backgroundGrid: {
+  glowB: {
+    position: "absolute",
+    inset: 0,
+    background:
+      "radial-gradient(760px 460px at 88% 14%, rgba(168,85,247,0.12), transparent 64%)",
+    pointerEvents: "none",
+  },
+
+  grid: {
     position: "absolute",
     inset: 0,
     backgroundImage:
       "linear-gradient(rgba(148,163,184,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.035) 1px, transparent 1px)",
     backgroundSize: "40px 40px",
-    maskImage: "radial-gradient(circle at center, black 36%, transparent 88%)",
-    pointerEvents: "none",
+    maskImage: "radial-gradient(circle at center, black 34%, transparent 86%)",
     opacity: 0.6,
+    pointerEvents: "none",
   },
 
   shell: {
@@ -419,7 +363,7 @@ const S: Record<string, React.CSSProperties> = {
     borderRadius: 32,
     border: `1px solid ${colors.borderSubtle}`,
     background:
-      "linear-gradient(180deg, rgba(15,23,42,0.84) 0%, rgba(2,6,23,0.90) 100%)",
+      "linear-gradient(180deg, rgba(15,23,42,0.86) 0%, rgba(2,6,23,0.92) 100%)",
     boxShadow: shadows.soft,
     backdropFilter: "blur(18px)",
     padding: "28px 28px 24px",
@@ -439,45 +383,34 @@ const S: Record<string, React.CSSProperties> = {
     gap: 12,
     minWidth: 0,
   },
-brandMeta: {
-  display: "grid",
-  gap: 2,
-  minWidth: 0,
-},
-brandName: {
-  color: "#F8FAFC",
-  fontSize: 18,
-  fontWeight: 900,
-  lineHeight: 1,
-  letterSpacing: "-0.03em",
-  whiteSpace: "nowrap",
-},
+
+  brandMeta: {
+    display: "grid",
+    gap: 2,
+  },
+
+  brandName: {
+    color: "#F8FAFC",
+    fontSize: 18,
+    fontWeight: 900,
+    letterSpacing: "-0.03em",
+    lineHeight: 1,
+  },
+
   brandEyebrow: {
     color: colors.textMuted,
     fontSize: 12,
-    fontWeight: 700,
-    letterSpacing: "0.04em",
+    fontWeight: 800,
     textTransform: "uppercase",
-  },
-
-  brandSubline: {
-    color: "#CBD5E1",
-    fontSize: 13,
-    fontWeight: 700,
-  },
-
-  topActions: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
+    letterSpacing: "0.04em",
   },
 
   topLogin: {
-    height: 42,
+    minHeight: 42,
     padding: "0 16px",
     borderRadius: radii.full,
     border: `1px solid ${colors.borderSubtle}`,
-    background: "rgba(2,6,23,0.34)",
+    background: "rgba(2,6,23,0.32)",
     color: colors.textPrimary,
     textDecoration: "none",
     display: "inline-flex",
@@ -487,25 +420,24 @@ brandName: {
     fontWeight: 800,
   },
 
-  heroGrid: {
+  hero: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.22fr) minmax(320px, 400px)",
+    gridTemplateColumns: "minmax(0, 1.14fr) minmax(320px, 395px)",
     gap: 28,
     alignItems: "stretch",
   },
 
-  heroCol: {
+  leftCol: {
     minWidth: 0,
     display: "grid",
-    gap: 20,
+    gap: 18,
     alignContent: "start",
     padding: "8px 4px 6px 2px",
   },
 
-  heroIntro: {
-    display: "grid",
-    gap: 18,
-    paddingTop: 8,
+  rightCol: {
+    minWidth: 0,
+    display: "flex",
   },
 
   badge: {
@@ -515,11 +447,16 @@ brandName: {
     maxWidth: "100%",
     padding: "8px 12px",
     borderRadius: radii.full,
-    border: "1px solid rgba(56, 189, 248, 0.22)",
+    border: "1px solid rgba(56,189,248,0.22)",
     background: "rgba(56,189,248,0.10)",
     color: "#CFF4FF",
     fontSize: 12,
     fontWeight: 800,
+  },
+
+  copyBlock: {
+    display: "grid",
+    gap: 16,
   },
 
   title: {
@@ -533,14 +470,14 @@ brandName: {
 
   titleAccent: {
     background:
-      "linear-gradient(90deg, #E0F2FE 0%, #BAE6FD 36%, #DDD6FE 100%)",
+      "linear-gradient(90deg, #E0F2FE 0%, #BAE6FD 40%, #DDD6FE 100%)",
     WebkitBackgroundClip: "text",
     color: "transparent",
   },
 
   lead: {
     margin: 0,
-    maxWidth: 700,
+    maxWidth: 680,
     color: "#CBD5E1",
     fontSize: 18,
     lineHeight: 1.72,
@@ -561,11 +498,12 @@ brandName: {
     textDecoration: "none",
     display: "inline-flex",
     alignItems: "center",
+    justifyContent: "center",
     fontSize: 14,
     fontWeight: 900,
     color: "#06111D",
     background:
-      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 45%, #A855F7 100%)",
+      "linear-gradient(135deg, #67E8F9 0%, #38BDF8 48%, #A855F7 100%)",
     boxShadow: "0 16px 34px rgba(56,189,248,0.22)",
   },
 
@@ -576,6 +514,7 @@ brandName: {
     textDecoration: "none",
     display: "inline-flex",
     alignItems: "center",
+    justifyContent: "center",
     fontSize: 14,
     fontWeight: 800,
     color: colors.textPrimary,
@@ -583,43 +522,41 @@ brandName: {
     background: "rgba(2,6,23,0.22)",
   },
 
-  microLine: {
+  supportLine: {
     color: colors.textSecondary,
     fontSize: 13,
     fontWeight: 700,
   },
 
-  statsRow: {
+  proofGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
     gap: 10,
   },
 
-  statPill: {
+  proofCard: {
     borderRadius: 18,
     border: "1px solid rgba(148,163,184,0.14)",
     background: "rgba(15,23,42,0.42)",
     padding: "14px 14px 13px",
     display: "grid",
-    gap: 4,
+    gap: 6,
   },
 
-  statKicker: {
-    color: "#94A3B8",
-    fontSize: 11,
-    fontWeight: 800,
-    letterSpacing: "0.03em",
-    textTransform: "uppercase",
-  },
-
-  statValue: {
+  proofTitle: {
     color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: 850,
-    lineHeight: 1.35,
+    fontSize: 13,
+    fontWeight: 900,
+    lineHeight: 1.3,
   },
 
-  valuePanel: {
+  proofBody: {
+    color: "#94A3B8",
+    fontSize: 12,
+    lineHeight: 1.5,
+  },
+
+  storyCard: {
     borderRadius: 24,
     border: "1px solid rgba(148,163,184,0.14)",
     background:
@@ -629,12 +566,7 @@ brandName: {
     gap: 16,
   },
 
-  valuePanelHeader: {
-    display: "grid",
-    gap: 4,
-  },
-
-  valuePanelEyebrow: {
+  storyEyebrow: {
     color: "#94A3B8",
     fontSize: 11,
     fontWeight: 900,
@@ -642,19 +574,19 @@ brandName: {
     textTransform: "uppercase",
   },
 
-  valuePanelTitle: {
+  storyTitle: {
     color: colors.textPrimary,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 900,
-    lineHeight: 1.15,
+    lineHeight: 1.12,
   },
 
-  valueList: {
+  storyList: {
     display: "grid",
     gap: 12,
   },
 
-  valueItem: {
+  storyItem: {
     display: "grid",
     gridTemplateColumns: "14px minmax(0, 1fr)",
     gap: 12,
@@ -663,7 +595,7 @@ brandName: {
     borderTop: "1px solid rgba(148,163,184,0.10)",
   },
 
-  valueDot: {
+  storyDot: {
     width: 10,
     height: 10,
     borderRadius: radii.full,
@@ -672,22 +604,17 @@ brandName: {
     boxShadow: "0 0 0 6px rgba(56,189,248,0.12)",
   },
 
-  valueTitle: {
+  storyItemTitle: {
     color: colors.textPrimary,
     fontSize: 14,
     fontWeight: 850,
     lineHeight: 1.35,
   },
 
-  valueBody: {
+  storyItemBody: {
     color: "#94A3B8",
     fontSize: 13,
     lineHeight: 1.55,
-  },
-
-  previewCol: {
-    minWidth: 0,
-    display: "flex",
   },
 
   previewCard: {
@@ -696,12 +623,11 @@ brandName: {
     borderRadius: 28,
     border: `1px solid ${colors.borderSubtle}`,
     background:
-      "linear-gradient(180deg, rgba(8,15,30,0.94) 0%, rgba(2,6,23,0.98) 100%)",
+      "linear-gradient(180deg, rgba(8,15,30,0.95) 0%, rgba(2,6,23,0.99) 100%)",
     boxShadow: shadows.card,
     padding: 18,
     display: "grid",
     gap: 14,
-    position: "relative",
     overflow: "hidden",
   },
 
@@ -727,35 +653,42 @@ brandName: {
     gap: 12,
   },
 
-  previewHeaderLeft: {
+  previewHeaderText: {
     display: "grid",
     gap: 3,
   },
 
-  previewHeaderTitle: {
-    color: colors.textPrimary,
-    fontSize: 14,
+  previewKicker: {
+    color: "#94A3B8",
+    fontSize: 11,
     fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
   },
 
-  previewHeaderMeta: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: 700,
+  previewTitle: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: 900,
   },
 
   previewStatus: {
     padding: "6px 10px",
     borderRadius: radii.full,
-    background: "rgba(34,197,94,0.10)",
-    border: "1px solid rgba(34,197,94,0.16)",
-    color: "#BBF7D0",
+    background: "rgba(56,189,248,0.10)",
+    border: "1px solid rgba(56,189,248,0.16)",
+    color: "#BAE6FD",
     fontSize: 11,
     fontWeight: 900,
     whiteSpace: "nowrap",
   },
 
-  previewSummary: {
+  previewStack: {
+    display: "grid",
+    gap: 10,
+  },
+
+  previewPrimaryBlock: {
     display: "grid",
     gap: 4,
     borderRadius: 18,
@@ -765,7 +698,7 @@ brandName: {
     border: "1px solid rgba(148,163,184,0.14)",
   },
 
-  previewSummaryLabel: {
+  previewBlockLabel: {
     color: "#C4B5FD",
     fontSize: 11,
     fontWeight: 900,
@@ -773,106 +706,81 @@ brandName: {
     letterSpacing: "0.04em",
   },
 
-  previewSummaryTitle: {
+  previewBlockTitle: {
     color: colors.textPrimary,
     fontSize: 15,
     fontWeight: 900,
     lineHeight: 1.3,
   },
 
-  previewSummaryBody: {
+  previewBlockBody: {
     color: "#CBD5E1",
     fontSize: 12,
     lineHeight: 1.55,
   },
 
-  previewCalendar: {
+  previewMiniGrid: {
     display: "grid",
-    gap: 12,
-    borderRadius: 18,
-    padding: 14,
+    gridTemplateColumns: "1fr 1fr",
+    gap: 10,
+  },
+
+  previewMiniCard: {
+    display: "grid",
+    gap: 4,
+    borderRadius: 16,
+    padding: "12px 12px",
     background: "rgba(15,23,42,0.52)",
     border: "1px solid rgba(148,163,184,0.12)",
   },
 
-  weekHeader: {
-    display: "grid",
-    gridTemplateColumns: "repeat(7, 1fr)",
-    gap: 8,
+  previewMiniLabel: {
+    color: "#94A3B8",
+    fontSize: 10,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
   },
 
-  weekDay: {
-    color: "#94A3B8",
+  previewMiniTitle: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: 900,
+    lineHeight: 1.35,
+  },
+
+  previewMiniBody: {
+    color: "#CBD5E1",
+    fontSize: 12,
+    lineHeight: 1.45,
+  },
+
+  previewInviteBlock: {
+    display: "grid",
+    gap: 5,
+    borderRadius: 18,
+    padding: "14px 14px 13px",
+    background:
+      "linear-gradient(180deg, rgba(34,197,94,0.09) 0%, rgba(56,189,248,0.08) 100%)",
+    border: "1px solid rgba(148,163,184,0.14)",
+  },
+
+  previewInviteBadge: {
+    color: "#BBF7D0",
     fontSize: 11,
     fontWeight: 900,
-    textAlign: "center",
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
   },
 
-  eventsStack: {
-    display: "grid",
-    gap: 10,
-  },
-
-  eventLeft: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    minWidth: 0,
-  },
-
-  eventDot: {
-    width: 10,
-    height: 10,
-    borderRadius: radii.full,
-    flexShrink: 0,
-  },
-
-  eventTitle: {
+  previewInviteTitle: {
     color: colors.textPrimary,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: 900,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
+    lineHeight: 1.35,
   },
 
-  timePill: {
-    padding: "6px 10px",
-    borderRadius: radii.full,
-    background: "rgba(2,6,23,0.5)",
-    border: "1px solid rgba(148,163,184,0.16)",
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: 900,
-    whiteSpace: "nowrap",
-  },
-
-  conflictBox: {
-    display: "grid",
-    gridTemplateColumns: "16px minmax(0, 1fr)",
-    gap: 12,
-    alignItems: "flex-start",
-    borderRadius: 16,
-    padding: "13px 12px",
-    background:
-      "linear-gradient(180deg, rgba(56,189,248,0.10) 0%, rgba(168,85,247,0.10) 100%)",
-    border: "1px solid rgba(148,163,184,0.18)",
-  },
-
-  conflictIcon: {
-    color: "#C4B5FD",
-    fontSize: 13,
-    fontWeight: 900,
-    marginTop: 1,
-  },
-
-  conflictTitle: {
-    color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: 900,
-  },
-
-  conflictBody: {
+  previewInviteBody: {
     color: "#CBD5E1",
     fontSize: 12,
     lineHeight: 1.5,
@@ -882,7 +790,7 @@ brandName: {
     display: "flex",
     gap: 10,
     flexWrap: "wrap",
-    marginTop: 4,
+    marginTop: 2,
   },
 
   previewPrimary: {

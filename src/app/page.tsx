@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
-const LOGIN_PATH = "/auth/login?next=%2F";
+const PUBLIC_LANDING_PATH = "/home";
 const ONBOARDING_PATH = "/onboarding";
 const AUTHENTICATED_HOME_PATH = "/summary";
 
@@ -19,7 +19,7 @@ export default async function HomePage() {
     } = await supabase.auth.getSession();
 
     if (!session) {
-      redirect(LOGIN_PATH);
+      redirect(PUBLIC_LANDING_PATH);
     }
 
     const onboardingState = await getMyOnboardingState();
@@ -30,8 +30,6 @@ export default async function HomePage() {
 
     redirect(AUTHENTICATED_HOME_PATH);
   } catch {
-    // Si falla el chequeo server-side de sesión o del perfil,
-    // mandamos al login como fallback seguro.
-    redirect(LOGIN_PATH);
+    redirect(PUBLIC_LANDING_PATH);
   }
 }

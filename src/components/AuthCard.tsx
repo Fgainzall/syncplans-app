@@ -1,3 +1,4 @@
+// src/components/AuthCard.tsx
 "use client";
 
 import React, { type ReactNode } from "react";
@@ -61,10 +62,12 @@ export default function AuthCard({
 
           <div className="sp-auth-hero-copy">
             <h1 className="sp-auth-hero-title">
-              Menos fricción. Más coordinación.
+              Menos fricción. Más claridad entre ustedes.
             </h1>
+
             <p className="sp-auth-hero-subtitle">
-              Una sola referencia compartida para decidir mejor con otras personas.
+              Una sola agenda para organizarse en pareja sin cruces,
+              olvidos ni mensajes cruzados.
             </p>
           </div>
 
@@ -72,9 +75,12 @@ export default function AuthCard({
             <div className="sp-auth-hero-bullet">
               <span className="sp-auth-hero-dot" />
               <div>
-                <div className="sp-auth-hero-bullet-title">Tiempo compartido</div>
+                <div className="sp-auth-hero-bullet-title">
+                  Lo próximo se ve claro
+                </div>
                 <div className="sp-auth-hero-bullet-text">
-                  Coordina con pareja, familia o grupos sin confusión innecesaria.
+                  Tus planes compartidos viven en un solo lugar y no dependen
+                  de volver al chat para confirmar qué quedó.
                 </div>
               </div>
             </div>
@@ -83,10 +89,11 @@ export default function AuthCard({
               <span className="sp-auth-hero-dot" />
               <div>
                 <div className="sp-auth-hero-bullet-title">
-                  Cruces visibles
+                  Los choques aparecen antes
                 </div>
                 <div className="sp-auth-hero-bullet-text">
-                  Cuando algo se pisa, se ve antes de que se vuelva problema.
+                  Cuando algo se pisa, SyncPlans lo hace visible antes de que
+                  termine en confusión o cambio de último minuto.
                 </div>
               </div>
             </div>
@@ -95,17 +102,19 @@ export default function AuthCard({
               <span className="sp-auth-hero-dot" />
               <div>
                 <div className="sp-auth-hero-bullet-title">
-                  Acordar con claridad
+                  El valor llega rápido
                 </div>
                 <div className="sp-auth-hero-bullet-text">
-                  Menos malentendidos. Más acuerdos sobre el tiempo.
+                  Entrar, crear el primer plan e invitar a tu pareja debería
+                  tomar minutos, no una curva de aprendizaje.
                 </div>
               </div>
             </div>
           </div>
 
           <div className="sp-auth-hero-footer">
-            Hecho para personas que comparten tiempo y quieren menos fricción.
+            Diseñado para parejas que quieren menos ruido y una sola versión
+            clara de su tiempo compartido.
           </div>
         </section>
 
@@ -113,7 +122,7 @@ export default function AuthCard({
           <div className="sp-auth-card">
             <div className="sp-auth-card-top">
               <span className="sp-auth-card-pill">
-                {isLogin ? "Inicia sesión" : "Crea tu cuenta"}
+                {isLogin ? "Iniciar sesión" : "Crear cuenta"}
               </span>
 
               {onToggleMode && (
@@ -139,7 +148,7 @@ export default function AuthCard({
             <div className="sp-auth-card-helper">
               <span className="sp-auth-card-helper-label">
                 {isLogin
-                  ? "¿No tienes cuenta todavía?"
+                  ? "¿Todavía no tienes cuenta?"
                   : "¿Ya tienes una cuenta?"}
               </span>
 

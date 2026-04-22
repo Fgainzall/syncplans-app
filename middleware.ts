@@ -19,6 +19,10 @@ function canonicalHost() {
 }
 
 function isPublicPath(pathname: string) {
+  // ✅ Landing pública
+  if (pathname === "/") return true;
+  if (pathname === "/home") return true;
+
   // ✅ Invite público
   if (pathname.startsWith("/invite/")) return true;
 
@@ -37,9 +41,6 @@ function isPublicPath(pathname: string) {
 
   // ✅ APIs públicas / internas
   if (pathname.startsWith("/api/")) return true;
-
-  // ✅ Landing
-  if (pathname === "/") return true;
 
   return false;
 }
