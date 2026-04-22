@@ -8,6 +8,7 @@ import React, {
   useState,
   type CSSProperties,
 } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { getGroupState, type GroupState, type UsageMode } from "@/lib/groups";
 import NotificationsDrawer, {
@@ -193,19 +194,20 @@ function useIsMobileWidth(maxWidth = layout.mobileBreakpoint) {
 }
 
 function useClickOutside<T extends HTMLElement>(
-  ref: React.RefObject<T | null>,
+  refs: Array<React.RefObject<T | null>>,
   onOutside: () => void
 ) {
   useEffect(() => {
     function handle(e: MouseEvent) {
-      if (!ref.current) return;
-      if (ref.current.contains(e.target as Node)) return;
+      const target = e.target as Node;
+      const clickedInside = refs.some((ref) => ref.current?.contains(target));
+      if (clickedInside) return;
       onOutside();
     }
 
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
-  }, [ref, onOutside]);
+  }, [refs, onOutside]);
 }
 
 function getAutoTitle(pathname: string) {
@@ -294,10 +296,37 @@ export default function PremiumHeader({
   const [headerUser, setHeaderUser] = useState<HeaderUser | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [menuCoords, setMenuCoords] = useState<{ top: number; right: number }>({
+    top: 0,
+    right: 0,
+  });
 
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const userDropdownRef = useRef<HTMLDivElement | null>(null);
 
-  useClickOutside(userMenuRef, () => setUserMenuOpen(false));
+  useClickOutside([userMenuRef, userDropdownRef], () => setUserMenuOpen(false));
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+
+    const updateMenuCoords = () => {
+      const anchor = userMenuRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      setMenuCoords({
+        top: Math.round(rect.bottom + 8),
+        right: Math.max(8, Math.round(window.innerWidth - rect.right)),
+      });
+    };
+
+    updateMenuCoords();
+    window.addEventListener("resize", updateMenuCoords);
+    window.addEventListener("scroll", updateMenuCoords, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuCoords);
+      window.removeEventListener("scroll", updateMenuCoords, true);
+    };
+  }, [userMenuOpen]);
 
   const syncGroupState = useCallback(() => {
     const g = getGroupState();
@@ -611,63 +640,6 @@ export default function PremiumHeader({
                   </div>
                 </button>
 
-             {userMenuOpen && (
-  <>
-    <div
-      style={styles.userMenuBackdrop}
-      onMouseDown={() => setUserMenuOpen(false)}
-    />
-
-    <div style={styles.desktopMenu}>
-      <div style={styles.menuHeader}>
-        <div style={styles.menuAvatar}>
-          {headerUser?.initials ?? "T"}
-        </div>
-        <div style={styles.menuName}>
-          {headerUser?.name ?? "Tú"}
-        </div>
-      </div>
-
-      <button
-        type="button"
-        style={styles.menuItem}
-        onClick={() => {
-          setUserMenuOpen(false);
-          router.push("/profile", { scroll: false });
-        }}
-      >
-        Profile
-      </button>
-
-      <button
-        type="button"
-        style={styles.menuItem}
-        onClick={() => {
-          setUserMenuOpen(false);
-          router.push("/settings", { scroll: false });
-        }}
-      >
-        Ajustes
-      </button>
-
-      <button
-        type="button"
-        style={styles.menuItem}
-        onClick={() => {
-          setUserMenuOpen(false);
-          router.push("/planes", { scroll: false });
-        }}
-      >
-        Planes
-      </button>
-
-      <div style={styles.menuDivider} />
-      <div style={styles.logoutWrap}>
-        <LogoutButton />
-      </div>
-    </div>
-  </>
-)}
               </div>
             </div>
 
@@ -804,63 +776,6 @@ export default function PremiumHeader({
                     </span>
                   </button>
 
-                 {userMenuOpen && (
-  <>
-    <div
-      style={styles.userMenuBackdrop}
-      onMouseDown={() => setUserMenuOpen(false)}
-    />
-
-    <div style={styles.mobileMenu}>
-      <div style={styles.menuHeader}>
-        <div style={styles.menuAvatar}>
-          {headerUser?.initials ?? "T"}
-        </div>
-        <div style={styles.menuName}>
-          {headerUser?.name ?? "Tú"}
-        </div>
-      </div>
-
-      <button
-        type="button"
-        style={styles.menuItem}
-        onClick={() => {
-          setUserMenuOpen(false);
-          router.push("/profile", { scroll: false });
-        }}
-      >
-        Profile
-      </button>
-
-      <button
-        type="button"
-        style={styles.menuItem}
-        onClick={() => {
-          setUserMenuOpen(false);
-          router.push("/settings", { scroll: false });
-        }}
-      >
-        Ajustes
-      </button>
-
-      <button
-        type="button"
-        style={styles.menuItem}
-        onClick={() => {
-          setUserMenuOpen(false);
-          router.push("/planes", { scroll: false });
-        }}
-      >
-        Planes
-      </button>
-
-      <div style={styles.menuDivider} />
-      <div style={styles.logoutWrap}>
-        <LogoutButton />
-      </div>
-    </div>
-  </>
-)}
                 </div>
 
                 <button
@@ -903,6 +818,74 @@ export default function PremiumHeader({
         )}
       </header>
 
+      {userMenuOpen && typeof document !== "undefined"
+        ? createPortal(
+            <>
+              <div
+                style={styles.userMenuBackdrop}
+                onMouseDown={() => setUserMenuOpen(false)}
+              />
+
+              <div
+                ref={userDropdownRef}
+                style={{
+                  ...(isMobile ? styles.mobileMenu : styles.desktopMenu),
+                  top: menuCoords.top,
+                  right: menuCoords.right,
+                }}
+              >
+                <div style={styles.menuHeader}>
+                  <div style={styles.menuAvatar}>
+                    {headerUser?.initials ?? "T"}
+                  </div>
+                  <div style={styles.menuName}>
+                    {headerUser?.name ?? "Tú"}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  style={styles.menuItem}
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    router.push("/profile", { scroll: false });
+                  }}
+                >
+                  Profile
+                </button>
+
+                <button
+                  type="button"
+                  style={styles.menuItem}
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    router.push("/settings", { scroll: false });
+                  }}
+                >
+                  Ajustes
+                </button>
+
+                <button
+                  type="button"
+                  style={styles.menuItem}
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    router.push("/planes", { scroll: false });
+                  }}
+                >
+                  Planes
+                </button>
+
+                <div style={styles.menuDivider} />
+                <div style={styles.logoutWrap}>
+                  <LogoutButton />
+                </div>
+              </div>
+            </>,
+            document.body
+          )
+        : null}
+
       <NotificationsDrawer
         open={openNotif}
         onClose={() => setOpenNotif(false)}
@@ -939,7 +922,7 @@ const styles: Record<string, CSSProperties> = {
   position: "fixed",
   inset: 0,
   background: "transparent",
-  zIndex: 9997,
+  zIndex: 2147483000,
   pointerEvents: "auto",
 },
   mobileWrap: {
@@ -1375,8 +1358,8 @@ userMenuAnchor: {
   },
 
 desktopMenu: {
-  position: "absolute",
-  top: "115%",
+  position: "fixed",
+  top: 0,
   right: 0,
   minWidth: 220,
   borderRadius: 16,
@@ -1384,7 +1367,7 @@ desktopMenu: {
   background: "#071126",
   boxShadow: "0 24px 60px rgba(0,0,0,0.62)",
   padding: 8,
-  zIndex: 9999,
+  zIndex: 2147483001,
   opacity: 1,
   isolation: "isolate",
   overflow: "hidden",
@@ -1393,8 +1376,8 @@ desktopMenu: {
   pointerEvents: "auto",
 },
 mobileMenu: {
-  position: "absolute",
-  top: "115%",
+  position: "fixed",
+  top: 0,
   right: 0,
   minWidth: 190,
   borderRadius: 16,
@@ -1402,7 +1385,7 @@ mobileMenu: {
   background: "#071126",
   boxShadow: "0 24px 60px rgba(0,0,0,0.62)",
   padding: 8,
-  zIndex: 9999,
+  zIndex: 2147483001,
   opacity: 1,
   isolation: "isolate",
   overflow: "hidden",
