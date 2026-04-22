@@ -7,12 +7,14 @@ import React, {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
 } from "react";
 import { useRouter } from "next/navigation";
-import { parseQuickCapture } from "@/lib/quickCaptureParser";
 import PremiumHeader from "@/components/PremiumHeader";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
+import SummaryQuickCaptureCard from "./SummaryQuickCaptureCard";
+import { parseQuickCapture } from "@/lib/quickCaptureParser";
 import { getDisplayName, getMyProfile, type Profile } from "@/lib/profilesDb";
 import { filterOutDeclinedEvents } from "@/lib/eventResponsesDb";
 import {
@@ -23,7 +25,6 @@ import supabase from "@/lib/supabaseClient";
 import { getLearningSignals } from "@/lib/learningSignals";
 import { buildLearnedTimeProfile } from "@/lib/learningProfile";
 import type { LearnedTimeProfile } from "@/lib/learningTypes";
-import SummaryQuickCaptureCard from "./SummaryQuickCaptureCard";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
 import { trackEvent, trackScreenView } from "@/lib/analytics";
 import { hasPremiumAccess } from "@/lib/premium";
@@ -47,7 +48,6 @@ import {
   buildSmartInterpretation,
   buildWhatsAppShareText,
   canUseClipboard,
-  canUseNativeShare,
   cleanTemporalNoise,
   eventOverlapsWindow,
   fmtDay,
@@ -69,9 +69,46 @@ import {
   startOfTodayLocal,
   type SummaryEvent,
 } from "./summaryHelpers";
+
 type Props = {
   highlightId: string | null;
   appliedToast: string | null;
+};
+
+type PrimaryAction = {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  primaryLabel: string;
+  primaryAction: () => void;
+  secondaryLabel: string;
+  secondaryAction: () => void;
+};
+
+type QuickAction = {
+  key: string;
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+};
+
+type PremiumNudge = {
+  context: string;
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  primaryLabel: string;
+  secondaryLabel: string;
+};
+
+type ProposalBadge = {
+  label: string;
+  tone: "pending" | "accepted" | "adjusted";
+};
+
+type StatusBadge = {
+  label: string;
+  style: CSSProperties;
 };
 
 function useIsMobileWidth(maxWidth = 520) {
@@ -99,6 +136,499 @@ function useIsMobileWidth(maxWidth = 520) {
   }, [maxWidth]);
 
   return isMobile;
+}
+
+function toneBadgeStyle(tone: "pending" | "accepted" | "adjusted"): CSSProperties {
+  if (tone === "accepted") {
+    return {
+      border: "1px solid rgba(52,211,153,0.24)",
+      background: "rgba(52,211,153,0.12)",
+      color: "rgba(209,250,229,0.96)",
+    };
+  }
+
+  if (tone === "adjusted") {
+    return {
+      border: "1px solid rgba(56,189,248,0.24)",
+      background: "rgba(56,189,248,0.12)",
+      color: "rgba(224,242,254,0.96)",
+    };
+  }
+
+  return {
+    border: "1px solid rgba(251,191,36,0.25)",
+    background: "rgba(251,191,36,0.12)",
+    color: "rgba(255,236,179,0.95)",
+  };
+}
+
+function SummaryToast({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle?: string | null;
+}) {
+  return (
+    <div style={styles.toastWrap}>
+      <div style={styles.toastCard}>
+        <div style={styles.toastTitle}>{title}</div>
+        {subtitle ? <div style={styles.toastSub}>{subtitle}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+function SummaryHero({
+  compact,
+  contextLabel,
+  moodTitle,
+  moodSubtitle,
+  upcomingTotal,
+  upcomingPersonal,
+  upcomingGroup,
+  upcomingExternal,
+  conflictCount,
+  pendingInviteCount,
+  loading,
+  primaryAction,
+  onOpenConflicts,
+  onOpenInvitations,
+}: {
+  compact: boolean;
+  contextLabel: string;
+  moodTitle: string;
+  moodSubtitle: string;
+  upcomingTotal: number;
+  upcomingPersonal: number;
+  upcomingGroup: number;
+  upcomingExternal: number;
+  conflictCount: number;
+  pendingInviteCount: number;
+  loading: boolean;
+  primaryAction: PrimaryAction;
+  onOpenConflicts: () => void;
+  onOpenInvitations: () => void;
+}) {
+  return (
+    <Card style={styles.heroCard}>
+      <div style={styles.heroTopRow}>
+        <div style={{ minWidth: 0, flex: "1 1 440px" }}>
+          <div style={styles.heroEyebrow}>Hoy en SyncPlans</div>
+          <div style={styles.heroTitle}>{primaryAction.title}</div>
+          <div style={styles.heroSubtitle}>{primaryAction.subtitle}</div>
+        </div>
+
+        <div style={styles.heroActions}>
+          <button type="button" onClick={primaryAction.primaryAction} style={styles.heroPrimaryBtn}>
+            {primaryAction.primaryLabel}
+          </button>
+          <button
+            type="button"
+            onClick={primaryAction.secondaryAction}
+            style={styles.heroSecondaryBtn}
+          >
+            {primaryAction.secondaryLabel}
+          </button>
+        </div>
+      </div>
+
+      <div style={styles.heroMetaRow}>
+        <span style={styles.metaPill}>{contextLabel}</span>
+        <span style={styles.metaPillSoft}>
+          {upcomingTotal} evento{upcomingTotal === 1 ? "" : "s"} en 7 días
+        </span>
+
+        {conflictCount > 0 ? (
+          <button type="button" onClick={onOpenConflicts} style={styles.metaPillWarning}>
+            {conflictCount} conflicto{conflictCount === 1 ? "" : "s"}
+          </button>
+        ) : null}
+
+        {pendingInviteCount > 0 ? (
+          <button type="button" onClick={onOpenInvitations} style={styles.metaPillInfo}>
+            {pendingInviteCount} invitación{pendingInviteCount === 1 ? "" : "es"}
+          </button>
+        ) : null}
+
+        {loading ? <span style={styles.metaPillInfo}>Actualizando…</span> : null}
+      </div>
+
+      <div style={styles.heroBottomRow}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={styles.heroMoodTitle}>{moodTitle}</div>
+          <div style={styles.heroMoodSubtitle}>{moodSubtitle}</div>
+          {!compact ? (
+            <div style={styles.heroStatsRow}>
+              <span style={styles.heroStat}>{upcomingTotal} total</span>
+              <span style={styles.heroStatDot}>·</span>
+              <span style={styles.heroStat}>{upcomingPersonal} personal</span>
+              <span style={styles.heroStatDot}>·</span>
+              <span style={styles.heroStat}>{upcomingGroup} grupo</span>
+              {upcomingExternal > 0 ? (
+                <>
+                  <span style={styles.heroStatDot}>·</span>
+                  <span style={styles.heroStat}>{upcomingExternal} externo</span>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        {!compact ? (
+          <div style={styles.heroKpi}>
+            <div style={styles.heroKpiLabel}>Próximos 7 días</div>
+            <div style={styles.heroKpiNumber}>{upcomingTotal}</div>
+            <div style={styles.heroKpiHint}>Con contexto real</div>
+          </div>
+        ) : null}
+      </div>
+    </Card>
+  );
+}
+
+function Rail({
+  eyebrow,
+  title,
+  subtitle,
+  primaryLabel,
+  secondaryLabel,
+  onPrimary,
+  onSecondary,
+  variant,
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  primaryLabel: string;
+  secondaryLabel?: string;
+  onPrimary: () => void;
+  onSecondary?: () => void;
+  variant: "premium" | "value" | "urgent";
+}) {
+  const railStyle =
+    variant === "premium"
+      ? styles.premiumRail
+      : variant === "value"
+        ? styles.valueRail
+        : styles.urgentRail;
+
+  const eyebrowStyle =
+    variant === "premium"
+      ? styles.premiumRailEyebrow
+      : variant === "value"
+        ? styles.valueRailEyebrow
+        : styles.urgentRailEyebrow;
+
+  const subtitleStyle =
+    variant === "premium"
+      ? styles.premiumRailSub
+      : variant === "value"
+        ? styles.valueRailSub
+        : styles.urgentRailSub;
+
+  const primaryStyle =
+    variant === "premium"
+      ? styles.premiumRailPrimary
+      : variant === "value"
+        ? styles.valueRailPrimary
+        : styles.urgentRailPrimary;
+
+  return (
+    <div style={railStyle}>
+      <div style={styles.railCopy}>
+        <div style={eyebrowStyle}>{eyebrow}</div>
+        <div style={styles.railTitle}>{title}</div>
+        <div style={subtitleStyle}>{subtitle}</div>
+      </div>
+
+      <div style={styles.railActions}>
+        <button type="button" onClick={onPrimary} style={primaryStyle}>
+          {primaryLabel}
+        </button>
+        {secondaryLabel && onSecondary ? (
+          <button type="button" onClick={onSecondary} style={styles.railSecondary}>
+            {secondaryLabel}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({ badge }: { badge: StatusBadge }) {
+  return <span style={{ ...styles.statusPill, ...badge.style }}>{badge.label}</span>;
+}
+
+function ProposalPill({ badge }: { badge: ProposalBadge }) {
+  return <span style={{ ...styles.statusPill, ...toneBadgeStyle(badge.tone) }}>{badge.label}</span>;
+}
+
+function EventRow({
+  event,
+  highlight,
+  proposalLine,
+  proposalBadge,
+  statusBadge,
+  onClick,
+  featured = false,
+}: {
+  event: SummaryEvent;
+  highlight: boolean;
+  proposalLine: string | null;
+  proposalBadge: ProposalBadge | null;
+  statusBadge: StatusBadge | null;
+  onClick: () => void;
+  featured?: boolean;
+}) {
+  const start = event.start as Date;
+  const end = event.end as Date | null;
+
+  const when = end
+    ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
+    : `${fmtDay(start)} · ${fmtTime(start)}`;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        ...(featured ? styles.featuredEventRow : styles.eventRow),
+        ...(highlight ? styles.eventRowHighlight : null),
+      }}
+      className="spSum-eventRow"
+    >
+      <div style={styles.eventLeft}>
+        {featured ? <div style={styles.featuredEventEyebrow}>Próximo evento</div> : null}
+        <div style={styles.eventWhen}>{when}</div>
+        <div style={styles.eventTitle}>{event.title}</div>
+        {proposalLine ? <div style={styles.proposalContextLine}>{proposalLine}</div> : null}
+      </div>
+
+      <div style={styles.eventMeta}>
+        {statusBadge ? <StatusPill badge={statusBadge} /> : null}
+        {!statusBadge && proposalBadge ? <ProposalPill badge={proposalBadge} /> : null}
+        {event.isExternal ? <span style={styles.softPill}>Externo</span> : null}
+        <span style={styles.softPill}>{event.groupId ? "Grupo" : "Personal"}</span>
+      </div>
+    </button>
+  );
+}
+
+function UpcomingSection({
+  booting,
+  nextEvent,
+  remainingUpcoming,
+  showSeeMore,
+  upcomingAllCount,
+  highlightId,
+  getProposalLineForEvent,
+  getProposalBadgeForEvent,
+  getStatusBadgeForEvent,
+  onOpenCalendar,
+  showCreateGroupNudge,
+  onPrimaryEmptyAction,
+}: {
+  booting: boolean;
+  nextEvent: SummaryEvent | null;
+  remainingUpcoming: SummaryEvent[];
+  showSeeMore: boolean;
+  upcomingAllCount: number;
+  highlightId: string | null;
+  getProposalLineForEvent: (eventId: string | null | undefined) => string | null;
+  getProposalBadgeForEvent: (eventId: string | null | undefined) => ProposalBadge | null;
+  getStatusBadgeForEvent: (eventId: string | null | undefined) => StatusBadge | null;
+  onOpenCalendar: () => void;
+  showCreateGroupNudge: boolean;
+  onPrimaryEmptyAction: () => void;
+}) {
+  if (booting) {
+    return (
+      <Card style={styles.sectionCard}>
+        <div style={styles.loadingCard}>
+          <div style={styles.loadingDot} />
+          <div>
+            <div style={styles.loadingTitle}>Cargando…</div>
+            <div style={styles.loadingSub}>Preparando tu home</div>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  if (!nextEvent) {
+    return (
+      <Card style={styles.sectionCard}>
+        <div style={styles.sectionHeadMini}>
+          <div>
+            <div style={styles.sectionEyebrow}>Próximo plan</div>
+            <div style={styles.sectionTitle}>Todavía no hay nada cerca</div>
+          </div>
+        </div>
+
+        <div style={styles.emptyBlock}>
+          <div style={styles.emptyTitle}>
+            {showCreateGroupNudge
+              ? "Activa el loop compartido desde el primer grupo"
+              : "Crea el próximo plan para que la semana no dependa de memoria"}
+          </div>
+          <div style={styles.emptySub}>
+            {showCreateGroupNudge
+              ? "Tu primer grupo es el paso que convierte SyncPlans en una referencia compartida y no solo en una agenda ordenada."
+              : "Si metes el siguiente plan aquí, la coordinación ya no se reparte entre mensajes, recuerdos y supuestos."}
+          </div>
+          <button type="button" onClick={onPrimaryEmptyAction} style={styles.emptyBtn}>
+            {showCreateGroupNudge ? "Crear grupo" : "Crear plan"}
+          </button>
+        </div>
+      </Card>
+    );
+  }
+
+  const nextHighlighted = highlightId && String(nextEvent.id ?? "") === String(highlightId);
+
+  return (
+    <Card style={styles.sectionCard}>
+      <div style={styles.sectionHeadMini}>
+        <div>
+          <div style={styles.sectionEyebrow}>Próximo plan</div>
+          <div style={styles.sectionTitle}>Lo siguiente en tu agenda</div>
+        </div>
+
+        <button type="button" onClick={onOpenCalendar} style={styles.sectionLinkBtn}>
+          Abrir calendario
+        </button>
+      </div>
+
+      <div style={styles.eventsList}>
+        <EventRow
+          event={nextEvent}
+          highlight={Boolean(nextHighlighted)}
+          proposalLine={getProposalLineForEvent(nextEvent.id)}
+          proposalBadge={getProposalBadgeForEvent(nextEvent.id)}
+          statusBadge={getStatusBadgeForEvent(nextEvent.id)}
+          onClick={onOpenCalendar}
+          featured
+        />
+
+        {remainingUpcoming.map((event) => (
+          <EventRow
+            key={event.id ?? `${event.title}-${event.startIso}`}
+            event={event}
+            highlight={Boolean(highlightId && String(event.id ?? "") === String(highlightId))}
+            proposalLine={getProposalLineForEvent(event.id)}
+            proposalBadge={getProposalBadgeForEvent(event.id)}
+            statusBadge={getStatusBadgeForEvent(event.id)}
+            onClick={onOpenCalendar}
+          />
+        ))}
+      </div>
+
+      {showSeeMore ? (
+        <button type="button" onClick={onOpenCalendar} style={styles.seeMoreBtn} className="spSum-seeMore">
+          Ver calendario ({upcomingAllCount})
+        </button>
+      ) : null}
+    </Card>
+  );
+}
+
+function RecentDecisionsSection({
+  decisions,
+  onOpenCalendar,
+}: {
+  decisions: Array<{
+    id: string;
+    title: string;
+    subtitle: string;
+    whenLabel: string;
+    isFallback: boolean;
+  }>;
+  onOpenCalendar: () => void;
+}) {
+  if (decisions.length === 0) return null;
+
+  return (
+    <Card style={styles.sectionCard}>
+      <div style={styles.sectionHeadMini}>
+        <div>
+          <div style={styles.sectionEyebrow}>Señales recientes</div>
+          <div style={styles.sectionTitle}>Decisiones que ya cerraste</div>
+        </div>
+
+        <button type="button" onClick={onOpenCalendar} style={styles.sectionLinkBtn}>
+          Calendario
+        </button>
+      </div>
+
+      <div style={styles.decisionsList}>
+        {decisions.map((decision) => (
+          <div key={decision.id} style={styles.decisionRow}>
+            <div
+              style={{
+                ...styles.decisionIcon,
+                ...(decision.isFallback ? styles.decisionIconFallback : styles.decisionIconNormal),
+              }}
+            >
+              {decision.isFallback ? "⚠️" : "✓"}
+            </div>
+
+            <div style={styles.decisionContent}>
+              <div style={styles.decisionTopRow}>
+                <div style={styles.decisionTitle}>{decision.title}</div>
+                <div style={styles.decisionWhen}>{decision.whenLabel}</div>
+              </div>
+
+              <div style={styles.decisionSubtitle}>{decision.subtitle}</div>
+
+              <div
+                style={{
+                  ...styles.decisionBadge,
+                  ...(decision.isFallback ? styles.decisionBadgeFallback : styles.decisionBadgeManual),
+                }}
+              >
+                {decision.isFallback ? "Auto" : "Resuelto"}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function QuickActionsSection({
+  actions,
+}: {
+  actions: QuickAction[];
+}) {
+  if (actions.length === 0) return null;
+
+  return (
+    <Card style={styles.sectionCard}>
+      <div style={styles.sectionHeadMini}>
+        <div>
+          <div style={styles.sectionEyebrow}>Acciones rápidas</div>
+          <div style={styles.sectionTitle}>Lo siguiente, sin dar vueltas</div>
+        </div>
+      </div>
+
+      <div style={styles.quickGrid} className="spSum-quickGrid">
+        {actions.map((action) => (
+          <button
+            key={action.key}
+            type="button"
+            onClick={action.onClick}
+            style={styles.quickCard}
+            className="spSum-quickCard"
+          >
+            <div style={styles.quickTitle}>{action.title}</div>
+            <div style={styles.quickSub}>{action.subtitle}</div>
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
 }
 
 export default function SummaryClient({ highlightId, appliedToast }: Props) {
@@ -175,12 +705,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       pendingCaptureCount,
       unreadConflictCount: unreadConflictAlert.count,
     }),
-    [
-      activeGroupId,
-      pendingInviteCount,
-      pendingCaptureCount,
-      unreadConflictAlert.count,
-    ]
+    [activeGroupId, pendingInviteCount, pendingCaptureCount, unreadConflictAlert.count]
   );
 
   useEffect(() => {
@@ -227,7 +752,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const activeGroup = useMemo(() => {
     if (!activeGroupId) return null;
-    return groups.find((g) => String(g.id) === String(activeGroupId)) ?? null;
+    return groups.find((group) => String(group.id) === String(activeGroupId)) ?? null;
   }, [groups, activeGroupId]);
 
   const activeLabel = useMemo(() => {
@@ -270,9 +795,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [smartInterpretation, groups]);
 
   const normalizeSuggestionGroupType = useCallback(
-    (
-      value: string | null | undefined
-    ): "personal" | "pair" | "family" | "other" => {
+    (value: string | null | undefined): "personal" | "pair" | "family" | "other" => {
       if (value === "pair" || value === "couple") return "pair";
       if (value === "family") return "family";
       if (value === "other" || value === "shared") return "other";
@@ -297,15 +820,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     if (!suggestedContextGroupId) return null;
 
     return (
-      groups.find((group) => String(group.id) === String(suggestedContextGroupId)) ??
-      null
+      groups.find((group) => String(group.id) === String(suggestedContextGroupId)) ?? null
     );
   }, [groups, suggestedContextGroupId]);
 
   const suggestedContextGroupType = useMemo(() => {
-    return normalizeSuggestionGroupType(
-      String(suggestedContextGroup?.type ?? activeGroupType)
-    );
+    return normalizeSuggestionGroupType(String(suggestedContextGroup?.type ?? activeGroupType));
   }, [suggestedContextGroup, activeGroupType, normalizeSuggestionGroupType]);
 
   useEffect(() => {
@@ -325,12 +845,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         if (cancelled) return;
 
         if (suggestedContextGroupId) {
-          const profile = buildLearnedTimeProfile(signals, {
+          const groupProfile = buildLearnedTimeProfile(signals, {
             scope: "group",
             groupId: suggestedContextGroupId,
           });
 
-          setLearnedQuickCaptureProfile(profile);
+          setLearnedQuickCaptureProfile(groupProfile);
           return;
         }
 
@@ -347,12 +867,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           return;
         }
 
-        const profile = buildLearnedTimeProfile(signals, {
+        const userProfile = buildLearnedTimeProfile(signals, {
           scope: "user",
           userId,
         });
 
-        setLearnedQuickCaptureProfile(profile);
+        setLearnedQuickCaptureProfile(userProfile);
       } catch {
         if (!cancelled) setLearnedQuickCaptureProfile(null);
       }
@@ -370,18 +890,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     if (!raw) return [];
 
     const parsed = parseQuickCapture(raw);
-
     if (parsed.date) return [];
 
     return getSuggestedTimeSlots(events, suggestedContextGroupType, raw, {
       learnedProfile: learnedQuickCaptureProfile,
     });
-  }, [
-    quickCaptureValue,
-    events,
-    suggestedContextGroupType,
-    learnedQuickCaptureProfile,
-  ]);
+  }, [quickCaptureValue, events, suggestedContextGroupType, learnedQuickCaptureProfile]);
 
   const timeSuggestionsLabel = useMemo(() => {
     const raw = quickCaptureValue.trim();
@@ -389,6 +903,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
     return getSuggestionContextLabel(raw, suggestedContextGroupType);
   }, [quickCaptureValue, timeSuggestions, suggestedContextGroupType]);
+
   const quickCaptureHeadline = useMemo(() => {
     if (!activeGroupId) return "Escribe lo que tienes en mente";
     if (activeGroupType === "pair") return "Planéalo en una línea";
@@ -405,10 +920,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [activeGroupId, activeLabel]);
 
   const normalizedEvents = useMemo(() => {
-    const mapped = (events ?? [])
-      .map(normalizeEvent)
-      .filter(Boolean) as SummaryEvent[];
-
+    const mapped = (events ?? []).map(normalizeEvent).filter(Boolean) as SummaryEvent[];
     return filterOutDeclinedEvents(mapped, declinedEventIds);
   }, [events, declinedEventIds]);
 
@@ -421,19 +933,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [normalizedEvents]);
 
   const conflictAlert = useMemo(() => {
-    const baseAlert = buildConflictAlert(
-      visibleEvents,
-      groups,
-      resMap,
-      ignoredConflictKeys
-    );
+    const baseAlert = buildConflictAlert(visibleEvents, groups, resMap, ignoredConflictKeys);
 
     return {
-      // Founder mode: priorizamos conflictos reales (estado vivo),
-      // no señales históricas de notificaciones no leídas.
       count: baseAlert.count,
-      latestEventId:
-        baseAlert.latestEventId ?? unreadConflictAlert.latestEventId ?? null,
+      latestEventId: baseAlert.latestEventId ?? unreadConflictAlert.latestEventId ?? null,
     };
   }, [visibleEvents, groups, resMap, ignoredConflictKeys, unreadConflictAlert]);
 
@@ -441,9 +945,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     const today = startOfTodayLocal();
     const windowEnd = addDays(today, 7);
 
-    return visibleEvents.filter((e) =>
-      eventOverlapsWindow(e, today, windowEnd)
-    );
+    return visibleEvents.filter((event) => eventOverlapsWindow(event, today, windowEnd));
   }, [visibleEvents]);
 
   const upcomingStats = useMemo(() => {
@@ -451,9 +953,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     let group = 0;
     let external = 0;
 
-    for (const e of upcomingAll) {
-      if (e.isExternal) external += 1;
-      if (e.groupId) group += 1;
+    for (const event of upcomingAll) {
+      if (event.isExternal) external += 1;
+      if (event.groupId) group += 1;
       else personal += 1;
     }
 
@@ -465,62 +967,35 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [upcomingAll]);
 
-  const UPCOMING_LIMIT = isMobile ? 3 : 6;
+  const upcomingLimit = isMobile ? 3 : 6;
 
   const upcoming = useMemo(
-    () => upcomingAll.slice(0, UPCOMING_LIMIT),
-    [upcomingAll, UPCOMING_LIMIT]
+    () => upcomingAll.slice(0, upcomingLimit),
+    [upcomingAll, upcomingLimit]
   );
 
   const nextEvent = upcoming.length > 0 ? upcoming[0] : null;
-  const remainingUpcoming =
-    upcoming.length > 1 ? upcoming.slice(1) : ([] as SummaryEvent[]);
-
-  const showSeeMore = !booting && upcomingAll.length > UPCOMING_LIMIT;
+  const remainingUpcoming = upcoming.length > 1 ? upcoming.slice(1) : ([] as SummaryEvent[]);
+  const showSeeMore = !booting && upcomingAll.length > upcomingLimit;
 
   const mood = useMemo(() => {
     if (booting) {
       return {
         title: "Cargando…",
         subtitle: "Preparando tu resumen",
-        tone: "neutral" as const,
       };
     }
 
     const count = upcomingStats.total;
 
-    if (count === 0) {
-      return {
-        title: getWeekMoodLabel(count),
-        subtitle: getWeekSubtitle(count),
-        tone: "clear" as const,
-      };
-    }
-
-    if (count <= 3) {
-      return {
-        title: getWeekMoodLabel(count),
-        subtitle: getWeekSubtitle(count),
-        tone: "calm" as const,
-      };
-    }
-
     return {
       title: getWeekMoodLabel(count),
       subtitle: getWeekSubtitle(count),
-      tone: "busy" as const,
     };
   }, [booting, upcomingStats]);
 
   const showCreateGroupNudge = groups.length === 0;
   const showInviteNudge = groups.length > 0 && upcomingStats.group === 0;
-
-  const moodAccentBorder =
-    mood.tone === "clear"
-      ? "rgba(34,197,94,0.85)"
-      : mood.tone === "busy"
-        ? "rgba(251,191,36,0.9)"
-        : "rgba(56,189,248,0.9)";
 
   const trackSummaryCta = useCallback(
     (cta: string, target: string, metadata?: Record<string, unknown>) => {
@@ -547,18 +1022,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     [router, trackSummaryCta]
   );
 
-  const moodAccentGlow =
-    mood.tone === "clear"
-      ? "rgba(34,197,94,0.35)"
-      : mood.tone === "busy"
-        ? "rgba(251,191,36,0.35)"
-        : "rgba(56,189,248,0.35)";
-
   const openConflictCenter = useCallback(() => {
     if (conflictAlert.latestEventId) {
-      const target = `/conflicts/detected?eventId=${encodeURIComponent(
-        conflictAlert.latestEventId
-      )}`;
+      const target = `/conflicts/detected?eventId=${encodeURIComponent(conflictAlert.latestEventId)}`;
       trackSummaryCta("resolve_conflicts", target, {
         conflictCount: conflictAlert.count,
         latestEventId: conflictAlert.latestEventId,
@@ -585,8 +1051,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         groups,
         activeGroupId,
       });
-      const params = new URLSearchParams();
 
+      const params = new URLSearchParams();
       params.set("qc", "1");
       params.set("capture_source", "summary");
       params.set("raw_text", raw);
@@ -599,9 +1065,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       }
 
       if (parsed.title) params.set("title", parsed.title);
-      if (parsed.durationMinutes) {
-        params.set("duration", String(parsed.durationMinutes));
-      }
+      if (parsed.durationMinutes) params.set("duration", String(parsed.durationMinutes));
       if (cleanedNotes) params.set("notes", cleanedNotes);
 
       if (parsed.startHour !== null) {
@@ -612,9 +1076,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       }
 
       const resolvedDate = suggestedDate ?? parsed.date ?? null;
-      if (resolvedDate) {
-        params.set("date", resolvedDate.toISOString());
-      }
+      if (resolvedDate) params.set("date", resolvedDate.toISOString());
 
       return params;
     },
@@ -627,9 +1089,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       if (!params) return;
 
       const target = `/events/new/details?${params.toString()}`;
-      trackSummaryCta("quick_capture_submit", target, {
-        hasRawText: true,
-      });
+      trackSummaryCta("quick_capture_submit", target, { hasRawText: true });
       router.push(target);
     },
     [buildQuickCaptureParams, router, trackSummaryCta]
@@ -673,15 +1133,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       }, 0);
     },
     [quickCaptureBusy, navigateFromQuickCapture]
-  );
-
-  const handleQuickCaptureKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (event.key !== "Enter") return;
-      event.preventDefault();
-      handleQuickCaptureSubmit();
-    },
-    [handleQuickCaptureSubmit]
   );
 
   const handleOpenCapture = useCallback(() => {
@@ -728,7 +1179,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     }
   }, [quickCaptureValue, showToast]);
 
-
   const handleShareToWhatsApp = useCallback(() => {
     const raw = quickCaptureValue.trim();
 
@@ -771,7 +1221,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const isFirstTimeMode = summaryActivation.shouldUseSimpleSummary;
 
-  const title = "Resumen";
   const summarySubtitle = isFirstTimeMode
     ? isMobile
       ? "Tu primer paso en SyncPlans"
@@ -785,7 +1234,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         : "Hoy · Personal · tu siguiente paso";
 
   const getProposalBadgeForEvent = useCallback(
-    (eventId: string | null | undefined) => {
+    (eventId: string | null | undefined): ProposalBadge | null => {
       const key = String(eventId ?? "").trim();
       if (!key) return null;
 
@@ -809,8 +1258,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       const row = proposalResponsesMap[key];
       if (!row) return null;
 
-      const profile = proposalProfilesMap[String(row.user_id ?? "").trim()];
-      const name = getDisplayName(profile);
+      const proposalProfile = proposalProfilesMap[String(row.user_id ?? "").trim()];
+      const name = getDisplayName(proposalProfile);
       const time = humanizeRelativeDate(row.updated_at);
 
       return buildProposalLine({
@@ -822,7 +1271,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     [proposalProfilesMap, proposalResponsesMap]
   );
 
-
   const conflictEventIds = useMemo(() => {
     const next = new Set<string>();
 
@@ -833,8 +1281,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         if (!start || !end) return null;
 
         const rawGroup =
-          groups.find((group) => String(group.id) === String(event.groupId ?? ""))
-            ?.type ?? "personal";
+          groups.find((group) => String(group.id) === String(event.groupId ?? ""))?.type ??
+          "personal";
 
         return {
           id: String(event.id),
@@ -847,10 +1295,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       })
       .filter(Boolean) as CalendarEvent[];
 
-    const computed = filterIgnoredConflicts(
-      computeVisibleConflicts(conflictEvents),
-      ignoredConflictKeys
-    ).filter((conflict) => !resolutionForConflict(conflict, resMap));
+    const computed = filterIgnoredConflicts(computeVisibleConflicts(conflictEvents), ignoredConflictKeys)
+      .filter((conflict) => !resolutionForConflict(conflict, resMap));
 
     for (const conflict of computed) {
       next.add(String(conflict.existingEventId));
@@ -920,7 +1366,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const hasPremium = useMemo(() => hasPremiumAccess(profile), [profile]);
 
-  const premiumNudge = useMemo(() => {
+  const premiumNudge = useMemo<PremiumNudge | null>(() => {
     if (hasPremium || dismissedPremiumNudge) return null;
 
     if (conflictAlert.count > 0) {
@@ -971,12 +1417,315 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     valueMoments.hasValue,
   ]);
 
+  useEffect(() => {
+    if (!premiumNudge || premiumNudgeTrackedRef.current) return;
+
+    premiumNudgeTrackedRef.current = true;
+    void trackEvent({
+      event: "premium_viewed",
+      userId: currentUserId,
+      entityId: activeGroupId ? String(activeGroupId) : null,
+      metadata: {
+        ...summaryAnalyticsBase,
+        placement: "summary",
+        context: premiumNudge.context,
+      },
+    });
+  }, [premiumNudge, currentUserId, activeGroupId, summaryAnalyticsBase]);
+
+  const handlePremiumSummaryClick = useCallback(() => {
+    if (!premiumNudge) return;
+
+    void trackEvent({
+      event: "premium_cta_clicked",
+      userId: currentUserId,
+      entityId: activeGroupId ? String(activeGroupId) : null,
+      metadata: {
+        ...summaryAnalyticsBase,
+        placement: "summary",
+        context: premiumNudge.context,
+      },
+    });
+
+    router.push("/planes");
+  }, [premiumNudge, currentUserId, activeGroupId, summaryAnalyticsBase, router]);
+
+  const primaryAction = useMemo<PrimaryAction>(() => {
+    if (conflictAlert.count > 0) {
+      return {
+        eyebrow: "Lo más urgente ahora",
+        title: `Resuelve ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"} antes de que vuelva el ruido`,
+        subtitle: "Decide una vez y deja una versión clara para todos.",
+        primaryLabel: "Resolver conflictos",
+        primaryAction: openConflictCenter,
+        secondaryLabel: "Abrir calendario",
+        secondaryAction: () =>
+          navigateFromSummary("primary_secondary_calendar", "/calendar", {
+            block: "primary_action",
+          }),
+      };
+    }
+
+    if (pendingInviteCount > 0) {
+      return {
+        eyebrow: "Lo más útil ahora",
+        title: `Hay ${pendingInviteCount} invitación${pendingInviteCount === 1 ? "" : "es"} esperando una decisión`,
+        subtitle: "Responder esto desbloquea coordinación compartida.",
+        primaryLabel: "Revisar invitaciones",
+        primaryAction: () =>
+          navigateFromSummary("review_invitations", "/invitations", {
+            block: "primary_action",
+          }),
+        secondaryLabel: showInviteNudge ? "Abrir grupos" : "Abrir eventos",
+        secondaryAction: () =>
+          navigateFromSummary(
+            showInviteNudge ? "open_groups" : "open_events",
+            showInviteNudge ? "/groups" : "/events",
+            { block: "primary_action" }
+          ),
+      };
+    }
+
+    if (pendingAttention.proposals > 0 || pendingAttention.captures > 0) {
+      return {
+        eyebrow: "Lo más útil ahora",
+        title: "Hay respuestas y ajustes esperando que cierres el ciclo",
+        subtitle: "Ciérralo ahora y mantén la agenda como referencia viva.",
+        primaryLabel: "Revisar pendientes",
+        primaryAction: () =>
+          navigateFromSummary("review_pending", "/events", {
+            block: "primary_action",
+          }),
+        secondaryLabel: "Abrir calendario",
+        secondaryAction: () =>
+          navigateFromSummary("primary_secondary_calendar", "/calendar", {
+            block: "primary_action",
+          }),
+      };
+    }
+
+    if (isFirstTimeMode) {
+      return {
+        eyebrow: "Empieza aquí",
+        title: "Coordina mejor tu tiempo compartido",
+        subtitle:
+          "Evita cruces, alinea agendas y deja una sola versión clara desde el inicio.",
+        primaryLabel: showCreateGroupNudge ? "Crear grupo" : "Crear primer plan",
+        primaryAction: () =>
+          showCreateGroupNudge
+            ? navigateFromSummary("create_group", "/groups/new", {
+                block: "primary_action",
+              })
+            : navigateFromSummary("create_plan", "/events/new/details?type=personal", {
+                block: "primary_action",
+              }),
+        secondaryLabel: "Conectar Google",
+        secondaryAction: () =>
+          navigateFromSummary("connect_google", "/settings", {
+            block: "primary_action",
+          }),
+      };
+    }
+
+    if (showCreateGroupNudge) {
+      return {
+        eyebrow: "Siguiente mejor paso",
+        title: "Abre tu primer espacio compartido",
+        subtitle: "Crear tu primer grupo activa la coordinación compartida.",
+        primaryLabel: "Crear grupo",
+        primaryAction: () =>
+          navigateFromSummary("create_group", "/groups/new", {
+            block: "primary_action",
+          }),
+        secondaryLabel: "Ver grupos",
+        secondaryAction: () =>
+          navigateFromSummary("open_groups", "/groups", {
+            block: "primary_action",
+          }),
+      };
+    }
+
+    if (showInviteNudge) {
+      return {
+        eyebrow: "Siguiente mejor paso",
+        title: "Invita a la otra persona",
+        subtitle:
+          "Coordinen en un solo lugar y eviten cruces, dudas y mensajes perdidos.",
+        primaryLabel: "Invitar ahora",
+        primaryAction: () =>
+          navigateFromSummary("invite_someone", "/groups", {
+            block: "primary_action",
+          }),
+        secondaryLabel: "Abrir eventos",
+        secondaryAction: () =>
+          navigateFromSummary("open_events", "/events", {
+            block: "primary_action",
+          }),
+      };
+    }
+
+    if (!nextEvent) {
+      return {
+        eyebrow: "Siguiente mejor paso",
+        title: "Crea el próximo plan para que la semana no se quede vacía",
+        subtitle: "Si no hay nada cerca, crea un plan y mantén el hábito.",
+        primaryLabel: "Crear plan",
+        primaryAction: () =>
+          navigateFromSummary("create_plan", "/events/new/details?type=personal", {
+            block: "primary_action",
+          }),
+        secondaryLabel: "Abrir calendario",
+        secondaryAction: () =>
+          navigateFromSummary("primary_secondary_calendar", "/calendar", {
+            block: "primary_action",
+          }),
+      };
+    }
+
+    return {
+      eyebrow: "Tu base de esta semana",
+      title: "Tu agenda ya tiene contexto. Elige dónde quieres actuar.",
+      subtitle: "Sin urgencias, revisa calendario o eventos en un paso.",
+      primaryLabel: "Abrir calendario",
+      primaryAction: () =>
+        navigateFromSummary("open_calendar", "/calendar", {
+          block: "primary_action",
+        }),
+      secondaryLabel: "Abrir eventos",
+      secondaryAction: () =>
+        navigateFromSummary("open_events", "/events", {
+          block: "primary_action",
+        }),
+    };
+  }, [
+    conflictAlert.count,
+    pendingInviteCount,
+    pendingAttention.proposals,
+    pendingAttention.captures,
+    isFirstTimeMode,
+    showCreateGroupNudge,
+    showInviteNudge,
+    nextEvent,
+    openConflictCenter,
+    navigateFromSummary,
+  ]);
+
+  const summaryQuickActions = useMemo<QuickAction[]>(() => {
+    if (isFirstTimeMode) {
+      return [
+        {
+          key: "create_group",
+          title: "Crear grupo",
+          subtitle: "Activa la coordinación compartida desde el primer paso.",
+          onClick: () =>
+            navigateFromSummary("create_group", "/groups/new", {
+              block: "summary_quick_actions",
+            }),
+        },
+        {
+          key: "create_plan",
+          title: "Crear primer plan",
+          subtitle: "Prueba SyncPlans con algo simple y veloz.",
+          onClick: () =>
+            navigateFromSummary("create_plan", "/events/new/details?type=personal", {
+              block: "summary_quick_actions",
+            }),
+        },
+        {
+          key: "connect_google",
+          title: "Conectar Google",
+          subtitle: "Trae tu agenda actual para tener más contexto.",
+          onClick: () =>
+            navigateFromSummary("connect_google", "/settings", {
+              block: "summary_quick_actions",
+            }),
+        },
+      ];
+    }
+
+    const items: QuickAction[] = [
+      {
+        key: "primary",
+        title: primaryAction.primaryLabel,
+        subtitle: primaryAction.subtitle,
+        onClick: primaryAction.primaryAction,
+      },
+      {
+        key: "calendar",
+        title: "Abrir calendario",
+        subtitle: "Ver tu semana de un vistazo.",
+        onClick: () =>
+          navigateFromSummary("open_calendar", "/calendar", {
+            block: "summary_calendar",
+          }),
+      },
+    ];
+
+    if (showCreateGroupNudge || showInviteNudge) {
+      items.push({
+        key: "groups",
+        title: showCreateGroupNudge ? "Crear grupo" : "Abrir grupos",
+        subtitle: showCreateGroupNudge
+          ? "Activa la coordinación compartida desde tu primer espacio."
+          : "Invita a la otra persona y empiecen a coordinar mejor.",
+        onClick: () =>
+          navigateFromSummary(
+            showCreateGroupNudge ? "create_group" : "open_groups",
+            showCreateGroupNudge ? "/groups/new" : "/groups",
+            { block: "summary_quick_actions" }
+          ),
+      });
+    } else {
+      items.push({
+        key: "events",
+        title: "Abrir eventos",
+        subtitle: "Ver respuestas, estados y pendientes en un solo lugar.",
+        onClick: () =>
+          navigateFromSummary("open_events", "/events", {
+            block: "summary_events",
+          }),
+      });
+    }
+
+    return items;
+  }, [
+    isFirstTimeMode,
+    navigateFromSummary,
+    primaryAction.primaryAction,
+    primaryAction.primaryLabel,
+    primaryAction.subtitle,
+    showCreateGroupNudge,
+    showInviteNudge,
+  ]);
+
+  const getStatusBadgeForEvent = useCallback(
+    (eventId: string | null | undefined): StatusBadge | null => {
+      const status = getUnifiedEventStatus({
+        eventId,
+        conflictEventIds,
+        proposalResponseGroupsMap,
+      });
+
+      if (!status || status === "scheduled") return null;
+
+      const conflictsCount = eventId ? (conflictEventIds.has(String(eventId)) ? 1 : 0) : 0;
+      const statusUi = getEventStatusUi(status, { conflictsCount });
+
+      return {
+        label: statusUi.label,
+        style: statusUi.badgeStyle,
+      };
+    },
+    [conflictEventIds, proposalResponseGroupsMap]
+  );
+
   const compactSummaryMobile = isMobile;
   const hasUrgentSummaryState =
     conflictAlert.count > 0 ||
     pendingInviteCount > 0 ||
     pendingAttention.proposals > 0 ||
     pendingAttention.captures > 0;
+
   const urgentFocus = useMemo(() => {
     if (conflictAlert.count > 0) {
       return {
@@ -1023,12 +1772,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     pendingAttention.captures,
     navigateFromSummary,
   ]);
+
   const showValueRail =
     !compactSummaryMobile &&
     valueMoments.hasValue &&
     !premiumNudge &&
     !hasUrgentSummaryState &&
     !isFirstTimeMode;
+
   const showPremiumRail =
     !compactSummaryMobile &&
     !!premiumNudge &&
@@ -1036,1371 +1787,191 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     !hasUrgentSummaryState &&
     pendingAttention.total <= 2 &&
     !isFirstTimeMode;
+
   const showRecentDecisions =
     !compactSummaryMobile &&
     visibleDecisions.length > 0 &&
     !hasUrgentSummaryState &&
     !isFirstTimeMode;
-  const showSecondarySummaryFlow = !hasUrgentSummaryState;
-  const showDecisionChips = false;
-  const showQuickActionsCard =
-    showSecondarySummaryFlow && (booting || !nextEvent || isFirstTimeMode);
 
-  useEffect(() => {
-    if (!premiumNudge || premiumNudgeTrackedRef.current) return;
-
-    premiumNudgeTrackedRef.current = true;
-    void trackEvent({
-      event: "premium_viewed",
-      userId: currentUserId,
-      entityId: activeGroupId ? String(activeGroupId) : null,
-      metadata: {
-        ...summaryAnalyticsBase,
-        placement: "summary",
-        context: premiumNudge.context,
-      },
-    });
-  }, [premiumNudge, currentUserId, activeGroupId, summaryAnalyticsBase]);
-
-  const handlePremiumSummaryClick = useCallback(() => {
-    if (!premiumNudge) return;
-
-    void trackEvent({
-      event: "premium_cta_clicked",
-      userId: currentUserId,
-      entityId: activeGroupId ? String(activeGroupId) : null,
-      metadata: {
-        ...summaryAnalyticsBase,
-        placement: "summary",
-        context: premiumNudge.context,
-      },
-    });
-
-    router.push("/planes");
-  }, [premiumNudge, currentUserId, activeGroupId, summaryAnalyticsBase, router]);
-
-  const primaryAction = useMemo(() => {
-    if (conflictAlert.count > 0) {
-      return {
-        eyebrow: "Lo más urgente ahora",
-        title: `Resuelve ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"} antes de que vuelva el ruido`,
-        subtitle:
-          "Decide una vez y deja una versión clara para todos.",
-        primaryLabel: "Resolver conflictos",
-        primaryAction: openConflictCenter,
-        secondaryLabel: "Abrir calendario",
-        secondaryAction: () => navigateFromSummary("primary_secondary_calendar", "/calendar", { block: "primary_action" }),
-      };
-    }
-
-    if (pendingInviteCount > 0) {
-      return {
-        eyebrow: "Lo más útil ahora",
-        title: `Hay ${pendingInviteCount} invitación${pendingInviteCount === 1 ? "" : "es"} esperando una decisión`,
-        subtitle:
-          "Responder esto desbloquea coordinación compartida.",
-        primaryLabel: "Revisar invitaciones",
-        primaryAction: () => navigateFromSummary("review_invitations", "/invitations", { block: "primary_action" }),
-        secondaryLabel: showInviteNudge ? "Abrir grupos" : "Abrir eventos",
-        secondaryAction: () => navigateFromSummary(showInviteNudge ? "open_groups" : "open_events", showInviteNudge ? "/groups" : "/events", { block: "primary_action" }),
-      };
-    }
-
-    if (pendingAttention.proposals > 0 || pendingAttention.captures > 0) {
-      return {
-        eyebrow: "Lo más útil ahora",
-        title: "Hay respuestas y ajustes esperando que cierres el ciclo",
-        subtitle:
-          "Ciérralo ahora y mantén la agenda como referencia viva.",
-        primaryLabel: "Revisar pendientes",
-        primaryAction: () => navigateFromSummary("review_pending", "/events", { block: "primary_action" }),
-        secondaryLabel: "Abrir calendario",
-        secondaryAction: () => navigateFromSummary("primary_secondary_calendar", "/calendar", { block: "primary_action" }),
-      };
-    }
-
-    if (isFirstTimeMode) {
-      return {
-        eyebrow: "Empieza aquí",
-        title: "Coordina mejor tu tiempo compartido",
-        subtitle:
-          "Evita cruces, alinea agendas y deja una sola versión clara desde el inicio.",
-        primaryLabel: showCreateGroupNudge ? "Crear grupo" : "Crear primer plan",
-        primaryAction: () =>
-          showCreateGroupNudge
-            ? navigateFromSummary("create_group", "/groups/new", { block: "primary_action" })
-            : navigateFromSummary("create_plan", "/events/new/details?type=personal", { block: "primary_action" }),
-        secondaryLabel: "Conectar Google",
-        secondaryAction: () => navigateFromSummary("connect_google", "/settings", { block: "primary_action" }),
-      };
-    }
-
-    if (showCreateGroupNudge) {
-      return {
-        eyebrow: "Siguiente mejor paso",
-        title: "Abre tu primer espacio compartido",
-        subtitle:
-          "Crear tu primer grupo activa la coordinación compartida.",
-        primaryLabel: "Crear grupo",
-        primaryAction: () => navigateFromSummary("create_group", "/groups/new", { block: "primary_action" }),
-        secondaryLabel: "Ver grupos",
-        secondaryAction: () => navigateFromSummary("open_groups", "/groups", { block: "primary_action" }),
-      };
-    }
-
- if (showInviteNudge) {
-  return {
-    eyebrow: "Siguiente mejor paso",
-    title: "Invita a la otra persona",
-    subtitle:
-      "Coordinen en un solo lugar y eviten cruces, dudas y mensajes perdidos.",
-    primaryLabel: "Invitar ahora",
-    primaryAction: () =>
-      navigateFromSummary("invite_someone", "/groups", {
-        block: "primary_action",
-      }),
-    secondaryLabel: "Abrir eventos",
-    secondaryAction: () =>
-      navigateFromSummary("open_events", "/events", {
-        block: "primary_action",
-      }),
-  };
-}
-
-    if (!nextEvent) {
-      return {
-        eyebrow: "Siguiente mejor paso",
-        title: "Crea el próximo plan para que la semana no se quede vacía",
-        subtitle:
-          "Si no hay nada cerca, crea un plan y mantén el hábito.",
-        primaryLabel: "Crear plan",
-        primaryAction: () => navigateFromSummary("create_plan", "/events/new/details?type=personal", { block: "primary_action" }),
-        secondaryLabel: "Abrir calendario",
-        secondaryAction: () => navigateFromSummary("primary_secondary_calendar", "/calendar", { block: "primary_action" }),
-      };
-    }
-
-    return {
-      eyebrow: "Tu base de esta semana",
-      title: "Tu agenda ya tiene contexto. Elige dónde quieres actuar.",
-      subtitle:
-        "Sin urgencias, revisa calendario o eventos en un paso.",
-      primaryLabel: "Abrir calendario",
-      primaryAction: () => navigateFromSummary("open_calendar", "/calendar", { block: "primary_action" }),
-      secondaryLabel: "Abrir eventos",
-      secondaryAction: () => navigateFromSummary("open_events", "/events", { block: "primary_action" }),
-    };
-  }, [
-    conflictAlert.count,
-    nextEvent,
-    openConflictCenter,
-    pendingAttention.captures,
-    pendingAttention.proposals,
-    pendingInviteCount,
-    navigateFromSummary,
-    router,
-    showCreateGroupNudge,
-    showInviteNudge,
-    isFirstTimeMode,
-  ]);
-
-  const summaryQuickActions = useMemo(() => {
-    if (isFirstTimeMode) {
-      return [
-        {
-          key: "create_group",
-          title: "Crear grupo",
-          subtitle: "Activa la coordinación compartida desde el primer paso.",
-          onClick: () =>
-            navigateFromSummary("create_group", "/groups/new", {
-              block: "summary_quick_actions",
-            }),
-        },
-        {
-          key: "create_plan",
-          title: "Crear primer plan",
-          subtitle: "Prueba SyncPlans con algo simple y veloz.",
-          onClick: () =>
-            navigateFromSummary("create_plan", "/events/new/details?type=personal", {
-              block: "summary_quick_actions",
-            }),
-        },
-        {
-          key: "connect_google",
-          title: "Conectar Google",
-          subtitle: "Trae tu agenda actual para tener más contexto.",
-          onClick: () =>
-            navigateFromSummary("connect_google", "/settings", {
-              block: "summary_quick_actions",
-            }),
-        },
-      ];
-    }
-
-    const items: Array<{
-      key: string;
-      title: string;
-      subtitle: string;
-      onClick: () => void;
-    }> = [
-      {
-        key: "primary",
-        title: primaryAction.primaryLabel,
-        subtitle: compactSummaryMobile
-          ? "Haz primero lo que más mueve el día."
-          : primaryAction.subtitle,
-        onClick: primaryAction.primaryAction,
-      },
-      {
-        key: "calendar",
-        title: "Abrir calendario",
-        subtitle: compactSummaryMobile
-          ? "Ver tu semana de un vistazo."
-          : "Ver semana y contexto compartido.",
-        onClick: () =>
-          navigateFromSummary("open_calendar", "/calendar", {
-            block: "summary_calendar",
-          }),
-      },
-    ];
-
-    if (!compactSummaryMobile && !hasUrgentSummaryState) {
-      if (showCreateGroupNudge || showInviteNudge) {
-        items.push({
-          key: "groups",
-          title: showCreateGroupNudge ? "Crear grupo" : "Abrir grupos",
-         subtitle: showCreateGroupNudge
-  ? "Activa la coordinación compartida desde tu primer espacio."
-  : "Invita a la otra persona y empiecen a coordinar mejor.",
-          onClick: () =>
-            navigateFromSummary(
-              showCreateGroupNudge ? "create_group" : "open_groups",
-              showCreateGroupNudge ? "/groups/new" : "/groups",
-              {
-                block: "summary_quick_actions",
-              }
-            ),
-        });
-      } else {
-        items.push({
-          key: "events",
-          title: "Abrir eventos",
-          subtitle: "Ver respuestas, estados y pendientes en un solo lugar.",
-          onClick: () =>
-            navigateFromSummary("open_events", "/events", {
-              block: "summary_events",
-            }),
-        });
-      }
-    }
-
-    return items;
-  }, [
-    compactSummaryMobile,
-    hasUrgentSummaryState,
-    navigateFromSummary,
-    primaryAction.primaryAction,
-    primaryAction.primaryLabel,
-    primaryAction.subtitle,
-    showCreateGroupNudge,
-    showInviteNudge,
-    isFirstTimeMode,
-  ]);
-
-  const getStatusBadgeForEvent = useCallback(
-    (eventId: string | null | undefined) => {
-      const status = getUnifiedEventStatus({
-        eventId,
-        conflictEventIds,
-        proposalResponseGroupsMap,
-      });
-
-      if (!status || status === "scheduled") return null;
-
-      const conflictsCount = eventId
-        ? conflictEventIds.has(String(eventId))
-          ? 1
-          : 0
-        : 0;
-
-      const statusUi = getEventStatusUi(status, { conflictsCount });
-
-      return {
-        label: statusUi.label,
-        compactLabel: statusUi.compactLabel,
-        subtitle: statusUi.subtitle,
-        tone: statusUi.tone,
-        priority: statusUi.priority,
-        ctaLabel: statusUi.ctaLabel,
-        style: statusUi.badgeStyle,
-      };
-    },
-    [conflictEventIds, proposalResponseGroupsMap]
-  );
+  const showQuickActions =
+    !hasUrgentSummaryState && (booting || !nextEvent || isFirstTimeMode || compactSummaryMobile);
 
   return (
     <div style={styles.page} className="spSum-page">
-      {toast && (
-        <div style={styles.toastWrap}>
-          <div style={styles.toastCard}>
-            <div style={styles.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? (
-              <div style={styles.toastSub}>{toast.subtitle}</div>
-            ) : null}
-          </div>
-        </div>
-      )}
+      {toast ? <SummaryToast title={toast.title} subtitle={toast.subtitle} /> : null}
 
       <Section style={styles.shell} className="spSum-shell">
         <PremiumHeader
           hideUpgradeCta
-          title={title}
+          title="Resumen"
           subtitle={summarySubtitle}
           sticky={false}
         />
 
-        <Card
-          style={{
-            ...styles.card,
-            padding: compactSummaryMobile ? 16 : 18,
-            borderRadius: compactSummaryMobile ? 20 : 24,
-            background:
-              "linear-gradient(180deg, rgba(56,189,248,0.08), rgba(124,58,237,0.06) 38%, rgba(255,255,255,0.035) 100%)",
-            border: "1px solid rgba(125,211,252,0.14)",
-            boxShadow: "0 24px 72px rgba(0,0,0,0.24)",
-          }}
-          className="spSum-card"
-        >
-          <div
-            style={{
-              display: "grid",
-              gap: 14,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: 14,
-                flexWrap: "wrap",
-              }}
-            >
-              <div style={{ minWidth: 0, flex: "1 1 420px" }}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 900,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    color: "rgba(125,211,252,0.88)",
-                    marginBottom: 8,
-                  }}
-                >
-                  Hoy en SyncPlans
-                </div>
+        <SummaryHero
+          compact={compactSummaryMobile}
+          contextLabel={contextLabel}
+          moodTitle={mood.title}
+          moodSubtitle={mood.subtitle}
+          upcomingTotal={upcomingStats.total}
+          upcomingPersonal={upcomingStats.personal}
+          upcomingGroup={upcomingStats.group}
+          upcomingExternal={upcomingStats.external}
+          conflictCount={conflictAlert.count}
+          pendingInviteCount={pendingInviteCount}
+          loading={loading && !booting}
+          primaryAction={primaryAction}
+          onOpenConflicts={openConflictCenter}
+          onOpenInvitations={() =>
+            navigateFromSummary("hero_invites", "/invitations", {
+              block: "summary_hero",
+            })
+          }
+        />
 
-                <div
-                  style={{
-                    fontSize: compactSummaryMobile ? 24 : 30,
-                    lineHeight: compactSummaryMobile ? 1.06 : 1.02,
-                    fontWeight: 950,
-                    letterSpacing: "-0.04em",
-                    color: "rgba(255,255,255,0.98)",
-                  }}
-                >
-                  {primaryAction.title}
-                </div>
+        <SummaryQuickCaptureCard
+          value={quickCaptureValue}
+          busy={quickCaptureBusy}
+          preview={quickCapturePreview}
+          interpretation={smartInterpretation}
+          interpretationLabel={smartInterpretationLabel}
+          examples={isFirstTimeMode ? quickCaptureExamples.slice(0, 2) : quickCaptureExamples}
+          activeGroupName={activeLabel}
+          activeGroupType={activeGroupType}
+          groups={groups}
+          onChange={setQuickCaptureValue}
+          onSubmit={handleQuickCaptureSubmit}
+          onShare={handleCopyCaptureLink}
+          onWhatsApp={handleShareToWhatsApp}
+          onExampleClick={handleQuickCaptureExample}
+          headline={isFirstTimeMode ? "Pruébalo con una idea simple" : quickCaptureHeadline}
+          subcopy={
+            isFirstTimeMode
+              ? "Escribe algo como lo pensarías normalmente y SyncPlans lo convierte en un plan claro."
+              : quickCaptureSubcopy
+          }
+          onOpenCapture={isFirstTimeMode ? undefined : handleOpenCapture}
+          timeSuggestionsLabel={isFirstTimeMode ? null : timeSuggestionsLabel}
+          timeSuggestions={isFirstTimeMode ? [] : timeSuggestions}
+          onSuggestedSlotClick={
+            isFirstTimeMode
+              ? undefined
+              : (date: Date) => navigateFromSuggestedSlot(quickCaptureValue, date)
+          }
+        />
 
-                {isFirstTimeMode ? (
-                  <div
-                    style={{
-                      marginTop: 10,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      width: "fit-content",
-                      padding: "7px 11px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(125,211,252,0.18)",
-                      background: "rgba(56,189,248,0.10)",
-                      color: "rgba(224,242,254,0.94)",
-                      fontSize: 12,
-                      fontWeight: 850,
-                    }}
-                  >
-                    No es otro calendario: es claridad compartida para dos
-                  </div>
-                ) : null}
+        {urgentFocus ? (
+          <Rail
+            eyebrow={urgentFocus.label}
+            title={urgentFocus.title}
+            subtitle={urgentFocus.subtitle}
+            primaryLabel={urgentFocus.cta}
+            onPrimary={urgentFocus.action}
+            variant="urgent"
+          />
+        ) : null}
 
-                <div
-                  style={{
-                    marginTop: 8,
-                    maxWidth: 760,
-                    fontSize: compactSummaryMobile ? 13 : 14,
-                    lineHeight: 1.58,
-                    color: "rgba(226,232,240,0.78)",
-                    fontWeight: 650,
-                  }}
-                >
-                  {primaryAction.subtitle}
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={primaryAction.primaryAction}
-                  style={{
-                    minHeight: 46,
-                    padding: "0 16px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(96,165,250,0.24)",
-                    background:
-                      "linear-gradient(135deg, rgba(56,189,248,0.24), rgba(124,58,237,0.24))",
-                    color: "rgba(255,255,255,0.98)",
-                    fontSize: 13,
-                    fontWeight: 900,
-                    cursor: "pointer",
-                    boxShadow: "0 14px 30px rgba(8,12,28,0.20)",
-                  }}
-                >
-                  {primaryAction.primaryLabel}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={primaryAction.secondaryAction}
-                  style={{
-                    minHeight: 46,
-                    padding: "0 16px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: "rgba(255,255,255,0.05)",
-                    color: "rgba(255,255,255,0.92)",
-                    fontSize: 13,
-                    fontWeight: 850,
-                    cursor: "pointer",
-                  }}
-                >
-                  {primaryAction.secondaryLabel}
-                </button>
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                flexWrap: "wrap",
-                alignItems: "center",
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  minHeight: 32,
-                  padding: "7px 11px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  background: "rgba(255,255,255,0.05)",
-                  color: "rgba(255,255,255,0.95)",
-                  fontSize: 12,
-                  fontWeight: 900,
-                }}
-              >
-                {contextLabel}
-              </span>
-
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  minHeight: 32,
-                  padding: "7px 11px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  background: "rgba(255,255,255,0.04)",
-                  color: "rgba(226,232,240,0.84)",
-                  fontSize: 12,
-                  fontWeight: 800,
-                }}
-              >
-                {upcomingStats.total} evento{upcomingStats.total === 1 ? "" : "s"} en 7
-                días
-              </span>
-
-              {conflictAlert.count > 0 ? (
-                <button
-                  type="button"
-                  onClick={openConflictCenter}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    minHeight: 32,
-                    padding: "7px 11px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(251,191,36,0.24)",
-                    background: "rgba(251,191,36,0.12)",
-                    color: "rgba(255,243,205,0.98)",
-                    fontSize: 12,
-                    fontWeight: 900,
-                    cursor: "pointer",
-                  }}
-                >
-                  {conflictAlert.count} conflicto
-                  {conflictAlert.count === 1 ? "" : "s"}
-                </button>
-              ) : null}
-
-              {pendingInviteCount > 0 ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigateFromSummary("hero_invites", "/invitations", {
-                      block: "summary_hero",
-                    })
-                  }
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    minHeight: 32,
-                    padding: "7px 11px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(56,189,248,0.24)",
-                    background: "rgba(56,189,248,0.10)",
-                    color: "rgba(224,242,254,0.98)",
-                    fontSize: 12,
-                    fontWeight: 900,
-                    cursor: "pointer",
-                  }}
-                >
-                  {pendingInviteCount} invitación
-                  {pendingInviteCount === 1 ? "" : "es"}
-                </button>
-              ) : null}
-
-              {loading && !booting ? (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    minHeight: 32,
-                    padding: "7px 11px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(125,211,252,0.16)",
-                    background: "rgba(56,189,248,0.10)",
-                    color: "rgba(224,242,254,0.92)",
-                    fontSize: 12,
-                    fontWeight: 900,
-                  }}
-                >
-                  Actualizando…
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </Card>
-
-        {showSecondarySummaryFlow ? (
-          <SummaryQuickCaptureCard
-            value={quickCaptureValue}
-            busy={quickCaptureBusy}
-            preview={quickCapturePreview}
-            interpretation={smartInterpretation}
-            interpretationLabel={smartInterpretationLabel}
-            examples={isFirstTimeMode ? quickCaptureExamples.slice(0, 2) : quickCaptureExamples}
-            activeGroupName={activeLabel}
-            activeGroupType={activeGroupType}
-            groups={groups}
-            onChange={setQuickCaptureValue}
-            onSubmit={handleQuickCaptureSubmit}
-            onShare={handleCopyCaptureLink}
-            onWhatsApp={handleShareToWhatsApp}
-            onExampleClick={handleQuickCaptureExample}
-            headline={
-              isFirstTimeMode
-                ? "Pruébalo con una idea simple"
-                : quickCaptureHeadline
+        {showValueRail ? (
+          <Rail
+            eyebrow="Valor visible"
+            title="Ya hay valor real visible esta semana."
+            subtitle={[
+              valueMoments.resolvedDecisions > 0
+                ? `${valueMoments.resolvedDecisions} decisión${valueMoments.resolvedDecisions === 1 ? "" : "es"} resuelta${valueMoments.resolvedDecisions === 1 ? "" : "s"}`
+                : null,
+              valueMoments.autoAdjusted > 0
+                ? `${valueMoments.autoAdjusted} ajuste${valueMoments.autoAdjusted === 1 ? "" : "s"} automático${valueMoments.autoAdjusted === 1 ? "" : "s"}`
+                : null,
+              valueMoments.agendaFeelsClear ? "agenda clara ahora" : null,
+              pendingAttention.captures > 0
+                ? `${pendingAttention.captures} respuesta${pendingAttention.captures === 1 ? "" : "s"} externa${pendingAttention.captures === 1 ? "" : "s"} recibida${pendingAttention.captures === 1 ? "" : "s"}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            primaryLabel={valueMoments.resolvedDecisions > 0 ? "Ver valor en eventos" : "Abrir calendario"}
+            onPrimary={() =>
+              navigateFromSummary(
+                valueMoments.resolvedDecisions > 0
+                  ? "value_visibility_events"
+                  : "value_visibility_calendar",
+                valueMoments.resolvedDecisions > 0 ? "/events" : "/calendar",
+                { block: "value_visibility" }
+              )
             }
-            subcopy={
-              isFirstTimeMode
-                ? "Escribe algo como lo pensarías normalmente y SyncPlans lo convierte en un plan claro."
-                : quickCaptureSubcopy
-            }
-            onOpenCapture={isFirstTimeMode ? undefined : handleOpenCapture}
-            timeSuggestionsLabel={isFirstTimeMode ? null : timeSuggestionsLabel}
-            timeSuggestions={isFirstTimeMode ? [] : timeSuggestions}
-            onSuggestedSlotClick={
-              isFirstTimeMode
-                ? undefined
-                : (date: Date) => navigateFromSuggestedSlot(quickCaptureValue, date)
+            variant="value"
+          />
+        ) : null}
+
+        {showPremiumRail && premiumNudge ? (
+          <Rail
+            eyebrow={premiumNudge.eyebrow}
+            title={premiumNudge.title}
+            subtitle={premiumNudge.subtitle}
+            primaryLabel={premiumNudge.primaryLabel}
+            secondaryLabel={premiumNudge.secondaryLabel}
+            onPrimary={handlePremiumSummaryClick}
+            onSecondary={() => setDismissedPremiumNudge(true)}
+            variant="premium"
+          />
+        ) : null}
+
+        <UpcomingSection
+          booting={booting}
+          nextEvent={nextEvent}
+          remainingUpcoming={remainingUpcoming}
+          showSeeMore={showSeeMore}
+          upcomingAllCount={upcomingAll.length}
+          highlightId={highlightId}
+          getProposalLineForEvent={getProposalLineForEvent}
+          getProposalBadgeForEvent={getProposalBadgeForEvent}
+          getStatusBadgeForEvent={getStatusBadgeForEvent}
+          onOpenCalendar={() =>
+            navigateFromSummary("open_calendar", "/calendar", {
+              block: "summary_calendar",
+            })
+          }
+          showCreateGroupNudge={showCreateGroupNudge}
+          onPrimaryEmptyAction={primaryAction.primaryAction}
+        />
+
+        {showRecentDecisions ? (
+          <RecentDecisionsSection
+            decisions={visibleDecisions}
+            onOpenCalendar={() =>
+              navigateFromSummary("open_calendar", "/calendar", {
+                block: "summary_calendar",
+              })
             }
           />
         ) : null}
 
-        <Card style={styles.card} className="spSum-card">
-          {compactSummaryMobile && conflictAlert.count > 0 ? (
-            <button
-              onClick={openConflictCenter}
-              style={styles.conflictBanner}
-              className="spSum-conflictBanner"
-            >
-              <div style={styles.conflictBannerLeft}>
-                <div style={styles.conflictBannerEyebrow}>Atención</div>
-                <div style={styles.conflictBannerTitle}>
-                  Tienes {conflictAlert.count} conflicto
-                  {conflictAlert.count === 1 ? "" : "s"} pendiente
-                  {conflictAlert.count === 1 ? "" : "s"} por resolver
-                </div>
-                <div style={styles.conflictBannerSub}>
-                  Revísalo ahora y evita ruido más tarde.
-                </div>
-              </div>
-
-              <div style={styles.conflictBannerCta}>Resolver</div>
-            </button>
-          ) : null}
-
-          <div
-            style={{
-              ...styles.stateRow,
-              boxShadow: `0 0 18px ${moodAccentGlow}`,
-              borderColor: moodAccentBorder,
-              padding: compactSummaryMobile ? 14 : 18,
-              borderRadius: compactSummaryMobile ? 18 : 20,
-              background:
-                "linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.03))",
-            }}
-          >
-            <div style={styles.stateLeft}>
-              <div
-                style={{
-                  ...styles.stateLabelRow,
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <span style={styles.statePill}>{contextLabel}</span>
-                  {loading && !booting ? (
-                    <span style={styles.stateLoadingBadge}>Actualizando…</span>
-                  ) : null}
-                </div>
-
-                {!compactSummaryMobile ? (
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      padding: "8px 10px",
-                      borderRadius: 999,
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(255,255,255,0.10)",
-                      fontSize: 12,
-                      fontWeight: 850,
-                      color: "rgba(226,232,240,0.8)",
-                    }}
-                  >
-                    {mood.title}
-                  </div>
-                ) : null}
-              </div>
-
-              <div
-                style={{
-                  ...styles.stateMoodTitle,
-                  marginTop: 12,
-                  fontSize: compactSummaryMobile ? 22 : 26,
-                  lineHeight: 1.02,
-                  letterSpacing: "-0.03em",
-                }}
-              >
-                {mood.title}
-              </div>
-
-              <div
-                style={{
-                  ...styles.stateMoodSub,
-                  marginTop: 8,
-                  maxWidth: 720,
-                  fontSize: compactSummaryMobile ? 13 : 14,
-                  lineHeight: 1.55,
-                }}
-              >
-                {mood.subtitle}
-              </div>
-
-              <div
-                style={{
-                  ...styles.stateStatsRow,
-                  marginTop: 14,
-                  rowGap: 6,
-                }}
-              >
-                <span style={styles.stateStat}>{upcomingStats.total} total</span>
-                {!compactSummaryMobile ? (
-                  <>
-                    <span style={styles.stateStatDot}>·</span>
-                    <span style={styles.stateStat}>
-                      {upcomingStats.personal} personal
-                    </span>
-                    <span style={styles.stateStatDot}>·</span>
-                    <span style={styles.stateStat}>{upcomingStats.group} grupo</span>
-                    {upcomingStats.external > 0 ? (
-                      <>
-                        <span style={styles.stateStatDot}>·</span>
-                        <span style={styles.stateStat}>
-                          {upcomingStats.external} externo
-                        </span>
-                      </>
-                    ) : null}
-                  </>
-                ) : null}
-              </div>
-
-              {!hasUrgentSummaryState && pendingAttention.total > 0 ? (
-                <div style={styles.attentionRow}>
-                  {pendingAttention.conflicts > 0 ? (
-                    <button
-                      type="button"
-                      style={{
-                        ...styles.attentionChip,
-                        ...styles.attentionChipDanger,
-                      }}
-                      onClick={openConflictCenter}
-                    >
-                      {pendingAttention.conflicts} conflicto
-                      {pendingAttention.conflicts === 1 ? "" : "s"}
-                    </button>
-                  ) : null}
-
-                  {pendingAttention.invites > 0 ? (
-                    <button
-                      type="button"
-                      style={{
-                        ...styles.attentionChip,
-                        ...styles.attentionChipInfo,
-                      }}
-                      onClick={() =>
-                        navigateFromSummary("attention_invites", "/invitations", {
-                          block: "summary_attention",
-                        })
-                      }
-                    >
-                      {pendingAttention.invites} invitación
-                      {pendingAttention.invites === 1 ? "" : "es"}
-                    </button>
-                  ) : null}
-
-                  {compactSummaryMobile &&
-                  pendingAttention.captures + pendingAttention.proposals > 0 ? (
-                    <button
-                      type="button"
-                      style={{
-                        ...styles.attentionChip,
-                        ...styles.attentionChipSoft,
-                      }}
-                      onClick={() =>
-                        navigateFromSummary("attention_pending_mobile", "/events", {
-                          block: "summary_attention",
-                          captures: pendingAttention.captures,
-                          proposals: pendingAttention.proposals,
-                        })
-                      }
-                    >
-                      {pendingAttention.captures + pendingAttention.proposals} pendiente
-                      {pendingAttention.captures + pendingAttention.proposals === 1
-                        ? ""
-                        : "s"}{" "}
-                      por revisar
-                    </button>
-                  ) : null}
-
-                  {!compactSummaryMobile && pendingAttention.captures > 0 ? (
-                    <button
-                      type="button"
-                      style={{
-                        ...styles.attentionChip,
-                        ...styles.attentionChipNeutral,
-                      }}
-                      onClick={() =>
-                        navigateFromSummary("attention_events", "/events", {
-                          block: "summary_attention",
-                        })
-                      }
-                    >
-                      {pendingAttention.captures} respuesta
-                      {pendingAttention.captures === 1 ? "" : "s"} externa
-                      {pendingAttention.captures === 1 ? "" : "s"}
-                    </button>
-                  ) : null}
-
-                  {!compactSummaryMobile && pendingAttention.proposals > 0 ? (
-                    <button
-                      type="button"
-                      style={{
-                        ...styles.attentionChip,
-                        ...styles.attentionChipSoft,
-                      }}
-                      onClick={() =>
-                        navigateFromSummary("attention_proposals", "/events", {
-                          block: "summary_attention",
-                        })
-                      }
-                    >
-                      {pendingAttention.proposals} propuesta
-                      {pendingAttention.proposals === 1 ? "" : "s"}
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-
-            {!compactSummaryMobile ? (
-              <div style={styles.stateKpi}>
-                <div style={styles.stateKpiLabel}>Próximos 7 días</div>
-                <div style={styles.stateKpiNumber}>{upcomingStats.total}</div>
-                <div style={styles.stateKpiHint}>
-                  Eventos visibles con contexto real
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {urgentFocus ? (
-            <div style={styles.urgentSingleRail}>
-              <div style={styles.urgentSingleCopy}>
-                <div style={styles.urgentSingleLabel}>{urgentFocus.label}</div>
-                <div style={styles.urgentSingleTitle}>{urgentFocus.title}</div>
-                <div style={styles.urgentSingleSub}>{urgentFocus.subtitle}</div>
-              </div>
-              <button
-                type="button"
-                style={styles.urgentSingleBtn}
-                onClick={urgentFocus.action}
-              >
-                {urgentFocus.cta}
-              </button>
-            </div>
-          ) : null}
-
-          {showValueRail ? (
-            <div style={styles.valueRail}>
-              <div style={styles.valueRailCopy}>
-                <div style={styles.valueRailEyebrow}>Valor visible</div>
-                <div style={styles.valueRailTitle}>
-                  Ya hay valor real visible esta semana.
-                </div>
-                <div style={styles.valueRailSub}>
-                  {valueMoments.resolvedDecisions > 0
-                    ? `${valueMoments.resolvedDecisions} decisión${valueMoments.resolvedDecisions === 1 ? "" : "es"} resuelta${valueMoments.resolvedDecisions === 1 ? "" : "s"}`
-                    : null}
-                  {valueMoments.resolvedDecisions > 0 &&
-                  valueMoments.autoAdjusted > 0
-                    ? " · "
-                    : ""}
-                  {valueMoments.autoAdjusted > 0
-                    ? `${valueMoments.autoAdjusted} ajuste${valueMoments.autoAdjusted === 1 ? "" : "s"} automático${valueMoments.autoAdjusted === 1 ? "" : "s"}`
-                    : null}
-                  {(valueMoments.resolvedDecisions > 0 ||
-                    valueMoments.autoAdjusted > 0) &&
-                  valueMoments.agendaFeelsClear
-                    ? " · "
-                    : ""}
-                  {valueMoments.agendaFeelsClear ? "agenda clara ahora" : null}
-                  {(valueMoments.resolvedDecisions > 0 ||
-                    valueMoments.autoAdjusted > 0 ||
-                    valueMoments.agendaFeelsClear) &&
-                  pendingAttention.captures > 0
-                    ? " · "
-                    : ""}
-                  {pendingAttention.captures > 0
-                    ? `${pendingAttention.captures} respuesta${pendingAttention.captures === 1 ? "" : "s"} externa${pendingAttention.captures === 1 ? "" : "s"} recibida${pendingAttention.captures === 1 ? "" : "s"}`
-                    : null}
-                </div>
-              </div>
-
-              <div style={styles.valueRailActions}>
-                <button
-                  type="button"
-                  style={styles.valueRailPrimary}
-                  onClick={() =>
-                    navigateFromSummary(
-                      valueMoments.resolvedDecisions > 0
-                        ? "value_visibility_events"
-                        : "value_visibility_calendar",
-                      valueMoments.resolvedDecisions > 0
-                        ? "/events"
-                        : "/calendar",
-                      { block: "value_visibility" }
-                    )
-                  }
-                >
-                  {valueMoments.resolvedDecisions > 0
-                    ? "Ver valor en eventos"
-                    : "Abrir calendario"}
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          {showPremiumRail ? (
-            <div style={styles.premiumRail}>
-              <div style={styles.premiumRailCopy}>
-                <div style={styles.premiumRailEyebrow}>{premiumNudge.eyebrow}</div>
-                <div style={styles.premiumRailTitle}>{premiumNudge.title}</div>
-                <div style={styles.premiumRailSub}>{premiumNudge.subtitle}</div>
-              </div>
-
-              <div style={styles.premiumRailActions}>
-                <button
-                  type="button"
-                  style={styles.premiumRailPrimary}
-                  onClick={handlePremiumSummaryClick}
-                >
-                  {premiumNudge.primaryLabel}
-                </button>
-                <button
-                  type="button"
-                  style={styles.premiumRailSecondary}
-                  onClick={() => setDismissedPremiumNudge(true)}
-                >
-                  {premiumNudge.secondaryLabel}
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          {showDecisionChips ? (
-            <div style={styles.decisionChipsRow}>
-              {decisionSummary.pendingProposals > 0 ? (
-                <button
-                  onClick={() =>
-                    navigateFromSummary("decision_chip_pending", "/events", {
-                      block: "decision_summary",
-                    })
-                  }
-                  style={{
-                    ...styles.decisionChip,
-                    ...styles.decisionChipPending,
-                  }}
-                >
-                  {decisionSummary.pendingProposals} propuesta
-                  {decisionSummary.pendingProposals === 1 ? "" : "s"} esperando
-                  decisión
-                </button>
-              ) : null}
-
-              {decisionSummary.adjustedProposals > 0 ? (
-                <button
-                  onClick={() =>
-                    navigateFromSummary("decision_chip_adjusted", "/events", {
-                      block: "decision_summary",
-                    })
-                  }
-                  style={{ ...styles.decisionChip, ...styles.decisionChipInfo }}
-                >
-                  {decisionSummary.adjustedProposals} ajuste
-                  {decisionSummary.adjustedProposals === 1 ? "" : "s"} pendiente
-                  {decisionSummary.adjustedProposals === 1 ? "" : "s"}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-
-          {showSecondarySummaryFlow ? (
-            booting ? (
-              <div style={styles.loadingCard}>
-                <div style={styles.loadingDot} />
-                <div>
-                  <div style={styles.loadingTitle}>Cargando…</div>
-                  <div style={styles.loadingSub}>Resumen</div>
-                </div>
-              </div>
-            ) : !nextEvent ? (
-              <div style={styles.emptyBlock}>
-                <div style={styles.emptyTitle}>
-                  {showCreateGroupNudge
-                    ? "Todavía no activaste el loop compartido"
-                    : "Sin coordinación cercana todavía"}
-                </div>
-                <div style={styles.emptySub}>
-                  {showCreateGroupNudge
-                    ? "Empieza creando tu primer grupo. Ese es el paso que convierte SyncPlans en una referencia compartida y no solo en una agenda ordenada."
-                    : "Todavía no tienes nada cerca dentro del sistema. Conviene meter el próximo plan aquí para que la semana no dependa de memoria, chat o improvisación."}
-                </div>
-                <button
-                  onClick={primaryAction.primaryAction}
-                  style={styles.emptyBtn}
-                >
-                  {showCreateGroupNudge ? "Crear grupo →" : "Crear plan →"}
-                </button>
-              </div>
-            ) : (
-              <>
-                <div style={styles.nextBlock}>
-                  <div style={styles.nextLabel}>Próximo plan</div>
-                  <button
-                    onClick={() =>
-                      navigateFromSummary("open_calendar", "/calendar", {
-                        block: "summary_calendar",
-                      })
-                    }
-                    style={{
-                      ...styles.nextHeroCard,
-                      ...(highlightId &&
-                      String(nextEvent?.id ?? "") === String(highlightId)
-                        ? styles.eventRowHighlight
-                        : {}),
-                    }}
-                    className="spSum-eventRow"
-                  >
-                    {(() => {
-                      const start = nextEvent.start as Date;
-                      const end = nextEvent.end as Date | null;
-
-                      const when = end
-                        ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
-                        : `${fmtDay(start)} · ${fmtTime(start)}`;
-
-                      return (
-                        <>
-                          <div style={styles.eventLeft}>
-                            <div style={styles.nextHeroEyebrow}>Próximo evento</div>
-                            <div style={styles.eventWhen}>{when}</div>
-                            <div style={styles.eventTitle}>{nextEvent.title}</div>
-                            {(() => {
-                              const proposalLine = getProposalLineForEvent(
-                                nextEvent.id
-                              );
-                              return proposalLine ? (
-                                <div style={styles.proposalContextLine}>
-                                  {proposalLine}
-                                </div>
-                              ) : null;
-                            })()}
-                          </div>
-
-                          <div style={styles.eventMeta}>
-                            {(() => {
-                              const statusBadge = getStatusBadgeForEvent(
-                                nextEvent.id
-                              );
-                              if (statusBadge) {
-                                return (
-                                  <span
-                                    style={{
-                                      ...styles.summaryStatusPill,
-                                      ...statusBadge.style,
-                                    }}
-                                  >
-                                    {statusBadge.label}
-                                  </span>
-                                );
-                              }
-
-                              const proposalBadge = getProposalBadgeForEvent(
-                                nextEvent.id
-                              );
-                              return proposalBadge ? (
-                                <span
-                                  style={{
-                                    ...styles.proposalPill,
-                                    ...(proposalBadge.tone === "accepted"
-                                      ? styles.proposalPillAccepted
-                                      : proposalBadge.tone === "adjusted"
-                                        ? styles.proposalPillAdjusted
-                                        : styles.proposalPillPending),
-                                  }}
-                                >
-                                  {proposalBadge.label}
-                                </span>
-                              ) : null;
-                            })()}
-                            {nextEvent.isExternal ? (
-                              <span style={styles.pill}>Externo</span>
-                            ) : null}
-                            {nextEvent.groupId ? (
-                              <span style={styles.pillSoft}>Grupo</span>
-                            ) : (
-                              <span style={styles.pillSoft}>Personal</span>
-                            )}
-                            <span style={styles.nextHeroHint}>Ver y ajustar</span>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </button>
-                </div>
-
-                {remainingUpcoming.length > 0 && (
-                  <div style={styles.eventsList} className="spSum-eventsList">
-                    {remainingUpcoming.map((e) => {
-                      const start = e.start as Date;
-                      const end = e.end as Date | null;
-
-                      const when = end
-                        ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
-                        : `${fmtDay(start)} · ${fmtTime(start)}`;
-
-                      const isHighlighted =
-                        highlightId && String(e.id ?? "") === String(highlightId);
-
-                      return (
-                        <button
-                          key={e.id ?? `${e.title}-${start.toISOString()}`}
-                          onClick={() =>
-                            navigateFromSummary("open_calendar", "/calendar", {
-                              block: "summary_calendar",
-                            })
-                          }
-                          style={{
-                            ...styles.eventRow,
-                            ...(isHighlighted ? styles.eventRowHighlight : {}),
-                          }}
-                          className="spSum-eventRow"
-                        >
-                          <div style={styles.eventLeft}>
-                            <div style={styles.eventWhen}>{when}</div>
-                            <div style={styles.eventTitle}>{e.title}</div>
-                            {(() => {
-                              const proposalLine = getProposalLineForEvent(e.id);
-                              return proposalLine ? (
-                                <div style={styles.proposalContextLine}>
-                                  {proposalLine}
-                                </div>
-                              ) : null;
-                            })()}
-                          </div>
-
-                          <div style={styles.eventMeta}>
-                            {(() => {
-                              const statusBadge = getStatusBadgeForEvent(e.id);
-                              if (statusBadge) {
-                                return (
-                                  <span
-                                    style={{
-                                      ...styles.summaryStatusPill,
-                                      ...statusBadge.style,
-                                    }}
-                                  >
-                                    {statusBadge.label}
-                                  </span>
-                                );
-                              }
-
-                              const proposalBadge = getProposalBadgeForEvent(e.id);
-                              return proposalBadge ? (
-                                <span
-                                  style={{
-                                    ...styles.proposalPill,
-                                    ...(proposalBadge.tone === "accepted"
-                                      ? styles.proposalPillAccepted
-                                      : proposalBadge.tone === "adjusted"
-                                        ? styles.proposalPillAdjusted
-                                        : styles.proposalPillPending),
-                                  }}
-                                >
-                                  {proposalBadge.label}
-                                </span>
-                              ) : null;
-                            })()}
-                            {e.isExternal ? (
-                              <span style={styles.pill}>Externo</span>
-                            ) : null}
-                            {e.groupId ? (
-                              <span style={styles.pillSoft}>Grupo</span>
-                            ) : (
-                              <span style={styles.pillSoft}>Personal</span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {showSeeMore && (
-                  <button
-                    onClick={() =>
-                      navigateFromSummary("open_calendar", "/calendar", {
-                        block: "summary_calendar",
-                      })
-                    }
-                    style={styles.seeMoreBtn}
-                    className="spSum-seeMore"
-                  >
-                    Ver calendario ({upcomingAll.length}) →
-                  </button>
-                )}
-              </>
-            )
-          ) : (
-            <div style={styles.urgentFocusHint}>
-              Resuelve primero la prioridad de arriba. El detalle vuelve apenas
-              cierres eso.
-            </div>
-          )}
-        </Card>
-
-          {showRecentDecisions ? (
-            <Card style={styles.card} className="spSum-card">
-              <div style={styles.sectionHeadMini}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Señales recientes</div>
-                  <div style={styles.sectionTitle}>Decisiones que ya cerraste</div>
-                </div>
-                <button
-                  onClick={() =>
-                    navigateFromSummary("open_calendar", "/calendar", {
-                      block: "summary_calendar",
-                    })
-                  }
-                  style={styles.decisionsCta}
-                >
-                  Calendario →
-                </button>
-              </div>
-
-              <div style={styles.decisionsList}>
-                {visibleDecisions.map((decision) => (
-                  <div key={decision.id} style={styles.decisionRow}>
-                    <div
-                      style={{
-                        ...styles.decisionIcon,
-                        ...(decision.isFallback
-                          ? styles.decisionIconFallback
-                          : styles.decisionIconNormal),
-                      }}
-                    >
-                      {decision.isFallback ? "⚠️" : "✓"}
-                    </div>
-
-                    <div style={styles.decisionContent}>
-                      <div style={styles.decisionTopRow}>
-                        <div style={styles.decisionTitle}>{decision.title}</div>
-                        <div style={styles.decisionWhen}>{decision.whenLabel}</div>
-                      </div>
-
-                      <div style={styles.decisionSubtitle}>{decision.subtitle}</div>
-
-                      <div
-                        style={{
-                          ...styles.decisionBadge,
-                          ...(decision.isFallback
-                            ? styles.decisionBadgeFallback
-                            : styles.decisionBadgeManual),
-                        }}
-                      >
-                        {decision.isFallback ? "Auto" : "Resuelto"}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          ) : null}
-
-          {showQuickActionsCard ? (
-            <Card style={styles.card} className="spSum-card">
-              <div style={styles.sectionHeadMini}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Acciones rápidas</div>
-                  <div style={styles.sectionTitle}>
-                    {compactSummaryMobile ? "Haz ahora" : "Lo siguiente, sin dar vueltas"}
-                  </div>
-                </div>
-              </div>
-
-              <div style={styles.quickGrid} className="spSum-quickGrid">
-                {summaryQuickActions.map((action) => (
-                  <button
-                    key={action.key}
-                    onClick={action.onClick}
-                    style={styles.quickCard}
-                    className="spSum-quickCard"
-                  >
-                    <div style={styles.quickTitle}>{action.title}</div>
-                    <div style={styles.quickSub}>{action.subtitle}</div>
-                  </button>
-                ))}
-              </div>
-            </Card>
-          ) : null}
+        {showQuickActions ? <QuickActionsSection actions={summaryQuickActions} /> : null}
       </Section>
 
       <style>{`
         @media (max-width: 720px) {
-          .spSum-captureFootRow {
-            grid-template-columns: 1fr !important;
-          }
-        }
-
-        @media (max-width: 520px) {
           .spSum-shell {
             padding-left: 14px !important;
             padding-right: 14px !important;
             padding-top: 14px !important;
             gap: 12px !important;
           }
+        }
 
-          .spSum-card {
-            border-radius: 18px !important;
-            padding: 14px !important;
-          }
-
-          .spSum-captureCard {
-            padding: 16px !important;
-          }
-
-          .spSum-eventsList {
-            gap: 8px !important;
-          }
-
+        @media (max-width: 520px) {
           .spSum-eventRow {
-            min-height: 70px !important;
-            padding: 11px 12px !important;
+            min-height: 72px !important;
+            padding: 12px !important;
           }
 
           .spSum-quickGrid {
             grid-template-columns: 1fr !important;
           }
 
-          .spSum-captureFieldWrap {
-            grid-template-columns: 1fr !important;
-          }
-
-          .spSum-captureInput {
-            min-height: 52px !important;
-          }
-
-          .spSum-captureButton {
-            width: 100% !important;
-            min-height: 50px !important;
-          }
-
-          .spSum-captureDeepLinkButton {
-            width: 100% !important;
-            justify-content: center !important;
-          }
-
           .spSum-quickCard {
-            min-height: 88px !important;
+            min-height: 92px !important;
             padding: 14px !important;
           }
 
@@ -2414,7 +1985,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
+const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     background:
@@ -2458,7 +2029,200 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.75,
     fontWeight: 650,
   },
-  card: {
+  heroCard: {
+    borderRadius: 24,
+    border: "1px solid rgba(125,211,252,0.14)",
+    background:
+      "linear-gradient(180deg, rgba(56,189,248,0.08), rgba(124,58,237,0.06) 38%, rgba(255,255,255,0.035) 100%)",
+    boxShadow: "0 24px 72px rgba(0,0,0,0.24)",
+    backdropFilter: "blur(12px)",
+    padding: 18,
+  },
+  heroTopRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  heroEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.88)",
+    marginBottom: 8,
+  },
+  heroTitle: {
+    fontSize: 30,
+    lineHeight: 1.02,
+    fontWeight: 950,
+    letterSpacing: "-0.04em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  heroSubtitle: {
+    marginTop: 8,
+    maxWidth: 760,
+    fontSize: 14,
+    lineHeight: 1.58,
+    color: "rgba(226,232,240,0.78)",
+    fontWeight: 650,
+  },
+  heroActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  heroPrimaryBtn: {
+    minHeight: 46,
+    padding: "0 16px",
+    borderRadius: 999,
+    border: "1px solid rgba(96,165,250,0.24)",
+    background:
+      "linear-gradient(135deg, rgba(56,189,248,0.24), rgba(124,58,237,0.24))",
+    color: "rgba(255,255,255,0.98)",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 14px 30px rgba(8,12,28,0.20)",
+  },
+  heroSecondaryBtn: {
+    minHeight: 46,
+    padding: "0 16px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 13,
+    fontWeight: 850,
+    cursor: "pointer",
+  },
+  heroMetaRow: {
+    marginTop: 14,
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  metaPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 32,
+    padding: "7px 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.95)",
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  metaPillSoft: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 32,
+    padding: "7px 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(226,232,240,0.84)",
+    fontSize: 12,
+    fontWeight: 800,
+  },
+  metaPillWarning: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 32,
+    padding: "7px 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(251,191,36,0.24)",
+    background: "rgba(251,191,36,0.12)",
+    color: "rgba(255,243,205,0.98)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  metaPillInfo: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 32,
+    padding: "7px 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.24)",
+    background: "rgba(56,189,248,0.10)",
+    color: "rgba(224,242,254,0.98)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  heroBottomRow: {
+    marginTop: 14,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 16,
+    flexWrap: "wrap",
+    alignItems: "stretch",
+  },
+  heroMoodTitle: {
+    fontSize: 26,
+    lineHeight: 1.02,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+  },
+  heroMoodSubtitle: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.82)",
+    maxWidth: 720,
+  },
+  heroStatsRow: {
+    marginTop: 14,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  heroStat: {
+    fontSize: 12,
+    fontWeight: 850,
+    opacity: 0.88,
+  },
+  heroStatDot: {
+    opacity: 0.34,
+    fontWeight: 900,
+  },
+  heroKpi: {
+    minWidth: 140,
+    padding: 14,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(0,0,0,0.18)",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+  },
+  heroKpiLabel: {
+    fontSize: 11,
+    opacity: 0.62,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+  },
+  heroKpiNumber: {
+    marginTop: 4,
+    fontSize: 30,
+    fontWeight: 950,
+    letterSpacing: "-1px",
+    lineHeight: 1,
+  },
+  heroKpiHint: {
+    marginTop: 6,
+    fontSize: 12,
+    opacity: 0.68,
+    lineHeight: 1.4,
+  },
+  sectionCard: {
     borderRadius: 22,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(10,14,28,0.72)",
@@ -2466,475 +2230,136 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
     backdropFilter: "blur(12px)",
   },
-  captureCard: {
-    borderRadius: 24,
-    border: "1px solid rgba(125,211,252,0.14)",
-    background:
-      "linear-gradient(180deg, rgba(56,189,248,0.10), rgba(124,58,237,0.08) 42%, rgba(255,255,255,0.035) 100%)",
-    padding: 18,
-    boxShadow: "0 22px 72px rgba(0,0,0,0.24)",
-    backdropFilter: "blur(16px)",
+  railCopy: {
+    minWidth: 0,
+    flex: "1 1 360px",
+    display: "grid",
+    gap: 4,
   },
-  captureTopBand: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-    marginBottom: 12,
-  },
-  captureContextPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "8px 11px",
-    borderRadius: 999,
-    border: "1px solid rgba(125,211,252,0.16)",
-    background: "rgba(56,189,248,0.10)",
-    color: "rgba(226,242,255,0.92)",
-    fontSize: 11,
+  railTitle: {
+    fontSize: 16,
+    lineHeight: 1.25,
     fontWeight: 900,
-    whiteSpace: "nowrap",
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.98)",
   },
-  captureContextGhost: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "8px 11px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.74)",
-    fontSize: 11,
-    fontWeight: 850,
-    whiteSpace: "nowrap",
-  },
-  captureHeaderRow: {
+  railActions: {
     display: "flex",
-    alignItems: "flex-start",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  railSecondary: {
+    borderRadius: 999,
+    padding: "10px 14px",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.06)",
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  premiumRail: {
+    display: "flex",
     justifyContent: "space-between",
     gap: 14,
     flexWrap: "wrap",
+    padding: "14px 14px",
+    borderRadius: 18,
+    border: "1px solid rgba(196,181,253,0.26)",
+    background:
+      "linear-gradient(135deg, rgba(76,29,149,0.74), rgba(15,23,42,0.88))",
+    boxShadow: "0 18px 40px rgba(76,29,149,0.20)",
   },
-  captureHeaderActions: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  captureCopyBlock: {
-    maxWidth: 720,
-  },
-  captureDeepLinkButton: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 44,
-    borderRadius: 999,
-    border: "1px solid rgba(96,165,250,0.24)",
-    background: "rgba(8,15,29,0.82)",
-    color: "rgba(226,242,255,0.96)",
-    padding: "0 16px",
-    fontSize: 13,
-    fontWeight: 900,
-    cursor: "pointer",
-    boxShadow: "0 12px 26px rgba(0,0,0,0.18)",
-    whiteSpace: "nowrap",
-  },
-  captureGhostButton: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 44,
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.05)",
-    color: "rgba(226,242,255,0.92)",
-    padding: "0 16px",
-    fontSize: 13,
-    fontWeight: 900,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  },
-  captureWhatsappButton: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 44,
-    borderRadius: 999,
-    border: "1px solid rgba(34,197,94,0.30)",
-    background: "rgba(34,197,94,0.14)",
-    color: "rgba(233,255,240,0.96)",
-    padding: "0 16px",
-    fontSize: 13,
-    fontWeight: 900,
-    cursor: "pointer",
-    boxShadow: "0 12px 26px rgba(0,0,0,0.16)",
-    whiteSpace: "nowrap",
-  },
-  captureShareHelperWrap: {
-    marginTop: 12,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-    padding: "12px 14px",
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-  },
-  captureShareHelperTitle: {
-    fontSize: 12,
-    fontWeight: 900,
-    color: "rgba(226,242,255,0.94)",
-  },
-  captureShareHelperText: {
-    fontSize: 12,
-    lineHeight: 1.45,
-    color: "rgba(226,242,255,0.72)",
-    fontWeight: 650,
-  },
-  captureShareHelperExample: {
-    fontSize: 12,
-    lineHeight: 1.4,
-    color: "rgba(125,211,252,0.92)",
-    fontWeight: 800,
-  },
-  captureEyebrow: {
+  premiumRailEyebrow: {
     fontSize: 11,
     fontWeight: 900,
     textTransform: "uppercase",
     letterSpacing: "0.08em",
-    color: "rgba(125,211,252,0.86)",
+    color: "rgba(233,213,255,0.92)",
   },
-  captureTitle: {
-    marginTop: 6,
-    fontSize: 28,
-    fontWeight: 950,
-    letterSpacing: "-0.03em",
-  },
-  captureSub: {
-    marginTop: 6,
+  premiumRailSub: {
     fontSize: 13,
     lineHeight: 1.55,
-    opacity: 0.78,
-    maxWidth: 640,
+    color: "rgba(243,232,255,0.84)",
   },
-  captureFieldWrap: {
-    marginTop: 18,
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) auto",
-    gap: 10,
-    alignItems: "stretch",
-  },
-  captureInput: {
-    width: "100%",
-    minHeight: 66,
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(6,10,22,0.78)",
-    color: "rgba(255,255,255,0.96)",
-    padding: "0 16px",
-    fontSize: 15,
-    fontWeight: 700,
-    outline: "none",
-    boxShadow:
-      "inset 0 1px 0 rgba(255,255,255,0.03), 0 12px 28px rgba(0,0,0,0.16)",
-  },
-  captureButton: {
-    minWidth: 124,
-    minHeight: 66,
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 18,
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.26), rgba(124,58,237,0.26))",
-    color: "rgba(255,255,255,0.96)",
-    fontSize: 14,
-    fontWeight: 900,
-    padding: "0 18px",
-    cursor: "pointer",
-    boxShadow: "0 14px 30px rgba(8,12,28,0.24)",
-  },
-  captureButtonDisabled: {
-    opacity: 0.55,
-    cursor: "not-allowed",
-    boxShadow: "none",
-  },
-  captureFootRow: {
-    marginTop: 16,
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1.2fr) minmax(260px, 0.8fr)",
-    gap: 12,
-    alignItems: "stretch",
-  },
-  captureExamplesBlock: {
-    minWidth: 0,
-  },
-  captureExamplesLabel: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    opacity: 0.62,
-    marginBottom: 8,
-  },
-  captureExamplesRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  captureExamplePill: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "7px 10px",
+  premiumRailPrimary: {
     borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(10,14,28,0.72)",
-    fontSize: 11,
-    fontWeight: 800,
-    opacity: 0.86,
+    padding: "10px 14px",
+    border: "1px solid rgba(216,180,254,0.34)",
+    background: "rgba(168,85,247,0.24)",
+    color: "rgba(255,255,255,0.98)",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
   },
-  capturePreviewCard: {
+  valueRail: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+    padding: "14px 14px",
     borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(5,9,20,0.46)",
-    padding: 12,
-    display: "grid",
-    alignContent: "start",
-    gap: 8,
-    minHeight: 100,
+    border: "1px solid rgba(52,211,153,0.22)",
+    background:
+      "linear-gradient(135deg, rgba(20,83,45,0.76), rgba(15,23,42,0.84))",
   },
-  capturePreviewLabel: {
+  valueRailEyebrow: {
     fontSize: 11,
     fontWeight: 900,
     textTransform: "uppercase",
     letterSpacing: "0.08em",
-    color: "rgba(125,211,252,0.82)",
+    color: "rgba(134,239,172,0.90)",
   },
-  capturePreviewValue: {
+  valueRailSub: {
     fontSize: 13,
     lineHeight: 1.55,
-    color: "rgba(255,255,255,0.9)",
+    color: "rgba(220,252,231,0.84)",
   },
-  captureInterpretationHint: {
-  marginTop: 6,
-  fontSize: 12,
-  lineHeight: 1.4,
-  color: "rgba(125,211,252,0.92)",
-  fontWeight: 800,
-},
-  captureSuggestionsWrap: {
-    marginTop: 10,
-    display: "grid",
-    gap: 8,
-  },
-  captureSuggestionsTitle: {
-    fontSize: 12,
-    lineHeight: 1.4,
-    color: "rgba(226,242,255,0.78)",
-    fontWeight: 800,
-  },
-  captureSuggestionsRow: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  captureSuggestionChip: {
-    padding: "8px 12px",
+  valueRailPrimary: {
     borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.30)",
-    background: "rgba(56,189,248,0.15)",
-    color: "rgba(226,242,255,0.96)",
-    fontSize: 12,
-    fontWeight: 800,
+    padding: "10px 14px",
+    border: "1px solid rgba(74,222,128,0.26)",
+    background: "rgba(34,197,94,0.20)",
+    color: "rgba(255,255,255,0.96)",
+    fontSize: 13,
+    fontWeight: 900,
     cursor: "pointer",
   },
-  conflictBanner: {
-    width: "100%",
-    marginBottom: 12,
+  urgentRail: {
     display: "flex",
-    alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 14,
     flexWrap: "wrap",
-    padding: "13px 14px",
-    borderRadius: 16,
-    border: "1px solid rgba(251,191,36,0.20)",
-    background:
-      "linear-gradient(135deg, rgba(251,191,36,0.10), rgba(239,68,68,0.06))",
-    color: "rgba(255,255,255,0.94)",
-    cursor: "pointer",
-  },
-  conflictBannerLeft: {
-    display: "grid",
-    gap: 4,
-    textAlign: "left",
-  },
-  conflictBannerEyebrow: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(255,230,160,0.9)",
-  },
-  conflictBannerTitle: {
-    fontSize: 15,
-    fontWeight: 900,
-    letterSpacing: "-0.02em",
-  },
-  conflictBannerSub: {
-    fontSize: 13,
-    lineHeight: 1.45,
-    color: "rgba(255,255,255,0.76)",
-  },
-  conflictBannerCta: {
-    fontSize: 13,
-    fontWeight: 900,
-    whiteSpace: "nowrap",
-  },
-  stateRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 16,
-    padding: 16,
+    padding: "14px 14px",
     borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.12)",
+    border: "1px solid rgba(245,158,11,0.26)",
     background:
-      "linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.03))",
-    flexWrap: "wrap",
+      "linear-gradient(135deg, rgba(120,53,15,0.62), rgba(30,41,59,0.76))",
   },
-  stateLeft: {
-    flex: 1,
-    minWidth: 240,
-  },
-  stateLabelRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  statePill: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "7px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
+  urgentRailEyebrow: {
     fontSize: 11,
-    fontWeight: 900,
-    opacity: 0.9,
-  },
-  stateLoadingBadge: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.18)",
-    background: "rgba(56,189,248,0.10)",
-    fontSize: 11,
-    fontWeight: 900,
-    opacity: 0.9,
-  },
-  stateMoodTitle: {
-    marginTop: 10,
-    fontSize: 24,
-    fontWeight: 950,
-    letterSpacing: "-0.5px",
-  },
-  stateMoodSub: {
-    marginTop: 6,
-    fontSize: 13,
-    opacity: 0.76,
-    lineHeight: 1.45,
-  },
-  stateStatsRow: {
-    marginTop: 12,
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  attentionRow: {
-    marginTop: 14,
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
-  attentionChip: {
-    display: "inline-flex",
-    alignItems: "center",
-    minHeight: 34,
-    padding: "8px 11px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.05)",
-    color: "rgba(255,255,255,0.95)",
-    fontSize: 12,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  attentionChipDanger: {
-    border: "1px solid rgba(251,191,36,0.24)",
-    background: "rgba(251,191,36,0.12)",
-    color: "rgba(255,247,205,0.98)",
-  },
-  attentionChipInfo: {
-    border: "1px solid rgba(56,189,248,0.24)",
-    background: "rgba(56,189,248,0.12)",
-    color: "rgba(224,242,254,0.98)",
-  },
-  attentionChipNeutral: {
-    border: "1px solid rgba(94,234,212,0.22)",
-    background: "rgba(13,148,136,0.16)",
-    color: "rgba(204,251,241,0.98)",
-  },
-  attentionChipSoft: {
-    border: "1px solid rgba(196,181,253,0.24)",
-    background: "rgba(124,58,237,0.14)",
-    color: "rgba(237,233,254,0.98)",
-  },
-  stateStat: {
-    fontSize: 12,
-    fontWeight: 850,
-    opacity: 0.88,
-  },
-  stateStatDot: {
-    opacity: 0.34,
-    fontWeight: 900,
-  },
-  stateKpi: {
-    minWidth: 140,
-    padding: 14,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(0,0,0,0.18)",
-    alignSelf: "stretch",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-  },
-  stateKpiLabel: {
-    fontSize: 11,
-    opacity: 0.62,
     fontWeight: 900,
     textTransform: "uppercase",
     letterSpacing: "0.08em",
+    color: "rgba(254,243,199,0.92)",
   },
-  stateKpiNumber: {
-    marginTop: 4,
-    fontSize: 30,
-    fontWeight: 950,
-    letterSpacing: "-1px",
-    lineHeight: 1,
+  urgentRailSub: {
+    fontSize: 13,
+    lineHeight: 1.48,
+    color: "rgba(255,237,213,0.86)",
   },
-  stateKpiHint: {
-    marginTop: 6,
-    fontSize: 12,
-    opacity: 0.68,
-    lineHeight: 1.4,
+  urgentRailPrimary: {
+    borderRadius: 999,
+    padding: "10px 14px",
+    border: "1px solid rgba(251,191,36,0.30)",
+    background: "rgba(245,158,11,0.26)",
+    color: "rgba(255,251,235,0.98)",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
   },
   loadingCard: {
-    marginTop: 14,
     display: "flex",
     alignItems: "center",
     gap: 12,
@@ -2959,6 +2384,36 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     opacity: 0.68,
     marginTop: 2,
+  },
+  sectionHeadMini: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  sectionEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.82)",
+    marginBottom: 4,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 950,
+    letterSpacing: "-0.02em",
+  },
+  sectionLinkBtn: {
+    fontSize: 12,
+    fontWeight: 900,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.95)",
+    padding: "6px 10px",
+    borderRadius: 999,
+    cursor: "pointer",
   },
   emptyBlock: {
     marginTop: 14,
@@ -2992,70 +2447,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     fontSize: 13,
   },
-  nextBlock: {
-    marginTop: 16,
-    display: "grid",
-    gap: 8,
-  },
-  nextLabel: {
-    fontSize: 12,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    opacity: 0.7,
-  },
-  nextCard: {
-    width: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    padding: "14px 14px",
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.035))",
-    color: "rgba(255,255,255,0.96)",
-    cursor: "pointer",
-    textAlign: "left",
-  },
-  nextHeroCard: {
-    width: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    padding: "16px 16px",
-    borderRadius: 18,
-    border: "1px solid rgba(96,165,250,0.30)",
-    background:
-      "linear-gradient(180deg, rgba(59,130,246,0.18), rgba(30,41,59,0.40))",
-    color: "rgba(255,255,255,0.96)",
-    cursor: "pointer",
-    textAlign: "left",
-    boxShadow: "0 18px 42px rgba(37,99,235,0.18)",
-  },
-  nextHeroEyebrow: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(191,219,254,0.94)",
-    marginBottom: 2,
-  },
-  nextHeroHint: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "6px 9px",
-    borderRadius: 999,
-    border: "1px solid rgba(147,197,253,0.24)",
-    background: "rgba(59,130,246,0.16)",
-    color: "rgba(219,234,254,0.95)",
-    fontSize: 11,
-    fontWeight: 900,
-  },
   eventsList: {
-    marginTop: 12,
+    marginTop: 14,
     display: "grid",
     gap: 10,
   },
@@ -3074,6 +2467,23 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     textAlign: "left",
   },
+  featuredEventRow: {
+    width: "100%",
+    minHeight: 74,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    padding: "16px 16px",
+    borderRadius: 18,
+    border: "1px solid rgba(96,165,250,0.30)",
+    background:
+      "linear-gradient(180deg, rgba(59,130,246,0.18), rgba(30,41,59,0.40))",
+    color: "rgba(255,255,255,0.96)",
+    cursor: "pointer",
+    textAlign: "left",
+    boxShadow: "0 18px 42px rgba(37,99,235,0.18)",
+  },
   eventRowHighlight: {
     border: "1px solid rgba(56,189,248,0.45)",
     boxShadow: "0 0 0 1px rgba(56,189,248,0.22) inset",
@@ -3084,6 +2494,14 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: 0,
     display: "grid",
     gap: 4,
+  },
+  featuredEventEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(191,219,254,0.94)",
+    marginBottom: 2,
   },
   eventWhen: {
     fontSize: 11,
@@ -3103,17 +2521,15 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
     justifyContent: "flex-end",
   },
-  pill: {
+  statusPill: {
     display: "inline-flex",
     alignItems: "center",
-    padding: "6px 9px",
+    padding: "6px 10px",
     borderRadius: 999,
-    background: "rgba(56,189,248,0.14)",
-    border: "1px solid rgba(56,189,248,0.22)",
-    fontSize: 11,
-    fontWeight: 900,
+    fontSize: 12,
+    fontWeight: 800,
   },
-  pillSoft: {
+  softPill: {
     display: "inline-flex",
     alignItems: "center",
     padding: "6px 9px",
@@ -3122,29 +2538,6 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.10)",
     fontSize: 11,
     fontWeight: 900,
-  },
-  proposalPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "6px 9px",
-    borderRadius: 999,
-    fontSize: 11,
-    fontWeight: 900,
-  },
-  proposalPillPending: {
-    border: "1px solid rgba(251,191,36,0.25)",
-    background: "rgba(251,191,36,0.12)",
-    color: "rgba(255,236,179,0.95)",
-  },
-  proposalPillAccepted: {
-    border: "1px solid rgba(52,211,153,0.24)",
-    background: "rgba(52,211,153,0.12)",
-    color: "rgba(209,250,229,0.96)",
-  },
-  proposalPillAdjusted: {
-    border: "1px solid rgba(56,189,248,0.24)",
-    background: "rgba(56,189,248,0.12)",
-    color: "rgba(224,242,254,0.96)",
   },
   proposalContextLine: {
     fontSize: 11,
@@ -3166,55 +2559,6 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     fontWeight: 900,
     fontSize: 13,
-  },
-  sectionHeadMini: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  sectionEyebrow: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(125,211,252,0.82)",
-    marginBottom: 4,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 950,
-    letterSpacing: "-0.02em",
-  },
-  decisionsCta: {
-    fontSize: 12,
-    fontWeight: 900,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.05)",
-    color: "rgba(255,255,255,0.95)",
-    padding: "6px 10px",
-    borderRadius: 999,
-    cursor: "pointer",
-  },
-  decisionsEmpty: {
-    marginTop: 14,
-    padding: "18px 16px",
-    borderRadius: 18,
-    border: "1px dashed rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.03)",
-  },
-  decisionsEmptyTitle: {
-    fontSize: 16,
-    fontWeight: 900,
-    letterSpacing: "-0.02em",
-  },
-  decisionsEmptySub: {
-    marginTop: 8,
-    fontSize: 13,
-    opacity: 0.74,
-    lineHeight: 1.5,
-    maxWidth: 620,
   },
   decisionsList: {
     marginTop: 14,
@@ -3329,306 +2673,4 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.74,
     lineHeight: 1.5,
   },
-
-  premiumRail: {
-    marginTop: 14,
-    marginBottom: 2,
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 14,
-    flexWrap: "wrap",
-    padding: "14px 14px",
-    borderRadius: 18,
-    border: "1px solid rgba(196,181,253,0.26)",
-    background:
-      "linear-gradient(135deg, rgba(76,29,149,0.74), rgba(15,23,42,0.88))",
-    boxShadow: "0 18px 40px rgba(76,29,149,0.20)",
-  },
-  premiumRailCopy: {
-    minWidth: 0,
-    flex: "1 1 360px",
-    display: "grid",
-    gap: 4,
-  },
-  premiumRailEyebrow: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(233,213,255,0.92)",
-  },
-  premiumRailTitle: {
-    fontSize: 16,
-    lineHeight: 1.25,
-    fontWeight: 900,
-    letterSpacing: "-0.02em",
-    color: "rgba(255,255,255,0.98)",
-  },
-  premiumRailSub: {
-    fontSize: 13,
-    lineHeight: 1.55,
-    color: "rgba(243,232,255,0.84)",
-  },
-  premiumRailActions: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
-  premiumRailPrimary: {
-    borderRadius: 999,
-    padding: "10px 14px",
-    border: "1px solid rgba(216,180,254,0.34)",
-    background: "rgba(168,85,247,0.24)",
-    color: "rgba(255,255,255,0.98)",
-    fontSize: 13,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  premiumRailSecondary: {
-    borderRadius: 999,
-    padding: "10px 14px",
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.06)",
-    color: "rgba(255,255,255,0.92)",
-    fontSize: 13,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  valueRail: {
-    marginTop: 14,
-    marginBottom: 2,
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 14,
-    flexWrap: "wrap",
-    padding: "14px 14px",
-    borderRadius: 18,
-    border: "1px solid rgba(52,211,153,0.22)",
-    background:
-      "linear-gradient(135deg, rgba(20,83,45,0.76), rgba(15,23,42,0.84))",
-  },
-  valueRailCopy: {
-    minWidth: 0,
-    flex: "1 1 360px",
-    display: "grid",
-    gap: 4,
-  },
-  valueRailEyebrow: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(134,239,172,0.90)",
-  },
-  valueRailTitle: {
-    fontSize: 16,
-    lineHeight: 1.25,
-    fontWeight: 900,
-    letterSpacing: "-0.02em",
-  },
-  valueRailSub: {
-    fontSize: 13,
-    lineHeight: 1.55,
-    color: "rgba(220,252,231,0.84)",
-  },
-  valueRailActions: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
-  valueRailPrimary: {
-    borderRadius: 999,
-    padding: "10px 14px",
-    border: "1px solid rgba(74,222,128,0.26)",
-    background: "rgba(34,197,94,0.20)",
-    color: "rgba(255,255,255,0.96)",
-    fontSize: 13,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  returnRail: {
-    marginTop: 14,
-    marginBottom: 2,
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 14,
-    flexWrap: "wrap",
-    padding: "14px 14px",
-    borderRadius: 18,
-    border: "1px solid rgba(96,165,250,0.22)",
-    background:
-      "linear-gradient(135deg, rgba(8,47,73,0.72), rgba(30,41,59,0.82))",
-  },
-  returnRailCopy: {
-    minWidth: 0,
-    flex: "1 1 360px",
-    display: "grid",
-    gap: 4,
-  },
-  returnRailEyebrow: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(125,211,252,0.90)",
-  },
-  returnRailTitle: {
-    fontSize: 16,
-    lineHeight: 1.25,
-    fontWeight: 900,
-    letterSpacing: "-0.02em",
-  },
-  returnRailSub: {
-    fontSize: 13,
-    lineHeight: 1.55,
-    color: "rgba(226,232,240,0.82)",
-  },
-  returnRailActions: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
-  returnRailPrimary: {
-    borderRadius: 999,
-    padding: "10px 14px",
-    border: "1px solid rgba(96,165,250,0.26)",
-    background: "rgba(59,130,246,0.20)",
-    color: "rgba(255,255,255,0.96)",
-    fontSize: 13,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  returnRailSecondary: {
-    borderRadius: 999,
-    padding: "10px 14px",
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.05)",
-    color: "rgba(255,255,255,0.92)",
-    fontSize: 13,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  urgentSingleRail: {
-    marginTop: 12,
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-    padding: "12px 13px",
-    borderRadius: 16,
-    border: "1px solid rgba(245,158,11,0.26)",
-    background:
-      "linear-gradient(135deg, rgba(120,53,15,0.62), rgba(30,41,59,0.76))",
-  },
-  urgentSingleCopy: {
-    minWidth: 0,
-    flex: "1 1 320px",
-    display: "grid",
-    gap: 4,
-  },
-  urgentSingleLabel: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(254,243,199,0.92)",
-  },
-  urgentSingleTitle: {
-    fontSize: 16,
-    lineHeight: 1.24,
-    fontWeight: 900,
-    letterSpacing: "-0.02em",
-    color: "rgba(255,251,235,0.98)",
-  },
-  urgentSingleSub: {
-    fontSize: 13,
-    lineHeight: 1.48,
-    color: "rgba(255,237,213,0.86)",
-  },
-  urgentSingleBtn: {
-    borderRadius: 999,
-    padding: "10px 14px",
-    border: "1px solid rgba(251,191,36,0.30)",
-    background: "rgba(245,158,11,0.26)",
-    color: "rgba(255,251,235,0.98)",
-    fontSize: 13,
-    fontWeight: 900,
-    cursor: "pointer",
-    alignSelf: "center",
-  },
-  urgentFocusHint: {
-    marginTop: 12,
-    borderRadius: 14,
-    padding: "12px 14px",
-    border: "1px solid rgba(125,211,252,0.22)",
-    background: "rgba(8,47,73,0.38)",
-    color: "rgba(226,232,240,0.9)",
-    fontSize: 13,
-    lineHeight: 1.5,
-    fontWeight: 700,
-  },
-  decisionChipsRow: {
-    display: "flex",
-    flexWrap: "wrap" as const,
-    gap: 10,
-    marginTop: 14,
-    marginBottom: 4,
-  },
-  decisionChip: {
-    border: "1px solid rgba(148,163,184,0.18)",
-    borderRadius: 999,
-    padding: "10px 14px",
-    fontSize: 13,
-    fontWeight: 800,
-    cursor: "pointer",
-    background: "rgba(15,23,42,0.74)",
-    color: "#e2e8f0",
-  },
-  decisionChipDanger: {
-    background: "rgba(127,29,29,0.88)",
-    borderColor: "rgba(252,165,165,0.24)",
-    color: "rgba(254,226,226,0.98)",
-  },
-  decisionChipPending: {
-    background: "rgba(120,53,15,0.88)",
-    borderColor: "rgba(251,191,36,0.24)",
-    color: "rgba(254,243,199,0.98)",
-  },
-  decisionChipInfo: {
-    background: "rgba(22,78,99,0.88)",
-    borderColor: "rgba(103,232,249,0.24)",
-    color: "rgba(207,250,254,0.98)",
-  },
-  summaryStatusPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    borderRadius: 999,
-    padding: "6px 10px",
-    fontSize: 12,
-    fontWeight: 800,
-    border: "1px solid rgba(148,163,184,0.18)",
-  },
-  summaryStatusDanger: {
-    background: "rgba(127,29,29,0.88)",
-    borderColor: "rgba(252,165,165,0.24)",
-    color: "rgba(254,226,226,0.98)",
-  },
-  summaryStatusPending: {
-    background: "rgba(120,53,15,0.88)",
-    borderColor: "rgba(251,191,36,0.24)",
-    color: "rgba(254,243,199,0.98)",
-  },
-  summaryStatusInfo: {
-    background: "rgba(22,78,99,0.88)",
-    borderColor: "rgba(103,232,249,0.24)",
-    color: "rgba(207,250,254,0.98)",
-  },
-  summaryStatusOk: {
-    background: "rgba(20,83,45,0.88)",
-    borderColor: "rgba(74,222,128,0.24)",
-    color: "rgba(220,252,231,0.98)",
-  },
-};
+}
