@@ -11,6 +11,13 @@ import {
   Tipos base (DB)
 ====================================================== */
 
+export type EventLocationProvider = "google";
+export type EventTravelMode =
+  | "driving"
+  | "walking"
+  | "bicycling"
+  | "transit";
+
 export type DbEventRow = {
   id: string;
   user_id: string | null;
@@ -25,6 +32,15 @@ export type DbEventRow = {
   updated_at?: string | null;
   external_source?: string | null;
   external_id?: string | null;
+  location_label?: string | null;
+  location_address?: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_provider?: EventLocationProvider | null;
+  location_place_id?: string | null;
+  travel_mode?: EventTravelMode | null;
+  travel_eta_seconds?: number | null;
+  leave_time?: string | null;
 };
 
 export type CreateEventPayload = {
@@ -33,6 +49,15 @@ export type CreateEventPayload = {
   start: string; // ISO
   end: string; // ISO
   groupId: string | null;
+  location_label?: string | null;
+  location_address?: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_provider?: EventLocationProvider | null;
+  location_place_id?: string | null;
+  travel_mode?: EventTravelMode | null;
+  travel_eta_seconds?: number | null;
+  leave_time?: string | null;
 };
 
 export type DbEvent = {
@@ -49,6 +74,15 @@ export type DbEvent = {
   updated_at?: string | null;
   external_source?: string | null;
   external_id?: string | null;
+  location_label?: string | null;
+  location_address?: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_provider?: EventLocationProvider | null;
+  location_place_id?: string | null;
+  travel_mode?: EventTravelMode | null;
+  travel_eta_seconds?: number | null;
+  leave_time?: string | null;
 };
 
 /**
@@ -62,6 +96,15 @@ export type UpdateEventPayload = {
   start?: string; // ISO
   end?: string; // ISO
   groupId?: string | null;
+  location_label?: string | null;
+  location_address?: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_provider?: EventLocationProvider | null;
+  location_place_id?: string | null;
+  travel_mode?: EventTravelMode | null;
+  travel_eta_seconds?: number | null;
+  leave_time?: string | null;
 };
 
 export type DeleteEventsResult = {
@@ -87,7 +130,7 @@ export type GeneratePublicInviteLinkResult = {
 ====================================================== */
 
 const EVENT_SELECT =
-  "id, user_id, owner_id, created_by, group_id, title, notes, start, end, created_at, updated_at, external_source, external_id";
+  'id, user_id, owner_id, created_by, group_id, title, notes, start, "end", created_at, updated_at, external_source, external_id, location_label, location_address, location_lat, location_lng, location_provider, location_place_id, travel_mode, travel_eta_seconds, leave_time';
 
 /* ======================================================
   Helper interno: uid actual
@@ -123,6 +166,15 @@ function mapDbEventRow(row: any): DbEventRow {
     updated_at: row.updated_at ?? null,
     external_source: row.external_source ?? null,
     external_id: row.external_id ?? null,
+    location_label: row.location_label ?? null,
+    location_address: row.location_address ?? null,
+    location_lat: row.location_lat ?? null,
+    location_lng: row.location_lng ?? null,
+    location_provider: row.location_provider ?? null,
+    location_place_id: row.location_place_id ?? null,
+    travel_mode: row.travel_mode ?? null,
+    travel_eta_seconds: row.travel_eta_seconds ?? null,
+    leave_time: row.leave_time ?? null,
   };
 }
 
@@ -216,6 +268,15 @@ export async function createEventForGroup(
     notes: payload.notes ?? null,
     start: payload.start,
     end: payload.end,
+    location_label: payload.location_label ?? null,
+    location_address: payload.location_address ?? null,
+    location_lat: payload.location_lat ?? null,
+    location_lng: payload.location_lng ?? null,
+    location_provider: payload.location_provider ?? null,
+    location_place_id: payload.location_place_id ?? null,
+    travel_mode: payload.travel_mode ?? null,
+    travel_eta_seconds: payload.travel_eta_seconds ?? null,
+    leave_time: payload.leave_time ?? null,
   };
 
   const { data, error } = await supabase
@@ -297,33 +358,38 @@ export async function deleteEventsByIdsDetailed(
 
   let deletedCount = 0;
 
-if (ownIds.length > 0) {
-  const { data: deletedRows, error: deleteError, count } = await supabase
-    .from("events")
-    .delete({ count: "exact" })
-    .in("id", ownIds)
-    .select("id");
+  if (ownIds.length > 0) {
+    const { data: deletedRows, error: deleteError, count } = await supabase
+      .from("events")
+      .delete({ count: "exact" })
+      .in("id", ownIds)
+      .select("id");
 
-  if (deleteError) {
-    console.error("[deleteEventsByIdsDetailed] delete error", deleteError);
-    throw deleteError;
+    if (deleteError) {
+      console.error("[deleteEventsByIdsDetailed] delete error", deleteError);
+      throw deleteError;
+    }
+
+    deletedCount = count ?? deletedRows?.length ?? 0;
+
+    const deletedSet = new Set(
+      (deletedRows ?? []).map((row: any) => String(row.id))
+    );
+
+    const deleteBlockedOwnIds = ownIds.filter(
+      (id) => !deletedSet.has(String(id))
+    );
+
+    if (deleteBlockedOwnIds.length > 0) {
+      return {
+        requestedIds,
+        ownIds,
+        blockedIds: [...new Set([...blockedIds, ...deleteBlockedOwnIds])],
+        deletedCount,
+      };
+    }
   }
 
-  deletedCount = count ?? deletedRows?.length ?? 0;
-
-  const deletedSet = new Set((deletedRows ?? []).map((row: any) => String(row.id)));
-
-  const deleteBlockedOwnIds = ownIds.filter((id) => !deletedSet.has(String(id)));
-
-  if (deleteBlockedOwnIds.length > 0) {
-    return {
-      requestedIds,
-      ownIds,
-      blockedIds: [...new Set([...blockedIds, ...deleteBlockedOwnIds])],
-      deletedCount,
-    };
-  }
-}
   return {
     requestedIds,
     ownIds,
@@ -403,6 +469,7 @@ export async function updateEventTime(
  * - Notas
  * - Fechas
  * - group_id
+ * - Ubicación / viaje
  */
 export async function updateEvent(
   payload: UpdateEventPayload
@@ -421,6 +488,33 @@ export async function updateEvent(
   if (typeof start !== "undefined") update.start = start;
   if (typeof end !== "undefined") update.end = end;
   if (typeof groupId !== "undefined") update.group_id = groupId;
+  if (typeof payload.location_label !== "undefined") {
+    update.location_label = payload.location_label ?? null;
+  }
+  if (typeof payload.location_address !== "undefined") {
+    update.location_address = payload.location_address ?? null;
+  }
+  if (typeof payload.location_lat !== "undefined") {
+    update.location_lat = payload.location_lat ?? null;
+  }
+  if (typeof payload.location_lng !== "undefined") {
+    update.location_lng = payload.location_lng ?? null;
+  }
+  if (typeof payload.location_provider !== "undefined") {
+    update.location_provider = payload.location_provider ?? null;
+  }
+  if (typeof payload.location_place_id !== "undefined") {
+    update.location_place_id = payload.location_place_id ?? null;
+  }
+  if (typeof payload.travel_mode !== "undefined") {
+    update.travel_mode = payload.travel_mode ?? null;
+  }
+  if (typeof payload.travel_eta_seconds !== "undefined") {
+    update.travel_eta_seconds = payload.travel_eta_seconds ?? null;
+  }
+  if (typeof payload.leave_time !== "undefined") {
+    update.leave_time = payload.leave_time ?? null;
+  }
 
   if (Object.keys(update).length === 0) return;
 
@@ -489,35 +583,8 @@ export async function getEventsForGroups(
 }
 
 /**
- * Compat: algunos sitios pueden esperar algo tipo "getAllEventsFlat"
- * → devolvemos exactamente lo mismo que getMyEvents().
+ * Compat: algunos sitios esperan algo tipo getAllEventsFlat().
  */
 export async function getAllEventsFlat(): Promise<DbEventRow[]> {
-  return getMyEvents();
-}
-
-/**
- * Compat: deleteEvent(id) → deleteEventsByIds([id])
- */
-export async function deleteEvent(id: string): Promise<number> {
-  if (!id) return 0;
-  return deleteEventsByIds([id]);
-}
-
-/**
- * Alias adicionales por si quedaron imports antiguos:
- * - getEvents()
- * - getAllEvents()
- * - getEventsFlat()
- */
-export async function getEvents(): Promise<DbEventRow[]> {
-  return getMyEvents();
-}
-
-export async function getAllEvents(): Promise<DbEventRow[]> {
-  return getMyEvents();
-}
-
-export async function getEventsFlat(): Promise<DbEventRow[]> {
   return getMyEvents();
 }

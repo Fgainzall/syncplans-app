@@ -132,6 +132,64 @@ type PreflightConflict = {
 
 type PostSaveFormFingerprint = string;
 
+type UiTravelMode = "driving" | "walking" | "bicycling" | "transit";
+
+type MapsPlaceSuggestion = {
+  label: string;
+  address: string;
+  lat: number;
+  lng: number;
+  place_id: string;
+  provider: "google";
+  type: string;
+};
+
+type LatLng = {
+  lat: number;
+  lng: number;
+};
+
+type SelectedPlace = {
+  location_label: string;
+  location_address: string;
+  location_lat: number;
+  location_lng: number;
+  location_provider: "google";
+  location_place_id: string;
+};
+
+type SavePayload = {
+  groupType: GroupType;
+  groupId: string | null;
+  title: string;
+  notes?: string;
+  startIso: string;
+  endIso: string;
+  location_label: string | null;
+  location_address: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
+  location_provider: "google" | null;
+  location_place_id: string | null;
+  travel_mode: UiTravelMode | null;
+  travel_eta_seconds: number | null;
+  leave_time: string | null;
+};
+
+function formatEtaLabel(etaSeconds: number | null) {
+  if (!etaSeconds || etaSeconds <= 0) return null;
+  const minutes = Math.max(1, Math.round(etaSeconds / 60));
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
+function safeIsoFromLocalDateInput(localValue: string): string | null {
+  const parsed = new Date(localValue);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
 
 function getConflictCounterpart(
   conflict: ReturnType<typeof computeVisibleConflicts>[number],
@@ -353,6 +411,8 @@ function NewEventDetailsInner() {
   const intentParam = sp.get("intent");
   const proposalParam = sp.get("proposal");
   const proposalResponseParam = sp.get("proposal_response");
+  const originLatParam = sp.get("originLat");
+  const originLngParam = sp.get("originLng");
   const proposalEventIdParam =
     sp.get("proposal_event_id") || sp.get("proposalEventId") || "";
 
@@ -395,10 +455,31 @@ function NewEventDetailsInner() {
 
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
+  const [locationInput, setLocationInput] = useState("");
+  const [autocompleteResults, setAutocompleteResults] = useState<
+    MapsPlaceSuggestion[]
+  >([]);
+  const [isLoadingAutocomplete, setIsLoadingAutocomplete] = useState(false);
+  const [autocompleteError, setAutocompleteError] = useState<string | null>(
+    null
+  );
+  const [selectedPlace, setSelectedPlace] = useState<SelectedPlace | null>(
+    null
+  );
+  const [travelMode, setTravelMode] = useState<UiTravelMode>("driving");
+  const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
+  const [isLoadingEta, setIsLoadingEta] = useState(false);
+  const [etaError, setEtaError] = useState<string | null>(null);
   const [startLocal, setStartLocal] = useState(() => toInputLocal(initialStart));
   const [endLocal, setEndLocal] = useState(() =>
     toInputLocal(addMinutes(initialStart, 60))
   );
+  const autocompleteRequestRef = useRef(0);
+  const etaRequestRef = useRef(0);
+  const locationSessionTokenRef = useRef(
+    `sp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  );
+  const originPointRef = useRef<LatLng | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<null | {
@@ -462,14 +543,7 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
   const [preflightItems, setPreflightItems] = useState<PreflightConflict[]>([]);
   const [preflightDefaultChoice, setPreflightDefaultChoice] =
     useState<PreflightChoice>("edit");
-  const [pendingPayload, setPendingPayload] = useState<null | {
-    groupType: GroupType;
-    groupId: string | null;
-    title: string;
-    notes?: string;
-    startIso: string;
-    endIso: string;
-  }>(null);
+  const [pendingPayload, setPendingPayload] = useState<null | SavePayload>(null);
   const [existingIdsToReplace, setExistingIdsToReplace] = useState<string[]>(
     []
   );
@@ -498,8 +572,28 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     };
   }, []);
 
+  useEffect(() => {
+    const lat = Number(originLatParam);
+    const lng = Number(originLngParam);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      originPointRef.current = { lat, lng };
+      return;
+    }
+    originPointRef.current = null;
+  }, [originLatParam, originLngParam]);
+
   const startDate = useMemo(() => fromInputLocal(startLocal), [startLocal]);
   const endDate = useMemo(() => fromInputLocal(endLocal), [endLocal]);
+  const leaveTimePreview = useMemo(() => {
+    if (!etaSeconds || !Number.isFinite(startDate.getTime())) return null;
+    const LEAVE_BUFFER_SECONDS = 5 * 60;
+    const leaveAt = new Date(
+      startDate.getTime() - etaSeconds * 1000 - LEAVE_BUFFER_SECONDS * 1000
+    );
+    if (Number.isNaN(leaveAt.getTime())) return null;
+    return leaveAt;
+  }, [etaSeconds, startDate]);
+  const etaLabel = useMemo(() => formatEtaLabel(etaSeconds), [etaSeconds]);
 
   const selectedGroup = useMemo(
     () => uniqueGroups.find((g) => g.id === selectedGroupId) || null,
@@ -540,6 +634,8 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     if (timeParam) params.set("time", timeParam);
     if (captureSourceParam) params.set("capture_source", captureSourceParam);
     if (rawTextParam) params.set("raw_text", rawTextParam);
+    if (originLatParam) params.set("originLat", originLatParam);
+    if (originLngParam) params.set("originLng", originLngParam);
 
     if (intentParam) params.set("intent", intentParam);
     if (proposalParam) params.set("proposal", proposalParam);
@@ -687,9 +783,55 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     try {
       const ev = await getEventById(eventIdParam);
       if (!alive) return;
+      const evRecord = ev as Record<string, unknown>;
 
       setTitle(ev.title ?? "");
       setNotes(ev.notes ?? "");
+
+      const existingLabel = String(evRecord.location_label ?? "").trim();
+      const existingAddress = String(evRecord.location_address ?? "").trim();
+      const existingLat = Number(evRecord.location_lat);
+      const existingLng = Number(evRecord.location_lng);
+      const existingPlaceId = String(evRecord.location_place_id ?? "").trim();
+      const existingProvider = String(evRecord.location_provider ?? "").trim();
+      const existingTravelMode = String(evRecord.travel_mode ?? "").trim();
+      const existingEta = Number(evRecord.travel_eta_seconds);
+
+      if (existingLabel || existingAddress) {
+        setLocationInput(existingLabel || existingAddress);
+      }
+
+      if (
+        Number.isFinite(existingLat) &&
+        Number.isFinite(existingLng) &&
+        (existingLabel || existingAddress)
+      ) {
+        setSelectedPlace({
+          location_label: existingLabel || existingAddress,
+          location_address: existingAddress || existingLabel || "",
+          location_lat: existingLat,
+          location_lng: existingLng,
+          location_provider:
+            existingProvider === "google" ? "google" : "google",
+          location_place_id: existingPlaceId,
+        });
+      } else {
+        setSelectedPlace(null);
+      }
+
+      if (
+        existingTravelMode === "walking" ||
+        existingTravelMode === "bicycling" ||
+        existingTravelMode === "transit"
+      ) {
+        setTravelMode(existingTravelMode);
+      } else {
+        setTravelMode("driving");
+      }
+
+      setEtaSeconds(
+        Number.isFinite(existingEta) ? Math.max(0, Math.round(existingEta)) : null
+      );
 
       const s = new Date(ev.start);
       const e = new Date(ev.end);
@@ -753,7 +895,148 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     }
   }, [proposedStartParam, proposedEndParam]);
 
+  useEffect(() => {
+    const trimmed = String(locationInput ?? "").trim();
 
+    if (!trimmed) {
+      setAutocompleteResults([]);
+      setAutocompleteError(null);
+      setIsLoadingAutocomplete(false);
+      return;
+    }
+
+    if (
+      selectedPlace &&
+      trimmed.toLowerCase() ===
+        String(selectedPlace.location_label ?? "").trim().toLowerCase()
+    ) {
+      setAutocompleteResults([]);
+      setAutocompleteError(null);
+      setIsLoadingAutocomplete(false);
+      return;
+    }
+
+    if (trimmed.length < 3) {
+      setAutocompleteResults([]);
+      setAutocompleteError(null);
+      setIsLoadingAutocomplete(false);
+      return;
+    }
+
+    let cancelled = false;
+    const requestId = ++autocompleteRequestRef.current;
+    setIsLoadingAutocomplete(true);
+    setAutocompleteError(null);
+
+    const t = window.setTimeout(async () => {
+      try {
+        const res = await fetch("/api/maps/autocomplete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            input: trimmed,
+            limit: 5,
+            sessionToken: locationSessionTokenRef.current,
+          }),
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if (cancelled || requestId !== autocompleteRequestRef.current) return;
+
+        if (!res.ok) {
+          setAutocompleteResults([]);
+          setAutocompleteError(
+            String(data?.error ?? "No pudimos buscar ubicaciones ahora.")
+          );
+          return;
+        }
+
+        const predictions = Array.isArray(data?.predictions)
+          ? (data.predictions as MapsPlaceSuggestion[])
+          : [];
+        setAutocompleteResults(predictions);
+        setAutocompleteError(null);
+      } catch {
+        if (cancelled || requestId !== autocompleteRequestRef.current) return;
+        setAutocompleteResults([]);
+        setAutocompleteError("No pudimos conectar con mapas ahora.");
+      } finally {
+        if (cancelled || requestId !== autocompleteRequestRef.current) return;
+        setIsLoadingAutocomplete(false);
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [locationInput, selectedPlace]);
+
+  useEffect(() => {
+    const destination = selectedPlace;
+    const origin = originPointRef.current;
+    const startIso = safeIsoFromLocalDateInput(startLocal);
+
+    if (
+      !destination ||
+      !origin ||
+      !Number.isFinite(origin.lat) ||
+      !Number.isFinite(origin.lng) ||
+      !startIso
+    ) {
+      setIsLoadingEta(false);
+      setEtaError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const requestId = ++etaRequestRef.current;
+    setIsLoadingEta(true);
+    setEtaError(null);
+
+    (async () => {
+      try {
+        const res = await fetch("/api/maps/route-eta", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            origin,
+            destination: {
+              lat: destination.location_lat,
+              lng: destination.location_lng,
+            },
+            travelMode,
+            departureTime: startIso,
+          }),
+        });
+
+        const data = await res.json().catch(() => null);
+        if (cancelled || requestId !== etaRequestRef.current) return;
+
+        if (!res.ok) {
+          setEtaError(String(data?.error ?? "No pudimos estimar el trayecto."));
+          setEtaSeconds(null);
+          return;
+        }
+
+        const eta = Number(data?.etaSeconds);
+        setEtaSeconds(Number.isFinite(eta) ? Math.max(0, Math.round(eta)) : null);
+        setEtaError(null);
+      } catch {
+        if (cancelled || requestId !== etaRequestRef.current) return;
+        setEtaError("No pudimos calcular la duración en este momento.");
+        setEtaSeconds(null);
+      } finally {
+        if (cancelled || requestId !== etaRequestRef.current) return;
+        setIsLoadingEta(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPlace, travelMode, startLocal]);
 
   useEffect(() => {
     if (isEditing) return;
@@ -1350,14 +1633,7 @@ const canAutoPreselect = canonicalGroupSuggestion?.mode === "auto_apply";
 
   const writePreflightResolutionLogs = async (input: {
     items: PreflightConflict[];
-    payload: {
-      groupType: GroupType;
-      groupId: string | null;
-      title: string;
-      notes?: string;
-      startIso: string;
-      endIso: string;
-    };
+    payload: SavePayload;
     choice: Exclude<PreflightChoice, "edit">;
     finalAction: string;
     savedEventId?: string | null;
@@ -1515,14 +1791,7 @@ const canAutoPreselect = canonicalGroupSuggestion?.mode === "auto_apply";
     return created;
   };
 
-const persistEvent = async (payload: {
-  groupType: GroupType;
-  groupId: string | null;
-  title: string;
-  notes?: string;
-  startIso: string;
-  endIso: string;
-}) => {
+const persistEvent = async (payload: SavePayload) => {
   let savedEventId: string | null = null;
 
   if (isEditing && eventIdParam) {
@@ -1533,6 +1802,15 @@ const persistEvent = async (payload: {
       start: payload.startIso,
       end: payload.endIso,
       groupId: payload.groupId,
+      location_label: payload.location_label,
+      location_address: payload.location_address,
+      location_lat: payload.location_lat,
+      location_lng: payload.location_lng,
+      location_provider: payload.location_provider,
+      location_place_id: payload.location_place_id,
+      travel_mode: payload.travel_mode,
+      travel_eta_seconds: payload.travel_eta_seconds,
+      leave_time: payload.leave_time,
     });
     savedEventId = String(eventIdParam);
 
@@ -1588,6 +1866,15 @@ const persistEvent = async (payload: {
       start: payload.startIso,
       end: payload.endIso,
       groupId: payload.groupId,
+      location_label: payload.location_label,
+      location_address: payload.location_address,
+      location_lat: payload.location_lat,
+      location_lng: payload.location_lng,
+      location_provider: payload.location_provider,
+      location_place_id: payload.location_place_id,
+      travel_mode: payload.travel_mode,
+      travel_eta_seconds: payload.travel_eta_seconds,
+      leave_time: payload.leave_time,
     });
     savedEventId = created?.id ? String(created.id) : null;
 
@@ -1640,14 +1927,7 @@ const persistEvent = async (payload: {
 
 const showPostSaveCard = (
   savedEventId: string | null,
-  payload: {
-    groupType: GroupType;
-    groupId: string | null;
-    title: string;
-    notes?: string;
-    startIso: string;
-    endIso: string;
-  },
+  payload: SavePayload,
   options?: { keepBoth?: boolean }
 ) => {
   setToast(buildSuccessToast(options?.keepBoth ? { keepBoth: true } : undefined));
@@ -1664,14 +1944,7 @@ const showPostSaveCard = (
 
 const finalizeKeepBothRedirect = async (
   savedEventId: string,
-  payload: {
-    groupType: GroupType;
-    groupId: string | null;
-    title: string;
-    notes?: string;
-    startIso: string;
-    endIso: string;
-  }
+  payload: SavePayload
 ) => {
   try {
     const pf = await loadEventsForConflictPreflight({
@@ -1723,24 +1996,60 @@ const runConflictNotificationForSavedEvent = async (savedEventId: string) => {
   }));
 };
 
-const buildSavePayload = () => ({
+const handleSelectPlace = (item: MapsPlaceSuggestion) => {
+  const normalized: SelectedPlace = {
+    location_label:
+      String(item.label ?? "").trim() || String(item.address ?? "").trim(),
+    location_address:
+      String(item.address ?? "").trim() || String(item.label ?? "").trim(),
+    location_lat: Number(item.lat),
+    location_lng: Number(item.lng),
+    location_provider: "google",
+    location_place_id: String(item.place_id ?? "").trim(),
+  };
+
+  setSelectedPlace(normalized);
+  setLocationInput(normalized.location_label);
+  setAutocompleteResults([]);
+  setAutocompleteError(null);
+  locationSessionTokenRef.current = `sp-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+};
+
+const clearSelectedPlace = () => {
+  setSelectedPlace(null);
+  setLocationInput("");
+  setAutocompleteResults([]);
+  setAutocompleteError(null);
+  setEtaError(null);
+  setEtaSeconds(null);
+  locationSessionTokenRef.current = `sp-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+};
+
+const buildSavePayload = (): SavePayload => ({
   groupType,
   groupId: effectiveType === "group" ? selectedGroupId : null,
   title: title.trim(),
   notes: notes.trim() ? notes.trim() : undefined,
   startIso: new Date(startDate).toISOString(),
   endIso: new Date(endDate).toISOString(),
+  location_label: selectedPlace?.location_label ?? null,
+  location_address: selectedPlace?.location_address ?? null,
+  location_lat: selectedPlace?.location_lat ?? null,
+  location_lng: selectedPlace?.location_lng ?? null,
+  location_provider: selectedPlace?.location_provider ?? null,
+  location_place_id: selectedPlace?.location_place_id ?? null,
+  travel_mode: selectedPlace ? travelMode : null,
+  travel_eta_seconds:
+    selectedPlace && Number.isFinite(etaSeconds) ? Number(etaSeconds) : null,
+  leave_time: leaveTimePreview ? leaveTimePreview.toISOString() : null,
 });
 
 const doSave = async (
-  payload: {
-    groupType: GroupType;
-    groupId: string | null;
-    title: string;
-    notes?: string;
-    startIso: string;
-    endIso: string;
-  },
+  payload: SavePayload,
   options?: {
     keepBothRedirect?: boolean;
     skipConflictDetection?: boolean;
@@ -1815,14 +2124,9 @@ const doSave = async (
   }
 };
 
-const preflight = async (payload: {
-    groupType: GroupType;
-    groupId: string | null;
-    title: string;
-    notes?: string;
-    startIso: string;
-    endIso: string;
-  }): Promise<{ ok: true } | { ok: false }> => {
+const preflight = async (
+    payload: SavePayload
+  ): Promise<{ ok: true } | { ok: false }> => {
     const warn = (settings as any)?.conflictWarnBeforeSave ?? true;
     if (!warn) return { ok: true };
 
@@ -2369,6 +2673,149 @@ const handleSharePostSave = async () => {
                 />
               </div>
             </div>
+
+            <div style={styles.field}>
+              <div style={styles.fieldLabel}>Ubicación</div>
+              <div style={styles.locationInputRow}>
+                <input
+                  value={locationInput}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setLocationInput(next);
+
+                    if (
+                      selectedPlace &&
+                      next.trim().toLowerCase() !==
+                        selectedPlace.location_label.trim().toLowerCase()
+                    ) {
+                      setSelectedPlace(null);
+                      setEtaSeconds(null);
+                    }
+                  }}
+                  placeholder="Busca una dirección o lugar"
+                  style={styles.input}
+                />
+                {(locationInput || selectedPlace) && (
+                  <button
+                    type="button"
+                    onClick={clearSelectedPlace}
+                    style={styles.templateClearBtn}
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </div>
+
+              {isLoadingAutocomplete ? (
+                <div style={styles.locationHint}>Buscando sugerencias…</div>
+              ) : null}
+
+              {autocompleteError ? (
+                <div style={styles.locationError}>{autocompleteError}</div>
+              ) : null}
+
+              {!isLoadingAutocomplete &&
+              !autocompleteError &&
+              locationInput.trim().length >= 3 &&
+              autocompleteResults.length === 0 &&
+              !selectedPlace ? (
+                <div style={styles.locationHint}>
+                  No encontramos resultados para ese texto.
+                </div>
+              ) : null}
+
+              {autocompleteResults.length > 0 ? (
+                <div style={styles.locationResultsWrap}>
+                  {autocompleteResults.map((item) => {
+                    const key = `${item.place_id}-${item.lat}-${item.lng}`;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => handleSelectPlace(item)}
+                        style={styles.locationResultBtn}
+                      >
+                        <span style={styles.locationResultLabel}>
+                          {item.label}
+                        </span>
+                        <span style={styles.locationResultAddress}>
+                          {item.address}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              {selectedPlace ? (
+                <div style={styles.locationSelectedBox}>
+                  <div style={styles.locationSelectedTitle}>
+                    {selectedPlace.location_label}
+                  </div>
+                  <div style={styles.locationSelectedSub}>
+                    {selectedPlace.location_address}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {selectedPlace ? (
+              <div style={styles.field}>
+                <div style={styles.fieldLabel}>Modo de viaje</div>
+                <div style={styles.chips}>
+                  {([
+                    { key: "driving", label: "Auto" },
+                    { key: "walking", label: "A pie" },
+                    { key: "bicycling", label: "Bici" },
+                    { key: "transit", label: "Transporte" },
+                  ] as const).map((mode) => (
+                    <button
+                      key={mode.key}
+                      type="button"
+                      onClick={() => setTravelMode(mode.key)}
+                      style={{
+                        ...styles.chip,
+                        background:
+                          travelMode === mode.key
+                            ? "rgba(56,189,248,0.18)"
+                            : "rgba(255,255,255,0.03)",
+                      }}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {selectedPlace ? (
+              <div style={styles.travelMetaCard}>
+                <div style={styles.travelMetaRow}>
+                  <span style={styles.travelMetaLabel}>Duración estimada</span>
+                  <span style={styles.travelMetaValue}>
+                    {isLoadingEta
+                      ? "Calculando…"
+                      : etaLabel
+                      ? etaLabel
+                      : "Sin cálculo por ahora"}
+                  </span>
+                </div>
+                <div style={styles.travelMetaRow}>
+                  <span style={styles.travelMetaLabel}>Salida sugerida</span>
+                  <span style={styles.travelMetaValue}>
+                    {leaveTimePreview
+                      ? leaveTimePreview.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "Aparecerá cuando tengamos punto de partida"}
+                  </span>
+                </div>
+                {etaError ? (
+                  <div style={styles.locationError}>{etaError}</div>
+                ) : null}
+              </div>
+            ) : null}
 
             {externalProposalActive && (
               <div
@@ -3134,6 +3581,93 @@ const styles: Record<string, React.CSSProperties> = {
     outline: "none",
     fontSize: 15,
     fontWeight: 700,
+  },
+  locationInputRow: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+  },
+  locationHint: {
+    fontSize: 12,
+    opacity: 0.72,
+  },
+  locationError: {
+    fontSize: 12,
+    color: "rgba(248,113,113,0.95)",
+    fontWeight: 700,
+  },
+  locationResultsWrap: {
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(6,10,20,0.68)",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+  },
+  locationResultBtn: {
+    width: "100%",
+    border: "none",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    background: "transparent",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    textAlign: "left" as const,
+    padding: "10px 12px",
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: 4,
+  },
+  locationResultLabel: {
+    fontSize: 13,
+    fontWeight: 800,
+    lineHeight: 1.2,
+  },
+  locationResultAddress: {
+    fontSize: 12,
+    opacity: 0.74,
+    lineHeight: 1.35,
+  },
+  locationSelectedBox: {
+    borderRadius: 14,
+    border: "1px solid rgba(56,189,248,0.26)",
+    background: "rgba(56,189,248,0.10)",
+    padding: "10px 12px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  locationSelectedTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+  },
+  locationSelectedSub: {
+    fontSize: 12,
+    opacity: 0.82,
+  },
+  travelMetaCard: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  travelMetaRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  travelMetaLabel: {
+    fontSize: 12,
+    opacity: 0.74,
+    fontWeight: 800,
+  },
+  travelMetaValue: {
+    fontSize: 13,
+    fontWeight: 900,
   },
   textarea: {
     width: "100%",
