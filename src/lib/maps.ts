@@ -477,7 +477,9 @@ function parseDepartureTime(raw: string | null | undefined): string | null {
   return parsed.toISOString();
 }
 
-export function parseAutocompleteInputFromUnknown(payload: unknown): AutocompleteInput {
+export function parseAutocompleteInputFromUnknown(
+  payload: unknown
+): AutocompleteInput {
   if (!isObjectRecord(payload)) {
     throw new MapsError("Body must be a JSON object.", {
       status: 400,
@@ -485,7 +487,18 @@ export function parseAutocompleteInputFromUnknown(payload: unknown): Autocomplet
     });
   }
 
-  const inputText = cleanString(payload.input, MAX_AUTOCOMPLETE_BODY_INPUT_LENGTH);
+  const rawInput =
+    typeof payload.input === "string"
+      ? payload.input
+      : typeof payload.query === "string"
+      ? payload.query
+      : "";
+
+  const inputText = cleanString(
+    rawInput,
+    MAX_AUTOCOMPLETE_BODY_INPUT_LENGTH
+  );
+
   if (!inputText) {
     throw new MapsError("input is required.", {
       status: 400,
@@ -493,7 +506,7 @@ export function parseAutocompleteInputFromUnknown(payload: unknown): Autocomplet
     });
   }
 
-  if (String(payload.input ?? "").length > MAX_AUTOCOMPLETE_BODY_INPUT_LENGTH) {
+  if (String(rawInput ?? "").length > MAX_AUTOCOMPLETE_BODY_INPUT_LENGTH) {
     throw new MapsError("input is too long.", {
       status: 400,
       code: "MAPS_INPUT_TOO_LONG",
@@ -504,11 +517,46 @@ export function parseAutocompleteInputFromUnknown(payload: unknown): Autocomplet
 
   const limitRaw = Number(payload.limit ?? DEFAULT_AUTOCOMPLETE_LIMIT);
   const limit = clamp(
-    Number.isFinite(limitRaw) ? Math.floor(limitRaw) : DEFAULT_AUTOCOMPLETE_LIMIT,
+    Number.isFinite(limitRaw)
+      ? Math.floor(limitRaw)
+      : DEFAULT_AUTOCOMPLETE_LIMIT,
     1,
     MAX_AUTOCOMPLETE_LIMIT
   );
 
+  let locationBias: AutocompleteInput["locationBias"] | undefined;
+  const biasRaw = payload.locationBias;
+
+  if (isObjectRecord(biasRaw)) {
+    const centerRaw = biasRaw.center;
+
+    if (isObjectRecord(centerRaw)) {
+      const center = {
+        lat: Number(centerRaw.lat),
+        lng: Number(centerRaw.lng),
+      };
+
+      assertValidLatLng(center, "locationBias.center");
+
+      const radiusRaw = Number(biasRaw.radiusMeters ?? 0);
+
+      locationBias = {
+        center,
+        radiusMeters:
+          Number.isFinite(radiusRaw) && radiusRaw > 0
+            ? Math.round(radiusRaw)
+            : undefined,
+      };
+    }
+  }
+
+  return {
+    input: inputText,
+    sessionToken,
+    locationBias,
+    limit,
+  };
+}
   let locationBias: AutocompleteInput["locationBias"] = undefined;
   const biasRaw = payload.locationBias;
   if (isObjectRecord(biasRaw)) {
