@@ -1,26 +1,21 @@
+// src/app/groups/[id]/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import supabase from "@/lib/supabaseClient";
+import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useParams, useRouter } from "next/navigation";
 import PremiumHeader from "@/components/PremiumHeader";
 import MobileScaffold from "@/components/MobileScaffold";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
-
+import LogoutButton from "@/components/LogoutButton";
+import supabase from "@/lib/supabaseClient";
 import { getMyGroups, getGroupTypeLabel } from "@/lib/groupsDb";
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
-import { getMyInvitations } from "@/lib/invitationsDb";
-import {
-  buildGroupsSummary,
-  type GroupSummary,
-} from "@/lib/groupsSummary";
-import { getMyProfile, type Profile } from "@/lib/profilesDb";
-import { getGroupLimitState } from "@/lib/premium";
+import { trackEvent, trackScreenView } from "@/lib/analytics";
 
 type GroupRole = "owner" | "admin" | "member";
 
-type GroupWithRole = {
+type GroupRecord = {
   id: string;
   name: string;
   type: string;
@@ -29,531 +24,12 @@ type GroupWithRole = {
   is_active: boolean;
 };
 
-type GroupFilter = "all" | "pair" | "family" | "shared";
-
-type UiToast =
+type ToastState =
   | null
   | {
       title: string;
       subtitle?: string;
     };
-
-export default function GroupsPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const cameFromInvite = searchParams.get("from") === "invite_accept";
-  const wasAccepted = searchParams.get("accepted") === "1";
-
-  const [booting, setBooting] = useState(true);
-  const [loading, setLoading] = useState(true);
-
-  const [groups, setGroups] = useState<GroupWithRole[]>([]);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [filter, setFilter] = useState<GroupFilter>("all");
-
-  const [pendingInvites, setPendingInvites] = useState(0);
-  const [toast, setToast] = useState<UiToast>(null);
-
-  useEffect(() => {
-    let alive = true;
-
-    (async () => {
-      setBooting(true);
-
-      const { data, error } = await supabase.auth.getSession();
-      if (!alive) return;
-
-      if (error || !data.session?.user) {
-        setBooting(false);
-        router.replace("/auth/login");
-        return;
-      }
-
-      try {
-        await refreshData(false);
-      } finally {
-        if (!alive) return;
-        setBooting(false);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, [router]);
-
-  async function refreshData(withToast: boolean) {
-    try {
-      if (withToast) {
-        setToast({
-          title: "Actualizando grupos…",
-          subtitle: "Cargando tus grupos e invitaciones",
-        });
-      }
-
-      setLoading(true);
-
-      const [groupsData, invitesData, profileRow] = await Promise.all([
-        getMyGroups(),
-        getMyInvitations(),
-        getMyProfile().catch(() => null),
-      ]);
-
-      const rawGroups = (groupsData || []) as any[];
-      const enriched: GroupWithRole[] = rawGroups.map((g) => ({
-        id: String(g.id),
-        name: g.name ?? "",
-        type: g.type ?? "pair",
-        role: (g.role as GroupRole) ?? "member",
-        members_count: g.members_count ?? 0,
-        is_active: !!g.is_active,
-      }));
-
-      setGroups(enriched);
-      setPendingInvites(((invitesData as any[]) ?? []).length);
-      setProfile(profileRow ?? null);
-
-      if (withToast) {
-        setToast({
-          title: "Grupos actualizados ✅",
-          subtitle: "Todo está al día.",
-        });
-        window.setTimeout(() => setToast(null), 2600);
-      }
-    } catch (e: any) {
-      console.error("Error refrescando grupos", e);
-      setToast({
-        title: "No se pudo actualizar",
-        subtitle: e?.message ?? "Inténtalo más tarde.",
-      });
-      window.setTimeout(() => setToast(null), 2600);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleActivateGroup(groupId: string) {
-    try {
-      await setActiveGroupIdInDb(groupId);
-
-      setGroups((prev) =>
-        prev.map((g) => ({
-          ...g,
-          is_active: String(g.id) === String(groupId),
-        }))
-      );
-
-      setToast({
-        title: "Grupo activo actualizado ✅",
-        subtitle: "Tu calendario y eventos usarán este grupo.",
-      });
-      window.setTimeout(() => setToast(null), 2600);
-    } catch (e: any) {
-      console.error("Error activando grupo", e);
-      setToast({
-        title: "No se pudo cambiar el grupo",
-        subtitle: e?.message ?? "Inténtalo más tarde.",
-      });
-      window.setTimeout(() => setToast(null), 2600);
-    }
-  }
-
-  const filteredGroups = useMemo(() => {
-    if (filter === "all") return groups;
-
-    if (filter === "shared") {
-      return groups.filter((g) => g.type !== "pair" && g.type !== "family");
-    }
-
-    return groups.filter((g) => g.type === filter);
-  }, [groups, filter]);
-
-  const summary: GroupSummary = useMemo(
-    () => buildGroupsSummary(groups),
-    [groups]
-  );
-
-  const groupLimitState = useMemo(
-    () => getGroupLimitState(profile, groups.length),
-    [profile, groups.length]
-  );
-  const reachedGroupLimit = groupLimitState.reached;
-
-  const headerSubtitle =
-    summary.total === 0
-      ? "Personas con las que te organizas."
-      : `Tienes ${summary.total} grupo${
-          summary.total === 1 ? "" : "s"
-        } para coordinar tu tiempo.`;
-
-  const invitationsLabel =
-    pendingInvites === 0
-      ? "Invitaciones"
-      : `Invitaciones (${pendingInvites})`;
-
-  if (booting) {
-    return (
-      <MobileScaffold maxWidth={1120} style={styles.page}>
-        <Section>
-          <PremiumHeader
-            title="Grupos"
-            subtitle="Organiza tu estructura compartida sin fricción."
-          />
-
-          <Card style={styles.surfaceCard}>
-            <div style={styles.loadingRow}>
-              <div style={styles.loadingDot} />
-              <div>
-                <div style={styles.loadingTitle}>Cargando tus grupos…</div>
-                <div style={styles.loadingSub}>
-                  Preparando tus grupos e invitaciones
-                </div>
-              </div>
-            </div>
-          </Card>
-        </Section>
-      </MobileScaffold>
-    );
-  }
-
-  return (
-    <MobileScaffold maxWidth={1120} style={styles.page}>
-      {toast && (
-        <div style={styles.toastWrap}>
-          <div style={styles.toastCard}>
-            <div style={styles.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? (
-              <div style={styles.toastSub}>{toast.subtitle}</div>
-            ) : null}
-          </div>
-        </div>
-      )}
-
-      <Section>
-        <PremiumHeader
-          title="Grupos"
-          subtitle="Convierte cada grupo en un espacio operativo: mismo contexto, mismas personas y menos fricción para decidir."
-        />
-
-        <Card style={styles.surfaceCard}>
-          <Section style={styles.contentStack}>
-            {cameFromInvite && wasAccepted ? (
-              <Card tone="muted" style={styles.joinedBanner}>
-                <div style={styles.joinedBadge}>Ya estás dentro</div>
-                <h2 style={styles.joinedTitle}>
-                  Ya entraste al mismo espacio compartido
-                </h2>
-                <p style={styles.joinedText}>
-                  Desde aquí todos parten de la misma base. Ese es el verdadero valor del grupo: menos mensajes cruzados, más contexto compartido y una ruta más corta hacia la acción.
-                </p>
-                <div style={styles.joinedActions}>
-                  <button
-                    type="button"
-                    style={styles.primary}
-                    onClick={() => router.push("/calendar")}
-                  >
-                    Ver calendario
-                  </button>
-                  <button
-                    type="button"
-                    style={styles.secondary}
-                    onClick={() => router.push("/events/new")}
-                  >
-                    Crear plan compartido
-                  </button>
-                </div>
-              </Card>
-            ) : null}
-            <div style={styles.headerRow}>
-              <div style={styles.headerCopy}>
-                <div style={styles.kicker}>Personas con las que te organizas</div>
-                <h1 style={styles.h1}>Grupos</h1>
-                <p style={styles.sub}>{headerSubtitle}</p>
-              </div>
-
-              <div style={styles.topActions}>
-                <button
-                  type="button"
-                  style={styles.secondary}
-                  onClick={() => router.push("/invitations")}
-                >
-                  {invitationsLabel}
-                </button>
-
-                <button
-                  type="button"
-                  style={{ ...styles.primary, opacity: reachedGroupLimit ? 0.92 : 1 }}
-                  onClick={() =>
-                    reachedGroupLimit ? router.push("/planes") : router.push("/groups/new")
-                  }
-                >
-                  {reachedGroupLimit ? "Ver planes" : "+ Nuevo grupo"}
-                </button>
-              </div>
-            </div>
-
-            <Card tone="muted" style={styles.heroSection}>
-              <div style={styles.heroLeft}>
-                <div style={styles.heroPill}>
-                  <span style={styles.heroDot} />
-                  Personas con las que te organizas
-                </div>
-
-                <h2 style={styles.heroTitle}>
-                  Grupos para coordinar sin fricciones
-                </h2>
-
-                <p style={styles.heroText}>
-                  Un grupo no es solo una carpeta. Es el espacio desde donde SyncPlans coordina con otras personas. Aquí se concentra el contexto compartido que luego termina en calendario, eventos, invitaciones y decisiones más claras.
-                </p>
-
-                <div style={styles.heroTip}>
-                  <div style={styles.heroTipLabel}>Tip</div>
-                  <p style={styles.heroTipText}>
-                    Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>.
-                    Después puedes sumar grupos compartidos y dejar que
-                    SyncPlans te señale los choques con claridad.
-                  </p>
-                </div>
-              </div>
-
-              <Card tone="strong" style={styles.heroSummary}>
-                <div style={styles.heroSummaryTitle}>Resumen de tus grupos</div>
-
-                <div style={styles.heroSummaryRow}>
-                  <span style={styles.heroSummaryDotPair} />
-                  <span>
-                    {summary.pair} de pareja
-                    {summary.pair === 1 ? "" : "s"}
-                  </span>
-                </div>
-
-                <div style={styles.heroSummaryRow}>
-                  <span style={styles.heroSummaryDotFamily} />
-                  <span>
-                    {summary.family} de familia
-                    {summary.family === 1 ? "" : "s"}
-                  </span>
-                </div>
-
-                <div style={styles.heroSummaryRow}>
-                  <span style={styles.heroSummaryDotShared} />
-                  <span>
-                    {summary.shared} compartido
-                    {summary.shared === 1 ? "" : "s"}
-                  </span>
-                </div>
-
-                <div style={styles.heroSummaryHint}>
-                  El grupo activo define desde dónde se crean planes compartidos y desde qué contexto se leen mejor los choques.
-                </div>
-              </Card>
-            </Card>
-
-
-            {reachedGroupLimit ? (
-              <Card tone="muted" style={styles.limitBanner}>
-                <div style={styles.limitBannerTop}>
-                  <div>
-                    <div style={styles.limitBannerBadge}>Free</div>
-                    <div style={styles.limitBannerTitle}>
-                      Ya usaste tu grupo incluido en Free.
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    style={styles.primary}
-                    onClick={() => router.push("/planes")}
-                  >
-                    Ver planes
-                  </button>
-                </div>
-
-                <p style={styles.limitBannerCopy}>
-                  Tu base ya está creada. Premium abre más espacios compartidos
-                  cuando necesitas coordinar más de {groupLimitState.limit} grupo
-                  sin salirte del mismo sistema.
-                </p>
-              </Card>
-            ) : null}
-
-            <div style={styles.filtersRow}>
-              <div style={styles.segment}>
-                <button
-                  type="button"
-                  style={{
-                    ...styles.segmentBtn,
-                    ...(filter === "all" ? styles.segmentBtnActive : {}),
-                  }}
-                  onClick={() => setFilter("all")}
-                >
-                  Todos
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    ...styles.segmentBtn,
-                    ...(filter === "pair" ? styles.segmentBtnActive : {}),
-                  }}
-                  onClick={() => setFilter("pair")}
-                >
-                  Pareja
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    ...styles.segmentBtn,
-                    ...(filter === "family" ? styles.segmentBtnActive : {}),
-                  }}
-                  onClick={() => setFilter("family")}
-                >
-                  Familia
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    ...styles.segmentBtn,
-                    ...(filter === "shared" ? styles.segmentBtnActive : {}),
-                  }}
-                  onClick={() => setFilter("shared")}
-                >
-                  Compartidos
-                </button>
-              </div>
-
-              <button
-                type="button"
-                style={styles.refreshBtn}
-                onClick={() => refreshData(true)}
-              >
-                Actualizar
-              </button>
-            </div>
-
-            {loading ? (
-              <Card tone="muted" style={styles.stateCard}>
-                <div style={styles.loadingRow}>
-                  <div style={styles.loadingDot} />
-                  <div>
-                    <div style={styles.loadingTitle}>Cargando grupos…</div>
-                    <div style={styles.loadingSub}>Un momento, por favor.</div>
-                  </div>
-                </div>
-              </Card>
-            ) : filteredGroups.length === 0 ? (
-              <Card tone="muted" style={styles.emptyState}>
-                <h2 style={styles.emptyTitle}>Aún no tienes grupos</h2>
-                <p style={styles.emptySub}>
-                  Este es el primer paso del loop compartido: crea el espacio, genera el primer plan y deja que SyncPlans convierta ese grupo en coordinación real lo más rápido posible.
-                </p>
-                <div style={{ ...styles.emptySub, marginTop: -4, fontSize: 13 }}>
-                  Ruta sugerida: <b>crear grupo</b> → <b>crear plan compartido</b> → <b>compartir o invitar</b>.
-                </div>
-                <div style={styles.emptyActions}>
-                  <button
-                    type="button"
-                    style={styles.primary}
-                    onClick={() =>
-                      reachedGroupLimit ? router.push("/planes") : router.push("/groups/new")
-                    }
-                  >
-                    {reachedGroupLimit ? "Ver planes" : "Crear grupo"}
-                  </button>
-                  <button
-                    type="button"
-                    style={styles.secondary}
-                    onClick={() => router.push("/summary")}
-                  >
-                    Volver al resumen
-                  </button>
-                </div>
-              </Card>
-            ) : (
-              <div style={styles.groupList}>
-                {filteredGroups.map((g) => (
-                  <GroupRow
-                    key={g.id}
-                    g={g}
-                    onActivate={handleActivateGroup}
-                  />
-                ))}
-              </div>
-            )}
-          </Section>
-        </Card>
-      </Section>
-    </MobileScaffold>
-  );
-}
-
-function GroupRow({
-  g,
-  onActivate,
-}: {
-  g: GroupWithRole;
-  onActivate: (id: string) => void;
-}) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const cameFromInvite = searchParams.get("from") === "invite_accept";
-  const wasAccepted = searchParams.get("accepted") === "1";
-  const meta = metaForGroupType(g.type);
-
-  return (
-    <Card tone="muted" style={styles.groupRow}>
-      <div style={styles.groupLeft}>
-        <div style={styles.groupAvatar}>
-          <span
-            style={{
-              ...styles.groupAvatarDot,
-              background: meta.dot,
-            }}
-          />
-        </div>
-
-        <div style={styles.groupCopy}>
-          <div style={styles.groupName}>{g.name || meta.label}</div>
-          <div style={styles.groupMetaRow}>
-            <span style={styles.groupMetaType}>
-              {getGroupTypeLabel(g.type as any)}
-            </span>
-            <span style={styles.dotSeparator}>•</span>
-            <span style={styles.groupMetaMembers}>
-              {g.members_count} persona{g.members_count === 1 ? "" : "s"}
-            </span>
-            <span style={styles.dotSeparator}>•</span>
-            <span style={styles.groupMetaRole}>{roleLabel(g.role)}</span>
-          </div>
-        </div>
-      </div>
-
-      <div style={styles.groupRight}>
-        {g.is_active ? (
-          <span style={styles.activeBadge}>Activo</span>
-        ) : (
-          <button
-            type="button"
-            style={styles.activateBtn}
-            onClick={() => onActivate(g.id)}
-          >
-            Usar como activo
-          </button>
-        )}
-
-        <button
-          type="button"
-          style={styles.linkBtn}
-          onClick={() => router.push(`/groups/${g.id}`)}
-        >
-          Ver detalles
-        </button>
-      </div>
-    </Card>
-  );
-}
 
 function roleLabel(role: GroupRole) {
   switch (role) {
@@ -566,34 +42,412 @@ function roleLabel(role: GroupRole) {
   }
 }
 
-function metaForGroupType(type: string) {
+function groupMeta(type: string) {
   switch (type) {
     case "pair":
       return {
         label: "Pareja",
-        dot: "rgba(248,113,113,0.98)",
+        dot: "rgba(96,165,250,0.98)",
+        soft: "rgba(96,165,250,0.14)",
+        border: "rgba(96,165,250,0.24)",
       };
     case "family":
       return {
         label: "Familia",
-        dot: "rgba(96,165,250,0.98)",
+        dot: "rgba(34,197,94,0.98)",
+        soft: "rgba(34,197,94,0.12)",
+        border: "rgba(34,197,94,0.22)",
       };
-    case "shared":
     default:
       return {
         label: "Compartido",
-        dot: "rgba(129,140,248,0.98)",
+        dot: "rgba(168,85,247,0.98)",
+        soft: "rgba(168,85,247,0.14)",
+        border: "rgba(168,85,247,0.24)",
       };
   }
 }
 
-const styles: Record<string, React.CSSProperties> = {
+export default function GroupDetailPage() {
+  const router = useRouter();
+  const params = useParams();
+  const groupId = String(params?.id ?? "");
+
+  const [booting, setBooting] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [group, setGroup] = useState<GroupRecord | null>(null);
+  const [toast, setToast] = useState<ToastState>(null);
+
+  useEffect(() => {
+   void trackScreenView({
+  screen: "group_detail",
+  metadata: {
+    area: "groups",
+    source: "group_detail",
+    groupId,
+  },
+});
+  }, [groupId]);
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (!alive) return;
+
+      if (error || !data.session?.user) {
+        setBooting(false);
+        router.replace("/auth/login");
+        return;
+      }
+
+      try {
+        const groups = (await getMyGroups()) as any[];
+        if (!alive) return;
+
+        const found = (groups || []).find((g) => String(g.id) === groupId);
+
+        if (!found) {
+          setGroup(null);
+        } else {
+          setGroup({
+            id: String(found.id),
+            name: found.name ?? "",
+            type: found.type ?? "pair",
+            role: (found.role as GroupRole) ?? "member",
+            members_count: Number(found.members_count ?? 0),
+            is_active: Boolean(found.is_active),
+          });
+        }
+      } catch {
+        if (alive) setGroup(null);
+      } finally {
+        if (alive) setBooting(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [groupId, router]);
+
+  function pushToast(next: ToastState, timeout = 2400) {
+    setToast(next);
+    window.setTimeout(() => setToast(null), timeout);
+  }
+
+  async function handleActivate() {
+    if (!group || group.is_active) return;
+
+    try {
+      setSaving(true);
+      await setActiveGroupIdInDb(group.id);
+
+      setGroup((prev) => (prev ? { ...prev, is_active: true } : prev));
+
+      void trackEvent({
+        event: "group_activated",
+        entityId: group.id,
+        metadata: {
+          screen: "group_detail",
+          source: "group_detail",
+        },
+      });
+
+      pushToast({
+        title: "Grupo activo actualizado ✅",
+        subtitle: "Este contexto ya está listo para calendario, eventos y captura rápida.",
+      });
+    } catch (error: any) {
+      pushToast({
+        title: "No se pudo activar",
+        subtitle: error?.message ?? "Inténtalo nuevamente.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const meta = useMemo(() => groupMeta(group?.type ?? "pair"), [group?.type]);
+
+  const heroTitle = useMemo(() => {
+    if (!group) return "Grupo no encontrado";
+    if (group.type === "pair") return "Aquí empieza la coordinación entre ustedes";
+    if (group.type === "family") return "Aquí vive la coordinación familiar";
+    return "Aquí vive la coordinación compartida";
+  }, [group]);
+
+  const heroText = useMemo(() => {
+    if (!group) {
+      return "No pudimos encontrar este grupo dentro de tus espacios actuales.";
+    }
+
+    if (group.type === "pair") {
+      return "Este grupo debería convertirse en el centro de la agenda compartida: menos mensajes cruzados, menos supuestos y una sola referencia clara entre ustedes.";
+    }
+
+    if (group.type === "family") {
+      return "Este grupo sirve para ordenar mejor el tiempo familiar desde un solo contexto, sin depender de memoria o conversaciones separadas.";
+    }
+
+    return "Este grupo sirve para coordinar con otras personas desde un solo lugar, con menos ruido y más claridad operativa.";
+  }, [group]);
+
+  if (booting) {
+    return (
+      <MobileScaffold maxWidth={1120} style={styles.page}>
+        <Section>
+          <PremiumHeader
+            title="Grupo"
+            subtitle="Preparando este espacio compartido…"
+          />
+          <Card style={styles.surfaceCard}>
+            <div style={styles.loadingRow}>
+              <div style={styles.loadingDot} />
+              <div>
+                <div style={styles.loadingTitle}>Cargando grupo…</div>
+                <div style={styles.loadingSub}>Preparando el contexto compartido</div>
+              </div>
+            </div>
+          </Card>
+        </Section>
+      </MobileScaffold>
+    );
+  }
+
+  if (!group) {
+    return (
+      <MobileScaffold maxWidth={1120} style={styles.page}>
+        {toast ? (
+          <div style={styles.toastWrap}>
+            <div style={styles.toastCard}>
+              <div style={styles.toastTitle}>{toast.title}</div>
+              {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
+            </div>
+          </div>
+        ) : null}
+
+        <Section>
+          <div style={styles.topRow}>
+            <PremiumHeader
+              title="Grupo"
+              subtitle="No pudimos abrir este espacio"
+            />
+            <LogoutButton />
+          </div>
+
+          <Card style={styles.surfaceCard}>
+            <div style={styles.emptyState}>
+              <h2 style={styles.emptyTitle}>Este grupo no está disponible</h2>
+              <p style={styles.emptySub}>
+                Puede que ya no exista, que no tengas acceso o que el enlace no corresponda a un grupo válido.
+              </p>
+              <div style={styles.inlineActions}>
+                <button type="button" style={styles.primary} onClick={() => router.push("/groups")}>
+                  Volver a grupos
+                </button>
+                <button type="button" style={styles.secondary} onClick={() => router.push("/summary")}>
+                  Ir al resumen
+                </button>
+              </div>
+            </div>
+          </Card>
+        </Section>
+      </MobileScaffold>
+    );
+  }
+
+  return (
+    <MobileScaffold maxWidth={1120} style={styles.page}>
+      {toast ? (
+        <div style={styles.toastWrap}>
+          <div style={styles.toastCard}>
+            <div style={styles.toastTitle}>{toast.title}</div>
+            {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
+          </div>
+        </div>
+      ) : null}
+
+      <Section>
+        <div style={styles.topRow}>
+          <PremiumHeader
+            title={group.name || getGroupTypeLabel(group.type as any)}
+            subtitle="Detalle del grupo y siguiente mejor paso dentro de este contexto."
+          />
+          <div style={styles.inlineActions}>
+            <button type="button" style={styles.secondary} onClick={() => router.push("/groups")}>
+              Volver a grupos
+            </button>
+            <LogoutButton />
+          </div>
+        </div>
+
+        <Card style={styles.surfaceCard}>
+          <Section style={styles.stack}>
+            <Card
+              tone="muted"
+              style={{
+                ...styles.heroCard,
+                borderColor: meta.border,
+                background: `linear-gradient(180deg, ${meta.soft}, rgba(255,255,255,0.03))`,
+              }}
+            >
+              <div style={styles.heroLeft}>
+                <div style={styles.heroPill}>
+                  <span style={{ ...styles.heroDot, background: meta.dot }} />
+                  {meta.label}
+                </div>
+
+                <h1 style={styles.heroTitle}>{heroTitle}</h1>
+                <p style={styles.heroText}>{heroText}</p>
+
+                <div style={styles.metaRow}>
+                  <span style={styles.metaPill}>{roleLabel(group.role)}</span>
+                  <span style={styles.metaPillSoft}>
+                    {group.members_count} persona{group.members_count === 1 ? "" : "s"}
+                  </span>
+                  {group.is_active ? (
+                    <span style={styles.activeBadge}>Contexto activo</span>
+                  ) : null}
+                </div>
+              </div>
+
+              <div style={styles.heroRight}>
+                <div style={styles.nextStepCard}>
+                  <div style={styles.nextStepLabel}>Siguiente mejor paso</div>
+                  <div style={styles.nextStepTitle}>
+                    {group.type === "pair"
+                      ? "Crear el próximo plan entre ustedes"
+                      : "Crear el próximo plan en este grupo"}
+                  </div>
+                  <div style={styles.nextStepText}>
+                    El grupo cobra valor real cuando dejas de verlo como estructura y lo conviertes en agenda compartida.
+                  </div>
+                </div>
+
+                <div style={styles.inlineActions}>
+                  {!group.is_active ? (
+                    <button
+                      type="button"
+                      style={styles.secondary}
+                      onClick={handleActivate}
+                      disabled={saving}
+                    >
+                      {saving ? "Activando…" : "Usar como activo"}
+                    </button>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    style={styles.primary}
+                    onClick={() =>
+                      router.push(
+                        `/events/new/details?type=group&groupId=${encodeURIComponent(group.id)}`
+                      )
+                    }
+                  >
+                    Crear plan
+                  </button>
+                </div>
+              </div>
+            </Card>
+
+            <div style={styles.grid}>
+              <Card tone="muted" style={styles.infoCard}>
+                <div style={styles.sectionEyebrow}>Este grupo hoy</div>
+                <div style={styles.sectionTitle}>Qué representa</div>
+                <p style={styles.sectionBody}>
+                  {group.type === "pair"
+                    ? "Un solo espacio para que ambos partan de la misma referencia. Menos fricción, menos supuestos y más claridad compartida."
+                    : group.type === "family"
+                      ? "Un punto común para ordenar decisiones, horarios y próximos planes familiares."
+                      : "Un lugar operativo para que un grupo comparta contexto, calendario y próximos pasos sin perder claridad."}
+                </p>
+              </Card>
+
+              <Card tone="muted" style={styles.infoCard}>
+                <div style={styles.sectionEyebrow}>Qué deberías hacer ahora</div>
+                <div style={styles.sectionTitle}>Ruta sugerida</div>
+                <div style={styles.routeList}>
+                  <div style={styles.routeItem}>1. Activar este grupo si aún no está activo</div>
+                  <div style={styles.routeItem}>2. Crear el siguiente plan compartido</div>
+                  <div style={styles.routeItem}>3. Volver aquí cuando necesites ordenar el contexto</div>
+                </div>
+              </Card>
+            </div>
+
+            <div style={styles.actionGrid}>
+              <button
+                type="button"
+                style={styles.actionCard}
+                onClick={() =>
+                  router.push(
+                    `/events/new/details?type=group&groupId=${encodeURIComponent(group.id)}`
+                  )
+                }
+              >
+                <div style={styles.actionTitle}>Crear plan</div>
+                <div style={styles.actionSub}>
+                  Lleva una idea a evento sin salir de este contexto.
+                </div>
+              </button>
+
+              <button
+                type="button"
+                style={styles.actionCard}
+                onClick={() => router.push("/calendar")}
+              >
+                <div style={styles.actionTitle}>Abrir calendario</div>
+                <div style={styles.actionSub}>
+                  Ver cómo este grupo se mezcla con el resto de tu agenda.
+                </div>
+              </button>
+
+              <button
+                type="button"
+                style={styles.actionCard}
+                onClick={() => router.push("/groups")}
+              >
+                <div style={styles.actionTitle}>Ver otros grupos</div>
+                <div style={styles.actionSub}>
+                  Cambiar de contexto o revisar otro espacio compartido.
+                </div>
+              </button>
+            </div>
+          </Section>
+        </Card>
+      </Section>
+    </MobileScaffold>
+  );
+}
+
+const styles: Record<string, CSSProperties> = {
   page: {
+    minHeight: "100vh",
     background:
-      "radial-gradient(1200px 600px at 18% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
+      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
   },
-
+  surfaceCard: {
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(10,14,28,0.72)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
+    backdropFilter: "blur(12px)",
+  },
+  stack: {
+    display: "grid",
+    gap: 14,
+  },
+  topRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
   toastWrap: {
     position: "fixed",
     top: 18,
@@ -620,482 +474,274 @@ const styles: Record<string, React.CSSProperties> = {
   toastSub: {
     marginTop: 4,
     fontSize: 12,
-    color: "rgba(255,255,255,0.70)",
+    color: "rgba(255,255,255,0.72)",
     fontWeight: 650,
   },
-
-  joinedBanner: {
-    marginTop: 4,
+  loadingRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
     padding: 16,
-    borderRadius: 18,
-    border: "1px solid rgba(56,189,248,0.28)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(37,99,235,0.08))",
   },
-  joinedBadge: {
-    display: "inline-flex",
-    padding: "6px 10px",
+  loadingDot: {
+    width: 10,
+    height: 10,
     borderRadius: 999,
-    fontSize: 11,
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 0 8px rgba(56,189,248,0.10)",
+    flexShrink: 0,
+  },
+  loadingTitle: {
+    fontSize: 14,
     fontWeight: 900,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    background: "rgba(56,189,248,0.14)",
-    border: "1px solid rgba(56,189,248,0.28)",
+    color: "rgba(255,255,255,0.96)",
   },
-  joinedTitle: {
-    margin: "10px 0 0 0",
-    fontSize: 18,
-    fontWeight: 950,
+  loadingSub: {
+    fontSize: 12,
+    marginTop: 2,
+    color: "rgba(203,213,225,0.72)",
   },
-  joinedText: {
-    marginTop: 8,
-    fontSize: 13,
-    lineHeight: 1.65,
-    color: "rgba(226,232,240,0.92)",
-  },
-  joinedActions: {
-    marginTop: 12,
-    display: "flex",
+  emptyState: {
+    padding: 18,
+    display: "grid",
     gap: 8,
-    flexWrap: "wrap",
   },
-
-  surfaceCard: {
-    gap: 0,
-  },
-
-  contentStack: {
-    marginBottom: 0,
-  },
-
-  headerRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 18,
-    flexWrap: "wrap",
-    width: "100%",
-  },
-  headerCopy: {
-    minWidth: 0,
-    flex: "1 1 320px",
-    width: "100%",
-  },
-  kicker: {
-    fontSize: 11,
-    letterSpacing: "0.14em",
-    textTransform: "uppercase",
-    color: "rgba(148,163,184,0.95)",
-    fontWeight: 800,
-    marginBottom: 6,
-  },
-  h1: {
+  emptyTitle: {
     margin: 0,
     fontSize: 22,
-    letterSpacing: "-0.03em",
+    lineHeight: 1.15,
     fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
   },
-  sub: {
-    marginTop: 6,
-    fontSize: 13,
-    color: "rgba(209,213,219,0.96)",
-    maxWidth: 460,
-    width: "100%",
-    lineHeight: 1.65,
-    overflowWrap: "break-word",
+  emptySub: {
+    margin: 0,
+    fontSize: 14,
+    lineHeight: 1.62,
+    color: "rgba(226,232,240,0.82)",
+    maxWidth: 720,
   },
-
-  topActions: {
+  inlineActions: {
     display: "flex",
-    gap: 8,
+    gap: 10,
+    flexWrap: "wrap",
     alignItems: "center",
-    flexWrap: "wrap",
-    width: "100%",
   },
-
-  heroSection: {
-    marginTop: 4,
-    display: "flex",
-    gap: 18,
-    flexWrap: "wrap",
-    alignItems: "stretch",
+  primary: {
+    minHeight: 42,
+    padding: "0 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(96,165,250,0.24)",
+    background:
+      "linear-gradient(135deg, rgba(37,99,235,0.96), rgba(59,130,246,0.90))",
+    color: "white",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 14px 28px rgba(30,64,175,0.22)",
+  },
+  secondary: {
+    minHeight: 42,
+    padding: "0 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 13,
+    fontWeight: 850,
+    cursor: "pointer",
+  },
+  heroCard: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1.06fr) minmax(280px, 0.94fr)",
+    gap: 14,
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,0.08)",
+    padding: 16,
   },
   heroLeft: {
-    flex: 1,
-    minWidth: 240,
+    display: "grid",
+    gap: 10,
+    alignContent: "start",
   },
   heroPill: {
+    width: "fit-content",
     display: "inline-flex",
     alignItems: "center",
     gap: 8,
-    padding: "6px 10px",
+    minHeight: 32,
+    padding: "0 12px",
     borderRadius: 999,
-    border: "1px solid rgba(191,219,254,0.9)",
-    background: "rgba(15,23,42,0.9)",
-    fontSize: 11,
-    color: "rgba(219,234,254,0.98)",
-    letterSpacing: "0.10em",
-    textTransform: "uppercase",
-    marginBottom: 8,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    fontSize: 12,
+    fontWeight: 850,
+    color: "rgba(255,255,255,0.94)",
   },
   heroDot: {
     width: 8,
     height: 8,
     borderRadius: 999,
-    background: "rgba(59,130,246,0.98)",
   },
   heroTitle: {
     margin: 0,
-    fontSize: 18,
+    fontSize: 30,
+    lineHeight: 1.02,
     fontWeight: 950,
+    letterSpacing: "-0.04em",
+    color: "rgba(255,255,255,0.98)",
+    maxWidth: 720,
   },
   heroText: {
-    marginTop: 8,
-    fontSize: 13,
-    lineHeight: 1.65,
-    color: "rgba(226,232,240,0.96)",
-  },
-  heroTip: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 14,
-    border: "1px dashed rgba(191,219,254,0.9)",
-    background: "rgba(15,23,42,0.96)",
-  },
-  heroTipLabel: {
-    fontSize: 11,
-    fontWeight: 800,
-    textTransform: "uppercase",
-    letterSpacing: "0.12em",
-    color: "rgba(191,219,254,0.98)",
-    marginBottom: 4,
-  },
-  heroTipText: {
     margin: 0,
-    fontSize: 13,
-    lineHeight: 1.6,
-    color: "rgba(226,232,240,0.96)",
-  },
-
-  heroSummary: {
-    width: "100%",
-    maxWidth: 240,
-    alignSelf: "stretch",
-  },
-  heroSummaryTitle: {
-    fontSize: 13,
-    fontWeight: 900,
-    marginBottom: 8,
-  },
-  heroSummaryRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    fontSize: 12,
-    color: "rgba(209,213,219,0.96)",
-    marginBottom: 6,
-  },
-  heroSummaryDotPair: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    background: "rgba(248,113,113,0.98)",
-  },
-  heroSummaryDotFamily: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    background: "rgba(96,165,250,0.98)",
-  },
-  heroSummaryDotShared: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    background: "rgba(129,140,248,0.98)",
-  },
-  heroSummaryHint: {
-    marginTop: 8,
-    fontSize: 12,
-    lineHeight: 1.55,
-    color: "rgba(148,163,184,0.96)",
-  },
-
-
-  limitBanner: {
-    display: "grid",
-    gap: 12,
-    border: "1px solid rgba(56,189,248,0.20)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(37,99,235,0.08))",
-  },
-  limitBannerTop: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  limitBannerBadge: {
-    alignSelf: "flex-start",
-    display: "inline-flex",
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.22)",
-    background: "rgba(56,189,248,0.12)",
-    fontSize: 11,
-    fontWeight: 900,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    marginBottom: 8,
-  },
-  limitBannerTitle: {
-    fontSize: 18,
-    fontWeight: 900,
-    letterSpacing: "-0.02em",
-  },
-  limitBannerCopy: {
-    margin: 0,
-    color: "rgba(226,232,240,0.84)",
-    lineHeight: 1.6,
     fontSize: 14,
+    lineHeight: 1.62,
+    color: "rgba(226,232,240,0.82)",
+    maxWidth: 720,
   },
-  filtersRow: {
-    marginTop: 2,
+  metaRow: {
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  segment: {
-    display: "inline-flex",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.75)",
-    background: "rgba(15,23,42,0.96)",
-    overflow: "hidden",
-    flexWrap: "wrap",
-    maxWidth: "100%",
-  },
-  segmentBtn: {
-    padding: "8px 12px",
-    fontSize: 12,
-    background: "transparent",
-    border: "none",
-    color: "rgba(209,213,219,0.9)",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  segmentBtnActive: {
-    background:
-      "linear-gradient(135deg, rgba(59,130,246,0.55), rgba(56,189,248,0.55))",
-    color: "white",
-  },
-
-  refreshBtn: {
-    padding: "8px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.75)",
-    background: "rgba(15,23,42,0.96)",
-    color: "rgba(226,232,240,0.98)",
-    fontSize: 12,
-    cursor: "pointer",
-    fontWeight: 800,
-  },
-
-  stateCard: {
-    marginTop: 2,
-  },
-
-  groupList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
-
-  groupRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "stretch",
-    gap: 12,
-    padding: 14,
-    flexWrap: "wrap",
-    width: "100%",
-  },
-  groupLeft: {
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-    flex: "1 1 280px",
-    minWidth: 0,
-  },
-  groupCopy: {
-    minWidth: 0,
-    flex: 1,
-  },
-  groupAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    border: "1px solid rgba(148,163,184,0.75)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "rgba(15,23,42,0.96)",
-    flexShrink: 0,
-  },
-  groupAvatarDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-  },
-  groupName: {
-    fontSize: 14,
-    fontWeight: 900,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    minWidth: 0,
-  },
-  groupMetaRow: {
-    marginTop: 4,
-    fontSize: 12,
-    color: "rgba(148,163,184,0.96)",
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-    flexWrap: "wrap",
-    minWidth: 0,
-  },
-  dotSeparator: {
-    opacity: 0.7,
-  },
-  groupMetaType: {},
-  groupMetaMembers: {},
-  groupMetaRole: {},
-
-  groupRight: {
-    display: "flex",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-start",
     gap: 8,
     flexWrap: "wrap",
-    flex: "1 1 100%",
-    minWidth: 0,
-    width: "100%",
+    alignItems: "center",
   },
-
-  activateBtn: {
-    padding: "7px 11px",
+  metaPill: {
+    minHeight: 32,
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "0 11px",
     borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.75)",
-    background: "rgba(15,23,42,0.96)",
-    color: "rgba(224,242,254,0.98)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.06)",
     fontSize: 12,
-    cursor: "pointer",
+    fontWeight: 850,
+    color: "rgba(255,255,255,0.94)",
+  },
+  metaPillSoft: {
+    minHeight: 32,
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "0 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    fontSize: 12,
     fontWeight: 800,
-    minWidth: 0,
-    maxWidth: "100%",
-    flex: "1 1 160px",
-    textAlign: "center",
+    color: "rgba(226,232,240,0.78)",
   },
   activeBadge: {
-    padding: "7px 11px",
-    borderRadius: 999,
-    border: "1px solid rgba(34,197,94,0.75)",
-    background: "rgba(22,163,74,0.16)",
-    color: "rgba(220,252,231,0.98)",
-    fontSize: 12,
-    fontWeight: 800,
-    minWidth: 0,
-    maxWidth: "100%",
-    flex: "1 1 160px",
-    textAlign: "center",
-  },
-  linkBtn: {
-    padding: "7px 11px",
-    borderRadius: 999,
-    border: "1px solid rgba(148,163,184,0.75)",
-    background: "rgba(15,23,42,0.96)",
-    color: "rgba(226,232,240,0.98)",
-    fontSize: 12,
-    cursor: "pointer",
-    fontWeight: 800,
-    minWidth: 0,
-    maxWidth: "100%",
-    flex: "1 1 160px",
-    textAlign: "center",
-  },
-
-  emptyState: {
-    textAlign: "center",
-  },
-  emptyTitle: {
-    margin: 0,
-    fontSize: 16,
-    fontWeight: 950,
-  },
-  emptySub: {
-    marginTop: 6,
-    marginBottom: 0,
-    fontSize: 13,
-    lineHeight: 1.65,
-    color: "rgba(209,213,219,0.96)",
-  },
-  emptyActions: {
-    marginTop: 12,
-    display: "flex",
-    justifyContent: "center",
-  },
-
-  loadingRow: {
-    display: "flex",
-    gap: 10,
+    minHeight: 32,
+    display: "inline-flex",
     alignItems: "center",
-  },
-  loadingDot: {
-    width: 12,
-    height: 12,
+    padding: "0 11px",
     borderRadius: 999,
-    background: "rgba(56,189,248,0.95)",
-    boxShadow: "0 0 20px rgba(56,189,248,0.70)",
-  },
-  loadingTitle: {
-    fontSize: 13,
-    fontWeight: 900,
-  },
-  loadingSub: {
-    marginTop: 2,
+    border: "1px solid rgba(34,197,94,0.22)",
+    background: "rgba(34,197,94,0.14)",
+    color: "rgba(220,252,231,0.94)",
     fontSize: 12,
-    color: "rgba(209,213,219,0.96)",
+    fontWeight: 900,
   },
-
-  primary: {
-    padding: "9px 12px",
+  heroRight: {
+    display: "grid",
+    gap: 12,
+    alignContent: "start",
+  },
+  nextStepCard: {
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: "14px 14px",
+    display: "grid",
+    gap: 5,
+  },
+  nextStepLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.86)",
+  },
+  nextStepTitle: {
+    fontSize: 16,
+    lineHeight: 1.25,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.98)",
+  },
+  nextStepText: {
+    fontSize: 13,
+    lineHeight: 1.58,
+    color: "rgba(226,232,240,0.80)",
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 12,
+  },
+  infoCard: {
+    borderRadius: 20,
+    padding: 16,
+    display: "grid",
+    gap: 8,
+  },
+  sectionEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.86)",
+  },
+  sectionTitle: {
+    fontSize: 18,
+    lineHeight: 1.15,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  sectionBody: {
+    margin: 0,
+    fontSize: 14,
+    lineHeight: 1.62,
+    color: "rgba(226,232,240,0.82)",
+  },
+  routeList: {
+    display: "grid",
+    gap: 8,
+  },
+  routeItem: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.82)",
+    padding: "10px 12px",
     borderRadius: 14,
-    border: "1px solid rgba(96,165,250,0.85)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+  },
+  actionGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 12,
+  },
+  actionCard: {
+    textAlign: "left",
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
     background:
-      "linear-gradient(135deg, rgba(59,130,246,0.95), rgba(56,189,248,0.95))",
-    color: "white",
+      "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))",
+    padding: "16px 16px",
+    display: "grid",
+    gap: 8,
     cursor: "pointer",
-    fontWeight: 900,
-    fontSize: 13,
-    flex: "1 1 180px",
-    minWidth: 0,
-    textAlign: "center",
+    color: "rgba(255,255,255,0.96)",
+    boxShadow: "0 12px 34px rgba(0,0,0,0.16)",
   },
-  secondary: {
-    padding: "9px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(148,163,184,0.75)",
-    background: "rgba(15,23,42,0.96)",
-    color: "rgba(226,232,240,0.98)",
-    cursor: "pointer",
+  actionTitle: {
+    fontSize: 16,
     fontWeight: 900,
-    fontSize: 13,
-    flex: "1 1 180px",
-    minWidth: 0,
-    textAlign: "center",
+    lineHeight: 1.25,
   },
-};
+  actionSub: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(203,213,225,0.78)",
+  },
+}

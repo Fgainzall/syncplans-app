@@ -1,18 +1,72 @@
 // src/app/groups/new/page.tsx
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
-const AnyPremiumHeader = PremiumHeader as React.ComponentType<any>;
 import { createGroup, getMyGroups } from "@/lib/groupsDb";
 import { getMyProfile, type Profile } from "@/lib/profilesDb";
 import { getGroupLimitState } from "@/lib/premium";
 import { trackEvent, trackScreenView } from "@/lib/analytics";
 
 type GType = "pair" | "family" | "other";
+type UiToast = null | { title: string; subtitle?: string };
+
+type TypeMeta = {
+  key: GType;
+  label: string;
+  title: string;
+  subtitle: string;
+  example: string;
+  activation: string;
+  color: string;
+  soft: string;
+  border: string;
+};
+
+const TYPE_META: Record<GType, TypeMeta> = {
+  pair: {
+    key: "pair",
+    label: "Pareja",
+    title: "Crea el espacio donde se van a organizar juntos",
+    subtitle:
+      "Este debería ser el primer grupo de SyncPlans. Aquí empieza la agenda compartida que evita cruces, olvidos y discusiones innecesarias.",
+    example: "Ej: Fernando & Ara",
+    activation:
+      "Ruta ideal: crear grupo → crear primer plan → invitar a tu pareja.",
+    color: "rgba(96,165,250,0.98)",
+    soft: "rgba(96,165,250,0.14)",
+    border: "rgba(96,165,250,0.28)",
+  },
+  family: {
+    key: "family",
+    label: "Familia",
+    title: "Crea un espacio familiar con una sola referencia clara",
+    subtitle:
+      "Úsalo cuando la coordinación ya no sea de una sola persona y necesites alinear planes, tiempos y contexto desde un mismo lugar.",
+    example: "Ej: Familia Llosa",
+    activation:
+      "Ruta ideal: crear grupo → definir el primer plan compartido → ordenar el resto desde aquí.",
+    color: "rgba(34,197,94,0.98)",
+    soft: "rgba(34,197,94,0.12)",
+    border: "rgba(34,197,94,0.24)",
+  },
+  other: {
+    key: "other",
+    label: "Compartido",
+    title: "Crea un grupo compartido para coordinar fuera del chat",
+    subtitle:
+      "Sirve para amigos, trabajo o cualquier grupo donde el tiempo compartido necesite menos ruido y una mejor referencia común.",
+    example: "Ej: Pichanga de los jueves",
+    activation:
+      "Ruta ideal: crear grupo → activar contexto → convertir la próxima idea en plan.",
+    color: "rgba(168,85,247,0.98)",
+    soft: "rgba(168,85,247,0.14)",
+    border: "rgba(168,85,247,0.30)",
+  },
+};
 
 export default function NewGroupPage() {
   const router = useRouter();
@@ -23,15 +77,15 @@ export default function NewGroupPage() {
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [existingGroupsCount, setExistingGroupsCount] = useState(0);
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
-    null
-  );
+  const [toast, setToast] = useState<UiToast>(null);
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
       setBooting(true);
       const { data, error } = await supabase.auth.getSession();
+
       if (!alive) return;
 
       if (error || !data.session?.user) {
@@ -60,49 +114,17 @@ export default function NewGroupPage() {
     };
   }, [router]);
 
-  const typeMeta = useMemo(() => {
-    if (type === "pair") {
-      return {
-        key: "pair" as const,
-        label: "Pareja",
-        title: "Crea tu pareja",
-        hint: "Primero crean este espacio. Luego guardan planes compartidos y SyncPlans empieza a coordinar de verdad.",
-        soft: "rgba(96,165,250,0.14)",
-        border: "rgba(96,165,250,0.28)",
-      };
-    }
-    if (type === "family") {
-      return {
-        key: "family" as const,
-        label: "Familia",
-        title: "Crea tu familia",
-        hint: "Primero ordenan este espacio. Luego los planes compartidos y los cruces se resuelven desde un solo lugar.",
-        soft: "rgba(34,197,94,0.12)",
-        border: "rgba(34,197,94,0.24)",
-      };
-    }
-    // other / compartido
-    return {
-      key: "other" as const,
-      label: "Compartido",
-      title: "Crea tu grupo compartido",
-      hint: "Empieza creando este espacio. Después podrás guardar planes compartidos y mover la coordinación fuera del chat.",
-      soft: "rgba(147,51,234,0.16)",
-      border: "rgba(147,51,234,0.32)",
-    };
-  }, [type]);
-
-  const errors = useMemo(() => {
-    const e: string[] = [];
-    if (!name.trim()) e.push("Ponle un nombre al grupo.");
-    if (name.trim().length < 3)
-      e.push("El nombre debe tener al menos 3 caracteres.");
-    return e;
-  }, [name]);
-
   useEffect(() => {
-    void trackScreenView({ screen: "groups_new", metadata: { area: "groups", step: "create" } });
+    void trackScreenView({
+      screen: "groups_new",
+      metadata: {
+        area: "groups",
+        step: "create",
+      },
+    });
   }, []);
+
+  const meta = useMemo(() => TYPE_META[type], [type]);
 
   const groupLimitState = useMemo(
     () => getGroupLimitState(profile, existingGroupsCount),
@@ -110,35 +132,72 @@ export default function NewGroupPage() {
   );
 
   const reachedGroupLimit = groupLimitState.reached;
+
+  const errors = useMemo(() => {
+    const list: string[] = [];
+    if (!name.trim()) list.push("Ponle un nombre al grupo.");
+    if (name.trim().length > 0 && name.trim().length < 3) {
+      list.push("El nombre debe tener al menos 3 caracteres.");
+    }
+    return list;
+  }, [name]);
+
   const canSave = errors.length === 0 && !saving && !reachedGroupLimit;
 
-  const goBack = () => router.push("/groups");
+  const helperHeadline = useMemo(() => {
+    if (type === "pair") return "Este es el paso que activa el producto de verdad.";
+    if (type === "family") return "Aquí empieza una coordinación más clara para todos.";
+    return "Un grupo compartido sirve cuando el chat ya no alcanza.";
+  }, [type]);
 
-  const save = async () => {
+  function showTemporaryToast(next: UiToast, timeout = 2600) {
+    setToast(next);
+    window.setTimeout(() => setToast(null), timeout);
+  }
+
+  function goBack() {
+    router.push("/groups");
+  }
+
+  async function save() {
     if (reachedGroupLimit) {
       void trackEvent({
         event: "premium_gate_seen",
-        metadata: { screen: "groups_new", gate: "group_limit", existing_groups_count: existingGroupsCount },
+        metadata: {
+          screen: "groups_new",
+          gate: "group_limit",
+          existing_groups_count: existingGroupsCount,
+        },
       });
+
       setToast({
         title: "Límite Free alcanzado",
         subtitle:
           "En Free puedes crear 1 grupo. Premium abre más espacios compartidos sin fricción.",
       });
+
       window.setTimeout(() => {
-        void trackEvent({ event: "premium_cta_clicked", metadata: { screen: "groups_new", source: "group_limit_toast", target: "/planes" } });
+        void trackEvent({
+          event: "premium_cta_clicked",
+          metadata: {
+            screen: "groups_new",
+            source: "group_limit_toast",
+            target: "/planes",
+          },
+        });
         router.push("/planes");
       }, 500);
       return;
     }
 
     if (!canSave) {
-      setToast({ title: "Revisa el formulario", subtitle: errors[0] });
-      window.setTimeout(() => setToast(null), 2500);
+      showTemporaryToast({
+        title: "Revisa el formulario",
+        subtitle: errors[0],
+      }, 2200);
       return;
     }
 
-    // ✅ asegurar sesión antes de crear (evita edge-cases en Vercel)
     const { data, error } = await supabase.auth.getSession();
     if (error || !data.session?.user) {
       router.replace("/auth/login");
@@ -146,376 +205,698 @@ export default function NewGroupPage() {
     }
 
     setSaving(true);
+
     try {
-      const g: any = await createGroup({ type, name: name.trim() });
+      const created: any = await createGroup({ type, name: name.trim() });
 
       const gid =
-        (typeof g?.id === "string" && g.id) ||
-        (typeof g?.group?.id === "string" && g.group.id) ||
+        (typeof created?.id === "string" && created.id) ||
+        (typeof created?.group?.id === "string" && created.group.id) ||
         null;
 
       if (!gid) {
-        throw new Error(
-          "Grupo creado pero no se recibió el ID (respuesta inválida)."
-        );
+        throw new Error("Grupo creado pero no se recibió el ID.");
       }
 
       void trackEvent({
         event: "group_created",
         entityId: String(gid),
-        metadata: { screen: "groups_new", source: "groups_new", group_type: type, existing_groups_count: existingGroupsCount },
+        metadata: {
+          screen: "groups_new",
+          source: "groups_new",
+          group_type: type,
+          existing_groups_count: existingGroupsCount,
+        },
       });
 
-      setToast({ title: "Grupo creado ✅", subtitle: "Ahora vamos con tu primer plan compartido…" });
-      window.setTimeout(() => router.push(`/events/new/details?type=group&groupId=${encodeURIComponent(String(gid))}&wow=1&from=first-group`), 450);
-    } catch (err: any) {
       setToast({
+        title: "Grupo creado ✅",
+        subtitle: type === "pair"
+          ? "Ahora vamos a crear el primer plan compartido."
+          : "Ahora vamos con tu primer plan dentro del grupo.",
+      });
+
+      window.setTimeout(() => {
+        router.push(
+          `/events/new/details?type=group&groupId=${encodeURIComponent(
+            String(gid)
+          )}&wow=1&from=first-group`
+        );
+      }, 450);
+    } catch (err: any) {
+      showTemporaryToast({
         title: "No se pudo crear",
         subtitle: err?.message || "Intenta nuevamente.",
-      });
-      window.setTimeout(() => setToast(null), 2800);
+      }, 2800);
     } finally {
       setSaving(false);
     }
-  };
-
-  const placeholder =
-    type === "pair"
-      ? "Ej: Fernando & Ara"
-      : type === "family"
-      ? "Ej: Familia Llosa"
-      : "Ej: Pichanga de los jueves";
+  }
 
   if (booting) {
     return (
-      <main style={styles.page}>
-        <div style={styles.shell}>
-          <AnyPremiumHeader />
-          <div style={styles.loadingCard}>
-            <div style={styles.loadingDot} />
-            <div>
-              <div style={styles.loadingTitle}>Preparando…</div>
-              <div style={styles.loadingSub}>Creación de grupo</div>
-            </div>
+      <main style={S.page}>
+        <div style={S.shell}>
+          <div style={S.topRow}>
+            <PremiumHeader title="Nuevo grupo" subtitle="Preparando creación…" />
           </div>
+
+          <section style={S.loadingCard}>
+            <div style={S.loadingDot} />
+            <div>
+              <div style={S.loadingTitle}>Preparando tu siguiente paso…</div>
+              <div style={S.loadingSub}>Creación de grupo</div>
+            </div>
+          </section>
         </div>
       </main>
     );
   }
 
   return (
-    <main style={styles.page}>
-      {toast && (
-        <div style={styles.toastWrap}>
-          <div style={styles.toastCard}>
-            <div style={styles.toastTitle}>{toast.title}</div>
-            {toast.subtitle ? (
-              <div style={styles.toastSub}>{toast.subtitle}</div>
-            ) : null}
+    <main style={S.page}>
+      {toast ? (
+        <div style={S.toastWrap}>
+          <div style={S.toastCard}>
+            <div style={S.toastTitle}>{toast.title}</div>
+            {toast.subtitle ? <div style={S.toastSub}>{toast.subtitle}</div> : null}
           </div>
         </div>
-      )}
+      ) : null}
 
-      <div style={styles.shell}>
-        <div style={styles.topRow}>
-          <AnyPremiumHeader />
-          <div style={styles.topActions}>
+      <div style={S.shell}>
+        <div style={S.topRow}>
+          <PremiumHeader
+            title="Nuevo grupo"
+            subtitle="El espacio donde la coordinación deja de vivir en mensajes sueltos y empieza a compartirse de verdad."
+          />
+          <div style={S.topActions}>
             <LogoutButton />
           </div>
         </div>
 
         <section
           style={{
-            ...styles.hero,
-            borderColor: typeMeta.border,
-            background: `linear-gradient(180deg, ${typeMeta.soft}, rgba(255,255,255,0.03))`,
+            ...S.hero,
+            borderColor: meta.border,
+            background: `linear-gradient(180deg, ${meta.soft}, rgba(255,255,255,0.03))`,
           }}
         >
-          <div style={styles.heroLeft}>
-            <div style={styles.kicker}>Nuevo grupo</div>
-            <h1 style={styles.h1}>{typeMeta.title}</h1>
-            <div style={styles.sub}>{typeMeta.hint}</div>
+          <div style={S.heroCopy}>
+            <div style={S.kicker}>Bloque 3 · Activación real</div>
+            <h1 style={S.h1}>{meta.title}</h1>
+            <p style={S.sub}>{meta.subtitle}</p>
+
+            <div style={S.heroBadges}>
+              <span style={S.heroBadge}>Tipo: {meta.label}</span>
+              <span style={S.heroBadgeSoft}>
+                {existingGroupsCount === 0
+                  ? "Tu primer grupo"
+                  : `${existingGroupsCount} grupo${existingGroupsCount === 1 ? "" : "s"} existente${existingGroupsCount === 1 ? "" : "s"}`}
+              </span>
+            </div>
           </div>
 
-          <div style={styles.heroRight}>
-            <button onClick={goBack} style={styles.ghostBtn}>
+          <div style={S.heroActions}>
+            <button type="button" onClick={goBack} style={S.ghostBtn}>
               Cancelar
             </button>
             <button
+              type="button"
               onClick={save}
-              style={{ ...styles.primaryBtn, opacity: canSave ? 1 : 0.6 }}
               disabled={!canSave}
+              style={{
+                ...S.primaryBtn,
+                ...(canSave ? null : S.primaryBtnDisabled),
+              }}
             >
-              {reachedGroupLimit ? "Ver planes" : saving ? "Creando…" : "Crear"}
+              {reachedGroupLimit
+                ? "Ver planes"
+                : saving
+                  ? "Creando…"
+                  : type === "pair"
+                    ? "Crear espacio"
+                    : "Crear grupo"}
             </button>
           </div>
         </section>
 
         {reachedGroupLimit ? (
-          <section style={styles.limitCard}>
-            <div style={styles.limitBadge}>Free</div>
-            <div style={styles.limitTitle}>Ya usaste tu espacio compartido incluido.</div>
-            <div style={styles.limitCopy}>
-              En Free puedes crear {groupLimitState.limit} grupo. Premium te deja abrir más espacios
-              cuando tu coordinación ya crece más allá de una sola pareja, familia o grupo compartido.
+          <section style={S.limitCard}>
+            <div style={S.limitBadge}>Free</div>
+            <div style={S.limitTitle}>Ya usaste tu grupo incluido en Free.</div>
+            <div style={S.limitCopy}>
+              Premium abre más espacios cuando necesitas coordinar más de{" "}
+              {groupLimitState.limit} grupo sin salirte del mismo sistema.
             </div>
-            <div style={styles.limitActions}>
-              <button onClick={() => { void trackEvent({ event: "premium_cta_clicked", metadata: { screen: "groups_new", source: "limit_card", target: "/planes" } }); router.push("/planes"); }} style={styles.primaryBtn}>
+            <div style={S.limitActions}>
+              <button
+                type="button"
+                onClick={() => {
+                  void trackEvent({
+                    event: "premium_cta_clicked",
+                    metadata: {
+                      screen: "groups_new",
+                      source: "limit_card",
+                      target: "/planes",
+                    },
+                  });
+                  router.push("/planes");
+                }}
+                style={S.primaryBtn}
+              >
                 Ver planes
               </button>
-              <button onClick={goBack} style={styles.ghostBtn}>
+              <button type="button" onClick={goBack} style={S.ghostBtn}>
                 Volver a grupos
               </button>
             </div>
           </section>
         ) : null}
 
-        <section style={styles.card}>
-          <div style={styles.row}>
-            <div style={styles.label}>Tipo</div>
-            <div style={styles.chips}>
-              <button
-                type="button"
-                onClick={() => setType("pair")}
-                style={{
-                  ...styles.chip,
-                  background:
-                    type === "pair"
-                      ? "rgba(255,255,255,0.08)"
-                      : "rgba(255,255,255,0.03)",
-                }}
-              >
-                <span
-                  style={{ ...styles.chipDot, background: "rgba(96,165,250,0.95)" }}
-                />
-                Pareja
+        <div style={S.grid}>
+          <section style={S.mainCard}>
+            <div style={S.sectionEyebrow}>Paso 1</div>
+            <div style={S.sectionTitle}>Elige el tipo de espacio</div>
+            <div style={S.typeGrid}>
+              {(Object.keys(TYPE_META) as GType[]).map((item) => {
+                const itemMeta = TYPE_META[item];
+                const selected = type === item;
+
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setType(item)}
+                    style={{
+                      ...S.typeCard,
+                      ...(selected
+                        ? {
+                            borderColor: itemMeta.border,
+                            background: itemMeta.soft,
+                          }
+                        : null),
+                    }}
+                  >
+                    <div style={S.typeTop}>
+                      <span
+                        style={{
+                          ...S.typeDot,
+                          background: itemMeta.color,
+                        }}
+                      />
+                      <span style={S.typeLabel}>{itemMeta.label}</span>
+                    </div>
+
+                    <div style={S.typeTitle}>{itemMeta.label}</div>
+                    <div style={S.typeBody}>{itemMeta.subtitle}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={S.divider} />
+
+            <div style={S.sectionEyebrow}>Paso 2</div>
+            <div style={S.sectionTitle}>Ponle un nombre claro</div>
+
+            <div style={S.field}>
+              <label htmlFor="group-name" style={S.fieldLabel}>
+                Nombre del grupo
+              </label>
+              <input
+                id="group-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={meta.example}
+                style={S.input}
+              />
+              <div style={S.inputHint}>
+                Usa un nombre corto, reconocible y fácil de encontrar después.
+              </div>
+            </div>
+
+            {errors.length > 0 ? (
+              <div style={S.errorBox}>
+                <div style={S.errorTitle}>Antes de crear:</div>
+                <ul style={S.errorList}>
+                  {errors.map((error) => (
+                    <li key={error} style={S.errorItem}>
+                      {error}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            <div style={S.footerRow}>
+              <button type="button" onClick={goBack} style={S.ghostBtnWide}>
+                ← Volver
               </button>
               <button
                 type="button"
-                onClick={() => setType("family")}
+                onClick={save}
+                disabled={!canSave}
                 style={{
-                  ...styles.chip,
-                  background:
-                    type === "family"
-                      ? "rgba(255,255,255,0.08)"
-                      : "rgba(255,255,255,0.03)",
+                  ...S.primaryBtnWide,
+                  ...(canSave ? null : S.primaryBtnDisabled),
                 }}
               >
-                <span
-                  style={{ ...styles.chipDot, background: "rgba(34,197,94,0.95)" }}
-                />
-                Familia
-              </button>
-              <button
-                type="button"
-                onClick={() => setType("other")}
-                style={{
-                  ...styles.chip,
-                  background:
-                    type === "other"
-                      ? "rgba(255,255,255,0.08)"
-                      : "rgba(255,255,255,0.03)",
-                }}
-              >
-                <span
-                  style={{ ...styles.chipDot, background: "rgba(147,51,234,0.95)" }}
-                />
-                Compartido
+                {reachedGroupLimit
+                  ? "Ver planes"
+                  : saving
+                    ? "Creando…"
+                    : type === "pair"
+                      ? "Crear espacio y seguir"
+                      : "Crear grupo y seguir"}
               </button>
             </div>
-          </div>
+          </section>
 
-          <div style={styles.field}>
-            <div style={styles.fieldLabel}>Nombre</div>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={placeholder}
-              style={styles.input}
-            />
-            <div style={styles.hint}>Tip: usa un nombre corto y reconocible.</div>
-          </div>
+          <aside style={S.sideCard}>
+            <div style={S.sideEyebrow}>Por qué importa</div>
+            <div style={S.sideTitle}>{helperHeadline}</div>
+            <p style={S.sideBody}>
+              Un grupo no es una carpeta. Es el contexto compartido desde donde
+              SyncPlans empieza a entender con quién coordinas y por qué ese
+              tiempo ya no depende de una sola persona.
+            </p>
 
-          {errors.length > 0 && (
-            <div style={styles.errorBox}>
-              <div style={styles.errorTitle}>Antes de crear:</div>
-              <ul style={styles.errorList}>
-                {errors.map((e) => (
-                  <li key={e} style={styles.errorItem}>
-                    {e}
-                  </li>
-                ))}
-              </ul>
+            <div style={S.sideBlock}>
+              <div style={S.sideBlockLabel}>Ruta sugerida</div>
+              <div style={S.sideBlockBody}>{meta.activation}</div>
             </div>
-          )}
-        </section>
 
-        <section style={styles.footerRow}>
-          <button onClick={goBack} style={styles.ghostBtnWide}>
-            ← Volver
-          </button>
-          <button
-            onClick={save}
-            style={{ ...styles.primaryBtnWide, opacity: canSave ? 1 : 0.6 }}
-            disabled={!canSave}
-          >
-            {reachedGroupLimit ? "Ver planes" : saving ? "Creando…" : "Crear grupo"}
-          </button>
-        </section>
+            <div style={S.sideBlock}>
+              <div style={S.sideBlockLabel}>Resultado buscado</div>
+              <div style={S.sideBlockBody}>
+                Crear el grupo y llevarte directo al primer plan compartido.
+              </div>
+            </div>
+
+            {type === "pair" ? (
+              <div style={S.highlightCard}>
+                <div style={S.highlightLabel}>Recomendado</div>
+                <div style={S.highlightTitle}>Empieza por Pareja</div>
+                <div style={S.highlightBody}>
+                  Es la entrada más clara, más emocional y más fácil de activar
+                  rápido en SyncPlans.
+                </div>
+              </div>
+            ) : null}
+          </aside>
+        </div>
       </div>
     </main>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
+const S: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     background:
       "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
   },
-  shell: { maxWidth: 900, margin: "0 auto", padding: "22px 18px 48px" },
-
-  toastWrap: { position: "fixed", top: 18, right: 18, zIndex: 50, pointerEvents: "none" },
+  shell: {
+    maxWidth: 1120,
+    margin: "0 auto",
+    padding: "22px 18px 48px",
+    display: "grid",
+    gap: 14,
+  },
+  toastWrap: {
+    position: "fixed",
+    top: 18,
+    right: 18,
+    zIndex: 50,
+    pointerEvents: "none",
+  },
   toastCard: {
     pointerEvents: "auto",
     minWidth: 260,
     maxWidth: 360,
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(7,11,22,0.72)",
+    background: "rgba(7,11,22,0.92)",
     boxShadow: "0 24px 70px rgba(0,0,0,0.45)",
     backdropFilter: "blur(14px)",
     padding: "12px 14px",
   },
-  toastTitle: { fontWeight: 900, fontSize: 13 },
-  toastSub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 },
-
+  toastTitle: {
+    fontWeight: 900,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.95)",
+  },
+  toastSub: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.72)",
+    fontWeight: 650,
+  },
   topRow: {
     display: "flex",
-    alignItems: "center",
     justifyContent: "space-between",
-    gap: 14,
-    marginBottom: 14,
-  },
-  topActions: { display: "flex", gap: 10, alignItems: "center" },
-
-  hero: {
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    gap: 16,
-    padding: "18px 16px",
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.10)",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
-    marginBottom: 12,
-  },
-  heroLeft: { display: "flex", flexDirection: "column", gap: 8 },
-  heroRight: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
-
-  kicker: {
-    alignSelf: "flex-start",
-    fontSize: 11,
-    letterSpacing: "0.10em",
-    textTransform: "uppercase",
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-    opacity: 0.9,
-    fontWeight: 900,
-  },
-  h1: { margin: 0, fontSize: 28, letterSpacing: "-0.6px" },
-  sub: { fontSize: 13, opacity: 0.75, maxWidth: 560, lineHeight: 1.4 },
-
-  card: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 14,
-  },
-  row: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
+    alignItems: "flex-start",
     gap: 12,
     flexWrap: "wrap",
   },
-  label: { fontSize: 12, opacity: 0.75, fontWeight: 800 },
-  chips: { display: "flex", gap: 10, flexWrap: "wrap" },
-  chip: {
+  topActions: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+  },
+  loadingCard: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "16px 16px",
+    borderRadius: 20,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(10,14,28,0.72)",
+  },
+  loadingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 0 8px rgba(56,189,248,0.10)",
+    flexShrink: 0,
+  },
+  loadingTitle: {
+    fontSize: 14,
+    fontWeight: 900,
+  },
+  loadingSub: {
+    fontSize: 12,
+    opacity: 0.7,
+    marginTop: 2,
+  },
+  hero: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: 16,
+    padding: "20px 18px",
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,0.10)",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.28)",
+    flexWrap: "wrap",
+  },
+  heroCopy: {
+    display: "grid",
+    gap: 8,
+    minWidth: 0,
+    flex: "1 1 480px",
+  },
+  kicker: {
+    fontSize: 11,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    color: "rgba(148,163,184,0.95)",
+    fontWeight: 800,
+  },
+  h1: {
+    margin: 0,
+    fontSize: 34,
+    lineHeight: 1.02,
+    letterSpacing: "-0.04em",
+    fontWeight: 950,
+    color: "rgba(255,255,255,0.98)",
+    maxWidth: 720,
+  },
+  sub: {
+    margin: 0,
+    fontSize: 14,
+    lineHeight: 1.62,
+    color: "rgba(226,232,240,0.84)",
+    maxWidth: 760,
+  },
+  heroBadges: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  heroBadge: {
+    minHeight: 32,
     display: "inline-flex",
     alignItems: "center",
-    gap: 10,
-    padding: "10px 12px",
+    padding: "0 11px",
     borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.06)",
+    fontSize: 12,
+    fontWeight: 850,
+    color: "rgba(255,255,255,0.94)",
+  },
+  heroBadgeSoft: {
+    minHeight: 32,
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "0 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    fontSize: 12,
+    fontWeight: 800,
+    color: "rgba(226,232,240,0.78)",
+  },
+  heroActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1.08fr) minmax(280px, 0.92fr)",
+    gap: 14,
+    alignItems: "start",
+  },
+  mainCard: {
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(10,14,28,0.72)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
+    padding: 18,
+    display: "grid",
+    gap: 14,
+  },
+  sideCard: {
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(10,14,28,0.72)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
+    padding: 18,
+    display: "grid",
+    gap: 12,
+    position: "sticky",
+    top: 18,
+  },
+  sectionEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.84)",
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  typeGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 10,
+  },
+  typeCard: {
+    textAlign: "left",
+    borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.03)",
+    padding: "14px 14px",
+    display: "grid",
+    gap: 8,
     cursor: "pointer",
-    color: "rgba(255,255,255,0.92)",
+  },
+  typeTop: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  typeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    flexShrink: 0,
+  },
+  typeLabel: {
+    fontSize: 12,
+    fontWeight: 900,
+    color: "rgba(226,232,240,0.86)",
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+  },
+  typeTitle: {
+    fontSize: 16,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.98)",
+    lineHeight: 1.25,
+  },
+  typeBody: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(203,213,225,0.78)",
+  },
+  divider: {
+    height: 1,
+    background: "rgba(255,255,255,0.08)",
+    margin: "2px 0",
+  },
+  field: {
+    display: "grid",
+    gap: 8,
+  },
+  fieldLabel: {
     fontSize: 13,
     fontWeight: 900,
+    color: "rgba(255,255,255,0.94)",
   },
-  chipDot: { width: 10, height: 10, borderRadius: 999 },
-
-  field: { marginTop: 12, display: "flex", flexDirection: "column", gap: 8 },
-  fieldLabel: { fontSize: 12, opacity: 0.8, fontWeight: 900 },
   input: {
     width: "100%",
-    padding: "12px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(6,10,20,0.55)",
-    color: "rgba(255,255,255,0.92)",
-    outline: "none",
-    fontSize: 14,
-  },
-  hint: { fontSize: 12, opacity: 0.72 },
-
-  errorBox: {
-    marginTop: 14,
+    minHeight: 52,
     borderRadius: 16,
-    border: "1px solid rgba(248,113,113,0.28)",
-    background: "rgba(248,113,113,0.10)",
-    padding: 12,
+    border: "1px solid rgba(148,163,184,0.20)",
+    background: "rgba(15,23,42,0.74)",
+    color: "rgba(248,250,252,0.98)",
+    padding: "0 14px",
+    fontSize: 15,
+    outline: "none",
+    boxSizing: "border-box",
   },
-  errorTitle: { fontWeight: 900, fontSize: 12, marginBottom: 8 },
-  errorList: { margin: 0, paddingLeft: 16 },
-  errorItem: { fontSize: 12, opacity: 0.9, marginBottom: 4 },
-
-
-  limitCard: {
-    marginBottom: 12,
-    borderRadius: 18,
-    border: "1px solid rgba(56,189,248,0.22)",
-    background:
-      "linear-gradient(180deg, rgba(56,189,248,0.10), rgba(255,255,255,0.03))",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.24)",
-    padding: "16px 16px 18px",
+  inputHint: {
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: "rgba(148,163,184,0.86)",
+  },
+  errorBox: {
+    borderRadius: 16,
+    border: "1px solid rgba(248,113,113,0.20)",
+    background: "rgba(127,29,29,0.14)",
+    padding: "12px 12px",
     display: "grid",
+    gap: 6,
+  },
+  errorTitle: {
+    fontSize: 12,
+    fontWeight: 900,
+    color: "rgba(254,226,226,0.96)",
+  },
+  errorList: {
+    margin: 0,
+    paddingLeft: 18,
+  },
+  errorItem: {
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: "rgba(254,226,226,0.90)",
+  },
+  footerRow: {
+    display: "flex",
     gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  ghostBtn: {
+    minHeight: 44,
+    padding: "0 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 13,
+    fontWeight: 850,
+    cursor: "pointer",
+  },
+  ghostBtnWide: {
+    minHeight: 46,
+    padding: "0 16px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 13,
+    fontWeight: 850,
+    cursor: "pointer",
+    flex: "1 1 180px",
+  },
+  primaryBtn: {
+    minHeight: 44,
+    padding: "0 15px",
+    borderRadius: 14,
+    border: "1px solid rgba(96,165,250,0.24)",
+    background:
+      "linear-gradient(135deg, rgba(37,99,235,0.96), rgba(59,130,246,0.90))",
+    color: "white",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 14px 28px rgba(30,64,175,0.22)",
+  },
+  primaryBtnWide: {
+    minHeight: 46,
+    padding: "0 18px",
+    borderRadius: 14,
+    border: "1px solid rgba(96,165,250,0.24)",
+    background:
+      "linear-gradient(135deg, rgba(37,99,235,0.96), rgba(59,130,246,0.90))",
+    color: "white",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 14px 28px rgba(30,64,175,0.22)",
+    flex: "2 1 260px",
+  },
+  primaryBtnDisabled: {
+    opacity: 0.6,
+    cursor: "not-allowed",
+    boxShadow: "none",
+    background: "rgba(51,65,85,0.76)",
+  },
+  limitCard: {
+    borderRadius: 20,
+    border: "1px solid rgba(251,191,36,0.22)",
+    background: "rgba(120,53,15,0.18)",
+    padding: 16,
+    display: "grid",
+    gap: 8,
   },
   limitBadge: {
-    alignSelf: "flex-start",
-    fontSize: 11,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
+    width: "fit-content",
     padding: "6px 10px",
     borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.22)",
-    background: "rgba(56,189,248,0.12)",
+    background: "rgba(251,191,36,0.14)",
+    color: "rgba(255,243,205,0.96)",
+    fontSize: 11,
     fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
   },
   limitTitle: {
-    fontSize: 20,
-    fontWeight: 900,
-    letterSpacing: "-0.4px",
+    fontSize: 18,
+    fontWeight: 950,
+    color: "rgba(255,255,255,0.98)",
+    letterSpacing: "-0.02em",
   },
   limitCopy: {
-    fontSize: 14,
-    lineHeight: 1.6,
-    color: "rgba(255,255,255,0.78)",
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(255,237,213,0.88)",
+    maxWidth: 760,
   },
   limitActions: {
     display: "flex",
@@ -523,71 +904,69 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
     alignItems: "center",
   },
-  footerRow: {
-    marginTop: 14,
-    display: "flex",
-    gap: 10,
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-  },
-  ghostBtn: {
-    padding: "10px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 800,
-  },
-  primaryBtn: {
-    padding: "10px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.20), rgba(124,58,237,0.20))",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
+  sideEyebrow: {
+    fontSize: 11,
     fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(148,163,184,0.86)",
   },
-  ghostBtnWide: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900,
-    minWidth: 240,
+  sideTitle: {
+    fontSize: 20,
+    fontWeight: 950,
+    lineHeight: 1.15,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
   },
-  primaryBtnWide: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 900,
-    minWidth: 240,
+  sideBody: {
+    margin: 0,
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: "rgba(203,213,225,0.80)",
   },
-
-  loadingCard: {
-    marginTop: 18,
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-    padding: 16,
-    borderRadius: 18,
+  sideBlock: {
+    borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
+    padding: "12px 12px",
+    display: "grid",
+    gap: 4,
   },
-  loadingDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 999,
-    background: "rgba(56,189,248,0.95)",
-    boxShadow: "0 0 24px rgba(56,189,248,0.55)",
+  sideBlockLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.84)",
   },
-  loadingTitle: { fontWeight: 900 },
-  loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
+  sideBlockBody: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.86)",
+  },
+  highlightCard: {
+    borderRadius: 16,
+    border: "1px solid rgba(96,165,250,0.20)",
+    background: "rgba(59,130,246,0.12)",
+    padding: "12px 12px",
+    display: "grid",
+    gap: 4,
+  },
+  highlightLabel: {
+    fontSize: 10,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(219,234,254,0.92)",
+  },
+  highlightTitle: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "rgba(248,250,252,0.98)",
+  },
+  highlightBody: {
+    fontSize: 12,
+    lineHeight: 1.55,
+    color: "rgba(226,242,255,0.88)",
+  },
 };
