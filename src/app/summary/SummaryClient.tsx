@@ -1104,7 +1104,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       if (parsed.title) params.set("title", parsed.title);
       if (parsed.durationMinutes) params.set("duration", String(parsed.durationMinutes));
       if (cleanedNotes) params.set("notes", cleanedNotes);
-
+if (parsed.locationQuery) {
+  params.set("location_query", parsed.locationQuery);
+}
       if (parsed.startHour !== null) {
         params.set(
           "time",

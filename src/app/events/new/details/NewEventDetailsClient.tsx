@@ -413,6 +413,7 @@ function NewEventDetailsInner() {
   const proposalResponseParam = sp.get("proposal_response");
   const originLatParam = sp.get("originLat");
   const originLngParam = sp.get("originLng");
+  const locationQueryParam = sp.get("location_query");
   const proposalEventIdParam =
     sp.get("proposal_event_id") || sp.get("proposalEventId") || "";
 
@@ -581,7 +582,14 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     }
     originPointRef.current = null;
   }, [originLatParam, originLngParam]);
+useEffect(() => {
+  if (isEditing) return;
 
+  const incoming = String(locationQueryParam ?? "").trim();
+  if (!incoming) return;
+
+  setLocationInput((current) => (current.trim() ? current : incoming));
+}, [locationQueryParam, isEditing]);
   const startDate = useMemo(() => fromInputLocal(startLocal), [startLocal]);
   const endDate = useMemo(() => fromInputLocal(endLocal), [endLocal]);
   const leaveTimePreview = useMemo(() => {
