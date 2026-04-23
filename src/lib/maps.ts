@@ -93,6 +93,57 @@ const MAX_AUTOCOMPLETE_INPUT_LENGTH = 160;
 const MAX_AUTOCOMPLETE_BODY_INPUT_LENGTH = 600;
 const DEFAULT_DETAILS_LIMIT = 3;
 
+const DEFAULT_AUTOCOMPLETE_BIAS_CENTER: LatLng = {
+  lat: -12.0464,
+  lng: -77.0428,
+};
+
+const DEFAULT_AUTOCOMPLETE_BIAS_RADIUS_METERS = 35_000;
+
+const PERU_LOCALITY_HINTS = [
+  "peru",
+  "perú",
+  "lima",
+  "miraflores",
+  "san isidro",
+  "surco",
+  "santiago de surco",
+  "la molina",
+  "barranco",
+  "san borja",
+  "jesus maria",
+  "jesús maría",
+  "magdalena",
+  "lince",
+  "surquillo",
+  "callao",
+  "chorrillos",
+  "pueblo libre",
+  "san miguel",
+  "rimac",
+  "rímac",
+];
+
+const LOCAL_QUERY_HINTS = [
+  "larcomar",
+  "jockey",
+  "miraflores",
+  "san isidro",
+  "surco",
+  "la molina",
+  "barranco",
+  "san borja",
+  "magdalena",
+  "lince",
+  "surquillo",
+  "callao",
+  "wong",
+  "vivanda",
+  "tottus",
+  "plaza vea",
+  "real plaza",
+];
+
 const autocompleteCache = new Map<string, CacheEntry<AutocompleteResult>>();
 const routeCache = new Map<string, CacheEntry<RouteEtaResult>>();
 
@@ -239,6 +290,84 @@ function makeCacheKey(parts: Array<string | number | null | undefined>): string 
     .map((part) => String(part ?? ""))
     .join("|")
     .toLowerCase();
+}
+
+function normalizeForMatching(input: string): string {
+  return String(input ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[.,]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function containsAnyHint(haystack: string, hints: string[]): boolean {
+  return hints.some((hint) => haystack.includes(normalizeForMatching(hint)));
+}
+
+function queryLooksPeruLocal(query: string): boolean {
+  const normalizedQuery = normalizeForMatching(query);
+  return containsAnyHint(normalizedQuery, PERU_LOCALITY_HINTS) || containsAnyHint(normalizedQuery, LOCAL_QUERY_HINTS);
+}
+
+function scorePredictionForPeru(query: string, prediction: PlacePrediction): number {
+  const normalizedQuery = normalizeForMatching(query);
+  const label = normalizeForMatching(prediction.label);
+  const address = normalizeForMatching(prediction.address);
+  const combined = `${label} ${address}`.trim();
+
+  let score = 0;
+
+  if (label === normalizedQuery) score += 120;
+  if (label.startsWith(normalizedQuery)) score += 90;
+  if (label.includes(normalizedQuery)) score += 70;
+  if (combined.includes(normalizedQuery)) score += 40;
+
+  if (containsAnyHint(combined, PERU_LOCALITY_HINTS)) score += 80;
+  if (containsAnyHint(label, PERU_LOCALITY_HINTS)) score += 30;
+
+  if (containsAnyHint(combined, ["ee uu", "ee. uu.", "united states", "virginia", "usa"])) {
+    score -= 120;
+  }
+
+  if (queryLooksPeruLocal(query) && !containsAnyHint(combined, PERU_LOCALITY_HINTS)) {
+    score -= 35;
+  }
+
+  if (prediction.type === "shopping_mall") score += 16;
+  if (prediction.type === "restaurant") score += 12;
+  if (prediction.type === "cafe") score += 8;
+  if (prediction.type === "lodging") score -= 8;
+
+  return score;
+}
+
+function rankPredictionsForPeru(query: string, predictions: PlacePrediction[]): PlacePrediction[] {
+  return [...predictions].sort((a, b) => {
+    const scoreDiff = scorePredictionForPeru(query, b) - scorePredictionForPeru(query, a);
+    if (scoreDiff !== 0) return scoreDiff;
+    return a.label.localeCompare(b.label, "es");
+  });
+}
+
+function getEffectiveAutocompleteBias(
+  input?: AutocompleteInput["locationBias"] | null
+): AutocompleteInput["locationBias"] {
+  if (input?.center) {
+    return {
+      center: input.center,
+      radiusMeters:
+        Number.isFinite(Number(input.radiusMeters))
+          ? Math.max(100, Math.round(Number(input.radiusMeters)))
+          : DEFAULT_AUTOCOMPLETE_BIAS_RADIUS_METERS,
+    };
+  }
+
+  return {
+    center: DEFAULT_AUTOCOMPLETE_BIAS_CENTER,
+    radiusMeters: DEFAULT_AUTOCOMPLETE_BIAS_RADIUS_METERS,
+  };
 }
 
 function getFromCache<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
@@ -557,6 +686,7 @@ export function parseAutocompleteInputFromUnknown(
     limit,
   };
 }
+
 export function parseRouteEtaInputFromUnknown(payload: unknown): RouteEtaInput {
   if (!isObjectRecord(payload)) {
     throw new MapsError("Body must be a JSON object.", {
@@ -624,7 +754,7 @@ export async function getPlaceAutocomplete(input: AutocompleteInput): Promise<Au
 
   const sessionToken = cleanString(input?.sessionToken, 120) || undefined;
 
-  const locationBias = input?.locationBias ?? null;
+  const locationBias = getEffectiveAutocompleteBias(input?.locationBias ?? null);
   if (locationBias?.center) {
     assertValidLatLng(locationBias.center, "locationBias.center");
   }
@@ -643,12 +773,17 @@ export async function getPlaceAutocomplete(input: AutocompleteInput): Promise<Au
     input: sanitizedInput,
     includePureServiceAreaBusinesses: false,
     languageCode: "es",
+    regionCode: "PE",
   };
 
   if (sessionToken) body.sessionToken = sessionToken;
 
   if (locationBias?.center) {
-    const radiusMeters = clamp(Number(locationBias.radiusMeters ?? 30000), 100, 50000);
+    const radiusMeters = clamp(
+      Number(locationBias.radiusMeters ?? DEFAULT_AUTOCOMPLETE_BIAS_RADIUS_METERS),
+      100,
+      50000
+    );
     body.locationBias = {
       circle: {
         center: {
@@ -709,12 +844,18 @@ export async function getPlaceAutocomplete(input: AutocompleteInput): Promise<Au
         ...resolved,
         label: fallbackLabel || resolved.label,
         address: fallbackAddress || resolved.address,
-        type: cleanString(item?.types?.[0] || resolved.type || "place", 60).toLowerCase() || "place",
+        type:
+          cleanString(item?.types?.[0] || resolved.type || "place", 60).toLowerCase() ||
+          "place",
       } satisfies PlacePrediction;
     })
   );
 
-  const predictions = details.filter((item): item is PlacePrediction => Boolean(item));
+  const predictions = rankPredictionsForPeru(
+    sanitizedInput,
+    details.filter((item): item is PlacePrediction => Boolean(item))
+  );
+
   const result: AutocompleteResult = {
     predictions: predictions.slice(0, limit),
   };
