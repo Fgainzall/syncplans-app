@@ -557,37 +557,6 @@ export function parseAutocompleteInputFromUnknown(
     limit,
   };
 }
-  let locationBias: AutocompleteInput["locationBias"] = undefined;
-  const biasRaw = payload.locationBias;
-  if (isObjectRecord(biasRaw)) {
-    const centerRaw = biasRaw.center;
-    if (isObjectRecord(centerRaw)) {
-      const lat = Number(centerRaw.lat);
-      const lng = Number(centerRaw.lng);
-
-      if (!isValidLatLng(lat, lng)) {
-        throw new MapsError("locationBias.center must be valid coordinates.", {
-          status: 400,
-          code: "MAPS_INVALID_COORDINATES",
-        });
-      }
-
-      const radiusRaw = Number(biasRaw.radiusMeters ?? 0);
-      locationBias = {
-        center: { lat, lng },
-        radiusMeters: Number.isFinite(radiusRaw) && radiusRaw > 0 ? Math.round(radiusRaw) : undefined,
-      };
-    }
-  }
-
-  return {
-    input: inputText,
-    sessionToken,
-    locationBias,
-    limit,
-  };
-}
-
 export function parseRouteEtaInputFromUnknown(payload: unknown): RouteEtaInput {
   if (!isObjectRecord(payload)) {
     throw new MapsError("Body must be a JSON object.", {
