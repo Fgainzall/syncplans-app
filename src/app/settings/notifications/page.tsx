@@ -29,6 +29,7 @@ export default function NotificationsSettingsPage() {
 
   const [booting, setBooting] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savedPulse, setSavedPulse] = useState(false);
   const [toast, setToast] = useState<UiToast>(null);
 
   const showToast = (title: string, subtitle?: string) => {
@@ -42,13 +43,21 @@ export default function NotificationsSettingsPage() {
     (async () => {
       try {
         setBooting(true);
-        const [s, u] = await Promise.all([getSettingsFromDb(), getMyNotificationSettings()]);
+
+        const [s, u] = await Promise.all([
+          getSettingsFromDb(),
+          getMyNotificationSettings(),
+        ]);
+
         if (!alive) return;
         setAppSettings(s);
         setUserNotif(u);
       } catch (err) {
         console.error("[NotificationsSettings] load error", err);
-        showToast("No se pudieron cargar tus ajustes", "Refresca la página o intenta de nuevo en unos segundos.");
+        showToast(
+          "No se pudieron cargar tus ajustes",
+          "Refresca la página o intenta de nuevo en unos segundos."
+        );
       } finally {
         if (alive) setBooting(false);
       }
@@ -61,6 +70,7 @@ export default function NotificationsSettingsPage() {
 
   const statusLabel = useMemo(() => {
     if (!appSettings || !userNotif) return null;
+
     const onCount =
       Number(appSettings.dailySummary) +
       Number(appSettings.weeklySummary) +
@@ -70,14 +80,21 @@ export default function NotificationsSettingsPage() {
       Number(userNotif.notify_pair) +
       Number(userNotif.notify_family) +
       Number(userNotif.notify_conflicts);
+
     return `${onCount} activas`;
   }, [appSettings, userNotif]);
 
-  function updateApp<K extends keyof AppNotificationSettings>(key: K, value: AppNotificationSettings[K]) {
+  function updateApp<K extends keyof AppNotificationSettings>(
+    key: K,
+    value: AppNotificationSettings[K]
+  ) {
     setAppSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
-  function updateUser<K extends keyof UserNotificationSettings>(key: K, value: UserNotificationSettings[K]) {
+  function updateUser<K extends keyof UserNotificationSettings>(
+    key: K,
+    value: UserNotificationSettings[K]
+  ) {
     setUserNotif((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
@@ -98,10 +115,19 @@ export default function NotificationsSettingsPage() {
         }),
       ]);
 
-      showToast("Ajustes guardados ✅", "Tus notificaciones se actualizaron correctamente.");
+      setSavedPulse(true);
+      window.setTimeout(() => setSavedPulse(false), 900);
+
+      showToast(
+        "Ajustes guardados ✅",
+        "Tus notificaciones se actualizaron correctamente."
+      );
     } catch (err) {
       console.error("[NotificationsSettings] save error", err);
-      showToast("No se pudieron guardar los cambios", "Inténtalo de nuevo en unos segundos.");
+      showToast(
+        "No se pudieron guardar los cambios",
+        "Inténtalo de nuevo en unos segundos."
+      );
     } finally {
       setSaving(false);
     }
@@ -127,14 +153,25 @@ export default function NotificationsSettingsPage() {
         </div>
 
         <section style={styles.hero}>
-          <div>
+          <div style={{ minWidth: 0, flex: "1 1 420px" }}>
             <div style={styles.kicker}>Settings</div>
             <h1 style={styles.h1}>Notificaciones</h1>
-            <div style={styles.sub}>Resúmenes, recordatorios y qué avisos quieres recibir.</div>
+            <div style={styles.sub}>
+              Resúmenes, recordatorios y avisos que te ayudan a entrar antes a lo
+              importante, con menos seguimiento manual y más claridad compartida.
+            </div>
 
             {statusLabel ? (
               <div style={styles.heroMeta}>
                 <span style={styles.pillSoft}>{statusLabel}</span>
+                <span
+                  style={{
+                    ...styles.pillSoft,
+                    ...(savedPulse ? styles.pillOkSoft : null),
+                  }}
+                >
+                  {saving ? "Guardando…" : savedPulse ? "Guardado ✓" : "Listo para guardar"}
+                </span>
               </div>
             ) : null}
           </div>
@@ -143,34 +180,50 @@ export default function NotificationsSettingsPage() {
             <button onClick={() => router.push("/settings")} style={styles.ghostBtn}>
               Volver a settings →
             </button>
-            <button onClick={() => router.push("/calendar")} style={styles.ghostBtn}>
-              Ir al calendario →
+            <button onClick={() => router.push("/summary")} style={styles.ghostBtn}>
+              Ir al resumen →
             </button>
           </div>
         </section>
 
         <section style={styles.card}>
-          <div style={styles.sectionTitle}>Resúmenes por email</div>
-          <div style={styles.smallNote}>Controla el valor diario/semanal y recordatorios automáticos.</div>
+          <div style={styles.sectionTitle}>Qué debería hacer esta capa</div>
+          <div style={styles.smallNote}>
+            Una buena notificación no compite por atención. Te hace entrar a tiempo a
+            lo que importa y te evita perseguir contexto manualmente.
+          </div>
+
+          <div style={styles.valueGrid}>
+            <ValueCard copy="Los resúmenes te ayudan a empezar el día o la semana con una lectura más limpia." />
+            <ValueCard copy="Los recordatorios sirven cuando reducen olvido y fricción, no cuando solo generan ruido." />
+            <ValueCard copy="Las alertas de conflicto son valiosas porque te llevan a decidir antes del problema, no después." />
+          </div>
+        </section>
+
+        <section style={styles.card}>
+          <div style={styles.sectionTitle}>Resúmenes y recordatorios</div>
+          <div style={styles.smallNote}>
+            Esta parte define qué contexto quieres recibir de forma recurrente.
+          </div>
 
           <div style={styles.innerCard}>
             <ToggleRow
               title="Resumen diario por email"
-              subtitle="Cada mañana: eventos de hoy (personales + compartidos) para empezar con claridad."
+              subtitle="Cada mañana: eventos de hoy, personales y compartidos, para empezar con claridad."
               value={!!appSettings?.dailySummary}
               onChange={(v) => updateApp("dailySummary", v)}
             />
             <Divider />
             <ToggleRow
               title="Resumen semanal"
-              subtitle="Un correo con una vista general compacta de tu semana."
+              subtitle="Una vista general compacta de tu semana para entender lo que viene sin abrir varias pantallas."
               value={!!appSettings?.weeklySummary}
               onChange={(v) => updateApp("weeklySummary", v)}
             />
             <Divider />
             <ToggleRow
               title="Recordatorios de eventos"
-              subtitle="Avisos para eventos cercanos en el tiempo."
+              subtitle="Avisos para eventos cercanos en el tiempo, cuando sí te ayudan a llegar antes y mejor."
               value={!!appSettings?.eventReminders}
               onChange={(v) => updateApp("eventReminders", v)}
             />
@@ -179,29 +232,34 @@ export default function NotificationsSettingsPage() {
 
         <section style={styles.card}>
           <div style={styles.sectionTitle}>Conflictos</div>
-          <div style={styles.smallNote}>Te avisamos cuando un evento nuevo choque con algo existente.</div>
+          <div style={styles.smallNote}>
+            Aquí decides si SyncPlans debe avisarte cuando detecte choques relevantes.
+          </div>
 
           <div style={styles.innerCard}>
             <ToggleRow
               title="Alertas de conflictos"
-              subtitle="Mostrar aviso cuando SyncPlans detecte choques importantes."
+              subtitle="Te avisa cuando un evento nuevo choque con algo existente y convenga revisar la decisión."
               value={!!appSettings?.conflictAlerts}
               onChange={(v) => updateApp("conflictAlerts", v)}
             />
             <div style={styles.note}>
-              <b>Tip:</b> Esto se complementa con “Preferencias de conflictos” (defaults y reglas).
+              <b>Tip:</b> esto funciona mejor cuando ya estás usando el flujo de conflictos
+              como parte real de tu coordinación.
             </div>
           </div>
         </section>
 
         <section style={styles.card}>
           <div style={styles.sectionTitle}>Notificaciones por tipo</div>
-          <div style={styles.smallNote}>Elige de qué espacios quieres recibir avisos dentro de la app.</div>
+          <div style={styles.smallNote}>
+            Elige de qué contextos quieres recibir avisos dentro de la app.
+          </div>
 
           <div style={styles.innerCard}>
             <ToggleRow
               title="Personal"
-              subtitle="Actividad y cambios en tu espacio personal."
+              subtitle="Actividad y cambios en tu espacio individual."
               value={!!userNotif?.notify_personal}
               onChange={(v) => updateUser("notify_personal", v)}
             />
@@ -215,7 +273,7 @@ export default function NotificationsSettingsPage() {
             <Divider />
             <ToggleRow
               title="Familia"
-              subtitle="Actividad en grupos familiares."
+              subtitle="Actividad y movimiento en grupos familiares."
               value={!!userNotif?.notify_family}
               onChange={(v) => updateUser("notify_family", v)}
             />
@@ -232,7 +290,7 @@ export default function NotificationsSettingsPage() {
             <div style={styles.footerLeft}>
               <div style={styles.footerTitle}>Privacidad</div>
               <div style={styles.footerText}>
-                Solo usamos estos ajustes para avisarte sobre tu calendario. No compartimos esta información con nadie.
+                Solo usamos estos ajustes para avisarte sobre tu coordinación. No se comparten con nadie.
               </div>
             </div>
 
@@ -245,7 +303,7 @@ export default function NotificationsSettingsPage() {
               }}
               disabled={saving || booting}
             >
-              {saving ? "Guardando…" : "Guardar cambios"}
+              {saving ? "Guardando…" : "Guardar preferencias"}
             </button>
           </div>
         </section>
@@ -261,6 +319,15 @@ export default function NotificationsSettingsPage() {
         ) : null}
       </div>
     </main>
+  );
+}
+
+function ValueCard({ copy }: { copy: string }) {
+  return (
+    <div style={styles.valueCard}>
+      <span style={styles.valueDot} />
+      <span style={styles.valueText}>{copy}</span>
+    </div>
   );
 }
 
@@ -313,9 +380,13 @@ const styles: Record<string, React.CSSProperties> = {
       "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
   },
-  shell: { maxWidth: 980, margin: "0 auto", padding: "22px 18px 48px" },
-
-  toastWrap: { position: "fixed", top: 18, right: 18, zIndex: 50, pointerEvents: "none" },
+  toastWrap: {
+    position: "fixed",
+    top: 18,
+    right: 18,
+    zIndex: 50,
+    pointerEvents: "none",
+  },
   toastCard: {
     pointerEvents: "auto",
     minWidth: 260,
@@ -327,26 +398,44 @@ const styles: Record<string, React.CSSProperties> = {
     backdropFilter: "blur(14px)",
     padding: "12px 14px",
   },
-  toastTitle: { fontWeight: 900, fontSize: 13 },
-  toastSub: { marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 650 },
-
+  toastTitle: {
+    fontWeight: 900,
+    fontSize: 13,
+  },
+  toastSub: {
+    marginTop: 4,
+    fontSize: 12,
+    opacity: 0.75,
+    fontWeight: 650,
+  },
+  shell: {
+    maxWidth: 980,
+    margin: "0 auto",
+    padding: "22px 18px 48px",
+    display: "grid",
+    gap: 14,
+  },
   topRow: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 14,
-    marginBottom: 14,
+    marginBottom: 2,
     flexWrap: "wrap",
   },
-  topActions: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" },
-
+  topActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
   hero: {
     padding: "18px 16px",
-    borderRadius: 18,
+    borderRadius: 20,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+    background:
+      "linear-gradient(180deg, rgba(56,189,248,0.10), rgba(124,58,237,0.06) 55%, rgba(255,255,255,0.03))",
     boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
-    marginBottom: 12,
     display: "flex",
     alignItems: "flex-end",
     justifyContent: "space-between",
@@ -364,34 +453,139 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.04)",
     opacity: 0.9,
     fontWeight: 900,
+    width: "fit-content",
   },
-  h1: { margin: "10px 0 0", fontSize: 26, letterSpacing: "-0.6px", fontWeight: 900 as any },
-  sub: { marginTop: 8, fontSize: 13, opacity: 0.75, maxWidth: 720 },
-  heroBtns: { display: "flex", gap: 10, flexWrap: "wrap" },
-  heroMeta: { marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" },
-
+  h1: {
+    margin: "10px 0 0",
+    fontSize: 28,
+    lineHeight: 1.04,
+    letterSpacing: "-0.7px",
+    fontWeight: 950,
+  },
+  sub: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 1.55,
+    opacity: 0.78,
+    maxWidth: 720,
+  },
+  heroBtns: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  heroMeta: {
+    marginTop: 10,
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  pillSoft: {
+    fontSize: 10,
+    fontWeight: 900,
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.35)",
+    background: "rgba(148,163,184,0.08)",
+    opacity: 0.9,
+    whiteSpace: "nowrap",
+  },
+  pillOkSoft: {
+    border: "1px solid rgba(34,197,94,0.25)",
+    background: "rgba(34,197,94,0.10)",
+  },
+  ghostBtn: {
+    padding: "12px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.92)",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
   card: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
     padding: 14,
-    marginTop: 12,
+    display: "grid",
+    gap: 12,
   },
-  sectionTitle: { fontWeight: 950, fontSize: 14 },
-  smallNote: { marginTop: 6, fontSize: 12, opacity: 0.72, maxWidth: 760 },
-
+  sectionTitle: {
+    fontWeight: 950,
+    fontSize: 18,
+    lineHeight: 1.15,
+    letterSpacing: "-0.02em",
+  },
+  smallNote: {
+    fontSize: 12,
+    opacity: 0.76,
+    maxWidth: 760,
+    lineHeight: 1.5,
+  },
+  valueGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 10,
+  },
+  valueCard: {
+    display: "flex",
+    gap: 10,
+    alignItems: "flex-start",
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    padding: "12px 12px",
+  },
+  valueDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.95)",
+    marginTop: 7,
+    flexShrink: 0,
+  },
+  valueText: {
+    fontSize: 12,
+    lineHeight: 1.5,
+    opacity: 0.88,
+  },
   innerCard: {
-    marginTop: 12,
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.04)",
     padding: 12,
+    display: "grid",
+    gap: 10,
   },
-
-  toggleRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "12px 10px" },
-  toggleTitle: { fontSize: 13, fontWeight: 900 as any },
-  toggleSub: { marginTop: 4, fontSize: 12, opacity: 0.72, lineHeight: 1.3 },
-
+  note: {
+    fontSize: 12,
+    opacity: 0.78,
+    fontWeight: 650,
+    lineHeight: 1.45,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: "12px 12px",
+  },
+  toggleRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    padding: "12px 10px",
+  },
+  toggleTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+  },
+  toggleSub: {
+    marginTop: 4,
+    fontSize: 12,
+    opacity: 0.72,
+    lineHeight: 1.4,
+    maxWidth: 640,
+  },
   toggleBtn: {
     position: "relative",
     width: 56,
@@ -399,11 +593,16 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.05)",
-    cursor: "pointer",
     flexShrink: 0,
   },
-  toggleOn: { border: "1px solid rgba(34,197,94,0.30)", background: "rgba(34,197,94,0.14)" },
-  toggleOff: { border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)" },
+  toggleOn: {
+    border: "1px solid rgba(34,197,94,0.30)",
+    background: "rgba(34,197,94,0.14)",
+  },
+  toggleOff: {
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+  },
   toggleKnob: {
     position: "absolute",
     top: 4,
@@ -414,48 +613,50 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.10)",
     transition: "all 180ms ease",
   },
-  knobOn: { left: 28, border: "1px solid rgba(34,197,94,0.35)" },
-  knobOff: { left: 4 },
-
-  divider: { height: 1, background: "rgba(255,255,255,0.08)" },
-
+  knobOn: {
+    left: 28,
+    border: "1px solid rgba(34,197,94,0.35)",
+  },
+  knobOff: {
+    left: 4,
+  },
   footerRow: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTop: "1px solid rgba(255,255,255,0.08)",
     display: "flex",
-    alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 14,
+    alignItems: "flex-end",
     flexWrap: "wrap",
   },
-  footerLeft: { maxWidth: 680 },
-  footerTitle: { fontWeight: 900 as any, fontSize: 12 },
-  footerText: { marginTop: 6, fontSize: 12, opacity: 0.72, lineHeight: 1.35 },
-
+  footerLeft: {
+    minWidth: 0,
+    flex: "1 1 320px",
+    display: "grid",
+    gap: 4,
+  },
+  footerTitle: {
+    fontSize: 13,
+    fontWeight: 900,
+  },
+  footerText: {
+    fontSize: 12,
+    opacity: 0.74,
+    lineHeight: 1.45,
+  },
   primaryBtn: {
-    padding: "12px 14px",
+    minHeight: 44,
+    padding: "0 14px",
     borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
-    color: "rgba(255,255,255,0.95)",
-    cursor: "pointer",
-    fontWeight: 900 as any,
+    border: "1px solid rgba(96,165,250,0.28)",
+    background: "rgba(59,130,246,0.18)",
+    color: "rgba(255,255,255,0.98)",
+    fontSize: 13,
+    fontWeight: 900,
   },
-  ghostBtn: {
-    padding: "12px 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.92)",
-    cursor: "pointer",
-    fontWeight: 900 as any,
+  divider: {
+    height: 1,
+    background: "rgba(255,255,255,0.08)",
   },
-
-  note: { marginTop: 10, fontSize: 12, opacity: 0.78, fontWeight: 650 as any, lineHeight: 1.4 },
-
   loadingCard: {
-    marginTop: 12,
     display: "flex",
     gap: 12,
     alignItems: "center",
@@ -464,7 +665,19 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.03)",
   },
-  loadingDot: { width: 12, height: 12, borderRadius: 999, background: "rgba(56,189,248,0.95)", boxShadow: "0 0 24px rgba(56,189,248,0.55)" },
-  loadingTitle: { fontWeight: 900 as any },
-  loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
+  loadingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 24px rgba(56,189,248,0.55)",
+  },
+  loadingTitle: {
+    fontWeight: 900,
+  },
+  loadingSub: {
+    fontSize: 12,
+    opacity: 0.75,
+    marginTop: 2,
+  },
 };

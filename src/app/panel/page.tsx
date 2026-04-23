@@ -309,7 +309,7 @@ function PremiumLock({ title, copy }: PremiumLockProps) {
         style={styles.primarySmallButton}
         onClick={() => router.push("/planes")}
       >
-        Ver planes
+        Ver acceso
       </button>
     </div>
   );
@@ -487,7 +487,7 @@ export default function PanelPage() {
           ok: false,
           connected: false,
           connection_state: "disconnected",
-          error: json?.error || "No se pudo leer el estado de Google Calendar.",
+          error: json?.error || "No se pudo leer el estado de Google Calendar conectado.",
         });
         return;
       }
@@ -499,7 +499,7 @@ export default function PanelPage() {
         ok: false,
         connected: false,
         connection_state: "disconnected",
-        error: err?.message || "Error inesperado al consultar Google Calendar.",
+        error: err?.message || "Error inesperado al consultar Google Calendar conectado.",
       });
     } finally {
       setGoogleLoading(false);
@@ -669,9 +669,9 @@ export default function PanelPage() {
 
     return {
       pill: "Free",
-      title: "Plan actual",
+      title: "Tu acceso actual",
       copy: "Tu base gratuita ya está activa. Premium entra cuando coordinar con otros ya pide más contexto, más visibilidad y menos desgaste.",
-      cta: "Ver planes",
+      cta: "Ver acceso",
       tone: "free" as PlanTone,
       supportingCopy: "Premium aparece cuando el sistema compartido crece.",
     };
@@ -680,7 +680,7 @@ export default function PanelPage() {
   const adminActions: QuickAction[] = [
     {
       id: "groups",
-      title: "Grupos",
+      title: "Espacios compartidos",
       hint: isMobile ? "Crear y abrir espacios compartidos" : "Crear, abrir y ordenar espacios compartidos",
       href: "/groups",
       badge: totalGroups > 0 ? `${totalGroups}` : undefined,
@@ -688,7 +688,7 @@ export default function PanelPage() {
     },
     {
       id: "invitations",
-      title: "Invitaciones",
+      title: "Invitaciones activas",
       hint: isMobile ? "Aceptar y revisar accesos" : "Aceptar, revisar y destrabar accesos",
       href: "/invitations",
       badge: captures.length > 0 ? `${captures.length}` : undefined,
@@ -747,12 +747,12 @@ export default function PanelPage() {
     connectionState === "connected"
       ? googleStatus?.account?.email
         ? `Conectado con ${googleStatus.account.email}`
-        : "Google Calendar conectado"
+        : "Google Calendar conectado conectado"
       : connectionState === "needs_reauth"
         ? googleStatus?.account?.email
           ? `${googleStatus.account.email} necesita reconexión`
           : "La conexión necesita reconexión"
-        : "Google Calendar no conectado";
+        : "Google Calendar conectado no conectado";
 
   let heroSummary =
     "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones.";
@@ -768,7 +768,7 @@ export default function PanelPage() {
 
   const heroPrimaryCtaLabel = totalGroups === 0 ? "Crear grupo" : "Abrir grupos";
   const heroPrimaryCtaHref = totalGroups === 0 ? "/groups/new" : "/groups";
-  const heroSecondaryCtaLabel = totalGroups === 0 ? "Ver invitaciones" : "Invitar a alguien";
+  const heroSecondaryCtaLabel = totalGroups === 0 ? "Revisar invitaciones" : "Invitar a alguien";
   const showHeroConflictNote = conflictsNow > 0 && !isMobile;
 
   async function handleContextChange(nextMode: UsageMode) {
@@ -873,7 +873,7 @@ export default function PanelPage() {
               gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))",
             }}
           >
-            <MetricCard label="Grupos" value={loading ? "—" : String(totalGroups)} hint="Espacios compartidos" compact={isMobile} />
+            <MetricCard label="Espacios compartidos" value={loading ? "—" : String(totalGroups)} hint="Espacios compartidos" compact={isMobile} />
             <MetricCard label="Eventos" value={loading ? "—" : String(totalEvents)} hint="Carga visible" compact={isMobile} />
             <MetricCard
               label="Google"
@@ -944,7 +944,7 @@ export default function PanelPage() {
             <section style={styles.sectionCardCompact}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionEyebrow}>Grupos</div>
+                  <div style={styles.sectionEyebrow}>Espacios compartidos</div>
                   <h2 style={styles.sectionTitle}>Espacios recientes</h2>
                 </div>
 
@@ -962,7 +962,7 @@ export default function PanelPage() {
                   copy="Aún no tienes grupos. Este es el mejor lugar para arrancar la coordinación compartida."
                   primaryLabel="Crear grupo"
                   onPrimary={() => router.push("/groups/new")}
-                  secondaryLabel="Ver invitaciones"
+                  secondaryLabel="Revisar invitaciones"
                   onSecondary={() => router.push("/invitations")}
                 />
               ) : (
@@ -1143,13 +1143,13 @@ export default function PanelPage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionEyebrow}>Sistema</div>
-                  <h2 style={styles.sectionTitle}>Integraciones</h2>
+                  <h2 style={styles.sectionTitle}>Conexiones</h2>
                 </div>
               </div>
 
               {!canUseGoogleIntegration ? (
                 <PremiumLock
-                  title="Google Calendar"
+                  title="Google Calendar conectado"
                   copy="Conecta calendarios externos cuando Premium ya tenga sentido para tu coordinación."
                 />
               ) : (
@@ -1157,7 +1157,7 @@ export default function PanelPage() {
                   <div style={styles.integrationCard}>
                     <div style={styles.integrationTop}>
                       <div>
-                        <div style={styles.integrationTitle}>Google Calendar</div>
+                        <div style={styles.integrationTitle}>Google Calendar conectado</div>
                         <div style={styles.integrationLine}>{googleLine}</div>
                       </div>
 

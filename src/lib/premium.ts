@@ -49,6 +49,17 @@ export type PlanSnapshot = {
   planDescription: string;
 };
 
+export type PlanCardId = "free" | "premium_monthly" | "premium_yearly";
+export type PlanAccessSource = "free" | "trial" | "founder" | "paid";
+
+export type PlanAccessState = PlanSnapshot & {
+  currentPlanCardId: PlanCardId | null;
+  accessSource: PlanAccessSource;
+  planStatusHint: string;
+};
+
+export const FREE_GROUP_LIMIT = 1;
+
 const INACTIVE_STATUSES: PlanStatus[] = [
   "inactive",
   "canceled",
@@ -169,35 +180,35 @@ export function getPlanSnapshot(
   else if (premiumAccess) accessKind = "premium";
 
   let planLabel = "Free";
-  let planTag = "Plan Free";
-  let statusLabel = "Modo Free";
+  let planTag = "Plan base";
+  let statusLabel = "Base Free activa";
   let planDescription =
-    "Empieza con la base necesaria para ordenar tu tiempo y validar el hábito compartido sin pagar durante la beta.";
+    "La base completa para empezar bien: crear el espacio compartido, invitar a la otra persona y validar el hábito antes de que pagar tenga sentido.";
 
   if (founder) {
     planLabel = "Founder";
-    planTag = "Plan Founder";
+    planTag = "Acceso Founder";
     statusLabel = "Founder activo";
     planDescription =
-      "Acceso preferencial para quienes apostaron por SyncPlans desde el inicio y ayudaron a construir la capa premium antes que nadie.";
+      "Acceso preferencial para quienes apostaron por SyncPlans desde el inicio y conservaron una posición especial dentro de la capa premium.";
   } else if (trialActive) {
     planLabel = "Prueba Premium";
-    planTag = "Prueba Premium";
+    planTag = "Trial Premium";
     statusLabel = "Prueba Premium activa";
     planDescription =
-      "Estás probando la capa que da más claridad, menos fricción y más control cuando coordinar con otros ya importa de verdad.";
+      "Estás probando la capa que da más claridad, menos fricción y más contexto cuando coordinar con otros ya importa de verdad.";
   } else if (premiumAccess && billingCycle === "yearly") {
     planLabel = "Premium Anual";
     planTag = "Plan Premium";
     statusLabel = "Premium anual activo";
     planDescription =
-      "Acceso completo para quienes ya usan SyncPlans como sistema real de coordinación y quieren sostener esa claridad en el tiempo.";
+      "Acceso completo para quienes ya usan SyncPlans como sistema real de coordinación y quieren sostener esa claridad compartida en el tiempo.";
   } else if (premiumAccess && billingCycle === "monthly") {
     planLabel = "Premium Mensual";
     planTag = "Plan Premium";
     statusLabel = "Premium mensual activo";
     planDescription =
-      "Acceso completo con flexibilidad mes a mes para reducir fricción, sumar contexto y decidir mejor sin depender del chat.";
+      "Acceso completo con flexibilidad mes a mes para reducir fricción, sumar contexto y decidir mejor sin volver al chat como fuente principal de verdad.";
   } else if (premiumAccess) {
     planLabel = "Premium";
     planTag = "Plan Premium";
@@ -227,7 +238,7 @@ export function getPlanSnapshot(
 
 export function getCurrentPlanCardId(
   profile: AnyProfile | null | undefined
-): "free" | "premium_monthly" | "premium_yearly" | null {
+): PlanCardId | null {
   const snapshot = getPlanSnapshot(profile);
 
   if (snapshot.isFounder) return null;
@@ -240,10 +251,11 @@ export function getCurrentPlanCardId(
 }
 
 /**
- * Helpers de capacidades premium
- * Úsalos después para gates suaves dentro del producto.
+ * Helpers de capacidades premium.
+ * Mantén estos gates suaves y alineados a la narrativa:
+ * Free deja vivir bien el caso base.
+ * Premium aparece cuando el sistema ya necesita más claridad, más contexto y menos fricción.
  */
-
 export function canUseAdvancedExternalCoordination(
   profile: AnyProfile | null | undefined
 ): boolean {
@@ -267,8 +279,6 @@ export function canUseUnlimitedGroups(
 ): boolean {
   return hasPremiumAccess(profile);
 }
-
-export const FREE_GROUP_LIMIT = 1;
 
 export type GroupLimitState = {
   limit: number | null;
@@ -319,16 +329,6 @@ export function hasReachedGroupLimit(
   return getGroupLimitState(profile, currentGroupCount).reached;
 }
 
-export type PlanCardId = "free" | "premium_monthly" | "premium_yearly";
-
-export type PlanAccessSource = "free" | "trial" | "founder" | "paid";
-
-export type PlanAccessState = PlanSnapshot & {
-  currentPlanCardId: PlanCardId | null;
-  accessSource: PlanAccessSource;
-  planStatusHint: string;
-};
-
 export function getPlanAccessState(
   profile: AnyProfile | null | undefined
 ): PlanAccessState {
@@ -345,7 +345,7 @@ export function getPlanAccessState(
   }
 
   let planStatusHint =
-    "Estás usando la base Free para empezar. Premium entra cuando necesitas más claridad, menos fricción y más control sobre la coordinación compartida.";
+    "Estás usando la base Free para empezar bien. Premium aparece cuando coordinar con otros ya te pide más claridad, menos fricción y más contexto compartido.";
 
   if (accessSource === "founder") {
     planStatusHint =
