@@ -1320,6 +1320,14 @@ const canAutoPreselect = canonicalGroupSuggestion?.mode === "auto_apply";
     }
 
     if (isSharedEvent) {
+      if (!isEditing && isFirstWowMomentFlow) {
+        return {
+          title: "Primer plan listo ✅",
+          subtitle:
+            "Ya activaste la coordinación compartida en SyncPlans. Desde aquí ya pueden ordenar algo real juntos.",
+        };
+      }
+
       return {
         title: isEditing
           ? "Plan compartido actualizado ✅"
@@ -2277,9 +2285,9 @@ const handleSharePostSave = async () => {
           >
             <div style={styles.sectionIntro}>
               <div style={styles.sectionEyebrow}>Ruta guiada</div>
-              <div style={styles.sectionTitle}>Paso 2: crea el primer plan compartido</div>
+              <div style={styles.sectionTitle}>Tu primer plan compartido empieza aquí</div>
               <div style={styles.sectionSub}>
-                Ya tienes la estructura. Ahora guarda un plan dentro de este grupo y verás por qué SyncPlans no es solo un calendario: desde aquí puedes compartir, detectar cruces y decidir sobre algo real.
+                Guárdalo una vez y desde aquí podrán coordinar mejor, detectar cruces a tiempo y decidir sobre algo real sin depender de mensajes sueltos.
               </div>
             </div>
           </section>
@@ -2289,9 +2297,11 @@ const handleSharePostSave = async () => {
           <div style={styles.primaryStack}>
             <div style={styles.sectionIntro}>
               <div style={styles.sectionEyebrow}>Lo esencial</div>
-              <div style={styles.sectionTitle}>Primero, lo importante</div>
+              <div style={styles.sectionTitle}>{isFirstWowMomentFlow && !isEditing ? "Lo mínimo para activar el primer plan" : "Primero, lo importante"}</div>
               <div style={styles.sectionSub}>
-                Título, horario y contexto. Lo esencial primero; el resto queda a mano sin meter ruido.
+                {isFirstWowMomentFlow && !isEditing
+                  ? "Empieza por título, horario y contexto. Lo demás puede esperar: el objetivo ahora es crear algo real y compartido lo más rápido posible."
+                  : "Título, horario y contexto. Lo esencial primero; el resto queda a mano sin meter ruido."}
               </div>
             </div>
 
@@ -2377,7 +2387,7 @@ const handleSharePostSave = async () => {
             )}
 
             <div style={styles.quickSummary}>
-              <div style={styles.quickSummaryTitle}>Así se ve ahora</div>
+              <div style={styles.quickSummaryTitle}>{isFirstWowMomentFlow && !isEditing ? "Vista rápida antes de crear" : "Así se ve ahora"}</div>
               <div style={styles.quickSummaryRow}>
                 <span style={styles.quickSummaryPill}>
                   {isSharedProposal
@@ -2521,7 +2531,7 @@ const handleSharePostSave = async () => {
                   <div style={styles.emptyInline}>
                     <div style={styles.emptyInlineTitle}>No tienes grupos</div>
                     <div style={styles.emptyInlineSub}>
-                      El primer valor compartido empieza creando el grupo. Después vuelves aquí y guardas el primer plan para activar el flujo completo.
+                      El primer valor compartido empieza creando el grupo. Después vuelves aquí y guardas el primer plan para activar la coordinación real.
                     </div>
                     <button
                       onClick={() => router.push("/groups/new")}
@@ -2811,7 +2821,9 @@ cursor:
                 ? "Guardar propuesta ajustada"
                 : "Aceptar propuesta"
               : effectiveType === "group"
-              ? "Guardar plan compartido"
+              ? isFirstWowMomentFlow && !isEditing
+                ? "Crear primer plan compartido"
+                : "Guardar plan compartido"
               : "Guardar plan"}
           </button>
         </section>
@@ -2828,7 +2840,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.92)",
   },
   shell: {
-    maxWidth: 900,
+    maxWidth: 860,
     margin: "0 auto",
     padding: "22px 18px 48px",
   },

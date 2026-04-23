@@ -1,679 +1,750 @@
 // src/app/groups/invite/GroupInviteClient.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-
 import PremiumHeader from "@/components/PremiumHeader";
+import MobileScaffold from "@/components/MobileScaffold";
+import Section from "@/components/ui/Section";
+import Card from "@/components/ui/Card";
 import LogoutButton from "@/components/LogoutButton";
 
 import { inviteToGroup } from "@/lib/invitationsDb";
 import { fetchMyGroups, type GroupRow } from "@/lib/groupsStore";
 import { trackEvent, trackScreenView } from "@/lib/analytics";
 
-function isUuid(x: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    x
-  );
+type ToastState =
+  | null
+  | {
+      title: string;
+      subtitle?: string;
+    };
+
+function isEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
-function isValidEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim().toLowerCase());
-}
-
-function Glow() {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        inset: -2,
-        borderRadius: 18,
-        background:
-          "radial-gradient(600px 240px at 20% 0%, rgba(56,189,248,0.22), transparent 55%), radial-gradient(520px 240px at 90% 20%, rgba(124,58,237,0.18), transparent 55%), radial-gradient(520px 240px at 40% 120%, rgba(248,113,113,0.14), transparent 55%)",
-        filter: "blur(14px)",
-        pointerEvents: "none",
-        opacity: 0.9,
-      }}
-    />
-  );
+function groupMeta(type: string) {
+  switch (type) {
+    case "pair":
+      return {
+        label: "Pareja",
+        dot: "rgba(96,165,250,0.98)",
+        soft: "rgba(96,165,250,0.14)",
+        border: "rgba(96,165,250,0.24)",
+      };
+    case "family":
+      return {
+        label: "Familia",
+        dot: "rgba(34,197,94,0.98)",
+        soft: "rgba(34,197,94,0.12)",
+        border: "rgba(34,197,94,0.22)",
+      };
+    default:
+      return {
+        label: "Compartido",
+        dot: "rgba(168,85,247,0.98)",
+        soft: "rgba(168,85,247,0.14)",
+        border: "rgba(168,85,247,0.24)",
+      };
+  }
 }
 
 export default function GroupInviteClient() {
   const router = useRouter();
-  const sp = useSearchParams();
+  const searchParams = useSearchParams();
 
-  const groupIdFromUrl = useMemo(() => sp.get("groupId") || "", [sp]);
+  const queryGroupId = String(searchParams.get("groupId") ?? "").trim();
 
+  const [booting, setBooting] = useState(true);
+  const [sending, setSending] = useState(false);
   const [groups, setGroups] = useState<GroupRow[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState(groupIdFromUrl);
-  const [loadingGroups, setLoadingGroups] = useState(true);
-
+  const [selectedGroupId, setSelectedGroupId] = useState(queryGroupId);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"member" | "admin">("member");
-
-  const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
-    null
+  const [message, setMessage] = useState(
+    "Quiero que coordinemos desde un solo lugar para evitar cruces y mensajes perdidos."
   );
-
-  const [inviteLink, setInviteLink] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  function showToast(t: { title: string; subtitle?: string }) {
-    setToast(t);
-    window.setTimeout(() => setToast(null), 2600);
-  }
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      setLoadingGroups(true);
-      try {
-        const g = await fetchMyGroups();
-        if (!alive) return;
-
-        setGroups(g);
-
-        if (!selectedGroupId && g.length) {
-          setSelectedGroupId(g[0].id);
-        }
-      } catch (e: any) {
-        showToast({
-          title: "No se pudieron cargar grupos",
-          subtitle: e?.message || "Intenta otra vez.",
-        });
-      } finally {
-        if (alive) setLoadingGroups(false);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [toast, setToast] = useState<ToastState>(null);
+  const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
 
   useEffect(() => {
     void trackScreenView({
       screen: "group_invite",
       metadata: {
         area: "groups",
-        source: "group_invite",
-        group_id_prefilled: groupIdFromUrl || null,
+        source: "invite_flow",
+        groupId: queryGroupId || null,
       },
     });
-  }, [groupIdFromUrl]);
+  }, [queryGroupId]);
 
-  const selected = useMemo(
-    () => groups.find((g) => g.id === selectedGroupId) || null,
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const myGroups = await fetchMyGroups();
+        if (!alive) return;
+
+        const rows = Array.isArray(myGroups) ? myGroups : [];
+        setGroups(rows);
+
+        if (!selectedGroupId && rows.length > 0) {
+          const preferred =
+            rows.find((g: any) => g.type === "pair") ??
+            rows.find((g: any) => g.is_active) ??
+            rows[0];
+
+          setSelectedGroupId(String(preferred?.id ?? ""));
+        }
+      } catch {
+        if (alive) setGroups([]);
+      } finally {
+        if (alive) setBooting(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [selectedGroupId]);
+
+  const selectedGroup = useMemo(
+    () => groups.find((g: any) => String(g.id) === String(selectedGroupId)) ?? null,
     [groups, selectedGroupId]
   );
 
-  const emailOk = useMemo(() => isValidEmail(email), [email]);
+  const meta = useMemo(
+    () => groupMeta(String(selectedGroup?.type ?? "pair")),
+    [selectedGroup?.type]
+  );
 
-  const canInvite =
-    !busy && !!selectedGroupId && isUuid(selectedGroupId) && emailOk;
+  const canSend =
+    !sending &&
+    !!selectedGroupId &&
+    !!email.trim() &&
+    isEmail(email);
 
-  async function copyLink(link: string) {
-    setCopied(false);
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-      showToast({
-        title: "Copiado ✅",
-        subtitle: "Listo. Envíalo por donde te sea más fácil.",
-      });
-    } catch {
-      showToast({
-        title: "No pude copiar automático",
-        subtitle: "Cópialo manualmente desde abajo.",
-      });
-    }
+  function pushToast(next: ToastState, timeout = 2800) {
+    setToast(next);
+    window.setTimeout(() => setToast(null), timeout);
   }
 
-  async function onInvite() {
-    if (!canInvite) {
-      showToast({
-        title: "Revisa",
-        subtitle: "Elige grupo y escribe un email válido.",
+  async function handleInvite() {
+    if (!selectedGroupId) {
+      pushToast({
+        title: "Elige un grupo",
+        subtitle: "Primero necesitamos saber desde qué grupo vas a invitar.",
       });
       return;
     }
 
-    setBusy(true);
-    try {
-      const res = await inviteToGroup({
-        groupId: selectedGroupId,
-        email: email.trim(),
-        role,
+    if (!isEmail(email)) {
+      pushToast({
+        title: "Correo inválido",
+        subtitle: "Escribe un correo real para enviar la invitación.",
       });
+      return;
+    }
 
-      if (!res?.ok) {
-        const msg = (res?.error || "No se pudo crear la invitación.").toString();
+    try {
+      setSending(true);
 
-        const lower = msg.toLowerCase();
-        if (lower.includes("already") || lower.includes("duplicate")) {
-          throw new Error("Ese email ya está invitado (o ya es miembro).");
-        }
-        if (lower.includes("permission") || lower.includes("rls")) {
-          throw new Error("No tienes permisos para invitar a este grupo.");
-        }
-        throw new Error(msg);
-      }
+   const result: any = await inviteToGroup({
+  groupId: selectedGroupId,
+  email: email.trim(),
+  role: "member",
+});
 
-      const inviteId = res.invite_id || res.id;
-      const invitedEmail = (res.invited_email || email.trim().toLowerCase()).toString();
+      const inviteId = result?.invite_id ?? result?.id ?? null;
+      const inviteUrl =
+        typeof result?.accept_url === "string" && result.accept_url
+          ? result.accept_url
+          : inviteId
+            ? `/invitations/accept?invite=${encodeURIComponent(String(inviteId))}`
+            : null;
 
-      const link = inviteId
-        ? `${window.location.origin}/invitations/accept?invite=${inviteId}`
-        : null;
-
-      setEmail("");
-      setInviteLink(link);
-      setCopied(false);
+      setLastInviteUrl(inviteUrl);
 
       void trackEvent({
         event: "invite_sent",
-        entityId: inviteId ? String(inviteId) : selectedGroupId,
+        entityId: inviteId ? String(inviteId) : null,
         metadata: {
           screen: "group_invite",
-          source: "group_invite",
-          invite_kind: "group_internal",
-          invite_id: inviteId ? String(inviteId) : null,
-          invited_email_domain: invitedEmail.includes("@")
-            ? invitedEmail.split("@").pop() ?? null
-            : null,
-          group_id: selectedGroupId,
-          group_type: selected?.type ?? null,
-          role,
-          has_link: !!link,
+          groupId: selectedGroupId,
+          groupType: selectedGroup?.type ?? null,
+          recipientDomain: email.includes("@") ? email.split("@")[1] : null,
         },
       });
 
-      showToast({
-        title: "✅ Invitación creada",
-        subtitle: `A: ${invitedEmail}${link ? " · Ya puede entrar al mismo espacio compartido" : ""}`,
+      pushToast({
+        title: "Invitación creada ✅",
+        subtitle:
+          selectedGroup?.type === "pair"
+            ? "Ahora el siguiente momento clave es que tu pareja la acepte."
+            : "La invitación ya quedó lista para compartir.",
       });
-
-      if (link) {
-        await copyLink(link);
-      }
-    } catch (e: any) {
-      showToast({
+    } catch (error: any) {
+      pushToast({
         title: "No se pudo invitar",
-        subtitle: e?.message || "Intenta otra vez.",
+        subtitle: error?.message ?? "Inténtalo nuevamente.",
       });
     } finally {
-      setBusy(false);
+      setSending(false);
     }
   }
 
-  return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background:
-          "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
-        color: "rgba(255,255,255,0.92)",
-      }}
-    >
-      {toast && (
-        <div style={{ position: "fixed", top: 18, right: 18, zIndex: 50 }}>
-          <div
-            style={{
-              minWidth: 260,
-              maxWidth: 380,
-              borderRadius: 16,
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(7,11,22,0.72)",
-              boxShadow: "0 24px 70px rgba(0,0,0,0.45)",
-              backdropFilter: "blur(14px)",
-              padding: "12px 14px",
-            }}
-          >
-            <div style={{ fontWeight: 900, fontSize: 13 }}>{toast.title}</div>
-            {toast.subtitle ? (
-              <div
-                style={{
-                  marginTop: 4,
-                  fontSize: 12,
-                  opacity: 0.75,
-                  fontWeight: 650,
-                }}
-              >
-                {toast.subtitle}
+  async function copyInviteLink() {
+    if (!lastInviteUrl) {
+      pushToast({
+        title: "Todavía no hay link",
+        subtitle: "Primero crea la invitación para poder copiarla.",
+      });
+      return;
+    }
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(lastInviteUrl);
+        pushToast({
+          title: "Link copiado ✅",
+          subtitle: "Ya puedes pegarlo donde quieras.",
+        });
+      }
+    } catch {
+      pushToast({
+        title: "No se pudo copiar",
+        subtitle: "Inténtalo nuevamente.",
+      });
+    }
+  }
+
+  if (booting) {
+    return (
+      <MobileScaffold maxWidth={980} style={styles.page}>
+        <Section>
+          <PremiumHeader
+            title="Invitar"
+            subtitle="Preparando el siguiente paso compartido…"
+          />
+          <Card style={styles.surfaceCard}>
+            <div style={styles.loadingRow}>
+              <div style={styles.loadingDot} />
+              <div>
+                <div style={styles.loadingTitle}>Cargando grupos…</div>
+                <div style={styles.loadingSub}>Preparando la invitación</div>
               </div>
-            ) : null}
+            </div>
+          </Card>
+        </Section>
+      </MobileScaffold>
+    );
+  }
+
+  return (
+    <MobileScaffold maxWidth={980} style={styles.page}>
+      {toast ? (
+        <div style={styles.toastWrap}>
+          <div style={styles.toastCard}>
+            <div style={styles.toastTitle}>{toast.title}</div>
+            {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
           </div>
         </div>
-      )}
+      ) : null}
 
-      <div style={{ maxWidth: 920, margin: "0 auto", padding: "22px 18px 56px" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 14,
-          }}
-        >
+      <Section>
+        <div style={styles.topRow}>
           <PremiumHeader
-            title="Invitar a grupo"
-            subtitle="Convierte un grupo en coordinación real: misma vista, mismo contexto y menos fricción desde el primer momento."
+            title="Invitar a otra persona"
+            subtitle="Este paso convierte un grupo en coordinación real: ya no solo existe el espacio, ahora empieza a compartirse."
           />
-          <LogoutButton />
+          <div style={styles.topUtilities}>
+            <button
+              type="button"
+              style={styles.secondary}
+              onClick={() => router.push("/groups")}
+            >
+              Volver a grupos
+            </button>
+            <LogoutButton />
+          </div>
         </div>
 
-        <section
-          style={{
-            position: "relative",
-            marginTop: 14,
-            borderRadius: 18,
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(255,255,255,0.03)",
-            padding: 16,
-            boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
-            overflow: "hidden",
-          }}
-        >
-          <Glow />
-
-          <div style={{ position: "relative" }}>
-            <div
+        <Card style={styles.surfaceCard}>
+          <Section style={styles.stack}>
+            <Card
+              tone="muted"
               style={{
-                fontSize: 11,
-                letterSpacing: "0.10em",
-                textTransform: "uppercase",
-                fontWeight: 900,
-                opacity: 0.8,
+                ...styles.heroCard,
+                borderColor: meta.border,
+                background: `linear-gradient(180deg, ${meta.soft}, rgba(255,255,255,0.03))`,
               }}
             >
-              Invitar a grupo
-            </div>
-
-            <h1
-              style={{ margin: "10px 0 6px", fontSize: 26, letterSpacing: "-0.6px" }}
-            >
-              Haz que la otra persona vea lo mismo que tú
-            </h1>
-
-            <div
-              style={{
-                opacity: 0.72,
-                fontSize: 13,
-                lineHeight: 1.45,
-                maxWidth: 650,
-              }}
-            >
-              Invitar no debería sentirse como un trámite. Aquí abres el mismo espacio compartido para que la otra persona vea el mismo grupo, el mismo contexto y las mismas decisiones desde el inicio, sin perseguir acuerdos por chat.
-            </div>
-
-            <div
-              style={{
-                marginTop: 14,
-                display: "grid",
-                gap: 10,
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              }}
-            >
-              {[
-                "El invitado entra viendo el mismo grupo y el mismo contexto",
-                "Aceptar la invitación reduce fricción antes de que aparezcan malos entendidos",
-                "Después de aceptar, el siguiente paso natural es crear o revisar planes juntos",
-              ].map((item) => (
-                <div
-                  key={item}
-                  style={{
-                    borderRadius: 14,
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    background: "rgba(255,255,255,0.03)",
-                    padding: "12px 12px",
-                    fontSize: 12,
-                    lineHeight: 1.45,
-                    fontWeight: 800,
-                  }}
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
-
-            <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
-              <div style={{ display: "grid", gap: 8 }}>
-                <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>
-                  Grupo
+              <div style={styles.heroLeft}>
+                <div style={styles.heroPill}>
+                  <span style={{ ...styles.heroDot, background: meta.dot }} />
+                  {meta.label}
                 </div>
 
-                {loadingGroups ? (
-                  <div
-                    style={{
-                      padding: 14,
-                      borderRadius: 14,
-                      border: "1px dashed rgba(255,255,255,0.16)",
-                      opacity: 0.75,
-                    }}
-                  >
-                    Cargando grupos…
+                <h1 style={styles.heroTitle}>
+                  {selectedGroup?.type === "pair"
+                    ? "Invita a tu pareja y conviértanlo en una sola agenda compartida"
+                    : "Invita a la otra persona y compartan el mismo contexto"}
+                </h1>
+
+                <p style={styles.heroText}>
+                  La invitación no es un detalle lateral. Es el momento en el que SyncPlans deja de ser algo que tú organizas solo y empieza a funcionar como coordinación compartida.
+                </p>
+              </div>
+
+              <div style={styles.heroRight}>
+                <div style={styles.miniCard}>
+                  <div style={styles.miniLabel}>Grupo</div>
+                  <div style={styles.miniValue}>
+                    {selectedGroup?.name || "Selecciona un grupo"}
                   </div>
-                ) : groups.length === 0 ? (
-                  <div
-                    style={{
-                      padding: 14,
-                      borderRadius: 14,
-                      border: "1px dashed rgba(255,255,255,0.16)",
-                    }}
-                  >
-                    <div style={{ fontWeight: 900 }}>No tienes grupos</div>
-                    <div
-                      style={{
-                        opacity: 0.75,
-                        fontSize: 12,
-                        marginTop: 6,
-                      }}
-                    >
-                      Primero crea un grupo. Después podrás invitar, compartir el mismo contexto y convertir ese espacio en coordinación real.
-                    </div>
+                </div>
 
-                    <button
-                      onClick={() => router.push("/groups/new")}
-                      style={{
-                        marginTop: 10,
-                        padding: "10px 12px",
-                        borderRadius: 14,
-                        border: "1px solid rgba(255,255,255,0.14)",
-                        background:
-                          "linear-gradient(135deg, rgba(56,189,248,0.20), rgba(124,58,237,0.20))",
-                        color: "rgba(255,255,255,0.95)",
-                        cursor: "pointer",
-                        fontWeight: 900,
-                      }}
-                    >
-                      Crear grupo
-                    </button>
+                <div style={styles.miniCard}>
+                  <div style={styles.miniLabel}>Objetivo</div>
+                  <div style={styles.miniValue}>
+                    Lograr que la otra persona acepte fácil y entienda el valor rápido.
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            <div style={styles.grid}>
+              <Card tone="muted" style={styles.formCard}>
+                <div style={styles.sectionEyebrow}>Paso 1</div>
+                <div style={styles.sectionTitle}>Elige desde qué grupo invitas</div>
+
+                <div style={styles.field}>
+                  <label style={styles.label}>Grupo</label>
+                  <select
+                    value={selectedGroupId}
+                    onChange={(e) => setSelectedGroupId(e.target.value)}
+                    style={styles.select}
+                  >
+                    <option value="">Selecciona un grupo</option>
+                    {groups.map((group: any) => (
+                      <option key={String(group.id)} value={String(group.id)}>
+                        {group.name || "Sin nombre"} · {groupMeta(String(group.type)).label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={styles.divider} />
+
+                <div style={styles.sectionEyebrow}>Paso 2</div>
+                <div style={styles.sectionTitle}>Invita con un correo claro</div>
+
+                <div style={styles.field}>
+                  <label style={styles.label}>Correo de la otra persona</label>
+                  <input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="correo@ejemplo.com"
+                    style={styles.input}
+                    type="email"
+                  />
+                </div>
+
+                <div style={styles.field}>
+                  <label style={styles.label}>Mensaje opcional</label>
+                  <textarea
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    rows={4}
+                    style={styles.textarea}
+                    placeholder="Quiero que empecemos a coordinarnos mejor desde aquí."
+                  />
+                </div>
+
+                <div style={styles.actionsRow}>
+                  <button
+                    type="button"
+                    style={{
+                      ...styles.primary,
+                      ...(canSend ? null : styles.primaryDisabled),
+                    }}
+                    disabled={!canSend}
+                    onClick={handleInvite}
+                  >
+                    {sending ? "Enviando…" : "Enviar invitación"}
+                  </button>
+
+                  <button
+                    type="button"
+                    style={styles.secondary}
+                    onClick={copyInviteLink}
+                  >
+                    Copiar link
+                  </button>
+                </div>
+              </Card>
+
+              <Card tone="muted" style={styles.sideCard}>
+                <div style={styles.sectionEyebrow}>Por qué importa</div>
+                <div style={styles.sectionTitle}>Este paso cierra activación</div>
+                <p style={styles.sectionBody}>
+                  En una app como SyncPlans, invitar no es una feature lateral.
+                  Es el puente entre “me gusta la idea” y “ya entendí por qué esto nos sirve”.
+                </p>
+
+                <div style={styles.routeCard}>
+                  <div style={styles.routeLabel}>Ruta ideal</div>
+                  <div style={styles.routeItem}>1. Crear grupo</div>
+                  <div style={styles.routeItem}>2. Invitar</div>
+                  <div style={styles.routeItem}>3. Aceptar fácil</div>
+                  <div style={styles.routeItem}>4. Crear primer plan</div>
+                </div>
+
+                {lastInviteUrl ? (
+                  <div style={styles.linkPreview}>
+                    <div style={styles.routeLabel}>Link generado</div>
+                    <div style={styles.linkText}>{lastInviteUrl}</div>
                   </div>
                 ) : (
-                  <>
-                    <select
-                      value={selectedGroupId}
-                      onChange={(e) => setSelectedGroupId(e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "12px 12px",
-                        borderRadius: 14,
-                        border: "1px solid rgba(255,255,255,0.10)",
-                        background: "rgba(6,10,20,0.55)",
-                        color: "rgba(255,255,255,0.92)",
-                        outline: "none",
-                        fontSize: 14,
-                      }}
-                    >
-                      {groups.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.name}{" "}
-                          (
-                          {g.type === "family"
-                            ? "Familia"
-                            : g.type === "pair"
-                            ? "Pareja"
-                            : g.type}
-                          )
-                        </option>
-                      ))}
-                    </select>
-
-                    {selected ? (
-                      <div style={{ fontSize: 12, opacity: 0.72 }}>
-                        Este será el espacio que verá la otra persona al entrar: <b>{selected.name}</b> · tipo{" "}
-                        <b>
-                          {selected.type === "family"
-                            ? "Familia"
-                            : selected.type === "pair"
-                            ? "Pareja"
-                            : selected.type}
-                        </b>
-                      </div>
-                    ) : null}
-                  </>
+                  <div style={styles.helperBox}>
+                    {selectedGroup?.type === "pair"
+                      ? "Cuando la invitación salga, el siguiente momento importante será que tu pareja la acepte y entren juntos al mismo contexto."
+                      : "Cuando la invitación salga, el siguiente momento importante será que la otra persona entre al mismo contexto y lo use contigo."}
+                  </div>
                 )}
-              </div>
-
-              <div style={{ display: "grid", gap: 8 }}>
-                <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>
-                  Email
-                </div>
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="ej: ara@gmail.com"
-                  style={{
-                    width: "100%",
-                    padding: "12px 12px",
-                    borderRadius: 14,
-                    border: `1px solid ${
-                      email.length === 0
-                        ? "rgba(255,255,255,0.10)"
-                        : emailOk
-                        ? "rgba(34,197,94,0.40)"
-                        : "rgba(248,113,113,0.45)"
-                    }`,
-                    background: "rgba(6,10,20,0.55)",
-                    color: "rgba(255,255,255,0.92)",
-                    outline: "none",
-                    fontSize: 14,
-                  }}
-                />
-                {email.length > 0 && !emailOk ? (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      opacity: 0.75,
-                      color: "rgba(248,113,113,0.95)",
-                    }}
-                  >
-                    Email inválido
-                  </div>
-                ) : null}
-              </div>
-
-              <div style={{ display: "grid", gap: 8 }}>
-                <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 900 }}>
-                  Rol
-                </div>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    onClick={() => setRole("member")}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      background:
-                        role === "member"
-                          ? "rgba(255,255,255,0.08)"
-                          : "rgba(255,255,255,0.04)",
-                      color: "rgba(255,255,255,0.92)",
-                      cursor: "pointer",
-                      fontWeight: 900,
-                    }}
-                  >
-                    Miembro
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRole("admin")}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      background:
-                        role === "admin"
-                          ? "rgba(255,255,255,0.08)"
-                          : "rgba(255,255,255,0.04)",
-                      color: "rgba(255,255,255,0.92)",
-                      cursor: "pointer",
-                      fontWeight: 900,
-                    }}
-                  >
-                    Admin
-                  </button>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  marginTop: 6,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => router.push("/groups")}
-                  style={{
-                    padding: "12px 14px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: "rgba(255,255,255,0.04)",
-                    color: "rgba(255,255,255,0.92)",
-                    cursor: "pointer",
-                    fontWeight: 900,
-                    minWidth: 220,
-                  }}
-                >
-                  ← Volver
-                </button>
-
-                <button
-                  type="button"
-                  onClick={onInvite}
-                  disabled={!canInvite}
-                  style={{
-                    padding: "12px 14px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(255,255,255,0.14)",
-                    background:
-                      "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
-                    color: "rgba(255,255,255,0.95)",
-                    cursor: canInvite ? "pointer" : "not-allowed",
-                    fontWeight: 900,
-                    minWidth: 220,
-                    opacity: canInvite ? 1 : 0.55,
-                  }}
-                >
-                  {busy ? "Enviando…" : "Enviar invitación"}
-                </button>
-              </div>
-
-              {inviteLink ? (
-                <div
-                  style={{
-                    marginTop: 10,
-                    padding: 12,
-                    borderRadius: 16,
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    background: "rgba(0,0,0,0.22)",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 12,
-                      opacity: 0.8,
-                      fontWeight: 900,
-                    }}
-                  >
-                    Invitación lista para compartir
-                  </div>
-                  <div
-                    style={{
-                      marginTop: 8,
-                      fontSize: 12,
-                      fontFamily: "ui-monospace",
-                      wordBreak: "break-all",
-                      opacity: 0.95,
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    {inviteLink}
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: 10,
-                      padding: 12,
-                      borderRadius: 14,
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      background: "rgba(255,255,255,0.04)",
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      opacity: 0.88,
-                    }}
-                  >
-                    Siguiente paso sugerido: comparte este link y luego lleva a la otra persona a <b>Grupos</b> o <b>Calendario</b> para que vea el mismo espacio compartido desde el primer minuto.
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      flexWrap: "wrap",
-                      marginTop: 10,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => copyLink(inviteLink)}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: 14,
-                        border: "1px solid rgba(255,255,255,0.14)",
-                        background: "rgba(255,255,255,0.06)",
-                        color: "rgba(255,255,255,0.95)",
-                        cursor: "pointer",
-                        fontWeight: 900,
-                      }}
-                    >
-                      {copied ? "Copiado ✅" : "Copiar link"}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setInviteLink(null);
-                        setCopied(false);
-                      }}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: 14,
-                        border: "1px solid rgba(255,255,255,0.12)",
-                        background: "rgba(255,255,255,0.04)",
-                        color: "rgba(255,255,255,0.92)",
-                        cursor: "pointer",
-                        fontWeight: 900,
-                      }}
-                    >
-                      Limpiar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  style={{
-                    marginTop: 10,
-                    opacity: 0.6,
-                    fontSize: 12,
-                  }}
-                >
-                  Si prefieres, copia este formato y compártelo manualmente:{" "}
-                  <span style={{ marginLeft: 6, fontFamily: "ui-monospace" }}>
-                    /invitations/accept?invite=UUID
-                  </span>
-                </div>
-              )}
+              </Card>
             </div>
-          </div>
-        </section>
-      </div>
-    </main>
+          </Section>
+        </Card>
+      </Section>
+    </MobileScaffold>
   );
 }
+
+const styles: Record<string, CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    background:
+      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
+    color: "rgba(255,255,255,0.92)",
+  },
+  surfaceCard: {
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(10,14,28,0.72)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
+    backdropFilter: "blur(12px)",
+  },
+  stack: {
+    display: "grid",
+    gap: 14,
+  },
+  topRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
+  topUtilities: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  toastWrap: {
+    position: "fixed",
+    top: 18,
+    right: 18,
+    zIndex: 50,
+    pointerEvents: "none",
+  },
+  toastCard: {
+    pointerEvents: "auto",
+    minWidth: 260,
+    maxWidth: 360,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(7,11,22,0.92)",
+    boxShadow: "0 24px 70px rgba(0,0,0,0.45)",
+    backdropFilter: "blur(14px)",
+    padding: "12px 14px",
+  },
+  toastTitle: {
+    fontWeight: 900,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.95)",
+  },
+  toastSub: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.72)",
+    fontWeight: 650,
+  },
+  loadingRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+  },
+  loadingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 0 8px rgba(56,189,248,0.10)",
+    flexShrink: 0,
+  },
+  loadingTitle: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.96)",
+  },
+  loadingSub: {
+    fontSize: 12,
+    marginTop: 2,
+    color: "rgba(203,213,225,0.72)",
+  },
+  heroCard: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1.08fr) minmax(260px, 0.92fr)",
+    gap: 14,
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,0.08)",
+    padding: 16,
+  },
+  heroLeft: {
+    display: "grid",
+    gap: 10,
+    alignContent: "start",
+  },
+  heroPill: {
+    width: "fit-content",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 32,
+    padding: "0 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    fontSize: 12,
+    fontWeight: 850,
+    color: "rgba(255,255,255,0.94)",
+  },
+  heroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+  },
+  heroTitle: {
+    margin: 0,
+    fontSize: 30,
+    lineHeight: 1.02,
+    fontWeight: 950,
+    letterSpacing: "-0.04em",
+    color: "rgba(255,255,255,0.98)",
+    maxWidth: 720,
+  },
+  heroText: {
+    margin: 0,
+    fontSize: 14,
+    lineHeight: 1.62,
+    color: "rgba(226,232,240,0.82)",
+    maxWidth: 720,
+  },
+  heroRight: {
+    display: "grid",
+    gap: 10,
+    alignContent: "start",
+  },
+  miniCard: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: "12px 12px",
+    display: "grid",
+    gap: 4,
+  },
+  miniLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(148,163,184,0.80)",
+  },
+  miniValue: {
+    fontSize: 13,
+    lineHeight: 1.58,
+    color: "rgba(226,232,240,0.86)",
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1.08fr) minmax(280px, 0.92fr)",
+    gap: 14,
+  },
+  formCard: {
+    borderRadius: 22,
+    padding: 18,
+    display: "grid",
+    gap: 12,
+  },
+  sideCard: {
+    borderRadius: 22,
+    padding: 18,
+    display: "grid",
+    gap: 12,
+    alignContent: "start",
+  },
+  sectionEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.86)",
+  },
+  sectionTitle: {
+    fontSize: 20,
+    lineHeight: 1.12,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  sectionBody: {
+    margin: 0,
+    fontSize: 14,
+    lineHeight: 1.62,
+    color: "rgba(226,232,240,0.82)",
+  },
+  field: {
+    display: "grid",
+    gap: 8,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.94)",
+  },
+  select: {
+    width: "100%",
+    minHeight: 52,
+    borderRadius: 16,
+    border: "1px solid rgba(148,163,184,0.20)",
+    background: "rgba(15,23,42,0.74)",
+    color: "rgba(248,250,252,0.98)",
+    padding: "0 14px",
+    fontSize: 15,
+    outline: "none",
+    boxSizing: "border-box",
+  },
+  input: {
+    width: "100%",
+    minHeight: 52,
+    borderRadius: 16,
+    border: "1px solid rgba(148,163,184,0.20)",
+    background: "rgba(15,23,42,0.74)",
+    color: "rgba(248,250,252,0.98)",
+    padding: "0 14px",
+    fontSize: 15,
+    outline: "none",
+    boxSizing: "border-box",
+  },
+  textarea: {
+    width: "100%",
+    borderRadius: 16,
+    border: "1px solid rgba(148,163,184,0.20)",
+    background: "rgba(15,23,42,0.74)",
+    color: "rgba(248,250,252,0.98)",
+    padding: "12px 14px",
+    fontSize: 14,
+    lineHeight: 1.55,
+    outline: "none",
+    boxSizing: "border-box",
+    resize: "vertical",
+  },
+  divider: {
+    height: 1,
+    background: "rgba(255,255,255,0.08)",
+    margin: "2px 0",
+  },
+  actionsRow: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  routeCard: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: "12px 12px",
+    display: "grid",
+    gap: 6,
+  },
+  routeLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.86)",
+  },
+  routeItem: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.82)",
+  },
+  helperBox: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: "12px 12px",
+    fontSize: 13,
+    lineHeight: 1.58,
+    color: "rgba(203,213,225,0.80)",
+  },
+  linkPreview: {
+    borderRadius: 16,
+    border: "1px solid rgba(96,165,250,0.18)",
+    background: "rgba(59,130,246,0.10)",
+    padding: "12px 12px",
+    display: "grid",
+    gap: 6,
+  },
+  linkText: {
+    fontSize: 12,
+    lineHeight: 1.55,
+    color: "rgba(219,234,254,0.96)",
+    wordBreak: "break-all",
+  },
+  primary: {
+    minHeight: 42,
+    padding: "0 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(96,165,250,0.24)",
+    background:
+      "linear-gradient(135deg, rgba(37,99,235,0.96), rgba(59,130,246,0.90))",
+    color: "white",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 14px 28px rgba(30,64,175,0.22)",
+  },
+  primaryDisabled: {
+    opacity: 0.6,
+    cursor: "not-allowed",
+    boxShadow: "none",
+    background: "rgba(51,65,85,0.76)",
+  },
+  secondary: {
+    minHeight: 42,
+    padding: "0 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 13,
+    fontWeight: 850,
+    cursor: "pointer",
+  },
+};

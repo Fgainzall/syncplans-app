@@ -1,15 +1,17 @@
 // src/app/invitations/accept/AcceptInviteClient.tsx
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createConflictNotificationForGroup } from "@/lib/notificationsDb";
 import PremiumHeader from "@/components/PremiumHeader";
+import MobileScaffold from "@/components/MobileScaffold";
+import Section from "@/components/ui/Section";
+import Card from "@/components/ui/Card";
 import LogoutButton from "@/components/LogoutButton";
 
 import supabase from "@/lib/supabaseClient";
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
-
+import { createConflictNotificationForGroup } from "@/lib/notificationsDb";
 import {
   acceptInvitation,
   declineInvitation,
@@ -19,6 +21,9 @@ import {
 import { getMyProfile, type Profile } from "@/lib/profilesDb";
 import { hasPremiumAccess } from "@/lib/premium";
 import { trackEvent, trackEventOnce, trackScreenView } from "@/lib/analytics";
+
+type BusyState = "accept" | "decline" | null;
+type ToastState = null | { title: string; subtitle?: string };
 
 function isUuid(x: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -40,6 +45,32 @@ function labelRole(role?: string | null) {
   if (s === "owner") return "Owner";
   if (s === "admin") return "Admin";
   return "Miembro";
+}
+
+function groupMeta(type?: string | null) {
+  const s = String(type ?? "").toLowerCase();
+  if (s === "pair" || s === "couple") {
+    return {
+      label: "Pareja",
+      dot: "rgba(96,165,250,0.98)",
+      soft: "rgba(96,165,250,0.14)",
+      border: "rgba(96,165,250,0.24)",
+    };
+  }
+  if (s === "family") {
+    return {
+      label: "Familia",
+      dot: "rgba(34,197,94,0.98)",
+      soft: "rgba(34,197,94,0.12)",
+      border: "rgba(34,197,94,0.22)",
+    };
+  }
+  return {
+    label: "Compartido",
+    dot: "rgba(168,85,247,0.98)",
+    soft: "rgba(168,85,247,0.14)",
+    border: "rgba(168,85,247,0.24)",
+  };
 }
 
 function getValueBullets(inv: GroupInvitation | null) {
@@ -68,6 +99,21 @@ function getValueBullets(inv: GroupInvitation | null) {
   ];
 }
 
+function getFlowSteps(pending: boolean) {
+  return pending
+    ? [
+        "Aceptar la invitación",
+        "Entrar al mismo contexto compartido",
+        "Ver si ya hay algo importante por revisar",
+        "Crear o ver el primer plan juntos",
+      ]
+    : [
+        "La invitación ya fue respondida",
+        "Entrar al contexto compartido",
+        "Continuar desde calendario o grupo",
+      ];
+}
+
 function getHeroTitle(inv: GroupInvitation | null, pending: boolean) {
   const groupName = String(inv?.group_name ?? "").trim();
 
@@ -79,75 +125,40 @@ function getHeroTitle(inv: GroupInvitation | null, pending: boolean) {
   }
 
   return groupName
-    ? `Entra a ${groupName} sin coordinar desde fuera`
-    : "Entra al mismo espacio que el resto";
+    ? `Entra a ${groupName} y compartan la misma agenda`
+    : "Acepta y entra al mismo espacio compartido";
 }
 
-function getHeroSubtitle(inv: GroupInvitation | null, pending: boolean) {
-  const groupLabel = labelType(inv?.group_type);
-
-  if (!inv) {
-    return "Aceptar esta invitación te mete al mismo flujo, los mismos planes y las mismas decisiones que ya están moviendo los demás.";
-  }
-
-  if (!pending) {
-    return "La invitación ya no está pendiente. Desde aquí puedes volver al grupo y seguir coordinando con el mismo contexto que el resto.";
-  }
-
-  return `Te están abriendo la puerta a un espacio ${groupLabel.toLowerCase()} compartido. Aceptar no es solo entrar: es dejar de depender de mensajes sueltos para entender qué sigue, qué cambió y qué ya quedó acordado.`;
-}
-
-function getFlowSteps(pending: boolean) {
-  if (!pending) {
-    return [
-      "El grupo ya puede quedar como tu contexto activo.",
-      "Vuelves directo al espacio compartido para ver qué sigue.",
-      "Si aparece algo importante, el sistema lo hace visible ahí mismo.",
-    ];
-  }
-
-  return [
-    "Aceptas y entras al mismo grupo que ya usa el resto.",
-    "Si tu llegada destapa un choque, te llevamos directo a revisarlo.",
-    "Si no hay choque, aterrizas en el grupo para ver el contexto compartido.",
-  ];
-}
-
-function StatusPill({ status }: { status: string }) {
-  const s = (status || "").toLowerCase();
+function StatusPill({ status }: { status: string | null | undefined }) {
+  const s = String(status ?? "").toLowerCase();
   const meta =
     s === "pending"
       ? {
           label: "Pendiente",
-          bg: "rgba(251,191,36,0.16)",
+          bg: "rgba(251,191,36,0.14)",
           bd: "rgba(251,191,36,0.28)",
+          dot: "rgba(251,191,36,0.95)",
         }
       : s === "accepted"
-      ? {
-          label: "Aceptada",
-          bg: "rgba(34,197,94,0.14)",
-          bd: "rgba(34,197,94,0.28)",
-        }
-      : s === "declined"
-      ? {
-          label: "Rechazada",
-          bg: "rgba(248,113,113,0.14)",
-          bd: "rgba(248,113,113,0.28)",
-        }
-      : {
-          label: status || "Estado",
-          bg: "rgba(255,255,255,0.08)",
-          bd: "rgba(255,255,255,0.12)",
-        };
-
-  const dot =
-    s === "pending"
-      ? "rgba(251,191,36,0.95)"
-      : s === "accepted"
-      ? "rgba(34,197,94,0.95)"
-      : s === "declined"
-      ? "rgba(248,113,113,0.95)"
-      : "rgba(255,255,255,0.7)";
+        ? {
+            label: "Aceptada",
+            bg: "rgba(34,197,94,0.14)",
+            bd: "rgba(34,197,94,0.28)",
+            dot: "rgba(34,197,94,0.95)",
+          }
+        : s === "declined"
+          ? {
+              label: "Rechazada",
+              bg: "rgba(248,113,113,0.14)",
+              bd: "rgba(248,113,113,0.28)",
+              dot: "rgba(248,113,113,0.95)",
+            }
+          : {
+              label: status || "Estado",
+              bg: "rgba(255,255,255,0.08)",
+              bd: "rgba(255,255,255,0.12)",
+              dot: "rgba(255,255,255,0.7)",
+            };
 
   return (
     <span
@@ -164,28 +175,9 @@ function StatusPill({ status }: { status: string }) {
         opacity: 0.95,
       }}
     >
-      <span
-        style={{ width: 8, height: 8, borderRadius: 999, background: dot }}
-      />
+      <span style={{ width: 8, height: 8, borderRadius: 999, background: meta.dot }} />
       {meta.label}
     </span>
-  );
-}
-
-function Glow() {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        inset: -2,
-        borderRadius: 18,
-        background:
-          "radial-gradient(600px 240px at 18% 0%, rgba(248,113,113,0.18), transparent 55%), radial-gradient(520px 240px at 88% 20%, rgba(96,165,250,0.18), transparent 55%), radial-gradient(520px 240px at 40% 120%, rgba(251,191,36,0.14), transparent 55%)",
-        filter: "blur(14px)",
-        pointerEvents: "none",
-        opacity: 0.95,
-      }}
-    />
   );
 }
 
@@ -199,11 +191,9 @@ export default function AcceptInviteClient() {
   );
 
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"accept" | "decline" | null>(null);
+  const [busy, setBusy] = useState<BusyState>(null);
   const [inv, setInv] = useState<GroupInvitation | null>(null);
-  const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(
-    null
-  );
+  const [toast, setToast] = useState<ToastState>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -221,7 +211,8 @@ export default function AcceptInviteClient() {
     }
   }
 
-  function showToast(t: { title: string; subtitle?: string }) {
+  function showToast(t: ToastState) {
+    if (!t) return;
     if (toastTimerRef.current) {
       window.clearTimeout(toastTimerRef.current);
     }
@@ -261,14 +252,14 @@ export default function AcceptInviteClient() {
 
         setCurrentUserId(data.session.user.id);
 
-        const [r, fetchedProfile] = await Promise.all([
+        const [invitation, fetchedProfile] = await Promise.all([
           getInvitationById(inviteId),
           getMyProfile().catch(() => null),
         ]);
 
         if (!alive) return;
 
-        setInv(r ?? null);
+        setInv(invitation ?? null);
         setProfile(fetchedProfile ?? null);
       } catch (e: any) {
         if (!alive) return;
@@ -322,12 +313,13 @@ export default function AcceptInviteClient() {
   const status = String(inv?.status ?? "").toLowerCase();
   const pending = status === "pending";
   const hasPremium = hasPremiumAccess(profile);
-  const shouldShowExternalNudge = !hasPremium && pending;
+  const shouldShowPremiumNudge = !hasPremium && pending;
   const valueBullets = useMemo(() => getValueBullets(inv), [inv]);
   const flowSteps = useMemo(() => getFlowSteps(pending), [pending]);
+  const meta = useMemo(() => groupMeta(inv?.group_type), [inv?.group_type]);
 
   useEffect(() => {
-    if (!shouldShowExternalNudge || !inviteId || !inv) return;
+    if (!shouldShowPremiumNudge || !inviteId || !inv) return;
 
     void trackEventOnce({
       event: "premium_viewed",
@@ -343,7 +335,7 @@ export default function AcceptInviteClient() {
         invite_kind: "group_internal",
       },
     });
-  }, [shouldShowExternalNudge, inviteId, inv, currentUserId]);
+  }, [shouldShowPremiumNudge, inviteId, inv, currentUserId]);
 
   async function onAccept() {
     if (!inviteId || !inv || busy) return;
@@ -393,13 +385,14 @@ export default function AcceptInviteClient() {
       ).catch(() => ({
         created: 0,
         conflictCount: 0,
-        targetEventId: null,
+        targetEventId: null as string | null,
       }));
 
       if (conflictResult.conflictCount > 0) {
         showToast({
           title: "⚠️ Ya estás dentro y hay algo importante por revisar",
-          subtitle: "Tu llegada activó un choque visible. Te llevo directo para que entres con claridad, no con ruido.",
+          subtitle:
+            "Tu llegada activó un choque visible. Te llevo directo para que entres con claridad, no con ruido.",
         });
 
         const qp = new URLSearchParams();
@@ -418,13 +411,12 @@ export default function AcceptInviteClient() {
 
       showToast({
         title: "✅ Ya entraste al mismo contexto que el resto",
-        subtitle: "Ahora te llevo al grupo activo para que veas qué ya está en movimiento y qué te toca revisar primero.",
+        subtitle:
+          "Ahora te llevo al grupo activo para que veas qué ya está en movimiento y qué te toca revisar primero.",
       });
 
       navTimerRef.current = window.setTimeout(() => {
-        router.push(
-          `/groups/${encodeURIComponent(inv.group_id)}?accepted=1&from=invite_accept`
-        );
+        router.push(`/groups/${inv.group_id}?from=invite_accept&accepted=1`);
       }, 700);
     } catch (e: any) {
       showToast({
@@ -440,9 +432,12 @@ export default function AcceptInviteClient() {
     if (!inviteId || !inv || busy) return;
 
     setBusy("decline");
+
     try {
       const res = await declineInvitation(inviteId);
-      if (!res?.ok) throw new Error(res?.error || "No se pudo rechazar.");
+      if (!res?.ok) {
+        throw new Error(res?.error || "No se pudo rechazar.");
+      }
 
       void trackEvent({
         event: "invite_declined",
@@ -462,12 +457,8 @@ export default function AcceptInviteClient() {
 
       showToast({
         title: "Invitación rechazada",
-        subtitle: "No te agregamos al grupo. Puedes volver a tus grupos cuando quieras.",
+        subtitle: "No se hicieron cambios en tus grupos.",
       });
-
-      navTimerRef.current = window.setTimeout(() => {
-        router.push("/groups?declined=1");
-      }, 700);
     } catch (e: any) {
       showToast({
         title: "No se pudo rechazar",
@@ -478,523 +469,494 @@ export default function AcceptInviteClient() {
     }
   }
 
-  return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background:
-          "radial-gradient(1100px 600px at 10% -10%, rgba(248,113,113,0.16), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(96,165,250,0.14), transparent 60%), #050816",
-        color: "rgba(255,255,255,0.92)",
-      }}
-    >
-      {toast && (
-        <div style={{ position: "fixed", top: 18, right: 18, zIndex: 50 }}>
-          <div
-            style={{
-              minWidth: 260,
-              maxWidth: 380,
-              borderRadius: 16,
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(7,11,22,0.72)",
-              boxShadow: "0 24px 70px rgba(0,0,0,0.45)",
-              backdropFilter: "blur(14px)",
-              padding: "12px 14px",
-            }}
-          >
-            <div style={{ fontWeight: 900, fontSize: 13 }}>{toast.title}</div>
-            {toast.subtitle ? (
-              <div
-                style={{
-                  marginTop: 4,
-                  fontSize: 12,
-                  opacity: 0.75,
-                  fontWeight: 650,
-                }}
-              >
-                {toast.subtitle}
+  if (loading) {
+    return (
+      <MobileScaffold maxWidth={980} style={styles.page}>
+        <Section>
+          <PremiumHeader
+            title="Aceptar invitación"
+            subtitle="Preparando el contexto compartido…"
+          />
+          <Card style={styles.surfaceCard}>
+            <div style={styles.loadingRow}>
+              <div style={styles.loadingDot} />
+              <div>
+                <div style={styles.loadingTitle}>Cargando invitación…</div>
+                <div style={styles.loadingSub}>Un momento, por favor.</div>
               </div>
-            ) : null}
+            </div>
+          </Card>
+        </Section>
+      </MobileScaffold>
+    );
+  }
+
+  return (
+    <MobileScaffold maxWidth={980} style={styles.page}>
+      {toast ? (
+        <div style={styles.toastWrap}>
+          <div style={styles.toastCard}>
+            <div style={styles.toastTitle}>{toast.title}</div>
+            {toast.subtitle ? <div style={styles.toastSub}>{toast.subtitle}</div> : null}
           </div>
         </div>
-      )}
+      ) : null}
 
-      <div
-        style={{
-          maxWidth: 920,
-          margin: "0 auto",
-          padding: "22px 18px 56px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 14,
-            flexWrap: "wrap",
-          }}
-        >
-          <PremiumHeader />
+      <Section>
+        <div style={styles.topRow}>
+          <PremiumHeader
+            title="Invitación"
+            subtitle="Entrar al mismo contexto debería sentirse claro, no técnico."
+          />
           <LogoutButton />
         </div>
 
-        <section
-          style={{
-            position: "relative",
-            marginTop: 14,
-            borderRadius: 18,
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(255,255,255,0.03)",
-            padding: 16,
-            boxShadow: "0 18px 60px rgba(0,0,0,0.35)",
-            overflow: "hidden",
-          }}
-        >
-          <Glow />
-
-          <div style={{ position: "relative" }}>
-            <div
+        <Card style={styles.surfaceCard}>
+          <Section style={styles.stack}>
+            <Card
+              tone="muted"
               style={{
-                fontSize: 11,
-                letterSpacing: "0.10em",
-                textTransform: "uppercase",
-                fontWeight: 900,
-                opacity: 0.8,
+                ...styles.heroCard,
+                borderColor: meta.border,
+                background: `linear-gradient(180deg, ${meta.soft}, rgba(255,255,255,0.03))`,
               }}
             >
-              Segundo usuario
-            </div>
-
-            <h1
-              style={{
-                margin: "10px 0 6px",
-                fontSize: 28,
-                letterSpacing: "-0.7px",
-                lineHeight: 1.08,
-                maxWidth: 760,
-              }}
-            >
-              {getHeroTitle(inv, pending)}
-            </h1>
-
-            {!inviteId || !isUuid(inviteId) ? (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: 14,
-                  borderRadius: 14,
-                  border: "1px dashed rgba(255,255,255,0.16)",
-                }}
-              >
-                <div style={{ fontWeight: 900 }}>Link inválido</div>
-                <div style={{ opacity: 0.75, fontSize: 12, marginTop: 6 }}>
-                  Falta el parámetro <b>?invite=UUID</b>.
+              <div style={styles.heroLeft}>
+                <div style={styles.heroPill}>
+                  <span style={{ ...styles.heroDot, background: meta.dot }} />
+                  {meta.label}
                 </div>
 
-                <button
-                  onClick={() => router.push("/groups")}
-                  style={{
-                    marginTop: 10,
-                    padding: "10px 12px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(255,255,255,0.14)",
-                    background: "rgba(255,255,255,0.04)",
-                    color: "rgba(255,255,255,0.95)",
-                    cursor: "pointer",
-                    fontWeight: 900,
-                  }}
-                >
-                  Ir a grupos
-                </button>
-              </div>
-            ) : loading ? (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: 14,
-                  borderRadius: 14,
-                  border: "1px dashed rgba(255,255,255,0.16)",
-                  opacity: 0.75,
-                }}
-              >
-                Cargando invitación…
-              </div>
-            ) : !inv ? (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: 14,
-                  borderRadius: 14,
-                  border: "1px solid rgba(248,113,113,0.22)",
-                  background: "rgba(248,113,113,0.08)",
-                }}
-              >
-                <div style={{ fontWeight: 900 }}>Invitación no encontrada</div>
-                <div style={{ opacity: 0.75, fontSize: 12, marginTop: 6 }}>
-                  Puede que haya expirado, ya fue aceptada, o no tienes acceso.
+                <div style={styles.heroTitle}>{getHeroTitle(inv, pending)}</div>
+
+                <div style={styles.heroText}>
+                  {pending
+                    ? "Aceptar esta invitación no solo te mete a un grupo. Te mete a la misma versión compartida de lo que ya está en marcha."
+                    : "La invitación ya no está pendiente, pero este contexto sigue siendo la mejor puerta para entender qué está pasando y qué te toca ahora."}
                 </div>
 
-                <button
-                  onClick={() => router.push("/groups")}
-                  style={{
-                    marginTop: 10,
-                    padding: "10px 12px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(255,255,255,0.14)",
-                    background: "rgba(255,255,255,0.04)",
-                    color: "rgba(255,255,255,0.95)",
-                    cursor: "pointer",
-                    fontWeight: 900,
-                  }}
-                >
-                  Ir a grupos
-                </button>
-              </div>
-            ) : (
-              <>
-                <div
-                  style={{
-                    marginTop: 10,
-                    opacity: 0.76,
-                    fontSize: 14,
-                    lineHeight: 1.55,
-                    maxWidth: 760,
-                  }}
-                >
-                  {getHeroSubtitle(inv, pending)}
+                <div style={styles.heroMetaRow}>
+                  <StatusPill status={inv?.status} />
+                  {inv?.group_name ? (
+                    <span style={styles.metaPillSoft}>{inv.group_name}</span>
+                  ) : null}
+                  {inv?.role ? (
+                    <span style={styles.metaPillSoft}>{labelRole(inv.role)}</span>
+                  ) : null}
                 </div>
+              </div>
 
-                <div
-                  style={{
-                    marginTop: 16,
-                    padding: 14,
-                    borderRadius: 16,
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    background: "rgba(0,0,0,0.18)",
-                    display: "grid",
-                    gap: 10,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      flexWrap: "wrap",
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 950, fontSize: 20 }}>
-                        {inv.group_name || "Grupo"}
-                      </div>
-                      <div
-                        style={{
-                          marginTop: 6,
-                          opacity: 0.75,
-                          fontSize: 13,
-                          lineHeight: 1.45,
-                        }}
-                      >
-                        Entrar aquí te suma a un espacio <b>{labelType(inv.group_type).toLowerCase()}</b> como <b>{labelRole(inv.role)}</b>.
-                        {pending
-                          ? " Si aceptas hoy, este grupo quedará activo para que empieces a ver lo mismo que los demás desde ya."
-                          : " Desde aquí ya puedes volver al grupo y seguir coordinando dentro del mismo contexto compartido."}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                      }}
-                    >
-                      <StatusPill status={status || "pending"} />
-                    </div>
+              <div style={styles.heroRight}>
+                <div style={styles.miniCard}>
+                  <div style={styles.miniLabel}>Grupo</div>
+                  <div style={styles.miniValue}>
+                    {inv?.group_name || "Grupo compartido"}
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    marginTop: 14,
-                    display: "grid",
-                    gap: 10,
-                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                  }}
-                >
-                  {valueBullets.map((item) => (
-                    <div
-                      key={item}
-                      style={{
-                        borderRadius: 14,
-                        border: "1px solid rgba(255,255,255,0.10)",
-                        background: "rgba(255,255,255,0.03)",
-                        padding: "13px 12px",
-                        fontSize: 12.5,
-                        lineHeight: 1.52,
-                        fontWeight: 800,
-                      }}
-                    >
-                      {item}
-                    </div>
-                  ))}
+                <div style={styles.miniCard}>
+                  <div style={styles.miniLabel}>Tipo</div>
+                  <div style={styles.miniValue}>{labelType(inv?.group_type)}</div>
                 </div>
+              </div>
+            </Card>
 
-                <div
-                  style={{
-                    marginTop: 14,
-                    display: "grid",
-                    gap: 10,
-                    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-                  }}
-                >
-                  {flowSteps.map((step, index) => (
-                    <div
-                      key={step}
-                      style={{
-                        borderRadius: 14,
-                        border: "1px solid rgba(255,255,255,0.10)",
-                        background: "rgba(255,255,255,0.03)",
-                        padding: "13px 12px",
-                        display: "grid",
-                        gap: 8,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 11,
-                          letterSpacing: "0.10em",
-                          textTransform: "uppercase",
-                          fontWeight: 900,
-                          color: "rgba(96,165,250,0.94)",
-                        }}
-                      >
-                        Paso 0{index + 1}
-                      </div>
-                      <div style={{ fontSize: 13, lineHeight: 1.55, fontWeight: 800 }}>
-                        {step}
-                      </div>
+            <div style={styles.grid}>
+              <Card tone="muted" style={styles.leftCard}>
+                <div style={styles.sectionEyebrow}>Qué ganas al entrar</div>
+                <div style={styles.sectionTitle}>Una sola referencia compartida</div>
+
+                <div style={styles.bullets}>
+                  {valueBullets.map((item) => (
+                    <div key={item} style={styles.bulletItem}>
+                      <span style={styles.bulletDot} />
+                      <span>{item}</span>
                     </div>
                   ))}
                 </div>
 
                 {pending ? (
-                  <div
-                    style={{
-                      marginTop: 12,
-                      borderRadius: 16,
-                      border: "1px solid rgba(255,255,255,0.09)",
-                      background: "rgba(255,255,255,0.03)",
-                      padding: 14,
-                      display: "grid",
-                      gap: 8,
-                    }}
-                  >
-                    <div
+                  <div style={styles.actionsRow}>
+                    <button
+                      type="button"
+                      onClick={onAccept}
+                      disabled={busy !== null}
                       style={{
-                        fontSize: 11,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        fontWeight: 900,
-                        opacity: 0.76,
+                        ...styles.primary,
+                        ...(busy !== null ? styles.primaryDisabled : null),
                       }}
                     >
-                      Qué pasa después de aceptar
-                    </div>
-                    <div style={{ fontSize: 14, fontWeight: 900 }}>
-                      No te soltamos en una pantalla fría.
-                    </div>
-                    <div style={{ fontSize: 13, opacity: 0.78, lineHeight: 1.55 }}>
-                      Si al entrar ya existe un choque importante, te llevamos directo a revisarlo. Si no, entras al grupo para ver el contexto compartido y empezar a coordinar desde dentro.
-                    </div>
-                  </div>
-                ) : null}
+                      {busy === "accept" ? "Aceptando…" : "Aceptar invitación"}
+                    </button>
 
-                {shouldShowExternalNudge ? (
-                  <div
-                    style={{
-                      marginTop: 12,
-                      borderRadius: 18,
-                      border: "1px solid rgba(56,189,248,0.25)",
-                      background:
-                        "linear-gradient(135deg, rgba(56,189,248,0.12), rgba(124,58,237,0.10))",
-                      padding: 14,
-                      display: "grid",
-                      gap: 8,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 900,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        opacity: 0.8,
-                      }}
+                    <button
+                      type="button"
+                      onClick={onDecline}
+                      disabled={busy !== null}
+                      style={styles.secondary}
                     >
-                      Premium
-                    </div>
-
-                    <div style={{ fontWeight: 900, fontSize: 16 }}>
-                      Entrar al grupo resuelve el acceso. Premium mejora lo que pasa después: más claridad compartida, menos fricción y mejor anticipación cuando la coordinación crece.
-                    </div>
-
-                    <div style={{ fontSize: 13, opacity: 0.78, lineHeight: 1.55 }}>
-                      Es la capa que hace que una nueva persona no entre a interpretar a ciegas qué cambió, qué choca y qué merece atención primero.
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gap: 6,
-                        marginTop: 2,
-                        fontSize: 12,
-                        opacity: 0.78,
-                      }}
+                      {busy === "decline" ? "Rechazando…" : "Rechazar"}
+                    </button>
+                  </div>
+                ) : (
+                  <div style={styles.actionsRow}>
+                    <button
+                      type="button"
+                      style={styles.primary}
+                      onClick={() =>
+                        inv?.group_id
+                          ? router.push(`/groups/${inv.group_id}`)
+                          : router.push("/groups")
+                      }
                     >
-                      <div>• Anticipa conflictos cuando entra una agenda nueva.</div>
-                      <div>• Da más contexto cuando la coordinación deja de ser individual.</div>
-                      <div>• Reduce el esfuerzo de interpretar manualmente qué pasó.</div>
-                    </div>
+                      Abrir grupo
+                    </button>
 
-                    <div style={{ display: "flex", gap: 10, marginTop: 6, flexWrap: "wrap" }}>
-                      <button
-                        onClick={() => {
-                          void trackEvent({
-                            event: "premium_cta_clicked",
-                            userId: currentUserId ?? undefined,
-                            entityId: inviteId || undefined,
-                            metadata: {
-                              screen: "invitation_accept",
-                              source: "external_nudge",
-                              target: "/planes",
-                              invite_kind: "group_internal",
-                              group_id: inv?.group_id ?? null,
-                              group_type: inv?.group_type ?? null,
-                            },
-                          });
-                          router.push("/planes");
-                        }}
-                        style={{
-                          padding: "10px 12px",
-                          borderRadius: 12,
-                          border: "1px solid rgba(255,255,255,0.14)",
-                          background:
-                            "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
-                          color: "white",
-                          fontWeight: 900,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Ver cómo ayuda
-                      </button>
-
-                      <button
-                        onClick={() => router.push("/groups")}
-                        style={{
-                          padding: "10px 12px",
-                          borderRadius: 12,
-                          border: "1px solid rgba(255,255,255,0.14)",
-                          background: "rgba(255,255,255,0.04)",
-                          color: "white",
-                          fontWeight: 900,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Seguir por ahora
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      style={styles.secondary}
+                      onClick={() => router.push("/calendar")}
+                    >
+                      Ver calendario
+                    </button>
                   </div>
-                ) : null}
+                )}
+              </Card>
 
-                {!pending ? (
-                  <div
-                    style={{
-                      marginTop: 12,
-                      padding: 14,
-                      borderRadius: 16,
-                      border: "1px solid rgba(255,255,255,0.10)",
-                      background: "rgba(255,255,255,0.03)",
-                      fontSize: 13,
-                      lineHeight: 1.55,
-                      opacity: 0.82,
-                    }}
-                  >
-                    {status === "accepted"
-                      ? "Ya formas parte de este grupo. Vuelve a entrar para seguir coordinando con el mismo contexto que los demás."
-                      : "Esta invitación ya no está pendiente. Puedes volver a tus grupos cuando quieras."}
-                  </div>
-                ) : null}
+              <Card tone="muted" style={styles.rightCard}>
+                <div style={styles.sectionEyebrow}>Qué pasa después</div>
+                <div style={styles.sectionTitle}>Ruta de entrada ideal</div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    flexWrap: "wrap",
-                    marginTop: 14,
-                  }}
-                >
-                  <button
-                    onClick={() => router.push("/groups")}
-                    style={{
-                      padding: "12px 14px",
-                      borderRadius: 14,
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      background: "rgba(255,255,255,0.04)",
-                      color: "rgba(255,255,255,0.92)",
-                      cursor: "pointer",
-                      fontWeight: 900,
-                      minWidth: 220,
-                    }}
-                  >
-                    ← Volver
-                  </button>
-
-                  <button
-                    onClick={onDecline}
-                    disabled={!!busy || !pending}
-                    style={{
-                      padding: "12px 14px",
-                      borderRadius: 14,
-                      border: "1px solid rgba(255,255,255,0.14)",
-                      background: "rgba(248,113,113,0.14)",
-                      color: "rgba(255,255,255,0.95)",
-                      cursor: !!busy || !pending ? "not-allowed" : "pointer",
-                      fontWeight: 900,
-                      minWidth: 220,
-                      opacity: pending ? 1 : 0.55,
-                    }}
-                    title={!pending ? "Esta invitación ya no está pendiente" : ""}
-                  >
-                    {busy === "decline" ? "Rechazando…" : "Rechazar"}
-                  </button>
-
-                  <button
-                    onClick={onAccept}
-                    disabled={!!busy || !pending}
-                    style={{
-                      padding: "12px 14px",
-                      borderRadius: 14,
-                      border: "1px solid rgba(255,255,255,0.14)",
-                      background:
-                        "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
-                      color: "rgba(255,255,255,0.95)",
-                      cursor: !!busy || !pending ? "not-allowed" : "pointer",
-                      fontWeight: 900,
-                      minWidth: 260,
-                      opacity: pending ? 1 : 0.55,
-                    }}
-                    title={!pending ? "Esta invitación ya no está pendiente" : ""}
-                  >
-                    {busy === "accept" ? "Aceptando…" : "Aceptar y entrar al grupo"}
-                  </button>
+                <div style={styles.flowList}>
+                  {flowSteps.map((step, idx) => (
+                    <div key={`${idx}-${step}`} style={styles.flowItem}>
+                      <div style={styles.flowIndex}>{idx + 1}</div>
+                      <div style={styles.flowText}>{step}</div>
+                    </div>
+                  ))}
                 </div>
-              </>
-            )}
-          </div>
-        </section>
-      </div>
-    </main>
+
+                {shouldShowPremiumNudge ? (
+                  <div style={styles.premiumNudge}>
+                    <div style={styles.premiumLabel}>Premium encaja mejor después</div>
+                    <div style={styles.premiumText}>
+                      Primero entra y entiende el contexto. Luego Premium puede sumar más claridad, más contexto y menos fricción para coordinar.
+                    </div>
+                  </div>
+                ) : null}
+              </Card>
+            </div>
+          </Section>
+        </Card>
+      </Section>
+    </MobileScaffold>
   );
 }
+
+const styles: Record<string, CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    background:
+      "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
+    color: "rgba(255,255,255,0.92)",
+  },
+  surfaceCard: {
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(10,14,28,0.72)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
+    backdropFilter: "blur(12px)",
+  },
+  stack: {
+    display: "grid",
+    gap: 14,
+  },
+  topRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
+  toastWrap: {
+    position: "fixed",
+    top: 18,
+    right: 18,
+    zIndex: 50,
+    pointerEvents: "none",
+  },
+  toastCard: {
+    pointerEvents: "auto",
+    minWidth: 260,
+    maxWidth: 360,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(7,11,22,0.92)",
+    boxShadow: "0 24px 70px rgba(0,0,0,0.45)",
+    backdropFilter: "blur(14px)",
+    padding: "12px 14px",
+  },
+  toastTitle: {
+    fontWeight: 900,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.95)",
+  },
+  toastSub: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.72)",
+    fontWeight: 650,
+  },
+  loadingRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+  },
+  loadingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 0 8px rgba(56,189,248,0.10)",
+    flexShrink: 0,
+  },
+  loadingTitle: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.96)",
+  },
+  loadingSub: {
+    fontSize: 12,
+    marginTop: 2,
+    color: "rgba(203,213,225,0.72)",
+  },
+  heroCard: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1.08fr) minmax(240px, 0.92fr)",
+    gap: 14,
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,0.08)",
+    padding: 16,
+  },
+  heroLeft: {
+    display: "grid",
+    gap: 10,
+    alignContent: "start",
+  },
+  heroPill: {
+    width: "fit-content",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 32,
+    padding: "0 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    fontSize: 12,
+    fontWeight: 850,
+    color: "rgba(255,255,255,0.94)",
+  },
+  heroDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+  },
+  heroTitle: {
+    fontSize: 30,
+    lineHeight: 1.02,
+    fontWeight: 950,
+    letterSpacing: "-0.04em",
+    color: "rgba(255,255,255,0.98)",
+    maxWidth: 720,
+  },
+  heroText: {
+    fontSize: 14,
+    lineHeight: 1.62,
+    color: "rgba(226,232,240,0.82)",
+    maxWidth: 720,
+  },
+  heroMetaRow: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  metaPillSoft: {
+    minHeight: 32,
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "0 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    fontSize: 12,
+    fontWeight: 800,
+    color: "rgba(226,232,240,0.78)",
+  },
+  heroRight: {
+    display: "grid",
+    gap: 10,
+    alignContent: "start",
+  },
+  miniCard: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: "12px 12px",
+    display: "grid",
+    gap: 4,
+  },
+  miniLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(148,163,184,0.80)",
+  },
+  miniValue: {
+    fontSize: 13,
+    lineHeight: 1.58,
+    color: "rgba(226,232,240,0.86)",
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1.08fr) minmax(260px, 0.92fr)",
+    gap: 14,
+  },
+  leftCard: {
+    borderRadius: 22,
+    padding: 18,
+    display: "grid",
+    gap: 12,
+  },
+  rightCard: {
+    borderRadius: 22,
+    padding: 18,
+    display: "grid",
+    gap: 12,
+    alignContent: "start",
+  },
+  sectionEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.86)",
+  },
+  sectionTitle: {
+    fontSize: 20,
+    lineHeight: 1.12,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  bullets: {
+    display: "grid",
+    gap: 10,
+  },
+  bulletItem: {
+    display: "grid",
+    gridTemplateColumns: "12px minmax(0, 1fr)",
+    gap: 10,
+    alignItems: "start",
+    fontSize: 14,
+    lineHeight: 1.58,
+    color: "rgba(226,232,240,0.84)",
+  },
+  bulletDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(96,165,250,0.95)",
+    marginTop: 7,
+  },
+  actionsRow: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  flowList: {
+    display: "grid",
+    gap: 10,
+  },
+  flowItem: {
+    display: "grid",
+    gridTemplateColumns: "28px minmax(0, 1fr)",
+    gap: 10,
+    alignItems: "start",
+    padding: "10px 10px",
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+  },
+  flowIndex: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    display: "grid",
+    placeItems: "center",
+    background: "rgba(59,130,246,0.16)",
+    color: "rgba(219,234,254,0.96)",
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  flowText: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.84)",
+  },
+  premiumNudge: {
+    borderRadius: 16,
+    border: "1px solid rgba(168,85,247,0.18)",
+    background: "rgba(168,85,247,0.08)",
+    padding: "12px 12px",
+    display: "grid",
+    gap: 4,
+  },
+  premiumLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(233,213,255,0.92)",
+  },
+  premiumText: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(243,232,255,0.84)",
+  },
+  primary: {
+    minHeight: 42,
+    padding: "0 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(96,165,250,0.24)",
+    background:
+      "linear-gradient(135deg, rgba(37,99,235,0.96), rgba(59,130,246,0.90))",
+    color: "white",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 14px 28px rgba(30,64,175,0.22)",
+  },
+  primaryDisabled: {
+    opacity: 0.6,
+    cursor: "not-allowed",
+    boxShadow: "none",
+    background: "rgba(51,65,85,0.76)",
+  },
+  secondary: {
+    minHeight: 42,
+    padding: "0 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 13,
+    fontWeight: 850,
+    cursor: "pointer",
+  },
+};
