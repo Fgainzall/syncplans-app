@@ -2,6 +2,7 @@
 "use client";
 
 import supabase from "@/lib/supabaseClient";
+import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import {
   getDefaultGroupName,
   getGroupTypeLabel as getCanonicalGroupTypeLabel,
@@ -21,6 +22,11 @@ export type GroupRow = {
   type: GroupType | string;
   created_at?: string | null;
   owner_id?: string | null;
+
+  // ✅ metadata enriquecida para pantallas como /groups
+  role?: string | null;
+  members_count?: number;
+  is_active?: boolean;
 };
 
 export type GroupMemberCoordinationPrefs = {
@@ -107,12 +113,20 @@ export function formatPairGroupName(a: string, b: string): string {
 }
 
 function mapGroupRow(row: any): GroupRow {
+  const rawMembersCount = row?.members_count;
+
   return {
     id: String(row?.id ?? ""),
     name: row?.name ?? null,
     type: row?.type ?? null,
     created_at: row?.created_at ?? null,
     owner_id: row?.owner_id ?? null,
+    role: row?.role ?? null,
+    members_count:
+      typeof rawMembersCount === "number"
+        ? rawMembersCount
+        : Number(rawMembersCount ?? 0),
+    is_active: Boolean(row?.is_active),
   };
 }
 
@@ -122,22 +136,27 @@ function mapGroupRow(row: any): GroupRow {
 
 /**
  * Devuelve los grupos a los que pertenezco, ordenados por
- * membresía más reciente.
+ * membresía más reciente, e incluye:
+ * - role del usuario actual
+ * - members_count real por grupo
+ * - is_active
  */
 export async function getMyGroups(): Promise<GroupRow[]> {
   const uid = await requireUid();
 
   const { data: memberships, error: membershipError } = await supabase
     .from("group_members")
-    .select("group_id, created_at")
+    .select("group_id, created_at, role")
     .eq("user_id", uid)
     .order("created_at", { ascending: false });
 
   if (membershipError) throw membershipError;
 
+  const membershipRows = Array.isArray(memberships) ? memberships : [];
+
   const groupIds = Array.from(
     new Set(
-      (memberships ?? [])
+      membershipRows
         .map((m: any) => String(m?.group_id ?? "").trim())
         .filter(Boolean)
     )
@@ -145,22 +164,60 @@ export async function getMyGroups(): Promise<GroupRow[]> {
 
   if (groupIds.length === 0) return [];
 
-  const { data: groups, error: groupsError } = await supabase
-    .from("groups")
-    .select("id, name, type, created_at, owner_id")
-    .in("id", groupIds);
+  const [groupsRes, allMembersRes, activeGroupId] = await Promise.all([
+    supabase
+      .from("groups")
+      .select("id, name, type, created_at, owner_id")
+      .in("id", groupIds),
+    supabase
+      .from("group_members")
+      .select("group_id, user_id")
+      .in("group_id", groupIds),
+    getActiveGroupIdFromDb().catch(() => null),
+  ]);
 
-  if (groupsError) throw groupsError;
+  if (groupsRes.error) throw groupsRes.error;
+  if (allMembersRes.error) throw allMembersRes.error;
 
   const membershipRank = new Map<string, number>();
-  (memberships ?? []).forEach((m: any, idx: number) => {
+  const myRoleByGroup = new Map<string, string | null>();
+
+  membershipRows.forEach((m: any, idx: number) => {
     const gid = String(m?.group_id ?? "").trim();
-    if (gid && !membershipRank.has(gid)) {
+    if (!gid) return;
+
+    if (!membershipRank.has(gid)) {
       membershipRank.set(gid, idx);
+    }
+
+    if (!myRoleByGroup.has(gid)) {
+      const role = String(m?.role ?? "").trim();
+      myRoleByGroup.set(gid, role || "member");
     }
   });
 
-  const rows = (groups ?? []).map(mapGroupRow);
+  const memberCountByGroup = new Map<string, number>();
+  const countRows = Array.isArray(allMembersRes.data) ? allMembersRes.data : [];
+
+  for (const row of countRows) {
+    const gid = String((row as any)?.group_id ?? "").trim();
+    const memberUserId = String((row as any)?.user_id ?? "").trim();
+
+    if (!gid || !memberUserId) continue;
+
+    memberCountByGroup.set(gid, (memberCountByGroup.get(gid) ?? 0) + 1);
+  }
+
+  const rows = (groupsRes.data ?? []).map((row: any) =>
+    mapGroupRow({
+      ...row,
+      role: myRoleByGroup.get(String(row?.id ?? "").trim()) ?? "member",
+      members_count: memberCountByGroup.get(String(row?.id ?? "").trim()) ?? 0,
+      is_active:
+        String(row?.id ?? "").trim() !== "" &&
+        String(row?.id ?? "").trim() === String(activeGroupId ?? "").trim(),
+    })
+  );
 
   rows.sort((a, b) => {
     const ra = membershipRank.get(String(a.id)) ?? 999_999;
@@ -211,13 +268,17 @@ export async function createGroup(input: {
 
     const msg = String((error as any)?.message ?? "").toLowerCase();
     const missingFunction =
-      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+      msg.includes("function") ||
+      msg.includes("rpc") ||
+      msg.includes("does not exist");
 
     if (!missingFunction) throw error;
   } catch (e: any) {
     const msg = String(e?.message ?? "").toLowerCase();
     const missingFunction =
-      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+      msg.includes("function") ||
+      msg.includes("rpc") ||
+      msg.includes("does not exist");
 
     if (!missingFunction) throw e;
   }
@@ -374,7 +435,9 @@ export async function leaveGroup(groupId: string): Promise<void> {
 
     const msg = String(error.message ?? "").toLowerCase();
     const missingFunction =
-      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+      msg.includes("function") ||
+      msg.includes("rpc") ||
+      msg.includes("does not exist");
 
     if (!missingFunction) {
       console.error("[leaveGroup] RPC error", error);
@@ -383,7 +446,9 @@ export async function leaveGroup(groupId: string): Promise<void> {
   } catch (e: any) {
     const msg = String(e?.message ?? "").toLowerCase();
     const missingFunction =
-      msg.includes("function") || msg.includes("rpc") || msg.includes("does not exist");
+      msg.includes("function") ||
+      msg.includes("rpc") ||
+      msg.includes("does not exist");
 
     if (!missingFunction) {
       throw e;
