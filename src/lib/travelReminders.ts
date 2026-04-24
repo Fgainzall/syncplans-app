@@ -200,17 +200,22 @@ function calculateLeaveTimeIso(
   ).toISOString();
 }
 
-function formatTimeEsPe(iso: string | null | undefined, fallback: string): string {
+function formatTimeEsPe(
+  iso: string | null | undefined,
+  fallback: string
+): string {
   if (!iso) return fallback;
+
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return fallback;
 
-  return date.toLocaleTimeString("es-PE", {
+  return new Intl.DateTimeFormat("es-PE", {
+    timeZone: "America/Lima",
     hour: "2-digit",
     minute: "2-digit",
-  });
+    hour12: true,
+  }).format(date);
 }
-
 function leaveAlertTitle(eventTitle: string | null): string {
   const cleanTitle = String(eventTitle ?? "").trim();
   if (!cleanTitle) return "Ya es momento de salir";
