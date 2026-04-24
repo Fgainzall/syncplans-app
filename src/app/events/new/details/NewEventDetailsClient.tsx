@@ -148,6 +148,7 @@ type LatLng = {
   lat: number;
   lng: number;
 };
+type OriginSource = "gps" | "stored" | "url" | "lima";
 const SMART_ORIGIN_STORAGE_KEY = "syncplans:last_origin_point";
 
 const DEFAULT_LIMA_ORIGIN: LatLng = {
@@ -645,8 +646,9 @@ function NewEventDetailsInner() {
   const locationSessionTokenRef = useRef(
     `sp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
   );
-  const originPointRef = useRef<LatLng | null>(null);
+const originPointRef = useRef<LatLng | null>(null);
 const [originPointVersion, setOriginPointVersion] = useState(0);
+const [originSource, setOriginSource] = useState<OriginSource>("lima");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<null | {
     title: string;
@@ -741,12 +743,16 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
 useEffect(() => {
   let cancelled = false;
 
-  const applyOrigin = (point: LatLng, persist = false) => {
+  const applyOrigin = (
+  point: LatLng,
+  persist = false,
+  source: OriginSource = "lima"
+) => {
     if (cancelled || !isUsableLatLng(point)) return;
 
     originPointRef.current = point;
     setOriginPointVersion((current) => current + 1);
-
+setOriginSource(source);
     if (persist) {
       storeOriginPoint(point);
       void persistLastKnownLocation(point);
@@ -759,7 +765,7 @@ useEffect(() => {
   };
 
   if (isUsableLatLng(paramOrigin)) {
-    applyOrigin(paramOrigin, true);
+    applyOrigin(paramOrigin, true, "url");
     return () => {
       cancelled = true;
     };
@@ -767,7 +773,7 @@ useEffect(() => {
 
   const storedOrigin = readStoredOriginPoint();
   if (storedOrigin) {
-    applyOrigin(storedOrigin, false);
+    applyOrigin(storedOrigin, false, "stored");
   } else {
     applyOrigin(DEFAULT_LIMA_ORIGIN, false);
   }
@@ -781,12 +787,12 @@ useEffect(() => {
         };
 
         if (isUsableLatLng(gpsOrigin)) {
-          applyOrigin(gpsOrigin, true);
+          applyOrigin(gpsOrigin, true, "gps");
         }
       },
       () => {
         if (!originPointRef.current) {
-          applyOrigin(DEFAULT_LIMA_ORIGIN, false);
+          applyOrigin(DEFAULT_LIMA_ORIGIN, false, "lima");
         }
       },
       {
@@ -835,6 +841,12 @@ const leaveTimeLabel = useMemo(
   () => getLeaveTimeLabel(leaveTimePreview),
   [leaveTimePreview]
 );
+const originSourceLabel = useMemo(() => {
+  if (originSource === "gps") return "Desde tu ubicación actual";
+  if (originSource === "stored") return "Desde tu última ubicación guardada";
+  if (originSource === "url") return "Desde el punto enviado";
+  return "Desde referencia Lima";
+}, [originSource]);
   const selectedGroup = useMemo(
     () => uniqueGroups.find((g) => g.id === selectedGroupId) || null,
     [uniqueGroups, selectedGroupId]
@@ -3050,7 +3062,10 @@ const handleSharePostSave = async () => {
       <span style={styles.travelMetaLabel}>Estado de ruta</span>
       <span style={styles.travelMetaValue}>{travelStatusLabel}</span>
     </div>
-
+<div style={styles.travelMetaRow}>
+  <span style={styles.travelMetaLabel}>Origen usado</span>
+  <span style={styles.travelMetaValue}>{originSourceLabel}</span>
+</div>
     <div style={styles.travelMetaRow}>
       <span style={styles.travelMetaLabel}>Duración estimada</span>
       <span style={styles.travelMetaValue}>
