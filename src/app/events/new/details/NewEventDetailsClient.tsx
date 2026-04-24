@@ -796,7 +796,7 @@ function NewEventDetailsInner() {
           };
 
           if (isUsableLatLng(gpsOrigin)) {
-            applyOrigin(gpsOrigin, true, "gps");
+           applyOrigin(gpsOrigin, false, "gps");
           }
         },
         () => {
@@ -1345,7 +1345,24 @@ function NewEventDetailsInner() {
       cancelled = true;
     };
   }, [selectedPlace, travelMode, startLocal, originPointVersion]);
+useEffect(() => {
+  if (!selectedPlace || !originPointRef.current) return;
 
+  const destinationPoint = {
+    lat: Number(selectedPlace.location_lat),
+    lng: Number(selectedPlace.location_lng),
+  };
+
+  if (!isUsableLatLng(destinationPoint)) return;
+
+  const safeOrigin = resolveSafeRouteOrigin(
+    originPointRef.current,
+    destinationPoint,
+  );
+
+  storeOriginPoint(safeOrigin);
+  void persistLastKnownLocation(safeOrigin);
+}, [selectedPlace, originPointVersion]);
   useEffect(() => {
     if (isEditing) return;
     if (quickCaptureHydratedRef.current) return;

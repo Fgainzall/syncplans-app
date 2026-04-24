@@ -159,7 +159,33 @@ function resolveEventDestination(eventRow: LeaveAlertEventRow): LatLng | null {
 
   return isValidLatLng(destination) ? destination : null;
 }
+function distanceKm(a: LatLng, b: LatLng) {
+  const toRad = (v: number) => (v * Math.PI) / 180;
 
+  const R = 6371;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+
+  const aa =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(a.lat)) *
+      Math.cos(toRad(b.lat)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
+  return R * c;
+}
+
+function resolveSafeRouteOrigin(origin: LatLng, destination: LatLng): LatLng {
+  const km = distanceKm(origin, destination);
+
+  if (km > 120) {
+    return DEFAULT_LIMA_ORIGIN;
+  }
+
+  return origin;
+}
 function calculateLeaveTimeIso(
   startIso: string | null,
   etaSeconds: number | null
@@ -370,10 +396,14 @@ async function recalculateLeaveTimeForEvent(input: {
   }
 
   const origin = resolveSmartOrigin(input.userSettings);
+  const safeOrigin = resolveSafeRouteOrigin(
+  origin.point,
+  destination,
+);
   const travelMode = normalizeCronTravelMode(input.eventRow.travel_mode);
 
   const route = await getRouteEta({
-    origin: origin.point,
+    origin: safeOrigin,
     destination,
     travelMode,
     departureTime: input.eventRow.start,
