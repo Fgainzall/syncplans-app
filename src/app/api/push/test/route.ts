@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import webpush from "web-push";
 import { supabaseServer } from "@/lib/supabaseServer";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -22,19 +23,8 @@ type WebPushSubscription = {
   };
 };
 
-function jsonResponse(payload: Record<string, unknown>, status = 200) {
+function json(payload: Record<string, unknown>, status = 200) {
   return NextResponse.json(payload, { status });
-}
-
-function jsonError(error: string, status = 400, details?: unknown) {
-  return jsonResponse(
-    {
-      ok: false,
-      error,
-      ...(details ? { details } : {}),
-    },
-    status,
-  );
 }
 
 function getErrorMessage(error: unknown): string {
@@ -64,19 +54,26 @@ function getVapidConfig() {
   if (!subject.startsWith("mailto:") && !subject.startsWith("https://")) {
     return {
       ok: false as const,
-      error: "Invalid VAPID_SUBJECT. Use mailto:correo@dominio.com or https://dominio.com.",
+      error:
+        "Invalid VAPID_SUBJECT. Use mailto:correo@dominio.com or https://dominio.com.",
     };
   }
 
-  return {
-    ok: true as const,
-    publicKey,
-    privateKey,
-    subject,
-  };
+  return { ok: true as const, publicKey, privateKey, subject };
 }
 
-function toSubscription(row: PushSubscriptionRow): WebPushSubscription | null {
+function hasValidSecret(req: Request) {
+  const expected = process.env.PUSH_TEST_SECRET?.trim();
+  if (!expected) return false;
+
+  const url = new URL(req.url);
+  const querySecret = url.searchParams.get("secret")?.trim();
+  const headerSecret = req.headers.get("x-push-test-secret")?.trim();
+
+  return querySecret === expected || headerSecret === expected;
+}
+
+function toWebPushSubscription(row: PushSubscriptionRow): WebPushSubscription | null {
   if (!row.endpoint || !row.p256dh || !row.auth) return null;
 
   return {
@@ -88,38 +85,24 @@ function toSubscription(row: PushSubscriptionRow): WebPushSubscription | null {
   };
 }
 
-function hasTestSecret(req: Request): boolean {
-  const expected = process.env.PUSH_TEST_SECRET?.trim();
-
-  // In production, if you set PUSH_TEST_SECRET, the endpoint can be tested from terminal:
-  // /api/push/test?secret=...
-  if (!expected) return false;
-
-  const url = new URL(req.url);
-  const fromQuery = url.searchParams.get("secret")?.trim();
-  const fromHeader = req.headers.get("x-push-test-secret")?.trim();
-
-  return fromQuery === expected || fromHeader === expected;
-}
-
-async function getRequestBody(req: Request) {
+async function parseOptionalBody(req: Request) {
   try {
     const contentType = req.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) return {};
+
     const parsed = (await req.json()) as unknown;
     if (!parsed || typeof parsed !== "object") return {};
+
     return parsed as Record<string, unknown>;
   } catch {
     return {};
   }
 }
 
-async function getLatestSubscriptions(req: Request) {
+async function getSubscriptions(req: Request) {
   const supabase = await supabaseServer();
 
-  // Option A: test from terminal with PUSH_TEST_SECRET.
-  // This sends to the latest subscriptions in the table, without needing browser cookies.
-  if (hasTestSecret(req)) {
+  if (hasValidSecret(req)) {
     const { data, error } = await supabase
       .from("push_subscriptions")
       .select("user_id,endpoint,p256dh,auth,updated_at")
@@ -130,20 +113,18 @@ async function getLatestSubscriptions(req: Request) {
       return {
         ok: false as const,
         status: 500,
-        error: "Could not read push subscriptions.",
+        error: "Could not read push_subscriptions.",
         details: error.message,
       };
     }
 
     return {
       ok: true as const,
-      rows: (data || []) as PushSubscriptionRow[],
       mode: "secret",
+      rows: (data || []) as PushSubscriptionRow[],
     };
   }
 
-  // Option B: test from browser while logged in.
-  // This only sends to the current user's subscriptions.
   const {
     data: { user },
     error: userError,
@@ -154,8 +135,8 @@ async function getLatestSubscriptions(req: Request) {
       ok: false as const,
       status: 401,
       error:
-        "Unauthorized. Open this endpoint from a logged-in browser session, or set PUSH_TEST_SECRET and call it with ?secret=...",
-      details: userError?.message,
+        "Unauthorized. Test from a logged-in browser or call with PUSH_TEST_SECRET using ?secret=...",
+      details: userError?.message || null,
     };
   }
 
@@ -170,50 +151,56 @@ async function getLatestSubscriptions(req: Request) {
     return {
       ok: false as const,
       status: 500,
-      error: "Could not read push subscriptions.",
+      error: "Could not read push_subscriptions.",
       details: error.message,
     };
   }
 
   return {
     ok: true as const,
-    rows: (data || []) as PushSubscriptionRow[],
     mode: "session",
+    rows: (data || []) as PushSubscriptionRow[],
   };
 }
 
-async function handlePushTest(req: Request) {
+async function handle(req: Request) {
   try {
     const vapid = getVapidConfig();
 
     if (!vapid.ok) {
-      return jsonError(vapid.error, 500);
+      return json({ ok: false, error: vapid.error }, 500);
     }
 
     webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
 
-    const subscriptionResult = await getLatestSubscriptions(req);
+    const subscriptionResult = await getSubscriptions(req);
 
     if (!subscriptionResult.ok) {
-      return jsonError(
-        subscriptionResult.error,
+      return json(
+        {
+          ok: false,
+          error: subscriptionResult.error,
+          details: subscriptionResult.details ?? null,
+        },
         subscriptionResult.status,
-        subscriptionResult.details,
       );
     }
 
     const subscriptions = subscriptionResult.rows
-      .map(toSubscription)
+      .map(toWebPushSubscription)
       .filter((subscription): subscription is WebPushSubscription => Boolean(subscription));
 
     if (subscriptions.length === 0) {
-      return jsonError(
-        "No valid push subscriptions found. Activate notifications first.",
+      return json(
+        {
+          ok: false,
+          error: "No valid push subscriptions found. Activate notifications first.",
+        },
         404,
       );
     }
 
-    const body = await getRequestBody(req);
+    const body = await parseOptionalBody(req);
 
     const title =
       typeof body.title === "string" && body.title.trim()
@@ -225,7 +212,7 @@ async function handlePushTest(req: Request) {
         ? body.body.trim()
         : "Push funcionando correctamente. Ya podemos conectarlo con las alertas de salida.";
 
-    const url =
+    const targetUrl =
       typeof body.url === "string" && body.url.trim()
         ? body.url.trim()
         : "/settings/notifications";
@@ -235,11 +222,11 @@ async function handlePushTest(req: Request) {
       body: message,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
-      url,
+      url: targetUrl,
       data: {
         type: "push_test",
         source: "api_push_test",
-        url,
+        url: targetUrl,
         createdAt: new Date().toISOString(),
       },
     });
@@ -263,7 +250,7 @@ async function handlePushTest(req: Request) {
             : "Unknown error",
       }));
 
-    return jsonResponse({
+    return json({
       ok: sent > 0,
       mode: subscriptionResult.mode,
       attempted: results.length,
@@ -272,14 +259,21 @@ async function handlePushTest(req: Request) {
       failures,
     });
   } catch (error) {
-    return jsonError("Unexpected push test error.", 500, getErrorMessage(error));
+    return json(
+      {
+        ok: false,
+        error: "Unexpected push test error.",
+        details: getErrorMessage(error),
+      },
+      500,
+    );
   }
 }
 
-export async function POST(req: Request) {
-  return handlePushTest(req);
+export async function GET(req: Request) {
+  return handle(req);
 }
 
-export async function GET(req: Request) {
-  return handlePushTest(req);
+export async function POST(req: Request) {
+  return handle(req);
 }
