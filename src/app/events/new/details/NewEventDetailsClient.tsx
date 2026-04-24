@@ -148,7 +148,62 @@ type LatLng = {
   lat: number;
   lng: number;
 };
+const SMART_ORIGIN_STORAGE_KEY = "syncplans:last_origin_point";
 
+const DEFAULT_LIMA_ORIGIN: LatLng = {
+  lat: -12.1097,
+  lng: -77.0359,
+};
+
+function isUsableLatLng(value: unknown): value is LatLng {
+  const point = value as LatLng | null;
+  return (
+    !!point &&
+    Number.isFinite(Number(point.lat)) &&
+    Number.isFinite(Number(point.lng)) &&
+    Number(point.lat) >= -90 &&
+    Number(point.lat) <= 90 &&
+    Number(point.lng) >= -180 &&
+    Number(point.lng) <= 180
+  );
+}
+
+function readStoredOriginPoint(): LatLng | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(SMART_ORIGIN_STORAGE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    const point = {
+      lat: Number(parsed?.lat),
+      lng: Number(parsed?.lng),
+    };
+
+    return isUsableLatLng(point) ? point : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeOriginPoint(point: LatLng) {
+  if (typeof window === "undefined") return;
+  if (!isUsableLatLng(point)) return;
+
+  try {
+    window.localStorage.setItem(
+      SMART_ORIGIN_STORAGE_KEY,
+      JSON.stringify({
+        lat: point.lat,
+        lng: point.lng,
+        updatedAt: new Date().toISOString(),
+      })
+    );
+  } catch {
+    // no-op
+  }
+}
 type SelectedPlace = {
   location_label: string;
   location_address: string;
@@ -481,7 +536,7 @@ function NewEventDetailsInner() {
     `sp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
   );
   const originPointRef = useRef<LatLng | null>(null);
-
+const [originPointVersion, setOriginPointVersion] = useState(0);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<null | {
     title: string;
@@ -573,15 +628,68 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     };
   }, []);
 
-  useEffect(() => {
-    const lat = Number(originLatParam);
-    const lng = Number(originLngParam);
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      originPointRef.current = { lat, lng };
-      return;
+useEffect(() => {
+  let cancelled = false;
+
+  const applyOrigin = (point: LatLng, persist = false) => {
+    if (cancelled || !isUsableLatLng(point)) return;
+
+    originPointRef.current = point;
+    setOriginPointVersion((current) => current + 1);
+
+    if (persist) {
+      storeOriginPoint(point);
     }
-    originPointRef.current = null;
-  }, [originLatParam, originLngParam]);
+  };
+
+  const paramOrigin = {
+    lat: Number(originLatParam),
+    lng: Number(originLngParam),
+  };
+
+  if (isUsableLatLng(paramOrigin)) {
+    applyOrigin(paramOrigin, true);
+    return () => {
+      cancelled = true;
+    };
+  }
+
+  const storedOrigin = readStoredOriginPoint();
+  if (storedOrigin) {
+    applyOrigin(storedOrigin, false);
+  } else {
+    applyOrigin(DEFAULT_LIMA_ORIGIN, false);
+  }
+
+  if (typeof navigator !== "undefined" && navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const gpsOrigin = {
+          lat: Number(position.coords.latitude),
+          lng: Number(position.coords.longitude),
+        };
+
+        if (isUsableLatLng(gpsOrigin)) {
+          applyOrigin(gpsOrigin, true);
+        }
+      },
+      () => {
+        if (!originPointRef.current) {
+          applyOrigin(DEFAULT_LIMA_ORIGIN, false);
+        }
+      },
+      {
+        enableHighAccuracy: false,
+        timeout: 4500,
+        maximumAge: 10 * 60 * 1000,
+      }
+    );
+  }
+
+  return () => {
+    cancelled = true;
+  };
+}, [originLatParam, originLngParam]);
 useEffect(() => {
   if (isEditing) return;
 
@@ -1044,7 +1152,7 @@ useEffect(() => {
     return () => {
       cancelled = true;
     };
-  }, [selectedPlace, travelMode, startLocal]);
+ }, [selectedPlace, travelMode, startLocal, originPointVersion]);
 
   useEffect(() => {
     if (isEditing) return;
