@@ -13,8 +13,8 @@
       "schedule": "0 12 * * *"
     },
     {
-      "path": "/api/cron/leave-alerts",
-      "schedule": "*/5 * * * *"
-    }
+  "path": "/api/cron/leave-alerts",
+  "schedule": "0 * * * *"
+}
   ]
 }
