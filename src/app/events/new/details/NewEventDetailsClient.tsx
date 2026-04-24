@@ -298,7 +298,21 @@ function safeIsoFromLocalDateInput(localValue: string): string | null {
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toISOString();
 }
+function getSafeRouteDepartureTime(startIso: string | null): string | null {
+  if (!startIso) return null;
 
+  const start = new Date(startIso);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const now = Date.now();
+  const minFuture = now + 5 * 60 * 1000;
+
+  if (start.getTime() <= minFuture) {
+    return new Date(minFuture).toISOString();
+  }
+
+  return start.toISOString();
+}
 function getConflictCounterpart(
   conflict: ReturnType<typeof computeVisibleConflicts>[number],
   candidateId: string
@@ -1177,7 +1191,7 @@ useEffect(() => {
               lng: destination.location_lng,
             },
             travelMode,
-            departureTime: startIso,
+            departureTime: getSafeRouteDepartureTime(startIso),
           }),
         });
 
