@@ -936,33 +936,38 @@ export async function getRouteEta(input: RouteEtaInput): Promise<RouteEtaResult>
     return immediate;
   }
 
-  const body: Record<string, unknown> = {
-    origin: {
-      location: {
-        latLng: {
-          latitude: origin.lat,
-          longitude: origin.lng,
-        },
+const body: Record<string, unknown> = {
+  origin: {
+    location: {
+      latLng: {
+        latitude: origin.lat,
+        longitude: origin.lng,
       },
     },
-    destination: {
-      location: {
-        latLng: {
-          latitude: destination.lat,
-          longitude: destination.lng,
-        },
+  },
+  destination: {
+    location: {
+      latLng: {
+        latitude: destination.lat,
+        longitude: destination.lng,
       },
     },
-    travelMode: mapTravelModeToGoogle(mode),
-    routingPreference: mode === "driving" ? "TRAFFIC_AWARE_OPTIMAL" : "TRAFFIC_UNAWARE",
-    computeAlternativeRoutes: false,
-    languageCode: "es",
-    units: "METRIC",
-  };
+  },
+  travelMode: mapTravelModeToGoogle(mode),
+  computeAlternativeRoutes: false,
+  languageCode: "es",
+  units: "METRIC",
+};
 
-  if (departureTime) {
-    body.departureTime = departureTime;
-  }
+if (mode === "driving") {
+  body.routingPreference = "TRAFFIC_AWARE_OPTIMAL";
+} else {
+  body.routingPreference = "TRAFFIC_UNAWARE";
+}
+
+if (departureTime && mode === "driving") {
+  body.departureTime = departureTime;
+}
 
   if (mode === "driving") {
     body.trafficModel = mapTrafficModelToGoogle(trafficModel);
