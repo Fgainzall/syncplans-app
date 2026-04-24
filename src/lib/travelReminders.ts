@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-
+import { getRouteEta, type TravelMode } from "@/lib/maps";
 export type LeaveAlertsSummary = {
   scanned: number;
   eligible: number;
@@ -14,6 +14,8 @@ type AdminClient = SupabaseClient;
 type UserSettingsRow = {
   user_id: string | null;
   event_reminders: boolean | null;
+  last_known_lat?: number | null;
+  last_known_lng?: number | null;
 };
 
 type ExistingLeaveAlertRow = {
@@ -27,13 +29,56 @@ type LeaveAlertEventRow = {
   user_id: string | null;
   start: string | null;
   leave_time: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  travel_mode?: string | null;
 };
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 export const LEAVE_ALERT_TYPE = "leave_alert";
+const DEFAULT_LIMA_ORIGIN = {
+  lat: -12.1097,
+  lng: -77.0359,
+};
 
+type LatLng = {
+  lat: number;
+  lng: number;
+};
+
+function isValidLatLng(point: LatLng | null | undefined): point is LatLng {
+  return (
+    !!point &&
+    Number.isFinite(Number(point.lat)) &&
+    Number.isFinite(Number(point.lng)) &&
+    Number(point.lat) >= -90 &&
+    Number(point.lat) <= 90 &&
+    Number(point.lng) >= -180 &&
+    Number(point.lng) <= 180
+  );
+}
+
+function resolveSmartOrigin(settings: UserSettingsRow | null): LatLng {
+  const lastKnown = {
+    lat: Number(settings?.last_known_lat),
+    lng: Number(settings?.last_known_lng),
+  };
+
+  if (isValidLatLng(lastKnown)) return lastKnown;
+
+  return DEFAULT_LIMA_ORIGIN;
+}
+
+function resolveEventDestination(eventRow: LeaveAlertEventRow): LatLng | null {
+  const destination = {
+    lat: Number(eventRow.location_lat),
+    lng: Number(eventRow.location_lng),
+  };
+
+  return isValidLatLng(destination) ? destination : null;
+}
 export function getAdminClient(): AdminClient {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error("Missing Supabase admin env vars");
@@ -46,7 +91,93 @@ export function getAdminClient(): AdminClient {
     },
   });
 }
+function normalizeCronTravelMode(value: string | null | undefined): TravelMode {
+  if (value === "walking") return "walking";
+  if (value === "bicycling") return "bicycling";
+  if (value === "transit") return "transit";
+  return "driving";
+}
 
+function calculateLeaveTimeIso(startIso: string | null, etaSeconds: number): string | null {
+  if (!startIso) return null;
+
+  const start = new Date(startIso);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const LEAVE_BUFFER_SECONDS = 5 * 60;
+  return new Date(
+    start.getTime() - etaSeconds * 1000 - LEAVE_BUFFER_SECONDS * 1000
+  ).toISOString();
+}
+
+async function recalculateLeaveTimeForEvent(input: {
+  client: AdminClient;
+  eventRow: LeaveAlertEventRow;
+  userSettings: UserSettingsRow | null;
+}): Promise<{
+  leaveTimeIso: string | null;
+  etaSeconds: number | null;
+  recalculated: boolean;
+}> {
+  const destination = resolveEventDestination(input.eventRow);
+  if (!destination) {
+    return {
+      leaveTimeIso: input.eventRow.leave_time,
+      etaSeconds: null,
+      recalculated: false,
+    };
+  }
+
+  const origin = resolveSmartOrigin(input.userSettings);
+  const travelMode = normalizeCronTravelMode(input.eventRow.travel_mode);
+
+  const route = await getRouteEta({
+    origin,
+    destination,
+    travelMode,
+    departureTime: input.eventRow.start,
+  });
+
+  const nextLeaveTimeIso = calculateLeaveTimeIso(
+    input.eventRow.start,
+    route.etaSeconds
+  );
+
+  if (!nextLeaveTimeIso) {
+    return {
+      leaveTimeIso: input.eventRow.leave_time,
+      etaSeconds: route.etaSeconds,
+      recalculated: false,
+    };
+  }
+
+  const previous = input.eventRow.leave_time
+    ? new Date(input.eventRow.leave_time).getTime()
+    : NaN;
+
+  const next = new Date(nextLeaveTimeIso).getTime();
+
+  const shouldUpdate =
+    Number.isFinite(next) &&
+    (!Number.isFinite(previous) || Math.abs(next - previous) > 60_000);
+
+  if (shouldUpdate) {
+    await input.client
+      .from("events")
+      .update({
+        travel_eta_seconds: route.etaSeconds,
+        leave_time: nextLeaveTimeIso,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.eventRow.id);
+  }
+
+  return {
+    leaveTimeIso: nextLeaveTimeIso,
+    etaSeconds: route.etaSeconds,
+    recalculated: true,
+  };
+}
 function isoMinutesFromNow(minutes: number): string {
   return new Date(Date.now() + minutes * 60 * 1000).toISOString();
 }
@@ -83,7 +214,7 @@ async function getCandidateEvents(
 
   const { data, error } = await client
     .from("events")
-    .select("id, title, user_id, start, leave_time")
+    .select("id, title, user_id, start, leave_time, location_lat, location_lng, travel_mode")
     .not("leave_time", "is", null)
     .gte("leave_time", nowIso)
     .lte("leave_time", upperIso)
@@ -94,30 +225,28 @@ async function getCandidateEvents(
   return ((data ?? []) as LeaveAlertEventRow[]).filter((row) => !!row.user_id);
 }
 
-async function getUsersWithEventRemindersEnabled(
+async function getUserSettingsByUserId(
   client: AdminClient,
   userIds: string[]
-): Promise<Set<string>> {
-  if (userIds.length === 0) return new Set<string>();
+): Promise<Map<string, UserSettingsRow>> {
+  if (userIds.length === 0) return new Map<string, UserSettingsRow>();
 
   const { data, error } = await client
     .from("user_settings")
-    .select("user_id, event_reminders")
+    .select("user_id, event_reminders, last_known_lat, last_known_lng")
     .in("user_id", userIds);
 
   if (error) throw error;
 
-  const enabled = new Set<string>();
+  const byUserId = new Map<string, UserSettingsRow>();
 
   for (const row of (data ?? []) as UserSettingsRow[]) {
     const userId = String(row.user_id ?? "").trim();
     if (!userId) continue;
-
-    const remindersEnabled = row.event_reminders !== false;
-    if (remindersEnabled) enabled.add(userId);
+    byUserId.set(userId, row);
   }
 
-  return enabled;
+  return byUserId;
 }
 
 async function getAlreadySentKeys(
@@ -177,10 +306,10 @@ export async function runLeaveAlerts(
     new Set(events.map((e) => String(e.id ?? "").trim()).filter(Boolean))
   );
 
-  const [enabledUsers, alreadySentKeys] = await Promise.all([
-    getUsersWithEventRemindersEnabled(client, userIds),
-    getAlreadySentKeys(client, userIds, eventIds),
-  ]);
+const [settingsByUserId, alreadySentKeys] = await Promise.all([
+  getUserSettingsByUserId(client, userIds),
+  getAlreadySentKeys(client, userIds, eventIds),
+]);
 
   const rowsToInsert: Array<Record<string, unknown>> = [];
 
@@ -190,10 +319,12 @@ export async function runLeaveAlerts(
 
     if (!userId || !eventId) continue;
 
-    if (!enabledUsers.has(userId)) {
-      summary.skippedSettings += 1;
-      continue;
-    }
+  const userSettings = settingsByUserId.get(userId) ?? null;
+
+if (userSettings?.event_reminders === false) {
+  summary.skippedSettings += 1;
+  continue;
+}
 
     const dedupeKey = `${userId}:${eventId}`;
     if (alreadySentKeys.has(dedupeKey)) {
@@ -201,20 +332,45 @@ export async function runLeaveAlerts(
       continue;
     }
 
-    summary.eligible += 1;
-    rowsToInsert.push({
-      user_id: userId,
-      type: LEAVE_ALERT_TYPE,
-      title: leaveAlertTitle(eventRow.title),
-      body: leaveAlertBody(eventRow.start, eventRow.leave_time),
-      entity_id: eventId,
-      payload: {
-        source: "cron_leave_alerts",
-        event_id: eventId,
-        leave_time: eventRow.leave_time,
-        event_start: eventRow.start,
-      },
-    });
+let recalculatedLeaveTimeIso = eventRow.leave_time;
+let recalculatedEtaSeconds: number | null = null;
+let recalculated = false;
+
+try {
+  const result = await recalculateLeaveTimeForEvent({
+    client,
+    eventRow,
+    userSettings,
+  });
+
+  recalculatedLeaveTimeIso = result.leaveTimeIso;
+  recalculatedEtaSeconds = result.etaSeconds;
+  recalculated = result.recalculated;
+} catch (error) {
+  summary.errors += 1;
+  console.error("[travelReminders] ETA recalculation failed", {
+    eventId,
+    userId,
+    error,
+  });
+}
+
+summary.eligible += 1;
+rowsToInsert.push({
+  user_id: userId,
+  type: LEAVE_ALERT_TYPE,
+  title: leaveAlertTitle(eventRow.title),
+  body: leaveAlertBody(eventRow.start, recalculatedLeaveTimeIso),
+  entity_id: eventId,
+  payload: {
+    source: "cron_leave_alerts",
+    event_id: eventId,
+    leave_time: recalculatedLeaveTimeIso,
+    event_start: eventRow.start,
+    eta_seconds: recalculatedEtaSeconds,
+    recalculated,
+  },
+});
   }
 
   if (rowsToInsert.length === 0) return summary;
