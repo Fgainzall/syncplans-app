@@ -102,7 +102,7 @@ export default function NotificationsDrawer({
     ]);
 
     const syntheticInvites = (invites ?? []).map(inviteToNotificationRow);
-    return [...syntheticInvites, ...(notifs ?? [])];
+    return sortNotificationsForDrawer([...syntheticInvites, ...(notifs ?? [])]);
   }
 
   useEffect(() => {
@@ -169,8 +169,55 @@ export default function NotificationsDrawer({
   function actionLabelFor(n: NotificationRow): string {
     const type = String(n.type || "").toLowerCase();
     if (type === "group_invite") return "Ver invitación";
-    if (type === "leave_alert") return "Ver ruta";
+    if (type === "leave_alert") return "Abrir ruta";
     return "Abrir";
+  }
+
+  function travelModeLabel(value: unknown): string | null {
+    const mode = String(value ?? "").toLowerCase();
+    if (mode === "driving") return "Auto";
+    if (mode === "walking") return "A pie";
+    if (mode === "bicycling") return "Bici";
+    if (mode === "transit") return "Transporte";
+    return null;
+  }
+
+  function travelModeMessage(value: unknown): string {
+    const mode = String(value ?? "").toLowerCase();
+    if (mode === "walking") return "Es buen momento para empezar a caminar.";
+    if (mode === "bicycling") return "Sal ahora para llegar con margen en bici.";
+    if (mode === "transit") return "Te conviene salir ahora por tiempos de traslado.";
+    return "El tráfico actual sugiere salir ahora.";
+  }
+
+  function originSourceLabel(value: unknown): string | null {
+    const source = String(value ?? "").toLowerCase();
+    if (source === "last_known") return "Ubicación guardada";
+    if (source === "fallback_lima") return "Referencia Lima";
+    if (source === "gps") return "Ubicación actual";
+    if (source === "url") return "Punto enviado";
+    return null;
+  }
+
+  function etaLabel(value: unknown): string | null {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds) || seconds <= 0) return null;
+    const minutes = Math.max(1, Math.round(seconds / 60));
+    if (minutes < 60) return `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return rest ? `${hours} h ${rest} min` : `${hours} h`;
+  }
+
+  function shortTimeLabel(value: unknown, fallback: string): string {
+    const raw = String(value ?? "").trim();
+    if (!raw) return fallback;
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return fallback;
+    return date.toLocaleTimeString("es-PE", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
 
   function titleFor(n: NotificationRow) {
@@ -198,9 +245,13 @@ export default function NotificationsDrawer({
     }
 
     if (t === "leave_alert") {
+      const payload = (n.payload || {}) as any;
+      const eventTitle = String(payload.event_title ?? "").trim();
       const cleanTitle = String(n.title ?? "").trim();
+
       if (cleanTitle) return cleanTitle;
-      return "Es momento de salir";
+      if (eventTitle) return `Ya es momento de salir: ${eventTitle}`;
+      return "Ya es momento de salir";
     }
 
     if (t === "event_rejected") {
@@ -260,33 +311,18 @@ export default function NotificationsDrawer({
 
     if (t === "leave_alert") {
       const payload = (n.payload || {}) as any;
-      const leaveTime = String(payload.leave_time ?? "").trim();
-      const eventStart = String(payload.event_start ?? "").trim();
-      const leaveDate = leaveTime ? new Date(leaveTime) : null;
-      const startDate = eventStart ? new Date(eventStart) : null;
+      const leaveText = shortTimeLabel(payload.leave_time, "ahora");
+      const startText = shortTimeLabel(payload.event_start, "pronto");
+      const destination = String(
+        payload.destination_label || payload.destination_address || "el destino"
+      ).trim();
+      const eta = etaLabel(payload.eta_seconds);
+      const modeMessage = travelModeMessage(payload.travel_mode);
 
-      const leaveText =
-        leaveDate && !Number.isNaN(leaveDate.getTime())
-          ? leaveDate.toLocaleTimeString("es-PE", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : "ahora";
-
-      const startText =
-        startDate && !Number.isNaN(startDate.getTime())
-          ? startDate.toLocaleTimeString("es-PE", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : null;
-
-      if (n.body) return n.body;
-      if (startText) {
-        return `Salida sugerida ${leaveText}. Tu evento empieza a las ${startText}.`;
-      }
-      return `Salida sugerida ${leaveText}.`;
+      const etaText = eta ? ` Tardarás aprox. ${eta}.` : "";
+      return `${modeMessage} Salida sugerida: ${leaveText} hacia ${destination}. Tu evento empieza a las ${startText}.${etaText}`;
     }
+
 
     if (t === "event_rejected") {
       const payload = (n.payload || {}) as any;
@@ -335,7 +371,7 @@ export default function NotificationsDrawer({
     if (t === "conflict_decision") return "Decisión aplicada";
     if (t === "conflict_auto_adjusted") return "Ajuste automático";
     if (t === "event_created" || t === "event_deleted") return "Evento";
-    if (t === "leave_alert") return "Hora de salir";
+    if (t === "leave_alert") return "Salida inteligente";
     if (t === "event_rejected") return "Decisión";
     if (t === "group_message") return "Mensaje";
     if (t === "group_invite") return "Invitación";
@@ -372,8 +408,8 @@ export default function NotificationsDrawer({
     if (t === "leave_alert") {
       return {
         dot: "#22D3EE",
-        border: "rgba(34,211,238,0.30)",
-        bg: "linear-gradient(180deg, rgba(8,145,178,0.22), rgba(255,255,255,0.04))",
+        border: "rgba(34,211,238,0.42)",
+        bg: "linear-gradient(180deg, rgba(8,145,178,0.30), rgba(15,23,42,0.78))",
       };
     }
 
@@ -700,8 +736,17 @@ export default function NotificationsDrawer({
                                 {type === "conflict_auto_adjusted" && payload.affected_event_title && (
                                   <span style={metaPill}>{payload.affected_event_title}</span>
                                 )}
+                                {type === "leave_alert" && travelModeLabel(payload.travel_mode) && (
+                                  <span style={metaPill}>{travelModeLabel(payload.travel_mode)}</span>
+                                )}
+                                {type === "leave_alert" && etaLabel(payload.eta_seconds) && (
+                                  <span style={metaPill}>ETA {etaLabel(payload.eta_seconds)}</span>
+                                )}
                                 {type === "leave_alert" && payload.leave_time && (
-                                  <span style={metaPill}>Salida sugerida</span>
+                                  <span style={metaPill}>Salir {shortTimeLabel(payload.leave_time, "ahora")}</span>
+                                )}
+                                {type === "leave_alert" && originSourceLabel(payload.origin_source) && (
+                                  <span style={metaPill}>{originSourceLabel(payload.origin_source)}</span>
                                 )}
                               </div>
                             </div>
@@ -719,7 +764,9 @@ export default function NotificationsDrawer({
                             onClick={() => void onOpenNotification(n)}
                             disabled={isBusy}
                             style={{
-                              ...primaryRowBtn,
+                              ...(type === "leave_alert"
+                                ? leaveAlertPrimaryBtn
+                                : primaryRowBtn),
                               ...(isMobile ? mobileActionBtn : null),
                             }}
                           >
@@ -774,7 +821,30 @@ export default function NotificationsDrawer({
   );
 }
 
+function sortNotificationsForDrawer(items: NotificationRow[]) {
+  return [...items].sort((a, b) => {
+    const aType = String(a.type || "").toLowerCase();
+    const bType = String(b.type || "").toLowerCase();
+
+    const priority = (type: string) => {
+      if (type === "leave_alert") return 0;
+      if (type === "group_invite") return 1;
+      if (type === "conflict" || type === "conflict_detected") return 2;
+      return 3;
+    };
+
+    const byPriority = priority(aType) - priority(bType);
+    if (byPriority !== 0) return byPriority;
+
+    const aTime = new Date(a.created_at).getTime();
+    const bTime = new Date(b.created_at).getTime();
+    return (Number.isFinite(bTime) ? bTime : 0) -
+      (Number.isFinite(aTime) ? aTime : 0);
+  });
+}
+
 function SkeletonList() {
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {Array.from({ length: 4 }).map((_, idx) => (
@@ -1024,7 +1094,20 @@ const primaryRowBtn: React.CSSProperties = {
   fontWeight: 800,
 };
 
+const leaveAlertPrimaryBtn: React.CSSProperties = {
+  minHeight: 40,
+  padding: "9px 13px",
+  borderRadius: 12,
+  border: "1px solid rgba(34,211,238,0.52)",
+  background:
+    "linear-gradient(135deg, rgba(34,211,238,0.28), rgba(59,130,246,0.24))",
+  color: "rgba(255,255,255,0.98)",
+  fontSize: 13,
+  fontWeight: 900,
+};
+
 const secondaryRowBtn: React.CSSProperties = {
+
   minHeight: 40,
   padding: "9px 13px",
   borderRadius: 12,
