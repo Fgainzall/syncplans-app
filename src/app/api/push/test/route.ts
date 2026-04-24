@@ -1,35 +1,35 @@
 // src/app/api/push/test/route.ts
 import { NextResponse } from "next/server";
 import webpush from "web-push";
-import { supabaseServer } from "@/lib/supabaseServer";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type PushSubscriptionRow = {
-  user_id: string | null;
+  id?: string | null;
+  user_id?: string | null;
   endpoint: string | null;
   p256dh: string | null;
   auth: string | null;
-  updated_at: string | null;
+  updated_at?: string | null;
 };
 
-type WebPushSubscription = {
-  endpoint: string;
-  keys: {
-    p256dh: string;
-    auth: string;
-  };
+type PushBody = {
+  title?: string;
+  body?: string;
+  url?: string;
 };
 
-function json(payload: Record<string, unknown>, status = 200) {
+function response(payload: Record<string, unknown>, status = 200) {
   return NextResponse.json(payload, { status });
 }
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
+
   try {
     return JSON.stringify(error);
   } catch {
@@ -37,43 +37,66 @@ function getErrorMessage(error: unknown): string {
   }
 }
 
-function getVapidConfig() {
-  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
-  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
-  const subject =
+function getEnv() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+
+  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
+  const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+  const vapidSubject =
     process.env.VAPID_SUBJECT?.trim() || "mailto:no-reply@syncplansapp.com";
 
-  if (!publicKey) {
-    return { ok: false as const, error: "Missing NEXT_PUBLIC_VAPID_PUBLIC_KEY." };
-  }
+  const pushTestSecret = process.env.PUSH_TEST_SECRET?.trim();
 
-  if (!privateKey) {
-    return { ok: false as const, error: "Missing VAPID_PRIVATE_KEY." };
-  }
+  const missing: string[] = [];
 
-  if (!subject.startsWith("mailto:") && !subject.startsWith("https://")) {
-    return {
-      ok: false as const,
-      error:
-        "Invalid VAPID_SUBJECT. Use mailto:correo@dominio.com or https://dominio.com.",
-    };
-  }
+  if (!supabaseUrl) missing.push("NEXT_PUBLIC_SUPABASE_URL");
+  if (!serviceRoleKey) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  if (!vapidPublicKey) missing.push("NEXT_PUBLIC_VAPID_PUBLIC_KEY");
+  if (!vapidPrivateKey) missing.push("VAPID_PRIVATE_KEY");
+  if (!pushTestSecret) missing.push("PUSH_TEST_SECRET");
 
-  return { ok: true as const, publicKey, privateKey, subject };
+  return {
+    ok: missing.length === 0,
+    missing,
+    supabaseUrl,
+    serviceRoleKey,
+    vapidPublicKey,
+    vapidPrivateKey,
+    vapidSubject,
+    pushTestSecret,
+  };
 }
 
-function hasValidSecret(req: Request) {
-  const expected = process.env.PUSH_TEST_SECRET?.trim();
-  if (!expected) return false;
-
+function isAuthorized(req: Request, expectedSecret: string) {
   const url = new URL(req.url);
   const querySecret = url.searchParams.get("secret")?.trim();
   const headerSecret = req.headers.get("x-push-test-secret")?.trim();
 
-  return querySecret === expected || headerSecret === expected;
+  return querySecret === expectedSecret || headerSecret === expectedSecret;
 }
 
-function toWebPushSubscription(row: PushSubscriptionRow): WebPushSubscription | null {
+async function parseBody(req: Request): Promise<PushBody> {
+  try {
+    const contentType = req.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) return {};
+
+    const parsed = (await req.json()) as unknown;
+    if (!parsed || typeof parsed !== "object") return {};
+
+    const record = parsed as Record<string, unknown>;
+
+    return {
+      title: typeof record.title === "string" ? record.title : undefined,
+      body: typeof record.body === "string" ? record.body : undefined,
+      url: typeof record.url === "string" ? record.url : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function toWebPushSubscription(row: PushSubscriptionRow) {
   if (!row.endpoint || !row.p256dh || !row.auth) return null;
 
   return {
@@ -85,159 +108,125 @@ function toWebPushSubscription(row: PushSubscriptionRow): WebPushSubscription | 
   };
 }
 
-async function parseOptionalBody(req: Request) {
+async function handler(req: Request) {
   try {
-    const contentType = req.headers.get("content-type") || "";
-    if (!contentType.includes("application/json")) return {};
+    const env = getEnv();
 
-    const parsed = (await req.json()) as unknown;
-    if (!parsed || typeof parsed !== "object") return {};
-
-    return parsed as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
-
-async function getSubscriptions(req: Request) {
-  const supabase = await supabaseServer();
-
-  if (hasValidSecret(req)) {
-    const { data, error } = await supabase
-      .from("push_subscriptions")
-      .select("user_id,endpoint,p256dh,auth,updated_at")
-      .order("updated_at", { ascending: false })
-      .limit(5);
-
-    if (error) {
-      return {
-        ok: false as const,
-        status: 500,
-        error: "Could not read push_subscriptions.",
-        details: error.message,
-      };
-    }
-
-    return {
-      ok: true as const,
-      mode: "secret",
-      rows: (data || []) as PushSubscriptionRow[],
-    };
-  }
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return {
-      ok: false as const,
-      status: 401,
-      error:
-        "Unauthorized. Test from a logged-in browser or call with PUSH_TEST_SECRET using ?secret=...",
-      details: userError?.message || null,
-    };
-  }
-
-  const { data, error } = await supabase
-    .from("push_subscriptions")
-    .select("user_id,endpoint,p256dh,auth,updated_at")
-    .eq("user_id", user.id)
-    .order("updated_at", { ascending: false })
-    .limit(5);
-
-  if (error) {
-    return {
-      ok: false as const,
-      status: 500,
-      error: "Could not read push_subscriptions.",
-      details: error.message,
-    };
-  }
-
-  return {
-    ok: true as const,
-    mode: "session",
-    rows: (data || []) as PushSubscriptionRow[],
-  };
-}
-
-async function handle(req: Request) {
-  try {
-    const vapid = getVapidConfig();
-
-    if (!vapid.ok) {
-      return json({ ok: false, error: vapid.error }, 500);
-    }
-
-    webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
-
-    const subscriptionResult = await getSubscriptions(req);
-
-    if (!subscriptionResult.ok) {
-      return json(
+    if (!env.ok) {
+      return response(
         {
           ok: false,
-          error: subscriptionResult.error,
-          details: subscriptionResult.details ?? null,
+          error: "Missing required environment variables.",
+          missing: env.missing,
         },
-        subscriptionResult.status,
+        500,
       );
     }
 
-    const subscriptions = subscriptionResult.rows
-      .map(toWebPushSubscription)
-      .filter((subscription): subscription is WebPushSubscription => Boolean(subscription));
-
-    if (subscriptions.length === 0) {
-      return json(
+    if (!isAuthorized(req, env.pushTestSecret!)) {
+      return response(
         {
           ok: false,
-          error: "No valid push subscriptions found. Activate notifications first.",
+          error: "Unauthorized. Invalid PUSH_TEST_SECRET.",
+        },
+        401,
+      );
+    }
+
+    if (
+      !env.vapidSubject.startsWith("mailto:") &&
+      !env.vapidSubject.startsWith("https://")
+    ) {
+      return response(
+        {
+          ok: false,
+          error:
+            "Invalid VAPID_SUBJECT. Use mailto:correo@dominio.com or https://dominio.com.",
+        },
+        500,
+      );
+    }
+
+    const supabase = createClient(env.supabaseUrl!, env.serviceRoleKey!, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+
+    const { data, error } = await supabase
+      .from("push_subscriptions")
+      .select("id,user_id,endpoint,p256dh,auth,updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(10);
+
+    if (error) {
+      return response(
+        {
+          ok: false,
+          error: "Could not read push_subscriptions.",
+          details: error.message,
+        },
+        500,
+      );
+    }
+
+    const rows = ((data || []) as PushSubscriptionRow[]).filter(
+      (row) => row.endpoint && row.p256dh && row.auth,
+    );
+
+    if (rows.length === 0) {
+      return response(
+        {
+          ok: false,
+          error: "No valid push subscriptions found.",
+          totalRowsRead: data?.length || 0,
+          hint:
+            "Go to /settings/notifications, activate push again, and confirm a fresh row exists in push_subscriptions.",
         },
         404,
       );
     }
 
-    const body = await parseOptionalBody(req);
+    webpush.setVapidDetails(
+      env.vapidSubject,
+      env.vapidPublicKey!,
+      env.vapidPrivateKey!,
+    );
 
-    const title =
-      typeof body.title === "string" && body.title.trim()
-        ? body.title.trim()
-        : "SyncPlans";
+    const body = await parseBody(req);
 
+    const title = body.title?.trim() || "SyncPlans";
     const message =
-      typeof body.body === "string" && body.body.trim()
-        ? body.body.trim()
-        : "Push funcionando correctamente. Ya podemos conectarlo con las alertas de salida.";
-
-    const targetUrl =
-      typeof body.url === "string" && body.url.trim()
-        ? body.url.trim()
-        : "/settings/notifications";
+      body.body?.trim() ||
+      "Push funcionando correctamente. Ya podemos conectarlo con las alertas de salida.";
+    const url = body.url?.trim() || "/settings/notifications";
 
     const payload = JSON.stringify({
       title,
       body: message,
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
-      url: targetUrl,
+      url,
       data: {
         type: "push_test",
         source: "api_push_test",
-        url: targetUrl,
+        url,
         createdAt: new Date().toISOString(),
       },
     });
+
+    const subscriptions = rows
+      .map(toWebPushSubscription)
+      .filter((sub): sub is NonNullable<ReturnType<typeof toWebPushSubscription>> =>
+        Boolean(sub),
+      );
 
     const results = await Promise.allSettled(
       subscriptions.map((subscription) =>
         webpush.sendNotification(subscription, payload),
       ),
     );
-
-    const sent = results.filter((result) => result.status === "fulfilled").length;
 
     const failures = results
       .map((result, index) => ({ result, index }))
@@ -247,19 +236,20 @@ async function handle(req: Request) {
         message:
           result.status === "rejected"
             ? getErrorMessage(result.reason)
-            : "Unknown error",
+            : "Unknown push error",
       }));
 
-    return json({
+    const sent = results.length - failures.length;
+
+    return response({
       ok: sent > 0,
-      mode: subscriptionResult.mode,
       attempted: results.length,
       sent,
       failed: failures.length,
       failures,
     });
   } catch (error) {
-    return json(
+    return response(
       {
         ok: false,
         error: "Unexpected push test error.",
@@ -270,10 +260,10 @@ async function handle(req: Request) {
   }
 }
 
-export async function GET(req: Request) {
-  return handle(req);
+export async function POST(req: Request) {
+  return handler(req);
 }
 
-export async function POST(req: Request) {
-  return handle(req);
+export async function GET(req: Request) {
+  return handler(req);
 }
