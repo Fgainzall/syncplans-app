@@ -258,12 +258,22 @@ type SavePayload = {
   leave_time: string | null;
 };
 
+const MAX_REASONABLE_ETA_SECONDS = 6 * 60 * 60;
+
+function isReasonableEtaSeconds(value: unknown): value is number {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 && n <= MAX_REASONABLE_ETA_SECONDS;
+}
+
 function formatEtaLabel(etaSeconds: number | null) {
-  if (!etaSeconds || etaSeconds <= 0) return null;
+  if (!isReasonableEtaSeconds(etaSeconds)) return null;
+
   const minutes = Math.max(1, Math.round(etaSeconds / 60));
   if (minutes < 60) return `${minutes} min`;
+
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
+
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
 }
 
@@ -1164,9 +1174,16 @@ useEffect(() => {
           return;
         }
 
-        const eta = Number(data?.etaSeconds);
-        setEtaSeconds(Number.isFinite(eta) ? Math.max(0, Math.round(eta)) : null);
-        setEtaError(null);
+       const eta = Number(data?.etaSeconds);
+
+if (!isReasonableEtaSeconds(eta)) {
+  setEtaSeconds(null);
+  setEtaError("No pudimos calcular una ruta razonable para este trayecto.");
+  return;
+}
+
+setEtaSeconds(Math.round(eta));
+setEtaError(null);
       } catch {
         if (cancelled || requestId !== etaRequestRef.current) return;
         setEtaError("No pudimos calcular la duración en este momento.");
@@ -2187,9 +2204,14 @@ const buildSavePayload = (): SavePayload => ({
   location_provider: selectedPlace?.location_provider ?? null,
   location_place_id: selectedPlace?.location_place_id ?? null,
   travel_mode: selectedPlace ? travelMode : null,
-  travel_eta_seconds:
-    selectedPlace && Number.isFinite(etaSeconds) ? Number(etaSeconds) : null,
-  leave_time: leaveTimePreview ? leaveTimePreview.toISOString() : null,
+travel_eta_seconds:
+  selectedPlace && isReasonableEtaSeconds(etaSeconds)
+    ? Math.round(Number(etaSeconds))
+    : null,
+leave_time:
+  selectedPlace && isReasonableEtaSeconds(etaSeconds) && leaveTimePreview
+    ? leaveTimePreview.toISOString()
+    : null,
 });
 
 const doSave = async (
