@@ -54,6 +54,7 @@ import {
   getLearnedGroupMatch,
   learnGroupSelection,
 } from "@/lib/groupLearning";
+import { buildGoogleMapsDirectionsLink, buildWazeLink } from "@/lib/maps";
 
 /* -------------------------------------------------------------------------- */
 /* Helpers locales puros                                                       */
@@ -65,7 +66,7 @@ function pad2(n: number) {
 
 function toInputLocal(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(
-    d.getDate()
+    d.getDate(),
   )}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
@@ -148,6 +149,7 @@ type LatLng = {
   lat: number;
   lng: number;
 };
+
 type OriginSource = "gps" | "stored" | "url" | "lima";
 const SMART_ORIGIN_STORAGE_KEY = "syncplans:last_origin_point";
 
@@ -168,6 +170,7 @@ function isUsableLatLng(value: unknown): value is LatLng {
     Number(point.lng) <= 180
   );
 }
+
 function distanceKm(a: LatLng, b: LatLng) {
   const R = 6371;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -188,12 +191,12 @@ function resolveSafeRouteOrigin(origin: LatLng, destination: LatLng): LatLng {
 
   if (!Number.isFinite(km)) return DEFAULT_LIMA_ORIGIN;
 
-  // Para MVP Perú: si el origen está absurdamente lejos del destino,
-  // usamos Lima como fallback seguro.
+  // MVP Perú: si el origen está absurdamente lejos del destino, usamos Lima como fallback seguro.
   if (km > 300) return DEFAULT_LIMA_ORIGIN;
 
   return origin;
 }
+
 function readStoredOriginPoint(): LatLng | null {
   if (typeof window === "undefined") return null;
 
@@ -210,14 +213,11 @@ function readStoredOriginPoint(): LatLng | null {
 
     if (!isUsableLatLng(point)) return null;
 
-    // 🔥 Validación anti coordenadas absurdas
-    const distanceFromLima =
-      Math.sqrt(
-        Math.pow(point.lat - DEFAULT_LIMA_ORIGIN.lat, 2) +
-        Math.pow(point.lng - DEFAULT_LIMA_ORIGIN.lng, 2)
-      );
+    const distanceFromLima = Math.sqrt(
+      Math.pow(point.lat - DEFAULT_LIMA_ORIGIN.lat, 2) +
+        Math.pow(point.lng - DEFAULT_LIMA_ORIGIN.lng, 2),
+    );
 
-    // aprox > 5 grados = sospechoso para tu caso actual
     if (distanceFromLima > 5) {
       window.localStorage.removeItem(SMART_ORIGIN_STORAGE_KEY);
       return null;
@@ -240,7 +240,7 @@ function storeOriginPoint(point: LatLng) {
         lat: point.lat,
         lng: point.lng,
         updatedAt: new Date().toISOString(),
-      })
+      }),
     );
   } catch {
     // no-op
@@ -318,6 +318,7 @@ function formatEtaLabel(etaSeconds: number | null) {
 
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
 }
+
 function getTravelStatusLabel(input: {
   isLoadingEta: boolean;
   etaLabel: string | null;
@@ -337,19 +338,14 @@ function getLeaveTimeLabel(leaveTimePreview: Date | null) {
     minute: "2-digit",
   });
 }
-function safeIsoFromLocalDateInput(localValue: string): string | null {
-  const parsed = new Date(localValue);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString();
-}
+
 function getSafeRouteDepartureTime(startIso: string | null): string | null {
   if (!startIso) return null;
 
   const start = new Date(startIso);
   if (Number.isNaN(start.getTime())) return null;
 
-  const now = Date.now();
-  const minFuture = now + 5 * 60 * 1000;
+  const minFuture = Date.now() + 5 * 60 * 1000;
 
   if (start.getTime() <= minFuture) {
     return new Date(minFuture).toISOString();
@@ -357,9 +353,16 @@ function getSafeRouteDepartureTime(startIso: string | null): string | null {
 
   return start.toISOString();
 }
+
+function safeIsoFromLocalDateInput(localValue: string): string | null {
+  const parsed = new Date(localValue);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
 function getConflictCounterpart(
   conflict: ReturnType<typeof computeVisibleConflicts>[number],
-  candidateId: string
+  candidateId: string,
 ) {
   const existingId = String(conflict.existingEventId ?? "");
   const incomingId = String(conflict.incomingEventId ?? "");
@@ -382,7 +385,7 @@ function getConflictCounterpart(
 }
 
 function mapDefaultResolutionToChoice(
-  s: NotificationSettings | null
+  s: NotificationSettings | null,
 ): PreflightChoice {
   const def = (s as any)?.conflictDefaultResolution ?? "ask_me";
   if (def === "keep_existing") return "keep_existing";
@@ -432,7 +435,7 @@ function buildPostSaveFingerprint(input: {
 }
 
 function decisionTypeFromPreflightChoice(
-  choice: Exclude<PreflightChoice, "edit">
+  choice: Exclude<PreflightChoice, "edit">,
 ): string {
   if (choice === "keep_existing") return "keep_existing";
   if (choice === "replace_with_new") return "replace_with_new";
@@ -440,17 +443,14 @@ function decisionTypeFromPreflightChoice(
 }
 
 function finalActionFromPreflightChoice(
-  choice: Exclude<PreflightChoice, "edit">
+  choice: Exclude<PreflightChoice, "edit">,
 ): string {
   if (choice === "keep_existing") return "keep_existing";
   if (choice === "replace_with_new") return "replace_with_new";
   return "keep_both";
 }
 
-function humanizeActionError(
-  err: unknown,
-  fallback = "Intenta nuevamente."
-) {
+function humanizeActionError(err: unknown, fallback = "Intenta nuevamente.") {
   const message =
     err instanceof Error ? err.message.trim() : String(err ?? "").trim();
 
@@ -520,15 +520,18 @@ async function syncAcceptedResponsesForSavedEvent(input: {
       .eq("group_id", groupId);
 
     if (error) {
-      console.error("group_members fetch failed while syncing responses", error);
+      console.error(
+        "group_members fetch failed while syncing responses",
+        error,
+      );
     }
 
     userIds = Array.from(
       new Set(
         (members ?? [])
           .map((row: any) => String(row?.user_id ?? "").trim())
-          .filter(Boolean)
-      )
+          .filter(Boolean),
+      ),
     );
   }
 
@@ -592,7 +595,8 @@ function NewEventDetailsInner() {
   const groupIdParam = sp.get("groupId");
   const wowParam = sp.get("wow");
   const fromParam = sp.get("from");
-  const isFirstWowMomentFlow = wowParam === "1" || fromParam === "first-group" || fromParam === "summary";
+  const isFirstWowMomentFlow =
+    wowParam === "1" || fromParam === "first-group" || fromParam === "summary";
   const hasExplicitGroupParam = !!String(groupIdParam ?? "").trim();
 
   const initialStart = useMemo(() => {
@@ -628,27 +632,29 @@ function NewEventDetailsInner() {
   >([]);
   const [isLoadingAutocomplete, setIsLoadingAutocomplete] = useState(false);
   const [autocompleteError, setAutocompleteError] = useState<string | null>(
-    null
+    null,
   );
   const [selectedPlace, setSelectedPlace] = useState<SelectedPlace | null>(
-    null
+    null,
   );
   const [travelMode, setTravelMode] = useState<UiTravelMode>("driving");
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
   const [isLoadingEta, setIsLoadingEta] = useState(false);
   const [etaError, setEtaError] = useState<string | null>(null);
-  const [startLocal, setStartLocal] = useState(() => toInputLocal(initialStart));
+  const [startLocal, setStartLocal] = useState(() =>
+    toInputLocal(initialStart),
+  );
   const [endLocal, setEndLocal] = useState(() =>
-    toInputLocal(addMinutes(initialStart, 60))
+    toInputLocal(addMinutes(initialStart, 60)),
   );
   const autocompleteRequestRef = useRef(0);
   const etaRequestRef = useRef(0);
   const locationSessionTokenRef = useRef(
-    `sp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    `sp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
   );
-const originPointRef = useRef<LatLng | null>(null);
-const [originPointVersion, setOriginPointVersion] = useState(0);
-const [originSource, setOriginSource] = useState<OriginSource>("lima");
+  const originPointRef = useRef<LatLng | null>(null);
+  const [originPointVersion, setOriginPointVersion] = useState(0);
+  const [originSource, setOriginSource] = useState<OriginSource>("lima");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<null | {
     title: string;
@@ -678,8 +684,8 @@ const [originSource, setOriginSource] = useState<OriginSource>("lima");
     proposalResponseParam === "adjust"
       ? "adjust"
       : proposalResponseParam === "accept"
-      ? "accept"
-      : null;
+        ? "accept"
+        : null;
 
   const [booting, setBooting] = useState(true);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
@@ -687,7 +693,7 @@ const [originSource, setOriginSource] = useState<OriginSource>("lima");
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [groups, setGroups] = useState<DbGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>(
-    hasExplicitGroupParam ? String(groupIdParam) : ""
+    hasExplicitGroupParam ? String(groupIdParam) : "",
   );
   const [autoSharedGroupId, setAutoSharedGroupId] = useState<string>("");
   const [autoSharedGroupLabel, setAutoSharedGroupLabel] = useState<string>("");
@@ -706,14 +712,16 @@ const [originSource, setOriginSource] = useState<OriginSource>("lima");
     for (const g of groups || []) map.set(g.id, g);
     return Array.from(map.values());
   }, [groups]);
-const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
+  const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
   const [preflightOpen, setPreflightOpen] = useState(false);
   const [preflightItems, setPreflightItems] = useState<PreflightConflict[]>([]);
   const [preflightDefaultChoice, setPreflightDefaultChoice] =
     useState<PreflightChoice>("edit");
-  const [pendingPayload, setPendingPayload] = useState<null | SavePayload>(null);
+  const [pendingPayload, setPendingPayload] = useState<null | SavePayload>(
+    null,
+  );
   const [existingIdsToReplace, setExistingIdsToReplace] = useState<string[]>(
-    []
+    [],
   );
 
   useEffect(() => {
@@ -740,122 +748,148 @@ const [learningSignals, setLearningSignals] = useState<LearningSignal[]>([]);
     };
   }, []);
 
-useEffect(() => {
-  let cancelled = false;
+  useEffect(() => {
+    let cancelled = false;
 
-  const applyOrigin = (
-  point: LatLng,
-  persist = false,
-  source: OriginSource = "lima"
-) => {
-    if (cancelled || !isUsableLatLng(point)) return;
+    const applyOrigin = (
+      point: LatLng,
+      persist = false,
+      source: OriginSource = "lima",
+    ) => {
+      if (cancelled || !isUsableLatLng(point)) return;
 
-    originPointRef.current = point;
-    setOriginPointVersion((current) => current + 1);
-setOriginSource(source);
-    if (persist) {
-      storeOriginPoint(point);
-      void persistLastKnownLocation(point);
+      originPointRef.current = point;
+      setOriginPointVersion((current) => current + 1);
+      setOriginSource(source);
+
+      if (persist) {
+        storeOriginPoint(point);
+        void persistLastKnownLocation(point);
+      }
+    };
+
+    const paramOrigin = {
+      lat: Number(originLatParam),
+      lng: Number(originLngParam),
+    };
+
+    if (isUsableLatLng(paramOrigin)) {
+      applyOrigin(paramOrigin, true, "url");
+      return () => {
+        cancelled = true;
+      };
     }
-  };
 
-  const paramOrigin = {
-    lat: Number(originLatParam),
-    lng: Number(originLngParam),
-  };
+    const storedOrigin = readStoredOriginPoint();
+    if (storedOrigin) {
+      applyOrigin(storedOrigin, false, "stored");
+    } else {
+      applyOrigin(DEFAULT_LIMA_ORIGIN, false, "lima");
+    }
 
-  if (isUsableLatLng(paramOrigin)) {
-    applyOrigin(paramOrigin, true, "url");
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const gpsOrigin = {
+            lat: Number(position.coords.latitude),
+            lng: Number(position.coords.longitude),
+          };
+
+          if (isUsableLatLng(gpsOrigin)) {
+            applyOrigin(gpsOrigin, true, "gps");
+          }
+        },
+        () => {
+          if (!originPointRef.current) {
+            applyOrigin(DEFAULT_LIMA_ORIGIN, false, "lima");
+          }
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 4500,
+          maximumAge: 10 * 60 * 1000,
+        },
+      );
+    }
+
     return () => {
       cancelled = true;
     };
-  }
+  }, [originLatParam, originLngParam]);
+  useEffect(() => {
+    if (isEditing) return;
 
-  const storedOrigin = readStoredOriginPoint();
-  if (storedOrigin) {
-    applyOrigin(storedOrigin, false, "stored");
-  } else {
-    applyOrigin(DEFAULT_LIMA_ORIGIN, false);
-  }
+    const incoming = String(locationQueryParam ?? "").trim();
+    if (!incoming) return;
 
-  if (typeof navigator !== "undefined" && navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const gpsOrigin = {
-          lat: Number(position.coords.latitude),
-          lng: Number(position.coords.longitude),
-        };
-
-        if (isUsableLatLng(gpsOrigin)) {
-          applyOrigin(gpsOrigin, true, "gps");
-        }
-      },
-      () => {
-        if (!originPointRef.current) {
-          applyOrigin(DEFAULT_LIMA_ORIGIN, false, "lima");
-        }
-      },
-      {
-        enableHighAccuracy: false,
-        timeout: 4500,
-        maximumAge: 10 * 60 * 1000,
-      }
-    );
-  }
-
-  return () => {
-    cancelled = true;
-  };
-}, [originLatParam, originLngParam]);
-useEffect(() => {
-  if (isEditing) return;
-
-  const incoming = String(locationQueryParam ?? "").trim();
-  if (!incoming) return;
-
-  setLocationInput((current) => (current.trim() ? current : incoming));
-}, [locationQueryParam, isEditing]);
+    setLocationInput((current) => (current.trim() ? current : incoming));
+  }, [locationQueryParam, isEditing]);
   const startDate = useMemo(() => fromInputLocal(startLocal), [startLocal]);
   const endDate = useMemo(() => fromInputLocal(endLocal), [endLocal]);
   const leaveTimePreview = useMemo(() => {
     if (!etaSeconds || !Number.isFinite(startDate.getTime())) return null;
     const LEAVE_BUFFER_SECONDS = 5 * 60;
     const leaveAt = new Date(
-      startDate.getTime() - etaSeconds * 1000 - LEAVE_BUFFER_SECONDS * 1000
+      startDate.getTime() - etaSeconds * 1000 - LEAVE_BUFFER_SECONDS * 1000,
     );
     if (Number.isNaN(leaveAt.getTime())) return null;
     return leaveAt;
   }, [etaSeconds, startDate]);
   const etaLabel = useMemo(() => formatEtaLabel(etaSeconds), [etaSeconds]);
-const travelStatusLabel = useMemo(
-  () =>
-    getTravelStatusLabel({
-      isLoadingEta,
-      etaLabel,
-      etaError,
-    }),
-  [isLoadingEta, etaLabel, etaError]
-);
 
-const leaveTimeLabel = useMemo(
-  () => getLeaveTimeLabel(leaveTimePreview),
-  [leaveTimePreview]
-);
-const originSourceLabel = useMemo(() => {
-  if (originSource === "gps") return "Desde tu ubicación actual";
-  if (originSource === "stored") return "Desde tu última ubicación guardada";
-  if (originSource === "url") return "Desde el punto enviado";
-  return "Desde referencia Lima";
-}, [originSource]);
+  const travelStatusLabel = useMemo(
+    () =>
+      getTravelStatusLabel({
+        isLoadingEta,
+        etaLabel,
+        etaError,
+      }),
+    [isLoadingEta, etaLabel, etaError],
+  );
+
+  const leaveTimeLabel = useMemo(
+    () => getLeaveTimeLabel(leaveTimePreview),
+    [leaveTimePreview],
+  );
+
+  const originSourceLabel = useMemo(() => {
+    if (originSource === "gps") return "Desde tu ubicación actual";
+    if (originSource === "stored") return "Desde tu última ubicación guardada";
+    if (originSource === "url") return "Desde el punto enviado";
+    return "Desde referencia Lima";
+  }, [originSource]);
+
+  const mapsLinks = useMemo(() => {
+    if (!selectedPlace || !originPointRef.current) return null;
+
+    const destination = {
+      lat: Number(selectedPlace.location_lat),
+      lng: Number(selectedPlace.location_lng),
+    };
+
+    try {
+      return {
+        google: buildGoogleMapsDirectionsLink(
+          originPointRef.current,
+          destination,
+          travelMode,
+        ),
+        waze: buildWazeLink(destination.lat, destination.lng),
+      };
+    } catch {
+      return null;
+    }
+  }, [selectedPlace, travelMode, originPointVersion]);
+
   const selectedGroup = useMemo(
     () => uniqueGroups.find((g) => g.id === selectedGroupId) || null,
-    [uniqueGroups, selectedGroupId]
+    [uniqueGroups, selectedGroupId],
   );
 
   function buildUrl(
     nextType: NewType,
     nextDateIso: string,
-    nextGroupId?: string | null
+    nextGroupId?: string | null,
   ) {
     const params = new URLSearchParams();
     params.set("type", nextType);
@@ -881,7 +915,8 @@ const originSourceLabel = useMemo(() => {
 
     if (quickCaptureParam === "1") params.set("qc", "1");
     if (quickCaptureTitleParam) params.set("title", quickCaptureTitleParam);
-    if (quickCaptureDurationParam) params.set("duration", quickCaptureDurationParam);
+    if (quickCaptureDurationParam)
+      params.set("duration", quickCaptureDurationParam);
     if (quickCaptureNotesParam) params.set("notes", quickCaptureNotesParam);
     if (timeParam) params.set("time", timeParam);
     if (captureSourceParam) params.set("capture_source", captureSourceParam);
@@ -930,7 +965,9 @@ const originSourceLabel = useMemo(() => {
         setActiveGroupId(gid);
         setGroups(unique);
 
-              let preferredGroupId = hasExplicitGroupParam ? String(groupIdParam) : "";
+        let preferredGroupId = hasExplicitGroupParam
+          ? String(groupIdParam)
+          : "";
         let detectedSharedGroupLabel = "";
 
         if (!preferredGroupId && isSharedProposal && proposalEventIdParam) {
@@ -941,7 +978,7 @@ const originSourceLabel = useMemo(() => {
             if (proposalOwnerId && proposalOwnerId !== uid) {
               const sharedGroupResult = await getSharedGroupBetweenUsers(
                 proposalOwnerId,
-                uid
+                uid,
               );
 
               if (
@@ -964,7 +1001,7 @@ const originSourceLabel = useMemo(() => {
           } catch (sharedGroupError) {
             console.warn(
               "[NewEventDetails] shared group auto-detect failed",
-              sharedGroupError
+              sharedGroupError,
             );
             setSharedGroupDetectionState("ambiguous");
           }
@@ -974,7 +1011,9 @@ const originSourceLabel = useMemo(() => {
 
         const fallbackGroupId = hasExplicitGroupParam
           ? preferredGroupId
-          : preferredGroupId || gid || (unique && unique.length ? unique[0].id : "");
+          : preferredGroupId ||
+            gid ||
+            (unique && unique.length ? unique[0].id : "");
 
         if (preferredGroupId) {
           setAutoSharedGroupId(preferredGroupId);
@@ -985,16 +1024,14 @@ const originSourceLabel = useMemo(() => {
           setAutoSharedGroupLabel("");
         }
 
-           if (hasExplicitGroupParam) {
+        if (hasExplicitGroupParam) {
           if (preferredGroupId) setSelectedGroupId(preferredGroupId);
         } else if (fallbackGroupId) {
           setSelectedGroupId(fallbackGroupId);
         }
 
         const shouldAutoRouteToGroup =
-          (!hasExplicitGroupParam &&
-            typeParam === "group" &&
-            !groupIdParam) ||
+          (!hasExplicitGroupParam && typeParam === "group" && !groupIdParam) ||
           (!hasExplicitGroupParam &&
             !!preferredGroupId &&
             isSharedProposal &&
@@ -1004,7 +1041,7 @@ const originSourceLabel = useMemo(() => {
           const next = buildUrl(
             "group",
             new Date(startDate).toISOString(),
-            fallbackGroupId
+            fallbackGroupId,
           );
           router.replace(next);
         }
@@ -1026,104 +1063,108 @@ const originSourceLabel = useMemo(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
- useEffect(() => {
-  if (!isEditing || !eventIdParam) return;
+  useEffect(() => {
+    if (!isEditing || !eventIdParam) return;
 
-  let alive = true;
+    let alive = true;
 
-  (async () => {
-    try {
-      const ev = await getEventById(eventIdParam);
-      if (!alive) return;
-      const evRecord = ev as Record<string, unknown>;
+    (async () => {
+      try {
+        const ev = await getEventById(eventIdParam);
+        if (!alive) return;
+        const evRecord = ev as Record<string, unknown>;
 
-      setTitle(ev.title ?? "");
-      setNotes(ev.notes ?? "");
+        setTitle(ev.title ?? "");
+        setNotes(ev.notes ?? "");
 
-      const existingLabel = String(evRecord.location_label ?? "").trim();
-      const existingAddress = String(evRecord.location_address ?? "").trim();
-      const existingLat = Number(evRecord.location_lat);
-      const existingLng = Number(evRecord.location_lng);
-      const existingPlaceId = String(evRecord.location_place_id ?? "").trim();
-      const existingProvider = String(evRecord.location_provider ?? "").trim();
-      const existingTravelMode = String(evRecord.travel_mode ?? "").trim();
-      const existingEta = Number(evRecord.travel_eta_seconds);
+        const existingLabel = String(evRecord.location_label ?? "").trim();
+        const existingAddress = String(evRecord.location_address ?? "").trim();
+        const existingLat = Number(evRecord.location_lat);
+        const existingLng = Number(evRecord.location_lng);
+        const existingPlaceId = String(evRecord.location_place_id ?? "").trim();
+        const existingProvider = String(
+          evRecord.location_provider ?? "",
+        ).trim();
+        const existingTravelMode = String(evRecord.travel_mode ?? "").trim();
+        const existingEta = Number(evRecord.travel_eta_seconds);
 
-      if (existingLabel || existingAddress) {
-        setLocationInput(existingLabel || existingAddress);
-      }
-
-      if (
-        Number.isFinite(existingLat) &&
-        Number.isFinite(existingLng) &&
-        (existingLabel || existingAddress)
-      ) {
-        setSelectedPlace({
-          location_label: existingLabel || existingAddress,
-          location_address: existingAddress || existingLabel || "",
-          location_lat: existingLat,
-          location_lng: existingLng,
-          location_provider:
-            existingProvider === "google" ? "google" : "google",
-          location_place_id: existingPlaceId,
-        });
-      } else {
-        setSelectedPlace(null);
-      }
-
-      if (
-        existingTravelMode === "walking" ||
-        existingTravelMode === "bicycling" ||
-        existingTravelMode === "transit"
-      ) {
-        setTravelMode(existingTravelMode);
-      } else {
-        setTravelMode("driving");
-      }
-
-      setEtaSeconds(
-        Number.isFinite(existingEta) ? Math.max(0, Math.round(existingEta)) : null
-      );
-
-      const s = new Date(ev.start);
-      const e = new Date(ev.end);
-
-      if (!Number.isNaN(s.getTime())) {
-        setStartLocal(toInputLocal(s));
-      }
-
-      if (!Number.isNaN(e.getTime())) {
-        setEndLocal(toInputLocal(e));
-      }
-
-      const gid = ev.group_id ? String(ev.group_id) : "";
-      if (gid) {
-        setSelectedGroupId(gid);
-
-        const next = buildUrl("group", new Date(ev.start).toISOString(), gid);
-        const current = `/events/new/details?${sp.toString()}`;
-
-        if (current !== next) {
-          router.replace(next);
+        if (existingLabel || existingAddress) {
+          setLocationInput(existingLabel || existingAddress);
         }
+
+        if (
+          Number.isFinite(existingLat) &&
+          Number.isFinite(existingLng) &&
+          (existingLabel || existingAddress)
+        ) {
+          setSelectedPlace({
+            location_label: existingLabel || existingAddress,
+            location_address: existingAddress || existingLabel || "",
+            location_lat: existingLat,
+            location_lng: existingLng,
+            location_provider:
+              existingProvider === "google" ? "google" : "google",
+            location_place_id: existingPlaceId,
+          });
+        } else {
+          setSelectedPlace(null);
+        }
+
+        if (
+          existingTravelMode === "walking" ||
+          existingTravelMode === "bicycling" ||
+          existingTravelMode === "transit"
+        ) {
+          setTravelMode(existingTravelMode);
+        } else {
+          setTravelMode("driving");
+        }
+
+        setEtaSeconds(
+          Number.isFinite(existingEta)
+            ? Math.max(0, Math.round(existingEta))
+            : null,
+        );
+
+        const s = new Date(ev.start);
+        const e = new Date(ev.end);
+
+        if (!Number.isNaN(s.getTime())) {
+          setStartLocal(toInputLocal(s));
+        }
+
+        if (!Number.isNaN(e.getTime())) {
+          setEndLocal(toInputLocal(e));
+        }
+
+        const gid = ev.group_id ? String(ev.group_id) : "";
+        if (gid) {
+          setSelectedGroupId(gid);
+
+          const next = buildUrl("group", new Date(ev.start).toISOString(), gid);
+          const current = `/events/new/details?${sp.toString()}`;
+
+          if (current !== next) {
+            router.replace(next);
+          }
+        }
+      } catch (err: any) {
+        if (!alive) return;
+
+        setToast({
+          title: "No se pudo cargar el evento",
+          subtitle: humanizeActionError(err, "Intenta nuevamente."),
+        });
+      } finally {
+        if (!alive) return;
+        setBootingEvent(false);
       }
-    } catch (err: any) {
-      if (!alive) return;
+    })();
 
-      setToast({
-        title: "No se pudo cargar el evento",
-        subtitle: humanizeActionError(err, "Intenta nuevamente."),
-      });
-    } finally {
-      if (!alive) return;
-      setBootingEvent(false);
-    }
-  })();
-
-  return () => {
-    alive = false;
-  };
-}, [isEditing, eventIdParam, router, sp]);
+    return () => {
+      alive = false;
+    };
+  }, [isEditing, eventIdParam, router, sp]);
 
   useEffect(() => {
     if (!proposedStartParam || !proposedEndParam) return;
@@ -1160,7 +1201,9 @@ const originSourceLabel = useMemo(() => {
     if (
       selectedPlace &&
       trimmed.toLowerCase() ===
-        String(selectedPlace.location_label ?? "").trim().toLowerCase()
+        String(selectedPlace.location_label ?? "")
+          .trim()
+          .toLowerCase()
     ) {
       setAutocompleteResults([]);
       setAutocompleteError(null);
@@ -1199,7 +1242,7 @@ const originSourceLabel = useMemo(() => {
         if (!res.ok) {
           setAutocompleteResults([]);
           setAutocompleteError(
-            String(data?.error ?? "No pudimos buscar ubicaciones ahora.")
+            String(data?.error ?? "No pudimos buscar ubicaciones ahora."),
           );
           return;
         }
@@ -1249,23 +1292,23 @@ const originSourceLabel = useMemo(() => {
 
     (async () => {
       try {
-      const destinationPoint = {
-  lat: Number(destination.location_lat),
-  lng: Number(destination.location_lng),
-};
+        const destinationPoint = {
+          lat: Number(destination.location_lat),
+          lng: Number(destination.location_lng),
+        };
 
-const safeOrigin = resolveSafeRouteOrigin(origin, destinationPoint);
+        const safeOrigin = resolveSafeRouteOrigin(origin, destinationPoint);
 
-const res = await fetch("/api/maps/route-eta", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    origin: safeOrigin,
-    destination: destinationPoint,
-    travelMode,
-    departureTime: getSafeRouteDepartureTime(startIso),
-  }),
-});
+        const res = await fetch("/api/maps/route-eta", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            origin: safeOrigin,
+            destination: destinationPoint,
+            travelMode,
+            departureTime: getSafeRouteDepartureTime(startIso),
+          }),
+        });
 
         const data = await res.json().catch(() => null);
         if (cancelled || requestId !== etaRequestRef.current) return;
@@ -1276,16 +1319,18 @@ const res = await fetch("/api/maps/route-eta", {
           return;
         }
 
-       const eta = Number(data?.etaSeconds);
+        const eta = Number(data?.etaSeconds);
 
-if (!isReasonableEtaSeconds(eta)) {
-  setEtaSeconds(null);
-  setEtaError("No pudimos calcular una ruta razonable para este trayecto.");
-  return;
-}
+        if (!isReasonableEtaSeconds(eta)) {
+          setEtaSeconds(null);
+          setEtaError(
+            "No pudimos calcular una ruta razonable para este trayecto.",
+          );
+          return;
+        }
 
-setEtaSeconds(Math.round(eta));
-setEtaError(null);
+        setEtaSeconds(Math.round(eta));
+        setEtaError(null);
       } catch {
         if (cancelled || requestId !== etaRequestRef.current) return;
         setEtaError("No pudimos calcular la duración en este momento.");
@@ -1299,7 +1344,7 @@ setEtaError(null);
     return () => {
       cancelled = true;
     };
- }, [selectedPlace, travelMode, startLocal, originPointVersion]);
+  }, [selectedPlace, travelMode, startLocal, originPointVersion]);
 
   useEffect(() => {
     if (isEditing) return;
@@ -1308,9 +1353,10 @@ setEtaError(null);
 
     const incomingTitle = String(quickCaptureTitleParam ?? "").trim();
     const incomingDuration = Number(quickCaptureDurationParam ?? "60");
-   const safeDuration = Number.isFinite(incomingDuration) && incomingDuration > 0
-  ? Math.round(incomingDuration)
-  : 60;
+    const safeDuration =
+      Number.isFinite(incomingDuration) && incomingDuration > 0
+        ? Math.round(incomingDuration)
+        : 60;
 
     if (incomingTitle) {
       setTitle((current) => (current.trim() ? current : incomingTitle));
@@ -1330,7 +1376,7 @@ setEtaError(null);
       }
       setStartLocal(toInputLocal(parsedDate));
       setEndLocal(toInputLocal(addMinutes(parsedDate, safeDuration)));
-     } else if (timeMatch) {
+    } else if (timeMatch) {
       const nextStart = fromInputLocal(startLocal);
       if (!Number.isNaN(nextStart.getTime())) {
         nextStart.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
@@ -1395,7 +1441,7 @@ setEtaError(null);
     const next = buildUrl(
       "group",
       new Date(startDate).toISOString(),
-      selectedGroupId
+      selectedGroupId,
     );
     const current = `/events/new/details?${sp.toString()}`;
     if (current !== next) router.replace(next);
@@ -1420,14 +1466,14 @@ setEtaError(null);
           groupType === "family"
             ? "rgba(96,165,250,0.28)"
             : groupType === ("other" as GroupType)
-            ? "rgba(168,85,247,0.28)"
-            : "rgba(248,113,113,0.28)",
+              ? "rgba(168,85,247,0.28)"
+              : "rgba(248,113,113,0.28)",
         soft:
           groupType === "family"
             ? "rgba(96,165,250,0.14)"
             : groupType === ("other" as GroupType)
-            ? "rgba(168,85,247,0.14)"
-            : "rgba(248,113,113,0.12)",
+              ? "rgba(168,85,247,0.14)"
+              : "rgba(248,113,113,0.12)",
       };
     }
     return {
@@ -1474,10 +1520,10 @@ setEtaError(null);
     const normalizedTitle = normalizeFreeText(title);
     const normalizedRaw = normalizeFreeText(rawTextParam || "");
     const normalizedNotes = normalizeFreeText(notes);
-const hasValidStart = Number.isFinite(startDate.getTime());
-const hasValidEnd =
-  Number.isFinite(endDate.getTime()) &&
-  endDate.getTime() > startDate.getTime();
+    const hasValidStart = Number.isFinite(startDate.getTime());
+    const hasValidEnd =
+      Number.isFinite(endDate.getTime()) &&
+      endDate.getTime() > startDate.getTime();
 
     const titleNeedsReview =
       !normalizedTitle ||
@@ -1488,17 +1534,21 @@ const hasValidEnd =
       !normalizedNotes ||
       (normalizedRaw && normalizedNotes && normalizedNotes === normalizedRaw);
 
-   const missingDateOrTime = !hasValidStart || !hasValidEnd;
+    const missingDateOrTime = !hasValidStart || !hasValidEnd;
 
     const reviewItems: string[] = [];
-if (!hasValidStart) {
-  reviewItems.push("Falta fecha/hora válida en el formulario.");
-}
-if (hasValidStart && !hasValidEnd) {
-  reviewItems.push("Revisa la duración: la hora de fin debe ser posterior al inicio.");
-}
+    if (!hasValidStart) {
+      reviewItems.push("Falta fecha/hora válida en el formulario.");
+    }
+    if (hasValidStart && !hasValidEnd) {
+      reviewItems.push(
+        "Revisa la duración: la hora de fin debe ser posterior al inicio.",
+      );
+    }
     if (titleNeedsReview) {
-      reviewItems.push("Revisa el título: puede estar incompleto o muy genérico.");
+      reviewItems.push(
+        "Revisa el título: puede estar incompleto o muy genérico.",
+      );
     }
     if (notesNeedsReview) {
       reviewItems.push("Revisa notas/contexto para evitar ambigüedad.");
@@ -1512,15 +1562,15 @@ if (hasValidStart && !hasValidEnd) {
       hasIssues: reviewItems.length > 0,
       reviewItems,
     };
-}, [
-  quickCaptureParam,
-  isEditing,
-  title,
-  rawTextParam,
-  notes,
-  startDate,
-  endDate,
-]);
+  }, [
+    quickCaptureParam,
+    isEditing,
+    title,
+    rawTextParam,
+    notes,
+    startDate,
+    endDate,
+  ]);
   const learningInput = useMemo(() => {
     const raw = String(rawTextParam ?? "").trim();
     if (raw) return raw;
@@ -1549,7 +1599,8 @@ if (hasValidStart && !hasValidEnd) {
     if (!learnedGroupMatch?.groupId) return null;
 
     return (
-      uniqueGroups.find((group) => group.id === learnedGroupMatch.groupId) || null
+      uniqueGroups.find((group) => group.id === learnedGroupMatch.groupId) ||
+      null
     );
   }, [learnedGroupMatch, uniqueGroups]);
 
@@ -1559,7 +1610,7 @@ if (hasValidStart && !hasValidEnd) {
         id: group.id,
         type: group.type ?? null,
       })),
-    [uniqueGroups]
+    [uniqueGroups],
   );
 
   useEffect(() => {
@@ -1611,47 +1662,48 @@ if (hasValidStart && !hasValidEnd) {
     candidateGroupOptions,
   ]);
 
-const suggestedGroupCandidate = useMemo(() => {
-  if (
-    canonicalGroupSuggestion?.mode === "auto_apply" &&
-    canonicalGroupSuggestion.groupId
-  ) {
-    return (
-      uniqueGroups.find(
-        (group) => group.id === String(canonicalGroupSuggestion.groupId)
-      ) || null
-    );
-  }
+  const suggestedGroupCandidate = useMemo(() => {
+    if (
+      canonicalGroupSuggestion?.mode === "auto_apply" &&
+      canonicalGroupSuggestion.groupId
+    ) {
+      return (
+        uniqueGroups.find(
+          (group) => group.id === String(canonicalGroupSuggestion.groupId),
+        ) || null
+      );
+    }
 
-  if (
-    canonicalGroupSuggestion?.mode === "suggest_only" &&
-    canonicalGroupSuggestion.type
-  ) {
-    const compatibleGroups = uniqueGroups.filter(
-      (group) => normalizeDbGroupType(group.type) === canonicalGroupSuggestion.type
-    );
+    if (
+      canonicalGroupSuggestion?.mode === "suggest_only" &&
+      canonicalGroupSuggestion.type
+    ) {
+      const compatibleGroups = uniqueGroups.filter(
+        (group) =>
+          normalizeDbGroupType(group.type) === canonicalGroupSuggestion.type,
+      );
 
-    if (!compatibleGroups.length) return null;
+      if (!compatibleGroups.length) return null;
 
-    return (
-      compatibleGroups.find((group) => group.id === activeGroupId) ||
-      compatibleGroups[0] ||
-      null
-    );
-  }
+      return (
+        compatibleGroups.find((group) => group.id === activeGroupId) ||
+        compatibleGroups[0] ||
+        null
+      );
+    }
 
-  // legacy = solo referencia pasiva
-  if (!canonicalGroupSuggestion?.type && learnedGroupCandidate?.id) {
-    return learnedGroupCandidate;
-  }
+    // legacy = solo referencia pasiva
+    if (!canonicalGroupSuggestion?.type && learnedGroupCandidate?.id) {
+      return learnedGroupCandidate;
+    }
 
-  return null;
-}, [
-  canonicalGroupSuggestion,
-  uniqueGroups,
-  activeGroupId,
-  learnedGroupCandidate,
-]);
+    return null;
+  }, [
+    canonicalGroupSuggestion,
+    uniqueGroups,
+    activeGroupId,
+    learnedGroupCandidate,
+  ]);
 
   useEffect(() => {
     if (effectiveType !== "group") {
@@ -1676,7 +1728,7 @@ const suggestedGroupCandidate = useMemo(() => {
     }
     if (groupManualSelectionRef.current) return;
 
-const canAutoPreselect = canonicalGroupSuggestion?.mode === "auto_apply";
+    const canAutoPreselect = canonicalGroupSuggestion?.mode === "auto_apply";
 
     if (!canAutoPreselect) {
       setSuggestedPreselectedGroupId("");
@@ -1689,16 +1741,15 @@ const canAutoPreselect = canonicalGroupSuggestion?.mode === "auto_apply";
       setSelectedGroupId(suggestedGroupCandidate.id);
     }
   }, [
-  effectiveType,
-  lockedToActiveGroup,
-  hasExplicitGroupParam,
-  autoSharedGroupId,
-  sharedGroupDetectionState,
-  suggestedGroupCandidate,
-  selectedGroupId,
-  canonicalGroupSuggestion,
-]);
-
+    effectiveType,
+    lockedToActiveGroup,
+    hasExplicitGroupParam,
+    autoSharedGroupId,
+    sharedGroupDetectionState,
+    suggestedGroupCandidate,
+    selectedGroupId,
+    canonicalGroupSuggestion,
+  ]);
 
   const dateRangeLabel = useMemo(() => {
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "";
@@ -1715,7 +1766,7 @@ const canAutoPreselect = canonicalGroupSuggestion?.mode === "auto_apply";
         startLocal,
         endLocal,
       }),
-    [effectiveType, selectedGroupId, title, notes, startLocal, endLocal]
+    [effectiveType, selectedGroupId, title, notes, startLocal, endLocal],
   );
 
   const shouldLearnCurrentSelection = useMemo(() => {
@@ -1781,14 +1832,19 @@ const canAutoPreselect = canonicalGroupSuggestion?.mode === "auto_apply";
     if (currentPostSaveFingerprint === postSaveFingerprint) return;
 
     clearPostSaveState({ keepToast: true });
-  }, [currentPostSaveFingerprint, postSaveFingerprint, postSaveActions?.visible]);
+  }, [
+    currentPostSaveFingerprint,
+    postSaveFingerprint,
+    postSaveActions?.visible,
+  ]);
 
   const goBack = () => router.push("/calendar");
 
   const handleReviewProposalLater = () => {
     setToast({
       title: "Propuesta pendiente",
-      subtitle: "No guardamos nada. Puedes volver más tarde desde el link compartido.",
+      subtitle:
+        "No guardamos nada. Puedes volver más tarde desde el link compartido.",
     });
 
     window.setTimeout(() => {
@@ -1857,8 +1913,8 @@ const canAutoPreselect = canonicalGroupSuggestion?.mode === "auto_apply";
             ? "Plan compartido actualizado ✅"
             : "Plan compartido creado ✅"
           : isEditing
-          ? "Evento personal actualizado ✅"
-          : "Evento personal creado ✅",
+            ? "Evento personal actualizado ✅"
+            : "Evento personal creado ✅",
         subtitle: isSharedEvent
           ? "Conservamos ambos planes para que puedas decidirlo después con más calma."
           : "Conservamos ambos eventos para que puedas decidirlo después con más calma.",
@@ -1930,7 +1986,7 @@ const canAutoPreselect = canonicalGroupSuggestion?.mode === "auto_apply";
               group_type: input.payload.groupType,
             },
           },
-        })
+        }),
       );
 
     const settled = await Promise.allSettled(writes);
@@ -1984,7 +2040,7 @@ const canAutoPreselect = canonicalGroupSuggestion?.mode === "auto_apply";
           final_action: input.finalAction,
           affected_event_id: String(item.existingId),
           affected_event_title: safeTitle(
-            (existingEvent as any)?.title ?? item.title
+            (existingEvent as any)?.title ?? item.title,
           ),
           kept_event_id: input.savedEventId ?? null,
           kept_event_title: safeTitle(input.payload.title),
@@ -2054,346 +2110,351 @@ const canAutoPreselect = canonicalGroupSuggestion?.mode === "auto_apply";
     return created;
   };
 
-const persistEvent = async (payload: SavePayload) => {
-  let savedEventId: string | null = null;
+  const persistEvent = async (payload: SavePayload) => {
+    let savedEventId: string | null = null;
 
-  if (isEditing && eventIdParam) {
-    await updateEvent({
-      id: eventIdParam,
-      title: payload.title,
-      notes: payload.notes,
-      start: payload.startIso,
-      end: payload.endIso,
-      groupId: payload.groupId,
-      location_label: payload.location_label,
-      location_address: payload.location_address,
-      location_lat: payload.location_lat,
-      location_lng: payload.location_lng,
-      location_provider: payload.location_provider,
-      location_place_id: payload.location_place_id,
-      travel_mode: payload.travel_mode,
-      travel_eta_seconds: payload.travel_eta_seconds,
-      leave_time: payload.leave_time,
-    });
-    savedEventId = String(eventIdParam);
-
-    if (savedEventId) {
-      await syncAcceptedResponsesForSavedEvent({
-        eventId: savedEventId,
-        currentUserId,
-        groupId: payload.groupId ?? null,
-      });
-    }
-
-    if (currentUserId && savedEventId) {
-      const analyticsPayload = {
-        user_id: currentUserId,
-        event_type: "event_edited",
-        entity_id: savedEventId,
-        metadata: {
-          type: payload.groupId ? "group" : "personal",
-        },
-      };
-
-      const { error: analyticsError } = await supabase
-        .from("events_analytics")
-        .insert(analyticsPayload);
-
-      if (analyticsError) {
-        console.error("event_edited analytics insert failed", analyticsError);
-      }
-    }
-
-    const proposalSource = sp.get("proposalSource");
-    const proposalIntent = sp.get("proposalIntent");
-
-    if (proposalSource === "public_invite" && savedEventId) {
-      const creatorResponse =
-        proposalIntent === "accept"
-          ? "accepted"
-          : proposalIntent === "reject"
-          ? "rejected"
-          : null;
-
-      if (creatorResponse) {
-        await supabase
-          .from("public_invites")
-          .update({ creator_response: creatorResponse })
-          .eq("event_id", savedEventId);
-      }
-    }
-  } else {
-    const created = await createEventForGroup({
-      title: payload.title,
-      notes: payload.notes,
-      start: payload.startIso,
-      end: payload.endIso,
-      groupId: payload.groupId,
-      location_label: payload.location_label,
-      location_address: payload.location_address,
-      location_lat: payload.location_lat,
-      location_lng: payload.location_lng,
-      location_provider: payload.location_provider,
-      location_place_id: payload.location_place_id,
-      travel_mode: payload.travel_mode,
-      travel_eta_seconds: payload.travel_eta_seconds,
-      leave_time: payload.leave_time,
-    });
-    savedEventId = created?.id ? String(created.id) : null;
-
-    if (savedEventId) {
-      await syncAcceptedResponsesForSavedEvent({
-        eventId: savedEventId,
-        currentUserId,
-        groupId: payload.groupId ?? null,
-      });
-    }
-
-    if (savedEventId && isSharedProposal && proposalResponse && currentUserId) {
-      try {
-        await upsertProposalResponse({
-          eventId: savedEventId,
-          userId: currentUserId,
-          response: proposalResponse === "adjust" ? "adjusted" : "accepted",
-        });
-      } catch (err) {
-        console.error("proposal response persist failed", err);
-      }
-    }
-
-    if (savedEventId) {
-      await trackEvent({
-        event: "event_created",
-        userId: currentUserId,
-        entityId: savedEventId,
-        metadata: {
-          type: payload.groupId ? "group" : "personal",
-        },
-      });
-    }
-  }
-
-  if (savedEventId && shouldLearnCurrentSelection && selectedGroup?.id) {
-    learnGroupSelection({
-      title: learningInput,
-      groupId: selectedGroup.id,
-      groupType: normalizeDbGroupType(selectedGroup.type) as
-        | "pair"
-        | "family"
-        | "other",
-    });
-  }
-
-  emitSyncPlansRefreshSignals();
-  return savedEventId;
-};
-
-const showPostSaveCard = (
-  savedEventId: string | null,
-  payload: SavePayload,
-  options?: { keepBoth?: boolean }
-) => {
-  setToast(buildSuccessToast(options?.keepBoth ? { keepBoth: true } : undefined));
-  setPostSaveShareUrl(null);
-  setPostSaveFingerprint(currentPostSaveFingerprint);
-  setPostSaveActions({
-    visible: true,
-    eventId: savedEventId ?? undefined,
-    title: payload.title,
-    isShared: effectiveType === "group",
-    isProposal: isSharedProposal,
-  });
-};
-
-const finalizeKeepBothRedirect = async (
-  savedEventId: string,
-  payload: SavePayload
-) => {
-  try {
-    const pf = await loadEventsForConflictPreflight({
-      candidate: {
-        id: savedEventId,
+    if (isEditing && eventIdParam) {
+      await updateEvent({
+        id: eventIdParam,
         title: payload.title,
+        notes: payload.notes,
         start: payload.startIso,
         end: payload.endIso,
         groupId: payload.groupId,
-        groupType: payload.groupType,
+        location_label: payload.location_label,
+        location_address: payload.location_address,
+        location_lat: payload.location_lat,
+        location_lng: payload.location_lng,
+        location_provider: payload.location_provider,
+        location_place_id: payload.location_place_id,
+        travel_mode: payload.travel_mode,
+        travel_eta_seconds: payload.travel_eta_seconds,
+        leave_time: payload.leave_time,
+      });
+      savedEventId = String(eventIdParam);
+
+      if (savedEventId) {
+        await syncAcceptedResponsesForSavedEvent({
+          eventId: savedEventId,
+          currentUserId,
+          groupId: payload.groupId ?? null,
+        });
+      }
+
+      if (currentUserId && savedEventId) {
+        const analyticsPayload = {
+          user_id: currentUserId,
+          event_type: "event_edited",
+          entity_id: savedEventId,
+          metadata: {
+            type: payload.groupId ? "group" : "personal",
+          },
+        };
+
+        const { error: analyticsError } = await supabase
+          .from("events_analytics")
+          .insert(analyticsPayload);
+
+        if (analyticsError) {
+          console.error("event_edited analytics insert failed", analyticsError);
+        }
+      }
+
+      const proposalSource = sp.get("proposalSource");
+      const proposalIntent = sp.get("proposalIntent");
+
+      if (proposalSource === "public_invite" && savedEventId) {
+        const creatorResponse =
+          proposalIntent === "accept"
+            ? "accepted"
+            : proposalIntent === "reject"
+              ? "rejected"
+              : null;
+
+        if (creatorResponse) {
+          await supabase
+            .from("public_invites")
+            .update({ creator_response: creatorResponse })
+            .eq("event_id", savedEventId);
+        }
+      }
+    } else {
+      const created = await createEventForGroup({
+        title: payload.title,
         notes: payload.notes,
-      },
-    });
+        start: payload.startIso,
+        end: payload.endIso,
+        groupId: payload.groupId,
+        location_label: payload.location_label,
+        location_address: payload.location_address,
+        location_lat: payload.location_lat,
+        location_lng: payload.location_lng,
+        location_provider: payload.location_provider,
+        location_place_id: payload.location_place_id,
+        travel_mode: payload.travel_mode,
+        travel_eta_seconds: payload.travel_eta_seconds,
+        leave_time: payload.leave_time,
+      });
+      savedEventId = created?.id ? String(created.id) : null;
 
-    const combined = [...pf.baseEvents, pf.candidateEvent];
-    const related = computeVisibleConflicts(combined).filter((c) => {
-      const currentSavedId = String(savedEventId);
-      return (
-        String(c.existingEventId) === currentSavedId ||
-        String(c.incomingEventId) === currentSavedId
-      );
-    });
+      if (savedEventId) {
+        await syncAcceptedResponsesForSavedEvent({
+          eventId: savedEventId,
+          currentUserId,
+          groupId: payload.groupId ?? null,
+        });
+      }
 
-    if (related.length > 0) {
-      ignoreConflictIds(related.map((c) => c.id).filter(Boolean));
+      if (
+        savedEventId &&
+        isSharedProposal &&
+        proposalResponse &&
+        currentUserId
+      ) {
+        try {
+          await upsertProposalResponse({
+            eventId: savedEventId,
+            userId: currentUserId,
+            response: proposalResponse === "adjust" ? "adjusted" : "accepted",
+          });
+        } catch (err) {
+          console.error("proposal response persist failed", err);
+        }
+      }
+
+      if (savedEventId) {
+        await trackEvent({
+          event: "event_created",
+          userId: currentUserId,
+          entityId: savedEventId,
+          metadata: {
+            type: payload.groupId ? "group" : "personal",
+          },
+        });
+      }
     }
-  } catch {
-    // ok
-  }
 
-  setToast(buildSuccessToast({ keepBoth: true }));
+    if (savedEventId && shouldLearnCurrentSelection && selectedGroup?.id) {
+      learnGroupSelection({
+        title: learningInput,
+        groupId: selectedGroup.id,
+        groupType: normalizeDbGroupType(selectedGroup.type) as
+          | "pair"
+          | "family"
+          | "other",
+      });
+    }
 
-  const qp = new URLSearchParams();
-  qp.set("from", "conflicts");
-  qp.set("fallbackKeepBoth", "1");
-  qp.set("eventId", String(savedEventId));
-  if (payload.groupId) qp.set("groupId", String(payload.groupId));
-
-  window.setTimeout(() => {
-    router.push(`/summary?${qp.toString()}`);
-  }, 500);
-};
-
-const runConflictNotificationForSavedEvent = async (savedEventId: string) => {
-  return createConflictNotificationForEvent(savedEventId).catch(() => ({
-    created: 0,
-    conflictCount: 0,
-    targetEventId: savedEventId,
-  }));
-};
-
-const handleSelectPlace = (item: MapsPlaceSuggestion) => {
-  const normalized: SelectedPlace = {
-    location_label:
-      String(item.label ?? "").trim() || String(item.address ?? "").trim(),
-    location_address:
-      String(item.address ?? "").trim() || String(item.label ?? "").trim(),
-    location_lat: Number(item.lat),
-    location_lng: Number(item.lng),
-    location_provider: "google",
-    location_place_id: String(item.place_id ?? "").trim(),
+    emitSyncPlansRefreshSignals();
+    return savedEventId;
   };
 
-  setSelectedPlace(normalized);
-  setLocationInput(normalized.location_label);
-  setAutocompleteResults([]);
-  setAutocompleteError(null);
-  locationSessionTokenRef.current = `sp-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 10)}`;
-};
+  const showPostSaveCard = (
+    savedEventId: string | null,
+    payload: SavePayload,
+    options?: { keepBoth?: boolean },
+  ) => {
+    setToast(
+      buildSuccessToast(options?.keepBoth ? { keepBoth: true } : undefined),
+    );
+    setPostSaveShareUrl(null);
+    setPostSaveFingerprint(currentPostSaveFingerprint);
+    setPostSaveActions({
+      visible: true,
+      eventId: savedEventId ?? undefined,
+      title: payload.title,
+      isShared: effectiveType === "group",
+      isProposal: isSharedProposal,
+    });
+  };
 
-const clearSelectedPlace = () => {
-  setSelectedPlace(null);
-  setLocationInput("");
-  setAutocompleteResults([]);
-  setAutocompleteError(null);
-  setEtaError(null);
-  setEtaSeconds(null);
-  locationSessionTokenRef.current = `sp-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 10)}`;
-};
+  const finalizeKeepBothRedirect = async (
+    savedEventId: string,
+    payload: SavePayload,
+  ) => {
+    try {
+      const pf = await loadEventsForConflictPreflight({
+        candidate: {
+          id: savedEventId,
+          title: payload.title,
+          start: payload.startIso,
+          end: payload.endIso,
+          groupId: payload.groupId,
+          groupType: payload.groupType,
+          notes: payload.notes,
+        },
+      });
 
-const buildSavePayload = (): SavePayload => ({
-  groupType,
-  groupId: effectiveType === "group" ? selectedGroupId : null,
-  title: title.trim(),
-  notes: notes.trim() ? notes.trim() : undefined,
-  startIso: new Date(startDate).toISOString(),
-  endIso: new Date(endDate).toISOString(),
-  location_label: selectedPlace?.location_label ?? null,
-  location_address: selectedPlace?.location_address ?? null,
-  location_lat: selectedPlace?.location_lat ?? null,
-  location_lng: selectedPlace?.location_lng ?? null,
-  location_provider: selectedPlace?.location_provider ?? null,
-  location_place_id: selectedPlace?.location_place_id ?? null,
-  travel_mode: selectedPlace ? travelMode : null,
-travel_eta_seconds:
-  selectedPlace && isReasonableEtaSeconds(etaSeconds)
-    ? Math.round(Number(etaSeconds))
-    : null,
-leave_time:
-  selectedPlace && isReasonableEtaSeconds(etaSeconds) && leaveTimePreview
-    ? leaveTimePreview.toISOString()
-    : null,
-});
+      const combined = [...pf.baseEvents, pf.candidateEvent];
+      const related = computeVisibleConflicts(combined).filter((c) => {
+        const currentSavedId = String(savedEventId);
+        return (
+          String(c.existingEventId) === currentSavedId ||
+          String(c.incomingEventId) === currentSavedId
+        );
+      });
 
-const doSave = async (
-  payload: SavePayload,
-  options?: {
-    keepBothRedirect?: boolean;
-    skipConflictDetection?: boolean;
-  }
-) => {
-  if (saveInFlightRef.current) return null;
-
-  saveInFlightRef.current = true;
-  setSaving(true);
-
-  try {
-    const savedEventId = await persistEvent(payload);
-    if (!savedEventId) {
-      throw new Error("No se pudo obtener el id del evento guardado.");
+      if (related.length > 0) {
+        ignoreConflictIds(related.map((c) => c.id).filter(Boolean));
+      }
+    } catch {
+      // ok
     }
 
-    if (options?.keepBothRedirect) {
-      const conflictResult = await runConflictNotificationForSavedEvent(
-        savedEventId
-      );
+    setToast(buildSuccessToast({ keepBoth: true }));
 
-      if (conflictResult.conflictCount > 0) {
-        await finalizeKeepBothRedirect(savedEventId, payload);
+    const qp = new URLSearchParams();
+    qp.set("from", "conflicts");
+    qp.set("fallbackKeepBoth", "1");
+    qp.set("eventId", String(savedEventId));
+    if (payload.groupId) qp.set("groupId", String(payload.groupId));
+
+    window.setTimeout(() => {
+      router.push(`/summary?${qp.toString()}`);
+    }, 500);
+  };
+
+  const runConflictNotificationForSavedEvent = async (savedEventId: string) => {
+    return createConflictNotificationForEvent(savedEventId).catch(() => ({
+      created: 0,
+      conflictCount: 0,
+      targetEventId: savedEventId,
+    }));
+  };
+
+  const handleSelectPlace = (item: MapsPlaceSuggestion) => {
+    const normalized: SelectedPlace = {
+      location_label:
+        String(item.label ?? "").trim() || String(item.address ?? "").trim(),
+      location_address:
+        String(item.address ?? "").trim() || String(item.label ?? "").trim(),
+      location_lat: Number(item.lat),
+      location_lng: Number(item.lng),
+      location_provider: "google",
+      location_place_id: String(item.place_id ?? "").trim(),
+    };
+
+    setSelectedPlace(normalized);
+    setLocationInput(normalized.location_label);
+    setAutocompleteResults([]);
+    setAutocompleteError(null);
+    locationSessionTokenRef.current = `sp-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 10)}`;
+  };
+
+  const clearSelectedPlace = () => {
+    setSelectedPlace(null);
+    setLocationInput("");
+    setAutocompleteResults([]);
+    setAutocompleteError(null);
+    setEtaError(null);
+    setEtaSeconds(null);
+    locationSessionTokenRef.current = `sp-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 10)}`;
+  };
+
+  const buildSavePayload = (): SavePayload => ({
+    groupType,
+    groupId: effectiveType === "group" ? selectedGroupId : null,
+    title: title.trim(),
+    notes: notes.trim() ? notes.trim() : undefined,
+    startIso: new Date(startDate).toISOString(),
+    endIso: new Date(endDate).toISOString(),
+    location_label: selectedPlace?.location_label ?? null,
+    location_address: selectedPlace?.location_address ?? null,
+    location_lat: selectedPlace?.location_lat ?? null,
+    location_lng: selectedPlace?.location_lng ?? null,
+    location_provider: selectedPlace?.location_provider ?? null,
+    location_place_id: selectedPlace?.location_place_id ?? null,
+    travel_mode: selectedPlace ? travelMode : null,
+    travel_eta_seconds:
+      selectedPlace && isReasonableEtaSeconds(etaSeconds)
+        ? Math.round(Number(etaSeconds))
+        : null,
+    leave_time:
+      selectedPlace && isReasonableEtaSeconds(etaSeconds) && leaveTimePreview
+        ? leaveTimePreview.toISOString()
+        : null,
+  });
+
+  const doSave = async (
+    payload: SavePayload,
+    options?: {
+      keepBothRedirect?: boolean;
+      skipConflictDetection?: boolean;
+    },
+  ) => {
+    if (saveInFlightRef.current) return null;
+
+    saveInFlightRef.current = true;
+    setSaving(true);
+
+    try {
+      const savedEventId = await persistEvent(payload);
+      if (!savedEventId) {
+        throw new Error("No se pudo obtener el id del evento guardado.");
+      }
+
+      if (options?.keepBothRedirect) {
+        const conflictResult =
+          await runConflictNotificationForSavedEvent(savedEventId);
+
+        if (conflictResult.conflictCount > 0) {
+          await finalizeKeepBothRedirect(savedEventId, payload);
+          return savedEventId;
+        }
+
+        showPostSaveCard(savedEventId, payload, { keepBoth: true });
         return savedEventId;
       }
 
-      showPostSaveCard(savedEventId, payload, { keepBoth: true });
+      if (options?.skipConflictDetection) {
+        return savedEventId;
+      }
+
+      const conflictResult =
+        await runConflictNotificationForSavedEvent(savedEventId);
+
+      if (conflictResult.conflictCount > 0) {
+        setToast({
+          title: "⚠️ Conflicto detectado",
+          subtitle: "Te llevo a revisarlo ahora…",
+        });
+
+        const qp = new URLSearchParams();
+        if (conflictResult.targetEventId) {
+          qp.set("eventId", String(conflictResult.targetEventId));
+        }
+        if (payload.groupId) {
+          qp.set("groupId", String(payload.groupId));
+        }
+        qp.set("from", isEditing ? "event_edit" : "event_create");
+
+        window.setTimeout(() => {
+          router.push(`/conflicts/detected?${qp.toString()}`);
+        }, 500);
+        return savedEventId;
+      }
+
+      showPostSaveCard(savedEventId, payload);
       return savedEventId;
-    }
-
-    if (options?.skipConflictDetection) {
-      return savedEventId;
-    }
-
-    const conflictResult = await runConflictNotificationForSavedEvent(
-      savedEventId
-    );
-
-    if (conflictResult.conflictCount > 0) {
+    } catch (err: any) {
       setToast({
-        title: "⚠️ Conflicto detectado",
-        subtitle: "Te llevo a revisarlo ahora…",
+        title: "No se pudo guardar",
+        subtitle: humanizeActionError(err, "Intenta nuevamente."),
       });
-
-      const qp = new URLSearchParams();
-      if (conflictResult.targetEventId) {
-        qp.set("eventId", String(conflictResult.targetEventId));
-      }
-      if (payload.groupId) {
-        qp.set("groupId", String(payload.groupId));
-      }
-      qp.set("from", isEditing ? "event_edit" : "event_create");
-
-      window.setTimeout(() => {
-        router.push(`/conflicts/detected?${qp.toString()}`);
-      }, 500);
-      return savedEventId;
+      window.setTimeout(() => setToast(null), 2800);
+      return null;
+    } finally {
+      saveInFlightRef.current = false;
+      setSaving(false);
     }
+  };
 
-    showPostSaveCard(savedEventId, payload);
-    return savedEventId;
-  } catch (err: any) {
-    setToast({
-      title: "No se pudo guardar",
-      subtitle: humanizeActionError(err, "Intenta nuevamente."),
-    });
-    window.setTimeout(() => setToast(null), 2800);
-    return null;
-  } finally {
-    saveInFlightRef.current = false;
-    setSaving(false);
-  }
-};
-
-const preflight = async (
-    payload: SavePayload
+  const preflight = async (
+    payload: SavePayload,
   ): Promise<{ ok: true } | { ok: false }> => {
     const warn = (settings as any)?.conflictWarnBeforeSave ?? true;
     if (!warn) return { ok: true };
@@ -2455,7 +2516,9 @@ const preflight = async (
             existingId: String(counterpart.otherId),
             title: otherEvent?.title ?? "Evento existente",
             groupLabel: gm.label,
-            range: otherEvent ? fmtRange(otherEvent.start, otherEvent.end) : "—",
+            range: otherEvent
+              ? fmtRange(otherEvent.start, otherEvent.end)
+              : "—",
             overlapStart: c.overlapStart,
             overlapEnd: c.overlapEnd,
           };
@@ -2463,7 +2526,9 @@ const preflight = async (
         .filter(Boolean) as PreflightConflict[];
 
       setExistingIdsToReplace(
-        Array.from(new Set(items.map((x) => String(x.existingId)).filter(Boolean)))
+        Array.from(
+          new Set(items.map((x) => String(x.existingId)).filter(Boolean)),
+        ),
       );
       setPreflightItems(items);
       setPreflightDefaultChoice(mapDefaultResolutionToChoice(settings));
@@ -2476,7 +2541,8 @@ const preflight = async (
   };
 
   const save = async () => {
-    if (saving || saveInFlightRef.current || preflightChoiceInFlightRef.current) return;
+    if (saving || saveInFlightRef.current || preflightChoiceInFlightRef.current)
+      return;
 
     clearPreflightState();
     clearPostSaveState({ keepToast: true });
@@ -2498,152 +2564,185 @@ const preflight = async (
     await doSave(payload);
   };
 
-const onPreflightChoose = async (choice: PreflightChoice) => {
-  if (preflightChoiceInFlightRef.current) return;
-  preflightChoiceInFlightRef.current = true;
-  setPreflightOpen(false);
+  const onPreflightChoose = async (choice: PreflightChoice) => {
+    if (preflightChoiceInFlightRef.current) return;
+    preflightChoiceInFlightRef.current = true;
+    setPreflightOpen(false);
 
-  try {
-    if (choice === "edit") {
-      clearPreflightState();
-      setToast({
-        title: "Perfecto",
-        subtitle: "Ajusta lo que necesites y vuelve a guardar.",
-      });
-      return;
-    }
-
-    if (choice === "keep_existing") {
-      const itemsSnapshot = [...preflightItems];
-      const payloadSnapshot = pendingPayload;
-
-      if (payloadSnapshot) {
-        await writePreflightResolutionLogs({
-          items: itemsSnapshot,
-          payload: payloadSnapshot,
-          choice: "keep_existing",
-          finalAction: finalActionFromPreflightChoice("keep_existing"),
-          savedEventId: null,
-          blockedIds: [],
-          reason:
-            "El usuario decidió conservar los eventos existentes y no guardar el nuevo evento.",
+    try {
+      if (choice === "edit") {
+        clearPreflightState();
+        setToast({
+          title: "Perfecto",
+          subtitle: "Ajusta lo que necesites y vuelve a guardar.",
         });
+        return;
       }
 
-      clearPreflightState();
-      setToast({
-        title: "No se guardó",
-        subtitle: "Conservamos tus eventos existentes.",
-      });
-      return;
-    }
+      if (choice === "keep_existing") {
+        const itemsSnapshot = [...preflightItems];
+        const payloadSnapshot = pendingPayload;
 
-    if (!pendingPayload) {
-      clearPreflightState();
-      setToast({
-        title: "Ups",
-        subtitle: "No encontré el evento pendiente. Intenta otra vez.",
-      });
-      return;
-    }
+        if (payloadSnapshot) {
+          await writePreflightResolutionLogs({
+            items: itemsSnapshot,
+            payload: payloadSnapshot,
+            choice: "keep_existing",
+            finalAction: finalActionFromPreflightChoice("keep_existing"),
+            savedEventId: null,
+            blockedIds: [],
+            reason:
+              "El usuario decidió conservar los eventos existentes y no guardar el nuevo evento.",
+          });
+        }
 
-    if (choice === "keep_both") {
-      const itemsSnapshot = [...preflightItems];
+        clearPreflightState();
+        setToast({
+          title: "No se guardó",
+          subtitle: "Conservamos tus eventos existentes.",
+        });
+        return;
+      }
+
+      if (!pendingPayload) {
+        clearPreflightState();
+        setToast({
+          title: "Ups",
+          subtitle: "No encontré el evento pendiente. Intenta otra vez.",
+        });
+        return;
+      }
+
+      if (choice === "keep_both") {
+        const itemsSnapshot = [...preflightItems];
+        const payloadToSave = pendingPayload;
+
+        clearPreflightState();
+
+        const savedEventId = await doSave(payloadToSave, {
+          keepBothRedirect: true,
+        });
+
+        if (savedEventId) {
+          try {
+            const ids = itemsSnapshot.map((it) => it.id).filter(Boolean);
+            if (ids.length > 0) ignoreConflictIds(ids);
+          } catch {
+            // ok
+          }
+
+          await writePreflightResolutionLogs({
+            items: itemsSnapshot,
+            payload: payloadToSave,
+            choice: "keep_both",
+            finalAction: finalActionFromPreflightChoice("keep_both"),
+            savedEventId: savedEventId ?? null,
+            blockedIds: [],
+            reason: null,
+          });
+        }
+
+        return;
+      }
+
+      setSaving(true);
+
       const payloadToSave = pendingPayload;
+      const itemsSnapshot = [...preflightItems];
+      const idsToReplaceSnapshot = [...existingIdsToReplace];
 
       clearPreflightState();
 
       const savedEventId = await doSave(payloadToSave, {
-        keepBothRedirect: true,
+        skipConflictDetection: true,
       });
 
-      if (savedEventId) {
+      if (!savedEventId) {
+        return;
+      }
+
+      const deleteResult =
+        await deleteEventsByIdsDetailed(idsToReplaceSnapshot);
+
+      const blockedIds = Array.isArray(deleteResult?.blockedIds)
+        ? deleteResult.blockedIds.map((id) => String(id)).filter(Boolean)
+        : [];
+
+      const didDeleteAll =
+        Number(deleteResult?.deletedCount ?? 0) === idsToReplaceSnapshot.length;
+
+      if (blockedIds.length > 0 || !didDeleteAll) {
         try {
-          const ids = itemsSnapshot.map((it) => it.id).filter(Boolean);
-          if (ids.length > 0) ignoreConflictIds(ids);
+          const conflictIds = itemsSnapshot.map((it) => it.id).filter(Boolean);
+
+          if (blockedIds.length > 0) {
+            hideEventIdsForCurrentUser(blockedIds);
+          }
+
+          if (conflictIds.length > 0) {
+            ignoreConflictIds(conflictIds);
+          }
         } catch {
-          // ok
+          // no rompemos el flujo por el fallback
         }
+
+        setToast({
+          title: "Aplicado con ajuste automático",
+          subtitle:
+            "No pudimos reemplazar todos los eventos por permisos. Mantuvimos ambos para evitar inconsistencias.",
+        });
+        window.setTimeout(() => setToast(null), 3200);
+
+        await finalizeKeepBothRedirect(savedEventId, payloadToSave);
 
         await writePreflightResolutionLogs({
           items: itemsSnapshot,
           payload: payloadToSave,
-          choice: "keep_both",
-          finalAction: finalActionFromPreflightChoice("keep_both"),
+          choice: "replace_with_new",
+          finalAction: "fallback_keep_both",
           savedEventId: savedEventId ?? null,
-          blockedIds: [],
-          reason: null,
+          blockedIds,
+          reason:
+            "No se pudieron reemplazar todos los eventos por permisos. Para no romper nada, SyncPlans mantuvo ambos.",
         });
+
+        try {
+          await writePreflightDecisionNotifications({
+            items: itemsSnapshot,
+            choice: "replace_with_new",
+            finalAction: "fallback_keep_both",
+            savedEventId: savedEventId ?? null,
+            payload: {
+              title: payloadToSave.title,
+              groupId: payloadToSave.groupId ?? null,
+            },
+          });
+        } catch (error) {
+          console.error(
+            "preflight conflict decision notifications failed",
+            error,
+          );
+        }
+        return;
       }
 
-      return;
-    }
-
-    setSaving(true);
-
-    const payloadToSave = pendingPayload;
-    const itemsSnapshot = [...preflightItems];
-    const idsToReplaceSnapshot = [...existingIdsToReplace];
-
-    clearPreflightState();
-
-    const savedEventId = await doSave(payloadToSave, {
-      skipConflictDetection: true,
-    });
-
-    if (!savedEventId) {
-      return;
-    }
-
-    const deleteResult = await deleteEventsByIdsDetailed(idsToReplaceSnapshot);
-
-    const blockedIds = Array.isArray(deleteResult?.blockedIds)
-      ? deleteResult.blockedIds.map((id) => String(id)).filter(Boolean)
-      : [];
-
-    const didDeleteAll =
-      Number(deleteResult?.deletedCount ?? 0) === idsToReplaceSnapshot.length;
-
-    if (blockedIds.length > 0 || !didDeleteAll) {
-      try {
-        const conflictIds = itemsSnapshot.map((it) => it.id).filter(Boolean);
-
-        if (blockedIds.length > 0) {
-          hideEventIdsForCurrentUser(blockedIds);
-        }
-
-        if (conflictIds.length > 0) {
-          ignoreConflictIds(conflictIds);
-        }
-      } catch {
-        // no rompemos el flujo por el fallback
-      }
-
-      setToast({
-        title: "Aplicado con ajuste automático",
-        subtitle:
-          "No pudimos reemplazar todos los eventos por permisos. Mantuvimos ambos para evitar inconsistencias.",
-      });
-      window.setTimeout(() => setToast(null), 3200);
-
-      await finalizeKeepBothRedirect(savedEventId, payloadToSave);
+      showPostSaveCard(savedEventId, payloadToSave);
 
       await writePreflightResolutionLogs({
         items: itemsSnapshot,
         payload: payloadToSave,
         choice: "replace_with_new",
-        finalAction: "fallback_keep_both",
+        finalAction: finalActionFromPreflightChoice("replace_with_new"),
         savedEventId: savedEventId ?? null,
-        blockedIds,
-        reason:
-          "No se pudieron reemplazar todos los eventos por permisos. Para no romper nada, SyncPlans mantuvo ambos.",
+        blockedIds: [],
+        reason: null,
       });
 
       try {
         await writePreflightDecisionNotifications({
           items: itemsSnapshot,
           choice: "replace_with_new",
-          finalAction: "fallback_keep_both",
+          finalAction: finalActionFromPreflightChoice("replace_with_new"),
           savedEventId: savedEventId ?? null,
           payload: {
             title: payloadToSave.title,
@@ -2651,51 +2750,25 @@ const onPreflightChoose = async (choice: PreflightChoice) => {
           },
         });
       } catch (error) {
-        console.error("preflight conflict decision notifications failed", error);
+        console.error(
+          "preflight conflict decision notifications failed",
+          error,
+        );
       }
-      return;
-    }
-
-    showPostSaveCard(savedEventId, payloadToSave);
-
-    await writePreflightResolutionLogs({
-      items: itemsSnapshot,
-      payload: payloadToSave,
-      choice: "replace_with_new",
-      finalAction: finalActionFromPreflightChoice("replace_with_new"),
-      savedEventId: savedEventId ?? null,
-      blockedIds: [],
-      reason: null,
-    });
-
-    try {
-      await writePreflightDecisionNotifications({
-        items: itemsSnapshot,
-        choice: "replace_with_new",
-        finalAction: finalActionFromPreflightChoice("replace_with_new"),
-        savedEventId: savedEventId ?? null,
-        payload: {
-          title: payloadToSave.title,
-          groupId: payloadToSave.groupId ?? null,
-        },
+    } catch (err: any) {
+      setToast({
+        title: "No se pudo aplicar",
+        subtitle: humanizeActionError(err, "Intenta nuevamente."),
       });
-    } catch (error) {
-      console.error("preflight conflict decision notifications failed", error);
+      window.setTimeout(() => setToast(null), 2800);
+    } finally {
+      preflightChoiceInFlightRef.current = false;
+      saveInFlightRef.current = false;
+      setSaving(false);
     }
-  } catch (err: any) {
-    setToast({
-      title: "No se pudo aplicar",
-      subtitle: humanizeActionError(err, "Intenta nuevamente."),
-    });
-    window.setTimeout(() => setToast(null), 2800);
-  } finally {
-    preflightChoiceInFlightRef.current = false;
-    saveInFlightRef.current = false;
-    setSaving(false);
-  }
-};
+  };
 
-const handleSharePostSave = async () => {
+  const handleSharePostSave = async () => {
     if (sharingPostSave) return;
 
     try {
@@ -2714,7 +2787,9 @@ const handleSharePostSave = async () => {
       });
 
       const token =
-        typeof invite === "string" ? invite : invite?.token || invite?.id || null;
+        typeof invite === "string"
+          ? invite
+          : invite?.token || invite?.id || null;
 
       if (!token) {
         throw new Error("No se pudo generar el link.");
@@ -2779,7 +2854,7 @@ const handleSharePostSave = async () => {
         nextStart.toISOString(),
         effectiveType === "group"
           ? selectedGroupId || activeGroupId || null
-          : null
+          : null,
       );
 
       const nextParams = new URLSearchParams(nextUrl.split("?")[1] || "");
@@ -2843,7 +2918,9 @@ const handleSharePostSave = async () => {
           canSave={canSave}
           saving={saving}
           onPrimaryClick={save}
-          onSecondaryClick={isSharedProposal ? handleReviewProposalLater : goBack}
+          onSecondaryClick={
+            isSharedProposal ? handleReviewProposalLater : goBack
+          }
         />
 
         {isFirstWowMomentFlow && !isEditing ? (
@@ -2851,15 +2928,20 @@ const handleSharePostSave = async () => {
             style={{
               ...styles.card,
               borderColor: "rgba(56,189,248,0.24)",
-              background: "linear-gradient(180deg, rgba(56,189,248,0.10), rgba(255,255,255,0.03))",
+              background:
+                "linear-gradient(180deg, rgba(56,189,248,0.10), rgba(255,255,255,0.03))",
               gap: 10,
             }}
           >
             <div style={styles.sectionIntro}>
               <div style={styles.sectionEyebrow}>Ruta guiada</div>
-              <div style={styles.sectionTitle}>Tu primer plan compartido empieza aquí</div>
+              <div style={styles.sectionTitle}>
+                Tu primer plan compartido empieza aquí
+              </div>
               <div style={styles.sectionSub}>
-                Guárdalo una vez y desde aquí podrán coordinar mejor, detectar cruces a tiempo y decidir sobre algo real sin depender de mensajes sueltos.
+                Guárdalo una vez y desde aquí podrán coordinar mejor, detectar
+                cruces a tiempo y decidir sobre algo real sin depender de
+                mensajes sueltos.
               </div>
             </div>
           </section>
@@ -2869,7 +2951,11 @@ const handleSharePostSave = async () => {
           <div style={styles.primaryStack}>
             <div style={styles.sectionIntro}>
               <div style={styles.sectionEyebrow}>Lo esencial</div>
-              <div style={styles.sectionTitle}>{isFirstWowMomentFlow && !isEditing ? "Lo mínimo para activar el primer plan" : "Primero, lo importante"}</div>
+              <div style={styles.sectionTitle}>
+                {isFirstWowMomentFlow && !isEditing
+                  ? "Lo mínimo para activar el primer plan"
+                  : "Primero, lo importante"}
+              </div>
               <div style={styles.sectionSub}>
                 {isFirstWowMomentFlow && !isEditing
                   ? "Empieza por título, horario y contexto. Lo demás puede esperar: el objetivo ahora es crear algo real y compartido lo más rápido posible."
@@ -2889,7 +2975,8 @@ const handleSharePostSave = async () => {
               <div style={styles.fieldLabel}>Título</div>
               {quickCaptureReview?.titleNeedsReview ? (
                 <div style={styles.qcInlineWarn}>
-                  El título llegó con baja claridad. Ajusta una versión más específica.
+                  El título llegó con baja claridad. Ajusta una versión más
+                  específica.
                 </div>
               ) : null}
               <input
@@ -3031,12 +3118,14 @@ const handleSharePostSave = async () => {
               <div style={styles.field}>
                 <div style={styles.fieldLabel}>Modo de viaje</div>
                 <div style={styles.chips}>
-                  {([
-                    { key: "driving", label: "Auto" },
-                    { key: "walking", label: "A pie" },
-                    { key: "bicycling", label: "Bici" },
-                    { key: "transit", label: "Transporte" },
-                  ] as const).map((mode) => (
+                  {(
+                    [
+                      { key: "driving", label: "Auto" },
+                      { key: "walking", label: "A pie" },
+                      { key: "bicycling", label: "Bici" },
+                      { key: "transit", label: "Transporte" },
+                    ] as const
+                  ).map((mode) => (
                     <button
                       key={mode.key}
                       type="button"
@@ -3056,35 +3145,64 @@ const handleSharePostSave = async () => {
               </div>
             ) : null}
 
-           {selectedPlace ? (
-  <div style={styles.travelMetaCard}>
-    <div style={styles.travelMetaRow}>
-      <span style={styles.travelMetaLabel}>Estado de ruta</span>
-      <span style={styles.travelMetaValue}>{travelStatusLabel}</span>
-    </div>
-<div style={styles.travelMetaRow}>
-  <span style={styles.travelMetaLabel}>Origen usado</span>
-  <span style={styles.travelMetaValue}>{originSourceLabel}</span>
-</div>
-    <div style={styles.travelMetaRow}>
-      <span style={styles.travelMetaLabel}>Duración estimada</span>
-      <span style={styles.travelMetaValue}>
-        {isLoadingEta ? "Calculando…" : etaLabel || "Pendiente"}
-      </span>
-    </div>
+            {selectedPlace ? (
+              <div style={styles.travelMetaCard}>
+                <div style={styles.travelMetaRow}>
+                  <span style={styles.travelMetaLabel}>Estado de ruta</span>
+                  <span style={styles.travelMetaValue}>
+                    {travelStatusLabel}
+                  </span>
+                </div>
 
-    <div style={styles.travelMetaRow}>
-      <span style={styles.travelMetaLabel}>Salida sugerida</span>
-      <span style={styles.travelMetaValue}>{leaveTimeLabel}</span>
-    </div>
+                <div style={styles.travelMetaRow}>
+                  <span style={styles.travelMetaLabel}>Origen usado</span>
+                  <span style={styles.travelMetaValue}>
+                    {originSourceLabel}
+                  </span>
+                </div>
 
-    {etaError ? (
-      <div style={styles.locationHint}>
-        Si Google no confirma la ruta, SyncPlans usa una estimación segura para no romper el plan.
-      </div>
-    ) : null}
-  </div>
-) : null}
+                <div style={styles.travelMetaRow}>
+                  <span style={styles.travelMetaLabel}>Duración estimada</span>
+                  <span style={styles.travelMetaValue}>
+                    {isLoadingEta ? "Calculando…" : etaLabel || "Pendiente"}
+                  </span>
+                </div>
+
+                <div style={styles.travelMetaRow}>
+                  <span style={styles.travelMetaLabel}>Salida sugerida</span>
+                  <span style={styles.travelMetaValue}>{leaveTimeLabel}</span>
+                </div>
+
+                {etaError ? (
+                  <div style={styles.locationHint}>
+                    Si Google no confirma la ruta, SyncPlans usa una estimación
+                    segura para no romper el plan.
+                  </div>
+                ) : null}
+
+                {mapsLinks ? (
+                  <div style={styles.travelActionsRow}>
+                    <a
+                      href={mapsLinks.google}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={styles.secondaryButton}
+                    >
+                      Google Maps
+                    </a>
+
+                    <a
+                      href={mapsLinks.waze}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={styles.secondaryButton}
+                    >
+                      Waze
+                    </a>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {externalProposalActive && (
               <div
@@ -3103,7 +3221,11 @@ const handleSharePostSave = async () => {
             )}
 
             <div style={styles.quickSummary}>
-              <div style={styles.quickSummaryTitle}>{isFirstWowMomentFlow && !isEditing ? "Vista rápida antes de crear" : "Así se ve ahora"}</div>
+              <div style={styles.quickSummaryTitle}>
+                {isFirstWowMomentFlow && !isEditing
+                  ? "Vista rápida antes de crear"
+                  : "Así se ve ahora"}
+              </div>
               <div style={styles.quickSummaryRow}>
                 <span style={styles.quickSummaryPill}>
                   {isSharedProposal
@@ -3111,8 +3233,8 @@ const handleSharePostSave = async () => {
                       ? "Ajustando propuesta"
                       : "Propuesta compartida"
                     : effectiveType === "group"
-                    ? "Plan compartido"
-                    : "Plan personal"}
+                      ? "Plan compartido"
+                      : "Plan personal"}
                 </span>
                 {durationLabel ? (
                   <span style={styles.quickSummaryPill}>{durationLabel}</span>
@@ -3183,8 +3305,8 @@ const handleSharePostSave = async () => {
                       buildUrl(
                         "personal",
                         new Date(startDate).toISOString(),
-                        null
-                      )
+                        null,
+                      ),
                     );
                   }}
                   style={{
@@ -3215,8 +3337,8 @@ const handleSharePostSave = async () => {
                       buildUrl(
                         "group",
                         new Date(startDate).toISOString(),
-                        gid || null
-                      )
+                        gid || null,
+                      ),
                     );
                   }}
                   style={{
@@ -3247,7 +3369,9 @@ const handleSharePostSave = async () => {
                   <div style={styles.emptyInline}>
                     <div style={styles.emptyInlineTitle}>No tienes grupos</div>
                     <div style={styles.emptyInlineSub}>
-                      El primer valor compartido empieza creando el grupo. Después vuelves aquí y guardas el primer plan para activar la coordinación real.
+                      El primer valor compartido empieza creando el grupo.
+                      Después vuelves aquí y guardas el primer plan para activar
+                      la coordinación real.
                     </div>
                     <button
                       onClick={() => router.push("/groups/new")}
@@ -3258,152 +3382,166 @@ const handleSharePostSave = async () => {
                   </div>
                 ) : (
                   <>
-{autoSharedGroupId && !hasExplicitGroupParam && !lockedToActiveGroup ? (
-  <div
-    style={{
-      marginBottom: 12,
-      borderRadius: 14,
-      border: "1px solid rgba(96,165,250,0.28)",
-      background: "rgba(96,165,250,0.10)",
-      padding: "10px 12px",
-      fontSize: 12,
-      fontWeight: 800,
-    }}
-  >
-    Usaremos este grupo automáticamente:{" "}
-    <b>
-      {autoSharedGroupLabel ||
-        selectedGroup?.name ||
-        "Grupo compartido"}
-    </b>
-    {selectedGroup ? (
-      <>
-        {" "}· tipo <b>{getGroupTypeLabel(selectedGroup.type)}</b>
-      </>
-    ) : null}
-  </div>
-) : null}
+                    {autoSharedGroupId &&
+                    !hasExplicitGroupParam &&
+                    !lockedToActiveGroup ? (
+                      <div
+                        style={{
+                          marginBottom: 12,
+                          borderRadius: 14,
+                          border: "1px solid rgba(96,165,250,0.28)",
+                          background: "rgba(96,165,250,0.10)",
+                          padding: "10px 12px",
+                          fontSize: 12,
+                          fontWeight: 800,
+                        }}
+                      >
+                        Usaremos este grupo automáticamente:{" "}
+                        <b>
+                          {autoSharedGroupLabel ||
+                            selectedGroup?.name ||
+                            "Grupo compartido"}
+                        </b>
+                        {selectedGroup ? (
+                          <>
+                            {" "}
+                            · tipo{" "}
+                            <b>{getGroupTypeLabel(selectedGroup.type)}</b>
+                          </>
+                        ) : null}
+                      </div>
+                    ) : null}
 
-{!autoSharedGroupId &&
-isSharedProposal &&
-!hasExplicitGroupParam &&
-!lockedToActiveGroup &&
-sharedGroupDetectionState === "none" ? (
-  <div
-    style={{
-      marginBottom: 12,
-      borderRadius: 14,
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.04)",
-      padding: "10px 12px",
-      fontSize: 12,
-      lineHeight: 1.45,
-      color: "rgba(255,255,255,0.82)",
-    }}
-  >
-    No encontramos un grupo compartido claro para esta propuesta. Puedes
-    elegir abajo dónde quieres guardar este plan.
-  </div>
-) : null}
+                    {!autoSharedGroupId &&
+                    isSharedProposal &&
+                    !hasExplicitGroupParam &&
+                    !lockedToActiveGroup &&
+                    sharedGroupDetectionState === "none" ? (
+                      <div
+                        style={{
+                          marginBottom: 12,
+                          borderRadius: 14,
+                          border: "1px solid rgba(255,255,255,0.10)",
+                          background: "rgba(255,255,255,0.04)",
+                          padding: "10px 12px",
+                          fontSize: 12,
+                          lineHeight: 1.45,
+                          color: "rgba(255,255,255,0.82)",
+                        }}
+                      >
+                        No encontramos un grupo compartido claro para esta
+                        propuesta. Puedes elegir abajo dónde quieres guardar
+                        este plan.
+                      </div>
+                    ) : null}
 
-{!autoSharedGroupId &&
-isSharedProposal &&
-!groupIdParam &&
-!lockedToActiveGroup &&
-sharedGroupDetectionState === "ambiguous" ? (
-  <div
-    style={{
-      marginBottom: 12,
-      borderRadius: 14,
-      border: "1px solid rgba(250,204,21,0.18)",
-      background: "rgba(250,204,21,0.08)",
-      padding: "10px 12px",
-      fontSize: 12,
-      lineHeight: 1.45,
-      color: "rgba(255,248,220,0.88)",
-    }}
-  >
-    Encontramos más de una opción posible. Para no asumir mal, elige tú el
-    grupo correcto para este plan.
-  </div>
-) : null}
+                    {!autoSharedGroupId &&
+                    isSharedProposal &&
+                    !groupIdParam &&
+                    !lockedToActiveGroup &&
+                    sharedGroupDetectionState === "ambiguous" ? (
+                      <div
+                        style={{
+                          marginBottom: 12,
+                          borderRadius: 14,
+                          border: "1px solid rgba(250,204,21,0.18)",
+                          background: "rgba(250,204,21,0.08)",
+                          padding: "10px 12px",
+                          fontSize: 12,
+                          lineHeight: 1.45,
+                          color: "rgba(255,248,220,0.88)",
+                        }}
+                      >
+                        Encontramos más de una opción posible. Para no asumir
+                        mal, elige tú el grupo correcto para este plan.
+                      </div>
+                    ) : null}
 
-{learnedGroupCandidate?.id &&
-!canonicalGroupSuggestion?.type &&
-!autoSharedGroupId &&
-!groupIdParam &&
-!lockedToActiveGroup ? (
-  <div
-    style={{
-      marginBottom: 12,
-      borderRadius: 14,
-      border: "1px solid rgba(34,197,94,0.22)",
-      background: "rgba(34,197,94,0.10)",
-      padding: "10px 12px",
-      fontSize: 12,
-      lineHeight: 1.45,
-      color: "rgba(235,255,241,0.90)",
-    }}
-  >
-    🧠 Referencia por historial: en planes parecidos normalmente terminas usando <b>{learnedGroupCandidate.name || getGroupTypeLabel(learnedGroupCandidate.type)}</b>. Te lo mostramos como ayuda, sin forzarlo.
-  </div>
-) : null}
+                    {learnedGroupCandidate?.id &&
+                    !canonicalGroupSuggestion?.type &&
+                    !autoSharedGroupId &&
+                    !groupIdParam &&
+                    !lockedToActiveGroup ? (
+                      <div
+                        style={{
+                          marginBottom: 12,
+                          borderRadius: 14,
+                          border: "1px solid rgba(34,197,94,0.22)",
+                          background: "rgba(34,197,94,0.10)",
+                          padding: "10px 12px",
+                          fontSize: 12,
+                          lineHeight: 1.45,
+                          color: "rgba(235,255,241,0.90)",
+                        }}
+                      >
+                        🧠 Referencia por historial: en planes parecidos
+                        normalmente terminas usando{" "}
+                        <b>
+                          {learnedGroupCandidate.name ||
+                            getGroupTypeLabel(learnedGroupCandidate.type)}
+                        </b>
+                        . Te lo mostramos como ayuda, sin forzarlo.
+                      </div>
+                    ) : null}
 
-{canonicalGroupSuggestion?.type &&
-!autoSharedGroupId &&
-!groupIdParam &&
-!lockedToActiveGroup ? (
-  <div
-    style={{
-      marginBottom: 12,
-      borderRadius: 14,
-      border: "1px solid rgba(56,189,248,0.20)",
-      background: "rgba(56,189,248,0.08)",
-      padding: "10px 12px",
-      fontSize: 12,
-      lineHeight: 1.45,
-      color: "rgba(226,242,255,0.88)",
-    }}
-  >
-    {canonicalGroupSuggestion.mode === "auto_apply" &&
-    suggestedPreselectedGroupId &&
-    selectedGroup?.id === suggestedPreselectedGroupId ? (
-      <>
-        ✨ Preseleccionamos{" "}
-        <b>
-          {canonicalGroupSuggestion.type === "pair"
-            ? "Pareja"
-            : canonicalGroupSuggestion.type === "family"
-            ? "Familia"
-            : "Compartido"}
-        </b>{" "}
-        porque la sugerencia es suficientemente clara. Si esta vez no aplica, puedes cambiarlo abajo.
-      </>
-    ) : canonicalGroupSuggestion.mode === "suggest_only" ? (
-      <>
-        💡 Sugerencia: este plan parece encajar mejor en{" "}
-        <b>
-          {canonicalGroupSuggestion.type === "pair"
-            ? "Pareja"
-            : canonicalGroupSuggestion.type === "family"
-            ? "Familia"
-            : "Compartido"}
-        </b>
-        . Te lo mostramos como sugerencia, sin forzarlo.
-      </>
-    ) : (
-      <>
-        🤔 Hay señales, pero no son lo bastante fuertes para decidir solas. Revísalo antes de guardar.
-      </>
-    )}
-  </div>
-) : null}
+                    {canonicalGroupSuggestion?.type &&
+                    !autoSharedGroupId &&
+                    !groupIdParam &&
+                    !lockedToActiveGroup ? (
+                      <div
+                        style={{
+                          marginBottom: 12,
+                          borderRadius: 14,
+                          border: "1px solid rgba(56,189,248,0.20)",
+                          background: "rgba(56,189,248,0.08)",
+                          padding: "10px 12px",
+                          fontSize: 12,
+                          lineHeight: 1.45,
+                          color: "rgba(226,242,255,0.88)",
+                        }}
+                      >
+                        {canonicalGroupSuggestion.mode === "auto_apply" &&
+                        suggestedPreselectedGroupId &&
+                        selectedGroup?.id === suggestedPreselectedGroupId ? (
+                          <>
+                            ✨ Preseleccionamos{" "}
+                            <b>
+                              {canonicalGroupSuggestion.type === "pair"
+                                ? "Pareja"
+                                : canonicalGroupSuggestion.type === "family"
+                                  ? "Familia"
+                                  : "Compartido"}
+                            </b>{" "}
+                            porque la sugerencia es suficientemente clara. Si
+                            esta vez no aplica, puedes cambiarlo abajo.
+                          </>
+                        ) : canonicalGroupSuggestion.mode === "suggest_only" ? (
+                          <>
+                            💡 Sugerencia: este plan parece encajar mejor en{" "}
+                            <b>
+                              {canonicalGroupSuggestion.type === "pair"
+                                ? "Pareja"
+                                : canonicalGroupSuggestion.type === "family"
+                                  ? "Familia"
+                                  : "Compartido"}
+                            </b>
+                            . Te lo mostramos como sugerencia, sin forzarlo.
+                          </>
+                        ) : (
+                          <>
+                            🤔 Hay señales, pero no son lo bastante fuertes para
+                            decidir solas. Revísalo antes de guardar.
+                          </>
+                        )}
+                      </div>
+                    ) : null}
 
                     <select
                       value={selectedGroupId}
-                     disabled={
-  lockedToActiveGroup || (!!autoSharedGroupId && !hasExplicitGroupParam)
-}
+                      disabled={
+                        lockedToActiveGroup ||
+                        (!!autoSharedGroupId && !hasExplicitGroupParam)
+                      }
                       onChange={(e) => {
                         groupManualSelectionRef.current = true;
                         setSuggestedPreselectedGroupId("");
@@ -3411,14 +3549,16 @@ sharedGroupDetectionState === "ambiguous" ? (
                       }}
                       style={{
                         ...styles.select,
-                 opacity:
-  lockedToActiveGroup || (!!autoSharedGroupId && !hasExplicitGroupParam)
-    ? 0.7
-    : 1,
-cursor:
-  lockedToActiveGroup || (!!autoSharedGroupId && !hasExplicitGroupParam)
-    ? "not-allowed"
-    : "pointer",
+                        opacity:
+                          lockedToActiveGroup ||
+                          (!!autoSharedGroupId && !hasExplicitGroupParam)
+                            ? 0.7
+                            : 1,
+                        cursor:
+                          lockedToActiveGroup ||
+                          (!!autoSharedGroupId && !hasExplicitGroupParam)
+                            ? "not-allowed"
+                            : "pointer",
                       }}
                     >
                       {uniqueGroups.map((g) => (
@@ -3452,7 +3592,8 @@ cursor:
               <div style={styles.fieldLabel}>Notas (opcional)</div>
               {quickCaptureReview?.notesNeedsReview ? (
                 <div style={styles.qcInlineWarnSoft}>
-                  Si agregas una línea de contexto, el plan queda más claro para todos.
+                  Si agregas una línea de contexto, el plan queda más claro para
+                  todos.
                 </div>
               ) : null}
               <textarea
@@ -3531,16 +3672,16 @@ cursor:
             {saving
               ? "Guardando…"
               : isEditing
-              ? "Guardar cambios"
-              : isSharedProposal
-              ? proposalResponse === "adjust"
-                ? "Guardar propuesta ajustada"
-                : "Aceptar propuesta"
-              : effectiveType === "group"
-              ? isFirstWowMomentFlow && !isEditing
-                ? "Crear primer plan compartido"
-                : "Guardar plan compartido"
-              : "Guardar plan"}
+                ? "Guardar cambios"
+                : isSharedProposal
+                  ? proposalResponse === "adjust"
+                    ? "Guardar propuesta ajustada"
+                    : "Aceptar propuesta"
+                  : effectiveType === "group"
+                    ? isFirstWowMomentFlow && !isEditing
+                      ? "Crear primer plan compartido"
+                      : "Guardar plan compartido"
+                    : "Guardar plan"}
           </button>
         </section>
       </div>
@@ -3937,6 +4078,25 @@ const styles: Record<string, React.CSSProperties> = {
   travelMetaValue: {
     fontSize: 13,
     fontWeight: 900,
+  },
+  travelActionsRow: {
+    display: "flex",
+    gap: 8,
+    marginTop: 12,
+    flexWrap: "wrap",
+  },
+  secondaryButton: {
+    flex: 1,
+    minWidth: 130,
+    textAlign: "center",
+    padding: "10px 12px",
+    borderRadius: 12,
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 13,
+    fontWeight: 900,
+    textDecoration: "none",
   },
   textarea: {
     width: "100%",
