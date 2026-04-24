@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import webpush from "web-push";
 import { getRouteEta, type TravelMode } from "@/lib/maps";
 
 export type LeaveAlertsSummary = {
@@ -10,6 +11,9 @@ export type LeaveAlertsSummary = {
   skippedInvalidEvent: number;
   recalculated: number;
   updatedEvents: number;
+  pushAttempted: number;
+  pushSent: number;
+  pushFailed: number;
   errors: number;
 };
 
@@ -42,6 +46,14 @@ type LeaveAlertEventRow = {
   travel_eta_seconds?: number | null;
 };
 
+type PushSubscriptionRow = {
+  user_id: string | null;
+  endpoint: string | null;
+  p256dh: string | null;
+  auth: string | null;
+  updated_at?: string | null;
+};
+
 type LatLng = {
   lat: number;
   lng: number;
@@ -55,9 +67,32 @@ type RecalculateResult = {
   originSource: "last_known" | "fallback_lima";
 };
 
+type NotificationInsertRow = {
+  user_id: string;
+  type: typeof LEAVE_ALERT_TYPE;
+  title: string;
+  body: string;
+  entity_id: string;
+  payload: Record<string, unknown>;
+};
+
+type PushSendSummary = {
+  attempted: number;
+  sent: number;
+  failed: number;
+};
+
 const SUPABASE_URL = String(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
 const SUPABASE_SERVICE_ROLE_KEY = String(
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
+).trim();
+
+const VAPID_PUBLIC_KEY = String(
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""
+).trim();
+const VAPID_PRIVATE_KEY = String(process.env.VAPID_PRIVATE_KEY ?? "").trim();
+const VAPID_SUBJECT = String(
+  process.env.VAPID_SUBJECT ?? "mailto:no-reply@syncplansapp.com"
 ).trim();
 
 export const LEAVE_ALERT_TYPE = "leave_alert";
@@ -176,6 +211,30 @@ function leaveAlertBody(input: {
   return `Salida sugerida: ${leaveText}${destinationText}. Tu evento empieza a las ${startText}.${etaText}`;
 }
 
+function canSendWebPush(): boolean {
+  return Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY && VAPID_SUBJECT);
+}
+
+function configureWebPush() {
+  if (!canSendWebPush()) {
+    throw new Error("Missing VAPID env vars");
+  }
+
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+}
+
+function toWebPushSubscription(row: PushSubscriptionRow) {
+  if (!row.endpoint || !row.p256dh || !row.auth) return null;
+
+  return {
+    endpoint: row.endpoint,
+    keys: {
+      p256dh: row.p256dh,
+      auth: row.auth,
+    },
+  };
+}
+
 export function getAdminClient(): AdminClient {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error("Missing Supabase admin env vars");
@@ -263,6 +322,34 @@ async function getAlreadySentKeys(
   );
 }
 
+async function getPushSubscriptionsByUserId(
+  client: AdminClient,
+  userIds: string[]
+): Promise<Map<string, PushSubscriptionRow[]>> {
+  if (userIds.length === 0) return new Map<string, PushSubscriptionRow[]>();
+
+  const { data, error } = await client
+    .from("push_subscriptions")
+    .select("user_id, endpoint, p256dh, auth, updated_at")
+    .in("user_id", userIds)
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+
+  const byUserId = new Map<string, PushSubscriptionRow[]>();
+
+  for (const row of (data ?? []) as PushSubscriptionRow[]) {
+    const userId = String(row.user_id ?? "").trim();
+    if (!userId || !row.endpoint || !row.p256dh || !row.auth) continue;
+
+    const existing = byUserId.get(userId) ?? [];
+    existing.push(row);
+    byUserId.set(userId, existing);
+  }
+
+  return byUserId;
+}
+
 async function recalculateLeaveTimeForEvent(input: {
   client: AdminClient;
   eventRow: LeaveAlertEventRow;
@@ -337,6 +424,84 @@ async function recalculateLeaveTimeForEvent(input: {
   };
 }
 
+async function sendPushForLeaveAlerts(
+  client: AdminClient,
+  rows: NotificationInsertRow[]
+): Promise<PushSendSummary> {
+  const summary: PushSendSummary = {
+    attempted: 0,
+    sent: 0,
+    failed: 0,
+  };
+
+  if (rows.length === 0) return summary;
+
+  if (!canSendWebPush()) {
+    console.warn("[travelReminders] Web Push skipped: missing VAPID env vars");
+    return summary;
+  }
+
+  configureWebPush();
+
+  const userIds = Array.from(
+    new Set(rows.map((row) => String(row.user_id ?? "").trim()).filter(Boolean))
+  );
+
+  const subscriptionsByUserId = await getPushSubscriptionsByUserId(client, userIds);
+
+  const sendJobs: Promise<unknown>[] = [];
+
+  for (const row of rows) {
+    const subscriptions = subscriptionsByUserId.get(row.user_id) ?? [];
+    if (subscriptions.length === 0) continue;
+
+    const targetUrl =
+      typeof row.payload?.event_id === "string" && row.payload.event_id
+        ? `/events?eventId=${encodeURIComponent(row.payload.event_id)}`
+        : "/summary";
+
+    const payload = JSON.stringify({
+      title: row.title,
+      body: row.body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      url: targetUrl,
+      data: {
+        type: LEAVE_ALERT_TYPE,
+        source: "cron_leave_alerts",
+        url: targetUrl,
+        notification_type: LEAVE_ALERT_TYPE,
+        ...row.payload,
+      },
+    });
+
+    for (const subscriptionRow of subscriptions) {
+      const subscription = toWebPushSubscription(subscriptionRow);
+      if (!subscription) continue;
+
+      summary.attempted += 1;
+      sendJobs.push(
+        webpush
+          .sendNotification(subscription, payload)
+          .then(() => {
+            summary.sent += 1;
+          })
+          .catch((error) => {
+            summary.failed += 1;
+            console.error("[travelReminders] Web Push send failed", {
+              userId: row.user_id,
+              eventId: row.entity_id,
+              error,
+            });
+          })
+      );
+    }
+  }
+
+  await Promise.all(sendJobs);
+  return summary;
+}
+
 export async function runLeaveAlerts(opts?: {
   lookaheadMinutes?: number;
 }): Promise<LeaveAlertsSummary> {
@@ -353,6 +518,9 @@ export async function runLeaveAlerts(opts?: {
     skippedInvalidEvent: 0,
     recalculated: 0,
     updatedEvents: 0,
+    pushAttempted: 0,
+    pushSent: 0,
+    pushFailed: 0,
     errors: 0,
   };
 
@@ -370,7 +538,7 @@ export async function runLeaveAlerts(opts?: {
     getAlreadySentKeys(client, userIds, eventIds),
   ]);
 
-  const rowsToInsert: Array<Record<string, unknown>> = [];
+  const rowsToInsert: NotificationInsertRow[] = [];
 
   for (const eventRow of events) {
     const userId = String(eventRow.user_id ?? "").trim();
@@ -466,5 +634,16 @@ export async function runLeaveAlerts(opts?: {
   }
 
   summary.sent = rowsToInsert.length;
+
+  try {
+    const pushSummary = await sendPushForLeaveAlerts(client, rowsToInsert);
+    summary.pushAttempted = pushSummary.attempted;
+    summary.pushSent = pushSummary.sent;
+    summary.pushFailed = pushSummary.failed;
+  } catch (error) {
+    summary.errors += 1;
+    console.error("[travelReminders] Web Push batch failed", error);
+  }
+
   return summary;
 }
