@@ -176,12 +176,28 @@ function readStoredOriginPoint(): LatLng | null {
     if (!raw) return null;
 
     const parsed = JSON.parse(raw);
+
     const point = {
       lat: Number(parsed?.lat),
       lng: Number(parsed?.lng),
     };
 
-    return isUsableLatLng(point) ? point : null;
+    if (!isUsableLatLng(point)) return null;
+
+    // 🔥 Validación anti coordenadas absurdas
+    const distanceFromLima =
+      Math.sqrt(
+        Math.pow(point.lat - DEFAULT_LIMA_ORIGIN.lat, 2) +
+        Math.pow(point.lng - DEFAULT_LIMA_ORIGIN.lng, 2)
+      );
+
+    // aprox > 5 grados = sospechoso para tu caso actual
+    if (distanceFromLima > 5) {
+      window.localStorage.removeItem(SMART_ORIGIN_STORAGE_KEY);
+      return null;
+    }
+
+    return point;
   } catch {
     return null;
   }
