@@ -317,7 +317,25 @@ function formatEtaLabel(etaSeconds: number | null) {
 
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
 }
+function getTravelStatusLabel(input: {
+  isLoadingEta: boolean;
+  etaLabel: string | null;
+  etaError: string | null;
+}) {
+  if (input.isLoadingEta) return "Calculando ruta…";
+  if (input.etaLabel) return "Ruta lista";
+  if (input.etaError) return "Usamos una estimación aproximada";
+  return "Esperando ubicación";
+}
 
+function getLeaveTimeLabel(leaveTimePreview: Date | null) {
+  if (!leaveTimePreview) return "Aparecerá cuando la ruta esté lista";
+
+  return leaveTimePreview.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 function safeIsoFromLocalDateInput(localValue: string): string | null {
   const parsed = new Date(localValue);
   if (Number.isNaN(parsed.getTime())) return null;
@@ -803,7 +821,20 @@ useEffect(() => {
     return leaveAt;
   }, [etaSeconds, startDate]);
   const etaLabel = useMemo(() => formatEtaLabel(etaSeconds), [etaSeconds]);
+const travelStatusLabel = useMemo(
+  () =>
+    getTravelStatusLabel({
+      isLoadingEta,
+      etaLabel,
+      etaError,
+    }),
+  [isLoadingEta, etaLabel, etaError]
+);
 
+const leaveTimeLabel = useMemo(
+  () => getLeaveTimeLabel(leaveTimePreview),
+  [leaveTimePreview]
+);
   const selectedGroup = useMemo(
     () => uniqueGroups.find((g) => g.id === selectedGroupId) || null,
     [uniqueGroups, selectedGroupId]
@@ -3013,34 +3044,32 @@ const handleSharePostSave = async () => {
               </div>
             ) : null}
 
-            {selectedPlace ? (
-              <div style={styles.travelMetaCard}>
-                <div style={styles.travelMetaRow}>
-                  <span style={styles.travelMetaLabel}>Duración estimada</span>
-                  <span style={styles.travelMetaValue}>
-                    {isLoadingEta
-                      ? "Calculando…"
-                      : etaLabel
-                      ? etaLabel
-                      : "Sin cálculo por ahora"}
-                  </span>
-                </div>
-                <div style={styles.travelMetaRow}>
-                  <span style={styles.travelMetaLabel}>Salida sugerida</span>
-                  <span style={styles.travelMetaValue}>
-                    {leaveTimePreview
-                      ? leaveTimePreview.toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "Aparecerá cuando tengamos punto de partida"}
-                  </span>
-                </div>
-                {etaError ? (
-                  <div style={styles.locationError}>{etaError}</div>
-                ) : null}
-              </div>
-            ) : null}
+           {selectedPlace ? (
+  <div style={styles.travelMetaCard}>
+    <div style={styles.travelMetaRow}>
+      <span style={styles.travelMetaLabel}>Estado de ruta</span>
+      <span style={styles.travelMetaValue}>{travelStatusLabel}</span>
+    </div>
+
+    <div style={styles.travelMetaRow}>
+      <span style={styles.travelMetaLabel}>Duración estimada</span>
+      <span style={styles.travelMetaValue}>
+        {isLoadingEta ? "Calculando…" : etaLabel || "Pendiente"}
+      </span>
+    </div>
+
+    <div style={styles.travelMetaRow}>
+      <span style={styles.travelMetaLabel}>Salida sugerida</span>
+      <span style={styles.travelMetaValue}>{leaveTimeLabel}</span>
+    </div>
+
+    {etaError ? (
+      <div style={styles.locationHint}>
+        Si Google no confirma la ruta, SyncPlans usa una estimación segura para no romper el plan.
+      </div>
+    ) : null}
+  </div>
+) : null}
 
             {externalProposalActive && (
               <div
