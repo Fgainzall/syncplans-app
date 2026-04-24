@@ -1,33 +1,50 @@
 // src/app/api/push/test/route.ts
 import { NextResponse } from "next/server";
-import webpush, { type PushSubscription } from "web-push";
+import webpush from "web-push";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type PushSubscriptionRow = {
+  user_id: string | null;
   endpoint: string | null;
   p256dh: string | null;
   auth: string | null;
-  updated_at?: string | null;
+  updated_at: string | null;
 };
 
-type TestPushBody = {
-  title?: string;
-  body?: string;
-  url?: string;
+type WebPushSubscription = {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
 };
 
-function jsonError(message: string, status = 400, details?: unknown) {
-  return NextResponse.json(
+function jsonResponse(payload: Record<string, unknown>, status = 200) {
+  return NextResponse.json(payload, { status });
+}
+
+function jsonError(error: string, status = 400, details?: unknown) {
+  return jsonResponse(
     {
       ok: false,
-      error: message,
+      error,
       ...(details ? { details } : {}),
     },
-    { status },
+    status,
   );
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown error";
+  }
 }
 
 function getVapidConfig() {
@@ -36,17 +53,31 @@ function getVapidConfig() {
   const subject =
     process.env.VAPID_SUBJECT?.trim() || "mailto:no-reply@syncplansapp.com";
 
-  if (!publicKey || !privateKey) {
-    return null;
+  if (!publicKey) {
+    return { ok: false as const, error: "Missing NEXT_PUBLIC_VAPID_PUBLIC_KEY." };
   }
 
-  return { publicKey, privateKey, subject };
+  if (!privateKey) {
+    return { ok: false as const, error: "Missing VAPID_PRIVATE_KEY." };
+  }
+
+  if (!subject.startsWith("mailto:") && !subject.startsWith("https://")) {
+    return {
+      ok: false as const,
+      error: "Invalid VAPID_SUBJECT. Use mailto:correo@dominio.com or https://dominio.com.",
+    };
+  }
+
+  return {
+    ok: true as const,
+    publicKey,
+    privateKey,
+    subject,
+  };
 }
 
-function toWebPushSubscription(row: PushSubscriptionRow): PushSubscription | null {
-  if (!row.endpoint || !row.p256dh || !row.auth) {
-    return null;
-  }
+function toSubscription(row: PushSubscriptionRow): WebPushSubscription | null {
+  if (!row.endpoint || !row.p256dh || !row.auth) return null;
 
   return {
     endpoint: row.endpoint,
@@ -57,125 +88,198 @@ function toWebPushSubscription(row: PushSubscriptionRow): PushSubscription | nul
   };
 }
 
-async function parseBody(req: Request): Promise<TestPushBody> {
+function hasTestSecret(req: Request): boolean {
+  const expected = process.env.PUSH_TEST_SECRET?.trim();
+
+  // In production, if you set PUSH_TEST_SECRET, the endpoint can be tested from terminal:
+  // /api/push/test?secret=...
+  if (!expected) return false;
+
+  const url = new URL(req.url);
+  const fromQuery = url.searchParams.get("secret")?.trim();
+  const fromHeader = req.headers.get("x-push-test-secret")?.trim();
+
+  return fromQuery === expected || fromHeader === expected;
+}
+
+async function getRequestBody(req: Request) {
   try {
     const contentType = req.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) return {};
-    const raw = (await req.json()) as unknown;
-
-    if (!raw || typeof raw !== "object") return {};
-    const body = raw as Record<string, unknown>;
-
-    return {
-      title: typeof body.title === "string" ? body.title : undefined,
-      body: typeof body.body === "string" ? body.body : undefined,
-      url: typeof body.url === "string" ? body.url : undefined,
-    };
+    const parsed = (await req.json()) as unknown;
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed as Record<string, unknown>;
   } catch {
     return {};
   }
 }
 
-async function sendTestPush(req: Request) {
-  const vapid = getVapidConfig();
+async function getLatestSubscriptions(req: Request) {
+  const supabase = await supabaseServer();
 
-  if (!vapid) {
-    return jsonError(
-      "Missing VAPID configuration. Set NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY.",
-      500,
-    );
+  // Option A: test from terminal with PUSH_TEST_SECRET.
+  // This sends to the latest subscriptions in the table, without needing browser cookies.
+  if (hasTestSecret(req)) {
+    const { data, error } = await supabase
+      .from("push_subscriptions")
+      .select("user_id,endpoint,p256dh,auth,updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(5);
+
+    if (error) {
+      return {
+        ok: false as const,
+        status: 500,
+        error: "Could not read push subscriptions.",
+        details: error.message,
+      };
+    }
+
+    return {
+      ok: true as const,
+      rows: (data || []) as PushSubscriptionRow[],
+      mode: "secret",
+    };
   }
 
-  webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
-
-  const supabase = await supabaseServer();
+  // Option B: test from browser while logged in.
+  // This only sends to the current user's subscriptions.
   const {
     data: { user },
     error: userError,
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    return jsonError("Unauthorized.", 401);
+    return {
+      ok: false as const,
+      status: 401,
+      error:
+        "Unauthorized. Open this endpoint from a logged-in browser session, or set PUSH_TEST_SECRET and call it with ?secret=...",
+      details: userError?.message,
+    };
   }
 
-  const { data: subscriptions, error: subscriptionsError } = await supabase
+  const { data, error } = await supabase
     .from("push_subscriptions")
-    .select("endpoint,p256dh,auth,updated_at")
+    .select("user_id,endpoint,p256dh,auth,updated_at")
     .eq("user_id", user.id)
     .order("updated_at", { ascending: false })
-    .limit(3);
+    .limit(5);
 
-  if (subscriptionsError) {
-    return jsonError("Could not read push subscriptions.", 500, subscriptionsError.message);
+  if (error) {
+    return {
+      ok: false as const,
+      status: 500,
+      error: "Could not read push subscriptions.",
+      details: error.message,
+    };
   }
 
-  const validSubscriptions = (subscriptions || [])
-    .map((row) => toWebPushSubscription(row as PushSubscriptionRow))
-    .filter((subscription): subscription is PushSubscription => Boolean(subscription));
+  return {
+    ok: true as const,
+    rows: (data || []) as PushSubscriptionRow[],
+    mode: "session",
+  };
+}
 
-  if (validSubscriptions.length === 0) {
-    return jsonError(
-      "No valid push subscription found for this user. Activate push notifications first.",
-      404,
-    );
-  }
+async function handlePushTest(req: Request) {
+  try {
+    const vapid = getVapidConfig();
 
-  const body = await parseBody(req);
+    if (!vapid.ok) {
+      return jsonError(vapid.error, 500);
+    }
 
-  const payload = JSON.stringify({
-    title: body.title || "SyncPlans",
-    body:
-      body.body ||
-      "Push funcionando correctamente. El siguiente paso es conectarlo con las alertas de salida.",
-    icon: "/icons/icon-192.png",
-    badge: "/icons/icon-192.png",
-    url: body.url || "/settings/notifications",
-    data: {
-      type: "push_test",
-      source: "api_push_test",
-      createdAt: new Date().toISOString(),
-      url: body.url || "/settings/notifications",
-    },
-  });
+    webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
 
-  const results = await Promise.allSettled(
-    validSubscriptions.map((subscription) =>
-      webpush.sendNotification(subscription, payload),
-    ),
-  );
+    const subscriptionResult = await getLatestSubscriptions(req);
 
-  const sent = results.filter((result) => result.status === "fulfilled").length;
-  const failed = results.length - sent;
+    if (!subscriptionResult.ok) {
+      return jsonError(
+        subscriptionResult.error,
+        subscriptionResult.status,
+        subscriptionResult.details,
+      );
+    }
 
-  const failures = results
-    .map((result, index) => ({ result, index }))
-    .filter(({ result }) => result.status === "rejected")
-    .map(({ result, index }) => {
-      const reason = result.status === "rejected" ? result.reason : null;
-      return {
-        index,
-        message:
-          reason instanceof Error
-            ? reason.message
-            : typeof reason === "string"
-              ? reason
-              : "Unknown push error",
-      };
+    const subscriptions = subscriptionResult.rows
+      .map(toSubscription)
+      .filter((subscription): subscription is WebPushSubscription => Boolean(subscription));
+
+    if (subscriptions.length === 0) {
+      return jsonError(
+        "No valid push subscriptions found. Activate notifications first.",
+        404,
+      );
+    }
+
+    const body = await getRequestBody(req);
+
+    const title =
+      typeof body.title === "string" && body.title.trim()
+        ? body.title.trim()
+        : "SyncPlans";
+
+    const message =
+      typeof body.body === "string" && body.body.trim()
+        ? body.body.trim()
+        : "Push funcionando correctamente. Ya podemos conectarlo con las alertas de salida.";
+
+    const url =
+      typeof body.url === "string" && body.url.trim()
+        ? body.url.trim()
+        : "/settings/notifications";
+
+    const payload = JSON.stringify({
+      title,
+      body: message,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      url,
+      data: {
+        type: "push_test",
+        source: "api_push_test",
+        url,
+        createdAt: new Date().toISOString(),
+      },
     });
 
-  return NextResponse.json({
-    ok: sent > 0,
-    sent,
-    failed,
-    attempted: results.length,
-    failures,
-  });
+    const results = await Promise.allSettled(
+      subscriptions.map((subscription) =>
+        webpush.sendNotification(subscription, payload),
+      ),
+    );
+
+    const sent = results.filter((result) => result.status === "fulfilled").length;
+
+    const failures = results
+      .map((result, index) => ({ result, index }))
+      .filter(({ result }) => result.status === "rejected")
+      .map(({ result, index }) => ({
+        index,
+        message:
+          result.status === "rejected"
+            ? getErrorMessage(result.reason)
+            : "Unknown error",
+      }));
+
+    return jsonResponse({
+      ok: sent > 0,
+      mode: subscriptionResult.mode,
+      attempted: results.length,
+      sent,
+      failed: failures.length,
+      failures,
+    });
+  } catch (error) {
+    return jsonError("Unexpected push test error.", 500, getErrorMessage(error));
+  }
 }
 
 export async function POST(req: Request) {
-  return sendTestPush(req);
+  return handlePushTest(req);
 }
 
 export async function GET(req: Request) {
-  return sendTestPush(req);
+  return handlePushTest(req);
 }
