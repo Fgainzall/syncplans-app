@@ -204,6 +204,33 @@ function storeOriginPoint(point: LatLng) {
     // no-op
   }
 }
+async function persistLastKnownLocation(point: LatLng) {
+  if (typeof window === "undefined") return;
+  if (!isUsableLatLng(point)) return;
+
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    const token = session?.access_token;
+    if (!token) return;
+
+    await fetch("/api/user/location", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        lat: point.lat,
+        lng: point.lng,
+      }),
+    });
+  } catch {
+    // No rompemos el formulario si falla la persistencia de ubicación.
+  }
+}
 type SelectedPlace = {
   location_label: string;
   location_address: string;
@@ -639,6 +666,7 @@ useEffect(() => {
 
     if (persist) {
       storeOriginPoint(point);
+      void persistLastKnownLocation(point);
     }
   };
 
