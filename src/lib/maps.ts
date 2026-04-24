@@ -445,13 +445,13 @@ function providerErrorFromStatus(
     });
   }
 
-  if (status === 400 || status === 404) {
-    return new MapsError(`Maps provider rejected request (${status}).`, {
-      ...common,
-      status: 502,
-      recoverable: false,
-    });
-  }
+ if (status === 400 || status === 404) {
+  return new MapsError(`Maps provider rejected request (${status}).`, {
+    ...common,
+    status: 502,
+    recoverable: true,
+  });
+}
 
   return new MapsError(
     `Maps provider request failed (${status}). ${bodySnippet}`.trim(),
@@ -961,17 +961,12 @@ const body: Record<string, unknown> = {
 
 if (mode === "driving") {
   body.routingPreference = "TRAFFIC_AWARE_OPTIMAL";
-} else {
-  body.routingPreference = "TRAFFIC_UNAWARE";
-}
+  body.trafficModel = mapTrafficModelToGoogle(trafficModel);
 
-if (departureTime && mode === "driving") {
-  body.departureTime = departureTime;
-}
-
-  if (mode === "driving") {
-    body.trafficModel = mapTrafficModelToGoogle(trafficModel);
+  if (departureTime) {
+    body.departureTime = departureTime;
   }
+}
 
   try {
     const routesResponse = await fetchJson<GoogleRoutesResponse>(
