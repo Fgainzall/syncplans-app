@@ -167,7 +167,32 @@ function isUsableLatLng(value: unknown): value is LatLng {
     Number(point.lng) <= 180
   );
 }
+function distanceKm(a: LatLng, b: LatLng) {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
 
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+
+  const x =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+
+  return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+function resolveSafeRouteOrigin(origin: LatLng, destination: LatLng): LatLng {
+  const km = distanceKm(origin, destination);
+
+  if (!Number.isFinite(km)) return DEFAULT_LIMA_ORIGIN;
+
+  // Para MVP Perú: si el origen está absurdamente lejos del destino,
+  // usamos Lima como fallback seguro.
+  if (km > 300) return DEFAULT_LIMA_ORIGIN;
+
+  return origin;
+}
 function readStoredOriginPoint(): LatLng | null {
   if (typeof window === "undefined") return null;
 
@@ -1181,19 +1206,23 @@ useEffect(() => {
 
     (async () => {
       try {
-        const res = await fetch("/api/maps/route-eta", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            origin,
-            destination: {
-              lat: destination.location_lat,
-              lng: destination.location_lng,
-            },
-            travelMode,
-            departureTime: getSafeRouteDepartureTime(startIso),
-          }),
-        });
+      const destinationPoint = {
+  lat: Number(destination.location_lat),
+  lng: Number(destination.location_lng),
+};
+
+const safeOrigin = resolveSafeRouteOrigin(origin, destinationPoint);
+
+const res = await fetch("/api/maps/route-eta", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    origin: safeOrigin,
+    destination: destinationPoint,
+    travelMode,
+    departureTime: getSafeRouteDepartureTime(startIso),
+  }),
+});
 
         const data = await res.json().catch(() => null);
         if (cancelled || requestId !== etaRequestRef.current) return;
