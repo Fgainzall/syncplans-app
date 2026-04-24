@@ -147,6 +147,32 @@ export default function NotificationsDrawer({
     else router.push(href);
   }
 
+  function hrefFor(n: NotificationRow): string {
+    const type = String(n.type || "").toLowerCase();
+
+    if (type === "leave_alert") {
+      const payload = (n.payload || {}) as any;
+      const eventId = String(
+        payload.event_id || payload.eventId || n.entity_id || ""
+      ).trim();
+
+      if (eventId) {
+        return `/events/new/details?eventId=${encodeURIComponent(eventId)}&from=leave_alert`;
+      }
+
+      return "/calendar";
+    }
+
+    return notificationHref(n);
+  }
+
+  function actionLabelFor(n: NotificationRow): string {
+    const type = String(n.type || "").toLowerCase();
+    if (type === "group_invite") return "Ver invitación";
+    if (type === "leave_alert") return "Ver ruta";
+    return "Abrir";
+  }
+
   function titleFor(n: NotificationRow) {
     const t = String(n.type || "").toLowerCase();
 
@@ -169,6 +195,12 @@ export default function NotificationsDrawer({
       const groupName: string | undefined = payload.group_name;
       if (groupName) return `Invitación a ${groupName}`;
       return "Nueva invitación a un grupo";
+    }
+
+    if (t === "leave_alert") {
+      const cleanTitle = String(n.title ?? "").trim();
+      if (cleanTitle) return cleanTitle;
+      return "Es momento de salir";
     }
 
     if (t === "event_rejected") {
@@ -226,6 +258,36 @@ export default function NotificationsDrawer({
       return "Toca para ver la invitación.";
     }
 
+    if (t === "leave_alert") {
+      const payload = (n.payload || {}) as any;
+      const leaveTime = String(payload.leave_time ?? "").trim();
+      const eventStart = String(payload.event_start ?? "").trim();
+      const leaveDate = leaveTime ? new Date(leaveTime) : null;
+      const startDate = eventStart ? new Date(eventStart) : null;
+
+      const leaveText =
+        leaveDate && !Number.isNaN(leaveDate.getTime())
+          ? leaveDate.toLocaleTimeString("es-PE", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "ahora";
+
+      const startText =
+        startDate && !Number.isNaN(startDate.getTime())
+          ? startDate.toLocaleTimeString("es-PE", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : null;
+
+      if (n.body) return n.body;
+      if (startText) {
+        return `Salida sugerida ${leaveText}. Tu evento empieza a las ${startText}.`;
+      }
+      return `Salida sugerida ${leaveText}.`;
+    }
+
     if (t === "event_rejected") {
       const payload = (n.payload || {}) as any;
       const comment = String(payload.comment ?? "").trim();
@@ -273,6 +335,7 @@ export default function NotificationsDrawer({
     if (t === "conflict_decision") return "Decisión aplicada";
     if (t === "conflict_auto_adjusted") return "Ajuste automático";
     if (t === "event_created" || t === "event_deleted") return "Evento";
+    if (t === "leave_alert") return "Hora de salir";
     if (t === "event_rejected") return "Decisión";
     if (t === "group_message") return "Mensaje";
     if (t === "group_invite") return "Invitación";
@@ -303,6 +366,14 @@ export default function NotificationsDrawer({
         dot: "#818CF8",
         border: "rgba(129,140,248,0.24)",
         bg: "linear-gradient(180deg, rgba(49,46,129,0.24), rgba(255,255,255,0.04))",
+      };
+    }
+
+    if (t === "leave_alert") {
+      return {
+        dot: "#22D3EE",
+        border: "rgba(34,211,238,0.30)",
+        bg: "linear-gradient(180deg, rgba(8,145,178,0.22), rgba(255,255,255,0.04))",
       };
     }
 
@@ -414,12 +485,12 @@ export default function NotificationsDrawer({
     const type = String(n.type || "").toLowerCase();
 
     if (type === "group_invite") {
-      navTo(notificationHref(n));
+      navTo(hrefFor(n));
       onClose();
       return;
     }
 
-    const href = notificationHref(n);
+    const href = hrefFor(n);
     const id = String(n.id);
 
     try {
@@ -629,6 +700,9 @@ export default function NotificationsDrawer({
                                 {type === "conflict_auto_adjusted" && payload.affected_event_title && (
                                   <span style={metaPill}>{payload.affected_event_title}</span>
                                 )}
+                                {type === "leave_alert" && payload.leave_time && (
+                                  <span style={metaPill}>Salida sugerida</span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -649,7 +723,7 @@ export default function NotificationsDrawer({
                               ...(isMobile ? mobileActionBtn : null),
                             }}
                           >
-                            {isInvite ? "Ver invitación" : "Abrir"}
+                            {actionLabelFor(n)}
                           </button>
 
                           {!isInvite && (
