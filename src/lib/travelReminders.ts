@@ -223,18 +223,42 @@ function leaveAlertBody(input: {
   etaSeconds: number | null;
   destinationLabel?: string | null;
 }): string {
-  const startText = formatTimeEsPe(input.eventStartIso, "pronto");
-  const leaveText = formatTimeEsPe(input.leaveTimeIso, "ahora");
+  const now = Date.now();
+
+  const startMs = input.eventStartIso
+    ? new Date(input.eventStartIso).getTime()
+    : NaN;
+
+  const leaveMs = input.leaveTimeIso
+    ? new Date(input.leaveTimeIso).getTime()
+    : NaN;
+
   const destination = String(input.destinationLabel ?? "").trim();
 
   const etaMinutes = Number.isFinite(Number(input.etaSeconds))
     ? Math.max(1, Math.round(Number(input.etaSeconds) / 60))
     : null;
 
-  const etaText = etaMinutes ? ` Tardarás aprox. ${etaMinutes} min.` : "";
-  const destinationText = destination ? ` hacia ${destination}` : "";
+  const startText = formatTimeEsPe(input.eventStartIso, "pronto");
+  const leaveText = formatTimeEsPe(input.leaveTimeIso, "ahora");
 
-  return `Salida sugerida: ${leaveText}${destinationText}. Tu evento empieza a las ${startText}.${etaText}`;
+  const destinationText = destination ? ` hacia ${destination}` : "";
+  const etaText = etaMinutes ? ` (${etaMinutes} min)` : "";
+
+  if (Number.isFinite(leaveMs) && now < leaveMs - 60_000) {
+    return `Salida ideal: ${leaveText}${destinationText}${etaText}. Tu evento empieza a las ${startText}.`;
+  }
+
+  if (Number.isFinite(leaveMs) && Math.abs(now - leaveMs) <= 5 * 60_000) {
+    return `Sal ya. Vas justo${destinationText}${etaText}. Tu evento empieza a las ${startText}.`;
+  }
+
+  if (Number.isFinite(startMs) && now > leaveMs) {
+    const lateMin = Math.max(1, Math.round((now - leaveMs) / 60000));
+    return `Sal ya${destinationText}. Vas ${lateMin} min tarde aprox. Tu evento empieza a las ${startText}.`;
+  }
+
+  return `Es momento de salir${destinationText}. Tu evento empieza a las ${startText}.`;
 }
 
 function canSendWebPush(): boolean {
