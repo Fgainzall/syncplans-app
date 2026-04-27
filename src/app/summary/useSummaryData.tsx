@@ -25,13 +25,20 @@ import {
   type ConflictAlert,
   type RecentDecision,
 } from "./summaryHelpers";
+import {
+  getGrantedBrowserOrigin,
+  readNestedLatLng,
+  readSmartOriginFromStorage,
+  resolveSafeRouteOriginForEta,
+  toLatLng,
+  writeSmartOriginToStorage,
+  SMART_MOBILITY_MAX_URBAN_DISTANCE_METERS,
+  type LatLng,
+  type SmartOriginConfidence,
+  type SmartOriginSource,
+} from "@/lib/smartMobilityOrigin";
 
 type UiToast = { title: string; subtitle?: string } | null;
-
-type LatLng = {
-  lat: number;
-  lng: number;
-};
 
 export type SmartMobilityState = {
   available: boolean;
@@ -51,6 +58,9 @@ export type SmartMobilityState = {
   mapsUrl: string | null;
   wazeUrl: string | null;
   calculatedAt: string | null;
+  originSource: SmartOriginSource | null;
+  originConfidence: SmartOriginConfidence | null;
+  originUpdatedAt: string | null;
 };
 
 type UseSummaryDataInput = {
@@ -78,8 +88,6 @@ type UseSummaryDataReturn = {
 };
 
 const SMART_MOBILITY_BUFFER_MINUTES = 5;
-const SMART_MOBILITY_MAX_URBAN_DISTANCE_METERS = 120_000;
-const SMART_MOBILITY_STALE_ORIGIN_MS = 45 * 60 * 1000;
 
 const EMPTY_SMART_MOBILITY: SmartMobilityState = {
   available: false,
@@ -99,48 +107,10 @@ const EMPTY_SMART_MOBILITY: SmartMobilityState = {
   mapsUrl: null,
   wazeUrl: null,
   calculatedAt: null,
+  originSource: null,
+  originConfidence: null,
+  originUpdatedAt: null,
 };
-
-function isValidLatLng(lat: unknown, lng: unknown): boolean {
-  const latN = Number(lat);
-  const lngN = Number(lng);
-
-  return (
-    Number.isFinite(latN) &&
-    Number.isFinite(lngN) &&
-    latN >= -90 &&
-    latN <= 90 &&
-    lngN >= -180 &&
-    lngN <= 180
-  );
-}
-
-function isNullIsland(lat: number, lng: number): boolean {
-  return Math.abs(lat) < 0.000001 && Math.abs(lng) < 0.000001;
-}
-
-function toLatLng(lat: unknown, lng: unknown): LatLng | null {
-  if (!isValidLatLng(lat, lng)) return null;
-
-  const point = { lat: Number(lat), lng: Number(lng) };
-
-  // Evita usar 0,0 como ubicación real. Normalmente significa coordenadas vacías.
-  if (isNullIsland(point.lat, point.lng)) return null;
-
-  return point;
-}
-
-function readNestedLatLng(value: unknown): LatLng | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as Record<string, unknown>;
-
-  return (
-    toLatLng(record.lat, record.lng) ||
-    toLatLng(record.latitude, record.longitude) ||
-    toLatLng(record.location_lat, record.location_lng)
-  );
-}
-
 function getEventDestination(event: any): LatLng | null {
   if (!event || typeof event !== "object") return null;
 
@@ -160,7 +130,13 @@ function getEventDestination(event: any): LatLng | null {
 }
 
 function getEventStartIso(event: any): string | null {
-  const raw = event?.start ?? event?.start_at ?? event?.startIso ?? event?.starts_at ?? null;
+  const raw =
+    event?.start ??
+    event?.start_at ??
+    event?.startIso ??
+    event?.starts_at ??
+    null;
+
   if (!raw) return null;
 
   const parsed = new Date(raw);
@@ -172,103 +148,26 @@ function getEventStartIso(event: any): string | null {
 function findNextEventWithDestination(events: any[]): any | null {
   const now = Date.now();
 
-  return [...events]
-    .filter((event) => {
-      const startIso = getEventStartIso(event);
-      if (!startIso) return false;
-      if (new Date(startIso).getTime() < now - 15 * 60 * 1000) return false;
-      return Boolean(getEventDestination(event));
-    })
-    .sort((a, b) => {
-      const aMs = new Date(getEventStartIso(a) || 0).getTime();
-      const bMs = new Date(getEventStartIso(b) || 0).getTime();
-      return aMs - bMs;
-    })[0] ?? null;
-}
+  return (
+    [...events]
+      .filter((event) => {
+        const startIso = getEventStartIso(event);
+        if (!startIso) return false;
 
-function readStoredOrigin(): LatLng | null {
-  if (typeof window === "undefined") return null;
+        const startMs = new Date(startIso).getTime();
+        if (!Number.isFinite(startMs)) return false;
 
-  const keys = [
-    "syncplans:last_origin_point",
-    "syncplans:last_location",
-    "syncplans:current_location",
-  ];
+        if (startMs < now - 15 * 60 * 1000) return false;
 
-  for (const key of keys) {
-    try {
-      const raw = window.localStorage.getItem(key);
-      if (!raw) continue;
-
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      const savedAtRaw = parsed.savedAt ?? parsed.updatedAt ?? parsed.createdAt ?? parsed.timestamp ?? parsed.ts;
-      const savedAtMs = typeof savedAtRaw === "number" ? savedAtRaw : savedAtRaw ? new Date(String(savedAtRaw)).getTime() : null;
-
-      if (savedAtMs && Number.isFinite(savedAtMs) && Date.now() - savedAtMs > SMART_MOBILITY_STALE_ORIGIN_MS) {
-        continue;
-      }
-
-      const point =
-        toLatLng(parsed.lat, parsed.lng) ||
-        toLatLng(parsed.latitude, parsed.longitude) ||
-        readNestedLatLng(parsed.point) ||
-        readNestedLatLng(parsed.coords);
-
-      if (point) return point;
-    } catch {
-      // Ignore invalid localStorage values.
-    }
-  }
-
-  return null;
-}
-
-function saveStoredOrigin(point: LatLng): void {
-  if (typeof window === "undefined") return;
-
-  try {
-    window.localStorage.setItem(
-      "syncplans:last_origin_point",
-      JSON.stringify({
-        lat: point.lat,
-        lng: point.lng,
-        savedAt: Date.now(),
-        source: "summary_smart_mobility",
+        return Boolean(getEventDestination(event));
       })
-    );
-  } catch {
-    // Ignore localStorage write errors.
-  }
+      .sort((a, b) => {
+        const aMs = new Date(getEventStartIso(a) || 0).getTime();
+        const bMs = new Date(getEventStartIso(b) || 0).getTime();
+        return aMs - bMs;
+      })[0] ?? null
+  );
 }
-
-async function getGrantedBrowserOrigin(): Promise<LatLng | null> {
-  if (typeof window === "undefined" || !("geolocation" in navigator)) return null;
-
-  try {
-    if ("permissions" in navigator) {
-      const permission = await navigator.permissions.query({ name: "geolocation" as PermissionName });
-      if (permission.state !== "granted") return null;
-    }
-
-    return await new Promise<LatLng | null>((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const point = toLatLng(position.coords.latitude, position.coords.longitude);
-          resolve(point);
-        },
-        () => resolve(null),
-        {
-          enableHighAccuracy: true,
-          timeout: 6000,
-          maximumAge: 3 * 60 * 1000,
-        }
-      );
-    });
-  } catch {
-    return null;
-  }
-}
-
 function buildGoogleMapsUrl(origin: LatLng, destination: LatLng): string {
   return [
     "https://www.google.com/maps/dir/?api=1",
@@ -302,13 +201,25 @@ async function calculateSmartMobilityFromEvents(events: any[]): Promise<SmartMob
     };
   }
 
-  // Prioridad correcta: GPS fresco primero.
-  // El localStorage solo es fallback. Si usamos primero una ubicación guardada,
-  // SyncPlans puede calcular desde un origen viejo aunque el usuario ya esté en otro lugar.
-  const freshOrigin = await getGrantedBrowserOrigin();
-  if (freshOrigin) saveStoredOrigin(freshOrigin);
+  // Fuente única: GPS concedido primero; localStorage solo si sigue siendo usable.
+  const freshOrigin = await getGrantedBrowserOrigin({
+    enableHighAccuracy: true,
+    timeoutMs: 6000,
+    maximumAgeMs: 3 * 60 * 1000,
+  });
 
-  const origin = freshOrigin || readStoredOrigin();
+  if (freshOrigin?.point) {
+    writeSmartOriginToStorage({
+      point: freshOrigin.point,
+      source: "gps",
+      accuracyM: freshOrigin.accuracyM,
+      updatedAt: freshOrigin.updatedAt,
+    });
+  }
+
+  const storedOrigin = readSmartOriginFromStorage();
+  const resolvedOrigin = freshOrigin?.point ? freshOrigin : storedOrigin;
+  const origin = resolvedOrigin?.point ?? null;
 
   if (!origin) {
     return {
@@ -318,6 +229,33 @@ async function calculateSmartMobilityFromEvents(events: any[]): Promise<SmartMob
       eventTitle: String(next.title ?? "Próximo plan"),
       eventStartIso,
       destination,
+      originSource: "missing",
+      originConfidence: "missing",
+      originUpdatedAt: null,
+    };
+  }
+
+  const routeOrigin = resolveSafeRouteOriginForEta({
+    origin,
+    destination,
+    maxDistanceMeters: SMART_MOBILITY_MAX_URBAN_DISTANCE_METERS,
+  });
+
+  if (!routeOrigin.canCalculateEta) {
+    return {
+      ...EMPTY_SMART_MOBILITY,
+      reason: routeOrigin.reason === "event_too_far" ? "event_too_far" : "no_origin",
+      eventId: String(next.id ?? "") || null,
+      eventTitle: String(next.title ?? "Próximo plan"),
+      eventStartIso,
+      destination,
+      origin,
+      distanceMeters: routeOrigin.distanceMeters,
+      mapsUrl: buildGoogleMapsUrl(origin, destination),
+      wazeUrl: buildWazeUrl(destination),
+      originSource: resolvedOrigin?.source ?? "missing",
+      originConfidence: resolvedOrigin?.confidence ?? "missing",
+      originUpdatedAt: resolvedOrigin?.updatedAt ?? null,
     };
   }
 
@@ -331,7 +269,7 @@ async function calculateSmartMobilityFromEvents(events: any[]): Promise<SmartMob
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        origin,
+        origin: routeOrigin.origin ?? origin,
         destination,
         travelMode: "driving",
         departureTime: new Date(preferredDepartureMs).toISOString(),
@@ -396,6 +334,9 @@ async function calculateSmartMobilityFromEvents(events: any[]): Promise<SmartMob
       mapsUrl: buildGoogleMapsUrl(origin, destination),
       wazeUrl: buildWazeUrl(destination),
       calculatedAt: String(json.calculatedAt ?? new Date().toISOString()),
+      originSource: resolvedOrigin?.source ?? null,
+      originConfidence: resolvedOrigin?.confidence ?? null,
+      originUpdatedAt: resolvedOrigin?.updatedAt ?? null,
     };
   } catch {
     return {
@@ -408,6 +349,9 @@ async function calculateSmartMobilityFromEvents(events: any[]): Promise<SmartMob
       origin,
       mapsUrl: buildGoogleMapsUrl(origin, destination),
       wazeUrl: buildWazeUrl(destination),
+      originSource: resolvedOrigin?.source ?? null,
+      originConfidence: resolvedOrigin?.confidence ?? null,
+      originUpdatedAt: resolvedOrigin?.updatedAt ?? null,
     };
   }
 }

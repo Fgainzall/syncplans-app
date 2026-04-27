@@ -16,6 +16,7 @@ import {
   getMyInvitations,
   type GroupInvitation,
 } from "@/lib/invitationsDb";
+import { formatSmartTime } from "@/lib/timeFormat";
 
 export type NavigationMode = "push" | "replace";
 
@@ -210,14 +211,12 @@ export default function NotificationsDrawer({
   }
 
   function shortTimeLabel(value: unknown, fallback: string): string {
-    const raw = String(value ?? "").trim();
-    if (!raw) return fallback;
-    const date = new Date(raw);
-    if (Number.isNaN(date.getTime())) return fallback;
-    return date.toLocaleTimeString("es-PE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return formatSmartTime(
+      typeof value === "string" || typeof value === "number" || value instanceof Date
+        ? value
+        : null,
+      fallback,
+    );
   }
 
   function titleFor(n: NotificationRow) {

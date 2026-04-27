@@ -50,6 +50,19 @@ function distanceLabel(meters: number | null): string | null {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
+
+function originLabel(source: string | null | undefined, confidence: string | null | undefined): string | null {
+  if (!source) return null;
+
+  if (source === "gps") return "Ubicación actual";
+  if (source === "stored" || source === "last_known") {
+    if (confidence === "high_confidence") return "Última ubicación confiable";
+    return "ETA según tu última ubicación";
+  }
+  if (source === "url") return "Origen enviado";
+  return null;
+}
+
 export default function SmartMobilityCard({ smartMobility }: Props) {
   if (!smartMobility.loading && smartMobility.reason === "no_event_location") return null;
 
@@ -58,7 +71,7 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
     : smartMobility.reason === "no_origin"
       ? "Activa ubicación para saber cuándo salir"
       : smartMobility.reason === "event_too_far"
-        ? "Revisa tu ubicación antes de salir"
+        ? "Actualiza tu ubicación para calcular bien"
         : smartMobility.reason === "route_failed"
           ? "No pude calcular la ruta ahora"
           : minutesLabel(smartMobility.leaveInMinutes);
@@ -68,7 +81,7 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
     : smartMobility.reason === "no_origin"
       ? "SyncPlans puede avisarte con mejor precisión cuando tenga tu ubicación real."
       : smartMobility.reason === "event_too_far"
-        ? "El origen parece demasiado lejos para una alerta automática confiable. Actualiza tu ubicación."
+        ? "Tu ubicación actual o guardada parece demasiado lejos del destino. Actualízala antes de confiar en el ETA."
         : smartMobility.reason === "route_failed"
           ? "Puedes abrir la ruta igual y volver a intentar en unos segundos."
           : smartMobility.eventTitle
@@ -87,6 +100,10 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
   );
   const baseRoute = baseRouteLabel(smartMobility.etaSeconds);
   const distance = distanceLabel(smartMobility.distanceMeters);
+  const origin = originLabel(
+    smartMobility.originSource,
+    smartMobility.originConfidence,
+  );
 
   return (
     <div style={{ ...styles.card, ...toneStyle }}>
@@ -99,6 +116,7 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
           {recommendedTravel ? <span style={styles.metaPill}>{recommendedTravel}</span> : null}
           {baseRoute ? <span style={styles.metaPill}>{baseRoute}</span> : null}
           {distance ? <span style={styles.metaPill}>{distance}</span> : null}
+          {origin ? <span style={styles.metaPill}>{origin}</span> : null}
           {smartMobility.calculatedAt ? <span style={styles.metaPill}>Tráfico actualizado</span> : null}
         </div>
       </div>

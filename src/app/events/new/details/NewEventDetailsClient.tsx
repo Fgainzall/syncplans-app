@@ -55,6 +55,16 @@ import {
   learnGroupSelection,
 } from "@/lib/groupLearning";
 import { buildGoogleMapsDirectionsLink, buildWazeLink } from "@/lib/maps";
+import {
+  getGrantedBrowserOrigin,
+  readSmartOriginFromStorage,
+  resolveSafeRouteOriginForEta,
+  toLatLng,
+  writeSmartOriginToStorage,
+  type LatLng,
+  type SmartOriginSource,
+} from "@/lib/smartMobilityOrigin";
+import { formatSmartTime } from "@/lib/timeFormat";
 
 /* -------------------------------------------------------------------------- */
 /* Helpers locales puros                                                       */
@@ -145,110 +155,10 @@ type MapsPlaceSuggestion = {
   type: string;
 };
 
-type LatLng = {
-  lat: number;
-  lng: number;
-};
-
-type OriginSource = "gps" | "stored" | "url" | "lima";
-const SMART_ORIGIN_STORAGE_KEY = "syncplans:last_origin_point";
-
-const DEFAULT_LIMA_ORIGIN: LatLng = {
-  lat: -12.1097,
-  lng: -77.0359,
-};
-
-function isUsableLatLng(value: unknown): value is LatLng {
-  const point = value as LatLng | null;
-  return (
-    !!point &&
-    Number.isFinite(Number(point.lat)) &&
-    Number.isFinite(Number(point.lng)) &&
-    Number(point.lat) >= -90 &&
-    Number(point.lat) <= 90 &&
-    Number(point.lng) >= -180 &&
-    Number(point.lng) <= 180
-  );
-}
-
-function distanceKm(a: LatLng, b: LatLng) {
-  const R = 6371;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-
-  const lat1 = (a.lat * Math.PI) / 180;
-  const lat2 = (b.lat * Math.PI) / 180;
-
-  const x =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-
-  return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-}
-
-function resolveSafeRouteOrigin(origin: LatLng, destination: LatLng): LatLng {
-  const km = distanceKm(origin, destination);
-
-  if (!Number.isFinite(km)) return DEFAULT_LIMA_ORIGIN;
-
-  // MVP Perú: si el origen está absurdamente lejos del destino, usamos Lima como fallback seguro.
-  if (km > 300) return DEFAULT_LIMA_ORIGIN;
-
-  return origin;
-}
-
-function readStoredOriginPoint(): LatLng | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = window.localStorage.getItem(SMART_ORIGIN_STORAGE_KEY);
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw);
-
-    const point = {
-      lat: Number(parsed?.lat),
-      lng: Number(parsed?.lng),
-    };
-
-    if (!isUsableLatLng(point)) return null;
-
-    const distanceFromLima = Math.sqrt(
-      Math.pow(point.lat - DEFAULT_LIMA_ORIGIN.lat, 2) +
-        Math.pow(point.lng - DEFAULT_LIMA_ORIGIN.lng, 2),
-    );
-
-    if (distanceFromLima > 5) {
-      window.localStorage.removeItem(SMART_ORIGIN_STORAGE_KEY);
-      return null;
-    }
-
-    return point;
-  } catch {
-    return null;
-  }
-}
-
-function storeOriginPoint(point: LatLng) {
-  if (typeof window === "undefined") return;
-  if (!isUsableLatLng(point)) return;
-
-  try {
-    window.localStorage.setItem(
-      SMART_ORIGIN_STORAGE_KEY,
-      JSON.stringify({
-        lat: point.lat,
-        lng: point.lng,
-        updatedAt: new Date().toISOString(),
-      }),
-    );
-  } catch {
-    // no-op
-  }
-}
+type OriginSource = Extract<SmartOriginSource, "gps" | "stored" | "url" | "missing">;
 async function persistLastKnownLocation(point: LatLng) {
   if (typeof window === "undefined") return;
-  if (!isUsableLatLng(point)) return;
+  if (!toLatLng(point.lat, point.lng)) return;
 
   try {
     const {
@@ -333,10 +243,7 @@ function getTravelStatusLabel(input: {
 function getLeaveTimeLabel(leaveTimePreview: Date | null) {
   if (!leaveTimePreview) return "Aparecerá cuando la ruta esté lista";
 
-  return leaveTimePreview.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatSmartTime(leaveTimePreview, "Aparecerá cuando la ruta esté lista");
 }
 
 function getSafeRouteDepartureTime(startIso: string | null): string | null {
@@ -654,7 +561,7 @@ function NewEventDetailsInner() {
   );
   const originPointRef = useRef<LatLng | null>(null);
   const [originPointVersion, setOriginPointVersion] = useState(0);
-  const [originSource, setOriginSource] = useState<OriginSource>("lima");
+  const [originSource, setOriginSource] = useState<OriginSource>("missing");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<null | {
     title: string;
@@ -754,63 +661,49 @@ function NewEventDetailsInner() {
     const applyOrigin = (
       point: LatLng,
       persist = false,
-      source: OriginSource = "lima",
+      source: OriginSource = "stored",
     ) => {
-      if (cancelled || !isUsableLatLng(point)) return;
+      if (cancelled || !toLatLng(point.lat, point.lng)) return;
 
       originPointRef.current = point;
       setOriginPointVersion((current) => current + 1);
       setOriginSource(source);
 
       if (persist) {
-        storeOriginPoint(point);
+        writeSmartOriginToStorage({ point, source });
         void persistLastKnownLocation(point);
       }
     };
 
-    const paramOrigin = {
-      lat: Number(originLatParam),
-      lng: Number(originLngParam),
-    };
+    const paramOrigin = toLatLng(originLatParam, originLngParam);
 
-    if (isUsableLatLng(paramOrigin)) {
+    if (paramOrigin) {
       applyOrigin(paramOrigin, true, "url");
       return () => {
         cancelled = true;
       };
     }
 
-    const storedOrigin = readStoredOriginPoint();
-    if (storedOrigin) {
-      applyOrigin(storedOrigin, false, "stored");
+    const storedOrigin = readSmartOriginFromStorage();
+    if (storedOrigin?.point && storedOrigin.usableForEta) {
+      applyOrigin(storedOrigin.point, false, "stored");
     } else {
-      applyOrigin(DEFAULT_LIMA_ORIGIN, false, "lima");
+      originPointRef.current = null;
+      setOriginSource("missing");
+      setOriginPointVersion((current) => current + 1);
     }
 
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const gpsOrigin = {
-            lat: Number(position.coords.latitude),
-            lng: Number(position.coords.longitude),
-          };
+    void (async () => {
+      const gpsOrigin = await getGrantedBrowserOrigin({
+        enableHighAccuracy: true,
+        timeoutMs: 6000,
+        maximumAgeMs: 3 * 60 * 1000,
+      });
 
-          if (isUsableLatLng(gpsOrigin)) {
-           applyOrigin(gpsOrigin, false, "gps");
-          }
-        },
-        () => {
-          if (!originPointRef.current) {
-            applyOrigin(DEFAULT_LIMA_ORIGIN, false, "lima");
-          }
-        },
-        {
-          enableHighAccuracy: false,
-          timeout: 4500,
-          maximumAge: 10 * 60 * 1000,
-        },
-      );
-    }
+      if (!gpsOrigin?.point || cancelled) return;
+
+      applyOrigin(gpsOrigin.point, true, "gps");
+    })();
 
     return () => {
       cancelled = true;
@@ -856,7 +749,7 @@ function NewEventDetailsInner() {
     if (originSource === "gps") return "Desde tu ubicación actual";
     if (originSource === "stored") return "Desde tu última ubicación guardada";
     if (originSource === "url") return "Desde el punto enviado";
-    return "Desde referencia Lima";
+    return "Activa ubicación para calcular la salida";
   }, [originSource]);
 
   const mapsLinks = useMemo(() => {
@@ -1297,13 +1190,26 @@ function NewEventDetailsInner() {
           lng: Number(destination.location_lng),
         };
 
-        const safeOrigin = resolveSafeRouteOrigin(origin, destinationPoint);
+        const routeOrigin = resolveSafeRouteOriginForEta({
+          origin,
+          destination: destinationPoint,
+        });
+
+        if (!routeOrigin.canCalculateEta || !routeOrigin.origin) {
+          setEtaSeconds(null);
+          setEtaError(
+            routeOrigin.reason === "event_too_far"
+              ? "Tu ubicación parece demasiado lejos del destino. Actualízala para calcular una ruta confiable."
+              : "Activa o actualiza tu ubicación para calcular cuándo salir.",
+          );
+          return;
+        }
 
         const res = await fetch("/api/maps/route-eta", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            origin: safeOrigin,
+            origin: routeOrigin.origin,
             destination: destinationPoint,
             travelMode,
             departureTime: getSafeRouteDepartureTime(startIso),
@@ -1353,15 +1259,13 @@ useEffect(() => {
     lng: Number(selectedPlace.location_lng),
   };
 
-  if (!isUsableLatLng(destinationPoint)) return;
+  if (!toLatLng(destinationPoint.lat, destinationPoint.lng)) return;
 
-  const safeOrigin = resolveSafeRouteOrigin(
-    originPointRef.current,
-    destinationPoint,
-  );
-
-  storeOriginPoint(safeOrigin);
-  void persistLastKnownLocation(safeOrigin);
+  writeSmartOriginToStorage({
+    point: originPointRef.current,
+    source: originSource === "missing" ? "stored" : originSource,
+  });
+  void persistLastKnownLocation(originPointRef.current);
 }, [selectedPlace, originPointVersion]);
   useEffect(() => {
     if (isEditing) return;
