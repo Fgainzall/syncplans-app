@@ -8,10 +8,12 @@ export const revalidate = 0;
 
 const SUPABASE_URL = String(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
 const SUPABASE_SERVICE_ROLE_KEY = String(
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
 ).trim();
 
 const MAX_BODY_BYTES = 2_000;
+
+type PromptStatus = "granted" | "dismissed" | "denied";
 
 function isValidLatLng(lat: number, lng: number) {
   return (
@@ -22,6 +24,10 @@ function isValidLatLng(lat: number, lng: number) {
     lng >= -180 &&
     lng <= 180
   );
+}
+
+function isValidPromptStatus(status: unknown): status is PromptStatus {
+  return status === "granted" || status === "dismissed" || status === "denied";
 }
 
 function getBearerToken(req: Request) {
@@ -105,8 +111,99 @@ export async function POST(req: Request) {
     }
 
     const record = body as Record<string, unknown>;
+    const mode = String(record.mode ?? "location");
+    const nowIso = new Date().toISOString();
+
+    if (mode === "prompt_state") {
+      const status = record.status;
+
+      if (!isValidPromptStatus(status)) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Invalid location prompt status.",
+            code: "LOCATION_INVALID_PROMPT_STATUS",
+          },
+          { status: 400 },
+        );
+      }
+
+      const updatePayload: Record<string, unknown> = {
+        user_id: user.id,
+        location_prompt_status: status,
+        location_prompted_at: nowIso,
+        updated_at: nowIso,
+      };
+
+      if (status === "granted") {
+        updatePayload.location_enabled = true;
+        updatePayload.location_dismissed_until = null;
+      }
+
+      if (status === "dismissed") {
+        const dismissedUntil = new Date(
+          Date.now() + 7 * 24 * 60 * 60 * 1000,
+        ).toISOString();
+
+        updatePayload.location_enabled = false;
+        updatePayload.location_dismissed_until = dismissedUntil;
+      }
+
+      if (status === "denied") {
+        updatePayload.location_enabled = false;
+        updatePayload.location_dismissed_until = null;
+      }
+
+      const { error: upsertError } = await supabaseAdmin
+        .from("user_settings")
+        .upsert(updatePayload, { onConflict: "user_id" });
+
+      if (upsertError) {
+        console.error("[api/user/location] prompt upsert failed", upsertError);
+
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Could not save location prompt status.",
+            code: "LOCATION_PROMPT_SAVE_FAILED",
+            details: upsertError.message,
+          },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json(
+        {
+          ok: true,
+          success: true,
+          promptStatus: status,
+        },
+        {
+          status: 200,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
+
+    if (mode !== "location") {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Invalid location mode.",
+          code: "LOCATION_INVALID_MODE",
+        },
+        { status: 400 },
+      );
+    }
+
     const lat = Number(record.lat);
     const lng = Number(record.lng);
+    const accuracy =
+      record.accuracy === null || record.accuracy === undefined
+        ? null
+        : Number(record.accuracy);
 
     if (!isValidLatLng(lat, lng)) {
       return NextResponse.json(
@@ -119,7 +216,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const nowIso = new Date().toISOString();
+    const accuracyValue =
+      Number.isFinite(accuracy) && Number(accuracy) >= 0 ? Number(accuracy) : null;
 
     const { error: upsertError } = await supabaseAdmin
       .from("user_settings")
@@ -128,7 +226,12 @@ export async function POST(req: Request) {
           user_id: user.id,
           last_known_lat: lat,
           last_known_lng: lng,
+          last_known_accuracy_m: accuracyValue,
           last_known_at: nowIso,
+          location_enabled: true,
+          location_prompt_status: "granted",
+          location_prompted_at: nowIso,
+          location_dismissed_until: null,
           updated_at: nowIso,
         },
         { onConflict: "user_id" },
@@ -155,6 +258,7 @@ export async function POST(req: Request) {
         lastKnownLocation: {
           lat,
           lng,
+          accuracy: accuracyValue,
           at: nowIso,
         },
       },
