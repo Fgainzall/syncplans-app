@@ -13,6 +13,25 @@ import {
 } from "@/lib/pushNotifications";
 import { colors } from "@/styles/design-tokens";
 
+const LOCATION_PROMPT_VISIBLE_KEY = "syncplans:location_prompt_visible";
+const LOCATION_PROMPT_LAST_SHOWN_KEY = "syncplans:location_prompt_last_shown_at";
+const PUSH_AFTER_LOCATION_DELAY_MS = 45_000;
+
+function isLocationPromptActiveOrRecent(): boolean {
+  try {
+    const visible = window.localStorage.getItem(LOCATION_PROMPT_VISIBLE_KEY) === "1";
+    if (visible) return true;
+
+    const rawLastShown = window.localStorage.getItem(LOCATION_PROMPT_LAST_SHOWN_KEY);
+    const lastShown = Number(rawLastShown ?? 0);
+    if (!Number.isFinite(lastShown) || lastShown <= 0) return false;
+
+    return Date.now() - lastShown < PUSH_AFTER_LOCATION_DELAY_MS;
+  } catch {
+    return false;
+  }
+}
+
 export default function PushPermissionPrompt() {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -32,6 +51,7 @@ export default function PushPermissionPrompt() {
     if (!mounted || !enabled || done) return;
 
     let cancelled = false;
+    let timeoutId: number | null = null;
 
     async function checkPushPermission() {
       const current = getPushPermissionStatus();
@@ -58,15 +78,18 @@ export default function PushPermissionPrompt() {
 
       if (existing) return;
 
-      window.setTimeout(() => {
+      const delayMs = isLocationPromptActiveOrRecent() ? PUSH_AFTER_LOCATION_DELAY_MS : 1800;
+
+      timeoutId = window.setTimeout(() => {
         if (!cancelled) setVisible(true);
-      }, 1800);
+      }, delayMs);
     }
 
     void checkPushPermission();
 
     return () => {
       cancelled = true;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
   }, [mounted, enabled, done]);
 
@@ -117,15 +140,14 @@ export default function PushPermissionPrompt() {
         <div className="sp-push-icon">🔔</div>
 
         <div className="sp-push-copy">
-          <p className="sp-push-kicker">Alertas de salida</p>
-          <h2>Recibe el aviso aunque no estés usando la app</h2>
+          <p className="sp-push-kicker">Alertas importantes</p>
+          <h2>Recibe el aviso aunque SyncPlans esté cerrado</h2>
           <p>
-            Activa notificaciones para que SyncPlans pueda avisarte cuando sea
-            momento de salir hacia tu próximo plan.
+            Activa notificaciones para que podamos avisarte salidas, cambios y
+            conflictos importantes en el momento correcto.
           </p>
           <small>
-            Solo las usamos para avisos importantes: salidas, conflictos y cambios
-            relevantes.
+            Nada de ruido: solo avisos útiles para coordinar mejor y llegar a tiempo.
           </small>
         </div>
 
@@ -136,7 +158,7 @@ export default function PushPermissionPrompt() {
             onClick={handleAllow}
             disabled={busy}
           >
-            {busy ? "Activando..." : "Activar notificaciones"}
+            {busy ? "Activando…" : "Activar avisos"}
           </button>
 
           <button
@@ -205,8 +227,9 @@ export default function PushPermissionPrompt() {
 
         .sp-push-kicker {
           margin: 0 0 3px;
-          color: ${colors.textSecondary};
+          color: rgba(125, 211, 252, 0.9);
           font-size: 12px;
+          font-weight: 850;
           letter-spacing: 0.06em;
           text-transform: uppercase;
         }
@@ -215,6 +238,7 @@ export default function PushPermissionPrompt() {
           margin: 0 0 4px;
           font-size: 16px;
           line-height: 1.2;
+          letter-spacing: -0.01em;
         }
 
         p {
@@ -227,7 +251,7 @@ export default function PushPermissionPrompt() {
         small {
           display: block;
           margin-top: 5px;
-          color: rgba(255, 255, 255, 0.5);
+          color: rgba(255, 255, 255, 0.55);
           font-size: 12px;
           line-height: 1.35;
         }

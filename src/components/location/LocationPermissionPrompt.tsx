@@ -14,6 +14,23 @@ import { colors } from "@/styles/design-tokens";
 
 type PermissionStateValue = "granted" | "denied" | "prompt" | "unknown";
 
+const LOCATION_PROMPT_VISIBLE_KEY = "syncplans:location_prompt_visible";
+const LOCATION_PROMPT_LAST_SHOWN_KEY = "syncplans:location_prompt_last_shown_at";
+
+function setLocationPromptVisible(value: boolean) {
+  try {
+    if (value) {
+      window.localStorage.setItem(LOCATION_PROMPT_VISIBLE_KEY, "1");
+      window.localStorage.setItem(LOCATION_PROMPT_LAST_SHOWN_KEY, String(Date.now()));
+      return;
+    }
+
+    window.localStorage.removeItem(LOCATION_PROMPT_VISIBLE_KEY);
+  } catch {
+    // No bloqueamos UI por localStorage.
+  }
+}
+
 export default function LocationPermissionPrompt() {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -27,6 +44,14 @@ export default function LocationPermissionPrompt() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    setLocationPromptVisible(visible);
+
+    return () => {
+      if (visible) setLocationPromptVisible(false);
+    };
+  }, [visible]);
 
   useEffect(() => {
     if (!mounted || !enabled || done) return;
@@ -60,7 +85,7 @@ export default function LocationPermissionPrompt() {
           await persistLocationFromBrowser(point);
           await persistLocationPromptStatus("granted");
         } catch {
-          // No bloqueamos la app.
+          // No bloqueamos la app si el navegador falla al refrescar ubicación.
         }
         return;
       }
@@ -93,7 +118,7 @@ export default function LocationPermissionPrompt() {
 
       setDone(true);
       setVisible(false);
-    } catch (error) {
+    } catch {
       markLocationPromptDenied();
       await persistLocationPromptStatus("denied");
 
@@ -126,15 +151,15 @@ export default function LocationPermissionPrompt() {
         <div className="sp-location-icon">↗</div>
 
         <div className="sp-location-copy">
-          <p className="sp-location-kicker">Salidas inteligentes</p>
-          <h2>Activa tu ubicación</h2>
+          <p className="sp-location-kicker">Smart Mobility</p>
+          <h2>Avísame cuándo salir con más precisión</h2>
           <p>
-            SyncPlans puede calcular mejor cuándo salir según tu ubicación real,
-            el tráfico y la dirección del evento.
+            SyncPlans usa tu ubicación actual para calcular rutas, tráfico y la
+            hora ideal de salida hacia tus eventos con dirección.
           </p>
           <small>
-            La usamos solo para mejorar ETA y alertas de salida. Puedes cambiarlo
-            luego en Ajustes.
+            No es seguimiento constante. Se usa para mejorar ETA y alertas de
+            salida. Puedes cambiarlo luego en Ajustes.
           </small>
         </div>
 
@@ -145,7 +170,7 @@ export default function LocationPermissionPrompt() {
             onClick={handleAllow}
             disabled={busy}
           >
-            {busy ? "Activando..." : "Activar ubicación"}
+            {busy ? "Activando…" : "Usar mi ubicación"}
           </button>
 
           <button
@@ -154,7 +179,7 @@ export default function LocationPermissionPrompt() {
             onClick={handleLater}
             disabled={busy}
           >
-            Ahora no
+            Luego
           </button>
 
           <button
@@ -163,25 +188,25 @@ export default function LocationPermissionPrompt() {
             onClick={handleNoThanks}
             disabled={busy}
           >
-            No, gracias
+            No por ahora
           </button>
         </div>
       </div>
 
       <style jsx>{`
-      .sp-location-prompt {
-  position: fixed;
-  left: 50%;
-  right: auto;
-  bottom: max(24px, env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  z-index: 120;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
-  padding: 0 16px;
-  width: min(100vw, 760px);
-}
+        .sp-location-prompt {
+          position: fixed;
+          left: 50%;
+          right: auto;
+          bottom: max(24px, env(safe-area-inset-bottom));
+          transform: translateX(-50%);
+          z-index: 120;
+          display: flex;
+          justify-content: center;
+          pointer-events: none;
+          padding: 0 16px;
+          width: min(100vw, 760px);
+        }
 
         .sp-location-card {
           width: min(100%, 720px);
@@ -190,9 +215,9 @@ export default function LocationPermissionPrompt() {
           gap: 14px;
           align-items: center;
           pointer-events: auto;
-          border: 1px solid rgba(255, 255, 255, 0.12);
+          border: 1px solid rgba(125, 211, 252, 0.2);
           border-radius: 24px;
-          background: rgba(7, 17, 38, 0.96);
+          background: rgba(7, 17, 38, 0.97);
           color: ${colors.textPrimary};
           box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
           padding: 16px;
@@ -204,8 +229,10 @@ export default function LocationPermissionPrompt() {
           display: grid;
           place-items: center;
           border-radius: 999px;
-          background: rgba(255, 255, 255, 0.1);
+          background: rgba(125, 211, 252, 0.12);
+          color: rgba(224, 242, 254, 0.98);
           font-size: 20px;
+          font-weight: 900;
         }
 
         .sp-location-copy {
@@ -214,8 +241,9 @@ export default function LocationPermissionPrompt() {
 
         .sp-location-kicker {
           margin: 0 0 3px;
-          color: ${colors.textSecondary};
+          color: rgba(125, 211, 252, 0.9);
           font-size: 12px;
+          font-weight: 850;
           letter-spacing: 0.06em;
           text-transform: uppercase;
         }
@@ -224,6 +252,7 @@ export default function LocationPermissionPrompt() {
           margin: 0 0 4px;
           font-size: 16px;
           line-height: 1.2;
+          letter-spacing: -0.01em;
         }
 
         p {
@@ -236,7 +265,7 @@ export default function LocationPermissionPrompt() {
         small {
           display: block;
           margin-top: 5px;
-          color: rgba(255, 255, 255, 0.5);
+          color: rgba(255, 255, 255, 0.55);
           font-size: 12px;
           line-height: 1.35;
         }
@@ -252,7 +281,7 @@ export default function LocationPermissionPrompt() {
           border: 0;
           border-radius: 999px;
           cursor: pointer;
-          font-weight: 700;
+          font-weight: 800;
           transition:
             transform 160ms ease,
             opacity 160ms ease;
@@ -285,12 +314,12 @@ export default function LocationPermissionPrompt() {
           color: ${colors.textSecondary};
         }
 
-      @media (max-width: 760px) {
-  .sp-location-prompt {
-    width: 100%;
-    bottom: max(96px, calc(env(safe-area-inset-bottom) + 92px));
-    padding: 0 14px;
-  }
+        @media (max-width: 760px) {
+          .sp-location-prompt {
+            width: 100%;
+            bottom: max(96px, calc(env(safe-area-inset-bottom) + 92px));
+            padding: 0 14px;
+          }
 
           .sp-location-card {
             grid-template-columns: auto minmax(0, 1fr);
