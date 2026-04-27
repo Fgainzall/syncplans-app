@@ -181,7 +181,12 @@ function buildWazeUrl(destination: LatLng): string {
   return `https://waze.com/ul?ll=${encodeURIComponent(`${destination.lat},${destination.lng}`)}&navigate=yes`;
 }
 
-async function calculateSmartMobilityFromEvents(events: any[]): Promise<SmartMobilityState> {
+async function calculateSmartMobilityFromEvents(
+  events: any[],
+  signal?: AbortSignal,
+): Promise<SmartMobilityState> {
+  if (signal?.aborted) throw new DOMException("Smart Mobility aborted", "AbortError");
+
   const next = findNextEventWithDestination(events);
 
   if (!next) {
@@ -207,6 +212,8 @@ async function calculateSmartMobilityFromEvents(events: any[]): Promise<SmartMob
     timeoutMs: 6000,
     maximumAgeMs: 3 * 60 * 1000,
   });
+
+  if (signal?.aborted) throw new DOMException("Smart Mobility aborted", "AbortError");
 
   if (freshOrigin?.point) {
     writeSmartOriginToStorage({
@@ -267,6 +274,7 @@ async function calculateSmartMobilityFromEvents(events: any[]): Promise<SmartMob
 
     const response = await fetch("/api/maps/route-eta", {
       method: "POST",
+      signal,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         origin: routeOrigin.origin ?? origin,
@@ -277,7 +285,11 @@ async function calculateSmartMobilityFromEvents(events: any[]): Promise<SmartMob
       }),
     });
 
+    if (signal?.aborted) throw new DOMException("Smart Mobility aborted", "AbortError");
+
     const json = await response.json().catch(() => null);
+
+    if (signal?.aborted) throw new DOMException("Smart Mobility aborted", "AbortError");
 
     if (!response.ok || !json) {
       throw new Error(json?.code || "ROUTE_ETA_FAILED");
@@ -338,7 +350,9 @@ async function calculateSmartMobilityFromEvents(events: any[]): Promise<SmartMob
       originConfidence: resolvedOrigin?.confidence ?? null,
       originUpdatedAt: resolvedOrigin?.updatedAt ?? null,
     };
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error;
+
     return {
       ...EMPTY_SMART_MOBILITY,
       reason: "route_failed",
@@ -397,8 +411,10 @@ export function useSummaryData({
   const refreshDebounceTimerRef = useRef<number | null>(null);
   const lastRefreshTriggerAtRef = useRef(0);
   const lastRefreshRef = useRef<number>(0);
+  const loadGenerationRef = useRef(0);
+  const smartMobilityAbortRef = useRef<AbortController | null>(null);
   const lastLoadErrorToastRef = useRef<{ key: string; at: number } | null>(null);
-  const SECONDARY_REFRESH_GUARD_MS = 9000;
+  const SECONDARY_REFRESH_GUARD_MS = 12000;
 
   const clearToastTimer = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -435,6 +451,9 @@ export function useSummaryData({
         window.clearTimeout(refreshDebounceTimerRef.current);
         refreshDebounceTimerRef.current = null;
       }
+
+      smartMobilityAbortRef.current?.abort();
+      smartMobilityAbortRef.current = null;
     };
   }, []);
 
@@ -453,6 +472,13 @@ export function useSummaryData({
   }, [router]);
 
   const loadSummaryInternal = useCallback(async () => {
+    const loadGeneration = loadGenerationRef.current + 1;
+    loadGenerationRef.current = loadGeneration;
+
+    smartMobilityAbortRef.current?.abort();
+    const smartMobilityController = new AbortController();
+    smartMobilityAbortRef.current = smartMobilityController;
+
     setLoading(true);
 
     try {
@@ -502,11 +528,24 @@ export function useSummaryData({
           () => ({})
         ),
         getProposalResponsesForEvents(proposalEventIds).catch(() => ({})),
-        calculateSmartMobilityFromEvents(safeEvents).catch(() => ({
-          ...EMPTY_SMART_MOBILITY,
-          reason: "route_failed" as const,
-        })),
+        calculateSmartMobilityFromEvents(
+          safeEvents,
+          smartMobilityController.signal,
+        ).catch((error) => {
+          if (smartMobilityController.signal.aborted) throw error;
+          return {
+            ...EMPTY_SMART_MOBILITY,
+            reason: "route_failed" as const,
+          };
+        }),
       ]);
+
+      if (
+        smartMobilityController.signal.aborted ||
+        loadGeneration !== loadGenerationRef.current
+      ) {
+        return;
+      }
 
       setEvents(safeEvents);
       setResMap(conflictResolutions ?? {});
@@ -520,6 +559,13 @@ export function useSummaryData({
       setProposalResponseGroupsMap(proposalResponseGroups ?? {});
       setSmartMobility(nextSmartMobility ?? EMPTY_SMART_MOBILITY);
     } catch (e: any) {
+      if (
+        smartMobilityController.signal.aborted ||
+        loadGeneration !== loadGenerationRef.current
+      ) {
+        return;
+      }
+
       setSmartMobility((current) => ({
         ...current,
         loading: false,
@@ -535,7 +581,9 @@ export function useSummaryData({
         lastLoadErrorToastRef.current = { key, at: now };
       }
     } finally {
-      setLoading(false);
+      if (loadGeneration === loadGenerationRef.current) {
+        setLoading(false);
+      }
     }
   }, [requireSessionOrRedirect, showToast]);
 
@@ -569,7 +617,7 @@ export function useSummaryData({
 
     const now = Date.now();
     const elapsed = now - lastRefreshTriggerAtRef.current;
-    const delay = elapsed < 240 ? 240 - elapsed : 0;
+    const delay = elapsed < 420 ? 420 - elapsed : 0;
 
     if (refreshDebounceTimerRef.current) {
       window.clearTimeout(refreshDebounceTimerRef.current);
