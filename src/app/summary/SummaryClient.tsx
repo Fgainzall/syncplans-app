@@ -113,6 +113,29 @@ type StatusBadge = {
   style: CSSProperties;
 };
 
+type NextMoveTone = "calm" | "info" | "warning" | "danger";
+
+type NextMove = {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  cta: string;
+  tone: NextMoveTone;
+  onClick: () => void;
+};
+
+function formatMoveMinutes(totalMinutes: number | null | undefined): string {
+  const total = Math.max(0, Math.round(Number(totalMinutes ?? 0)));
+
+  if (total < 60) return `${total} min`;
+
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+
+  if (minutes === 0) return `${hours} h`;
+  return `${hours} h ${minutes} min`;
+}
+
 function useIsMobileWidth(maxWidth = 520) {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -398,6 +421,31 @@ function FocusRail({
   );
 }
 
+
+function NextMoveCard({ move }: { move: NextMove }) {
+  const toneStyle =
+    move.tone === "danger"
+      ? styles.nextMoveDanger
+      : move.tone === "warning"
+        ? styles.nextMoveWarning
+        : move.tone === "info"
+          ? styles.nextMoveInfo
+          : styles.nextMoveCalm;
+
+  return (
+    <Card style={{ ...styles.nextMoveCard, ...toneStyle }}>
+      <div style={styles.nextMoveCopy}>
+        <div style={styles.nextMoveEyebrow}>{move.eyebrow}</div>
+        <div style={styles.nextMoveTitle}>{move.title}</div>
+        <div style={styles.nextMoveSubtitle}>{move.subtitle}</div>
+      </div>
+
+      <button type="button" onClick={move.onClick} style={styles.nextMoveBtn}>
+        {move.cta}
+      </button>
+    </Card>
+  );
+}
 
 function ProposalPill({ badge }: { badge: ProposalBadge }) {
   return <span style={{ ...styles.statusPill, ...toneBadgeStyle(badge.tone) }}>{badge.label}</span>;
@@ -1663,6 +1711,200 @@ if (parsed.locationQuery) {
     navigateFromSummary,
   ]);
 
+  const nextMove = useMemo<NextMove>(() => {
+    const leaveInMinutes = smartMobility.leaveInMinutes;
+    const hasRelevantLeaveSignal =
+      smartMobility.reason === "ready" &&
+      leaveInMinutes !== null &&
+      Number.isFinite(leaveInMinutes) &&
+      leaveInMinutes <= 180;
+
+    if (hasRelevantLeaveSignal) {
+      const eventTitle = smartMobility.eventTitle || "tu próximo plan";
+
+      if (leaveInMinutes <= -5) {
+        return {
+          eyebrow: "Tu siguiente movimiento",
+          title: `Vas tarde para ${eventTitle}`,
+          subtitle: "Abre la ruta y sal cuanto antes. SyncPlans ya priorizó este aviso porque afecta tu llegada.",
+          cta: "Abrir ruta",
+          tone: "danger",
+          onClick: () => {
+            trackSummaryCta("next_move_open_route_late", smartMobility.mapsUrl || "/calendar", {
+              block: "next_move",
+              eventId: smartMobility.eventId,
+              leaveInMinutes,
+            });
+
+            if (smartMobility.mapsUrl && typeof window !== "undefined") {
+              window.open(smartMobility.mapsUrl, "_blank", "noopener,noreferrer");
+              return;
+            }
+
+            router.push("/calendar");
+          },
+        };
+      }
+
+      if (leaveInMinutes <= 0) {
+        return {
+          eyebrow: "Tu siguiente movimiento",
+          title: `Sal ahora para ${eventTitle}`,
+          subtitle: "La salida sugerida ya llegó. Abre la ruta y evita llegar justo.",
+          cta: "Abrir ruta",
+          tone: "warning",
+          onClick: () => {
+            trackSummaryCta("next_move_open_route_now", smartMobility.mapsUrl || "/calendar", {
+              block: "next_move",
+              eventId: smartMobility.eventId,
+              leaveInMinutes,
+            });
+
+            if (smartMobility.mapsUrl && typeof window !== "undefined") {
+              window.open(smartMobility.mapsUrl, "_blank", "noopener,noreferrer");
+              return;
+            }
+
+            router.push("/calendar");
+          },
+        };
+      }
+
+      return {
+        eyebrow: "Tu siguiente movimiento",
+        title: `Prepárate: sales en ${formatMoveMinutes(leaveInMinutes)}`,
+        subtitle: `Para ${eventTitle}. SyncPlans mantiene este aviso arriba porque está dentro de la ventana útil de salida.`,
+        cta: "Ver ruta",
+        tone: "info",
+        onClick: () => {
+          trackSummaryCta("next_move_open_route_soon", smartMobility.mapsUrl || "/calendar", {
+            block: "next_move",
+            eventId: smartMobility.eventId,
+            leaveInMinutes,
+          });
+
+          if (smartMobility.mapsUrl && typeof window !== "undefined") {
+            window.open(smartMobility.mapsUrl, "_blank", "noopener,noreferrer");
+            return;
+          }
+
+          router.push("/calendar");
+        },
+      };
+    }
+
+    if (conflictAlert.count > 0) {
+      return {
+        eyebrow: "Tu siguiente movimiento",
+        title: `Resuelve ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"}`,
+        subtitle: "Decide una vez y deja una sola versión clara para todos.",
+        cta: "Resolver ahora",
+        tone: "warning",
+        onClick: openConflictCenter,
+      };
+    }
+
+    if (pendingInviteCount > 0) {
+      return {
+        eyebrow: "Tu siguiente movimiento",
+        title: `Responde ${pendingInviteCount} invitación${pendingInviteCount === 1 ? "" : "es"}`,
+        subtitle: "Aceptar o rechazar esto desbloquea coordinación compartida.",
+        cta: "Ver invitaciones",
+        tone: "info",
+        onClick: () =>
+          navigateFromSummary("next_move_invitations", "/invitations", {
+            block: "next_move",
+          }),
+      };
+    }
+
+    if (pendingAttention.proposals > 0 || pendingAttention.captures > 0) {
+      return {
+        eyebrow: "Tu siguiente movimiento",
+        title: "Cierra los pendientes abiertos",
+        subtitle: "Hay respuestas o capturas esperando una decisión para mantener la agenda limpia.",
+        cta: "Revisar pendientes",
+        tone: "info",
+        onClick: () =>
+          navigateFromSummary("next_move_pending", "/events", {
+            block: "next_move",
+          }),
+      };
+    }
+
+    if (showCreateGroupNudge) {
+      return {
+        eyebrow: "Tu siguiente movimiento",
+        title: "Crea tu primer espacio compartido",
+        subtitle: "Ese paso convierte SyncPlans en una referencia real de coordinación, no solo en una agenda personal.",
+        cta: "Crear grupo",
+        tone: "info",
+        onClick: () =>
+          navigateFromSummary("next_move_create_group", "/groups/new", {
+            block: "next_move",
+          }),
+      };
+    }
+
+    if (showInviteNudge) {
+      return {
+        eyebrow: "Tu siguiente movimiento",
+        title: "Invita a la otra persona",
+        subtitle: "El valor compartido aparece cuando ambos ven lo mismo en el mismo lugar.",
+        cta: "Abrir grupos",
+        tone: "info",
+        onClick: () =>
+          navigateFromSummary("next_move_open_groups", "/groups", {
+            block: "next_move",
+          }),
+      };
+    }
+
+    if (!nextEvent) {
+      return {
+        eyebrow: "Tu siguiente movimiento",
+        title: "Captura el próximo plan",
+        subtitle: "Escribe una idea rápida y SyncPlans la convierte en algo revisable.",
+        cta: "Crear plan",
+        tone: "calm",
+        onClick: () =>
+          navigateFromSummary("next_move_create_plan", "/events/new/details?type=personal", {
+            block: "next_move",
+          }),
+      };
+    }
+
+    return {
+      eyebrow: "Tu siguiente movimiento",
+      title: `Revisa lo próximo: ${nextEvent.title}`,
+      subtitle: "Tu agenda está clara por ahora. Mantén el hábito revisando lo siguiente o creando un nuevo plan.",
+      cta: "Abrir calendario",
+      tone: "calm",
+      onClick: () =>
+        navigateFromSummary("next_move_calendar", "/calendar", {
+          block: "next_move",
+          eventId: nextEvent.id ?? null,
+        }),
+    };
+  }, [
+    smartMobility.reason,
+    smartMobility.leaveInMinutes,
+    smartMobility.eventTitle,
+    smartMobility.eventId,
+    smartMobility.mapsUrl,
+    conflictAlert.count,
+    openConflictCenter,
+    pendingInviteCount,
+    pendingAttention.proposals,
+    pendingAttention.captures,
+    showCreateGroupNudge,
+    showInviteNudge,
+    nextEvent,
+    navigateFromSummary,
+    router,
+    trackSummaryCta,
+  ]);
+
   const summaryQuickActions = useMemo<QuickAction[]>(() => {
     if (isFirstTimeMode) {
       return [
@@ -1891,6 +2133,8 @@ if (parsed.locationQuery) {
           sticky={false}
         />
 
+        <NextMoveCard move={nextMove} />
+
         <SmartMobilityCard smartMobility={smartMobility} />
 
         <SummaryHero
@@ -2000,6 +2244,10 @@ if (parsed.locationQuery) {
             gap: 10px !important;
           }
 
+          .spSum-page button {
+            -webkit-tap-highlight-color: transparent;
+          }
+
           .spSum-eventRow {
             min-height: 72px !important;
             padding: 12px !important;
@@ -2067,6 +2315,76 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     opacity: 0.75,
     fontWeight: 650,
+  },
+  nextMoveCard: {
+    borderRadius: 22,
+    border: "1px solid rgba(125,211,252,0.16)",
+    background:
+      "linear-gradient(135deg, rgba(15,23,42,0.92), rgba(30,41,59,0.76))",
+    boxShadow: "0 18px 56px rgba(0,0,0,0.24)",
+    padding: 16,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  nextMoveCalm: {
+    border: "1px solid rgba(148,163,184,0.16)",
+  },
+  nextMoveInfo: {
+    border: "1px solid rgba(56,189,248,0.24)",
+    background:
+      "linear-gradient(135deg, rgba(8,47,73,0.66), rgba(15,23,42,0.86))",
+  },
+  nextMoveWarning: {
+    border: "1px solid rgba(251,191,36,0.30)",
+    background:
+      "linear-gradient(135deg, rgba(120,53,15,0.62), rgba(15,23,42,0.88))",
+  },
+  nextMoveDanger: {
+    border: "1px solid rgba(248,113,113,0.34)",
+    background:
+      "linear-gradient(135deg, rgba(127,29,29,0.66), rgba(15,23,42,0.90))",
+  },
+  nextMoveCopy: {
+    minWidth: 0,
+    flex: "1 1 420px",
+  },
+  nextMoveEyebrow: {
+    fontSize: 11,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.90)",
+    marginBottom: 6,
+  },
+  nextMoveTitle: {
+    fontSize: 22,
+    lineHeight: 1.12,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  nextMoveSubtitle: {
+    marginTop: 7,
+    fontSize: 13,
+    lineHeight: 1.48,
+    color: "rgba(226,232,240,0.78)",
+    fontWeight: 650,
+    maxWidth: 760,
+  },
+  nextMoveBtn: {
+    minHeight: 44,
+    padding: "0 16px",
+    borderRadius: 999,
+    border: "1px solid rgba(125,211,252,0.26)",
+    background: "rgba(56,189,248,0.16)",
+    color: "rgba(240,249,255,0.98)",
+    fontSize: 13,
+    fontWeight: 950,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   },
   heroCard: {
     borderRadius: 24,
