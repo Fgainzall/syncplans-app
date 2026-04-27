@@ -1,6 +1,12 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import webpush from "web-push";
 import { getRouteEta, type TravelMode } from "@/lib/maps";
+import {
+  chooseBestSmartOrigin,
+  resolveSafeRouteOriginForEta,
+  type LatLng as SmartLatLng,
+} from "@/lib/smartMobilityOrigin";
+import { formatSmartTime } from "@/lib/timeFormat";
 
 export type LeaveAlertsSummary = {
   scanned: number;
@@ -64,7 +70,7 @@ type RecalculateResult = {
   etaSeconds: number | null;
   recalculated: boolean;
   updated: boolean;
-  originSource: "last_known" | "fallback_lima";
+  originSource: string;
 };
 
 type NotificationInsertRow = {
@@ -84,15 +90,15 @@ type PushSendSummary = {
 
 const SUPABASE_URL = String(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
 const SUPABASE_SERVICE_ROLE_KEY = String(
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
 ).trim();
 
 const VAPID_PUBLIC_KEY = String(
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "",
 ).trim();
 const VAPID_PRIVATE_KEY = String(process.env.VAPID_PRIVATE_KEY ?? "").trim();
 const VAPID_SUBJECT = String(
-  process.env.VAPID_SUBJECT ?? "mailto:no-reply@syncplansapp.com"
+  process.env.VAPID_SUBJECT ?? "mailto:no-reply@syncplansapp.com",
 ).trim();
 
 export const LEAVE_ALERT_TYPE = "leave_alert";
@@ -101,10 +107,7 @@ const DEFAULT_LOOKAHEAD_MINUTES = 15;
 const MAX_LOOKAHEAD_MINUTES = 180;
 const LEAVE_BUFFER_SECONDS = 5 * 60;
 const RECALCULATE_UPDATE_THRESHOLD_MS = 60_000;
-const DEFAULT_LIMA_ORIGIN: LatLng = {
-  lat: -12.1097,
-  lng: -77.0359,
-};
+const LEAVE_ALERT_GRACE_MINUTES = 3;
 
 function isValidLatLng(point: LatLng | null | undefined): point is LatLng {
   return (
@@ -114,7 +117,8 @@ function isValidLatLng(point: LatLng | null | undefined): point is LatLng {
     Number(point.lat) >= -90 &&
     Number(point.lat) <= 90 &&
     Number(point.lng) >= -180 &&
-    Number(point.lng) <= 180
+    Number(point.lng) <= 180 &&
+    !(Math.abs(Number(point.lat)) < 0.000001 && Math.abs(Number(point.lng)) < 0.000001)
   );
 }
 
@@ -128,6 +132,10 @@ function isoMinutesFromNow(minutes: number): string {
   return new Date(Date.now() + minutes * 60 * 1000).toISOString();
 }
 
+function isoMinutesAgo(minutes: number): string {
+  return new Date(Date.now() - minutes * 60 * 1000).toISOString();
+}
+
 function normalizeCronTravelMode(value: string | null | undefined): TravelMode {
   if (value === "walking") return "walking";
   if (value === "bicycling") return "bicycling";
@@ -135,20 +143,23 @@ function normalizeCronTravelMode(value: string | null | undefined): TravelMode {
   return "driving";
 }
 
-function resolveSmartOrigin(settings: UserSettingsRow | null): {
-  point: LatLng;
-  source: RecalculateResult["originSource"];
-} {
-  const lastKnown = {
-    lat: Number(settings?.last_known_lat),
-    lng: Number(settings?.last_known_lng),
-  };
+function resolveSmartOrigin(settings: UserSettingsRow | null) {
+  const lat = Number(settings?.last_known_lat);
+  const lng = Number(settings?.last_known_lng);
 
-  if (isValidLatLng(lastKnown)) {
-    return { point: lastKnown, source: "last_known" };
-  }
+  const point =
+    Number.isFinite(lat) && Number.isFinite(lng)
+      ? ({ lat, lng } satisfies SmartLatLng)
+      : null;
 
-  return { point: DEFAULT_LIMA_ORIGIN, source: "fallback_lima" };
+  return chooseBestSmartOrigin([
+    {
+      point,
+      source: "last_known",
+      updatedAt: settings?.last_known_at ?? null,
+      accuracyM: null,
+    },
+  ]);
 }
 
 function resolveEventDestination(eventRow: LeaveAlertEventRow): LatLng | null {
@@ -159,36 +170,10 @@ function resolveEventDestination(eventRow: LeaveAlertEventRow): LatLng | null {
 
   return isValidLatLng(destination) ? destination : null;
 }
-function distanceKm(a: LatLng, b: LatLng) {
-  const toRad = (v: number) => (v * Math.PI) / 180;
 
-  const R = 6371;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-
-  const aa =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(a.lat)) *
-      Math.cos(toRad(b.lat)) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
-  return R * c;
-}
-
-function resolveSafeRouteOrigin(origin: LatLng, destination: LatLng): LatLng {
-  const km = distanceKm(origin, destination);
-
-  if (km > 120) {
-    return DEFAULT_LIMA_ORIGIN;
-  }
-
-  return origin;
-}
 function calculateLeaveTimeIso(
   startIso: string | null,
-  etaSeconds: number | null
+  etaSeconds: number | null,
 ): string | null {
   if (!startIso || !Number.isFinite(Number(etaSeconds))) return null;
 
@@ -196,26 +181,17 @@ function calculateLeaveTimeIso(
   if (Number.isNaN(start.getTime())) return null;
 
   return new Date(
-    start.getTime() - Number(etaSeconds) * 1000 - LEAVE_BUFFER_SECONDS * 1000
+    start.getTime() - Number(etaSeconds) * 1000 - LEAVE_BUFFER_SECONDS * 1000,
   ).toISOString();
 }
 
 function formatTimeEsPe(
   iso: string | null | undefined,
-  fallback: string
+  fallback: string,
 ): string {
-  if (!iso) return fallback;
-
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return fallback;
-
-  return new Intl.DateTimeFormat("es-PE", {
-    timeZone: "America/Lima",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  }).format(date);
+  return formatSmartTime(iso, fallback);
 }
+
 function leaveAlertTitle(eventTitle: string | null): string {
   const cleanTitle = String(eventTitle ?? "").trim();
   if (!cleanTitle) return "Ya es momento de salir";
@@ -258,7 +234,7 @@ function leaveAlertBody(input: {
     return `Sal ya. Vas justo${destinationText}${etaText}. Tu evento empieza a las ${startText}.`;
   }
 
-  if (Number.isFinite(startMs) && now > leaveMs) {
+  if (Number.isFinite(startMs) && Number.isFinite(leaveMs) && now > leaveMs) {
     const lateMin = Math.max(1, Math.round((now - leaveMs) / 60000));
     return `Sal ya${destinationText}. Vas ${lateMin} min tarde aprox. Tu evento empieza a las ${startText}.`;
   }
@@ -305,18 +281,18 @@ export function getAdminClient(): AdminClient {
 
 async function getCandidateEvents(
   client: AdminClient,
-  lookaheadMinutes: number
+  lookaheadMinutes: number,
 ): Promise<LeaveAlertEventRow[]> {
-  const nowIso = new Date().toISOString();
+  const lowerIso = isoMinutesAgo(LEAVE_ALERT_GRACE_MINUTES);
   const upperIso = isoMinutesFromNow(lookaheadMinutes);
 
   const { data, error } = await client
     .from("events")
     .select(
-      "id, title, user_id, start, leave_time, location_label, location_address, location_lat, location_lng, travel_mode, travel_eta_seconds"
+      "id, title, user_id, start, leave_time, location_label, location_address, location_lat, location_lng, travel_mode, travel_eta_seconds",
     )
     .not("leave_time", "is", null)
-    .gte("leave_time", nowIso)
+    .gte("leave_time", lowerIso)
     .lte("leave_time", upperIso)
     .order("leave_time", { ascending: true });
 
@@ -327,13 +303,15 @@ async function getCandidateEvents(
 
 async function getUserSettingsByUserId(
   client: AdminClient,
-  userIds: string[]
+  userIds: string[],
 ): Promise<Map<string, UserSettingsRow>> {
   if (userIds.length === 0) return new Map<string, UserSettingsRow>();
 
   const { data, error } = await client
     .from("user_settings")
-    .select("user_id, event_reminders, last_known_lat, last_known_lng, last_known_at")
+    .select(
+      "user_id, event_reminders, last_known_lat, last_known_lng, last_known_at",
+    )
     .in("user_id", userIds);
 
   if (error) throw error;
@@ -352,7 +330,7 @@ async function getUserSettingsByUserId(
 async function getAlreadySentKeys(
   client: AdminClient,
   userIds: string[],
-  eventIds: string[]
+  eventIds: string[],
 ): Promise<Set<string>> {
   if (userIds.length === 0 || eventIds.length === 0) return new Set<string>();
 
@@ -373,13 +351,13 @@ async function getAlreadySentKeys(
         if (!userId || !entityId) return "";
         return `${userId}:${entityId}`;
       })
-      .filter(Boolean)
+      .filter(Boolean),
   );
 }
 
 async function getPushSubscriptionsByUserId(
   client: AdminClient,
-  userIds: string[]
+  userIds: string[],
 ): Promise<Map<string, PushSubscriptionRow[]>> {
   if (userIds.length === 0) return new Map<string, PushSubscriptionRow[]>();
 
@@ -420,19 +398,33 @@ async function recalculateLeaveTimeForEvent(input: {
         : null,
       recalculated: false,
       updated: false,
-      originSource: "fallback_lima",
+      originSource: "missing_destination",
     };
   }
 
   const origin = resolveSmartOrigin(input.userSettings);
-  const safeOrigin = resolveSafeRouteOrigin(
-  origin.point,
-  destination,
-);
+
+  const routeOrigin = resolveSafeRouteOriginForEta({
+    origin: origin.point,
+    destination,
+  });
+
+  if (!routeOrigin.canCalculateEta || !routeOrigin.origin) {
+    return {
+      leaveTimeIso: input.eventRow.leave_time,
+      etaSeconds: Number.isFinite(Number(input.eventRow.travel_eta_seconds))
+        ? Number(input.eventRow.travel_eta_seconds)
+        : null,
+      recalculated: false,
+      updated: false,
+      originSource: origin.source || routeOrigin.reason,
+    };
+  }
+
   const travelMode = normalizeCronTravelMode(input.eventRow.travel_mode);
 
   const route = await getRouteEta({
-    origin: safeOrigin,
+    origin: routeOrigin.origin,
     destination,
     travelMode,
     departureTime: input.eventRow.start,
@@ -485,7 +477,7 @@ async function recalculateLeaveTimeForEvent(input: {
 
 async function sendPushForLeaveAlerts(
   client: AdminClient,
-  rows: NotificationInsertRow[]
+  rows: NotificationInsertRow[],
 ): Promise<PushSendSummary> {
   const summary: PushSendSummary = {
     attempted: 0,
@@ -503,7 +495,7 @@ async function sendPushForLeaveAlerts(
   configureWebPush();
 
   const userIds = Array.from(
-    new Set(rows.map((row) => String(row.user_id ?? "").trim()).filter(Boolean))
+    new Set(rows.map((row) => String(row.user_id ?? "").trim()).filter(Boolean)),
   );
 
   const subscriptionsByUserId = await getPushSubscriptionsByUserId(client, userIds);
@@ -552,7 +544,7 @@ async function sendPushForLeaveAlerts(
               eventId: row.entity_id,
               error,
             });
-          })
+          }),
       );
     }
   }
@@ -586,10 +578,10 @@ export async function runLeaveAlerts(opts?: {
   if (events.length === 0) return summary;
 
   const userIds = Array.from(
-    new Set(events.map((e) => String(e.user_id ?? "").trim()).filter(Boolean))
+    new Set(events.map((e) => String(e.user_id ?? "").trim()).filter(Boolean)),
   );
   const eventIds = Array.from(
-    new Set(events.map((e) => String(e.id ?? "").trim()).filter(Boolean))
+    new Set(events.map((e) => String(e.id ?? "").trim()).filter(Boolean)),
   );
 
   const [settingsByUserId, alreadySentKeys] = await Promise.all([
