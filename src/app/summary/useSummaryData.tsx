@@ -523,27 +523,14 @@ export function useSummaryData({
         .map((event) => String(event!.id))
         .filter(Boolean);
 
-      const [proposalResponses, proposalResponseGroups, nextSmartMobility] = await Promise.all([
+      const [proposalResponses, proposalResponseGroups] = await Promise.all([
         getMyProposalResponsesForEvents(proposalEventIds, user.id).catch(
           () => ({})
         ),
         getProposalResponsesForEvents(proposalEventIds).catch(() => ({})),
-        calculateSmartMobilityFromEvents(
-          safeEvents,
-          smartMobilityController.signal,
-        ).catch((error) => {
-          if (smartMobilityController.signal.aborted) throw error;
-          return {
-            ...EMPTY_SMART_MOBILITY,
-            reason: "route_failed" as const,
-          };
-        }),
       ]);
 
-      if (
-        smartMobilityController.signal.aborted ||
-        loadGeneration !== loadGenerationRef.current
-      ) {
+      if (loadGeneration !== loadGenerationRef.current) {
         return;
       }
 
@@ -557,12 +544,43 @@ export function useSummaryData({
       setRecentDecisions((recentDecisionLogs ?? []).map(mapRecentDecision));
       setProposalResponsesMap(proposalResponses ?? {});
       setProposalResponseGroupsMap(proposalResponseGroups ?? {});
-      setSmartMobility(nextSmartMobility ?? EMPTY_SMART_MOBILITY);
+
+      setSmartMobility((current) => ({
+        ...current,
+        loading: true,
+      }));
+
+      void (async () => {
+        try {
+          const nextSmartMobility = await calculateSmartMobilityFromEvents(
+            safeEvents,
+            smartMobilityController.signal,
+          );
+
+          if (
+            smartMobilityController.signal.aborted ||
+            loadGeneration !== loadGenerationRef.current
+          ) {
+            return;
+          }
+
+          setSmartMobility(nextSmartMobility ?? EMPTY_SMART_MOBILITY);
+        } catch (error) {
+          if (
+            smartMobilityController.signal.aborted ||
+            loadGeneration !== loadGenerationRef.current
+          ) {
+            return;
+          }
+
+          setSmartMobility({
+            ...EMPTY_SMART_MOBILITY,
+            reason: "route_failed",
+          });
+        }
+      })();
     } catch (e: any) {
-      if (
-        smartMobilityController.signal.aborted ||
-        loadGeneration !== loadGenerationRef.current
-      ) {
+      if (loadGeneration !== loadGenerationRef.current) {
         return;
       }
 
