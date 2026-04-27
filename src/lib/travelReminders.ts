@@ -266,6 +266,53 @@ function toWebPushSubscription(row: PushSubscriptionRow) {
   };
 }
 
+function getWebPushStatusCode(error: unknown): number | null {
+  const maybeError = error as
+    | {
+        statusCode?: unknown;
+        status?: unknown;
+        code?: unknown;
+      }
+    | null
+    | undefined;
+
+  const raw =
+    maybeError?.statusCode ??
+    maybeError?.status ??
+    maybeError?.code ??
+    null;
+
+  const status = Number(raw);
+  if (!Number.isFinite(status)) return null;
+
+  return Math.round(status);
+}
+
+function isExpiredPushSubscriptionError(error: unknown): boolean {
+  const status = getWebPushStatusCode(error);
+  return status === 404 || status === 410;
+}
+
+async function deletePushSubscriptionByEndpoint(
+  client: AdminClient,
+  endpoint: string | null | undefined,
+): Promise<void> {
+  const cleanEndpoint = String(endpoint ?? "").trim();
+  if (!cleanEndpoint) return;
+
+  const { error } = await client
+    .from("push_subscriptions")
+    .delete()
+    .eq("endpoint", cleanEndpoint);
+
+  if (error) {
+    console.error("[travelReminders] Failed to delete expired push subscription", {
+      endpoint: cleanEndpoint.slice(0, 96),
+      error,
+    });
+  }
+}
+
 export function getAdminClient(): AdminClient {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error("Missing Supabase admin env vars");
@@ -531,19 +578,30 @@ async function sendPushForLeaveAlerts(
       if (!subscription) continue;
 
       summary.attempted += 1;
+
       sendJobs.push(
         webpush
           .sendNotification(subscription, payload)
           .then(() => {
             summary.sent += 1;
           })
-          .catch((error) => {
+          .catch(async (error) => {
             summary.failed += 1;
+
+            const statusCode = getWebPushStatusCode(error);
+            const isExpiredSubscription = isExpiredPushSubscriptionError(error);
+
             console.error("[travelReminders] Web Push send failed", {
               userId: row.user_id,
               eventId: row.entity_id,
+              statusCode,
+              expiredSubscription: isExpiredSubscription,
               error,
             });
+
+            if (isExpiredSubscription) {
+              await deletePushSubscriptionByEndpoint(client, subscriptionRow.endpoint);
+            }
           }),
       );
     }
