@@ -223,6 +223,24 @@ function readStoredOrigin(): LatLng | null {
   return null;
 }
 
+function saveStoredOrigin(point: LatLng): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      "syncplans:last_origin_point",
+      JSON.stringify({
+        lat: point.lat,
+        lng: point.lng,
+        savedAt: Date.now(),
+        source: "summary_smart_mobility",
+      })
+    );
+  } catch {
+    // Ignore localStorage write errors.
+  }
+}
+
 async function getGrantedBrowserOrigin(): Promise<LatLng | null> {
   if (typeof window === "undefined" || !("geolocation" in navigator)) return null;
 
@@ -284,7 +302,13 @@ async function calculateSmartMobilityFromEvents(events: any[]): Promise<SmartMob
     };
   }
 
-  const origin = readStoredOrigin() || (await getGrantedBrowserOrigin());
+  // Prioridad correcta: GPS fresco primero.
+  // El localStorage solo es fallback. Si usamos primero una ubicación guardada,
+  // SyncPlans puede calcular desde un origen viejo aunque el usuario ya esté en otro lugar.
+  const freshOrigin = await getGrantedBrowserOrigin();
+  if (freshOrigin) saveStoredOrigin(freshOrigin);
+
+  const origin = freshOrigin || readStoredOrigin();
 
   if (!origin) {
     return {
@@ -298,6 +322,11 @@ async function calculateSmartMobilityFromEvents(events: any[]): Promise<SmartMob
   }
 
   try {
+    const startMsForRoute = new Date(eventStartIso).getTime();
+    const preferredDepartureMs = Number.isFinite(startMsForRoute)
+      ? Math.max(Date.now(), startMsForRoute - 20 * 60 * 1000)
+      : Date.now();
+
     const response = await fetch("/api/maps/route-eta", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -305,7 +334,7 @@ async function calculateSmartMobilityFromEvents(events: any[]): Promise<SmartMob
         origin,
         destination,
         travelMode: "driving",
-        departureTime: new Date().toISOString(),
+        departureTime: new Date(preferredDepartureMs).toISOString(),
         trafficModel: "best_guess",
       }),
     });

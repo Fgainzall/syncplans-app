@@ -24,14 +24,24 @@ function minutesLabel(minutes: number | null): string {
   if (minutes === null || !Number.isFinite(minutes)) return "Calculando…";
   if (minutes <= -5) return "Vas justo";
   if (minutes <= 0) return "Es momento de salir";
-  return `Sales en ${formatMinutesHuman(minutes)}`;
+  return `Puedes salir en ${formatMinutesHuman(minutes)}`;
 }
 
-function etaLabel(seconds: number | null): string | null {
+function baseRouteLabel(seconds: number | null): string | null {
   if (seconds === null || !Number.isFinite(seconds)) return null;
   const minutes = Math.max(0, Math.round(seconds / 60));
   if (minutes <= 0) return "Estás muy cerca";
-  return `${formatMinutesHuman(minutes)} de ruta`;
+  return `${formatMinutesHuman(minutes)} ruta`;
+}
+
+function recommendedTravelLabel(seconds: number | null, bufferMinutes: number): string | null {
+  if (seconds === null || !Number.isFinite(seconds)) return null;
+
+  const routeMinutes = Math.max(0, Math.round(seconds / 60));
+  const totalMinutes = routeMinutes + Math.max(0, Math.round(Number(bufferMinutes ?? 0)));
+
+  if (totalMinutes <= 0) return "Estás muy cerca";
+  return `${formatMinutesHuman(totalMinutes)} recomendado`;
 }
 
 function distanceLabel(meters: number | null): string | null {
@@ -62,8 +72,8 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
         : smartMobility.reason === "route_failed"
           ? "Puedes abrir la ruta igual y volver a intentar en unos segundos."
           : smartMobility.eventTitle
-            ? `Para ${smartMobility.eventTitle}. Incluye ${formatMinutesHuman(smartMobility.bufferMinutes)} de margen.`
-            : `Incluye ${formatMinutesHuman(smartMobility.bufferMinutes)} de margen.`;
+            ? `Para ${smartMobility.eventTitle}. El cálculo usa ruta en auto y suma ${formatMinutesHuman(smartMobility.bufferMinutes)} de margen.`
+            : `Ruta en auto con ${formatMinutesHuman(smartMobility.bufferMinutes)} de margen.`;
 
   const toneStyle = smartMobility.isLateRisk
     ? styles.dangerTone
@@ -71,7 +81,11 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
       ? styles.warningTone
       : styles.readyTone;
 
-  const eta = etaLabel(smartMobility.etaSeconds);
+  const recommendedTravel = recommendedTravelLabel(
+    smartMobility.etaSeconds,
+    smartMobility.bufferMinutes
+  );
+  const baseRoute = baseRouteLabel(smartMobility.etaSeconds);
   const distance = distanceLabel(smartMobility.distanceMeters);
 
   return (
@@ -82,7 +96,8 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
         <div style={styles.subtitle}>{subtitle}</div>
 
         <div style={styles.metaRow}>
-          {eta ? <span style={styles.metaPill}>{eta}</span> : null}
+          {recommendedTravel ? <span style={styles.metaPill}>{recommendedTravel}</span> : null}
+          {baseRoute ? <span style={styles.metaPill}>{baseRoute}</span> : null}
           {distance ? <span style={styles.metaPill}>{distance}</span> : null}
           {smartMobility.calculatedAt ? <span style={styles.metaPill}>Tráfico actualizado</span> : null}
         </div>
