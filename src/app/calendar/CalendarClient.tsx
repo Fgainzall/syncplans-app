@@ -1667,56 +1667,72 @@ function EventRow({
               ...(isMobile ? styles.eventRightMobile : null),
             }}
           >
-            <div style={styles.eventTag}>
-              <span
-                style={{
-                  ...styles.eventDot,
-                  background: meta.dot,
-                }}
-              />
-              {meta.label}
-            </div>
-
-            {statusLabel ? (
+            <div style={styles.eventMetaPills}>
               <div
                 style={{
-                  ...styles.eventTrustBadge,
-                  ...statusStyle,
+                  ...styles.eventTag,
+                  ...(isMobile ? styles.eventTagMobile : null),
                 }}
               >
-                {statusLabel}
+                <span
+                  style={{
+                    ...styles.eventDot,
+                    background: meta.dot,
+                  }}
+                />
+                <span style={styles.eventTagText}>{meta.label}</span>
               </div>
-            ) : null}
 
-            <button
-              type="button"
-              onClick={(ev) => {
-                ev.preventDefault();
-                ev.stopPropagation();
-                onEdit?.(e);
-              }}
-              style={styles.editBtn}
-              aria-label="Editar evento"
-              title="Editar evento"
-            >
-              ✏️
-            </button>
+              {statusLabel ? (
+                <div
+                  style={{
+                    ...styles.eventTrustBadge,
+                    ...statusStyle,
+                    ...(isMobile ? styles.eventTrustBadgeMobile : null),
+                  }}
+                >
+                  {statusLabel}
+                </div>
+              ) : null}
+            </div>
 
-            {canDelete ? (
+            <div style={styles.eventActionGroup}>
               <button
                 type="button"
                 onClick={(ev) => {
                   ev.preventDefault();
                   ev.stopPropagation();
-                  onDelete?.(String(e.id), e.title);
+                  onEdit?.(e);
                 }}
-                style={styles.deleteBtn}
-                aria-label="Eliminar evento"
-                title="Eliminar evento"
+                style={{
+                  ...styles.editBtn,
+                  ...(isMobile ? styles.eventIconBtnMobile : null),
+                }}
+                aria-label="Editar evento"
+                title="Editar evento"
               >
-                🗑️
+                ✏️
               </button>
-            ) : null}
+
+              {canDelete ? (
+                <button
+                  type="button"
+                  onClick={(ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    onDelete?.(String(e.id), e.title);
+                  }}
+                  style={{
+                    ...styles.deleteBtn,
+                    ...(isMobile ? styles.eventIconBtnMobile : null),
+                  }}
+                  aria-label="Eliminar evento"
+                  title="Eliminar evento"
+                >
+                  🗑️
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
@@ -2298,11 +2314,8 @@ cell: {
 },
   cellEventLine: {
     display: "flex",
-    gap: 6,
+    gap: 8,
     alignItems: "center",
-    minWidth: 0,
-    maxWidth: "100%",
-    overflow: "hidden",
     borderRadius: 10,
     padding: "2px 4px",
   },
@@ -2317,9 +2330,6 @@ cell: {
     flex: "0 0 auto",
   },
 cellEventText: {
-  flex: "1 1 auto",
-  minWidth: 0,
-  maxWidth: "100%",
   fontSize: 12,
   opacity: 0.98,
   color: "rgba(241,245,249,0.94)",
@@ -2421,21 +2431,16 @@ dayPanel: {
 
 eventRow: {
   display: "flex",
-  alignItems: "stretch",
   gap: 12,
-  width: "100%",
-  maxWidth: "100%",
-  minWidth: 0,
-  overflow: "hidden",
-  padding: 14,
-  borderRadius: 18,
+  padding: 16,
+  borderRadius: 20,
   border: "1px solid rgba(255,255,255,0.06)",
   background:
     "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.025))",
   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.025)",
   transition: "background 160ms ease, border-color 160ms ease, transform 160ms ease",
 },
-  eventBar: { width: 6, minWidth: 6, flex: "0 0 6px", borderRadius: 999 },
+  eventBar: { width: 6, borderRadius: 999 },
 eventBody: {
   flex: 1,
   minWidth: 0,
@@ -2461,13 +2466,25 @@ eventTop: {
 eventRight: {
   display: "inline-flex",
   alignItems: "center",
-  justifyContent: "flex-end",
   gap: 8,
-  flex: "0 0 auto",
+  flexShrink: 0,
   alignSelf: "flex-start",
   marginLeft: 8,
-  minWidth: 0,
   maxWidth: "100%",
+},
+eventMetaPills: {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  minWidth: 0,
+  flexWrap: "wrap",
+},
+eventActionGroup: {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  gap: 8,
+  flexShrink: 0,
 },
 eventTitle: {
   fontSize: 15,
@@ -2478,24 +2495,17 @@ eventTitle: {
   whiteSpace: "nowrap",
   textOverflow: "ellipsis",
   minWidth: 0,
-  maxWidth: "100%",
 },
   eventTime: {
     fontSize: 12,
     opacity: 0.9,
     color: "rgba(191,219,254,0.78)",
     fontWeight: 750,
-    minWidth: 0,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
   },
 eventTag: {
   display: "inline-flex",
   alignItems: "center",
-  gap: 8,
-  minWidth: 0,
-  maxWidth: "100%",
+  gap: 7,
   fontSize: 12,
   padding: "6px 10px",
   borderRadius: 999,
@@ -2504,24 +2514,27 @@ eventTag: {
   color: "rgba(226,232,240,0.94)",
   opacity: 0.98,
   whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
   fontWeight: 850,
+  maxWidth: "100%",
+  minWidth: 0,
 },
-  eventDot: { width: 8, height: 8, borderRadius: 999 },
+  eventTagText: {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    minWidth: 0,
+  },
+  eventDot: { width: 8, height: 8, borderRadius: 999, flexShrink: 0 },
 
   eventTrustBadge: {
     display: "inline-flex",
     alignItems: "center",
-    minWidth: 0,
-    maxWidth: "100%",
+    justifyContent: "center",
     padding: "6px 10px",
     borderRadius: 999,
     fontSize: 11,
     fontWeight: 900,
     whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
   },
   eventTrustBadgeResolved: {
     border: "1px solid rgba(52,211,153,0.24)",
@@ -2541,9 +2554,7 @@ eventTag: {
 
   editBtn: {
     width: 34,
-    minWidth: 34,
     height: 34,
-    flex: "0 0 34px",
     borderRadius: 12,
     border: "1px solid rgba(59,130,246,0.48)",
     background:
@@ -2559,9 +2570,7 @@ eventTag: {
   },
   deleteBtn: {
     width: 34,
-    minWidth: 34,
     height: 34,
-    flex: "0 0 34px",
     borderRadius: 12,
     border: "1px solid rgba(248,113,113,0.32)",
     background:
@@ -3021,22 +3030,36 @@ overviewMetaRowMobile: {
   eventTopMobile: {
     flexDirection: "column",
     alignItems: "stretch",
-    gap: 10,
+    gap: 8,
   },
   eventMainMobile: {
-    width: "100%",
-    minWidth: 0,
     gap: 4,
   },
   eventRightMobile: {
     width: "100%",
-    maxWidth: "100%",
     marginLeft: 0,
-    gap: 6,
-    flexWrap: "wrap",
-    justifyContent: "flex-start",
+    gap: 10,
+    display: "flex",
+    flexWrap: "nowrap",
+    justifyContent: "space-between",
     alignItems: "center",
-    alignSelf: "stretch",
+    paddingTop: 2,
+  },
+  eventTagMobile: {
+    maxWidth: 112,
+    padding: "6px 9px",
+  },
+  eventTrustBadgeMobile: {
+    maxWidth: 126,
+    padding: "6px 9px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  eventIconBtnMobile: {
+    width: 36,
+    height: 36,
+    borderRadius: 13,
+    flexShrink: 0,
   },
 
 

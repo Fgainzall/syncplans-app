@@ -410,7 +410,12 @@ export default function PlanesPage() {
         </section>
 
         <section style={styles.planStateCard}>
-          <div style={styles.planStateHeader}>
+          <div
+            style={{
+              ...styles.planStateHeader,
+              ...(isCompact ? styles.planStateHeaderCompact : null),
+            }}
+          >
             <div style={styles.planStateCopy}>
               <div style={styles.planTag}>
                 {loading ? "Cargando plan..." : planState.planTag}
@@ -423,7 +428,13 @@ export default function PlanesPage() {
               </p>
             </div>
 
-            <div style={styles.planStateBadge}>
+            <div
+              style={{
+                ...styles.planStateBadge,
+                ...(isCompact ? styles.planStateBadgeCompact : null),
+              }}
+            >
+              <span style={styles.planStateBadgeDot} />
               {loading
                 ? "Leyendo..."
                 : planState.hasPremiumAccess
@@ -432,7 +443,12 @@ export default function PlanesPage() {
             </div>
           </div>
 
-          <div style={styles.outcomesGrid}>
+          <div
+            style={{
+              ...styles.outcomesGrid,
+              ...(isCompact ? styles.outcomesGridCompact : null),
+            }}
+          >
             {(isCompact ? outcomeCards.slice(0, 2) : outcomeCards).map((item) => (
               <article key={item.label} style={styles.outcomeCard}>
                 <span style={styles.outcomeLabel}>{item.label}</span>
@@ -442,7 +458,7 @@ export default function PlanesPage() {
             ))}
           </div>
 
-          <div style={styles.betaNote}>
+          <div style={{ ...styles.betaNote, ...(isCompact ? styles.betaNoteCompact : null) }}>
             <p style={styles.betaNoteTitle}>Beta privada</p>
             <p style={styles.betaNoteBody}>
               Todavía no estamos cobrando ni activando desde esta pantalla.
@@ -693,17 +709,23 @@ const styles: Record<string, CSSProperties> = {
   planStateCard: {
     borderRadius: 24,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(15,23,42,0.90)",
+    background:
+      "radial-gradient(circle at 15% 0%, rgba(56,189,248,0.14), transparent 34%), rgba(15,23,42,0.92)",
     boxShadow: "0 18px 60px rgba(0,0,0,0.18)",
     padding: "18px",
     display: "grid",
     gap: 14,
+    overflow: "hidden",
   },
   planStateHeader: {
     display: "grid",
-    gridTemplateColumns: "1fr auto",
+    gridTemplateColumns: "minmax(0, 1fr) auto",
     gap: 14,
     alignItems: "start",
+  },
+  planStateHeaderCompact: {
+    gridTemplateColumns: "minmax(0, 1fr)",
+    gap: 12,
   },
   planStateCopy: {
     display: "grid",
@@ -724,7 +746,7 @@ const styles: Record<string, CSSProperties> = {
   },
   planStateTitle: {
     margin: 0,
-    fontSize: 20,
+    fontSize: 22,
     lineHeight: 1.12,
     fontWeight: 950,
     color: "rgba(255,255,255,0.98)",
@@ -733,30 +755,50 @@ const styles: Record<string, CSSProperties> = {
     margin: 0,
     fontSize: 13,
     lineHeight: 1.58,
-    color: "rgba(203,213,225,0.82)",
+    color: "rgba(203,213,225,0.86)",
     maxWidth: 520,
   },
   planStateBadge: {
     padding: "7px 11px",
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.05)",
+    background: "rgba(255,255,255,0.06)",
     fontSize: 12,
     fontWeight: 850,
     color: "rgba(255,255,255,0.94)",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    whiteSpace: "nowrap",
+  },
+  planStateBadgeCompact: {
+    width: "fit-content",
+    maxWidth: "100%",
+  },
+  planStateBadgeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    background: "rgba(34,197,94,0.95)",
+    boxShadow: "0 0 18px rgba(34,197,94,0.35)",
   },
   outcomesGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
     gap: 10,
   },
+  outcomesGridCompact: {
+    gridTemplateColumns: "minmax(0, 1fr)",
+  },
   outcomeCard: {
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.04)",
-    padding: "12px 14px",
+    padding: "14px",
     display: "grid",
     gap: 4,
+    minWidth: 0,
   },
   outcomeLabel: {
     fontSize: 11,
@@ -781,9 +823,13 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 16,
     border: "1px dashed rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.04)",
-    padding: "12px 14px",
+    padding: "14px",
     display: "grid",
     gap: 4,
+    minWidth: 0,
+  },
+  betaNoteCompact: {
+    padding: "14px",
   },
   betaNoteTitle: {
     margin: 0,
