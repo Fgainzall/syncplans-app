@@ -2298,8 +2298,11 @@ cell: {
 },
   cellEventLine: {
     display: "flex",
-    gap: 8,
+    gap: 6,
     alignItems: "center",
+    minWidth: 0,
+    maxWidth: "100%",
+    overflow: "hidden",
     borderRadius: 10,
     padding: "2px 4px",
   },
@@ -2314,6 +2317,9 @@ cell: {
     flex: "0 0 auto",
   },
 cellEventText: {
+  flex: "1 1 auto",
+  minWidth: 0,
+  maxWidth: "100%",
   fontSize: 12,
   opacity: 0.98,
   color: "rgba(241,245,249,0.94)",
@@ -2415,7 +2421,12 @@ dayPanel: {
 
 eventRow: {
   display: "flex",
+  alignItems: "stretch",
   gap: 12,
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  overflow: "hidden",
   padding: 14,
   borderRadius: 18,
   border: "1px solid rgba(255,255,255,0.06)",
@@ -2424,7 +2435,7 @@ eventRow: {
   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.025)",
   transition: "background 160ms ease, border-color 160ms ease, transform 160ms ease",
 },
-  eventBar: { width: 6, borderRadius: 999 },
+  eventBar: { width: 6, minWidth: 6, flex: "0 0 6px", borderRadius: 999 },
 eventBody: {
   flex: 1,
   minWidth: 0,
@@ -2450,10 +2461,13 @@ eventTop: {
 eventRight: {
   display: "inline-flex",
   alignItems: "center",
+  justifyContent: "flex-end",
   gap: 8,
-  flexShrink: 0,
+  flex: "0 0 auto",
   alignSelf: "flex-start",
   marginLeft: 8,
+  minWidth: 0,
+  maxWidth: "100%",
 },
 eventTitle: {
   fontSize: 15,
@@ -2464,17 +2478,24 @@ eventTitle: {
   whiteSpace: "nowrap",
   textOverflow: "ellipsis",
   minWidth: 0,
+  maxWidth: "100%",
 },
   eventTime: {
     fontSize: 12,
     opacity: 0.9,
     color: "rgba(191,219,254,0.78)",
     fontWeight: 750,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
 eventTag: {
   display: "inline-flex",
   alignItems: "center",
   gap: 8,
+  minWidth: 0,
+  maxWidth: "100%",
   fontSize: 12,
   padding: "6px 10px",
   borderRadius: 999,
@@ -2483,19 +2504,24 @@ eventTag: {
   color: "rgba(226,232,240,0.94)",
   opacity: 0.98,
   whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
   fontWeight: 850,
-  maxWidth: "100%",
 },
   eventDot: { width: 8, height: 8, borderRadius: 999 },
 
   eventTrustBadge: {
     display: "inline-flex",
     alignItems: "center",
+    minWidth: 0,
+    maxWidth: "100%",
     padding: "6px 10px",
     borderRadius: 999,
     fontSize: 11,
     fontWeight: 900,
     whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   eventTrustBadgeResolved: {
     border: "1px solid rgba(52,211,153,0.24)",
@@ -2515,7 +2541,9 @@ eventTag: {
 
   editBtn: {
     width: 34,
+    minWidth: 34,
     height: 34,
+    flex: "0 0 34px",
     borderRadius: 12,
     border: "1px solid rgba(59,130,246,0.48)",
     background:
@@ -2531,7 +2559,9 @@ eventTag: {
   },
   deleteBtn: {
     width: 34,
+    minWidth: 34,
     height: 34,
+    flex: "0 0 34px",
     borderRadius: 12,
     border: "1px solid rgba(248,113,113,0.32)",
     background:
@@ -2991,17 +3021,22 @@ overviewMetaRowMobile: {
   eventTopMobile: {
     flexDirection: "column",
     alignItems: "stretch",
-    gap: 8,
+    gap: 10,
   },
   eventMainMobile: {
+    width: "100%",
+    minWidth: 0,
     gap: 4,
   },
   eventRightMobile: {
     width: "100%",
+    maxWidth: "100%",
     marginLeft: 0,
     gap: 6,
     flexWrap: "wrap",
     justifyContent: "flex-start",
+    alignItems: "center",
+    alignSelf: "stretch",
   },
 
 

@@ -46,6 +46,28 @@ function normalizeCoordPrefs(
   );
 }
 
+
+function useIsCompactLayout() {
+  const [isCompact, setIsCompact] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsCompact(media.matches);
+
+    update();
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", update);
+      return () => media.removeEventListener("change", update);
+    }
+
+    media.addListener(update);
+    return () => media.removeListener(update);
+  }, []);
+
+  return isCompact;
+}
+
 function getRecommendationHref(
   ctaTarget?: "groups_new" | "calendar" | "events_new" | "conflicts" | "invitations"
 ) {
@@ -944,6 +966,7 @@ const styles: Record<string, CSSProperties> = {
 
 export default function ProfilePage() {
   const router = useRouter();
+  const isCompact = useIsCompactLayout();
 
   const [booting, setBooting] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -968,6 +991,107 @@ export default function ProfilePage() {
   const [savingDigest, setSavingDigest] = useState(false);
   const [digestError, setDigestError] = useState<string | null>(null);
   const [digestOk, setDigestOk] = useState<string | null>(null);
+
+  const loadingRowStyle: CSSProperties = isCompact
+    ? { ...styles.loadingRow, gridTemplateColumns: "minmax(0, 1fr)", gap: 12 }
+    : styles.loadingRow;
+
+  const heroCardStyle: CSSProperties = isCompact
+    ? { ...styles.heroCard, borderRadius: 22, padding: 14, gap: 14 }
+    : styles.heroCard;
+
+  const heroTopStyle: CSSProperties = isCompact
+    ? {
+        ...styles.heroTop,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "stretch",
+        gap: 14,
+      }
+    : styles.heroTop;
+
+  const profileRowStyle: CSSProperties = isCompact
+    ? { ...styles.profileRow, flex: "1 1 auto", width: "100%", alignItems: "flex-start" }
+    : styles.profileRow;
+
+  const avatarStyle: CSSProperties = isCompact
+    ? { ...styles.avatar, width: 54, height: 54, fontSize: 17 }
+    : styles.avatar;
+
+  const nameStyle: CSSProperties = isCompact
+    ? {
+        ...styles.name,
+        fontSize: 22,
+        lineHeight: 1.12,
+        whiteSpace: "normal",
+        overflowWrap: "anywhere",
+      }
+    : styles.name;
+
+  const heroActionStackStyle: CSSProperties = isCompact
+    ? { ...styles.heroActionStack, minWidth: 0, width: "100%" }
+    : styles.heroActionStack;
+
+  const heroStatsStyle: CSSProperties = isCompact
+    ? { ...styles.heroStats, gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }
+    : styles.heroStats;
+
+  const statStyle: CSSProperties = isCompact
+    ? { ...styles.stat, padding: 11, borderRadius: 16, minWidth: 0, overflow: "hidden" }
+    : styles.stat;
+
+  const statLabelStyle: CSSProperties = isCompact
+    ? { ...styles.statLabel, fontSize: 10, lineHeight: 1.25, overflowWrap: "anywhere" }
+    : styles.statLabel;
+
+  const statValueStyle: CSSProperties = isCompact
+    ? { ...styles.statValue, fontSize: 16, lineHeight: 1.15, overflowWrap: "anywhere" }
+    : styles.statValue;
+
+  const statHintStyle: CSSProperties = isCompact
+    ? { ...styles.statHint, fontSize: 10.5, lineHeight: 1.42, overflowWrap: "anywhere" }
+    : styles.statHint;
+
+  const mainGridStyle: CSSProperties = isCompact
+    ? { ...styles.mainGrid, gridTemplateColumns: "minmax(0, 1fr)", gap: 14 }
+    : styles.mainGrid;
+
+  const cardStyle: CSSProperties = isCompact
+    ? { ...styles.card, borderRadius: 20, padding: 14 }
+    : styles.card;
+
+  const sectionTitleStyle: CSSProperties = isCompact
+    ? { ...styles.sectionTitle, fontSize: 19, lineHeight: 1.16 }
+    : styles.sectionTitle;
+
+  const formRowStyle: CSSProperties = isCompact
+    ? { ...styles.formRow, gridTemplateColumns: "minmax(0, 1fr)", gap: 10 }
+    : styles.formRow;
+
+  const smallGridStyle: CSSProperties = isCompact
+    ? { ...styles.smallGrid, gridTemplateColumns: "minmax(0, 1fr)", gap: 10 }
+    : styles.smallGrid;
+
+  const coordGridStyle: CSSProperties = isCompact
+    ? { ...styles.coordGrid, gridTemplateColumns: "minmax(0, 1fr)", gap: 10 }
+    : styles.coordGrid;
+
+  const formActionsStyle: CSSProperties = isCompact
+    ? { ...styles.formActions, flexDirection: "column", alignItems: "stretch" }
+    : styles.formActions;
+
+  const coordActionsStyle: CSSProperties = isCompact
+    ? { ...styles.coordActions, justifyContent: "stretch" }
+    : styles.coordActions;
+
+  const digestRowStyle: CSSProperties = isCompact
+    ? { ...styles.digestRow, flexDirection: "column", alignItems: "stretch", gap: 12 }
+    : styles.digestRow;
+
+  const fullWidthButtonStyle: CSSProperties = isCompact
+    ? { width: "100%", justifyContent: "center", textAlign: "center" }
+    : {};
+
 
   useEffect(() => {
     let alive = true;
@@ -1264,7 +1388,7 @@ export default function ProfilePage() {
             />
           </div>
 
-          <div style={styles.loadingRow}>
+          <div style={loadingRowStyle}>
             <div style={styles.loadingCard} />
             <div style={styles.loadingCard} />
           </div>
@@ -1404,16 +1528,16 @@ export default function ProfilePage() {
           />
         </div>
 
-        <section style={styles.heroCard}>
-          <div style={styles.heroTop}>
-            <div style={styles.profileRow}>
-              <div style={styles.avatar}>{initials || "?"}</div>
+        <section style={heroCardStyle}>
+          <div style={heroTopStyle}>
+            <div style={profileRowStyle}>
+              <div style={avatarStyle}>{initials || "?"}</div>
 
               <div style={styles.identityWrap}>
                 <div style={styles.identityEyebrow}>Tu cuenta</div>
 
                 <div style={styles.nameRow}>
-                  <span style={styles.name}>
+                  <span style={nameStyle}>
                     {(profile as any).display_name ||
                       `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() ||
                       "(Sin nombre)"}
@@ -1438,10 +1562,10 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div style={styles.heroActionStack}>
+            <div style={heroActionStackStyle}>
               <button
                 type="button"
-                style={styles.heroPrimaryBtn}
+                style={{ ...styles.heroPrimaryBtn, ...fullWidthButtonStyle }}
                 onClick={() => router.push("/settings")}
               >
                 Gestionar cuenta
@@ -1449,7 +1573,7 @@ export default function ProfilePage() {
 
               <button
                 type="button"
-                style={styles.heroSecondaryBtn}
+                style={{ ...styles.heroSecondaryBtn, ...fullWidthButtonStyle }}
                 onClick={() => router.push("/panel")}
               >
                 Ir al panel
@@ -1462,46 +1586,46 @@ export default function ProfilePage() {
             <div style={styles.heroStripText}>{heroSummary}</div>
           </div>
 
-          <div style={styles.heroStats}>
-            <div style={styles.stat}>
-              <div style={styles.statLabel}>Plan</div>
-              <div style={styles.statValue}>{planLabel}</div>
-              <div style={styles.statHint}>{planHint}</div>
+          <div style={heroStatsStyle}>
+            <div style={statStyle}>
+              <div style={statLabelStyle}>Plan</div>
+              <div style={statValueStyle}>{planLabel}</div>
+              <div style={statHintStyle}>{planHint}</div>
             </div>
 
-            <div style={styles.stat}>
-              <div style={styles.statLabel}>Grupos</div>
-              <div style={styles.statValue}>
+            <div style={statStyle}>
+              <div style={statLabelStyle}>Grupos</div>
+              <div style={statValueStyle}>
                 {statsLoading ? "…" : stats?.totalGroups ?? 0}
               </div>
-              <div style={styles.statHint}>Espacios compartidos donde ya participas.</div>
+              <div style={statHintStyle}>Espacios compartidos donde ya participas.</div>
             </div>
 
-            <div style={styles.stat}>
-              <div style={styles.statLabel}>Eventos recientes</div>
-              <div style={styles.statValue}>
+            <div style={statStyle}>
+              <div style={statLabelStyle}>Eventos recientes</div>
+              <div style={statValueStyle}>
                 {statsLoading ? "…" : stats?.eventsLast7 ?? 0}
               </div>
-              <div style={styles.statHint}>Eventos visibles en los últimos 7 días.</div>
+              <div style={statHintStyle}>Eventos visibles en los últimos 7 días.</div>
             </div>
 
-            <div style={styles.stat}>
-              <div style={styles.statLabel}>Conflictos</div>
-              <div style={styles.statValue}>
+            <div style={statStyle}>
+              <div style={statLabelStyle}>Conflictos</div>
+              <div style={statValueStyle}>
                 {statsLoading ? "…" : stats?.conflictsNow ?? 0}
               </div>
-              <div style={styles.statHint}>Choques activos que siguen pendientes.</div>
+              <div style={statHintStyle}>Choques activos que siguen pendientes.</div>
             </div>
           </div>
         </section>
 
-        <div style={styles.mainGrid}>
+        <div style={mainGridStyle}>
           <div style={styles.leftCol}>
-            <section style={styles.card}>
+            <section style={cardStyle}>
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionLabel}>Perfil</div>
-                  <h2 style={styles.sectionTitle}>Tu identidad en SyncPlans</h2>
+                  <h2 style={sectionTitleStyle}>Tu identidad en SyncPlans</h2>
                   <div style={styles.sectionSub}>
                     Mantén tu nombre y tu información básica al día para que la coordinación compartida tenga una sola verdad visible en toda la app.
                   </div>
@@ -1524,7 +1648,7 @@ export default function ProfilePage() {
               </div>
 
               <form style={styles.form} onSubmit={handleSaveProfile}>
-                <div style={styles.formRow}>
+                <div style={formRowStyle}>
                   <div style={styles.field}>
                     <label style={styles.label}>Nombre</label>
                     <input
@@ -1554,14 +1678,14 @@ export default function ProfilePage() {
                 {profileError ? <div style={styles.error}>{profileError}</div> : null}
                 {profileOk ? <div style={styles.ok}>{profileOk}</div> : null}
 
-                <div style={styles.formActions}>
+                <div style={formActionsStyle}>
                   <div style={styles.smallInfo}>
                     Este nombre se usa para representarte mejor dentro de SyncPlans.
                   </div>
 
                   <button
                     type="submit"
-                    style={styles.primaryBtn}
+                    style={{ ...styles.primaryBtn, ...fullWidthButtonStyle }}
                     disabled={savingProfile}
                   >
                     {savingProfile ? "Guardando..." : "Guardar perfil"}
@@ -1570,11 +1694,11 @@ export default function ProfilePage() {
               </form>
             </section>
 
-            <section style={styles.card}>
+            <section style={cardStyle}>
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionLabel}>Preferencias</div>
-                  <h2 style={styles.sectionTitle}>Cómo prefieres coordinar</h2>
+                  <h2 style={sectionTitleStyle}>Cómo prefieres coordinar</h2>
                   <div style={styles.sectionSub}>
                     Estas señales ayudan a SyncPlans a leer mejor tu estilo cuando toca decidir, ceder, proponer o ordenar tiempo compartido.
                   </div>
@@ -1599,7 +1723,7 @@ export default function ProfilePage() {
               </div>
 
               <form style={styles.coordForm} onSubmit={handleSaveCoordPrefs}>
-                <div style={styles.coordGrid}>
+                <div style={coordGridStyle}>
                   <div style={styles.coordCol}>
                     <div style={styles.coordLabel}>Momentos preferidos</div>
 
@@ -1701,10 +1825,10 @@ export default function ProfilePage() {
                 {coordError ? <div style={styles.error}>{coordError}</div> : null}
                 {coordOk ? <div style={styles.ok}>{coordOk}</div> : null}
 
-                <div style={styles.coordActions}>
+                <div style={coordActionsStyle}>
                   <button
                     type="submit"
-                    style={styles.primaryBtn}
+                    style={{ ...styles.primaryBtn, ...fullWidthButtonStyle }}
                     disabled={savingCoord}
                   >
                     {savingCoord ? "Guardando..." : "Guardar preferencias"}
@@ -1713,11 +1837,11 @@ export default function ProfilePage() {
               </form>
             </section>
 
-            <section style={styles.card}>
+            <section style={cardStyle}>
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionLabel}>Espacios compartidos</div>
-                  <h2 style={styles.sectionTitle}>Tu estructura compartida</h2>
+                  <h2 style={sectionTitleStyle}>Tu estructura compartida</h2>
                   <div style={styles.sectionSub}>
                     Tus grupos siguen formando parte de tu cuenta, pero la operación ya vive en Panel. Aquí solo mantienes una lectura clara de tu estructura para no confundir identidad con administración.
                   </div>
@@ -1744,7 +1868,7 @@ export default function ProfilePage() {
                 </span>
               </div>
 
-              <div style={styles.smallGrid}>
+              <div style={smallGridStyle}>
                 <div style={styles.statusCard}>
                   <div style={styles.accountStatusRow}>
                     <div style={styles.statusIcon}>◎</div>
@@ -1777,7 +1901,7 @@ export default function ProfilePage() {
                   <div style={styles.planCtaRow}>
                     <button
                       type="button"
-                      style={styles.planPrimaryBtn}
+                      style={{ ...styles.planPrimaryBtn, ...fullWidthButtonStyle }}
                       onClick={() => router.push("/panel")}
                     >
                       Abrir panel
@@ -1814,18 +1938,18 @@ export default function ProfilePage() {
           </div>
 
           <div style={styles.rightCol}>
-            <section style={styles.card}>
+            <section style={cardStyle}>
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionLabel}>Cuenta</div>
-                  <h2 style={styles.sectionTitle}>Estado de tu cuenta</h2>
+                  <h2 style={sectionTitleStyle}>Estado de tu cuenta</h2>
                   <div style={styles.sectionSub}>
                     Aquí se consolida tu estado de cuenta, tu plan y tu preparación para coordinar mejor. La operación diaria sigue viviendo en Summary, Events y Panel.
                   </div>
                 </div>
               </div>
 
-              <div style={styles.smallGrid}>
+              <div style={smallGridStyle}>
                 <div style={styles.statusCard}>
                   <div style={styles.accountStatusRow}>
                     <div style={styles.statusIcon}>{verified ? "✓" : "!"}</div>
@@ -1848,7 +1972,7 @@ export default function ProfilePage() {
                   <div style={styles.planCtaRow}>
                     <button
                       type="button"
-                      style={styles.planPrimaryBtn}
+                      style={{ ...styles.planPrimaryBtn, ...fullWidthButtonStyle }}
                       onClick={() => {
                         if (profile?.id) {
                           void trackEvent({
@@ -1885,7 +2009,7 @@ export default function ProfilePage() {
 
                       <button
                         type="button"
-                        style={styles.planPrimaryBtn}
+                        style={{ ...styles.planPrimaryBtn, ...fullWidthButtonStyle }}
                         onClick={() => {
                           if (profile?.id) {
                             void trackEvent({
@@ -1949,11 +2073,11 @@ export default function ProfilePage() {
               </div>
             </section>
 
-            <section style={styles.card}>
+            <section style={cardStyle}>
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionLabel}>Recomendación</div>
-                  <h2 style={styles.sectionTitle}>Siguiente mejora sugerida</h2>
+                  <h2 style={sectionTitleStyle}>Siguiente mejora sugerida</h2>
                   <div style={styles.sectionSub}>
                     Una sola siguiente acción útil para mejorar tu cuenta sin competir con el loop principal del producto.
                   </div>
@@ -1967,7 +2091,7 @@ export default function ProfilePage() {
 
                 <button
                   type="button"
-                  style={styles.recoBtn}
+                  style={{ ...styles.recoBtn, ...fullWidthButtonStyle }}
                   onClick={() => router.push(recommendationHref)}
                 >
                   {recommendationCtaLabel}
@@ -1975,18 +2099,18 @@ export default function ProfilePage() {
               </div>
             </section>
 
-            <section style={styles.card}>
+            <section style={cardStyle}>
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionLabel}>Resumen diario</div>
-                  <h2 style={styles.sectionTitle}>Entrega automática por correo</h2>
+                  <h2 style={sectionTitleStyle}>Entrega automática por correo</h2>
                   <div style={styles.sectionSub}>
                     Controla si quieres recibir una lectura diaria simple de tu coordinación y a qué hora local prefieres verla en tu correo.
                   </div>
                 </div>
               </div>
 
-              <div style={styles.digestRow}>
+              <div style={digestRowStyle}>
                 <label style={styles.digestToggle}>
                   <input
                     type="checkbox"
@@ -2027,11 +2151,11 @@ export default function ProfilePage() {
               {digestOk ? <div style={styles.ok}>{digestOk}</div> : null}
             </section>
 
-            <section style={styles.card}>
+            <section style={cardStyle}>
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionLabel}>Sesión</div>
-                  <h2 style={styles.sectionTitle}>Control de acceso</h2>
+                  <h2 style={sectionTitleStyle}>Control de acceso</h2>
                   <div style={styles.sectionSub}>
                     Desde aquí puedes cerrar tu sesión actual. La coordinación diaria sigue viviendo en Resumen, Calendario, Conflictos y Panel.
                   </div>
