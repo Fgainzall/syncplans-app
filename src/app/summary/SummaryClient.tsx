@@ -11,6 +11,7 @@ import React, {
 } from "react";
 import { useRouter } from "next/navigation";
 import PremiumHeader from "@/components/PremiumHeader";
+import LocationPermissionPrompt from "@/components/location/LocationPermissionPrompt";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
 import SummaryQuickCaptureCard from "./SummaryQuickCaptureCard";
@@ -1854,7 +1855,8 @@ if (parsed.locationQuery) {
     isFirstTimeMode || (!hasUrgentSummaryState && !nextEvent && !showInviteNudge);
 
   return (
-    <div style={styles.page} className="spSum-page">
+  <div style={styles.page} className="spSum-page">
+    <LocationPermissionPrompt />
       {toast ? <SummaryToast title={toast.title} subtitle={toast.subtitle} /> : null}
 
       <Section style={styles.shell} className="spSum-shell">
