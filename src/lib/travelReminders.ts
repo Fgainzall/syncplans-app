@@ -75,6 +75,8 @@ type RecalculateResult = {
   originSource: string;
 };
 
+type LeaveAlertUrgency = "leave_soon" | "leave_now" | "late";
+
 type NotificationInsertRow = {
   user_id: string;
   type: typeof LEAVE_ALERT_TYPE;
@@ -225,10 +227,55 @@ function formatTimeEsPe(
   return formatSmartTime(iso, fallback);
 }
 
-function leaveAlertTitle(eventTitle: string | null): string {
-  const cleanTitle = String(eventTitle ?? "").trim();
-  if (!cleanTitle) return "Ya es momento de salir";
-  return `Ya es momento de salir: ${cleanTitle}`;
+function formatMinutesHuman(totalMinutes: number | null | undefined): string {
+  const total = Math.max(0, Math.round(Number(totalMinutes ?? 0)));
+
+  if (total < 60) return `${total} min`;
+
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+
+  if (minutes === 0) return `${hours} h`;
+  return `${hours} h ${minutes} min`;
+}
+
+function etaMinutesLabel(etaSeconds: number | null): string | null {
+  if (!Number.isFinite(Number(etaSeconds))) return null;
+  const minutes = Math.max(1, Math.round(Number(etaSeconds) / 60));
+  return formatMinutesHuman(minutes);
+}
+
+function getLeaveAlertUrgency(leaveTimeIso: string | null | undefined): LeaveAlertUrgency {
+  const leaveMs = parseIsoMs(leaveTimeIso);
+  if (leaveMs === null) return "leave_now";
+
+  const minutesUntilLeave = Math.round((leaveMs - Date.now()) / 60_000);
+
+  if (minutesUntilLeave > 1) return "leave_soon";
+  if (minutesUntilLeave < -3) return "late";
+  return "leave_now";
+}
+
+function cleanEventTitle(eventTitle: string | null | undefined): string {
+  const clean = String(eventTitle ?? "").trim();
+  return clean || "tu evento";
+}
+
+function leaveAlertTitle(input: {
+  eventTitle: string | null;
+  leaveTimeIso: string | null;
+}): string {
+  const eventTitle = cleanEventTitle(input.eventTitle);
+  const urgency = getLeaveAlertUrgency(input.leaveTimeIso);
+  const leaveMs = parseIsoMs(input.leaveTimeIso);
+
+  if (urgency === "leave_soon" && leaveMs !== null) {
+    const minutesUntilLeave = Math.max(1, Math.round((leaveMs - Date.now()) / 60_000));
+    return `Sal en ${formatMinutesHuman(minutesUntilLeave)}: ${eventTitle}`;
+  }
+
+  if (urgency === "late") return `Vas tarde: ${eventTitle}`;
+  return `Sal ahora: ${eventTitle}`;
 }
 
 function leaveAlertBody(input: {
@@ -237,42 +284,32 @@ function leaveAlertBody(input: {
   etaSeconds: number | null;
   destinationLabel?: string | null;
 }): string {
-  const now = Date.now();
-
-  const startMs = input.eventStartIso
-    ? new Date(input.eventStartIso).getTime()
-    : NaN;
-
-  const leaveMs = input.leaveTimeIso
-    ? new Date(input.leaveTimeIso).getTime()
-    : NaN;
-
-  const destination = String(input.destinationLabel ?? "").trim();
-
-  const etaMinutes = Number.isFinite(Number(input.etaSeconds))
-    ? Math.max(1, Math.round(Number(input.etaSeconds) / 60))
-    : null;
-
+  const urgency = getLeaveAlertUrgency(input.leaveTimeIso);
   const startText = formatTimeEsPe(input.eventStartIso, "pronto");
   const leaveText = formatTimeEsPe(input.leaveTimeIso, "ahora");
+  const destination = String(input.destinationLabel ?? "").trim();
+  const eta = etaMinutesLabel(input.etaSeconds);
 
+  const routeText = eta ? `Ruta aprox. ${eta}.` : "Ruta calculada con tráfico actualizado.";
   const destinationText = destination ? ` hacia ${destination}` : "";
-  const etaText = etaMinutes ? ` (${etaMinutes} min)` : "";
 
-  if (Number.isFinite(leaveMs) && now < leaveMs - 60_000) {
-    return `Salida ideal: ${leaveText}${destinationText}${etaText}. Tu evento empieza a las ${startText}.`;
+  if (urgency === "leave_soon") {
+    return `${routeText} Salida sugerida: ${leaveText}${destinationText}. Evento a las ${startText}.`;
   }
 
-  if (Number.isFinite(leaveMs) && Math.abs(now - leaveMs) <= 5 * 60_000) {
-    return `Sal ya. Vas justo${destinationText}${etaText}. Tu evento empieza a las ${startText}.`;
+  if (urgency === "late") {
+    const leaveMs = parseIsoMs(input.leaveTimeIso);
+    const lateMinutes = leaveMs === null ? null : Math.max(1, Math.round((Date.now() - leaveMs) / 60_000));
+    const lateText = lateMinutes ? ` Vas ${lateTextMinutes(lateMinutes)} tarde aprox.` : " Vas tarde.";
+    return `${routeText}${lateText} Evento a las ${startText}.`;
   }
 
-  if (Number.isFinite(startMs) && Number.isFinite(leaveMs) && now > leaveMs) {
-    const lateMin = Math.max(1, Math.round((now - leaveMs) / 60000));
-    return `Sal ya${destinationText}. Vas ${lateMin} min tarde aprox. Tu evento empieza a las ${startText}.`;
-  }
+  return `${routeText} Sal ahora${destinationText}. Evento a las ${startText}.`;
+}
 
-  return `Es momento de salir${destinationText}. Tu evento empieza a las ${startText}.`;
+function lateTextMinutes(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  return formatMinutesHuman(minutes);
 }
 
 function canSendWebPush(): boolean {
@@ -602,10 +639,12 @@ async function sendPushForLeaveAlerts(
     const subscriptions = subscriptionsByUserId.get(row.user_id) ?? [];
     if (subscriptions.length === 0) continue;
 
-    const targetUrl =
-      typeof row.payload?.event_id === "string" && row.payload.event_id
-        ? `/events?eventId=${encodeURIComponent(row.payload.event_id)}`
-        : "/summary";
+    const pushEventId =
+      typeof row.payload.event_id === "string" ? row.payload.event_id.trim() : "";
+
+    const targetUrl = pushEventId
+      ? `/events/new/details?eventId=${encodeURIComponent(pushEventId)}&from=leave_alert`
+      : "/summary";
 
     const payload = JSON.stringify({
       title: row.title,
@@ -613,6 +652,9 @@ async function sendPushForLeaveAlerts(
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       url: targetUrl,
+      tag: `${LEAVE_ALERT_TYPE}:${row.entity_id}`,
+      renotify: true,
+      requireInteraction: true,
       data: {
         type: LEAVE_ALERT_TYPE,
         source: "cron_leave_alerts",
@@ -794,10 +836,15 @@ export async function runLeaveAlerts(opts?: {
 
     summary.eligible += 1;
 
+    const urgencyStatus = getLeaveAlertUrgency(recalculatedLeaveTimeIso);
+
     rowsToInsert.push({
       user_id: userId,
       type: LEAVE_ALERT_TYPE,
-      title: leaveAlertTitle(eventRow.title),
+      title: leaveAlertTitle({
+        eventTitle: eventRow.title,
+        leaveTimeIso: recalculatedLeaveTimeIso,
+      }),
       body: leaveAlertBody({
         eventStartIso: eventRow.start,
         leaveTimeIso: recalculatedLeaveTimeIso,
@@ -818,6 +865,8 @@ export async function runLeaveAlerts(opts?: {
         recalculated,
         updated,
         origin_source: originSource,
+        urgency_status: urgencyStatus,
+        action_label: "Abrir ruta",
       },
     });
   }
