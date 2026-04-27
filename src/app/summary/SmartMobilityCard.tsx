@@ -1,4 +1,3 @@
-// src/app/summary/SmartMobilityCard.tsx
 "use client";
 
 import type { CSSProperties } from "react";
@@ -7,6 +6,8 @@ import type { SmartMobilityState } from "./useSummaryData";
 type Props = {
   smartMobility: SmartMobilityState;
 };
+
+const MAX_VISIBLE_LEAVE_MINUTES = 180; // 3 horas
 
 function formatMinutesHuman(totalMinutes: number | null | undefined): string {
   const total = Math.max(0, Math.round(Number(totalMinutes ?? 0)));
@@ -50,8 +51,10 @@ function distanceLabel(meters: number | null): string | null {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
-
-function originLabel(source: string | null | undefined, confidence: string | null | undefined): string | null {
+function originLabel(
+  source: string | null | undefined,
+  confidence: string | null | undefined
+): string | null {
   if (!source) return null;
 
   if (source === "gps") return "Ubicación actual";
@@ -64,7 +67,21 @@ function originLabel(source: string | null | undefined, confidence: string | nul
 }
 
 export default function SmartMobilityCard({ smartMobility }: Props) {
+  const leaveInMinutes = smartMobility.leaveInMinutes;
+
+  // No mostrar si no aplica
   if (!smartMobility.loading && smartMobility.reason === "no_event_location") return null;
+
+  // NUEVA REGLA UX:
+  // si faltan más de 3h para salir, no mostrar card
+  if (
+    !smartMobility.loading &&
+    leaveInMinutes !== null &&
+    Number.isFinite(leaveInMinutes) &&
+    leaveInMinutes > MAX_VISIBLE_LEAVE_MINUTES
+  ) {
+    return null;
+  }
 
   const title = smartMobility.loading
     ? "Calculando cuándo salir…"
@@ -74,7 +91,7 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
         ? "Actualiza tu ubicación para calcular bien"
         : smartMobility.reason === "route_failed"
           ? "No pude calcular la ruta ahora"
-          : minutesLabel(smartMobility.leaveInMinutes);
+          : minutesLabel(leaveInMinutes);
 
   const subtitle = smartMobility.loading
     ? "Estoy revisando tu próximo plan con dirección."
@@ -85,8 +102,12 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
         : smartMobility.reason === "route_failed"
           ? "Puedes abrir la ruta igual y volver a intentar en unos segundos."
           : smartMobility.eventTitle
-            ? `Para ${smartMobility.eventTitle}. El cálculo usa ruta en auto y suma ${formatMinutesHuman(smartMobility.bufferMinutes)} de margen.`
-            : `Ruta en auto con ${formatMinutesHuman(smartMobility.bufferMinutes)} de margen.`;
+            ? `Para ${smartMobility.eventTitle}. El cálculo usa ruta en auto y suma ${formatMinutesHuman(
+                smartMobility.bufferMinutes
+              )} de margen.`
+            : `Ruta en auto con ${formatMinutesHuman(
+                smartMobility.bufferMinutes
+              )} de margen.`;
 
   const toneStyle = smartMobility.isLateRisk
     ? styles.dangerTone
@@ -98,11 +119,12 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
     smartMobility.etaSeconds,
     smartMobility.bufferMinutes
   );
+
   const baseRoute = baseRouteLabel(smartMobility.etaSeconds);
   const distance = distanceLabel(smartMobility.distanceMeters);
   const origin = originLabel(
     smartMobility.originSource,
-    smartMobility.originConfidence,
+    smartMobility.originConfidence
   );
 
   return (
@@ -117,18 +139,31 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
           {baseRoute ? <span style={styles.metaPill}>{baseRoute}</span> : null}
           {distance ? <span style={styles.metaPill}>{distance}</span> : null}
           {origin ? <span style={styles.metaPill}>{origin}</span> : null}
-          {smartMobility.calculatedAt ? <span style={styles.metaPill}>Tráfico actualizado</span> : null}
+          {smartMobility.calculatedAt ? (
+            <span style={styles.metaPill}>Tráfico actualizado</span>
+          ) : null}
         </div>
       </div>
 
       <div style={styles.actions}>
         {smartMobility.mapsUrl ? (
-          <a href={smartMobility.mapsUrl} target="_blank" rel="noreferrer" style={styles.primaryBtn}>
+          <a
+            href={smartMobility.mapsUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={styles.primaryBtn}
+          >
             Abrir Maps
           </a>
         ) : null}
+
         {smartMobility.wazeUrl ? (
-          <a href={smartMobility.wazeUrl} target="_blank" rel="noreferrer" style={styles.secondaryBtn}>
+          <a
+            href={smartMobility.wazeUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={styles.secondaryBtn}
+          >
             Waze
           </a>
         ) : null}
