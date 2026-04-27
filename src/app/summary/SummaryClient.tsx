@@ -124,6 +124,13 @@ type NextMove = {
   onClick: () => void;
 };
 
+type DayStatus = {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  pills: string[];
+};
+
 function formatMoveMinutes(totalMinutes: number | null | undefined): string {
   const total = Math.max(0, Math.round(Number(totalMinutes ?? 0)));
 
@@ -443,6 +450,26 @@ function NextMoveCard({ move }: { move: NextMove }) {
       <button type="button" onClick={move.onClick} style={styles.nextMoveBtn}>
         {move.cta}
       </button>
+    </Card>
+  );
+}
+
+function DayStatusCard({ status }: { status: DayStatus }) {
+  return (
+    <Card style={styles.dayStatusCard}>
+      <div style={styles.dayStatusCopy}>
+        <div style={styles.dayStatusEyebrow}>{status.eyebrow}</div>
+        <div style={styles.dayStatusTitle}>{status.title}</div>
+        <div style={styles.dayStatusSubtitle}>{status.subtitle}</div>
+      </div>
+
+      <div style={styles.dayStatusPills}>
+        {status.pills.map((pill) => (
+          <span key={pill} style={styles.dayStatusPill}>
+            {pill}
+          </span>
+        ))}
+      </div>
     </Card>
   );
 }
@@ -1905,6 +1932,99 @@ if (parsed.locationQuery) {
     trackSummaryCta,
   ]);
 
+  const dayStatus = useMemo<DayStatus>(() => {
+    const todayStart = startOfTodayLocal();
+    const tomorrowStart = addDays(todayStart, 1);
+
+    const todayEvents = visibleEvents.filter((event) =>
+      eventOverlapsWindow(event, todayStart, tomorrowStart)
+    );
+
+    const todayTotal = todayEvents.length;
+    const todayShared = todayEvents.filter((event) => Boolean(event.groupId)).length;
+    const todayExternal = todayEvents.filter((event) => Boolean(event.isExternal)).length;
+    const nextToday = todayEvents[0] ?? null;
+
+    const pendingTotal =
+      pendingInviteCount +
+      pendingCaptureCount +
+      decisionSummary.pendingProposals +
+      decisionSummary.adjustedProposals +
+      conflictAlert.count;
+
+    const pills: string[] = [];
+
+    if (todayTotal > 0) {
+      pills.push(`${todayTotal} plan${todayTotal === 1 ? "" : "es"} hoy`);
+    } else {
+      pills.push("Sin planes hoy");
+    }
+
+    if (todayShared > 0) {
+      pills.push(`${todayShared} compartido${todayShared === 1 ? "" : "s"}`);
+    }
+
+    if (pendingTotal > 0) {
+      pills.push(`${pendingTotal} pendiente${pendingTotal === 1 ? "" : "s"}`);
+    } else {
+      pills.push("Nada urgente");
+    }
+
+    if (todayExternal > 0) {
+      pills.push(`${todayExternal} externo${todayExternal === 1 ? "" : "s"}`);
+    }
+
+    if (conflictAlert.count > 0) {
+      return {
+        eyebrow: "Estado del día",
+        title: `Hoy hay ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"} que resolver`,
+        subtitle: "Tu día necesita una decisión clara antes de seguir acumulando coordinación por fuera.",
+        pills,
+      };
+    }
+
+    if (pendingTotal > 0) {
+      return {
+        eyebrow: "Estado del día",
+        title: `Tienes ${pendingTotal} pendiente${pendingTotal === 1 ? "" : "s"} por cerrar`,
+        subtitle: "Cerrar esto mantiene SyncPlans como una sola verdad compartida, no como otra lista más.",
+        pills,
+      };
+    }
+
+    if (nextToday?.start) {
+      return {
+        eyebrow: "Estado del día",
+        title: `Tu próximo plan es a las ${fmtTime(nextToday.start)}`,
+        subtitle: `${nextToday.title}. Por ahora no hay urgencias abiertas; solo mantén claro lo que viene.`,
+        pills,
+      };
+    }
+
+    if (todayTotal > 0) {
+      return {
+        eyebrow: "Estado del día",
+        title: `Hoy tienes ${todayTotal} plan${todayTotal === 1 ? "" : "es"}`,
+        subtitle: "Todo se ve ordenado por ahora. SyncPlans queda como referencia para cualquier cambio.",
+        pills,
+      };
+    }
+
+    return {
+      eyebrow: "Estado del día",
+      title: "Día tranquilo por ahora",
+      subtitle: "Buen momento para capturar un plan o dejar algo compartido listo antes de que se pierda en el chat.",
+      pills,
+    };
+  }, [
+    visibleEvents,
+    pendingInviteCount,
+    pendingCaptureCount,
+    decisionSummary.pendingProposals,
+    decisionSummary.adjustedProposals,
+    conflictAlert.count,
+  ]);
+
   const summaryQuickActions = useMemo<QuickAction[]>(() => {
     if (isFirstTimeMode) {
       return [
@@ -2134,6 +2254,8 @@ if (parsed.locationQuery) {
         />
 
         <NextMoveCard move={nextMove} />
+
+        <DayStatusCard status={dayStatus} />
 
         <SmartMobilityCard smartMobility={smartMobility} />
 
@@ -2384,6 +2506,66 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 13,
     fontWeight: 950,
     cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  dayStatusCard: {
+    borderRadius: 20,
+    border: "1px solid rgba(148,163,184,0.14)",
+    background:
+      "linear-gradient(135deg, rgba(15,23,42,0.80), rgba(2,6,23,0.54))",
+    padding: 14,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+    boxShadow: "0 14px 42px rgba(0,0,0,0.18)",
+  },
+  dayStatusCopy: {
+    minWidth: 0,
+    flex: "1 1 420px",
+  },
+  dayStatusEyebrow: {
+    fontSize: 11,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(148,163,184,0.88)",
+    marginBottom: 5,
+  },
+  dayStatusTitle: {
+    fontSize: 17,
+    lineHeight: 1.2,
+    fontWeight: 950,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.96)",
+  },
+  dayStatusSubtitle: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.72)",
+    fontWeight: 650,
+    maxWidth: 760,
+  },
+  dayStatusPills: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    alignItems: "center",
+  },
+  dayStatusPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 30,
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.045)",
+    color: "rgba(226,232,240,0.88)",
+    fontSize: 11,
+    fontWeight: 900,
     whiteSpace: "nowrap",
   },
   heroCard: {
