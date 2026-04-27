@@ -40,6 +40,7 @@ import {
   getMyInvitations,
   getPendingPublicInviteCaptures,
 } from "@/lib/invitationsDb";
+import SmartMobilityCard from "./SmartMobilityCard";
 import {
   addDays,
   buildCaptureShareUrl,
@@ -684,23 +685,24 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [dismissedPremiumNudge, setDismissedPremiumNudge] = useState(false);
   const premiumNudgeTrackedRef = useRef(false);
 
-  const {
-    booting,
-    loading,
-    toast,
-    groups,
-    activeGroupId,
-    events,
-    declinedEventIds,
-    ignoredConflictKeys,
-    resMap,
-    unreadConflictAlert,
-    recentDecisions,
-    proposalResponsesMap,
-    proposalResponseGroupsMap,
-    proposalProfilesMap,
-    showToast,
-  } = useSummaryData({ appliedToast });
+const {
+  booting,
+  loading,
+  toast,
+  groups,
+  activeGroupId,
+  events,
+  declinedEventIds,
+  ignoredConflictKeys,
+  resMap,
+  unreadConflictAlert,
+  recentDecisions,
+  proposalResponsesMap,
+  proposalResponseGroupsMap,
+  proposalProfilesMap,
+  smartMobility,
+  showToast,
+} = useSummaryData({ appliedToast });
 
   useEffect(() => {
     let cancelled = false;
@@ -1887,7 +1889,7 @@ if (parsed.locationQuery) {
             })
           }
         />
-
+<SmartMobilityCard smartMobility={smartMobility} />
         {urgentFocus ? (
           <Rail
             eyebrow={urgentFocus.label}

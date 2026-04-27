@@ -215,26 +215,8 @@ export default function SummaryQuickCaptureCard({
         </div>
       )}
 
-      <div style={s.footerGrid}>
-        <div style={s.examplesCard}>
-          <div style={s.footerEyebrow}>Ideas rápidas</div>
-          <div style={s.footerTitle}>Empieza sin pensar demasiado</div>
-
-          <div style={s.chipsWrap}>
-            {visibleExamples.map((example) => (
-              <button
-                key={`${example.label}-${example.value}`}
-                type="button"
-                onClick={() => onExampleClick(example.value)}
-                style={s.exampleChip}
-              >
-                {example.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div style={s.actionsCard}>
+<div style={s.footerGridSingle}>
+  <div style={s.actionsCard}>
           <div style={s.footerEyebrow}>Acciones secundarias</div>
           <div style={s.footerTitle}>Llévalo fuera de la app</div>
           <div style={s.footerBody}>
@@ -594,6 +576,13 @@ const s: Record<string, CSSProperties> = {
     gridTemplateColumns: "minmax(0, 1fr) minmax(280px, 360px)",
     gap: 12,
   },
+  footerGridSingle: {
+  position: "relative",
+  zIndex: 1,
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: 12,
+},
   examplesCard: {
     borderRadius: 18,
     border: "1px solid rgba(148,163,184,0.10)",
