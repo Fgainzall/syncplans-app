@@ -165,16 +165,17 @@ function getUpgradeIntentLabel(pathname: string) {
   return "Premium";
 }
 function useIsMobileWidth(maxWidth = layout.mobileBreakpoint) {
-  const [isMobile, setIsMobile] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return window.matchMedia(`(max-width: ${maxWidth}px)`).matches;
-  });
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
-    const apply = () => setIsMobile(!!mq.matches);
+
+    const apply = () => {
+      setIsMobile(!!mq.matches);
+    };
+
     apply();
 
     if (typeof mq.addEventListener === "function") {
