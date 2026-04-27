@@ -15,6 +15,8 @@ export type LeaveAlertsSummary = {
   skippedSettings: number;
   skippedDeduped: number;
   skippedInvalidEvent: number;
+  skippedPastEvent: number;
+  skippedNotDue: number;
   recalculated: number;
   updatedEvents: number;
   pushAttempted: number;
@@ -108,6 +110,7 @@ const MAX_LOOKAHEAD_MINUTES = 180;
 const LEAVE_BUFFER_SECONDS = 5 * 60;
 const RECALCULATE_UPDATE_THRESHOLD_MS = 60_000;
 const LEAVE_ALERT_GRACE_MINUTES = 3;
+const PAST_EVENT_GRACE_MINUTES = 10;
 
 function isValidLatLng(point: LatLng | null | undefined): point is LatLng {
   return (
@@ -118,7 +121,10 @@ function isValidLatLng(point: LatLng | null | undefined): point is LatLng {
     Number(point.lat) <= 90 &&
     Number(point.lng) >= -180 &&
     Number(point.lng) <= 180 &&
-    !(Math.abs(Number(point.lat)) < 0.000001 && Math.abs(Number(point.lng)) < 0.000001)
+    !(
+      Math.abs(Number(point.lat)) < 0.000001 &&
+      Math.abs(Number(point.lng)) < 0.000001
+    )
   );
 }
 
@@ -134,6 +140,33 @@ function isoMinutesFromNow(minutes: number): string {
 
 function isoMinutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60 * 1000).toISOString();
+}
+
+function parseIsoMs(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function isEventTooFarPast(startIso: string | null | undefined): boolean {
+  const startMs = parseIsoMs(startIso);
+  if (startMs === null) return true;
+
+  return startMs < Date.now() - PAST_EVENT_GRACE_MINUTES * 60 * 1000;
+}
+
+function isLeaveTimeInsideSendWindow(
+  leaveTimeIso: string | null | undefined,
+  lookaheadMinutes: number,
+): boolean {
+  const leaveMs = parseIsoMs(leaveTimeIso);
+  if (leaveMs === null) return false;
+
+  const now = Date.now();
+  const lower = now - LEAVE_ALERT_GRACE_MINUTES * 60 * 1000;
+  const upper = now + lookaheadMinutes * 60 * 1000;
+
+  return leaveMs >= lower && leaveMs <= upper;
 }
 
 function normalizeCronTravelMode(value: string | null | undefined): TravelMode {
@@ -311,6 +344,22 @@ async function deletePushSubscriptionByEndpoint(
       error,
     });
   }
+}
+
+function logSkippedLeaveAlert(input: {
+  reason: string;
+  eventId: string;
+  userId: string;
+  leaveTimeIso?: string | null;
+  startIso?: string | null;
+}) {
+  console.info("[travelReminders] Leave alert skipped", {
+    reason: input.reason,
+    eventId: input.eventId,
+    userId: input.userId,
+    leaveTime: input.leaveTimeIso ?? null,
+    eventStart: input.startIso ?? null,
+  });
 }
 
 export function getAdminClient(): AdminClient {
@@ -625,6 +674,8 @@ export async function runLeaveAlerts(opts?: {
     skippedSettings: 0,
     skippedDeduped: 0,
     skippedInvalidEvent: 0,
+    skippedPastEvent: 0,
+    skippedNotDue: 0,
     recalculated: 0,
     updatedEvents: 0,
     pushAttempted: 0,
@@ -658,16 +709,42 @@ export async function runLeaveAlerts(opts?: {
       continue;
     }
 
+    if (isEventTooFarPast(eventRow.start)) {
+      summary.skippedPastEvent += 1;
+      logSkippedLeaveAlert({
+        reason: "event_too_far_past",
+        eventId,
+        userId,
+        leaveTimeIso: eventRow.leave_time,
+        startIso: eventRow.start,
+      });
+      continue;
+    }
+
     const userSettings = settingsByUserId.get(userId) ?? null;
 
     if (userSettings?.event_reminders === false) {
       summary.skippedSettings += 1;
+      logSkippedLeaveAlert({
+        reason: "user_disabled_event_reminders",
+        eventId,
+        userId,
+        leaveTimeIso: eventRow.leave_time,
+        startIso: eventRow.start,
+      });
       continue;
     }
 
     const dedupeKey = `${userId}:${eventId}`;
     if (alreadySentKeys.has(dedupeKey)) {
       summary.skippedDeduped += 1;
+      logSkippedLeaveAlert({
+        reason: "already_sent_for_event",
+        eventId,
+        userId,
+        leaveTimeIso: eventRow.leave_time,
+        startIso: eventRow.start,
+      });
       continue;
     }
 
@@ -701,6 +778,18 @@ export async function runLeaveAlerts(opts?: {
         userId,
         error,
       });
+    }
+
+    if (!isLeaveTimeInsideSendWindow(recalculatedLeaveTimeIso, lookaheadMinutes)) {
+      summary.skippedNotDue += 1;
+      logSkippedLeaveAlert({
+        reason: "recalculated_leave_time_outside_window",
+        eventId,
+        userId,
+        leaveTimeIso: recalculatedLeaveTimeIso,
+        startIso: eventRow.start,
+      });
+      continue;
     }
 
     summary.eligible += 1;
