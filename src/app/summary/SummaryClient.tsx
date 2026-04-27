@@ -871,6 +871,8 @@ const {
   useEffect(() => {
     let cancelled = false;
 
+    let timer: number | null = null;
+
     async function hydrateLearnedQuickCaptureProfile() {
       const raw = quickCaptureValue.trim();
 
@@ -918,10 +920,17 @@ const {
       }
     }
 
-    void hydrateLearnedQuickCaptureProfile();
+    if (typeof window === "undefined") {
+      void hydrateLearnedQuickCaptureProfile();
+    } else {
+      timer = window.setTimeout(() => {
+        void hydrateLearnedQuickCaptureProfile();
+      }, 450);
+    }
 
     return () => {
       cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
     };
   }, [quickCaptureValue, suggestedContextGroupId]);
 
@@ -945,18 +954,18 @@ const {
   }, [quickCaptureValue, timeSuggestions, suggestedContextGroupType]);
 
   const quickCaptureHeadline = useMemo(() => {
-    if (!activeGroupId) return "Escribe lo que tienes en mente";
+    if (!activeGroupId) return "Crea algo rápido";
     if (activeGroupType === "pair") return "Planéalo en una línea";
-    if (activeGroupType === "family") return "Organiza lo importante en segundos";
-    return "Dime qué quieres hacer";
+    if (activeGroupType === "family") return "Organiza algo rápido";
+    return "Crea un plan rápido";
   }, [activeGroupId, activeGroupType]);
 
   const quickCaptureSubcopy = useMemo(() => {
     if (!activeGroupId) {
-      return "Escribe algo simple y te lo dejo listo para revisarlo sin dar vueltas.";
+      return "Escribe la idea y la dejamos lista para revisar.";
     }
 
-    return `Lo prepararé con el contexto de ${activeLabel} para que entres directo a revisarlo.`;
+    return `Lo preparo con el contexto de ${activeLabel}.`;
   }, [activeGroupId, activeLabel]);
 
   const normalizedEvents = useMemo(() => {
@@ -1626,8 +1635,10 @@ if (parsed.locationQuery) {
 
     return {
       eyebrow: "Tu base de esta semana",
-      title: "Tu agenda ya tiene contexto. Elige dónde quieres actuar.",
-      subtitle: "Sin urgencias, revisa calendario o eventos en un paso.",
+      title: nextEvent ? `Lo próximo: ${nextEvent.title}` : "Tu agenda está clara por ahora.",
+      subtitle: nextEvent
+        ? "Revisa lo que viene o crea un nuevo plan sin salir del flujo."
+        : "No hay urgencias pendientes. Mantén el hábito creando o revisando tu siguiente plan.",
       primaryLabel: "Abrir calendario",
       primaryAction: () =>
         navigateFromSummary("open_calendar", "/calendar", {
@@ -1880,6 +1891,8 @@ if (parsed.locationQuery) {
           sticky={false}
         />
 
+        <SmartMobilityCard smartMobility={smartMobility} />
+
         <SummaryHero
           compact={compactSummaryMobile}
           contextLabel={contextLabel}
@@ -1900,17 +1913,8 @@ if (parsed.locationQuery) {
             })
           }
         />
-<SmartMobilityCard smartMobility={smartMobility} />
-        {urgentFocus ? (
-          <Rail
-            eyebrow={urgentFocus.label}
-            title={urgentFocus.title}
-            subtitle={urgentFocus.subtitle}
-            primaryLabel={urgentFocus.cta}
-            onPrimary={urgentFocus.action}
-            variant="urgent"
-          />
-        ) : createGroupFocus ? (
+
+        {createGroupFocus ? (
           <FocusRail
             eyebrow={createGroupFocus.eyebrow}
             title={createGroupFocus.title}
@@ -1992,6 +1996,10 @@ if (parsed.locationQuery) {
         }
 
         @media (max-width: 520px) {
+          .spSum-shell {
+            gap: 10px !important;
+          }
+
           .spSum-eventRow {
             min-height: 72px !important;
             padding: 12px !important;

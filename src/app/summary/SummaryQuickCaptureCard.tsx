@@ -53,6 +53,11 @@ function actionTone(
   };
 }
 
+function exampleText(example: QuickCaptureExample): string {
+  const raw = example as unknown as Record<string, unknown>;
+  return String(raw.text ?? raw.value ?? raw.label ?? raw.title ?? "").trim();
+}
+
 export default function SummaryQuickCaptureCard({
   value,
   busy,
@@ -70,7 +75,6 @@ export default function SummaryQuickCaptureCard({
   onExampleClick,
   headline,
   subcopy,
-  shareHelperExample,
   onOpenCapture,
   timeSuggestionsLabel,
   timeSuggestions = [],
@@ -82,90 +86,70 @@ export default function SummaryQuickCaptureCard({
     interpretation
   );
   const hasMultipleGroups = groups.length > 1;
-  const visibleExamples = examples.slice(0, 4);
+  const visibleExamples = examples.map(exampleText).filter(Boolean).slice(0, 3);
   const visibleSuggestions = timeSuggestions.slice(0, 3);
 
   return (
-    <section style={s.card}>
+    <section style={s.card} className="spQc-card">
       <div style={s.glowTop} aria-hidden />
       <div style={s.glowBottom} aria-hidden />
 
       <header style={s.header}>
         <div style={s.headerCopy}>
           <div style={s.eyebrow}>Quick Capture</div>
-          <h2 style={s.title}>{headline || "Planea en una línea"}</h2>
+          <h2 style={s.title}>{headline || "Crea un plan en una línea"}</h2>
           <p style={s.subtitle}>
             {subcopy ||
-              "Escribe la idea como te salga naturalmente y SyncPlans la convierte en un plan claro, revisable y listo para coordinar."}
+              "Escribe la idea como te salga y SyncPlans la deja lista para revisar."}
           </p>
         </div>
 
         <div style={s.contextWrap}>
           <span style={s.contextPill}>
-            {activeGroupName ? `Contexto: ${activeGroupName}` : "Modo rápido"}
+            {activeGroupName ? activeGroupName : "Modo rápido"}
           </span>
           <span style={s.contextPillSoft}>{contextLabel}</span>
         </div>
       </header>
 
-      <div style={s.heroPanel}>
-        <div style={s.heroPanelTop}>
-          <div style={s.heroPanelText}>
-            <div style={s.heroPanelLabel}>Lo más valioso aquí</div>
-            <div style={s.heroPanelTitle}>
-              Capturar una idea sin perder el contexto
-            </div>
-            <div style={s.heroPanelBody}>
-              Menos fricción, menos pasos y menos dependencia del chat para
-              transformar una intención en un plan real.
-            </div>
-          </div>
+      <div style={s.composerCard}>
+        <label htmlFor="summary-quick-capture" style={s.composerLabel}>
+          ¿Qué quieres organizar?
+        </label>
 
-          {shareHelperExample ? (
-            <div style={s.shareExampleCard}>
-              <div style={s.shareExampleLabel}>Ejemplo de share</div>
-              <div style={s.shareExampleText}>{shareHelperExample}</div>
-            </div>
-          ) : null}
-        </div>
+        <textarea
+          id="summary-quick-capture"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Ej: cena viernes 8 con Ara / pádel sábado 10 / doctor martes 9"
+          rows={3}
+          style={s.textarea}
+        />
 
-        <div style={s.composerCard}>
-          <label htmlFor="summary-quick-capture" style={s.composerLabel}>
-            Escribe como lo pensarías normalmente
-          </label>
+        <div style={s.submitRow} className="spQc-submitRow">
+          <button
+            type="button"
+            onClick={() => void onSubmit()}
+            disabled={!hasValue || busy}
+            style={{
+              ...s.primaryButton,
+              ...(hasValue && !busy ? null : s.primaryButtonDisabled),
+            }}
+            className="spQc-primaryButton"
+          >
+            {busy ? "Preparando..." : submitLabel}
+          </button>
 
-          <textarea
-            id="summary-quick-capture"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="Ej: cena viernes 8 con Fer / pádel sábado 10 / doctor martes 9"
-            rows={3}
-            style={s.textarea}
-          />
-
-          <div style={s.submitRow}>
+          {onOpenCapture ? (
             <button
               type="button"
-              onClick={() => void onSubmit()}
-              disabled={!hasValue || busy}
-              style={{
-                ...s.primaryButton,
-                ...(hasValue && !busy ? null : s.primaryButtonDisabled),
-              }}
+              onClick={() => void onOpenCapture()}
+              style={s.secondaryButton}
+              className="spQc-secondaryButton"
             >
-              {busy ? "Preparando..." : submitLabel}
+              Capture completo
             </button>
-
-            {onOpenCapture ? (
-              <button
-                type="button"
-                onClick={() => void onOpenCapture()}
-                style={s.secondaryButton}
-              >
-                Abrir capture completo
-              </button>
-            ) : null}
-          </div>
+          ) : null}
         </div>
       </div>
 
@@ -174,12 +158,10 @@ export default function SummaryQuickCaptureCard({
           <div style={s.previewTop}>
             <div>
               <div style={s.previewEyebrow}>Vista rápida</div>
-              <div style={s.previewTitle}>
-                Así se está entendiendo tu idea
-              </div>
+              <div style={s.previewTitle}>Así lo estoy entendiendo</div>
             </div>
 
-            {isShared ? <span style={s.previewBadge}>Con foco compartido</span> : null}
+            {isShared ? <span style={s.previewBadge}>Compartido</span> : null}
           </div>
 
           {preview ? <div style={s.previewText}>{preview}</div> : null}
@@ -215,49 +197,79 @@ export default function SummaryQuickCaptureCard({
         </div>
       )}
 
-<div style={s.footerGridSingle}>
-  <div style={s.actionsCard}>
-          <div style={s.footerEyebrow}>Acciones secundarias</div>
-          <div style={s.footerTitle}>Llévalo fuera de la app</div>
-          <div style={s.footerBody}>
-            Comparte una idea por WhatsApp o por link para que la otra persona
-            la entienda rápido y la convierta en plan sin perder el contexto.
-          </div>
-
-          <div style={s.actionsRow}>
-            <button
-              type="button"
-              onClick={() => void onWhatsApp()}
-              disabled={!hasValue || busy}
-              style={{
-                ...s.whatsAppButton,
-                ...(hasValue && !busy ? null : s.actionDisabled),
-              }}
-            >
-              WhatsApp
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void onShare()}
-              disabled={!hasValue || busy}
-              style={{
-                ...s.linkButton,
-                ...(hasValue && !busy ? null : s.actionDisabled),
-              }}
-            >
-              Copiar link
-            </button>
+      {visibleExamples.length > 0 ? (
+        <div style={s.examplesWrap}>
+          <div style={s.examplesLabel}>Prueba con:</div>
+          <div style={s.exampleChips}>
+            {visibleExamples.map((example) => (
+              <button
+                key={example}
+                type="button"
+                onClick={() => onExampleClick(example)}
+                style={s.exampleChip}
+              >
+                {example}
+              </button>
+            ))}
           </div>
         </div>
-      </div>
+      ) : null}
+
+      <details style={s.details}>
+        <summary style={s.detailsSummary}>Compartir o copiar</summary>
+        <div style={s.actionsRow}>
+          <button
+            type="button"
+            onClick={() => void onWhatsApp()}
+            disabled={!hasValue || busy}
+            style={{
+              ...s.whatsAppButton,
+              ...(hasValue && !busy ? null : s.actionDisabled),
+            }}
+          >
+            WhatsApp
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void onShare()}
+            disabled={!hasValue || busy}
+            style={{
+              ...s.linkButton,
+              ...(hasValue && !busy ? null : s.actionDisabled),
+            }}
+          >
+            Copiar link
+          </button>
+        </div>
+      </details>
 
       {hasMultipleGroups && interpretation?.intent === "group" ? (
         <div style={s.helperNote}>
-          Si la interpretación no coincide exactamente con tu intención, podrás
-          corregirla en el siguiente paso antes de guardar.
+          Si algo no coincide, podrás corregirlo antes de guardar.
         </div>
       ) : null}
+
+      <style>{`
+        @media (max-width: 520px) {
+          .spQc-card {
+            padding: 15px !important;
+            gap: 12px !important;
+            border-radius: 22px !important;
+          }
+
+          .spQc-submitRow {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+            width: 100% !important;
+          }
+
+          .spQc-primaryButton,
+          .spQc-secondaryButton {
+            width: 100% !important;
+          }
+        }
+      `}</style>
     </section>
   );
 }
@@ -272,9 +284,9 @@ const s: Record<string, CSSProperties> = {
       "linear-gradient(180deg, rgba(11,18,32,0.98) 0%, rgba(6,11,24,0.99) 100%)",
     boxShadow:
       "0 30px 90px rgba(2,6,23,0.40), inset 0 1px 0 rgba(255,255,255,0.04)",
-    padding: 20,
+    padding: 18,
     display: "grid",
-    gap: 16,
+    gap: 14,
   },
   glowTop: {
     position: "absolute",
@@ -282,7 +294,7 @@ const s: Record<string, CSSProperties> = {
     width: 220,
     height: 220,
     borderRadius: 999,
-    background: "radial-gradient(circle, rgba(56,189,248,0.16), transparent 68%)",
+    background: "radial-gradient(circle, rgba(56,189,248,0.14), transparent 68%)",
     pointerEvents: "none",
     filter: "blur(10px)",
   },
@@ -292,7 +304,7 @@ const s: Record<string, CSSProperties> = {
     width: 240,
     height: 240,
     borderRadius: 999,
-    background: "radial-gradient(circle, rgba(168,85,247,0.12), transparent 70%)",
+    background: "radial-gradient(circle, rgba(168,85,247,0.10), transparent 70%)",
     pointerEvents: "none",
     filter: "blur(12px)",
   },
@@ -302,14 +314,14 @@ const s: Record<string, CSSProperties> = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: 14,
+    gap: 12,
     flexWrap: "wrap",
   },
   headerCopy: {
     display: "grid",
-    gap: 6,
+    gap: 5,
     minWidth: 0,
-    flex: "1 1 480px",
+    flex: "1 1 440px",
   },
   eyebrow: {
     fontSize: 11,
@@ -320,19 +332,19 @@ const s: Record<string, CSSProperties> = {
   },
   title: {
     margin: 0,
-    fontSize: 30,
-    lineHeight: 1.02,
+    fontSize: 24,
+    lineHeight: 1.05,
     fontWeight: 950,
-    letterSpacing: "-0.04em",
+    letterSpacing: "-0.035em",
     color: "rgba(248,250,252,0.98)",
     maxWidth: 720,
   },
   subtitle: {
     margin: 0,
-    fontSize: 14,
-    lineHeight: 1.6,
-    color: "rgba(203,213,225,0.84)",
-    maxWidth: 760,
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(203,213,225,0.82)",
+    maxWidth: 720,
   },
   contextWrap: {
     display: "flex",
@@ -343,96 +355,37 @@ const s: Record<string, CSSProperties> = {
   contextPill: {
     display: "inline-flex",
     alignItems: "center",
-    minHeight: 34,
-    padding: "0 12px",
+    minHeight: 32,
+    padding: "0 11px",
     borderRadius: 999,
     border: "1px solid rgba(96,165,250,0.28)",
     background: "rgba(59,130,246,0.14)",
     color: "rgba(219,234,254,0.95)",
     fontSize: 12,
-    fontWeight: 800,
+    fontWeight: 850,
   },
   contextPillSoft: {
     display: "inline-flex",
     alignItems: "center",
-    minHeight: 34,
-    padding: "0 12px",
+    minHeight: 32,
+    padding: "0 11px",
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.16)",
     background: "rgba(15,23,42,0.66)",
     color: "rgba(226,232,240,0.88)",
     fontSize: 12,
-    fontWeight: 800,
+    fontWeight: 850,
   },
-  heroPanel: {
+  composerCard: {
     position: "relative",
     zIndex: 1,
     display: "grid",
-    gap: 14,
+    gap: 10,
     borderRadius: 22,
     border: "1px solid rgba(148,163,184,0.10)",
     background:
-      "linear-gradient(180deg, rgba(15,23,42,0.60) 0%, rgba(2,6,23,0.34) 100%)",
-    padding: 16,
-  },
-  heroPanelTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "stretch",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  heroPanelText: {
-    display: "grid",
-    gap: 4,
-    minWidth: 0,
-    flex: "1 1 360px",
-  },
-  heroPanelLabel: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(148,163,184,0.84)",
-  },
-  heroPanelTitle: {
-    fontSize: 16,
-    lineHeight: 1.25,
-    fontWeight: 900,
-    color: "rgba(248,250,252,0.98)",
-  },
-  heroPanelBody: {
-    fontSize: 13,
-    lineHeight: 1.55,
-    color: "rgba(203,213,225,0.76)",
-    maxWidth: 620,
-  },
-  shareExampleCard: {
-    minWidth: 220,
-    maxWidth: 320,
-    borderRadius: 16,
-    border: "1px solid rgba(56,189,248,0.18)",
-    background: "rgba(56,189,248,0.08)",
-    padding: "12px 12px",
-    display: "grid",
-    gap: 4,
-  },
-  shareExampleLabel: {
-    fontSize: 10,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(186,230,253,0.92)",
-  },
-  shareExampleText: {
-    fontSize: 12,
-    lineHeight: 1.5,
-    color: "rgba(224,242,254,0.92)",
-    fontWeight: 700,
-  },
-  composerCard: {
-    display: "grid",
-    gap: 10,
+      "linear-gradient(180deg, rgba(15,23,42,0.58) 0%, rgba(2,6,23,0.32) 100%)",
+    padding: 14,
   },
   composerLabel: {
     fontSize: 12,
@@ -446,11 +399,11 @@ const s: Record<string, CSSProperties> = {
     border: "1px solid rgba(148,163,184,0.22)",
     background: "rgba(15,23,42,0.78)",
     color: "rgba(248,250,252,0.98)",
-    padding: "15px 16px",
+    padding: "14px 15px",
     fontSize: 15,
-    lineHeight: 1.55,
+    lineHeight: 1.5,
     outline: "none",
-    minHeight: 96,
+    minHeight: 86,
     boxSizing: "border-box",
   },
   submitRow: {
@@ -460,7 +413,7 @@ const s: Record<string, CSSProperties> = {
     alignItems: "center",
   },
   primaryButton: {
-    minHeight: 48,
+    minHeight: 46,
     padding: "0 18px",
     borderRadius: 16,
     border: "1px solid rgba(96,165,250,0.30)",
@@ -479,14 +432,14 @@ const s: Record<string, CSSProperties> = {
     background: "rgba(51,65,85,0.74)",
   },
   secondaryButton: {
-    minHeight: 48,
-    padding: "0 16px",
+    minHeight: 46,
+    padding: "0 15px",
     borderRadius: 16,
     border: "1px solid rgba(148,163,184,0.18)",
     background: "rgba(15,23,42,0.66)",
     color: "rgba(226,242,255,0.92)",
     fontSize: 13,
-    fontWeight: 800,
+    fontWeight: 850,
     cursor: "pointer",
   },
   previewCard: {
@@ -495,7 +448,7 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 20,
     border: "1px solid rgba(94,234,212,0.16)",
     background: "rgba(13,148,136,0.08)",
-    padding: "14px 14px",
+    padding: "13px 14px",
     display: "grid",
     gap: 8,
   },
@@ -530,7 +483,7 @@ const s: Record<string, CSSProperties> = {
     background: "rgba(45,212,191,0.12)",
     color: "rgba(204,251,241,0.94)",
     fontSize: 11,
-    fontWeight: 800,
+    fontWeight: 850,
   },
   previewText: {
     fontSize: 14,
@@ -566,68 +519,53 @@ const s: Record<string, CSSProperties> = {
     background: "rgba(56,189,248,0.14)",
     color: "rgba(226,242,255,0.96)",
     fontSize: 12,
-    fontWeight: 800,
+    fontWeight: 850,
     cursor: "pointer",
   },
-  footerGrid: {
+  examplesWrap: {
     position: "relative",
     zIndex: 1,
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) minmax(280px, 360px)",
-    gap: 12,
+    gap: 8,
   },
-  footerGridSingle: {
-  position: "relative",
-  zIndex: 1,
-  display: "grid",
-  gridTemplateColumns: "1fr",
-  gap: 12,
-},
-  examplesCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(148,163,184,0.10)",
-    background: "rgba(255,255,255,0.03)",
-    padding: "14px 14px",
-    display: "grid",
-    gap: 10,
-  },
-  actionsCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(148,163,184,0.10)",
-    background: "rgba(255,255,255,0.03)",
-    padding: "14px 14px",
-    display: "grid",
-    gap: 10,
-  },
-  footerEyebrow: {
+  examplesLabel: {
     fontSize: 11,
-    fontWeight: 900,
     textTransform: "uppercase",
     letterSpacing: "0.08em",
+    fontWeight: 900,
     color: "rgba(148,163,184,0.86)",
   },
-  footerTitle: {
-    fontSize: 14,
-    fontWeight: 900,
-    color: "rgba(248,250,252,0.96)",
-    lineHeight: 1.35,
-  },
-  footerBody: {
-    fontSize: 12,
-    lineHeight: 1.55,
-    color: "rgba(203,213,225,0.76)",
+  exampleChips: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
   },
   exampleChip: {
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,0.18)",
     background: "rgba(30,41,59,0.74)",
     color: "rgba(226,232,240,0.96)",
-    padding: "10px 12px",
-    fontSize: 13,
+    padding: "9px 11px",
+    fontSize: 12,
     fontWeight: 800,
     cursor: "pointer",
   },
+  details: {
+    position: "relative",
+    zIndex: 1,
+    borderRadius: 16,
+    border: "1px solid rgba(148,163,184,0.10)",
+    background: "rgba(255,255,255,0.025)",
+    padding: "10px 12px",
+  },
+  detailsSummary: {
+    cursor: "pointer",
+    fontSize: 12,
+    fontWeight: 900,
+    color: "rgba(203,213,225,0.86)",
+  },
   actionsRow: {
+    marginTop: 10,
     display: "flex",
     gap: 8,
     flexWrap: "wrap",

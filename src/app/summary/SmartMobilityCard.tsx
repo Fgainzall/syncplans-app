@@ -22,17 +22,17 @@ function formatMinutesHuman(totalMinutes: number | null | undefined): string {
 }
 
 function minutesLabel(minutes: number | null): string {
-  if (minutes === null || !Number.isFinite(minutes)) return "Calculando…";
-  if (minutes <= -5) return "Vas justo";
-  if (minutes <= 0) return "Es momento de salir";
-  return `Puedes salir en ${formatMinutesHuman(minutes)}`;
+  if (minutes === null || !Number.isFinite(minutes)) return "Calculando cuándo salir…";
+  if (minutes <= -5) return "Vas tarde";
+  if (minutes <= 0) return "Sal ahora";
+  return `Sal en ${formatMinutesHuman(minutes)}`;
 }
 
 function baseRouteLabel(seconds: number | null): string | null {
   if (seconds === null || !Number.isFinite(seconds)) return null;
   const minutes = Math.max(0, Math.round(seconds / 60));
   if (minutes <= 0) return "Estás muy cerca";
-  return `${formatMinutesHuman(minutes)} ruta`;
+  return `${formatMinutesHuman(minutes)} de ruta`;
 }
 
 function recommendedTravelLabel(seconds: number | null, bufferMinutes: number): string | null {
@@ -42,7 +42,7 @@ function recommendedTravelLabel(seconds: number | null, bufferMinutes: number): 
   const totalMinutes = routeMinutes + Math.max(0, Math.round(Number(bufferMinutes ?? 0)));
 
   if (totalMinutes <= 0) return "Estás muy cerca";
-  return `${formatMinutesHuman(totalMinutes)} recomendado`;
+  return `${formatMinutesHuman(totalMinutes)} con margen`;
 }
 
 function distanceLabel(meters: number | null): string | null {
@@ -57,23 +57,49 @@ function originLabel(
 ): string | null {
   if (!source) return null;
 
-  if (source === "gps") return "Ubicación actual";
+  if (source === "gps") return "Desde tu ubicación actual";
   if (source === "stored" || source === "last_known") {
-    if (confidence === "high_confidence") return "Última ubicación confiable";
-    return "ETA según tu última ubicación";
+    if (confidence === "high_confidence") return "Desde tu última ubicación confiable";
+    return "Desde tu última ubicación guardada";
   }
-  if (source === "url") return "Origen enviado";
+  if (source === "url") return "Desde el origen enviado";
   return null;
+}
+
+function relativeFreshnessLabel(value: string | null | undefined, prefix: string): string | null {
+  if (!value) return null;
+
+  const ms = new Date(value).getTime();
+  if (!Number.isFinite(ms)) return null;
+
+  const diffMinutes = Math.max(0, Math.round((Date.now() - ms) / 60_000));
+
+  if (diffMinutes < 1) return `${prefix} ahora`;
+  if (diffMinutes < 60) return `${prefix} hace ${diffMinutes} min`;
+
+  const hours = Math.round(diffMinutes / 60);
+  if (hours < 24) return `${prefix} hace ${hours} h`;
+
+  const days = Math.round(hours / 24);
+  return `${prefix} hace ${days} d`;
+}
+
+function eventTimeLabel(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toLocaleTimeString("es-PE", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 export default function SmartMobilityCard({ smartMobility }: Props) {
   const leaveInMinutes = smartMobility.leaveInMinutes;
 
-  // No mostrar si no aplica
   if (!smartMobility.loading && smartMobility.reason === "no_event_location") return null;
 
-  // NUEVA REGLA UX:
-  // si faltan más de 3h para salir, no mostrar card
   if (
     !smartMobility.loading &&
     leaveInMinutes !== null &&
@@ -83,12 +109,15 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
     return null;
   }
 
+  const eventTitle = String(smartMobility.eventTitle ?? "tu próximo plan").trim();
+  const eventStart = eventTimeLabel(smartMobility.eventStartIso);
+
   const title = smartMobility.loading
     ? "Calculando cuándo salir…"
     : smartMobility.reason === "no_origin"
       ? "Activa ubicación para saber cuándo salir"
       : smartMobility.reason === "event_too_far"
-        ? "Actualiza tu ubicación para calcular bien"
+        ? "Actualiza tu ubicación antes de confiar en el ETA"
         : smartMobility.reason === "route_failed"
           ? "No pude calcular la ruta ahora"
           : minutesLabel(leaveInMinutes);
@@ -98,16 +127,12 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
     : smartMobility.reason === "no_origin"
       ? "SyncPlans puede avisarte con mejor precisión cuando tenga tu ubicación real."
       : smartMobility.reason === "event_too_far"
-        ? "Tu ubicación actual o guardada parece demasiado lejos del destino. Actualízala antes de confiar en el ETA."
+        ? "La ubicación actual o guardada parece demasiado lejos del destino. Actualízala antes de salir."
         : smartMobility.reason === "route_failed"
           ? "Puedes abrir la ruta igual y volver a intentar en unos segundos."
-          : smartMobility.eventTitle
-            ? `Para ${smartMobility.eventTitle}. El cálculo usa ruta en auto y suma ${formatMinutesHuman(
-                smartMobility.bufferMinutes
-              )} de margen.`
-            : `Ruta en auto con ${formatMinutesHuman(
-                smartMobility.bufferMinutes
-              )} de margen.`;
+          : `Para ${eventTitle}${eventStart ? ` · ${eventStart}` : ""}. Estimado en auto con ${formatMinutesHuman(
+              smartMobility.bufferMinutes
+            )} de margen.`;
 
   const toneStyle = smartMobility.isLateRisk
     ? styles.dangerTone
@@ -119,29 +144,41 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
     smartMobility.etaSeconds,
     smartMobility.bufferMinutes
   );
-
   const baseRoute = baseRouteLabel(smartMobility.etaSeconds);
   const distance = distanceLabel(smartMobility.distanceMeters);
   const origin = originLabel(
     smartMobility.originSource,
     smartMobility.originConfidence
   );
+  const originFreshness = relativeFreshnessLabel(
+    smartMobility.originUpdatedAt,
+    "Ubicación"
+  );
+  const etaFreshness = relativeFreshnessLabel(
+    smartMobility.calculatedAt,
+    "ETA"
+  );
 
   return (
     <div style={{ ...styles.card, ...toneStyle }}>
       <div style={styles.copy}>
-        <div style={styles.eyebrow}>Smart Mobility</div>
+        <div style={styles.eyebrow}>Salida inteligente</div>
         <div style={styles.title}>{title}</div>
         <div style={styles.subtitle}>{subtitle}</div>
+
+        <div style={styles.routeLine}>
+          <span>{origin ?? "Origen pendiente"}</span>
+          <span style={styles.routeArrow}>→</span>
+          <span>{eventTitle}</span>
+        </div>
 
         <div style={styles.metaRow}>
           {recommendedTravel ? <span style={styles.metaPill}>{recommendedTravel}</span> : null}
           {baseRoute ? <span style={styles.metaPill}>{baseRoute}</span> : null}
           {distance ? <span style={styles.metaPill}>{distance}</span> : null}
-          {origin ? <span style={styles.metaPill}>{origin}</span> : null}
-          {smartMobility.calculatedAt ? (
-            <span style={styles.metaPill}>Tráfico actualizado</span>
-          ) : null}
+          <span style={styles.metaPill}>Auto</span>
+          {originFreshness ? <span style={styles.metaPill}>{originFreshness}</span> : null}
+          {etaFreshness ? <span style={styles.metaPill}>{etaFreshness}</span> : null}
         </div>
       </div>
 
@@ -212,19 +249,32 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: 6,
   },
   title: {
-    fontSize: 22,
-    lineHeight: 1.1,
+    fontSize: 24,
+    lineHeight: 1.08,
     fontWeight: 950,
-    letterSpacing: "-0.03em",
+    letterSpacing: "-0.04em",
     color: "rgba(255,255,255,0.98)",
   },
   subtitle: {
     marginTop: 8,
     fontSize: 13,
     lineHeight: 1.5,
-    color: "rgba(226,232,240,0.78)",
+    color: "rgba(226,232,240,0.80)",
     fontWeight: 650,
     maxWidth: 720,
+  },
+  routeLine: {
+    marginTop: 10,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    fontSize: 12,
+    fontWeight: 850,
+    color: "rgba(224,242,254,0.92)",
+  },
+  routeArrow: {
+    opacity: 0.55,
   },
   metaRow: {
     marginTop: 12,
