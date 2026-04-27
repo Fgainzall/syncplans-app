@@ -3,6 +3,7 @@
 
 import React, { memo, type CSSProperties } from "react";
 import LocationPermissionPrompt from "@/components/location/LocationPermissionPrompt";
+import PushPermissionPrompt from "@/components/PushPermissionPrompt";
 import { colors, layout } from "@/styles/design-tokens";
 
 type Props = {
@@ -89,6 +90,7 @@ function MobileScaffold({
       </div>
 
       <LocationPermissionPrompt />
+      <PushPermissionPrompt />
 
       <style jsx>{`
         @media (max-width: ${layout.mobileBreakpoint}px) {
