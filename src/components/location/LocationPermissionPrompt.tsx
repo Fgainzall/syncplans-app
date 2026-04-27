@@ -169,17 +169,19 @@ export default function LocationPermissionPrompt() {
       </div>
 
       <style jsx>{`
-        .sp-location-prompt {
-          position: fixed;
-          left: 0;
-          right: 0;
-          bottom: max(16px, env(safe-area-inset-bottom));
-          z-index: 80;
-          display: flex;
-          justify-content: center;
-          pointer-events: none;
-          padding: 0 14px;
-        }
+      .sp-location-prompt {
+  position: fixed;
+  left: 50%;
+  right: auto;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 120;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  padding: 0 16px;
+  width: min(100vw, 760px);
+}
 
         .sp-location-card {
           width: min(100%, 720px);
@@ -283,10 +285,12 @@ export default function LocationPermissionPrompt() {
           color: ${colors.textSecondary};
         }
 
-        @media (max-width: 760px) {
-          .sp-location-prompt {
-            bottom: max(78px, calc(env(safe-area-inset-bottom) + 76px));
-          }
+      @media (max-width: 760px) {
+  .sp-location-prompt {
+    width: 100%;
+    bottom: max(96px, calc(env(safe-area-inset-bottom) + 92px));
+    padding: 0 14px;
+  }
 
           .sp-location-card {
             grid-template-columns: auto minmax(0, 1fr);
