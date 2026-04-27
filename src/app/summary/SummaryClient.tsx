@@ -1740,26 +1740,37 @@ if (parsed.locationQuery) {
     showInviteNudge,
   ]);
 
-  const getStatusBadgeForEvent = useCallback(
-    (eventId: string | null | undefined): StatusBadge | null => {
-      const status = getUnifiedEventStatus({
-        eventId,
-        conflictEventIds,
-        proposalResponseGroupsMap,
-      });
+ const getStatusBadgeForEvent = useCallback(
+  (eventId: string | null | undefined): StatusBadge | null => {
+    const key = String(eventId ?? "").trim();
+    if (!key) return null;
 
-      if (!status || status === "scheduled") return null;
+    const event = visibleEvents.find((item) => String(item.id ?? "") === key) ?? null;
 
-      const conflictsCount = eventId ? (conflictEventIds.has(String(eventId)) ? 1 : 0) : 0;
-      const statusUi = getEventStatusUi(status, { conflictsCount });
+    const status = getUnifiedEventStatus({
+      eventId,
+      conflictEventIds,
+      proposalResponseGroupsMap,
+    });
 
-      return {
-        label: statusUi.label,
-        style: statusUi.badgeStyle,
-      };
-    },
-    [conflictEventIds, proposalResponseGroupsMap]
-  );
+    if (!status || status === "scheduled") return null;
+
+    // Un evento personal creado por el usuario no necesita badge de confirmación.
+    // Si no pertenece a grupo, no hay nadie más que lo tenga que aceptar.
+    if (status === "pending" && !event?.groupId) {
+      return null;
+    }
+
+    const conflictsCount = conflictEventIds.has(key) ? 1 : 0;
+    const statusUi = getEventStatusUi(status, { conflictsCount });
+
+    return {
+      label: statusUi.label,
+      style: statusUi.badgeStyle,
+    };
+  },
+  [conflictEventIds, proposalResponseGroupsMap, visibleEvents]
+);
 
   const compactSummaryMobile = isMobile;
   const hasUrgentSummaryState =

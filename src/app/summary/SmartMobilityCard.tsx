@@ -8,20 +8,30 @@ type Props = {
   smartMobility: SmartMobilityState;
 };
 
+function formatMinutesHuman(totalMinutes: number | null | undefined): string {
+  const total = Math.max(0, Math.round(Number(totalMinutes ?? 0)));
+
+  if (total < 60) return `${total} min`;
+
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+
+  if (minutes === 0) return `${hours} h`;
+  return `${hours} h ${minutes} min`;
+}
+
 function minutesLabel(minutes: number | null): string {
   if (minutes === null || !Number.isFinite(minutes)) return "Calculando…";
   if (minutes <= -5) return "Vas justo";
   if (minutes <= 0) return "Es momento de salir";
-  if (minutes === 1) return "Sales en 1 min";
-  return `Sales en ${minutes} min`;
+  return `Sales en ${formatMinutesHuman(minutes)}`;
 }
 
 function etaLabel(seconds: number | null): string | null {
   if (seconds === null || !Number.isFinite(seconds)) return null;
   const minutes = Math.max(0, Math.round(seconds / 60));
   if (minutes <= 0) return "Estás muy cerca";
-  if (minutes === 1) return "1 min de ruta";
-  return `${minutes} min de ruta`;
+  return `${formatMinutesHuman(minutes)} de ruta`;
 }
 
 function distanceLabel(meters: number | null): string | null {
@@ -52,8 +62,8 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
         : smartMobility.reason === "route_failed"
           ? "Puedes abrir la ruta igual y volver a intentar en unos segundos."
           : smartMobility.eventTitle
-            ? `Para ${smartMobility.eventTitle}. Incluye ${smartMobility.bufferMinutes} min de margen.`
-            : `Incluye ${smartMobility.bufferMinutes} min de margen.`;
+            ? `Para ${smartMobility.eventTitle}. Incluye ${formatMinutesHuman(smartMobility.bufferMinutes)} de margen.`
+            : `Incluye ${formatMinutesHuman(smartMobility.bufferMinutes)} de margen.`;
 
   const toneStyle = smartMobility.isLateRisk
     ? styles.dangerTone
