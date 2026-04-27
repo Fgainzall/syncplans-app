@@ -12,6 +12,18 @@ import { hasPremiumAccess } from "@/lib/premium";
 import { getSettingsFromDb, type NotificationSettings } from "@/lib/settings";
 import supabase from "@/lib/supabaseClient";
 import { trackEvent, trackScreenView } from "@/lib/analytics";
+import {
+  getCurrentBrowserPosition,
+  persistLocationFromBrowser,
+} from "@/lib/locationPermission";
+import {
+  ensurePushSubscription,
+  getExistingPushSubscription,
+  getPushPermissionStatus,
+  refreshPushSubscriptionIfGranted,
+  sendLocalTestNotification,
+  type PushPermissionStatus,
+} from "@/lib/pushNotifications";
 
 import MobileScaffold from "@/components/MobileScaffold";
 import PremiumHeader from "@/components/PremiumHeader";
@@ -36,6 +48,24 @@ type TodayEventPreview = {
   title: string;
   time: string;
   groupLabel: string;
+};
+
+type LocationControlState = {
+  ok: boolean;
+  locationEnabled: boolean;
+  promptStatus: "granted" | "dismissed" | "denied" | null;
+  lastKnown: {
+    lat: number | null;
+    lng: number | null;
+    accuracy: number | null;
+    at: string | null;
+  };
+};
+
+type PushControlState = {
+  permission: PushPermissionStatus;
+  hasSubscription: boolean;
+  supported: boolean;
 };
 
 function sleep(ms: number) {
@@ -105,6 +135,51 @@ async function getAccessTokenOrNull(): Promise<string | null> {
   return data.session?.access_token ?? null;
 }
 
+function formatLocationDate(value: string | null | undefined): string {
+  if (!value) return "Sin ubicación guardada";
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return "Sin ubicación guardada";
+  return dt.toLocaleString("es-PE", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function locationStatusLabel(state: LocationControlState | null): string {
+  if (!state) return "Revisando…";
+  if (state.locationEnabled && state.lastKnown.at) return "Activa";
+  if (state.promptStatus === "denied") return "Bloqueada";
+  if (state.promptStatus === "dismissed") return "Pausada";
+  return "Sin ubicación";
+}
+
+function pushStatusLabel(state: PushControlState | null): string {
+  if (!state) return "Revisando…";
+  if (!state.supported) return "No compatible";
+  if (state.permission === "denied") return "Bloqueadas";
+  if (state.permission === "granted" && state.hasSubscription) return "Activas";
+  if (state.permission === "granted") return "Permiso activo";
+  return "Pendientes";
+}
+
+async function fetchLocationControlState(): Promise<LocationControlState | null> {
+  const token = await getAccessTokenOrNull();
+  if (!token) return null;
+
+  const res = await fetch("/api/user/location", {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.ok) return null;
+
+  return json as LocationControlState;
+}
+
 function buildTodayPreview(rows: DbEventRow[]): TodayEventPreview[] {
   const iso = todayISO();
   const start = startOfDay(iso).getTime();
@@ -149,6 +224,11 @@ export default function SettingsClient() {
   const [google, setGoogle] = useState<GoogleStatus | null>(null);
   const [googleSyncing, setGoogleSyncing] = useState(false);
 
+  const [locationState, setLocationState] = useState<LocationControlState | null>(null);
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [pushState, setPushState] = useState<PushControlState | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+
   const showToast = useCallback((title: string, subtitle?: string) => {
     setToast({ title, subtitle });
     window.setTimeout(() => setToast(null), 3200);
@@ -188,6 +268,123 @@ export default function SettingsClient() {
         : "Conectar";
 
   const canUseGooglePremium = hasPremiumAccess(profile);
+
+  const locationPillLabel = locationStatusLabel(locationState);
+  const pushPillLabel = pushStatusLabel(pushState);
+
+  const locationAccuracyLabel = useMemo(() => {
+    const accuracy = Number(locationState?.lastKnown?.accuracy);
+    if (!Number.isFinite(accuracy) || accuracy <= 0) return null;
+    return accuracy < 1000
+      ? `Precisión aprox. ${Math.round(accuracy)} m`
+      : `Precisión aprox. ${(accuracy / 1000).toFixed(1)} km`;
+  }, [locationState]);
+
+  const refreshLocationControl = useCallback(async () => {
+    const state = await fetchLocationControlState().catch(() => null);
+    setLocationState(state);
+  }, []);
+
+  const refreshPushControl = useCallback(async () => {
+    const permission = getPushPermissionStatus();
+    const supported = permission !== "unsupported";
+
+    let hasSubscription = false;
+
+    if (permission === "granted") {
+      await refreshPushSubscriptionIfGranted().catch(() => false);
+    }
+
+    if (supported) {
+      const existing = await getExistingPushSubscription().catch(() => null);
+      hasSubscription = !!existing;
+    }
+
+    setPushState({ permission, supported, hasSubscription });
+  }, []);
+
+  const handleUpdateLocation = useCallback(async () => {
+    try {
+      setLocationBusy(true);
+      showToast("Actualizando ubicación…", "Esto mejora ETA y alertas de salida.");
+
+      const point = await getCurrentBrowserPosition();
+      await persistLocationFromBrowser(point);
+      await refreshLocationControl();
+
+      showToast("Ubicación actualizada ✅", "SyncPlans usará este punto para calcular mejor cuándo salir.");
+    } catch (error) {
+      console.error("[Settings] update location failed", error);
+      showToast("No pudimos actualizar ubicación", "Revisa el permiso del navegador e intenta de nuevo.");
+    } finally {
+      setLocationBusy(false);
+    }
+  }, [refreshLocationControl, showToast]);
+
+  const handleClearLocation = useCallback(async () => {
+    try {
+      setLocationBusy(true);
+
+      const token = await getAccessTokenOrNull();
+      if (!token) {
+        showToast("No encontramos tu sesión", "Vuelve a iniciar sesión e inténtalo otra vez.");
+        return;
+      }
+
+      const res = await fetch("/api/user/location", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.ok) {
+        showToast("No pudimos borrar la ubicación", json?.error || "Intenta nuevamente.");
+        return;
+      }
+
+      await refreshLocationControl();
+      showToast("Ubicación borrada", "SyncPlans no usará una ubicación guardada hasta que la actualices otra vez.");
+    } catch (error) {
+      console.error("[Settings] clear location failed", error);
+      showToast("No pudimos borrar la ubicación", "Intenta nuevamente.");
+    } finally {
+      setLocationBusy(false);
+    }
+  }, [refreshLocationControl, showToast]);
+
+  const handleEnablePush = useCallback(async () => {
+    try {
+      setPushBusy(true);
+      await ensurePushSubscription();
+      await refreshPushControl();
+      showToast("Notificaciones activas ✅", "Ya podemos avisarte aunque no estés dentro de la app.");
+    } catch (error) {
+      console.error("[Settings] enable push failed", error);
+      await refreshPushControl();
+      showToast("No pudimos activar notificaciones", "Revisa el permiso del navegador o instala la PWA.");
+    } finally {
+      setPushBusy(false);
+    }
+  }, [refreshPushControl, showToast]);
+
+  const handleTestNotification = useCallback(async () => {
+    try {
+      setPushBusy(true);
+      await sendLocalTestNotification({
+        title: "SyncPlans listo ✅",
+        body: "Así se verá un aviso importante de salida o coordinación.",
+        url: "/summary",
+      });
+      showToast("Notificación enviada", "Si no la ves, revisa permisos del sistema o del navegador.");
+      await refreshPushControl();
+    } catch (error) {
+      console.error("[Settings] test notification failed", error);
+      showToast("No pudimos probar la notificación", "Activa notificaciones primero y vuelve a intentar.");
+    } finally {
+      setPushBusy(false);
+    }
+  }, [refreshPushControl, showToast]);
 
   const refreshGoogleStatus = useCallback(async () => {
     try {
@@ -374,7 +571,12 @@ export default function SettingsClient() {
         if (dbSettings) setSettings(dbSettings);
         setProfile(dbProfile);
 
-        await Promise.all([refreshGoogleStatusWithRetry(), loadTodayPreview()]);
+        await Promise.all([
+          refreshGoogleStatusWithRetry(),
+          loadTodayPreview(),
+          refreshLocationControl(),
+          refreshPushControl(),
+        ]);
       } finally {
         if (alive) setBooting(false);
       }
@@ -383,7 +585,13 @@ export default function SettingsClient() {
     return () => {
       alive = false;
     };
-  }, [loadTodayPreview, refreshGoogleStatusWithRetry, router]);
+  }, [
+    loadTodayPreview,
+    refreshGoogleStatusWithRetry,
+    refreshLocationControl,
+    refreshPushControl,
+    router,
+  ]);
 
   useEffect(() => {
     const googleParam = searchParams.get("google");
@@ -471,6 +679,125 @@ export default function SettingsClient() {
                 cta="Ver"
                 onClick={() => router.push("/settings/weekly")}
               />
+            </div>
+          </section>
+
+          <section style={styles.card}>
+            <div style={styles.sectionTitleRow}>
+              <div>
+                <div style={styles.sectionTitle}>Ubicación y notificaciones reales</div>
+                <div style={styles.smallNote}>
+                  Controla los permisos que hacen posible Smart Mobility: ETA, hora de salida y avisos aunque la app esté cerrada.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => void Promise.all([refreshLocationControl(), refreshPushControl()])}
+                style={styles.secondaryBtn}
+                disabled={locationBusy || pushBusy}
+              >
+                Actualizar estado
+              </button>
+            </div>
+
+            <div style={styles.controlGrid}>
+              <div style={styles.permissionCard}>
+                <div style={styles.permissionTop}>
+                  <div style={styles.permissionIcon}>↗</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={styles.permissionTitle}>Ubicación para salidas</div>
+                    <div style={styles.permissionSub}>
+                      Se usa para calcular rutas y avisarte cuándo salir. No cambia tus eventos ni se comparte con otros.
+                    </div>
+                  </div>
+                  <span
+                    style={{
+                      ...styles.pill,
+                      ...(locationState?.locationEnabled && locationState?.lastKnown?.at
+                        ? styles.pillOk
+                        : styles.pillMuted),
+                    }}
+                  >
+                    {locationPillLabel}
+                  </span>
+                </div>
+
+                <div style={styles.permissionMeta}>
+                  <span style={styles.metaChip}>Última: {formatLocationDate(locationState?.lastKnown?.at)}</span>
+                  {locationAccuracyLabel ? <span style={styles.metaChip}>{locationAccuracyLabel}</span> : null}
+                </div>
+
+                <div style={styles.permissionActions}>
+                  <button
+                    type="button"
+                    onClick={() => void handleUpdateLocation()}
+                    style={styles.primaryBtn}
+                    disabled={locationBusy}
+                  >
+                    {locationBusy ? "Actualizando…" : "Actualizar ubicación"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleClearLocation()}
+                    style={styles.secondaryBtn}
+                    disabled={locationBusy || !locationState?.lastKnown?.at}
+                  >
+                    Borrar ubicación
+                  </button>
+                </div>
+              </div>
+
+              <div style={styles.permissionCard}>
+                <div style={styles.permissionTop}>
+                  <div style={styles.permissionIcon}>🔔</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={styles.permissionTitle}>Notificaciones push</div>
+                    <div style={styles.permissionSub}>
+                      Permiten avisos importantes: salir ahora, conflictos y cambios relevantes.
+                    </div>
+                  </div>
+                  <span
+                    style={{
+                      ...styles.pill,
+                      ...(pushState?.permission === "granted" && pushState?.hasSubscription
+                        ? styles.pillOk
+                        : pushState?.permission === "denied"
+                          ? styles.pillWarn
+                          : styles.pillMuted),
+                    }}
+                  >
+                    {pushPillLabel}
+                  </span>
+                </div>
+
+                <div style={styles.permissionMeta}>
+                  <span style={styles.metaChip}>Permiso: {pushState?.permission ?? "revisando"}</span>
+                  <span style={styles.metaChip}>Subscription: {pushState?.hasSubscription ? "guardada" : "pendiente"}</span>
+                </div>
+
+                <div style={styles.permissionActions}>
+                  <button
+                    type="button"
+                    onClick={() => void handleEnablePush()}
+                    style={styles.primaryBtn}
+                    disabled={pushBusy || pushState?.permission === "denied"}
+                  >
+                    {pushBusy ? "Activando…" : "Activar / actualizar"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleTestNotification()}
+                    style={styles.secondaryBtn}
+                    disabled={pushBusy || pushState?.permission !== "granted"}
+                  >
+                    Probar notificación
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div style={styles.privacyNote}>
+              SyncPlans usa estos permisos solo para mejorar coordinación: calcular cuándo salir y avisarte a tiempo. Puedes borrar la ubicación guardada cuando quieras.
             </div>
           </section>
 
@@ -898,6 +1225,60 @@ const styles: Record<string, React.CSSProperties> = {
   todayTime: { fontSize: 12, fontWeight: 950, opacity: 0.88, width: 54, flexShrink: 0 },
   todayTitle: { fontSize: 13, fontWeight: 900, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
   todayMeta: { marginTop: 2, fontSize: 11, opacity: 0.65, fontWeight: 700 },
+  controlGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gap: 12,
+  },
+  permissionCard: {
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.025))",
+    padding: 14,
+    display: "grid",
+    gap: 12,
+  },
+  permissionTop: {
+    display: "grid",
+    gridTemplateColumns: "auto minmax(0, 1fr) auto",
+    gap: 12,
+    alignItems: "flex-start",
+  },
+  permissionIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    border: "1px solid rgba(56,189,248,0.22)",
+    background: "rgba(56,189,248,0.10)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 950,
+    flexShrink: 0,
+  },
+  permissionTitle: { fontSize: 14, fontWeight: 950, letterSpacing: "-0.01em" },
+  permissionSub: { marginTop: 4, fontSize: 12, lineHeight: 1.45, opacity: 0.72, fontWeight: 650 },
+  permissionMeta: { display: "flex", gap: 8, flexWrap: "wrap" },
+  metaChip: {
+    fontSize: 10,
+    fontWeight: 850,
+    padding: "6px 9px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.045)",
+    color: "rgba(255,255,255,0.78)",
+  },
+  permissionActions: { display: "flex", gap: 8, flexWrap: "wrap" },
+  privacyNote: {
+    borderRadius: 14,
+    border: "1px solid rgba(125,211,252,0.16)",
+    background: "rgba(56,189,248,0.07)",
+    padding: 12,
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.80)",
+    fontWeight: 650,
+  },
   loadingCard: {
     display: "flex",
     gap: 12,

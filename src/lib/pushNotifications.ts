@@ -244,3 +244,30 @@ export async function refreshPushSubscriptionIfGranted(): Promise<boolean> {
     return false;
   }
 }
+export async function sendLocalTestNotification(input?: {
+  title?: string;
+  body?: string;
+  url?: string;
+}): Promise<void> {
+  if (!isBrowserPushSupported()) {
+    throw new Error("Push notifications are not supported in this browser.");
+  }
+
+  if (Notification.permission !== "granted") {
+    await ensurePushSubscription();
+  } else {
+    await refreshPushSubscriptionIfGranted();
+  }
+
+  const registration = await registerSyncPlansServiceWorker();
+
+  await registration.showNotification(input?.title || "SyncPlans listo ✅", {
+    body: input?.body || "Las notificaciones están activas en este dispositivo.",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    data: {
+      url: input?.url || "/summary",
+      source: "settings_local_test",
+    },
+  });
+}
