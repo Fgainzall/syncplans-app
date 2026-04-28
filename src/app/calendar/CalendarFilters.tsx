@@ -6,7 +6,7 @@ import { type GroupType, groupMeta } from "@/lib/conflicts";
 
 type Scope = "personal" | "active" | "all";
 type Tab = "month" | "agenda";
-
+type ToggleableGroupType = "personal" | "pair" | "family";
 type CalendarFiltersProps = {
   tab: Tab;
   scope: Scope;
@@ -212,11 +212,9 @@ export function CalendarFilters({
 
       {/* Chips de grupos visibles */}
       <div style={styles.groupRow}>
-        {(
-          ["personal", "pair", "family"] as any as GroupType[]
-        ).map((g) => {
-          const meta = groupMeta(g);
-          const on = (enabledGroups as any)[g];
+       {(["personal", "pair", "family"] as ToggleableGroupType[]).map((g) => {
+  const meta = groupMeta(g as GroupType);
+  const on = enabledGroups[g];
           return (
             <button
               key={g}

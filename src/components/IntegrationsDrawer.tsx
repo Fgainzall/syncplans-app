@@ -79,13 +79,14 @@ export default function IntegrationsDrawer({
       }
 
       setStatus(json);
-    } catch (e: any) {
-      setStatus({
-        ok: false,
-        connected: false,
-        error: e?.message || "Error leyendo estado.",
-      });
-    } finally {
+ } catch (e: unknown) {
+  setStatus({
+    ok: false,
+    connected: false,
+    error: e instanceof Error ? e.message : "Error leyendo estado.",
+  });
+}
+     finally {
       setLoading(false);
     }
   }, []);
@@ -203,13 +204,14 @@ const googlePill = useMemo(() => {
       onSynced?.(imported);
 
       scheduleToastClear(2600);
-    } catch (e: any) {
-      setToast({
-        title: "Error sincronizando",
-        subtitle: e?.message ?? "Intenta de nuevo.",
-      });
-      scheduleToastClear(3200);
-    } finally {
+ } catch (e: unknown) {
+  setToast({
+    title: "Error sincronizando",
+    subtitle: e instanceof Error ? e.message : "Intenta de nuevo.",
+  });
+  scheduleToastClear(3200);
+}
+     finally {
       setSyncing(false);
     }
   }, [connected, fetchStatus, onSynced, scheduleToastClear, syncing]);

@@ -1,7 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { EmailOtpType } from "@supabase/supabase-js";
-
+type SupabaseCookieOptions = {
+  domain?: string;
+  path?: string;
+  expires?: Date;
+  httpOnly?: boolean;
+  maxAge?: number;
+  sameSite?: boolean | "lax" | "strict" | "none";
+  secure?: boolean;
+};
 export const dynamic = "force-dynamic";
 
 function safeRedirectTarget(raw: string | null, origin: string) {
@@ -55,12 +63,12 @@ export async function GET(request: NextRequest) {
       get(name: string) {
         return request.cookies.get(name)?.value;
       },
-      set(name: string, value: string, options: any) {
-        response.cookies.set({ name, value, ...options });
-      },
-      remove(name: string, options: any) {
-        response.cookies.set({ name, value: "", ...options, maxAge: 0 });
-      },
+    set(name: string, value: string, options: SupabaseCookieOptions) {
+  response.cookies.set({ name, value, ...options });
+},
+remove(name: string, options: SupabaseCookieOptions) {
+  response.cookies.set({ name, value: "", ...options, maxAge: 0 });
+},
     },
   });
 

@@ -104,7 +104,7 @@ export function EventEditModal({
     setEndLocal(isoToLocalInput(ie.end));
     setDescription(ie.description ?? "");
 
-    const gtRaw = (ie.groupType ?? "personal") as any;
+    const gtRaw = String(ie.groupType ?? "personal");
     const normalized: EditableGroupType =
       gtRaw === "family"
         ? "family"
@@ -220,11 +220,11 @@ export function EventEditModal({
 
       setSaving(false);
       onClose();
-    } catch (e: any) {
-      console.error(e);
-      setError(e?.message ?? "Error inesperado al guardar.");
-      setSaving(false);
-    }
+   } catch (e: unknown) {
+  console.error(e);
+  setError(e instanceof Error ? e.message : "Error inesperado al guardar.");
+  setSaving(false);
+}
   };
 
   const handleDelete = async () => {

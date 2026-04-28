@@ -186,14 +186,14 @@ export default function LoginClient() {
 
       setLoadingEmail(false);
       startRedirect(nextTarget);
-    } catch (err: any) {
-      setError(err?.message ?? "Error inesperado. Intenta otra vez.");
-      setLoadingEmail(false);
-      setIsRedirecting(false);
-      setSlowMessage(null);
-      redirectingRef.current = false;
-      clearTimers();
-    }
+   } catch (err: unknown) {
+  setError(err instanceof Error ? err.message : "Error inesperado. Intenta otra vez.");
+  setLoadingEmail(false);
+  setIsRedirecting(false);
+  setSlowMessage(null);
+  redirectingRef.current = false;
+  clearTimers();
+}
   }
 
   async function onGoogle() {
@@ -232,10 +232,10 @@ export default function LoginClient() {
       }
 
       window.location.href = data.url;
-    } catch (e: any) {
-      setError(e?.message ?? "Error iniciando sesión con Google.");
-      setLoadingGoogle(false);
-    }
+   } catch (e: unknown) {
+  setError(e instanceof Error ? e.message : "Error iniciando sesión con Google.");
+  setLoadingGoogle(false);
+}
   }
 
   return (
