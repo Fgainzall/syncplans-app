@@ -33,7 +33,7 @@ export type NotificationRow = {
   title: string;
   body: string | null;
   entity_id: string | null;
-  payload?: any | null;
+payload?: NotificationPayload | null;
   created_at: string;
   read_at: string | null;
 };
@@ -44,7 +44,7 @@ export type CreateNotificationInput = {
   title: string;
   body?: string | null;
   entity_id?: string | null;
-  payload?: any | null;
+  payload?: NotificationPayload | null;
 };
 
 export type ConflictNotificationResult = {
@@ -70,7 +70,61 @@ type AttachedConflict = {
     groupId?: string | null;
   } | null;
 };
+type NotificationPayload = {
+  event_id?: unknown;
+  eventId?: unknown;
+  incoming_event_id?: unknown;
+  incomingEventId?: unknown;
+  existing_event_id?: unknown;
+  existingEventId?: unknown;
+  targetEventId?: unknown;
+  affectedEventId?: unknown;
+  keptEventId?: unknown;
+  eventIds?: unknown;
+  event_ids?: unknown;
+  [key: string]: unknown;
+};
 
+type NotificationDbRow = {
+  id?: unknown;
+  user_id?: unknown;
+  type?: unknown;
+  title?: unknown;
+  body?: unknown;
+  entity_id?: unknown;
+  payload?: unknown;
+  created_at?: unknown;
+  read_at?: unknown;
+};
+
+type ConflictEventDbRow = {
+  id?: unknown;
+  title?: unknown;
+  start?: unknown;
+  start_at?: unknown;
+  end?: unknown;
+  end_at?: unknown;
+  group_id?: unknown;
+  owner_id?: unknown;
+  created_by?: unknown;
+  user_id?: unknown;
+  type?: unknown;
+  group_type?: unknown;
+  groupType?: unknown;
+  notes?: unknown;
+  description?: unknown;
+};
+
+type NotificationEventLike = CalendarEvent;
+
+type MutedGroupRow = {
+  group_id?: string | null;
+};
+
+type NotificationGroupRow = {
+  id?: string | null;
+  type?: string | null;
+};
 const CONFLICT_NOTIFICATION_TYPES = [
   "conflict",
   "conflict_detected",
@@ -128,18 +182,20 @@ function isConflictNotificationType(value: unknown): boolean {
   );
 }
 
-function normalizeNotificationRecord(row: any): NotificationRow {
+function normalizeNotificationRecord(row: NotificationDbRow): NotificationRow {
   return {
     id: String(row?.id ?? ""),
     user_id: String(row?.user_id ?? ""),
     type: String(row?.type ?? "") as NotificationType,
     title: String(row?.title ?? ""),
-    body: row?.body ?? null,
-    entity_id: row?.entity_id ? String(row.entity_id) : null,
+    body: row?.body == null ? null : String(row.body),
+    entity_id: row?.entity_id == null ? null : String(row.entity_id),
     payload:
-      row?.payload && typeof row.payload === "object" ? row.payload : null,
+      row?.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
+        ? (row.payload as NotificationPayload)
+        : null,
     created_at: String(row?.created_at ?? ""),
-    read_at: row?.read_at ?? null,
+    read_at: row?.read_at == null ? null : String(row.read_at),
   };
 }
 
@@ -148,9 +204,15 @@ function normalizeGroupTypeForPrefs(value: unknown): string {
 }
 
 function extractEventIdsFromPayload(
-  payload: any,
+  payload: NotificationPayload | null | undefined,
   entityId?: string | null
 ): string[] {
+  const eventIds = Array.isArray(payload?.event_ids)
+    ? payload.event_ids
+    : Array.isArray(payload?.eventIds)
+      ? payload.eventIds
+      : [];
+
   return Array.from(
     new Set(
       [
@@ -161,7 +223,10 @@ function extractEventIdsFromPayload(
         payload?.incomingEventId,
         payload?.existing_event_id,
         payload?.existingEventId,
-        ...(Array.isArray(payload?.event_ids) ? payload.event_ids : []),
+        payload?.targetEventId,
+        payload?.affectedEventId,
+        payload?.keptEventId,
+        ...eventIds,
       ]
         .map((value) => String(value ?? "").trim())
         .filter(Boolean)
@@ -169,7 +234,7 @@ function extractEventIdsFromPayload(
   );
 }
 
-function normalizeConflictEventFromDb(row: any): CalendarEvent | null {
+function normalizeConflictEventFromDb(row: ConflictEventDbRow): CalendarEvent | null {
   const id = String(row?.id ?? "").trim();
   const start = String(row?.start ?? row?.start_at ?? "").trim();
   const end = String(row?.end ?? row?.end_at ?? start).trim();
@@ -310,7 +375,7 @@ async function hasUnreadConflictNotificationForEvent(
   return Array.isArray(data) && data.length > 0;
 }
 
-function buildAttachedConflicts(events: any[]): AttachedConflict[] {
+function buildAttachedConflicts(events: NotificationEventLike[]): AttachedConflict[] {
   const cx = computeVisibleConflicts(events);
   return attachEvents(cx, events) as unknown as AttachedConflict[];
 }
@@ -339,7 +404,7 @@ export async function createConflictNotificationForEvent(
   }
 
   const targetEvent =
-    events.find((e: any) => String(e.id) === safeEventId) ?? null;
+   events.find((e) => String(e.id) === safeEventId) ?? null;
 
   const alreadyExists = await hasUnreadConflictNotificationForEvent(
     uid,
@@ -482,7 +547,7 @@ export async function createConflictDecisionNotification(input: {
   userId: string;
   decisionLabel: string;
   entityId?: string | null;
-  payload?: any | null;
+payload?: NotificationPayload | null;
 }) {
   return createNotification({
     user_id: input.userId,
@@ -501,7 +566,7 @@ export async function createConflictAutoAdjustedNotification(input: {
   userId: string;
   decisionLabel: string;
   entityId?: string | null;
-  payload?: any | null;
+payload?: NotificationPayload | null;
 }) {
   return createNotification({
     user_id: input.userId,
@@ -537,9 +602,9 @@ export async function getMyNotifications(
 
   if (mutedErr) throw mutedErr;
 
-  const mutedGroupIds = (mutedRows ?? [])
-    .map((r: any) => String(r.group_id ?? "").trim())
-    .filter(Boolean);
+const mutedGroupIds = ((mutedRows ?? []) as MutedGroupRow[])
+  .map((r) => String(r.group_id ?? "").trim())
+  .filter(Boolean);
 
   let query = supabase
     .from("notifications")
@@ -588,10 +653,10 @@ export async function getMyNotifications(
     if (gErr) throw gErr;
 
     groupTypeMap = Object.fromEntries(
-      (groups ?? []).map((g: any) => [
-        String(g.id),
-        normalizeGroupTypeForPrefs(g.type as string | null),
-      ])
+   ((groups ?? []) as NotificationGroupRow[]).map((g) => [
+  String(g.id ?? ""),
+  normalizeGroupTypeForPrefs(g.type ?? null),
+])
     );
   }
 

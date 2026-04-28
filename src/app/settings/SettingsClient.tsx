@@ -67,7 +67,27 @@ type PushControlState = {
   hasSubscription: boolean;
   supported: boolean;
 };
+type SettingsEventPreviewRow = {
+  id: string | number;
+  title?: string | null;
+  start?: string | null;
+  start_at?: string | null;
+  group_id?: string | null;
+  groupId?: string | null;
+  group_type?: string | null;
+  groupType?: string | null;
+  type?: string | null;
+  source?: string | null;
+  provider?: string | null;
+};
 
+type SettingsApiResponse = {
+  ok?: boolean;
+  error?: string;
+  reason?: string;
+  imported?: number;
+  message?: string;
+};
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -185,28 +205,28 @@ function buildTodayPreview(rows: DbEventRow[]): TodayEventPreview[] {
   const start = startOfDay(iso).getTime();
   const end = start + 24 * 60 * 60 * 1000;
 
-  return rows
-    .filter((row) => {
-      const rawStart = (row as any).start ?? (row as any).start_at;
-      if (!rawStart) return false;
-      const ms = new Date(rawStart).getTime();
-      return Number.isFinite(ms) && ms >= start && ms < end;
-    })
-    .sort((a, b) => {
-      const aStart = new Date(((a as any).start ?? (a as any).start_at) || 0).getTime();
-      const bStart = new Date(((b as any).start ?? (b as any).start_at) || 0).getTime();
-      return aStart - bStart;
-    })
-    .slice(0, 3)
-    .map((row) => {
-      const rawStart = ((row as any).start ?? (row as any).start_at) as string | undefined;
-      return {
-        id: String(row.id),
-        title: String((row as any).title || "Evento"),
-        time: formatEventTime(rawStart),
-        groupLabel: labelForGroup(row),
-      };
-    });
+return (rows as SettingsEventPreviewRow[])
+  .filter((row) => {
+    const rawStart = row.start ?? row.start_at;
+    if (!rawStart) return false;
+    const ms = new Date(rawStart).getTime();
+    return Number.isFinite(ms) && ms >= start && ms < end;
+  })
+  .sort((a, b) => {
+    const aStart = new Date(a.start ?? a.start_at ?? 0).getTime();
+    const bStart = new Date(b.start ?? b.start_at ?? 0).getTime();
+    return aStart - bStart;
+  })
+  .slice(0, 3)
+  .map((row) => {
+    const rawStart = row.start ?? row.start_at;
+    return {
+      id: String(row.id),
+      title: String(row.title || "Evento"),
+      time: formatEventTime(rawStart),
+     groupLabel: labelForGroup(row as Parameters<typeof labelForGroup>[0]),
+    };
+  });
 }
 
 export default function SettingsClient() {
@@ -480,7 +500,7 @@ export default function SettingsClient() {
         },
       });
 
-      const json = await res.json().catch(() => ({} as any));
+     const json = (await res.json().catch(() => ({}))) as SettingsApiResponse;
 
       if (!res.ok || !json.ok) {
         showToast(
@@ -521,7 +541,7 @@ export default function SettingsClient() {
         body: JSON.stringify({ date: todayISO(), source: "settings_manual" }),
       });
 
-      const json = await res.json().catch(() => ({} as any));
+     const json = (await res.json().catch(() => ({}))) as SettingsApiResponse;
 
       if (!res.ok || !json.ok) {
         if (json?.reason === "no_email") {
