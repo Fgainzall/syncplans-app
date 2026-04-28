@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,14 +21,36 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
 // Tipamos explícito el admin client para que TS no moleste
-type AdminClient = SupabaseClient<any, "public", any>;
+type AdminClient = ReturnType<typeof createClient>;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.warn(
     "[daily-digest] Faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en env"
   );
 }
+type MembershipRow = {
+  group_id: string | null;
+};
 
+type DigestGroupRow = {
+  id: string;
+  name: string | null;
+  type: string | null;
+};
+
+type DailySummarySettingRow = {
+  user_id: string;
+  daily_summary: boolean | null;
+};
+
+type ManualDigestBody = {
+  date?: unknown;
+};
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
 function getResend() {
   if (!RESEND_API_KEY) {
     throw new Error("Missing RESEND_API_KEY env var");
@@ -266,9 +288,11 @@ async function getEventsForUserOnDay(
 
   if (memErr) throw memErr;
 
-  const memberGroupIds = (memberships ?? [])
-    .map((m: any) => m.group_id as string | null)
-    .filter(Boolean) as string[];
+const memberRows = (memberships ?? []) as MembershipRow[];
+
+const memberGroupIds = memberRows
+  .map((m) => m.group_id)
+  .filter((groupId): groupId is string => Boolean(groupId));
 
   // 2) eventos personales + de esos grupos
   let query = client
@@ -320,12 +344,12 @@ async function getEventsForUserOnDay(
 
     if (gErr) throw gErr;
 
-    for (const g of groups ?? []) {
-      groupMap[String((g as any).id)] = {
-        name: (g as any).name ?? null,
-        type: (g as any).type ?? null,
-      };
-    }
+ for (const g of (groups ?? []) as DigestGroupRow[]) {
+  groupMap[String(g.id)] = {
+    name: g.name ?? null,
+    type: g.type ?? null,
+  };
+}
   }
 
   return rows.map((e) => {
@@ -373,7 +397,9 @@ const { dayStartIso, dayEndIso, dateLabel } = buildLimaDayRange(dateParam);
 
     if (settingsErr) throw settingsErr;
 
-    const targets = (settings ?? []).map((s: any) => String(s.user_id));
+   const targets = ((settings ?? []) as DailySummarySettingRow[]).map((s) =>
+  String(s.user_id)
+);
     if (targets.length === 0) {
       return NextResponse.json({ ok: true, message: "No users to notify" });
     }
@@ -443,7 +469,7 @@ const { html, subject } = buildDailyDigestHtml(dateLabel, events);
     }
 
     return NextResponse.json({ ok: true, results });
-  } catch (err: any) {
+} catch (err: unknown) {
     console.error("[daily-digest] error global", err);
     return NextResponse.json(
       { ok: false, message: "Error ejecutando daily digest" },
@@ -507,10 +533,10 @@ async function runManualDigestForAuthedUser(
       count: events.length,
       to: user.email,
     });
-  } catch (err: any) {
+} catch (err: unknown) {
     console.error("[daily-digest] manual user error", err);
     return NextResponse.json(
-      { ok: false, message: err?.message || "Manual digest failed" },
+      { ok: false, message: getErrorMessage(err, "Manual digest failed") },
       { status: 500 }
     );
   }
@@ -540,7 +566,7 @@ export async function POST(req: Request) {
     return runDailyDigest(dateFromQuery);
   }
 
-  const body = await req.json().catch(() => ({} as any));
+const body = (await req.json().catch(() => ({}))) as ManualDigestBody;
   const dateFromBody =
     typeof body?.date === "string" && body.date.trim() ? body.date.trim() : null;
 

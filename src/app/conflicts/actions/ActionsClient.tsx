@@ -26,7 +26,26 @@ import {
   filterIgnoredConflicts,
 } from "@/lib/conflicts";
 
-type ActionCalendarEvent = any;
+type ActionCalendarEvent = {
+  id: string;
+  title?: string | null;
+  start?: string | null;
+  end?: string | null;
+  owner_id?: string | null;
+  ownerId?: string | null;
+  created_by?: string | null;
+  createdBy?: string | null;
+  user_id?: string | null;
+  userId?: string | null;
+  group_id?: string | null;
+  groupId?: string | null;
+  groupType?: string | null;
+  calendar_id?: string | null;
+  calendarId?: string | null;
+  source?: string | null;
+  provider?: string | null;
+  [key: string]: unknown;
+};
 
 import { normalizeGroupType } from "@/lib/naming";
 
@@ -118,7 +137,7 @@ function eventFromConflictById(conflict: ConflictItem, eventId: string) {
 }
 
 
-function resolveEventOwnerId(event: any): string | null {
+function resolveEventOwnerId(event: ActionCalendarEvent | null | undefined): string | null {
   const candidate =
     event?.owner_id ??
     event?.ownerId ??
@@ -667,11 +686,15 @@ export default function ActionsClient() {
               decision_type: buildConflictLogPayload(resolution).decisionType,
               final_action: finalAction,
               affected_event_id: targetEventId,
-              affected_event_title: safeTitle(
-                (targetDbEvent as any)?.title ?? (targetFromConflict as any)?.title ?? null
-              ),
-              kept_event_id: keptEventId || null,
-              kept_event_title: safeTitle((keptFromConflict as any)?.title ?? null),
+         affected_event_title: safeTitle(
+  (targetDbEvent as ActionCalendarEvent | null)?.title ??
+    (targetFromConflict as ActionCalendarEvent | null)?.title ??
+    null
+),
+kept_event_id: keptEventId || null,
+kept_event_title: safeTitle(
+  (keptFromConflict as ActionCalendarEvent | null)?.title ?? null
+),
               group_id: groupIdForConflict,
               source: "conflicts_actions",
             });
@@ -825,7 +848,7 @@ export default function ActionsClient() {
       setTimeout(() => {
         goToSummary(result);
       }, 700);
-    } catch (e: any) {
+} catch (e: unknown) {
       setToast({
         title: "No se pudo aplicar",
         sub: humanizeConflictActionError(e, "Intenta nuevamente."),

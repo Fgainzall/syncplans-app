@@ -1,11 +1,23 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
 type ConnectionState = "connected" | "needs_reauth" | "disconnected";
 
+type GoogleAccountStatusRow = {
+  provider?: string | null;
+  email?: string | null;
+  refresh_token?: string | null;
+  expires_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
 export async function GET() {
   try {
     const cookieStore = await cookies();
@@ -26,17 +38,22 @@ export async function GET() {
     }
 
     const supabase = createServerClient(supabaseUrl, supabaseAnon, {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: any) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: any) {
-          cookieStore.set({ name, value: "", ...options, maxAge: 0 });
-        },
-      },
+   cookies: {
+  getAll() {
+    return cookieStore.getAll();
+  },
+  setAll(
+    cookiesToSet: {
+      name: string;
+      value: string;
+      options?: CookieOptions;
+    }[]
+  ) {
+    cookiesToSet.forEach(({ name, value, options }) => {
+      cookieStore.set({ name, value, ...options });
+    });
+  },
+},
     });
 
     const { data: userData } = await supabase.auth.getUser();
@@ -81,9 +98,10 @@ export async function GET() {
       });
     }
 
-    const expiresAtRaw = (data as any).expires_at ?? null;
-    const refreshToken = (data as any).refresh_token ?? null;
+    const account = data as GoogleAccountStatusRow | null;
 
+const expiresAtRaw = account?.expires_at ?? null;
+const refreshToken = account?.refresh_token ?? null;
     const expiresMs = expiresAtRaw ? new Date(String(expiresAtRaw)).getTime() : 0;
     const nowMs = Date.now();
 
@@ -98,14 +116,14 @@ export async function GET() {
       ok: true,
       connected: connectionState === "connected",
       connection_state: connectionState,
-      account: {
-        provider: (data as any).provider ?? "google",
-        email: (data as any).email ?? null,
-        created_at: (data as any).created_at ?? null,
-        updated_at: (data as any).updated_at ?? null,
-      },
+    account: {
+  provider: account?.provider ?? "google",
+  email: account?.email ?? null,
+  created_at: account?.created_at ?? null,
+  updated_at: account?.updated_at ?? null,
+},
     });
-  } catch (e: any) {
+ } catch (e: unknown) {
     console.error("[/api/google/status] error", e);
 
     return NextResponse.json(
@@ -113,7 +131,7 @@ export async function GET() {
         ok: false,
         connected: false,
         connection_state: "disconnected",
-        error: e?.message || "Error inesperado.",
+      message: getErrorMessage(e, "Error revisando conexión con Google"),
       },
       { status: 500 }
     );

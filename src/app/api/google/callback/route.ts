@@ -1,10 +1,37 @@
 // src/app/api/google/callback/route.ts
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
 export const dynamic = "force-dynamic";
 
+type GoogleTokenResponse = {
+  access_token?: unknown;
+  refresh_token?: unknown;
+  scope?: unknown;
+  expires_in?: unknown;
+};
+
+type GoogleUserInfoResponse = {
+  email?: unknown;
+};
+
+type ExistingGoogleAccountRow = {
+  refresh_token?: string | null;
+  email?: string | null;
+};
+
+type GoogleAccountUpsertPayload = {
+  user_id: string;
+  provider: "google";
+  email: string | null;
+  access_token: string;
+  refresh_token: string | null;
+  expires_at: string;
+  scope: string | null;
+  updated_at: string;
+  created_at?: string;
+};
 function mustEnv(name: string) {
   const v = (process.env[name] ?? "").trim();
   if (!v) throw new Error(`Missing env: ${name}`);
@@ -36,7 +63,7 @@ async function exchangeCodeForTokens(input: { code: string; redirect_uri: string
     body,
   });
 
-  const json = await r.json().catch(() => ({} as any));
+ const json = (await r.json().catch(() => ({}))) as GoogleTokenResponse;
   if (!r.ok) return { ok: false as const, status: r.status, json };
 
   const access_token = String(json.access_token || "");
@@ -56,7 +83,7 @@ async function fetchGoogleEmail(accessToken: string): Promise<string | null> {
     const r = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    const json = await r.json().catch(() => ({} as any));
+const json = (await r.json().catch(() => ({}))) as GoogleUserInfoResponse;
     if (!r.ok) return null;
     return json.email ? String(json.email) : null;
   } catch {
@@ -137,17 +164,22 @@ export async function GET(req: Request) {
     }
 
     const supabase = createServerClient(supabaseUrl, supabaseAnon, {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: any) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: any) {
-          cookieStore.set({ name, value: "", ...options, maxAge: 0 });
-        },
-      },
+    cookies: {
+  getAll() {
+    return cookieStore.getAll();
+  },
+  setAll(
+    cookiesToSet: {
+      name: string;
+      value: string;
+      options?: CookieOptions;
+    }[]
+  ) {
+    cookiesToSet.forEach(({ name, value, options }) => {
+      cookieStore.set({ name, value, ...options });
+    });
+  },
+},
     });
 
     // Usuario logueado
@@ -178,17 +210,16 @@ export async function GET(req: Request) {
       .select("refresh_token,email")
       .eq("user_id", user.id)
       .maybeSingle();
+const existingAccount = existing as ExistingGoogleAccountRow | null;
+ const refreshToStore =
+  ex.refresh_token ||
+  (existingAccount?.refresh_token ? String(existingAccount.refresh_token) : null);
 
-    const refreshToStore =
-      ex.refresh_token ||
-      ((existing as any)?.refresh_token ? String((existing as any).refresh_token) : null);
-
-    const emailToStore =
-      googleEmail || ((existing as any)?.email ? String((existing as any).email) : null);
-
+const emailToStore =
+  googleEmail || (existingAccount?.email ? String(existingAccount.email) : null);
     const nowIso = new Date().toISOString();
 
-    const payload: any = {
+  const payload: GoogleAccountUpsertPayload = {
       user_id: user.id,
       provider: "google",
       email: emailToStore,
@@ -210,7 +241,7 @@ export async function GET(req: Request) {
 
     // ✅ éxito
     return NextResponse.redirect(`${appUrl}${nextPath}?google=connected`);
-  } catch (e: any) {
+} catch (e: unknown) {
     console.error("[google/callback] error", e);
     return NextResponse.redirect(`${appUrl}${nextPath}?google=error&reason=unexpected`);
   }
