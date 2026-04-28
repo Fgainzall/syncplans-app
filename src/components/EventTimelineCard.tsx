@@ -27,7 +27,11 @@ type ShareState = {
   error: string | null;
   copied: boolean;
 };
-
+type ProposalProfileLike = {
+  display_name?: string | null;
+  full_name?: string | null;
+  first_name?: string | null;
+};
 type Props = {
   ev: TimelineEvent;
   checked: boolean;
@@ -46,7 +50,7 @@ type Props = {
   trustSignal: ConflictTrustSignal | null;
   proposalResponse: ProposalResponseRow | null;
   proposalResponseGroup: ProposalResponseRow[];
-  proposalProfile: any;
+proposalProfile: ProposalProfileLike | null;
   conflictsCount: number;
   eventRef?: (node: HTMLDivElement | null) => void;
 };
@@ -122,9 +126,9 @@ export default function EventTimelineCard({
   const conflictSummary =
     safeConflictsCount > 0
       ? buildConflictSummary(
-          Array.from({ length: safeConflictsCount }, (_, idx) => ({
-            id: String(idx),
-          } as any))
+   Array.from({ length: safeConflictsCount }, (_, idx) => ({
+  id: String(idx),
+})) as Parameters<typeof buildConflictSummary>[0]
         )
       : null;
 

@@ -66,7 +66,18 @@ type SelectedGroup = {
   type: string | null;
   name?: string | null;
 } | null;
+type EventOwnerCandidate = {
+  owner_id?: unknown;
+  ownerId?: unknown;
+  created_by?: unknown;
+  createdBy?: unknown;
+  user_id?: unknown;
+  userId?: unknown;
+};
 
+type NotificationSettingsWithConflictDefault = NotificationSettings & {
+  conflictDefaultResolution?: "keep_existing" | "replace_with_new" | "none" | "ask_me" | string | null;
+};
 type PendingPayload = {
   groupType: GroupType;
   groupId: string | null;
@@ -152,7 +163,7 @@ function safeTitle(value?: string | null) {
   return v || "Evento sin título";
 }
 
-function resolveEventOwnerId(event: any): string | null {
+function resolveEventOwnerId(event: EventOwnerCandidate | null | undefined): string | null {
   const candidate =
     event?.owner_id ??
     event?.ownerId ??
@@ -167,7 +178,9 @@ function resolveEventOwnerId(event: any): string | null {
 }
 
 function mapDefaultResolutionToChoice(s: NotificationSettings | null): PreflightChoice {
-  const def = (s as any)?.conflictDefaultResolution ?? "ask_me";
+const def =
+  (s as NotificationSettingsWithConflictDefault | null)?.conflictDefaultResolution ??
+  "ask_me";
   if (def === "keep_existing") return "keep_existing";
   if (def === "replace_with_new") return "replace_with_new";
   if (def === "none") return "keep_both";

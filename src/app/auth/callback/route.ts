@@ -1,7 +1,20 @@
 // src/app/auth/callback/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+type SupabaseCookieOptions = {
+  domain?: string;
+  path?: string;
+  expires?: Date;
+  httpOnly?: boolean;
+  maxAge?: number;
+  sameSite?: boolean | "lax" | "strict" | "none";
+  secure?: boolean;
+};
 
+type OAuthProviderSession = {
+  provider_token?: string;
+  provider_refresh_token?: string;
+};
 export const dynamic = "force-dynamic";
 
 function safeNext(nextRaw: string | null) {
@@ -40,12 +53,12 @@ export async function GET(request: NextRequest) {
       get(name: string) {
         return request.cookies.get(name)?.value;
       },
-      set(name: string, value: string, options: any) {
-        response.cookies.set({ name, value, ...options });
-      },
-      remove(name: string, options: any) {
-        response.cookies.set({ name, value: "", ...options, maxAge: 0 });
-      },
+     set(name: string, value: string, options: SupabaseCookieOptions) {
+  response.cookies.set({ name, value, ...options });
+},
+remove(name: string, options: SupabaseCookieOptions) {
+  response.cookies.set({ name, value: "", ...options, maxAge: 0 });
+},
     },
   });
 
@@ -68,8 +81,9 @@ export async function GET(request: NextRequest) {
     const { data: sessionData } = await supabase.auth.getSession();
     const session = sessionData?.session;
 
-    const accessToken = (session as any)?.provider_token as string | undefined;
-    const refreshToken = (session as any)?.provider_refresh_token as string | undefined;
+   const providerSession = session as OAuthProviderSession | null | undefined;
+const accessToken = providerSession?.provider_token;
+const refreshToken = providerSession?.provider_refresh_token;
 
     if (accessToken) {
       const approxExpiresAt = new Date(Date.now() + 55 * 60 * 1000).toISOString();
@@ -92,9 +106,12 @@ export async function GET(request: NextRequest) {
 
       if (upsertErr) console.error("google_accounts upsert error:", upsertErr.message);
     }
-  } catch (e: any) {
-    console.error("Saving google tokens failed:", e?.message ?? e);
-  }
+  } catch (e: unknown) {
+  console.error(
+    "Saving google tokens failed:",
+    e instanceof Error ? e.message : e
+  );
+}
 
   return response;
 }

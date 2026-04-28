@@ -56,8 +56,7 @@ export default function EventsTimeline({
     proposalResponseGroupsByEventId,
     proposalProfilesById,
     conflictsByEventId,
-
-  } = useEventsTimelineData(events);
+      } = useEventsTimelineData(events);
 
   const sorted = useMemo(() => {
     return [...events].sort(
@@ -130,13 +129,14 @@ const timelineSummary = useMemo(() => {
       window.alert(
         "El evento no se eliminó realmente. La lista no se actualizó como si hubiera salido bien."
       );
-    } catch (error: any) {
-      console.error("[EventsTimeline] delete error", error);
-      window.alert(
-        error?.message ||
-          "No se pudo eliminar este evento. Revisa tus permisos o vuelve a intentar."
-      );
-    }
+  } catch (error: unknown) {
+  console.error("[EventsTimeline] delete error", error);
+  window.alert(
+    error instanceof Error
+      ? error.message
+      : "No se pudo eliminar este evento. Revisa tus permisos o vuelve a intentar."
+  );
+}
   }
 
   async function onCreateShareLink(ev: TimelineEvent): Promise<string | null> {
@@ -181,8 +181,8 @@ const timelineSummary = useMemo(() => {
         }));
 
         return link;
-      } catch (e: any) {
-        setShareStateById((prev) => ({
+    } catch (e: unknown) {
+  setShareStateById((prev) => ({
           ...prev,
           [eventId]: {
             loading: false,

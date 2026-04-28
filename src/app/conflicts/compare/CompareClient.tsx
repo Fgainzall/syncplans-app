@@ -38,8 +38,12 @@ function safeTitle(value?: string | null) {
   const v = String(value ?? "").trim();
   return v || "Evento sin título";
 }
-function getEventLocation(event?: CalendarEvent | null) {
-  return String((event as any)?.location ?? "").trim();
+type CalendarEventWithLocation = CalendarEvent & {
+  location?: string | null;
+};
+
+function getEventLocation(event?: CalendarEventWithLocation | null) {
+  return String(event?.location ?? "").trim();
 }
 function formatDateTime(iso?: string | null) {
   if (!iso) return "Sin fecha";
