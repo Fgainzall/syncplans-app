@@ -29,10 +29,62 @@ export type GroupRow = {
   is_active?: boolean;
 };
 
+type DbGroupRow = {
+  id?: unknown;
+  name?: unknown;
+  type?: unknown;
+  created_at?: unknown;
+  owner_id?: unknown;
+  role?: unknown;
+  members_count?: unknown;
+  is_active?: unknown;
+};
+
+type DbMembershipRow = {
+  group_id?: unknown;
+  user_id?: unknown;
+  role?: unknown;
+  created_at?: unknown;
+};
+
+type GroupUpdatePayload = {
+  name?: string | null;
+  type?: "pair" | "family" | "other";
+};
+
+type GroupMemberMetaRow = {
+  group_id?: unknown;
+  user_id?: unknown;
+  role?: unknown;
+  display_name?: unknown;
+  relationship_role?: unknown;
+  coordination_prefs?: unknown;
+};
+
 export type GroupMemberCoordinationPrefs = {
   group_note?: string;
   priority_hint?: "alta" | "media" | "baja";
+  [key: string]: unknown;
 };
+
+type GroupMemberMetaUpdatePayload = {
+  display_name: string | null;
+  relationship_role: string | null;
+  coordination_prefs: GroupMemberCoordinationPrefs | null;
+};
+
+type RpcResultLike = {
+  ok?: unknown;
+  error?: unknown;
+};
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message?: unknown }).message ?? "");
+  }
+  return "";
+}
 
 export type GroupMemberRow = {
   group_id: string;
@@ -112,16 +164,16 @@ export function formatPairGroupName(a: string, b: string): string {
   return A || B || "Pareja";
 }
 
-function mapGroupRow(row: any): GroupRow {
+function mapGroupRow(row: DbGroupRow): GroupRow {
   const rawMembersCount = row?.members_count;
 
   return {
     id: String(row?.id ?? ""),
-    name: row?.name ?? null,
-    type: row?.type ?? null,
-    created_at: row?.created_at ?? null,
-    owner_id: row?.owner_id ?? null,
-    role: row?.role ?? null,
+    name: row?.name == null ? null : String(row.name),
+    type: row?.type == null ? "other" : String(row.type),
+    created_at: row?.created_at == null ? null : String(row.created_at),
+    owner_id: row?.owner_id == null ? null : String(row.owner_id),
+    role: row?.role == null ? null : String(row.role),
     members_count:
       typeof rawMembersCount === "number"
         ? rawMembersCount
@@ -152,12 +204,14 @@ export async function getMyGroups(): Promise<GroupRow[]> {
 
   if (membershipError) throw membershipError;
 
-  const membershipRows = Array.isArray(memberships) ? memberships : [];
+  const membershipRows = (Array.isArray(memberships)
+    ? memberships
+    : []) as DbMembershipRow[];
 
   const groupIds = Array.from(
     new Set(
       membershipRows
-        .map((m: any) => String(m?.group_id ?? "").trim())
+        .map((m) => String(m?.group_id ?? "").trim())
         .filter(Boolean)
     )
   );
@@ -182,7 +236,7 @@ export async function getMyGroups(): Promise<GroupRow[]> {
   const membershipRank = new Map<string, number>();
   const myRoleByGroup = new Map<string, string | null>();
 
-  membershipRows.forEach((m: any, idx: number) => {
+  membershipRows.forEach((m, idx) => {
     const gid = String(m?.group_id ?? "").trim();
     if (!gid) return;
 
@@ -197,27 +251,29 @@ export async function getMyGroups(): Promise<GroupRow[]> {
   });
 
   const memberCountByGroup = new Map<string, number>();
-  const countRows = Array.isArray(allMembersRes.data) ? allMembersRes.data : [];
+  const countRows = (Array.isArray(allMembersRes.data)
+    ? allMembersRes.data
+    : []) as DbMembershipRow[];
 
   for (const row of countRows) {
-    const gid = String((row as any)?.group_id ?? "").trim();
-    const memberUserId = String((row as any)?.user_id ?? "").trim();
+    const gid = String(row?.group_id ?? "").trim();
+    const memberUserId = String(row?.user_id ?? "").trim();
 
     if (!gid || !memberUserId) continue;
 
     memberCountByGroup.set(gid, (memberCountByGroup.get(gid) ?? 0) + 1);
   }
 
-  const rows = (groupsRes.data ?? []).map((row: any) =>
-    mapGroupRow({
+  const rows = ((groupsRes.data ?? []) as DbGroupRow[]).map((row) => {
+    const groupId = String(row?.id ?? "").trim();
+
+    return mapGroupRow({
       ...row,
-      role: myRoleByGroup.get(String(row?.id ?? "").trim()) ?? "member",
-      members_count: memberCountByGroup.get(String(row?.id ?? "").trim()) ?? 0,
-      is_active:
-        String(row?.id ?? "").trim() !== "" &&
-        String(row?.id ?? "").trim() === String(activeGroupId ?? "").trim(),
-    })
-  );
+      role: myRoleByGroup.get(groupId) ?? "member",
+      members_count: memberCountByGroup.get(groupId) ?? 0,
+      is_active: groupId !== "" && groupId === String(activeGroupId ?? "").trim(),
+    });
+  });
 
   rows.sort((a, b) => {
     const ra = membershipRank.get(String(a.id)) ?? 999_999;
@@ -263,18 +319,18 @@ export async function createGroup(input: {
       if (!row?.id) {
         throw new Error("No se pudo crear el grupo.");
       }
-      return mapGroupRow(row);
+      return mapGroupRow(row as DbGroupRow);
     }
 
-    const msg = String((error as any)?.message ?? "").toLowerCase();
+    const msg = getErrorMessage(error).toLowerCase();
     const missingFunction =
       msg.includes("function") ||
       msg.includes("rpc") ||
       msg.includes("does not exist");
 
     if (!missingFunction) throw error;
-  } catch (e: any) {
-    const msg = String(e?.message ?? "").toLowerCase();
+  } catch (e: unknown) {
+    const msg = getErrorMessage(e).toLowerCase();
     const missingFunction =
       msg.includes("function") ||
       msg.includes("rpc") ||
@@ -325,7 +381,7 @@ export async function createGroup(input: {
     }
   }
 
-  return mapGroupRow(groupRow);
+  return mapGroupRow(groupRow as DbGroupRow);
 }
 
 /* ======================================================
@@ -350,7 +406,7 @@ export async function updateGroupMeta(
     throw new Error("No hay cambios para guardar.");
   }
 
-  const payload: Record<string, any> = {};
+  const payload: GroupUpdatePayload = {};
 
   if (typeof patch.type !== "undefined") {
     const normalizedType = normalizeGroupType(patch.type);
@@ -381,7 +437,7 @@ export async function updateGroupMeta(
     throw new Error("No se pudo actualizar el grupo.");
   }
 
-  return mapGroupRow(data);
+  return mapGroupRow(data as DbGroupRow);
 }
 
 /* ======================================================
@@ -424,16 +480,16 @@ export async function leaveGroup(groupId: string): Promise<void> {
     });
 
     if (!error) {
-      const result = Array.isArray(data) ? data[0] : data;
+      const result = (Array.isArray(data) ? data[0] : data) as RpcResultLike | null;
 
       if (result?.ok === false) {
-        throw new Error(result?.error || "No se pudo salir del grupo.");
+        throw new Error(String(result?.error || "No se pudo salir del grupo."));
       }
 
       return;
     }
 
-    const msg = String(error.message ?? "").toLowerCase();
+    const msg = getErrorMessage(error).toLowerCase();
     const missingFunction =
       msg.includes("function") ||
       msg.includes("rpc") ||
@@ -443,8 +499,8 @@ export async function leaveGroup(groupId: string): Promise<void> {
       console.error("[leaveGroup] RPC error", error);
       throw error;
     }
-  } catch (e: any) {
-    const msg = String(e?.message ?? "").toLowerCase();
+  } catch (e: unknown) {
+    const msg = getErrorMessage(e).toLowerCase();
     const missingFunction =
       msg.includes("function") ||
       msg.includes("rpc") ||
@@ -484,16 +540,19 @@ export async function getMyGroupMemberships(): Promise<GroupMemberRow[]> {
 
   if (error) throw error;
 
-  const rows = (data ?? []) as any[];
+  const rows = (data ?? []) as GroupMemberMetaRow[];
 
   return rows.map((row) => ({
     group_id: String(row.group_id),
     user_id: String(row.user_id),
     role: String(row.role ?? "member"),
-    display_name: row.display_name ?? null,
-    relationship_role: row.relationship_role ?? null,
+    display_name: row.display_name == null ? null : String(row.display_name),
+    relationship_role:
+      row.relationship_role == null ? null : String(row.relationship_role),
     coordination_prefs:
-      (row.coordination_prefs ?? null) as GroupMemberCoordinationPrefs | null,
+      row.coordination_prefs && typeof row.coordination_prefs === "object"
+        ? (row.coordination_prefs as GroupMemberCoordinationPrefs)
+        : null,
   }));
 }
 
@@ -505,7 +564,7 @@ export async function updateMyGroupMeta(
   patch: {
     display_name: string | null;
     relationship_role: string | null;
-    coordination_prefs: any | null;
+    coordination_prefs: GroupMemberCoordinationPrefs | null;
   }
 ): Promise<void> {
   const uid = await requireUid();
@@ -516,7 +575,7 @@ export async function updateMyGroupMeta(
   const displayName = cleanName(String(patch.display_name ?? ""));
   const relationshipRole = cleanName(String(patch.relationship_role ?? ""));
 
-  const payload: Record<string, any> = {
+  const payload: GroupMemberMetaUpdatePayload = {
     display_name: displayName || null,
     relationship_role: relationshipRole || null,
     coordination_prefs: patch.coordination_prefs ?? null,
@@ -542,7 +601,6 @@ export type SharedGroupCandidate = GroupRow & {
   my_role?: string | null;
   other_role?: string | null;
 };
-
 
 /**
  * Detecta el mejor grupo compartido entre el usuario actual y otro usuario.
@@ -573,7 +631,7 @@ export async function getSharedGroupBetweenUsers(
 
   if (membershipError) throw membershipError;
 
-  const rows = Array.isArray(memberships) ? memberships : [];
+  const rows = (Array.isArray(memberships) ? memberships : []) as DbMembershipRow[];
   if (rows.length < 2) return { status: "none", group: null };
 
   const grouped = new Map<
@@ -615,7 +673,7 @@ export async function getSharedGroupBetweenUsers(
 
   if (groupsError) throw groupsError;
 
-  const candidates = (groups ?? []).map((row: any) => {
+  const candidates = ((groups ?? []) as DbGroupRow[]).map((row) => {
     const mapped = mapGroupRow(row);
     const membership = grouped.get(mapped.id);
 
