@@ -100,8 +100,7 @@ export function findNextFreeSlot(params: {
 
   // si baseStart cae antes del inicio del día, arrancamos en inicio de día
   const dayStart = clampDay(cursor, dsH, dsM);
-  const dayEnd = clampDay(cursor, deH, deM);
-  if (cursor.getTime() < dayStart.getTime()) cursor = new Date(dayStart.getTime());
+   if (cursor.getTime() < dayStart.getTime()) cursor = new Date(dayStart.getTime());
 
   const limit = new Date(cursor.getTime() + maxSearch * 60000);
 

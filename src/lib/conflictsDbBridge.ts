@@ -1,7 +1,6 @@
 // src/lib/conflictsDbBridge.ts
 "use client";
 
-import supabase from "@/lib/supabaseClient";
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { normalizeGroupType as normalizeCanonicalGroupType } from "@/lib/naming";
 import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";

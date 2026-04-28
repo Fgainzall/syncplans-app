@@ -543,15 +543,6 @@ export type SharedGroupCandidate = GroupRow & {
   other_role?: string | null;
 };
 
-function rankSharedGroupType(
-  type: GroupType | string | null | undefined
-): number {
-  const normalized = normalizeGroupType(type);
-  if (normalized === "pair") return 0;
-  if (normalized === "family") return 1;
-  if (normalized === "other") return 2;
-  return 3;
-}
 
 /**
  * Detecta el mejor grupo compartido entre el usuario actual y otro usuario.

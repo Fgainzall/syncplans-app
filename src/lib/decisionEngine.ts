@@ -6,7 +6,6 @@ import { deriveEventStatus } from "@/lib/naming";
 import {
   DecisionResolution,
   DecisionKind,
-  ConflictDecisionStatus,
   ConflictLike,
   ProposalResponseLike,
   InviteLike,

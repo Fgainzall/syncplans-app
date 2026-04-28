@@ -8,7 +8,6 @@ import {
   filterIgnoredConflicts,
   loadIgnoredConflictKeys,
 } from "@/lib/conflicts";
-import { resolveConflictResolution } from "@/lib/decisionEngine";
 
 /* Tipos compartidos con la pantalla de Perfil */
 

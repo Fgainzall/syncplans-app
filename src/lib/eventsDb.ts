@@ -238,6 +238,7 @@ function resolvePublicAppBaseUrl(explicitBaseUrl?: string | null): string {
  * - flujos de conflictos (vía conflictsDbBridge)
  */
 export async function getMyEvents(_opts?: unknown): Promise<DbEventRow[]> {
+  void _opts;
   await requireUid();
 
   const { data, error } = await supabase
