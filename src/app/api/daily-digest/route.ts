@@ -76,8 +76,9 @@ async function getUserFromBearer(req: Request) {
 // ───────────────────────────── helpers de auth ───────────────────────────────
 
 function isAuthorized(req: Request): boolean {
-  // Si no hay CRON_SECRET configurado, no bloqueamos (útil en desarrollo/local)
-  if (!CRON_SECRET) return true;
+  if (!CRON_SECRET) {
+    return process.env.NODE_ENV !== "production";
+  }
 
   const url = new URL(req.url);
   const token = url.searchParams.get("token");

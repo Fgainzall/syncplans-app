@@ -569,9 +569,14 @@ const PUBLIC_INVITES_TABLE = "public_invites";
 const PUBLIC_INVITE_TTL_HOURS = 168;
 
 function makePublicInviteToken() {
-  const random = Math.random().toString(36).slice(2);
-  const stamp = Date.now().toString(36);
-  return `spi_${stamp}_${random}`;
+  const randomPart =
+    typeof globalThis.crypto?.randomUUID === "function"
+      ? globalThis.crypto.randomUUID().replace(/-/g, "")
+      : `${Date.now().toString(36)}${Math.random()
+          .toString(36)
+          .slice(2)}${Math.random().toString(36).slice(2)}`;
+
+  return `spi_${randomPart}`;
 }
 
 function isPublicInviteExpiredByCreatedAt(
