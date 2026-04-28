@@ -1,4 +1,4 @@
-// src/app/summary/SummaryClient.tsx
+﻿// src/app/summary/SummaryClient.tsx
 "use client";
 
 import React, {
@@ -274,7 +274,7 @@ function SummaryHero({
       <div style={styles.heroMetaRow}>
         <span style={styles.metaPill}>{contextLabel}</span>
         <span style={styles.metaPillSoft}>
-          {upcomingTotal} evento{upcomingTotal === 1 ? "" : "s"} en 7 días
+          {upcomingTotal} evento{upcomingTotal === 1 ? "" : "s"} en 7 dÃ­as
         </span>
 
         {conflictCount > 0 ? (
@@ -285,11 +285,11 @@ function SummaryHero({
 
         {pendingInviteCount > 0 ? (
           <button type="button" onClick={onOpenInvitations} style={styles.metaPillInfo}>
-            {pendingInviteCount} invitación{pendingInviteCount === 1 ? "" : "es"}
+            {pendingInviteCount} invitaciÃ³n{pendingInviteCount === 1 ? "" : "es"}
           </button>
         ) : null}
 
-        {loading ? <span style={styles.metaPillInfo}>Actualizando…</span> : null}
+        {loading ? <span style={styles.metaPillInfo}>Actualizandoâ€¦</span> : null}
       </div>
 
       <div style={styles.heroBottomRow}>
@@ -299,13 +299,13 @@ function SummaryHero({
           {!compact ? (
             <div style={styles.heroStatsRow}>
               <span style={styles.heroStat}>{upcomingTotal} total</span>
-              <span style={styles.heroStatDot}>·</span>
+              <span style={styles.heroStatDot}>Â·</span>
               <span style={styles.heroStat}>{upcomingPersonal} personal</span>
-              <span style={styles.heroStatDot}>·</span>
+              <span style={styles.heroStatDot}>Â·</span>
               <span style={styles.heroStat}>{upcomingGroup} grupo</span>
               {upcomingExternal > 0 ? (
                 <>
-                  <span style={styles.heroStatDot}>·</span>
+                  <span style={styles.heroStatDot}>Â·</span>
                   <span style={styles.heroStat}>{upcomingExternal} externo</span>
                 </>
               ) : null}
@@ -315,7 +315,7 @@ function SummaryHero({
 
         {!compact ? (
           <div style={styles.heroKpi}>
-            <div style={styles.heroKpiLabel}>Próximos 7 días</div>
+            <div style={styles.heroKpiLabel}>PrÃ³ximos 7 dÃ­as</div>
             <div style={styles.heroKpiNumber}>{upcomingTotal}</div>
             <div style={styles.heroKpiHint}>Con contexto real</div>
           </div>
@@ -325,6 +325,7 @@ function SummaryHero({
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function Rail({
   eyebrow,
   title,
@@ -497,8 +498,8 @@ function EventRow({
   const end = event.end as Date | null;
 
   const when = end
-    ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
-    : `${fmtDay(start)} · ${fmtTime(start)}`;
+    ? `${fmtDay(start)} Â· ${fmtTime(start)}â€“${fmtTime(end)}`
+    : `${fmtDay(start)} Â· ${fmtTime(start)}`;
 
   return (
     <button
@@ -511,7 +512,7 @@ function EventRow({
       className="spSum-eventRow"
     >
       <div style={styles.eventLeft}>
-        {featured ? <div style={styles.featuredEventEyebrow}>Próximo evento</div> : null}
+        {featured ? <div style={styles.featuredEventEyebrow}>PrÃ³ximo evento</div> : null}
         <div style={styles.eventWhen}>{when}</div>
         <div style={styles.eventTitle}>{event.title}</div>
         {proposalLine ? <div style={styles.proposalContextLine}>{proposalLine}</div> : null}
@@ -560,7 +561,7 @@ function UpcomingSection({
         <div style={styles.loadingCard}>
           <div style={styles.loadingDot} />
           <div>
-            <div style={styles.loadingTitle}>Cargando…</div>
+            <div style={styles.loadingTitle}>Cargandoâ€¦</div>
             <div style={styles.loadingSub}>Preparando tu home</div>
           </div>
         </div>
@@ -573,8 +574,8 @@ function UpcomingSection({
       <Card style={styles.sectionCard}>
         <div style={styles.sectionHeadMini}>
           <div>
-            <div style={styles.sectionEyebrow}>Próximo plan</div>
-            <div style={styles.sectionTitle}>Todavía no hay nada cerca</div>
+            <div style={styles.sectionEyebrow}>PrÃ³ximo plan</div>
+            <div style={styles.sectionTitle}>TodavÃ­a no hay nada cerca</div>
           </div>
         </div>
 
@@ -582,12 +583,12 @@ function UpcomingSection({
           <div style={styles.emptyTitle}>
             {showCreateGroupNudge
               ? "Activa el loop compartido desde el primer grupo"
-              : "Crea el próximo plan para que la semana no dependa de memoria"}
+              : "Crea el prÃ³ximo plan para que la semana no dependa de memoria"}
           </div>
           <div style={styles.emptySub}>
             {showCreateGroupNudge
               ? "Tu primer grupo es el paso que convierte SyncPlans en una referencia compartida y no solo en una agenda ordenada."
-              : "Si metes el siguiente plan aquí, la coordinación ya no se reparte entre mensajes, recuerdos y supuestos."}
+              : "Si metes el siguiente plan aquÃ­, la coordinaciÃ³n ya no se reparte entre mensajes, recuerdos y supuestos."}
           </div>
           <button type="button" onClick={onPrimaryEmptyAction} style={styles.emptyBtn}>
             {showCreateGroupNudge ? "Crear grupo" : "Crear plan"}
@@ -603,7 +604,7 @@ function UpcomingSection({
     <Card style={styles.sectionCard}>
       <div style={styles.sectionHeadMini}>
         <div>
-          <div style={styles.sectionEyebrow}>Próximo plan</div>
+          <div style={styles.sectionEyebrow}>PrÃ³ximo plan</div>
           <div style={styles.sectionTitle}>Lo siguiente en tu agenda</div>
         </div>
 
@@ -645,6 +646,7 @@ function UpcomingSection({
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function RecentDecisionsSection({
   decisions,
   onOpenCalendar,
@@ -664,7 +666,7 @@ function RecentDecisionsSection({
     <Card style={styles.sectionCard}>
       <div style={styles.sectionHeadMini}>
         <div>
-          <div style={styles.sectionEyebrow}>Señales recientes</div>
+          <div style={styles.sectionEyebrow}>SeÃ±ales recientes</div>
           <div style={styles.sectionTitle}>Decisiones que ya cerraste</div>
         </div>
 
@@ -682,7 +684,7 @@ function RecentDecisionsSection({
                 ...(decision.isFallback ? styles.decisionIconFallback : styles.decisionIconNormal),
               }}
             >
-              {decision.isFallback ? "⚠️" : "✓"}
+              {decision.isFallback ? "âš ï¸" : "âœ“"}
             </div>
 
             <div style={styles.decisionContent}>
@@ -720,7 +722,7 @@ function QuickActionsSection({
     <Card style={styles.sectionCard}>
       <div style={styles.sectionHeadMini}>
         <div>
-          <div style={styles.sectionEyebrow}>Acciones rápidas</div>
+          <div style={styles.sectionEyebrow}>Acciones rÃ¡pidas</div>
           <div style={styles.sectionTitle}>Lo siguiente, sin dar vueltas</div>
         </div>
       </div>
@@ -755,7 +757,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [pendingCaptureCount, setPendingCaptureCount] = useState(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [dismissedPremiumNudge, setDismissedPremiumNudge] = useState(false);
+ const [dismissedPremiumNudge] = useState(false);
   const premiumNudgeTrackedRef = useRef(false);
 
 const {
@@ -1027,10 +1029,10 @@ const {
   }, [quickCaptureValue, timeSuggestions, suggestedContextGroupType]);
 
   const quickCaptureHeadline = useMemo(() => {
-    if (!activeGroupId) return "Crea algo rápido";
-    if (activeGroupType === "pair") return "Planéalo en una línea";
-    if (activeGroupType === "family") return "Organiza algo rápido";
-    return "Crea un plan rápido";
+    if (!activeGroupId) return "Crea algo rÃ¡pido";
+    if (activeGroupType === "pair") return "PlanÃ©alo en una lÃ­nea";
+    if (activeGroupType === "family") return "Organiza algo rÃ¡pido";
+    return "Crea un plan rÃ¡pido";
   }, [activeGroupId, activeGroupType]);
 
   const quickCaptureSubcopy = useMemo(() => {
@@ -1103,7 +1105,7 @@ const {
   const mood = useMemo(() => {
     if (booting) {
       return {
-        title: "Cargando…",
+        title: "Cargandoâ€¦",
         subtitle: "Preparando tu resumen",
       };
     }
@@ -1289,7 +1291,7 @@ if (parsed.locationQuery) {
     if (!canUseClipboard()) {
       showToast(
         "No se pudo copiar",
-        "Tu navegador o contexto actual no permite copiar automáticamente."
+        "Tu navegador o contexto actual no permite copiar automÃ¡ticamente."
       );
       return;
     }
@@ -1297,7 +1299,7 @@ if (parsed.locationQuery) {
     try {
       const fullUrl = buildCaptureShareUrl(raw, "copy_link");
       await navigator.clipboard.writeText(fullUrl);
-      showToast("Link copiado ✅", "Ya puedes pegarlo donde quieras.");
+      showToast("Link copiado âœ…", "Ya puedes pegarlo donde quieras.");
     } catch {
       showToast("No se pudo copiar", "Intenta nuevamente.");
     }
@@ -1317,7 +1319,7 @@ if (parsed.locationQuery) {
 
     if (typeof window !== "undefined") {
       window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-      showToast("WhatsApp listo ✅", buildShareToastLabel(raw));
+      showToast("WhatsApp listo âœ…", buildShareToastLabel(raw));
     }
   }, [quickCaptureValue, showToast]);
 
@@ -1348,14 +1350,14 @@ if (parsed.locationQuery) {
   const summarySubtitle = isFirstTimeMode
     ? isMobile
       ? "Tu primer paso en SyncPlans"
-      : "Empieza con una sola versión clara de tu tiempo"
+      : "Empieza con una sola versiÃ³n clara de tu tiempo"
     : isMobile
       ? activeGroupId
-        ? `Hoy · ${activeLabel}`
-        : "Hoy · Personal"
+        ? `Hoy Â· ${activeLabel}`
+        : "Hoy Â· Personal"
       : activeGroupId
-        ? `Hoy · ${activeLabel} · tu siguiente paso`
-        : "Hoy · Personal · tu siguiente paso";
+        ? `Hoy Â· ${activeLabel} Â· tu siguiente paso`
+        : "Hoy Â· Personal Â· tu siguiente paso";
 
   const getProposalBadgeForEvent = useCallback(
     (eventId: string | null | undefined): ProposalBadge | null => {
@@ -1496,10 +1498,10 @@ if (parsed.locationQuery) {
     if (conflictAlert.count > 0) {
       return {
         context: "conflicts",
-        eyebrow: "Premium encaja aquí",
-        title: "Anticípate mejor cuando la coordinación ya se volvió sensible",
+        eyebrow: "Premium encaja aquÃ­",
+        title: "AnticÃ­pate mejor cuando la coordinaciÃ³n ya se volviÃ³ sensible",
         subtitle:
-          "Si SyncPlans ya te está ayudando a bajar ruido, Premium suma más contexto para decidir antes, con menos idas y vueltas y más claridad compartida.",
+          "Si SyncPlans ya te estÃ¡ ayudando a bajar ruido, Premium suma mÃ¡s contexto para decidir antes, con menos idas y vueltas y mÃ¡s claridad compartida.",
         primaryLabel: "Ver ventajas Premium",
         secondaryLabel: "Seguir resolviendo",
       };
@@ -1508,24 +1510,24 @@ if (parsed.locationQuery) {
     if (groups.length > 0 && (upcomingStats.group > 0 || pendingInviteCount > 0)) {
       return {
         context: "shared_coordination",
-        eyebrow: "Hazlo más compartido",
-        title: "Cuando ya coordinas con otros, Premium se vuelve más lógico",
+        eyebrow: "Hazlo mÃ¡s compartido",
+        title: "Cuando ya coordinas con otros, Premium se vuelve mÃ¡s lÃ³gico",
         subtitle:
-          "La versión gratis ya te mostró valor. Premium empuja más claridad entre personas, mejor lectura del contexto y menos fricción cuando la agenda compartida empieza a crecer.",
+          "La versiÃ³n gratis ya te mostrÃ³ valor. Premium empuja mÃ¡s claridad entre personas, mejor lectura del contexto y menos fricciÃ³n cuando la agenda compartida empieza a crecer.",
         primaryLabel: "Explorar Premium",
-        secondaryLabel: "Seguir así por ahora",
+        secondaryLabel: "Seguir asÃ­ por ahora",
       };
     }
 
     if (upcomingStats.total >= 4 || valueMoments.hasValue) {
       return {
         context: "weekly_density",
-        eyebrow: "Más valor sobre una base real",
-        title: "Ya estás usando SyncPlans de verdad: ahora toca subir el nivel",
+        eyebrow: "MÃ¡s valor sobre una base real",
+        title: "Ya estÃ¡s usando SyncPlans de verdad: ahora toca subir el nivel",
         subtitle:
-          "Premium no se trata de meter más funciones porque sí. Se trata de darte más claridad, menos desgaste y una coordinación que se sienta todavía más liviana.",
-        primaryLabel: "Ver cómo mejora Premium",
-        secondaryLabel: "Después lo veo",
+          "Premium no se trata de meter mÃ¡s funciones porque sÃ­. Se trata de darte mÃ¡s claridad, menos desgaste y una coordinaciÃ³n que se sienta todavÃ­a mÃ¡s liviana.",
+        primaryLabel: "Ver cÃ³mo mejora Premium",
+        secondaryLabel: "DespuÃ©s lo veo",
       };
     }
 
@@ -1557,6 +1559,7 @@ if (parsed.locationQuery) {
     });
   }, [premiumNudge, currentUserId, activeGroupId, summaryAnalyticsBase]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handlePremiumSummaryClick = useCallback(() => {
     if (!premiumNudge) return;
 
@@ -1577,9 +1580,9 @@ if (parsed.locationQuery) {
   const primaryAction = useMemo<PrimaryAction>(() => {
     if (conflictAlert.count > 0) {
       return {
-        eyebrow: "Lo más urgente ahora",
+        eyebrow: "Lo mÃ¡s urgente ahora",
         title: `Resuelve ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"} antes de que vuelva el ruido`,
-        subtitle: "Decide una vez y deja una versión clara para todos.",
+        subtitle: "Decide una vez y deja una versiÃ³n clara para todos.",
         primaryLabel: "Resolver conflictos",
         primaryAction: openConflictCenter,
         secondaryLabel: "Abrir calendario",
@@ -1592,9 +1595,9 @@ if (parsed.locationQuery) {
 
     if (pendingInviteCount > 0) {
       return {
-        eyebrow: "Lo más útil ahora",
-        title: `Hay ${pendingInviteCount} invitación${pendingInviteCount === 1 ? "" : "es"} esperando una decisión`,
-        subtitle: "Responder esto desbloquea coordinación compartida.",
+        eyebrow: "Lo mÃ¡s Ãºtil ahora",
+        title: `Hay ${pendingInviteCount} invitaciÃ³n${pendingInviteCount === 1 ? "" : "es"} esperando una decisiÃ³n`,
+        subtitle: "Responder esto desbloquea coordinaciÃ³n compartida.",
         primaryLabel: "Revisar invitaciones",
         primaryAction: () =>
           navigateFromSummary("review_invitations", "/invitations", {
@@ -1612,9 +1615,9 @@ if (parsed.locationQuery) {
 
     if (pendingAttention.proposals > 0 || pendingAttention.captures > 0) {
       return {
-        eyebrow: "Lo más útil ahora",
+        eyebrow: "Lo mÃ¡s Ãºtil ahora",
         title: "Hay respuestas y ajustes esperando que cierres el ciclo",
-        subtitle: "Ciérralo ahora y mantén la agenda como referencia viva.",
+        subtitle: "CiÃ©rralo ahora y mantÃ©n la agenda como referencia viva.",
         primaryLabel: "Revisar pendientes",
         primaryAction: () =>
           navigateFromSummary("review_pending", "/events", {
@@ -1630,10 +1633,10 @@ if (parsed.locationQuery) {
 
     if (isFirstTimeMode) {
       return {
-        eyebrow: "Empieza aquí",
+        eyebrow: "Empieza aquÃ­",
         title: "Coordina mejor tu tiempo compartido",
         subtitle:
-          "Evita cruces, alinea agendas y deja una sola versión clara desde el inicio.",
+          "Evita cruces, alinea agendas y deja una sola versiÃ³n clara desde el inicio.",
         primaryLabel: showCreateGroupNudge ? "Crear grupo" : "Crear primer plan",
         primaryAction: () =>
           showCreateGroupNudge
@@ -1655,7 +1658,7 @@ if (parsed.locationQuery) {
       return {
         eyebrow: "Siguiente mejor paso",
         title: "Abre tu primer espacio compartido",
-        subtitle: "Crear tu primer grupo activa la coordinación compartida.",
+        subtitle: "Crear tu primer grupo activa la coordinaciÃ³n compartida.",
         primaryLabel: "Crear grupo",
         primaryAction: () =>
           navigateFromSummary("create_group", "/groups/new", {
@@ -1691,8 +1694,8 @@ if (parsed.locationQuery) {
     if (!nextEvent) {
       return {
         eyebrow: "Siguiente mejor paso",
-        title: "Crea el próximo plan para que la semana no se quede vacía",
-        subtitle: "Si no hay nada cerca, crea un plan y mantén el hábito.",
+        title: "Crea el prÃ³ximo plan para que la semana no se quede vacÃ­a",
+        subtitle: "Si no hay nada cerca, crea un plan y mantÃ©n el hÃ¡bito.",
         primaryLabel: "Crear plan",
         primaryAction: () =>
           navigateFromSummary("create_plan", "/events/new/details?type=personal", {
@@ -1708,10 +1711,10 @@ if (parsed.locationQuery) {
 
     return {
       eyebrow: "Tu base de esta semana",
-      title: nextEvent ? `Lo próximo: ${nextEvent.title}` : "Tu agenda está clara por ahora.",
+      title: nextEvent ? `Lo prÃ³ximo: ${nextEvent.title}` : "Tu agenda estÃ¡ clara por ahora.",
       subtitle: nextEvent
         ? "Revisa lo que viene o crea un nuevo plan sin salir del flujo."
-        : "No hay urgencias pendientes. Mantén el hábito creando o revisando tu siguiente plan.",
+        : "No hay urgencias pendientes. MantÃ©n el hÃ¡bito creando o revisando tu siguiente plan.",
       primaryLabel: "Abrir calendario",
       primaryAction: () =>
         navigateFromSummary("open_calendar", "/calendar", {
@@ -1745,13 +1748,13 @@ if (parsed.locationQuery) {
       leaveInMinutes <= 180;
 
     if (hasRelevantLeaveSignal) {
-      const eventTitle = smartMobility.eventTitle || "tu próximo plan";
+      const eventTitle = smartMobility.eventTitle || "tu prÃ³ximo plan";
 
       if (leaveInMinutes <= -5) {
         return {
           eyebrow: "Tu siguiente movimiento",
           title: `Vas tarde para ${eventTitle}`,
-          subtitle: "Abre la ruta y sal cuanto antes. SyncPlans ya priorizó este aviso porque afecta tu llegada.",
+          subtitle: "Abre la ruta y sal cuanto antes. SyncPlans ya priorizÃ³ este aviso porque afecta tu llegada.",
           cta: "Abrir ruta",
           tone: "danger",
           onClick: () => {
@@ -1775,7 +1778,7 @@ if (parsed.locationQuery) {
         return {
           eyebrow: "Tu siguiente movimiento",
           title: `Sal ahora para ${eventTitle}`,
-          subtitle: "La salida sugerida ya llegó. Abre la ruta y evita llegar justo.",
+          subtitle: "La salida sugerida ya llegÃ³. Abre la ruta y evita llegar justo.",
           cta: "Abrir ruta",
           tone: "warning",
           onClick: () => {
@@ -1797,8 +1800,8 @@ if (parsed.locationQuery) {
 
       return {
         eyebrow: "Tu siguiente movimiento",
-        title: `Prepárate: sales en ${formatMoveMinutes(leaveInMinutes)}`,
-        subtitle: `Para ${eventTitle}. SyncPlans mantiene este aviso arriba porque está dentro de la ventana útil de salida.`,
+        title: `PrepÃ¡rate: sales en ${formatMoveMinutes(leaveInMinutes)}`,
+        subtitle: `Para ${eventTitle}. SyncPlans mantiene este aviso arriba porque estÃ¡ dentro de la ventana Ãºtil de salida.`,
         cta: "Ver ruta",
         tone: "info",
         onClick: () => {
@@ -1822,7 +1825,7 @@ if (parsed.locationQuery) {
       return {
         eyebrow: "Tu siguiente movimiento",
         title: `Resuelve ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"}`,
-        subtitle: "Decide una vez y deja una sola versión clara para todos.",
+        subtitle: "Decide una vez y deja una sola versiÃ³n clara para todos.",
         cta: "Resolver ahora",
         tone: "warning",
         onClick: openConflictCenter,
@@ -1832,8 +1835,8 @@ if (parsed.locationQuery) {
     if (pendingInviteCount > 0) {
       return {
         eyebrow: "Tu siguiente movimiento",
-        title: `Responde ${pendingInviteCount} invitación${pendingInviteCount === 1 ? "" : "es"}`,
-        subtitle: "Aceptar o rechazar esto desbloquea coordinación compartida.",
+        title: `Responde ${pendingInviteCount} invitaciÃ³n${pendingInviteCount === 1 ? "" : "es"}`,
+        subtitle: "Aceptar o rechazar esto desbloquea coordinaciÃ³n compartida.",
         cta: "Ver invitaciones",
         tone: "info",
         onClick: () =>
@@ -1847,7 +1850,7 @@ if (parsed.locationQuery) {
       return {
         eyebrow: "Tu siguiente movimiento",
         title: "Cierra los pendientes abiertos",
-        subtitle: "Hay respuestas o capturas esperando una decisión para mantener la agenda limpia.",
+        subtitle: "Hay respuestas o capturas esperando una decisiÃ³n para mantener la agenda limpia.",
         cta: "Revisar pendientes",
         tone: "info",
         onClick: () =>
@@ -1861,7 +1864,7 @@ if (parsed.locationQuery) {
       return {
         eyebrow: "Tu siguiente movimiento",
         title: "Crea tu primer espacio compartido",
-        subtitle: "Ese paso convierte SyncPlans en una referencia real de coordinación, no solo en una agenda personal.",
+        subtitle: "Ese paso convierte SyncPlans en una referencia real de coordinaciÃ³n, no solo en una agenda personal.",
         cta: "Crear grupo",
         tone: "info",
         onClick: () =>
@@ -1888,8 +1891,8 @@ if (parsed.locationQuery) {
     if (!nextEvent) {
       return {
         eyebrow: "Tu siguiente movimiento",
-        title: "Captura el próximo plan",
-        subtitle: "Escribe una idea rápida y SyncPlans la convierte en algo revisable.",
+        title: "Captura el prÃ³ximo plan",
+        subtitle: "Escribe una idea rÃ¡pida y SyncPlans la convierte en algo revisable.",
         cta: "Crear plan",
         tone: "calm",
         onClick: () =>
@@ -1901,8 +1904,8 @@ if (parsed.locationQuery) {
 
     return {
       eyebrow: "Tu siguiente movimiento",
-      title: `Revisa lo próximo: ${nextEvent.title}`,
-      subtitle: "Tu agenda está clara por ahora. Mantén el hábito revisando lo siguiente o creando un nuevo plan.",
+      title: `Revisa lo prÃ³ximo: ${nextEvent.title}`,
+      subtitle: "Tu agenda estÃ¡ clara por ahora. MantÃ©n el hÃ¡bito revisando lo siguiente o creando un nuevo plan.",
       cta: "Abrir calendario",
       tone: "calm",
       onClick: () =>
@@ -1974,34 +1977,34 @@ if (parsed.locationQuery) {
 
     if (conflictAlert.count > 0) {
       return {
-        eyebrow: "Estado del día",
+        eyebrow: "Estado del dÃ­a",
         title: `Hoy hay ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"} que resolver`,
-        subtitle: "Tu día necesita una decisión clara antes de seguir acumulando coordinación por fuera.",
+        subtitle: "Tu dÃ­a necesita una decisiÃ³n clara antes de seguir acumulando coordinaciÃ³n por fuera.",
         pills,
       };
     }
 
     if (pendingTotal > 0) {
       return {
-        eyebrow: "Estado del día",
+        eyebrow: "Estado del dÃ­a",
         title: `Tienes ${pendingTotal} pendiente${pendingTotal === 1 ? "" : "s"} por cerrar`,
-        subtitle: "Cerrar esto mantiene SyncPlans como una sola verdad compartida, no como otra lista más.",
+        subtitle: "Cerrar esto mantiene SyncPlans como una sola verdad compartida, no como otra lista mÃ¡s.",
         pills,
       };
     }
 
     if (nextToday?.start) {
       return {
-        eyebrow: "Estado del día",
-        title: `Tu próximo plan es a las ${fmtTime(nextToday.start)}`,
-        subtitle: `${nextToday.title}. Por ahora no hay urgencias abiertas; solo mantén claro lo que viene.`,
+        eyebrow: "Estado del dÃ­a",
+        title: `Tu prÃ³ximo plan es a las ${fmtTime(nextToday.start)}`,
+        subtitle: `${nextToday.title}. Por ahora no hay urgencias abiertas; solo mantÃ©n claro lo que viene.`,
         pills,
       };
     }
 
     if (todayTotal > 0) {
       return {
-        eyebrow: "Estado del día",
+        eyebrow: "Estado del dÃ­a",
         title: `Hoy tienes ${todayTotal} plan${todayTotal === 1 ? "" : "es"}`,
         subtitle: "Todo se ve ordenado por ahora. SyncPlans queda como referencia para cualquier cambio.",
         pills,
@@ -2009,8 +2012,8 @@ if (parsed.locationQuery) {
     }
 
     return {
-      eyebrow: "Estado del día",
-      title: "Día tranquilo por ahora",
+      eyebrow: "Estado del dÃ­a",
+      title: "DÃ­a tranquilo por ahora",
       subtitle: "Buen momento para capturar un plan o dejar algo compartido listo antes de que se pierda en el chat.",
       pills,
     };
@@ -2029,7 +2032,7 @@ if (parsed.locationQuery) {
         {
           key: "create_group",
           title: "Crear grupo",
-          subtitle: "Activa la coordinación compartida desde el primer paso.",
+          subtitle: "Activa la coordinaciÃ³n compartida desde el primer paso.",
           onClick: () =>
             navigateFromSummary("create_group", "/groups/new", {
               block: "summary_quick_actions",
@@ -2047,7 +2050,7 @@ if (parsed.locationQuery) {
         {
           key: "connect_google",
           title: "Conectar Google",
-          subtitle: "Trae tu agenda actual para tener más contexto.",
+          subtitle: "Trae tu agenda actual para tener mÃ¡s contexto.",
           onClick: () =>
             navigateFromSummary("connect_google", "/settings", {
               block: "summary_quick_actions",
@@ -2079,7 +2082,7 @@ if (parsed.locationQuery) {
         key: "groups",
         title: showCreateGroupNudge ? "Crear grupo" : "Abrir grupos",
         subtitle: showCreateGroupNudge
-          ? "Activa la coordinación compartida desde tu primer espacio."
+          ? "Activa la coordinaciÃ³n compartida desde tu primer espacio."
           : "Invita a la otra persona y empiecen a coordinar mejor.",
         onClick: () =>
           navigateFromSummary(
@@ -2126,8 +2129,8 @@ if (parsed.locationQuery) {
 
     if (!status || status === "scheduled") return null;
 
-    // Un evento personal creado por el usuario no necesita badge de confirmación.
-    // Si no pertenece a grupo, no hay nadie más que lo tenga que aceptar.
+    // Un evento personal creado por el usuario no necesita badge de confirmaciÃ³n.
+    // Si no pertenece a grupo, no hay nadie mÃ¡s que lo tenga que aceptar.
     if (status === "pending" && !event?.groupId) {
       return null;
     }
@@ -2150,12 +2153,13 @@ if (parsed.locationQuery) {
     pendingAttention.proposals > 0 ||
     pendingAttention.captures > 0;
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const urgentFocus = useMemo(() => {
     if (conflictAlert.count > 0) {
       return {
         label: "Urgente ahora",
         title: `Resuelve ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"}`,
-        subtitle: "Una sola decisión clara aquí evita ruido en todo lo demás.",
+        subtitle: "Una sola decisiÃ³n clara aquÃ­ evita ruido en todo lo demÃ¡s.",
         cta: "Resolver conflictos",
         action: openConflictCenter,
       };
@@ -2164,8 +2168,8 @@ if (parsed.locationQuery) {
     if (pendingInviteCount > 0) {
       return {
         label: "Pendiente clave",
-        title: `${pendingInviteCount} invitación${pendingInviteCount === 1 ? "" : "es"} por responder`,
-        subtitle: "Responder esto desbloquea coordinación real con otras personas.",
+        title: `${pendingInviteCount} invitaciÃ³n${pendingInviteCount === 1 ? "" : "es"} por responder`,
+        subtitle: "Responder esto desbloquea coordinaciÃ³n real con otras personas.",
         cta: "Revisar invitaciones",
         action: () =>
           navigateFromSummary("review_invitations", "/invitations", {
@@ -2178,7 +2182,7 @@ if (parsed.locationQuery) {
       return {
         label: "Pendiente clave",
         title: "Hay respuestas pendientes por cerrar",
-        subtitle: "Cierra este ciclo y mantén la agenda como referencia viva.",
+        subtitle: "Cierra este ciclo y mantÃ©n la agenda como referencia viva.",
         cta: "Revisar pendientes",
         action: () =>
           navigateFromSummary("review_pending", "/events", {
@@ -2202,7 +2206,7 @@ if (parsed.locationQuery) {
 
     return {
       eyebrow: "Siguiente mejor paso",
-      title: "Invita a tu pareja y conviértanlo en una sola agenda compartida",
+      title: "Invita a tu pareja y conviÃ©rtanlo en una sola agenda compartida",
       subtitle:
         "El valor de SyncPlans aparece de verdad cuando ambos ven lo mismo en el mismo lugar.",
       cta: "Abrir grupos",
@@ -2220,7 +2224,7 @@ if (parsed.locationQuery) {
       eyebrow: "Siguiente mejor paso",
       title: "Crea tu primer espacio compartido",
       subtitle:
-        "Ese paso convierte a SyncPlans en una referencia real de coordinación, no solo en una agenda personal bonita.",
+        "Ese paso convierte a SyncPlans en una referencia real de coordinaciÃ³n, no solo en una agenda personal bonita.",
       cta: "Crear grupo",
       action: () =>
         navigateFromSummary("create_group", "/groups/new", {
@@ -2228,12 +2232,6 @@ if (parsed.locationQuery) {
         }),
     };
   }, [hasUrgentSummaryState, showCreateGroupNudge, isFirstTimeMode, navigateFromSummary]);
-
-  const showValueRail = false;
-
-  const showPremiumRail = false;
-
-  const showRecentDecisions = false;
 
   const showQuickActions =
     isFirstTimeMode || (!hasUrgentSummaryState && !nextEvent && !showInviteNudge);
@@ -2311,10 +2309,10 @@ if (parsed.locationQuery) {
           onShare={handleCopyCaptureLink}
           onWhatsApp={handleShareToWhatsApp}
           onExampleClick={handleQuickCaptureExample}
-          headline={isFirstTimeMode ? "Pruébalo con una idea simple" : quickCaptureHeadline}
+          headline={isFirstTimeMode ? "PruÃ©balo con una idea simple" : quickCaptureHeadline}
           subcopy={
             isFirstTimeMode
-              ? "Escribe algo como lo pensarías normalmente y SyncPlans lo convierte en un plan claro."
+              ? "Escribe algo como lo pensarÃ­as normalmente y SyncPlans lo convierte en un plan claro."
               : quickCaptureSubcopy
           }
           onOpenCapture={isFirstTimeMode ? undefined : handleOpenCapture}
