@@ -27,7 +27,10 @@ type PushState = {
   label: string;
   detail: string;
 };
-
+type PushSubscribeResponse = {
+  ok?: boolean;
+  error?: string;
+};
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = `${base64String}${padding}`.replace(/-/g, "+").replace(/_/g, "/");
@@ -245,10 +248,10 @@ export default function NotificationsSettingsPage() {
         body: JSON.stringify(subscription.toJSON()),
       });
 
-      const json = await res.json().catch(() => ({} as any));
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.error || "No se pudo guardar la suscripción push.");
-      }
+   const json = (await res.json().catch(() => ({}))) as PushSubscribeResponse;
+if (!res.ok || !json.ok) {
+  throw new Error(json.error || "No se pudo guardar la suscripción push.");
+}
 
       setPushStatus("subscribed");
       showToast("Push activado ✅", "Ya puedes recibir alertas importantes de SyncPlans en este navegador.");

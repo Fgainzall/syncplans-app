@@ -85,14 +85,16 @@ const response = await fetch("/api/email/invite", {
       email_sent: true,
       accept_url,
     };
-  } catch (e: any) {
-    return {
-      email_sent: false,
-      accept_url,
-      warning:
-        e?.message || "Invitación creada, pero falló el envío de email.",
-    };
-  }
+} catch (e: unknown) {
+  return {
+    email_sent: false,
+    accept_url,
+    warning:
+      e instanceof Error
+        ? e.message
+        : "Invitación creada, pero falló el envío de email.",
+  };
+}
 }
 
 /**

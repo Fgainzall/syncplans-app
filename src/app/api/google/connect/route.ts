@@ -79,11 +79,17 @@ export async function GET(req: Request) {
     authUrl.searchParams.set("state", state);
 
     return NextResponse.redirect(authUrl.toString());
-  } catch (e: any) {
-    console.error("[/api/google/connect] error", e);
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Error iniciando conexión Google." },
-      { status: 500 }
-    );
-  }
+ } catch (e: unknown) {
+  console.error("[/api/google/connect] error", e);
+  return NextResponse.json(
+    {
+      ok: false,
+      error:
+        e instanceof Error
+          ? e.message
+          : "Error iniciando conexión Google.",
+    },
+    { status: 500 }
+  );
+}
 }

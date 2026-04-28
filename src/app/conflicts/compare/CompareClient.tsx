@@ -391,15 +391,15 @@ export default function CompareClient() {
         title: "Decisión guardada",
         sub: "Listo, ya quedó claro para todos. Ahora solo falta aplicarlo.",
       });
-    } catch (e: any) {
-      setToast({
-        title: "No se pudo guardar",
-        sub:
-          typeof e?.message === "string" && e.message.trim()
-            ? e.message
-            : "Intenta nuevamente.",
-      });
-    } finally {
+ } catch (e: unknown) {
+  const message = e instanceof Error ? e.message.trim() : "";
+
+  setToast({
+    title: "No se pudo guardar",
+    sub: message || "Intenta nuevamente.",
+  });
+}
+     finally {
       setSaving(false);
     }
   };
