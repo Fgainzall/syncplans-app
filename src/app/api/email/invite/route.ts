@@ -1,5 +1,6 @@
 // src/app/api/email/invite/route.ts
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
 function normEmail(x: string) {
@@ -94,9 +95,50 @@ function inviteEmailHtml(opts: { acceptUrl: string; appUrl: string }) {
   </div>
   `;
 }
+async function getAuthedUser(req: Request) {
+  const authHeader = req.headers.get("authorization") || "";
+  const token = authHeader.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
 
+  if (!token) return null;
+
+  const supabaseUrl = requiredEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const supabaseAnonKey = requiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Faltan variables públicas de Supabase.");
+  }
+
+  const client = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+
+  const { data, error } = await client.auth.getUser();
+
+  if (error || !data.user) return null;
+
+  return data.user;
+}
 export async function POST(req: Request) {
   try {
+        const user = await getAuthedUser(req);
+
+    if (!user) {
+      return NextResponse.json(
+        { ok: false, error: "No autenticado" },
+        { status: 401 }
+      );
+    }
     const body = await req.json().catch(() => ({} as any));
 
     const email = normEmail(body?.email);

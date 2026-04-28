@@ -46,15 +46,29 @@ async function trySendEmail(
   )}`;
 
   try {
-    const response = await fetch("/api/email/invite", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        email: invitedEmail,
-        inviteId,
-        groupId,
-      }),
-    });
+const { data: sessionData } = await supabase.auth.getSession();
+const accessToken = sessionData.session?.access_token ?? "";
+
+if (!accessToken) {
+  return {
+    email_sent: false,
+    accept_url,
+    warning: "Invitación creada, pero no se pudo enviar el email porque la sesión expiró.",
+  };
+}
+
+const response = await fetch("/api/email/invite", {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    authorization: `Bearer ${accessToken}`,
+  },
+  body: JSON.stringify({
+    email: invitedEmail,
+    inviteId,
+    groupId,
+  }),
+});
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
