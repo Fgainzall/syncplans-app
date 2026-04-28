@@ -407,6 +407,8 @@ type CalendarClientProps = {
   } | null;
 };
 
+const CALENDAR_SECONDARY_REFRESH_GUARD_MS = 12_000;
+
 /* =========================
    COMPONENTE PRINCIPAL
    ========================= */
@@ -421,6 +423,8 @@ export default function CalendarClient(
   const isMobile = useIsMobileWidth(820);
 
   const eventRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const lastSecondaryRefreshAtRef = useRef(0);
+
   const setEventRef = (id: string) => (el: HTMLDivElement | null) => {
     eventRefs.current[String(id)] = el;
   };
@@ -837,14 +841,29 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
   }, [refreshCalendar]);
 
   useEffect(() => {
+    const shouldRefreshFromSecondaryTrigger = () => {
+      const now = Date.now();
+
+      if (
+        now - lastSecondaryRefreshAtRef.current <
+        CALENDAR_SECONDARY_REFRESH_GUARD_MS
+      ) {
+        return false;
+      }
+
+      lastSecondaryRefreshAtRef.current = now;
+      return true;
+    };
+
     const onFocus = () => {
+      if (!shouldRefreshFromSecondaryTrigger()) return;
       void refreshCalendar();
     };
 
     const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        void refreshCalendar();
-      }
+      if (document.visibilityState !== "visible") return;
+      if (!shouldRefreshFromSecondaryTrigger()) return;
+      void refreshCalendar();
     };
 
     window.addEventListener("focus", onFocus);
@@ -874,6 +893,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
 
       try {
         await refreshCalendar();
+        lastSecondaryRefreshAtRef.current = Date.now();
       } finally {
         if (!alive) return;
         setBooting(false);

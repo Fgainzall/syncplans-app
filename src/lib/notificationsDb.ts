@@ -583,6 +583,56 @@ payload?: NotificationPayload | null;
 }
 
 /* ======================================================
+  Lectura rápida para header
+====================================================== */
+
+export async function getHeaderNotificationSummary(): Promise<{
+  unreadCount: number;
+  conflictCount: number;
+  latestEventId: string | null;
+}> {
+  const uid = await requireUid();
+
+  const [unreadRes, conflictRes] = await Promise.all([
+    supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", uid)
+      .is("read_at", null),
+    supabase
+      .from("notifications")
+      .select("id, type, entity_id, payload, created_at, read_at", {
+        count: "exact",
+      })
+      .eq("user_id", uid)
+      .in("type", [...CONFLICT_NOTIFICATION_TYPES])
+      .is("read_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1),
+  ]);
+
+  if (unreadRes.error) throw unreadRes.error;
+  if (conflictRes.error) throw conflictRes.error;
+
+  const latestConflict = Array.isArray(conflictRes.data)
+    ? conflictRes.data.map(normalizeNotificationRecord)[0] ?? null
+    : null;
+
+  const relatedEventIds = latestConflict
+    ? extractEventIdsFromPayload(
+        latestConflict.payload ?? null,
+        latestConflict.entity_id ?? null
+      )
+    : [];
+
+  return {
+    unreadCount: Number(unreadRes.count ?? 0),
+    conflictCount: Number(conflictRes.count ?? 0),
+    latestEventId: relatedEventIds[0] ?? null,
+  };
+}
+
+/* ======================================================
   Lectura
 ====================================================== */
 

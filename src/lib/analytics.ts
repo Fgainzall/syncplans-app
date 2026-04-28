@@ -46,20 +46,24 @@ export async function trackEvent({
   entityId,
   metadata,
 }: TrackParams) {
-  try {
-    const { error } = await supabase.from("events_analytics").insert({
-      event_type: event,
-      user_id: userId ?? null,
-      entity_id: entityId ?? null,
-      metadata: cleanMetadata(metadata),
-    });
+  const payload = {
+    event_type: event,
+    user_id: userId ?? null,
+    entity_id: entityId ?? null,
+    metadata: cleanMetadata(metadata),
+  };
 
-    if (error) {
-      console.error("[analytics] INSERT ERROR", error);
+  void (async () => {
+    try {
+      const { error } = await supabase.from("events_analytics").insert(payload);
+
+      if (error) {
+        console.error("[analytics] INSERT ERROR", error);
+      }
+    } catch (err: unknown) {
+      console.error("[analytics] FATAL ERROR", err);
     }
-  } catch (err) {
-    console.error("[analytics] FATAL ERROR", err);
-  }
+  })();
 }
 
 export async function trackScreenView({

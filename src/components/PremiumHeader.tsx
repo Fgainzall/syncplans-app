@@ -67,13 +67,65 @@ type HeaderConflictSummary = {
   count: number;
   latestEventId: string | null;
 };
+
+type HeaderBadgeSummary = {
+  unreadCount: number;
+  conflictCount: number;
+  latestEventId: string | null;
+};
+
+const HEADER_PROFILE_CACHE_MS = 120_000;
+const HEADER_BADGE_CACHE_MS = 20_000;
+
+let cachedHeaderProfile: {
+  at: number;
+  value: UserProfile | null;
+} | null = null;
+
+let cachedHeaderBadge: {
+  at: number;
+  value: HeaderBadgeSummary;
+} | null = null;
+
+async function getCachedHeaderProfile(): Promise<UserProfile | null> {
+  const now = Date.now();
+
+  if (
+    cachedHeaderProfile &&
+    now - cachedHeaderProfile.at < HEADER_PROFILE_CACHE_MS
+  ) {
+    return cachedHeaderProfile.value;
+  }
+
+  const value = await getMyProfile();
+  cachedHeaderProfile = { at: now, value };
+  return value;
+}
+
+async function getCachedHeaderBadge(
+  force = false
+): Promise<HeaderBadgeSummary> {
+  const now = Date.now();
+
+  if (
+    !force &&
+    cachedHeaderBadge &&
+    now - cachedHeaderBadge.at < HEADER_BADGE_CACHE_MS
+  ) {
+    return cachedHeaderBadge.value;
+  }
+
+  const { getHeaderNotificationSummary } = await import(
+    "@/lib/notificationsDb"
+  );
+
+  const value = await getHeaderNotificationSummary();
+  cachedHeaderBadge = { at: now, value };
+  return value;
+}
 type HeaderGroupLike = {
   id?: string | number | null;
   type?: string | null;
-};
-
-type HeaderNotificationLike = {
-  read_at?: string | null;
 };
 
 type HeaderGroupStateWithName = GroupState & {
@@ -383,7 +435,7 @@ export default function PremiumHeader({
 
     (async () => {
       try {
-        const fetchedProfile: UserProfile | null = await getMyProfile();
+        const fetchedProfile: UserProfile | null = await getCachedHeaderProfile();
         if (!alive) return;
 
         setProfile(fetchedProfile ?? null);
@@ -418,30 +470,15 @@ export default function PremiumHeader({
     };
   }, []);
 
-  const refreshBadge = useCallback(async () => {
+  const refreshBadge = useCallback(async (force = false) => {
     try {
-      const {
-        getMyNotifications,
-        getUnreadConflictNotificationsSummary,
-      } = await import("@/lib/notificationsDb");
+      const summary = await getCachedHeaderBadge(force);
 
-      const [notifications, nextConflictSummary] = await Promise.all([
-        getMyNotifications(50),
-        getUnreadConflictNotificationsSummary().catch(() => ({
-          count: 0,
-          latestEventId: null,
-        })),
-      ]);
-
-   const unread = ((notifications ?? []) as HeaderNotificationLike[]).filter(
-  (x) => !x.read_at || x.read_at === ""
-).length;
-
-      setUnreadCount(unread);
+      setUnreadCount(Number(summary.unreadCount ?? 0));
       setConflictSummary({
-        count: Number(nextConflictSummary?.count ?? 0),
-        latestEventId: nextConflictSummary?.latestEventId
-          ? String(nextConflictSummary.latestEventId)
+        count: Number(summary.conflictCount ?? 0),
+        latestEventId: summary.latestEventId
+          ? String(summary.latestEventId)
           : null,
       });
     } catch {
@@ -451,11 +488,7 @@ export default function PremiumHeader({
   }, []);
 
   useEffect(() => {
-    refreshBadge();
-  }, [refreshBadge]);
-
-  useEffect(() => {
-    refreshBadge();
+    void refreshBadge(openNotif);
   }, [openNotif, pathname, refreshBadge]);
 
   const activeTab = useMemo<ModeMeta>(() => {
