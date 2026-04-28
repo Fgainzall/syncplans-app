@@ -9,7 +9,16 @@ const PUBLIC_INVITE_TTL_HOURS = Math.max(
   1,
   Number(process.env.PUBLIC_INVITE_TTL_HOURS ?? 168)
 );
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX_ATTEMPTS = 20;
 
+const rateLimitStore = new Map<
+  string,
+  {
+    count: number;
+    resetAt: number;
+  }
+>();
 function normalizeToken(token: string | null | undefined) {
   return String(token ?? "").trim();
 }
@@ -29,7 +38,51 @@ function isInviteExpired(createdAt: string | null | undefined) {
 
   return Date.now() > expiresAt;
 }
+function getClientIp(req: NextRequest) {
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0]?.trim() || "unknown";
+  }
 
+  return (
+    req.headers.get("x-real-ip") ||
+    req.headers.get("cf-connecting-ip") ||
+    "unknown"
+  );
+}
+
+function rateLimitKey(req: NextRequest, token: string) {
+  const ip = getClientIp(req);
+  const safeTokenPrefix = token.slice(0, 16);
+  return `${ip}:${safeTokenPrefix}`;
+}
+
+function checkRateLimit(req: NextRequest, token: string) {
+  const key = rateLimitKey(req, token);
+  const now = Date.now();
+  const current = rateLimitStore.get(key);
+
+  if (!current || current.resetAt <= now) {
+    rateLimitStore.set(key, {
+      count: 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS,
+    });
+
+    return { allowed: true };
+  }
+
+  if (current.count >= RATE_LIMIT_MAX_ATTEMPTS) {
+    return {
+      allowed: false,
+      retryAfter: Math.ceil((current.resetAt - now) / 1000),
+    };
+  }
+
+  current.count += 1;
+  rateLimitStore.set(key, current);
+
+  return { allowed: true };
+}
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -46,7 +99,7 @@ function getAdminClient() {
   });
 }
 
-export async function GET(_: NextRequest, context: RouteContext) {
+export async function GET(req: NextRequest, context: RouteContext) {
   try {
     const { token: tokenParam } = await context.params;
     const token = normalizeToken(tokenParam);
@@ -57,7 +110,22 @@ export async function GET(_: NextRequest, context: RouteContext) {
         { status: 400 }
       );
     }
+const limit = checkRateLimit(req, token);
 
+if (!limit.allowed) {
+  return NextResponse.json(
+    {
+      error: "Demasiados intentos. Intenta nuevamente en unos segundos.",
+      code: "rate_limited",
+    },
+    {
+      status: 429,
+      headers: {
+        "Retry-After": String(limit.retryAfter ?? 60),
+      },
+    }
+  );
+}
     const supabase = getAdminClient();
 
     const { data: invite, error: inviteError } = await supabase
@@ -153,7 +221,22 @@ export async function POST(req: NextRequest, context: RouteContext) {
         { status: 400 }
       );
     }
+const limit = checkRateLimit(req, token);
 
+if (!limit.allowed) {
+  return NextResponse.json(
+    {
+      error: "Demasiados intentos. Intenta nuevamente en unos segundos.",
+      code: "rate_limited",
+    },
+    {
+      status: 429,
+      headers: {
+        "Retry-After": String(limit.retryAfter ?? 60),
+      },
+    }
+  );
+}
     const body = await req.json().catch(() => null);
 
     const status = body?.status;
