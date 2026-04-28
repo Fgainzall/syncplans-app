@@ -23,8 +23,8 @@ function safeParse<T>(raw: string | null, fallback: T): T {
 }
 
 export function uid(): string {
-  const g = globalThis as any;
-  if (g?.crypto?.randomUUID) return g.crypto.randomUUID();
+ const cryptoApi = globalThis.crypto;
+if (cryptoApi?.randomUUID) return cryptoApi.randomUUID();
   const rnd = () =>
     Math.floor((1 + Math.random()) * 0x10000)
       .toString(16)

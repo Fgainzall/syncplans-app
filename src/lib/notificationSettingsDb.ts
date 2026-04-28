@@ -49,7 +49,7 @@ export async function getMyGroupMuteState(
 
   if (!data) return false;
 
-  return Boolean((data as any).muted);
+  return Boolean((data as { muted?: boolean | null }).muted);
 }
 
 /**

@@ -42,7 +42,22 @@ export type Profile = {
   onboarding_completed_at?: string | null;
 };
 
-type ProfileRow = Record<string, any>;
+type ProfileRow = {
+  id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  avatar_url?: string | null;
+  display_name?: string | null;
+  coordination_prefs?: CoordinationPrefs | null;
+  plan_tier?: string | null;
+  plan_status?: string | null;
+  trial_ends_at?: string | null;
+  daily_digest_enabled?: boolean | null;
+  daily_digest_hour_local?: number | null;
+  daily_digest_timezone?: string | null;
+  onboarding_completed?: boolean | null;
+  onboarding_completed_at?: string | null;
+};
 
 async function requireUid(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
