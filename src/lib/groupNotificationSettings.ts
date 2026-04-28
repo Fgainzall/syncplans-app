@@ -36,7 +36,7 @@ export async function getMyGroupMuteState(
   // Si no hay fila, por defecto no está silenciado
   if (!data) return false;
 
-  return Boolean((data as any).muted);
+  return Boolean((data as { muted?: boolean | null }).muted);
 }
 
 /**

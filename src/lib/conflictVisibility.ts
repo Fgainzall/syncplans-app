@@ -5,7 +5,13 @@ export type ConflictVisibility = {
   nextConflictId?: string;
 };
 
-export function getConflictVisibility(conflicts: any[]): ConflictVisibility {
+type ConflictVisibilityItem = {
+  id?: string | number | null;
+};
+
+export function getConflictVisibility(
+  conflicts: ConflictVisibilityItem[]
+): ConflictVisibility {
   if (!conflicts || conflicts.length === 0) {
     return {
       total: 0,
@@ -18,6 +24,9 @@ export function getConflictVisibility(conflicts: any[]): ConflictVisibility {
     total: conflicts.length,
     hasConflicts: true,
     hasUrgent: conflicts.length > 0,
-    nextConflictId: conflicts[0]?.id,
+    nextConflictId:
+  conflicts[0]?.id === null || conflicts[0]?.id === undefined
+    ? undefined
+    : String(conflicts[0].id),
   };
 }

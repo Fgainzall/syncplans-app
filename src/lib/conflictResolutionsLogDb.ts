@@ -22,7 +22,19 @@ export type CreateConflictResolutionLogInput = {
   metadata?: Record<string, unknown>;
 };
 
-function mapRow(row: any): ConflictResolutionLogRow {
+type ConflictResolutionLogDbRow = {
+  id: unknown;
+  conflict_id: unknown;
+  group_id?: unknown;
+  decided_by: unknown;
+  decision_type: unknown;
+  final_action: unknown;
+  reason?: unknown;
+  metadata?: unknown;
+  created_at: unknown;
+};
+
+function mapRow(row: ConflictResolutionLogDbRow): ConflictResolutionLogRow {
   return {
     id: String(row.id),
     conflict_id: String(row.conflict_id),
@@ -30,9 +42,11 @@ function mapRow(row: any): ConflictResolutionLogRow {
     decided_by: String(row.decided_by),
     decision_type: String(row.decision_type),
     final_action: String(row.final_action),
-    reason: row.reason ?? null,
-    metadata:
-      row.metadata && typeof row.metadata === "object" ? row.metadata : {},
+reason: typeof row.reason === "string" ? row.reason : null,
+metadata:
+  row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+    ? (row.metadata as Record<string, unknown>)
+    : {},
     created_at: String(row.created_at),
   };
 }
