@@ -373,7 +373,7 @@ const styles: Record<string, CSSProperties> = {
     background: "rgba(255,255,255,0.04)",
     color: "rgba(255,255,255,0.92)",
     cursor: "pointer",
-    fontWeight: 900 as any,
+    fontWeight: 900,
   },
 
   loadingCard: {

@@ -364,7 +364,7 @@ const styles: Record<string, CSSProperties> = {
   },
 
   toggleRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "12px 10px" },
-  toggleTitle: { fontSize: 13, fontWeight: 900 as any },
+  toggleTitle: { fontSize: 13, fontWeight: 900 },
   toggleSub: { marginTop: 4, fontSize: 12, opacity: 0.72, lineHeight: 1.3 },
 
   toggleBtn: {
@@ -424,7 +424,7 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
   },
   footerLeft: { maxWidth: 680 },
-  footerTitle: { fontWeight: 900 as any, fontSize: 12 },
+  footerTitle: { fontWeight: 900, fontSize: 12 },
   footerText: { marginTop: 6, fontSize: 12, opacity: 0.72, lineHeight: 1.35 },
 
   pillSoft: {
@@ -445,7 +445,7 @@ const styles: Record<string, CSSProperties> = {
     background: "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(124,58,237,0.22))",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
-    fontWeight: 900 as any,
+    fontWeight: 900,
   },
   ghostBtn: {
     padding: "12px 14px",
@@ -454,7 +454,7 @@ const styles: Record<string, CSSProperties> = {
     background: "rgba(255,255,255,0.04)",
     color: "rgba(255,255,255,0.92)",
     cursor: "pointer",
-    fontWeight: 900 as any,
+    fontWeight: 900
   },
 
   loadingCard: {
@@ -468,6 +468,6 @@ const styles: Record<string, CSSProperties> = {
     background: "rgba(255,255,255,0.03)",
   },
   loadingDot: { width: 12, height: 12, borderRadius: 999, background: "rgba(56,189,248,0.95)", boxShadow: "0 0 24px rgba(56,189,248,0.55)" },
-  loadingTitle: { fontWeight: 900 as any },
+  loadingTitle: { fontWeight: 900},
   loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
 };
