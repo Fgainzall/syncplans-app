@@ -124,7 +124,40 @@ export type GeneratePublicInviteLinkResult = {
   invite: PublicInviteRow;
   link: string;
 };
+type DbEventInputRow = {
+  [key: string]: unknown;
+  id?: unknown;
+  user_id?: unknown;
+  owner_id?: unknown;
+  created_by?: unknown;
+  group_id?: unknown;
+  title?: unknown;
+  notes?: unknown;
+  start?: unknown;
+  end?: unknown;
+  created_at?: unknown;
+  updated_at?: unknown;
+  external_source?: unknown;
+  external_id?: unknown;
+  location_label?: unknown;
+  location_address?: unknown;
+  location_provider?: unknown;
+  location_place_id?: unknown;
+  location_lat?: unknown;
+  location_lng?: unknown;
+  travel_mode?: unknown;
+  travel_eta_seconds?: unknown;
+  leave_time?: unknown;
+};
 
+type EventOwnerInput = {
+  id?: unknown;
+  owner_id?: unknown;
+  user_id?: unknown;
+  created_by?: unknown;
+};
+
+type EventUpdatePayload = Record<string, unknown>;
 /* ======================================================
   Select común
 ====================================================== */
@@ -151,33 +184,43 @@ async function requireUid(): Promise<string> {
   Helpers internos de mapeo / ownership
 ====================================================== */
 
-function mapDbEventRow(row: any): DbEventRow {
+function mapDbEventRow(row: DbEventInputRow): DbEventRow {
   return {
     id: String(row.id),
-    user_id: row.user_id ?? null,
-    owner_id: row.owner_id ?? null,
-    created_by: row.created_by ?? null,
-    group_id: row.group_id ?? null,
-    title: row.title ?? null,
-    notes: row.notes ?? null,
-    start: String(row.start),
-    end: String(row.end),
-    created_at: row.created_at ?? null,
-    updated_at: row.updated_at ?? null,
-    external_source: row.external_source ?? null,
-    external_id: row.external_id ?? null,
-    location_label: row.location_label ?? null,
-    location_address: row.location_address ?? null,
-    location_lat: row.location_lat ?? null,
-    location_lng: row.location_lng ?? null,
-    location_provider: row.location_provider ?? null,
-    location_place_id: row.location_place_id ?? null,
-    travel_mode: row.travel_mode ?? null,
-    travel_eta_seconds: row.travel_eta_seconds ?? null,
-    leave_time: row.leave_time ?? null,
+    user_id: row.user_id ? String(row.user_id) : null,
+    owner_id: row.owner_id ? String(row.owner_id) : null,
+    created_by: row.created_by ? String(row.created_by) : null,
+    group_id: row.group_id ? String(row.group_id) : null,
+    title: row.title ? String(row.title) : "Evento",
+    notes: row.notes ? String(row.notes) : null,
+    start: String(row.start ?? ""),
+    end: String(row.end ?? ""),
+    created_at: row.created_at ? String(row.created_at) : null,
+    updated_at: row.updated_at ? String(row.updated_at) : null,
+    external_source: row.external_source ? String(row.external_source) : null,
+    external_id: row.external_id ? String(row.external_id) : null,
+    location_label: row.location_label ? String(row.location_label) : null,
+    location_address: row.location_address ? String(row.location_address) : null,
+    location_provider: row.location_provider
+      ? (String(row.location_provider) as DbEventRow["location_provider"])
+      : null,
+    location_place_id: row.location_place_id
+      ? String(row.location_place_id)
+      : null,
+    location_lat:
+      typeof row.location_lat === "number" ? row.location_lat : null,
+    location_lng:
+      typeof row.location_lng === "number" ? row.location_lng : null,
+    travel_mode: row.travel_mode
+      ? (String(row.travel_mode) as DbEventRow["travel_mode"])
+      : null,
+    travel_eta_seconds:
+      typeof row.travel_eta_seconds === "number"
+        ? row.travel_eta_seconds
+        : null,
+    leave_time: row.leave_time ? String(row.leave_time) : null,
   };
 }
-
 function normalizeIds(ids: string[]): string[] {
   return Array.from(
     new Set(
@@ -197,7 +240,7 @@ function normalizeIds(ids: string[]): string[] {
  * 2) user_id
  * 3) created_by
  */
-function resolveEventOwnerId(row: any): string {
+function resolveEventOwnerId(row: EventOwnerInput): string {
   return String(
     row?.owner_id ?? row?.user_id ?? row?.created_by ?? ""
   ).trim();
@@ -344,13 +387,13 @@ export async function deleteEventsByIdsDetailed(
     throw error;
   }
 
-  const rows = Array.isArray(data) ? data : [];
+const rows = (Array.isArray(data) ? data : []) as EventOwnerInput[];
 
-  const ownIds = rows
-    .filter((row: any) => resolveEventOwnerId(row) === uid)
-    .map((row: any) => String(row.id));
+const ownIds = rows
+  .filter((row) => resolveEventOwnerId(row) === uid)
+  .map((row) => String(row.id));
 
-  const visibleIds = new Set(rows.map((row: any) => String(row.id)));
+const visibleIds = new Set(rows.map((row) => String(row.id)));
   const ownSet = new Set(ownIds);
 
   const blockedIds = requestedIds.filter(
@@ -374,7 +417,7 @@ export async function deleteEventsByIdsDetailed(
     deletedCount = count ?? deletedRows?.length ?? 0;
 
     const deletedSet = new Set(
-      (deletedRows ?? []).map((row: any) => String(row.id))
+    ((deletedRows ?? []) as EventOwnerInput[]).map((row) => String(row.id))
     );
 
     const deleteBlockedOwnIds = ownIds.filter(
@@ -483,7 +526,7 @@ export async function updateEvent(
     throw new Error("Falta el id del evento a actualizar.");
   }
 
-  const update: Record<string, any> = {};
+ const update: EventUpdatePayload = {};
   if (typeof title !== "undefined") update.title = title;
   if (typeof notes !== "undefined") update.notes = notes ?? null;
   if (typeof start !== "undefined") update.start = start;

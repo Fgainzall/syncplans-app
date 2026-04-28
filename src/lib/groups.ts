@@ -245,14 +245,20 @@ export type CreateFamilyInput = {
 export function createSolo(myName: string): GroupState;
 export function createSolo(input: CreateSoloInput): GroupState;
 export function createSolo(myName: string, myEmail: string): GroupState;
-export function createSolo(a: any, b?: any): GroupState {
+export function createSolo(
+  a: string | CreateSoloInput,
+  b?: string
+): GroupState {
   const myName = typeof a === "object" ? a.myName : a;
   const myEmail = typeof a === "object" ? a.myEmail : b;
 
   if (!myName || !myEmail) {
     return setGroupState({
       ok: false,
-      reason: "Faltan datos para crear perfil personal (nombre y email).",
+      mode: "solo",
+      currentUser: null,
+      partner: null,
+      familyName: null,
     });
   }
 
@@ -280,7 +286,11 @@ export function createPair(
   myEmail: string,
   partnerEmail: string
 ): GroupState;
-export function createPair(a: any, b?: any, c?: any): GroupState {
+export function createPair(
+  a: string | CreatePairInput,
+  b?: string,
+  c?: string
+): GroupState {
   const myName = typeof a === "object" ? a.myName : a;
   const myEmail = typeof a === "object" ? a.myEmail : b;
   const partnerEmail = typeof a === "object" ? a.partnerEmail : c;
@@ -330,7 +340,11 @@ export function createFamily(
   myEmail: string,
   familyName: string
 ): GroupState;
-export function createFamily(a: any, b?: any, c?: any): GroupState {
+export function createFamily(
+  a: string | CreateFamilyInput,
+  b?: string,
+  c?: string
+): GroupState {
   const myName = typeof a === "object" ? a.myName : a;
   const myEmail = typeof a === "object" ? a.myEmail : b;
   const familyName = typeof a === "object" ? a.familyName : c;

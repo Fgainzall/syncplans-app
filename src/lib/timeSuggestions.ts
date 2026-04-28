@@ -6,7 +6,10 @@ import type {
 } from "@/lib/learningTypes";
 
 import type { LearningScoreBreakdown } from "@/lib/learningScoring";
-
+type SuggestionEventLike = {
+  start?: string | Date | null;
+  end?: string | Date | null;
+};
 import { scoreHourWithLearning } from "@/lib/learningScoring";
 
 export type SuggestionTrace = {
@@ -507,14 +510,20 @@ function shouldSkipDay(date: Date, profile: SuggestionProfile) {
   return false;
 }
 
-function getEventWindow(event: any) {
-  const start = new Date(event?.start);
-  const end = new Date(event?.end);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+function getEventWindow(event: SuggestionEventLike) {
+  if (!event.start || !event.end) return null;
+
+  const start = new Date(event.start);
+  const end = new Date(event.end);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return null;
+  }
+
   return { start, end };
 }
 
-function isSlotFree(events: any[], start: Date, durationMinutes = 60) {
+function isSlotFree(events: SuggestionEventLike[], start: Date, durationMinutes = 60) {
   const end = new Date(start.getTime() + durationMinutes * 60000);
 
   return !events.some((e) => {
@@ -524,7 +533,7 @@ function isSlotFree(events: any[], start: Date, durationMinutes = 60) {
   });
 }
 
-function countEventsForDay(events: any[], day: Date) {
+function countEventsForDay(events: SuggestionEventLike[], day: Date) {
   const dayStart = startOfDay(day);
   const dayEnd = addDays(dayStart, 1);
 
@@ -536,7 +545,11 @@ function countEventsForDay(events: any[], day: Date) {
   }, 0);
 }
 
-function getNearestGapMinutes(events: any[], slotStart: Date, durationMinutes: number) {
+function getNearestGapMinutes(
+  events: SuggestionEventLike[],
+  slotStart: Date,
+  durationMinutes: number
+) {
   const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
   let nearestGap = Number.POSITIVE_INFINITY;
 
@@ -746,7 +759,7 @@ function getPreferenceShapeBonus(
 }
 
 function scoreSlot(params: {
-  events: any[];
+  events: SuggestionEventLike[];
   now: Date;
   slot: Date;
   day: Date;
@@ -829,7 +842,7 @@ function decorateRankedLabel(baseLabel: string, index: number) {
 }
 
 export function getSuggestedTimeSlots(
-  events: any[],
+events: SuggestionEventLike[],
   groupType: SuggestionGroupType,
   rawText: string,
   options?: GetSuggestedTimeSlotsOptions,

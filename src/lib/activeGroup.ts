@@ -34,9 +34,18 @@ function emitActiveGroupChanged(groupId: string | null) {
 
 export function onActiveGroupChanged(cb: (groupId: string | null) => void) {
   if (typeof window === "undefined") return () => {};
-  const handler = (ev: any) => cb(ev?.detail?.groupId ?? null);
-  window.addEventListener(EVENT_NAME as any, handler as any);
-  return () => window.removeEventListener(EVENT_NAME as any, handler as any);
+
+  const handler = (ev: Event) => {
+    const detail =
+      ev instanceof CustomEvent
+        ? (ev.detail as { groupId?: unknown } | null)
+        : null;
+
+    cb(normalizeGroupId(detail?.groupId));
+  };
+
+  window.addEventListener(EVENT_NAME, handler);
+  return () => window.removeEventListener(EVENT_NAME, handler);
 }
 
 function safeGetLocal(): string | null {
@@ -84,7 +93,7 @@ async function requireUid(): Promise<string> {
   return uid;
 }
 
-function normalizeGroupId(v: any): string | null {
+function normalizeGroupId(v: unknown): string | null {
   const s = String(v ?? "").trim();
   if (!s) return null;
   if (s === "null" || s === "undefined") return null;
@@ -121,7 +130,9 @@ export async function getActiveGroupIdFromDb(): Promise<string | null> {
     disableDbForever();
   }
 } else {
-  const gid = normalizeGroupId((data as any)?.active_group_id);
+const gid = normalizeGroupId(
+  (data as { active_group_id?: unknown } | null)?.active_group_id
+);
   if (gid) {
     safeSetLocal(gid);
     return gid;

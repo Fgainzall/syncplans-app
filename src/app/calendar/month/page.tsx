@@ -12,7 +12,20 @@ import { getEventsForGroups } from "@/lib/eventsDb";
 import { groupMeta, type CalendarEvent, type GroupType } from "@/lib/conflicts";
 
 type Scope = "personal" | "active" | "all";
+type MonthGroupRow = {
+  id?: unknown;
+  type?: unknown;
+};
 
+type MonthEventRow = {
+  id?: unknown;
+  title?: unknown;
+  start?: unknown;
+  end?: unknown;
+  notes?: unknown;
+  groupId?: unknown;
+  group_id?: unknown;
+};
 function startOfMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
 }
@@ -68,7 +81,8 @@ export default function CalendarMonthPage() {
       setActiveGroupId(activeId);
 
       const myGroups = await getMyGroups();
-      const allGroupIds = (myGroups ?? []).map((g: any) => String(g.id));
+    const typedGroups = (myGroups ?? []) as MonthGroupRow[];
+const allGroupIds = typedGroups.map((g) => String(g.id));
 
       let groupIdsToFetch: string[] = [];
       if (scope === "active") groupIdsToFetch = activeId ? [String(activeId)] : allGroupIds;
@@ -78,33 +92,36 @@ export default function CalendarMonthPage() {
       const raw = await getEventsForGroups(groupIdsToFetch);
 
       const typeByGroupId = new Map<string, GroupType>(
-        (myGroups ?? []).map((g: any) => [String(g.id), (String(g.type ?? "").toLowerCase() === "family" ? "family" : "pair") as GroupType])
+      typedGroups.map((g) => [
+  String(g.id),
+  (String(g.type ?? "").toLowerCase() === "family" ? "family" : "pair") as GroupType,
+])
       );
 
-      const adapted: CalendarEvent[] = (raw ?? []).map((e: any) => {
-        const gid = e.groupId ?? e.group_id ?? null;
+const adapted: CalendarEvent[] = ((raw ?? []) as MonthEventRow[]).map((e) => {
+  const gid = e.groupId ?? e.group_id ?? null;
 
-        const gt: GroupType = gid
-          ? (typeByGroupId.get(String(gid)) ?? ("pair" as any))
-          : ("personal" as any);
+  const gt: GroupType = gid
+    ? typeByGroupId.get(String(gid)) ?? "pair"
+    : "personal";
 
-        return {
-          id: String(e.id),
-          title: e.title ?? "Evento",
-          start: String(e.start),
-          end: String(e.end),
-          notes: e.notes ?? undefined,
-          groupId: gid ? String(gid) : null,
-          groupType: gt,
-        };
-      });
+  return {
+    id: String(e.id),
+    title: e.title ? String(e.title) : "Evento",
+    start: String(e.start ?? ""),
+    end: String(e.end ?? ""),
+    notes: e.notes ? String(e.notes) : undefined,
+    groupId: gid ? String(gid) : null,
+    groupType: gt,
+  };
+});
 
       const finalEvents =
         scope === "personal" ? adapted.filter((e) => (e.groupType ?? "personal") === "personal") : adapted;
 
       setEvents(finalEvents);
-    } catch (e: any) {
-      setError(e?.message ?? "Error cargando calendar/month");
+ } catch (e: unknown) {
+  setError(e instanceof Error ? e.message : "Error cargando calendar/month");
     } finally {
       setLoading(false);
     }
@@ -218,10 +235,20 @@ export default function CalendarMonthPage() {
                   ) : dayEvents.length === 0 ? (
                     <span style={{ opacity: 0.25 }}>—</span>
                   ) : (
-                    dayEvents.slice(0, 12).map((e) => {
-                      const m = groupMeta((e.groupType ?? "personal") as GroupType);
-                      return <span key={String(e.id)} title={e.title} style={{ ...styles.dot, background: m.dot as any }} />;
-                    })
+                   dayEvents.slice(0, 12).map((e) => {
+  const m = groupMeta((e.groupType ?? "personal") as GroupType);
+
+  return (
+    <span
+      key={String(e.id)}
+      title={e.title}
+      style={{
+        ...styles.dot,
+        background: m.dot,
+      }}
+    />
+  );
+})
                   )}
                   {!loading && dayEvents.length > 12 ? <span style={{ fontSize: 11, opacity: 0.6 }}>+{dayEvents.length - 12}</span> : null}
                 </div>
