@@ -85,15 +85,11 @@ function isAuthorized(req: Request): boolean {
   const headerSecret = req.headers.get("x-cron-secret");
   const authHeader = req.headers.get("authorization");
 
-  // ✅ Permitimos:
-  // - ?token=CRON_SECRET        (llamadas manuales tipo /api/daily-digest?token=...)
-  // - x-cron-secret: CRON_SECRET  (si algún día quieres usarlo desde otra infra)
-  // - Authorization: Bearer CRON_SECRET  (lo que envía Vercel Cron automáticamente)
   if (token && token === CRON_SECRET) return true;
   if (headerSecret && headerSecret === CRON_SECRET) return true;
 
   if (authHeader && authHeader.startsWith("Bearer ")) {
-    const bearerToken = authHeader.slice(7);
+    const bearerToken = authHeader.slice(7).trim();
     if (bearerToken === CRON_SECRET) return true;
   }
 
