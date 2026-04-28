@@ -297,7 +297,7 @@ function BottomNav() {
   };
 
   return (
-    <nav style={S.outer} aria-label="NavegaciĂłn principal">
+    <nav style={S.outer} aria-label="NavegaciÃ³n principal">
       <div style={S.wrap}>
         <div style={S.viewport}>
           <div style={S.track}>
@@ -358,13 +358,13 @@ const S: Record<string, React.CSSProperties> = {
     paddingLeft: 10,
     paddingRight: 10,
     paddingBottom:
-      "calc(env(safe-area-inset-bottom, 0px) + var(--sp-bottom-nav-offset, 12px))",
+      "calc(env(safe-area-inset-bottom, 0px) + var(--sp-bottom-nav-offset, 10px))",
     boxSizing: "border-box",
   },
 
   wrap: {
     pointerEvents: "auto",
-    width: "min(100%, 560px)",
+    width: "min(100%, 540px)",
     margin: "0 auto",
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.10)",

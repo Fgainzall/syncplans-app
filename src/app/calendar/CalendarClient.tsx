@@ -1425,8 +1425,9 @@ const valueVisibility = useMemo(() => {
           <div
   style={{
     ...styles.weekHeader,
-    minWidth: 700,
-    padding: isMobile ? "8px 8px 0" : styles.weekHeader.padding,
+    gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+    minWidth: isMobile ? "100%" : 700,
+    padding: isMobile ? "6px 6px 0" : styles.weekHeader.padding,
   }}
   className="spCal-weekHeader"
 >
@@ -1442,10 +1443,11 @@ const valueVisibility = useMemo(() => {
 <div
   style={{
     ...styles.grid,
-    minWidth: 700,
-    gap: isMobile ? 8 : 12,
-    padding: isMobile ? 10 : 12,
-    gridAutoRows: isMobile ? "minmax(112px, auto)" : "minmax(140px, auto)",
+    gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+    minWidth: isMobile ? "100%" : 700,
+    gap: isMobile ? 5 : 12,
+    padding: isMobile ? 6 : 12,
+    gridAutoRows: isMobile ? "minmax(76px, auto)" : "minmax(140px, auto)",
   }}
   className="spCal-grid"
 >
@@ -1818,7 +1820,7 @@ function renderMonthCells(opts: {
     const isToday = sameDay(cellDate, today);
 
     const dayEvents = eventsByDay.get(ymd(cellDate)) || [];
-const visibleLimit = isMobile ? 2 : 3;
+const visibleLimit = isMobile ? 1 : 3;
 const visibleEvents = dayEvents.slice(0, visibleLimit);
 const hiddenCount = Math.max(dayEvents.length - visibleLimit, 0);
     const dayHasConflict = dayEvents.some((event) =>
@@ -1843,9 +1845,9 @@ cells.push(
     }}
     style={{
       ...styles.cell,
-      minHeight: isMobile ? 112 : 140,
-      padding: isMobile ? "9px 8px 8px" : styles.cell.padding,
-      borderRadius: isMobile ? 16 : styles.cell.borderRadius,
+      minHeight: isMobile ? 76 : 140,
+      padding: isMobile ? "7px 5px 6px" : styles.cell.padding,
+      borderRadius: isMobile ? 12 : styles.cell.borderRadius,
       opacity: inMonth ? 1 : 0.38,
       outline: isSelected
         ? "2px solid rgba(255,255,255,0.22)"
@@ -1865,11 +1867,11 @@ cells.push(
       <div
         style={{
           ...styles.cellDay,
-          fontSize: isMobile ? 11 : styles.cellDay.fontSize,
+          fontSize: isMobile ? 10 : styles.cellDay.fontSize,
           ...(isToday
             ? {
                 ...styles.cellDayToday,
-                padding: isMobile ? "1px 6px" : styles.cellDayToday.padding,
+                padding: isMobile ? "1px 4px" : styles.cellDayToday.padding,
               }
             : {}),
         }}
@@ -1888,11 +1890,11 @@ cells.push(
           }}
           style={{
             ...styles.cellQuickBtnPersonal,
-            width: isMobile ? 24 : styles.cellQuickBtnPersonal.width,
-            height: isMobile ? 24 : styles.cellQuickBtnPersonal.height,
+            width: isMobile ? 22 : styles.cellQuickBtnPersonal.width,
+            height: isMobile ? 22 : styles.cellQuickBtnPersonal.height,
             borderRadius: 999,
-            fontSize: isMobile ? 14 : styles.cellQuickBtnPersonal.fontSize,
-            lineHeight: isMobile ? "24px" : styles.cellQuickBtnPersonal.lineHeight,
+            fontSize: isMobile ? 13 : styles.cellQuickBtnPersonal.fontSize,
+            lineHeight: isMobile ? "22px" : styles.cellQuickBtnPersonal.lineHeight,
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
@@ -1912,8 +1914,8 @@ cells.push(
           <span
             style={{
               ...styles.cellCount,
-              fontSize: isMobile ? 10 : styles.cellCount.fontSize,
-              padding: isMobile ? "1px 5px" : styles.cellCount.padding,
+              fontSize: isMobile ? 9 : styles.cellCount.fontSize,
+              padding: isMobile ? "1px 4px" : styles.cellCount.padding,
             }}
           >
             {dayEvents.length}
@@ -1969,7 +1971,7 @@ cells.push(
             <span
               style={{
                 ...styles.cellEventText,
-                fontSize: isMobile ? 11 : styles.cellEventText.fontSize,
+                fontSize: isMobile ? 9.5 : styles.cellEventText.fontSize,
               }}
             >
               {e.title || "Evento"}
@@ -1994,7 +1996,7 @@ cells.push(
     className="spCal-moreHint"
     style={{
       ...styles.moreHint,
-      fontSize: isMobile ? 11 : styles.moreHint.fontSize,
+      fontSize: isMobile ? 9.5 : styles.moreHint.fontSize,
     }}
   >
     +{hiddenCount} más
@@ -2188,7 +2190,7 @@ calendarCard: {
 },
  monthScroller: {
   width: "100%",
-  overflowX: "auto",
+  overflowX: "hidden",
   overflowY: "visible",
   WebkitOverflowScrolling: "touch",
 },
@@ -2241,13 +2243,13 @@ cell: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: 4,
+    gap: 2,
   },
   cellTopRight: {
     display: "flex",
     alignItems: "center",
     justifyContent: "flex-end",
-    gap: 4,
+    gap: 2,
     flexWrap: "nowrap",
     flexShrink: 0,
   },
@@ -2295,7 +2297,7 @@ cell: {
   cellQuickAdd: {
     display: "flex",
     alignItems: "center",
-    gap: 4,
+    gap: 2,
     flexShrink: 0,
   },
   cellQuickBtnPersonal: {
@@ -2835,7 +2837,7 @@ valueRailCopy: {
   minWidth: 0,
   flex: "1 1 320px",
   display: "grid",
-  gap: 4,
+  gap: 2,
 },
 valueRailEyebrow: {
   fontSize: 11,
@@ -3062,7 +3064,7 @@ overviewMetaRowMobile: {
     gap: 8,
   },
   eventMainMobile: {
-    gap: 4,
+    gap: 2,
   },
   eventRightMobile: {
     width: "100%",

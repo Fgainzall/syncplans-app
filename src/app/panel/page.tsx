@@ -787,12 +787,12 @@ connection_state:
     connectionState === "connected"
       ? googleStatus?.account?.email
         ? `Conectado con ${googleStatus.account.email}`
-        : "Google Calendar conectado conectado"
+        : "Google Calendar conectado"
       : connectionState === "needs_reauth"
         ? googleStatus?.account?.email
           ? `${googleStatus.account.email} necesita reconexión`
           : "La conexión necesita reconexión"
-        : "Google Calendar conectado no conectado";
+        : "Google Calendar no conectado";
 
   let heroSummary =
     "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones.";
@@ -1189,7 +1189,7 @@ connection_state:
 
               {!canUseGoogleIntegration ? (
                 <PremiumLock
-                  title="Google Calendar conectado"
+                  title="Google Calendar"
                   copy="Conecta calendarios externos cuando Premium ya tenga sentido para tu coordinación."
                 />
               ) : (
@@ -1197,7 +1197,7 @@ connection_state:
                   <div style={styles.integrationCard}>
                     <div style={styles.integrationTop}>
                       <div>
-                        <div style={styles.integrationTitle}>Google Calendar conectado</div>
+                        <div style={styles.integrationTitle}>Google Calendar</div>
                         <div style={styles.integrationLine}>{googleLine}</div>
                       </div>
 
