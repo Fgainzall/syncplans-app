@@ -171,8 +171,8 @@ export function buildRecommendation(
 export function getPlanInfo(profile: AnyProfile | null) {
   const tierRaw = profile?.plan_tier ?? "free";
   const tier = tierRaw.toLowerCase();
-  const premiumActive = isPremiumUser(profile as any);
-  const trialActive = isTrialActive(profile as any);
+const premiumActive = isPremiumUser(profile as Parameters<typeof isPremiumUser>[0]);
+const trialActive = isTrialActive(profile as Parameters<typeof isTrialActive>[0]);
 
   let planLabel = "";
   let planHint = "";

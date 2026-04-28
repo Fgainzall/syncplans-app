@@ -57,7 +57,37 @@ export type LoadLearningSourceSnapshotOptions = {
 export type BuildLearningSignalsOptions = {
   includePending?: boolean;
 };
+type LearningProposalResponseInput = {
+  id?: unknown;
+  event_id?: unknown;
+  user_id?: unknown;
+  response?: unknown;
+  created_at?: unknown;
+  updated_at?: unknown;
+};
 
+type LearningEventResponseInput = {
+  id?: unknown;
+  event_id?: unknown;
+  user_id?: unknown;
+  group_id?: unknown;
+  response_status?: unknown;
+  comment?: unknown;
+  created_at?: unknown;
+  updated_at?: unknown;
+};
+
+type LearningConflictLogInput = {
+  id?: unknown;
+  conflict_id?: unknown;
+  group_id?: unknown;
+  decided_by?: unknown;
+  decision_type?: unknown;
+  final_action?: unknown;
+  reason?: unknown;
+  metadata?: unknown;
+  created_at?: unknown;
+};
 function clampDaysBack(value: number | undefined): number {
   if (!Number.isFinite(value)) return 120;
   return Math.min(Math.max(Math.trunc(Number(value)), 7), 365);
@@ -68,7 +98,7 @@ function clampConflictLimit(value: number | undefined): number {
   return Math.min(Math.max(Math.trunc(Number(value)), 50), 1000);
 }
 
-function normalizeIso(value: string | null | undefined): string {
+function normalizeIso(value: unknown): string {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
   const d = new Date(raw);
@@ -158,7 +188,9 @@ function extractEventIdsFromConflictMetadata(
   );
 }
 
-function mapProposalResponseRow(row: any): LearningProposalResponseRow | null {
+function mapProposalResponseRow(
+  row: LearningProposalResponseInput
+): LearningProposalResponseRow | null {
   const eventId = normalizeEventId(row?.event_id);
   const userId = String(row?.user_id ?? "").trim();
   const response = String(row?.response ?? "").trim();
@@ -185,7 +217,9 @@ function mapProposalResponseRow(row: any): LearningProposalResponseRow | null {
   };
 }
 
-function mapEventResponseRow(row: any): LearningEventResponseRow | null {
+function mapEventResponseRow(
+  row: LearningEventResponseInput
+): LearningEventResponseRow | null {
   const eventId = normalizeEventId(row?.event_id);
   const userId = String(row?.user_id ?? "").trim();
   const responseStatus = String(row?.response_status ?? "").trim();
@@ -214,7 +248,9 @@ function mapEventResponseRow(row: any): LearningEventResponseRow | null {
   };
 }
 
-function mapConflictLogRow(row: any): LearningConflictLogRow | null {
+function mapConflictLogRow(
+  row: LearningConflictLogInput
+): LearningConflictLogRow | null {
   const conflictId = String(row?.conflict_id ?? "").trim();
   const decidedBy = String(row?.decided_by ?? "").trim();
   const createdAt = normalizeIso(row?.created_at);
@@ -229,8 +265,10 @@ function mapConflictLogRow(row: any): LearningConflictLogRow | null {
     decision_type: String(row?.decision_type ?? "").trim(),
     final_action: String(row?.final_action ?? "").trim(),
     reason: row?.reason ? String(row.reason) : null,
-    metadata:
-      row?.metadata && typeof row.metadata === "object" ? row.metadata : {},
+metadata:
+  row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+    ? (row.metadata as Record<string, unknown>)
+    : {},
     created_at: createdAt,
   };
 }

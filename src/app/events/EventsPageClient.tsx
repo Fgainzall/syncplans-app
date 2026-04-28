@@ -455,15 +455,17 @@ export default function EventsPage() {
       setEvents(withGroup);
       setGroups(groupsRes);
       setDeclinedEventIds(declinedRes);
-    } catch (err: any) {
-      console.error("Error refrescando eventos:", err);
-      setToast({
-        type: "error",
-        message:
-          err?.message ||
-          "No se pudieron refrescar los eventos. Intenta de nuevo.",
-      });
-    } finally {
+} catch (err: unknown) {
+  console.error("Error refrescando eventos:", err);
+  setToast({
+    type: "error",
+    message:
+      err instanceof Error
+        ? err.message
+        : "No se pudieron refrescar los eventos. Intenta de nuevo.",
+  });
+}
+    finally {
       setLoading(false);
     }
   }
@@ -528,15 +530,17 @@ export default function EventsPage() {
       throw new Error(
         "No se pudo eliminar la selección con tu sesión actual. Puede incluir eventos de otra persona o bloqueados por permisos."
       );
-    } catch (err: any) {
-      console.error("Error al eliminar eventos:", err);
-      setToast({
-        type: "error",
-        message:
-          err?.message ||
-          "No se pudieron eliminar esos eventos. Intenta de nuevo.",
-      });
-    } finally {
+} catch (err: unknown) {
+  console.error("Error al eliminar eventos:", err);
+  setToast({
+    type: "error",
+    message:
+      err instanceof Error
+        ? err.message
+        : "No se pudieron eliminar esos eventos. Intenta de nuevo.",
+  });
+}
+    finally {
       setDeleting(false);
     }
   }
@@ -549,15 +553,17 @@ export default function EventsPage() {
         type: "success",
         message: "Se envió un resumen simulado de tus eventos de hoy.",
       });
-    } catch (err: any) {
-      console.error("Error enviando digest:", err);
-      setToast({
-        type: "error",
-        message:
-          err?.message ||
-          "No se pudo enviar el resumen hoy. Intenta nuevamente.",
-      });
-    } finally {
+ } catch (err: unknown) {
+  console.error("Error enviando digest:", err);
+  setToast({
+    type: "error",
+    message:
+      err instanceof Error
+        ? err.message
+        : "No se pudo enviar el resumen hoy. Intenta nuevamente.",
+  });
+}
+    finally {
       setSendingDigest(false);
     }
   }

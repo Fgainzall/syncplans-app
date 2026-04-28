@@ -16,7 +16,17 @@ type Props = {
   onEventClick?: (ev: CalendarEvent) => void;
   onChanged?: () => void; // para refrescar lista global (modal)
 };
+type DailyDigestResponse = {
+  ok?: boolean;
+  message?: string;
+};
 
+type UserLike = {
+  email?: string | null;
+  user_metadata?: {
+    email?: string | null;
+  } | null;
+};
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -374,8 +384,8 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
     try {
       setSendingDigest(true);
 
-      const u = getUser();
-      const email = (u as any)?.email || (u as any)?.user_metadata?.email;
+const u = getUser() as UserLike | null;
+const email = u?.email || u?.user_metadata?.email;
 
       if (!email) {
         setToast({
@@ -412,7 +422,7 @@ export default function DayTimeline({ dateISO, onEventClick, onChanged }: Props)
         }),
       });
 
-      const json = await res.json().catch(() => ({} as any));
+      const json = (await res.json().catch(() => ({}))) as DailyDigestResponse;
 
       if (!res.ok || !json.ok) {
         throw new Error(json?.message || "Error enviando el correo");

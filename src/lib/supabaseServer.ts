@@ -1,9 +1,19 @@
 // src/lib/supabaseServer.ts
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+type SupabaseCookieOptions = {
+  domain?: string;
+  path?: string;
+  expires?: Date;
+  httpOnly?: boolean;
+  maxAge?: number;
+  sameSite?: boolean | "lax" | "strict" | "none";
+  secure?: boolean;
+};
 
+type ServerCookieStore = Awaited<ReturnType<typeof cookies>>;
 export async function supabaseServer() {
-  const cookieStore: any = await Promise.resolve(cookies());
+const cookieStore: ServerCookieStore = await cookies();
 
   const url =
     (process.env.NEXT_PUBLIC_SUPABASE_URL ??
@@ -24,14 +34,14 @@ export async function supabaseServer() {
       get(name: string) {
         return cookieStore.get(name)?.value;
       },
-      set(name: string, value: string, options: any) {
+     set(name: string, value: string, options: SupabaseCookieOptions) {
         try {
           cookieStore.set({ name, value, ...options });
         } catch {
           // En Server Components, cookies() puede ser read-only. No romper.
         }
       },
-      remove(name: string, options: any) {
+     remove(name: string, options: SupabaseCookieOptions) {
         try {
           cookieStore.set({ name, value: "", ...options, maxAge: 0 });
         } catch {
