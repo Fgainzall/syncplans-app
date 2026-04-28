@@ -56,7 +56,7 @@ export default function EventsTimeline({
     proposalResponseGroupsByEventId,
     proposalProfilesById,
     conflictsByEventId,
-    refreshTick,
+
   } = useEventsTimelineData(events);
 
   const sorted = useMemo(() => {
@@ -78,7 +78,7 @@ export default function EventsTimeline({
       dayKey,
       dayEvents,
     }));
-  }, [sorted, refreshTick]);
+  }, [sorted]);
 
 const timelineSummary = useMemo(() => {
   const shared = sorted.filter((ev) => !!ev.group_id).length;

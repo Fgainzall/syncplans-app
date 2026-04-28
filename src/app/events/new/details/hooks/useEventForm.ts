@@ -22,27 +22,6 @@ function fromInputLocal(value: string) {
 function addMinutes(date: Date, minutes: number) {
   return new Date(date.getTime() + minutes * 60_000);
 }
-
-function roundToNextQuarterHour(date: Date) {
-  const rounded = new Date(date);
-  rounded.setSeconds(0, 0);
-
-  const minutes = rounded.getMinutes();
-  const remainder = minutes % 15;
-
-  if (remainder !== 0) {
-    rounded.setMinutes(minutes + (15 - remainder));
-  }
-
-  return rounded;
-}
-
-function getSafeDurationMinutes(value: number | string | null | undefined) {
-  const parsed = typeof value === "number" ? value : Number(value ?? 60);
-  if (!Number.isFinite(parsed) || parsed <= 0) return 60;
-  return parsed;
-}
-
 type SelectedGroup = {
   id: string;
   name: string | null;

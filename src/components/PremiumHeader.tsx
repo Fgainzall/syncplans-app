@@ -275,8 +275,7 @@ export default function PremiumHeader({
   title,
   subtitle,
   rightSlot,
-  mobileNav: _mobileNav = "bottom",
-  sticky = true,
+   sticky = true,
   hideUpgradeCta = false,
 }: PremiumHeaderProps) {
   const router = useRouter();

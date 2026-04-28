@@ -1,7 +1,7 @@
 // src/components/NotificationsDrawer.tsx
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   getMyNotifications,
@@ -96,15 +96,17 @@ export default function NotificationsDrawer({
     };
   }
 
-  async function fetchNotificationsAndInvites(): Promise<NotificationRow[]> {
-    const [notifs, invites] = await Promise.all([
-      getMyNotifications(limit),
-      getMyInvitations(),
-    ]);
+ const fetchNotificationsAndInvites = useCallback(async (): Promise<
+  NotificationRow[]
+> => {
+  const [notifs, invites] = await Promise.all([
+    getMyNotifications(limit),
+    getMyInvitations(),
+  ]);
 
-    const syntheticInvites = (invites ?? []).map(inviteToNotificationRow);
-    return sortNotificationsForDrawer([...syntheticInvites, ...(notifs ?? [])]);
-  }
+  const syntheticInvites = (invites ?? []).map(inviteToNotificationRow);
+  return sortNotificationsForDrawer([...syntheticInvites, ...(notifs ?? [])]);
+}, [limit]);
 
   useEffect(() => {
     if (!open) return;
@@ -135,7 +137,7 @@ export default function NotificationsDrawer({
     return () => {
       alive = false;
     };
-  }, [open, limit]);
+    }, [open, limit, fetchNotificationsAndInvites]);
 
   useEffect(() => {
     if (!toast) return;

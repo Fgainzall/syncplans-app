@@ -1,6 +1,13 @@
 "use client";
 
-import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
@@ -21,8 +28,7 @@ import {
   groupMeta,
   computeVisibleConflicts,
   fmtRange,
-  type CalendarEvent,
-  ignoreConflictIds,
+   ignoreConflictIds,
   hideEventIdsForCurrentUser,
 } from "@/lib/conflicts";
 import supabase from "@/lib/supabaseClient";
@@ -612,7 +618,6 @@ function NewEventDetailsInner() {
   const groupManualSelectionRef = useRef(false);
 
   const [bootingEvent, setBootingEvent] = useState<boolean>(isEditing);
-  const loadedEditingEventIdRef = useRef<string | null>(null);
 
   const uniqueGroups = useMemo(() => {
     const map = new Map<string, DbGroup>();
@@ -772,18 +777,18 @@ function NewEventDetailsInner() {
     } catch {
       return null;
     }
-  }, [selectedPlace, travelMode, originPointVersion]);
+}, [selectedPlace, travelMode]);
 
   const selectedGroup = useMemo(
     () => uniqueGroups.find((g) => g.id === selectedGroupId) || null,
     [uniqueGroups, selectedGroupId],
   );
 
-  function buildUrl(
-    nextType: NewType,
-    nextDateIso: string,
-    nextGroupId?: string | null,
-  ) {
+ const buildUrl = useCallback((
+  nextType: NewType,
+  nextDateIso: string,
+  nextGroupId?: string | null,
+) => {
     const params = new URLSearchParams();
     params.set("type", nextType);
     params.set("date", nextDateIso);
@@ -826,8 +831,27 @@ function NewEventDetailsInner() {
       params.set("proposal_event_id", proposalEventIdParam);
     }
 
-    return `/events/new/details?${params.toString()}`;
-  }
+  return `/events/new/details?${params.toString()}`;
+}, [
+  activeGroupId,
+  captureSourceParam,
+  eventIdParam,
+  intentParam,
+  isEditing,
+  originLatParam,
+  originLngParam,
+  proposalEventIdParam,
+  proposalParam,
+  proposalResponseParam,
+  quickCaptureDurationParam,
+  quickCaptureNotesParam,
+  quickCaptureParam,
+  quickCaptureTitleParam,
+  rawTextParam,
+  selectedGroupId,
+  sp,
+  timeParam,
+]);
 
   useEffect(() => {
     let alive = true;
@@ -1057,7 +1081,7 @@ function NewEventDetailsInner() {
     return () => {
       alive = false;
     };
-  }, [isEditing, eventIdParam, router, sp]);
+ }, [isEditing, eventIdParam, router, sp, buildUrl]);
 
   useEffect(() => {
     if (!proposedStartParam || !proposedEndParam) return;
@@ -1266,7 +1290,7 @@ useEffect(() => {
     source: originSource === "missing" ? "stored" : originSource,
   });
   void persistLastKnownLocation(originPointRef.current);
-}, [selectedPlace, originPointVersion]);
+}, [selectedPlace, originPointVersion, originSource]);
   useEffect(() => {
     if (isEditing) return;
     if (quickCaptureHydratedRef.current) return;
@@ -1313,16 +1337,16 @@ useEffect(() => {
     }
 
     quickCaptureHydratedRef.current = true;
-  }, [
-    isEditing,
-    quickCaptureParam,
-    quickCaptureTitleParam,
-    quickCaptureDurationParam,
-    quickCaptureNotesParam,
-    dateParam,
-    timeParam,
-    startLocal,
-  ]);
+}, [
+  isEditing,
+  quickCaptureParam,
+  quickCaptureTitleParam,
+  quickCaptureDurationParam,
+  quickCaptureNotesParam,
+  dateParam,
+  timeParam,
+  startLocal,
+]);
 
   const lockedToActiveGroup = useMemo(() => {
     if (typeParam !== "group") return false;

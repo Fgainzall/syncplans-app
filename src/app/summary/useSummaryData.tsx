@@ -565,7 +565,7 @@ export function useSummaryData({
           }
 
           setSmartMobility(nextSmartMobility ?? EMPTY_SMART_MOBILITY);
-        } catch (error) {
+        } catch {
           if (
             smartMobilityController.signal.aborted ||
             loadGeneration !== loadGenerationRef.current
