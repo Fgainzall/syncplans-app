@@ -10,7 +10,7 @@ import supabase from "@/lib/supabaseClient";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 
-import { getMyGroups } from "@/lib/groupsDb";
+import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { getEventsForGroups } from "@/lib/eventsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 
@@ -26,6 +26,37 @@ import {
 } from "@/lib/conflicts";
 type Scope = "personal" | "active" | "all";
 type Tab = "month" | "agenda";
+
+type DbCalendarEventRow = Record<string, unknown> & {
+  id?: string | number | null;
+  title?: string | null;
+  start?: string | null;
+  end?: string | null;
+  groupId?: string | null;
+  group_id?: string | null;
+};
+
+type AttachedConflictLike = {
+  overlapStart?: string | null;
+  overlapEnd?: string | null;
+};
+
+function normalizeCalendarGroupType(value: unknown): GroupType {
+  const raw = String(value ?? "personal").toLowerCase();
+  if (raw === "pair" || raw === "family" || raw === "other" || raw === "personal") {
+    return raw as GroupType;
+  }
+  if (raw === "solo") return "personal" as GroupType;
+  return "personal" as GroupType;
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message?: unknown }).message ?? fallback);
+  }
+  return fallback;
+}
 
 // 👇 Alias para evitar que TS exija highlightId/appliedToast en este archivo
 
@@ -122,7 +153,7 @@ export default function CalendarDayClient(/* ... */) {
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [, setGroups] = useState<any[]>([]);
+  const [, setGroups] = useState<GroupRow[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -169,7 +200,7 @@ const [enabledGroups, setEnabledGroups] = useState<Record<GroupType, boolean>>({
         const myGroups = await getMyGroups();
         setGroups(myGroups);
 
-        const allGroupIds = myGroups.map((g: any) => g.id);
+        const allGroupIds = myGroups.map((g) => String(g.id));
 
         // 2) decidir qué grupos pedimos según scope
         let groupIdsToFetch: string[] = [];
@@ -188,19 +219,19 @@ const [enabledGroups, setEnabledGroups] = useState<Record<GroupType, boolean>>({
 
         // 4) adaptar y mapear group_id -> groupType
         const typeByGroupId = new Map<string, string>(
-          myGroups.map((g: any) => [g.id, g.type === "solo" ? "personal" : g.type])
+          myGroups.map((g) => [String(g.id), g.type === "solo" ? "personal" : g.type])
         );
 
-        const adapted: CalendarEvent[] = (raw ?? []).map((e: any) => {
+        const adapted: CalendarEvent[] = ((raw ?? []) as DbCalendarEventRow[]).map((e) => {
           const gid = e.groupId ?? e.group_id ?? null;
 
           return {
-            id: e.id,
-            title: e.title,
-            start: e.start,
-            end: e.end,
-            groupId: gid,
-            groupType: (gid ? (typeByGroupId.get(gid) ?? "personal") : "personal") as any,
+            id: String(e.id ?? ""),
+            title: String(e.title ?? "Evento"),
+            start: String(e.start ?? ""),
+            end: String(e.end ?? e.start ?? ""),
+            groupId: gid ? String(gid) : null,
+            groupType: normalizeCalendarGroupType(gid ? (typeByGroupId.get(String(gid)) ?? "personal") : "personal"),
           };
         });
 
@@ -214,12 +245,13 @@ const [enabledGroups, setEnabledGroups] = useState<Record<GroupType, boolean>>({
           setToast({ title: "Sincronizado ✅", subtitle: "Eventos actualizados con permisos reales." });
           window.setTimeout(() => setToast(null), 2400);
         }
-      } catch (e: any) {
-        setError(e?.message ?? "Error cargando calendario");
+      } catch (e: unknown) {
+        const message = getErrorMessage(e, "Error cargando calendario");
+        setError(message);
         if (showToast) {
           setToast({
             title: "No se pudo sincronizar",
-            subtitle: e?.message ?? "Revisa tu sesión o conexión.",
+            subtitle: message || "Revisa tu sesión o conexión.",
           });
           window.setTimeout(() => setToast(null), 2800);
         }
@@ -327,7 +359,8 @@ const [enabledGroups, setEnabledGroups] = useState<Record<GroupType, boolean>>({
     const a = gridStart.getTime();
     const b = gridEnd.getTime();
 
-    const idx = attachedConflicts.findIndex((c: any) => {
+    const idx = (attachedConflicts as AttachedConflictLike[]).findIndex((c) => {
+      if (!c.overlapStart || !c.overlapEnd) return false;
       const s = new Date(c.overlapStart).getTime();
       const e = new Date(c.overlapEnd).getTime();
       return e >= a && s <= b;
@@ -595,7 +628,7 @@ if (booting) {
                     opacity: on ? 1 : 0.5,
                   }}
                 >
-                  <span style={{ ...styles.groupDot, background: meta.dot as any }} />
+                  <span style={{ ...styles.groupDot, background: meta.dot }} />
                   {meta.label}
                 </button>
               );
@@ -694,17 +727,17 @@ function EventRow({
       ref={setRef ? setRef(String(e.id)) : undefined}
       style={{
         ...styles.eventRow,
-        border: isHighlighted ? "1px solid rgba(56,189,248,0.55)" : (styles.eventRow.border as any),
-        background: isHighlighted ? "rgba(255,255,255,0.08)" : (styles.eventRow.background as any),
+        border: isHighlighted ? "1px solid rgba(56,189,248,0.55)" : styles.eventRow.border,
+        background: isHighlighted ? "rgba(255,255,255,0.08)" : styles.eventRow.background,
         animation: isHighlighted ? "spPulseGlow 2.6s ease-out" : undefined,
       }}
     >
-      <div style={{ ...styles.eventBar, background: meta.dot as any }} />
+      <div style={{ ...styles.eventBar, background: meta.dot }} />
       <div style={styles.eventBody}>
         <div style={styles.eventTop}>
           <div style={styles.eventTitle}>{e.title || "Sin título"}</div>
           <div style={styles.eventTag}>
-            <span style={{ ...styles.eventDot, background: meta.dot as any }} />
+            <span style={{ ...styles.eventDot, background: meta.dot }} />
             {meta.label}
           </div>
         </div>
@@ -798,7 +831,7 @@ function renderMonthCells(opts: {
             const meta = groupMeta((e.groupType ?? "personal") as GroupType);
             return (
               <div key={String(e.id)} style={styles.cellEventLine}>
-                <span style={{ ...styles.miniDot, background: meta.dot as any }} />
+                <span style={{ ...styles.miniDot, background: meta.dot }} />
                 <span style={styles.cellEventText}>{e.title || "Evento"}</span>
               </div>
             );

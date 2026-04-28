@@ -12,13 +12,416 @@ import {
   type NotificationRow,
   notificationHref,
 } from "@/lib/notificationsDb";
-import {
-  getMyInvitations,
-  type GroupInvitation,
-} from "@/lib/invitationsDb";
+import { getMyInvitations, type GroupInvitation } from "@/lib/invitationsDb";
 import { formatSmartTime } from "@/lib/timeFormat";
 
 export type NavigationMode = "push" | "replace";
+
+type NotificationPayloadRecord = Record<string, unknown>;
+
+type DrawerAccent = {
+  dot: string;
+  border: string;
+  bg: string;
+};
+
+function payloadFor(n: NotificationRow): NotificationPayloadRecord {
+  const payload = n.payload;
+
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    return payload as NotificationPayloadRecord;
+  }
+
+  return {};
+}
+
+function payloadString(
+  payload: NotificationPayloadRecord,
+  key: string,
+  fallback = ""
+): string {
+  const value = payload[key];
+
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value).trim();
+  }
+
+  return fallback;
+}
+
+function payloadDisplayValue(
+  payload: NotificationPayloadRecord,
+  key: string
+): string | null {
+  const value = payloadString(payload, key);
+  return value ? value : null;
+}
+
+function inviteToNotificationRow(inv: GroupInvitation): NotificationRow {
+  const gt = String(inv.group_type || "").toLowerCase();
+  const mapping: Record<string, string> = {
+    personal: "Personal",
+    solo: "Personal",
+    pair: "Pareja",
+    couple: "Pareja",
+    family: "Familia",
+    shared: "Compartido",
+    other: "Compartido",
+  };
+  const groupLabel = mapping[gt] ?? "Grupo";
+
+  return {
+    id: `invite:${inv.id}`,
+    user_id: "synthetic",
+    type: "group_invite",
+    title: inv.group_name
+      ? `Invitación a ${inv.group_name}`
+      : `Invitación a un grupo ${groupLabel.toLowerCase()}`,
+    body: `Te invitaron a un grupo (${groupLabel}).`,
+    entity_id: inv.id,
+    payload: {
+      group_name: inv.group_name,
+      group_type: inv.group_type,
+    },
+    created_at: inv.created_at ?? new Date().toISOString(),
+    read_at: null,
+  };
+}
+
+function sortNotificationsForDrawer(items: NotificationRow[]) {
+  return [...items].sort((a, b) => {
+    const aType = String(a.type || "").toLowerCase();
+    const bType = String(b.type || "").toLowerCase();
+
+    const priority = (type: string) => {
+      if (type === "leave_alert") return 0;
+      if (type === "group_invite") return 1;
+      if (type === "conflict" || type === "conflict_detected") return 2;
+      return 3;
+    };
+
+    const byPriority = priority(aType) - priority(bType);
+    if (byPriority !== 0) return byPriority;
+
+    const aTime = new Date(a.created_at).getTime();
+    const bTime = new Date(b.created_at).getTime();
+    return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+  });
+}
+
+function travelModeLabel(value: unknown): string | null {
+  const mode = String(value ?? "").toLowerCase();
+  if (mode === "driving") return "Auto";
+  if (mode === "walking") return "A pie";
+  if (mode === "bicycling") return "Bici";
+  if (mode === "transit") return "Transporte";
+  return null;
+}
+
+function travelModeMessage(value: unknown): string {
+  const mode = String(value ?? "").toLowerCase();
+  if (mode === "walking") return "Es buen momento para empezar a caminar.";
+  if (mode === "bicycling") return "Sal ahora para llegar con margen en bici.";
+  if (mode === "transit") return "Te conviene salir ahora por tiempos de traslado.";
+  return "El tráfico actual sugiere salir ahora.";
+}
+
+function originSourceLabel(value: unknown): string | null {
+  const source = String(value ?? "").toLowerCase();
+  if (source === "last_known") return "Ubicación guardada";
+  if (source === "fallback_lima") return "Referencia Lima";
+  if (source === "gps") return "Ubicación actual";
+  if (source === "url") return "Punto enviado";
+  return null;
+}
+
+function etaLabel(value: unknown): string | null {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  if (minutes < 60) return `${minutes} min`;
+
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
+
+function shortTimeLabel(value: unknown, fallback: string): string {
+  return formatSmartTime(
+    typeof value === "string" || typeof value === "number" || value instanceof Date
+      ? value
+      : null,
+    fallback
+  );
+}
+
+function hrefForNotification(n: NotificationRow): string {
+  const type = String(n.type || "").toLowerCase();
+
+  if (type === "leave_alert") {
+    const payload = payloadFor(n);
+    const eventId = String(
+      payloadString(payload, "event_id") ||
+        payloadString(payload, "eventId") ||
+        n.entity_id ||
+        ""
+    ).trim();
+
+    if (eventId) {
+      return `/events/new/details?eventId=${encodeURIComponent(eventId)}&from=leave_alert`;
+    }
+
+    return "/calendar";
+  }
+
+  return notificationHref(n);
+}
+
+function actionLabelFor(n: NotificationRow): string {
+  const type = String(n.type || "").toLowerCase();
+  if (type === "group_invite") return "Ver invitación";
+  if (type === "leave_alert") return "Abrir ruta";
+  return "Abrir";
+}
+
+function titleFor(n: NotificationRow) {
+  const t = String(n.type || "").toLowerCase();
+  const payload = payloadFor(n);
+
+  if (t === "group_message") {
+    const groupName =
+      payloadString(payload, "group_name") ||
+      n.title?.replace(/^Nuevo mensaje en\s+/i, "") ||
+      "tu grupo";
+    const authorName = payloadString(payload, "author_name");
+
+    if (authorName) return `${authorName} escribió en ${groupName}`;
+    if (n.title) return n.title;
+    return `Nuevo mensaje en ${groupName}`;
+  }
+
+  if (t === "group_invite") {
+    if (n.title) return n.title;
+    const groupName = payloadString(payload, "group_name");
+    if (groupName) return `Invitación a ${groupName}`;
+    return "Nueva invitación a un grupo";
+  }
+
+  if (t === "leave_alert") {
+    const eventTitle = payloadString(payload, "event_title");
+    const cleanTitle = String(n.title ?? "").trim();
+
+    if (cleanTitle) return cleanTitle;
+    if (eventTitle) return `Ya es momento de salir: ${eventTitle}`;
+    return "Ya es momento de salir";
+  }
+
+  if (t === "event_rejected") {
+    const actorName = payloadString(payload, "actor_name") || "Alguien";
+    const eventTitle = payloadString(payload, "event_title");
+
+    if (eventTitle) return `${actorName} no aceptó “${eventTitle}”`;
+    if (n.title) return n.title;
+    return `${actorName} no aceptó tu evento`;
+  }
+
+  if (t === "conflict_decision") {
+    const keptTitle = payloadString(payload, "kept_event_title");
+    if (keptTitle) return `Decisión aplicada: “${keptTitle}”`;
+    if (n.title) return n.title;
+    return "Se aplicó una decisión de conflicto";
+  }
+
+  if (t === "conflict_auto_adjusted") {
+    const affectedTitle = payloadString(payload, "affected_event_title");
+    if (affectedTitle) return `Ajuste automático en “${affectedTitle}”`;
+    if (n.title) return n.title;
+    return "SyncPlans aplicó un ajuste automático";
+  }
+
+  if (n.title) return n.title;
+  if (t === "conflict_detected" || t === "conflict") return "Conflicto de horario";
+  if (t === "event_created") return "Nuevo evento creado";
+  if (t === "event_deleted") return "Evento eliminado";
+  return "Notificación";
+}
+
+function subtitleFor(n: NotificationRow) {
+  const t = String(n.type || "").toLowerCase();
+  const payload = payloadFor(n);
+
+  if (t === "group_message") {
+    return payloadString(payload, "message_snippet") || n.body || "Toca para ver el mensaje en el grupo.";
+  }
+
+  if (t === "group_invite") {
+    if (n.body) return n.body;
+    const groupName = payloadString(payload, "group_name");
+    if (groupName) return `Te invitaron al grupo "${groupName}".`;
+    return "Toca para ver la invitación.";
+  }
+
+  if (t === "leave_alert") {
+    const leaveText = shortTimeLabel(payload.leave_time, "ahora");
+    const startText = shortTimeLabel(payload.event_start, "pronto");
+    const destination = String(
+      payloadString(payload, "destination_label") ||
+        payloadString(payload, "destination_address") ||
+        "el destino"
+    ).trim();
+    const eta = etaLabel(payload.eta_seconds);
+    const modeMessage = travelModeMessage(payload.travel_mode);
+
+    const etaText = eta ? ` Tardarás aprox. ${eta}.` : "";
+    return `${modeMessage} Salida sugerida: ${leaveText} hacia ${destination}. Tu evento empieza a las ${startText}.${etaText}`;
+  }
+
+  if (t === "event_rejected") {
+    const comment = payloadString(payload, "comment");
+    const eventTitle = payloadString(payload, "event_title");
+    const actorName = payloadString(payload, "actor_name") || "Alguien";
+
+    if (comment) return `${actorName} dejó este motivo: "${comment}"`;
+    if (eventTitle) return `Tu evento “${eventTitle}” no fue elegido al resolver un conflicto.`;
+    if (n.body) return n.body;
+    return "Tu evento no fue elegido al resolver un conflicto.";
+  }
+
+  if (t === "conflict_decision") {
+    const affectedTitle = payloadString(payload, "affected_event_title");
+    const keptTitle = payloadString(payload, "kept_event_title");
+
+    if (keptTitle && affectedTitle) {
+      return `Se decidió conservar “${keptTitle}” frente a “${affectedTitle}”.`;
+    }
+
+    if (n.body) return n.body;
+    return "Ya quedó aplicada una decisión de conflicto.";
+  }
+
+  if (t === "conflict_auto_adjusted") {
+    const affectedTitle = payloadString(payload, "affected_event_title");
+
+    if (affectedTitle) {
+      return `No se pudo reemplazar “${affectedTitle}”, así que SyncPlans mantuvo una salida segura.`;
+    }
+
+    if (n.body) return n.body;
+    return "SyncPlans hizo un ajuste automático para evitar inconsistencias.";
+  }
+
+  if (n.body) return n.body;
+  return "Toca para ver más.";
+}
+
+function typeLabel(n: NotificationRow): string {
+  const t = String(n.type || "").toLowerCase();
+  if (t === "conflict" || t === "conflict_detected") return "Conflicto";
+  if (t === "conflict_decision") return "Decisión aplicada";
+  if (t === "conflict_auto_adjusted") return "Ajuste automático";
+  if (t === "event_created" || t === "event_deleted") return "Evento";
+  if (t === "leave_alert") return "Salida inteligente";
+  if (t === "event_rejected") return "Decisión";
+  if (t === "group_message") return "Mensaje";
+  if (t === "group_invite") return "Invitación";
+  return "Notificación";
+}
+
+function accentFor(n: NotificationRow): DrawerAccent {
+  const t = String(n.type || "").toLowerCase();
+
+  if (t === "conflict" || t === "conflict_detected") {
+    return {
+      dot: "#FB7185",
+      border: "rgba(251,113,133,0.24)",
+      bg: "linear-gradient(180deg, rgba(127,29,29,0.24), rgba(255,255,255,0.04))",
+    };
+  }
+
+  if (t === "conflict_decision") {
+    return {
+      dot: "#4ADE80",
+      border: "rgba(74,222,128,0.24)",
+      bg: "linear-gradient(180deg, rgba(20,83,45,0.24), rgba(255,255,255,0.04))",
+    };
+  }
+
+  if (t === "conflict_auto_adjusted") {
+    return {
+      dot: "#818CF8",
+      border: "rgba(129,140,248,0.24)",
+      bg: "linear-gradient(180deg, rgba(49,46,129,0.24), rgba(255,255,255,0.04))",
+    };
+  }
+
+  if (t === "leave_alert") {
+    return {
+      dot: "#22D3EE",
+      border: "rgba(34,211,238,0.42)",
+      bg: "linear-gradient(180deg, rgba(8,145,178,0.30), rgba(15,23,42,0.78))",
+    };
+  }
+
+  if (t === "event_rejected") {
+    return {
+      dot: "#F97316",
+      border: "rgba(249,115,22,0.24)",
+      bg: "linear-gradient(180deg, rgba(124,45,18,0.24), rgba(255,255,255,0.04))",
+    };
+  }
+
+  if (t === "group_invite") {
+    return {
+      dot: "#38BDF8",
+      border: "rgba(56,189,248,0.24)",
+      bg: "linear-gradient(180deg, rgba(8,47,73,0.26), rgba(255,255,255,0.04))",
+    };
+  }
+
+  if (t === "group_message") {
+    return {
+      dot: "#A78BFA",
+      border: "rgba(167,139,250,0.24)",
+      bg: "linear-gradient(180deg, rgba(76,29,149,0.24), rgba(255,255,255,0.04))",
+    };
+  }
+
+  return {
+    dot: "#FBBF24",
+    border: "rgba(255,255,255,0.14)",
+    bg: "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))",
+  };
+}
+
+function timeFor(n: NotificationRow) {
+  const d = new Date(n.created_at);
+  if (Number.isNaN(d.getTime())) return "";
+
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function SkeletonList() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {Array.from({ length: 4 }).map((_, idx) => (
+        <div key={idx} style={skRow}>
+          <div style={skDot} />
+          <div style={{ flex: 1 }}>
+            <div style={skLine1} />
+            <div style={skLine2} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function NotificationsDrawer({
   open,
@@ -49,6 +452,16 @@ export default function NotificationsDrawer({
   const unreadCount = useMemo(() => items.length, [items]);
   const unreadLabel = unreadCount === 1 ? "1 pendiente" : `${unreadCount} pendientes`;
 
+  const fetchNotificationsAndInvites = useCallback(async (): Promise<NotificationRow[]> => {
+    const [notifs, invites] = await Promise.all([
+      getMyNotifications(limit),
+      getMyInvitations(),
+    ]);
+
+    const syntheticInvites = (invites ?? []).map(inviteToNotificationRow);
+    return sortNotificationsForDrawer([...syntheticInvites, ...(notifs ?? [])]);
+  }, [limit]);
+
   useEffect(() => {
     if (!onUnreadChange) return;
     onUnreadChange(unreadCount);
@@ -65,49 +478,6 @@ export default function NotificationsDrawer({
     return () => window.removeEventListener("resize", apply);
   }, []);
 
-  function inviteToNotificationRow(inv: GroupInvitation): NotificationRow {
-    const gt = String(inv.group_type || "").toLowerCase();
-    const mapping: Record<string, string> = {
-      personal: "Personal",
-      solo: "Personal",
-      pair: "Pareja",
-      couple: "Pareja",
-      family: "Familia",
-      shared: "Compartido",
-      other: "Compartido",
-    };
-    const groupLabel = mapping[gt] ?? "Grupo";
-
-    return {
-      id: `invite:${inv.id}`,
-      user_id: "synthetic",
-      type: "group_invite",
-      title: inv.group_name
-        ? `Invitación a ${inv.group_name}`
-        : `Invitación a un grupo ${groupLabel.toLowerCase()}`,
-      body: `Te invitaron a un grupo (${groupLabel}).`,
-      entity_id: inv.id,
-      payload: {
-        group_name: inv.group_name,
-        group_type: inv.group_type,
-      },
-      created_at: inv.created_at ?? new Date().toISOString(),
-      read_at: null,
-    };
-  }
-
- const fetchNotificationsAndInvites = useCallback(async (): Promise<
-  NotificationRow[]
-> => {
-  const [notifs, invites] = await Promise.all([
-    getMyNotifications(limit),
-    getMyInvitations(),
-  ]);
-
-  const syntheticInvites = (invites ?? []).map(inviteToNotificationRow);
-  return sortNotificationsForDrawer([...syntheticInvites, ...(notifs ?? [])]);
-}, [limit]);
-
   useEffect(() => {
     if (!open) return;
 
@@ -117,7 +487,7 @@ export default function NotificationsDrawer({
 
     let alive = true;
 
-    (async () => {
+    void (async () => {
       try {
         setLoading(true);
         const n = await fetchNotificationsAndInvites();
@@ -137,323 +507,17 @@ export default function NotificationsDrawer({
     return () => {
       alive = false;
     };
-    }, [open, limit, fetchNotificationsAndInvites]);
+  }, [open, fetchNotificationsAndInvites]);
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2400);
-    return () => clearTimeout(t);
+    const t = window.setTimeout(() => setToast(null), 2400);
+    return () => window.clearTimeout(t);
   }, [toast]);
 
   function navTo(href: string) {
     if (navigationMode === "replace") router.replace(href);
     else router.push(href);
-  }
-
-  function hrefFor(n: NotificationRow): string {
-    const type = String(n.type || "").toLowerCase();
-
-    if (type === "leave_alert") {
-      const payload = (n.payload || {}) as any;
-      const eventId = String(
-        payload.event_id || payload.eventId || n.entity_id || ""
-      ).trim();
-
-      if (eventId) {
-        return `/events/new/details?eventId=${encodeURIComponent(eventId)}&from=leave_alert`;
-      }
-
-      return "/calendar";
-    }
-
-    return notificationHref(n);
-  }
-
-  function actionLabelFor(n: NotificationRow): string {
-    const type = String(n.type || "").toLowerCase();
-    if (type === "group_invite") return "Ver invitación";
-    if (type === "leave_alert") return "Abrir ruta";
-    return "Abrir";
-  }
-
-  function travelModeLabel(value: unknown): string | null {
-    const mode = String(value ?? "").toLowerCase();
-    if (mode === "driving") return "Auto";
-    if (mode === "walking") return "A pie";
-    if (mode === "bicycling") return "Bici";
-    if (mode === "transit") return "Transporte";
-    return null;
-  }
-
-  function travelModeMessage(value: unknown): string {
-    const mode = String(value ?? "").toLowerCase();
-    if (mode === "walking") return "Es buen momento para empezar a caminar.";
-    if (mode === "bicycling") return "Sal ahora para llegar con margen en bici.";
-    if (mode === "transit") return "Te conviene salir ahora por tiempos de traslado.";
-    return "El tráfico actual sugiere salir ahora.";
-  }
-
-  function originSourceLabel(value: unknown): string | null {
-    const source = String(value ?? "").toLowerCase();
-    if (source === "last_known") return "Ubicación guardada";
-    if (source === "fallback_lima") return "Referencia Lima";
-    if (source === "gps") return "Ubicación actual";
-    if (source === "url") return "Punto enviado";
-    return null;
-  }
-
-  function etaLabel(value: unknown): string | null {
-    const seconds = Number(value);
-    if (!Number.isFinite(seconds) || seconds <= 0) return null;
-    const minutes = Math.max(1, Math.round(seconds / 60));
-    if (minutes < 60) return `${minutes} min`;
-    const hours = Math.floor(minutes / 60);
-    const rest = minutes % 60;
-    return rest ? `${hours} h ${rest} min` : `${hours} h`;
-  }
-
-  function shortTimeLabel(value: unknown, fallback: string): string {
-    return formatSmartTime(
-      typeof value === "string" || typeof value === "number" || value instanceof Date
-        ? value
-        : null,
-      fallback,
-    );
-  }
-
-  function titleFor(n: NotificationRow) {
-    const t = String(n.type || "").toLowerCase();
-
-    if (t === "group_message") {
-      const payload = (n.payload || {}) as any;
-      const groupName =
-        payload.group_name ||
-        n.title?.replace(/^Nuevo mensaje en\s+/i, "") ||
-        "tu grupo";
-      const authorName: string | undefined = payload.author_name;
-
-      if (authorName) return `${authorName} escribió en ${groupName}`;
-      if (n.title) return n.title;
-      return `Nuevo mensaje en ${groupName}`;
-    }
-
-    if (t === "group_invite") {
-      if (n.title) return n.title;
-      const payload = (n.payload || {}) as any;
-      const groupName: string | undefined = payload.group_name;
-      if (groupName) return `Invitación a ${groupName}`;
-      return "Nueva invitación a un grupo";
-    }
-
-    if (t === "leave_alert") {
-      const payload = (n.payload || {}) as any;
-      const eventTitle = String(payload.event_title ?? "").trim();
-      const cleanTitle = String(n.title ?? "").trim();
-
-      if (cleanTitle) return cleanTitle;
-      if (eventTitle) return `Ya es momento de salir: ${eventTitle}`;
-      return "Ya es momento de salir";
-    }
-
-    if (t === "event_rejected") {
-      const payload = (n.payload || {}) as any;
-      const actorName = String(payload.actor_name ?? "").trim() || "Alguien";
-      const eventTitle = String(payload.event_title ?? "").trim();
-
-      if (eventTitle) return `${actorName} no aceptó “${eventTitle}”`;
-      if (n.title) return n.title;
-      return `${actorName} no aceptó tu evento`;
-    }
-
-    if (t === "conflict_decision") {
-      const payload = (n.payload || {}) as any;
-      const keptTitle = String(payload.kept_event_title ?? "").trim();
-      if (keptTitle) return `Decisión aplicada: “${keptTitle}”`;
-      if (n.title) return n.title;
-      return "Se aplicó una decisión de conflicto";
-    }
-
-    if (t === "conflict_auto_adjusted") {
-      const payload = (n.payload || {}) as any;
-      const affectedTitle = String(payload.affected_event_title ?? "").trim();
-      if (affectedTitle) return `Ajuste automático en “${affectedTitle}”`;
-      if (n.title) return n.title;
-      return "SyncPlans aplicó un ajuste automático";
-    }
-
-    if (n.title) return n.title;
-    if (t === "conflict_detected" || t === "conflict") return "Conflicto de horario";
-    if (t === "event_created") return "Nuevo evento creado";
-    if (t === "event_deleted") return "Evento eliminado";
-    return "Notificación";
-  }
-
-  function subtitleFor(n: NotificationRow) {
-    const t = String(n.type || "").toLowerCase();
-
-    if (t === "group_message") {
-      const payload = (n.payload || {}) as any;
-      return (
-        payload.message_snippet ||
-        n.body ||
-        "Toca para ver el mensaje en el grupo."
-      );
-    }
-
-    if (t === "group_invite") {
-      if (n.body) return n.body;
-      const payload = (n.payload || {}) as any;
-      const groupName: string | undefined = payload.group_name;
-      if (groupName) {
-        return `Te invitaron al grupo "${groupName}".`;
-      }
-      return "Toca para ver la invitación.";
-    }
-
-    if (t === "leave_alert") {
-      const payload = (n.payload || {}) as any;
-      const leaveText = shortTimeLabel(payload.leave_time, "ahora");
-      const startText = shortTimeLabel(payload.event_start, "pronto");
-      const destination = String(
-        payload.destination_label || payload.destination_address || "el destino"
-      ).trim();
-      const eta = etaLabel(payload.eta_seconds);
-      const modeMessage = travelModeMessage(payload.travel_mode);
-
-      const etaText = eta ? ` Tardarás aprox. ${eta}.` : "";
-      return `${modeMessage} Salida sugerida: ${leaveText} hacia ${destination}. Tu evento empieza a las ${startText}.${etaText}`;
-    }
-
-
-    if (t === "event_rejected") {
-      const payload = (n.payload || {}) as any;
-      const comment = String(payload.comment ?? "").trim();
-      const eventTitle = String(payload.event_title ?? "").trim();
-      const actorName = String(payload.actor_name ?? "").trim() || "Alguien";
-
-      if (comment) return `${actorName} dejó este motivo: "${comment}"`;
-      if (eventTitle) {
-        return `Tu evento “${eventTitle}” no fue elegido al resolver un conflicto.`;
-      }
-      if (n.body) return n.body;
-      return "Tu evento no fue elegido al resolver un conflicto.";
-    }
-
-    if (t === "conflict_decision") {
-      const payload = (n.payload || {}) as any;
-      const affectedTitle = String(payload.affected_event_title ?? "").trim();
-      const keptTitle = String(payload.kept_event_title ?? "").trim();
-
-      if (keptTitle && affectedTitle) {
-        return `Se decidió conservar “${keptTitle}” frente a “${affectedTitle}”.`;
-      }
-      if (n.body) return n.body;
-      return "Ya quedó aplicada una decisión de conflicto.";
-    }
-
-    if (t === "conflict_auto_adjusted") {
-      const payload = (n.payload || {}) as any;
-      const affectedTitle = String(payload.affected_event_title ?? "").trim();
-
-      if (affectedTitle) {
-        return `No se pudo reemplazar “${affectedTitle}”, así que SyncPlans mantuvo una salida segura.`;
-      }
-      if (n.body) return n.body;
-      return "SyncPlans hizo un ajuste automático para evitar inconsistencias.";
-    }
-
-    if (n.body) return n.body;
-    return "Toca para ver más.";
-  }
-
-  function typeLabel(n: NotificationRow): string {
-    const t = String(n.type || "").toLowerCase();
-    if (t === "conflict" || t === "conflict_detected") return "Conflicto";
-    if (t === "conflict_decision") return "Decisión aplicada";
-    if (t === "conflict_auto_adjusted") return "Ajuste automático";
-    if (t === "event_created" || t === "event_deleted") return "Evento";
-    if (t === "leave_alert") return "Salida inteligente";
-    if (t === "event_rejected") return "Decisión";
-    if (t === "group_message") return "Mensaje";
-    if (t === "group_invite") return "Invitación";
-    return "Notificación";
-  }
-
-  function accentFor(n: NotificationRow) {
-    const t = String(n.type || "").toLowerCase();
-
-    if (t === "conflict" || t === "conflict_detected") {
-      return {
-        dot: "#FB7185",
-        border: "rgba(251,113,133,0.24)",
-        bg: "linear-gradient(180deg, rgba(127,29,29,0.24), rgba(255,255,255,0.04))",
-      };
-    }
-
-    if (t === "conflict_decision") {
-      return {
-        dot: "#4ADE80",
-        border: "rgba(74,222,128,0.24)",
-        bg: "linear-gradient(180deg, rgba(20,83,45,0.24), rgba(255,255,255,0.04))",
-      };
-    }
-
-    if (t === "conflict_auto_adjusted") {
-      return {
-        dot: "#818CF8",
-        border: "rgba(129,140,248,0.24)",
-        bg: "linear-gradient(180deg, rgba(49,46,129,0.24), rgba(255,255,255,0.04))",
-      };
-    }
-
-    if (t === "leave_alert") {
-      return {
-        dot: "#22D3EE",
-        border: "rgba(34,211,238,0.42)",
-        bg: "linear-gradient(180deg, rgba(8,145,178,0.30), rgba(15,23,42,0.78))",
-      };
-    }
-
-    if (t === "event_rejected") {
-      return {
-        dot: "#F97316",
-        border: "rgba(249,115,22,0.24)",
-        bg: "linear-gradient(180deg, rgba(124,45,18,0.24), rgba(255,255,255,0.04))",
-      };
-    }
-
-    if (t === "group_invite") {
-      return {
-        dot: "#38BDF8",
-        border: "rgba(56,189,248,0.24)",
-        bg: "linear-gradient(180deg, rgba(8,47,73,0.26), rgba(255,255,255,0.04))",
-      };
-    }
-
-    if (t === "group_message") {
-      return {
-        dot: "#A78BFA",
-        border: "rgba(167,139,250,0.24)",
-        bg: "linear-gradient(180deg, rgba(76,29,149,0.24), rgba(255,255,255,0.04))",
-      };
-    }
-
-    return {
-      dot: "#FBBF24",
-      border: "rgba(255,255,255,0.14)",
-      bg: "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))",
-    };
-  }
-
-  function timeFor(n: NotificationRow) {
-    const d = new Date(n.created_at);
-    if (Number.isNaN(d.getTime())) return "";
-    return d.toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
   }
 
   async function refreshFromDb(silent = false) {
@@ -522,12 +586,12 @@ export default function NotificationsDrawer({
     const type = String(n.type || "").toLowerCase();
 
     if (type === "group_invite") {
-      navTo(hrefFor(n));
+      navTo(hrefForNotification(n));
       onClose();
       return;
     }
 
-    const href = hrefFor(n);
+    const href = hrefForNotification(n);
     const id = String(n.id);
 
     try {
@@ -603,17 +667,17 @@ export default function NotificationsDrawer({
             onClick={(e) => e.stopPropagation()}
           >
             <div
-  style={{
-    ...header,
-    ...(isMobile
-      ? {
-          flexDirection: "column",
-          alignItems: "stretch",
-          gap: 12,
-        }
-      : null),
-  }}
->
+              style={{
+                ...header,
+                ...(isMobile
+                  ? {
+                      flexDirection: "column",
+                      alignItems: "stretch",
+                      gap: 12,
+                    }
+                  : null),
+              }}
+            >
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={title}>Notificaciones</div>
                 <div style={sub}>
@@ -626,20 +690,20 @@ export default function NotificationsDrawer({
               </div>
 
               <div
-  style={{
-    ...headerTopActions,
-    ...(isMobile
-      ? {
-          width: "100%",
-          justifyContent: "flex-end",
-        }
-      : null),
-  }}
->
+                style={{
+                  ...headerTopActions,
+                  ...(isMobile
+                    ? {
+                        width: "100%",
+                        justifyContent: "flex-end",
+                      }
+                    : null),
+                }}
+              >
                 <button
                   type="button"
                   style={smallSoftBtn}
-                  onClick={() => refreshFromDb()}
+                  onClick={() => void refreshFromDb()}
                   disabled={loading}
                 >
                   Actualizar
@@ -660,7 +724,7 @@ export default function NotificationsDrawer({
                 <button
                   type="button"
                   style={secondaryHeaderBtn}
-                  onClick={onMarkAll}
+                  onClick={() => void onMarkAll()}
                   disabled={loading}
                 >
                   Marcar todo leído
@@ -668,7 +732,7 @@ export default function NotificationsDrawer({
                 <button
                   type="button"
                   style={dangerHeaderBtn}
-                  onClick={onDeleteAll}
+                  onClick={() => void onDeleteAll()}
                   disabled={loading}
                 >
                   Limpiar bandeja
@@ -693,7 +757,7 @@ export default function NotificationsDrawer({
                     const isBusy = busyIds.current.has(String(n.id));
                     const type = String(n.type || "").toLowerCase();
                     const isInvite = type === "group_invite";
-                    const payload = (n.payload || {}) as any;
+                    const payload = payloadFor(n);
                     const accent = accentFor(n);
 
                     return (
@@ -724,31 +788,55 @@ export default function NotificationsDrawer({
 
                               <div style={rowMeta}>
                                 <span style={metaPill}>{typeLabel(n)}</span>
+
                                 {(type === "group_message" || type === "group_invite") &&
-                                  payload.group_name && (
-                                    <span style={metaPill}>{payload.group_name}</span>
-                                  )}
-                                {type === "event_rejected" && payload.event_title && (
-                                  <span style={metaPill}>{payload.event_title}</span>
-                                )}
-                                {type === "conflict_decision" && payload.kept_event_title && (
-                                  <span style={metaPill}>{payload.kept_event_title}</span>
-                                )}
-                                {type === "conflict_auto_adjusted" && payload.affected_event_title && (
-                                  <span style={metaPill}>{payload.affected_event_title}</span>
-                                )}
-                                {type === "leave_alert" && travelModeLabel(payload.travel_mode) && (
-                                  <span style={metaPill}>{travelModeLabel(payload.travel_mode)}</span>
-                                )}
-                                {type === "leave_alert" && etaLabel(payload.eta_seconds) && (
+                                payloadDisplayValue(payload, "group_name") ? (
+                                  <span style={metaPill}>
+                                    {payloadDisplayValue(payload, "group_name")}
+                                  </span>
+                                ) : null}
+
+                                {type === "event_rejected" && payloadDisplayValue(payload, "event_title") ? (
+                                  <span style={metaPill}>
+                                    {payloadDisplayValue(payload, "event_title")}
+                                  </span>
+                                ) : null}
+
+                                {type === "conflict_decision" &&
+                                payloadDisplayValue(payload, "kept_event_title") ? (
+                                  <span style={metaPill}>
+                                    {payloadDisplayValue(payload, "kept_event_title")}
+                                  </span>
+                                ) : null}
+
+                                {type === "conflict_auto_adjusted" &&
+                                payloadDisplayValue(payload, "affected_event_title") ? (
+                                  <span style={metaPill}>
+                                    {payloadDisplayValue(payload, "affected_event_title")}
+                                  </span>
+                                ) : null}
+
+                                {type === "leave_alert" && travelModeLabel(payload.travel_mode) ? (
+                                  <span style={metaPill}>
+                                    {travelModeLabel(payload.travel_mode)}
+                                  </span>
+                                ) : null}
+
+                                {type === "leave_alert" && etaLabel(payload.eta_seconds) ? (
                                   <span style={metaPill}>ETA {etaLabel(payload.eta_seconds)}</span>
-                                )}
-                                {type === "leave_alert" && payload.leave_time && (
-                                  <span style={metaPill}>Salir {shortTimeLabel(payload.leave_time, "ahora")}</span>
-                                )}
-                                {type === "leave_alert" && originSourceLabel(payload.origin_source) && (
-                                  <span style={metaPill}>{originSourceLabel(payload.origin_source)}</span>
-                                )}
+                                ) : null}
+
+                                {type === "leave_alert" && payload.leave_time ? (
+                                  <span style={metaPill}>
+                                    Salir {shortTimeLabel(payload.leave_time, "ahora")}
+                                  </span>
+                                ) : null}
+
+                                {type === "leave_alert" && originSourceLabel(payload.origin_source) ? (
+                                  <span style={metaPill}>
+                                    {originSourceLabel(payload.origin_source)}
+                                  </span>
+                                ) : null}
                               </div>
                             </div>
                           </div>
@@ -765,9 +853,7 @@ export default function NotificationsDrawer({
                             onClick={() => void onOpenNotification(n)}
                             disabled={isBusy}
                             style={{
-                              ...(type === "leave_alert"
-                                ? leaveAlertPrimaryBtn
-                                : primaryRowBtn),
+                              ...(type === "leave_alert" ? leaveAlertPrimaryBtn : primaryRowBtn),
                               ...(isMobile ? mobileActionBtn : null),
                             }}
                           >
@@ -819,45 +905,6 @@ export default function NotificationsDrawer({
         </div>
       )}
     </>
-  );
-}
-
-function sortNotificationsForDrawer(items: NotificationRow[]) {
-  return [...items].sort((a, b) => {
-    const aType = String(a.type || "").toLowerCase();
-    const bType = String(b.type || "").toLowerCase();
-
-    const priority = (type: string) => {
-      if (type === "leave_alert") return 0;
-      if (type === "group_invite") return 1;
-      if (type === "conflict" || type === "conflict_detected") return 2;
-      return 3;
-    };
-
-    const byPriority = priority(aType) - priority(bType);
-    if (byPriority !== 0) return byPriority;
-
-    const aTime = new Date(a.created_at).getTime();
-    const bTime = new Date(b.created_at).getTime();
-    return (Number.isFinite(bTime) ? bTime : 0) -
-      (Number.isFinite(aTime) ? aTime : 0);
-  });
-}
-
-function SkeletonList() {
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {Array.from({ length: 4 }).map((_, idx) => (
-        <div key={idx} style={skRow}>
-          <div style={skDot} />
-          <div style={{ flex: 1 }}>
-            <div style={skLine1} />
-            <div style={skLine2} />
-          </div>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -1108,7 +1155,6 @@ const leaveAlertPrimaryBtn: React.CSSProperties = {
 };
 
 const secondaryRowBtn: React.CSSProperties = {
-
   minHeight: 40,
   padding: "9px 13px",
   borderRadius: 12,

@@ -40,6 +40,49 @@ import {
 
 type UiToast = { title: string; subtitle?: string } | null;
 
+type SummaryRawEvent = Record<string, unknown> & {
+  id?: string | number | null;
+  title?: string | null;
+  start?: string | Date | null;
+  start_at?: string | Date | null;
+  startIso?: string | Date | null;
+  starts_at?: string | Date | null;
+  end?: string | Date | null;
+  lat?: unknown;
+  lng?: unknown;
+  latitude?: unknown;
+  longitude?: unknown;
+  location_lat?: unknown;
+  location_lng?: unknown;
+  place_lat?: unknown;
+  place_lng?: unknown;
+  destination_lat?: unknown;
+  destination_lng?: unknown;
+  venue_lat?: unknown;
+  venue_lng?: unknown;
+  location?: unknown;
+  place?: unknown;
+  destination?: unknown;
+  venue?: unknown;
+};
+
+type ProposalProfileMap = Awaited<ReturnType<typeof getProfilesMapByIds>>;
+
+function getErrorMessage(error: unknown, fallback = "Intenta nuevamente."): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message?: unknown }).message ?? fallback);
+  }
+  return fallback;
+}
+
+function toDateInput(value: unknown): string | number | Date | null {
+  if (typeof value === "string" || typeof value === "number" || value instanceof Date) {
+    return value;
+  }
+  return null;
+}
+
 export type SmartMobilityState = {
   available: boolean;
   loading: boolean;
@@ -73,7 +116,7 @@ type UseSummaryDataReturn = {
   toast: UiToast;
   groups: GroupRow[];
   activeGroupId: string | null;
-  events: any[];
+  events: SummaryRawEvent[];
   declinedEventIds: Set<string>;
   ignoredConflictKeys: Set<string>;
   resMap: Record<string, Resolution>;
@@ -81,7 +124,7 @@ type UseSummaryDataReturn = {
   recentDecisions: RecentDecision[];
   proposalResponsesMap: Record<string, ProposalResponseRow>;
   proposalResponseGroupsMap: Record<string, ProposalResponseRow[]>;
-  proposalProfilesMap: Record<string, any>;
+  proposalProfilesMap: ProposalProfileMap;
   smartMobility: SmartMobilityState;
   showToast: (title: string, subtitle?: string) => void;
   refreshSummary: () => Promise<void>;
@@ -111,7 +154,7 @@ const EMPTY_SMART_MOBILITY: SmartMobilityState = {
   originConfidence: null,
   originUpdatedAt: null,
 };
-function getEventDestination(event: any): LatLng | null {
+function getEventDestination(event: SummaryRawEvent | null | undefined): LatLng | null {
   if (!event || typeof event !== "object") return null;
 
   return (
@@ -129,7 +172,7 @@ function getEventDestination(event: any): LatLng | null {
   );
 }
 
-function getEventStartIso(event: any): string | null {
+function getEventStartIso(event: SummaryRawEvent | null | undefined): string | null {
   const raw =
     event?.start ??
     event?.start_at ??
@@ -137,15 +180,16 @@ function getEventStartIso(event: any): string | null {
     event?.starts_at ??
     null;
 
-  if (!raw) return null;
+  const dateInput = toDateInput(raw);
+  if (!dateInput) return null;
 
-  const parsed = new Date(raw);
+  const parsed = new Date(dateInput);
   if (Number.isNaN(parsed.getTime())) return null;
 
   return parsed.toISOString();
 }
 
-function findNextEventWithDestination(events: any[]): any | null {
+function findNextEventWithDestination(events: SummaryRawEvent[]): SummaryRawEvent | null {
   const now = Date.now();
 
   return (
@@ -182,7 +226,7 @@ function buildWazeUrl(destination: LatLng): string {
 }
 
 async function calculateSmartMobilityFromEvents(
-  events: any[],
+  events: SummaryRawEvent[],
   signal?: AbortSignal,
 ): Promise<SmartMobilityState> {
   if (signal?.aborted) throw new DOMException("Smart Mobility aborted", "AbortError");
@@ -381,7 +425,7 @@ export function useSummaryData({
 
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<SummaryRawEvent[]>([]);
   const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -401,7 +445,7 @@ export function useSummaryData({
     Record<string, ProposalResponseRow[]>
   >({});
   const [proposalProfilesMap, setProposalProfilesMap] = useState<
-    Record<string, any>
+    ProposalProfileMap
   >({});
   const [smartMobility, setSmartMobility] = useState<SmartMobilityState>(EMPTY_SMART_MOBILITY);
 
@@ -516,7 +560,7 @@ export function useSummaryData({
         getRecentConflictResolutionLogs(8).catch(() => []),
       ]);
 
-      const safeEvents = Array.isArray(es) ? es : [];
+      const safeEvents = (Array.isArray(es) ? es : []) as SummaryRawEvent[];
       const proposalEventIds = safeEvents
         .map(normalizeEvent)
         .filter(Boolean)
@@ -579,7 +623,7 @@ export function useSummaryData({
           });
         }
       })();
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (loadGeneration !== loadGenerationRef.current) {
         return;
       }
@@ -589,7 +633,7 @@ export function useSummaryData({
         loading: false,
       }));
 
-      const subtitle = e?.message || "Intenta nuevamente.";
+      const subtitle = getErrorMessage(e, "Intenta nuevamente.");
       const key = `summary-load:${String(subtitle)}`;
       const now = Date.now();
       const last = lastLoadErrorToastRef.current;
