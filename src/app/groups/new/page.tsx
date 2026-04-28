@@ -13,7 +13,12 @@ import { trackEvent, trackScreenView } from "@/lib/analytics";
 
 type GType = "pair" | "family" | "other";
 type UiToast = null | { title: string; subtitle?: string };
-
+type CreatedGroupResult = {
+  id?: string | null;
+  group?: {
+    id?: string | null;
+  } | null;
+};
 type TypeMeta = {
   key: GType;
   label: string;
@@ -207,7 +212,10 @@ export default function NewGroupPage() {
     setSaving(true);
 
     try {
-      const created: any = await createGroup({ type, name: name.trim() });
+     const created = (await createGroup({
+  type,
+  name: name.trim(),
+})) as CreatedGroupResult;
 
       const gid =
         (typeof created?.id === "string" && created.id) ||
@@ -243,12 +251,13 @@ export default function NewGroupPage() {
           )}&wow=1&from=first-group`
         );
       }, 450);
-    } catch (err: any) {
-      showTemporaryToast({
-        title: "No se pudo crear",
-        subtitle: err?.message || "Intenta nuevamente.",
-      }, 2800);
-    } finally {
+  } catch (err: unknown) {
+  showTemporaryToast({
+    title: "No se pudo crear",
+    subtitle: err instanceof Error ? err.message : "Intenta nuevamente.",
+  }, 2800);
+}
+    finally {
       setSaving(false);
     }
   }

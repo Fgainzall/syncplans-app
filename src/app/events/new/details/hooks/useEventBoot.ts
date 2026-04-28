@@ -14,8 +14,19 @@ type DbGroup = {
   name: string | null;
   type: "family" | "pair" | "other" | string;
 };
+type EventOwnerCandidate = {
+  owner_id?: unknown;
+  ownerId?: unknown;
+  created_by?: unknown;
+  createdBy?: unknown;
+  user_id?: unknown;
+  userId?: unknown;
+};
 
-function resolveEventOwnerId(event: any): string | null {
+type RouterLike = {
+  replace: (href: string) => void;
+};
+function resolveEventOwnerId(event: EventOwnerCandidate | null | undefined): string | null {
   const candidate =
     event?.owner_id ??
     event?.ownerId ??
@@ -35,7 +46,7 @@ export function useEventBoot({
   isSharedProposal,
   proposalEventIdParam,
 }: {
-  router: any;
+ router: RouterLike;
   groupIdParam: string | null;
   isSharedProposal: boolean;
   proposalEventIdParam: string;

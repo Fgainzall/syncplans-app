@@ -65,7 +65,7 @@ export default function InvitationsPage() {
     }));
   }, [invites]);
 
-  async function requireSessionOrRedirect() {
+  const requireSessionOrRedirect = useCallback(async () => {
     const { data, error } = await supabase.auth.getSession();
     if (error || !data.session?.user) {
       const next = encodeURIComponent(
@@ -75,7 +75,7 @@ export default function InvitationsPage() {
       return null;
     }
     return data.session.user;
-  }
+  }, [router]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,12 +86,13 @@ export default function InvitationsPage() {
       const data = await getMyInvitations();
       setInvites(Array.isArray(data) ? data : []);
       setError(null);
-    } catch (e: any) {
-      setError(e?.message ?? "Error cargando invitaciones");
-    } finally {
+ } catch (e: unknown) {
+  setError(e instanceof Error ? e.message : "Error cargando invitaciones");
+}
+    finally {
       setLoading(false);
     }
-  }, [router]);
+}, [requireSessionOrRedirect]);
 
   useEffect(() => {
     let alive = true;
@@ -132,9 +133,10 @@ export default function InvitationsPage() {
         "Listo. Ya no aparecerá como pendiente."
       );
       await load();
-    } catch (e: any) {
-      showToast("No se pudo rechazar", e?.message || "Intenta otra vez.");
-    } finally {
+   } catch (e: unknown) {
+  showToast("No se pudo rechazar", e instanceof Error ? e.message : "Intenta otra vez.");
+}
+     finally {
       setActing(null);
     }
   };

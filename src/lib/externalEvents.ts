@@ -31,12 +31,24 @@ export type ExternalEvent = {
   /** Ubicación textual (si existe) */
   location?: string | null;
 };
+type GoogleCalendarDateLike = {
+  date?: string | null;
+  dateTime?: string | null;
+};
 
+type GoogleCalendarItemLike = {
+  id?: unknown;
+  summary?: unknown;
+  start?: GoogleCalendarDateLike | null;
+  end?: GoogleCalendarDateLike | null;
+  htmlLink?: string | null;
+  location?: string | null;
+};
 /**
  * Intenta convertir cualquier valor (string/Date) en un ISO string.
  * Si falla, devuelve null.
  */
-function toIsoOrNull(raw: any): string | null {
+function toIsoOrNull(raw: unknown): string | null {
   if (!raw) return null;
 
   try {
@@ -65,7 +77,7 @@ function toIsoOrNull(raw: any): string | null {
  * No hace ninguna escritura, solo lectura/snapshot.
  */
 export function normalizeGoogleCalendarItems(
-  items: any[],
+  items: GoogleCalendarItemLike[],
   opts?: { calendarId?: string },
 ): ExternalEvent[] {
   const calendarId = opts?.calendarId ?? "primary";

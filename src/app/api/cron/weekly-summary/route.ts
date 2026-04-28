@@ -15,6 +15,10 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const EMAIL_FROM =
   process.env.EMAIL_FROM || "SyncPlans <no-reply@syncplansapp.com>";
 
+type WeeklyProfileRow = {
+  first_name?: string | null;
+  email?: string | null;
+};
 // Autorización básica para llamadas de cron
 function getCronAuthError(req: Request): string | null {
   const isProduction = process.env.NODE_ENV === "production";
@@ -250,7 +254,8 @@ async function runWeeklySummary(req: Request) {
           continue;
         }
 
-        const email = String((profile as any)?.email ?? "").trim();
+       const profileRow = profile as WeeklyProfileRow | null;
+const email = String(profileRow?.email ?? "").trim();
         if (!email) continue;
 
         const { data: events, error: eventsErr } = await supabase
@@ -267,7 +272,7 @@ async function runWeeklySummary(req: Request) {
         }
 
         const html = renderWeeklyHtml({
-          userName: String((profile as any)?.first_name ?? "").trim(),
+          userName: String(profileRow?.first_name ?? "").trim(),
           label,
           events: (events ?? []) as Array<{
             title: string;
