@@ -183,10 +183,8 @@ function useIsMobileWidth(maxWidth = layout.mobileBreakpoint) {
       return () => mq.removeEventListener("change", apply);
     }
 
-    // @ts-ignore legacy support
     mq.addListener(apply);
     return () => {
-      // @ts-ignore legacy support
       mq.removeListener(apply);
     };
   }, [maxWidth]);

@@ -756,7 +756,7 @@ export default function PanelPage() {
 
   let heroSummary =
     "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones.";
-  let heroSummaryMobile =
+  const heroSummaryMobile =
     totalGroups === 0
       ? "Activa tu primer espacio compartido."
       : `${totalGroups} grupos activos. Gestiona estructura y accesos.`;

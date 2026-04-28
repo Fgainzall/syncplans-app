@@ -26,16 +26,21 @@ import {
 export type { CalendarEvent, GroupType };
 export type SyncPlansGroupType = GroupType;
 
+type LegacyEventInput = Partial<CalendarEvent> & {
+  notes?: unknown;
+  description?: unknown;
+};
+
 /** uid local (no dependas de exports inexistentes) */
 function uid(prefix = "ev") {
   try {
-    // @ts-ignore
-    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
       return `${prefix}_${crypto.randomUUID()}`;
     }
   } catch {
     // ignore
   }
+
   return `${prefix}_${Date.now().toString(36)}_${Math.random()
     .toString(36)
     .slice(2, 10)}`;
@@ -44,7 +49,7 @@ function uid(prefix = "ev") {
 /* =========================================
    Normalizador (compat notes <-> description)
    ========================================= */
-function normalizeEvent(e: any): CalendarEvent {
+function normalizeEvent(e: LegacyEventInput): CalendarEvent {
   return {
     id: String(e?.id ?? uid("ev")),
     title: String(e?.title ?? ""),
@@ -58,16 +63,16 @@ function normalizeEvent(e: any): CalendarEvent {
       typeof e?.description === "string"
         ? e.description
         : typeof e?.notes === "string"
-        ? e.notes
-        : "",
+          ? e.notes
+          : "",
 
     // 🧯 compat
     notes:
       typeof e?.notes === "string"
         ? e.notes
         : typeof e?.description === "string"
-        ? e.description
-        : "",
+          ? e.description
+          : "",
   };
 }
 
@@ -76,7 +81,7 @@ function normalizeEvent(e: any): CalendarEvent {
    ========================================= */
 
 export async function getEvents(): Promise<CalendarEvent[]> {
-  const list = _loadEvents().map(normalizeEvent);
+  const list = _loadEvents().map((event) => normalizeEvent(event as LegacyEventInput));
   _saveEvents(list);
   return list;
 }

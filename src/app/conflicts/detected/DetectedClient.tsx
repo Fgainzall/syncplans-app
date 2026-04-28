@@ -84,17 +84,15 @@ function useIsMobileWidth(maxWidth = 520) {
 
     apply();
 
-    if (typeof mq.addEventListener === "function") {
+      if (typeof mq.addEventListener === "function") {
       mq.addEventListener("change", apply);
       return () => mq.removeEventListener("change", apply);
-    } else {
-      // @ts-ignore
-      mq.addListener(apply);
-      return () => {
-        // @ts-ignore
-        mq.removeListener(apply);
-      };
     }
+
+    mq.addListener(apply);
+    return () => {
+      mq.removeListener(apply);
+    };
   }, [maxWidth]);
 
   return isMobile;

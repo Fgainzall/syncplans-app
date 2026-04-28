@@ -89,6 +89,7 @@ export function EventEditModal({
 
     const ie = initialEvent;
     if (!ie) {
+       // eslint-disable-next-line react-hooks/set-state-in-effect -- Modal form state must reset when a different event is opened.
       setTitle("");
       setStartLocal("");
       setEndLocal("");
@@ -98,7 +99,7 @@ export function EventEditModal({
       setError(null);
       return;
     }
-
+ // eslint-disable-next-line react-hooks/set-state-in-effect -- Modal form state must hydrate from the selected event when opened.
     setTitle(ie.title ?? "");
     setStartLocal(isoToLocalInput(ie.start));
     setEndLocal(isoToLocalInput(ie.end));

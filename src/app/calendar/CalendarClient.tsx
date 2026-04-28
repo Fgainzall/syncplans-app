@@ -166,14 +166,12 @@ function useIsMobileWidth(maxWidth = 720) {
     if (typeof mq.addEventListener === "function") {
       mq.addEventListener("change", apply);
       return () => mq.removeEventListener("change", apply);
-    } else {
-      // @ts-ignore
-      mq.addListener(apply);
-      return () => {
-        // @ts-ignore
-        mq.removeListener(apply);
-      };
     }
+
+    mq.addListener(apply);
+    return () => {
+      mq.removeListener(apply);
+    };
   }, [maxWidth]);
 
   return isMobile;
@@ -1779,7 +1777,7 @@ function renderMonthCells(opts: {
   } = opts;
 
   const cells: React.ReactNode[] = [];
-  let day = new Date(gridStart);
+  const day = new Date(gridStart);
 
   while (day <= gridEnd) {
     const cellDate = new Date(day);

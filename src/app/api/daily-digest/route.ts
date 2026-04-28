@@ -307,7 +307,7 @@ async function getEventsForUserOnDay(
     )
   );
 
-  let groupMap: Record<
+  const groupMap: Record<
     string,
     { name: string | null; type: string | null }
   > = {};

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // src/app/calendar/day/page.tsx
 
 import { Suspense } from "react";

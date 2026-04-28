@@ -159,10 +159,8 @@ function useIsMobileWidth(maxWidth = 520) {
       return () => mq.removeEventListener("change", apply);
     }
 
-    // @ts-ignore
-    mq.addListener(apply);
+     mq.addListener(apply);
     return () => {
-      // @ts-ignore
       mq.removeListener(apply);
     };
   }, [maxWidth]);

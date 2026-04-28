@@ -340,7 +340,7 @@ export function getBestGroupFromLearning(
       }
 
       let score = buildIntentScore(stat);
-      let confidence = Math.min(1, stat.total / 4);
+      const confidence = Math.min(1, stat.total / 4);
 
       if (keywordHints.includes("pair_like") && intentKey === "dinner") {
         score += 0.12;
