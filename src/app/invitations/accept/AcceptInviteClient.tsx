@@ -261,13 +261,13 @@ export default function AcceptInviteClient() {
 
         setInv(invitation ?? null);
         setProfile(fetchedProfile ?? null);
-      } catch (e: any) {
+     } catch (e: unknown) {
         if (!alive) return;
         setInv(null);
         setProfile(null);
         showToast({
           title: "No se pudo cargar la invitación",
-          subtitle: e?.message || "Intenta otra vez.",
+         subtitle: e instanceof Error ? e.message : "Intenta otra vez.",
         });
       } finally {
         if (alive) setLoading(false);
@@ -362,7 +362,7 @@ export default function AcceptInviteClient() {
         },
       });
 
-      setInv((prev) => (prev ? { ...prev, status: "accepted" as any } : prev));
+     setInv((prev) => (prev ? { ...prev, status: "accepted" } : prev));
 
       try {
         await setActiveGroupIdInDb(inv.group_id);
@@ -418,12 +418,13 @@ export default function AcceptInviteClient() {
       navTimerRef.current = window.setTimeout(() => {
         router.push(`/groups/${inv.group_id}?from=invite_accept&accepted=1`);
       }, 700);
-    } catch (e: any) {
-      showToast({
-        title: "No se pudo aceptar",
-        subtitle: e?.message || "Intenta otra vez.",
-      });
-    } finally {
+ } catch (e: unknown) {
+  showToast({
+    title: "No se pudo aceptar",
+    subtitle: e instanceof Error ? e.message : "Intenta otra vez.",
+  });
+}
+    finally {
       setBusy(null);
     }
   }
@@ -453,18 +454,19 @@ export default function AcceptInviteClient() {
         },
       });
 
-      setInv((prev) => (prev ? { ...prev, status: "declined" as any } : prev));
+      setInv((prev) => (prev ? { ...prev, status: "declined" } : prev));
 
       showToast({
         title: "Invitación rechazada",
         subtitle: "No se hicieron cambios en tus grupos.",
       });
-    } catch (e: any) {
-      showToast({
-        title: "No se pudo rechazar",
-        subtitle: e?.message || "Intenta otra vez.",
-      });
-    } finally {
+    } catch (e: unknown) {
+  showToast({
+    title: "No se pudo rechazar",
+    subtitle: e instanceof Error ? e.message : "Intenta otra vez.",
+  });
+}
+    finally {
       setBusy(null);
     }
   }

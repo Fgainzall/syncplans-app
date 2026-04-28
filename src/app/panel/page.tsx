@@ -103,7 +103,23 @@ const CONTEXT_OPTIONS: ContextOption[] = [
   { key: "pair", label: "Pareja", hint: "Coordinación de dos", dot: "#F87171" },
   { key: "family", label: "Familia", hint: "Varios miembros", dot: "#60A5FA" },
 ];
+type PanelGroupLike = {
+  id?: string | number | null;
+  type?: string | null;
+};
 
+type GoogleStatusResponse = {
+  ok: boolean;
+  connected: boolean;
+  connection_state?: GoogleStatus["connection_state"];
+  error?: string;
+};
+
+type GoogleListResponse = {
+  ok?: boolean;
+  items?: Parameters<typeof normalizeGoogleCalendarItems>[0];
+  error?: string;
+};
 async function ensureActiveGroupForMode(
   mode: UsageMode
 ): Promise<string | null> {
@@ -121,7 +137,9 @@ async function ensureActiveGroupForMode(
   const wantType = String(mode).toLowerCase();
 
   if (existing) {
-    const current = groups.find((g: any) => String(g.id) === String(existing));
+    const current = (groups as PanelGroupLike[]).find(
+  (g) => String(g.id) === String(existing)
+);
     const currentType = String(current?.type ?? "").toLowerCase();
     if (current && currentType === wantType) {
       return String(existing);
@@ -129,7 +147,7 @@ async function ensureActiveGroupForMode(
   }
 
   const match = groups.find(
-    (g: any) => String(g.type ?? "").toLowerCase() === wantType
+  (g: PanelGroupLike) => String(g.type ?? "").toLowerCase() === wantType
   );
   const pick = match?.id ?? groups[0]?.id ?? null;
 
@@ -363,10 +381,15 @@ export default function PanelPage() {
       );
       setGroups(fetchedGroups);
       setProfile(fetchedProfile);
-    } catch (err: any) {
-      console.error("Error cargando panel:", err);
-      setError(err?.message || "No se pudo cargar el panel. Intenta recargar.");
-    } finally {
+  } catch (err: unknown) {
+  console.error("Error cargando panel:", err);
+  setError(
+    err instanceof Error
+      ? err.message
+      : "No se pudo cargar el panel. Intenta recargar."
+  );
+}
+    finally {
       setLoading(false);
     }
   }, []);
@@ -480,7 +503,7 @@ export default function PanelPage() {
         cache: "no-store",
       });
 
-      const json = (await res.json().catch(() => null)) as GoogleStatus | null;
+      const json = (await res.json().catch(() => null)) as GoogleStatusResponse | null;
 
       if (!res.ok || !json?.ok) {
         setGoogleStatus({
@@ -492,14 +515,26 @@ export default function PanelPage() {
         return;
       }
 
-      setGoogleStatus(json);
-    } catch (err: any) {
-      console.error("Error leyendo estado de Google:", err);
-      setGoogleStatus({
-        ok: false,
-        connected: false,
-        connection_state: "disconnected",
-        error: err?.message || "Error inesperado al consultar Google Calendar conectado.",
+setGoogleStatus({
+  ok: Boolean(json.ok),
+  connected: Boolean(json.connected),
+connection_state:
+  json.connection_state === "connected" ||
+  json.connection_state === "disconnected"
+    ? json.connection_state
+    : "disconnected",
+  error: json.error ?? undefined,
+});
+} catch (err: unknown) {
+  console.error("Error leyendo estado de Google:", err);
+  setGoogleStatus({
+    ok: false,
+    connected: false,
+    connection_state: "disconnected",
+    error:
+      err instanceof Error
+        ? err.message
+        : "Error inesperado al consultar Google Calendar conectado.",
       });
     } finally {
       setGoogleLoading(false);
@@ -521,7 +556,7 @@ export default function PanelPage() {
       });
 
       const json = (await res.json().catch(() => null)) as
-        | { ok?: boolean; items?: any[]; error?: string }
+      | GoogleListResponse
         | null;
 
       if (!res.ok || !json?.ok) {
@@ -530,16 +565,21 @@ export default function PanelPage() {
         return;
       }
 
-      const normalized = normalizeGoogleCalendarItems(json.items ?? [], {
-        calendarId: "primary",
-      });
+    const normalized = normalizeGoogleCalendarItems(json.items ?? [], {
+  calendarId: "primary",
+});
 
       setGoogleEvents(normalized);
-    } catch (err: any) {
-      console.error("Error leyendo eventos de Google:", err);
-      setGoogleEvents([]);
-      setGoogleEventsError(err?.message || "Error inesperado al leer eventos de Google.");
-    } finally {
+ } catch (err: unknown) {
+  console.error("Error leyendo eventos de Google:", err);
+  setGoogleEvents([]);
+  setGoogleEventsError(
+    err instanceof Error
+      ? err.message
+      : "Error inesperado al leer eventos de Google."
+  );
+}
+    finally {
       setGoogleEventsLoading(false);
     }
   }, []);

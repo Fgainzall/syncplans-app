@@ -19,7 +19,21 @@ type ToastState =
       title: string;
       subtitle?: string;
     };
+type InviteGroupRow = {
+  id: string;
+  name: string | null;
+  type: string | null;
+  is_active: boolean | null;
+};
 
+type InviteToGroupResult = {
+  ok?: boolean;
+  invite_id?: string | null;
+  id?: string | null;
+  accept_url?: string | null;
+  warning?: string | null;
+  error?: string | null;
+};
 function isEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
@@ -86,13 +100,20 @@ export default function GroupInviteClient() {
         const myGroups = await fetchMyGroups();
         if (!alive) return;
 
-        const rows = Array.isArray(myGroups) ? myGroups : [];
-        setGroups(rows);
+       const rows: InviteGroupRow[] = (Array.isArray(myGroups) ? myGroups : [])
+  .map((group) => ({
+    id: String(group.id ?? ""),
+  name: group.name ? String(group.name) : null,
+type: group.type ? String(group.type) : null,
+is_active: Boolean(group.is_active),
+  }))
+  .filter((group) => group.id);
+        setGroups(rows as GroupRow[]);
 
         if (!selectedGroupId && rows.length > 0) {
           const preferred =
-            rows.find((g: any) => g.type === "pair") ??
-            rows.find((g: any) => g.is_active) ??
+          rows.find((g) => g.type === "pair") ??
+rows.find((g) => g.is_active) ??
             rows[0];
 
           setSelectedGroupId(String(preferred?.id ?? ""));
@@ -110,7 +131,10 @@ export default function GroupInviteClient() {
   }, [selectedGroupId]);
 
   const selectedGroup = useMemo(
-    () => groups.find((g: any) => String(g.id) === String(selectedGroupId)) ?? null,
+   () =>
+  (groups as InviteGroupRow[]).find(
+    (g) => String(g.id) === String(selectedGroupId)
+  ) ?? null,
     [groups, selectedGroupId]
   );
 
@@ -150,11 +174,11 @@ export default function GroupInviteClient() {
     try {
       setSending(true);
 
-   const result: any = await inviteToGroup({
+  const result = (await inviteToGroup({
   groupId: selectedGroupId,
   email: email.trim(),
   role: "member",
-});
+})) as InviteToGroupResult;
 
       const inviteId = result?.invite_id ?? result?.id ?? null;
       const inviteUrl =
@@ -184,12 +208,13 @@ export default function GroupInviteClient() {
             ? "Ahora el siguiente momento clave es que tu pareja la acepte."
             : "La invitación ya quedó lista para compartir.",
       });
-    } catch (error: any) {
-      pushToast({
-        title: "No se pudo invitar",
-        subtitle: error?.message ?? "Inténtalo nuevamente.",
-      });
-    } finally {
+ } catch (error: unknown) {
+  pushToast({
+    title: "No se pudo invitar",
+    subtitle: error instanceof Error ? error.message : "Inténtalo nuevamente.",
+  });
+}
+    finally {
       setSending(false);
     }
   }
@@ -327,7 +352,7 @@ export default function GroupInviteClient() {
                     style={styles.select}
                   >
                     <option value="">Selecciona un grupo</option>
-                    {groups.map((group: any) => (
+                   {(groups as InviteGroupRow[]).map((group) => (
                       <option key={String(group.id)} value={String(group.id)}>
                         {group.name || "Sin nombre"} · {groupMeta(String(group.type)).label}
                       </option>

@@ -46,7 +46,12 @@ type GroupsState = {
   refresh: () => Promise<void>;
   setActive: (groupId: string | null) => Promise<void>;
 };
-
+type StoreGroupRow = DbGroupRow & {
+  role?: string | null;
+  created_at?: string | null;
+  created_by?: string | null;
+  my_display_name?: string | null;
+};
 function normalizeGroupType(t: DbGroupRow["type"]): GroupType {
   return normalizeCanonicalGroupType(String(t ?? "")) as GroupType;
 }
@@ -82,16 +87,16 @@ const creator: StateCreator<GroupsState, [], [], GroupsState> = (set, get) => ({
       const activeId = await getActiveGroupIdFromDb().catch(() => null);
 
       // 3) normalizar items (name humano)
-      const items: GroupItem[] = (rows ?? []).map((g: DbGroupRow) => {
+     const items: GroupItem[] = ((rows ?? []) as StoreGroupRow[]).map((g) => {
         const type = normalizeGroupType(g.type);
         return {
           id: g.id,
           name: getHumanGroupName(g),
           type,
-          role: (g as any).role ?? "member",
-          created_at: (g as any).created_at ?? null,
-          created_by: (g as any).created_by ?? null,
-          my_display_name: (g as any).my_display_name ?? null,
+         role: g.role ?? "member",
+created_at: g.created_at ?? null,
+created_by: g.created_by ?? null,
+my_display_name: g.my_display_name ?? null,
         };
       });
 
@@ -117,13 +122,13 @@ const creator: StateCreator<GroupsState, [], [], GroupsState> = (set, get) => ({
         activeGroup,
         hydrated: true,
       });
-    } catch (e: any) {
-      set({
-        loading: false,
-        error: e?.message ?? "No se pudieron cargar tus grupos.",
-        hydrated: true,
-      });
-    }
+ } catch (e: unknown) {
+  set({
+    loading: false,
+    error: e instanceof Error ? e.message : "No se pudieron cargar tus grupos.",
+    hydrated: true,
+  });
+}
   },
 
   setActive: async (groupId: string | null) => {

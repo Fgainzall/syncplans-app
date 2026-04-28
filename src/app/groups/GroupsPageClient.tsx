@@ -37,7 +37,14 @@ type UiToast =
       title: string;
       subtitle?: string;
     };
-
+type GroupsPageRawGroup = {
+  id: string | number;
+  name?: string | null;
+  type?: string | null;
+  role?: GroupRole | null;
+  members_count?: number | null;
+  is_active?: boolean | null;
+};
 export default function GroupsPage() {
   const router = useRouter();
   const isNarrow = useIsNarrowScreen();
@@ -97,7 +104,7 @@ export default function GroupsPage() {
         getMyProfile().catch(() => null),
       ]);
 
-      const rawGroups = (groupsData || []) as any[];
+     const rawGroups = (groupsData || []) as GroupsPageRawGroup[];
       const enriched: GroupWithRole[] = rawGroups.map((g) => ({
         id: String(g.id),
         name: g.name ?? "",
@@ -108,7 +115,7 @@ export default function GroupsPage() {
       }));
 
       setGroups(enriched);
-      setPendingInvites(((invitesData as any[]) ?? []).length);
+     setPendingInvites(Array.isArray(invitesData) ? invitesData.length : 0);
       setProfile(profileRow ?? null);
 
       if (withToast) {
@@ -118,12 +125,12 @@ export default function GroupsPage() {
         });
         window.setTimeout(() => setToast(null), 2600);
       }
-    } catch (e: any) {
-      console.error("Error refrescando grupos", e);
-      setToast({
-        title: "No se pudo actualizar",
-        subtitle: e?.message ?? "Inténtalo más tarde.",
-      });
+ } catch (e: unknown) {
+  console.error("Error refrescando grupos", e);
+  setToast({
+    title: "No se pudo actualizar",
+    subtitle: e instanceof Error ? e.message : "Inténtalo más tarde.",
+  });
       window.setTimeout(() => setToast(null), 2600);
     } finally {
       setLoading(false);
@@ -146,12 +153,12 @@ export default function GroupsPage() {
         subtitle: "Tu calendario y eventos usarán este grupo.",
       });
       window.setTimeout(() => setToast(null), 2600);
-    } catch (e: any) {
-      console.error("Error activando grupo", e);
-      setToast({
-        title: "No se pudo cambiar el grupo",
-        subtitle: e?.message ?? "Inténtalo más tarde.",
-      });
+  } catch (e: unknown) {
+  console.error("Error activando grupo", e);
+  setToast({
+    title: "No se pudo cambiar el grupo",
+    subtitle: e instanceof Error ? e.message : "Inténtalo más tarde.",
+  });
       window.setTimeout(() => setToast(null), 2600);
     }
   }
@@ -479,7 +486,7 @@ function GroupRow({
           <div style={styles.groupName}>{g.name || meta.label}</div>
           <div style={styles.groupMetaRow}>
             <span style={styles.groupMetaType}>
-              {getGroupTypeLabel(g.type as any)}
+             {getGroupTypeLabel(String(g.type ?? "other"))}
             </span>
             <span style={styles.dotSeparator}>•</span>
             <span style={styles.groupMetaMembers}>
