@@ -1,7 +1,7 @@
 // src/app/settings/groups/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 
 import PremiumHeader from "@/components/PremiumHeader";
@@ -12,7 +12,11 @@ import { getSettingsFromDb, saveSettingsToDb, type NotificationSettings } from "
 
 type UiToast = { title: string; subtitle?: string } | null;
 type PermMode = "owner_only" | "shared_read" | "shared_write";
-
+type GroupPermissionSettings = {
+  permPersonal: PermMode;
+  permPair: PermMode;
+  permFamily: PermMode;
+};
 export default function GroupPermsSettingsPage() {
   const router = useRouter();
 
@@ -72,10 +76,17 @@ export default function GroupPermsSettingsPage() {
     }
   }
 
-  const personal = (((s as any)?.permPersonal ?? "owner_only") as PermMode) || "owner_only";
-  const pair = (((s as any)?.permPair ?? "shared_write") as PermMode) || "shared_write";
-  const family = (((s as any)?.permFamily ?? "shared_read") as PermMode) || "shared_read";
+const rawGroupSettings = s as Partial<GroupPermissionSettings> | null;
 
+const groupSettings: GroupPermissionSettings = {
+  permPersonal: rawGroupSettings?.permPersonal ?? "owner_only",
+  permPair: rawGroupSettings?.permPair ?? "shared_write",
+  permFamily: rawGroupSettings?.permFamily ?? "shared_read",
+};
+
+const personal = groupSettings.permPersonal;
+const pair = groupSettings.permPair;
+const family = groupSettings.permFamily;
   const meta = useMemo(() => {
     if (!s) return null;
     return `${personal} · ${pair} · ${family}`;
@@ -135,7 +146,10 @@ export default function GroupPermsSettingsPage() {
               subtitle="Recomendado: Solo yo."
               dot="rgba(251,191,36,0.95)"
               value={personal}
-              onChange={(v) => commit({ ...(s as any), permPersonal: v })}
+             onChange={(v) => {
+  if (!s) return;
+  commit({ ...s, permPersonal: v });
+}}
               disabled={!s || saving}
             />
             <Divider />
@@ -144,7 +158,10 @@ export default function GroupPermsSettingsPage() {
               subtitle="Recomendado: Edición compartida."
               dot="rgba(244,63,94,0.95)"
               value={pair}
-              onChange={(v) => commit({ ...(s as any), permPair: v })}
+           onChange={(v) => {
+  if (!s) return;
+  commit({ ...s, permPair: v });
+}}
               disabled={!s || saving}
             />
             <Divider />
@@ -153,7 +170,10 @@ export default function GroupPermsSettingsPage() {
               subtitle="Recomendado: Lectura compartida."
               dot="rgba(56,189,248,0.95)"
               value={family}
-              onChange={(v) => commit({ ...(s as any), permFamily: v })}
+             onChange={(v) => {
+  if (!s) return;
+  commit({ ...s, permFamily: v });
+}}
               disabled={!s || saving}
             />
           </div>
@@ -224,7 +244,7 @@ function PermCard({
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
+const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     background:
@@ -283,7 +303,7 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.9,
     fontWeight: 900,
   },
-  h1: { margin: "10px 0 0", fontSize: 26, letterSpacing: "-0.6px", fontWeight: 900 as any },
+  h1: { margin: "10px 0 0", fontSize: 26, letterSpacing: "-0.6px", fontWeight: 900 },
   sub: { marginTop: 8, fontSize: 13, opacity: 0.75, maxWidth: 720 },
   heroBtns: { display: "flex", gap: 10, flexWrap: "wrap" },
   heroMeta: { marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" },
@@ -316,7 +336,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   permTitleLine: { display: "flex", alignItems: "center", gap: 10 },
   dot: { width: 10, height: 10, borderRadius: 999, boxShadow: "0 0 16px rgba(255,255,255,0.10)" },
-  permTitle: { fontSize: 13, fontWeight: 950 as any, letterSpacing: "-0.2px" },
+  permTitle: { fontSize: 13, fontWeight: 950 , letterSpacing: "-0.2px" },
   permSub: { marginTop: 6, fontSize: 12, opacity: 0.72, lineHeight: 1.3 },
 
   select: {
@@ -326,13 +346,13 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(6,10,20,0.55)",
     color: "rgba(255,255,255,0.92)",
-    fontWeight: 800 as any,
+    fontWeight: 800,
     outline: "none",
   },
 
   divider: { height: 1, background: "rgba(255,255,255,0.08)" },
 
-  note: { marginTop: 10, fontSize: 12, opacity: 0.78, fontWeight: 650 as any, lineHeight: 1.4 },
+  note: { marginTop: 10, fontSize: 12, opacity: 0.78, fontWeight: 650, lineHeight: 1.4 },
 
   pillSoft: {
     fontSize: 10,
@@ -367,6 +387,6 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.03)",
   },
   loadingDot: { width: 12, height: 12, borderRadius: 999, background: "rgba(56,189,248,0.95)", boxShadow: "0 0 24px rgba(56,189,248,0.55)" },
-  loadingTitle: { fontWeight: 900 as any },
+  loadingTitle: { fontWeight: 900 },
   loadingSub: { fontSize: 12, opacity: 0.75, marginTop: 2 },
 };

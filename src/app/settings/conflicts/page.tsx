@@ -1,7 +1,7 @@
 // src/app/settings/conflicts/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 
 import PremiumHeader from "@/components/PremiumHeader";
@@ -10,8 +10,11 @@ import LogoutButton from "@/components/LogoutButton";
 import { getSettingsFromDb, saveSettingsToDb, type NotificationSettings } from "@/lib/settings";
 
 type UiToast = { title: string; subtitle?: string } | null;
-type ConflictDefaultResolution = "ask_me" | "keep_existing" | "replace_with_new" | "none";
-
+type ConflictDefaultResolution =
+  | "ask_me"
+  | "keep_existing"
+  | "replace_with_new"
+  | "none";
 export default function ConflictsSettingsPage() {
   const router = useRouter();
 
@@ -145,25 +148,35 @@ export default function ConflictsSettingsPage() {
               title="Preguntarme siempre"
               desc="Siempre quiero ver la pantalla con opciones antes de guardar."
               selected={currentResolution === "ask_me"}
-              onClick={() => update("conflictDefaultResolution", "ask_me" as any)}
+             onClick={() => update("conflictDefaultResolution", "ask_me" satisfies ConflictDefaultResolution)}
             />
             <ResolutionCard
               title="Mantener existente"
               desc="Si hay choque, se conserva el evento que ya estaba (el nuevo no se guarda)."
               selected={currentResolution === "keep_existing"}
-              onClick={() => update("conflictDefaultResolution", "keep_existing" as any)}
+             onClick={() =>
+  update(
+    "conflictDefaultResolution",
+    "keep_existing" satisfies ConflictDefaultResolution
+  )
+}
             />
             <ResolutionCard
               title="Reemplazar por el nuevo"
               desc="Si hay choque, se borran los existentes y se guarda el nuevo."
               selected={currentResolution === "replace_with_new"}
-              onClick={() => update("conflictDefaultResolution", "replace_with_new" as any)}
+             onClick={() =>
+  update(
+    "conflictDefaultResolution",
+    "replace_with_new" satisfies ConflictDefaultResolution
+  )
+}
             />
             <ResolutionCard
               title="Conservar ambos"
               desc="Si hay choque, se guardan ambos eventos. Luego puedes ajustar manualmente."
               selected={currentResolution === "none"}
-              onClick={() => update("conflictDefaultResolution", "none" as any)}
+             onClick={() => update("conflictDefaultResolution", "none" satisfies ConflictDefaultResolution)}
             />
           </div>
 
@@ -268,7 +281,7 @@ function ResolutionCard({
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
+const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     background:
@@ -327,7 +340,7 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.9,
     fontWeight: 900,
   },
-  h1: { margin: "10px 0 0", fontSize: 26, letterSpacing: "-0.6px", fontWeight: 900 as any },
+  h1: { margin: "10px 0 0", fontSize: 26, letterSpacing: "-0.6px", fontWeight: 900 },
   sub: { marginTop: 8, fontSize: 13, opacity: 0.75, maxWidth: 720 },
   heroBtns: { display: "flex", gap: 10, flexWrap: "wrap" },
   heroMeta: { marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" },
@@ -396,9 +409,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   resCardOn: { border: "1px solid rgba(244,63,94,0.45)", background: "rgba(244,63,94,0.12)" },
   resCardOff: { border: "1px solid rgba(255,255,255,0.10)", background: "rgba(6,10,20,0.55)" },
-  resTitle: { fontWeight: 950 as any, fontSize: 13, letterSpacing: "-0.2px" },
+  resTitle: { fontWeight: 950, fontSize: 13, letterSpacing: "-0.2px" },
   resDesc: { marginTop: 6, fontSize: 12, opacity: 0.72, lineHeight: 1.3 },
-  resFoot: { fontSize: 11, opacity: 0.70, fontWeight: 800 as any },
+  resFoot: { fontSize: 11, opacity: 0.70, fontWeight: 800 },
 
   footerRow: {
     marginTop: 12,
