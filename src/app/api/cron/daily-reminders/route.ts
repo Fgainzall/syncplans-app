@@ -21,10 +21,10 @@ function getCronAuthError(req: Request): string | null {
   if (token && token === CRON_SECRET) return null;
   if (headerSecret && headerSecret === CRON_SECRET) return null;
 
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    const bearerToken = authHeader.slice(7);
-    if (bearerToken === CRON_SECRET) return null;
-  }
+if (authHeader && authHeader.startsWith("Bearer ")) {
+  const bearerToken = authHeader.slice(7).trim();
+  if (bearerToken === CRON_SECRET) return null;
+}
 
   return "Invalid CRON token.";
 }

@@ -35,10 +35,10 @@ function getCronAuthError(req: Request): string | null {
   if (token && token === CRON_SECRET) return null;
   if (headerSecret && headerSecret === CRON_SECRET) return null;
 
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    const bearer = authHeader.slice(7);
-    if (bearer === CRON_SECRET) return null;
-  }
+if (authHeader && authHeader.startsWith("Bearer ")) {
+  const bearer = authHeader.slice(7).trim();
+  if (bearer === CRON_SECRET) return null;
+}
 
   return "Invalid CRON token.";
 }
@@ -203,7 +203,7 @@ function renderWeeklyHtml(opts: {
 // ─────────────────────────────────────────────
 // POST
 // ─────────────────────────────────────────────
-export async function POST(req: Request) {
+async function runWeeklySummary(req: Request) {
   try {
     // 1️⃣ Seguridad
     const authError = getCronAuthError(req);
@@ -309,4 +309,12 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+}
+
+export async function GET(req: Request) {
+  return runWeeklySummary(req);
+}
+
+export async function POST(req: Request) {
+  return runWeeklySummary(req);
 }
