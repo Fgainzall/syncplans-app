@@ -128,9 +128,7 @@ const [enabledGroups, setEnabledGroups] = useState<Record<GroupType, boolean>>({
   personal: true,
   pair: true,
   family: true,
-  couple: true,
-  other: true,
-  shared: true,
+   other: true,
 });
 
   const [toast, setToast] = useState<null | { title: string; subtitle?: string }>(null);
