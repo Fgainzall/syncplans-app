@@ -119,3 +119,4 @@ Antes de tocar una pantalla o flujo, evaluar:
 ## Estado documental actual
 
 Este README reemplaza el template default de Next.js y sirve como base operativa inicial. El snapshot de DB en `db/schema.sql` es intencionalmente mínimo y documental: prioriza dejar una referencia útil y honesta antes que fingir un dump completo no verificado.
+<!-- trigger vercel rebuild -->
