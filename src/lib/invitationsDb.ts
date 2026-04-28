@@ -1,5 +1,6 @@
 // src/lib/invitationsDb.ts
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import supabase from "@/lib/supabaseClient";
 

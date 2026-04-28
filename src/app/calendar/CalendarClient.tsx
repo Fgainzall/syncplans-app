@@ -16,7 +16,7 @@ import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
 import { EventEditModal } from "@/components/EventEditModal";
 import { CalendarFilters } from "./CalendarFilters";
-import { getMyGroups } from "@/lib/groupsDb";
+import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import {
   getEventsForGroups,
   deleteEventsByIdsDetailed,
@@ -71,6 +71,36 @@ type CalendarEventWithOwner = CalendarEvent & {
   owner_id?: string | null;
   created_by?: string | null;
 };
+
+type CalendarDbEventRow = {
+  id?: unknown;
+  title?: unknown;
+  start?: unknown;
+  start_at?: unknown;
+  end?: unknown;
+  end_at?: unknown;
+  notes?: unknown;
+  group_id?: unknown;
+  groupId?: unknown;
+  user_id?: unknown;
+  owner_id?: unknown;
+  created_by?: unknown;
+};
+
+type EnabledGroups = {
+  personal: boolean;
+  pair: boolean;
+  family: boolean;
+  other: boolean;
+};
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message?: unknown }).message ?? "");
+  }
+  return "";
+}
 
 type Scope = "personal" | "active" | "all";
 type Tab = "month" | "agenda";
@@ -180,6 +210,15 @@ function normalizeForConflicts(
   gt: string | null | undefined
 ): GroupType {
   return normalizeGroupType(gt ?? "personal");
+}
+function normalizeForEventEditModal(
+  gt: GroupType | string | null | undefined
+): "personal" | "family" | "pair" | "other" | "couple" {
+  const raw = String(gt ?? "personal").toLowerCase();
+  if (raw === "family") return "family";
+  if (raw === "other" || raw === "shared") return "other";
+  if (raw === "pair" || raw === "couple") return "couple";
+  return "personal";
 }
 function resolutionForConflict(
   conflict: ConflictItem,
@@ -395,7 +434,7 @@ export default function CalendarClient(
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
 
    const [events, setEvents] = useState<CalendarEventWithOwner[]>([]);
-  const [groups, setGroups] = useState<any[]>([]);
+  const [groups, setGroups] = useState<GroupRow[]>([]);
 const [, setDeclinedEventIds] = useState<Set<string>>(() => new Set());
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
   const [trustSignals, setTrustSignals] = useState<
@@ -430,7 +469,7 @@ const [, setDeclinedEventIds] = useState<Set<string>>(() => new Set());
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  const [enabledGroups, setEnabledGroups] = useState({
+  const [enabledGroups, setEnabledGroups] = useState<EnabledGroups>({
     personal: true,
     pair: true,
     family: true,
@@ -500,7 +539,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
 
         let nextActiveGroupId: string | null =
           persistedActive &&
-          myGroups.some((g: any) => String(g.id) === String(persistedActive))
+          myGroups.some((g) => String(g.id) === String(persistedActive))
             ? String(persistedActive)
             : null;
 
@@ -515,10 +554,10 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
 
         setActiveGroupId(nextActiveGroupId);
 
-        const groupIds = (myGroups || []).map((g: any) => String(g.id));
+        const groupIds = (myGroups || []).map((g) => String(g.id));
 
         const [rawEvents, nextResMap, nextDeclined] = await Promise.all([
-          getEventsForGroups(groupIds) as Promise<any[]>,
+          getEventsForGroups(groupIds) as Promise<CalendarDbEventRow[]>,
           getMyConflictResolutionsMap().catch(() => ({})),
           getMyDeclinedEventIds().catch(() => new Set<string>()),
         ]);
@@ -528,7 +567,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
 
 
         const groupTypeByIdLocal = new Map<string, "family" | "pair" | "other">(
-          (myGroups || []).map((g: any) => {
+          (myGroups || []).map((g) => {
             const id = String(g.id);
             const rawType = String(g.type ?? "").toLowerCase();
 
@@ -546,27 +585,27 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
         const nextHiddenIds = new Set<string>();
 
         const enriched: CalendarEventWithOwner[] = (rawEvents || [])
-          .map((ev: any) => {
+          .map((ev: CalendarDbEventRow) => {
             const gid = ev.group_id ?? ev.groupId ?? null;
 
-            let gt: GroupType = "personal" as any;
+            let gt: GroupType = "personal" as GroupType;
 
             if (gid) {
               const t = groupTypeByIdLocal.get(String(gid));
 
               if (t === "family") {
-                gt = "family" as any;
+                gt = "family" as GroupType;
               } else if (t === "other") {
-                gt = "other" as any;
+                gt = "other" as GroupType;
               } else {
-                gt = "pair" as any;
+                gt = "pair" as GroupType;
               }
             } else {
-              gt = "personal" as any;
+              gt = "personal" as GroupType;
             }
 
-            const startRaw = ev.start ?? ev.start_at ?? null;
-            const endRaw = ev.end ?? ev.end_at ?? null;
+            const startRaw = String(ev.start ?? ev.start_at ?? "");
+            const endRaw = String(ev.end ?? ev.end_at ?? "");
 
             if (!isValidDateLike(startRaw) || !isValidDateLike(endRaw)) return null;
 
@@ -612,8 +651,8 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
           });
           window.setTimeout(() => setToast(null), 2400);
         }
-      } catch (e: any) {
-        setError(e?.message ?? "Error cargando calendario");
+      } catch (e: unknown) {
+        setError(getErrorMessage(e) ?? "Error cargando calendario");
         setTrustSignals({});
         setProposalResponsesMap({});
         setEventsLoaded(true);
@@ -621,7 +660,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
         if (showToastFlag) {
           setToast({
             title: "No se pudo actualizar",
-            subtitle: e?.message ?? "Revisa tu sesión o conexión.",
+            subtitle: getErrorMessage(e) ?? "Revisa tu sesión o conexión.",
           });
           window.setTimeout(() => setToast(null), 2800);
         }
@@ -666,9 +705,9 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
           toastTitle: "Evento eliminado ✅",
           toastSubtitle: "Tu calendario ya está actualizado.",
         });
-      } catch (e: any) {
+      } catch (e: unknown) {
         setDeleteError(
-          e?.message ?? "No se pudo eliminar este evento con tu sesión actual."
+          getErrorMessage(e) ?? "No se pudo eliminar este evento con tu sesión actual."
         );
       }
     },
@@ -696,9 +735,9 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
           toastTitle: "Evento ocultado ✅",
           toastSubtitle: "Ya no lo verás en tu calendario ni en tu lista.",
         });
-      } catch (e: any) {
+      } catch (e: unknown) {
         setHideError(
-          e?.message ?? "No se pudo ocultar este evento para tu cuenta."
+          getErrorMessage(e) ?? "No se pudo ocultar este evento para tu cuenta."
         );
       }
     },
@@ -751,17 +790,17 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
       await refreshCalendar();
     };
 
-    window.addEventListener("sp:active-group-changed", handler as any);
-    window.addEventListener("sp:events-changed", handler as any);
+    window.addEventListener("sp:active-group-changed", handler as EventListener);
+    window.addEventListener("sp:events-changed", handler as EventListener);
 
     return () => {
       window.removeEventListener(
         "sp:active-group-changed",
-        handler as any
+        handler as EventListener
       );
       window.removeEventListener(
         "sp:events-changed",
-        handler as any
+        handler as EventListener
       );
     };
   }, [refreshCalendar]);
@@ -958,12 +997,12 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
      ========================= */
   const filteredEvents = useMemo(() => {
     const isEnabled = (g?: GroupType | null) => {
-      const key = (g ?? "personal") as any;
-      return !!(enabledGroups as any)[key];
+      const key = String(g ?? "personal") as keyof EnabledGroups;
+      return !!enabledGroups[key];
     };
 
     return (Array.isArray(events) ? events : []).filter((e) => {
-      const gt = (e.groupType ?? "personal") as any;
+      const gt = (e.groupType ?? "personal") as GroupType;
 
       if (!isEnabled(gt)) return false;
 
@@ -1104,7 +1143,10 @@ const valueVisibility = useMemo(() => {
   };
 
   const toggleGroup = (g: GroupType) =>
-    setEnabledGroups((s: any) => ({ ...s, [g]: !s[g] }));
+    setEnabledGroups((s) => {
+      const key = String(g) as keyof EnabledGroups;
+      return { ...s, [key]: !s[key] };
+    });
 
   const handleRefresh = async () => {
     await refreshCalendar({
@@ -1522,10 +1564,7 @@ initialEvent={
         start: editingEvent.start,
         end: editingEvent.end,
         description: editingEvent.notes,
-        groupType:
-          editingEvent.groupType === "pair"
-            ? ("couple" as any)
-            : editingEvent.groupType,
+        groupType: normalizeForEventEditModal(editingEvent.groupType),
         groupId: editingEvent.groupId ?? null,
       }
     : undefined
@@ -1595,8 +1634,8 @@ function EventRow({
   inConflict?: boolean;
 }) {
   const resolvedType: GroupType = e.groupId
-    ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as any)
-    : ("personal" as any);
+    ? ((groupTypeById?.get(String(e.groupId)) ?? "pair") as GroupType)
+    : ("personal" as GroupType);
 
   const meta = groupMeta(resolvedType);
   const isHighlighted =
@@ -1621,10 +1660,10 @@ function EventRow({
         ...styles.eventRow,
         border: isHighlighted
           ? "1px solid rgba(56,189,248,0.55)"
-          : (styles.eventRow.border as any),
+          : styles.eventRow.border,
         background: isHighlighted
           ? "rgba(255,255,255,0.08)"
-          : (styles.eventRow.background as any),
+          : styles.eventRow.background,
       }}
       className="spCal-chip"
       onClick={(ev) => {

@@ -162,6 +162,25 @@ type MapsPlaceSuggestion = {
 };
 
 type OriginSource = Extract<SmartOriginSource, "gps" | "stored" | "url" | "missing">;
+
+type SettingsWithConflictDefaults = NotificationSettings & {
+  conflictDefaultResolution?: string | null;
+  conflictWarnBeforeSave?: boolean | null;
+};
+
+type EventOwnerLike = {
+  owner_id?: unknown;
+  ownerId?: unknown;
+  created_by?: unknown;
+  createdBy?: unknown;
+  user_id?: unknown;
+  userId?: unknown;
+  title?: unknown;
+};
+
+type GroupMemberUserRow = {
+  user_id?: unknown;
+};
 async function persistLastKnownLocation(point: LatLng) {
   if (typeof window === "undefined") return;
   if (!toLatLng(point.lat, point.lng)) return;
@@ -300,7 +319,7 @@ function getConflictCounterpart(
 function mapDefaultResolutionToChoice(
   s: NotificationSettings | null,
 ): PreflightChoice {
-  const def = (s as any)?.conflictDefaultResolution ?? "ask_me";
+  const def = (s as SettingsWithConflictDefaults | null)?.conflictDefaultResolution ?? "ask_me";
   if (def === "keep_existing") return "keep_existing";
   if (def === "replace_with_new") return "replace_with_new";
   if (def === "none") return "keep_both";
@@ -399,7 +418,7 @@ function normalizeFreeText(value: string) {
     .trim();
 }
 
-function resolveEventOwnerId(event: any): string | null {
+function resolveEventOwnerId(event: EventOwnerLike | null | undefined): string | null {
   const candidate =
     event?.owner_id ??
     event?.ownerId ??
@@ -442,7 +461,7 @@ async function syncAcceptedResponsesForSavedEvent(input: {
     userIds = Array.from(
       new Set(
         (members ?? [])
-          .map((row: any) => String(row?.user_id ?? "").trim())
+          .map((row: GroupMemberUserRow) => String(row?.user_id ?? "").trim())
           .filter(Boolean),
       ),
     );
@@ -862,7 +881,7 @@ function NewEventDetailsInner() {
         const [{ data: authData }, gid, g] = await Promise.all([
           supabase.auth.getUser(),
           getActiveGroupIdFromDb().catch(() => null),
-          getMyGroups().catch(() => [] as any),
+          getMyGroups().catch(() => [] as DbGroup[]),
         ]);
         if (!alive) return;
 
@@ -962,7 +981,7 @@ function NewEventDetailsInner() {
           );
           router.replace(next);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!alive) return;
         setToast({
           title: "No se pudo inicializar",
@@ -1065,7 +1084,7 @@ function NewEventDetailsInner() {
             router.replace(next);
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!alive) return;
 
         setToast({
@@ -1985,7 +2004,7 @@ useEffect(() => {
           final_action: input.finalAction,
           affected_event_id: String(item.existingId),
           affected_event_title: safeTitle(
-            (existingEvent as any)?.title ?? item.title,
+            String((existingEvent as EventOwnerLike | null | undefined)?.title ?? item.title ?? ""),
           ),
           kept_event_id: input.savedEventId ?? null,
           kept_event_title: safeTitle(input.payload.title),
@@ -2385,7 +2404,7 @@ useEffect(() => {
 
       showPostSaveCard(savedEventId, payload);
       return savedEventId;
-    } catch (err: any) {
+    } catch (err: unknown) {
       setToast({
         title: "No se pudo guardar",
         subtitle: humanizeActionError(err, "Intenta nuevamente."),
@@ -2401,7 +2420,7 @@ useEffect(() => {
   const preflight = async (
     payload: SavePayload,
   ): Promise<{ ok: true } | { ok: false }> => {
-    const warn = (settings as any)?.conflictWarnBeforeSave ?? true;
+    const warn = (settings as SettingsWithConflictDefaults | null)?.conflictWarnBeforeSave ?? true;
     if (!warn) return { ok: true };
 
     try {
@@ -2504,7 +2523,7 @@ useEffect(() => {
 
     setPendingPayload(payload);
     const pf = await preflight(payload);
-    if (!(pf as any).ok) return;
+    if (!pf.ok) return;
 
     await doSave(payload);
   };
@@ -2700,7 +2719,7 @@ useEffect(() => {
           error,
         );
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setToast({
         title: "No se pudo aplicar",
         subtitle: humanizeActionError(err, "Intenta nuevamente."),
@@ -2754,8 +2773,8 @@ useEffect(() => {
           });
 
           return;
-        } catch (shareErr: any) {
-          if (shareErr?.name === "AbortError") {
+        } catch (shareErr: unknown) {
+          if ((shareErr instanceof DOMException ? shareErr.name : "") === "AbortError") {
             return;
           }
         }
@@ -2773,7 +2792,7 @@ useEffect(() => {
           subtitle: "Cópialo manualmente desde la caja de abajo.",
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setToast({
         title: "No se pudo compartir",
         subtitle: humanizeActionError(err, "Intenta nuevamente."),

@@ -38,6 +38,21 @@ import {
   getPlanInfo,
 } from "@/lib/profileDashboard";
 
+type ProfileWithExtras = Profile & {
+  display_name?: string | null;
+  daily_digest_enabled?: boolean | null;
+  daily_digest_hour_local?: number | null;
+  daily_digest_timezone?: string | null;
+};
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message?: unknown }).message ?? "");
+  }
+  return "";
+}
+
 function normalizeCoordPrefs(
   prefs?: Partial<CoordinationPrefs> | null
 ): CoordinationPrefs {
@@ -1139,7 +1154,7 @@ export default function ProfilePage() {
           getInitials({
             first_name: p.first_name ?? undefined,
             last_name: p.last_name ?? undefined,
-            display_name: (p as any).display_name ?? undefined,
+            display_name: (p as ProfileWithExtras).display_name ?? undefined,
           })
         );
       } catch (e) {
@@ -1212,17 +1227,15 @@ export default function ProfilePage() {
         getInitials({
           first_name: updated.first_name ?? undefined,
           last_name: updated.last_name ?? undefined,
-          display_name: (updated as any).display_name ?? undefined,
+          display_name: (updated as ProfileWithExtras).display_name ?? undefined,
         })
       );
 
       setProfileOk("Perfil actualizado correctamente.");
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[ProfilePage] Error guardando perfil:", e);
       setProfileError(
-        typeof e?.message === "string"
-          ? e.message
-          : "No se pudo actualizar tu perfil. Intenta de nuevo."
+        getErrorMessage(e) || "No se pudo actualizar tu perfil. Intenta de nuevo."
       );
     } finally {
       setSavingProfile(false);
@@ -1240,12 +1253,10 @@ export default function ProfilePage() {
       setSavingCoord(true);
       await updateMyCoordinationPrefs(coordPrefs);
       setCoordOk("Preferencias guardadas correctamente.");
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[ProfilePage] Error guardando preferencias:", e);
       setCoordError(
-        typeof e?.message === "string"
-          ? e.message
-          : "No se pudieron guardar tus preferencias. Intenta de nuevo."
+        getErrorMessage(e) || "No se pudieron guardar tus preferencias. Intenta de nuevo."
       );
     } finally {
       setSavingCoord(false);
@@ -1259,8 +1270,8 @@ export default function ProfilePage() {
 
     try {
       setSavingDigest(true);
-      const hour = (profile as any).daily_digest_hour_local ?? 7;
-      const tz = (profile as any).daily_digest_timezone ?? "America/Lima";
+      const hour = (profile as ProfileWithExtras).daily_digest_hour_local ?? 7;
+      const tz = (profile as ProfileWithExtras).daily_digest_timezone ?? "America/Lima";
 
       await updateDailyDigestSettings({
         daily_digest_enabled: enabled,
@@ -1270,19 +1281,17 @@ export default function ProfilePage() {
 
       setProfile({
         ...profile,
-        ...(profile as any),
+        
         daily_digest_enabled: enabled,
         daily_digest_hour_local: hour,
         daily_digest_timezone: tz,
-      } as any);
+      } as Profile);
 
       setDigestOk("Resumen diario actualizado.");
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
       setDigestError(
-        typeof e?.message === "string"
-          ? e.message
-          : "No se pudo actualizar el resumen diario. Inténtalo de nuevo."
+        getErrorMessage(e) || "No se pudo actualizar el resumen diario. Inténtalo de nuevo."
       );
     } finally {
       setSavingDigest(false);
@@ -1296,8 +1305,8 @@ export default function ProfilePage() {
 
     try {
       setSavingDigest(true);
-      const enabled = (profile as any).daily_digest_enabled ?? true;
-      const tz = (profile as any).daily_digest_timezone ?? "America/Lima";
+      const enabled = (profile as ProfileWithExtras).daily_digest_enabled ?? true;
+      const tz = (profile as ProfileWithExtras).daily_digest_timezone ?? "America/Lima";
 
       await updateDailyDigestSettings({
         daily_digest_enabled: enabled,
@@ -1307,19 +1316,17 @@ export default function ProfilePage() {
 
       setProfile({
         ...profile,
-        ...(profile as any),
+        
         daily_digest_enabled: enabled,
         daily_digest_hour_local: hour,
         daily_digest_timezone: tz,
-      } as any);
+      } as Profile);
 
       setDigestOk("Hora del resumen actualizada.");
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
       setDigestError(
-        typeof e?.message === "string"
-          ? e.message
-          : "No se pudo actualizar la hora del resumen. Inténtalo de nuevo."
+        getErrorMessage(e) || "No se pudo actualizar la hora del resumen. Inténtalo de nuevo."
       );
     } finally {
       setSavingDigest(false);
@@ -1448,12 +1455,11 @@ export default function ProfilePage() {
 
   const hasNameCompleted = !!firstName.trim() && !!lastName.trim();
 
-  const digestEnabled = (profile as any).daily_digest_enabled ?? false;
-  const digestHour = (profile as any).daily_digest_hour_local ?? 7;
-  const digestTz = (profile as any).daily_digest_timezone ?? "America/Lima";
+  const digestEnabled = (profile as ProfileWithExtras).daily_digest_enabled ?? false;
+  const digestHour = (profile as ProfileWithExtras).daily_digest_hour_local ?? 7;
+  const digestTz = (profile as ProfileWithExtras).daily_digest_timezone ?? "America/Lima";
 
-  const anyProfile = profile as unknown as AnyProfile;
-  const planLabel = safePlanLabel;
+   const planLabel = safePlanLabel;
   const planHint = safePlanHint;
   const planCtaLabel = safePlanCtaLabel;
 
@@ -1538,7 +1544,7 @@ export default function ProfilePage() {
 
                 <div style={styles.nameRow}>
                   <span style={nameStyle}>
-                    {(profile as any).display_name ||
+                    {(profile as ProfileWithExtras).display_name ||
                       `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() ||
                       "(Sin nombre)"}
                   </span>
