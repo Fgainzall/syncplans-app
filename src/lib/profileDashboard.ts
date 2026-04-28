@@ -100,7 +100,9 @@ export function buildDashboardStats(
     groupId: e.group_id ?? null,
   }));
 
-  const rawConflicts = computeVisibleConflicts(eventsForConflicts as any);
+const rawConflicts = computeVisibleConflicts(
+  eventsForConflicts as Parameters<typeof computeVisibleConflicts>[0]
+);
   const notIgnored = filterIgnoredConflicts(rawConflicts, ignoredConflictIds);
   const pendingConflicts = notIgnored.filter(
     (c) => !resolvedConflictMap[String(c.id)]
@@ -171,9 +173,12 @@ export function buildRecommendation(
 export function getPlanInfo(profile: AnyProfile | null) {
   const tierRaw = profile?.plan_tier ?? "free";
   const tier = tierRaw.toLowerCase();
-const premiumActive = isPremiumUser(profile as Parameters<typeof isPremiumUser>[0]);
-const trialActive = isTrialActive(profile as Parameters<typeof isTrialActive>[0]);
-
+const premiumActive = isPremiumUser(
+  profile as Parameters<typeof isPremiumUser>[0]
+);
+const trialActive = isTrialActive(
+  profile as Parameters<typeof isTrialActive>[0]
+);
   let planLabel = "";
   let planHint = "";
   let planCtaLabel = "";
