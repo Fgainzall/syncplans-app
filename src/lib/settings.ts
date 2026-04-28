@@ -146,15 +146,21 @@ function fromDb(row: DbRow): NotificationSettings {
     conflictWarnBeforeSave:
       row.conflict_warn_before_save ??
       DEFAULT_SETTINGS.conflictWarnBeforeSave,
-    conflictDefaultResolution:
-      (row.conflict_default_resolution as any) ??
-      DEFAULT_SETTINGS.conflictDefaultResolution,
+  conflictDefaultResolution:
+  (row.conflict_default_resolution as
+    | NotificationSettings["conflictDefaultResolution"]
+    | null
+    | undefined) ?? DEFAULT_SETTINGS.conflictDefaultResolution,
 
-    permPersonal:
-      (row.perm_personal as any) ?? DEFAULT_SETTINGS.permPersonal,
-    permPair: (row.perm_pair as any) ?? DEFAULT_SETTINGS.permPair,
-    permFamily:
-      (row.perm_family as any) ?? DEFAULT_SETTINGS.permFamily,
+permPersonal:
+  (row.perm_personal as NotificationSettings["permPersonal"] | null | undefined) ??
+  DEFAULT_SETTINGS.permPersonal,
+permPair:
+  (row.perm_pair as NotificationSettings["permPair"] | null | undefined) ??
+  DEFAULT_SETTINGS.permPair,
+permFamily:
+  (row.perm_family as NotificationSettings["permFamily"] | null | undefined) ??
+  DEFAULT_SETTINGS.permFamily,
   });
 }
 

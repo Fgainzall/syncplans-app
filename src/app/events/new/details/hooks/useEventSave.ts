@@ -114,7 +114,13 @@ type UseEventSaveParams = {
   setPostSaveShareUrl: React.Dispatch<React.SetStateAction<string | null>>;
   setPostSaveFingerprint: React.Dispatch<React.SetStateAction<string | null>>;
 };
+type EventTitleLike = {
+  title?: string | null;
+};
 
+type NotificationSettingsWithConflictWarn = NotificationSettings & {
+  conflictWarnBeforeSave?: boolean | null;
+};
 function decisionTypeFromPreflightChoice(
   choice: Exclude<PreflightChoice, "edit">
 ): string {
@@ -418,7 +424,7 @@ export function useEventSave({
           final_action: input.finalAction,
           affected_event_id: String(item.existingId),
           affected_event_title: safeTitle(
-            (existingEvent as any)?.title ?? item.title
+           (existingEvent as EventTitleLike | null)?.title ?? item.title
           ),
           kept_event_id: input.savedEventId ?? null,
           kept_event_title: safeTitle(input.payload.title),
@@ -737,7 +743,9 @@ export function useEventSave({
   const preflight = async (
     payload: PendingPayload
   ): Promise<{ ok: true } | { ok: false }> => {
-    const warn = (settings as any)?.conflictWarnBeforeSave ?? true;
+   const warn =
+  (settings as NotificationSettingsWithConflictWarn | null)
+    ?.conflictWarnBeforeSave ?? true;
     if (!warn) return { ok: true };
 
     try {

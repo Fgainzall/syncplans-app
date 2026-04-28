@@ -2,7 +2,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
+type InviteEmailRequestBody = {
+  email?: unknown;
+  inviteId?: unknown;
+  groupId?: unknown;
+};
 
+type ResendErrorLike = {
+  message?: string;
+};
 function normEmail(x: string) {
   return String(x || "").trim().toLowerCase();
 }
@@ -139,11 +147,11 @@ export async function POST(req: Request) {
         { status: 401 }
       );
     }
-    const body = await req.json().catch(() => ({} as any));
+   const body = (await req.json().catch(() => ({}))) as InviteEmailRequestBody;
 
-    const email = normEmail(body?.email);
-    const inviteId = String(body?.inviteId ?? "").trim();
-    const groupId = String(body?.groupId ?? "").trim();
+const email = normEmail(String(body.email ?? ""));
+const inviteId = String(body.inviteId ?? "").trim();
+const groupId = String(body.groupId ?? "").trim();
 
     if (!email || !email.includes("@") || !inviteId) {
       return NextResponse.json(
@@ -195,7 +203,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: (error as any).message || "Resend error",
+        error: (error as ResendErrorLike | null)?.message || "Resend error",
           debug: { from, to: email, appUrl },
         },
         { status: 502 }
@@ -203,11 +211,14 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ ok: true, id: data?.id ?? null, acceptUrl });
-  } catch (e: any) {
-    console.error("[api/email/invite] unexpected error:", e);
-    return NextResponse.json(
-      { ok: false, error: e?.message ?? "Error enviando email" },
-      { status: 500 }
-    );
-  }
+} catch (e: unknown) {
+  console.error("[api/email/invite] unexpected error:", e);
+  return NextResponse.json(
+    {
+      ok: false,
+      error: e instanceof Error ? e.message : "Error enviando email",
+    },
+    { status: 500 }
+  );
+}
 }

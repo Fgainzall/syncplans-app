@@ -30,7 +30,14 @@ type ToastState =
       title: string;
       subtitle?: string;
     };
-
+type GroupPageRow = {
+  id: string | number;
+  name?: string | null;
+  type?: string | null;
+  role?: GroupRole | null;
+  members_count?: number | null;
+  is_active?: boolean | null;
+};
 function roleLabel(role: GroupRole) {
   switch (role) {
     case "owner":
@@ -104,7 +111,7 @@ export default function GroupDetailPage() {
       }
 
       try {
-        const groups = (await getMyGroups()) as any[];
+        const groups = (await getMyGroups()) as GroupPageRow[];
         if (!alive) return;
 
         const found = (groups || []).find((g) => String(g.id) === groupId);
@@ -160,12 +167,13 @@ export default function GroupDetailPage() {
         title: "Grupo activo actualizado ✅",
         subtitle: "Este contexto ya está listo para calendario, eventos y captura rápida.",
       });
-    } catch (error: any) {
-      pushToast({
-        title: "No se pudo activar",
-        subtitle: error?.message ?? "Inténtalo nuevamente.",
-      });
-    } finally {
+   } catch (error: unknown) {
+  pushToast({
+    title: "No se pudo activar",
+    subtitle: error instanceof Error ? error.message : "Inténtalo nuevamente.",
+  });
+}
+    finally {
       setSaving(false);
     }
   }
@@ -273,7 +281,7 @@ export default function GroupDetailPage() {
       <Section>
         <div style={styles.topRow}>
           <PremiumHeader
-            title={group.name || getGroupTypeLabel(group.type as any)}
+           title={group.name || getGroupTypeLabel(String(group.type ?? "other"))}
             subtitle="Detalle del grupo y siguiente mejor paso dentro de este contexto."
           />
           <div style={styles.inlineActions}>

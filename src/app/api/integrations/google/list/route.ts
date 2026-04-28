@@ -2,7 +2,15 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-
+type SupabaseCookieOptions = {
+  domain?: string;
+  path?: string;
+  expires?: Date;
+  httpOnly?: boolean;
+  maxAge?: number;
+  sameSite?: boolean | "lax" | "strict" | "none";
+  secure?: boolean;
+};
 export const dynamic = "force-dynamic";
 
 function mustEnv(name: string): string {
@@ -101,10 +109,10 @@ export async function GET() {
         get(name: string) {
           return cookieStore.get(name)?.value;
         },
-        set(name: string, value: string, options: any) {
+        set(name: string, value: string, options: SupabaseCookieOptions) {
           cookieStore.set({ name, value, ...options });
         },
-        remove(name: string, options: any) {
+       remove(name: string, options: SupabaseCookieOptions) {
           cookieStore.set({ name, value: "", ...options, maxAge: 0 });
         },
       },
@@ -154,13 +162,14 @@ export async function GET() {
         const retry = await fetchEventsWithToken(accessToken);
         response = retry.response;
         json = retry.json;
-      } catch (e: any) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error:
-              e?.message ||
-              "No se pudo refrescar la sesión de Google. Vuelve a conectar tu cuenta desde el Panel.",
+      } catch (e: unknown) {
+  return NextResponse.json(
+    {
+      ok: false,
+      error:
+        e instanceof Error
+          ? e.message
+          : "No se pudo refrescar la sesión de Google. Vuelve a conectar tu cuenta desde el Panel.",
           },
           { status: 401 }
         );
@@ -191,13 +200,15 @@ export async function GET() {
       ok: true,
       items,
     });
-  } catch (e: any) {
-    console.error("[/api/integrations/google/list] error", e);
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          e?.message ||
+} catch (e: unknown) {
+  console.error("[/api/integrations/google/list] error", e);
+  return NextResponse.json(
+    {
+      ok: false,
+      error:
+        e instanceof Error
+          ? e.message
+          :
           "Error inesperado al leer los eventos de Google.",
       },
       { status: 500 }

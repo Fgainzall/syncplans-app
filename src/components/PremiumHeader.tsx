@@ -67,7 +67,18 @@ type HeaderConflictSummary = {
   count: number;
   latestEventId: string | null;
 };
+type HeaderGroupLike = {
+  id?: string | number | null;
+  type?: string | null;
+};
 
+type HeaderNotificationLike = {
+  read_at?: string | null;
+};
+
+type HeaderGroupStateWithName = GroupState & {
+  groupName?: string | null;
+};
 const NAV_MODE: NavigationMode = "replace";
 
 const MODE_META: Record<TabKey, ModeMeta> = {
@@ -112,14 +123,18 @@ async function ensureActiveGroupForMode(
   const wantType = String(mode).toLowerCase();
 
   if (existing) {
-    const current = groups.find((g: any) => String(g.id) === String(existing));
+ const current = (groups as HeaderGroupLike[]).find(
+  (g) => String(g.id) === String(existing)
+);
     const currentType = String(current?.type ?? "").toLowerCase();
     if (current && currentType === wantType) {
       return String(existing);
     }
   }
 
-  const match = groups.find((g: any) => String(g.type ?? "").toLowerCase() === wantType);
+const match = (groups as HeaderGroupLike[]).find(
+  (g) => String(g.type ?? "").toLowerCase() === wantType
+);
   const pick = match?.id ?? groups[0]?.id ?? null;
 
   if (pick) {
@@ -418,9 +433,9 @@ export default function PremiumHeader({
         })),
       ]);
 
-      const unread = (notifications ?? []).filter(
-        (x: any) => !x.read_at || x.read_at === ""
-      ).length;
+   const unread = ((notifications ?? []) as HeaderNotificationLike[]).filter(
+  (x) => !x.read_at || x.read_at === ""
+).length;
 
       setUnreadCount(unread);
       setConflictSummary({
@@ -448,7 +463,9 @@ export default function PremiumHeader({
   }, [activeMode]);
 
   const groupDisplayName = useMemo(() => {
-    const cleaned = normalizeGroupLabel((group as any)?.groupName ?? null);
+const cleaned = normalizeGroupLabel(
+  (group as HeaderGroupStateWithName | null)?.groupName ?? null
+);
     if (!cleaned) return null;
     if (cleaned === activeTab.label) return null;
     return cleaned;

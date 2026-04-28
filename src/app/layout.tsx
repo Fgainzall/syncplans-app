@@ -27,15 +27,15 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      style={
-        {
-          background: "#0B0F19",
-          ["--sp-bottom-nav-height" as any]: "88px",
-          ["--sp-bottom-nav-offset" as any]: "10px",
-          ["--sp-bottom-safe" as any]:
-            "calc(var(--sp-bottom-nav-height) + var(--sp-bottom-nav-offset) + env(safe-area-inset-bottom))",
-        } as React.CSSProperties
-      }
+    style={
+  {
+    background: "#0B0F19",
+    "--sp-bottom-nav-height": "88px",
+    "--sp-bottom-nav-offset": "10px",
+    "--sp-bottom-safe":
+      "calc(var(--sp-bottom-nav-height) + var(--sp-bottom-nav-offset) + env(safe-area-inset-bottom))",
+  } as React.CSSProperties & Record<`--${string}`, string>
+}
     >
       <head>
         <link rel="manifest" href="/manifest.webmanifest" />

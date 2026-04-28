@@ -41,7 +41,12 @@ type GoogleEventsResponse = {
   items?: GoogleEventItem[];
   nextPageToken?: string;
 };
+type GoogleListResponse = {
+  items?: unknown[];
+  nextPageToken?: string | null;
+};
 
+type GoogleEventUpsertRow = Record<string, unknown>;
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
@@ -164,7 +169,7 @@ async function listAllVisibleCalendars(accessToken: string) {
     const items = Array.isArray(json?.items) ? json.items : [];
     out.push(...items);
 
-    const next = (json as any)?.nextPageToken;
+const next = (json as GoogleListResponse).nextPageToken;
     if (!next) break;
     pageToken = String(next);
   }
@@ -337,7 +342,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const allRowsToUpsert: Record<string, any> = {};
+    const allRowsToUpsert: Record<string, GoogleEventUpsertRow> = {};
     let totalFetched = 0;
 
     for (const cal of calendars) {
@@ -354,14 +359,14 @@ export async function POST(req: Request) {
           timeMin.toISOString(),
           timeMax.toISOString()
         );
-      } catch (err: any) {
-        // No tumbamos toda la sync por un calendario problemático.
-        console.warn(
-          `[google sync] No se pudo leer el calendario ${calendarId}:`,
-          err?.message || err
-        );
-        continue;
-      }
+  } catch (err: unknown) {
+  // No tumbamos toda la sync por un calendario problemático.
+  console.warn(
+    `[google sync] No se pudo leer el calendario ${calendarId}:`,
+    err instanceof Error ? err.message : err
+  );
+  continue;
+}
 
       totalFetched += items.length;
 
@@ -427,10 +432,12 @@ export async function POST(req: Request) {
       calendars: calendars.length,
       fetched: totalFetched,
     });
-  } catch (err: any) {
-    return jsonError(
-      err?.message || "Falló la sincronización de Google Calendar",
-      500
-    );
-  }
+ } catch (err: unknown) {
+  return jsonError(
+    err instanceof Error
+      ? err.message
+      : "Falló la sincronización de Google Calendar",
+    500
+  );
+}
 }

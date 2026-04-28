@@ -21,7 +21,15 @@ export type LoadEventsFromDbResult = {
 };
 
 type GroupTypeMap = Map<string, GroupType>;
+type DbEventWithDates = DbEventRow & {
+  start?: string | null;
+  end?: string | null;
+};
 
+type DbGroupWithType = {
+  id?: string | number | null;
+  type?: string | null;
+};
 function normalizeDbGroupType(raw: string | null | undefined): GroupType {
   return normalizeCanonicalGroupType(raw);
 }
@@ -33,7 +41,7 @@ function buildGroupTypeMap(groups: GroupRow[]): GroupTypeMap {
     const id = String(g.id ?? "");
     if (!id) continue;
 
-    m.set(id, normalizeDbGroupType((g as any)?.type));
+    m.set(id, normalizeDbGroupType((g as DbGroupWithType).type));
   }
 
   return m;
@@ -43,8 +51,9 @@ function mapDbEventToCalendarEvent(
   row: DbEventRow,
   groupTypeMap: GroupTypeMap
 ): CalendarEvent | null {
-  const start = String((row as any)?.start ?? "").trim();
-  const end = String((row as any)?.end ?? "").trim();
+  const eventRow = row as DbEventWithDates;
+const start = String(eventRow.start ?? "").trim();
+const end = String(eventRow.end ?? "").trim();
 
   if (!start || !end) return null;
 
@@ -151,7 +160,7 @@ export async function loadEventsForConflictPreflight(args: {
 
   if (groupId) {
     const g = (groups ?? []).find((x) => String(x.id) === groupId);
-    candidateGroupType = normalizeDbGroupType((g as any)?.type);
+   candidateGroupType = normalizeDbGroupType((g as DbGroupWithType | undefined)?.type);
   } else if (candidate.groupType) {
     candidateGroupType = normalizeDbGroupType(candidate.groupType);
   }
