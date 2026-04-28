@@ -2,6 +2,7 @@
 "use client";
 
 import React, {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -67,27 +68,30 @@ export default function LoginClient() {
     }
   }
 
-  function startRedirect(nextPath: string) {
-    if (redirectingRef.current) return;
-    redirectingRef.current = true;
+  const startRedirect = useCallback(
+    (nextPath: string) => {
+      if (redirectingRef.current) return;
+      redirectingRef.current = true;
 
-    setIsRedirecting(true);
-    setSlowMessage(null);
-    clearTimers();
+      setIsRedirecting(true);
+      setSlowMessage(null);
+      clearTimers();
 
-    router.replace(nextPath);
-    router.refresh();
+      router.replace(nextPath);
+      router.refresh();
 
-    if (typeof window !== "undefined") {
-      slowUiTimerRef.current = window.setTimeout(() => {
-        setSlowMessage("Esto está tardando más de lo esperado…");
-      }, 2500);
+      if (typeof window !== "undefined") {
+        slowUiTimerRef.current = window.setTimeout(() => {
+          setSlowMessage("Esto está tardando más de lo esperado…");
+        }, 2500);
 
-      redirectTimerRef.current = window.setTimeout(() => {
-        window.location.assign(nextPath);
-      }, 4000);
-    }
-  }
+        redirectTimerRef.current = window.setTimeout(() => {
+          window.location.assign(nextPath);
+        }, 4000);
+      }
+    },
+    [router]
+  );
 
   useEffect(() => {
     let alive = true;
@@ -129,7 +133,7 @@ export default function LoginClient() {
       clearTimers();
       sub?.subscription?.unsubscribe();
     };
-  }, [router, nextTarget]);
+    }, [nextTarget, startRedirect]);
 
   const canSubmit = useMemo(() => {
     const e = email.trim();

@@ -233,59 +233,6 @@ function InvitationsIcon({ active }: { active: boolean }) {
   );
 }
 
-function SettingsIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 8.75a3.25 3.25 0 1 0 0 6.5 3.25 3.25 0 0 0 0-6.5Z"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-      />
-      <path
-        d="M19 12a7.2 7.2 0 0 0-.08-1l1.45-1.13-1.4-2.42-1.74.42a7.5 7.5 0 0 0-1.72-1l-.28-1.77h-2.8l-.28 1.77c-.6.22-1.18.55-1.72 1l-1.74-.42-1.4 2.42L5.08 11c-.05.33-.08.66-.08 1s.03.67.08 1l-1.45 1.13 1.4 2.42 1.74-.42c.54.45 1.12.78 1.72 1l.28 1.77h2.8l.28-1.77c.6-.22 1.18-.55 1.72-1l1.74.42 1.4-2.42L18.92 13c.05-.33.08-.66.08-1Z"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function PlansIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M7 6.5h10"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <path
-        d="M7 12h10"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <path
-        d="M7 17.5h6"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <rect
-        x="4"
-        y="4"
-        width="16"
-        height="16"
-        rx="3"
-        stroke={active ? "currentColor" : "rgba(255,255,255,0.72)"}
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
-}
-
 const NAV_ITEMS: NavItem[] = [
   { key: "summary", label: "Resumen", path: "/summary", aria: "Ir a Resumen" },
   { key: "calendar", label: "Calendario", path: "/calendar", aria: "Ir a Calendario" },

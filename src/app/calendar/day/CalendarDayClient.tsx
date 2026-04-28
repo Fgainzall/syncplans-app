@@ -3,7 +3,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import Link from "next/link";
+
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import supabase from "@/lib/supabaseClient";
 
@@ -14,14 +14,16 @@ import { getMyGroups } from "@/lib/groupsDb";
 import { getEventsForGroups } from "@/lib/eventsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 
-import {
+import type {
   CalendarEvent,
   GroupType,
+} from "@/lib/conflicts";
+
+import {
   groupMeta,
   computeVisibleConflicts,
   attachEvents,
 } from "@/lib/conflicts";
-
 type Scope = "personal" | "active" | "all";
 type Tab = "month" | "agenda";
 
@@ -120,7 +122,7 @@ export default function CalendarDayClient(/* ... */) {
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [groups, setGroups] = useState<any[]>([]);
+  const [, setGroups] = useState<any[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 

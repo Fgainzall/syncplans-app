@@ -99,11 +99,6 @@ function endOfWeek(d: Date) {
   e.setHours(23, 59, 59, 999);
   return e;
 }
-function addDays(d: Date, n: number) {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-}
 function sameDay(a: Date, b: Date) {
   return sameLocalDay(a, b);
 }
@@ -401,9 +396,7 @@ export default function CalendarClient(
 
    const [events, setEvents] = useState<CalendarEventWithOwner[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
-  const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
-    () => new Set()
-  );
+const [, setDeclinedEventIds] = useState<Set<string>>(() => new Set());
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
   const [trustSignals, setTrustSignals] = useState<
     Record<string, ConflictTrustSignal>
@@ -638,7 +631,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
   );
 
   const handleDeleteEvent = useCallback(
-    async (eventId: string, title?: string) => {
+    async (eventId: string) => {
       if (!editingEvent || !currentUserId) return;
 
       if (!isEventOwnedByUser(editingEvent, currentUserId)) {
@@ -1543,7 +1536,7 @@ canHide={!!(editingEvent && currentUserId && !isEventOwnedByUser(editingEvent, c
      onDelete={
   editingEvent && currentUserId && isEventOwnedByUser(editingEvent, currentUserId)
     ? async () => {
-        await handleDeleteEvent(editingEvent.id, editingEvent.title);
+        await handleDeleteEvent(editingEvent.id);
       }
     : undefined
 }
@@ -1766,7 +1759,6 @@ function renderMonthCells(opts: {
     setSelectedDay,
     eventsByDay,
     openNewEventPersonal,
-    openNewEventGroup,
     groupTypeById,
     trustSignals,
     proposalResponsesMap,

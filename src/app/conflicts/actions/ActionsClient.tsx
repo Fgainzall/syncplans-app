@@ -1,49 +1,69 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
 import { trackEvent, trackEventOnce, trackScreenView } from "@/lib/analytics";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 import supabase from "@/lib/supabaseClient";
 
-import {
-  CalendarEvent,
+import type {
+  ConflictItem,
   GroupType,
+} from "@/lib/conflicts";
+
+import {
   computeVisibleConflicts,
   attachEvents,
   conflictInvolvesEvent,
   filterIgnoredConflicts,
-  type ConflictItem,
 } from "@/lib/conflicts";
+
+type ActionCalendarEvent = any;
+
 import { normalizeGroupType } from "@/lib/naming";
+
 import {
   buildConflictLogPayload,
   getConflictDecisionSnapshot,
   resolveConflictResolution,
 } from "@/lib/decisionEngine";
+
 import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
-import {
-  Resolution,
-  getMyConflictResolutionsMap,
-} from "@/lib/conflictResolutionsDb";
+
+import type { Resolution } from "@/lib/conflictResolutionsDb";
+import { getMyConflictResolutionsMap } from "@/lib/conflictResolutionsDb";
+
 import { createConflictResolutionLog } from "@/lib/conflictResolutionsLogDb";
+
 import {
   declineEventForCurrentUser,
   filterOutDeclinedEvents,
   getMyDeclinedEventIds,
 } from "@/lib/eventResponsesDb";
-import { getIgnoredConflictKeys, setConflictPreference } from "@/lib/conflictPrefs";
+
+import {
+  getIgnoredConflictKeys,
+  setConflictPreference,
+} from "@/lib/conflictPrefs";
+
 import {
   deleteEventsByIdsDetailed,
   getEventById,
 } from "@/lib/eventsDb";
+
 import {
   createConflictAutoAdjustedNotification,
   createConflictDecisionNotification,
   createNotifications,
 } from "@/lib/notificationsDb";
-
 function normalizeForConflicts(gt: string | null | undefined): GroupType {
   return normalizeGroupType(gt) as GroupType;
 }
@@ -201,7 +221,7 @@ export default function ActionsClient() {
 
   const [booting, setBooting] = useState(true);
   const [applying, setApplying] = useState(false);
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [events, setEvents] = useState<ActionCalendarEvent[]>([]);
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
   const [declinedIds, setDeclinedIds] = useState<Set<string>>(new Set());
   const [ignoredConflictKeys, setIgnoredConflictKeys] = useState<Set<string>>(
@@ -319,7 +339,7 @@ export default function ActionsClient() {
   }, [events, declinedIds]);
 
   const allVisibleConflicts = useMemo<ConflictItem[]>(() => {
-    const normalized: CalendarEvent[] = (
+    const normalized: ActionCalendarEvent[] = (
       Array.isArray(visibleEventsForConflicts) ? visibleEventsForConflicts : []
     ).map((e) => ({
       ...e,
@@ -741,7 +761,7 @@ export default function ActionsClient() {
 
             notifiedCount += 1;
           }
-        } catch (_error) {
+        } catch {
           // No bloqueamos la resolución principal si falla una notificación.
         }
       }
