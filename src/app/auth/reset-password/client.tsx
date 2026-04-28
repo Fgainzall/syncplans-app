@@ -73,10 +73,10 @@ export default function Client() {
         "Te enviamos un enlace para cambiar tu contraseña. Revisa tu bandeja de entrada y también spam."
       );
       setLoading(false);
-    } catch (err: any) {
-      setError(err?.message ?? "Ocurrió un error inesperado.");
-      setLoading(false);
-    }
+    } catch (err: unknown) {
+  setError(err instanceof Error ? err.message : "Ocurrió un error inesperado.");
+  setLoading(false);
+}
   }
 
   return (

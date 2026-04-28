@@ -48,13 +48,16 @@ export default function AuditClient() {
         if (!alive) return;
 
         setRows(Array.isArray(data) ? data : []);
-      } catch (e: any) {
-        push({
-          kind: "err",
-          title: "No se pudo cargar la auditoría",
-          body: e?.message ?? "Error desconocido",
-        });
-      } finally {
+   } catch (e: unknown) {
+  const message = e instanceof Error ? e.message : "Error desconocido";
+
+  push({
+    kind: "err",
+    title: "No se pudo cargar la auditoría",
+    body: message,
+  });
+}
+       finally {
         if (alive) setLoading(false);
       }
     })();

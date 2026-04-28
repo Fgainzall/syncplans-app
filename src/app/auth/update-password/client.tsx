@@ -123,10 +123,10 @@ export default function Client() {
       setTimeout(() => {
         router.replace("/auth/login");
       }, 900);
-    } catch (err: any) {
-      setError(err?.message ?? "Ocurrió un error inesperado.");
-      setLoading(false);
-    }
+    } catch (err: unknown) {
+  setError(err instanceof Error ? err.message : "Ocurrió un error inesperado.");
+  setLoading(false);
+}
   }
 
   return (

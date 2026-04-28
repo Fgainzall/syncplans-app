@@ -34,7 +34,13 @@ type MemberRow = {
 };
 
 type UiToast = { title: string; subtitle?: string } | null;
-
+type GroupMemberDbRow = {
+  id: string | number;
+  group_id: string | number;
+  user_id: string | number;
+  role?: string | null;
+  created_at?: string | null;
+};
 export default function MembersClient() {
   const router = useRouter();
 
@@ -130,7 +136,7 @@ export default function MembersClient() {
         if (error) throw error;
         if (!alive) return;
 
-        const baseRows: MemberRow[] = (data ?? []).map((m: any) => ({
+       const baseRows: MemberRow[] = ((data ?? []) as GroupMemberDbRow[]).map((m) => ({
           id: String(m.id),
           group_id: String(m.group_id),
           user_id: String(m.user_id),

@@ -162,10 +162,10 @@ export default function RegisterClient() {
 
       setDone(true);
       setLoading(false);
-    } catch (err: any) {
-      setError(err?.message ?? "Error inesperado. Intenta otra vez.");
-      setLoading(false);
-    }
+    } catch (err: unknown) {
+  setError(err instanceof Error ? err.message : "Error inesperado. Intenta otra vez.");
+  setLoading(false);
+}
   }
 
   function resetForm() {
