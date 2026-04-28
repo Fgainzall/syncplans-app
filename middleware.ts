@@ -1,7 +1,15 @@
 // middleware.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-
+type SupabaseCookieOptions = {
+  domain?: string;
+  path?: string;
+  expires?: Date;
+  httpOnly?: boolean;
+  maxAge?: number;
+  sameSite?: boolean | "lax" | "strict" | "none";
+  secure?: boolean;
+};
 function canonicalHost() {
   const env = (
     process.env.NEXT_PUBLIC_APP_URL ??
@@ -77,12 +85,12 @@ export async function middleware(request: NextRequest) {
       get(name: string) {
         return request.cookies.get(name)?.value;
       },
-      set(name: string, value: string, options: any) {
-        response.cookies.set({ name, value, ...options });
-      },
-      remove(name: string, options: any) {
-        response.cookies.set({ name, value: "", ...options, maxAge: 0 });
-      },
+    set(name: string, value: string, options: SupabaseCookieOptions) {
+  response.cookies.set({ name, value, ...options });
+},
+remove(name: string, options: SupabaseCookieOptions) {
+  response.cookies.set({ name, value: "", ...options, maxAge: 0 });
+},
     },
   });
 

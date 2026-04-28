@@ -31,9 +31,29 @@ export type SummaryEvent = {
   endIso: string | null;
   groupId: string | null;
   isExternal: boolean;
-  raw: any;
+ raw: SummaryEventInput;
 };
-
+type SummaryEventInput = {
+  id?: unknown;
+  title?: unknown;
+  name?: unknown;
+  summary?: unknown;
+  notes?: unknown;
+  description?: unknown;
+  start?: unknown;
+  start_at?: unknown;
+  end?: unknown;
+  end_at?: unknown;
+  group_id?: unknown;
+  groupId?: unknown;
+  is_external?: unknown;
+  isExternal?: unknown;
+  is_external_event?: unknown;
+  external_source?: unknown;
+  externalSource?: unknown;
+  source?: unknown;
+  provider?: unknown;
+};
 export type ConflictAlert = {
   count: number;
   latestEventId: string | null;
@@ -365,13 +385,23 @@ export function mapRecentDecision(log: ConflictResolutionLogRow): RecentDecision
   };
 }
 
-export function normalizeEvent(e: any): SummaryEvent | null {
+export function normalizeEvent(e: SummaryEventInput): SummaryEvent | null {
   const id = String(e?.id ?? "").trim();
   if (!id) return null;
 
-  const startIso = (e?.start ?? e?.start_at ?? null) as string | null;
-  const endIso = (e?.end ?? e?.end_at ?? null) as string | null;
+ const startIso =
+  typeof e.start === "string"
+    ? e.start
+    : typeof e.start_at === "string"
+      ? e.start_at
+      : null;
 
+const endIso =
+  typeof e.end === "string"
+    ? e.end
+    : typeof e.end_at === "string"
+      ? e.end_at
+      : null;
   const start = safeDate(startIso);
   const end = safeDate(endIso);
 
@@ -380,7 +410,11 @@ export function normalizeEvent(e: any): SummaryEvent | null {
   const groupIdRaw = e?.group_id ?? e?.groupId ?? null;
   const groupId = groupIdRaw ? String(groupIdRaw) : null;
 
-  const title = e?.title ?? e?.name ?? e?.summary ?? "Evento";
+  const titleCandidate = e.title ?? e.name ?? e.summary ?? "Evento";
+const title =
+  typeof titleCandidate === "string"
+    ? titleCandidate
+    : String(titleCandidate ?? "Evento");
 
   const isExternal =
     !!e?.is_external ||

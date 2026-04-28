@@ -2,14 +2,14 @@
 "use client";
 
 import React, { type CSSProperties } from "react";
-import { groupMeta } from "@/lib/conflicts";
+import { groupMeta, type GroupType } from "@/lib/conflicts";
 import { getGroupTypeLabel, type GroupRow } from "@/lib/groupsDb";
 import { type DbEventRow } from "@/lib/eventsDb";
 
 type EventWithGroup = DbEventRow & {
   group?: GroupRow | null;
 };
-
+type TimelineGroupType = GroupType | "pair" | "family" | "other" | "personal";
 type GroupedByDate = {
   dateKey: string;
   events: EventWithGroup[];
@@ -71,9 +71,8 @@ function EventRow({
   selected: boolean;
   toggleSelection: (id: string) => void;
 }) {
-  const meta = groupMeta(
-    e.group_id ? (e.group?.type as any) ?? "pair" : "personal",
-  );
+const groupType = (e.group_id ? e.group?.type ?? "pair" : "personal") as TimelineGroupType;
+const meta = groupMeta(groupType);
 
   const start = new Date(e.start);
   const end = new Date(e.end);
@@ -126,7 +125,7 @@ function EventRow({
               </div>
               <div style={S.eventGroup}>
                 {e.group_id
-                  ? getGroupTypeLabel(e.group?.type as any)
+                  ? getGroupTypeLabel(String(e.group?.type ?? "pair"))
                   : "Personal"}
                 {e.group?.name ? ` • ${e.group.name}` : ""}
               </div>

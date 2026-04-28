@@ -6,8 +6,8 @@ export type AuditRow = {
   group_id: string | null;
   actor_id: string | null;
   action: "insert" | "update" | "delete";
-  before: any | null;
-  after: any | null;
+before: Record<string, unknown> | null;
+after: Record<string, unknown> | null;
   created_at: string;
 };
 

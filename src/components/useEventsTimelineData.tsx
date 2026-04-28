@@ -14,7 +14,7 @@ import {
   getProposalResponsesForEvents,
   type ProposalResponseRow,
 } from "@/lib/proposalResponsesDb";
-import { getProfilesMapByIds } from "@/lib/profilesDb";
+import { getProfilesMapByIds, type Profile } from "@/lib/profilesDb";
 import {
   buildConflictsByEventId,
   type ConflictByEventId,
@@ -33,7 +33,7 @@ type UseEventsTimelineDataReturn = {
   trustSignalsByEventId: TrustSignalByEventId;
   proposalResponsesByEventId: ProposalResponseByEventId;
   proposalResponseGroupsByEventId: ProposalResponsesGroupByEventId;
-  proposalProfilesById: Record<string, any>;
+  proposalProfilesById: Record<string, Profile>;
   conflictsByEventId: ConflictByEventId;
   refreshTick: number;
 };
@@ -51,9 +51,9 @@ export function useEventsTimelineData(
     useState<ProposalResponseByEventId>({});
   const [proposalResponseGroupsByEventId, setProposalResponseGroupsByEventId] =
     useState<ProposalResponsesGroupByEventId>({});
-  const [proposalProfilesById, setProposalProfilesById] = useState<Record<string, any>>(
-    {}
-  );
+ const [proposalProfilesById, setProposalProfilesById] = useState<Record<string, Profile>>(
+  {}
+);
   const [conflictsByEventId, setConflictsByEventId] = useState<ConflictByEventId>({});
   const [refreshTick, setRefreshTick] = useState(0);
 
