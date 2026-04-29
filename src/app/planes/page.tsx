@@ -36,8 +36,8 @@ function buildPlanCards(): PlanCardConfig[] {
       id: "free",
       label: "Free",
       tag: "Base",
-      price: "US$0",
-      priceSuffix: "/ beta",
+      price: "Gratis",
+      priceSuffix: "durante beta",
       description:
         "La base completa para una pareja que quiere empezar bien: crear su espacio, invitarse, meter planes y sentir valor real antes de pagar.",
       idealFor:
@@ -56,8 +56,8 @@ function buildPlanCards(): PlanCardConfig[] {
       id: "premium_monthly",
       label: "Premium Mensual",
       tag: "Premium",
-      price: "US$X",
-      priceSuffix: "/ mes",
+      price: "Beta privada",
+      priceSuffix: "mensual",
       badge: "Recomendado",
       highlight: true,
       description:
@@ -79,8 +79,8 @@ function buildPlanCards(): PlanCardConfig[] {
       id: "premium_yearly",
       label: "Premium Anual",
       tag: "Premium",
-      price: "US$Y",
-      priceSuffix: "/ año",
+      price: "Próximamente",
+      priceSuffix: "anual",
       description:
         "Para parejas, familias y grupos que ya entendieron que la tranquilidad compartida vale más que resolver todo por chat y quieren consolidar ese hábito.",
       idealFor:
@@ -237,7 +237,7 @@ function getPlanButtonLabel(card: PlanCardConfig, isCurrent: boolean, founderEqu
   if (isCurrent) return "Ya tienes este acceso";
   if (founderEquivalent) return "Tu acceso ya cubre esta capa";
   if (card.id === "free") return "Seguir con Free";
-  return "Quiero este plan";
+  return "Registrar interés";
 }
 
 function getPlanHint(
