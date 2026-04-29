@@ -184,6 +184,22 @@ function pushStatusLabel(state: PushControlState | null): string {
   return "Pendientes";
 }
 
+function pushPermissionLabel(state: PushControlState | null): string {
+  if (!state) return "Permiso: revisando";
+  if (!state.supported) return "Permiso: no compatible";
+  if (state.permission === "granted") return "Permiso activo";
+  if (state.permission === "denied") return "Permiso bloqueado";
+  return "Permiso pendiente";
+}
+
+function pushSubscriptionLabel(state: PushControlState | null): string {
+  if (!state) return "Dispositivo: revisando";
+  if (!state.supported) return "Dispositivo no compatible";
+  if (state.hasSubscription) return "Dispositivo conectado";
+  if (state.permission === "denied") return "Dispositivo sin avisos";
+  return "Dispositivo pendiente";
+}
+
 async function fetchLocationControlState(): Promise<LocationControlState | null> {
   const token = await getAccessTokenOrNull();
   if (!token) return null;
@@ -205,28 +221,28 @@ function buildTodayPreview(rows: DbEventRow[]): TodayEventPreview[] {
   const start = startOfDay(iso).getTime();
   const end = start + 24 * 60 * 60 * 1000;
 
-return (rows as SettingsEventPreviewRow[])
-  .filter((row) => {
+  return (rows as SettingsEventPreviewRow[])
+    .filter((row) => {
     const rawStart = row.start ?? row.start_at;
     if (!rawStart) return false;
     const ms = new Date(rawStart).getTime();
     return Number.isFinite(ms) && ms >= start && ms < end;
-  })
-  .sort((a, b) => {
+    })
+    .sort((a, b) => {
     const aStart = new Date(a.start ?? a.start_at ?? 0).getTime();
     const bStart = new Date(b.start ?? b.start_at ?? 0).getTime();
     return aStart - bStart;
-  })
-  .slice(0, 3)
-  .map((row) => {
+    })
+    .slice(0, 3)
+    .map((row) => {
     const rawStart = row.start ?? row.start_at;
     return {
       id: String(row.id),
       title: String(row.title || "Evento"),
       time: formatEventTime(rawStart),
-     groupLabel: labelForGroup(row as Parameters<typeof labelForGroup>[0]),
+      groupLabel: labelForGroup(row as Parameters<typeof labelForGroup>[0]),
     };
-  });
+    });
 }
 
 export default function SettingsClient() {
@@ -500,7 +516,7 @@ export default function SettingsClient() {
         },
       });
 
-     const json = (await res.json().catch(() => ({}))) as SettingsApiResponse;
+      const json = (await res.json().catch(() => ({}))) as SettingsApiResponse;
 
       if (!res.ok || !json.ok) {
         showToast(
@@ -541,7 +557,7 @@ export default function SettingsClient() {
         body: JSON.stringify({ date: todayISO(), source: "settings_manual" }),
       });
 
-     const json = (await res.json().catch(() => ({}))) as SettingsApiResponse;
+      const json = (await res.json().catch(() => ({}))) as SettingsApiResponse;
 
       if (!res.ok || !json.ok) {
         if (json?.reason === "no_email") {
@@ -649,14 +665,14 @@ export default function SettingsClient() {
               <div style={styles.kicker}>Ajustes</div>
               <h1 style={styles.h1}>Centro de control</h1>
               <div style={styles.sub}>
-                Configura notificaciones, permisos por grupo e integraciones sin ruido extra.
+                Ajusta permisos, integraciones y avisos para que SyncPlans trabaje por ti sin ruido extra.
               </div>
 
               <div style={styles.heroMeta}>
                 {notifScore ? (
                   <>
                     <span style={styles.pillSoft}>{notifScore.on}/{notifScore.total} activas</span>
-                    <span style={styles.pillSoft}>{notifScore.quiet ? "Silencioso ON" : "Silencioso OFF"}</span>
+                    <span style={styles.pillSoft}>{notifScore.quiet ? "Modo silencioso activo" : "Modo silencioso inactivo"}</span>
                   </>
                 ) : (
                   <span style={styles.pillSoft}>Cargando preferencias…</span>
@@ -680,22 +696,22 @@ export default function SettingsClient() {
               />
               <Row
                 dot="rgba(251,191,36,0.95)"
-                title="Permisos por grupo"
-                desc="Personal, Pareja y Familia: cómo se comporta tu experiencia."
+                title="Comportamiento por grupo"
+                desc="Define cómo se comporta SyncPlans en Personal, Pareja y Familia."
                 cta="Configurar"
                 onClick={() => router.push("/settings/groups")}
               />
               <Row
                 dot="rgba(244,63,94,0.95)"
                 title="Preferencias de conflictos"
-                desc="Avisos, defaults y reglas de coordinación."
+                desc="Avisos y reglas para decidir mejor cuando haya cruces."
                 cta="Ajustar"
                 onClick={() => router.push("/settings/conflicts")}
               />
               <Row
                 dot="rgba(34,197,94,0.95)"
                 title="Resumen semanal"
-                desc="Controla el resumen que te devuelve claridad antes de empezar la semana."
+                desc="Recibe claridad antes de empezar la semana."
                 cta="Ver"
                 onClick={() => router.push("/settings/weekly")}
               />
@@ -705,9 +721,9 @@ export default function SettingsClient() {
           <section style={styles.card}>
             <div style={styles.sectionTitleRow}>
               <div>
-                <div style={styles.sectionTitle}>Ubicación y notificaciones reales</div>
+                <div style={styles.sectionTitle}>Ubicación y avisos inteligentes</div>
                 <div style={styles.smallNote}>
-                  Controla los permisos que hacen posible Smart Mobility: ETA, hora de salida y avisos aunque la app esté cerrada.
+                  Controla los permisos que permiten calcular cuándo salir y recibir avisos aunque la app esté cerrada.
                 </div>
               </div>
               <button
@@ -791,8 +807,8 @@ export default function SettingsClient() {
                 </div>
 
                 <div style={styles.permissionMeta}>
-                  <span style={styles.metaChip}>Permiso: {pushState?.permission ?? "revisando"}</span>
-                  <span style={styles.metaChip}>Subscription: {pushState?.hasSubscription ? "guardada" : "pendiente"}</span>
+                  <span style={styles.metaChip}>{pushPermissionLabel(pushState)}</span>
+                  <span style={styles.metaChip}>{pushSubscriptionLabel(pushState)}</span>
                 </div>
 
                 <div style={styles.permissionActions}>
@@ -826,7 +842,7 @@ export default function SettingsClient() {
               <div>
                 <div style={styles.sectionTitle}>Integraciones de calendario</div>
                 <div style={styles.smallNote}>
-                  Importa eventos <b>read-only</b> como externos. Entran al contexto de conflictos sin romper tu calendario.
+                  Importa eventos como contexto externo. SyncPlans los usa para anticipar cruces sin modificar tu calendario original.
                 </div>
               </div>
 
@@ -867,8 +883,8 @@ export default function SettingsClient() {
                         <div style={styles.innerTitle}>Google Calendar</div>
                         <div style={styles.innerSub}>
                           {googleConnected
-                            ? `Cuenta: ${googleEmail || "—"} · Importación read-only`
-                            : "Conecta tu Google para importar eventos como externos."}
+                            ? `Cuenta: ${googleEmail || "—"} · Solo lectura`
+                            : "Conecta Google para sumar contexto a tus decisiones."}
                         </div>
                       </div>
                     </div>
@@ -909,7 +925,7 @@ export default function SettingsClient() {
                   </div>
                 </div>
 
-                <div style={styles.note}><b>Tip:</b> Sync trae 30 días atrás y 120 días adelante.</div>
+                <div style={styles.note}><b>Alcance:</b> SyncPlans trae 30 días hacia atrás y 120 días hacia adelante.</div>
 
                 {googleConnected ? (
                   <div style={styles.googleValueStrip}>
@@ -963,7 +979,7 @@ export default function SettingsClient() {
                 ))}
               </div>
             ) : (
-              <div style={styles.note}><b>Pro tip:</b> Este correo deja claro por qué SyncPlans vale: te devuelve claridad operativa aunque no abras la grilla del calendario.</div>
+              <div style={styles.note}><b>Por qué importa:</b> Este correo te devuelve claridad operativa aunque no abras la grilla del calendario.</div>
             )}
           </section>
 
