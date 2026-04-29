@@ -38,6 +38,7 @@ SyncPlans cubre ese hueco con cuatro capas:
 ## Módulos sensibles
 
 ### Semántica de grupos
+
 Fuente de verdad recomendada: `src/lib/naming.ts`
 
 Ahí debe vivir la normalización de:
@@ -50,26 +51,98 @@ Ahí debe vivir la normalización de:
 Ningún componente debería volver a traducir esos valores manualmente.
 
 ### Eventos
+
 Fuente principal: `src/lib/eventsDb.ts`
 
 ### Conflictos
+
 Módulos principales:
 
 - `src/lib/conflicts.ts`
 - `src/lib/conflictsDbBridge.ts`
 
 ### Grupos
+
 Módulos principales:
 
 - `src/lib/groupsDb.ts`
 - `src/lib/groupsStore.ts`
 
 ### Invitaciones y respuestas
+
 Módulos principales:
 
 - `src/lib/invitationsDb.ts`
 - `src/lib/proposalResponsesDb.ts`
 - `src/app/api/public-invite/[token]/route.ts`
+
+### Analytics
+
+Módulo principal: `src/lib/analytics.ts`
+
+La tabla `public.events_analytics` se escribe desde cliente autenticado. Por eso debe tener RLS activo y no debe aceptar inserts con `user_id` nulo. El hardening correspondiente está versionado en:
+
+- `db/migrations/016_harden_events_analytics_rls.sql`
+
+Reglas actuales:
+
+- `INSERT` solo para usuarios autenticados con `user_id = auth.uid()`.
+- `SELECT` solo de analytics propios.
+- Sin `UPDATE` ni `DELETE` desde cliente.
+- Sin acceso `anon`.
+
+## Gobernanza de base de datos
+
+La base real vive en Supabase. El repo mantiene dos niveles de documentación:
+
+1. `db/migrations/*`  
+   Fuente versionada de cambios intencionales aplicados a la base.
+
+2. `db/schema.sql`  
+   Snapshot documental mínimo, útil para entender las tablas críticas, pero no sustituye un dump completo.
+
+3. `supabase_schema.sql`  
+   Contenedor reservado para un dump completo futuro de Supabase. No debe editarse a mano salvo para actualizar su nota operativa.
+
+### Tablas críticas con RLS esperado
+
+Según el snapshot limpio revisado en Supabase, estas tablas deben mantenerse con RLS activo:
+
+- `profiles`
+- `groups`
+- `group_members`
+- `group_invites`
+- `events`
+- `event_responses`
+- `proposal_responses`
+- `public_invites`
+- `notifications`
+- `push_subscriptions`
+- `user_settings`
+- `user_notification_settings`
+- `external_busy_blocks`
+- `external_calendar_settings`
+- `connected_accounts`
+- `google_accounts`
+- `conflict_preferences`
+- `conflict_resolutions`
+- `conflict_resolutions_log`
+- `events_analytics`
+
+No tocar RLS/policies sin tener un bug confirmado o un snapshot actualizado de Supabase.
+
+### Flujo correcto para cambios de DB
+
+1. Crear una migration nueva en `db/migrations/`.
+2. Ejecutar el SQL en Supabase SQL Editor o con Supabase CLI si el entorno local lo permite.
+3. Probar:
+
+```bash
+npm run build
+```
+
+4. Commit solo de los archivos relacionados.
+5. Verificar deploy en Vercel.
 
 ## Setup local
 
@@ -98,6 +171,10 @@ RESEND_API_KEY=
 npm run dev
 ```
 
+## Operación en Vercel
+
+El proyecto usa crons en `vercel.json`. En plan Hobby, mantener horarios compatibles con los límites de Vercel. El cron de `leave-alerts` está configurado con frecuencia diaria para evitar bloqueos de deploy.
+
 ## Qué no tocar sin cuidado
 
 - RLS y policies si no hay un bug real confirmado
@@ -105,6 +182,7 @@ npm run dev
 - estructura de grupos y membresías sin revisar impacto
 - normalizaciones duplicadas repartidas en UI y librerías
 - archivos grandes core sin un objetivo quirúrgico
+- `supabase/.temp` si ya está trackeado por Git, salvo en un bloque separado de limpieza
 
 ## Regla de mantenimiento
 
@@ -118,5 +196,4 @@ Antes de tocar una pantalla o flujo, evaluar:
 
 ## Estado documental actual
 
-Este README reemplaza el template default de Next.js y sirve como base operativa inicial. El snapshot de DB en `db/schema.sql` es intencionalmente mínimo y documental: prioriza dejar una referencia útil y honesta antes que fingir un dump completo no verificado.
-<!-- trigger vercel rebuild -->
+Este README reemplaza el template default de Next.js y sirve como base operativa inicial. La gobernanza de DB queda documentada, con `events_analytics` endurecida por migration 016 y con `db/schema.sql` como snapshot mínimo, no como dump reconstructivo completo.

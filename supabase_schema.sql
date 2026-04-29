@@ -1,61 +1,33 @@
 -- =====================================================================
---  SyncPlans – Supabase schema backup
+--  SyncPlans – Supabase schema backup placeholder
 -- =====================================================================
 -- IMPORTANTE:
--- Este archivo es solo un CONTENEDOR para el backup de tu base de datos.
--- Ahora mismo NO contiene el schema real. Debes exportarlo desde Supabase
--- y pegarlo aquí para tener un respaldo completo.
+-- Este archivo está reservado para un DUMP COMPLETO del schema remoto de
+-- Supabase. Actualmente NO debe tratarse como fuente reconstructiva.
 --
--- ¿Cómo exportar el schema desde Supabase?
+-- Estado actual:
+-- - La base real vive en Supabase.
+-- - Las migrations en db/migrations/ versionan cambios intencionales.
+-- - db/schema.sql es un snapshot documental mínimo de tablas críticas.
+-- - El snapshot limpio de gobernanza se obtuvo desde Supabase SQL Editor
+--   porque el dump CLI requiere Docker Desktop en Windows.
 --
--- Opción 1: Desde la CLI de Supabase (recomendado)
+-- Cómo generar un dump real cuando el entorno local lo permita:
 --
---   1) Instala la CLI si no la tienes:
---        npm install -g supabase
+--   npx supabase db dump --linked -f supabase_schema.sql
 --
---   2) En la carpeta del proyecto (donde está el archivo supabase/config.toml)
---      ejecuta:
+-- Nota:
+-- El comando anterior puede requerir Docker Desktop. Si Docker no está
+-- disponible, usar SQL Editor para generar snapshots de auditoría, pero no
+-- reemplazar este archivo con resultados parciales pegados manualmente.
 --
---        supabase db dump --schema-only > supabase_schema.sql
+-- Reglas:
+-- 1. No editar este archivo a mano para inventar schema.
+-- 2. No usarlo como backup mientras contenga esta nota.
+-- 3. Después de un dump real, revisar el diff antes de commitear.
+-- 4. No mezclar dump masivo con fixes quirúrgicos de RLS o frontend.
 --
---      Eso sobrescribirá este archivo con todo el schema (tablas, índices,
---      vistas, funciones, policies, etc.).
---
--- Opción 2: Desde el panel web de Supabase (menos ideal)
---
---   - Ve a "SQL editor" → "New query".
---   - Usa la opción de "Generate types" / "Download schema" si está
---     disponible (según versión) y pega aquí el contenido.
---
--- Recomendación:
---   - Usa SIEMPRE la CLI para mantener este archivo actualizado cada vez
---     que cierres un sprint grande de cambios en la BD.
---
--- Mientras no exportes el schema real, este archivo NO sirve como backup.
+-- Última revisión documental: 2026-04-29
 -- =====================================================================
 
--- Ejemplo orientativo (NO es tu schema real):
-
--- CREATE TABLE public.profiles (
---   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
---   email text UNIQUE,
---   first_name text,
---   last_name text,
---   created_at timestamptz DEFAULT now()
--- );
-
--- CREATE TABLE public.groups (
---   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
---   name text NOT NULL,
---   type text NOT NULL CHECK (type IN ('solo', 'pair', 'family', 'other')),
---   owner_id uuid NOT NULL,
---   created_at timestamptz DEFAULT now()
--- );
-
--- ...
--- A PARTIR DE AQUÍ, cuando ejecutes:
---
---   supabase db dump --schema-only > supabase_schema.sql
---
--- ESTE CONTENIDO SERÁ REEMPLAZADO POR EL SCHEMA REAL.
--- =====================================================================
+-- Full Supabase schema dump pending.
