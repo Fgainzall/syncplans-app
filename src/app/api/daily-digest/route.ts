@@ -23,11 +23,6 @@ const CRON_SECRET = process.env.CRON_SECRET || "";
 // Tipamos explícito el admin client para que TS no moleste
 type AdminClient = ReturnType<typeof createClient>;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.warn(
-    "[daily-digest] Faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en env"
-  );
-}
 type MembershipRow = {
   group_id: string | null;
 };
