@@ -60,7 +60,6 @@ export default function RootLayout({
           <div
             style={{
               minHeight: "100dvh",
-              paddingBottom: "var(--sp-bottom-safe)",
               boxSizing: "border-box",
             }}
           >

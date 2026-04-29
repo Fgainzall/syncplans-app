@@ -297,7 +297,7 @@ function BottomNav() {
   };
 
   return (
-    <nav style={S.outer} aria-label="NavegaciÃ³n principal">
+    <nav style={S.outer} aria-label="Navegación principal">
       <div style={S.wrap}>
         <div style={S.viewport}>
           <div style={S.track}>
