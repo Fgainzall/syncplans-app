@@ -503,12 +503,14 @@ function NewEventDetailsInner() {
   const sp = useSearchParams();
   const proposedStartParam = sp.get("proposedStart");
   const proposedEndParam = sp.get("proposedEnd");
-  const quickCaptureParam = sp.get("qc");
-  const cameFromQuickCapture =
-    quickCaptureParam === "1" ||
-    sp.get("from") === "capture" ||
-    sp.get("source") === "quick_capture" ||
-    sp.get("capture_source") === "quick_capture";
+const quickCaptureParam = sp.get("qc");
+const cameFromQuickCapture =
+  quickCaptureParam === "1" ||
+  sp.get("from") === "capture" ||
+  sp.get("source") === "quick_capture" ||
+  sp.get("capture_source") === "quick_capture" ||
+  sp.get("capture_source") === "summary" ||
+  !!sp.get("raw_text");
   const quickCaptureTitleParam = sp.get("title");
   const quickCaptureDurationParam = sp.get("duration");
   const quickCaptureNotesParam = sp.get("notes");
@@ -2932,13 +2934,13 @@ useEffect(() => {
               </div>
             </div>
 
-            {!isEditing ? (
-              <EventDetailsTemplatesSection
-                selectedTemplate={selectedTemplate}
-                onSelectTemplate={applyTemplateSelection}
-                onClearTemplate={clearTemplateSelection}
-              />
-            ) : null}
+          {!isEditing && !cameFromQuickCapture ? (
+  <EventDetailsTemplatesSection
+    selectedTemplate={selectedTemplate}
+    onSelectTemplate={applyTemplateSelection}
+    onClearTemplate={clearTemplateSelection}
+  />
+) : null}
 
             <div style={styles.field}>
               <div style={styles.fieldLabel}>TÃ­tulo</div>
