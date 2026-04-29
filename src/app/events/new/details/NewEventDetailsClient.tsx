@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, {
   Suspense,
@@ -35,14 +35,14 @@ import supabase from "@/lib/supabaseClient";
 import { getSettingsFromDb, type NotificationSettings } from "@/lib/settings";
 import { getLearningSignals } from "@/lib/learningSignals";
 import type { LearningSignal } from "@/lib/learningTypes";
-// ✅ DB real (RLS)
+// âœ… DB real (RLS)
 import {
   getMyGroups,
   getGroupTypeLabel,
   getSharedGroupBetweenUsers,
 } from "@/lib/groupsDb";
 import { suggestCanonicalGroupWithLearning } from "@/lib/groupSuggestion";
-// ✅ DB Source of Truth
+// âœ… DB Source of Truth
 import {
   createEventForGroup,
   deleteEventsByIdsDetailed,
@@ -50,7 +50,7 @@ import {
   updateEvent,
 } from "@/lib/eventsDb";
 import { getOrCreatePublicInvite } from "@/lib/invitationsDb";
-// ✅ active group desde DB
+// âœ… active group desde DB
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { loadEventsForConflictPreflight } from "@/lib/conflictsDbBridge";
 import { createConflictResolutionLog } from "@/lib/conflictResolutionsLogDb";
@@ -205,7 +205,7 @@ async function persistLastKnownLocation(point: LatLng) {
       }),
     });
   } catch {
-    // No rompemos el formulario si falla la persistencia de ubicación.
+    // No rompemos el formulario si falla la persistencia de ubicaciÃ³n.
   }
 }
 type SelectedPlace = {
@@ -259,16 +259,16 @@ function getTravelStatusLabel(input: {
   etaLabel: string | null;
   etaError: string | null;
 }) {
-  if (input.isLoadingEta) return "Calculando ruta…";
+  if (input.isLoadingEta) return "Calculando rutaâ€¦";
   if (input.etaLabel) return "Ruta lista";
-  if (input.etaError) return "Usamos una estimación aproximada";
-  return "Esperando ubicación";
+  if (input.etaError) return "Usamos una estimaciÃ³n aproximada";
+  return "Esperando ubicaciÃ³n";
 }
 
 function getLeaveTimeLabel(leaveTimePreview: Date | null) {
-  if (!leaveTimePreview) return "Aparecerá cuando la ruta esté lista";
+  if (!leaveTimePreview) return "AparecerÃ¡ cuando la ruta estÃ© lista";
 
-  return formatSmartTime(leaveTimePreview, "Aparecerá cuando la ruta esté lista");
+  return formatSmartTime(leaveTimePreview, "AparecerÃ¡ cuando la ruta estÃ© lista");
 }
 
 function getSafeRouteDepartureTime(startIso: string | null): string | null {
@@ -391,7 +391,7 @@ function humanizeActionError(err: unknown, fallback = "Intenta nuevamente.") {
   const lowered = message.toLowerCase();
 
   if (lowered.includes("abort")) {
-    return "La operación tardó demasiado o se interrumpió. Vuelve a intentarlo.";
+    return "La operaciÃ³n tardÃ³ demasiado o se interrumpiÃ³. Vuelve a intentarlo.";
   }
 
   if (
@@ -400,7 +400,7 @@ function humanizeActionError(err: unknown, fallback = "Intenta nuevamente.") {
     lowered.includes("networkerror") ||
     lowered.includes("failed to fetch")
   ) {
-    return "Parece un problema de red. Revisa tu conexión e inténtalo otra vez.";
+    return "Parece un problema de red. Revisa tu conexiÃ³n e intÃ©ntalo otra vez.";
   }
 
   return message;
@@ -408,7 +408,7 @@ function humanizeActionError(err: unknown, fallback = "Intenta nuevamente.") {
 
 function safeTitle(value?: string | null) {
   const v = String(value ?? "").trim();
-  return v || "Evento sin título";
+  return v || "Evento sin tÃ­tulo";
 }
 
 function normalizeFreeText(value: string) {
@@ -504,6 +504,11 @@ function NewEventDetailsInner() {
   const proposedStartParam = sp.get("proposedStart");
   const proposedEndParam = sp.get("proposedEnd");
   const quickCaptureParam = sp.get("qc");
+  const cameFromQuickCapture =
+    quickCaptureParam === "1" ||
+    sp.get("from") === "capture" ||
+    sp.get("source") === "quick_capture" ||
+    sp.get("capture_source") === "quick_capture";
   const quickCaptureTitleParam = sp.get("title");
   const quickCaptureDurationParam = sp.get("duration");
   const quickCaptureNotesParam = sp.get("notes");
@@ -770,10 +775,10 @@ function NewEventDetailsInner() {
   );
 
   const originSourceLabel = useMemo(() => {
-    if (originSource === "gps") return "Desde tu ubicación actual";
-    if (originSource === "stored") return "Desde tu última ubicación guardada";
+    if (originSource === "gps") return "Desde tu ubicaciÃ³n actual";
+    if (originSource === "stored") return "Desde tu Ãºltima ubicaciÃ³n guardada";
     if (originSource === "url") return "Desde el punto enviado";
-    return "Activa ubicación para calcular la salida";
+    return "Activa ubicaciÃ³n para calcular la salida";
   }, [originSource]);
 
   const mapsLinks = useMemo(() => {
@@ -1115,7 +1120,7 @@ function NewEventDetailsInner() {
         setExternalProposalActive(true);
 
         setToast({
-          title: "Propuesta recibida 📩",
+          title: "Propuesta recibida ðŸ“©",
           subtitle: "Revisa la nueva fecha sugerida.",
         });
       }
@@ -1242,8 +1247,8 @@ function NewEventDetailsInner() {
           setEtaSeconds(null);
           setEtaError(
             routeOrigin.reason === "event_too_far"
-              ? "Tu ubicación parece demasiado lejos del destino. Actualízala para calcular una ruta confiable."
-              : "Activa o actualiza tu ubicación para calcular cuándo salir.",
+              ? "Tu ubicaciÃ³n parece demasiado lejos del destino. ActualÃ­zala para calcular una ruta confiable."
+              : "Activa o actualiza tu ubicaciÃ³n para calcular cuÃ¡ndo salir.",
           );
           return;
         }
@@ -1282,7 +1287,7 @@ function NewEventDetailsInner() {
         setEtaError(null);
       } catch {
         if (cancelled || requestId !== etaRequestRef.current) return;
-        setEtaError("No pudimos calcular la duración en este momento.");
+        setEtaError("No pudimos calcular la duraciÃ³n en este momento.");
         setEtaSeconds(null);
       } finally {
         if (cancelled || requestId !== etaRequestRef.current) return;
@@ -1462,7 +1467,7 @@ useEffect(() => {
 
   const summaryLine = useMemo(() => {
     if (isSharedProposal && proposalResponse === "adjust") {
-      return "Estás ajustando una propuesta compartida antes de dejarla lista.";
+      return "EstÃ¡s ajustando una propuesta compartida antes de dejarla lista.";
     }
 
     if (isSharedProposal) {
@@ -1471,10 +1476,10 @@ useEffect(() => {
 
     if (effectiveType === "group") {
       const groupName = selectedGroup?.name ?? "Grupo";
-      return `Esto se verá con ${groupName}. Si no es el lugar correcto, puedes cambiarlo.`;
+      return `Esto se verÃ¡ con ${groupName}. Si no es el lugar correcto, puedes cambiarlo.`;
     }
 
-    return "Esto solo lo verás tú.";
+    return "Esto solo lo verÃ¡s tÃº.";
   }, [effectiveType, selectedGroup, isSharedProposal, proposalResponse]);
 
   const quickCaptureReview = useMemo(() => {
@@ -1502,20 +1507,20 @@ useEffect(() => {
 
     const reviewItems: string[] = [];
     if (!hasValidStart) {
-      reviewItems.push("Falta fecha/hora válida en el formulario.");
+      reviewItems.push("Falta fecha/hora vÃ¡lida en el formulario.");
     }
     if (hasValidStart && !hasValidEnd) {
       reviewItems.push(
-        "Revisa la duración: la hora de fin debe ser posterior al inicio.",
+        "Revisa la duraciÃ³n: la hora de fin debe ser posterior al inicio.",
       );
     }
     if (titleNeedsReview) {
       reviewItems.push(
-        "Revisa el título: puede estar incompleto o muy genérico.",
+        "Revisa el tÃ­tulo: puede estar incompleto o muy genÃ©rico.",
       );
     }
     if (notesNeedsReview) {
-      reviewItems.push("Revisa notas/contexto para evitar ambigüedad.");
+      reviewItems.push("Revisa notas/contexto para evitar ambigÃ¼edad.");
     }
 
     return {
@@ -1762,19 +1767,19 @@ useEffect(() => {
   const errors = useMemo(() => {
     const e: string[] = [];
 
-    if (!title.trim()) e.push("Escribe un título.");
+    if (!title.trim()) e.push("Escribe un tÃ­tulo.");
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()))
-      e.push("Fecha/hora inválida.");
+      e.push("Fecha/hora invÃ¡lida.");
     if (endDate.getTime() <= startDate.getTime())
       e.push("La hora de fin debe ser posterior al inicio.");
 
     if (effectiveType === "group") {
-      if (loadingGroups) e.push("Cargando grupos…");
+      if (loadingGroups) e.push("Cargando gruposâ€¦");
       if (!selectedGroupId) e.push("Elige un grupo.");
-      if (selectedGroupId && !selectedGroup) e.push("Grupo inválido.");
+      if (selectedGroupId && !selectedGroup) e.push("Grupo invÃ¡lido.");
     }
 
-    if (bootingEvent) e.push("Cargando evento…");
+    if (bootingEvent) e.push("Cargando eventoâ€¦");
 
     return e;
   }, [
@@ -1808,7 +1813,7 @@ useEffect(() => {
     setToast({
       title: "Propuesta pendiente",
       subtitle:
-        "No guardamos nada. Puedes volver más tarde desde el link compartido.",
+        "No guardamos nada. Puedes volver mÃ¡s tarde desde el link compartido.",
     });
 
     window.setTimeout(() => {
@@ -1849,11 +1854,11 @@ useEffect(() => {
         return {
           title:
             proposalResponse === "adjust"
-              ? "Propuesta ajustada ✅"
-              : "Propuesta aceptada ✅",
+              ? "Propuesta ajustada âœ…"
+              : "Propuesta aceptada âœ…",
           subtitle:
             proposalResponse === "adjust"
-              ? "Guardamos tu versión ajustada y conservamos ambos horarios para que puedas revisarlos con calma."
+              ? "Guardamos tu versiÃ³n ajustada y conservamos ambos horarios para que puedas revisarlos con calma."
               : "Guardamos el plan y conservamos ambos horarios para que puedas revisarlos con calma.",
         };
       }
@@ -1861,12 +1866,12 @@ useEffect(() => {
       return {
         title:
           proposalResponse === "adjust"
-            ? "Propuesta ajustada ✅"
-            : "Propuesta aceptada ✅",
+            ? "Propuesta ajustada âœ…"
+            : "Propuesta aceptada âœ…",
         subtitle:
           proposalResponse === "adjust"
-            ? "Tu versión ajustada ya quedó guardada y puedes seguir afinándola cuando quieras."
-            : "Ya quedó en tu calendario y puedes seguir ajustándola cuando quieras.",
+            ? "Tu versiÃ³n ajustada ya quedÃ³ guardada y puedes seguir afinÃ¡ndola cuando quieras."
+            : "Ya quedÃ³ en tu calendario y puedes seguir ajustÃ¡ndola cuando quieras.",
       };
     }
 
@@ -1874,43 +1879,43 @@ useEffect(() => {
       return {
         title: isSharedEvent
           ? isEditing
-            ? "Plan compartido actualizado ✅"
-            : "Plan compartido creado ✅"
+            ? "Plan compartido actualizado âœ…"
+            : "Plan compartido creado âœ…"
           : isEditing
-            ? "Evento personal actualizado ✅"
-            : "Evento personal creado ✅",
+            ? "Evento personal actualizado âœ…"
+            : "Evento personal creado âœ…",
         subtitle: isSharedEvent
-          ? "Conservamos ambos planes para que puedas decidirlo después con más calma."
-          : "Conservamos ambos eventos para que puedas decidirlo después con más calma.",
+          ? "Conservamos ambos planes para que puedas decidirlo despuÃ©s con mÃ¡s calma."
+          : "Conservamos ambos eventos para que puedas decidirlo despuÃ©s con mÃ¡s calma.",
       };
     }
 
     if (isSharedEvent) {
       if (!isEditing && isFirstWowMomentFlow) {
         return {
-          title: "Primer plan listo ✅",
+          title: "Primer plan listo âœ…",
           subtitle:
-            "Ya activaste la coordinación compartida en SyncPlans. Desde aquí ya pueden ordenar algo real juntos.",
+            "Ya activaste la coordinaciÃ³n compartida en SyncPlans. Desde aquÃ­ ya pueden ordenar algo real juntos.",
         };
       }
 
       return {
         title: isEditing
-          ? "Plan compartido actualizado ✅"
-          : "Plan compartido creado ✅",
+          ? "Plan compartido actualizado âœ…"
+          : "Plan compartido creado âœ…",
         subtitle: isEditing
-          ? "El grupo ya verá esta versión actualizada."
-          : "Ya quedó listo en el calendario del grupo.",
+          ? "El grupo ya verÃ¡ esta versiÃ³n actualizada."
+          : "Ya quedÃ³ listo en el calendario del grupo.",
       };
     }
 
     return {
       title: isEditing
-        ? "Evento personal actualizado ✅"
-        : "Evento personal creado ✅",
+        ? "Evento personal actualizado âœ…"
+        : "Evento personal creado âœ…",
       subtitle: isEditing
         ? "Tus cambios ya quedaron guardados."
-        : "Ya quedó listo en tu calendario.",
+        : "Ya quedÃ³ listo en tu calendario.",
     };
   };
 
@@ -2012,7 +2017,7 @@ useEffect(() => {
           source: "event_preflight",
         });
       } catch {
-        // no rompemos el flujo por una notificación
+        // no rompemos el flujo por una notificaciÃ³n
       }
     }
 
@@ -2023,12 +2028,12 @@ useEffect(() => {
     for (const row of rows) {
       const decisionLabel =
         row.final_action === "fallback_keep_both"
-          ? `Se intentó resolver el conflicto con “${row.affected_event_title ?? "evento"}”, pero no se pudo eliminar. SyncPlans mantuvo ambos eventos automáticamente.`
+          ? `Se intentÃ³ resolver el conflicto con â€œ${row.affected_event_title ?? "evento"}â€, pero no se pudo eliminar. SyncPlans mantuvo ambos eventos automÃ¡ticamente.`
           : row.final_action === "replace_with_new"
-            ? `Se reemplazó “${row.affected_event_title ?? "evento"}” por “${row.kept_event_title ?? "el nuevo evento"}”.`
+            ? `Se reemplazÃ³ â€œ${row.affected_event_title ?? "evento"}â€ por â€œ${row.kept_event_title ?? "el nuevo evento"}â€.`
             : row.final_action === "keep_existing"
-              ? `Se conservó “${row.affected_event_title ?? "el evento existente"}”.`
-              : `Se tomó una decisión sobre un conflicto que involucraba “${row.affected_event_title ?? "un evento"}”.`;
+              ? `Se conservÃ³ â€œ${row.affected_event_title ?? "el evento existente"}â€.`
+              : `Se tomÃ³ una decisiÃ³n sobre un conflicto que involucraba â€œ${row.affected_event_title ?? "un evento"}â€.`;
 
       if (row.final_action === "fallback_keep_both") {
         await createConflictAutoAdjustedNotification({
@@ -2383,8 +2388,8 @@ useEffect(() => {
 
       if (conflictResult.conflictCount > 0) {
         setToast({
-          title: "⚠️ Conflicto detectado",
-          subtitle: "Te llevo a revisarlo ahora…",
+          title: "âš ï¸ Conflicto detectado",
+          subtitle: "Te llevo a revisarlo ahoraâ€¦",
         });
 
         const qp = new URLSearchParams();
@@ -2482,7 +2487,7 @@ useEffect(() => {
             groupLabel: gm.label,
             range: otherEvent
               ? fmtRange(otherEvent.start, otherEvent.end)
-              : "—",
+              : "â€”",
             overlapStart: c.overlapStart,
             overlapEnd: c.overlapEnd,
           };
@@ -2556,13 +2561,13 @@ useEffect(() => {
             savedEventId: null,
             blockedIds: [],
             reason:
-              "El usuario decidió conservar los eventos existentes y no guardar el nuevo evento.",
+              "El usuario decidiÃ³ conservar los eventos existentes y no guardar el nuevo evento.",
           });
         }
 
         clearPreflightState();
         setToast({
-          title: "No se guardó",
+          title: "No se guardÃ³",
           subtitle: "Conservamos tus eventos existentes.",
         });
         return;
@@ -2572,7 +2577,7 @@ useEffect(() => {
         clearPreflightState();
         setToast({
           title: "Ups",
-          subtitle: "No encontré el evento pendiente. Intenta otra vez.",
+          subtitle: "No encontrÃ© el evento pendiente. Intenta otra vez.",
         });
         return;
       }
@@ -2651,7 +2656,7 @@ useEffect(() => {
         }
 
         setToast({
-          title: "Aplicado con ajuste automático",
+          title: "Aplicado con ajuste automÃ¡tico",
           subtitle:
             "No pudimos reemplazar todos los eventos por permisos. Mantuvimos ambos para evitar inconsistencias.",
         });
@@ -2738,8 +2743,8 @@ useEffect(() => {
     try {
       if (!postSaveActions?.eventId) {
         setToast({
-          title: "Todavía no se puede compartir",
-          subtitle: "Aún no encontré el evento que acabas de guardar.",
+          title: "TodavÃ­a no se puede compartir",
+          subtitle: "AÃºn no encontrÃ© el evento que acabas de guardar.",
         });
         return;
       }
@@ -2783,13 +2788,13 @@ useEffect(() => {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(shareUrl);
         setToast({
-          title: "Link copiado ✅",
+          title: "Link copiado âœ…",
           subtitle: "Ya puedes compartirlo donde quieras.",
         });
       } else {
         setToast({
-          title: "Link listo ✅",
-          subtitle: "Cópialo manualmente desde la caja de abajo.",
+          title: "Link listo âœ…",
+          subtitle: "CÃ³pialo manualmente desde la caja de abajo.",
         });
       }
     } catch (err: unknown) {
@@ -2900,10 +2905,10 @@ useEffect(() => {
             <div style={styles.sectionIntro}>
               <div style={styles.sectionEyebrow}>Ruta guiada</div>
               <div style={styles.sectionTitle}>
-                Tu primer plan compartido empieza aquí
+                Tu primer plan compartido empieza aquÃ­
               </div>
               <div style={styles.sectionSub}>
-                Guárdalo una vez y desde aquí podrán coordinar mejor, detectar
+                GuÃ¡rdalo una vez y desde aquÃ­ podrÃ¡n coordinar mejor, detectar
                 cruces a tiempo y decidir sobre algo real sin depender de
                 mensajes sueltos.
               </div>
@@ -2917,13 +2922,13 @@ useEffect(() => {
               <div style={styles.sectionEyebrow}>Lo esencial</div>
               <div style={styles.sectionTitle}>
                 {isFirstWowMomentFlow && !isEditing
-                  ? "Lo mínimo para activar el primer plan"
+                  ? "Lo mÃ­nimo para activar el primer plan"
                   : "Primero, lo importante"}
               </div>
               <div style={styles.sectionSub}>
                 {isFirstWowMomentFlow && !isEditing
-                  ? "Empieza por título, horario y contexto. Lo demás puede esperar: el objetivo ahora es crear algo real y compartido lo más rápido posible."
-                  : "Título, horario y contexto. Lo esencial primero; el resto queda a mano sin meter ruido."}
+                  ? "Empieza por tÃ­tulo, horario y contexto. Lo demÃ¡s puede esperar: el objetivo ahora es crear algo real y compartido lo mÃ¡s rÃ¡pido posible."
+                  : "TÃ­tulo, horario y contexto. Lo esencial primero; el resto queda a mano sin meter ruido."}
               </div>
             </div>
 
@@ -2936,17 +2941,17 @@ useEffect(() => {
             ) : null}
 
             <div style={styles.field}>
-              <div style={styles.fieldLabel}>Título</div>
+              <div style={styles.fieldLabel}>TÃ­tulo</div>
               {quickCaptureReview?.titleNeedsReview ? (
                 <div style={styles.qcInlineWarn}>
-                  El título llegó con baja claridad. Ajusta una versión más
-                  específica.
+                  El tÃ­tulo llegÃ³ con baja claridad. Ajusta una versiÃ³n mÃ¡s
+                  especÃ­fica.
                 </div>
               ) : null}
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ej: Cena viernes / Pádel / Médico"
+                placeholder="Ej: Cena viernes / PÃ¡del / MÃ©dico"
                 style={
                   quickCaptureReview?.titleNeedsReview
                     ? {
@@ -2994,7 +2999,7 @@ useEffect(() => {
             </div>
 
             <div style={styles.field}>
-              <div style={styles.fieldLabel}>Ubicación</div>
+              <div style={styles.fieldLabel}>UbicaciÃ³n</div>
               <div style={styles.locationInputRow}>
                 <input
                   value={locationInput}
@@ -3011,7 +3016,7 @@ useEffect(() => {
                       setEtaSeconds(null);
                     }
                   }}
-                  placeholder="Busca una dirección o lugar"
+                  placeholder="Busca una direcciÃ³n o lugar"
                   style={styles.input}
                 />
                 {(locationInput || selectedPlace) && (
@@ -3026,7 +3031,7 @@ useEffect(() => {
               </div>
 
               {isLoadingAutocomplete ? (
-                <div style={styles.locationHint}>Buscando sugerencias…</div>
+                <div style={styles.locationHint}>Buscando sugerenciasâ€¦</div>
               ) : null}
 
               {autocompleteError ? (
@@ -3126,9 +3131,9 @@ useEffect(() => {
                 </div>
 
                 <div style={styles.travelMetaRow}>
-                  <span style={styles.travelMetaLabel}>Duración estimada</span>
+                  <span style={styles.travelMetaLabel}>DuraciÃ³n estimada</span>
                   <span style={styles.travelMetaValue}>
-                    {isLoadingEta ? "Calculando…" : etaLabel || "Pendiente"}
+                    {isLoadingEta ? "Calculandoâ€¦" : etaLabel || "Pendiente"}
                   </span>
                 </div>
 
@@ -3139,7 +3144,7 @@ useEffect(() => {
 
                 {etaError ? (
                   <div style={styles.locationHint}>
-                    Si Google no confirma la ruta, SyncPlans usa una estimación
+                    Si Google no confirma la ruta, SyncPlans usa una estimaciÃ³n
                     segura para no romper el plan.
                   </div>
                 ) : null}
@@ -3187,8 +3192,8 @@ useEffect(() => {
             <div style={styles.quickSummary}>
               <div style={styles.quickSummaryTitle}>
                 {isFirstWowMomentFlow && !isEditing
-                  ? "Vista rápida antes de crear"
-                  : "Así se ve ahora"}
+                  ? "Vista rÃ¡pida antes de crear"
+                  : "AsÃ­ se ve ahora"}
               </div>
               <div style={styles.quickSummaryRow}>
                 <span style={styles.quickSummaryPill}>
@@ -3225,7 +3230,7 @@ useEffect(() => {
                       background: "rgba(245, 158, 11, 0.10)",
                     }}
                   >
-                    Revisar título
+                    Revisar tÃ­tulo
                   </span>
                 ) : null}
                 {quickCaptureReview?.notesNeedsReview ? (
@@ -3328,14 +3333,14 @@ useEffect(() => {
               <div style={{ ...styles.field, marginTop: 12 }}>
                 <div style={styles.fieldLabel}>Grupo</div>
                 {loadingGroups || booting ? (
-                  <div style={styles.skeleton}>Cargando grupos…</div>
+                  <div style={styles.skeleton}>Cargando gruposâ€¦</div>
                 ) : uniqueGroups.length === 0 ? (
                   <div style={styles.emptyInline}>
                     <div style={styles.emptyInlineTitle}>No tienes grupos</div>
                     <div style={styles.emptyInlineSub}>
                       El primer valor compartido empieza creando el grupo.
-                      Después vuelves aquí y guardas el primer plan para activar
-                      la coordinación real.
+                      DespuÃ©s vuelves aquÃ­ y guardas el primer plan para activar
+                      la coordinaciÃ³n real.
                     </div>
                     <button
                       onClick={() => router.push("/groups/new")}
@@ -3360,7 +3365,7 @@ useEffect(() => {
                           fontWeight: 800,
                         }}
                       >
-                        Usaremos este grupo automáticamente:{" "}
+                        Usaremos este grupo automÃ¡ticamente:{" "}
                         <b>
                           {autoSharedGroupLabel ||
                             selectedGroup?.name ||
@@ -3369,7 +3374,7 @@ useEffect(() => {
                         {selectedGroup ? (
                           <>
                             {" "}
-                            · tipo{" "}
+                            Â· tipo{" "}
                             <b>{getGroupTypeLabel(selectedGroup.type)}</b>
                           </>
                         ) : null}
@@ -3394,7 +3399,7 @@ useEffect(() => {
                         }}
                       >
                         No encontramos un grupo compartido claro para esta
-                        propuesta. Puedes elegir abajo dónde quieres guardar
+                        propuesta. Puedes elegir abajo dÃ³nde quieres guardar
                         este plan.
                       </div>
                     ) : null}
@@ -3416,8 +3421,8 @@ useEffect(() => {
                           color: "rgba(255,248,220,0.88)",
                         }}
                       >
-                        Encontramos más de una opción posible. Para no asumir
-                        mal, elige tú el grupo correcto para este plan.
+                        Encontramos mÃ¡s de una opciÃ³n posible. Para no asumir
+                        mal, elige tÃº el grupo correcto para este plan.
                       </div>
                     ) : null}
 
@@ -3438,7 +3443,7 @@ useEffect(() => {
                           color: "rgba(235,255,241,0.90)",
                         }}
                       >
-                        🧠 Referencia por historial: en planes parecidos
+                        ðŸ§  Referencia por historial: en planes parecidos
                         normalmente terminas usando{" "}
                         <b>
                           {learnedGroupCandidate.name ||
@@ -3468,7 +3473,7 @@ useEffect(() => {
                         suggestedPreselectedGroupId &&
                         selectedGroup?.id === suggestedPreselectedGroupId ? (
                           <>
-                            ✨ Preseleccionamos{" "}
+                            âœ¨ Preseleccionamos{" "}
                             <b>
                               {canonicalGroupSuggestion.type === "pair"
                                 ? "Pareja"
@@ -3481,7 +3486,7 @@ useEffect(() => {
                           </>
                         ) : canonicalGroupSuggestion.mode === "suggest_only" ? (
                           <>
-                            💡 Sugerencia: este plan parece encajar mejor en{" "}
+                            ðŸ’¡ Sugerencia: este plan parece encajar mejor en{" "}
                             <b>
                               {canonicalGroupSuggestion.type === "pair"
                                 ? "Pareja"
@@ -3493,8 +3498,8 @@ useEffect(() => {
                           </>
                         ) : (
                           <>
-                            🤔 Hay señales, pero no son lo bastante fuertes para
-                            decidir solas. Revísalo antes de guardar.
+                            ðŸ¤” Hay seÃ±ales, pero no son lo bastante fuertes para
+                            decidir solas. RevÃ­salo antes de guardar.
                           </>
                         )}
                       </div>
@@ -3536,15 +3541,15 @@ useEffect(() => {
 
                 {selectedGroup ? (
                   <div style={styles.hint}>
-                    Seleccionado: <b>{selectedGroup.name ?? "Grupo"}</b> · tipo{" "}
+                    Seleccionado: <b>{selectedGroup.name ?? "Grupo"}</b> Â· tipo{" "}
                     <b>{getGroupTypeLabel(selectedGroup.type)}</b>
                     {lockedToActiveGroup ? (
                       <span style={{ marginLeft: 8, opacity: 0.9 }}>
-                        · (grupo activo)
+                        Â· (grupo activo)
                       </span>
                     ) : autoSharedGroupId && !hasExplicitGroupParam ? (
                       <span style={{ marginLeft: 8, opacity: 0.9 }}>
-                        · (detectado automáticamente)
+                        Â· (detectado automÃ¡ticamente)
                       </span>
                     ) : null}
                   </div>
@@ -3556,7 +3561,7 @@ useEffect(() => {
               <div style={styles.fieldLabel}>Notas (opcional)</div>
               {quickCaptureReview?.notesNeedsReview ? (
                 <div style={styles.qcInlineWarnSoft}>
-                  Si agregas una línea de contexto, el plan queda más claro para
+                  Si agregas una lÃ­nea de contexto, el plan queda mÃ¡s claro para
                   todos.
                 </div>
               ) : null}
@@ -3572,7 +3577,7 @@ useEffect(() => {
                     : styles.textarea
                 }
                 rows={3}
-                placeholder="Añade un poco de contexto si realmente ayuda."
+                placeholder="AÃ±ade un poco de contexto si realmente ayuda."
               />
             </div>
           </div>
@@ -3606,13 +3611,13 @@ useEffect(() => {
                 try {
                   await navigator.clipboard.writeText(postSaveShareUrl);
                   setToast({
-                    title: "Link copiado ✅",
+                    title: "Link copiado âœ…",
                     subtitle: "Ya puedes compartirlo donde quieras.",
                   });
                 } catch {
                   setToast({
                     title: "No se pudo copiar",
-                    subtitle: "Cópialo manualmente desde aquí.",
+                    subtitle: "CÃ³pialo manualmente desde aquÃ­.",
                   });
                 }
               }}
@@ -3626,7 +3631,7 @@ useEffect(() => {
             onClick={isSharedProposal ? handleReviewProposalLater : goBack}
             style={styles.ghostBtnWide}
           >
-            {isSharedProposal ? "Revisar luego" : "← Volver"}
+            {isSharedProposal ? "Revisar luego" : "â† Volver"}
           </button>
           <button
             onClick={save}
@@ -3634,7 +3639,7 @@ useEffect(() => {
             disabled={!canSave}
           >
             {saving
-              ? "Guardando…"
+              ? "Guardandoâ€¦"
               : isEditing
                 ? "Guardar cambios"
                 : isSharedProposal
