@@ -30,7 +30,7 @@ function cleanMetadata(metadata?: AnalyticsMetadata): AnalyticsMetadata | null {
     ...getBrowserContext(),
     ...(metadata ?? {}),
     tracked_at: new Date().toISOString(),
-    analytics_version: 2,
+    analytics_version: 3,
   };
 
   const cleaned = Object.fromEntries(
@@ -40,21 +40,48 @@ function cleanMetadata(metadata?: AnalyticsMetadata): AnalyticsMetadata | null {
   return Object.keys(cleaned).length ? cleaned : null;
 }
 
+async function resolveAnalyticsUserId(userId?: string | null) {
+  if (userId) return userId;
+
+  try {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error) {
+      console.error("[analytics] USER ERROR", error);
+      return null;
+    }
+
+    return user?.id ?? null;
+  } catch (err: unknown) {
+    console.error("[analytics] USER FATAL ERROR", err);
+    return null;
+  }
+}
+
 export async function trackEvent({
   event,
   userId,
   entityId,
   metadata,
 }: TrackParams) {
-  const payload = {
-    event_type: event,
-    user_id: userId ?? null,
-    entity_id: entityId ?? null,
-    metadata: cleanMetadata(metadata),
-  };
-
   void (async () => {
     try {
+      const resolvedUserId = await resolveAnalyticsUserId(userId);
+
+      if (!resolvedUserId) {
+        return;
+      }
+
+      const payload = {
+        event_type: event,
+        user_id: resolvedUserId,
+        entity_id: entityId ?? null,
+        metadata: cleanMetadata(metadata),
+      };
+
       const { error } = await supabase.from("events_analytics").insert(payload);
 
       if (error) {
