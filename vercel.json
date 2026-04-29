@@ -10,7 +10,8 @@
     },
     {
       "path": "/api/cron/leave-alerts",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 12 * * *"
     }
   ]
 }
+
