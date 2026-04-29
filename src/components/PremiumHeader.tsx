@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
@@ -232,31 +233,33 @@ function getUpgradeIntentLabel(pathname: string) {
   return "Premium";
 }
 function useIsMobileWidth(maxWidth = layout.mobileBreakpoint) {
-  const [isMobile, setIsMobile] = useState(false);
+  const query = `(max-width: ${maxWidth}px)`;
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      if (typeof window === "undefined") return () => undefined;
 
-    const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
+      const mq = window.matchMedia(query);
 
-    const apply = () => {
-      setIsMobile(!!mq.matches);
-    };
+      if (typeof mq.addEventListener === "function") {
+        mq.addEventListener("change", onStoreChange);
+        return () => mq.removeEventListener("change", onStoreChange);
+      }
 
-    apply();
+      mq.addListener(onStoreChange);
+      return () => mq.removeListener(onStoreChange);
+    },
+    [query]
+  );
 
-    if (typeof mq.addEventListener === "function") {
-      mq.addEventListener("change", apply);
-      return () => mq.removeEventListener("change", apply);
-    }
+  const getSnapshot = useCallback(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(query).matches;
+  }, [query]);
 
-    mq.addListener(apply);
-    return () => {
-      mq.removeListener(apply);
-    };
-  }, [maxWidth]);
+  const getServerSnapshot = useCallback(() => false, []);
 
-  return isMobile;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
 function useClickOutside<T extends HTMLElement>(
@@ -342,7 +345,7 @@ export default function PremiumHeader({
   title,
   subtitle,
   rightSlot,
-   sticky = true,
+  sticky = true,
   hideUpgradeCta = false,
 }: PremiumHeaderProps) {
   const router = useRouter();
@@ -369,14 +372,20 @@ export default function PremiumHeader({
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const userDropdownRef = useRef<HTMLDivElement | null>(null);
 
-  useClickOutside([userMenuRef, userDropdownRef], () => setUserMenuOpen(false));
+  const userMenuRefs = useMemo(() => [userMenuRef, userDropdownRef], []);
+  const closeUserMenu = useCallback(() => setUserMenuOpen(false), []);
+
+  useClickOutside(userMenuRefs, closeUserMenu);
 
   useEffect(() => {
     if (!userMenuOpen) return;
 
+    let rafId: number | null = null;
+
     const updateMenuCoords = () => {
       const anchor = userMenuRef.current;
       if (!anchor) return;
+
       const rect = anchor.getBoundingClientRect();
       setMenuCoords({
         top: Math.round(rect.bottom + 8),
@@ -384,12 +393,22 @@ export default function PremiumHeader({
       });
     };
 
-    updateMenuCoords();
-    window.addEventListener("resize", updateMenuCoords);
-    window.addEventListener("scroll", updateMenuCoords, true);
+    const scheduleMenuCoordsUpdate = () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
+        updateMenuCoords();
+      });
+    };
+
+    scheduleMenuCoordsUpdate();
+    window.addEventListener("resize", scheduleMenuCoordsUpdate);
+    window.addEventListener("scroll", scheduleMenuCoordsUpdate, true);
+
     return () => {
-      window.removeEventListener("resize", updateMenuCoords);
-      window.removeEventListener("scroll", updateMenuCoords, true);
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", scheduleMenuCoordsUpdate);
+      window.removeEventListener("scroll", scheduleMenuCoordsUpdate, true);
     };
   }, [userMenuOpen]);
 
@@ -400,7 +419,7 @@ export default function PremiumHeader({
   }, []);
 
   useEffect(() => {
-    syncGroupState();
+    const initialSyncId = window.requestAnimationFrame(syncGroupState);
 
     const onStorage = (e: StorageEvent) => {
       if (!e.key || e.key === "syncplans.groupState.v3") {
@@ -414,6 +433,7 @@ export default function PremiumHeader({
     window.addEventListener("sp:mode-changed", onModeChanged);
 
     return () => {
+      window.cancelAnimationFrame(initialSyncId);
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("sp:mode-changed", onModeChanged);
     };
@@ -488,11 +508,6 @@ export default function PremiumHeader({
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      void refreshBadge(openNotif);
-      return;
-    }
-
     const delay = openNotif ? 0 : 350;
     const timer = window.setTimeout(() => {
       void refreshBadge(openNotif);

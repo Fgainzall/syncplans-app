@@ -7,6 +7,7 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -144,28 +145,33 @@ function formatMoveMinutes(totalMinutes: number | null | undefined): string {
 }
 
 function useIsMobileWidth(maxWidth = 520) {
-  const [isMobile, setIsMobile] = useState(false);
+  const query = `(max-width: ${maxWidth}px)`;
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      if (typeof window === "undefined") return () => undefined;
 
-    const mq = window.matchMedia(`(max-width: ${maxWidth}px)`);
-    const apply = () => setIsMobile(!!mq.matches);
+      const mq = window.matchMedia(query);
 
-    apply();
+      if (typeof mq.addEventListener === "function") {
+        mq.addEventListener("change", onStoreChange);
+        return () => mq.removeEventListener("change", onStoreChange);
+      }
 
-    if (typeof mq.addEventListener === "function") {
-      mq.addEventListener("change", apply);
-      return () => mq.removeEventListener("change", apply);
-    }
+      mq.addListener(onStoreChange);
+      return () => mq.removeListener(onStoreChange);
+    },
+    [query]
+  );
 
-     mq.addListener(apply);
-    return () => {
-      mq.removeListener(apply);
-    };
-  }, [maxWidth]);
+  const getSnapshot = useCallback(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(query).matches;
+  }, [query]);
 
-  return isMobile;
+  const getServerSnapshot = useCallback(() => false, []);
+
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
 function toneBadgeStyle(tone: "pending" | "accepted" | "adjusted" | "neutral"): CSSProperties {
@@ -322,75 +328,6 @@ function SummaryHero({
         ) : null}
       </div>
     </Card>
-  );
-}
-
-function Rail({
-  eyebrow,
-  title,
-  subtitle,
-  primaryLabel,
-  secondaryLabel,
-  onPrimary,
-  onSecondary,
-  variant,
-}: {
-  eyebrow: string;
-  title: string;
-  subtitle: string;
-  primaryLabel: string;
-  secondaryLabel?: string;
-  onPrimary: () => void;
-  onSecondary?: () => void;
-  variant: "premium" | "value" | "urgent";
-}) {
-  const railStyle =
-    variant === "premium"
-      ? styles.premiumRail
-      : variant === "value"
-        ? styles.valueRail
-        : styles.urgentRail;
-
-  const eyebrowStyle =
-    variant === "premium"
-      ? styles.premiumRailEyebrow
-      : variant === "value"
-        ? styles.valueRailEyebrow
-        : styles.urgentRailEyebrow;
-
-  const subtitleStyle =
-    variant === "premium"
-      ? styles.premiumRailSub
-      : variant === "value"
-        ? styles.valueRailSub
-        : styles.urgentRailSub;
-
-  const primaryStyle =
-    variant === "premium"
-      ? styles.premiumRailPrimary
-      : variant === "value"
-        ? styles.valueRailPrimary
-        : styles.urgentRailPrimary;
-
-  return (
-    <div style={railStyle}>
-      <div style={styles.railCopy}>
-        <div style={eyebrowStyle}>{eyebrow}</div>
-        <div style={styles.railTitle}>{title}</div>
-        <div style={subtitleStyle}>{subtitle}</div>
-      </div>
-
-      <div style={styles.railActions}>
-        <button type="button" onClick={onPrimary} style={primaryStyle}>
-          {primaryLabel}
-        </button>
-        {secondaryLabel && onSecondary ? (
-          <button type="button" onClick={onSecondary} style={styles.railSecondary}>
-            {secondaryLabel}
-          </button>
-        ) : null}
-      </div>
-    </div>
   );
 }
 
@@ -645,70 +582,6 @@ function UpcomingSection({
   );
 }
 
-function RecentDecisionsSection({
-  decisions,
-  onOpenCalendar,
-}: {
-  decisions: Array<{
-    id: string;
-    title: string;
-    subtitle: string;
-    whenLabel: string;
-    isFallback: boolean;
-  }>;
-  onOpenCalendar: () => void;
-}) {
-  if (decisions.length === 0) return null;
-
-  return (
-    <Card style={styles.sectionCard}>
-      <div style={styles.sectionHeadMini}>
-        <div>
-          <div style={styles.sectionEyebrow}>Señales recientes</div>
-          <div style={styles.sectionTitle}>Decisiones que ya cerraste</div>
-        </div>
-
-        <button type="button" onClick={onOpenCalendar} style={styles.sectionLinkBtn}>
-          Calendario
-        </button>
-      </div>
-
-      <div style={styles.decisionsList}>
-        {decisions.map((decision) => (
-          <div key={decision.id} style={styles.decisionRow}>
-            <div
-              style={{
-                ...styles.decisionIcon,
-                ...(decision.isFallback ? styles.decisionIconFallback : styles.decisionIconNormal),
-              }}
-            >
-              {decision.isFallback ? "⚠️" : "✓"}
-            </div>
-
-            <div style={styles.decisionContent}>
-              <div style={styles.decisionTopRow}>
-                <div style={styles.decisionTitle}>{decision.title}</div>
-                <div style={styles.decisionWhen}>{decision.whenLabel}</div>
-              </div>
-
-              <div style={styles.decisionSubtitle}>{decision.subtitle}</div>
-
-              <div
-                style={{
-                  ...styles.decisionBadge,
-                  ...(decision.isFallback ? styles.decisionBadgeFallback : styles.decisionBadgeManual),
-                }}
-              >
-                {decision.isFallback ? "Auto" : "Resuelto"}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
 function QuickActionsSection({
   actions,
 }: {
@@ -755,27 +628,27 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [pendingCaptureCount, setPendingCaptureCount] = useState(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
- const [dismissedPremiumNudge] = useState(false);
+  const [dismissedPremiumNudge] = useState(false);
   const premiumNudgeTrackedRef = useRef(false);
 
-const {
-  booting,
-  loading,
-  toast,
-  groups,
-  activeGroupId,
-  events,
-  declinedEventIds,
-  ignoredConflictKeys,
-  resMap,
-  unreadConflictAlert,
-  recentDecisions,
-  proposalResponsesMap,
-  proposalResponseGroupsMap,
-  proposalProfilesMap,
-  smartMobility,
-  showToast,
-} = useSummaryData({ appliedToast });
+  const {
+    booting,
+    loading,
+    toast,
+    groups,
+    activeGroupId,
+    events,
+    declinedEventIds,
+    ignoredConflictKeys,
+    resMap,
+    unreadConflictAlert,
+    recentDecisions,
+    proposalResponsesMap,
+    proposalResponseGroupsMap,
+    proposalProfilesMap,
+    smartMobility,
+    showToast,
+  } = useSummaryData({ appliedToast });
 
   useEffect(() => {
     let cancelled = false;
@@ -2094,7 +1967,7 @@ if (parsed.locationQuery) {
     showInviteNudge,
   ]);
 
- const getStatusBadgeForEvent = useCallback(
+  const getStatusBadgeForEvent = useCallback(
   (eventId: string | null | undefined): StatusBadge | null => {
     const key = String(eventId ?? "").trim();
     if (!key) return null;
@@ -2132,53 +2005,6 @@ if (parsed.locationQuery) {
     pendingInviteCount > 0 ||
     pendingAttention.proposals > 0 ||
     pendingAttention.captures > 0;
-
-  const urgentFocus = useMemo(() => {
-    if (conflictAlert.count > 0) {
-      return {
-        label: "Urgente ahora",
-        title: `Resuelve ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"}`,
-        subtitle: "Una sola decisión clara aquí evita ruido en todo lo demás.",
-        cta: "Resolver conflictos",
-        action: openConflictCenter,
-      };
-    }
-
-    if (pendingInviteCount > 0) {
-      return {
-        label: "Pendiente clave",
-        title: `${pendingInviteCount} invitación${pendingInviteCount === 1 ? "" : "es"} por responder`,
-        subtitle: "Responder esto desbloquea coordinación real con otras personas.",
-        cta: "Revisar invitaciones",
-        action: () =>
-          navigateFromSummary("review_invitations", "/invitations", {
-            block: "urgent_focus",
-          }),
-      };
-    }
-
-    if (pendingAttention.proposals > 0 || pendingAttention.captures > 0) {
-      return {
-        label: "Pendiente clave",
-        title: "Hay respuestas pendientes por cerrar",
-        subtitle: "Cierra este ciclo y mantén la agenda como referencia viva.",
-        cta: "Revisar pendientes",
-        action: () =>
-          navigateFromSummary("review_pending", "/events", {
-            block: "urgent_focus",
-          }),
-      };
-    }
-
-    return null;
-  }, [
-    conflictAlert.count,
-    openConflictCenter,
-    pendingInviteCount,
-    pendingAttention.proposals,
-    pendingAttention.captures,
-    navigateFromSummary,
-  ]);
 
   const inviteFocus = useMemo(() => {
     if (hasUrgentSummaryState || !showInviteNudge) return null;

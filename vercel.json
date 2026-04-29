@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/weekly-summary",
       "schedule": "0 18 * * 0"
+    },
+    {
+      "path": "/api/cron/leave-alerts",
+      "schedule": "*/10 * * * *"
     }
   ]
 }
