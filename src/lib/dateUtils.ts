@@ -1,5 +1,7 @@
 // src/lib/dateUtils.ts
 
+const SPANISH_DATE_LOCALE = "es-PE";
+
 export function hasTimezone(value: string): boolean {
   return /([zZ]|[+\-]\d{2}:\d{2}|[+\-]\d{4})$/.test(String(value ?? "").trim());
 }
@@ -159,7 +161,7 @@ export function formatTimeSafe(value: string | Date | null | undefined): string 
   const date = parseDateSafe(value);
   if (!date) return "—";
 
-  return date.toLocaleTimeString([], {
+  return date.toLocaleTimeString(SPANISH_DATE_LOCALE, {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -169,7 +171,7 @@ export function formatDateSafe(value: string | Date | null | undefined): string 
   const date = parseDateSafe(value);
   if (!date) return "—";
 
-  return date.toLocaleDateString([], {
+  return date.toLocaleDateString(SPANISH_DATE_LOCALE, {
     weekday: "short",
     day: "2-digit",
     month: "short",

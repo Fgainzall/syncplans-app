@@ -13,6 +13,9 @@ import type { PublicInviteRow } from "@/lib/invitationsDb";
 import type { ProposalResponseRow } from "@/lib/proposalResponsesDb";
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
+const SPANISH_DATE_LOCALE = "es-PE";
+
+
 export type TimelineEvent = {
   id: string;
   user_id?: string | null;
@@ -219,7 +222,7 @@ export function getDayHeaderLabel(value: string | Date) {
   if (dateOnly.getTime() === tomorrow.getTime()) return "Mañana";
   if (dateOnly > tomorrow && dateOnly < nextWeek) return "Esta semana";
 
-  return d.toLocaleDateString(undefined, {
+  return d.toLocaleDateString(SPANISH_DATE_LOCALE, {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -350,7 +353,11 @@ export function humanizeRelativeDate(dateString?: string | null) {
   if (diffDays === 1) return "ayer";
   if (diffDays < 7) return `hace ${diffDays} días`;
 
-  return date.toLocaleDateString();
+  return date.toLocaleDateString(SPANISH_DATE_LOCALE, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 export function buildProposalContextLine(input: {
@@ -389,7 +396,7 @@ export function formatProposedDate(value: string | null | undefined) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
 
-  return d.toLocaleString([], {
+  return d.toLocaleString(SPANISH_DATE_LOCALE, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
