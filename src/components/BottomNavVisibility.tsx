@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import BottomNav from "@/components/BottomNav";
 
-const HIDDEN_EXACT = ["/"];
+const HIDDEN_EXACT = ["/", "/home"];
 
 const HIDDEN_PREFIXES = [
   "/login",
