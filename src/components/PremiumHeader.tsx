@@ -488,7 +488,17 @@ export default function PremiumHeader({
   }, []);
 
   useEffect(() => {
-    void refreshBadge(openNotif);
+    if (typeof window === "undefined") {
+      void refreshBadge(openNotif);
+      return;
+    }
+
+    const delay = openNotif ? 0 : 350;
+    const timer = window.setTimeout(() => {
+      void refreshBadge(openNotif);
+    }, delay);
+
+    return () => window.clearTimeout(timer);
   }, [openNotif, pathname, refreshBadge]);
 
   const activeTab = useMemo<ModeMeta>(() => {

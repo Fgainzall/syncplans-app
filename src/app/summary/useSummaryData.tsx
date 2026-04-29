@@ -529,36 +529,20 @@ export function useSummaryData({
       const user = await requireSessionOrRedirect();
       if (!user) return;
 
-      const gs = await getMyGroups();
-      setGroups(gs);
+      const [gs, activeId, es] = await Promise.all([
+        getMyGroups(),
+        getActiveGroupIdFromDb().catch(() => null),
+        getMyEvents(),
+      ]);
 
-      const activeId = await getActiveGroupIdFromDb().catch(() => null);
+      if (loadGeneration !== loadGenerationRef.current) {
+        return;
+      }
 
       const validActive =
         activeId && gs.some((g) => String(g.id) === String(activeId))
           ? String(activeId)
           : null;
-
-      setActiveGroupId(validActive);
-
-      const [
-        es,
-        conflictResolutions,
-        declined,
-        ignored,
-        unreadConflicts,
-        recentDecisionLogs,
-      ] = await Promise.all([
-        getMyEvents(),
-        getMyConflictResolutionsMap().catch(() => ({})),
-        getMyDeclinedEventIds().catch(() => new Set<string>()),
-        getIgnoredConflictKeys().catch(() => new Set<string>()),
-        getUnreadConflictNotificationsSummary().catch(() => ({
-          count: 0,
-          latestEventId: null,
-        })),
-        getRecentConflictResolutionLogs(8).catch(() => []),
-      ]);
 
       const safeEvents = (Array.isArray(es) ? es : []) as SummaryRawEvent[];
       const proposalEventIds = safeEvents
@@ -567,27 +551,11 @@ export function useSummaryData({
         .map((event) => String(event!.id))
         .filter(Boolean);
 
-      const [proposalResponses, proposalResponseGroups] = await Promise.all([
-        getMyProposalResponsesForEvents(proposalEventIds, user.id).catch(
-          () => ({})
-        ),
-        getProposalResponsesForEvents(proposalEventIds).catch(() => ({})),
-      ]);
-
-      if (loadGeneration !== loadGenerationRef.current) {
-        return;
-      }
-
+      // Primer paint rápido: lo indispensable para que Resumen aparezca sin esperar
+      // conflictos, respuestas, logs o movilidad inteligente.
+      setGroups(gs);
+      setActiveGroupId(validActive);
       setEvents(safeEvents);
-      setResMap(conflictResolutions ?? {});
-      setDeclinedEventIds(declined ?? new Set());
-      setIgnoredConflictKeys(ignored ?? new Set());
-      setUnreadConflictAlert(
-        unreadConflicts ?? { count: 0, latestEventId: null }
-      );
-      setRecentDecisions((recentDecisionLogs ?? []).map(mapRecentDecision));
-      setProposalResponsesMap(proposalResponses ?? {});
-      setProposalResponseGroupsMap(proposalResponseGroups ?? {});
 
       setSmartMobility((current) => ({
         ...current,
@@ -621,6 +589,49 @@ export function useSummaryData({
             ...EMPTY_SMART_MOBILITY,
             reason: "route_failed",
           });
+        }
+      })();
+
+      void (async () => {
+        try {
+          const [
+            conflictResolutions,
+            declined,
+            ignored,
+            unreadConflicts,
+            recentDecisionLogs,
+            proposalResponses,
+            proposalResponseGroups,
+          ] = await Promise.all([
+            getMyConflictResolutionsMap().catch(() => ({})),
+            getMyDeclinedEventIds().catch(() => new Set<string>()),
+            getIgnoredConflictKeys().catch(() => new Set<string>()),
+            getUnreadConflictNotificationsSummary().catch(() => ({
+              count: 0,
+              latestEventId: null,
+            })),
+            getRecentConflictResolutionLogs(8).catch(() => []),
+            getMyProposalResponsesForEvents(proposalEventIds, user.id).catch(
+              () => ({})
+            ),
+            getProposalResponsesForEvents(proposalEventIds).catch(() => ({})),
+          ]);
+
+          if (loadGeneration !== loadGenerationRef.current) {
+            return;
+          }
+
+          setResMap(conflictResolutions ?? {});
+          setDeclinedEventIds(declined ?? new Set());
+          setIgnoredConflictKeys(ignored ?? new Set());
+          setUnreadConflictAlert(
+            unreadConflicts ?? { count: 0, latestEventId: null }
+          );
+          setRecentDecisions((recentDecisionLogs ?? []).map(mapRecentDecision));
+          setProposalResponsesMap(proposalResponses ?? {});
+          setProposalResponseGroupsMap(proposalResponseGroups ?? {});
+        } catch {
+          // Datos secundarios: no deben bloquear ni tumbar el primer render.
         }
       })();
     } catch (e: unknown) {
