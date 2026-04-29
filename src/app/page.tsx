@@ -12,18 +12,34 @@ const ONBOARDING_PATH = "/onboarding";
 const AUTHENTICATED_HOME_PATH = "/summary";
 
 export default async function HomePage() {
-  const supabase = await supabaseServer();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  let hasSession = false;
+  let onboardingCompleted = false;
 
-  if (!session) {
+  try {
+    const supabase = await supabaseServer();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    hasSession = Boolean(session);
+
+    if (hasSession) {
+      try {
+        const onboardingState = await getMyOnboardingState();
+        onboardingCompleted = Boolean(onboardingState.completed);
+      } catch {
+        onboardingCompleted = true;
+      }
+    }
+  } catch {
     redirect(PUBLIC_LANDING_PATH);
   }
 
-  const onboardingState = await getMyOnboardingState();
+  if (!hasSession) {
+    redirect(PUBLIC_LANDING_PATH);
+  }
 
-  if (!onboardingState.completed) {
+  if (!onboardingCompleted) {
     redirect(ONBOARDING_PATH);
   }
 
