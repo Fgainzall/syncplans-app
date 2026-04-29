@@ -2372,6 +2372,7 @@ if (parsed.locationQuery) {
 const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
+    scrollPaddingBottom: "calc(var(--sp-bottom-safe, 110px) + 64px)",
     background:
       "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
@@ -2380,7 +2381,7 @@ const styles: Record<string, CSSProperties> = {
     width: "100%",
     maxWidth: 1080,
     margin: "0 auto",
-    padding: "18px 18px 0",
+    padding: "18px 18px calc(var(--sp-bottom-safe, 110px) + 64px)",
     display: "flex",
     flexDirection: "column",
     gap: 14,
