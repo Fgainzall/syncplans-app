@@ -147,9 +147,15 @@ const googlePill = useMemo(() => {
   const onConnect = useCallback(() => {
     void trackEvent({
       event: "google_connect_started",
-      metadata: { screen: "integrations_drawer", source: "drawer_button", connection_state: connectionState },
+      metadata: {
+        screen: "integrations_drawer",
+        source: "drawer_button",
+        connection_state: connectionState,
+      },
     });
-    window.location.href = "/api/google/connect";
+
+    const reauthParam = connectionState === "needs_reauth" ? "?reauth=true" : "";
+    window.location.href = `/api/google/connect${reauthParam}`;
   }, [connectionState]);
 
   const onSyncNow = useCallback(async () => {
