@@ -197,3 +197,15 @@ Antes de tocar una pantalla o flujo, evaluar:
 ## Estado documental actual
 
 Este README reemplaza el template default de Next.js y sirve como base operativa inicial. La gobernanza de DB queda documentada, con `events_analytics` endurecida por migration 016 y con `db/schema.sql` como snapshot mÃ­nimo, no como dump reconstructivo completo.
+
+## Environment & runtime governance
+
+SyncPlans usa variables de entorno para Supabase, crons, emails, Google Calendar, Google Maps, push notifications y flags de debug.
+
+El contrato operativo completo está en:
+
+```txt
+docs/ENVIRONMENT.md
+```
+
+Regla: no agregar nuevas variables de entorno sin documentarlas ahí. Nunca commitear valores secretos.
