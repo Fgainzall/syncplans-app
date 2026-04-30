@@ -1874,7 +1874,7 @@ export default function ProfilePage() {
                 </span>
               </div>
 
-              <div style={smallGridStyle}>
+              <div style={{ ...smallGridStyle, marginTop: 14 }}>
                 <div style={styles.statusCard}>
                   <div style={styles.accountStatusRow}>
                     <div style={styles.statusIcon}>◎</div>
