@@ -124,6 +124,18 @@ export type GeneratePublicInviteLinkResult = {
   invite: PublicInviteRow;
   link: string;
 };
+export type GetMyEventsForSummaryOptions = {
+  /**
+   * Days before today to include. Keeps recently-started/overnight events
+   * available without pulling the user's full history into Summary.
+   */
+  pastDays?: number;
+  /**
+   * Days after today to include. Summary needs near-term planning context,
+   * not the entire calendar history.
+   */
+  futureDays?: number;
+};
 type DbEventInputRow = {
   [key: string]: unknown;
   id?: unknown;
@@ -287,6 +299,43 @@ export async function getMyEvents(_opts?: unknown): Promise<DbEventRow[]> {
   const { data, error } = await supabase
     .from("events")
     .select(EVENT_SELECT)
+    .order("start", { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? []).map(mapDbEventRow);
+}
+
+/**
+ * Lectura optimizada para /summary.
+ *
+ * Mantiene getMyEvents() como lectura completa para pantallas que sí necesitan
+ * todo el calendario, pero evita que Summary cargue meses/años de historial.
+ * El filtro usa overlap de ventana: eventos que empiezan antes del fin de la
+ * ventana y terminan después del inicio de la ventana. RLS mantiene la
+ * visibilidad real.
+ */
+export async function getMyEventsForSummary(
+  options: GetMyEventsForSummaryOptions = {}
+): Promise<DbEventRow[]> {
+  await requireUid();
+
+  const pastDays = Math.max(0, Math.round(Number(options.pastDays ?? 2)));
+  const futureDays = Math.max(1, Math.round(Number(options.futureDays ?? 45)));
+
+  const windowStart = new Date();
+  windowStart.setHours(0, 0, 0, 0);
+  windowStart.setDate(windowStart.getDate() - pastDays);
+
+  const windowEnd = new Date();
+  windowEnd.setHours(23, 59, 59, 999);
+  windowEnd.setDate(windowEnd.getDate() + futureDays);
+
+  const { data, error } = await supabase
+    .from("events")
+    .select(EVENT_SELECT)
+    .lte("start", windowEnd.toISOString())
+    .gte("end", windowStart.toISOString())
     .order("start", { ascending: true });
 
   if (error) throw error;

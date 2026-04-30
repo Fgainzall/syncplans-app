@@ -641,7 +641,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     declinedEventIds,
     ignoredConflictKeys,
     resMap,
-    unreadConflictAlert,
     recentDecisions,
     proposalResponsesMap,
     proposalResponseGroupsMap,
@@ -682,25 +681,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       cancelled = true;
     };
   }, []);
-
-  const summaryAnalyticsBase = useMemo(
-    () => ({
-      screen: "summary",
-      activeGroupId: activeGroupId ?? null,
-      pendingInviteCount,
-      pendingCaptureCount,
-      unreadConflictCount: unreadConflictAlert.count,
-    }),
-    [activeGroupId, pendingInviteCount, pendingCaptureCount, unreadConflictAlert.count]
-  );
-
-  useEffect(() => {
-    void trackScreenView({
-      screen: "summary",
-      userId: currentUserId,
-      metadata: summaryAnalyticsBase,
-    });
-  }, [currentUserId, summaryAnalyticsBase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -932,9 +912,28 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
     return {
       count: baseAlert.count,
-      latestEventId: baseAlert.latestEventId ?? unreadConflictAlert.latestEventId ?? null,
+      latestEventId: baseAlert.latestEventId ?? null,
     };
-  }, [visibleEvents, groups, resMap, ignoredConflictKeys, unreadConflictAlert]);
+  }, [visibleEvents, groups, resMap, ignoredConflictKeys]);
+
+  const summaryAnalyticsBase = useMemo(
+    () => ({
+      screen: "summary",
+      activeGroupId: activeGroupId ?? null,
+      pendingInviteCount,
+      pendingCaptureCount,
+      unreadConflictCount: conflictAlert.count,
+    }),
+    [activeGroupId, pendingInviteCount, pendingCaptureCount, conflictAlert.count]
+  );
+
+  useEffect(() => {
+    void trackScreenView({
+      screen: "summary",
+      userId: currentUserId,
+      metadata: summaryAnalyticsBase,
+    });
+  }, [currentUserId, summaryAnalyticsBase]);
 
   const upcomingAll = useMemo(() => {
     const today = startOfTodayLocal();

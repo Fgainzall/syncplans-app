@@ -4,7 +4,7 @@ import supabase from "@/lib/supabaseClient";
 import { getProfilesMapByIds } from "@/lib/profilesDb";
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
-import { getMyEvents } from "@/lib/eventsDb";
+import { getMyEventsForSummary } from "@/lib/eventsDb";
 import {
   getMyProposalResponsesForEvents,
   getProposalResponsesForEvents,
@@ -16,14 +16,11 @@ import {
 } from "@/lib/conflictResolutionsDb";
 import { getIgnoredConflictKeys } from "@/lib/conflictPrefs";
 import { getMyDeclinedEventIds } from "@/lib/eventResponsesDb";
-import { getUnreadConflictNotificationsSummary } from "@/lib/notificationsDb";
 import { getRecentConflictResolutionLogs } from "@/lib/conflictResolutionsLogDb";
 import {
   buildAppliedToastMessage,
   mapRecentDecision,
-  normalizeEvent,
-  type ConflictAlert,
-  type RecentDecision,
+  normalizeEvent,  type RecentDecision,
 } from "./summaryHelpers";
 import {
   getGrantedBrowserOrigin,
@@ -120,7 +117,6 @@ type UseSummaryDataReturn = {
   declinedEventIds: Set<string>;
   ignoredConflictKeys: Set<string>;
   resMap: Record<string, Resolution>;
-  unreadConflictAlert: ConflictAlert;
   recentDecisions: RecentDecision[];
   proposalResponsesMap: Record<string, ProposalResponseRow>;
   proposalResponseGroupsMap: Record<string, ProposalResponseRow[]>;
@@ -131,6 +127,9 @@ type UseSummaryDataReturn = {
 };
 
 const SMART_MOBILITY_BUFFER_MINUTES = 5;
+const SMART_MOBILITY_LOOKAHEAD_HOURS = 24;
+const SUMMARY_EVENTS_PAST_DAYS = 2;
+const SUMMARY_EVENTS_FUTURE_DAYS = 45;
 
 const EMPTY_SMART_MOBILITY: SmartMobilityState = {
   available: false,
@@ -202,6 +201,9 @@ function findNextEventWithDestination(events: SummaryRawEvent[]): SummaryRawEven
         if (!Number.isFinite(startMs)) return false;
 
         if (startMs < now - 15 * 60 * 1000) return false;
+
+        const latestUsefulStartMs = now + SMART_MOBILITY_LOOKAHEAD_HOURS * 60 * 60 * 1000;
+        if (startMs > latestUsefulStartMs) return false;
 
         return Boolean(getEventDestination(event));
       })
@@ -433,10 +435,6 @@ export function useSummaryData({
     () => new Set()
   );
   const [resMap, setResMap] = useState<Record<string, Resolution>>({});
-  const [unreadConflictAlert, setUnreadConflictAlert] = useState<ConflictAlert>({
-    count: 0,
-    latestEventId: null,
-  });
   const [recentDecisions, setRecentDecisions] = useState<RecentDecision[]>([]);
   const [proposalResponsesMap, setProposalResponsesMap] = useState<
     Record<string, ProposalResponseRow>
@@ -532,7 +530,10 @@ export function useSummaryData({
       const [gs, activeId, es] = await Promise.all([
         getMyGroups(),
         getActiveGroupIdFromDb().catch(() => null),
-        getMyEvents(),
+        getMyEventsForSummary({
+          pastDays: SUMMARY_EVENTS_PAST_DAYS,
+          futureDays: SUMMARY_EVENTS_FUTURE_DAYS,
+        }),
       ]);
 
       if (loadGeneration !== loadGenerationRef.current) {
@@ -598,7 +599,6 @@ export function useSummaryData({
             conflictResolutions,
             declined,
             ignored,
-            unreadConflicts,
             recentDecisionLogs,
             proposalResponses,
             proposalResponseGroups,
@@ -606,10 +606,6 @@ export function useSummaryData({
             getMyConflictResolutionsMap().catch(() => ({})),
             getMyDeclinedEventIds().catch(() => new Set<string>()),
             getIgnoredConflictKeys().catch(() => new Set<string>()),
-            getUnreadConflictNotificationsSummary().catch(() => ({
-              count: 0,
-              latestEventId: null,
-            })),
             getRecentConflictResolutionLogs(8).catch(() => []),
             getMyProposalResponsesForEvents(proposalEventIds, user.id).catch(
               () => ({})
@@ -624,9 +620,6 @@ export function useSummaryData({
           setResMap(conflictResolutions ?? {});
           setDeclinedEventIds(declined ?? new Set());
           setIgnoredConflictKeys(ignored ?? new Set());
-          setUnreadConflictAlert(
-            unreadConflicts ?? { count: 0, latestEventId: null }
-          );
           setRecentDecisions((recentDecisionLogs ?? []).map(mapRecentDecision));
           setProposalResponsesMap(proposalResponses ?? {});
           setProposalResponseGroupsMap(proposalResponseGroups ?? {});
@@ -831,7 +824,6 @@ export function useSummaryData({
     declinedEventIds,
     ignoredConflictKeys,
     resMap,
-    unreadConflictAlert,
     recentDecisions,
     proposalResponsesMap,
     proposalResponseGroupsMap,
