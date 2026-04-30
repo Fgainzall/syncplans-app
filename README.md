@@ -202,10 +202,10 @@ Este README reemplaza el template default de Next.js y sirve como base operativa
 
 SyncPlans usa variables de entorno para Supabase, crons, emails, Google Calendar, Google Maps, push notifications y flags de debug.
 
-El contrato operativo completo est· en:
+El contrato operativo completo est√° en:
 
 ```txt
 docs/ENVIRONMENT.md
 ```
 
-Regla: no agregar nuevas variables de entorno sin documentarlas ahÌ. Nunca commitear valores secretos.
+Regla: no agregar nuevas variables de entorno sin documentarlas ah√≠. Nunca commitear valores secretos.
