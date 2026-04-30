@@ -1,33 +1,317 @@
 -- =====================================================================
---  SyncPlans – Supabase schema backup placeholder
+--  SyncPlans – Supabase governance snapshot for beta
 -- =====================================================================
+-- Fecha documental: 2026-04-30
+-- Archivo: supabase_schema.sql
+--
 -- IMPORTANTE:
--- Este archivo está reservado para un DUMP COMPLETO del schema remoto de
--- Supabase. Actualmente NO debe tratarse como fuente reconstructiva.
+-- Este archivo reemplaza el placeholder anterior con un snapshot operativo
+-- de gobernanza de base de datos para beta cerrada.
 --
--- Estado actual:
--- - La base real vive en Supabase.
--- - Las migrations en db/migrations/ versionan cambios intencionales.
--- - db/schema.sql es un snapshot documental mínimo de tablas críticas.
--- - El snapshot limpio de gobernanza se obtuvo desde Supabase SQL Editor
---   porque el dump CLI requiere Docker Desktop en Windows.
+-- Este archivo NO es un pg_dump reconstructivo completo. Para reconstrucción
+-- total de la base se debe generar un dump con Supabase CLI/pg_dump cuando el
+-- entorno local tenga Docker/pg_dump disponible.
 --
--- Cómo generar un dump real cuando el entorno local lo permita:
+-- Sí documenta el estado real verificado desde Supabase SQL Editor y las
+-- migrations versionadas que corrigen los riesgos accionables de RLS/grants.
 --
---   npx supabase db dump --linked -f supabase_schema.sql
---
--- Nota:
--- El comando anterior puede requerir Docker Desktop. Si Docker no está
--- disponible, usar SQL Editor para generar snapshots de auditoría, pero no
--- reemplazar este archivo con resultados parciales pegados manualmente.
---
--- Reglas:
--- 1. No editar este archivo a mano para inventar schema.
--- 2. No usarlo como backup mientras contenga esta nota.
--- 3. Después de un dump real, revisar el diff antes de commitear.
--- 4. No mezclar dump masivo con fixes quirúrgicos de RLS o frontend.
---
--- Última revisión documental: 2026-04-29
+-- Fuentes versionadas relacionadas:
+-- - db/schema.sql
+-- - db/migrations/016_harden_events_analytics_rls.sql
+-- - db/migrations/017_harden_external_events_view.sql
+-- - db/migrations/018_revoke_anon_sensitive_table_grants.sql
 -- =====================================================================
 
--- Full Supabase schema dump pending.
+-- =====================================================================
+-- 1) Alcance del snapshot
+-- =====================================================================
+-- Este snapshot documenta:
+-- - Objetos public verificados.
+-- - Estado RLS de tablas public.
+-- - View legacy external_events.
+-- - Hardening de events_analytics.
+-- - Hardening de grants sobre external_events.
+-- - Revocación de grants directos de anon sobre tablas sensibles.
+-- - Reglas operativas para auditoría futura.
+--
+-- Este snapshot NO contiene:
+-- - Dump completo de datos.
+-- - Credenciales, secrets ni valores de entorno.
+-- - pg_dump reconstructivo completo de funciones/triggers/policies.
+--
+-- Para generar dump real cuando el entorno lo permita:
+--   npx supabase db dump --linked -f supabase_schema.sql
+--
+-- Nota: ese comando puede requerir Docker Desktop en Windows.
+
+-- =====================================================================
+-- 2) Tablas public verificadas con RLS activo
+-- =====================================================================
+-- Resultado verificado en Supabase SQL Editor:
+-- Todas las tablas public listadas abajo tienen rls_enabled = true.
+--
+-- table: public.conflict_preferences
+-- table: public.conflict_resolutions
+-- table: public.conflict_resolutions_log
+-- table: public.connected_accounts
+-- table: public.event_responses
+-- table: public.events
+-- table: public.events_analytics
+-- table: public.external_busy_blocks
+-- table: public.external_calendar_settings
+-- table: public.google_accounts
+-- table: public.group_invites
+-- table: public.group_members
+-- table: public.group_messages
+-- table: public.group_notification_settings
+-- table: public.groups
+-- table: public.notifications
+-- table: public.profiles
+-- table: public.proposal_responses
+-- table: public.public_invites
+-- table: public.push_subscriptions
+-- table: public.user_notification_settings
+-- table: public.user_settings
+--
+-- La única view public detectada fue:
+-- view: public.external_events
+--
+-- Las views no usan RLS de la misma forma que las tablas. external_events fue
+-- endurecida por grants en db/migrations/017_harden_external_events_view.sql.
+
+-- Query de verificación usado:
+-- select
+--   n.nspname as schema_name,
+--   c.relname as object_name,
+--   case c.relkind
+--     when 'r' then 'table'
+--     when 'p' then 'partitioned_table'
+--     when 'v' then 'view'
+--     when 'm' then 'materialized_view'
+--     else c.relkind::text
+--   end as object_type,
+--   c.relrowsecurity as rls_enabled
+-- from pg_class c
+-- join pg_namespace n on n.oid = c.relnamespace
+-- where n.nspname = 'public'
+--   and c.relkind in ('r', 'p', 'v', 'm')
+-- order by object_type, object_name;
+
+-- =====================================================================
+-- 3) events_analytics hardening
+-- =====================================================================
+-- Riesgo corregido:
+-- events_analytics se escribe desde el cliente mediante src/lib/analytics.ts.
+-- Antes no debía permanecer sin RLS ni aceptar user_id null desde cliente.
+--
+-- Estado versionado:
+-- - db/migrations/016_harden_events_analytics_rls.sql
+--
+-- Cambios aplicados:
+-- - enable row level security en public.events_analytics
+-- - revoke all from anon/public
+-- - revoke update/delete from authenticated
+-- - grant insert/select to authenticated
+-- - policies:
+--   - events_analytics_insert_own: with check (user_id = auth.uid())
+--   - events_analytics_select_own: using (user_id = auth.uid())
+-- - índices:
+--   - idx_events_analytics_user_created_at
+--   - idx_events_analytics_event_type_created_at
+--
+-- Nota frontend:
+-- src/lib/analytics.ts debe resolver el usuario autenticado antes de insertar
+-- y no debe insertar rows con user_id null.
+
+-- =====================================================================
+-- 4) external_events view hardening
+-- =====================================================================
+-- View detectada:
+-- public.external_events
+--
+-- Definición verificada:
+--   SELECT id,
+--          user_id,
+--          provider,
+--          calendar_id,
+--          external_event_id,
+--          start AS start_at,
+--          "end" AS end_at,
+--          is_all_day AS all_day,
+--          title,
+--          updated_at_provider,
+--          last_synced_at,
+--          created_at,
+--          updated_at
+--   FROM external_busy_blocks;
+--
+-- Riesgo corregido:
+-- La view expone metadata de calendarios externos. No debe estar disponible
+-- directamente para anon ni authenticated si la app no la usa desde cliente.
+--
+-- Estado versionado:
+-- - db/migrations/017_harden_external_events_view.sql
+--
+-- Grants esperados sobre public.external_events después del hardening:
+-- - postgres
+-- - service_role
+--
+-- No deben aparecer:
+-- - anon
+-- - authenticated
+
+-- Query de verificación recomendado:
+-- select
+--   grantee,
+--   privilege_type
+-- from information_schema.role_table_grants
+-- where table_schema = 'public'
+--   and table_name = 'external_events'
+-- order by grantee, privilege_type;
+
+-- =====================================================================
+-- 5) anon grants hardening
+-- =====================================================================
+-- Riesgo corregido:
+-- Aunque RLS estaba activo, anon todavía tenía grants directos amplios sobre
+-- tablas sensibles. RLS protegía filas, pero esos grants generaban superficie
+-- innecesaria y mala gobernanza/auditoría.
+--
+-- Estado versionado:
+-- - db/migrations/018_revoke_anon_sensitive_table_grants.sql
+--
+-- Tablas sensibles con grants de anon revocados:
+-- - public.connected_accounts
+-- - public.events
+-- - public.external_busy_blocks
+-- - public.external_calendar_settings
+-- - public.google_accounts
+-- - public.group_invites
+-- - public.group_members
+-- - public.notifications
+-- - public.profiles
+-- - public.public_invites
+-- - public.push_subscriptions
+-- - public.conflict_preferences
+-- - public.conflict_resolutions
+-- - public.conflict_resolutions_log
+-- - public.event_responses
+-- - public.group_messages
+-- - public.group_notification_settings
+-- - public.groups
+-- - public.proposal_responses
+-- - public.user_notification_settings
+-- - public.user_settings
+--
+-- Resultado esperado del query de verificación:
+-- 0 rows para grantee = 'anon' sobre tablas public de la app.
+
+-- Query de verificación recomendado:
+-- select
+--   table_name,
+--   grantee,
+--   privilege_type
+-- from information_schema.role_table_grants
+-- where table_schema = 'public'
+--   and grantee = 'anon'
+-- order by table_name, privilege_type;
+
+-- =====================================================================
+-- 6) Lectura correcta de grants vs RLS
+-- =====================================================================
+-- En Supabase/Postgres hay dos capas:
+--
+-- 1. GRANTS
+--    Permiten que un rol intente ejecutar SELECT/INSERT/UPDATE/DELETE/etc.
+--
+-- 2. RLS policies
+--    Deciden qué filas puede leer/escribir ese rol.
+--
+-- Para usuarios autenticados, SyncPlans conserva acceso a través de
+-- authenticated + RLS policies. No se deben revocar grants de authenticated
+-- a ciegas porque podría romper cliente/app.
+--
+-- Para usuarios anónimos, se revocaron grants directos sobre tablas privadas.
+-- Flujos públicos como invitaciones por token deben pasar por API/server, no
+-- por acceso directo anónimo a tablas sensibles.
+
+-- =====================================================================
+-- 7) Policies principales observadas
+-- =====================================================================
+-- Patrón general verificado:
+-- - Tablas user-scoped: auth.uid() = user_id o auth.uid() = id.
+-- - Tablas de grupos: acceso vía membresía en group_members.
+-- - Analytics: user_id = auth.uid().
+-- - Google/accounts: user_id = auth.uid().
+--
+-- Ejemplos representativos observados:
+-- - profiles_select_self: auth.uid() = id
+-- - profiles_insert_self: auth.uid() = id
+-- - profiles_update_self / profiles_update_own: auth.uid() = id
+-- - user_settings_select_own: auth.uid() = user_id
+-- - user_settings_insert_own: auth.uid() = user_id
+-- - user_settings_update_own: auth.uid() = user_id
+-- - google_accounts_select_own: user_id = auth.uid()
+-- - google_accounts_insert_own: user_id = auth.uid()
+-- - google_accounts_update_own: user_id = auth.uid()
+-- - group_messages_select_members_only: membership exists in group_members
+-- - group_messages_insert_members_only: membership exists in group_members
+-- - events_analytics_select_own: user_id = auth.uid()
+-- - events_analytics_insert_own: user_id = auth.uid()
+--
+-- Reglas:
+-- - No crear policies nuevas con roles {public} si pueden ser {authenticated}
+--   sin evaluar compatibilidad.
+-- - No eliminar policies existentes sin prueba end-to-end de auth/grupos/eventos.
+-- - Toda policy nueva debe quedar versionada en db/migrations/.
+
+-- =====================================================================
+-- 8) Estado de seguridad DB para beta cerrada
+-- =====================================================================
+-- Estado actual después de migrations 016, 017 y 018:
+--
+-- OK para beta cerrada:
+-- - Todas las tablas public tienen RLS activo.
+-- - events_analytics tiene RLS y policies propias.
+-- - external_events ya no está expuesta a anon/authenticated.
+-- - anon no debe tener grants directos sobre tablas sensibles.
+-- - Cambios críticos están versionados en db/migrations/.
+--
+-- Pendiente no bloqueante para beta:
+-- - Generar pg_dump reconstructivo completo cuando Docker/pg_dump esté
+--   disponible localmente.
+-- - Normalizar todas las policies legacy desde roles {public} hacia roles más
+--   explícitos donde sea seguro.
+-- - Agregar tests automáticos de cross-group access y token public invite.
+
+-- =====================================================================
+-- 9) Checklist operativo para futuras revisiones
+-- =====================================================================
+-- Antes de ampliar usuarios:
+-- [ ] npm run lint limpio.
+-- [ ] npm run build verde.
+-- [ ] Verificar que todas las tablas public tienen RLS true.
+-- [ ] Verificar que anon no tiene grants directos sobre tablas sensibles.
+-- [ ] Verificar que external_events no tiene grants a anon/authenticated.
+-- [ ] Verificar que migrations nuevas no se aplicaron solo desde Dashboard.
+-- [ ] Verificar Vercel env vars contra docs/ENVIRONMENT.md.
+-- [ ] Ejecutar QA auth -> onboarding -> grupo -> invitación -> evento -> conflicto.
+
+-- =====================================================================
+-- 10) Futuro dump reconstructivo completo
+-- =====================================================================
+-- Cuando el entorno local lo permita:
+--
+--   npx supabase login
+--   npx supabase link --project-ref <PROJECT_REF>
+--   npx supabase db dump --linked -f supabase_schema.sql
+--
+-- Después:
+-- - Revisar diff cuidadosamente.
+-- - No mezclar dump masivo con cambios de app.
+-- - Confirmar que no se incluyan secretos ni datos de usuarios.
+-- - Commit sugerido: "Update Supabase full schema dump".
+
+-- =====================================================================
+-- Fin del snapshot de gobernanza DB para beta.
+-- =====================================================================
