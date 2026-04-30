@@ -100,17 +100,14 @@ export async function GET() {
 
     const account = data as GoogleAccountStatusRow | null;
 
-const expiresAtRaw = account?.expires_at ?? null;
 const refreshToken = account?.refresh_token ?? null;
-    const expiresMs = expiresAtRaw ? new Date(String(expiresAtRaw)).getTime() : 0;
-    const nowMs = Date.now();
 
-    const needsReauth =
-      !refreshToken || !expiresMs || Number.isNaN(expiresMs) || expiresMs < nowMs + 60_000;
-
-    const connectionState: ConnectionState = needsReauth
-      ? "needs_reauth"
-      : "connected";
+    // El access_token de Google expira normalmente. Eso NO significa que el usuario
+    // deba reconectar si todavía tenemos refresh_token. La sincronización se encarga
+    // de refrescar el access_token cuando haga falta.
+    const connectionState: ConnectionState = refreshToken
+      ? "connected"
+      : "needs_reauth";
 
     return NextResponse.json({
       ok: true,

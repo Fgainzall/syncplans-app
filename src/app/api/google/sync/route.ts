@@ -85,11 +85,18 @@ async function refreshGoogleAccessToken(
   access_token: string;
   expires_in?: number;
 }> {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  // En el resto del flujo OAuth del proyecto se usan GOOGLE_OAUTH_CLIENT_ID
+  // y GOOGLE_OAUTH_CLIENT_SECRET. Dejamos fallback a los nombres antiguos para
+  // no romper ningún entorno local que todavía los tenga configurados.
+  const clientId =
+    process.env.GOOGLE_OAUTH_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
+  const clientSecret =
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    throw new Error("Faltan GOOGLE_CLIENT_ID o GOOGLE_CLIENT_SECRET");
+    throw new Error(
+      "Faltan GOOGLE_OAUTH_CLIENT_ID o GOOGLE_OAUTH_CLIENT_SECRET"
+    );
   }
 
   const body = new URLSearchParams({
