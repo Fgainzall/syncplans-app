@@ -13,7 +13,9 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const EMAIL_FROM =
-  process.env.EMAIL_FROM || "SyncPlans <no-reply@syncplansapp.com>";
+  process.env.EMAIL_FROM ||
+  process.env.RESEND_FROM ||
+  "SyncPlans <no-reply@syncplansapp.com>";
 
 type WeeklyProfileRow = {
   first_name?: string | null;

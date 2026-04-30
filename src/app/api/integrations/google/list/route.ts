@@ -13,10 +13,16 @@ type SupabaseCookieOptions = {
 };
 export const dynamic = "force-dynamic";
 
-function mustEnv(name: string): string {
-  const v = (process.env[name] ?? "").trim();
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
+function mustEnv(name: string, fallbackName?: string): string {
+  const primary = (process.env[name] ?? "").trim();
+  if (primary) return primary;
+
+  const fallback = fallbackName ? (process.env[fallbackName] ?? "").trim() : "";
+  if (fallback) return fallback;
+
+  throw new Error(
+    fallbackName ? `Missing env: ${name} or ${fallbackName}` : `Missing env: ${name}`
+  );
 }
 
 async function refreshGoogleAccessToken(
@@ -24,8 +30,11 @@ async function refreshGoogleAccessToken(
   userId: string,
   refreshToken: string
 ): Promise<string> {
-  const clientId = mustEnv("GOOGLE_CLIENT_ID");
-  const clientSecret = mustEnv("GOOGLE_CLIENT_SECRET");
+  const clientId = mustEnv("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_CLIENT_ID");
+  const clientSecret = mustEnv(
+    "GOOGLE_OAUTH_CLIENT_SECRET",
+    "GOOGLE_CLIENT_SECRET"
+  );
 
   const body = new URLSearchParams({
     client_id: clientId,

@@ -4,10 +4,16 @@ import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-function mustEnv(name: string) {
-  const v = (process.env[name] ?? "").trim();
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
+function mustEnv(name: string, fallbackName?: string) {
+  const primary = (process.env[name] ?? "").trim();
+  if (primary) return primary;
+
+  const fallback = fallbackName ? (process.env[fallbackName] ?? "").trim() : "";
+  if (fallback) return fallback;
+
+  throw new Error(
+    fallbackName ? `Missing env: ${name} or ${fallbackName}` : `Missing env: ${name}`
+  );
 }
 
 function getAppUrl(): string {
@@ -32,7 +38,7 @@ function safeNextPath(input: string | null | undefined): string {
 
 export async function GET(req: Request) {
   try {
-    const clientId = mustEnv("GOOGLE_OAUTH_CLIENT_ID");
+    const clientId = mustEnv("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_CLIENT_ID");
     const appUrl = getAppUrl();
     const isSecure = appUrl.startsWith("https://");
 

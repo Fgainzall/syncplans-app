@@ -32,10 +32,16 @@ type GoogleAccountUpsertPayload = {
   updated_at: string;
   created_at?: string;
 };
-function mustEnv(name: string) {
-  const v = (process.env[name] ?? "").trim();
-  if (!v) throw new Error(`Missing env: ${name}`);
-  return v;
+function mustEnv(name: string, fallbackName?: string) {
+  const primary = (process.env[name] ?? "").trim();
+  if (primary) return primary;
+
+  const fallback = fallbackName ? (process.env[fallbackName] ?? "").trim() : "";
+  if (fallback) return fallback;
+
+  throw new Error(
+    fallbackName ? `Missing env: ${name} or ${fallbackName}` : `Missing env: ${name}`
+  );
 }
 
 function getAppUrl() {
@@ -47,8 +53,11 @@ function getAppUrl() {
 }
 
 async function exchangeCodeForTokens(input: { code: string; redirect_uri: string }) {
-  const client_id = mustEnv("GOOGLE_OAUTH_CLIENT_ID");
-  const client_secret = mustEnv("GOOGLE_OAUTH_CLIENT_SECRET");
+  const client_id = mustEnv("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_CLIENT_ID");
+  const client_secret = mustEnv(
+    "GOOGLE_OAUTH_CLIENT_SECRET",
+    "GOOGLE_CLIENT_SECRET"
+  );
 
   const body = new URLSearchParams();
   body.set("client_id", client_id);

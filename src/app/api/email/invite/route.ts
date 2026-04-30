@@ -35,6 +35,10 @@ function requiredEnv(name: string) {
   return v && String(v).trim() ? String(v).trim() : "";
 }
 
+function envWithFallback(primaryName: string, fallbackName: string) {
+  return requiredEnv(primaryName) || requiredEnv(fallbackName);
+}
+
 function escapeHtml(s: string) {
   return String(s)
     .replace(/&/g, "&amp;")
@@ -161,7 +165,7 @@ const groupId = String(body.groupId ?? "").trim();
     }
 
     const resendKey = requiredEnv("RESEND_API_KEY");
-    const from = requiredEnv("RESEND_FROM");
+    const from = envWithFallback("EMAIL_FROM", "RESEND_FROM");
 
     if (!resendKey) {
       return NextResponse.json(
@@ -175,7 +179,7 @@ const groupId = String(body.groupId ?? "").trim();
         {
           ok: false,
           error:
-            "Falta RESEND_FROM (ej: SyncPlans <noreply@syncplansapp.com>)",
+            "Falta EMAIL_FROM o RESEND_FROM (ej: SyncPlans <noreply@syncplansapp.com>)",
         },
         { status: 500 }
       );
