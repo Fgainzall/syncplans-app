@@ -76,3 +76,18 @@ Endpoints relacionados:
 Toda nueva feature que dependa de una variable de entorno debe actualizar este documento en el mismo PR/commit.
 
 Nunca commitear valores secretos.
+
+## Rate limiting distribuido
+
+Estas variables son recomendadas en producción para que los límites de abuso no dependan de memoria local de una instancia serverless:
+
+- UPSTASH_REDIS_REST_URL: endpoint REST de Upstash Redis.
+- UPSTASH_REDIS_REST_TOKEN: token REST de Upstash Redis.
+
+Endpoints protegidos por este rate limit:
+- /api/public-invite/[token]
+- /api/email/invite
+- /api/maps/autocomplete
+- /api/maps/route-eta
+
+Si estas variables no existen, el código usa fallback local en memoria para desarrollo/QA, pero no debe considerarse protección suficiente para abrir a más usuarios.
