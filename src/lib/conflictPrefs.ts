@@ -52,7 +52,15 @@ export async function getAcceptedConflictKeys(): Promise<Set<string>> {
 }
 
 export async function getIgnoredConflictKeys(): Promise<Set<string>> {
-  return getConflictPreferenceKeys("ignored");
+  const [ignored, accepted] = await Promise.all([
+    getConflictPreferenceKeys("ignored"),
+    getConflictPreferenceKeys("accepted"),
+  ]);
+
+  // Compatibilidad legacy: en versiones anteriores algunas decisiones
+  // aplicadas quedaban como accepted. Para efectos de conflictos visibles,
+  // accepted también debe dejar de aparecer como pendiente.
+  return new Set([...ignored, ...accepted]);
 }
 
 export async function setConflictPreference(
