@@ -1,7 +1,12 @@
 // src/app/api/push/test/route.ts
-import { NextResponse } from "next/server";
 import webpush from "web-push";
 import { createClient } from "@supabase/supabase-js";
+import {
+  createApiRequestContext,
+  jsonError,
+  jsonOk,
+  logRequestStart,
+} from "@/lib/apiObservability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,22 +27,18 @@ type PushBody = {
   url?: string;
 };
 
-function response(payload: Record<string, unknown>, status = 200) {
-  return NextResponse.json(payload, { status });
-}
+type PushEnv = {
+  ok: boolean;
+  missing: string[];
+  supabaseUrl?: string;
+  serviceRoleKey?: string;
+  vapidPublicKey?: string;
+  vapidPrivateKey?: string;
+  vapidSubject: string;
+  pushTestSecret?: string;
+};
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return "Unknown error";
-  }
-}
-
-function getEnv() {
+function getEnv(): PushEnv {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
@@ -68,12 +69,22 @@ function getEnv() {
   };
 }
 
+function getBearerToken(req: Request) {
+  const header = String(req.headers.get("authorization") ?? "").trim();
+  return header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
+}
+
 function isAuthorized(req: Request, expectedSecret: string) {
   const url = new URL(req.url);
   const querySecret = url.searchParams.get("secret")?.trim();
   const headerSecret = req.headers.get("x-push-test-secret")?.trim();
+  const bearer = getBearerToken(req);
 
-  return querySecret === expectedSecret || headerSecret === expectedSecret;
+  return (
+    querySecret === expectedSecret ||
+    headerSecret === expectedSecret ||
+    bearer === expectedSecret
+  );
 }
 
 async function parseBody(req: Request): Promise<PushBody> {
@@ -87,9 +98,9 @@ async function parseBody(req: Request): Promise<PushBody> {
     const record = parsed as Record<string, unknown>;
 
     return {
-      title: typeof record.title === "string" ? record.title : undefined,
-      body: typeof record.body === "string" ? record.body : undefined,
-      url: typeof record.url === "string" ? record.url : undefined,
+      title: typeof record.title === "string" ? record.title.slice(0, 120) : undefined,
+      body: typeof record.body === "string" ? record.body.slice(0, 240) : undefined,
+      url: typeof record.url === "string" ? record.url.slice(0, 400) : undefined,
     };
   } catch {
     return {};
@@ -108,43 +119,57 @@ function toWebPushSubscription(row: PushSubscriptionRow) {
   };
 }
 
+function getPushFailureDetails(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return { name: "UnknownPushError" };
+  }
+
+  const record = error as Record<string, unknown>;
+  return {
+    name: typeof record.name === "string" ? record.name : "PushProviderError",
+    statusCode: typeof record.statusCode === "number" ? record.statusCode : null,
+    code: typeof record.code === "string" ? record.code : null,
+  };
+}
+
 async function handler(req: Request) {
+  const ctx = createApiRequestContext(req);
+  logRequestStart(ctx, { flow: "push.test" });
+
   try {
     const env = getEnv();
 
     if (!env.ok) {
-      return response(
-        {
-          ok: false,
-          error: "Missing required environment variables.",
-          missing: env.missing,
-        },
-        500,
-      );
+      return jsonError(ctx, {
+        error: "Faltan variables de entorno para probar push.",
+        code: "PUSH_ENV_MISSING",
+        status: 500,
+        level: "error",
+        data: { missing: env.missing },
+        log: { flow: "push.test", missing: env.missing },
+      });
     }
 
     if (!isAuthorized(req, env.pushTestSecret!)) {
-      return response(
-        {
-          ok: false,
-          error: "Unauthorized. Invalid PUSH_TEST_SECRET.",
-        },
-        401,
-      );
+      return jsonError(ctx, {
+        error: "No autorizado para probar push.",
+        code: "PUSH_TEST_UNAUTHORIZED",
+        status: 401,
+        log: { flow: "push.test" },
+      });
     }
 
     if (
       !env.vapidSubject.startsWith("mailto:") &&
       !env.vapidSubject.startsWith("https://")
     ) {
-      return response(
-        {
-          ok: false,
-          error:
-            "Invalid VAPID_SUBJECT. Use mailto:correo@dominio.com or https://dominio.com.",
-        },
-        500,
-      );
+      return jsonError(ctx, {
+        error: "VAPID_SUBJECT inválido.",
+        code: "PUSH_VAPID_SUBJECT_INVALID",
+        status: 500,
+        level: "error",
+        log: { flow: "push.test" },
+      });
     }
 
     const supabase = createClient(env.supabaseUrl!, env.serviceRoleKey!, {
@@ -161,37 +186,36 @@ async function handler(req: Request) {
       .limit(10);
 
     if (error) {
-      return response(
-        {
-          ok: false,
-          error: "Could not read push_subscriptions.",
-          details: error.message,
-        },
-        500,
-      );
+      return jsonError(ctx, {
+        error: "No se pudieron leer las suscripciones push.",
+        code: "PUSH_SUBSCRIPTIONS_LOOKUP_FAILED",
+        status: 500,
+        log: { flow: "push.test", providerError: error.message },
+      });
     }
 
     const rows = ((data || []) as PushSubscriptionRow[]).filter(
-      (row) => row.endpoint && row.p256dh && row.auth,
+      (row) => row.endpoint && row.p256dh && row.auth
     );
 
     if (rows.length === 0) {
-      return response(
-        {
-          ok: false,
-          error: "No valid push subscriptions found.",
+      return jsonError(ctx, {
+        error: "No hay suscripciones push válidas.",
+        code: "PUSH_NO_VALID_SUBSCRIPTIONS",
+        status: 404,
+        data: {
           totalRowsRead: data?.length || 0,
           hint:
-            "Go to /settings/notifications, activate push again, and confirm a fresh row exists in push_subscriptions.",
+            "Ve a /settings/notifications, activa push otra vez y confirma que exista una fila fresca en push_subscriptions.",
         },
-        404,
-      );
+        log: { flow: "push.test", totalRowsRead: data?.length || 0 },
+      });
     }
 
     webpush.setVapidDetails(
       env.vapidSubject,
       env.vapidPublicKey!,
-      env.vapidPrivateKey!,
+      env.vapidPrivateKey!
     );
 
     const body = await parseBody(req);
@@ -212,6 +236,7 @@ async function handler(req: Request) {
         type: "push_test",
         source: "api_push_test",
         url,
+        requestId: ctx.requestId,
         createdAt: new Date().toISOString(),
       },
     });
@@ -219,13 +244,13 @@ async function handler(req: Request) {
     const subscriptions = rows
       .map(toWebPushSubscription)
       .filter((sub): sub is NonNullable<ReturnType<typeof toWebPushSubscription>> =>
-        Boolean(sub),
+        Boolean(sub)
       );
 
     const results = await Promise.allSettled(
       subscriptions.map((subscription) =>
-        webpush.sendNotification(subscription, payload),
-      ),
+        webpush.sendNotification(subscription, payload)
+      )
     );
 
     const failures = results
@@ -233,30 +258,59 @@ async function handler(req: Request) {
       .filter(({ result }) => result.status === "rejected")
       .map(({ result, index }) => ({
         index,
-        message:
-          result.status === "rejected"
-            ? getErrorMessage(result.reason)
-            : "Unknown push error",
+        ...(result.status === "rejected"
+          ? getPushFailureDetails(result.reason)
+          : { name: "UnknownPushError" }),
       }));
 
     const sent = results.length - failures.length;
 
-    return response({
-      ok: sent > 0,
-      attempted: results.length,
-      sent,
-      failed: failures.length,
-      failures,
-    });
-  } catch (error) {
-    return response(
+    if (sent <= 0) {
+      return jsonError(ctx, {
+        error: "No se pudo enviar ninguna notificación push.",
+        code: "PUSH_SEND_FAILED",
+        status: 502,
+        data: {
+          attempted: results.length,
+          sent,
+          failed: failures.length,
+          failures,
+        },
+        log: {
+          flow: "push.test",
+          attempted: results.length,
+          sent,
+          failed: failures.length,
+          failures,
+        },
+      });
+    }
+
+    return jsonOk(
+      ctx,
       {
-        ok: false,
-        error: "Unexpected push test error.",
-        details: getErrorMessage(error),
+        attempted: results.length,
+        sent,
+        failed: failures.length,
+        failures,
       },
-      500,
+      {
+        log: {
+          flow: "push.test",
+          attempted: results.length,
+          sent,
+          failed: failures.length,
+        },
+      }
     );
+  } catch (error) {
+    return jsonError(ctx, {
+      error: "Error inesperado probando push.",
+      code: "PUSH_TEST_FAILED",
+      status: 500,
+      level: "error",
+      log: { flow: "push.test", error },
+    });
   }
 }
 

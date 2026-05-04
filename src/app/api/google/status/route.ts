@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createApiRequestContext, jsonError, jsonOk, logRequestStart, maskEmail } from "@/lib/apiObservability";
+import { createSupabaseUserClient } from "@/lib/apiSecurity";
 
 export const dynamic = "force-dynamic";
 
@@ -14,123 +13,97 @@ type GoogleAccountStatusRow = {
   created_at?: string | null;
   updated_at?: string | null;
 };
-function getErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
-}
-export async function GET() {
+
+export async function GET(req: Request) {
+  const ctx = createApiRequestContext(req);
+  logRequestStart(ctx, { flow: "google.status" });
+
   try {
-    const cookieStore = await cookies();
+    const supabase = await createSupabaseUserClient(req);
 
-    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
-    const supabaseAnon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-    if (!supabaseUrl || !supabaseAnon) {
-      return NextResponse.json(
-        {
-          ok: false,
-          connected: false,
-          connection_state: "disconnected" satisfies ConnectionState,
-          error: "Faltan env vars de Supabase (URL/ANON).",
-        },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createServerClient(supabaseUrl, supabaseAnon, {
-   cookies: {
-  getAll() {
-    return cookieStore.getAll();
-  },
-  setAll(
-    cookiesToSet: {
-      name: string;
-      value: string;
-      options?: CookieOptions;
-    }[]
-  ) {
-    cookiesToSet.forEach(({ name, value, options }) => {
-      cookieStore.set({ name, value, ...options });
-    });
-  },
-},
-    });
-
-    const { data: userData } = await supabase.auth.getUser();
-    const userId = userData?.user?.id;
-
-    if (!userId) {
-      return NextResponse.json(
-        {
-          ok: false,
-          connected: false,
-          connection_state: "disconnected" satisfies ConnectionState,
-          error: "No autenticado.",
-        },
-        { status: 401 }
-      );
+    if (userError || !user?.id) {
+      return jsonError(ctx, {
+        error: "No autenticado.",
+        code: "GOOGLE_STATUS_UNAUTHORIZED",
+        status: 401,
+        log: { flow: "google.status" },
+      });
     }
 
     const { data, error } = await supabase
       .from("google_accounts")
       .select("provider,email,created_at,updated_at,expires_at,refresh_token")
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .maybeSingle();
 
     if (error) {
-      return NextResponse.json(
-        {
-          ok: false,
-          connected: false,
-          connection_state: "disconnected" satisfies ConnectionState,
-          error: error.message,
+      return jsonError(ctx, {
+        error: "No se pudo revisar la conexión de Google.",
+        code: "GOOGLE_STATUS_LOOKUP_FAILED",
+        status: 500,
+        log: {
+          flow: "google.status",
+          userId: user.id,
+          providerError: error.message,
         },
-        { status: 500 }
-      );
-    }
-
-    if (!data) {
-      return NextResponse.json({
-        ok: true,
-        connected: false,
-        connection_state: "disconnected" satisfies ConnectionState,
-        account: null,
       });
     }
 
-    const account = data as GoogleAccountStatusRow | null;
+    if (!data) {
+      return jsonOk(
+        ctx,
+        {
+          connected: false,
+          connection_state: "disconnected" satisfies ConnectionState,
+          account: null,
+        },
+        {
+          log: {
+            flow: "google.status",
+            userId: user.id,
+            connection_state: "disconnected",
+          },
+        }
+      );
+    }
 
-const refreshToken = account?.refresh_token ?? null;
+    const account = data as GoogleAccountStatusRow;
+    const refreshToken = account.refresh_token ?? null;
+    const connectionState: ConnectionState = refreshToken ? "connected" : "needs_reauth";
 
-    // El access_token de Google expira normalmente. Eso NO significa que el usuario
-    // deba reconectar si todavía tenemos refresh_token. La sincronización se encarga
-    // de refrescar el access_token cuando haga falta.
-    const connectionState: ConnectionState = refreshToken
-      ? "connected"
-      : "needs_reauth";
-
-    return NextResponse.json({
-      ok: true,
-      connected: connectionState === "connected",
-      connection_state: connectionState,
-    account: {
-  provider: account?.provider ?? "google",
-  email: account?.email ?? null,
-  created_at: account?.created_at ?? null,
-  updated_at: account?.updated_at ?? null,
-},
-    });
- } catch (e: unknown) {
-    console.error("[/api/google/status] error", e);
-
-    return NextResponse.json(
+    return jsonOk(
+      ctx,
       {
-        ok: false,
-        connected: false,
-        connection_state: "disconnected",
-      message: getErrorMessage(e, "Error revisando conexión con Google"),
+        connected: connectionState === "connected",
+        connection_state: connectionState,
+        account: {
+          provider: account.provider ?? "google",
+          email: account.email ?? null,
+          created_at: account.created_at ?? null,
+          updated_at: account.updated_at ?? null,
+        },
       },
-      { status: 500 }
+      {
+        log: {
+          flow: "google.status",
+          userId: user.id,
+          connection_state: connectionState,
+          googleEmail: maskEmail(account.email),
+        },
+      }
     );
+  } catch (error) {
+    return jsonError(ctx, {
+      error: "Error revisando conexión con Google.",
+      code: "GOOGLE_STATUS_FAILED",
+      status: 500,
+      level: "error",
+      log: { flow: "google.status", error },
+    });
   }
 }

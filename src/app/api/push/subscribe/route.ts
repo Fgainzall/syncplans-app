@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { createApiRequestContext, jsonError, jsonOk, logRequestStart } from "@/lib/apiObservability";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,20 @@ type PushBody = {
   };
 };
 
+async function parsePushBody(req: Request): Promise<PushBody | null> {
+  try {
+    const parsed = (await req.json()) as unknown;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed as PushBody;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: Request) {
+  const ctx = createApiRequestContext(req);
+  logRequestStart(ctx, { flow: "push.subscribe" });
+
   try {
     const supabase = await supabaseServer();
 
@@ -20,24 +33,28 @@ export async function POST(req: Request) {
       error: userError,
     } = await supabase.auth.getUser();
 
-    if (userError || !user) {
-      return NextResponse.json(
-        { ok: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+    if (userError || !user?.id) {
+      return jsonError(ctx, {
+        error: "No autenticado.",
+        code: "PUSH_SUBSCRIBE_UNAUTHORIZED",
+        status: 401,
+        log: { flow: "push.subscribe" },
+      });
     }
 
-    const body = (await req.json()) as PushBody;
+    const body = await parsePushBody(req);
 
-    const endpoint = String(body.endpoint ?? "").trim();
-    const p256dh = String(body.keys?.p256dh ?? "").trim();
-    const auth = String(body.keys?.auth ?? "").trim();
+    const endpoint = String(body?.endpoint ?? "").trim();
+    const p256dh = String(body?.keys?.p256dh ?? "").trim();
+    const auth = String(body?.keys?.auth ?? "").trim();
 
     if (!endpoint || !p256dh || !auth) {
-      return NextResponse.json(
-        { ok: false, error: "Invalid push subscription" },
-        { status: 400 }
-      );
+      return jsonError(ctx, {
+        error: "Suscripción push inválida.",
+        code: "PUSH_SUBSCRIPTION_INVALID",
+        status: 400,
+        log: { flow: "push.subscribe", userId: user.id },
+      });
     }
 
     const userAgent = String(req.headers.get("user-agent") ?? "").slice(0, 500);
@@ -56,15 +73,27 @@ export async function POST(req: Request) {
       }
     );
 
-    if (error) throw error;
+    if (error) {
+      return jsonError(ctx, {
+        error: "No se pudo guardar la suscripción push.",
+        code: "PUSH_SUBSCRIPTION_SAVE_FAILED",
+        status: 500,
+        log: { flow: "push.subscribe", userId: user.id, providerError: error.message },
+      });
+    }
 
-    return NextResponse.json({ ok: true }, { status: 200 });
-  } catch (error) {
-    console.error("[push/subscribe] failed", error);
-
-    return NextResponse.json(
-      { ok: false, error: "Could not save push subscription" },
-      { status: 500 }
+    return jsonOk(
+      ctx,
+      { subscribed: true },
+      { log: { flow: "push.subscribe", userId: user.id } }
     );
+  } catch (error) {
+    return jsonError(ctx, {
+      error: "No se pudo guardar la suscripción push.",
+      code: "PUSH_SUBSCRIBE_FAILED",
+      status: 500,
+      level: "error",
+      log: { flow: "push.subscribe", error },
+    });
   }
 }

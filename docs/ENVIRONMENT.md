@@ -157,3 +157,7 @@ Docs operativas relacionadas:
 - `docs/RUNBOOK_CRON.md`
 - `docs/RUNBOOK_EMAIL.md`
 - `docs/RUNBOOK_MAPS.md`
+
+Runbooks adicionales para integraciones externas:
+- `docs/RUNBOOK_GOOGLE_SYNC.md`
+- `docs/RUNBOOK_PUSH.md`

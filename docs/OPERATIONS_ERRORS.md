@@ -112,6 +112,42 @@ Usar `maskEmail()` para correos si hace falta.
 | `PUBLIC_INVITE_GET_FAILED` | Error inesperado en GET. | Buscar `requestId`. |
 | `PUBLIC_INVITE_POST_FAILED` | Error inesperado en POST. | Buscar `requestId`. |
 
-## PUSH_* y GOOGLE_*
+## GOOGLE_*
 
-Estos dominios se instrumentan en el Bloque 3B.
+| Code | Significado | Acción inicial |
+|---|---|---|
+| `GOOGLE_CONNECT_FAILED` | No se pudo iniciar OAuth con Google. | Revisar env OAuth y redirect URI. |
+| `GOOGLE_CALLBACK_FAILED` | Error inesperado en callback OAuth. | Buscar `requestId`, revisar logs del callback. |
+| `GOOGLE_STATUS_UNAUTHORIZED` | Consulta de estado sin sesión válida. | Revisar sesión/cookies del usuario. |
+| `GOOGLE_STATUS_LOOKUP_FAILED` | Falló lectura de `google_accounts`. | Revisar Supabase/RLS/schema. |
+| `GOOGLE_STATUS_FAILED` | Error inesperado consultando estado. | Buscar `requestId`. |
+| `GOOGLE_SYNC_UNAUTHORIZED` | Sync sin bearer/JWT de usuario. | Revisar caller frontend. |
+| `GOOGLE_SYNC_INVALID_SESSION` | JWT inválido o expirado. | Reloguear usuario. |
+| `GOOGLE_SYNC_ENV_MISSING` | Faltan envs Supabase/Google para sync. | Revisar Vercel envs y redeploy. |
+| `GOOGLE_SYNC_ACCOUNT_LOOKUP_FAILED` | Falló lectura de cuenta Google. | Revisar Supabase/service role. |
+| `GOOGLE_NO_ACCOUNT` | Usuario no tiene cuenta Google conectada. | Reconnect desde Panel. |
+| `GOOGLE_REAUTH_REQUIRED` | Falta refresh/access token válido. | Reconnect Google. |
+| `GOOGLE_TOKEN_REFRESH_FAILED` | Google rechazó refresh token. | Reconnect Google y revisar OAuth consent. |
+| `GOOGLE_TOKEN_SAVE_FAILED` | No se pudo guardar token refrescado. | Revisar Supabase. |
+| `GOOGLE_SYNC_UPSERT_FAILED` | Falló upsert de eventos importados. | Revisar schema/RLS/constraints de `events`. |
+| `GOOGLE_SYNC_FAILED` | Error inesperado de sync. | Buscar `requestId`. |
+| `GOOGLE_LIST_UNAUTHORIZED` | Listado de eventos sin sesión. | Revisar sesión. |
+| `GOOGLE_LIST_ACCOUNT_LOOKUP_FAILED` | Falló lectura de cuenta en endpoint list. | Revisar Supabase. |
+| `GOOGLE_LIST_PROVIDER_FAILED` | Google devolvió error al listar eventos. | Revisar providerStatus/providerCode en logs. |
+| `GOOGLE_LIST_FAILED` | Error inesperado listando eventos. | Buscar `requestId`. |
+
+## PUSH_*
+
+| Code | Significado | Acción inicial |
+|---|---|---|
+| `PUSH_SUBSCRIBE_UNAUTHORIZED` | Suscripción push sin sesión. | Revisar sesión/cookies. |
+| `PUSH_SUBSCRIPTION_INVALID` | Payload de suscripción incompleto. | Reintentar desde navegador y revisar service worker. |
+| `PUSH_SUBSCRIPTION_SAVE_FAILED` | Falló guardar suscripción. | Revisar tabla `push_subscriptions`. |
+| `PUSH_SUBSCRIBE_FAILED` | Error inesperado suscribiendo push. | Buscar `requestId`. |
+| `PUSH_ENV_MISSING` | Faltan envs VAPID/PUSH_TEST/Supabase. | Revisar Vercel envs. |
+| `PUSH_TEST_UNAUTHORIZED` | Prueba push sin secreto válido. | Revisar `PUSH_TEST_SECRET`. |
+| `PUSH_VAPID_SUBJECT_INVALID` | VAPID_SUBJECT no cumple formato. | Usar `mailto:` o `https://`. |
+| `PUSH_SUBSCRIPTIONS_LOOKUP_FAILED` | Falló lectura de suscripciones. | Revisar Supabase/service role. |
+| `PUSH_NO_VALID_SUBSCRIPTIONS` | No hay suscripciones válidas. | Re-suscribir desde settings/notificaciones. |
+| `PUSH_SEND_FAILED` | Web Push falló en todos los intentos. | Revisar navegador, VAPID, service worker y failures. |
+| `PUSH_TEST_FAILED` | Error inesperado probando push. | Buscar `requestId`. |

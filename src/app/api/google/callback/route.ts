@@ -2,6 +2,14 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import {
+  createApiRequestContext,
+  logError,
+  logInfo,
+  logRequestStart,
+  maskEmail,
+  responseHeaders,
+} from "@/lib/apiObservability";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +18,8 @@ type GoogleTokenResponse = {
   refresh_token?: unknown;
   scope?: unknown;
   expires_in?: unknown;
+  error?: unknown;
+  error_description?: unknown;
 };
 
 type GoogleUserInfoResponse = {
@@ -32,6 +42,7 @@ type GoogleAccountUpsertPayload = {
   updated_at: string;
   created_at?: string;
 };
+
 function mustEnv(name: string, fallbackName?: string) {
   const primary = (process.env[name] ?? "").trim();
   if (primary) return primary;
@@ -66,34 +77,48 @@ async function exchangeCodeForTokens(input: { code: string; redirect_uri: string
   body.set("grant_type", "authorization_code");
   body.set("redirect_uri", input.redirect_uri);
 
-  const r = await fetch("https://oauth2.googleapis.com/token", {
+  const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
   });
 
- const json = (await r.json().catch(() => ({}))) as GoogleTokenResponse;
-  if (!r.ok) return { ok: false as const, status: r.status, json };
+  const json = (await response.json().catch(() => ({}))) as GoogleTokenResponse;
+  if (!response.ok) {
+    return {
+      ok: false as const,
+      status: response.status,
+      providerError: json.error ? String(json.error) : null,
+      providerDescription: json.error_description ? String(json.error_description) : null,
+    };
+  }
 
   const access_token = String(json.access_token || "");
   const refresh_token = json.refresh_token ? String(json.refresh_token) : null;
   const scope = json.scope ? String(json.scope) : null;
   const expires_in = Number(json.expires_in || 0);
 
-  if (!access_token || !expires_in) return { ok: false as const, status: 500, json };
+  if (!access_token || !expires_in) {
+    return {
+      ok: false as const,
+      status: 500,
+      providerError: "missing_token_or_expiry",
+      providerDescription: null,
+    };
+  }
 
   const expires_at = new Date(Date.now() + expires_in * 1000).toISOString();
 
-  return { ok: true as const, access_token, refresh_token, scope, expires_at, raw: json };
+  return { ok: true as const, access_token, refresh_token, scope, expires_at };
 }
 
 async function fetchGoogleEmail(accessToken: string): Promise<string | null> {
   try {
-    const r = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+    const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-const json = (await r.json().catch(() => ({}))) as GoogleUserInfoResponse;
-    if (!r.ok) return null;
+    const json = (await response.json().catch(() => ({}))) as GoogleUserInfoResponse;
+    if (!response.ok) return null;
     return json.email ? String(json.email) : null;
   } catch {
     return null;
@@ -103,18 +128,44 @@ const json = (await r.json().catch(() => ({}))) as GoogleUserInfoResponse;
 function safeNextPath(input: string | null | undefined): string {
   const v = String(input ?? "").trim();
   if (!v) return "/settings";
-  // solo permitimos paths internos (evita open-redirect)
   if (!v.startsWith("/")) return "/settings";
   if (v.startsWith("//")) return "/settings";
   return v;
 }
 
+function withQuery(path: string, params: Record<string, string>) {
+  const [pathname, query = ""] = path.split("?");
+  const qs = new URLSearchParams(query);
+  for (const [key, value] of Object.entries(params)) qs.set(key, value);
+  return `${pathname}?${qs.toString()}`;
+}
+
 export async function GET(req: Request) {
+  const ctx = createApiRequestContext(req);
+  logRequestStart(ctx, { flow: "google.callback" });
+
   const appUrl = getAppUrl();
   const isSecure = appUrl.startsWith("https://");
-
-  // default: volvemos a settings si no hay next
   let nextPath = "/settings";
+
+  const redirect = (reason: string, extra?: Record<string, unknown>) => {
+    logInfo("google.callback.redirect", {
+      requestId: ctx.requestId,
+      endpoint: ctx.endpoint,
+      method: ctx.method,
+      reason,
+      ...extra,
+    });
+
+    return NextResponse.redirect(
+      `${appUrl}${withQuery(nextPath, {
+        google: reason === "connected" ? "connected" : "error",
+        ...(reason === "connected" ? {} : { reason }),
+        requestId: ctx.requestId,
+      })}`,
+      { headers: responseHeaders(ctx) }
+    );
+  };
 
   try {
     const url = new URL(req.url);
@@ -123,12 +174,9 @@ export async function GET(req: Request) {
     const oauthError = url.searchParams.get("error");
 
     const cookieStore = await cookies();
-
-    // ✅ leemos next guardado por /api/google/connect (si existe)
     const nextCookie = cookieStore.get("sp_google_oauth_next")?.value || "";
     nextPath = safeNextPath(nextCookie);
 
-    // limpiamos next cookie siempre
     cookieStore.set("sp_google_oauth_next", "", {
       httpOnly: true,
       secure: isSecure,
@@ -137,20 +185,16 @@ export async function GET(req: Request) {
       maxAge: 0,
     });
 
-    // Si Google devolvió error (usuario canceló, etc.)
     if (oauthError) {
-      return NextResponse.redirect(
-        `${appUrl}${nextPath}?google=error&reason=${encodeURIComponent(oauthError)}`
-      );
+      return redirect("oauth_error", { providerError: oauthError });
     }
 
     if (!code) {
-      return NextResponse.redirect(`${appUrl}${nextPath}?google=error&reason=missing_code`);
+      return redirect("missing_code");
     }
 
     const stateCookie = cookieStore.get("sp_google_oauth_state")?.value || "";
 
-    // limpiamos state cookie siempre
     cookieStore.set("sp_google_oauth_state", "", {
       httpOnly: true,
       secure: isSecure,
@@ -160,82 +204,82 @@ export async function GET(req: Request) {
     });
 
     if (!state || !stateCookie || state !== stateCookie) {
-      return NextResponse.redirect(`${appUrl}${nextPath}?google=error&reason=bad_state`);
+      return redirect("bad_state");
     }
 
-    // Supabase SSR client
     const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
     const supabaseAnon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
     if (!supabaseUrl || !supabaseAnon) {
-      return NextResponse.redirect(
-        `${appUrl}${nextPath}?google=error&reason=missing_supabase_env`
-      );
+      return redirect("missing_supabase_env");
     }
 
     const supabase = createServerClient(supabaseUrl, supabaseAnon, {
-    cookies: {
-  getAll() {
-    return cookieStore.getAll();
-  },
-  setAll(
-    cookiesToSet: {
-      name: string;
-      value: string;
-      options?: CookieOptions;
-    }[]
-  ) {
-    cookiesToSet.forEach(({ name, value, options }) => {
-      cookieStore.set({ name, value, ...options });
-    });
-  },
-},
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(
+          cookiesToSet: {
+            name: string;
+            value: string;
+            options?: CookieOptions;
+          }[]
+        ) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set({ name, value, ...options });
+          });
+        },
+      },
     });
 
-    // Usuario logueado
     const { data: userData } = await supabase.auth.getUser();
     const user = userData?.user;
     if (!user) {
+      const loginNext = `${nextPath}?google=resume&requestId=${encodeURIComponent(
+        ctx.requestId
+      )}`;
       return NextResponse.redirect(
-        `${appUrl}/auth/login?next=${encodeURIComponent(
-          `${nextPath}?google=resume`
-        )}`
+        `${appUrl}/auth/login?next=${encodeURIComponent(loginNext)}`,
+        { headers: responseHeaders(ctx) }
       );
     }
 
-    // Intercambio code -> tokens
     const redirect_uri = `${appUrl}/api/google/callback`;
-    const ex = await exchangeCodeForTokens({ code, redirect_uri });
-    if (!ex.ok) {
-      console.error("[google/callback] exchange failed", ex);
-      return NextResponse.redirect(`${appUrl}${nextPath}?google=error&reason=exchange_failed`);
+    const exchanged = await exchangeCodeForTokens({ code, redirect_uri });
+    if (!exchanged.ok) {
+      return redirect("exchange_failed", {
+        userId: user.id,
+        providerStatus: exchanged.status,
+        providerError: exchanged.providerError,
+      });
     }
 
-    // Email (para UI)
-    const googleEmail = await fetchGoogleEmail(ex.access_token);
+    const googleEmail = await fetchGoogleEmail(exchanged.access_token);
 
-    // Si NO viene refresh_token, mantenemos el existente
     const { data: existing } = await supabase
       .from("google_accounts")
       .select("refresh_token,email")
       .eq("user_id", user.id)
       .maybeSingle();
-const existingAccount = existing as ExistingGoogleAccountRow | null;
- const refreshToStore =
-  ex.refresh_token ||
-  (existingAccount?.refresh_token ? String(existingAccount.refresh_token) : null);
 
-const emailToStore =
-  googleEmail || (existingAccount?.email ? String(existingAccount.email) : null);
+    const existingAccount = existing as ExistingGoogleAccountRow | null;
+    const refreshToStore =
+      exchanged.refresh_token ||
+      (existingAccount?.refresh_token ? String(existingAccount.refresh_token) : null);
+
+    const emailToStore =
+      googleEmail || (existingAccount?.email ? String(existingAccount.email) : null);
+
     const nowIso = new Date().toISOString();
 
-  const payload: GoogleAccountUpsertPayload = {
+    const payload: GoogleAccountUpsertPayload = {
       user_id: user.id,
       provider: "google",
       email: emailToStore,
-      access_token: ex.access_token,
+      access_token: exchanged.access_token,
       refresh_token: refreshToStore,
-      expires_at: ex.expires_at,
-      scope: ex.scope,
+      expires_at: exchanged.expires_at,
+      scope: exchanged.scope,
       updated_at: nowIso,
     };
 
@@ -244,14 +288,30 @@ const emailToStore =
       .upsert(payload, { onConflict: "user_id" });
 
     if (upErr) {
-      console.error("[google/callback] upsert google_accounts failed", upErr);
-      return NextResponse.redirect(`${appUrl}${nextPath}?google=error&reason=save_failed`);
+      return redirect("save_failed", {
+        userId: user.id,
+        providerError: upErr.message,
+      });
     }
 
-    // ✅ éxito
-    return NextResponse.redirect(`${appUrl}${nextPath}?google=connected`);
-} catch (e: unknown) {
-    console.error("[google/callback] error", e);
-    return NextResponse.redirect(`${appUrl}${nextPath}?google=error&reason=unexpected`);
+    logInfo("google.callback.connected", {
+      requestId: ctx.requestId,
+      endpoint: ctx.endpoint,
+      method: ctx.method,
+      userId: user.id,
+      googleEmail: maskEmail(emailToStore),
+      hasRefreshToken: Boolean(refreshToStore),
+    });
+
+    return redirect("connected", { userId: user.id });
+  } catch (error) {
+    logError("google.callback.failed", {
+      requestId: ctx.requestId,
+      endpoint: ctx.endpoint,
+      method: ctx.method,
+      code: "GOOGLE_CALLBACK_FAILED",
+      error,
+    });
+    return redirect("unexpected");
   }
 }

@@ -1,17 +1,34 @@
 // src/app/api/integrations/google/list/route.ts
-import { NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-type SupabaseCookieOptions = {
-  domain?: string;
-  path?: string;
-  expires?: Date;
-  httpOnly?: boolean;
-  maxAge?: number;
-  sameSite?: boolean | "lax" | "strict" | "none";
-  secure?: boolean;
-};
+import { createApiRequestContext, jsonError, jsonOk, logRequestStart } from "@/lib/apiObservability";
+import { createSupabaseUserClient } from "@/lib/apiSecurity";
+
 export const dynamic = "force-dynamic";
+
+type GoogleAccountRow = {
+  access_token?: string | null;
+  refresh_token?: string | null;
+};
+
+type GoogleProviderResponse = {
+  error?: {
+    message?: string;
+    status?: string;
+  };
+  error_description?: string;
+  items?: unknown[];
+};
+
+class GoogleProviderError extends Error {
+  status: number;
+  providerCode?: string;
+
+  constructor(message: string, status: number, providerCode?: string) {
+    super(message);
+    this.name = "GoogleProviderError";
+    this.status = status;
+    this.providerCode = providerCode;
+  }
+}
 
 function mustEnv(name: string, fallbackName?: string): string {
   const primary = (process.env[name] ?? "").trim();
@@ -26,7 +43,7 @@ function mustEnv(name: string, fallbackName?: string): string {
 }
 
 async function refreshGoogleAccessToken(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: Awaited<ReturnType<typeof createSupabaseUserClient>>,
   userId: string,
   refreshToken: string
 ): Promise<string> {
@@ -51,19 +68,22 @@ async function refreshGoogleAccessToken(
     body: body.toString(),
   });
 
-  const data = await resp.json();
+  const data = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
 
   if (!resp.ok || !data.access_token) {
-    throw new Error(
-      data?.error_description ||
-        data?.error ||
-        "No se pudo refrescar el token de Google."
+    const providerCode =
+      typeof data.error === "string" ? data.error : `google_http_${resp.status}`;
+    throw new GoogleProviderError(
+      "No se pudo refrescar la sesión de Google.",
+      resp.status,
+      providerCode
     );
   }
 
-  const nowSec = Math.floor(Date.now() / 1000);
   const expiresAt =
-    typeof data.expires_in === "number" ? nowSec + data.expires_in : null;
+    typeof data.expires_in === "number"
+      ? new Date(Date.now() + data.expires_in * 1000).toISOString()
+      : null;
 
   await supabase
     .from("google_accounts")
@@ -74,13 +94,13 @@ async function refreshGoogleAccessToken(
     })
     .eq("user_id", userId);
 
-  return data.access_token as string;
+  return String(data.access_token);
 }
 
 async function fetchEventsWithToken(accessToken: string) {
   const timeMin = new Date().toISOString();
 
-  const r = await fetch(
+  const response = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(
       timeMin
     )}&singleEvents=true&orderBy=startTime&maxResults=50`,
@@ -88,139 +108,119 @@ async function fetchEventsWithToken(accessToken: string) {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
+      cache: "no-store",
     }
   );
 
-  const json = await r.json();
-
-  return { response: r, json };
+  const json = (await response.json().catch(() => ({}))) as GoogleProviderResponse;
+  return { response, json };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const ctx = createApiRequestContext(req);
+  logRequestStart(ctx, { flow: "google.list" });
+
   try {
-    const cookieStore = await cookies();
+    const supabase = await createSupabaseUserClient(req);
 
-    const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
-    const supabaseAnon = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-    if (!supabaseUrl || !supabaseAnon) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Faltan variables de entorno de Supabase (URL/ANON).",
-        },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createServerClient(supabaseUrl, supabaseAnon, {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: SupabaseCookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-       remove(name: string, options: SupabaseCookieOptions) {
-          cookieStore.set({ name, value: "", ...options, maxAge: 0 });
-        },
-      },
-    });
-
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData?.user;
-    if (!user) {
-      return NextResponse.json(
-        { ok: false, error: "No autenticado." },
-        { status: 401 }
-      );
+    if (userError || !user?.id) {
+      return jsonError(ctx, {
+        error: "No autenticado.",
+        code: "GOOGLE_LIST_UNAUTHORIZED",
+        status: 401,
+        log: { flow: "google.list" },
+      });
     }
 
     const { data: ga, error: gaErr } = await supabase
       .from("google_accounts")
       .select("access_token, refresh_token")
       .eq("user_id", user.id)
-      .maybeSingle();
+      .maybeSingle<GoogleAccountRow>();
 
-    if (gaErr || !ga?.access_token) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "No hay Google conectado (token no encontrado). Vuelve a conectar tu cuenta desde el Panel.",
-        },
-        { status: 400 }
-      );
+    if (gaErr) {
+      return jsonError(ctx, {
+        error: "No se pudo leer la conexión de Google.",
+        code: "GOOGLE_LIST_ACCOUNT_LOOKUP_FAILED",
+        status: 500,
+        log: { flow: "google.list", userId: user.id, providerError: gaErr.message },
+      });
     }
 
-    let accessToken = ga.access_token as string;
+    if (!ga?.access_token) {
+      return jsonError(ctx, {
+        error: "No hay Google conectado. Vuelve a conectar tu cuenta desde el Panel.",
+        code: "GOOGLE_NO_ACCOUNT",
+        status: 400,
+        log: { flow: "google.list", userId: user.id },
+      });
+    }
 
+    let accessToken = ga.access_token;
     let { response, json } = await fetchEventsWithToken(accessToken);
 
-    if (
-      (response.status === 401 || response.status === 403) &&
-      ga.refresh_token
-    ) {
+    if ((response.status === 401 || response.status === 403) && ga.refresh_token) {
       try {
-        const newToken = await refreshGoogleAccessToken(
-          supabase,
-          user.id,
-          ga.refresh_token as string
-        );
-        accessToken = newToken;
-
+        accessToken = await refreshGoogleAccessToken(supabase, user.id, ga.refresh_token);
         const retry = await fetchEventsWithToken(accessToken);
         response = retry.response;
         json = retry.json;
-      } catch (e: unknown) {
-  return NextResponse.json(
-    {
-      ok: false,
-      error:
-        e instanceof Error
-          ? e.message
-          : "No se pudo refrescar la sesión de Google. Vuelve a conectar tu cuenta desde el Panel.",
+      } catch (error) {
+        const providerError = error instanceof GoogleProviderError ? error : null;
+        return jsonError(ctx, {
+          error: "No se pudo refrescar la sesión de Google. Vuelve a conectar tu cuenta desde el Panel.",
+          code: "GOOGLE_TOKEN_REFRESH_FAILED",
+          status: 401,
+          log: {
+            flow: "google.list",
+            userId: user.id,
+            providerStatus: providerError?.status ?? null,
+            providerCode: providerError?.providerCode ?? null,
           },
-          { status: 401 }
-        );
+        });
       }
     }
 
     if (!response.ok) {
-      const base = json || {};
-      const code = (base.error && base.error.status) || response.status;
-      const msg =
-        base.error?.message ||
-        base.error_description ||
-        "Error al leer los eventos de Google.";
-
-      return NextResponse.json(
-        {
-          ok: false,
-          status: response.status,
-          error: `Google devolvió un error (${code}): ${msg}`,
+      const code = json.error?.status || `google_http_${response.status}`;
+      return jsonError(ctx, {
+        error: "Google devolvió un error al leer eventos.",
+        code: "GOOGLE_LIST_PROVIDER_FAILED",
+        status: 502,
+        log: {
+          flow: "google.list",
+          userId: user.id,
+          providerStatus: response.status,
+          providerCode: code,
         },
-        { status: 502 }
-      );
+      });
     }
 
     const items = Array.isArray(json.items) ? json.items : [];
 
-    return NextResponse.json({
-      ok: true,
-      items,
-    });
-} catch (e: unknown) {
-  console.error("[/api/integrations/google/list] error", e);
-  return NextResponse.json(
-    {
-      ok: false,
-      error:
-        e instanceof Error
-          ? e.message
-          :
-          "Error inesperado al leer los eventos de Google.",
-      },
-      { status: 500 }
+    return jsonOk(
+      ctx,
+      { items },
+      {
+        log: {
+          flow: "google.list",
+          userId: user.id,
+          items: items.length,
+        },
+      }
     );
+  } catch (error) {
+    return jsonError(ctx, {
+      error: "Error inesperado al leer los eventos de Google.",
+      code: "GOOGLE_LIST_FAILED",
+      status: 500,
+      level: "error",
+      log: { flow: "google.list", error },
+    });
   }
 }

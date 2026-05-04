@@ -1,6 +1,14 @@
 // src/app/api/google/connect/route.ts
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import {
+  createApiRequestContext,
+  jsonError,
+  logError,
+  logInfo,
+  logRequestStart,
+  responseHeaders,
+} from "@/lib/apiObservability";
 
 export const dynamic = "force-dynamic";
 
@@ -37,16 +45,17 @@ function safeNextPath(input: string | null | undefined): string {
 }
 
 export async function GET(req: Request) {
+  const ctx = createApiRequestContext(req);
+  logRequestStart(ctx, { flow: "google.connect" });
+
   try {
     const clientId = mustEnv("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_CLIENT_ID");
     const appUrl = getAppUrl();
     const isSecure = appUrl.startsWith("https://");
-
     const redirectUri = `${appUrl}/api/google/callback`;
 
     const url = new URL(req.url);
     const next = safeNextPath(url.searchParams.get("next") || "/settings");
-
     const state = randomState();
 
     const cookieStore = await cookies();
@@ -84,18 +93,31 @@ export async function GET(req: Request) {
     authUrl.searchParams.set("include_granted_scopes", "true");
     authUrl.searchParams.set("state", state);
 
-    return NextResponse.redirect(authUrl.toString());
- } catch (e: unknown) {
-  console.error("[/api/google/connect] error", e);
-  return NextResponse.json(
-    {
-      ok: false,
-      error:
-        e instanceof Error
-          ? e.message
-          : "Error iniciando conexión Google.",
-    },
-    { status: 500 }
-  );
-}
+    logInfo("google.connect.redirect", {
+      requestId: ctx.requestId,
+      endpoint: ctx.endpoint,
+      method: ctx.method,
+      next,
+    });
+
+    return NextResponse.redirect(authUrl.toString(), {
+      headers: responseHeaders(ctx),
+    });
+  } catch (error) {
+    logError("google.connect.failed", {
+      requestId: ctx.requestId,
+      endpoint: ctx.endpoint,
+      method: ctx.method,
+      code: "GOOGLE_CONNECT_FAILED",
+      error,
+    });
+
+    return jsonError(ctx, {
+      error: "Error iniciando conexión Google.",
+      code: "GOOGLE_CONNECT_FAILED",
+      status: 500,
+      level: "error",
+      log: { flow: "google.connect", error },
+    });
+  }
 }
