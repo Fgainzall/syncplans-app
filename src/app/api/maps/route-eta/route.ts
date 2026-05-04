@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 
 const MAX_BODY_BYTES = 8_000;
 const MAPS_RATE_LIMIT_WINDOW_SECONDS = 60;
-const MAPS_RATE_LIMIT_MAX_ATTEMPTS = 30;
+const MAPS_RATE_LIMIT_MAX_ATTEMPTS = 20;
 
 export async function POST(req: Request) {
   const ctx = createApiRequestContext(req);

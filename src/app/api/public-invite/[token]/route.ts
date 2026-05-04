@@ -117,11 +117,15 @@ function toPublicEventDto(event: PublicEventRow | null) {
   };
 }
 
-async function enforcePublicInviteRateLimit(req: NextRequest, token: string) {
+async function enforcePublicInviteRateLimit(
+  req: NextRequest,
+  token: string,
+  method: "get" | "post"
+) {
   return checkRateLimit({
-    prefix: "public-invite",
+    prefix: `public-invite-${method}`,
     keyParts: [getClientIp(req), token],
-    limit: 20,
+    limit: method === "get" ? 30 : 10,
     windowSeconds: 60,
   });
 }
@@ -190,7 +194,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
     if (!token || !isTokenFormatValid(token)) return invalidTokenResponse(ctx, 400);
 
-    const limit = await enforcePublicInviteRateLimit(req, token);
+    const limit = await enforcePublicInviteRateLimit(req, token, "get");
     if (!limit.allowed) {
       return jsonError(ctx, {
         error: "Demasiados intentos. Intenta nuevamente en unos segundos.",
@@ -255,7 +259,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     if (!token || !isTokenFormatValid(token)) return invalidTokenResponse(ctx, 400);
 
-    const limit = await enforcePublicInviteRateLimit(req, token);
+    const limit = await enforcePublicInviteRateLimit(req, token, "post");
     if (!limit.allowed) {
       return jsonError(ctx, {
         error: "Demasiados intentos. Intenta nuevamente en unos segundos.",

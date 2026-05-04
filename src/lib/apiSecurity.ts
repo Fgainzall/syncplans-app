@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type User } from "@supabase/supabase-js";
-import { jsonError, type ApiRequestContext } from "@/lib/apiObservability";
+import { jsonError, logWarn, type ApiRequestContext } from "@/lib/apiObservability";
 
 type JsonValue =
   | string
@@ -26,11 +26,12 @@ type SupabaseCookieOptions = {
 
 type RateLimitMode = "redis" | "memory";
 
-type RateLimitResult = {
+export type RateLimitResult = {
   allowed: boolean;
   limit: number;
   remaining: number;
   retryAfterSeconds: number;
+  resetAtEpochSeconds: number;
   mode: RateLimitMode;
 };
 
@@ -42,8 +43,36 @@ type LocalRateLimitBucket = {
 const localRateLimitStore = new Map<string, LocalRateLimitBucket>();
 const MAX_LOCAL_RATE_LIMIT_KEYS = 5_000;
 
+let warnedMissingDistributedRateLimit = false;
+let warnedRedisRateLimitUnavailable = false;
+
 function trimEnv(name: string) {
   return String(process.env[name] ?? "").trim();
+}
+
+function isProductionRuntime() {
+  return process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+}
+
+export function isDistributedRateLimitConfigured() {
+  return Boolean(trimEnv("UPSTASH_REDIS_REST_URL") && trimEnv("UPSTASH_REDIS_REST_TOKEN"));
+}
+
+function warnIfProductionRateLimitFallback(reason: string, extra?: Record<string, unknown>) {
+  if (!isProductionRuntime()) return;
+
+  if (reason === "missing_upstash" && warnedMissingDistributedRateLimit) return;
+  if (reason === "redis_unavailable" && warnedRedisRateLimitUnavailable) return;
+
+  if (reason === "missing_upstash") warnedMissingDistributedRateLimit = true;
+  if (reason === "redis_unavailable") warnedRedisRateLimitUnavailable = true;
+
+  logWarn("rate_limit.memory_fallback", {
+    reason,
+    message:
+      "Distributed rate limiting is not active. Configure UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN before public beta.",
+    ...(extra ?? {}),
+  });
 }
 
 export function requiredServerEnv(name: string) {
@@ -166,6 +195,7 @@ function checkMemoryRateLimit(
       limit,
       remaining: Math.max(0, limit - 1),
       retryAfterSeconds: windowSeconds,
+      resetAtEpochSeconds: Math.ceil((now + windowSeconds * 1000) / 1000),
       mode: "memory",
     };
   }
@@ -176,6 +206,7 @@ function checkMemoryRateLimit(
       limit,
       remaining: 0,
       retryAfterSeconds: Math.max(1, Math.ceil((current.resetAt - now) / 1000)),
+      resetAtEpochSeconds: Math.ceil(current.resetAt / 1000),
       mode: "memory",
     };
   }
@@ -188,6 +219,7 @@ function checkMemoryRateLimit(
     limit,
     remaining: Math.max(0, limit - current.count),
     retryAfterSeconds: Math.max(1, Math.ceil((current.resetAt - now) / 1000)),
+    resetAtEpochSeconds: Math.ceil(current.resetAt / 1000),
     mode: "memory",
   };
 }
@@ -230,6 +262,7 @@ async function checkRedisRateLimit(
     limit,
     remaining: Math.max(0, limit - count),
     retryAfterSeconds: Math.max(1, Math.ceil(ttl)),
+    resetAtEpochSeconds: Math.ceil(Date.now() / 1000) + Math.max(1, Math.ceil(ttl)),
     mode: "redis",
   };
 }
@@ -247,11 +280,22 @@ export async function checkRateLimit(opts: {
 
   const key = `syncplans:rl:${opts.prefix}:${sha256Key(rawKey || "anonymous")}`;
 
-  try {
-    const redis = await checkRedisRateLimit(key, opts.limit, opts.windowSeconds);
-    if (redis) return redis;
-  } catch (error) {
-    console.warn("[apiSecurity] Redis rate limit unavailable; using memory fallback", error);
+  const hasDistributedRateLimit = isDistributedRateLimitConfigured();
+
+  if (!hasDistributedRateLimit) {
+    warnIfProductionRateLimitFallback("missing_upstash", { prefix: opts.prefix });
+  } else {
+    try {
+      const redis = await checkRedisRateLimit(key, opts.limit, opts.windowSeconds);
+      if (redis) return redis;
+    } catch (error) {
+      warnIfProductionRateLimitFallback("redis_unavailable", {
+        prefix: opts.prefix,
+        error,
+      });
+    }
+
+    warnIfProductionRateLimitFallback("redis_unavailable", { prefix: opts.prefix });
   }
 
   return checkMemoryRateLimit(key, opts.limit, opts.windowSeconds);
@@ -262,6 +306,7 @@ export function rateLimitHeaders(result: RateLimitResult): HeadersInit {
     "X-RateLimit-Limit": String(result.limit),
     "X-RateLimit-Remaining": String(result.remaining),
     "X-RateLimit-Mode": result.mode,
+    "X-RateLimit-Reset": String(result.resetAtEpochSeconds),
     ...(result.allowed ? {} : { "Retry-After": String(result.retryAfterSeconds) }),
   };
 }

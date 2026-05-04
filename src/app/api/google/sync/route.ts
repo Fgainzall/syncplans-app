@@ -1,5 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
-import { createSupabaseUserClient } from "@/lib/apiSecurity";
+import {
+  checkRateLimit,
+  createSupabaseUserClient,
+  getClientIp,
+  rateLimitHeaders,
+} from "@/lib/apiSecurity";
 import {
   createApiRequestContext,
   jsonError,
@@ -9,6 +14,9 @@ import {
 } from "@/lib/apiObservability";
 
 export const dynamic = "force-dynamic";
+
+const GOOGLE_SYNC_RATE_LIMIT_WINDOW_SECONDS = 60;
+const GOOGLE_SYNC_RATE_LIMIT_MAX_ATTEMPTS = 5;
 
 type GoogleAccountRow = {
   user_id: string;
@@ -254,6 +262,23 @@ export async function POST(req: Request) {
 
     userIdForLog = user.id;
 
+    const syncLimit = await checkRateLimit({
+      prefix: "google-sync",
+      keyParts: [user.id, getClientIp(req)],
+      limit: GOOGLE_SYNC_RATE_LIMIT_MAX_ATTEMPTS,
+      windowSeconds: GOOGLE_SYNC_RATE_LIMIT_WINDOW_SECONDS,
+    });
+
+    if (!syncLimit.allowed) {
+      return jsonError(ctx, {
+        error: "Demasiadas sincronizaciones. Intenta nuevamente en unos segundos.",
+        code: "GOOGLE_SYNC_RATE_LIMITED",
+        status: 429,
+        headers: rateLimitHeaders(syncLimit),
+        log: { flow: "google.sync", userId: user.id },
+      });
+    }
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -325,6 +350,7 @@ export async function POST(req: Request) {
           error: "No se pudo refrescar la sesión de Google. Vuelve a conectar tu cuenta.",
           code: "GOOGLE_TOKEN_REFRESH_FAILED",
           status: providerError?.status === 400 || providerError?.status === 401 ? 401 : 502,
+          headers: rateLimitHeaders(syncLimit),
           log: {
             flow: "google.sync",
             userId: user.id,
@@ -386,7 +412,7 @@ export async function POST(req: Request) {
           fetched: 0,
           message: "No se encontraron calendarios visibles para esta cuenta.",
         },
-        { log: { flow: "google.sync", userId: user.id, imported: 0, calendars: 0 } }
+        { headers: rateLimitHeaders(syncLimit), log: { flow: "google.sync", userId: user.id, imported: 0, calendars: 0 } }
       );
     }
 
@@ -397,8 +423,6 @@ export async function POST(req: Request) {
     for (const [calendarIndex, cal] of calendars.entries()) {
       const calendarId = String(cal.id || "").trim();
       if (!calendarId) continue;
-
-      const calendarName = cal.summary?.trim() || "Google Calendar";
 
       let items: GoogleEventItem[] = [];
       try {
@@ -503,6 +527,7 @@ export async function POST(req: Request) {
         calendarFailures,
       },
       {
+        headers: rateLimitHeaders(syncLimit),
         log: {
           flow: "google.sync",
           userId: user.id,

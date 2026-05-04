@@ -29,6 +29,16 @@ x-request-id: req_...
 Cache-Control: no-store
 ```
 
+Respuestas rate-limited deben incluir también:
+
+```txt
+Retry-After: <seconds>
+X-RateLimit-Limit: <limit>
+X-RateLimit-Remaining: <remaining>
+X-RateLimit-Reset: <epoch_seconds>
+X-RateLimit-Mode: redis|memory
+```
+
 Si el cliente manda `x-request-id`, el servidor lo reutiliza cuando tiene formato seguro. Si no, genera uno nuevo.
 
 ## Logs estructurados
@@ -121,7 +131,8 @@ Usar `maskEmail()` para correos si hace falta.
 | `GOOGLE_STATUS_UNAUTHORIZED` | Consulta de estado sin sesión válida. | Revisar sesión/cookies del usuario. |
 | `GOOGLE_STATUS_LOOKUP_FAILED` | Falló lectura de `google_accounts`. | Revisar Supabase/RLS/schema. |
 | `GOOGLE_STATUS_FAILED` | Error inesperado consultando estado. | Buscar `requestId`. |
-| `GOOGLE_SYNC_UNAUTHORIZED` | Sync sin bearer/JWT de usuario. | Revisar caller frontend. |
+| `GOOGLE_SYNC_UNAUTHORIZED` | Sync sin sesión válida. | Revisar caller frontend/cookies. |
+| `GOOGLE_SYNC_RATE_LIMITED` | Usuario/IP excedió límite de sync. | Esperar ventana; revisar loops del frontend. |
 | `GOOGLE_SYNC_INVALID_SESSION` | JWT inválido o expirado. | Reloguear usuario. |
 | `GOOGLE_SYNC_ENV_MISSING` | Faltan envs Supabase/Google para sync. | Revisar Vercel envs y redeploy. |
 | `GOOGLE_SYNC_ACCOUNT_LOOKUP_FAILED` | Falló lectura de cuenta Google. | Revisar Supabase/service role. |
@@ -146,6 +157,7 @@ Usar `maskEmail()` para correos si hace falta.
 | `PUSH_SUBSCRIBE_FAILED` | Error inesperado suscribiendo push. | Buscar `requestId`. |
 | `PUSH_ENV_MISSING` | Faltan envs VAPID/PUSH_TEST/Supabase. | Revisar Vercel envs. |
 | `PUSH_TEST_UNAUTHORIZED` | Prueba push sin secreto válido. | Revisar `PUSH_TEST_SECRET`. |
+| `PUSH_TEST_RATE_LIMITED` | Demasiadas pruebas push. | Esperar ventana; revisar abuso o loops manuales. |
 | `PUSH_VAPID_SUBJECT_INVALID` | VAPID_SUBJECT no cumple formato. | Usar `mailto:` o `https://`. |
 | `PUSH_SUBSCRIPTIONS_LOOKUP_FAILED` | Falló lectura de suscripciones. | Revisar Supabase/service role. |
 | `PUSH_NO_VALID_SUBSCRIPTIONS` | No hay suscripciones válidas. | Re-suscribir desde settings/notificaciones. |

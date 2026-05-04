@@ -43,10 +43,10 @@ type ResendErrorLike = {
 };
 
 const MAX_BODY_BYTES = 2_000;
-const EMAIL_RATE_LIMIT_WINDOW_SECONDS = 10 * 60;
-const EMAIL_RATE_LIMIT_MAX_ATTEMPTS = 8;
+const EMAIL_RATE_LIMIT_WINDOW_SECONDS = 60;
+const EMAIL_RATE_LIMIT_MAX_ATTEMPTS = 5;
 const EMAIL_DAILY_LIMIT_WINDOW_SECONDS = 24 * 60 * 60;
-const EMAIL_DAILY_LIMIT_MAX_ATTEMPTS = 40;
+const EMAIL_DAILY_LIMIT_MAX_ATTEMPTS = 30;
 
 function normEmail(value: string) {
   return String(value || "").trim().toLowerCase();
@@ -200,7 +200,7 @@ export async function POST(req: Request) {
 
     if (!shortLimit.allowed) {
       return jsonError(ctx, {
-        error: "Demasiados envíos. Intenta nuevamente en unos minutos.",
+        error: "Demasiados envíos. Intenta nuevamente en unos segundos.",
         code: "EMAIL_INVITE_RATE_LIMITED",
         status: 429,
         headers: rateLimitHeaders(shortLimit),

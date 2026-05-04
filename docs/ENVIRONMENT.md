@@ -121,8 +121,10 @@ Endpoints protegidos por este rate limit:
 - /api/email/invite
 - /api/maps/autocomplete
 - /api/maps/route-eta
+- /api/google/sync
+- /api/push/test
 
-Si estas variables no existen, el código usa fallback local en memoria para desarrollo/QA, pero no debe considerarse protección suficiente para abrir a más usuarios.
+Si estas variables no existen, el código usa fallback local en memoria para desarrollo/QA, pero no debe considerarse protección suficiente para abrir a más usuarios. En producción, revisar `X-RateLimit-Mode`; debe ser `redis` antes de abrir beta pública.
 
 ## Observabilidad operativa MVP
 
@@ -157,6 +159,7 @@ Docs operativas relacionadas:
 - `docs/RUNBOOK_CRON.md`
 - `docs/RUNBOOK_EMAIL.md`
 - `docs/RUNBOOK_MAPS.md`
+- `docs/RUNBOOK_RATE_LIMITING.md`
 
 Runbooks adicionales para integraciones externas:
 - `docs/RUNBOOK_GOOGLE_SYNC.md`

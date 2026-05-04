@@ -1,6 +1,7 @@
 // src/app/api/push/test/route.ts
 import webpush from "web-push";
 import { createClient } from "@supabase/supabase-js";
+import { checkRateLimit, getClientIp, rateLimitHeaders } from "@/lib/apiSecurity";
 import {
   createApiRequestContext,
   jsonError,
@@ -11,6 +12,9 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+const PUSH_TEST_RATE_LIMIT_WINDOW_SECONDS = 60;
+const PUSH_TEST_RATE_LIMIT_MAX_ATTEMPTS = 5;
 
 type PushSubscriptionRow = {
   id?: string | null;
@@ -147,6 +151,23 @@ async function handler(req: Request) {
         level: "error",
         data: { missing: env.missing },
         log: { flow: "push.test", missing: env.missing },
+      });
+    }
+
+    const limit = await checkRateLimit({
+      prefix: "push-test",
+      keyParts: [getClientIp(req)],
+      limit: PUSH_TEST_RATE_LIMIT_MAX_ATTEMPTS,
+      windowSeconds: PUSH_TEST_RATE_LIMIT_WINDOW_SECONDS,
+    });
+
+    if (!limit.allowed) {
+      return jsonError(ctx, {
+        error: "Demasiadas pruebas de push. Intenta nuevamente en unos segundos.",
+        code: "PUSH_TEST_RATE_LIMITED",
+        status: 429,
+        headers: rateLimitHeaders(limit),
+        log: { flow: "push.test" },
       });
     }
 
@@ -295,6 +316,7 @@ async function handler(req: Request) {
         failures,
       },
       {
+        headers: rateLimitHeaders(limit),
         log: {
           flow: "push.test",
           attempted: results.length,
