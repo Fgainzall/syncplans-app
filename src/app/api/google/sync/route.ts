@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { createSupabaseUserClient } from "@/lib/apiSecurity";
 import {
   createApiRequestContext,
   jsonError,
@@ -73,13 +74,6 @@ class GoogleProviderError extends Error {
     this.status = status;
     this.providerCode = providerCode;
   }
-}
-
-function getBearerToken(req: Request) {
-  const authHeader = String(req.headers.get("authorization") ?? "").trim();
-  return authHeader.toLowerCase().startsWith("bearer ")
-    ? authHeader.slice(7).trim()
-    : "";
 }
 
 function toIsoFromGoogleBoundary(
@@ -242,42 +236,7 @@ export async function POST(req: Request) {
   let userIdForLog = "unknown";
 
   try {
-    const bearer = getBearerToken(req);
-
-    if (!bearer) {
-      return jsonError(ctx, {
-        error: "Falta sesión para sincronizar Google Calendar.",
-        code: "GOOGLE_SYNC_UNAUTHORIZED",
-        status: 401,
-        log: { flow: "google.sync" },
-      });
-    }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-      return jsonError(ctx, {
-        error: "Faltan variables de entorno para sincronizar Google Calendar.",
-        code: "GOOGLE_SYNC_ENV_MISSING",
-        status: 500,
-        level: "error",
-        log: { flow: "google.sync" },
-      });
-    }
-
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${bearer}`,
-        },
-      },
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    });
+    const supabaseAuth = await createSupabaseUserClient(req);
 
     const {
       data: { user },
@@ -286,14 +245,27 @@ export async function POST(req: Request) {
 
     if (userError || !user?.id) {
       return jsonError(ctx, {
-        error: "Sesión inválida o expirada.",
-        code: "GOOGLE_SYNC_INVALID_SESSION",
+        error: "Falta sesión para sincronizar Google Calendar.",
+        code: "GOOGLE_SYNC_UNAUTHORIZED",
         status: 401,
         log: { flow: "google.sync" },
       });
     }
 
     userIdForLog = user.id;
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      return jsonError(ctx, {
+        error: "Faltan variables de entorno para sincronizar Google Calendar.",
+        code: "GOOGLE_SYNC_ENV_MISSING",
+        status: 500,
+        level: "error",
+        log: { flow: "google.sync", userId: user.id },
+      });
+    }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
       auth: {
