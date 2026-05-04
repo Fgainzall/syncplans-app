@@ -123,3 +123,37 @@ Endpoints protegidos por este rate limit:
 - /api/maps/route-eta
 
 Si estas variables no existen, el código usa fallback local en memoria para desarrollo/QA, pero no debe considerarse protección suficiente para abrir a más usuarios.
+
+## Observabilidad operativa MVP
+
+Las APIs críticas instrumentadas devuelven errores con este contrato:
+
+```json
+{
+  "ok": false,
+  "error": "Mensaje público seguro",
+  "code": "CRON_UNAUTHORIZED",
+  "requestId": "req_...",
+  "ts": "2026-05-04T12:00:00.000Z"
+}
+```
+
+También agregan header:
+
+```txt
+x-request-id: req_...
+```
+
+Si el cliente manda `x-request-id`, el servidor lo reutiliza cuando el formato es seguro. Si no, genera uno nuevo.
+
+Logs estructurados:
+- Usar JSON por línea en Vercel Logs.
+- Buscar por `requestId` para correlacionar frontend/API/provider.
+- No loguear tokens, cookies, API keys, service role key, `CRON_SECRET`, access tokens ni refresh tokens.
+- Para emails, usar masking (`f***@dominio.com`) salvo necesidad explícita.
+
+Docs operativas relacionadas:
+- `docs/OPERATIONS_ERRORS.md`
+- `docs/RUNBOOK_CRON.md`
+- `docs/RUNBOOK_EMAIL.md`
+- `docs/RUNBOOK_MAPS.md`

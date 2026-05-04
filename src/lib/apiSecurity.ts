@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type User } from "@supabase/supabase-js";
+import { jsonError, type ApiRequestContext } from "@/lib/apiObservability";
 
 type JsonValue =
   | string
@@ -309,7 +310,10 @@ export async function createSupabaseUserClient(req: Request) {
   });
 }
 
-export async function getAuthenticatedUser(req: Request): Promise<
+export async function getAuthenticatedUser(
+  req: Request,
+  ctx?: ApiRequestContext
+): Promise<
   | { ok: true; user: User }
   | { ok: false; response: NextResponse }
 > {
@@ -323,14 +327,20 @@ export async function getAuthenticatedUser(req: Request): Promise<
   if (error || !user?.id) {
     return {
       ok: false,
-      response: jsonNoStore(
-        {
-          ok: false,
-          error: "Sesión inválida o expirada.",
-          code: "AUTH_REQUIRED",
-        },
-        { status: 401 }
-      ),
+      response: ctx
+        ? jsonError(ctx, {
+            error: "Sesión inválida o expirada.",
+            code: "AUTH_REQUIRED",
+            status: 401,
+          })
+        : jsonNoStore(
+            {
+              ok: false,
+              error: "Sesión inválida o expirada.",
+              code: "AUTH_REQUIRED",
+            },
+            { status: 401 }
+          ),
     };
   }
 

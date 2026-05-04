@@ -1,7 +1,15 @@
-import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthenticatedUser } from "@/lib/apiSecurity";
+import {
+  createApiRequestContext,
+  durationMs,
+  jsonError,
+  jsonOk,
+  logRequestStart,
+  safeError,
+  type ApiRequestContext,
+} from "@/lib/apiObservability";
 import {
   cronAuthFailureResponse,
   getCronDateParam,
@@ -328,12 +336,16 @@ const memberGroupIds = memberRows
 
 // ───────────────────────────── núcleo de la función ──────────────────────────
 
-export async function runDailyDigest(dateParam: string | null) {
+export async function runDailyDigest(
+  dateParam: string | null,
+  ctx?: ApiRequestContext
+) {
+  const startedAt = new Date().toISOString();
+
   try {
     const supabaseAdmin = getAdminClient();
     const resend = getResend();
-
-const { dayStartIso, dayEndIso, dateLabel } = buildLimaDayRange(dateParam);
+    const { dayStartIso, dayEndIso, dateLabel } = buildLimaDayRange(dateParam);
 
     // 1) usuarios que tienen daily_summary = true
     const { data: settings, error: settingsErr } = await supabaseAdmin
@@ -343,16 +355,32 @@ const { dayStartIso, dayEndIso, dateLabel } = buildLimaDayRange(dateParam);
 
     if (settingsErr) throw settingsErr;
 
-   const targets = ((settings ?? []) as DailySummarySettingRow[]).map((s) =>
-  String(s.user_id)
-);
+    const targets = ((settings ?? []) as DailySummarySettingRow[]).map((s) =>
+      String(s.user_id)
+    );
+
+    const results: { userId: string; sent: boolean; reason?: string }[] = [];
+    let sent = 0;
+    let skipped = 0;
+    let failed = 0;
+
     if (targets.length === 0) {
-      return NextResponse.json({ ok: true, message: "No users to notify" });
+      const payload = {
+        job: "daily-reminders",
+        message: "No users to notify",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        durationMs: ctx ? durationMs(ctx) : 0,
+        processed: 0,
+        sent: 0,
+        skipped: 0,
+        failed: 0,
+      };
+
+      return ctx ? jsonOk(ctx, payload) : Response.json({ ok: true, ...payload });
     }
 
     // 2) recorremos usuarios (por ahora secuencial está bien)
-    const results: { userId: string; sent: boolean; reason?: string }[] = [];
-
     for (const userId of targets) {
       try {
         // 2.1) traemos el usuario para obtener el email
@@ -360,6 +388,7 @@ const { dayStartIso, dayEndIso, dateLabel } = buildLimaDayRange(dateParam);
           await supabaseAdmin.auth.admin.getUserById(userId);
 
         if (userErr) {
+          failed += 1;
           results.push({
             userId,
             sent: false,
@@ -370,6 +399,7 @@ const { dayStartIso, dayEndIso, dateLabel } = buildLimaDayRange(dateParam);
 
         const email = userRes?.user?.email;
         if (!email) {
+          skipped += 1;
           results.push({
             userId,
             sent: false,
@@ -387,6 +417,7 @@ const { dayStartIso, dayEndIso, dateLabel } = buildLimaDayRange(dateParam);
         );
 
         if (events.length === 0) {
+          skipped += 1;
           results.push({
             userId,
             sent: false,
@@ -394,7 +425,8 @@ const { dayStartIso, dayEndIso, dateLabel } = buildLimaDayRange(dateParam);
           });
           continue;
         }
-const { html, subject } = buildDailyDigestHtml(dateLabel, events);
+
+        const { html, subject } = buildDailyDigestHtml(dateLabel, events);
 
         await resend.emails.send({
           from: EMAIL_FROM,
@@ -403,9 +435,19 @@ const { html, subject } = buildDailyDigestHtml(dateLabel, events);
           html,
         });
 
+        sent += 1;
         results.push({ userId, sent: true });
       } catch (innerErr) {
-        console.error("[daily-digest] error con usuario", userId, innerErr);
+        failed += 1;
+        console.error(
+          JSON.stringify({
+            level: "error",
+            event: "daily_digest.user_failed",
+            requestId: ctx?.requestId ?? null,
+            userId,
+            error: safeError(innerErr),
+          })
+        );
         results.push({
           userId,
           sent: false,
@@ -414,11 +456,32 @@ const { html, subject } = buildDailyDigestHtml(dateLabel, events);
       }
     }
 
-    return NextResponse.json({ ok: true, results });
-} catch (err: unknown) {
+    const payload = {
+      job: "daily-reminders",
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      durationMs: ctx ? durationMs(ctx) : 0,
+      processed: targets.length,
+      sent,
+      skipped,
+      failed,
+      results,
+    };
+
+    return ctx ? jsonOk(ctx, payload) : Response.json({ ok: true, ...payload });
+  } catch (err: unknown) {
+    const payload = {
+      error: "Error ejecutando daily digest",
+      code: "EMAIL_DAILY_DIGEST_FAILED",
+      status: 500,
+      log: { job: "daily-reminders", error: safeError(err) },
+    };
+
+    if (ctx) return jsonError(ctx, payload);
+
     console.error("[daily-digest] error global", err);
-    return NextResponse.json(
-      { ok: false, message: "Error ejecutando daily digest" },
+    return Response.json(
+      { ok: false, error: payload.error, code: payload.code },
       { status: 500 }
     );
   }
@@ -426,10 +489,11 @@ const { html, subject } = buildDailyDigestHtml(dateLabel, events);
 
 async function runManualDigestForAuthedUser(
   req: Request,
-  dateParam: string | null
+  dateParam: string | null,
+  ctx: ApiRequestContext
 ) {
   try {
-    const auth = await getAuthenticatedUser(req);
+    const auth = await getAuthenticatedUser(req, ctx);
 
     if (!auth.ok) {
       return auth.response;
@@ -438,10 +502,12 @@ async function runManualDigestForAuthedUser(
     const user = auth.user;
 
     if (!user.email) {
-      return NextResponse.json(
-        { ok: false, message: "No email", reason: "no_email" },
-        { status: 400 }
-      );
+      return jsonError(ctx, {
+        error: "No email",
+        code: "EMAIL_DIGEST_NO_EMAIL",
+        status: 400,
+        log: { userId: user.id },
+      });
     }
 
     const supabaseAdmin = getAdminClient();
@@ -456,10 +522,10 @@ async function runManualDigestForAuthedUser(
     );
 
     if (events.length === 0) {
-      return NextResponse.json({
-        ok: true,
+      return jsonOk(ctx, {
         sent: false,
         reason: "no_events",
+        count: 0,
       });
     }
 
@@ -472,57 +538,62 @@ async function runManualDigestForAuthedUser(
       html,
     });
 
-    return NextResponse.json({
-      ok: true,
+    return jsonOk(ctx, {
       sent: true,
       count: events.length,
-      to: user.email,
     });
-} catch (err: unknown) {
-    console.error("[daily-digest] manual user error", err);
-    return NextResponse.json(
-      { ok: false, message: getErrorMessage(err, "Manual digest failed") },
-      { status: 500 }
-    );
+  } catch (err: unknown) {
+    return jsonError(ctx, {
+      error: getErrorMessage(err, "Manual digest failed"),
+      code: "EMAIL_MANUAL_DIGEST_FAILED",
+      status: 500,
+      log: { error: safeError(err) },
+    });
   }
 }
 
 // ───────────────────────────── handlers GET & POST ───────────────────────────
 
 export async function GET(req: Request) {
+  const ctx = createApiRequestContext(req);
+  logRequestStart(ctx, { job: "daily-digest" });
+
   const auth = validateCronRequest(req);
 
   if (!auth.ok) {
-    return cronAuthFailureResponse(auth);
+    return cronAuthFailureResponse(auth, ctx);
   }
 
-  const dateParam = getCronDateParam(req);
+  const dateParam = getCronDateParam(req, ctx);
 
   if (!dateParam.ok) {
     return dateParam.response;
   }
 
-  return runDailyDigest(dateParam.date);
+  return runDailyDigest(dateParam.date, ctx);
 }
 
 export async function POST(req: Request) {
+  const ctx = createApiRequestContext(req);
+  logRequestStart(ctx, { job: "daily-digest" });
+
   const url = new URL(req.url);
   const dateFromQuery = url.searchParams.get("date");
   const cronAuth = validateCronRequest(req);
 
   if (cronAuth.ok) {
-    const dateParam = getCronDateParam(req);
+    const dateParam = getCronDateParam(req, ctx);
 
     if (!dateParam.ok) {
       return dateParam.response;
     }
 
-    return runDailyDigest(dateParam.date);
+    return runDailyDigest(dateParam.date, ctx);
   }
 
   const body = (await req.json().catch(() => ({}))) as ManualDigestBody;
   const dateFromBody =
     typeof body?.date === "string" && body.date.trim() ? body.date.trim() : null;
 
-  return runManualDigestForAuthedUser(req, dateFromBody ?? dateFromQuery);
+  return runManualDigestForAuthedUser(req, dateFromBody ?? dateFromQuery, ctx);
 }

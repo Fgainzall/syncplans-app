@@ -1,5 +1,9 @@
 // src/lib/cronAuth.ts
 import { NextResponse } from "next/server";
+import {
+  jsonError,
+  type ApiRequestContext,
+} from "@/lib/apiObservability";
 
 type CronAuthSuccess = { ok: true };
 
@@ -50,7 +54,18 @@ export function validateCronRequest(req: Request): CronAuthResult {
   return { ok: true };
 }
 
-export function cronAuthFailureResponse(failure: CronAuthFailure) {
+export function cronAuthFailureResponse(
+  failure: CronAuthFailure,
+  ctx?: ApiRequestContext
+) {
+  if (ctx) {
+    return jsonError(ctx, {
+      error: failure.message,
+      code: failure.code,
+      status: failure.status,
+    });
+  }
+
   return NextResponse.json(
     {
       ok: false,
@@ -66,7 +81,10 @@ export function cronAuthFailureResponse(failure: CronAuthFailure) {
   );
 }
 
-export function getCronDateParam(req: Request):
+export function getCronDateParam(
+  req: Request,
+  ctx?: ApiRequestContext
+):
   | { ok: true; date: string | null }
   | { ok: false; response: NextResponse } {
   const url = new URL(req.url);
@@ -77,19 +95,25 @@ export function getCronDateParam(req: Request):
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return {
       ok: false,
-      response: NextResponse.json(
-        {
-          ok: false,
-          error: "Invalid date parameter. Expected YYYY-MM-DD.",
-          code: "INVALID_CRON_DATE",
-        },
-        {
-          status: 400,
-          headers: {
-            "Cache-Control": "no-store",
-          },
-        }
-      ),
+      response: ctx
+        ? jsonError(ctx, {
+            error: "Invalid date parameter. Expected YYYY-MM-DD.",
+            code: "INVALID_CRON_DATE",
+            status: 400,
+          })
+        : NextResponse.json(
+            {
+              ok: false,
+              error: "Invalid date parameter. Expected YYYY-MM-DD.",
+              code: "INVALID_CRON_DATE",
+            },
+            {
+              status: 400,
+              headers: {
+                "Cache-Control": "no-store",
+              },
+            }
+          ),
     };
   }
 

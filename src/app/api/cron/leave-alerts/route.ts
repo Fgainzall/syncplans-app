@@ -1,6 +1,13 @@
-import { NextResponse } from "next/server";
 import { runLeaveAlerts } from "@/lib/travelReminders";
 import { cronAuthFailureResponse, validateCronRequest } from "@/lib/cronAuth";
+import {
+  createApiRequestContext,
+  durationMs,
+  jsonError,
+  jsonOk,
+  logRequestStart,
+  safeError,
+} from "@/lib/apiObservability";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -18,56 +25,35 @@ function getLookaheadMinutes(req: Request): number | undefined {
 }
 
 async function handleCron(req: Request) {
+  const ctx = createApiRequestContext(req);
+  const startedAt = new Date().toISOString();
+  logRequestStart(ctx, { job: "leave-alerts" });
+
   const auth = validateCronRequest(req);
 
   if (!auth.ok) {
-    return cronAuthFailureResponse(auth);
+    return cronAuthFailureResponse(auth, ctx);
   }
-
-  const startedAt = new Date().toISOString();
 
   try {
     const lookaheadMinutes = getLookaheadMinutes(req);
     const summary = await runLeaveAlerts({ lookaheadMinutes });
 
-    return NextResponse.json(
-      {
-        ok: true,
-        startedAt,
-        finishedAt: new Date().toISOString(),
-        lookaheadMinutes: lookaheadMinutes ?? null,
-        summary,
-      },
-      {
-        status: 200,
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
-    );
+    return jsonOk(ctx, {
+      job: "leave-alerts",
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      durationMs: durationMs(ctx),
+      lookaheadMinutes: lookaheadMinutes ?? null,
+      summary,
+    });
   } catch (error) {
-    const message =
-      error instanceof Error && error.message
-        ? error.message
-        : "Leave alerts failed";
-
-    console.error("[cron/leave-alerts] failed", error);
-
-    return NextResponse.json(
-      {
-        ok: false,
-        error: message,
-        code: "LEAVE_ALERTS_FAILED",
-        startedAt,
-        finishedAt: new Date().toISOString(),
-      },
-      {
-        status: 500,
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      }
-    );
+    return jsonError(ctx, {
+      error: "Leave alerts failed.",
+      code: "CRON_LEAVE_ALERTS_FAILED",
+      status: 500,
+      log: { job: "leave-alerts", error: safeError(error) },
+    });
   }
 }
 

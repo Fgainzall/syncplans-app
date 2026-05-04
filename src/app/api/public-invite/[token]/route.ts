@@ -4,11 +4,18 @@ import { createClient } from "@supabase/supabase-js";
 import {
   checkRateLimit,
   getClientIp,
-  jsonNoStore,
   rateLimitHeaders,
   readJsonBody,
   requiredServerEnv,
 } from "@/lib/apiSecurity";
+import {
+  createApiRequestContext,
+  jsonError,
+  jsonOk,
+  logRequestStart,
+  safeError,
+  type ApiRequestContext,
+} from "@/lib/apiObservability";
 
 type RouteContext = {
   params: Promise<{ token: string }>;
@@ -140,58 +147,57 @@ async function loadPublicEvent(supabase: ReturnType<typeof getAdminClient>, even
   return data ?? null;
 }
 
-function invalidTokenResponse(status = 400) {
-  return jsonNoStore(
-    {
-      ok: false,
-      error: "Token inválido.",
-      code: "invalid_token",
-    },
-    { status }
-  );
+function invalidTokenResponse(ctx: ApiRequestContext, status = 400) {
+  return jsonError(ctx, {
+    error: "Token inválido.",
+    code: "PUBLIC_INVITE_INVALID_TOKEN",
+    status,
+  });
 }
 
-function tokenUsedResponse(invite: PublicInviteRow, event: PublicEventRow | null) {
-  return jsonNoStore(
-    {
-      ok: false,
-      error: "Este enlace ya fue usado.",
-      code: "token_used",
+function tokenUsedResponse(
+  ctx: ApiRequestContext,
+  invite: PublicInviteRow,
+  event: PublicEventRow | null
+) {
+  return jsonError(ctx, {
+    error: "Este enlace ya fue usado.",
+    code: "PUBLIC_INVITE_TOKEN_USED",
+    status: 409,
+    log: { inviteId: invite.id, eventId: invite.event_id },
+    data: {
       invite: toPublicInviteDto(invite),
       event: toPublicEventDto(event),
     },
-    { status: 409 }
-  );
+  });
 }
 
-function tokenExpiredResponse() {
-  return jsonNoStore(
-    {
-      ok: false,
-      error: "Este enlace de invitación expiró.",
-      code: "token_expired",
-    },
-    { status: 410 }
-  );
+function tokenExpiredResponse(ctx: ApiRequestContext) {
+  return jsonError(ctx, {
+    error: "Este enlace de invitación expiró.",
+    code: "PUBLIC_INVITE_TOKEN_EXPIRED",
+    status: 410,
+  });
 }
 
 export async function GET(req: NextRequest, context: RouteContext) {
+  const ctx = createApiRequestContext(req);
+  logRequestStart(ctx, { flow: "public-invite.get" });
+
   try {
     const { token: tokenParam } = await context.params;
     const token = normalizeToken(tokenParam);
 
-    if (!token || !isTokenFormatValid(token)) return invalidTokenResponse(400);
+    if (!token || !isTokenFormatValid(token)) return invalidTokenResponse(ctx, 400);
 
     const limit = await enforcePublicInviteRateLimit(req, token);
     if (!limit.allowed) {
-      return jsonNoStore(
-        {
-          ok: false,
-          error: "Demasiados intentos. Intenta nuevamente en unos segundos.",
-          code: "rate_limited",
-        },
-        { status: 429, headers: rateLimitHeaders(limit) }
-      );
+      return jsonError(ctx, {
+        error: "Demasiados intentos. Intenta nuevamente en unos segundos.",
+        code: "PUBLIC_INVITE_RATE_LIMITED",
+        status: 429,
+        headers: rateLimitHeaders(limit),
+      });
     }
 
     const supabase = getAdminClient();
@@ -201,65 +207,62 @@ export async function GET(req: NextRequest, context: RouteContext) {
     );
 
     if (inviteError) {
-      console.error("[api/public-invite] GET invite load failed", inviteError);
-      return jsonNoStore(
-        {
-          ok: false,
-          error: "No se pudo cargar la invitación.",
-          code: "invite_load_failed",
-        },
-        { status: 500 }
-      );
+      return jsonError(ctx, {
+        error: "No se pudo cargar la invitación.",
+        code: "PUBLIC_INVITE_LOAD_FAILED",
+        status: 500,
+        log: { error: safeError(inviteError) },
+      });
     }
 
-    if (!invite) return invalidTokenResponse(404);
-    if (isInviteExpired(invite.created_at)) return tokenExpiredResponse();
+    if (!invite) return invalidTokenResponse(ctx, 404);
+    if (isInviteExpired(invite.created_at)) return tokenExpiredResponse(ctx);
 
     const event = await loadPublicEvent(supabase, invite.event_id);
 
     if (normalizeInviteStatus(invite.status) !== "pending") {
-      return tokenUsedResponse(invite, event);
+      return tokenUsedResponse(ctx, invite, event);
     }
 
-    return jsonNoStore(
+    return jsonOk(
+      ctx,
       {
-        ok: true,
         invite: toPublicInviteDto(invite),
         event: toPublicEventDto(event),
       },
-      { status: 200, headers: rateLimitHeaders(limit) }
+      {
+        headers: rateLimitHeaders(limit),
+        log: { inviteId: invite.id, eventId: invite.event_id },
+      }
     );
   } catch (error) {
-    console.error("[api/public-invite] GET unexpected error", error);
-
-    return jsonNoStore(
-      {
-        ok: false,
-        error: "Ocurrió un error al cargar la invitación.",
-        code: "public_invite_get_failed",
-      },
-      { status: 500 }
-    );
+    return jsonError(ctx, {
+      error: "Ocurrió un error al cargar la invitación.",
+      code: "PUBLIC_INVITE_GET_FAILED",
+      status: 500,
+      log: { error: safeError(error) },
+    });
   }
 }
 
 export async function POST(req: NextRequest, context: RouteContext) {
+  const ctx = createApiRequestContext(req);
+  logRequestStart(ctx, { flow: "public-invite.post" });
+
   try {
     const { token: tokenParam } = await context.params;
     const token = normalizeToken(tokenParam);
 
-    if (!token || !isTokenFormatValid(token)) return invalidTokenResponse(400);
+    if (!token || !isTokenFormatValid(token)) return invalidTokenResponse(ctx, 400);
 
     const limit = await enforcePublicInviteRateLimit(req, token);
     if (!limit.allowed) {
-      return jsonNoStore(
-        {
-          ok: false,
-          error: "Demasiados intentos. Intenta nuevamente en unos segundos.",
-          code: "rate_limited",
-        },
-        { status: 429, headers: rateLimitHeaders(limit) }
-      );
+      return jsonError(ctx, {
+        error: "Demasiados intentos. Intenta nuevamente en unos segundos.",
+        code: "PUBLIC_INVITE_RATE_LIMITED",
+        status: 429,
+        headers: rateLimitHeaders(limit),
+      });
     }
 
     const body = (await readJsonBody(req, MAX_BODY_BYTES)) as Record<string, unknown>;
@@ -267,14 +270,11 @@ export async function POST(req: NextRequest, context: RouteContext) {
     const status = rawStatus === "declined" ? "rejected" : rawStatus;
 
     if (status !== "accepted" && status !== "rejected") {
-      return jsonNoStore(
-        {
-          ok: false,
-          error: "Estado inválido.",
-          code: "invalid_status",
-        },
-        { status: 400 }
-      );
+      return jsonError(ctx, {
+        error: "Estado inválido.",
+        code: "PUBLIC_INVITE_INVALID_STATUS",
+        status: 400,
+      });
     }
 
     const messageRaw = typeof body.message === "string" ? body.message.trim() : "";
@@ -286,14 +286,11 @@ export async function POST(req: NextRequest, context: RouteContext) {
       const parsed = new Date(body.proposedDate);
 
       if (Number.isNaN(parsed.getTime())) {
-        return jsonNoStore(
-          {
-            ok: false,
-            error: "Fecha propuesta inválida.",
-            code: "invalid_proposed_date",
-          },
-          { status: 400 }
-        );
+        return jsonError(ctx, {
+          error: "Fecha propuesta inválida.",
+          code: "PUBLIC_INVITE_INVALID_PROPOSED_DATE",
+          status: 400,
+        });
       }
 
       proposedDate = parsed.toISOString();
@@ -306,24 +303,21 @@ export async function POST(req: NextRequest, context: RouteContext) {
     );
 
     if (currentInviteError) {
-      console.error("[api/public-invite] POST invite load failed", currentInviteError);
-      return jsonNoStore(
-        {
-          ok: false,
-          error: "No se pudo cargar la invitación.",
-          code: "invite_load_failed",
-        },
-        { status: 500 }
-      );
+      return jsonError(ctx, {
+        error: "No se pudo cargar la invitación.",
+        code: "PUBLIC_INVITE_LOAD_FAILED",
+        status: 500,
+        log: { error: safeError(currentInviteError) },
+      });
     }
 
-    if (!currentInvite) return invalidTokenResponse(404);
-    if (isInviteExpired(currentInvite.created_at)) return tokenExpiredResponse();
+    if (!currentInvite) return invalidTokenResponse(ctx, 404);
+    if (isInviteExpired(currentInvite.created_at)) return tokenExpiredResponse(ctx);
 
     const currentEvent = await loadPublicEvent(supabase, currentInvite.event_id);
 
     if (normalizeInviteStatus(currentInvite.status) !== "pending") {
-      return tokenUsedResponse(currentInvite, currentEvent);
+      return tokenUsedResponse(ctx, currentInvite, currentEvent);
     }
 
     const { data: updatedInvite, error: updateError } = await supabase
@@ -339,15 +333,12 @@ export async function POST(req: NextRequest, context: RouteContext) {
       .maybeSingle<PublicInviteRow>();
 
     if (updateError) {
-      console.error("[api/public-invite] POST update failed", updateError);
-      return jsonNoStore(
-        {
-          ok: false,
-          error: "No se pudo guardar la respuesta.",
-          code: "invite_update_failed",
-        },
-        { status: 500 }
-      );
+      return jsonError(ctx, {
+        error: "No se pudo guardar la respuesta.",
+        code: "PUBLIC_INVITE_UPDATE_FAILED",
+        status: 500,
+        log: { inviteId: currentInvite.id, error: safeError(updateError) },
+      });
     }
 
     if (!updatedInvite) {
@@ -362,51 +353,44 @@ export async function POST(req: NextRequest, context: RouteContext) {
         latestInvite?.event_id ?? currentInvite.event_id
       );
 
-      return tokenUsedResponse(latestInvite ?? currentInvite, latestEvent);
+      return tokenUsedResponse(ctx, latestInvite ?? currentInvite, latestEvent);
     }
 
     const event = await loadPublicEvent(supabase, updatedInvite.event_id);
 
-    return jsonNoStore(
+    return jsonOk(
+      ctx,
       {
-        ok: true,
         invite: toPublicInviteDto(updatedInvite),
         event: toPublicEventDto(event),
       },
-      { status: 200, headers: rateLimitHeaders(limit) }
+      {
+        headers: rateLimitHeaders(limit),
+        log: { inviteId: updatedInvite.id, eventId: updatedInvite.event_id, status },
+      }
     );
   } catch (error) {
     if (error instanceof Error && error.message === "REQUEST_TOO_LARGE") {
-      return jsonNoStore(
-        {
-          ok: false,
-          error: "Payload demasiado grande.",
-          code: "invalid_body",
-        },
-        { status: 400 }
-      );
+      return jsonError(ctx, {
+        error: "Payload demasiado grande.",
+        code: "PUBLIC_INVITE_INVALID_BODY",
+        status: 400,
+      });
     }
 
     if (error instanceof Error && error.message === "INVALID_JSON") {
-      return jsonNoStore(
-        {
-          ok: false,
-          error: "JSON inválido.",
-          code: "invalid_body",
-        },
-        { status: 400 }
-      );
+      return jsonError(ctx, {
+        error: "JSON inválido.",
+        code: "PUBLIC_INVITE_INVALID_BODY",
+        status: 400,
+      });
     }
 
-    console.error("[api/public-invite] POST unexpected error", error);
-
-    return jsonNoStore(
-      {
-        ok: false,
-        error: "Ocurrió un error al responder la invitación.",
-        code: "public_invite_post_failed",
-      },
-      { status: 500 }
-    );
+    return jsonError(ctx, {
+      error: "Ocurrió un error al responder la invitación.",
+      code: "PUBLIC_INVITE_POST_FAILED",
+      status: 500,
+      log: { error: safeError(error) },
+    });
   }
 }

@@ -1,5 +1,4 @@
 // src/app/api/email/invite/route.ts
-import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import {
   checkRateLimit,
@@ -8,11 +7,19 @@ import {
   getClientIp,
   isLikelyEmail,
   isUuid,
-  jsonNoStore,
   rateLimitHeaders,
   readJsonBody,
   requiredServerEnv,
 } from "@/lib/apiSecurity";
+import {
+  createApiRequestContext,
+  jsonError,
+  jsonOk,
+  logRequestStart,
+  maskEmail,
+  safeError,
+  type ApiRequestContext,
+} from "@/lib/apiObservability";
 
 type InviteEmailRequestBody = {
   email?: unknown;
@@ -123,15 +130,19 @@ function inviteEmailHtml(opts: { acceptUrl: string; appUrl: string }) {
   `;
 }
 
-function publicError(error: string, code: string, status: number) {
-  return jsonNoStore(
-    {
-      ok: false,
-      error,
-      code,
-    },
-    { status }
-  );
+function publicError(
+  ctx: ApiRequestContext,
+  error: string,
+  code: string,
+  status: number,
+  log?: Record<string, unknown>
+) {
+  return jsonError(ctx, {
+    error,
+    code,
+    status,
+    log,
+  });
 }
 
 function isPendingInvite(invite: GroupInviteRow) {
@@ -153,8 +164,11 @@ async function loadInviteForCurrentUser(req: Request, inviteId: string) {
 }
 
 export async function POST(req: Request) {
+  const ctx = createApiRequestContext(req);
+  logRequestStart(ctx, { flow: "email-invite" });
+
   try {
-    const auth = await getAuthenticatedUser(req);
+    const auth = await getAuthenticatedUser(req, ctx);
 
     if (!auth.ok) return auth.response;
 
@@ -166,14 +180,15 @@ export async function POST(req: Request) {
 
     if (!isLikelyEmail(email) || !isUuid(inviteId)) {
       return publicError(
+        ctx,
         "Falta email válido o inviteId válido.",
-        "INVALID_INVITE_EMAIL_REQUEST",
+        "EMAIL_INVALID_INVITE_REQUEST",
         400
       );
     }
 
     if (requestedGroupId && !isUuid(requestedGroupId)) {
-      return publicError("groupId inválido.", "INVALID_GROUP_ID", 400);
+      return publicError(ctx, "groupId inválido.", "EMAIL_INVALID_GROUP_ID", 400);
     }
 
     const shortLimit = await checkRateLimit({
@@ -184,14 +199,13 @@ export async function POST(req: Request) {
     });
 
     if (!shortLimit.allowed) {
-      return jsonNoStore(
-        {
-          ok: false,
-          error: "Demasiados envíos. Intenta nuevamente en unos minutos.",
-          code: "EMAIL_INVITE_RATE_LIMITED",
-        },
-        { status: 429, headers: rateLimitHeaders(shortLimit) }
-      );
+      return jsonError(ctx, {
+        error: "Demasiados envíos. Intenta nuevamente en unos minutos.",
+        code: "EMAIL_INVITE_RATE_LIMITED",
+        status: 429,
+        headers: rateLimitHeaders(shortLimit),
+        log: { userId: auth.user.id, email: maskEmail(email) },
+      });
     }
 
     const dailyLimit = await checkRateLimit({
@@ -202,51 +216,65 @@ export async function POST(req: Request) {
     });
 
     if (!dailyLimit.allowed) {
-      return jsonNoStore(
-        {
-          ok: false,
-          error: "Límite diario de invitaciones alcanzado.",
-          code: "EMAIL_INVITE_DAILY_LIMITED",
-        },
-        { status: 429, headers: rateLimitHeaders(dailyLimit) }
-      );
+      return jsonError(ctx, {
+        error: "Límite diario de invitaciones alcanzado.",
+        code: "EMAIL_INVITE_DAILY_LIMITED",
+        status: 429,
+        headers: rateLimitHeaders(dailyLimit),
+        log: { userId: auth.user.id },
+      });
     }
 
     const { data: invite, error: inviteError } = await loadInviteForCurrentUser(req, inviteId);
 
     if (inviteError) {
-      console.error("[api/email/invite] invite lookup failed", inviteError);
-      return publicError("No se pudo validar la invitación.", "INVITE_LOOKUP_FAILED", 500);
+      return publicError(
+        ctx,
+        "No se pudo validar la invitación.",
+        "EMAIL_INVITE_LOOKUP_FAILED",
+        500,
+        { error: safeError(inviteError) }
+      );
     }
 
     if (!invite) {
-      return publicError("Invitación no encontrada.", "INVITE_NOT_FOUND", 404);
+      return publicError(ctx, "Invitación no encontrada.", "EMAIL_INVITE_NOT_FOUND", 404);
     }
 
     if (invite.invited_by !== auth.user.id) {
       return publicError(
+        ctx,
         "No tienes permisos para enviar esta invitación.",
-        "INVITE_FORBIDDEN",
-        403
+        "EMAIL_INVITE_FORBIDDEN",
+        403,
+        { userId: auth.user.id, inviteId }
       );
     }
 
     if (requestedGroupId && requestedGroupId !== invite.group_id) {
-      return publicError("La invitación no pertenece a ese grupo.", "INVITE_GROUP_MISMATCH", 403);
+      return publicError(
+        ctx,
+        "La invitación no pertenece a ese grupo.",
+        "EMAIL_INVITE_GROUP_MISMATCH",
+        403,
+        { inviteId, requestedGroupId }
+      );
     }
 
     const invitedEmail = inviteRecipientEmail(invite);
 
     if (!invitedEmail || invitedEmail !== email) {
       return publicError(
+        ctx,
         "El email no coincide con la invitación.",
-        "INVITE_EMAIL_MISMATCH",
-        403
+        "EMAIL_INVITE_EMAIL_MISMATCH",
+        403,
+        { inviteId, requestedEmail: maskEmail(email), invitedEmail: maskEmail(invitedEmail) }
       );
     }
 
     if (!isPendingInvite(invite)) {
-      return publicError("La invitación ya no está pendiente.", "INVITE_NOT_PENDING", 409);
+      return publicError(ctx, "La invitación ya no está pendiente.", "EMAIL_INVITE_NOT_PENDING", 409);
     }
 
     let resendKey = "";
@@ -254,15 +282,21 @@ export async function POST(req: Request) {
     try {
       resendKey = requiredServerEnv("RESEND_API_KEY");
     } catch {
-      return publicError("Configuración de email incompleta.", "MISSING_RESEND_API_KEY", 500);
+      return publicError(
+        ctx,
+        "Configuración de email incompleta.",
+        "EMAIL_RESEND_API_KEY_MISSING",
+        500
+      );
     }
 
     const from = optionalEnv("EMAIL_FROM", "RESEND_FROM");
 
     if (!from) {
       return publicError(
+        ctx,
         "Configuración de remitente incompleta.",
-        "MISSING_EMAIL_FROM",
+        "EMAIL_FROM_MISSING",
         500
       );
     }
@@ -284,42 +318,45 @@ export async function POST(req: Request) {
     });
 
     if (error) {
-      console.error("[api/email/invite] resend send error", error);
-      return jsonNoStore(
-        {
-          ok: false,
-          error: (error as ResendErrorLike | null)?.message || "Resend error",
-          code: "EMAIL_SEND_FAILED",
+      return jsonError(ctx, {
+        error: (error as ResendErrorLike | null)?.message || "Resend error",
+        code: "EMAIL_PROVIDER_REJECTED",
+        status: 502,
+        log: {
+          userId: auth.user.id,
+          inviteId,
+          email: maskEmail(invitedEmail),
+          error: safeError(error),
         },
-        { status: 502 }
-      );
+      });
     }
 
-    return NextResponse.json(
+    return jsonOk(
+      ctx,
       {
-        ok: true,
         id: data?.id ?? null,
         acceptUrl,
       },
       {
-        status: 200,
-        headers: {
-          ...rateLimitHeaders(shortLimit),
-          "Cache-Control": "no-store",
-        },
+        headers: rateLimitHeaders(shortLimit),
+        log: { userId: auth.user.id, inviteId },
       }
     );
   } catch (error) {
     if (error instanceof Error && error.message === "REQUEST_TOO_LARGE") {
-      return publicError("Payload demasiado grande.", "INVALID_BODY", 400);
+      return publicError(ctx, "Payload demasiado grande.", "EMAIL_INVALID_BODY", 400);
     }
 
     if (error instanceof Error && error.message === "INVALID_JSON") {
-      return publicError("JSON inválido.", "INVALID_BODY", 400);
+      return publicError(ctx, "JSON inválido.", "EMAIL_INVALID_BODY", 400);
     }
 
-    console.error("[api/email/invite] unexpected error", error);
-
-    return publicError("Error enviando email.", "EMAIL_INVITE_FAILED", 500);
+    return publicError(
+      ctx,
+      "Error enviando email.",
+      "EMAIL_INVITE_FAILED",
+      500,
+      { error: safeError(error) }
+    );
   }
 }

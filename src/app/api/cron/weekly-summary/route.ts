@@ -1,7 +1,16 @@
-import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
 import { cronAuthFailureResponse, validateCronRequest } from "@/lib/cronAuth";
+import {
+  createApiRequestContext,
+  durationMs,
+  jsonError,
+  jsonOk,
+  logError,
+  logRequestStart,
+  maskEmail,
+  safeError,
+} from "@/lib/apiObservability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -182,12 +191,16 @@ function renderWeeklyHtml(opts: {
 // POST
 // ─────────────────────────────────────────────
 async function runWeeklySummary(req: Request) {
+  const ctx = createApiRequestContext(req);
+  const startedAt = new Date().toISOString();
+  logRequestStart(ctx, { job: "weekly-summary" });
+
   try {
     // 1️⃣ Seguridad
     const auth = validateCronRequest(req);
 
     if (!auth.ok) {
-      return cronAuthFailureResponse(auth);
+      return cronAuthFailureResponse(auth, ctx);
     }
 
     const supabase = getAdminSupabase();
@@ -201,44 +214,81 @@ async function runWeeklySummary(req: Request) {
       .eq("weekly_summary", true);
 
     if (usersErr) {
-      console.error("[weekly-summary] error fetching users", usersErr);
       throw usersErr;
     }
 
-    if (!users || users.length === 0) {
-      return NextResponse.json({ ok: true, sent: 0 });
+    const userRows = users ?? [];
+
+    if (userRows.length === 0) {
+      return jsonOk(ctx, {
+        job: "weekly-summary",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        durationMs: durationMs(ctx),
+        processed: 0,
+        sent: 0,
+        skipped: 0,
+        failed: 0,
+      });
     }
 
     let sent = 0;
+    let skipped = 0;
+    let failed = 0;
 
     // 3️⃣ Recorremos usuario por usuario
-    for (const u of users) {
+    for (const u of userRows) {
+      const userId = String(u.user_id ?? "").trim();
+
+      if (!userId) {
+        skipped += 1;
+        continue;
+      }
+
       try {
         const { data: profile, error: profileErr } = await supabase
           .from("profiles")
           .select("first_name, email")
-          .eq("id", u.user_id)
+          .eq("id", userId)
           .maybeSingle();
 
         if (profileErr) {
-          console.error("[weekly-summary] error fetching profile", profileErr);
+          failed += 1;
+          logError("weekly_summary.profile_lookup_failed", {
+            requestId: ctx.requestId,
+            endpoint: ctx.endpoint,
+            userId,
+            code: "EMAIL_WEEKLY_PROFILE_LOOKUP_FAILED",
+            error: safeError(profileErr),
+          });
           continue;
         }
 
-       const profileRow = profile as WeeklyProfileRow | null;
-const email = String(profileRow?.email ?? "").trim();
-        if (!email) continue;
+        const profileRow = profile as WeeklyProfileRow | null;
+        const email = String(profileRow?.email ?? "").trim();
+
+        if (!email) {
+          skipped += 1;
+          continue;
+        }
 
         const { data: events, error: eventsErr } = await supabase
           .from("events")
           .select("title, start, end")
-          .eq("user_id", u.user_id)
+          .eq("user_id", userId)
           .gte("start", startISO)
           .lt("start", endISO)
           .order("start", { ascending: true });
 
         if (eventsErr) {
-          console.error("[weekly-summary] error fetching events", eventsErr);
+          failed += 1;
+          logError("weekly_summary.events_lookup_failed", {
+            requestId: ctx.requestId,
+            endpoint: ctx.endpoint,
+            userId,
+            code: "EMAIL_WEEKLY_EVENTS_LOOKUP_FAILED",
+            error: safeError(eventsErr),
+          });
           continue;
         }
 
@@ -262,28 +312,47 @@ const email = String(profileRow?.email ?? "").trim();
 
           sent += 1;
         } catch (sendErr) {
-          console.error(
-            `[weekly-summary] unexpected error sending email to ${email}`,
-            sendErr
-          );
+          failed += 1;
+          logError("weekly_summary.email_send_failed", {
+            requestId: ctx.requestId,
+            endpoint: ctx.endpoint,
+            userId,
+            email: maskEmail(email),
+            code: "EMAIL_WEEKLY_SEND_FAILED",
+            error: safeError(sendErr),
+          });
         }
       } catch (userErr) {
-        console.error(
-          "[weekly-summary] error processing user",
-          u.user_id,
-          userErr
-        );
+        failed += 1;
+        logError("weekly_summary.user_processing_failed", {
+          requestId: ctx.requestId,
+          endpoint: ctx.endpoint,
+          userId,
+          code: "EMAIL_WEEKLY_USER_PROCESSING_FAILED",
+          error: safeError(userErr),
+        });
         // seguimos con el siguiente usuario
       }
     }
 
-    return NextResponse.json({ ok: true, sent });
+    return jsonOk(ctx, {
+      job: "weekly-summary",
+      label,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      durationMs: durationMs(ctx),
+      processed: userRows.length,
+      sent,
+      skipped,
+      failed,
+    });
   } catch (err) {
-    console.error("[weekly-summary] cron failed", err);
-    return NextResponse.json(
-      { ok: false, message: "Weekly cron failed" },
-      { status: 500 }
-    );
+    return jsonError(ctx, {
+      error: "Weekly cron failed.",
+      code: "EMAIL_WEEKLY_SUMMARY_FAILED",
+      status: 500,
+      log: { job: "weekly-summary", error: safeError(err) },
+    });
   }
 }
 
