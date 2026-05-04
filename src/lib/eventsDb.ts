@@ -170,6 +170,63 @@ type EventOwnerInput = {
 };
 
 type EventUpdatePayload = Record<string, unknown>;
+
+const INFORMATIONAL_GOOGLE_EXTERNAL_PATTERNS = [
+  "holiday@group.v.calendar.google.com",
+  "#holiday@group.v.calendar.google.com",
+  "birthdays",
+  "birthday",
+  "addressbook#contacts@group.v.calendar.google.com",
+  "contacts@group.v.calendar.google.com",
+];
+
+const INFORMATIONAL_GOOGLE_TITLE_PATTERNS = [
+  "fiesta del sol",
+  "dia del campesino",
+  "día del campesino",
+  "batalla de arica",
+  "dia de la bandera",
+  "día de la bandera",
+  "domingo de pascua",
+  "feriado",
+  "holiday",
+];
+
+function normalizeInformationalText(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+export function isInformationalGoogleEvent(row: {
+  external_source?: string | null;
+  external_id?: string | null;
+  title?: string | null;
+}): boolean {
+  const externalSource = normalizeInformationalText(row.external_source);
+  if (externalSource !== "google") return false;
+
+  const externalId = normalizeInformationalText(row.external_id);
+  const title = normalizeInformationalText(row.title);
+
+  if (
+    INFORMATIONAL_GOOGLE_EXTERNAL_PATTERNS.some((pattern) =>
+      externalId.includes(normalizeInformationalText(pattern))
+    )
+  ) {
+    return true;
+  }
+
+  return INFORMATIONAL_GOOGLE_TITLE_PATTERNS.some((pattern) =>
+    title.includes(normalizeInformationalText(pattern))
+  );
+}
+
+function filterInformationalGoogleEvents<T extends DbEventRow>(rows: T[]): T[] {
+  return rows.filter((row) => !isInformationalGoogleEvent(row));
+}
 /* ======================================================
   Select común
 ====================================================== */
@@ -303,7 +360,7 @@ export async function getMyEvents(_opts?: unknown): Promise<DbEventRow[]> {
 
   if (error) throw error;
 
-  return (data ?? []).map(mapDbEventRow);
+  return filterInformationalGoogleEvents((data ?? []).map(mapDbEventRow));
 }
 
 /**
@@ -340,7 +397,7 @@ export async function getMyEventsForSummary(
 
   if (error) throw error;
 
-  return (data ?? []).map(mapDbEventRow);
+  return filterInformationalGoogleEvents((data ?? []).map(mapDbEventRow));
 }
 
 /* ======================================================

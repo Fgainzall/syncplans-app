@@ -86,3 +86,23 @@ Si Google sync falla pero la app funciona:
 1. Ocultar CTA de sync manual si fuera necesario.
 2. Mantener eventos internos funcionando.
 3. Pedir reconexión Google solo al usuario afectado.
+
+## Feriados/cumpleaños importados como conflictos
+
+Síntomas:
+- Aparecen conflictos con eventos como `Fiesta del Sol`, `Día del Campesino`, `Día de la Bandera`, `Domingo de Pascua`, cumpleaños o calendarios informativos.
+- Los eventos aparecen “de la nada” después de conectar o sincronizar Google Calendar.
+
+Causa probable:
+- Google Calendar incluyó calendarios visibles de feriados/cumpleaños/contactos y se importaron como eventos normales.
+
+Comportamiento esperado:
+- SyncPlans debe saltarse calendarios informativos durante sync.
+- SyncPlans debe limpiar eventos Google informativos ya importados cuando se vuelve a ejecutar sync.
+- Los eventos Google informativos no deben aparecer en Summary/Calendar/Conflicts aunque sigan en BD hasta la próxima limpieza.
+
+Pasos de verificación:
+1. Ejecutar `/api/google/sync` desde sesión autenticada.
+2. Confirmar respuesta con `skippedInformationalCalendars`, `skippedInformationalEvents` o `removedInformationalEvents`.
+3. Volver a `/conflicts/detected`.
+4. Confirmar que feriados/cumpleaños ya no aparezcan como conflictos accionables.

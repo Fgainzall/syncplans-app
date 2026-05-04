@@ -29,6 +29,7 @@ type GoogleAccountRow = {
 type GoogleCalendarListItem = {
   id: string;
   summary?: string;
+  description?: string;
   primary?: boolean;
   accessRole?: string;
 };
@@ -64,6 +65,58 @@ type GoogleListResponse = {
   items?: unknown[];
   nextPageToken?: string | null;
 };
+
+const INFORMATIONAL_GOOGLE_CALENDAR_PATTERNS = [
+  "holiday",
+  "holidays",
+  "feriado",
+  "feriados",
+  "festivo",
+  "festivos",
+  "cumpleanos",
+  "cumpleaños",
+  "birthday",
+  "birthdays",
+  "contacts",
+  "addressbook",
+];
+
+const INFORMATIONAL_GOOGLE_EVENT_TITLE_PATTERNS = [
+  "fiesta del sol",
+  "dia del campesino",
+  "día del campesino",
+  "batalla de arica",
+  "dia de la bandera",
+  "día de la bandera",
+  "domingo de pascua",
+  "feriado",
+  "holiday",
+];
+
+function normalizeInformationalText(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function isInformationalGoogleCalendar(cal: GoogleCalendarListItem): boolean {
+  const haystack = normalizeInformationalText(
+    [cal.id, cal.summary, cal.description].filter(Boolean).join(" ")
+  );
+
+  return INFORMATIONAL_GOOGLE_CALENDAR_PATTERNS.some((pattern) =>
+    haystack.includes(normalizeInformationalText(pattern))
+  );
+}
+
+function isInformationalGoogleEventTitle(title: string): boolean {
+  const normalizedTitle = normalizeInformationalText(title);
+  return INFORMATIONAL_GOOGLE_EVENT_TITLE_PATTERNS.some((pattern) =>
+    normalizedTitle.includes(normalizeInformationalText(pattern))
+  );
+}
 
 type GoogleEventUpsertRow = Record<string, unknown>;
 
@@ -237,6 +290,24 @@ async function listEventsForCalendar(
   return out;
 }
 
+function getInformationalGoogleEventsCleanupFilter(): string {
+  return [
+    "external_id.ilike.%holiday@group.v.calendar.google.com%",
+    "external_id.ilike.%#holiday@group.v.calendar.google.com%",
+    "external_id.ilike.%addressbook#contacts@group.v.calendar.google.com%",
+    "external_id.ilike.%contacts@group.v.calendar.google.com%",
+    "external_id.ilike.%birthdays%",
+    "external_id.ilike.%birthday%",
+    "title.ilike.%Fiesta del Sol%",
+    "title.ilike.%Día del Campesino%",
+    "title.ilike.%Dia del Campesino%",
+    "title.ilike.%Batalla de Arica%",
+    "title.ilike.%Día de la Bandera%",
+    "title.ilike.%Dia de la Bandera%",
+    "title.ilike.%Domingo de Pascua%",
+  ].join(",");
+}
+
 export async function POST(req: Request) {
   const ctx = createApiRequestContext(req);
   logRequestStart(ctx, { flow: "google.sync" });
@@ -402,25 +473,54 @@ export async function POST(req: Request) {
     timeMax.setHours(23, 59, 59, 999);
 
     const calendars = await listAllVisibleCalendars(accessToken);
+    const syncableCalendars = calendars.filter((cal) => !isInformationalGoogleCalendar(cal));
+    const skippedInformationalCalendars = Math.max(0, calendars.length - syncableCalendars.length);
 
-    if (!calendars.length) {
+    let removedInformationalEvents = 0;
+    try {
+      const { count, error } = await supabaseAdmin
+        .from("events")
+        .delete({ count: "exact" })
+        .eq("user_id", user.id)
+        .eq("external_source", "google")
+        .or(getInformationalGoogleEventsCleanupFilter());
+
+      if (error) {
+        throw error;
+      }
+
+      removedInformationalEvents = typeof count === "number" ? count : 0;
+    } catch (error) {
+      logWarn("google.sync.informational_cleanup_failed", {
+        requestId: ctx.requestId,
+        endpoint: ctx.endpoint,
+        method: ctx.method,
+        userId: user.id,
+        error,
+      });
+    }
+
+    if (!syncableCalendars.length) {
       return jsonOk(
         ctx,
         {
           imported: 0,
           calendars: 0,
+          skippedInformationalCalendars,
+          removedInformationalEvents,
           fetched: 0,
-          message: "No se encontraron calendarios visibles para esta cuenta.",
+          message: "No se encontraron calendarios sincronizables para esta cuenta.",
         },
-        { headers: rateLimitHeaders(syncLimit), log: { flow: "google.sync", userId: user.id, imported: 0, calendars: 0 } }
+        { headers: rateLimitHeaders(syncLimit), log: { flow: "google.sync", userId: user.id, imported: 0, calendars: 0, skippedInformationalCalendars, removedInformationalEvents } }
       );
     }
 
     const allRowsToUpsert: Record<string, GoogleEventUpsertRow> = {};
     let totalFetched = 0;
+    let skippedInformationalEvents = 0;
     let calendarFailures = 0;
 
-    for (const [calendarIndex, cal] of calendars.entries()) {
+    for (const [calendarIndex, cal] of syncableCalendars.entries()) {
       const calendarId = String(cal.id || "").trim();
       if (!calendarId) continue;
 
@@ -462,6 +562,11 @@ export async function POST(req: Request) {
         const summary = (it.summary || "").trim() || "Evento de Google";
         const updated = it.updated ? String(it.updated) : null;
 
+        if (isInformationalGoogleEventTitle(summary)) {
+          skippedInformationalEvents += 1;
+          continue;
+        }
+
         allRowsToUpsert[externalId] = {
           user_id: user.id,
           owner_id: user.id,
@@ -485,7 +590,10 @@ export async function POST(req: Request) {
         ctx,
         {
           imported: 0,
-          calendars: calendars.length,
+          calendars: syncableCalendars.length,
+          skippedInformationalCalendars,
+          skippedInformationalEvents,
+          removedInformationalEvents,
           fetched: totalFetched,
           calendarFailures,
           message: "No hubo eventos válidos para importar.",
@@ -495,7 +603,10 @@ export async function POST(req: Request) {
             flow: "google.sync",
             userId: user.id,
             imported: 0,
-            calendars: calendars.length,
+            calendars: syncableCalendars.length,
+            skippedInformationalCalendars,
+            skippedInformationalEvents,
+            removedInformationalEvents,
             fetched: totalFetched,
             calendarFailures,
           },
@@ -522,7 +633,10 @@ export async function POST(req: Request) {
       ctx,
       {
         imported: rowsToUpsert.length,
-        calendars: calendars.length,
+        calendars: syncableCalendars.length,
+        skippedInformationalCalendars,
+        skippedInformationalEvents,
+        removedInformationalEvents,
         fetched: totalFetched,
         calendarFailures,
       },
@@ -532,7 +646,10 @@ export async function POST(req: Request) {
           flow: "google.sync",
           userId: user.id,
           imported: rowsToUpsert.length,
-          calendars: calendars.length,
+          calendars: syncableCalendars.length,
+          skippedInformationalCalendars,
+          skippedInformationalEvents,
+          removedInformationalEvents,
           fetched: totalFetched,
           calendarFailures,
         },

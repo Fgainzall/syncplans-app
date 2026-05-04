@@ -163,3 +163,13 @@ Usar `maskEmail()` para correos si hace falta.
 | `PUSH_NO_VALID_SUBSCRIPTIONS` | No hay suscripciones válidas. | Re-suscribir desde settings/notificaciones. |
 | `PUSH_SEND_FAILED` | Web Push falló en todos los intentos. | Revisar navegador, VAPID, service worker y failures. |
 | `PUSH_TEST_FAILED` | Error inesperado probando push. | Buscar `requestId`. |
+
+### Nota operativa Google Sync: calendarios informativos
+
+El sync de Google excluye calendarios de feriados, cumpleaños, contactos y calendarios automáticos similares. Si aparecen eventos informativos como conflictos, ejecutar sync manual y revisar en la respuesta:
+
+- `skippedInformationalCalendars`
+- `skippedInformationalEvents`
+- `removedInformationalEvents`
+
+Si esos contadores están en cero y siguen apareciendo feriados, revisar el `external_id`/título del evento importado para ampliar los patrones de filtrado.
