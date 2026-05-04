@@ -629,6 +629,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [dismissedPremiumNudge] = useState(false);
+  const [summaryNow, setSummaryNow] = useState(() => new Date());
   const premiumNudgeTrackedRef = useRef(false);
 
   const {
@@ -648,6 +649,29 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     smartMobility,
     showToast,
   } = useSummaryData({ appliedToast });
+
+  useEffect(() => {
+    const refreshSummaryNow = () => setSummaryNow(new Date());
+
+    refreshSummaryNow();
+
+    const intervalId = window.setInterval(refreshSummaryNow, 60_000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshSummaryNow();
+      }
+    };
+
+    window.addEventListener("focus", refreshSummaryNow);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshSummaryNow);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -936,11 +960,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [currentUserId, summaryAnalyticsBase]);
 
   const upcomingAll = useMemo(() => {
-    const today = startOfTodayLocal();
-    const windowEnd = addDays(today, 7);
+    const windowStart = summaryNow;
+    const windowEnd = addDays(windowStart, 7);
 
-    return visibleEvents.filter((event) => eventOverlapsWindow(event, today, windowEnd));
-  }, [visibleEvents]);
+    return visibleEvents.filter((event) => eventOverlapsWindow(event, windowStart, windowEnd));
+  }, [visibleEvents, summaryNow]);
 
   const upcomingStats = useMemo(() => {
     let personal = 0;
@@ -1790,7 +1814,7 @@ if (parsed.locationQuery) {
     const tomorrowStart = addDays(todayStart, 1);
 
     const todayEvents = visibleEvents.filter((event) =>
-      eventOverlapsWindow(event, todayStart, tomorrowStart)
+      eventOverlapsWindow(event, summaryNow, tomorrowStart)
     );
 
     const todayTotal = todayEvents.length;
@@ -1871,6 +1895,7 @@ if (parsed.locationQuery) {
     };
   }, [
     visibleEvents,
+    summaryNow,
     pendingInviteCount,
     pendingCaptureCount,
     decisionSummary.pendingProposals,

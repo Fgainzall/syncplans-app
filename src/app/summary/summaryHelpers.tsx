@@ -446,7 +446,7 @@ export function eventOverlapsWindow(
 
   return (
     start.getTime() < windowEndExclusive.getTime() &&
-    end.getTime() >= windowStart.getTime()
+    end.getTime() > windowStart.getTime()
   );
 }
 
