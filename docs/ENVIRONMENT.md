@@ -1,4 +1,4 @@
-﻿# SyncPlans — Environment Variables
+# SyncPlans — Environment Variables
 
 Contrato operativo de variables de entorno para SyncPlans.
 
@@ -16,11 +16,43 @@ No guardar valores secretos en Git. Este documento solo define nombres, uso y cr
 
 - CRON_SECRET: protege endpoints cron. Requerida en produccion.
 
-Endpoints relacionados:
+Contrato unico de autenticacion cron:
+
+```txt
+Authorization: Bearer CRON_SECRET
+```
+
+No usar secretos en query params. Estos formatos quedan intencionalmente rechazados:
+
+```txt
+?token=CRON_SECRET
+?secret=CRON_SECRET
+x-cron-secret: CRON_SECRET
+```
+
+Endpoints cron relacionados:
 - /api/cron/daily-reminders
 - /api/cron/weekly-summary
 - /api/cron/leave-alerts
-- /api/daily-digest
+
+Notas operativas:
+- /api/cron/daily-reminders acepta opcionalmente `?date=YYYY-MM-DD` para pruebas controladas. El secreto debe seguir llegando por Authorization Bearer.
+- /api/cron/leave-alerts acepta opcionalmente `?lookaheadMinutes=180`. El secreto debe seguir llegando por Authorization Bearer.
+- /api/daily-digest GET queda reservado para cron con Authorization Bearer.
+- /api/daily-digest POST mantiene compatibilidad para uso manual autenticado por usuario; si el Bearer coincide con CRON_SECRET, ejecuta el digest global.
+
+Configuracion recomendada en cron-job.org:
+
+```txt
+URL: https://syncplansapp.com/api/cron/daily-reminders
+Header: Authorization: Bearer <CRON_SECRET>
+
+URL: https://syncplansapp.com/api/cron/weekly-summary
+Header: Authorization: Bearer <CRON_SECRET>
+
+URL: https://syncplansapp.com/api/cron/leave-alerts?lookaheadMinutes=180
+Header: Authorization: Bearer <CRON_SECRET>
+```
 
 ## Email / Resend
 

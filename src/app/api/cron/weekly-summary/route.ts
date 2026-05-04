@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
+import { cronAuthFailureResponse, validateCronRequest } from "@/lib/cronAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,7 +9,6 @@ export const dynamic = "force-dynamic";
 // ─────────────────────────────────────────────
 // Config
 // ─────────────────────────────────────────────
-const CRON_SECRET = process.env.CRON_SECRET || "";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
@@ -21,34 +21,6 @@ type WeeklyProfileRow = {
   first_name?: string | null;
   email?: string | null;
 };
-// Autorización básica para llamadas de cron
-function getCronAuthError(req: Request): string | null {
-  const isProduction = process.env.NODE_ENV === "production";
-
-  if (!CRON_SECRET) {
-    return isProduction ? "CRON secret missing in production." : null;
-  }
-
-  const url = new URL(req.url);
-  const token = url.searchParams.get("token");
-  const headerSecret = req.headers.get("x-cron-secret");
-  const authHeader = req.headers.get("authorization");
-
-  // Permitimos:
-  // - ?token=CRON_SECRET
-  // - x-cron-secret: CRON_SECRET
-  // - Authorization: Bearer CRON_SECRET
-  if (token && token === CRON_SECRET) return null;
-  if (headerSecret && headerSecret === CRON_SECRET) return null;
-
-if (authHeader && authHeader.startsWith("Bearer ")) {
-  const bearer = authHeader.slice(7).trim();
-  if (bearer === CRON_SECRET) return null;
-}
-
-  return "Invalid CRON token.";
-}
-
 // Lazy init para que el build no reviente si faltan envs en local
 function getAdminSupabase() {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
@@ -212,13 +184,10 @@ function renderWeeklyHtml(opts: {
 async function runWeeklySummary(req: Request) {
   try {
     // 1️⃣ Seguridad
-    const authError = getCronAuthError(req);
+    const auth = validateCronRequest(req);
 
-    if (authError) {
-      return NextResponse.json(
-        { ok: false, message: authError },
-        { status: 401 }
-      );
+    if (!auth.ok) {
+      return cronAuthFailureResponse(auth);
     }
 
     const supabase = getAdminSupabase();

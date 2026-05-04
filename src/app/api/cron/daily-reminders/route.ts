@@ -1,62 +1,33 @@
-import { NextResponse } from "next/server";
 import { runDailyDigest } from "../../daily-digest/route";
+import {
+  cronAuthFailureResponse,
+  getCronDateParam,
+  validateCronRequest,
+} from "@/lib/cronAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const CRON_SECRET = process.env.CRON_SECRET || "";
+async function handleCron(req: Request) {
+  const auth = validateCronRequest(req);
 
-function getCronAuthError(req: Request): string | null {
-  const isProduction = process.env.NODE_ENV === "production";
-
-  if (!CRON_SECRET) {
-    return isProduction ? "CRON secret missing in production." : null;
+  if (!auth.ok) {
+    return cronAuthFailureResponse(auth);
   }
 
-  const url = new URL(req.url);
-  const token = url.searchParams.get("token");
-  const headerSecret = req.headers.get("x-cron-secret");
-  const authHeader = req.headers.get("authorization");
+  const dateParam = getCronDateParam(req);
 
-  if (token && token === CRON_SECRET) return null;
-  if (headerSecret && headerSecret === CRON_SECRET) return null;
+  if (!dateParam.ok) {
+    return dateParam.response;
+  }
 
-if (authHeader && authHeader.startsWith("Bearer ")) {
-  const bearerToken = authHeader.slice(7).trim();
-  if (bearerToken === CRON_SECRET) return null;
-}
-
-  return "Invalid CRON token.";
+  return runDailyDigest(dateParam.date);
 }
 
 export async function GET(req: Request) {
-  const authError = getCronAuthError(req);
-
-  if (authError) {
-    return NextResponse.json(
-      { ok: false, message: authError },
-      { status: 401 }
-    );
-  }
-
-  const url = new URL(req.url);
-  const dateParam = url.searchParams.get("date");
-
-  return runDailyDigest(dateParam);
+  return handleCron(req);
 }
 
 export async function POST(req: Request) {
-  const authError = getCronAuthError(req);
-
-  if (authError) {
-    return NextResponse.json(
-      { ok: false, message: authError },
-      { status: 401 }
-    );
-  }
-
-  const url = new URL(req.url);
-  const dateParam = url.searchParams.get("date");
-
-  return runDailyDigest(dateParam);
+  return handleCron(req);
 }

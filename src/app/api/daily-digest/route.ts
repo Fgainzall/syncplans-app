@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
+import { getAuthenticatedUser } from "@/lib/apiSecurity";
+import {
+  cronAuthFailureResponse,
+  getCronDateParam,
+  validateCronRequest,
+} from "@/lib/cronAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,9 +22,7 @@ const EMAIL_FROM =
   "SyncPlans <no-reply@syncplansapp.com>";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const CRON_SECRET = process.env.CRON_SECRET || "";
 
 // Tipamos explícito el admin client para que TS no moleste
 type AdminClient = ReturnType<typeof createClient>;
@@ -58,59 +62,6 @@ function getAdminClient(): AdminClient {
     throw new Error("Missing Supabase admin env vars");
   }
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-}
-
-async function getUserFromBearer(req: Request) {
-  const authHeader = req.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ")
-    ? authHeader.slice(7).trim()
-    : authHeader.startsWith("bearer ")
-    ? authHeader.slice(7).trim()
-    : "";
-
-  if (!token) return null;
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
-
-  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    },
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  });
-
-  const { data, error } = await client.auth.getUser();
-  if (error || !data.user) return null;
-
-  return data.user;
-}
-
-// ───────────────────────────── helpers de auth ───────────────────────────────
-
-function isAuthorized(req: Request): boolean {
-  if (!CRON_SECRET) {
-    return process.env.NODE_ENV !== "production";
-  }
-
-  const url = new URL(req.url);
-  const token = url.searchParams.get("token");
-  const headerSecret = req.headers.get("x-cron-secret");
-  const authHeader = req.headers.get("authorization");
-
-  if (token && token === CRON_SECRET) return true;
-  if (headerSecret && headerSecret === CRON_SECRET) return true;
-
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    const bearerToken = authHeader.slice(7).trim();
-    if (bearerToken === CRON_SECRET) return true;
-  }
-
-  return false;
 }
 
 // ───────────────────────────── helpers de formato ────────────────────────────
@@ -478,14 +429,13 @@ async function runManualDigestForAuthedUser(
   dateParam: string | null
 ) {
   try {
-    const user = await getUserFromBearer(req);
+    const auth = await getAuthenticatedUser(req);
 
-    if (!user) {
-      return NextResponse.json(
-        { ok: false, message: "Unauthorized", reason: "unauthorized" },
-        { status: 401 }
-      );
+    if (!auth.ok) {
+      return auth.response;
     }
+
+    const user = auth.user;
 
     if (!user.email) {
       return NextResponse.json(
@@ -540,28 +490,37 @@ async function runManualDigestForAuthedUser(
 // ───────────────────────────── handlers GET & POST ───────────────────────────
 
 export async function GET(req: Request) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json(
-      { ok: false, message: "Unauthorized" },
-      { status: 401 }
-    );
+  const auth = validateCronRequest(req);
+
+  if (!auth.ok) {
+    return cronAuthFailureResponse(auth);
   }
 
-  const url = new URL(req.url);
-  const dateParam = url.searchParams.get("date");
+  const dateParam = getCronDateParam(req);
 
-  return runDailyDigest(dateParam);
+  if (!dateParam.ok) {
+    return dateParam.response;
+  }
+
+  return runDailyDigest(dateParam.date);
 }
 
 export async function POST(req: Request) {
   const url = new URL(req.url);
   const dateFromQuery = url.searchParams.get("date");
+  const cronAuth = validateCronRequest(req);
 
-  if (isAuthorized(req)) {
-    return runDailyDigest(dateFromQuery);
+  if (cronAuth.ok) {
+    const dateParam = getCronDateParam(req);
+
+    if (!dateParam.ok) {
+      return dateParam.response;
+    }
+
+    return runDailyDigest(dateParam.date);
   }
 
-const body = (await req.json().catch(() => ({}))) as ManualDigestBody;
+  const body = (await req.json().catch(() => ({}))) as ManualDigestBody;
   const dateFromBody =
     typeof body?.date === "string" && body.date.trim() ? body.date.trim() : null;
 

@@ -1,26 +1,9 @@
 import { NextResponse } from "next/server";
 import { runLeaveAlerts } from "@/lib/travelReminders";
+import { cronAuthFailureResponse, validateCronRequest } from "@/lib/cronAuth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-function isAuthorized(req: Request): boolean {
-  const cronSecret = String(process.env.CRON_SECRET ?? "").trim();
-  if (!cronSecret) return false;
-
-  const url = new URL(req.url);
-  const querySecret = String(url.searchParams.get("secret") ?? "").trim();
-  const headerSecret = String(req.headers.get("x-cron-secret") ?? "").trim();
-
-  const authHeader = String(req.headers.get("authorization") ?? "").trim();
-  const bearerSecret = authHeader.toLowerCase().startsWith("bearer ")
-    ? authHeader.slice(7).trim()
-    : "";
-
-  return [querySecret, headerSecret, bearerSecret].some(
-    (candidate) => candidate && candidate === cronSecret
-  );
-}
 
 function getLookaheadMinutes(req: Request): number | undefined {
   const url = new URL(req.url);
@@ -35,15 +18,10 @@ function getLookaheadMinutes(req: Request): number | undefined {
 }
 
 async function handleCron(req: Request) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Unauthorized",
-        code: "LEAVE_ALERTS_UNAUTHORIZED",
-      },
-      { status: 401 }
-    );
+  const auth = validateCronRequest(req);
+
+  if (!auth.ok) {
+    return cronAuthFailureResponse(auth);
   }
 
   const startedAt = new Date().toISOString();
@@ -83,7 +61,12 @@ async function handleCron(req: Request) {
         startedAt,
         finishedAt: new Date().toISOString(),
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
     );
   }
 }
