@@ -450,8 +450,6 @@ export async function POST(req: Request) {
           external_source: "google",
           external_id: externalId,
           external_updated_at: updated,
-          source_calendar_id: calendarId,
-          source_calendar_name: calendarName,
         };
       }
     }
@@ -484,7 +482,7 @@ export async function POST(req: Request) {
     const { error: upsertError } = await supabaseAdmin
       .from("events")
       .upsert(rowsToUpsert, {
-        onConflict: "external_id",
+        onConflict: "user_id,external_source,external_id",
       });
 
     if (upsertError) {
