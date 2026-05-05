@@ -79,16 +79,7 @@ function getBearerToken(req: Request) {
 }
 
 function isAuthorized(req: Request, expectedSecret: string) {
-  const url = new URL(req.url);
-  const querySecret = url.searchParams.get("secret")?.trim();
-  const headerSecret = req.headers.get("x-push-test-secret")?.trim();
-  const bearer = getBearerToken(req);
-
-  return (
-    querySecret === expectedSecret ||
-    headerSecret === expectedSecret ||
-    bearer === expectedSecret
-  );
+  return getBearerToken(req) === expectedSecret;
 }
 
 async function parseBody(req: Request): Promise<PushBody> {

@@ -43,11 +43,9 @@ Código:
 
 Pasos:
 1. Confirmar env `PUSH_TEST_SECRET` en Vercel.
-2. Enviar uno de estos formatos:
-   - Header `x-push-test-secret: <PUSH_TEST_SECRET>`
+2. Enviar únicamente este formato:
    - Header `Authorization: Bearer <PUSH_TEST_SECRET>`
-   - Query `?secret=<PUSH_TEST_SECRET>` solo para pruebas manuales controladas.
-3. No guardar el secreto en capturas públicas.
+3. No enviar el secreto por query params, headers custom ni capturas públicas.
 
 ### Falta configuración VAPID
 
