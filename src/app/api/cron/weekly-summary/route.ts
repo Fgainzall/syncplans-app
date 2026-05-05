@@ -29,6 +29,8 @@ const EMAIL_FROM =
 type WeeklyProfileRow = {
   first_name?: string | null;
   email?: string | null;
+  daily_digest_timezone?: string | null;
+  timezone?: string | null;
 };
 // Lazy init para que el build no reviente si faltan envs en local
 function getAdminSupabase() {
@@ -52,22 +54,130 @@ function getResend() {
   return new Resend(RESEND_API_KEY);
 }
 
-// Timezone fijo (Lima)
-const TZ_OFFSET_HOURS = -5;
+const DEFAULT_SUMMARY_TIME_ZONE = "America/Lima";
 
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
+type ZonedDateParts = {
+  year: number;
+  monthIndex: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+};
+
+function normalizeSummaryTimeZone(value: string | null | undefined): string {
+  const timeZone = String(value ?? "").trim();
+
+  if (!timeZone) return DEFAULT_SUMMARY_TIME_ZONE;
+
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());
+    return timeZone;
+  } catch {
+    return DEFAULT_SUMMARY_TIME_ZONE;
+  }
 }
 
-function atLocalMidnight(date: Date) {
-  const copy = new Date(date);
-  copy.setUTCHours(0 - TZ_OFFSET_HOURS, 0, 0, 0);
-  return copy;
+function pickSummaryTimeZone(profile: WeeklyProfileRow | null | undefined): string {
+  return normalizeSummaryTimeZone(
+    profile?.daily_digest_timezone || profile?.timezone || null
+  );
 }
 
-function formatDayLabel(dateIso: string | null | undefined) {
+function getZonedParts(date: Date, timeZone: string): ZonedDateParts {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const byType = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  return {
+    year: Number(byType.year),
+    monthIndex: Number(byType.month) - 1,
+    day: Number(byType.day),
+    hour: Number(byType.hour),
+    minute: Number(byType.minute),
+    second: Number(byType.second),
+  };
+}
+
+function getTimeZoneOffsetMs(date: Date, timeZone: string): number {
+  const parts = getZonedParts(date, timeZone);
+
+  const localAsUtcMs = Date.UTC(
+    parts.year,
+    parts.monthIndex,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+    0
+  );
+
+  return localAsUtcMs - date.getTime();
+}
+
+function zonedLocalDateTimeToUtc(
+  year: number,
+  monthIndex: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+  millisecond: number,
+  timeZone: string
+): Date {
+  const localAsUtcMs = Date.UTC(
+    year,
+    monthIndex,
+    day,
+    hour,
+    minute,
+    second,
+    millisecond
+  );
+
+  let utc = new Date(localAsUtcMs);
+
+  for (let i = 0; i < 3; i += 1) {
+    const offsetMs = getTimeZoneOffsetMs(utc, timeZone);
+    utc = new Date(localAsUtcMs - offsetMs);
+  }
+
+  return utc;
+}
+
+function addUtcDays(date: Date, days: number) {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + days)
+  );
+}
+
+function localDateLabelInstant(date: Date, timeZone: string): Date {
+  return zonedLocalDateTimeToUtc(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+    12,
+    0,
+    0,
+    0,
+    timeZone
+  );
+}
+
+function formatDayLabel(dateIso: string | null | undefined, timeZone: string) {
   if (!dateIso) return "Sin fecha";
   const date = new Date(dateIso);
   if (Number.isNaN(date.getTime())) return "Sin fecha";
@@ -76,11 +186,11 @@ function formatDayLabel(dateIso: string | null | undefined) {
     weekday: "short",
     day: "numeric",
     month: "short",
-    timeZone: "America/Lima",
+    timeZone,
   }).format(date);
 }
 
-function formatHourLabel(dateIso: string | null | undefined) {
+function formatHourLabel(dateIso: string | null | undefined, timeZone: string) {
   if (!dateIso) return "";
   const date = new Date(dateIso);
   if (Number.isNaN(date.getTime())) return "";
@@ -89,34 +199,59 @@ function formatHourLabel(dateIso: string | null | undefined) {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-    timeZone: "America/Lima",
+    timeZone,
   }).format(date);
 }
 
-function thisWeekRangeISO() {
-  const now = new Date();
-  const todayLocalMidnight = atLocalMidnight(now);
-
-  const day = todayLocalMidnight.getUTCDay();
+function thisWeekRangeISO(timeZoneInput?: string | null) {
+  const timeZone = normalizeSummaryTimeZone(timeZoneInput);
+  const now = getZonedParts(new Date(), timeZone);
+  const todayAsUtcDate = new Date(Date.UTC(now.year, now.monthIndex, now.day));
+  const day = todayAsUtcDate.getUTCDay();
   const mondayOffset = day === 0 ? -6 : 1 - day;
 
-  const weekStart = addDays(todayLocalMidnight, mondayOffset);
-  const weekEnd = addDays(weekStart, 7);
+  const weekStartLocal = addUtcDays(todayAsUtcDate, mondayOffset);
+  const weekEndLocal = addUtcDays(weekStartLocal, 7);
+  const weekLastLocal = addUtcDays(weekEndLocal, -1);
+
+  const weekStart = zonedLocalDateTimeToUtc(
+    weekStartLocal.getUTCFullYear(),
+    weekStartLocal.getUTCMonth(),
+    weekStartLocal.getUTCDate(),
+    0,
+    0,
+    0,
+    0,
+    timeZone
+  );
+  const weekEnd = zonedLocalDateTimeToUtc(
+    weekEndLocal.getUTCFullYear(),
+    weekEndLocal.getUTCMonth(),
+    weekEndLocal.getUTCDate(),
+    0,
+    0,
+    0,
+    0,
+    timeZone
+  );
+
+  const weekLastLabelDate = localDateLabelInstant(weekLastLocal, timeZone);
 
   const label = `${new Intl.DateTimeFormat("es-PE", {
     day: "numeric",
     month: "short",
-    timeZone: "America/Lima",
+    timeZone,
   }).format(weekStart)} - ${new Intl.DateTimeFormat("es-PE", {
     day: "numeric",
     month: "short",
-    timeZone: "America/Lima",
-  }).format(addDays(weekEnd, -1))}`;
+    timeZone,
+  }).format(weekLastLabelDate)}`;
 
   return {
     startISO: weekStart.toISOString(),
     endISO: weekEnd.toISOString(),
     label,
+    timeZone,
   };
 }
 
@@ -124,8 +259,9 @@ function renderWeeklyHtml(opts: {
   userName: string;
   label: string;
   events: Array<{ title: string; start: string | null; end: string | null }>;
+  timeZone: string;
 }) {
-  const { userName, label, events } = opts;
+  const { userName, label, events, timeZone } = opts;
 
   return `
     <div style="background:#F8FAFC;padding:24px 12px;font-family:Inter,Arial,sans-serif;color:#0F172A;">
@@ -157,9 +293,9 @@ function renderWeeklyHtml(opts: {
                           ${event.title || "Evento"}
                         </div>
                         <div style="margin-top:4px;font-size:13px;color:#64748B;">
-                          ${formatDayLabel(event.start)} ${
-                            formatHourLabel(event.start)
-                              ? `• ${formatHourLabel(event.start)}`
+                          ${formatDayLabel(event.start, timeZone)} ${
+                            formatHourLabel(event.start, timeZone)
+                              ? `• ${formatHourLabel(event.start, timeZone)}`
                               : ""
                           }
                         </div>
@@ -205,7 +341,6 @@ async function runWeeklySummary(req: Request) {
 
     const supabase = getAdminSupabase();
     const resend = getResend();
-    const { startISO, endISO, label } = thisWeekRangeISO();
 
     // 2️⃣ Usuarios con resumen semanal activo
     const { data: users, error: usersErr } = await supabase
@@ -248,7 +383,7 @@ async function runWeeklySummary(req: Request) {
       try {
         const { data: profile, error: profileErr } = await supabase
           .from("profiles")
-          .select("first_name, email")
+          .select("first_name, email, daily_digest_timezone, timezone")
           .eq("id", userId)
           .maybeSingle();
 
@@ -266,6 +401,8 @@ async function runWeeklySummary(req: Request) {
 
         const profileRow = profile as WeeklyProfileRow | null;
         const email = String(profileRow?.email ?? "").trim();
+        const timeZone = pickSummaryTimeZone(profileRow);
+        const { startISO, endISO, label } = thisWeekRangeISO(timeZone);
 
         if (!email) {
           skipped += 1;
@@ -300,6 +437,7 @@ async function runWeeklySummary(req: Request) {
             start: string | null;
             end: string | null;
           }>,
+          timeZone,
         });
 
         try {
@@ -335,9 +473,11 @@ async function runWeeklySummary(req: Request) {
       }
     }
 
+    const defaultWeek = thisWeekRangeISO(DEFAULT_SUMMARY_TIME_ZONE);
+
     return jsonOk(ctx, {
       job: "weekly-summary",
-      label,
+      label: defaultWeek.label,
       startedAt,
       finishedAt: new Date().toISOString(),
       durationMs: durationMs(ctx),

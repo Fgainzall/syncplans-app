@@ -50,6 +50,11 @@ type DailySummarySettingRow = {
   daily_summary: boolean | null;
 };
 
+type ProfileTimezoneRow = {
+  daily_digest_timezone?: string | null;
+  timezone?: string | null;
+};
+
 type ManualDigestBody = {
   date?: unknown;
 };
@@ -81,31 +86,115 @@ type EventPayload = {
   groupLabel: string;
 };
 
-function formatTime(iso: string) {
+const DEFAULT_DIGEST_TIME_ZONE = "America/Lima";
+
+type ZonedDateParts = {
+  year: number;
+  monthIndex: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+};
+
+function normalizeDigestTimeZone(value: string | null | undefined): string {
+  const timeZone = String(value ?? "").trim();
+
+  if (!timeZone) return DEFAULT_DIGEST_TIME_ZONE;
+
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());
+    return timeZone;
+  } catch {
+    return DEFAULT_DIGEST_TIME_ZONE;
+  }
+}
+
+function getZonedParts(date: Date, timeZone: string): ZonedDateParts {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const byType = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  return {
+    year: Number(byType.year),
+    monthIndex: Number(byType.month) - 1,
+    day: Number(byType.day),
+    hour: Number(byType.hour),
+    minute: Number(byType.minute),
+    second: Number(byType.second),
+  };
+}
+
+function getTimeZoneOffsetMs(date: Date, timeZone: string): number {
+  const parts = getZonedParts(date, timeZone);
+
+  const localAsUtcMs = Date.UTC(
+    parts.year,
+    parts.monthIndex,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+    0
+  );
+
+  return localAsUtcMs - date.getTime();
+}
+
+function zonedLocalDateTimeToUtc(
+  year: number,
+  monthIndex: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+  millisecond: number,
+  timeZone: string
+): Date {
+  const localAsUtcMs = Date.UTC(
+    year,
+    monthIndex,
+    day,
+    hour,
+    minute,
+    second,
+    millisecond
+  );
+
+  let utc = new Date(localAsUtcMs);
+
+  for (let i = 0; i < 3; i += 1) {
+    const offsetMs = getTimeZoneOffsetMs(utc, timeZone);
+    utc = new Date(localAsUtcMs - offsetMs);
+  }
+
+  return utc;
+}
+
+function formatTime(iso: string, timeZone: string) {
   const d = new Date(iso);
   return d.toLocaleTimeString("es-PE", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone,
   });
 }
 
-const LIMA_TZ = "America/Lima";
-const LIMA_UTC_OFFSET_HOURS = -5;
-
-function getLimaNowParts() {
-  const nowUtc = new Date();
-  const limaMs =
-    nowUtc.getTime() + LIMA_UTC_OFFSET_HOURS * 60 * 60 * 1000;
-  const lima = new Date(limaMs);
-
-  return {
-    year: lima.getUTCFullYear(),
-    monthIndex: lima.getUTCMonth(),
-    day: lima.getUTCDate(),
-  };
-}
-
-function buildLimaDayRange(dateParam: string | null) {
+function buildDigestDayRange(dateParam: string | null, timeZoneInput?: string | null) {
+  const timeZone = normalizeDigestTimeZone(timeZoneInput);
   let year: number;
   let monthIndex: number;
   let day: number;
@@ -118,33 +207,84 @@ function buildLimaDayRange(dateParam: string | null) {
     monthIndex = m - 1;
     day = d;
   } else {
-    const now = getLimaNowParts();
+    const now = getZonedParts(new Date(), timeZone);
     year = now.year;
     monthIndex = now.monthIndex;
     day = now.day;
   }
 
-  // Medianoche en Lima = 05:00 UTC
-  const dayStart = new Date(Date.UTC(year, monthIndex, day, 5, 0, 0, 0));
-  const dayEnd = new Date(Date.UTC(year, monthIndex, day + 1, 5, 0, 0, 0));
+  const dayStart = zonedLocalDateTimeToUtc(
+    year,
+    monthIndex,
+    day,
+    0,
+    0,
+    0,
+    0,
+    timeZone
+  );
+  const dayEnd = zonedLocalDateTimeToUtc(
+    year,
+    monthIndex,
+    day + 1,
+    0,
+    0,
+    0,
+    0,
+    timeZone
+  );
 
   const dateLabel = new Intl.DateTimeFormat("es-PE", {
     weekday: "long",
     day: "numeric",
     month: "long",
-    timeZone: LIMA_TZ,
+    timeZone,
   }).format(dayStart);
 
   return {
     dayStartIso: dayStart.toISOString(),
     dayEndIso: dayEnd.toISOString(),
     dateLabel,
+    timeZone,
   };
+}
+
+function pickDigestTimeZone(profile: ProfileTimezoneRow | null | undefined): string {
+  return normalizeDigestTimeZone(
+    profile?.daily_digest_timezone || profile?.timezone || null
+  );
+}
+
+async function getDigestTimeZoneForUser(
+  client: AdminClient,
+  userId: string
+): Promise<string> {
+  const { data, error } = await client
+    .from("profiles")
+    .select("daily_digest_timezone, timezone")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        event: "daily_digest.timezone_lookup_failed",
+        userId,
+        error: safeError(error),
+      })
+    );
+
+    return DEFAULT_DIGEST_TIME_ZONE;
+  }
+
+  return pickDigestTimeZone(data as ProfileTimezoneRow | null);
 }
 
 function buildDailyDigestHtml(
   dateLabel: string,
-  events: EventPayload[]
+  events: EventPayload[],
+  timeZone: string
 ): { html: string; subject: string } {
   const total = events.length;
   const sharedCount = events.filter(
@@ -167,7 +307,7 @@ function buildDailyDigestHtml(
     .map(
       (e) =>
         `<li style="margin-bottom:6px;">
-           <strong>${formatTime(e.start)} – ${formatTime(e.end)}</strong> · ${
+           <strong>${formatTime(e.start, timeZone)} – ${formatTime(e.end, timeZone)}</strong> · ${
           e.title
         }
            <span style="color:#9ca3af;"> (${e.groupLabel})</span>
@@ -345,7 +485,6 @@ export async function runDailyDigest(
   try {
     const supabaseAdmin = getAdminClient();
     const resend = getResend();
-    const { dayStartIso, dayEndIso, dateLabel } = buildLimaDayRange(dateParam);
 
     // 1) usuarios que tienen daily_summary = true
     const { data: settings, error: settingsErr } = await supabaseAdmin
@@ -408,7 +547,13 @@ export async function runDailyDigest(
           continue;
         }
 
-        // 2.2) eventos del día
+        // 2.2) eventos del día según timezone del usuario
+        const timeZone = await getDigestTimeZoneForUser(supabaseAdmin, userId);
+        const { dayStartIso, dayEndIso, dateLabel } = buildDigestDayRange(
+          dateParam,
+          timeZone
+        );
+
         const events = await getEventsForUserOnDay(
           supabaseAdmin,
           userId,
@@ -426,7 +571,11 @@ export async function runDailyDigest(
           continue;
         }
 
-        const { html, subject } = buildDailyDigestHtml(dateLabel, events);
+        const { html, subject } = buildDailyDigestHtml(
+          dateLabel,
+          events,
+          timeZone
+        );
 
         await resend.emails.send({
           from: EMAIL_FROM,
@@ -512,7 +661,11 @@ async function runManualDigestForAuthedUser(
 
     const supabaseAdmin = getAdminClient();
     const resend = getResend();
-    const { dayStartIso, dayEndIso, dateLabel } = buildLimaDayRange(dateParam);
+    const timeZone = await getDigestTimeZoneForUser(supabaseAdmin, user.id);
+    const { dayStartIso, dayEndIso, dateLabel } = buildDigestDayRange(
+      dateParam,
+      timeZone
+    );
 
     const events = await getEventsForUserOnDay(
       supabaseAdmin,
@@ -529,7 +682,11 @@ async function runManualDigestForAuthedUser(
       });
     }
 
-    const { html, subject } = buildDailyDigestHtml(dateLabel, events);
+    const { html, subject } = buildDailyDigestHtml(
+      dateLabel,
+      events,
+      timeZone
+    );
 
     await resend.emails.send({
       from: EMAIL_FROM,
