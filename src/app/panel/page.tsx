@@ -747,6 +747,12 @@ connection_state:
       hint: isMobile ? "Nivel y beneficios" : "Nivel actual y beneficios activos",
       href: "/planes",
     },
+    {
+      id: "operations",
+      title: "Operaciones",
+      hint: isMobile ? "Salud y checks" : "Salud del sistema, checks y runbooks",
+      href: "/panel/operations",
+    },
   ];
 
   const operationActions: CompactAction[] = [
