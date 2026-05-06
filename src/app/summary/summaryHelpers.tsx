@@ -502,32 +502,57 @@ export function cleanTemporalNoise(raw: string): string {
   return text;
 }
 
+function formatQuickCaptureTime(hour: number, minutes: number) {
+  const safeHour = Math.max(0, Math.min(23, Math.floor(hour)));
+  const safeMinutes = Math.max(0, Math.min(59, Math.floor(minutes)));
+  const date = new Date();
+  date.setHours(safeHour, safeMinutes, 0, 0);
+
+  return date.toLocaleTimeString("es-PE", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function normalizePreviewPart(value: string | null | undefined) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
 export function formatQuickCapturePreview(input: string): string | null {
   const raw = String(input || "").trim();
   if (!raw) return null;
 
   const parsed = parseQuickCapture(raw);
-  const title = String(parsed.title || "").trim();
+  const title = normalizePreviewPart(parsed.title);
   if (!title) return null;
 
   const parts: string[] = [title];
 
   if (parsed.date) {
-    const dateLabel = parsed.date.toLocaleDateString([], {
+    const dateLabel = parsed.date.toLocaleDateString("es-PE", {
       weekday: "short",
       day: "2-digit",
       month: "short",
     });
-    const timeLabel = parsed.date.toLocaleTimeString([], {
-      hour: "2-digit",
+    const timeLabel = parsed.date.toLocaleTimeString("es-PE", {
+      hour: "numeric",
       minute: "2-digit",
     });
     parts.push(`${dateLabel} · ${timeLabel}`);
+  } else if (parsed.startHour !== null) {
+    parts.push(formatQuickCaptureTime(parsed.startHour, parsed.startMinutes));
   }
 
-  const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
+  const location = normalizePreviewPart(parsed.locationQuery);
+  if (location) {
+    parts.push(location);
+  }
 
-  if (cleanedNotes) {
+  const cleanedNotes = normalizePreviewPart(
+    cleanTemporalNoise(String(parsed.notes || "").trim())
+  );
+
+  if (cleanedNotes && normalizePreviewPart(cleanedNotes) !== location) {
     parts.push(cleanedNotes);
   }
 
@@ -762,6 +787,13 @@ export function buildSmartInterpretation(input: {
         reason: "social_hint",
       };
     }
+
+    return {
+      intent: "group",
+      groupId: null,
+      confidence: "low",
+      reason: "social_hint",
+    };
   }
 
   const learned = learnedGroupMatch(raw);
@@ -806,10 +838,16 @@ export function getSmartInterpretationLabel(
     return "→ Esto quedará como plan personal";
   }
 
+  const groupId = String(interpretation.groupId ?? "").trim();
+
+  if (!groupId) {
+    return "→ Suena a plan compartido · lo dejaré listo para revisar y compartir";
+  }
+
   const group =
     groups.find(
       (candidate) =>
-        String(candidate.id) === String(interpretation.groupId ?? "")
+        String(candidate.id) === groupId
     ) ?? null;
 
   const groupLabel = group ? humanGroupName(group) : "grupo";

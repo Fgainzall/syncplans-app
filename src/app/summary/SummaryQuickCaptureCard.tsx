@@ -86,6 +86,12 @@ export default function SummaryQuickCaptureCard({
     interpretation
   );
   const hasMultipleGroups = groups.length > 1;
+  const normalizedActiveGroupName = String(activeGroupName ?? "").trim();
+  const primaryContextLabel =
+    activeGroupType === "personal" &&
+    normalizedActiveGroupName.toLowerCase() === "personal"
+      ? "Modo rápido"
+      : normalizedActiveGroupName || "Modo rápido";
   const visibleExamples = examples.map(exampleText).filter(Boolean).slice(0, 3);
   const visibleSuggestions = timeSuggestions.slice(0, 3);
 
@@ -105,9 +111,7 @@ export default function SummaryQuickCaptureCard({
         </div>
 
         <div style={s.contextWrap}>
-          <span style={s.contextPill}>
-            {activeGroupName ? activeGroupName : "Modo rápido"}
-          </span>
+          <span style={s.contextPill}>{primaryContextLabel}</span>
           <span style={s.contextPillSoft}>{contextLabel}</span>
         </div>
       </header>

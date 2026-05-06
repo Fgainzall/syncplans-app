@@ -116,7 +116,6 @@ const LOCATION_BREAK_TOKENS = [
   " para ",
   " a las ",
   " alas ",
-  " de ",
   " hoy",
   " mañana",
   " manana",
@@ -344,12 +343,10 @@ function splitParticipantChunk(chunk: string): string[] {
 
 function stripTrailingTimeAndDate(chunk: string) {
   return String(chunk ?? "")
-    .replace(/\b(a\s+las|alas|de)\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\b.*$/i, "")
-    .replace(
-      /\b(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b.*$/i,
-      ""
-    )
-    .replace(/\b(en|por|cerca de|donde)\b.*$/i, "")
+    .replace(/\b(el|la|los|las)?\s*(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b.*$/i, "")
+    .replace(/\b(a\s+las|alas|de)\s+\d{1,2}(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b.*$/i, "")
+    .replace(/\b(en casa de|en|por|cerca de|donde|junto a)\b.*$/i, "")
+    .replace(/\b(el|la|los|las)\b\s*$/i, "")
     .replace(/[.,;:!?]+$/g, "")
     .trim();
 }
@@ -499,7 +496,7 @@ function detectLocationIntent(raw: string): {
   const text = String(raw ?? "");
 
   const houseMatch = text.match(
-    /\ben\s+casa\s+de\s+([^,.;:!?]+(?:\s+[^,.;:!?]+){0,5})/i
+    /\ben\s+casa\s+de\s+([^.;:!?]+(?:\s+[^.;:!?]+){0,5})/i
   );
   if (houseMatch) {
     const cleaned = sanitizeLocationFragment(`Casa de ${houseMatch[1] ?? ""}`);
@@ -528,11 +525,11 @@ function detectLocationIntent(raw: string): {
     regex: RegExp;
     confidence: "medium" | "high";
   }> = [
-    { regex: /\bdonde\s+([^,.;:!?]+)/i, confidence: "high" },
-    { regex: /\bjunto a\s+([^,.;:!?]+)/i, confidence: "high" },
-    { regex: /\bcerca de\s+([^,.;:!?]+)/i, confidence: "medium" },
-    { regex: /\bpor\s+([^,.;:!?]+)/i, confidence: "medium" },
-    { regex: /\ben\s+([^,.;:!?]+)/i, confidence: "medium" },
+    { regex: /\bdonde\s+([^.;:!?]+)/i, confidence: "high" },
+    { regex: /\bjunto a\s+([^.;:!?]+)/i, confidence: "high" },
+    { regex: /\bcerca de\s+([^.;:!?]+)/i, confidence: "medium" },
+    { regex: /\bpor\s+([^.;:!?]+)/i, confidence: "medium" },
+    { regex: /\ben\s+([^.;:!?]+)/i, confidence: "medium" },
   ];
 
   for (const pattern of connectorPatterns) {
@@ -705,8 +702,9 @@ function inferPeriodFromContext(
   if (/\b(desayuno|brunch|manana|por la manana|temprano)\b/.test(context)) {
     return "am";
   }
+  if (/\b(almuerzo|lunch|comer)\b/.test(context)) return "pm";
   if (/\b(de la|por la)\s+(noche|tarde)\b/.test(context)) return "pm";
-  if (/\b(cena|parrilla|fulbito|futbol|padel|asado|after)\b/.test(context)) {
+  if (/\b(cena|cenar|parrilla|fulbito|futbol|asado|after)\b/.test(context)) {
     return "pm";
   }
   if (/\b(de la|por la)\s+manana\b/.test(context)) return "am";
@@ -898,58 +896,68 @@ function extractDay(text: string): Date | null {
 function removeDateAndTimeTokens(text: string): string {
   return String(text ?? "")
     .replace(
+      /\b(el|la|los|las)\s+(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/gi,
+      " "
+    )
+    .replace(
+      /\b(el|la|los|las)\s+(proximo|próximo|proxima|próxima|siguiente|otro|otra|este|esta)\s+(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|fin de semana|finde|semana)\b/gi,
+      " "
+    )
+    .replace(
       /\b(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/gi,
       " "
     )
     .replace(
-      /\b(fin de semana|finde|este finde|este fin de semana|el otro finde|el otro fin de semana)\b/gi,
+      /\b(fin de semana|finde|este finde|este fin de semana|el otro finde|el otro fin de semana|proximo fin de semana|próximo fin de semana)\b/gi,
       " "
     )
     .replace(/\b(proximo|próximo|proxima|próxima|siguiente|otro|otra|este|esta)\b/gi, " ")
     .replace(/\b(semana|que|viene)\b/gi, " ")
     .replace(/\b(dentro de)\b/gi, " ")
     .replace(
-      /\bde\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\s+a\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\b/gi,
+      /\bde\s+\d{1,2}(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\s+a\s+\d{1,2}(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/gi,
       " "
     )
     .replace(/\b(a\s+las|alas)\b/gi, " ")
     .replace(/\b(mediodia|medianoche)\b/gi, " ")
     .replace(
-      /\b(\d{1,2})(?::\d{2})?\s?(am|pm)?\b(?!\s?(min|mins|m|h|hora|horas)\b)/gi,
+      /\b(\d{1,2})(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b(?!\s?(min|mins|m|h|hora|horas)\b)/gi,
       " "
     )
     .replace(/\b(\d+)\s?(min|mins|m|h|hora|horas)\b/gi, " ")
     .replace(/\b(en dos semanas)\b/gi, " ")
+    .replace(/\b(el|la|los|las)\b(?=\s+(en casa de|en|donde|por|cerca de|junto a)\b)/gi, " ")
     .replace(/\b(el|la|los|las)\b(?=\s*$)/gi, " ")
-    .replace(
-      /\b(el|la)\b(?=\s+(jueves|viernes|martes|miercoles|miércoles|lunes|domingo|sabado|sábado)\b)/gi,
-      " "
-    )
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function findConnectorIndex(cleaned: string, normalizedConnector: string) {
-  return normalizeForMatching(cleaned).indexOf(normalizedConnector);
+function escapeRegExp(value: string) {
+  return String(value ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function connectorToRegex(connector: string) {
+  const parts = collapseSpaces(connector).split(" ").filter(Boolean);
+  const body = parts.map(escapeRegExp).join("\\s+");
+  return new RegExp(`(^|\\s)${body}(?=\\s|$)`, "i");
+}
+
+function findConnectorIndex(cleaned: string, connector: string) {
+  const match = connectorToRegex(connector).exec(cleaned);
+  if (!match) return -1;
+  return match.index + String(match[1] ?? "").length;
 }
 
 function splitTitleAndNotes(original: string): { title: string; notes: string } {
   const cleaned = collapseSpaces(removeDateAndTimeTokens(original));
-  const normalizedCleaned = ` ${normalizeForMatching(cleaned)} `;
 
   for (const connector of TITLE_NOTES_CONNECTORS) {
-    const normalizedConnector = normalizeForMatching(connector).trim();
-    const marker = ` ${normalizedConnector} `;
-    const idx = normalizedCleaned.indexOf(marker);
+    const rawIndex = findConnectorIndex(cleaned, connector);
+    if (rawIndex < 0) continue;
 
-    if (idx >= 0) {
-      const rawIndex = findConnectorIndex(cleaned, normalizedConnector);
-      if (rawIndex >= 0) {
-        const title = collapseSpaces(cleaned.slice(0, rawIndex));
-        const notes = collapseSpaces(cleaned.slice(rawIndex));
-        return { title: title || cleaned || original.trim(), notes };
-      }
-    }
+    const title = collapseSpaces(cleaned.slice(0, rawIndex));
+    const notes = collapseSpaces(cleaned.slice(rawIndex));
+    return { title: title || cleaned || original.trim(), notes };
   }
 
   return {
@@ -972,8 +980,10 @@ function cleanNotesFromLocationIntent(
   if (source === "at_symbol") {
     next = next.replace(new RegExp(`@\\s*${escaped}`, "i"), "");
   } else if (source === "house_of") {
+    const houseName = locationQuery.replace(/^Casa\s+de\s+/i, "").trim();
+    const escapedHouseName = houseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     next = next.replace(
-      new RegExp(`\\ben\\s+casa\\s+de\\s+${escaped}\\b`, "i"),
+      new RegExp(`\\ben\\s+casa\\s+de\\s+(${escaped}|${escapedHouseName})\\b`, "i"),
       ""
     );
   } else {
@@ -984,6 +994,39 @@ function cleanNotesFromLocationIntent(
   }
 
   return collapseSpaces(next.replace(/^[,.;:\-\s]+|[,.;:\-\s]+$/g, ""));
+}
+
+function cleanNotesFromParticipantIntent(notes: string, participants: string[]) {
+  const value = collapseSpaces(notes);
+  if (!value) return "";
+  if (!participants.length) return value;
+
+  const normalized = normalizeForMatching(value);
+  if (!normalized) return "";
+
+  if (/^(con|junto a)\b/.test(normalized)) {
+    const withoutConnector = normalized
+      .replace(/^(con|junto a)\s+/, "")
+      .replace(/\s+(y|e)\s+/g, " ")
+      .replace(/,/g, " ");
+
+    const participantKeys = new Set(
+      participants.map((participant) => normalizeForMatching(participant))
+    );
+    const tokens = withoutConnector.split(" ").filter(Boolean);
+
+    const looksLikeOnlyParticipants = tokens.every((token) => {
+      if (token === "mas" || token === "más") return true;
+      for (const key of participantKeys) {
+        if (key.split(" ").includes(token)) return true;
+      }
+      return false;
+    });
+
+    if (looksLikeOnlyParticipants) return "";
+  }
+
+  return value;
 }
 
 function cleanFallbackTitle(raw: string): string {
@@ -1069,10 +1112,14 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
   const split = splitTitleAndNotes(raw);
   const titleBase = split.title || cleanFallbackTitle(raw);
   const title = buildSemanticTitle(titleBase, participants);
-  const cleanedNotes = cleanNotesFromLocationIntent(
+  const notesWithoutLocation = cleanNotesFromLocationIntent(
     split.notes,
     locationIntent.locationQuery,
     locationIntent.locationSource
+  );
+  const cleanedNotes = cleanNotesFromParticipantIntent(
+    notesWithoutLocation,
+    participants
   );
 
   return {
