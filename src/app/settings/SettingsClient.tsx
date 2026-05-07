@@ -264,6 +264,7 @@ export default function SettingsClient() {
   const [locationBusy, setLocationBusy] = useState(false);
   const [pushState, setPushState] = useState<PushControlState | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
+  const [showAdvancedTools, setShowAdvancedTools] = useState(false);
 
   const showToast = useCallback((title: string, subtitle?: string) => {
     setToast({ title, subtitle });
@@ -652,39 +653,48 @@ export default function SettingsClient() {
       ) : null}
 
       <MobileScaffold
-        maxWidth={980}
+        maxWidth={1040}
         paddingDesktop="22px 18px 48px"
         paddingMobile="18px 14px 64px"
         mobileBottomSafe={96}
       >
         <div style={styles.shell}>
-          <PremiumHeader />
+          <PremiumHeader
+            hideUpgradeCta
+            title="Ajustes"
+            subtitle="Configura permisos, avisos e integraciones. La cuenta vive en Perfil; la administración general vive en Panel."
+          />
 
           <section style={styles.hero}>
-            <div style={{ minWidth: 0, flex: "1 1 420px" }}>
-              <div style={styles.kicker}>Ajustes</div>
-              <h1 style={styles.h1}>Centro de control</h1>
+            <div style={{ minWidth: 0, flex: "1 1 520px" }}>
+              <div style={styles.kicker}>Configuración</div>
+              <h1 style={styles.h1}>Ajustes de funcionamiento</h1>
               <div style={styles.sub}>
-                Ajusta permisos, integraciones y avisos para que SyncPlans trabaje por ti sin ruido extra.
+                Define cómo SyncPlans te avisa, qué permisos puede usar y qué calendarios externos aportan contexto.
               </div>
 
               <div style={styles.heroMeta}>
                 {notifScore ? (
-                  <>
-                    <span style={styles.pillSoft}>{notifScore.on}/{notifScore.total} activas</span>
-                    <span style={styles.pillSoft}>{notifScore.quiet ? "Modo silencioso activo" : "Modo silencioso inactivo"}</span>
-                  </>
+                  <span style={styles.pillSoft}>{notifScore.on}/{notifScore.total} avisos activos</span>
                 ) : (
-                  <span style={styles.pillSoft}>Cargando preferencias…</span>
+                  <span style={styles.pillSoft}>Avisos: revisando…</span>
                 )}
-                <span style={styles.pillSoft}>{prettyDateLabelFromISO(todayISO())}</span>
+                <span style={styles.pillSoft}>Ubicación: {locationPillLabel}</span>
+                <span style={styles.pillSoft}>Push: {pushPillLabel}</span>
+                <span style={styles.pillSoft}>Google: {googlePillLabel}</span>
               </div>
             </div>
           </section>
 
           <section style={styles.card}>
-            <div style={styles.sectionTitle}>Ajustes de tu experiencia</div>
-            <div style={styles.smallNote}>Configura cómo se comporta SyncPlans para ti.</div>
+            <div style={styles.sectionTitleRow}>
+              <div>
+                <div style={styles.sectionTitle}>Configuración principal</div>
+                <div style={styles.smallNote}>
+                  Entra solo al área que quieras ajustar. Aquí no se administran grupos ni cuenta: eso vive en Panel y Perfil.
+                </div>
+              </div>
+            </div>
 
             <div style={styles.list}>
               <Row
@@ -695,25 +705,25 @@ export default function SettingsClient() {
                 onClick={() => router.push("/settings/notifications")}
               />
               <Row
-                dot="rgba(251,191,36,0.95)"
-                title="Comportamiento por grupo"
-                desc="Define cómo se comporta SyncPlans en Personal, Pareja y Familia."
+                dot="rgba(34,197,94,0.95)"
+                title="Resumen semanal"
+                desc="Define cómo recibir una lectura de tu semana antes de que empiece."
                 cta="Configurar"
-                onClick={() => router.push("/settings/groups")}
+                onClick={() => router.push("/settings/weekly")}
               />
               <Row
                 dot="rgba(244,63,94,0.95)"
                 title="Preferencias de conflictos"
-                desc="Avisos y reglas para decidir mejor cuando haya cruces."
+                desc="Ajusta reglas y avisos para decidir mejor cuando haya cruces."
                 cta="Ajustar"
                 onClick={() => router.push("/settings/conflicts")}
               />
               <Row
-                dot="rgba(34,197,94,0.95)"
-                title="Resumen semanal"
-                desc="Recibe claridad antes de empezar la semana."
+                dot="rgba(251,191,36,0.95)"
+                title="Comportamiento por tipo de grupo"
+                desc="Configura diferencias entre Personal, Pareja y Familia."
                 cta="Ver"
-                onClick={() => router.push("/settings/weekly")}
+                onClick={() => router.push("/settings/groups")}
               />
             </div>
           </section>
@@ -721,9 +731,9 @@ export default function SettingsClient() {
           <section style={styles.card}>
             <div style={styles.sectionTitleRow}>
               <div>
-                <div style={styles.sectionTitle}>Ubicación y avisos inteligentes</div>
+                <div style={styles.sectionTitle}>Permisos importantes</div>
                 <div style={styles.smallNote}>
-                  Controla los permisos que permiten calcular cuándo salir y recibir avisos aunque la app esté cerrada.
+                  Estos permisos hacen que SyncPlans pueda avisarte a tiempo y calcular mejor cuándo salir.
                 </div>
               </div>
               <button
@@ -743,7 +753,7 @@ export default function SettingsClient() {
                   <div style={{ minWidth: 0 }}>
                     <div style={styles.permissionTitle}>Ubicación para salidas</div>
                     <div style={styles.permissionSub}>
-                      Se usa para calcular rutas y avisarte cuándo salir. No cambia tus eventos ni se comparte con otros.
+                      Se usa para rutas y alertas de salida. No cambia tus eventos ni se comparte con otros.
                     </div>
                   </div>
                   <span
@@ -787,9 +797,9 @@ export default function SettingsClient() {
                 <div style={styles.permissionTop}>
                   <div style={styles.permissionIcon}>🔔</div>
                   <div style={{ minWidth: 0 }}>
-                    <div style={styles.permissionTitle}>Notificaciones push</div>
+                    <div style={styles.permissionTitle}>Notificaciones del dispositivo</div>
                     <div style={styles.permissionSub}>
-                      Permiten avisos importantes: salir ahora, conflictos y cambios relevantes.
+                      Permiten avisos importantes aunque no estés dentro de la app.
                     </div>
                   </div>
                   <span
@@ -833,16 +843,16 @@ export default function SettingsClient() {
             </div>
 
             <div style={styles.privacyNote}>
-              SyncPlans usa estos permisos solo para mejorar coordinación: calcular cuándo salir y avisarte a tiempo. Puedes borrar la ubicación guardada cuando quieras.
+              SyncPlans usa estos permisos solo para coordinación: calcular cuándo salir y avisarte a tiempo. Puedes borrar la ubicación guardada cuando quieras.
             </div>
           </section>
 
           <section style={styles.card}>
             <div style={styles.sectionTitleRow}>
               <div>
-                <div style={styles.sectionTitle}>Integraciones de calendario</div>
+                <div style={styles.sectionTitle}>Calendarios externos</div>
                 <div style={styles.smallNote}>
-                  Importa eventos como contexto externo. SyncPlans los usa para anticipar cruces sin modificar tu calendario original.
+                  Conecta calendarios como contexto. SyncPlans los usa para anticipar cruces sin modificar tu calendario original.
                 </div>
               </div>
 
@@ -862,9 +872,9 @@ export default function SettingsClient() {
 
             {!canUseGooglePremium ? (
               <PremiumSettingsGate
-                title="Mirar tu agenda externa ayuda. Decidir con ese contexto, sin salir de SyncPlans, es donde Premium empieza a valer."
-                copy="Premium trae tu contexto externo al mismo sistema donde decides, respondes y resuelves choques. No es ver otro calendario: es tener más claridad, menos fricción y más control."
-                cta="Ver por qué importa"
+                title="Google Calendar suma contexto real a tu coordinación."
+                copy="Premium usa tu calendario externo para anticipar choques y ayudarte a decidir con más claridad dentro de SyncPlans."
+                cta="Ver Premium"
                 onClick={() => {
                   void trackEvent({
                     event: "premium_cta_clicked",
@@ -926,12 +936,6 @@ export default function SettingsClient() {
                 </div>
 
                 <div style={styles.note}><b>Alcance:</b> SyncPlans trae 30 días hacia atrás y 120 días hacia adelante.</div>
-
-                {googleConnected ? (
-                  <div style={styles.googleValueStrip}>
-                    Ya añadiste contexto externo. El salto premium es usar esa información para anticipar choques, decidir antes y mantener una sola verdad compartida.
-                  </div>
-                ) : null}
               </div>
             )}
 
@@ -952,35 +956,56 @@ export default function SettingsClient() {
           <section style={styles.card}>
             <div style={styles.sectionTitleRow}>
               <div>
-                <div style={styles.sectionTitle}>Enviarme el resumen de hoy</div>
-                <div style={styles.smallNote}>Te mando a tu correo los eventos de hoy, personales y del grupo activo.</div>
+                <div style={styles.sectionTitle}>Herramientas de prueba</div>
+                <div style={styles.smallNote}>
+                  Acciones manuales para validar correos y eventos de hoy. No forman parte del uso diario normal.
+                </div>
               </div>
 
               <button
-                onClick={() => void handleSendTodayDigestFromSettings()}
-                style={{ ...styles.primaryBtn, opacity: digestSending ? 0.7 : 1, cursor: digestSending ? "progress" : "pointer" }}
-                disabled={digestSending}
-                title="Enviar resumen de hoy"
+                type="button"
+                style={styles.secondaryBtn}
+                onClick={() => setShowAdvancedTools((value) => !value)}
               >
-                {digestSending ? "Enviando…" : "Probar resumen de hoy"}
+                {showAdvancedTools ? "Ocultar" : "Ver herramientas"}
               </button>
             </div>
 
-            {todayPreview.length > 0 ? (
-              <div style={styles.todayList}>
-                {todayPreview.map((event) => (
-                  <div key={event.id} style={styles.todayRow}>
-                    <div style={styles.todayTime}>{event.time}</div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={styles.todayTitle}>{event.title}</div>
-                      <div style={styles.todayMeta}>{event.groupLabel}</div>
-                    </div>
+            {showAdvancedTools ? (
+              <div style={styles.detailsStack}>
+                <div style={styles.sectionTitleRow}>
+                  <div>
+                    <div style={styles.innerTitle}>Enviar resumen de hoy</div>
+                    <div style={styles.smallNote}>Te mando a tu correo los eventos de hoy, personales y del grupo activo.</div>
                   </div>
-                ))}
+
+                  <button
+                    onClick={() => void handleSendTodayDigestFromSettings()}
+                    style={{ ...styles.primaryBtn, opacity: digestSending ? 0.7 : 1, cursor: digestSending ? "progress" : "pointer" }}
+                    disabled={digestSending}
+                    title="Enviar resumen de hoy"
+                  >
+                    {digestSending ? "Enviando…" : "Probar resumen"}
+                  </button>
+                </div>
+
+                {todayPreview.length > 0 ? (
+                  <div style={styles.todayList}>
+                    {todayPreview.map((event) => (
+                      <div key={event.id} style={styles.todayRow}>
+                        <div style={styles.todayTime}>{event.time}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={styles.todayTitle}>{event.title}</div>
+                          <div style={styles.todayMeta}>{event.groupLabel}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={styles.note}><b>Estado:</b> No hay eventos de hoy para previsualizar.</div>
+                )}
               </div>
-            ) : (
-              <div style={styles.note}><b>Por qué importa:</b> Este correo te devuelve claridad operativa aunque no abras la grilla del calendario.</div>
-            )}
+            ) : null}
           </section>
 
           {booting ? (
@@ -997,7 +1022,6 @@ export default function SettingsClient() {
     </main>
   );
 }
-
 function PremiumSettingsGate({
   title,
   copy,
@@ -1314,6 +1338,14 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
     color: "rgba(226,232,240,0.80)",
     fontWeight: 650,
+  },
+  detailsStack: {
+    display: "grid",
+    gap: 12,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: 14,
   },
   loadingCard: {
     display: "flex",
