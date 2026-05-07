@@ -16,7 +16,7 @@ import PremiumHeader from "@/components/PremiumHeader";
 import supabase from "@/lib/supabaseClient";
 import { getMyConflictResolutionsMap } from "@/lib/conflictResolutionsDb";
 import { getMyDeclinedEventIds } from "@/lib/eventResponsesDb";
-import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
+import { getMyEventsInRange, type DbEventRow } from "@/lib/eventsDb";
 import { getMyGroups, type GroupRow, getGroupTypeLabel } from "@/lib/groupsDb";
 import {
   buildDashboardStats,
@@ -317,6 +317,19 @@ function PremiumLock({ title, copy }: PremiumLockProps) {
   );
 }
 
+
+function buildPanelStatsWindow(): { startIso: string; endIso: string } {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - 30);
+
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  end.setDate(end.getDate() + 90);
+
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
 export default function PanelPage() {
   const router = useRouter();
 
@@ -348,6 +361,8 @@ export default function PanelPage() {
       setLoading(true);
       setError(null);
 
+      const statsWindow = buildPanelStatsWindow();
+
       const [
         events,
         fetchedGroups,
@@ -355,11 +370,13 @@ export default function PanelPage() {
         resolvedConflictMap,
         declinedEventIds,
       ] = await Promise.all([
-        getMyEvents().catch(() => [] as DbEventRow[]),
+        getMyEventsInRange(statsWindow.startIso, statsWindow.endIso).catch(
+          () => [] as DbEventRow[]
+        ),
         getMyGroups().catch(() => [] as GroupRow[]),
         getMyProfile().catch(() => null as Profile | null),
         getMyConflictResolutionsMap().catch(
-          () => ({}) as Record<string, string>,
+          () => ({}) as Record<string, string>
         ),
         getMyDeclinedEventIds().catch(() => new Set<string>()),
       ]);

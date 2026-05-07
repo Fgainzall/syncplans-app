@@ -20,7 +20,7 @@ import {
   type Profile,
 } from "@/lib/profilesDb";
 
-import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
+import { getMyEventsInRange, type DbEventRow } from "@/lib/eventsDb";
 import { trackEvent, trackEventOnce } from "@/lib/analytics";
 import {
   getMyGroups,
@@ -976,6 +976,19 @@ const styles: Record<string, CSSProperties> = {
   },
 };
 
+
+function buildProfileStatsWindow(): { startIso: string; endIso: string } {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - 30);
+
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  end.setDate(end.getDate() + 90);
+
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const isCompact = useIsCompactLayout();
@@ -1175,8 +1188,12 @@ export default function ProfilePage() {
     (async () => {
       try {
         setStatsLoading(true);
+        const statsWindow = buildProfileStatsWindow();
+
         const [events, groupsRows] = await Promise.all([
-          getMyEvents().catch(() => [] as DbEventRow[]),
+          getMyEventsInRange(statsWindow.startIso, statsWindow.endIso).catch(
+            () => [] as DbEventRow[]
+          ),
           getMyGroups().catch(() => [] as GroupRow[]),
         ]);
 

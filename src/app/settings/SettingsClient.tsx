@@ -4,9 +4,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { getUser } from "@/lib/auth";
-import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
+import { getMyEventsInRange, type DbEventRow } from "@/lib/eventsDb";
 import { getMyProfile, type Profile } from "@/lib/profilesDb";
 import { hasPremiumAccess } from "@/lib/premium";
 import { getSettingsFromDb, type NotificationSettings } from "@/lib/settings";
@@ -97,36 +96,6 @@ function startOfDay(dateISO: string) {
   return new Date(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0, 0);
 }
 
-function prettyDateLabelFromISO(dateISO: string): string {
-  const [y, m, d] = dateISO.split("-").map(Number);
-  const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
-
-  const dias = [
-    "Domingo",
-    "Lunes",
-    "Martes",
-    "Miércoles",
-    "Jueves",
-    "Viernes",
-    "Sábado",
-  ];
-  const meses = [
-    "enero",
-    "febrero",
-    "marzo",
-    "abril",
-    "mayo",
-    "junio",
-    "julio",
-    "agosto",
-    "septiembre",
-    "octubre",
-    "noviembre",
-    "diciembre",
-  ];
-
-  return `${dias[dt.getDay()]}, ${dt.getDate()} de ${meses[dt.getMonth()]} ${dt.getFullYear()}`;
-}
 
 function todayISO(): string {
   const now = new Date();
@@ -214,6 +183,14 @@ async function fetchLocationControlState(): Promise<LocationControlState | null>
   if (!res.ok || !json?.ok) return null;
 
   return json as LocationControlState;
+}
+
+
+function buildTodayPreviewWindow(): { startIso: string; endIso: string } {
+  const start = startOfDay(todayISO());
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
 }
 
 function buildTodayPreview(rows: DbEventRow[]): TodayEventPreview[] {
@@ -481,10 +458,11 @@ export default function SettingsClient() {
 
   const loadTodayPreview = useCallback(async () => {
     try {
-      const [events] = await Promise.all([
-        getMyEvents().catch(() => [] as DbEventRow[]),
-        getActiveGroupIdFromDb().catch(() => null),
-      ]);
+      const previewWindow = buildTodayPreviewWindow();
+      const events = await getMyEventsInRange(
+        previewWindow.startIso,
+        previewWindow.endIso
+      ).catch(() => [] as DbEventRow[]);
       setTodayPreview(buildTodayPreview(events));
     } catch (error) {
       console.warn("[Settings] today preview skipped", error);
