@@ -702,7 +702,7 @@ export default function EventsPage() {
               <div style={S.kicker}>Planes y decisiones</div>
               <h1 style={S.h1}>Bandeja de coordinación</h1>
               <p style={S.sub}>
-                Revisa qué viene, qué está compartido y qué ya quedó cerrado sin convertir esta página en otro calendario.
+                Planes, respuestas y decisiones en un solo lugar. Entra rápido a lo que sigue, lo compartido o lo ya cerrado.
               </p>
 
               <div style={S.summaryPillRow}>
@@ -732,15 +732,22 @@ export default function EventsPage() {
                 </span>
               </div>
             </div>
+          </div>
 
-            <aside style={{ ...S.factBox, ...(isMobile ? S.factBoxMobile : null) }} className="spEvt-factBox">
+          <div
+            style={{
+              ...S.focusActionBar,
+              ...(isMobile ? S.focusActionBarMobile : null),
+            }}
+          >
+            <div style={S.focusActionCopy}>
               <div style={S.factLabel}>{focusAside.eyebrow}</div>
-              <div style={S.factTitle}>{focusAside.title}</div>
-              <div style={S.factHint}>{focusAside.body}</div>
-              <button type="button" style={S.factCta} onClick={handleFocusAsideClick}>
-                {focusAside.cta}
-              </button>
-            </aside>
+              <div style={S.focusActionTitle}>{focusAside.title}</div>
+              <div style={S.focusActionHint}>{focusAside.body}</div>
+            </div>
+            <button type="button" style={S.focusActionCta} onClick={handleFocusAsideClick}>
+              {focusAside.cta}
+            </button>
           </div>
 
           {!loading && urgentEvents.length > 0 ? (
@@ -807,7 +814,7 @@ export default function EventsPage() {
             </div>
           ) : null}
 
-          <div style={S.filtersShell}>
+          <div style={{ ...S.filtersShell, ...(isMobile ? S.filtersShellMobile : null) }}>
             <div style={S.filtersGroup}>
               <div style={S.filtersLabel}>Vista</div>
               <SegmentedChips<ViewMode>
@@ -1010,15 +1017,12 @@ const S: Record<string, React.CSSProperties> = {
     boxShadow: "0 18px 40px rgba(0,0,0,0.65)",
   },
   titleRow: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 14,
-    flexWrap: "wrap",
+    display: "block",
+    minWidth: 0,
   },
   heroCopy: {
     minWidth: 0,
-    flex: "1 1 520px",
+    maxWidth: 860,
   },
   kicker: {
     fontSize: 11,
@@ -1110,6 +1114,52 @@ const S: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
     color: "rgba(226,232,240,0.68)",
     fontWeight: 600,
+  },
+  focusActionBar: {
+    marginTop: 16,
+    borderRadius: 18,
+    border: "1px solid rgba(96,165,250,0.18)",
+    background:
+      "linear-gradient(135deg, rgba(37,99,235,0.14), rgba(255,255,255,0.035))",
+    padding: "13px 14px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 14,
+  },
+  focusActionBarMobile: {
+    alignItems: "stretch",
+    flexDirection: "column",
+  },
+  focusActionCopy: {
+    minWidth: 0,
+    display: "grid",
+    gap: 4,
+  },
+  focusActionTitle: {
+    fontSize: 16,
+    lineHeight: 1.22,
+    fontWeight: 950,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  focusActionHint: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.68)",
+    fontWeight: 650,
+  },
+  focusActionCta: {
+    minHeight: 38,
+    borderRadius: 13,
+    border: "1px solid rgba(96,165,250,0.30)",
+    background: "rgba(59,130,246,0.16)",
+    color: "rgba(255,255,255,0.98)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+    padding: "0 14px",
+    whiteSpace: "nowrap",
   },
   focusRail: {
     marginTop: 16,
@@ -1268,6 +1318,12 @@ const S: Record<string, React.CSSProperties> = {
   filtersShell: {
     marginTop: 16,
     display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) minmax(260px, 1.25fr)",
+    gap: 12,
+    alignItems: "end",
+  },
+  filtersShellMobile: {
+    gridTemplateColumns: "minmax(0, 1fr)",
     gap: 12,
   },
   filtersGroup: {
@@ -1319,7 +1375,7 @@ const S: Record<string, React.CSSProperties> = {
   },
   searchInput: {
     width: "100%",
-    minHeight: 48,
+    minHeight: 44,
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.035)",
