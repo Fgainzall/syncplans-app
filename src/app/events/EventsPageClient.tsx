@@ -153,6 +153,7 @@ export default function EventsPage() {
     message: string;
   } | null>(null);
   const [hasPremium, setHasPremium] = useState(false);
+  const [showAdvancedActions, setShowAdvancedActions] = useState(false);
   const focusedEventId = searchParams.get("focusEventId");
 
   useEffect(() => {
@@ -406,15 +407,15 @@ export default function EventsPage() {
     });
 
     if (visibleEvents.length === 0) {
-      return "Mira qué parte de tu coordinación ya tiene forma, qué necesita respuesta y qué conviene mover antes de que vuelva a perderse.";
+      return "Revisa planes, respuestas y decisiones abiertas desde una sola bandeja.";
     }
 
     const personal = visibleEvents.filter((e) => !e.group_id).length;
     const groupEvents = visibleEvents.filter((e) => !!e.group_id).length;
 
-    return `Tu lista combina ${personal} evento${
-      personal === 1 ? "" : "s"
-    } personales y ${groupEvents} en grupos. Desde aquí se ve qué ya está claro, qué todavía necesita respuesta y qué merece seguimiento.`;
+    return `${personal} personal${personal === 1 ? "" : "es"} · ${groupEvents} compartido${
+      groupEvents === 1 ? "" : "s"
+    }. Entra rápido a lo que sigue, lo compartido o lo ya cerrado.`;
   }, [events, declinedEventIds, hiddenEventIds]);
 
   function toggleSelection(id: string) {
@@ -581,13 +582,68 @@ export default function EventsPage() {
   const anySelected = selectedIds.size > 0;
   const compactHeaderSubtitle = isMobile
     ? events.length === 0
-      ? "Ve rápido qué sigue y dónde conviene entrar."
-      : `${filteredEvents.length} evento${filteredEvents.length === 1 ? "" : "s"} visibles para decidir más rápido.`
+      ? "Bandeja simple para planes y decisiones."
+      : `${filteredEvents.length} evento${filteredEvents.length === 1 ? "" : "s"} visibles.`
     : headerSubtitle;
 
+  const focusAside = useMemo(() => {
+    if (!loading && urgentEvents.length > 0) {
+      return {
+        eyebrow: "Tu foco ahora",
+        title: `${urgentEvents.length} plan${urgentEvents.length === 1 ? "" : "es"} en las próximas 24 h`,
+        body: "Revisa primero lo más cercano para evitar que la coordinación se quede abierta.",
+        cta: "Ver próximos",
+        action: "upcoming" as const,
+      };
+    }
+
+    if (statusSnapshot.responseCount > 0) {
+      return {
+        eyebrow: "Tu foco ahora",
+        title: `${statusSnapshot.responseCount} compartido${statusSnapshot.responseCount === 1 ? "" : "s"} por coordinar`,
+        body: "Los planes compartidos son los que más valor generan cuando están claros para todos.",
+        cta: "Ver compartidos",
+        action: "groups" as const,
+      };
+    }
+
+    if (statusSnapshot.nextCount > 0) {
+      return {
+        eyebrow: "Tu foco ahora",
+        title: "Tus próximos planes están ordenados",
+        body: "Puedes revisar lo que viene o crear un nuevo plan si necesitas mover algo más.",
+        cta: "Crear evento",
+        action: "create" as const,
+      };
+    }
+
+    return {
+      eyebrow: "Tu foco ahora",
+      title: "Todavía no hay planes visibles",
+      body: "Crea el primer evento para convertir esta pantalla en una bandeja útil de coordinación.",
+      cta: "Crear evento",
+      action: "create" as const,
+    };
+  }, [loading, urgentEvents.length, statusSnapshot.responseCount, statusSnapshot.nextCount]);
+
+  const handleFocusAsideClick = () => {
+    if (focusAside.action === "groups") {
+      setFilters((f) => ({ ...f, view: "upcoming", scope: "groups" }));
+      return;
+    }
+
+    if (focusAside.action === "upcoming") {
+      setFilters((f) => ({ ...f, view: "upcoming" }));
+      return;
+    }
+
+    router.push("/events/new/details?type=personal");
+  };
+
   const showTopNarrative = !isMobile && urgentEvents.length === 0;
-  const showDigestButton = !isMobile && events.length > 0 && !anySelected;
+  const showDigestButton = events.length > 0 && !anySelected;
   const showValueRail =
+    false &&
     !isMobile &&
     valueVisibility.hasValue &&
     urgentEvents.length === 0 &&
@@ -604,7 +660,7 @@ export default function EventsPage() {
           <PremiumHeader
             hideUpgradeCta
             title="Eventos"
-            subtitle="Mira qué ya está claro dentro del sistema y qué todavía necesita respuesta para no quedarse afuera."
+            subtitle="Preparando tu bandeja de coordinación."
           />
           <Card style={S.cardShell}>
             <div style={S.loadingRow}>
@@ -644,33 +700,22 @@ export default function EventsPage() {
         <Card style={{ ...S.cardShell, ...(isMobile ? S.cardShellMobile : null) }} className="spEvt-card">
           <div style={S.titleRow}>
             <div style={S.heroCopy}>
-              <div style={S.kicker}>Lo que ya está dentro del sistema</div>
-              <h1 style={S.h1}>Eventos con estado real</h1>
+              <div style={S.kicker}>Planes y decisiones</div>
+              <h1 style={S.h1}>Bandeja de coordinación</h1>
               {showTopNarrative ? (
                 <p style={S.sub}>
-                  Aquí ves qué está próximo, qué depende de otra persona y dónde conviene entrar
-                  primero para mover coordinación real.
+                  Revisa qué viene, qué está compartido y qué ya quedó cerrado sin convertir esta página en otro calendario.
                 </p>
               ) : null}
             </div>
 
             <aside style={{ ...S.factBox, ...(isMobile ? S.factBoxMobile : null) }} className="spEvt-factBox">
-              <div style={S.factLabel}>Resumen rápido</div>
-              <div style={S.factGrid}>
-                <div style={S.factItem}>
-                  <span style={S.factDotPersonal} />
-                  <span>{valueVisibility.personalCount} personales</span>
-                </div>
-                <div style={S.factItem}>
-                  <span style={S.factDotGroup} />
-                  <span>{valueVisibility.groupCount} en grupos</span>
-                </div>
-              </div>
-              {!isMobile && totalGroups > 0 ? (
-                <div style={S.factHint}>
-                  {totalGroups} grupo{totalGroups === 1 ? "" : "s"} conectado{totalGroups === 1 ? "" : "s"}.
-                </div>
-              ) : null}
+              <div style={S.factLabel}>{focusAside.eyebrow}</div>
+              <div style={S.factTitle}>{focusAside.title}</div>
+              <div style={S.factHint}>{focusAside.body}</div>
+              <button type="button" style={S.factCta} onClick={handleFocusAsideClick}>
+                {focusAside.cta}
+              </button>
             </aside>
           </div>
 
@@ -738,46 +783,31 @@ export default function EventsPage() {
             </div>
           ) : null}
 
-          <div style={{ ...S.statusGrid, gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))" }}>
+          <div style={S.summaryPillRow}>
             <button
               type="button"
-              style={{ ...S.statusCard, ...(filters.view === "upcoming" ? S.statusCardActive : {}) }}
+              style={{ ...S.summaryPill, ...(filters.view === "upcoming" ? S.summaryPillActive : null) }}
               onClick={() => setFilters((f) => ({ ...f, view: "upcoming" }))}
             >
-              <div style={S.statusLabel}>Próximos</div>
-              <div style={S.statusValue}>{statusSnapshot.nextCount}</div>
-              {!isMobile ? <div style={S.statusHint}>Lo que sigue dentro del sistema</div> : null}
+              {statusSnapshot.nextCount} próximo{statusSnapshot.nextCount === 1 ? "" : "s"}
             </button>
-
             <button
               type="button"
-              style={{ ...S.statusCard, ...(filters.scope === "groups" ? S.statusCardActive : {}) }}
+              style={{ ...S.summaryPill, ...(filters.scope === "groups" ? S.summaryPillActive : null) }}
               onClick={() => setFilters((f) => ({ ...f, scope: f.scope === "groups" ? "all" : "groups" }))}
             >
-              <div style={S.statusLabel}>Compartidos</div>
-              <div style={S.statusValue}>{statusSnapshot.responseCount}</div>
-              {!isMobile ? <div style={S.statusHint}>Planes donde coordinar con alguien más importa</div> : null}
+              {statusSnapshot.responseCount} compartido{statusSnapshot.responseCount === 1 ? "" : "s"}
             </button>
-
             <button
               type="button"
-              style={{ ...S.statusCard, ...(filters.view === "history" ? S.statusCardActive : {}) }}
+              style={{ ...S.summaryPill, ...(filters.view === "history" ? S.summaryPillActive : null) }}
               onClick={() => setFilters((f) => ({ ...f, view: "history" }))}
             >
-              <div style={S.statusLabel}>Resueltos</div>
-              <div style={S.statusValue}>{statusSnapshot.resolvedCount}</div>
-              {!isMobile ? <div style={S.statusHint}>Eventos que ya pasaron y dejaron salida clara</div> : null}
+              {statusSnapshot.resolvedCount} cerrado{statusSnapshot.resolvedCount === 1 ? "" : "s"}
             </button>
-
-            <button
-              type="button"
-              style={S.statusCard}
-              onClick={() => setFilters((f) => ({ ...f, view: "upcoming" }))}
-            >
-              <div style={S.statusLabel}>7 días</div>
-              <div style={S.statusValue}>{statusSnapshot.soonCount}</div>
-              {!isMobile ? <div style={S.statusHint}>Lo que conviene revisar pronto</div> : null}
-            </button>
+            <span style={S.summaryPillSoft}>
+              {statusSnapshot.soonCount} en 7 días
+            </span>
           </div>
 
           <div style={S.filtersShell}>
@@ -823,18 +853,39 @@ export default function EventsPage() {
             </label>
           </div>
 
-          {showDigestButton ? (
-            <div style={S.auxRow}>
-              <button
-                type="button"
-                onClick={sendTodayDigest}
-                disabled={sendingDigest}
-                style={{ ...S.digestBtn, ...(sendingDigest ? S.digestBtnLoading : {}) }}
-              >
-                {sendingDigest ? "Preparando resumen de hoy…" : "Enviar resumen operativo de hoy (demo)"}
-              </button>
-            </div>
-          ) : null}
+          <div style={S.advancedShell}>
+            <button
+              type="button"
+              style={S.advancedToggle}
+              onClick={() => setShowAdvancedActions((current) => !current)}
+            >
+              {showAdvancedActions ? "Ocultar herramientas" : "Herramientas secundarias"}
+            </button>
+
+            {showAdvancedActions ? (
+              <div style={S.advancedActions}>
+                <button
+                  type="button"
+                  onClick={refreshData}
+                  disabled={loading}
+                  style={S.digestBtn}
+                >
+                  {loading ? "Actualizando lista…" : "Actualizar lista"}
+                </button>
+
+                {showDigestButton ? (
+                  <button
+                    type="button"
+                    onClick={sendTodayDigest}
+                    disabled={sendingDigest}
+                    style={{ ...S.digestBtn, ...(sendingDigest ? S.digestBtnLoading : {}) }}
+                  >
+                    {sendingDigest ? "Preparando resumen…" : "Probar resumen de hoy"}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
 
           {anySelected ? (
             <div style={S.bulkBar}>
@@ -906,16 +957,7 @@ export default function EventsPage() {
           )}
         </Card>
 
-        <section style={S.footerSection}>
-          <button
-            type="button"
-            onClick={refreshData}
-            disabled={loading}
-            style={S.refreshBtn}
-          >
-            {loading ? "Actualizando lista…" : "Actualizar lista"}
-          </button>
-        </section>
+
       </Section>
 
       <style jsx>{`
@@ -1020,6 +1062,23 @@ const S: Record<string, React.CSSProperties> = {
     textTransform: "uppercase",
     letterSpacing: "0.08em",
     color: "rgba(255,255,255,0.66)",
+  },
+  factTitle: {
+    fontSize: 17,
+    lineHeight: 1.18,
+    fontWeight: 950,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  factCta: {
+    minHeight: 40,
+    borderRadius: 14,
+    border: "1px solid rgba(96,165,250,0.30)",
+    background: "rgba(59,130,246,0.16)",
+    color: "rgba(255,255,255,0.98)",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
   },
   factGrid: {
     display: "grid",
@@ -1272,6 +1331,63 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 16,
     outline: "none",
     boxSizing: "border-box",
+  },
+  summaryPillRow: {
+    marginTop: 16,
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  summaryPill: {
+    minHeight: 34,
+    padding: "0 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(226,232,240,0.90)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  summaryPillActive: {
+    border: "1px solid rgba(96,165,250,0.28)",
+    background: "rgba(59,130,246,0.14)",
+    color: "rgba(255,255,255,0.98)",
+  },
+  summaryPillSoft: {
+    minHeight: 34,
+    padding: "0 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    color: "rgba(226,232,240,0.70)",
+    fontSize: 12,
+    fontWeight: 850,
+    display: "inline-flex",
+    alignItems: "center",
+  },
+  advancedShell: {
+    marginTop: 14,
+    display: "grid",
+    gap: 10,
+  },
+  advancedToggle: {
+    width: "fit-content",
+    minHeight: 36,
+    padding: "0 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.90)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  advancedActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
   },
   statusGrid: {
     marginTop: 16,
