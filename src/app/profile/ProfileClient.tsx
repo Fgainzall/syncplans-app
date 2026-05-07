@@ -28,9 +28,6 @@ import {
 } from "@/lib/groupsDb";
 
 import {
-
-/* SYNCPLANS: emphasize groups and coordination role */
-
   type DashboardStats,
   type AnyProfile,
   buildDashboardStats,
@@ -1006,6 +1003,7 @@ export default function ProfilePage() {
   const [savingDigest, setSavingDigest] = useState(false);
   const [digestError, setDigestError] = useState<string | null>(null);
   const [digestOk, setDigestOk] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const loadingRowStyle: CSSProperties = isCompact
     ? { ...styles.loadingRow, gridTemplateColumns: "minmax(0, 1fr)", gap: 12 }
@@ -1389,7 +1387,7 @@ export default function ProfilePage() {
             <PremiumHeader
             hideUpgradeCta
               title="Cuenta"
-              subtitle="Tu identidad, tu plan y la forma en que SyncPlans te representa cuando compartes tu tiempo."
+              subtitle="Administra tu identidad, preferencias, plan y acceso."
               rightSlot={<LogoutButton />}
               mobileNav="bottom"
             />
@@ -1424,7 +1422,7 @@ export default function ProfilePage() {
             <PremiumHeader
             hideUpgradeCta
               title="Cuenta"
-              subtitle="Tu identidad, tu plan y la forma en que SyncPlans te representa cuando compartes tu tiempo."
+              subtitle="Administra tu identidad, preferencias, plan y acceso."
               rightSlot={<LogoutButton />}
               mobileNav="bottom"
             />
@@ -1529,7 +1527,7 @@ export default function ProfilePage() {
           <PremiumHeader
             hideUpgradeCta
             title="Cuenta"
-            subtitle="Tu identidad, tu plan y la lectura de cuenta que sostiene tu coordinación compartida, sin convertir esta pantalla en otro hub."
+            subtitle="Administra tu identidad, preferencias, plan y acceso."
             mobileNav="bottom"
           />
         </div>
@@ -1574,7 +1572,7 @@ export default function ProfilePage() {
                 style={{ ...styles.heroPrimaryBtn, ...fullWidthButtonStyle }}
                 onClick={() => router.push("/settings")}
               >
-                Gestionar cuenta
+                Abrir ajustes
               </button>
 
               <button
@@ -1588,11 +1586,12 @@ export default function ProfilePage() {
           </div>
 
           <div style={styles.heroStrip}>
-            <div style={styles.heroStripLabel}>Estado actual</div>
+            <div style={styles.heroStripLabel}>Estado de cuenta</div>
             <div style={styles.heroStripText}>{heroSummary}</div>
           </div>
 
-          <div style={heroStatsStyle}>
+          {showAdvanced ? (
+            <div style={heroStatsStyle}>
             <div style={statStyle}>
               <div style={statLabelStyle}>Plan</div>
               <div style={statValueStyle}>{planLabel}</div>
@@ -1623,6 +1622,7 @@ export default function ProfilePage() {
               <div style={statHintStyle}>Choques activos que siguen pendientes.</div>
             </div>
           </div>
+          ) : null}
         </section>
 
         <div style={mainGridStyle}>
@@ -1633,7 +1633,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Perfil</div>
                   <h2 style={sectionTitleStyle}>Tu identidad en SyncPlans</h2>
                   <div style={styles.sectionSub}>
-                    Mantén tu nombre y tu información básica al día para que la coordinación compartida tenga una sola verdad visible en toda la app.
+                    Define cómo apareces dentro de SyncPlans. Este bloque sí pertenece a Cuenta.
                   </div>
                 </div>
 
@@ -1686,7 +1686,7 @@ export default function ProfilePage() {
 
                 <div style={formActionsStyle}>
                   <div style={styles.smallInfo}>
-                    Este nombre se usa para representarte mejor dentro de SyncPlans.
+                    Este nombre se muestra cuando compartes planes o participas en grupos.
                   </div>
 
                   <button
@@ -1706,7 +1706,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Preferencias</div>
                   <h2 style={sectionTitleStyle}>Cómo prefieres coordinar</h2>
                   <div style={styles.sectionSub}>
-                    Estas señales ayudan a SyncPlans a leer mejor tu estilo cuando toca decidir, ceder, proponer o ordenar tiempo compartido.
+                    Guarda señales personales para que las sugerencias se adapten mejor a tu forma de coordinar.
                   </div>
                 </div>
 
@@ -1846,6 +1846,27 @@ export default function ProfilePage() {
             <section style={cardStyle}>
               <div style={styles.sectionHead}>
                 <div>
+                  <div style={styles.sectionLabel}>Detalles avanzados</div>
+                  <h2 style={sectionTitleStyle}>Lectura de estructura</h2>
+                  <div style={styles.sectionSub}>
+                    Grupos, métricas y recomendaciones siguen disponibles, pero no compiten con tus datos personales.
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  style={{ ...styles.heroSecondaryBtn, ...fullWidthButtonStyle }}
+                  onClick={() => setShowAdvanced((value) => !value)}
+                >
+                  {showAdvanced ? "Ocultar detalles" : "Ver detalles"}
+                </button>
+              </div>
+            </section>
+
+            {showAdvanced ? (
+            <section style={cardStyle}>
+              <div style={styles.sectionHead}>
+                <div>
                   <div style={styles.sectionLabel}>Espacios compartidos</div>
                   <h2 style={sectionTitleStyle}>Tu estructura compartida</h2>
                   <div style={styles.sectionSub}>
@@ -1941,6 +1962,7 @@ export default function ProfilePage() {
                 </div>
               </div>
             </section>
+            ) : null}
           </div>
 
           <div style={styles.rightCol}>
@@ -1948,9 +1970,9 @@ export default function ProfilePage() {
               <div style={styles.sectionHead}>
                 <div>
                   <div style={styles.sectionLabel}>Cuenta</div>
-                  <h2 style={sectionTitleStyle}>Estado de tu cuenta</h2>
+                  <h2 style={sectionTitleStyle}>Plan y acceso</h2>
                   <div style={styles.sectionSub}>
-                    Aquí se consolida tu estado de cuenta, tu plan y tu preparación para coordinar mejor. La operación diaria sigue viviendo en Summary, Events y Panel.
+                    Revisa tu correo, tu plan actual y el acceso asociado a tu cuenta.
                   </div>
                 </div>
               </div>
@@ -2079,6 +2101,7 @@ export default function ProfilePage() {
               </div>
             </section>
 
+            {showAdvanced ? (
             <section style={cardStyle}>
               <div style={styles.sectionHead}>
                 <div>
@@ -2104,6 +2127,7 @@ export default function ProfilePage() {
                 </button>
               </div>
             </section>
+            ) : null}
 
             <section style={cardStyle}>
               <div style={styles.sectionHead}>
@@ -2111,7 +2135,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Resumen diario</div>
                   <h2 style={sectionTitleStyle}>Entrega automática por correo</h2>
                   <div style={styles.sectionSub}>
-                    Controla si quieres recibir una lectura diaria simple de tu coordinación y a qué hora local prefieres verla en tu correo.
+                    Decide si quieres recibir un resumen diario y a qué hora local verlo en tu correo.
                   </div>
                 </div>
               </div>
@@ -2163,7 +2187,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Sesión</div>
                   <h2 style={sectionTitleStyle}>Control de acceso</h2>
                   <div style={styles.sectionSub}>
-                    Desde aquí puedes cerrar tu sesión actual. La coordinación diaria sigue viviendo en Resumen, Calendario, Conflictos y Panel.
+                    Cierra tu sesión actual cuando lo necesites.
                   </div>
                 </div>
               </div>
@@ -2176,7 +2200,7 @@ export default function ProfilePage() {
         </div>
 
         <section style={styles.footer}>
-          Tu cuenta define cómo apareces, qué plan tienes y qué señales usa SyncPlans para representarte mejor. La coordinación diaria vive en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Conflictos</strong> y <strong>Panel</strong>. Esta pantalla ya no compite con ese flujo: lo ordena y le da contexto.
+          Tu cuenta define cómo apareces, qué plan tienes y qué preferencias personales usa SyncPlans. Para administrar grupos, integraciones, movilidad u operaciones, usa <strong>Panel</strong>.
         </section>
       </MobileScaffold>
     </main>
