@@ -1,3 +1,4 @@
+// src/app/panel/page.tsx
 "use client";
 
 import React, {
@@ -8,17 +9,15 @@ import React, {
   type CSSProperties,
 } from "react";
 import { useRouter } from "next/navigation";
-import { getMyConflictResolutionsMap } from "@/lib/conflictResolutionsDb";
+
 import MobileScaffold from "@/components/MobileScaffold";
 import PremiumHeader from "@/components/PremiumHeader";
+
 import supabase from "@/lib/supabaseClient";
+import { getMyConflictResolutionsMap } from "@/lib/conflictResolutionsDb";
 import { getMyDeclinedEventIds } from "@/lib/eventResponsesDb";
 import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
-import {
-  getMyGroups,
-  type GroupRow,
-  getGroupTypeLabel,
-} from "@/lib/groupsDb";
+import { getMyGroups, type GroupRow, getGroupTypeLabel } from "@/lib/groupsDb";
 import {
   buildDashboardStats,
   type DashboardStats,
@@ -28,26 +27,52 @@ import {
   type ExternalEvent,
 } from "@/lib/externalEvents";
 import { getMyProfile, type Profile } from "@/lib/profilesDb";
-import { isPremiumUser, isTrialActive, type PlanTier } from "@/lib/premium";
+import {
+  getPendingPublicInviteCaptures,
+  markPublicInviteCaptureHandled,
+  type PublicInviteCaptureItem,
+} from "@/lib/invitationsDb";
+import {
+  hasPremiumAccess,
+  isPremiumUser,
+  isTrialActive,
+  type PlanTier,
+} from "@/lib/premium";
 import {
   getGroupState,
   setMode,
   type GroupState,
   type UsageMode,
 } from "@/lib/groups";
-import {
-  getPendingPublicInviteCaptures,
-  type PublicInviteCaptureItem,
-} from "@/lib/invitationsDb";
-import { colors, radii, shadows, spacing } from "@/styles/design-tokens";
 
-type QuickAction = {
-  id: string;
+type RecommendedAction = {
+  eyebrow: string;
   title: string;
-  hint: string;
+  copy: string;
+  label: string;
+  href: string;
+  tone: "default" | "warning" | "success";
+};
+
+type ControlArea = {
+  id: string;
+  eyebrow: string;
+  title: string;
+  copy: string;
+  href: string;
+  cta: string;
+  meta: string;
+  status?: {
+    label: string;
+    tone: "neutral" | "ok" | "warn" | "bad";
+  };
+};
+
+type DetailLink = {
+  id: string;
+  label: string;
   href: string;
   badge?: string;
-  featured?: boolean;
 };
 
 type ConnectionState = "connected" | "needs_reauth" | "disconnected";
@@ -56,14 +81,12 @@ type GoogleStatus = {
   ok: boolean;
   connected: boolean;
   connection_state?: ConnectionState;
-  account?:
-    | {
-        provider?: string | null;
-        email?: string | null;
-        created_at?: string | null;
-        updated_at?: string | null;
-      }
-    | null;
+  account?: {
+    provider?: string | null;
+    email?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  } | null;
   error?: string | null;
 };
 
@@ -74,6 +97,13 @@ type ContextOption = {
   dot: string;
 };
 
+type PremiumLockProps = {
+  title: string;
+  copy: string;
+};
+
+type PlanTone = "free" | "trial" | "premium" | "founder";
+
 const CONTEXT_OPTIONS: ContextOption[] = [
   {
     key: "solo",
@@ -81,28 +111,33 @@ const CONTEXT_OPTIONS: ContextOption[] = [
     hint: "Tu agenda individual",
     dot: "#FBBF24",
   },
-  {
-    key: "pair",
-    label: "Pareja",
-    hint: "Coordinación de dos",
-    dot: "#F87171",
-  },
-  {
-    key: "family",
-    label: "Familia",
-    hint: "Varios miembros",
-    dot: "#60A5FA",
-  },
+  { key: "pair", label: "Pareja", hint: "Coordinación de dos", dot: "#F87171" },
+  { key: "family", label: "Familia", hint: "Varios miembros", dot: "#60A5FA" },
 ];
+type PanelGroupLike = {
+  id?: string | number | null;
+  type?: string | null;
+};
 
+type GoogleStatusResponse = {
+  ok: boolean;
+  connected: boolean;
+  connection_state?: GoogleStatus["connection_state"];
+  error?: string;
+};
+
+type GoogleListResponse = {
+  ok?: boolean;
+  items?: Parameters<typeof normalizeGoogleCalendarItems>[0];
+  error?: string;
+};
 async function ensureActiveGroupForMode(
-  mode: UsageMode
+  mode: UsageMode,
 ): Promise<string | null> {
   if (mode === "solo") return null;
 
-  const { getActiveGroupIdFromDb, setActiveGroupIdInDb } = await import(
-    "@/lib/activeGroup"
-  );
+  const { getActiveGroupIdFromDb, setActiveGroupIdInDb } =
+    await import("@/lib/activeGroup");
   const { getMyGroups } = await import("@/lib/groupsDb");
 
   const existing = await getActiveGroupIdFromDb().catch(() => null);
@@ -112,7 +147,9 @@ async function ensureActiveGroupForMode(
   const wantType = String(mode).toLowerCase();
 
   if (existing) {
-    const current = groups.find((g: any) => String(g.id) === String(existing));
+    const current = (groups as PanelGroupLike[]).find(
+      (g) => String(g.id) === String(existing),
+    );
     const currentType = String(current?.type ?? "").toLowerCase();
     if (current && currentType === wantType) {
       return String(existing);
@@ -120,7 +157,7 @@ async function ensureActiveGroupForMode(
   }
 
   const match = groups.find(
-    (g: any) => String(g.type ?? "").toLowerCase() === wantType
+    (g: PanelGroupLike) => String(g.type ?? "").toLowerCase() === wantType,
   );
   const pick = match?.id ?? groups[0]?.id ?? null;
 
@@ -145,29 +182,166 @@ function normalizeGroupLabel(input?: string | null) {
   return raw;
 }
 
+function formatCaptureDate(value?: string | null) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "Sin fecha";
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return "Sin fecha";
+
+  return date.toLocaleString([], {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatExternalEventRange(event: ExternalEvent) {
+  const start = new Date(event.start);
+  const end = event.end ? new Date(event.end) : null;
+
+  if (Number.isNaN(start.getTime())) return "Sin fecha";
+
+  const day = start.toLocaleDateString([], {
+    day: "2-digit",
+    month: "short",
+  });
+
+  const startTime = start.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  if (!end || Number.isNaN(end.getTime())) {
+    return `${day} · ${startTime}`;
+  }
+
+  const endTime = end.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return `${day} · ${startTime}–${endTime}`;
+}
+
+function StatusPill({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "neutral" | "ok" | "warn" | "bad";
+}) {
+  return (
+    <span
+      style={{
+        ...styles.statusPill,
+        ...(tone === "ok"
+          ? styles.statusPillOk
+          : tone === "warn"
+            ? styles.statusPillWarn
+            : tone === "bad"
+              ? styles.statusPillBad
+              : styles.statusPillNeutral),
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function EmptyBlock({
+  copy,
+  primaryLabel,
+  onPrimary,
+  secondaryLabel,
+  onSecondary,
+}: {
+  copy: string;
+  primaryLabel?: string;
+  onPrimary?: () => void;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
+}) {
+  return (
+    <div style={styles.emptyBlock}>
+      <p style={styles.emptyCopy}>{copy}</p>
+
+      {primaryLabel || secondaryLabel ? (
+        <div style={styles.emptyActions}>
+          {primaryLabel && onPrimary ? (
+            <button
+              type="button"
+              style={styles.primarySmallButton}
+              onClick={onPrimary}
+            >
+              {primaryLabel}
+            </button>
+          ) : null}
+
+          {secondaryLabel && onSecondary ? (
+            <button
+              type="button"
+              style={styles.secondarySmallButton}
+              onClick={onSecondary}
+            >
+              {secondaryLabel}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PremiumLock({ title, copy }: PremiumLockProps) {
+  const router = useRouter();
+
+  return (
+    <div style={styles.premiumLockCard}>
+      <div style={styles.premiumLockHeader}>
+        <span style={styles.premiumLockBadge}>Premium</span>
+        <h3 style={styles.premiumLockTitle}>{title}</h3>
+      </div>
+
+      <p style={styles.premiumLockCopy}>{copy}</p>
+
+      <button
+        type="button"
+        style={styles.primarySmallButton}
+        onClick={() => router.push("/planes")}
+      >
+        Ver acceso
+      </button>
+    </div>
+  );
+}
+
 export default function PanelPage() {
   const router = useRouter();
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [groups, setGroups] = useState<GroupRow[]>([]);
-  const [captures, setCaptures] = useState<PublicInviteCaptureItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
-
   const [googleEvents, setGoogleEvents] = useState<ExternalEvent[]>([]);
   const [googleEventsLoading, setGoogleEventsLoading] = useState(false);
   const [googleEventsError, setGoogleEventsError] = useState<string | null>(
-    null
+    null,
   );
 
   const [contextState, setContextState] = useState<GroupState>(() =>
-    getGroupState()
+    getGroupState(),
   );
   const [contextSaving, setContextSaving] = useState<UsageMode | null>(null);
+  const [captures, setCaptures] = useState<PublicInviteCaptureItem[]>([]);
+  const [capturesLoading, setCapturesLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   const loadCore = useCallback(async () => {
     try {
@@ -185,7 +359,7 @@ export default function PanelPage() {
         getMyGroups().catch(() => [] as GroupRow[]),
         getMyProfile().catch(() => null as Profile | null),
         getMyConflictResolutionsMap().catch(
-          () => ({} as Record<string, string>)
+          () => ({}) as Record<string, string>,
         ),
         getMyDeclinedEventIds().catch(() => new Set<string>()),
       ]);
@@ -194,20 +368,119 @@ export default function PanelPage() {
         buildDashboardStats(events, fetchedGroups, {
           resolvedConflictMap,
           declinedEventIds,
-        })
+        }),
       );
       setGroups(fetchedGroups);
       setProfile(fetchedProfile);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error cargando panel:", err);
       setError(
-        err?.message ||
-          "No se pudo cargar el Panel. Intenta recargar la página."
+        err instanceof Error
+          ? err.message
+          : "No se pudo cargar el panel. Intenta recargar.",
       );
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const loadCaptures = useCallback(async () => {
+    try {
+      setCapturesLoading(true);
+      const rows = await getPendingPublicInviteCaptures(6).catch(
+        () => [] as PublicInviteCaptureItem[],
+      );
+      setCaptures(rows);
+    } catch (err) {
+      console.error("Error cargando capturas sugeridas:", err);
+      setCaptures([]);
+    } finally {
+      setCapturesLoading(false);
+    }
+  }, []);
+
+  const handleReviewCapture = useCallback(
+    async (capture: PublicInviteCaptureItem) => {
+      try {
+        await markPublicInviteCaptureHandled(capture.token, "handled");
+      } catch (err) {
+        console.error("No se pudo marcar la captura como procesada:", err);
+      }
+
+      router.push(
+        `/events/new/details?eventId=${capture.event_id}&proposalSource=public_invite&inviteToken=${encodeURIComponent(
+          capture.token,
+        )}`,
+      );
+    },
+    [router],
+  );
+
+  const handleTakeCaptureProposal = useCallback(
+    async (capture: PublicInviteCaptureItem) => {
+      try {
+        await markPublicInviteCaptureHandled(capture.token, "handled");
+      } catch (err) {
+        console.error("No se pudo marcar la captura como procesada:", err);
+      }
+
+      const proposedRaw = String(capture.proposed_date ?? "").trim();
+      const eventStartRaw = String(capture.event_start ?? "").trim();
+      const eventEndRaw = String(capture.event_end ?? "").trim();
+
+      const proposedStart = new Date(proposedRaw);
+      const eventStart = new Date(eventStartRaw);
+      const eventEnd = new Date(eventEndRaw);
+
+      if (
+        Number.isNaN(proposedStart.getTime()) ||
+        Number.isNaN(eventStart.getTime()) ||
+        Number.isNaN(eventEnd.getTime())
+      ) {
+        router.push(`/events/new/details?eventId=${capture.event_id}`);
+        return;
+      }
+
+      const durationMs = Math.max(
+        15 * 60 * 1000,
+        eventEnd.getTime() - eventStart.getTime(),
+      );
+
+      const proposedEnd = new Date(proposedStart.getTime() + durationMs);
+
+      const qp = new URLSearchParams();
+      qp.set("eventId", String(capture.event_id));
+      qp.set("proposedStart", proposedStart.toISOString());
+      qp.set("proposedEnd", proposedEnd.toISOString());
+      qp.set("proposalSource", "public_invite");
+      qp.set("proposalIntent", "accept");
+
+      router.push(`/events/new/details?${qp.toString()}`);
+    },
+    [router],
+  );
+
+  const handleRescheduleCapture = useCallback(
+    async (capture: PublicInviteCaptureItem) => {
+      try {
+        await markPublicInviteCaptureHandled(capture.token, "handled");
+      } catch (err) {
+        console.error("No se pudo marcar la captura como procesada:", err);
+      }
+
+      router.push(`/events/new/details?eventId=${capture.event_id}`);
+    },
+    [router],
+  );
+
+  const openEventFromCapture = useCallback(
+    (capture: PublicInviteCaptureItem) => {
+      router.push(
+        `/events?focusEventId=${encodeURIComponent(capture.event_id)}`,
+      );
+    },
+    [router],
+  );
 
   const fetchGoogleStatus = useCallback(async () => {
     try {
@@ -222,7 +495,9 @@ export default function PanelPage() {
         cache: "no-store",
       });
 
-      const json = (await res.json().catch(() => null)) as GoogleStatus | null;
+      const json = (await res
+        .json()
+        .catch(() => null)) as GoogleStatusResponse | null;
 
       if (!res.ok || !json?.ok) {
         setGoogleStatus({
@@ -231,21 +506,31 @@ export default function PanelPage() {
           connection_state: "disconnected",
           error:
             json?.error ||
-            "No se pudo leer el estado de la integración con Google.",
+            "No se pudo leer el estado de Google Calendar conectado.",
         });
         return;
       }
 
-      setGoogleStatus(json);
-    } catch (err: any) {
+      setGoogleStatus({
+        ok: Boolean(json.ok),
+        connected: Boolean(json.connected),
+        connection_state:
+          json.connection_state === "connected" ||
+          json.connection_state === "disconnected"
+            ? json.connection_state
+            : "disconnected",
+        error: json.error ?? undefined,
+      });
+    } catch (err: unknown) {
       console.error("Error leyendo estado de Google:", err);
       setGoogleStatus({
         ok: false,
         connected: false,
         connection_state: "disconnected",
         error:
-          err?.message ||
-          "Error inesperado al consultar el estado de Google Calendar.",
+          err instanceof Error
+            ? err.message
+            : "Error inesperado al consultar Google Calendar conectado.",
       });
     } finally {
       setGoogleLoading(false);
@@ -266,14 +551,14 @@ export default function PanelPage() {
         cache: "no-store",
       });
 
-      const json = (await res.json().catch(() => null)) as
-        | { ok?: boolean; items?: any[]; error?: string }
-        | null;
+      const json = (await res
+        .json()
+        .catch(() => null)) as GoogleListResponse | null;
 
       if (!res.ok || !json?.ok) {
         setGoogleEvents([]);
         setGoogleEventsError(
-          json?.error || "No se pudieron leer los eventos de Google."
+          json?.error || "No se pudieron leer los eventos de Google.",
         );
         return;
       }
@@ -283,11 +568,13 @@ export default function PanelPage() {
       });
 
       setGoogleEvents(normalized);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error leyendo eventos de Google:", err);
       setGoogleEvents([]);
       setGoogleEventsError(
-        err?.message || "Error inesperado al leer eventos de Google."
+        err instanceof Error
+          ? err.message
+          : "Error inesperado al leer eventos de Google.",
       );
     } finally {
       setGoogleEventsLoading(false);
@@ -296,9 +583,19 @@ export default function PanelPage() {
 
   useEffect(() => {
     loadCore();
+    loadCaptures();
     fetchGoogleStatus();
     setContextState(getGroupState());
-  }, [loadCore, fetchGoogleStatus]);
+  }, [loadCore, loadCaptures, fetchGoogleStatus]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncViewport = () => setIsMobile(window.innerWidth < 768);
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
+  }, []);
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
@@ -320,6 +617,21 @@ export default function PanelPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const refreshSuggestedCaptures = () => loadCaptures();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") loadCaptures();
+    };
+
+    window.addEventListener("focus", refreshSuggestedCaptures);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", refreshSuggestedCaptures);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [loadCaptures]);
+
   const connectionState: ConnectionState =
     googleStatus?.connection_state ??
     (googleStatus?.connected ? "connected" : "disconnected");
@@ -337,18 +649,20 @@ export default function PanelPage() {
   const totalEvents = stats?.totalEvents ?? 0;
   const totalGroups = stats?.totalGroups ?? 0;
   const conflictsNow = stats?.conflictsNow ?? 0;
-
   const tier = (profile?.plan_tier ?? "free") as PlanTier;
   const trialActive = isTrialActive(profile);
   const premiumActive = isPremiumUser(profile);
+  const canUseCaptures = hasPremiumAccess(profile);
+  const canUseGoogleIntegration = hasPremiumAccess(profile);
 
   const currentContextOption =
     CONTEXT_OPTIONS.find((x) => x.key === contextState.mode) ??
     CONTEXT_OPTIONS[0];
 
   const currentContextGroupName = normalizeGroupLabel(
-    contextState.groupName ?? null
+    contextState.groupName ?? null,
   );
+
   const showContextGroupName =
     currentContextGroupName &&
     currentContextGroupName !== currentContextOption.label
@@ -361,245 +675,273 @@ export default function PanelPage() {
     if (normalizedTier.startsWith("founder")) {
       return {
         pill: "Founder",
-        title: "Tu acceso fundador sigue activo",
-        copy:
-          "Mantienes una posición temprana en SyncPlans con beneficios preferenciales.",
-        cta: "Ver planes",
+        title: "Founder activo",
+        copy: "Entraste antes y conservas una capa preferencial dentro del valor premium.",
+        cta: "Ver beneficios",
+        tone: "founder" as PlanTone,
+        supportingCopy: "Tu acceso reconoce esa ventaja temprana.",
       };
     }
 
     if (trialActive) {
       return {
-        pill: "Prueba Premium",
-        title: "Tienes Premium desbloqueado",
-        copy:
-          "Estás probando la experiencia completa para coordinar mejor con pareja, familia y grupos compartidos.",
-        cta: "Ver planes",
+        pill: "Trial",
+        title: "Premium en prueba",
+        copy: "Ya estás probando una coordinación con más claridad, menos fricción y más control sobre lo compartido.",
+        cta: "Mantener Premium",
+        tone: "trial" as PlanTone,
+        supportingCopy: "Evita volver al modo improvisado.",
       };
     }
 
     if (premiumActive) {
       return {
         pill: "Premium",
-        title: "Tu experiencia completa está activa",
-        copy:
-          "Tus funciones avanzadas están listas para ayudarte a coordinar con menos fricción.",
+        title: "Premium activo",
+        copy: "Tu coordinación premium ya está funcionando con más claridad compartida, menos desgaste y mejor visibilidad.",
         cta: "Gestionar plan",
+        tone: "premium" as PlanTone,
+        supportingCopy: "Más claridad. Menos fricción. Más control.",
       };
     }
 
     return {
       pill: "Free",
-      title: "Tu base está lista para crecer",
-      copy:
-        "Ya puedes usar SyncPlans para organizarte. Cuando quieras, puedes pasar a Premium para coordinar mejor con otros.",
-      cta: "Ver planes",
+      title: "Tu acceso actual",
+      copy: "Tu base gratuita ya está activa. Premium entra cuando coordinar con otros ya pide más contexto, más visibilidad y menos desgaste.",
+      cta: "Ver acceso",
+      tone: "free" as PlanTone,
+      supportingCopy: "Premium aparece cuando el sistema compartido crece.",
     };
   }, [premiumActive, tier, trialActive]);
 
-  const quickActions: QuickAction[] = [
-    {
-      id: "groups",
-      title: "Gestionar grupos",
-      hint: "Organiza pareja, familia y espacios compartidos desde el centro administrativo.",
-      href: "/groups",
-      badge: totalGroups > 0 ? `${totalGroups}` : undefined,
-      featured: true,
-    },
-    {
-      id: "invitations",
-      title: "Gestionar invitaciones",
-      hint: "Invita, acepta y ordena quién entra al sistema sin mezclarlo con la operación diaria.",
-      href: "/invitations",
-      featured: true,
-    },
-    {
-      id: "settings",
-      title: "Ajustes e integraciones",
-      hint: "Configura SyncPlans y conecta herramientas como Google Calendar.",
-      href: "/settings",
-    },
-    {
-      id: "plans",
-      title: "Plan y acceso",
-      hint: "Revisa tu nivel actual, beneficios y próximos pasos de crecimiento.",
-      href: "/planes",
-    },
-    {
-      id: "calendar",
-      title: "Ir al calendario",
-      hint: "Entrada secundaria para volver a la operación diaria cuando la necesites.",
-      href: "/calendar",
-    },
-    {
-      id: "events",
-      title: "Ver eventos",
-      hint: "Consulta los eventos registrados sin convertir el Panel en otra vista operativa.",
-      href: "/events",
-      badge: totalEvents > 0 ? `${totalEvents}` : undefined,
-    },
-  ];
-
-  const groupsPreview = useMemo(() => groups.slice(0, 3), [groups]);
-  const capturesPreview = useMemo(() => captures.slice(0, 3), [captures]);
+  const groupsPreview = useMemo(
+    () => groups.slice(0, isMobile ? 2 : 4),
+    [groups, isMobile],
+  );
 
   const googlePill = useMemo(() => {
-    if (googleLoading) {
-      return {
-        label: "Revisando",
-        tone: "neutral" as const,
-      };
-    }
-
-    if (connectionState === "connected") {
-      return {
-        label: "Conectado",
-        tone: "ok" as const,
-      };
-    }
-
-    if (connectionState === "needs_reauth") {
-      return {
-        label: "Requiere reconexión",
-        tone: "warn" as const,
-      };
-    }
-
-    if (googleStatus && !googleStatus.ok) {
-      return {
-        label: "Error",
-        tone: "bad" as const,
-      };
-    }
-
-    return {
-      label: "No conectado",
-      tone: "neutral" as const,
-    };
+    if (googleLoading) return { label: "Revisando", tone: "neutral" as const };
+    if (connectionState === "connected")
+      return { label: "Conectado", tone: "ok" as const };
+    if (connectionState === "needs_reauth")
+      return { label: "Reconectar", tone: "warn" as const };
+    if (googleStatus && !googleStatus.ok)
+      return { label: "Error", tone: "bad" as const };
+    return { label: "No conectado", tone: "neutral" as const };
   }, [connectionState, googleLoading, googleStatus]);
 
   const googlePrimaryCta =
     connectionState === "connected"
       ? "Gestionar"
       : connectionState === "needs_reauth"
-      ? "Reconectar"
-      : "Conectar";
+        ? "Reconectar"
+        : "Conectar";
 
   const googleLine =
     connectionState === "connected"
       ? googleStatus?.account?.email
-        ? `Conectado con ${googleStatus.account.email}.`
-        : "Tu Google Calendar está conectado."
+        ? `Conectado con ${googleStatus.account.email}`
+        : "Google Calendar conectado"
       : connectionState === "needs_reauth"
-      ? googleStatus?.account?.email
-        ? `La cuenta ${googleStatus.account.email} necesita reconexión.`
-        : "La conexión existe, pero necesita reconexión."
-      : "Todavía no has conectado Google Calendar.";
+        ? googleStatus?.account?.email
+          ? `${googleStatus.account.email} necesita reconexión`
+          : "La conexión necesita reconexión"
+        : "Google Calendar no conectado";
 
-  const heroNote =
-    totalGroups > 0 && connectionState === "connected"
-      ? `Tu estructura ya está armada: ${totalGroups} grupo${
-          totalGroups === 1 ? "" : "s"
-        } activo${totalGroups === 1 ? "" : "s"} y Google Calendar conectado.`
-      : totalGroups > 0
-      ? `Tienes ${totalGroups} grupo${
-          totalGroups === 1 ? "" : "s"
-        } activo${totalGroups === 1 ? "" : "s"}.`
-      : connectionState === "connected"
-      ? "Tu base ya está conectada: ahora toca ordenar grupos, accesos e integraciones."
-      : "Desde aquí defines la estructura que sostiene la coordinación compartida.";
-
-
-  function getSafeDurationMs(start: string | null, end: string | null) {
-    const startMs = start ? new Date(start).getTime() : NaN;
-    const endMs = end ? new Date(end).getTime() : NaN;
-
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
-      return 60 * 60 * 1000;
+  const recommendedAction = useMemo<RecommendedAction>(() => {
+    if (conflictsNow > 0) {
+      return {
+        eyebrow: "Necesita decisión",
+        title: `${conflictsNow} conflicto${conflictsNow === 1 ? "" : "s"} activo${conflictsNow === 1 ? "" : "s"}`,
+        copy: "Resuelve los choques pendientes para mantener una sola versión clara de la agenda.",
+        label: "Resolver conflictos",
+        href: "/conflicts/detected",
+        tone: "warning",
+      };
     }
 
-    return endMs - startMs;
-  }
-
-  function formatCaptureWhen(value: string | null) {
-    if (!value) return null;
-
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return null;
-
-    return new Intl.DateTimeFormat("es-PE", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(parsed);
-  }
-
-  function getCaptureSummary(capture: PublicInviteCaptureItem) {
-    if (capture.status === "accepted") {
-      return "Aceptaron esta invitación externa.";
+    if (totalGroups === 0) {
+      return {
+        eyebrow: "Primer salto de valor",
+        title: "Crea tu primer espacio compartido",
+        copy: "Crea un espacio para coordinar con otra persona sin depender del chat.",
+        label: "Crear grupo",
+        href: "/groups/new",
+        tone: "default",
+      };
     }
 
-    if (capture.proposed_date) {
-      const when = formatCaptureWhen(capture.proposed_date);
-      return when
-        ? `La rechazaron, pero propusieron moverla a ${when}.`
-        : "La rechazaron, pero propusieron una nueva fecha.";
+    if (captures.length > 0 && canUseCaptures) {
+      return {
+        eyebrow: "Hay algo por cerrar",
+        title: `${captures.length} respuesta${captures.length === 1 ? "" : "s"} esperando revisión`,
+        copy: "Revisa las respuestas externas y conviértelas en una decisión clara dentro de SyncPlans.",
+        label: "Ver respuestas",
+        href: "/events",
+        tone: "warning",
+      };
     }
 
-    return "La rechazaron y todavía no hay una nueva fecha sugerida.";
-  }
-
-  function buildCaptureProposalUrl(
-    capture: PublicInviteCaptureItem,
-    intent: "review" | "accept" = "review"
-  ) {
-    const proposed = String(capture.proposed_date ?? "").trim();
-    if (!proposed) return null;
-
-    const proposedStart = new Date(proposed);
-    if (Number.isNaN(proposedStart.getTime())) return null;
-
-    const durationMs = getSafeDurationMs(
-      capture.event_start,
-      capture.event_end
-    );
-    const proposedEnd = new Date(proposedStart.getTime() + durationMs);
-
-    const qp = new URLSearchParams();
-    qp.set("eventId", String(capture.event_id));
-    qp.set("proposedStart", proposedStart.toISOString());
-    qp.set("proposedEnd", proposedEnd.toISOString());
-    qp.set("proposalSource", "public_invite");
-    qp.set("proposalIntent", intent);
-
-    return `/events/new/details?${qp.toString()}`;
-  }
-
-  function openCaptureEvent(capture: PublicInviteCaptureItem) {
-    router.push(
-      `/events/new/details?eventId=${encodeURIComponent(capture.event_id)}`
-    );
-  }
-
-  function reviewCaptureProposal(capture: PublicInviteCaptureItem) {
-    const url = buildCaptureProposalUrl(capture, "review");
-    if (!url) {
-      openCaptureEvent(capture);
-      return;
+    if (canUseGoogleIntegration && connectionState !== "connected") {
+      return {
+        eyebrow: "Más contexto real",
+        title: "Conecta tu calendario externo",
+        copy: "Conectar Google Calendar ayuda a detectar disponibilidad, choques y contexto antes de coordinar.",
+        label: googlePrimaryCta,
+        href: "/settings",
+        tone: "default",
+      };
     }
-    router.push(url);
-  }
 
-  function takeCaptureProposal(capture: PublicInviteCaptureItem) {
-    const url = buildCaptureProposalUrl(capture, "accept");
-    if (!url) {
-      openCaptureEvent(capture);
-      return;
-    }
-    router.push(url);
-  }
+    return {
+      eyebrow: "Todo listo",
+      title: "Todo listo para coordinar",
+      copy: "Tu estructura está configurada. Vuelve a Resumen para operar tu día o ajusta un área cuando haga falta.",
+      label: "Abrir resumen",
+      href: "/summary",
+      tone: "success",
+    };
+  }, [
+    captures.length,
+    canUseCaptures,
+    canUseGoogleIntegration,
+    conflictsNow,
+    connectionState,
+    googlePrimaryCta,
+    totalGroups,
+  ]);
+
+  const statusChips = useMemo(
+    () => [
+      {
+        label: showContextGroupName
+          ? `${currentContextOption.label} · ${showContextGroupName}`
+          : currentContextOption.label,
+        tone: "neutral" as const,
+      },
+      {
+        label: `${totalGroups} espacio${totalGroups === 1 ? "" : "s"}`,
+        tone: totalGroups > 0 ? ("ok" as const) : ("neutral" as const),
+      },
+      googlePill,
+      {
+        label: planInfo.pill,
+        tone:
+          planInfo.tone === "free"
+            ? ("neutral" as const)
+            : planInfo.tone === "trial"
+              ? ("warn" as const)
+              : ("ok" as const),
+      },
+    ],
+    [
+      currentContextOption.label,
+      googlePill,
+      planInfo.pill,
+      planInfo.tone,
+      showContextGroupName,
+      totalGroups,
+    ],
+  );
+
+  const controlAreas = useMemo<ControlArea[]>(
+    () => [
+      {
+        id: "people",
+        eyebrow: "Personas",
+        title: "Personas y grupos",
+        copy: "Espacios, miembros e invitaciones juntos. Úsalo cuando quieras administrar con quién coordinas.",
+        href: "/groups",
+        cta: totalGroups === 0 ? "Crear espacio" : "Gestionar personas",
+        meta:
+          totalGroups === 0
+            ? "Sin grupos todavía"
+            : `${totalGroups} activo${totalGroups === 1 ? "" : "s"}`,
+        status: {
+          label: totalGroups === 0 ? "Pendiente" : "Activo",
+          tone: totalGroups === 0 ? "neutral" : "ok",
+        },
+      },
+      {
+        id: "calendar",
+        eyebrow: "Contexto",
+        title: "Calendarios e integraciones",
+        copy: "Conecta calendarios externos para sumar contexto sin llenar tu agenda de ruido.",
+        href: "/settings",
+        cta: googlePrimaryCta,
+        meta: googleLine,
+        status: googlePill,
+      },
+      {
+        id: "mobility",
+        eyebrow: "Llegada",
+        title: "Movilidad inteligente",
+        copy: "Origen, transporte, rutas y alertas de salida para llegar mejor a tus planes.",
+        href: "/settings",
+        cta: "Configurar movilidad",
+        meta: "Rutas, Maps/Waze y alertas",
+        status: { label: "Opcional", tone: "neutral" },
+      },
+      {
+        id: "account",
+        eyebrow: "Cuenta",
+        title: "Cuenta y plan",
+        copy: "Perfil, plan, Premium y preferencias importantes sin mezclarlo con la operación diaria.",
+        href: "/profile",
+        cta: "Ver cuenta",
+        meta: planInfo.supportingCopy,
+        status: {
+          label: planInfo.pill,
+          tone:
+            planInfo.tone === "free"
+              ? "neutral"
+              : planInfo.tone === "trial"
+                ? "warn"
+                : "ok",
+        },
+      },
+    ],
+    [
+      googleLine,
+      googlePill,
+      googlePrimaryCta,
+      planInfo.pill,
+      planInfo.supportingCopy,
+      planInfo.tone,
+      totalGroups,
+    ],
+  );
+
+  const detailLinks = useMemo<DetailLink[]>(
+    () => [
+      { id: "summary", label: "Resumen", href: "/summary" },
+      { id: "calendar", label: "Calendario", href: "/calendar" },
+      {
+        id: "conflicts",
+        label: "Conflictos",
+        href: "/conflicts/detected",
+        badge: conflictsNow > 0 ? `${conflictsNow}` : undefined,
+      },
+      {
+        id: "events",
+        label: "Eventos",
+        href: "/events",
+        badge: totalEvents > 0 ? `${totalEvents}` : undefined,
+      },
+      { id: "members", label: "Miembros", href: "/members" },
+      {
+        id: "invitations",
+        label: "Invitaciones",
+        href: "/invitations",
+        badge: captures.length > 0 ? `${captures.length}` : undefined,
+      },
+      { id: "settings", label: "Ajustes", href: "/settings" },
+      { id: "plans", label: "Planes", href: "/planes" },
+      { id: "operations", label: "Operaciones", href: "/panel/operations" },
+    ],
+    [captures.length, conflictsNow, totalEvents],
+  );
 
   async function handleContextChange(nextMode: UsageMode) {
     if (contextSaving === nextMode || contextState.mode === nextMode) return;
@@ -620,1248 +962,1556 @@ export default function PanelPage() {
     }
   }
 
+  if (loading && !stats) {
+    return (
+      <MobileScaffold maxWidth={1180}>
+        <PremiumHeader
+          title="Panel"
+          subtitle="Preparando tu Panel."
+        />
+        <div style={styles.stack}>
+          <section style={styles.heroCard}>
+            <div style={styles.loadingBlock}>
+              <div style={styles.loadingDot} />
+              <div>
+                <div style={styles.loadingTitle}>Cargando panel…</div>
+                <div style={styles.loadingSub}>Preparando tu estructura</div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </MobileScaffold>
+    );
+  }
+
   return (
-    <MobileScaffold maxWidth={1120}>
+    <MobileScaffold maxWidth={1180}>
       <PremiumHeader
         title="Panel"
-        subtitle="Tu centro de gestión premium para ordenar grupos, invitaciones, integraciones y acceso."
+        subtitle={
+          isMobile
+            ? "Gestiona lo importante sin ruido."
+            : "Grupos, calendarios, movilidad y cuenta en un solo lugar."
+        }
       />
 
       <div style={styles.stack}>
         {error ? <div style={styles.errorBanner}>{error}</div> : null}
 
-        <section style={styles.heroCard}>
-          <div style={styles.heroTopRow}>
-            <div style={styles.heroTextWrap}>
-              <div style={styles.eyebrow}>Gestión</div>
-              <h1 style={styles.heroTitle}>
-                Administra la estructura que sostiene tu coordinación.
-              </h1>
-              <p style={styles.heroCopy}>
-                El Panel no es otra agenda: es el lugar donde ordenas espacios,
-                accesos e integraciones para que el resto de la app fluya mejor.
+        <section style={styles.commandCard}>
+          <div
+            style={{
+              ...styles.commandTopRow,
+              gridTemplateColumns: isMobile
+                ? "1fr"
+                : "minmax(0, 1fr) minmax(280px, 380px)",
+            }}
+          >
+            <div style={styles.commandTextWrap}>
+              <div style={styles.eyebrow}>Panel</div>
+              <h1 style={styles.commandTitle}>Administra SyncPlans</h1>
+              <p style={styles.commandCopy}>
+                Ajusta las bases de tu coordinación: personas, calendarios,
+                movilidad y cuenta. Lo operativo vive en Resumen, Calendario y Eventos.
               </p>
             </div>
 
-            <div style={styles.heroActionStack}>
+            <div
+              style={{
+                ...styles.recommendedCard,
+                ...(recommendedAction.tone === "warning"
+                  ? styles.recommendedCardWarning
+                  : recommendedAction.tone === "success"
+                    ? styles.recommendedCardSuccess
+                    : null),
+              }}
+            >
+              <div style={styles.recommendedEyebrow}>
+                {recommendedAction.eyebrow}
+              </div>
+              <div style={styles.recommendedTitle}>
+                {recommendedAction.title}
+              </div>
+              <div style={styles.recommendedCopy}>{recommendedAction.copy}</div>
               <button
                 type="button"
                 style={styles.primaryHeroCta}
-                onClick={() => router.push("/groups")}
+                onClick={() => router.push(recommendedAction.href)}
               >
-                Gestionar grupos
-              </button>
-              <button
-                type="button"
-                style={styles.secondaryHeroCta}
-                onClick={() => router.push("/invitations")}
-              >
-                Ver invitaciones
+                {recommendedAction.label}
               </button>
             </div>
           </div>
 
-          <div style={styles.heroStrip}>
-            <div style={styles.heroStripTitle}>Estado del espacio</div>
-            <div style={styles.heroStripCopy}>{heroNote}</div>
-          </div>
-
-          <div style={styles.metricsGrid}>
-            <MetricCard
-              label="Grupos"
-              value={loading ? "—" : String(totalGroups)}
-              hint="Pareja, familia y compartidos"
-            />
-            <MetricCard
-              label="Eventos registrados"
-              value={loading ? "—" : String(totalEvents)}
-              hint="En el sistema"
-            />
-            <MetricCard
-              label="Google"
-              value={
-                loading
-                  ? "—"
-                  : connectionState === "connected"
-                  ? "Activo"
-                  : connectionState === "needs_reauth"
-                  ? "Revisar"
-                  : "Pendiente"
-              }
-              hint="Estado de integración externa"
-            />
-            <MetricCard
-              label="Conflictos"
-              value={loading ? "—" : String(conflictsNow)}
-              hint="Choques abiertos"
-              danger={conflictsNow > 0}
-            />
+          <div style={styles.statusStrip}>
+            {statusChips.map((chip) => (
+              <StatusPill
+                key={`${chip.label}-${chip.tone}`}
+                label={chip.label}
+                tone={chip.tone}
+              />
+            ))}
           </div>
         </section>
 
-        <div style={styles.mainGrid}>
-          <div style={styles.leftCol}>
-            <section style={styles.sectionCard}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Contexto</div>
-                  <h2 style={styles.sectionTitle}>Contexto activo</h2>
-                </div>
-              </div>
+        <section style={styles.sectionCardCompact}>
+          <div style={styles.sectionHead}>
+            <div>
+              <div style={styles.sectionEyebrow}>Áreas principales</div>
+              <h2 style={styles.sectionTitle}>Cuatro puertas, sin ruido</h2>
+            </div>
+          </div>
 
-              <p style={styles.bodyCopy}>
-                Esto define desde qué perspectiva principal estás trabajando la
-                app. El header te informa; aquí decides el enfoque.
-              </p>
-
-              <div style={styles.contextHero}>
-                <div style={styles.contextHeroLeft}>
-                  <div style={styles.contextHeroLabel}>Actualmente</div>
-                  <div style={styles.contextCurrentRow}>
-                    <span
-                      style={{
-                        ...styles.contextCurrentDot,
-                        background: currentContextOption.dot,
-                      }}
-                    />
-                    <span style={styles.contextCurrentText}>
-                      {currentContextOption.label}
-                    </span>
+          <div
+            style={{
+              ...styles.controlGrid,
+              gridTemplateColumns: isMobile
+                ? "1fr"
+                : "repeat(2, minmax(0, 1fr))",
+            }}
+          >
+            {controlAreas.map((area) => (
+              <button
+                key={area.id}
+                type="button"
+                style={styles.controlCard}
+                onClick={() => router.push(area.href)}
+              >
+                <div style={styles.controlCardTop}>
+                  <div>
+                    <div style={styles.controlEyebrow}>{area.eyebrow}</div>
+                    <div style={styles.controlTitle}>{area.title}</div>
                   </div>
-
-                  {showContextGroupName ? (
-                    <div style={styles.contextCurrentMeta}>
-                      Grupo asociado: {showContextGroupName}
-                    </div>
+                  {area.status ? (
+                    <StatusPill
+                      label={area.status.label}
+                      tone={area.status.tone}
+                    />
                   ) : null}
                 </div>
 
-                <div style={styles.contextHeroRight}>
-                  <div style={styles.contextHeroHint}>
-                    Cambia este contexto solo cuando quieras cambiar la mirada
-                    principal de la app.
-                  </div>
+                <div style={styles.controlCopy}>{area.copy}</div>
+
+                <div style={styles.controlFooter}>
+                  <span style={styles.controlMeta}>{area.meta}</span>
+                  <span style={styles.controlCta}>{area.cta}</span>
                 </div>
-              </div>
+              </button>
+            ))}
+          </div>
+        </section>
 
-              <div style={styles.contextGrid}>
-                {CONTEXT_OPTIONS.map((option) => {
-                  const active = option.key === contextState.mode;
-                  const saving = contextSaving === option.key;
+        <section style={styles.sectionCardCompact}>
+          <div style={styles.detailsHeadRow}>
+            <div>
+              <div style={styles.sectionEyebrow}>Más opciones</div>
+              <h2 style={styles.sectionTitle}>Detalles avanzados</h2>
+              <p style={styles.detailsIntro}>
+                Operaciones, respuestas, integraciones, grupos recientes y contexto activo siguen aquí,
+                pero no compiten con la vista principal.
+              </p>
+            </div>
 
-                  return (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() => handleContextChange(option.key)}
-                      disabled={saving}
-                      style={{
-                        ...styles.contextCard,
-                        ...(active ? styles.contextCardActive : {}),
-                        ...(saving ? styles.contextCardBusy : {}),
-                      }}
-                    >
-                      <div style={styles.contextCardTop}>
-                        <span
-                          style={{
-                            ...styles.contextCardDot,
-                            background: option.dot,
-                          }}
-                        />
-                        <span style={styles.contextCardLabel}>
-                          {option.label}
-                        </span>
-                        {active ? (
-                          <span style={styles.contextBadge}>Activo</span>
-                        ) : null}
-                      </div>
+            <button
+              type="button"
+              style={styles.ghostButton}
+              onClick={() => setShowDetails((value) => !value)}
+            >
+              {showDetails ? "Ocultar" : "Ver detalles"}
+            </button>
+          </div>
 
-                      <div style={styles.contextCardHint}>{option.hint}</div>
-
-                      <div style={styles.contextCardFoot}>
-                        {saving
-                          ? "Actualizando..."
-                          : active
-                          ? "Este es el contexto principal actual."
-                          : "Cambiar a este contexto"}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section style={styles.sectionCard}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Gestión</div>
-                  <h2 style={styles.sectionTitle}>Centro de administración</h2>
-                </div>
-              </div>
-
-              <div style={styles.actionsGrid}>
-                {quickActions.map((action) => (
+          {showDetails ? (
+            <div style={styles.detailsStack}>
+              <div style={styles.detailLinksGrid}>
+                {detailLinks.map((link) => (
                   <button
-                    key={action.id}
+                    key={link.id}
                     type="button"
-                    style={{
-                      ...styles.actionCard,
-                      ...(action.featured
-                        ? styles.actionCardFeatured
-                        : undefined),
-                    }}
-                    onClick={() => router.push(action.href)}
+                    style={styles.pillAction}
+                    onClick={() => router.push(link.href)}
                   >
-                    <div style={styles.actionCardTop}>
-                      <span style={styles.actionTitle}>{action.title}</span>
-                      {action.badge ? (
-                        <span style={styles.badge}>{action.badge}</span>
-                      ) : null}
-                    </div>
-                    <p style={styles.actionHint}>{action.hint}</p>
+                    <span>{link.label}</span>
+                    {link.badge ? (
+                      <span style={styles.pillBadge}>{link.badge}</span>
+                    ) : null}
                   </button>
                 ))}
               </div>
-            </section>
 
-            <section style={styles.sectionCard}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Captura</div>
-                  <h2 style={styles.sectionTitle}>Acciones sugeridas</h2>
-                </div>
-
-                {capturesPreview.length > 0 ? (
-                  <span style={styles.badge}>{capturesPreview.length}</span>
-                ) : null}
-              </div>
-
-              {capturesPreview.length === 0 ? (
-                <EmptyBlock copy="Cuando alguien responda desde un link público, aquí aparecerán sugerencias listas para revisar sin perder el hilo." />
-              ) : (
-                <div style={styles.list}>
-                  {capturesPreview.map((capture) => {
-                    const showProposal =
-                      capture.status === "rejected" && !!capture.proposed_date;
-
-                    return (
-                      <div key={capture.invite_id} style={styles.listItem}>
-                        <div style={styles.listCopyWrap}>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            <div style={styles.listTitle}>
-                              {capture.event_title}
-                            </div>
-
-                            <span
-                              style={{
-                                ...styles.badge,
-                                ...(capture.status === "accepted"
-                                  ? {
-                                      background: "rgba(34,197,94,0.14)",
-                                      color: "#86EFAC",
-                                      borderColor: "rgba(34,197,94,0.26)",
-                                    }
-                                  : {
-                                      background: "rgba(251,191,36,0.14)",
-                                      color: "#FDE68A",
-                                      borderColor: "rgba(251,191,36,0.26)",
-                                    }),
-                              }}
-                            >
-                              {capture.status === "accepted"
-                                ? "Aceptada"
-                                : "Rechazada"}
-                            </span>
-                          </div>
-
-                          <div style={styles.listMeta}>
-                            {capture.contact
-                              ? `${capture.contact} · ${getCaptureSummary(capture)}`
-                              : getCaptureSummary(capture)}
-                          </div>
-
-                          {capture.message ? (
-                            <div
-                              style={{
-                                ...styles.listMeta,
-                                color: "rgba(255,255,255,0.84)",
-                              }}
-                            >
-                              “{capture.message}”
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            flexWrap: "wrap",
-                            justifyContent: "flex-end",
-                          }}
-                        >
-                          {showProposal ? (
-                            <>
-                              <button
-                                type="button"
-                                style={styles.inlineLink}
-                                onClick={() => reviewCaptureProposal(capture)}
-                              >
-                                Revisar propuesta
-                              </button>
-
-                              <button
-                                type="button"
-                                style={styles.inlineLink}
-                                onClick={() => takeCaptureProposal(capture)}
-                              >
-                                Tomar propuesta
-                              </button>
-                            </>
-                          ) : null}
-
-                          <button
-                            type="button"
-                            style={styles.inlineLink}
-                            onClick={() => openCaptureEvent(capture)}
-                          >
-                            Ver evento
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-
-            <section style={styles.sectionCard}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Estructura</div>
-                  <h2 style={styles.sectionTitle}>Grupos activos</h2>
-                </div>
-
-                <button
-                  type="button"
-                  style={styles.ghostButton}
-                  onClick={() => router.push("/groups")}
-                >
-                  Ver todos
-                </button>
-              </div>
-
-              {groupsPreview.length === 0 ? (
-                <EmptyBlock copy="Todavía no tienes grupos creados. Este es el primer paso para que SyncPlans deje de ser solo personal." />
-              ) : (
-                <div style={styles.list}>
-                  {groupsPreview.map((group) => (
-                    <div key={group.id} style={styles.listItem}>
-                      <div style={styles.listCopyWrap}>
-                        <div style={styles.listTitle}>
-                          {group.name || getGroupTypeLabel(group.type)}
-                        </div>
-                        <div style={styles.listMeta}>
-                          {getGroupTypeLabel(group.type)}
-                        </div>
+              <div
+                style={{
+                  ...styles.mainGrid,
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : "minmax(0, 1.05fr) minmax(320px, 0.95fr)",
+                }}
+              >
+                <div style={styles.leftCol}>
+                  <section style={styles.subPanelCard}>
+                    <div style={styles.sectionHead}>
+                      <div>
+                        <div style={styles.sectionEyebrow}>Personas</div>
+                        <h3 style={styles.subPanelTitle}>Espacios recientes</h3>
                       </div>
 
                       <button
                         type="button"
-                        style={styles.inlineLink}
-                        onClick={() => router.push(`/groups/${group.id}`)}
+                        style={styles.ghostButton}
+                        onClick={() => router.push("/groups")}
                       >
-                        Abrir
+                        Ver todos
                       </button>
                     </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
 
-          <div style={styles.rightCol}>
-            <section style={styles.planCard}>
-              <div style={styles.planPill}>{planInfo.pill}</div>
-              <h2 style={styles.planTitle}>{planInfo.title}</h2>
-              <p style={styles.planCopy}>{planInfo.copy}</p>
-              <button
-                type="button"
-                style={styles.primaryCta}
-                onClick={() => router.push("/planes")}
-              >
-                {planInfo.cta}
-              </button>
-            </section>
+                    {groupsPreview.length === 0 ? (
+                      <EmptyBlock
+                        copy="Aún no tienes grupos. Empieza por crear uno o revisar si tienes invitaciones pendientes."
+                        primaryLabel="Crear grupo"
+                        onPrimary={() => router.push("/groups/new")}
+                        secondaryLabel="Invitaciones"
+                        onSecondary={() => router.push("/invitations")}
+                      />
+                    ) : (
+                      <div style={styles.listCompact}>
+                        {groupsPreview.map((group) => (
+                          <div key={group.id} style={styles.listItem}>
+                            <div style={styles.listCopyWrap}>
+                              <div style={styles.listTitle}>
+                                {group.name || getGroupTypeLabel(group.type)}
+                              </div>
+                              <div style={styles.listMeta}>
+                                {getGroupTypeLabel(group.type)}
+                              </div>
+                            </div>
 
-            <section style={styles.sectionCard}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Google Calendar</div>
-                  <h2 style={styles.sectionTitle}>Integración de apoyo</h2>
-                </div>
-
-                <StatusPill label={googlePill.label} tone={googlePill.tone} />
-              </div>
-
-              <p style={styles.bodyCopy}>
-                Google Calendar suma contexto externo, pero la verdad compartida
-                sigue viviendo dentro de SyncPlans. Desde aquí gestionas esa
-                conexión sin mezclarla con la vista diaria.
-              </p>
-
-              <div style={styles.integrationBox}>
-                <div style={styles.integrationCopyWrap}>
-                  <div style={styles.integrationLine}>{googleLine}</div>
-
-                  {googleStatus?.error ? (
-                    <div style={styles.errorText}>{googleStatus.error}</div>
-                  ) : null}
-                </div>
-
-                <div style={styles.integrationActions}>
-                  <button
-                    type="button"
-                    style={styles.primarySmallButton}
-                    onClick={() => router.push("/settings?tab=integrations")}
-                  >
-                    {googlePrimaryCta}
-                  </button>
-                  <button
-                    type="button"
-                    style={styles.secondarySmallButton}
-                    onClick={fetchGoogleStatus}
-                    disabled={googleLoading}
-                  >
-                    Actualizar
-                  </button>
-                </div>
-              </div>
-
-              {connectionState === "connected" ? (
-                <div style={styles.googleEventsWrap}>
-                  <div style={styles.miniSectionHead}>
-                    <span style={styles.miniSectionTitle}>
-                      Vista previa de Google
-                    </span>
-                    <button
-                      type="button"
-                      style={styles.inlineLink}
-                      onClick={fetchGoogleEvents}
-                    >
-                      Recargar
-                    </button>
-                  </div>
-
-                  {googleEventsError ? (
-                    <div style={styles.errorText}>{googleEventsError}</div>
-                  ) : null}
-
-                  {googleEventsLoading ? (
-                    <EmptyBlock copy="Cargando próximos eventos de Google…" />
-                  ) : googleEvents.length === 0 ? (
-                    <EmptyBlock copy="No encontramos eventos próximos en Google para mostrar aquí." />
-                  ) : (
-                    <div style={styles.list}>
-                      {googleEvents.slice(0, 3).map((event) => (
-                        <div key={event.id} style={styles.listItemColumn}>
-                          <div style={styles.listTitle}>
-                            {event.title || "Evento sin título"}
+                            <button
+                              type="button"
+                              style={styles.inlineLink}
+                              onClick={() => router.push(`/groups/${group.id}`)}
+                            >
+                              Abrir
+                            </button>
                           </div>
-                          <div style={styles.listMeta}>
-                            {formatExternalEventRange(event)}
+                        ))}
+                      </div>
+                    )}
+                  </section>
+
+                  <section style={styles.subPanelCard}>
+                    <div style={styles.sectionHead}>
+                      <div>
+                        <div style={styles.sectionEyebrow}>Respuestas</div>
+                        <h3 style={styles.subPanelTitle}>
+                          Bandeja de coordinación
+                        </h3>
+                      </div>
+
+                      <button
+                        type="button"
+                        style={styles.ghostButton}
+                        onClick={loadCaptures}
+                      >
+                        Actualizar
+                      </button>
+                    </div>
+
+                    {!canUseCaptures ? (
+                      <PremiumLock
+                        title="Capturas premium"
+                        copy="Respuestas externas convertidas en acciones dentro del flujo."
+                      />
+                    ) : capturesLoading ? (
+                      <EmptyBlock copy="Buscando respuestas…" />
+                    ) : captures.length === 0 ? (
+                      <EmptyBlock copy="No hay respuestas pendientes." />
+                    ) : (
+                      <div style={styles.captureList}>
+                        {captures.slice(0, isMobile ? 2 : 3).map((capture) => {
+                          const hasProposal = Boolean(capture.proposed_date);
+                          const statusTone =
+                            capture.status === "accepted"
+                              ? "ok"
+                              : hasProposal
+                                ? "warn"
+                                : "bad";
+
+                          return (
+                            <div
+                              key={capture.invite_id}
+                              style={styles.captureCardCompact}
+                            >
+                              <div style={styles.captureTopRow}>
+                                <div style={styles.captureHeaderCopy}>
+                                  <div style={styles.listTitle}>
+                                    {capture.event_title || "Evento"}
+                                  </div>
+                                  <div style={styles.captureSubline}>
+                                    {capture.status === "accepted"
+                                      ? "Aceptado"
+                                      : hasProposal
+                                        ? `Propuso: ${formatCaptureDate(capture.proposed_date)}`
+                                        : "Rechazado"}
+                                  </div>
+                                </div>
+
+                                <StatusPill
+                                  label={
+                                    capture.status === "accepted"
+                                      ? "Aceptado"
+                                      : hasProposal
+                                        ? "Cambio"
+                                        : "Rechazado"
+                                  }
+                                  tone={statusTone}
+                                />
+                              </div>
+
+                              <div style={styles.captureActions}>
+                                {capture.status === "accepted" ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      style={styles.primarySmallButton}
+                                      onClick={() =>
+                                        handleTakeCaptureProposal(capture)
+                                      }
+                                    >
+                                      Aplicar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      style={styles.secondarySmallButton}
+                                      onClick={() =>
+                                        openEventFromCapture(capture)
+                                      }
+                                    >
+                                      Ver evento
+                                    </button>
+                                  </>
+                                ) : hasProposal ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      style={styles.primarySmallButton}
+                                      onClick={() =>
+                                        handleReviewCapture(capture)
+                                      }
+                                    >
+                                      Revisar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      style={styles.secondarySmallButton}
+                                      onClick={() =>
+                                        handleRescheduleCapture(capture)
+                                      }
+                                    >
+                                      Reprogramar
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    style={styles.primarySmallButton}
+                                    onClick={() =>
+                                      handleRescheduleCapture(capture)
+                                    }
+                                  >
+                                    Reprogramar
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                </div>
+
+                <div style={styles.rightCol}>
+                  <section style={styles.subPanelCard}>
+                    <div style={styles.sectionHead}>
+                      <div>
+                        <div style={styles.sectionEyebrow}>Integraciones</div>
+                        <h3 style={styles.subPanelTitle}>Google Calendar</h3>
+                      </div>
+                    </div>
+
+                    {!canUseGoogleIntegration ? (
+                      <PremiumLock
+                        title="Google Calendar"
+                        copy="Conecta calendarios externos cuando Premium ya tenga sentido para tu coordinación."
+                      />
+                    ) : (
+                      <>
+                        <div style={styles.integrationCard}>
+                          <div style={styles.integrationTop}>
+                            <div>
+                              <div style={styles.integrationTitle}>
+                                Estado de conexión
+                              </div>
+                              <div style={styles.integrationLine}>
+                                {googleLine}
+                              </div>
+                            </div>
+
+                            <StatusPill
+                              label={googlePill.label}
+                              tone={googlePill.tone}
+                            />
                           </div>
-                          {event.location ? (
-                            <div style={styles.listMeta}>{event.location}</div>
+
+                          {googleStatus?.error ? (
+                            <div style={styles.integrationError}>
+                              {googleStatus.error}
+                            </div>
+                          ) : null}
+
+                          <div style={styles.integrationActions}>
+                            <button
+                              type="button"
+                              style={styles.primarySmallButton}
+                              onClick={() => router.push("/settings")}
+                            >
+                              {googlePrimaryCta}
+                            </button>
+                            {connectionState === "connected" ? (
+                              <button
+                                type="button"
+                                style={styles.secondarySmallButton}
+                                onClick={fetchGoogleEvents}
+                              >
+                                Actualizar
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div style={styles.googleSnapshot}>
+                          <div style={styles.snapshotHead}>
+                            <div style={styles.snapshotTitle}>
+                              Eventos externos
+                            </div>
+                            <div style={styles.snapshotMeta}>
+                              {googleEventsLoading
+                                ? "Cargando…"
+                                : `${googleEvents.length} evento${googleEvents.length === 1 ? "" : "s"}`}
+                            </div>
+                          </div>
+
+                          {googleEventsError ? (
+                            <div style={styles.snapshotEmpty}>
+                              {googleEventsError}
+                            </div>
+                          ) : googleEventsLoading ? (
+                            <div style={styles.snapshotEmpty}>
+                              Leyendo eventos externos…
+                            </div>
+                          ) : googleEvents.length === 0 ? (
+                            <div style={styles.snapshotEmpty}>
+                              No hay eventos externos visibles por ahora.
+                            </div>
+                          ) : (
+                            <div style={styles.snapshotList}>
+                              {googleEvents.slice(0, 3).map((event) => (
+                                <div key={event.id} style={styles.snapshotItem}>
+                                  <div style={styles.snapshotItemTitle}>
+                                    {event.title || "Evento externo"}
+                                  </div>
+                                  <div style={styles.snapshotItemMeta}>
+                                    {formatExternalEventRange(event)}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </section>
+
+                  <section style={styles.subPanelCard}>
+                    <div style={styles.sectionHead}>
+                      <div>
+                        <div style={styles.sectionEyebrow}>Modo</div>
+                        <h3 style={styles.subPanelTitle}>Contexto activo</h3>
+                      </div>
+                    </div>
+
+                    <div style={styles.contextHeroCompact}>
+                      <div style={styles.contextHeroLeft}>
+                        <div style={styles.contextCurrentRow}>
+                          <span
+                            style={{
+                              ...styles.contextCurrentDot,
+                              background: currentContextOption.dot,
+                            }}
+                          />
+                          <span style={styles.contextCurrentTextSmall}>
+                            {currentContextOption.label}
+                          </span>
+                          {showContextGroupName ? (
+                            <span style={styles.contextInlineMeta}>
+                              {showContextGroupName}
+                            </span>
                           ) : null}
                         </div>
-                      ))}
+                      </div>
                     </div>
-                  )}
+
+                    <div
+                      style={{
+                        ...styles.contextGrid,
+                        gridTemplateColumns: isMobile
+                          ? "1fr"
+                          : "repeat(3, minmax(0, 1fr))",
+                      }}
+                    >
+                      {CONTEXT_OPTIONS.map((option) => {
+                        const active = option.key === contextState.mode;
+                        const saving = contextSaving === option.key;
+
+                        return (
+                          <button
+                            key={option.key}
+                            type="button"
+                            onClick={() => handleContextChange(option.key)}
+                            disabled={saving}
+                            style={{
+                              ...styles.contextCard,
+                              ...(active ? styles.contextCardActive : null),
+                              ...(saving ? styles.contextCardBusy : null),
+                            }}
+                          >
+                            <div style={styles.contextCardTop}>
+                              <span
+                                style={{
+                                  ...styles.contextCardDot,
+                                  background: option.dot,
+                                }}
+                              />
+                              <span style={styles.contextCardLabel}>
+                                {option.label}
+                              </span>
+                              {active ? (
+                                <span style={styles.contextBadge}>Activo</span>
+                              ) : null}
+                            </div>
+
+                            <div style={styles.contextCardHint}>
+                              {option.hint}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
                 </div>
-              ) : null}
-            </section>
-          </div>
-        </div>
+              </div>
+            </div>
+          ) : null}
+        </section>
       </div>
     </MobileScaffold>
   );
 }
 
-function MetricCard({
-  label,
-  value,
-  hint,
-  danger = false,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  danger?: boolean;
-}) {
-  return (
-    <div style={styles.metricCard}>
-      <div style={styles.metricLabel}>{label}</div>
-      <div
-        style={{
-          ...styles.metricValue,
-          color: danger ? colors.accentDanger : colors.textPrimary,
-        }}
-      >
-        {value}
-      </div>
-      <div style={styles.metricHint}>{hint}</div>
-    </div>
-  );
-}
-
-function StatusPill({
-  label,
-  tone = "neutral",
-}: {
-  label: string;
-  tone?: "ok" | "warn" | "bad" | "neutral";
-}) {
-  const toneStyles =
-    tone === "ok"
-      ? {
-          borderColor: "rgba(56,189,248,0.45)",
-          color: colors.textPrimary,
-          dot: colors.accentPrimary,
-        }
-      : tone === "warn"
-      ? {
-          borderColor: "rgba(251,191,36,0.38)",
-          color: "#fde68a",
-          dot: "#fbbf24",
-        }
-      : tone === "bad"
-      ? {
-          borderColor: "rgba(251,113,133,0.38)",
-          color: "#fecdd3",
-          dot: "#fb7185",
-        }
-      : {
-          borderColor: "rgba(148,163,184,0.28)",
-          color: colors.textSecondary,
-          dot: "rgba(148,163,184,0.85)",
-        };
-
-  return (
-    <span
-      style={{
-        ...styles.statusPill,
-        borderColor: toneStyles.borderColor,
-        color: toneStyles.color,
-      }}
-    >
-      <span
-        style={{
-          ...styles.statusDot,
-          background: toneStyles.dot,
-        }}
-      />
-      {label}
-    </span>
-  );
-}
-
-function EmptyBlock({ copy }: { copy: string }) {
-  return <div style={styles.emptyBlock}>{copy}</div>;
-}
-
-function formatExternalEventRange(event: ExternalEvent) {
-  try {
-    const start = new Date(event.start);
-    const end = new Date(event.end);
-
-    const sameDay =
-      start.getFullYear() === end.getFullYear() &&
-      start.getMonth() === end.getMonth() &&
-      start.getDate() === end.getDate();
-
-    if (event.allDay) {
-      return start.toLocaleDateString("es-PE", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
-    }
-
-    if (sameDay) {
-      return `${start.toLocaleDateString("es-PE", {
-        day: "2-digit",
-        month: "short",
-      })} · ${start.toLocaleTimeString("es-PE", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })} – ${end.toLocaleTimeString("es-PE", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })}`;
-    }
-
-    return `${start.toLocaleDateString("es-PE", {
-      day: "2-digit",
-      month: "short",
-    })} ${start.toLocaleTimeString("es-PE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })} · ${end.toLocaleDateString("es-PE", {
-      day: "2-digit",
-      month: "short",
-    })} ${end.toLocaleTimeString("es-PE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-  } catch {
-    return "Fecha no disponible";
-  }
-}
-
 const styles: Record<string, CSSProperties> = {
-  stack: {
-    display: "flex",
-    flexDirection: "column",
-    gap: spacing.lg,
-  },
-
-  heroCard: {
-    borderRadius: radii.xl,
-    border: `1px solid ${colors.borderSubtle}`,
+  commandCard: {
+    borderRadius: 28,
+    border: "1px solid rgba(255,255,255,0.08)",
     background:
-      "radial-gradient(1200px 420px at 0% 0%, rgba(56,189,248,0.16), transparent 55%), radial-gradient(760px 320px at 100% 0%, rgba(168,85,247,0.13), transparent 55%), rgba(15,23,42,0.94)",
-    padding: 22,
-    boxShadow: shadows.card,
-    display: "flex",
-    flexDirection: "column",
-    gap: 18,
+      "radial-gradient(1000px 520px at 18% -14%, rgba(56,189,248,0.12), transparent 62%), radial-gradient(720px 420px at 100% 0%, rgba(124,58,237,0.12), transparent 58%), rgba(10,15,30,0.80)",
+    boxShadow: "0 22px 70px rgba(0,0,0,0.30)",
+    backdropFilter: "blur(16px)",
+    padding: 20,
+    display: "grid",
+    gap: 14,
   },
-
-  heroTopRow: {
-    display: "flex",
+  commandTopRow: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) minmax(280px, 380px)",
     gap: 18,
+    alignItems: "stretch",
+  },
+  commandTextWrap: {
+    minWidth: 0,
+    display: "grid",
+    alignContent: "center",
+  },
+  commandTitle: {
+    margin: "8px 0 0",
+    fontSize: "clamp(30px, 4vw, 44px)",
+    lineHeight: 1.02,
+    letterSpacing: "-0.045em",
+    fontWeight: 950,
+    color: "rgba(255,255,255,0.98)",
+  },
+  commandCopy: {
+    margin: "10px 0 0",
+    maxWidth: 620,
+    fontSize: 14,
+    lineHeight: 1.58,
+    color: "rgba(226,232,240,0.78)",
+    fontWeight: 650,
+    overflowWrap: "anywhere",
+  },
+  recommendedCard: {
+    borderRadius: 22,
+    border: "1px solid rgba(96,165,250,0.22)",
+    background:
+      "linear-gradient(135deg, rgba(30,64,175,0.22), rgba(15,23,42,0.68))",
+    padding: 15,
+    display: "grid",
+    gap: 10,
+    alignContent: "start",
+    boxShadow: "0 18px 46px rgba(0,0,0,0.22)",
+  },
+  recommendedCardWarning: {
+    border: "1px solid rgba(251,191,36,0.26)",
+    background:
+      "linear-gradient(135deg, rgba(120,53,15,0.42), rgba(15,23,42,0.74))",
+  },
+  recommendedCardSuccess: {
+    border: "1px solid rgba(34,197,94,0.24)",
+    background:
+      "linear-gradient(135deg, rgba(20,83,45,0.38), rgba(15,23,42,0.74))",
+  },
+  recommendedEyebrow: {
+    fontSize: 11,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(191,219,254,0.92)",
+  },
+  recommendedTitle: {
+    fontSize: 20,
+    lineHeight: 1.14,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  recommendedCopy: {
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.76)",
+    fontWeight: 650,
+  },
+  statusStrip: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  controlGrid: {
+    display: "grid",
+    gap: 12,
+  },
+  controlCard: {
+    minHeight: 156,
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,0.09)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.026))",
+    padding: 16,
+    display: "grid",
+    gap: 12,
+    textAlign: "left",
+    cursor: "pointer",
+    color: "rgba(255,255,255,0.94)",
+    boxShadow: "0 16px 46px rgba(0,0,0,0.18)",
+  },
+  controlCardTop: {
+    display: "flex",
     justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  controlEyebrow: {
+    fontSize: 11,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.84)",
+  },
+  controlTitle: {
+    marginTop: 5,
+    fontSize: 20,
+    lineHeight: 1.12,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  controlCopy: {
+    fontSize: 13,
+    lineHeight: 1.48,
+    color: "rgba(226,232,240,0.72)",
+    fontWeight: 650,
+  },
+  controlFooter: {
+    alignSelf: "end",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  controlMeta: {
+    minWidth: 0,
+    fontSize: 12,
+    lineHeight: 1.4,
+    color: "rgba(226,232,240,0.62)",
+    fontWeight: 750,
+    overflowWrap: "anywhere",
+  },
+  controlCta: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 34,
+    padding: "0 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(125,211,252,0.20)",
+    background: "rgba(56,189,248,0.10)",
+    color: "rgba(240,249,255,0.98)",
+    fontSize: 12,
+    fontWeight: 950,
+    whiteSpace: "nowrap",
+  },
+  detailsHeadRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
     alignItems: "flex-start",
     flexWrap: "wrap",
   },
-
-  heroTextWrap: {
-    minWidth: 0,
-    flex: "1 1 520px",
+  detailsIntro: {
+    margin: "7px 0 0",
+    maxWidth: 660,
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.66)",
+    fontWeight: 650,
+  },
+  detailsStack: {
+    display: "grid",
+    gap: 14,
+  },
+  detailLinksGrid: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  subPanelCard: {
+    borderRadius: 20,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.032)",
+    padding: 14,
+    display: "grid",
+    gap: 13,
+  },
+  subPanelTitle: {
+    margin: "4px 0 0",
+    fontSize: 18,
+    lineHeight: 1.16,
+    fontWeight: 930,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.98)",
   },
 
+  stack: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 14,
+    paddingBottom: 24,
+  },
+  errorBanner: {
+    borderRadius: 16,
+    border: "1px solid rgba(248,113,113,0.18)",
+    background: "rgba(127,29,29,0.22)",
+    color: "rgba(254,226,226,0.95)",
+    padding: "12px 14px",
+    fontSize: 13,
+    fontWeight: 700,
+  },
+  heroCard: {
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background:
+      "radial-gradient(1200px 620px at 20% -10%, rgba(56,189,248,0.10), transparent 60%), radial-gradient(900px 520px at 100% 0%, rgba(124,58,237,0.10), transparent 58%), rgba(10,15,30,0.78)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
+    backdropFilter: "blur(16px)",
+    padding: 16,
+    display: "grid",
+    gap: 13,
+  },
+  heroTopRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+  },
+  heroTextWrap: {
+    minWidth: 0,
+    flex: "1 1 420px",
+  },
   eyebrow: {
     fontSize: 11,
     fontWeight: 900,
     textTransform: "uppercase",
-    letterSpacing: 0.8,
-    color: colors.accentPrimary,
-    marginBottom: 8,
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.88)",
   },
-
   heroTitle: {
-    margin: 0,
-    fontSize: "clamp(28px, 4vw, 42px)",
-    lineHeight: 1.02,
+    margin: "8px 0 0",
+    fontSize: "clamp(26px, 4vw, 38px)",
+    lineHeight: 1.04,
+    letterSpacing: "-0.04em",
     fontWeight: 950,
-    maxWidth: 760,
+    color: "rgba(255,255,255,0.98)",
   },
-
   heroCopy: {
     margin: "10px 0 0",
-    maxWidth: 700,
-    color: colors.textMuted,
-    fontSize: 15,
-    lineHeight: 1.62,
+    maxWidth: 640,
+    fontSize: 14,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.78)",
+    fontWeight: 600,
+    overflowWrap: "anywhere",
   },
-
+  heroMicroCopy: {
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.66)",
+    fontWeight: 600,
+    overflowWrap: "anywhere",
+  },
   heroActionStack: {
     display: "grid",
     gap: 10,
-    minWidth: 200,
-    alignSelf: "flex-start",
-    flex: "0 0 auto",
+    minWidth: 220,
+    flex: "0 0 220px",
   },
-
+  heroActionStackMobile: {
+    width: "100%",
+    minWidth: 0,
+    flex: "1 1 100%",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  },
   primaryHeroCta: {
-    borderRadius: 999,
-    padding: "12px 16px",
-    border: "1px solid rgba(56,189,248,0.38)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.30), rgba(168,85,247,0.22))",
-    color: colors.textPrimary,
+    minHeight: 48,
+    borderRadius: 14,
+    border: "1px solid rgba(96,165,250,0.30)",
+    background: "rgba(59,130,246,0.18)",
+    color: "rgba(255,255,255,0.98)",
+    fontSize: 14,
     fontWeight: 900,
     cursor: "pointer",
+    padding: "0 16px",
   },
-
   secondaryHeroCta: {
-    borderRadius: 999,
-    padding: "11px 16px",
-    border: `1px solid ${colors.borderSubtle}`,
-    background: "rgba(255,255,255,0.04)",
-    color: colors.textPrimary,
+    minHeight: 44,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 13,
     fontWeight: 800,
     cursor: "pointer",
+    padding: "0 16px",
   },
-
-  heroStrip: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.045)",
-    padding: "13px 14px",
+  heroAlert: {
+    borderRadius: 16,
+    border: "1px solid rgba(251,191,36,0.22)",
+    background: "rgba(120,53,15,0.34)",
+    padding: "12px 14px",
     display: "grid",
     gap: 4,
   },
-
-  heroStripTitle: {
+  heroAlertEyebrow: {
     fontSize: 11,
     fontWeight: 900,
     textTransform: "uppercase",
-    letterSpacing: 0.65,
-    color: colors.textSecondary,
+    letterSpacing: "0.08em",
+    color: "rgba(253,224,71,0.90)",
   },
-
-  heroStripCopy: {
-    fontSize: 14,
-    color: colors.textPrimary,
+  heroAlertText: {
+    fontSize: 13,
     lineHeight: 1.5,
+    color: "rgba(255,247,205,0.92)",
     fontWeight: 700,
   },
-
   metricsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-    gap: 12,
+    gap: 10,
   },
-
   metricCard: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    padding: 14,
-  },
-
-  metricLabel: {
-    fontSize: 11,
-    fontWeight: 900,
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.55,
-  },
-
-  metricValue: {
-    marginTop: 8,
-    fontSize: 28,
-    fontWeight: 950,
-    lineHeight: 1,
-  },
-
-  metricHint: {
-    marginTop: 6,
-    fontSize: 12,
-    color: colors.textMuted,
-    lineHeight: 1.45,
-  },
-
-  mainGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-    gap: spacing.lg,
-    alignItems: "start",
-  },
-
-  leftCol: {
-    display: "flex",
-    flexDirection: "column",
-    gap: spacing.lg,
+    gap: 6,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    padding: "14px 14px",
+    minHeight: 90,
     minWidth: 0,
+    overflow: "hidden",
   },
-
-  rightCol: {
-    display: "flex",
-    flexDirection: "column",
-    gap: spacing.lg,
-    minWidth: 0,
+  metricCardCompact: {
+    minHeight: 82,
+    padding: "12px 12px",
   },
-
-  sectionCard: {
-    borderRadius: radii.xl,
-    border: `1px solid ${colors.borderSubtle}`,
-    background: colors.surfaceLow,
-    boxShadow: shadows.card,
-    padding: 20,
-    display: "flex",
-    flexDirection: "column",
-    gap: 16,
+  metricLabelCompact: {
+    fontSize: 11,
   },
-
+  metricValueCompact: {
+    fontSize: 21,
+    lineHeight: 1.05,
+  },
+  metricHintCompact: {
+    fontSize: 11,
+    lineHeight: 1.35,
+  },
+  metricCardDanger: {
+    border: "1px solid rgba(248,113,113,0.18)",
+    background: "rgba(127,29,29,0.16)",
+  },
+  metricLabel: {
+    fontSize: 12,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.72)",
+    overflowWrap: "anywhere",
+  },
+  metricValue: {
+    fontSize: 24,
+    lineHeight: 1,
+    fontWeight: 950,
+    overflowWrap: "anywhere",
+    letterSpacing: "-0.04em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  metricHint: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.64)",
+    fontWeight: 600,
+    overflowWrap: "anywhere",
+  },
+  sectionCardCompact: {
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(10,15,30,0.76)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.24)",
+    backdropFilter: "blur(14px)",
+    padding: 16,
+    display: "grid",
+    gap: 14,
+  },
   sectionHead: {
     display: "flex",
-    gap: 12,
     justifyContent: "space-between",
+    gap: 12,
     alignItems: "flex-start",
     flexWrap: "wrap",
   },
-
   sectionEyebrow: {
     fontSize: 11,
+    fontWeight: 900,
     textTransform: "uppercase",
-    letterSpacing: 0.65,
-    fontWeight: 900,
-    color: colors.textSecondary,
-    marginBottom: 6,
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.84)",
   },
-
   sectionTitle: {
-    margin: 0,
-    fontSize: 22,
+    margin: "4px 0 0",
+    fontSize: 20,
+    lineHeight: 1.15,
     fontWeight: 900,
-    lineHeight: 1.05,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.98)",
   },
-
-  bodyCopy: {
-    margin: 0,
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 1.6,
-  },
-
-  contextHero: {
+  quickGrid: {
     display: "grid",
-    gridTemplateColumns: "minmax(220px, 1.2fr) minmax(220px, 1fr)",
-    gap: 14,
-    borderRadius: radii.lg,
+    gap: 10,
+  },
+  quickCard: {
+    borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
-    background:
-      "radial-gradient(700px 220px at 0% 0%, rgba(56,189,248,0.10), transparent 55%), rgba(255,255,255,0.03)",
-    padding: 16,
-  },
-
-  contextHeroLeft: {
-    display: "flex",
-    flexDirection: "column",
+    background: "rgba(255,255,255,0.04)",
+    padding: 14,
+    display: "grid",
     gap: 8,
+    textAlign: "left",
+    cursor: "pointer",
+    minHeight: 110,
     minWidth: 0,
+    overflow: "hidden",
   },
-
-  contextHeroRight: {
+  quickCardCompact: {
+    minHeight: 132,
+    padding: 12,
+  },
+  quickCardFeatured: {
+    border: "1px solid rgba(96,165,250,0.18)",
+    background: "rgba(59,130,246,0.10)",
+  },
+  quickCardTop: {
     display: "flex",
-    alignItems: "center",
-    minWidth: 0,
+    justifyContent: "space-between",
+    gap: 8,
+    alignItems: "flex-start",
   },
-
-  contextHeroLabel: {
+  quickCardTopCompact: {
+    gap: 6,
+  },
+  quickTitle: {
+    fontSize: 15,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.96)",
+    lineHeight: 1.2,
+    overflowWrap: "anywhere",
+  },
+  quickTitleCompact: {
+    fontSize: 14,
+    lineHeight: 1.18,
+  },
+  quickHint: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.70)",
+    fontWeight: 600,
+    overflowWrap: "anywhere",
+  },
+  quickHintCompact: {
+    fontSize: 11,
+    lineHeight: 1.35,
+  },
+  quickBadge: {
+    minWidth: 22,
+    maxWidth: "100%",
+    height: 22,
+    padding: "0 7px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.12)",
+    color: "rgba(255,255,255,0.96)",
     fontSize: 11,
     fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: 0.65,
-    color: colors.textSecondary,
+    flexShrink: 0,
   },
-
-  contextCurrentRow: {
+  mainGrid: {
+    display: "grid",
+    gap: 14,
+    alignItems: "start",
+  },
+  leftCol: {
+    display: "grid",
+    gap: 14,
+  },
+  rightCol: {
+    display: "grid",
+    gap: 14,
+  },
+  ghostButton: {
+    minHeight: 38,
+    padding: "0 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  listCompact: {
+    display: "grid",
+    gap: 10,
+  },
+  listItem: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "center",
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    padding: "12px 13px",
+  },
+  listCopyWrap: {
+    minWidth: 0,
+    display: "grid",
+    gap: 4,
+  },
+  listTitle: {
+    fontSize: 14,
+    lineHeight: 1.35,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.96)",
+  },
+  listMeta: {
+    fontSize: 12,
+    lineHeight: 1.4,
+    color: "rgba(226,232,240,0.66)",
+    fontWeight: 700,
+  },
+  inlineLink: {
+    minHeight: 36,
+    padding: "0 12px",
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+  captureList: {
+    display: "grid",
+    gap: 10,
+  },
+  captureCardCompact: {
+    display: "grid",
+    gap: 10,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    padding: "12px 13px",
+  },
+  captureTopRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
+  captureHeaderCopy: {
+    minWidth: 0,
+    display: "grid",
+    gap: 4,
+  },
+  captureSubline: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.68)",
+    fontWeight: 700,
+  },
+  captureActions: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  statusPill: {
     display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 28,
+    padding: "0 10px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 900,
+  },
+  statusPillNeutral: {
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.92)",
+  },
+  statusPillOk: {
+    border: "1px solid rgba(74,222,128,0.22)",
+    background: "rgba(20,83,45,0.84)",
+    color: "rgba(220,252,231,0.98)",
+  },
+  statusPillWarn: {
+    border: "1px solid rgba(251,191,36,0.22)",
+    background: "rgba(120,53,15,0.84)",
+    color: "rgba(254,243,199,0.98)",
+  },
+  statusPillBad: {
+    border: "1px solid rgba(248,113,113,0.20)",
+    background: "rgba(127,29,29,0.84)",
+    color: "rgba(254,226,226,0.98)",
+  },
+  primarySmallButton: {
+    minHeight: 38,
+    padding: "0 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(96,165,250,0.28)",
+    background: "rgba(59,130,246,0.18)",
+    color: "rgba(255,255,255,0.98)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  secondarySmallButton: {
+    minHeight: 38,
+    padding: "0 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  pillActionsRow: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  pillAction: {
+    minHeight: 40,
+    padding: "0 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.95)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  pillBadge: {
+    minWidth: 20,
+    height: 20,
+    padding: "0 6px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.10)",
+    fontSize: 10,
+    fontWeight: 900,
+  },
+  contextHeroCompact: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  contextHeroLeft: {
+    minWidth: 0,
+  },
+  contextCurrentRow: {
+    display: "flex",
     alignItems: "center",
     gap: 10,
     flexWrap: "wrap",
   },
-
   contextCurrentDot: {
     width: 12,
     height: 12,
     borderRadius: 999,
-    boxShadow: "0 0 0 4px rgba(255,255,255,0.05)",
     flexShrink: 0,
   },
-
-  contextCurrentText: {
-    fontSize: 24,
-    lineHeight: 1.05,
-    fontWeight: 950,
-    color: colors.textPrimary,
+  contextCurrentTextSmall: {
+    fontSize: 18,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.97)",
   },
-
-  contextCurrentMeta: {
-    fontSize: 13,
-    color: colors.textMuted,
-    lineHeight: 1.5,
-    fontWeight: 700,
+  contextInlineMeta: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "5px 9px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(226,232,240,0.72)",
+    fontSize: 11,
+    fontWeight: 800,
   },
-
-  contextHeroHint: {
-    fontSize: 13,
-    lineHeight: 1.6,
-    color: colors.textMuted,
-  },
-
   contextGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 12,
+    gap: 10,
   },
-
   contextCard: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.09)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(15,23,42,0.98))",
-    padding: 16,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    padding: 14,
+    display: "grid",
+    gap: 8,
     textAlign: "left",
     cursor: "pointer",
-    color: colors.textPrimary,
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-    transition: "transform 160ms ease, border-color 160ms ease",
   },
-
   contextCardActive: {
-    border: "1px solid rgba(56,189,248,0.24)",
-    background:
-      "linear-gradient(180deg, rgba(56,189,248,0.10), rgba(15,23,42,0.98))",
-    boxShadow: "0 12px 28px rgba(56,189,248,0.08)",
+    border: "1px solid rgba(96,165,250,0.28)",
+    background: "rgba(59,130,246,0.10)",
+    boxShadow: "0 0 0 1px rgba(59,130,246,0.18) inset",
   },
-
   contextCardBusy: {
-    opacity: 0.78,
-    cursor: "wait",
+    opacity: 0.7,
   },
-
   contextCardTop: {
     display: "flex",
     alignItems: "center",
-    gap: 10,
-    minWidth: 0,
+    gap: 8,
     flexWrap: "wrap",
   },
-
   contextCardDot: {
     width: 10,
     height: 10,
     borderRadius: 999,
     flexShrink: 0,
   },
-
   contextCardLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 900,
-    lineHeight: 1.2,
-    color: colors.textPrimary,
+    color: "rgba(255,255,255,0.96)",
   },
-
   contextBadge: {
-    marginLeft: "auto",
-    borderRadius: 999,
-    padding: "4px 8px",
-    fontSize: 11,
-    fontWeight: 900,
-    border: "1px solid rgba(56,189,248,0.34)",
-    background: "rgba(56,189,248,0.12)",
-    color: colors.textPrimary,
-    whiteSpace: "nowrap",
-  },
-
-  contextCardHint: {
-    margin: 0,
-    color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 1.55,
-  },
-
-  contextCardFoot: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 1.5,
-    fontWeight: 700,
-  },
-
-  actionsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 12,
-  },
-
-  actionCard: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.09)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(15,23,42,0.96))",
-    padding: 16,
-    textAlign: "left",
-    cursor: "pointer",
-    color: colors.textPrimary,
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
-
-  actionCardFeatured: {
-    background:
-      "linear-gradient(180deg, rgba(56,189,248,0.12), rgba(15,23,42,0.96))",
-    border: "1px solid rgba(56,189,248,0.18)",
-    boxShadow: "0 10px 24px rgba(56,189,248,0.08)",
-  },
-
-  actionCardTop: {
-    display: "flex",
-    justifyContent: "space-between",
+    display: "inline-flex",
     alignItems: "center",
+    padding: "3px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(96,165,250,0.24)",
+    background: "rgba(59,130,246,0.16)",
+    color: "rgba(219,234,254,0.98)",
+    fontSize: 10,
+    fontWeight: 900,
+  },
+  contextCardHint: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.68)",
+    fontWeight: 600,
+    overflowWrap: "anywhere",
+  },
+  planCard: {
+    borderRadius: 22,
+    background: "rgba(10,15,30,0.76)",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.24)",
+    backdropFilter: "blur(14px)",
+    padding: 16,
+    display: "grid",
     gap: 10,
   },
-
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: 900,
-    lineHeight: 1.2,
-  },
-
-  actionHint: {
-    margin: 0,
-    color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 1.55,
-  },
-
-  badge: {
-    borderRadius: 999,
-    padding: "4px 8px",
-    fontSize: 11,
-    fontWeight: 900,
-    border: "1px solid rgba(56,189,248,0.34)",
-    background: "rgba(56,189,248,0.12)",
-    color: colors.textPrimary,
-    whiteSpace: "nowrap",
-  },
-
-  planCard: {
-    borderRadius: radii.xl,
-    border: "1px solid rgba(251,191,36,0.20)",
-    background:
-      "radial-gradient(900px 320px at 0% 0%, rgba(251,191,36,0.14), transparent 55%), rgba(15,23,42,0.96)",
-    boxShadow: shadows.card,
-    padding: 20,
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-
   planPill: {
-    alignSelf: "flex-start",
+    width: "fit-content",
     borderRadius: 999,
     padding: "6px 10px",
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.94)",
     fontSize: 11,
     fontWeight: 900,
-    border: "1px solid rgba(251,191,36,0.34)",
-    background: "rgba(251,191,36,0.10)",
-    color: colors.textPrimary,
   },
-
   planTitle: {
     margin: 0,
-    fontSize: 24,
-    lineHeight: 1.08,
+    fontSize: 22,
+    lineHeight: 1.1,
     fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
   },
-
   planCopy: {
     margin: 0,
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 1.6,
-  },
-
-  primaryCta: {
-    borderRadius: 999,
-    padding: "12px 16px",
-    border: "1px solid rgba(56,189,248,0.38)",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.28), rgba(168,85,247,0.22))",
-    color: colors.textPrimary,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-
-  ghostButton: {
-    borderRadius: 999,
-    padding: "10px 14px",
-    border: `1px solid ${colors.borderSubtle}`,
-    background: "rgba(255,255,255,0.03)",
-    color: colors.textPrimary,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-
-  list: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
-
-  listItem: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.07)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 14,
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-  },
-
-  listCopyWrap: {
-    minWidth: 0,
-  },
-
-  listItemColumn: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.07)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 14,
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
-
-  listTitle: {
-    fontSize: 15,
-    fontWeight: 850,
-    color: colors.textPrimary,
-  },
-
-  listMeta: {
-    fontSize: 12,
-    color: colors.textMuted,
-    lineHeight: 1.5,
-  },
-
-  integrationBox: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    padding: 14,
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 14,
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
-
-  integrationCopyWrap: {
-    minWidth: 0,
-    flex: "1 1 240px",
-  },
-
-  integrationLine: {
     fontSize: 14,
     lineHeight: 1.55,
-    color: colors.textPrimary,
+    color: "rgba(226,232,240,0.78)",
+    fontWeight: 600,
+    overflowWrap: "anywhere",
   },
-
+  planMiniNote: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.68)",
+    fontWeight: 700,
+  },
+  primaryCta: {
+    minHeight: 44,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.08)",
+    color: "rgba(255,255,255,0.98)",
+    fontSize: 14,
+    fontWeight: 900,
+    cursor: "pointer",
+    padding: "0 14px",
+  },
+  integrationCard: {
+    display: "grid",
+    gap: 10,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    padding: "12px 13px",
+  },
+  integrationTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
+  integrationTitle: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.96)",
+  },
+  integrationLine: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.70)",
+    fontWeight: 700,
+  },
+  integrationError: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(254,226,226,0.96)",
+    fontWeight: 700,
+  },
   integrationActions: {
     display: "flex",
     gap: 8,
     flexWrap: "wrap",
   },
-
-  primarySmallButton: {
-    borderRadius: 999,
-    padding: "10px 14px",
-    border: "1px solid rgba(56,189,248,0.38)",
-    background: "rgba(56,189,248,0.14)",
-    color: colors.textPrimary,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-
-  secondarySmallButton: {
-    borderRadius: 999,
-    padding: "10px 14px",
-    border: `1px solid ${colors.borderSubtle}`,
-    background: "rgba(255,255,255,0.03)",
-    color: colors.textPrimary,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-
-  googleEventsWrap: {
-    display: "flex",
-    flexDirection: "column",
+  googleSnapshot: {
+    display: "grid",
     gap: 10,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+    padding: "12px 13px",
   },
-
-  miniSectionHead: {
+  snapshotHead: {
     display: "flex",
     justifyContent: "space-between",
+    gap: 10,
     alignItems: "center",
-    gap: 12,
+    flexWrap: "wrap",
   },
-
-  miniSectionTitle: {
+  snapshotTitle: {
     fontSize: 13,
     fontWeight: 900,
-    color: colors.textPrimary,
+    color: "rgba(255,255,255,0.96)",
   },
-
-  inlineLink: {
-    border: "none",
-    background: "transparent",
-    color: colors.accentPrimary,
-    fontWeight: 800,
-    cursor: "pointer",
-    padding: 0,
-    flexShrink: 0,
+  snapshotMeta: {
+    fontSize: 12,
+    color: "rgba(226,232,240,0.66)",
+    fontWeight: 700,
   },
-
-  statusPill: {
-    display: "inline-flex",
-    alignItems: "center",
+  snapshotList: {
+    display: "grid",
     gap: 8,
-    borderRadius: 999,
-    padding: "7px 10px",
-    border: "1px solid rgba(148,163,184,0.28)",
-    fontSize: 12,
-    fontWeight: 800,
-    whiteSpace: "nowrap",
   },
-
-  statusDot: {
-    width: 8,
-    height: 8,
+  snapshotItem: {
+    display: "grid",
+    gap: 4,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.06)",
+    background: "rgba(255,255,255,0.03)",
+    padding: "10px 11px",
+  },
+  snapshotItemTitle: {
+    fontSize: 13,
+    fontWeight: 800,
+    color: "rgba(255,255,255,0.94)",
+  },
+  snapshotItemMeta: {
+    fontSize: 12,
+    color: "rgba(226,232,240,0.64)",
+    fontWeight: 700,
+  },
+  snapshotEmpty: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.68)",
+    fontWeight: 700,
+  },
+  premiumLockCard: {
+    borderRadius: 16,
+    border: "1px solid rgba(196,181,253,0.18)",
+    background: "rgba(76,29,149,0.18)",
+    padding: "14px 14px",
+    display: "grid",
+    gap: 10,
+  },
+  premiumLockHeader: {
+    display: "grid",
+    gap: 8,
+  },
+  premiumLockBadge: {
+    width: "fit-content",
     borderRadius: 999,
+    padding: "5px 9px",
+    border: "1px solid rgba(216,180,254,0.24)",
+    background: "rgba(168,85,247,0.18)",
+    color: "rgba(243,232,255,0.98)",
+    fontSize: 10,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+  },
+  premiumLockTitle: {
+    margin: 0,
+    fontSize: 16,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.98)",
+  },
+  premiumLockCopy: {
+    margin: 0,
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: "rgba(243,232,255,0.84)",
+    fontWeight: 600,
+    overflowWrap: "anywhere",
+  },
+  emptyBlock: {
+    borderRadius: 16,
+    border: "1px dashed rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.03)",
+    padding: "14px 14px",
+    display: "grid",
+    gap: 12,
+  },
+  emptyCopy: {
+    margin: 0,
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.70)",
+    fontWeight: 600,
+    overflowWrap: "anywhere",
+  },
+  emptyActions: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  loadingBlock: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "14px 12px",
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.03)",
+  },
+  loadingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    background: "rgba(56,189,248,0.95)",
+    boxShadow: "0 0 0 8px rgba(56,189,248,0.10)",
     flexShrink: 0,
   },
-
-  emptyBlock: {
-    borderRadius: radii.lg,
-    border: "1px dashed rgba(148,163,184,0.28)",
-    background: "rgba(255,255,255,0.02)",
-    padding: 16,
-    color: colors.textMuted,
+  loadingTitle: {
     fontSize: 14,
-    lineHeight: 1.55,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.96)",
   },
-
-  errorBanner: {
-    borderRadius: radii.lg,
-    border: "1px solid rgba(251,113,133,0.35)",
-    background: "rgba(127,29,29,0.18)",
-    color: "#fecdd3",
-    padding: 14,
-    fontSize: 14,
-    lineHeight: 1.5,
-  },
-
-  errorText: {
-    color: "#fecdd3",
+  loadingSub: {
     fontSize: 12,
-    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.66)",
+    marginTop: 2,
+    fontWeight: 600,
+    overflowWrap: "anywhere",
   },
 };
