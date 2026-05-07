@@ -18,7 +18,7 @@ import { EventEditModal } from "@/components/EventEditModal";
 import { CalendarFilters } from "./CalendarFilters";
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import {
-  getEventsForGroups,
+  getEventsForGroupsInRange,
   deleteEventsByIdsDetailed,
 } from "@/lib/eventsDb";
 import {
@@ -424,6 +424,7 @@ export default function CalendarClient(
 
   const eventRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const lastSecondaryRefreshAtRef = useRef(0);
+  const lastLoadedRangeKeyRef = useRef<string | null>(null);
 
   const setEventRef = (id: string) => (el: HTMLDivElement | null) => {
     eventRefs.current[String(id)] = el;
@@ -500,6 +501,10 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
   const monthEnd = useMemo(() => endOfMonth(anchor), [anchor]);
   const gridStart = useMemo(() => startOfWeek(monthStart), [monthStart]);
   const gridEnd = useMemo(() => endOfWeek(monthEnd), [monthEnd]);
+  const visibleRangeKey = useMemo(
+    () => `${gridStart.toISOString()}|${gridEnd.toISOString()}`,
+    [gridStart, gridEnd]
+  );
 
   const today = useMemo(() => {
     const t = new Date();
@@ -559,9 +564,15 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
         setActiveGroupId(nextActiveGroupId);
 
         const groupIds = (myGroups || []).map((g) => String(g.id));
+        const rangeStartIso = gridStart.toISOString();
+        const rangeEndIso = gridEnd.toISOString();
 
         const [rawEvents, nextResMap, nextDeclined] = await Promise.all([
-          getEventsForGroups(groupIds) as Promise<CalendarDbEventRow[]>,
+          getEventsForGroupsInRange(
+            groupIds,
+            rangeStartIso,
+            rangeEndIso
+          ) as Promise<CalendarDbEventRow[]>,
           getMyConflictResolutionsMap().catch(() => ({})),
           getMyDeclinedEventIds().catch(() => new Set<string>()),
         ]);
@@ -645,6 +656,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
         setEvents(filtered);
         setTrustSignals(nextTrustSignals ?? {});
         setProposalResponsesMap(proposalResponses ?? {});
+        lastLoadedRangeKeyRef.current = `${rangeStartIso}|${rangeEndIso}`;
         setEventsLoaded(true);
         setError(null);
 
@@ -670,7 +682,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
         }
       }
     },
-    [router]
+    [gridEnd, gridStart, router]
   );
 
   const handleDeleteEvent = useCallback(
@@ -874,6 +886,13 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [refreshCalendar]);
+
+  useEffect(() => {
+    if (booting || !eventsLoaded) return;
+    if (lastLoadedRangeKeyRef.current === visibleRangeKey) return;
+
+    void refreshCalendar();
+  }, [booting, eventsLoaded, refreshCalendar, visibleRangeKey]);
 
   /* Boot inicial */
   useEffect(() => {

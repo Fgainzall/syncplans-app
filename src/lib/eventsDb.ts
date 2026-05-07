@@ -136,6 +136,15 @@ export type GetMyEventsForSummaryOptions = {
    */
   futureDays?: number;
 };
+
+export type GetMyEventsInRangeOptions = {
+  /**
+   * Group ids to include alongside personal events. Personal events
+   * (group_id null) are always kept because they are part of the user's
+   * visible planning context.
+   */
+  groupIds?: string[];
+};
 type DbEventInputRow = {
   [key: string]: unknown;
   id?: unknown;
@@ -364,19 +373,58 @@ export async function getMyEvents(_opts?: unknown): Promise<DbEventRow[]> {
 }
 
 /**
+ * Lectura por ventana visible.
+ *
+ * Mantiene la arquitectura actual y deja getMyEvents() intacto, pero permite
+ * que pantallas pesadas como Calendar y Events no carguen todo el historial.
+ * Usa overlap de ventana: eventos que empiezan antes del fin de la ventana y
+ * terminan después del inicio. RLS mantiene la visibilidad real del usuario.
+ */
+export async function getMyEventsInRange(
+  startIso: string,
+  endIso: string,
+  options: GetMyEventsInRangeOptions = {}
+): Promise<DbEventRow[]> {
+  await requireUid();
+
+  const start = String(startIso ?? "").trim();
+  const end = String(endIso ?? "").trim();
+
+  if (!start || !end) {
+    throw new Error("Falta el rango de fechas para cargar eventos.");
+  }
+
+  const { data, error } = await supabase
+    .from("events")
+    .select(EVENT_SELECT)
+    .lte("start", end)
+    .gte("end", start)
+    .order("start", { ascending: true });
+
+  if (error) throw error;
+
+  let rows = filterInformationalGoogleEvents((data ?? []).map(mapDbEventRow));
+
+  const groupIds = normalizeIds(options.groupIds ?? []);
+  if (groupIds.length > 0) {
+    const allowedGroupIds = new Set(groupIds);
+    rows = rows.filter(
+      (event) => !event.group_id || allowedGroupIds.has(String(event.group_id))
+    );
+  }
+
+  return rows;
+}
+
+/**
  * Lectura optimizada para /summary.
  *
  * Mantiene getMyEvents() como lectura completa para pantallas que sí necesitan
  * todo el calendario, pero evita que Summary cargue meses/años de historial.
- * El filtro usa overlap de ventana: eventos que empiezan antes del fin de la
- * ventana y terminan después del inicio de la ventana. RLS mantiene la
- * visibilidad real.
  */
 export async function getMyEventsForSummary(
   options: GetMyEventsForSummaryOptions = {}
 ): Promise<DbEventRow[]> {
-  await requireUid();
-
   const pastDays = Math.max(0, Math.round(Number(options.pastDays ?? 2)));
   const futureDays = Math.max(1, Math.round(Number(options.futureDays ?? 45)));
 
@@ -388,16 +436,7 @@ export async function getMyEventsForSummary(
   windowEnd.setHours(23, 59, 59, 999);
   windowEnd.setDate(windowEnd.getDate() + futureDays);
 
-  const { data, error } = await supabase
-    .from("events")
-    .select(EVENT_SELECT)
-    .lte("start", windowEnd.toISOString())
-    .gte("end", windowStart.toISOString())
-    .order("start", { ascending: true });
-
-  if (error) throw error;
-
-  return filterInformationalGoogleEvents((data ?? []).map(mapDbEventRow));
+  return getMyEventsInRange(windowStart.toISOString(), windowEnd.toISOString());
 }
 
 /* ======================================================
@@ -715,6 +754,21 @@ export async function generatePublicInviteLink(
 /* ======================================================
   Aliases de compatibilidad (para no romper imports antiguos)
 ====================================================== */
+
+/**
+ * Variante por rango para pantallas pesadas.
+ * Mantiene la misma semántica que getEventsForGroups(): eventos personales
+ * siempre visibles y eventos de grupo filtrados por los ids recibidos.
+ */
+export async function getEventsForGroupsInRange(
+  groupIds: string[] | undefined,
+  startIso: string,
+  endIso: string
+): Promise<DbEventRow[]> {
+  return getMyEventsInRange(startIso, endIso, {
+    groupIds: groupIds ?? [],
+  });
+}
 
 /**
  * Compat: muchas pantallas antiguas llaman getEventsForGroups(groupIds)

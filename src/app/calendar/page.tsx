@@ -10,22 +10,29 @@ type SearchParams = {
   appliedCount?: string | string[];
 };
 
+type CalendarPageProps = {
+  searchParams: Promise<SearchParams>;
+};
+
 function getSingle(v: string | string[] | undefined): string | undefined {
   if (!v) return undefined;
   return Array.isArray(v) ? v[0] : v;
 }
 
-export default function CalendarPage({ searchParams }: { searchParams: SearchParams }) {
-  const highlightId = getSingle(searchParams.highlightEventId) ?? getSingle(searchParams.eventId) ?? null;
+export default async function CalendarPage({ searchParams }: CalendarPageProps) {
+  const params = await searchParams;
 
-  const appliedFlag = getSingle(searchParams.applied);
+  const highlightId =
+    getSingle(params.highlightEventId) ?? getSingle(params.eventId) ?? null;
+
+  const appliedFlag = getSingle(params.applied);
   const hasApplied = appliedFlag === "1" || appliedFlag === "true";
 
   const appliedToast = hasApplied
     ? {
-        deleted: Number(getSingle(searchParams.deleted) ?? "0") || 0,
-        skipped: Number(getSingle(searchParams.skipped) ?? "0") || 0,
-        appliedCount: Number(getSingle(searchParams.appliedCount) ?? "0") || 0,
+        deleted: Number(getSingle(params.deleted) ?? "0") || 0,
+        skipped: Number(getSingle(params.skipped) ?? "0") || 0,
+        appliedCount: Number(getSingle(params.appliedCount) ?? "0") || 0,
       }
     : null;
 

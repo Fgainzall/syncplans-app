@@ -2,7 +2,7 @@
 // src/app/events/EventsPageClient.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
@@ -15,7 +15,7 @@ import EventsTimeline from "@/components/EventsTimeline";
 import { trackEventOnce, trackScreenView } from "@/lib/analytics";
 
 import {
-  getMyEvents,
+  getMyEventsInRange,
   deleteEventsByIdsDetailed,
   type DbEventRow,
 } from "@/lib/eventsDb";
@@ -120,6 +120,40 @@ function shortTimeLabel(value: string | Date) {
 const MOBILE_BREAKPOINT = 768;
 const MOBILE_INITIAL_VISIBLE = 8;
 const MOBILE_LOAD_MORE_STEP = 8;
+const EVENTS_UPCOMING_PAST_DAYS = 2;
+const EVENTS_UPCOMING_FUTURE_DAYS = 60;
+const EVENTS_HISTORY_PAST_DAYS = 180;
+const EVENTS_ALL_PAST_DAYS = 90;
+const EVENTS_ALL_FUTURE_DAYS = 90;
+
+function getEventsWindowForView(view: ViewMode) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+
+  if (view === "history") {
+    start.setDate(start.getDate() - EVENTS_HISTORY_PAST_DAYS);
+    return { startIso: start.toISOString(), endIso: end.toISOString() };
+  }
+
+  if (view === "all") {
+    start.setDate(start.getDate() - EVENTS_ALL_PAST_DAYS);
+    end.setDate(end.getDate() + EVENTS_ALL_FUTURE_DAYS);
+    return { startIso: start.toISOString(), endIso: end.toISOString() };
+  }
+
+  start.setDate(start.getDate() - EVENTS_UPCOMING_PAST_DAYS);
+  end.setDate(end.getDate() + EVENTS_UPCOMING_FUTURE_DAYS);
+
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
+async function getEventsForView(view: ViewMode): Promise<DbEventRow[]> {
+  const { startIso, endIso } = getEventsWindowForView(view);
+  return getMyEventsInRange(startIso, endIso);
+}
 
 export default function EventsPage() {
   const router = useRouter();
@@ -129,6 +163,7 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
 
   const [events, setEvents] = useState<EventWithGroup[]>([]);
+  const [loadedView, setLoadedView] = useState<ViewMode>("upcoming");
   const [hiddenEventIds] = useState<Set<string>>(() => new Set());
   const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
     () => new Set()
@@ -187,8 +222,8 @@ export default function EventsPage() {
         }
 
         const [eventsRes, groupsRes, declinedRes, profileRes] = await Promise.all([
-          getMyEvents().catch((err) => {
-            console.error("Error getMyEvents en /events:", err);
+          getEventsForView("upcoming").catch((err) => {
+            console.error("Error getMyEventsInRange en /events:", err);
             return [] as DbEventRow[];
           }),
           getMyGroups().catch((err) => {
@@ -217,6 +252,7 @@ export default function EventsPage() {
         setEvents(withGroup);
         setGroups(groupsRes);
         setDeclinedEventIds(declinedRes);
+        setLoadedView("upcoming");
         setHasPremium(hasPremiumAccess(profileRes));
       } catch (err) {
         console.error("Error booting events:", err);
@@ -427,13 +463,13 @@ export default function EventsPage() {
     });
   }
 
-  async function refreshData() {
+  const refreshData = useCallback(async (viewOverride: ViewMode = "upcoming") => {
     try {
       setLoading(true);
 
       const [eventsRes, groupsRes, declinedRes] = await Promise.all([
-        getMyEvents().catch((err) => {
-          console.error("Error refrescando getMyEvents:", err);
+        getEventsForView(viewOverride).catch((err) => {
+          console.error("Error refrescando getMyEventsInRange:", err);
           return [] as DbEventRow[];
         }),
         getMyGroups().catch((err) => {
@@ -456,6 +492,7 @@ export default function EventsPage() {
       setEvents(withGroup);
       setGroups(groupsRes);
       setDeclinedEventIds(declinedRes);
+      setLoadedView(viewOverride);
 } catch (err: unknown) {
   console.error("Error refrescando eventos:", err);
   setToast({
@@ -469,7 +506,14 @@ export default function EventsPage() {
     finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (booting) return;
+    if (filters.view === loadedView) return;
+
+    void refreshData(filters.view);
+  }, [booting, filters.view, loadedView, refreshData]);
 
   async function handleDeleteSelected() {
     if (selectedIds.size === 0) return;
@@ -870,7 +914,7 @@ export default function EventsPage() {
               <div style={S.advancedActions}>
                 <button
                   type="button"
-                  onClick={refreshData}
+                  onClick={() => refreshData(filters.view)}
                   disabled={loading}
                   style={S.digestBtn}
                 >
