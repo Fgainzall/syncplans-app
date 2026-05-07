@@ -640,7 +640,6 @@ export default function EventsPage() {
     router.push("/events/new/details?type=personal");
   };
 
-  const showTopNarrative = !isMobile && urgentEvents.length === 0;
   const showDigestButton = events.length > 0 && !anySelected;
   const showValueRail =
     false &&
@@ -702,11 +701,36 @@ export default function EventsPage() {
             <div style={S.heroCopy}>
               <div style={S.kicker}>Planes y decisiones</div>
               <h1 style={S.h1}>Bandeja de coordinación</h1>
-              {showTopNarrative ? (
-                <p style={S.sub}>
-                  Revisa qué viene, qué está compartido y qué ya quedó cerrado sin convertir esta página en otro calendario.
-                </p>
-              ) : null}
+              <p style={S.sub}>
+                Revisa qué viene, qué está compartido y qué ya quedó cerrado sin convertir esta página en otro calendario.
+              </p>
+
+              <div style={S.summaryPillRow}>
+                <button
+                  type="button"
+                  style={{ ...S.summaryPill, ...(filters.view === "upcoming" ? S.summaryPillActive : null) }}
+                  onClick={() => setFilters((f) => ({ ...f, view: "upcoming" }))}
+                >
+                  {statusSnapshot.nextCount} próximo{statusSnapshot.nextCount === 1 ? "" : "s"}
+                </button>
+                <button
+                  type="button"
+                  style={{ ...S.summaryPill, ...(filters.scope === "groups" ? S.summaryPillActive : null) }}
+                  onClick={() => setFilters((f) => ({ ...f, scope: f.scope === "groups" ? "all" : "groups" }))}
+                >
+                  {statusSnapshot.responseCount} compartido{statusSnapshot.responseCount === 1 ? "" : "s"}
+                </button>
+                <button
+                  type="button"
+                  style={{ ...S.summaryPill, ...(filters.view === "history" ? S.summaryPillActive : null) }}
+                  onClick={() => setFilters((f) => ({ ...f, view: "history" }))}
+                >
+                  {statusSnapshot.resolvedCount} cerrado{statusSnapshot.resolvedCount === 1 ? "" : "s"}
+                </button>
+                <span style={S.summaryPillSoft}>
+                  {statusSnapshot.soonCount} en 7 días
+                </span>
+              </div>
             </div>
 
             <aside style={{ ...S.factBox, ...(isMobile ? S.factBoxMobile : null) }} className="spEvt-factBox">
@@ -782,33 +806,6 @@ export default function EventsPage() {
               </button>
             </div>
           ) : null}
-
-          <div style={S.summaryPillRow}>
-            <button
-              type="button"
-              style={{ ...S.summaryPill, ...(filters.view === "upcoming" ? S.summaryPillActive : null) }}
-              onClick={() => setFilters((f) => ({ ...f, view: "upcoming" }))}
-            >
-              {statusSnapshot.nextCount} próximo{statusSnapshot.nextCount === 1 ? "" : "s"}
-            </button>
-            <button
-              type="button"
-              style={{ ...S.summaryPill, ...(filters.scope === "groups" ? S.summaryPillActive : null) }}
-              onClick={() => setFilters((f) => ({ ...f, scope: f.scope === "groups" ? "all" : "groups" }))}
-            >
-              {statusSnapshot.responseCount} compartido{statusSnapshot.responseCount === 1 ? "" : "s"}
-            </button>
-            <button
-              type="button"
-              style={{ ...S.summaryPill, ...(filters.view === "history" ? S.summaryPillActive : null) }}
-              onClick={() => setFilters((f) => ({ ...f, view: "history" }))}
-            >
-              {statusSnapshot.resolvedCount} cerrado{statusSnapshot.resolvedCount === 1 ? "" : "s"}
-            </button>
-            <span style={S.summaryPillSoft}>
-              {statusSnapshot.soonCount} en 7 días
-            </span>
-          </div>
 
           <div style={S.filtersShell}>
             <div style={S.filtersGroup}>
@@ -1333,7 +1330,7 @@ const S: Record<string, React.CSSProperties> = {
     boxSizing: "border-box",
   },
   summaryPillRow: {
-    marginTop: 16,
+    marginTop: 12,
     display: "flex",
     gap: 8,
     flexWrap: "wrap",
