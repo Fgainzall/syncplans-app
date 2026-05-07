@@ -1,4 +1,3 @@
-
 // src/app/panel/page.tsx
 "use client";
 
@@ -18,11 +17,7 @@ import supabase from "@/lib/supabaseClient";
 import { getMyConflictResolutionsMap } from "@/lib/conflictResolutionsDb";
 import { getMyDeclinedEventIds } from "@/lib/eventResponsesDb";
 import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
-import {
-  getMyGroups,
-  type GroupRow,
-  getGroupTypeLabel,
-} from "@/lib/groupsDb";
+import { getMyGroups, type GroupRow, getGroupTypeLabel } from "@/lib/groupsDb";
 import {
   buildDashboardStats,
   type DashboardStats,
@@ -41,7 +36,6 @@ import {
   hasPremiumAccess,
   isPremiumUser,
   isTrialActive,
-  getGroupLimitState,
   type PlanTier,
 } from "@/lib/premium";
 import {
@@ -51,16 +45,30 @@ import {
   type UsageMode,
 } from "@/lib/groups";
 
-type QuickAction = {
-  id: string;
+type RecommendedAction = {
+  eyebrow: string;
   title: string;
-  hint: string;
+  copy: string;
+  label: string;
   href: string;
-  badge?: string;
-  featured?: boolean;
+  tone: "default" | "warning" | "success";
 };
 
-type CompactAction = {
+type ControlArea = {
+  id: string;
+  eyebrow: string;
+  title: string;
+  copy: string;
+  href: string;
+  cta: string;
+  meta: string;
+  status?: {
+    label: string;
+    tone: "neutral" | "ok" | "warn" | "bad";
+  };
+};
+
+type DetailLink = {
   id: string;
   label: string;
   href: string;
@@ -73,14 +81,12 @@ type GoogleStatus = {
   ok: boolean;
   connected: boolean;
   connection_state?: ConnectionState;
-  account?:
-    | {
-        provider?: string | null;
-        email?: string | null;
-        created_at?: string | null;
-        updated_at?: string | null;
-      }
-    | null;
+  account?: {
+    provider?: string | null;
+    email?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  } | null;
   error?: string | null;
 };
 
@@ -99,7 +105,12 @@ type PremiumLockProps = {
 type PlanTone = "free" | "trial" | "premium" | "founder";
 
 const CONTEXT_OPTIONS: ContextOption[] = [
-  { key: "solo", label: "Personal", hint: "Tu agenda individual", dot: "#FBBF24" },
+  {
+    key: "solo",
+    label: "Personal",
+    hint: "Tu agenda individual",
+    dot: "#FBBF24",
+  },
   { key: "pair", label: "Pareja", hint: "Coordinación de dos", dot: "#F87171" },
   { key: "family", label: "Familia", hint: "Varios miembros", dot: "#60A5FA" },
 ];
@@ -121,13 +132,12 @@ type GoogleListResponse = {
   error?: string;
 };
 async function ensureActiveGroupForMode(
-  mode: UsageMode
+  mode: UsageMode,
 ): Promise<string | null> {
   if (mode === "solo") return null;
 
-  const { getActiveGroupIdFromDb, setActiveGroupIdInDb } = await import(
-    "@/lib/activeGroup"
-  );
+  const { getActiveGroupIdFromDb, setActiveGroupIdInDb } =
+    await import("@/lib/activeGroup");
   const { getMyGroups } = await import("@/lib/groupsDb");
 
   const existing = await getActiveGroupIdFromDb().catch(() => null);
@@ -138,8 +148,8 @@ async function ensureActiveGroupForMode(
 
   if (existing) {
     const current = (groups as PanelGroupLike[]).find(
-  (g) => String(g.id) === String(existing)
-);
+      (g) => String(g.id) === String(existing),
+    );
     const currentType = String(current?.type ?? "").toLowerCase();
     if (current && currentType === wantType) {
       return String(existing);
@@ -147,7 +157,7 @@ async function ensureActiveGroupForMode(
   }
 
   const match = groups.find(
-  (g: PanelGroupLike) => String(g.type ?? "").toLowerCase() === wantType
+    (g: PanelGroupLike) => String(g.type ?? "").toLowerCase() === wantType,
   );
   const pick = match?.id ?? groups[0]?.id ?? null;
 
@@ -215,40 +225,6 @@ function formatExternalEventRange(event: ExternalEvent) {
   return `${day} · ${startTime}–${endTime}`;
 }
 
-function MetricCard({
-  label,
-  value,
-  hint,
-  danger = false,
-  compact = false,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  danger?: boolean;
-  compact?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        ...styles.metricCard,
-        ...(danger ? styles.metricCardDanger : null),
-        ...(compact ? styles.metricCardCompact : null),
-      }}
-    >
-      <div style={{ ...styles.metricLabel, ...(compact ? styles.metricLabelCompact : null) }}>
-        {label}
-      </div>
-      <div style={{ ...styles.metricValue, ...(compact ? styles.metricValueCompact : null) }}>
-        {value}
-      </div>
-      <div style={{ ...styles.metricHint, ...(compact ? styles.metricHintCompact : null) }}>
-        {hint}
-      </div>
-    </div>
-  );
-}
-
 function StatusPill({
   label,
   tone,
@@ -294,13 +270,21 @@ function EmptyBlock({
       {primaryLabel || secondaryLabel ? (
         <div style={styles.emptyActions}>
           {primaryLabel && onPrimary ? (
-            <button type="button" style={styles.primarySmallButton} onClick={onPrimary}>
+            <button
+              type="button"
+              style={styles.primarySmallButton}
+              onClick={onPrimary}
+            >
               {primaryLabel}
             </button>
           ) : null}
 
           {secondaryLabel && onSecondary ? (
-            <button type="button" style={styles.secondarySmallButton} onClick={onSecondary}>
+            <button
+              type="button"
+              style={styles.secondarySmallButton}
+              onClick={onSecondary}
+            >
               {secondaryLabel}
             </button>
           ) : null}
@@ -346,13 +330,18 @@ export default function PanelPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleEvents, setGoogleEvents] = useState<ExternalEvent[]>([]);
   const [googleEventsLoading, setGoogleEventsLoading] = useState(false);
-  const [googleEventsError, setGoogleEventsError] = useState<string | null>(null);
+  const [googleEventsError, setGoogleEventsError] = useState<string | null>(
+    null,
+  );
 
-  const [contextState, setContextState] = useState<GroupState>(() => getGroupState());
+  const [contextState, setContextState] = useState<GroupState>(() =>
+    getGroupState(),
+  );
   const [contextSaving, setContextSaving] = useState<UsageMode | null>(null);
   const [captures, setCaptures] = useState<PublicInviteCaptureItem[]>([]);
   const [capturesLoading, setCapturesLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   const loadCore = useCallback(async () => {
     try {
@@ -369,7 +358,9 @@ export default function PanelPage() {
         getMyEvents().catch(() => [] as DbEventRow[]),
         getMyGroups().catch(() => [] as GroupRow[]),
         getMyProfile().catch(() => null as Profile | null),
-        getMyConflictResolutionsMap().catch(() => ({} as Record<string, string>)),
+        getMyConflictResolutionsMap().catch(
+          () => ({}) as Record<string, string>,
+        ),
         getMyDeclinedEventIds().catch(() => new Set<string>()),
       ]);
 
@@ -377,19 +368,18 @@ export default function PanelPage() {
         buildDashboardStats(events, fetchedGroups, {
           resolvedConflictMap,
           declinedEventIds,
-        })
+        }),
       );
       setGroups(fetchedGroups);
       setProfile(fetchedProfile);
-  } catch (err: unknown) {
-  console.error("Error cargando panel:", err);
-  setError(
-    err instanceof Error
-      ? err.message
-      : "No se pudo cargar el panel. Intenta recargar."
-  );
-}
-    finally {
+    } catch (err: unknown) {
+      console.error("Error cargando panel:", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo cargar el panel. Intenta recargar.",
+      );
+    } finally {
       setLoading(false);
     }
   }, []);
@@ -398,7 +388,7 @@ export default function PanelPage() {
     try {
       setCapturesLoading(true);
       const rows = await getPendingPublicInviteCaptures(6).catch(
-        () => [] as PublicInviteCaptureItem[]
+        () => [] as PublicInviteCaptureItem[],
       );
       setCaptures(rows);
     } catch (err) {
@@ -419,11 +409,11 @@ export default function PanelPage() {
 
       router.push(
         `/events/new/details?eventId=${capture.event_id}&proposalSource=public_invite&inviteToken=${encodeURIComponent(
-          capture.token
-        )}`
+          capture.token,
+        )}`,
       );
     },
-    [router]
+    [router],
   );
 
   const handleTakeCaptureProposal = useCallback(
@@ -453,7 +443,7 @@ export default function PanelPage() {
 
       const durationMs = Math.max(
         15 * 60 * 1000,
-        eventEnd.getTime() - eventStart.getTime()
+        eventEnd.getTime() - eventStart.getTime(),
       );
 
       const proposedEnd = new Date(proposedStart.getTime() + durationMs);
@@ -467,7 +457,7 @@ export default function PanelPage() {
 
       router.push(`/events/new/details?${qp.toString()}`);
     },
-    [router]
+    [router],
   );
 
   const handleRescheduleCapture = useCallback(
@@ -480,14 +470,16 @@ export default function PanelPage() {
 
       router.push(`/events/new/details?eventId=${capture.event_id}`);
     },
-    [router]
+    [router],
   );
 
   const openEventFromCapture = useCallback(
     (capture: PublicInviteCaptureItem) => {
-      router.push(`/events?focusEventId=${encodeURIComponent(capture.event_id)}`);
+      router.push(
+        `/events?focusEventId=${encodeURIComponent(capture.event_id)}`,
+      );
     },
-    [router]
+    [router],
   );
 
   const fetchGoogleStatus = useCallback(async () => {
@@ -503,38 +495,42 @@ export default function PanelPage() {
         cache: "no-store",
       });
 
-      const json = (await res.json().catch(() => null)) as GoogleStatusResponse | null;
+      const json = (await res
+        .json()
+        .catch(() => null)) as GoogleStatusResponse | null;
 
       if (!res.ok || !json?.ok) {
         setGoogleStatus({
           ok: false,
           connected: false,
           connection_state: "disconnected",
-          error: json?.error || "No se pudo leer el estado de Google Calendar conectado.",
+          error:
+            json?.error ||
+            "No se pudo leer el estado de Google Calendar conectado.",
         });
         return;
       }
 
-setGoogleStatus({
-  ok: Boolean(json.ok),
-  connected: Boolean(json.connected),
-connection_state:
-  json.connection_state === "connected" ||
-  json.connection_state === "disconnected"
-    ? json.connection_state
-    : "disconnected",
-  error: json.error ?? undefined,
-});
-} catch (err: unknown) {
-  console.error("Error leyendo estado de Google:", err);
-  setGoogleStatus({
-    ok: false,
-    connected: false,
-    connection_state: "disconnected",
-    error:
-      err instanceof Error
-        ? err.message
-        : "Error inesperado al consultar Google Calendar conectado.",
+      setGoogleStatus({
+        ok: Boolean(json.ok),
+        connected: Boolean(json.connected),
+        connection_state:
+          json.connection_state === "connected" ||
+          json.connection_state === "disconnected"
+            ? json.connection_state
+            : "disconnected",
+        error: json.error ?? undefined,
+      });
+    } catch (err: unknown) {
+      console.error("Error leyendo estado de Google:", err);
+      setGoogleStatus({
+        ok: false,
+        connected: false,
+        connection_state: "disconnected",
+        error:
+          err instanceof Error
+            ? err.message
+            : "Error inesperado al consultar Google Calendar conectado.",
       });
     } finally {
       setGoogleLoading(false);
@@ -555,31 +551,32 @@ connection_state:
         cache: "no-store",
       });
 
-      const json = (await res.json().catch(() => null)) as
-      | GoogleListResponse
-        | null;
+      const json = (await res
+        .json()
+        .catch(() => null)) as GoogleListResponse | null;
 
       if (!res.ok || !json?.ok) {
         setGoogleEvents([]);
-        setGoogleEventsError(json?.error || "No se pudieron leer los eventos de Google.");
+        setGoogleEventsError(
+          json?.error || "No se pudieron leer los eventos de Google.",
+        );
         return;
       }
 
-    const normalized = normalizeGoogleCalendarItems(json.items ?? [], {
-  calendarId: "primary",
-});
+      const normalized = normalizeGoogleCalendarItems(json.items ?? [], {
+        calendarId: "primary",
+      });
 
       setGoogleEvents(normalized);
- } catch (err: unknown) {
-  console.error("Error leyendo eventos de Google:", err);
-  setGoogleEvents([]);
-  setGoogleEventsError(
-    err instanceof Error
-      ? err.message
-      : "Error inesperado al leer eventos de Google."
-  );
-}
-    finally {
+    } catch (err: unknown) {
+      console.error("Error leyendo eventos de Google:", err);
+      setGoogleEvents([]);
+      setGoogleEventsError(
+        err instanceof Error
+          ? err.message
+          : "Error inesperado al leer eventos de Google.",
+      );
+    } finally {
       setGoogleEventsLoading(false);
     }
   }, []);
@@ -652,8 +649,6 @@ connection_state:
   const totalEvents = stats?.totalEvents ?? 0;
   const totalGroups = stats?.totalGroups ?? 0;
   const conflictsNow = stats?.conflictsNow ?? 0;
-  const groupLimitState = getGroupLimitState(profile, totalGroups);
-
   const tier = (profile?.plan_tier ?? "free") as PlanTier;
   const trialActive = isTrialActive(profile);
   const premiumActive = isPremiumUser(profile);
@@ -661,9 +656,12 @@ connection_state:
   const canUseGoogleIntegration = hasPremiumAccess(profile);
 
   const currentContextOption =
-    CONTEXT_OPTIONS.find((x) => x.key === contextState.mode) ?? CONTEXT_OPTIONS[0];
+    CONTEXT_OPTIONS.find((x) => x.key === contextState.mode) ??
+    CONTEXT_OPTIONS[0];
 
-  const currentContextGroupName = normalizeGroupLabel(contextState.groupName ?? null);
+  const currentContextGroupName = normalizeGroupLabel(
+    contextState.groupName ?? null,
+  );
 
   const showContextGroupName =
     currentContextGroupName &&
@@ -717,68 +715,19 @@ connection_state:
     };
   }, [premiumActive, tier, trialActive]);
 
-  const adminActions: QuickAction[] = [
-    {
-      id: "groups",
-      title: "Espacios compartidos",
-      hint: isMobile ? "Crear y abrir espacios compartidos" : "Crear, abrir y ordenar espacios compartidos",
-      href: "/groups",
-      badge: totalGroups > 0 ? `${totalGroups}` : undefined,
-      featured: true,
-    },
-    {
-      id: "invitations",
-      title: "Invitaciones activas",
-      hint: isMobile ? "Aceptar y revisar accesos" : "Aceptar, revisar y destrabar accesos",
-      href: "/invitations",
-      badge: captures.length > 0 ? `${captures.length}` : undefined,
-      featured: true,
-    },
-    {
-      id: "settings",
-      title: "Ajustes",
-      hint: isMobile ? "Cuenta e integraciones" : "Cuenta, preferencias e integraciones",
-      href: "/settings",
-      featured: true,
-    },
-    {
-      id: "plans",
-      title: "Plan",
-      hint: isMobile ? "Nivel y beneficios" : "Nivel actual y beneficios activos",
-      href: "/planes",
-    },
-    {
-      id: "operations",
-      title: "Operaciones",
-      hint: isMobile ? "Salud y checks" : "Salud del sistema, checks y runbooks",
-      href: "/panel/operations",
-    },
-  ];
-
-  const operationActions: CompactAction[] = [
-    { id: "summary", label: "Resumen", href: "/summary" },
-    { id: "calendar", label: "Calendario", href: "/calendar" },
-    {
-      id: "conflicts",
-      label: "Conflictos",
-      href: "/conflicts/detected",
-      badge: conflictsNow > 0 ? `${conflictsNow}` : undefined,
-    },
-    {
-      id: "events",
-      label: "Eventos",
-      href: "/events",
-      badge: totalEvents > 0 ? `${totalEvents}` : undefined,
-    },
-  ];
-
-  const groupsPreview = useMemo(() => groups.slice(0, isMobile ? 2 : 4), [groups, isMobile]);
+  const groupsPreview = useMemo(
+    () => groups.slice(0, isMobile ? 2 : 4),
+    [groups, isMobile],
+  );
 
   const googlePill = useMemo(() => {
     if (googleLoading) return { label: "Revisando", tone: "neutral" as const };
-    if (connectionState === "connected") return { label: "Conectado", tone: "ok" as const };
-    if (connectionState === "needs_reauth") return { label: "Reconectar", tone: "warn" as const };
-    if (googleStatus && !googleStatus.ok) return { label: "Error", tone: "bad" as const };
+    if (connectionState === "connected")
+      return { label: "Conectado", tone: "ok" as const };
+    if (connectionState === "needs_reauth")
+      return { label: "Reconectar", tone: "warn" as const };
+    if (googleStatus && !googleStatus.ok)
+      return { label: "Error", tone: "bad" as const };
     return { label: "No conectado", tone: "neutral" as const };
   }, [connectionState, googleLoading, googleStatus]);
 
@@ -800,22 +749,198 @@ connection_state:
           : "La conexión necesita reconexión"
         : "Google Calendar no conectado";
 
-  let heroSummary =
-    "Desde aquí administras la estructura que hace posible la coordinación: grupos, invitaciones, plan e integraciones.";
-  const heroSummaryMobile =
-    totalGroups === 0
-      ? "Activa tu primer espacio compartido."
-      : `${totalGroups} grupos activos. Gestiona estructura y accesos.`;
+  const recommendedAction = useMemo<RecommendedAction>(() => {
+    if (conflictsNow > 0) {
+      return {
+        eyebrow: "Necesita decisión",
+        title: `${conflictsNow} conflicto${conflictsNow === 1 ? "" : "s"} activo${conflictsNow === 1 ? "" : "s"}`,
+        copy: "Antes de configurar más cosas, deja clara la agenda. Esa es la promesa central de SyncPlans.",
+        label: "Resolver conflictos",
+        href: "/conflicts/detected",
+        tone: "warning",
+      };
+    }
 
-  if (!loading && totalGroups === 0) {
-    heroSummary =
-      "Crea tu primer grupo y trae a la otra persona dentro del sistema. Ese es el salto que convierte SyncPlans en coordinación compartida real.";
-  }
+    if (totalGroups === 0) {
+      return {
+        eyebrow: "Primer salto de valor",
+        title: "Crea tu primer espacio compartido",
+        copy: "SyncPlans se vuelve mucho más valioso cuando deja de ser una agenda personal y se convierte en una verdad compartida.",
+        label: "Crear grupo",
+        href: "/groups/new",
+        tone: "default",
+      };
+    }
 
-  const heroPrimaryCtaLabel = totalGroups === 0 ? "Crear grupo" : "Abrir grupos";
-  const heroPrimaryCtaHref = totalGroups === 0 ? "/groups/new" : "/groups";
-  const heroSecondaryCtaLabel = totalGroups === 0 ? "Revisar invitaciones" : "Invitar a alguien";
-  const showHeroConflictNote = conflictsNow > 0 && !isMobile;
+    if (captures.length > 0 && canUseCaptures) {
+      return {
+        eyebrow: "Hay algo por cerrar",
+        title: `${captures.length} respuesta${captures.length === 1 ? "" : "s"} esperando revisión`,
+        copy: "Convierte respuestas externas en decisiones internas sin volver al caos del chat.",
+        label: "Ver respuestas",
+        href: "/events",
+        tone: "warning",
+      };
+    }
+
+    if (canUseGoogleIntegration && connectionState !== "connected") {
+      return {
+        eyebrow: "Más contexto real",
+        title: "Conecta tu calendario externo",
+        copy: "Google Calendar ayuda a que SyncPlans detecte mejor disponibilidad, choques y contexto antes de coordinar.",
+        label: googlePrimaryCta,
+        href: "/settings",
+        tone: "default",
+      };
+    }
+
+    return {
+      eyebrow: "Sistema ordenado",
+      title: "Tu estructura está lista",
+      copy: "Desde aquí puedes administrar personas, calendarios, movilidad y cuenta sin llenar la pantalla de decisiones pequeñas.",
+      label: "Gestionar personas",
+      href: "/groups",
+      tone: "success",
+    };
+  }, [
+    captures.length,
+    canUseCaptures,
+    canUseGoogleIntegration,
+    conflictsNow,
+    connectionState,
+    googlePrimaryCta,
+    totalGroups,
+  ]);
+
+  const statusChips = useMemo(
+    () => [
+      {
+        label: showContextGroupName
+          ? `${currentContextOption.label} · ${showContextGroupName}`
+          : currentContextOption.label,
+        tone: "neutral" as const,
+      },
+      {
+        label: `${totalGroups} espacio${totalGroups === 1 ? "" : "s"}`,
+        tone: totalGroups > 0 ? ("ok" as const) : ("neutral" as const),
+      },
+      googlePill,
+      {
+        label: planInfo.pill,
+        tone:
+          planInfo.tone === "free"
+            ? ("neutral" as const)
+            : planInfo.tone === "trial"
+              ? ("warn" as const)
+              : ("ok" as const),
+      },
+    ],
+    [
+      currentContextOption.label,
+      googlePill,
+      planInfo.pill,
+      planInfo.tone,
+      showContextGroupName,
+      totalGroups,
+    ],
+  );
+
+  const controlAreas = useMemo<ControlArea[]>(
+    () => [
+      {
+        id: "people",
+        eyebrow: "Personas",
+        title: "Personas y grupos",
+        copy: "Grupos, miembros e invitaciones viven juntos. Una sola puerta para administrar con quién coordinas.",
+        href: "/groups",
+        cta: totalGroups === 0 ? "Crear espacio" : "Gestionar personas",
+        meta:
+          totalGroups === 0
+            ? "Sin grupos todavía"
+            : `${totalGroups} activo${totalGroups === 1 ? "" : "s"}`,
+        status: {
+          label: totalGroups === 0 ? "Pendiente" : "Activo",
+          tone: totalGroups === 0 ? "neutral" : "ok",
+        },
+      },
+      {
+        id: "calendar",
+        eyebrow: "Contexto",
+        title: "Calendarios e integraciones",
+        copy: "Google Calendar y calendarios externos deben sumar contexto, no ocupar media pantalla.",
+        href: "/settings",
+        cta: googlePrimaryCta,
+        meta: googleLine,
+        status: googlePill,
+      },
+      {
+        id: "mobility",
+        eyebrow: "Llegada",
+        title: "Movilidad inteligente",
+        copy: "Origen, transporte y alertas de salida se configuran como una capa de ayuda, no como otro módulo ruidoso.",
+        href: "/settings",
+        cta: "Configurar movilidad",
+        meta: "Rutas, Maps/Waze y alertas",
+        status: { label: "Opcional", tone: "neutral" },
+      },
+      {
+        id: "account",
+        eyebrow: "Cuenta",
+        title: "Cuenta y plan",
+        copy: "Perfil, plan, Premium y preferencias deben sentirse como administración, no como tareas sueltas.",
+        href: "/profile",
+        cta: "Ver cuenta",
+        meta: planInfo.supportingCopy,
+        status: {
+          label: planInfo.pill,
+          tone:
+            planInfo.tone === "free"
+              ? "neutral"
+              : planInfo.tone === "trial"
+                ? "warn"
+                : "ok",
+        },
+      },
+    ],
+    [
+      googleLine,
+      googlePill,
+      googlePrimaryCta,
+      planInfo.pill,
+      planInfo.supportingCopy,
+      planInfo.tone,
+      totalGroups,
+    ],
+  );
+
+  const detailLinks = useMemo<DetailLink[]>(
+    () => [
+      { id: "summary", label: "Resumen", href: "/summary" },
+      { id: "calendar", label: "Calendario", href: "/calendar" },
+      {
+        id: "conflicts",
+        label: "Conflictos",
+        href: "/conflicts/detected",
+        badge: conflictsNow > 0 ? `${conflictsNow}` : undefined,
+      },
+      {
+        id: "events",
+        label: "Eventos",
+        href: "/events",
+        badge: totalEvents > 0 ? `${totalEvents}` : undefined,
+      },
+      { id: "members", label: "Miembros", href: "/members" },
+      {
+        id: "invitations",
+        label: "Invitaciones",
+        href: "/invitations",
+        badge: captures.length > 0 ? `${captures.length}` : undefined,
+      },
+      { id: "settings", label: "Ajustes", href: "/settings" },
+      { id: "plans", label: "Planes", href: "/planes" },
+    ],
+    [captures.length, conflictsNow, totalEvents],
+  );
 
   async function handleContextChange(nextMode: UsageMode) {
     if (contextSaving === nextMode || contextState.mode === nextMode) return;
@@ -864,508 +989,738 @@ connection_state:
         title="Panel"
         subtitle={
           isMobile
-            ? "Tu hub de grupos, invitaciones, plan e integraciones."
-            : "El lugar donde administras la estructura compartida sin confundirlo con la operación diaria."
+            ? "Controla SyncPlans sin perderte."
+            : "Un centro de control claro para estructura, integraciones, movilidad y cuenta."
         }
       />
 
       <div style={styles.stack}>
         {error ? <div style={styles.errorBanner}>{error}</div> : null}
 
-        <section style={styles.heroCard}>
-          <div style={styles.heroTopRow}>
-            <div style={styles.heroTextWrap}>
-              <div style={styles.eyebrow}>Panel</div>
-              <h1 style={styles.heroTitle}>{isMobile ? "Hub administrativo" : "Centro de estructura"}</h1>
-              <p style={styles.heroCopy}>{isMobile ? heroSummaryMobile : heroSummary}</p>
-
-              {!isMobile ? (
-                <div style={styles.heroMicroCopy}>
-                  La operación diaria vive en <strong>Resumen</strong>, <strong>Calendario</strong>, <strong>Eventos</strong> y <strong>Conflictos</strong>. Aquí administras la base.
-                </div>
-              ) : null}
+        <section style={styles.commandCard}>
+          <div
+            style={{
+              ...styles.commandTopRow,
+              gridTemplateColumns: isMobile
+                ? "1fr"
+                : "minmax(0, 1fr) minmax(280px, 380px)",
+            }}
+          >
+            <div style={styles.commandTextWrap}>
+              <div style={styles.eyebrow}>Centro de control</div>
+              <h1 style={styles.commandTitle}>Menos ruido. Más dirección.</h1>
+              <p style={styles.commandCopy}>
+                Panel ya no compite con Resumen ni Calendario. Aquí se
+                administra la base de SyncPlans y se entra a cada área cuando
+                hace falta.
+              </p>
             </div>
 
-            <div style={{ ...styles.heroActionStack, ...(isMobile ? styles.heroActionStackMobile : null) }}>
+            <div
+              style={{
+                ...styles.recommendedCard,
+                ...(recommendedAction.tone === "warning"
+                  ? styles.recommendedCardWarning
+                  : recommendedAction.tone === "success"
+                    ? styles.recommendedCardSuccess
+                    : null),
+              }}
+            >
+              <div style={styles.recommendedEyebrow}>
+                {recommendedAction.eyebrow}
+              </div>
+              <div style={styles.recommendedTitle}>
+                {recommendedAction.title}
+              </div>
+              <div style={styles.recommendedCopy}>{recommendedAction.copy}</div>
               <button
                 type="button"
                 style={styles.primaryHeroCta}
-                onClick={() => router.push(heroPrimaryCtaHref)}
+                onClick={() => router.push(recommendedAction.href)}
               >
-                {heroPrimaryCtaLabel}
-              </button>
-              <button
-                type="button"
-                style={styles.secondaryHeroCta}
-                onClick={() => router.push("/invitations")}
-              >
-                {heroSecondaryCtaLabel}
+                {recommendedAction.label}
               </button>
             </div>
           </div>
 
-          {showHeroConflictNote ? (
-            <div style={styles.heroAlert}>
-              <div style={styles.heroAlertEyebrow}>Atención</div>
-              <div style={styles.heroAlertText}>
-                Hay {conflictsNow} conflicto{conflictsNow === 1 ? "" : "s"} activo{conflictsNow === 1 ? "" : "s"}. Resuélvelos desde Conflictos; aquí solo administras estructura.
-              </div>
-            </div>
-          ) : null}
-
-          <div
-            style={{
-              ...styles.metricsGrid,
-              gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))",
-            }}
-          >
-            <MetricCard label="Espacios compartidos" value={loading ? "—" : String(totalGroups)} hint="Espacios compartidos" compact={isMobile} />
-            <MetricCard label="Eventos" value={loading ? "—" : String(totalEvents)} hint="Carga visible" compact={isMobile} />
-            <MetricCard
-              label="Google"
-              value={
-                loading
-                  ? "—"
-                  : connectionState === "connected"
-                    ? "Activo"
-                    : connectionState === "needs_reauth"
-                      ? "Revisar"
-                      : "Pendiente"
-              }
-              hint="Estado externo"
-              compact={isMobile}
-            />
-            <MetricCard
-              label="Conflictos"
-              value={loading ? "—" : String(conflictsNow)}
-              hint="Pendientes"
-              danger={conflictsNow > 0}
-              compact={isMobile}
-            />
+          <div style={styles.statusStrip}>
+            {statusChips.map((chip) => (
+              <StatusPill
+                key={`${chip.label}-${chip.tone}`}
+                label={chip.label}
+                tone={chip.tone}
+              />
+            ))}
           </div>
         </section>
 
         <section style={styles.sectionCardCompact}>
           <div style={styles.sectionHead}>
             <div>
-              <div style={styles.sectionEyebrow}>Accesos principales</div>
-              <h2 style={styles.sectionTitle}>Administra lo importante</h2>
+              <div style={styles.sectionEyebrow}>Áreas principales</div>
+              <h2 style={styles.sectionTitle}>Elige qué quieres administrar</h2>
             </div>
           </div>
 
           <div
             style={{
-              ...styles.quickGrid,
-              gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))",
+              ...styles.controlGrid,
+              gridTemplateColumns: isMobile
+                ? "1fr"
+                : "repeat(2, minmax(0, 1fr))",
             }}
           >
-            {adminActions.map((action) => (
+            {controlAreas.map((area) => (
               <button
-                key={action.id}
+                key={area.id}
                 type="button"
-                style={{
-                  ...styles.quickCard,
-                  ...(action.featured ? styles.quickCardFeatured : null),
-                  ...(isMobile ? styles.quickCardCompact : null),
-                }}
-                onClick={() => router.push(action.href)}
+                style={styles.controlCard}
+                onClick={() => router.push(area.href)}
               >
-                <div style={{ ...styles.quickCardTop, ...(isMobile ? styles.quickCardTopCompact : null) }}>
-                  <div style={{ ...styles.quickTitle, ...(isMobile ? styles.quickTitleCompact : null) }}>{action.title}</div>
-                  {action.badge ? <span style={styles.quickBadge}>{action.badge}</span> : null}
+                <div style={styles.controlCardTop}>
+                  <div>
+                    <div style={styles.controlEyebrow}>{area.eyebrow}</div>
+                    <div style={styles.controlTitle}>{area.title}</div>
+                  </div>
+                  {area.status ? (
+                    <StatusPill
+                      label={area.status.label}
+                      tone={area.status.tone}
+                    />
+                  ) : null}
                 </div>
-                <div style={{ ...styles.quickHint, ...(isMobile ? styles.quickHintCompact : null) }}>{action.hint}</div>
+
+                <div style={styles.controlCopy}>{area.copy}</div>
+
+                <div style={styles.controlFooter}>
+                  <span style={styles.controlMeta}>{area.meta}</span>
+                  <span style={styles.controlCta}>{area.cta}</span>
+                </div>
               </button>
             ))}
           </div>
         </section>
 
-        <div
-          style={{
-            ...styles.mainGrid,
-            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.15fr) minmax(300px, 0.85fr)",
-          }}
-        >
-          <div style={styles.leftCol}>
-            <section style={styles.sectionCardCompact}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Espacios compartidos</div>
-                  <h2 style={styles.sectionTitle}>Espacios recientes</h2>
-                </div>
+        <section style={styles.sectionCardCompact}>
+          <div style={styles.detailsHeadRow}>
+            <div>
+              <div style={styles.sectionEyebrow}>Opciones secundarias</div>
+              <h2 style={styles.sectionTitle}>Detalles y accesos avanzados</h2>
+              <p style={styles.detailsIntro}>
+                Todo sigue disponible, pero queda debajo para que la primera
+                vista no parezca un tablero de botones.
+              </p>
+            </div>
 
-                <button
-                  type="button"
-                  style={styles.ghostButton}
-                  onClick={() => router.push("/groups")}
-                >
-                  Ver todos
-                </button>
-              </div>
-
-              {groupsPreview.length === 0 ? (
-                <EmptyBlock
-                  copy="Aún no tienes grupos. Este es el mejor lugar para arrancar la coordinación compartida."
-                  primaryLabel="Crear grupo"
-                  onPrimary={() => router.push("/groups/new")}
-                  secondaryLabel="Revisar invitaciones"
-                  onSecondary={() => router.push("/invitations")}
-                />
-              ) : (
-                <div style={styles.listCompact}>
-                  {groupsPreview.map((group) => (
-                    <div key={group.id} style={styles.listItem}>
-                      <div style={styles.listCopyWrap}>
-                        <div style={styles.listTitle}>
-                          {group.name || getGroupTypeLabel(group.type)}
-                        </div>
-                        <div style={styles.listMeta}>{getGroupTypeLabel(group.type)}</div>
-                      </div>
-
-                      <button
-                        type="button"
-                        style={styles.inlineLink}
-                        onClick={() => router.push(`/groups/${group.id}`)}
-                      >
-                        Abrir
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section style={styles.sectionCardCompact}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Capturas</div>
-                  <h2 style={styles.sectionTitle}>Bandeja de respuestas</h2>
-                </div>
-
-                <button
-                  type="button"
-                  style={styles.ghostButton}
-                  onClick={loadCaptures}
-                >
-                  Actualizar
-                </button>
-              </div>
-
-              {!canUseCaptures ? (
-                <PremiumLock
-                  title="Capturas premium"
-                  copy="Respuestas externas convertidas en acciones dentro del flujo."
-                />
-              ) : capturesLoading ? (
-                <EmptyBlock copy="Buscando respuestas…" />
-              ) : captures.length === 0 ? (
-                <EmptyBlock copy="No hay respuestas pendientes." />
-              ) : (
-                <div style={styles.captureList}>
-                  {captures.slice(0, isMobile ? 2 : 3).map((capture) => {
-                    const hasProposal = Boolean(capture.proposed_date);
-                    const statusTone =
-                      capture.status === "accepted"
-                        ? "ok"
-                        : hasProposal
-                          ? "warn"
-                          : "bad";
-
-                    return (
-                      <div key={capture.invite_id} style={styles.captureCardCompact}>
-                        <div style={styles.captureTopRow}>
-                          <div style={styles.captureHeaderCopy}>
-                            <div style={styles.listTitle}>{capture.event_title || "Evento"}</div>
-                            <div style={styles.captureSubline}>
-                              {capture.status === "accepted"
-                                ? "Aceptado"
-                                : hasProposal
-                                  ? `Propuso: ${formatCaptureDate(capture.proposed_date)}`
-                                  : "Rechazado"}
-                            </div>
-                          </div>
-
-                          <StatusPill
-                            label={
-                              capture.status === "accepted"
-                                ? "Aceptado"
-                                : hasProposal
-                                  ? "Cambio"
-                                  : "Rechazado"
-                            }
-                            tone={statusTone}
-                          />
-                        </div>
-
-                        <div style={styles.captureActions}>
-                          {capture.status === "accepted" ? (
-                            <>
-                              <button
-                                type="button"
-                                style={styles.primarySmallButton}
-                                onClick={() => handleTakeCaptureProposal(capture)}
-                              >
-                                Aplicar
-                              </button>
-                              <button
-                                type="button"
-                                style={styles.secondarySmallButton}
-                                onClick={() => openEventFromCapture(capture)}
-                              >
-                                Ver evento
-                              </button>
-                            </>
-                          ) : hasProposal ? (
-                            <>
-                              <button
-                                type="button"
-                                style={styles.primarySmallButton}
-                                onClick={() => handleReviewCapture(capture)}
-                              >
-                                Revisar
-                              </button>
-                              <button
-                                type="button"
-                                style={styles.secondarySmallButton}
-                                onClick={() => handleRescheduleCapture(capture)}
-                              >
-                                Reprogramar
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              type="button"
-                              style={styles.primarySmallButton}
-                              onClick={() => handleRescheduleCapture(capture)}
-                            >
-                              Reprogramar
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
+            <button
+              type="button"
+              style={styles.ghostButton}
+              onClick={() => setShowDetails((value) => !value)}
+            >
+              {showDetails ? "Ocultar detalles" : "Ver detalles"}
+            </button>
           </div>
 
-          <div style={styles.rightCol}>
-            <section
-              style={{
-                ...styles.planCard,
-                border:
-                  planInfo.tone === "free"
-                    ? "1px solid rgba(56,189,248,0.25)"
-                    : planInfo.tone === "trial"
-                      ? "1px solid rgba(168,85,247,0.35)"
-                      : planInfo.tone === "premium"
-                        ? "1px solid rgba(34,197,94,0.35)"
-                        : "1px solid rgba(251,191,36,0.35)",
-              }}
-            >
-              <div style={styles.planPill}>{planInfo.pill}</div>
-              <h2 style={styles.planTitle}>{planInfo.title}</h2>
-              <p style={styles.planCopy}>{isMobile ? planInfo.supportingCopy : planInfo.copy}</p>
-
-              {planInfo.tone === "free" ? (
-                <div style={styles.planMiniNote}>
-                  {groupLimitState.reached
-                    ? "Premium abre más grupos y más control cuando la coordinación crece."
-                    : `Free incluye hasta ${groupLimitState.limit ?? "1"} grupo antes de que Premium empiece a tener sentido.`}
-                </div>
-              ) : null}
-
-              <button
-                type="button"
-                style={styles.primaryCta}
-                onClick={() => router.push("/planes")}
-              >
-                {planInfo.cta}
-              </button>
-            </section>
-
-            <section style={styles.sectionCardCompact}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Sistema</div>
-                  <h2 style={styles.sectionTitle}>Conexiones</h2>
-                </div>
-              </div>
-
-              {!canUseGoogleIntegration ? (
-                <PremiumLock
-                  title="Google Calendar"
-                  copy="Conecta calendarios externos cuando Premium ya tenga sentido para tu coordinación."
-                />
-              ) : (
-                <>
-                  <div style={styles.integrationCard}>
-                    <div style={styles.integrationTop}>
-                      <div>
-                        <div style={styles.integrationTitle}>Google Calendar</div>
-                        <div style={styles.integrationLine}>{googleLine}</div>
-                      </div>
-
-                      <StatusPill label={googlePill.label} tone={googlePill.tone} />
-                    </div>
-
-                    {googleStatus?.error ? (
-                      <div style={styles.integrationError}>{googleStatus.error}</div>
-                    ) : null}
-
-                    <div style={styles.integrationActions}>
-                      <button
-                        type="button"
-                        style={styles.primarySmallButton}
-                       onClick={() => router.push("/settings")}
-                      >
-                        {googlePrimaryCta}
-                      </button>
-                      {connectionState === "connected" ? (
-                        <button
-                          type="button"
-                          style={styles.secondarySmallButton}
-                          onClick={fetchGoogleEvents}
-                        >
-                          Actualizar snapshot
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div style={styles.googleSnapshot}>
-                    <div style={styles.snapshotHead}>
-                      <div style={styles.snapshotTitle}>Snapshot externo</div>
-                      <div style={styles.snapshotMeta}>
-                        {googleEventsLoading
-                          ? "Cargando…"
-                          : `${googleEvents.length} evento${googleEvents.length === 1 ? "" : "s"}`}
-                      </div>
-                    </div>
-
-                    {googleEventsError ? (
-                      <div style={styles.snapshotEmpty}>{googleEventsError}</div>
-                    ) : googleEventsLoading ? (
-                      <div style={styles.snapshotEmpty}>Leyendo eventos de Google…</div>
-                    ) : googleEvents.length === 0 ? (
-                      <div style={styles.snapshotEmpty}>Aún no hay eventos externos visibles.</div>
-                    ) : (
-                      <div style={styles.snapshotList}>
-                        {googleEvents.slice(0, 3).map((event) => (
-                          <div key={event.id} style={styles.snapshotItem}>
-                            <div style={styles.snapshotItemTitle}>
-                              {event.title || "Evento externo"}
-                            </div>
-                            <div style={styles.snapshotItemMeta}>
-                              {formatExternalEventRange(event)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </section>
-
-            <section style={styles.sectionCardCompact}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Operación diaria</div>
-                  <h2 style={styles.sectionTitle}>Volver al flujo principal</h2>
-                </div>
-              </div>
-
-              <div style={styles.pillActionsRow}>
-                {operationActions.map((action) => (
+          {showDetails ? (
+            <div style={styles.detailsStack}>
+              <div style={styles.detailLinksGrid}>
+                {detailLinks.map((link) => (
                   <button
-                    key={action.id}
+                    key={link.id}
                     type="button"
                     style={styles.pillAction}
-                    onClick={() => router.push(action.href)}
+                    onClick={() => router.push(link.href)}
                   >
-                    <span>{action.label}</span>
-                    {action.badge ? <span style={styles.pillBadge}>{action.badge}</span> : null}
+                    <span>{link.label}</span>
+                    {link.badge ? (
+                      <span style={styles.pillBadge}>{link.badge}</span>
+                    ) : null}
                   </button>
                 ))}
-              </div>
-            </section>
-
-            <section style={styles.sectionCardCompact}>
-              <div style={styles.sectionHead}>
-                <div>
-                  <div style={styles.sectionEyebrow}>Contexto</div>
-                  <h2 style={styles.sectionTitle}>Modo activo</h2>
-                </div>
-              </div>
-
-              <div style={styles.contextHeroCompact}>
-                <div style={styles.contextHeroLeft}>
-                  <div style={styles.contextCurrentRow}>
-                    <span
-                      style={{
-                        ...styles.contextCurrentDot,
-                        background: currentContextOption.dot,
-                      }}
-                    />
-                    <span style={styles.contextCurrentTextSmall}>
-                      {currentContextOption.label}
-                    </span>
-                    {showContextGroupName ? (
-                      <span style={styles.contextInlineMeta}>{showContextGroupName}</span>
-                    ) : null}
-                  </div>
-                </div>
               </div>
 
               <div
                 style={{
-                  ...styles.contextGrid,
-                  gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+                  ...styles.mainGrid,
+                  gridTemplateColumns: isMobile
+                    ? "1fr"
+                    : "minmax(0, 1.05fr) minmax(320px, 0.95fr)",
                 }}
               >
-                {CONTEXT_OPTIONS.map((option) => {
-                  const active = option.key === contextState.mode;
-                  const saving = contextSaving === option.key;
-
-                  return (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() => handleContextChange(option.key)}
-                      disabled={saving}
-                      style={{
-                        ...styles.contextCard,
-                        ...(active ? styles.contextCardActive : null),
-                        ...(saving ? styles.contextCardBusy : null),
-                      }}
-                    >
-                      <div style={styles.contextCardTop}>
-                        <span
-                          style={{
-                            ...styles.contextCardDot,
-                            background: option.dot,
-                          }}
-                        />
-                        <span style={styles.contextCardLabel}>{option.label}</span>
-                        {active ? <span style={styles.contextBadge}>Activo</span> : null}
+                <div style={styles.leftCol}>
+                  <section style={styles.subPanelCard}>
+                    <div style={styles.sectionHead}>
+                      <div>
+                        <div style={styles.sectionEyebrow}>Personas</div>
+                        <h3 style={styles.subPanelTitle}>Espacios recientes</h3>
                       </div>
 
-                      <div style={styles.contextCardHint}>{option.hint}</div>
-                    </button>
-                  );
-                })}
+                      <button
+                        type="button"
+                        style={styles.ghostButton}
+                        onClick={() => router.push("/groups")}
+                      >
+                        Ver todos
+                      </button>
+                    </div>
+
+                    {groupsPreview.length === 0 ? (
+                      <EmptyBlock
+                        copy="Aún no tienes grupos. Empieza por crear uno o revisar si tienes invitaciones pendientes."
+                        primaryLabel="Crear grupo"
+                        onPrimary={() => router.push("/groups/new")}
+                        secondaryLabel="Invitaciones"
+                        onSecondary={() => router.push("/invitations")}
+                      />
+                    ) : (
+                      <div style={styles.listCompact}>
+                        {groupsPreview.map((group) => (
+                          <div key={group.id} style={styles.listItem}>
+                            <div style={styles.listCopyWrap}>
+                              <div style={styles.listTitle}>
+                                {group.name || getGroupTypeLabel(group.type)}
+                              </div>
+                              <div style={styles.listMeta}>
+                                {getGroupTypeLabel(group.type)}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              style={styles.inlineLink}
+                              onClick={() => router.push(`/groups/${group.id}`)}
+                            >
+                              Abrir
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+
+                  <section style={styles.subPanelCard}>
+                    <div style={styles.sectionHead}>
+                      <div>
+                        <div style={styles.sectionEyebrow}>Respuestas</div>
+                        <h3 style={styles.subPanelTitle}>
+                          Bandeja de coordinación
+                        </h3>
+                      </div>
+
+                      <button
+                        type="button"
+                        style={styles.ghostButton}
+                        onClick={loadCaptures}
+                      >
+                        Actualizar
+                      </button>
+                    </div>
+
+                    {!canUseCaptures ? (
+                      <PremiumLock
+                        title="Capturas premium"
+                        copy="Respuestas externas convertidas en acciones dentro del flujo."
+                      />
+                    ) : capturesLoading ? (
+                      <EmptyBlock copy="Buscando respuestas…" />
+                    ) : captures.length === 0 ? (
+                      <EmptyBlock copy="No hay respuestas pendientes." />
+                    ) : (
+                      <div style={styles.captureList}>
+                        {captures.slice(0, isMobile ? 2 : 3).map((capture) => {
+                          const hasProposal = Boolean(capture.proposed_date);
+                          const statusTone =
+                            capture.status === "accepted"
+                              ? "ok"
+                              : hasProposal
+                                ? "warn"
+                                : "bad";
+
+                          return (
+                            <div
+                              key={capture.invite_id}
+                              style={styles.captureCardCompact}
+                            >
+                              <div style={styles.captureTopRow}>
+                                <div style={styles.captureHeaderCopy}>
+                                  <div style={styles.listTitle}>
+                                    {capture.event_title || "Evento"}
+                                  </div>
+                                  <div style={styles.captureSubline}>
+                                    {capture.status === "accepted"
+                                      ? "Aceptado"
+                                      : hasProposal
+                                        ? `Propuso: ${formatCaptureDate(capture.proposed_date)}`
+                                        : "Rechazado"}
+                                  </div>
+                                </div>
+
+                                <StatusPill
+                                  label={
+                                    capture.status === "accepted"
+                                      ? "Aceptado"
+                                      : hasProposal
+                                        ? "Cambio"
+                                        : "Rechazado"
+                                  }
+                                  tone={statusTone}
+                                />
+                              </div>
+
+                              <div style={styles.captureActions}>
+                                {capture.status === "accepted" ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      style={styles.primarySmallButton}
+                                      onClick={() =>
+                                        handleTakeCaptureProposal(capture)
+                                      }
+                                    >
+                                      Aplicar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      style={styles.secondarySmallButton}
+                                      onClick={() =>
+                                        openEventFromCapture(capture)
+                                      }
+                                    >
+                                      Ver evento
+                                    </button>
+                                  </>
+                                ) : hasProposal ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      style={styles.primarySmallButton}
+                                      onClick={() =>
+                                        handleReviewCapture(capture)
+                                      }
+                                    >
+                                      Revisar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      style={styles.secondarySmallButton}
+                                      onClick={() =>
+                                        handleRescheduleCapture(capture)
+                                      }
+                                    >
+                                      Reprogramar
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    style={styles.primarySmallButton}
+                                    onClick={() =>
+                                      handleRescheduleCapture(capture)
+                                    }
+                                  >
+                                    Reprogramar
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                </div>
+
+                <div style={styles.rightCol}>
+                  <section style={styles.subPanelCard}>
+                    <div style={styles.sectionHead}>
+                      <div>
+                        <div style={styles.sectionEyebrow}>Integraciones</div>
+                        <h3 style={styles.subPanelTitle}>Google Calendar</h3>
+                      </div>
+                    </div>
+
+                    {!canUseGoogleIntegration ? (
+                      <PremiumLock
+                        title="Google Calendar"
+                        copy="Conecta calendarios externos cuando Premium ya tenga sentido para tu coordinación."
+                      />
+                    ) : (
+                      <>
+                        <div style={styles.integrationCard}>
+                          <div style={styles.integrationTop}>
+                            <div>
+                              <div style={styles.integrationTitle}>
+                                Estado de conexión
+                              </div>
+                              <div style={styles.integrationLine}>
+                                {googleLine}
+                              </div>
+                            </div>
+
+                            <StatusPill
+                              label={googlePill.label}
+                              tone={googlePill.tone}
+                            />
+                          </div>
+
+                          {googleStatus?.error ? (
+                            <div style={styles.integrationError}>
+                              {googleStatus.error}
+                            </div>
+                          ) : null}
+
+                          <div style={styles.integrationActions}>
+                            <button
+                              type="button"
+                              style={styles.primarySmallButton}
+                              onClick={() => router.push("/settings")}
+                            >
+                              {googlePrimaryCta}
+                            </button>
+                            {connectionState === "connected" ? (
+                              <button
+                                type="button"
+                                style={styles.secondarySmallButton}
+                                onClick={fetchGoogleEvents}
+                              >
+                                Actualizar snapshot
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div style={styles.googleSnapshot}>
+                          <div style={styles.snapshotHead}>
+                            <div style={styles.snapshotTitle}>
+                              Snapshot externo
+                            </div>
+                            <div style={styles.snapshotMeta}>
+                              {googleEventsLoading
+                                ? "Cargando…"
+                                : `${googleEvents.length} evento${googleEvents.length === 1 ? "" : "s"}`}
+                            </div>
+                          </div>
+
+                          {googleEventsError ? (
+                            <div style={styles.snapshotEmpty}>
+                              {googleEventsError}
+                            </div>
+                          ) : googleEventsLoading ? (
+                            <div style={styles.snapshotEmpty}>
+                              Leyendo eventos de Google…
+                            </div>
+                          ) : googleEvents.length === 0 ? (
+                            <div style={styles.snapshotEmpty}>
+                              Aún no hay eventos externos visibles.
+                            </div>
+                          ) : (
+                            <div style={styles.snapshotList}>
+                              {googleEvents.slice(0, 3).map((event) => (
+                                <div key={event.id} style={styles.snapshotItem}>
+                                  <div style={styles.snapshotItemTitle}>
+                                    {event.title || "Evento externo"}
+                                  </div>
+                                  <div style={styles.snapshotItemMeta}>
+                                    {formatExternalEventRange(event)}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </section>
+
+                  <section style={styles.subPanelCard}>
+                    <div style={styles.sectionHead}>
+                      <div>
+                        <div style={styles.sectionEyebrow}>Modo</div>
+                        <h3 style={styles.subPanelTitle}>Contexto activo</h3>
+                      </div>
+                    </div>
+
+                    <div style={styles.contextHeroCompact}>
+                      <div style={styles.contextHeroLeft}>
+                        <div style={styles.contextCurrentRow}>
+                          <span
+                            style={{
+                              ...styles.contextCurrentDot,
+                              background: currentContextOption.dot,
+                            }}
+                          />
+                          <span style={styles.contextCurrentTextSmall}>
+                            {currentContextOption.label}
+                          </span>
+                          {showContextGroupName ? (
+                            <span style={styles.contextInlineMeta}>
+                              {showContextGroupName}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        ...styles.contextGrid,
+                        gridTemplateColumns: isMobile
+                          ? "1fr"
+                          : "repeat(3, minmax(0, 1fr))",
+                      }}
+                    >
+                      {CONTEXT_OPTIONS.map((option) => {
+                        const active = option.key === contextState.mode;
+                        const saving = contextSaving === option.key;
+
+                        return (
+                          <button
+                            key={option.key}
+                            type="button"
+                            onClick={() => handleContextChange(option.key)}
+                            disabled={saving}
+                            style={{
+                              ...styles.contextCard,
+                              ...(active ? styles.contextCardActive : null),
+                              ...(saving ? styles.contextCardBusy : null),
+                            }}
+                          >
+                            <div style={styles.contextCardTop}>
+                              <span
+                                style={{
+                                  ...styles.contextCardDot,
+                                  background: option.dot,
+                                }}
+                              />
+                              <span style={styles.contextCardLabel}>
+                                {option.label}
+                              </span>
+                              {active ? (
+                                <span style={styles.contextBadge}>Activo</span>
+                              ) : null}
+                            </div>
+
+                            <div style={styles.contextCardHint}>
+                              {option.hint}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                </div>
               </div>
-            </section>
-          </div>
-        </div>
+            </div>
+          ) : null}
+        </section>
       </div>
     </MobileScaffold>
   );
 }
 
 const styles: Record<string, CSSProperties> = {
+  commandCard: {
+    borderRadius: 26,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background:
+      "radial-gradient(1000px 520px at 18% -14%, rgba(56,189,248,0.12), transparent 62%), radial-gradient(720px 420px at 100% 0%, rgba(124,58,237,0.12), transparent 58%), rgba(10,15,30,0.80)",
+    boxShadow: "0 22px 70px rgba(0,0,0,0.30)",
+    backdropFilter: "blur(16px)",
+    padding: 18,
+    display: "grid",
+    gap: 16,
+  },
+  commandTopRow: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) minmax(280px, 380px)",
+    gap: 16,
+    alignItems: "stretch",
+  },
+  commandTextWrap: {
+    minWidth: 0,
+    display: "grid",
+    alignContent: "center",
+  },
+  commandTitle: {
+    margin: "8px 0 0",
+    fontSize: "clamp(28px, 4vw, 42px)",
+    lineHeight: 1.02,
+    letterSpacing: "-0.045em",
+    fontWeight: 950,
+    color: "rgba(255,255,255,0.98)",
+  },
+  commandCopy: {
+    margin: "10px 0 0",
+    maxWidth: 680,
+    fontSize: 14,
+    lineHeight: 1.58,
+    color: "rgba(226,232,240,0.78)",
+    fontWeight: 650,
+    overflowWrap: "anywhere",
+  },
+  recommendedCard: {
+    borderRadius: 22,
+    border: "1px solid rgba(96,165,250,0.22)",
+    background:
+      "linear-gradient(135deg, rgba(30,64,175,0.22), rgba(15,23,42,0.68))",
+    padding: 15,
+    display: "grid",
+    gap: 10,
+    alignContent: "start",
+    boxShadow: "0 18px 46px rgba(0,0,0,0.22)",
+  },
+  recommendedCardWarning: {
+    border: "1px solid rgba(251,191,36,0.26)",
+    background:
+      "linear-gradient(135deg, rgba(120,53,15,0.42), rgba(15,23,42,0.74))",
+  },
+  recommendedCardSuccess: {
+    border: "1px solid rgba(34,197,94,0.24)",
+    background:
+      "linear-gradient(135deg, rgba(20,83,45,0.38), rgba(15,23,42,0.74))",
+  },
+  recommendedEyebrow: {
+    fontSize: 11,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(191,219,254,0.92)",
+  },
+  recommendedTitle: {
+    fontSize: 20,
+    lineHeight: 1.14,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  recommendedCopy: {
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.76)",
+    fontWeight: 650,
+  },
+  statusStrip: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  controlGrid: {
+    display: "grid",
+    gap: 12,
+  },
+  controlCard: {
+    minHeight: 180,
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,0.09)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.026))",
+    padding: 16,
+    display: "grid",
+    gap: 14,
+    textAlign: "left",
+    cursor: "pointer",
+    color: "rgba(255,255,255,0.94)",
+    boxShadow: "0 16px 46px rgba(0,0,0,0.18)",
+  },
+  controlCardTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  controlEyebrow: {
+    fontSize: 11,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.84)",
+  },
+  controlTitle: {
+    marginTop: 5,
+    fontSize: 21,
+    lineHeight: 1.12,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  controlCopy: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.72)",
+    fontWeight: 650,
+  },
+  controlFooter: {
+    alignSelf: "end",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  controlMeta: {
+    minWidth: 0,
+    fontSize: 12,
+    lineHeight: 1.4,
+    color: "rgba(226,232,240,0.62)",
+    fontWeight: 750,
+    overflowWrap: "anywhere",
+  },
+  controlCta: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 34,
+    padding: "0 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(125,211,252,0.20)",
+    background: "rgba(56,189,248,0.10)",
+    color: "rgba(240,249,255,0.98)",
+    fontSize: 12,
+    fontWeight: 950,
+    whiteSpace: "nowrap",
+  },
+  detailsHeadRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
+  detailsIntro: {
+    margin: "7px 0 0",
+    maxWidth: 660,
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.66)",
+    fontWeight: 650,
+  },
+  detailsStack: {
+    display: "grid",
+    gap: 14,
+  },
+  detailLinksGrid: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  subPanelCard: {
+    borderRadius: 20,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.032)",
+    padding: 14,
+    display: "grid",
+    gap: 13,
+  },
+  subPanelTitle: {
+    margin: "4px 0 0",
+    fontSize: 18,
+    lineHeight: 1.16,
+    fontWeight: 930,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.98)",
+  },
+
   stack: {
     display: "flex",
     flexDirection: "column",

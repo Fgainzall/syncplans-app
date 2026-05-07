@@ -1755,10 +1755,10 @@ if (parsed.locationQuery) {
         eyebrow: "Tu siguiente movimiento",
         title: "Invita a la otra persona",
         subtitle: "El valor compartido aparece cuando ambos ven lo mismo en el mismo lugar.",
-        cta: "Abrir grupos",
+        cta: "Invitar ahora",
         tone: "info",
         onClick: () =>
-          navigateFromSummary("next_move_open_groups", "/groups", {
+          navigateFromSummary("next_move_invite_now", "/groups", {
             block: "next_move",
           }),
       };
@@ -2030,22 +2030,6 @@ if (parsed.locationQuery) {
     pendingAttention.proposals > 0 ||
     pendingAttention.captures > 0;
 
-  const inviteFocus = useMemo(() => {
-    if (hasUrgentSummaryState || !showInviteNudge) return null;
-
-    return {
-      eyebrow: "Siguiente mejor paso",
-      title: "Invita a tu pareja y conviértanlo en una sola agenda compartida",
-      subtitle:
-        "El valor de SyncPlans aparece de verdad cuando ambos ven lo mismo en el mismo lugar.",
-      cta: "Abrir grupos",
-      action: () =>
-        navigateFromSummary("open_groups", "/groups", {
-          block: "invite_focus",
-        }),
-    };
-  }, [hasUrgentSummaryState, showInviteNudge, navigateFromSummary]);
-
   const createGroupFocus = useMemo(() => {
     if (hasUrgentSummaryState || !showCreateGroupNudge || isFirstTimeMode) return null;
 
@@ -2064,6 +2048,8 @@ if (parsed.locationQuery) {
 
   const showQuickActions =
     isFirstTimeMode || (!hasUrgentSummaryState && !nextEvent && !showInviteNudge);
+
+  const shouldShowSummaryHero = !(showInviteNudge && !hasUrgentSummaryState);
 
   return (
   <div style={styles.page} className="spSum-page">
@@ -2084,26 +2070,28 @@ if (parsed.locationQuery) {
 
         <SmartMobilityCard smartMobility={smartMobility} />
 
-        <SummaryHero
-          compact={compactSummaryMobile}
-          contextLabel={contextLabel}
-          moodTitle={mood.title}
-          moodSubtitle={mood.subtitle}
-          upcomingTotal={upcomingStats.total}
-          upcomingPersonal={upcomingStats.personal}
-          upcomingGroup={upcomingStats.group}
-          upcomingExternal={upcomingStats.external}
-          conflictCount={conflictAlert.count}
-          pendingInviteCount={pendingInviteCount}
-          loading={loading && !booting}
-          primaryAction={primaryAction}
-          onOpenConflicts={openConflictCenter}
-          onOpenInvitations={() =>
-            navigateFromSummary("hero_invites", "/invitations", {
-              block: "summary_hero",
-            })
-          }
-        />
+        {shouldShowSummaryHero ? (
+          <SummaryHero
+            compact={compactSummaryMobile}
+            contextLabel={contextLabel}
+            moodTitle={mood.title}
+            moodSubtitle={mood.subtitle}
+            upcomingTotal={upcomingStats.total}
+            upcomingPersonal={upcomingStats.personal}
+            upcomingGroup={upcomingStats.group}
+            upcomingExternal={upcomingStats.external}
+            conflictCount={conflictAlert.count}
+            pendingInviteCount={pendingInviteCount}
+            loading={loading && !booting}
+            primaryAction={primaryAction}
+            onOpenConflicts={openConflictCenter}
+            onOpenInvitations={() =>
+              navigateFromSummary("hero_invites", "/invitations", {
+                block: "summary_hero",
+              })
+            }
+          />
+        ) : null}
 
         {createGroupFocus ? (
           <FocusRail
@@ -2112,14 +2100,6 @@ if (parsed.locationQuery) {
             subtitle={createGroupFocus.subtitle}
             cta={createGroupFocus.cta}
             onClick={createGroupFocus.action}
-          />
-        ) : inviteFocus ? (
-          <FocusRail
-            eyebrow={inviteFocus.eyebrow}
-            title={inviteFocus.title}
-            subtitle={inviteFocus.subtitle}
-            cta={inviteFocus.cta}
-            onClick={inviteFocus.action}
           />
         ) : null}
 
