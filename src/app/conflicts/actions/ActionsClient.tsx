@@ -892,17 +892,23 @@ kept_event_title: safeTitle(
           </div>
         </div>
 
+        <div style={styles.conflictStepper} aria-label="Flujo de resolución de conflictos">
+          <span style={styles.conflictStep}>1. Detectar</span>
+          <span style={styles.conflictStep}>2. Comparar</span>
+          <span style={{ ...styles.conflictStep, ...styles.conflictStepActive }}>3. Aplicar</span>
+        </div>
+
         <section style={styles.hero}>
-          <div style={styles.kicker}>Cierre</div>
+          <div style={styles.kicker}>Paso 3 de 3 · Aplicar</div>
           <h1 style={styles.h1}>
             {focusEventId
-              ? "Cierra este conflicto"
-              : "Aplica lo que ya decidiste"}
+              ? "Aplicar esta decisión"
+              : "Aplicar decisiones"}
           </h1>
           <div style={styles.sub}>
             {focusEventId
-              ? "Aquí cierras el conflicto que vienes revisando. SyncPlans aplicará solo las decisiones ligadas a este evento, dejará la agenda más clara y luego te devolverá al resumen."
-              : "Aquí cierras el flujo. SyncPlans aplicará lo que ya decidiste, reducirá ruido en la agenda y luego te devolverá al resumen."}
+              ? "SyncPlans aplicará solo las decisiones ligadas a este evento y devolverá la agenda a un estado claro."
+              : "Aplica lo que ya decidiste. Lo pendiente seguirá visible hasta que lo compares y elijas una salida."}
           </div>
 
           <div
@@ -914,12 +920,12 @@ kept_event_title: safeTitle(
             }}
           >
             <div style={styles.statCard}>
-              <div style={styles.statLabel}>Conflictos visibles</div>
+              <div style={styles.statLabel}>Choques visibles</div>
               <div style={styles.statValue}>{scopedConflicts.length}</div>
             </div>
 
             <div style={styles.statCard}>
-              <div style={styles.statLabel}>Con decisión guardada</div>
+              <div style={styles.statLabel}>Listos para aplicar</div>
               <div style={styles.statValue}>{resolvedConflicts.length}</div>
             </div>
 
@@ -931,8 +937,8 @@ kept_event_title: safeTitle(
         </section>
 
         <section style={styles.loopCard}>
-          <div style={styles.loopKicker}>Loop de retorno</div>
-          <div style={styles.loopTitle}>Resolver aquí no solo cierra un conflicto: devuelve claridad compartida.</div>
+          <div style={styles.loopKicker}>Cierre guiado</div>
+          <div style={styles.loopTitle}>Antes de aplicar, confirma qué quedará claro.</div>
           <div
             style={{
               ...styles.loopGrid,
@@ -951,7 +957,7 @@ kept_event_title: safeTitle(
             </div>
 
             <div style={styles.loopItem}>
-              <div style={styles.loopItemTitle}>Más agenda clara</div>
+              <div style={styles.loopItemTitle}>Agenda más clara</div>
               <div style={styles.loopItemSub}>
                 {readyToRemoveCount > 0
                   ? `${readyToRemoveCount} decisión${readyToRemoveCount === 1 ? "" : "es"} intentará${readyToRemoveCount === 1 ? "" : "n"} retirar el evento que sobra para que todos vean un panorama más limpio.`
@@ -973,7 +979,7 @@ kept_event_title: safeTitle(
         <section style={styles.sectionCard}>
           <div style={styles.sectionHead}>
             <div>
-              <div style={styles.sectionTitle}>Lo que quedará claro al aplicar</div>
+              <div style={styles.sectionTitle}>Resumen de decisiones</div>
               <div style={styles.sectionSub}>
                 {focusEventId
                   ? "Solo se aplicarán las decisiones guardadas para este evento. Nada fuera de este foco se tocará."
@@ -984,7 +990,7 @@ kept_event_title: safeTitle(
 
           {!resolvedConflicts.length ? (
             <div style={styles.emptyBox}>
-              Todavía no hay decisiones listas para aplicar. Antes de cerrar, necesitas elegir qué conservar o si prefieres mantener ambos.
+              Todavía no hay decisiones listas para aplicar. Primero compara un conflicto y elige qué conservar o si prefieres mantener ambos.
             </div>
           ) : (
             <div style={styles.stack}>
@@ -1021,9 +1027,9 @@ kept_event_title: safeTitle(
                     >
                       <div style={styles.conflictBadge}>
                         {resolution === "keep_existing"
-                          ? "Se mantiene el Evento A"
+                          ? "Se conserva el plan actual"
                           : resolution === "replace_with_new"
-                            ? "Se mantiene el Evento B"
+                            ? "Se conserva el plan que entra"
                             : "Se conservan ambos"}
                       </div>
 
@@ -1036,7 +1042,7 @@ kept_event_title: safeTitle(
 
                     <div style={styles.conflictGrid}>
                       <div style={styles.eventMini}>
-                        <div style={styles.eventMiniLabel}>Evento A</div>
+                        <div style={styles.eventMiniLabel}>Plan actual</div>
                         <div style={styles.eventMiniTitle}>
                           {safeTitle(c.existingEvent?.title)}
                         </div>
@@ -1046,7 +1052,7 @@ kept_event_title: safeTitle(
                       </div>
 
                       <div style={styles.eventMini}>
-                        <div style={styles.eventMiniLabel}>Evento B</div>
+                        <div style={styles.eventMiniLabel}>Plan que entra</div>
                         <div style={styles.eventMiniTitle}>
                           {safeTitle(c.incomingEvent?.title)}
                         </div>
@@ -1063,7 +1069,7 @@ kept_event_title: safeTitle(
                         </span>
                       ) : (
                         <span>
-                          Se conservará <strong>{keptTitle}</strong> y se intentará retirar <strong>{affectedTitle}</strong>. Si ese evento no te pertenece o no puede tocarse, SyncPlans mantendrá ambos para evitar inconsistencias, lo ocultará para ti y avisará al creador.
+                          Se conservará <strong>{keptTitle}</strong> y SyncPlans intentará retirar <strong>{affectedTitle}</strong>. Si no tiene permisos para hacerlo, mantendrá ambos para evitar inconsistencias.
                         </span>
                       )}
                     </div>
@@ -1076,19 +1082,19 @@ kept_event_title: safeTitle(
 
         {summary ? (
           <section style={styles.sectionCard}>
-            <div style={styles.sectionTitle}>Resultado del cierre</div>
+            <div style={styles.sectionTitle}>Resultado aplicado</div>
             <div style={styles.summaryGrid}>
               <div style={styles.summaryPill}>
                 Decisiones listas: {summary.resolvedCount}
               </div>
               <div style={styles.summaryPill}>
-                Eventos retirados: {summary.deletedCount}
+                Retirados: {summary.deletedCount}
               </div>
               <div style={styles.summaryPill}>
-                No se pudieron mover: {summary.blockedCount}
+                Sin permiso: {summary.blockedCount}
               </div>
               <div style={styles.summaryPill}>
-                Conflictos silenciados: {summary.ignoredCount}
+                Marcados como resueltos: {summary.ignoredCount}
               </div>
               <div style={styles.summaryPill}>
                 Ocultos para ti: {summary.softRejectedCount}
@@ -1125,7 +1131,7 @@ kept_event_title: safeTitle(
                 : null),
             }}
           >
-            {applying ? "Aplicando..." : "Cerrar conflictos y volver al resumen"}
+            {applying ? "Aplicando..." : "Aplicar y volver al resumen"}
           </button>
         </section>
 
@@ -1171,6 +1177,26 @@ const styles: Record<string, React.CSSProperties> = {
   topActionsMobile: {
     justifyContent: "flex-start",
     flexWrap: "wrap",
+  },
+  conflictStepper: {
+    marginTop: 16,
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  conflictStep: {
+    borderRadius: 999,
+    padding: "7px 11px",
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(235,241,255,0.72)",
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  conflictStepActive: {
+    border: "1px solid rgba(96,165,250,0.34)",
+    background: "rgba(96,165,250,0.14)",
+    color: "#EFF6FF",
   },
   ghostBtn: {
     border: "1px solid rgba(255,255,255,0.12)",

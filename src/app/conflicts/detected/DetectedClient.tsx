@@ -347,7 +347,7 @@ const summary = useMemo(() => {
   };
 }, [allVisibleConflicts, pendingConflicts, resMap]);
 
-const shouldShowUpgradeNudge = !hasPremium && summary.pending > 0;
+const shouldShowUpgradeNudge = !hasPremium && summary.pending === 0 && summary.decided === 0;
 
 const premiumNudge = useMemo(() => {
   if (!shouldShowUpgradeNudge) return null;
@@ -608,7 +608,7 @@ const returnPressure = useMemo(() => {
           <AppHero
             mobileNav="bottom"
             title="Conflictos"
-            subtitle="Analizando tu agenda para encontrar choques y ayudarte a cerrar lo que todavía no quedó alineado entre personas."
+            subtitle="Buscando choques de horario para ayudarte a decidir con claridad."
           />
 
           <div style={styles.loadingCard}>
@@ -632,33 +632,39 @@ const returnPressure = useMemo(() => {
             title="Conflictos"
             subtitle={
               summary.pending === 0
-                ? "Tu agenda está sincronizada."
+                ? "No hay choques pendientes por resolver."
                 : isFocusedView
-                ? "Te trajimos directo al cruce que más conviene cerrar ahora."
-                : "Aquí conviertes un cruce confuso en una sola decisión clara para todos."
+                  ? "Te trajimos directo al choque que conviene cerrar ahora."
+                  : "Detecta el choque, compara las opciones y deja una decisión clara."
             }
           />
         </div>
 
+        <div style={styles.conflictStepper} aria-label="Flujo de resolución de conflictos">
+          <span style={{ ...styles.conflictStep, ...styles.conflictStepActive }}>1. Detectar</span>
+          <span style={styles.conflictStep}>2. Comparar</span>
+          <span style={styles.conflictStep}>3. Aplicar</span>
+        </div>
+
         <section style={styles.hero}>
           <div style={styles.heroLeft}>
-            <div style={styles.kicker}>Conflictos</div>
+            <div style={styles.kicker}>Paso 1 de 3 · Detectar</div>
             <h1 style={styles.h1}>
               {summary.pending === 0
-                ? "Todo claro por aquí"
-                : "Esto se resuelve en un minuto"}
+                ? "Todo claro por ahora"
+                : "Choques por decidir"}
             </h1>
             <div style={styles.sub}>
               {summary.pending === 0
                 ? "No encontramos choques pendientes visibles para este contexto."
-                : `Detectamos ${summary.pending} conflicto${summary.pending === 1 ? "" : "s"} pendiente${summary.pending === 1 ? "" : "s"}. Decide una vez aquí y evita seguir aclarando lo mismo por fuera del sistema.`}
+                : `Detectamos ${summary.pending} conflicto${summary.pending === 1 ? "" : "s"} pendiente${summary.pending === 1 ? "" : "s"}. Elige uno para comparar opciones y cerrar la decisión.`}
             </div>
           </div>
 
           <div style={styles.heroRight}>
             {summary.pending > 0 ? (
               <button onClick={resumeNext} style={styles.primaryBtn}>
-                Resolver ahora ✨
+                Resolver el primero
               </button>
             ) : isFocusedView ? (
               <button onClick={openFocusedCompare} style={styles.primaryBtn}>
@@ -705,7 +711,7 @@ const returnPressure = useMemo(() => {
         {returnPressure ? (
           <section style={styles.returnCard}>
             <div style={styles.returnCopy}>
-              <div style={styles.returnEyebrow}>Pendiente vivo</div>
+              <div style={styles.returnEyebrow}>Siguiente paso</div>
               <div style={styles.returnTitle}>{returnPressure.title}</div>
               <div style={styles.returnSub}>{returnPressure.copy}</div>
             </div>
@@ -758,9 +764,9 @@ const returnPressure = useMemo(() => {
         <section style={styles.listCard}>
           <div style={styles.listTop}>
             <div>
-              <div style={styles.listTitle}>Conflictos detectados</div>
+              <div style={styles.listTitle}>Conflictos pendientes</div>
               <div style={styles.listSub}>
-                Toca uno, compáralos lado a lado y deja una decisión clara.
+                Elige un choque para comparar planes y decidir qué queda.
               </div>
             </div>
 
@@ -817,7 +823,7 @@ const returnPressure = useMemo(() => {
                     <div style={styles.itemHead}>
                       <div style={styles.badges}>
                         <span style={styles.badgeDanger}>
-                          Choque real · {ymd(new Date(c.overlapStart))}
+                          Choque · {ymd(new Date(c.overlapStart))}
                         </span>
 
                         <span style={styles.badgePending}>Pendiente</span>

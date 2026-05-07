@@ -446,7 +446,7 @@ export default function CompareClient() {
       return "Estás resolviendo el conflicto principal del evento que disparó la alerta.";
     }
 
-    return "Compara ambos eventos, guarda una decisión y luego pasa al cierre final.";
+    return "Compara ambos planes, guarda una decisión y luego aplica el cierre.";
   }, [focusEventId, focusConflicts.length]);
 
   const decisionImpact = useMemo(() => {
@@ -535,13 +535,19 @@ export default function CompareClient() {
           </div>
         </div>
 
+        <div style={styles.conflictStepper} aria-label="Flujo de resolución de conflictos">
+          <span style={styles.conflictStep}>1. Detectar</span>
+          <span style={{ ...styles.conflictStep, ...styles.conflictStepActive }}>2. Comparar</span>
+          <span style={styles.conflictStep}>3. Aplicar</span>
+        </div>
+
         <section style={styles.hero}>
-          <div style={styles.kicker}>Comparar</div>
-          <h1 style={styles.h1}>Decide sin darle más vueltas</h1>
+          <div style={styles.kicker}>Paso 2 de 3 · Comparar</div>
+          <h1 style={styles.h1}>Compara y decide</h1>
           <div style={styles.sub}>
             {focusEventId
-              ? "Te traje directo al cruce relevante. Compara ambos planes y sal de aquí con una decisión clara."
-              : "Compara los dos planes una vez. Guarda tu decisión ahora y luego SyncPlans la aplicará sin hacerte repetir el mismo análisis."}
+              ? "Te trajimos directo al choque relevante. Compara ambos planes y elige qué debe quedar."
+              : "Estos dos planes se cruzan. Elige qué conservar o mantén ambos si todavía no quieres descartar ninguno."}
           </div>
 
           <div
@@ -551,7 +557,7 @@ export default function CompareClient() {
             }}
           >
             <div style={styles.heroInfoCard}>
-              <div style={styles.heroInfoLabel}>Cruce detectado</div>
+              <div style={styles.heroInfoLabel}>Choque detectado</div>
               <div style={styles.heroInfoValue}>
                 {formatRange(existing?.start, incoming?.end || existing?.end)}
               </div>
@@ -567,10 +573,10 @@ export default function CompareClient() {
         </section>
 
         <section style={styles.decisionGuide}>
-          <div style={styles.decisionGuideEyebrow}>Qué decides aquí</div>
-          <div style={styles.decisionGuideTitle}>Elige qué plan debe seguir.</div>
+          <div style={styles.decisionGuideEyebrow}>Decisión</div>
+          <div style={styles.decisionGuideTitle}>Elige la salida más clara.</div>
           <div style={styles.decisionGuideSub}>
-            Este es el momento importante: cuando decides aquí, el conflicto deja de ser una duda repetida y pasa a tener una salida concreta dentro de SyncPlans.
+            Una decisión aquí evita que el mismo choque vuelva al chat o quede abierto como duda compartida.
           </div>
           <div style={styles.decisionGuideFocus}>{focusSummaryText}</div>
         </section>
@@ -599,7 +605,7 @@ export default function CompareClient() {
                 {groupLabel(existing?.groupType)}
               </span>
 
-              <span style={styles.sidePill}>Evento A</span>
+              <span style={styles.sidePill}>Plan actual</span>
             </div>
 
             <h2 style={styles.cardTitle}>{safeTitle(existing?.title)}</h2>
@@ -630,7 +636,7 @@ export default function CompareClient() {
                 ...(existingSelected ? styles.choiceBtnSelected : {}),
               }}
             >
-              {saving && existingSelected ? "Guardando…" : "Quedarme con este"}
+              {saving && existingSelected ? "Guardando…" : "Conservar este plan"}
             </button>
           </article>
 
@@ -650,7 +656,7 @@ export default function CompareClient() {
                 {groupLabel(incoming?.groupType)}
               </span>
 
-              <span style={styles.sidePill}>Evento B</span>
+              <span style={styles.sidePill}>Plan que entra</span>
             </div>
 
             <h2 style={styles.cardTitle}>{safeTitle(incoming?.title)}</h2>
@@ -681,7 +687,7 @@ export default function CompareClient() {
                 ...(incomingSelected ? styles.choiceBtnSelected : {}),
               }}
             >
-              {saving && incomingSelected ? "Guardando…" : "Quedarme con este"}
+              {saving && incomingSelected ? "Guardando…" : "Conservar este plan"}
             </button>
           </article>
         </section>
@@ -703,7 +709,7 @@ export default function CompareClient() {
             <div>
               <div style={styles.middleTitle}>Otra opción</div>
               <div style={styles.middleSub}>
-                Si todavía no quieres descartar ninguno, puedes mantener ambos por ahora. SyncPlans dejará claro que este cruce sigue pendiente para revisarlo después.
+                Si todavía no quieres descartar ninguno, puedes mantener ambos. SyncPlans dejará el cruce marcado para revisarlo después.
               </div>
             </div>
 
@@ -732,12 +738,13 @@ export default function CompareClient() {
 
           <button
             onClick={goToActions}
+            disabled={!decisionReady}
             style={{
               ...styles.primaryBtn,
               ...(decisionReady ? null : styles.primaryBtnMuted),
             }}
           >
-            {decisionReady ? "Confirmar y seguir al cierre" : "Ir al cierre"}
+            {decisionReady ? "Confirmar y aplicar" : "Primero elige una opción"}
           </button>
         </section>
 
@@ -783,6 +790,26 @@ const styles: Record<string, React.CSSProperties> = {
   topActionsMobile: {
     justifyContent: "flex-start",
     flexWrap: "wrap",
+  },
+  conflictStepper: {
+    marginTop: 16,
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  conflictStep: {
+    borderRadius: 999,
+    padding: "7px 11px",
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(235,241,255,0.72)",
+    fontSize: 12,
+    fontWeight: 900,
+  },
+  conflictStepActive: {
+    border: "1px solid rgba(96,165,250,0.34)",
+    background: "rgba(96,165,250,0.14)",
+    color: "#EFF6FF",
   },
   ghostBtn: {
     border: "1px solid rgba(255,255,255,0.12)",
