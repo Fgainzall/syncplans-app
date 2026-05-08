@@ -641,22 +641,116 @@ export function textSuggestsSharedPlan(raw: string) {
   );
 }
 
+function normalizeSearchText(value: string): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9ñ\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const GENERIC_PERSON_WORDS = new Set([
+  "el",
+  "la",
+  "los",
+  "las",
+  "un",
+  "una",
+  "unos",
+  "unas",
+  "mi",
+  "mis",
+  "del",
+  "de",
+]);
+
+const GENERIC_GROUP_TOKENS = new Set([
+  "plan",
+  "grupo",
+  "familia",
+  "familiar",
+  "pareja",
+  "amigos",
+  "amigas",
+  "gente",
+  "equipo",
+  "team",
+  "comida",
+  "cena",
+  "almuerzo",
+  "reunion",
+  "reunión",
+  "salida",
+  "cumple",
+  "casa",
+  "para",
+  "con",
+  "los",
+  "las",
+  "del",
+]);
+
 export function extractPersonFromText(raw: string): string | null {
-  const match = raw.toLowerCase().match(/con\s+([a-záéíóúñ]+)/i);
-  return match ? match[1] : null;
+  const match = normalizeSearchText(raw).match(/\bcon\s+([a-z0-9ñ]+)/i);
+  const person = String(match?.[1] ?? "").trim();
+
+  if (!person || GENERIC_PERSON_WORDS.has(person)) return null;
+
+  return person;
+}
+
+function getRelevantTextTokens(raw: string): string[] {
+  const tokens = normalizeSearchText(raw)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter(
+      (token) =>
+        token.length >= 4 &&
+        !GENERIC_GROUP_TOKENS.has(token) &&
+        !/^\d+$/.test(token),
+    );
+
+  return Array.from(new Set(tokens));
 }
 
 export function findGroupByName(
   name: string,
   groups: GroupRow[]
 ): string | null {
-  const normalized = name.toLowerCase();
+  const normalized = normalizeSearchText(name);
+
+  if (!normalized || GENERIC_PERSON_WORDS.has(normalized)) return null;
 
   for (const group of groups) {
-    const groupName = String(group.name ?? "").toLowerCase();
+    const groupName = normalizeSearchText(String(group.name ?? ""));
 
     if (groupName.includes(normalized)) {
       return group.id;
+    }
+  }
+
+  return null;
+}
+
+export function findGroupByRelevantText(
+  raw: string,
+  groups: GroupRow[],
+  groupType?: "pair" | "family" | "other" | null,
+): string | null {
+  const tokens = getRelevantTextTokens(raw);
+  if (!tokens.length) return null;
+
+  for (const group of groups) {
+    const normalizedType = normalizeSummaryGroupType(String(group.type ?? ""));
+    if (groupType && normalizedType !== groupType) continue;
+
+    const groupName = normalizeSearchText(String(group.name ?? ""));
+    if (!groupName) continue;
+
+    if (tokens.some((token) => groupName.includes(token))) {
+      return String(group.id);
     }
   }
 
@@ -675,7 +769,9 @@ export function detectGroupTypeHint(
     text.includes("familia") ||
     text.includes("familiar") ||
     text.includes("hijos") ||
-    text.includes("casa")
+    text.includes("casa de mis padres") ||
+    text.includes("casa de mis papas") ||
+    text.includes("casa de mis papás")
   ) {
     return "family";
   }
@@ -695,6 +791,8 @@ export function detectGroupTypeHint(
     text.includes("fulbito") ||
     text.includes("padel") ||
     text.includes("pádel") ||
+    text.includes("tenis") ||
+    text.includes("tennis") ||
     text.includes("equipo") ||
     text.includes("grupo")
   ) {
@@ -724,18 +822,7 @@ export function buildSmartInterpretation(input: {
 }): SmartInterpretation {
   const raw = String(input.raw ?? "").trim();
   const groups = Array.isArray(input.groups) ? input.groups : [];
-  const activeGroupId = String(input.activeGroupId ?? "").trim() || null;
-
   if (!raw) {
-    if (activeGroupId) {
-      return {
-        intent: "group",
-        groupId: activeGroupId,
-        confidence: "low",
-        reason: "active_group",
-      };
-    }
-
     return {
       intent: "personal",
       groupId: null,
@@ -762,34 +849,41 @@ export function buildSmartInterpretation(input: {
   const typeHint = detectGroupTypeHint(raw);
 
   if (typeHint) {
-    const hintedGroupId = findGroupByType(typeHint, groups);
+    const semanticGroupId = findGroupByRelevantText(raw, groups, typeHint);
 
-    if (hintedGroupId) {
+    if (semanticGroupId) {
       return {
         intent: "group",
-        groupId: hintedGroupId,
+        groupId: semanticGroupId,
         confidence: "high",
-        reason: "social_hint",
+        reason: "name_match",
       };
     }
-  }
 
-  if (textSuggestsSharedPlan(raw)) {
-    const fallbackGroupId =
-      activeGroupId ||
-      (groups.length === 1 ? String(groups[0]?.id ?? "").trim() || null : null);
+    if (typeHint !== "other") {
+      const hintedGroupId = findGroupByType(typeHint, groups);
 
-    if (fallbackGroupId) {
-      return {
-        intent: "group",
-        groupId: fallbackGroupId,
-        confidence: "medium",
-        reason: "social_hint",
-      };
+      if (hintedGroupId) {
+        return {
+          intent: "group",
+          groupId: hintedGroupId,
+          confidence: "high",
+          reason: "social_hint",
+        };
+      }
     }
 
     return {
-      intent: "group",
+      intent: "personal",
+      groupId: null,
+      confidence: "low",
+      reason: "social_hint",
+    };
+  }
+
+  if (textSuggestsSharedPlan(raw)) {
+    return {
+      intent: "personal",
       groupId: null,
       confidence: "low",
       reason: "social_hint",
@@ -811,15 +905,6 @@ export function buildSmartInterpretation(input: {
     };
   }
 
-  if (activeGroupId) {
-    return {
-      intent: "group",
-      groupId: activeGroupId,
-      confidence: "low",
-      reason: "active_group",
-    };
-  }
-
   return {
     intent: "personal",
     groupId: null,
@@ -835,6 +920,10 @@ export function getSmartInterpretationLabel(
   if (!interpretation) return null;
 
   if (interpretation.intent === "personal") {
+    if (interpretation.reason === "social_hint") {
+      return "→ Suena compartible · lo dejaré como personal para que elijas si compartirlo";
+    }
+
     return "→ Esto quedará como plan personal";
   }
 

@@ -101,13 +101,8 @@ export type SuggestGroupFromLearningInput = {
 };
 
 const PAIR_KEYWORDS = [
-  "cena",
-  "salir",
   "date",
   "aniversario",
-  "pelicula",
-  "cine",
-  "comer",
   "pareja",
   "novia",
   "novio",
@@ -137,6 +132,8 @@ const FAMILY_KEYWORDS = [
 const OTHER_KEYWORDS = [
   "padel",
   "pádel",
+  "tenis",
+  "tennis",
   "futbol",
   "fulbito",
   "amigos",
@@ -568,7 +565,7 @@ export function suggestGroupFromText(
       /\bcon\s+amigos\b/,
       /\bcon\s+el\s+team\b/,
       /\bcon\s+[a-záéíóúñ]+\s+y\s+[a-záéíóúñ]+\b/,
-      /\b(fulbito|padel|pádel|asado)\b/,
+      /\b(fulbito|padel|pádel|tenis|tennis|asado)\b/,
     ]);
 
   const max = Math.max(pairScore, familyScore, otherScore);
