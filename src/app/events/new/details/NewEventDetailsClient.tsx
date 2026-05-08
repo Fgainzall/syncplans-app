@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, {
   Suspense,
@@ -416,6 +416,40 @@ function normalizeFreeText(value: string) {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeIntentText(value: string | null | undefined) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9ñ\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function detailsTextSuggestsSharedPlan(value: string | null | undefined) {
+  const text = normalizeIntentText(value);
+  if (!text) return false;
+
+  return (
+    text.includes(" con ") ||
+    text.includes(" juntos") ||
+    text.includes(" juntas") ||
+    text.includes(" equipo") ||
+    text.includes(" amigos") ||
+    text.includes(" amigas") ||
+    text.includes(" los del") ||
+    text.includes(" las del") ||
+    text.includes(" grupo")
+  );
+}
+
+function detailsTextSuggestsLocationNeeded(value: string | null | undefined) {
+  const text = normalizeIntentText(value);
+  if (!text) return false;
+
+  return /\b(cena|comida|almuerzo|cafe|reunion|padel|tenis|partido|salida|cumpleaños|cumple)\b/.test(text);
 }
 
 function resolveEventOwnerId(event: EventOwnerLike | null | undefined): string | null {
@@ -1467,6 +1501,11 @@ useEffect(() => {
     return `${minutes} min`;
   }, [startDate, endDate]);
 
+  const dateRangeLabel = useMemo(() => {
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "";
+    return fmtRange(startDate.toISOString(), endDate.toISOString());
+  }, [startDate, endDate]);
+
   const summaryLine = useMemo(() => {
     if (isSharedProposal && proposalResponse === "adjust") {
       return "Estás ajustando una propuesta compartida antes de dejarla lista.";
@@ -1542,6 +1581,89 @@ useEffect(() => {
     startDate,
     endDate,
   ]);
+  const detailsIntelligence = useMemo(() => {
+    const raw = String(rawTextParam || quickCaptureTitleParam || title || "").trim();
+    const sharedSignal = detailsTextSuggestsSharedPlan(raw || `${title} ${notes}`);
+    const locationText = `${raw} ${locationInput}`.trim();
+    const hasLocation = !!selectedPlace || locationInput.trim().length >= 3;
+    const shouldPromptLocation = !hasLocation && detailsTextSuggestsLocationNeeded(locationText);
+    const groupName = selectedGroup?.name || "el grupo elegido";
+    const groupTypeLabel = selectedGroup
+      ? getGroupTypeLabel(selectedGroup.type)
+      : null;
+
+    let headline = "SyncPlans dejó este plan como personal.";
+    let explanation = "Solo tú lo verás. Puedes cambiarlo a grupo si quieres coordinarlo con otra persona.";
+    let tone: "personal" | "group" | "review" = "personal";
+
+    if (isSharedProposal) {
+      tone = "group";
+      headline = proposalResponse === "adjust"
+        ? "SyncPlans está ajustando una propuesta compartida."
+        : "SyncPlans recibió una propuesta compartida.";
+      explanation = "Revisa los datos antes de dejarla guardada en tu calendario.";
+    } else if (effectiveType === "group") {
+      tone = "group";
+      headline = selectedGroup
+        ? `SyncPlans lo guardará en ${groupName}.`
+        : "SyncPlans lo guardará como plan compartido.";
+      explanation = selectedGroup
+        ? `Lo verán las personas de este grupo${groupTypeLabel ? ` (${groupTypeLabel})` : ""}. Si no corresponde, cambia a Personal o elige otro grupo.`
+        : "Elige el grupo correcto antes de guardar para evitar compartirlo en el lugar equivocado.";
+    } else if (sharedSignal) {
+      tone = "review";
+      headline = "SyncPlans lo dejó personal por ahora.";
+      explanation = "Suena compartible, pero no encontramos un grupo claramente relacionado. Guárdalo personal o elige un grupo si quieres compartirlo.";
+    }
+
+    const chips: string[] = [];
+    chips.push(effectiveType === "group" ? "Compartido" : "Personal");
+    if (durationLabel) chips.push(durationLabel);
+    if (dateRangeLabel) chips.push(dateRangeLabel);
+    if (hasLocation) chips.push("Con ubicación");
+    else if (shouldPromptLocation) chips.push("Falta ubicación");
+    if (sharedSignal && effectiveType === "personal") chips.push("Compartible");
+
+    const recommendations: string[] = [];
+    if (quickCaptureReview?.hasIssues) {
+      recommendations.push("Revisa los campos marcados antes de guardar.");
+    }
+    if (shouldPromptLocation) {
+      recommendations.push("Agrega ubicación para calcular salida y ruta.");
+    }
+    if (sharedSignal && effectiveType === "personal") {
+      recommendations.push("Si otras personas deben verlo, cambia a Grupo y elige el grupo correcto.");
+    }
+    if (!recommendations.length) {
+      recommendations.push("Está listo para guardar si los datos son correctos.");
+    }
+
+    return {
+      visible: cameFromQuickCapture || isFirstWowMomentFlow || isSharedProposal,
+      tone,
+      headline,
+      explanation,
+      chips,
+      recommendations,
+    };
+  }, [
+    rawTextParam,
+    quickCaptureTitleParam,
+    title,
+    notes,
+    locationInput,
+    selectedPlace,
+    selectedGroup,
+    effectiveType,
+    durationLabel,
+    dateRangeLabel,
+    quickCaptureReview,
+    cameFromQuickCapture,
+    isFirstWowMomentFlow,
+    isSharedProposal,
+    proposalResponse,
+  ]);
+
   const learningInput = useMemo(() => {
     const raw = String(rawTextParam ?? "").trim();
     if (raw) return raw;
@@ -1721,11 +1843,6 @@ useEffect(() => {
     selectedGroupId,
     canonicalGroupSuggestion,
   ]);
-
-  const dateRangeLabel = useMemo(() => {
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "";
-    return fmtRange(startDate.toISOString(), endDate.toISOString());
-  }, [startDate, endDate]);
 
   const currentPostSaveFingerprint = useMemo(
     () =>
@@ -3191,6 +3308,55 @@ useEffect(() => {
               </div>
             )}
 
+            {detailsIntelligence.visible ? (
+              <div
+                style={{
+                  ...styles.intelligenceCard,
+                  border:
+                    detailsIntelligence.tone === "group"
+                      ? "1px solid rgba(56,189,248,0.20)"
+                      : detailsIntelligence.tone === "review"
+                        ? "1px solid rgba(250,204,21,0.20)"
+                        : "1px solid rgba(250,204,21,0.18)",
+                  background:
+                    detailsIntelligence.tone === "group"
+                      ? "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(124,58,237,0.07))"
+                      : detailsIntelligence.tone === "review"
+                        ? "linear-gradient(135deg, rgba(250,204,21,0.10), rgba(255,255,255,0.025))"
+                        : "linear-gradient(135deg, rgba(250,204,21,0.08), rgba(255,255,255,0.025))",
+                }}
+              >
+                <div style={styles.intelligenceEyebrow}>SyncPlans interpretó</div>
+                <div style={styles.intelligenceTitle}>
+                  {detailsIntelligence.headline}
+                </div>
+                <div style={styles.intelligenceSub}>
+                  {detailsIntelligence.explanation}
+                </div>
+
+                <div style={styles.intelligenceChips}>
+                  {detailsIntelligence.chips.map((chip) => (
+                    <span key={chip} style={styles.quickSummaryPill}>
+                      {chip}
+                    </span>
+                  ))}
+                </div>
+
+                <div style={styles.intelligenceRecommendationBox}>
+                  <div style={styles.intelligenceRecommendationTitle}>
+                    Siguiente mejor acción
+                  </div>
+                  <ul style={styles.qcReviewList}>
+                    {detailsIntelligence.recommendations.map((item) => (
+                      <li key={item} style={styles.qcReviewItem}>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ) : null}
+
             <div style={styles.quickSummary}>
               <div style={styles.quickSummaryTitle}>
                 {isFirstWowMomentFlow && !isEditing
@@ -4140,6 +4306,51 @@ const styles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
     gap: 12,
     width: "100%",
+  },
+  intelligenceCard: {
+    borderRadius: 16,
+    padding: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  intelligenceEyebrow: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    fontWeight: 950,
+    color: "rgba(125,211,252,0.95)",
+  },
+  intelligenceTitle: {
+    fontSize: 15,
+    fontWeight: 950,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.95)",
+    lineHeight: 1.25,
+  },
+  intelligenceSub: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.78)",
+  },
+  intelligenceChips: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    marginTop: 2,
+  },
+  intelligenceRecommendationBox: {
+    marginTop: 2,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(6,10,20,0.28)",
+    padding: "10px 12px",
+  },
+  intelligenceRecommendationTitle: {
+    fontSize: 12,
+    fontWeight: 950,
+    marginBottom: 6,
+    color: "rgba(255,255,255,0.90)",
   },
   quickSummary: {
     borderRadius: 16,
