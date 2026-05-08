@@ -12,6 +12,7 @@ import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
 import EventsEmptyState from "@/components/events/EventsEmptyState";
 import EventsTimeline from "@/components/EventsTimeline";
+import { buildConflictsByEventId } from "@/components/eventsTimelineHelpers";
 import { trackEventOnce, trackScreenView } from "@/lib/analytics";
 
 import {
@@ -42,6 +43,8 @@ type SegmentOption<T extends string> = {
   value: T;
   label: string;
 };
+
+type InboxLaneAction = "attention" | "conflicts" | "upcoming" | "history";
 
 function SegmentedChips<T extends string>({
   options,
@@ -313,6 +316,104 @@ export default function EventsPage() {
     if (filters.view === "history") return [];
     return filteredEvents.filter((e) => isWithinNext24Hours(e.start));
   }, [filteredEvents, filters.view]);
+
+  const coordinationInbox = useMemo(() => {
+    const now = new Date();
+    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const visibleEvents = filterVisibleEvents(events, {
+      declinedIds: declinedEventIds,
+      hiddenIds: hiddenEventIds,
+    });
+
+    const upcomingEvents = visibleEvents.filter((event) => new Date(event.start) >= now);
+    const historyEvents = visibleEvents.filter((event) => new Date(event.end) < now);
+    const conflictsById = buildConflictsByEventId(upcomingEvents);
+
+    const conflictedIds = new Set(
+      Object.entries(conflictsById)
+        .filter(([, conflicts]) => conflicts.length > 0)
+        .map(([eventId]) => eventId)
+    );
+
+    const actionRequiredIds = new Set<string>(conflictedIds);
+
+    for (const event of upcomingEvents) {
+      const eventId = String(event.id);
+      const start = new Date(event.start);
+
+      if (isWithinNext24Hours(start)) {
+        actionRequiredIds.add(eventId);
+      }
+
+      if (event.group_id && start <= nextWeek) {
+        actionRequiredIds.add(eventId);
+      }
+    }
+
+    const sharedUpcomingCount = upcomingEvents.filter((event) => !!event.group_id).length;
+
+    return {
+      actionRequiredCount: actionRequiredIds.size,
+      conflictEventCount: conflictedIds.size,
+      upcomingCount: upcomingEvents.length,
+      historyCount: historyEvents.length,
+      sharedUpcomingCount,
+    };
+  }, [events, declinedEventIds, hiddenEventIds]);
+
+  const inboxLanes = useMemo<Array<{
+    action: InboxLaneAction;
+    eyebrow: string;
+    title: string;
+    count: number;
+    body: string;
+    accent: "decision" | "conflict" | "upcoming" | "history";
+  }>>(() => {
+    return [
+      {
+        action: "attention",
+        eyebrow: "Primero",
+        title: "Requiere acción",
+        count: coordinationInbox.actionRequiredCount,
+        body:
+          coordinationInbox.actionRequiredCount > 0
+            ? "Cruces, compartidos cercanos o planes que conviene revisar antes de que se enfríen."
+            : "No hay nada urgente abierto. Puedes revisar lo próximo o crear un plan nuevo.",
+        accent: "decision",
+      },
+      {
+        action: "conflicts",
+        eyebrow: "Decidir",
+        title: "Posibles choques",
+        count: coordinationInbox.conflictEventCount,
+        body:
+          coordinationInbox.conflictEventCount > 0
+            ? "Hay horarios que compiten entre sí. SyncPlans te lleva directo a decidir qué queda."
+            : "No veo choques claros en la ventana cargada.",
+        accent: "conflict",
+      },
+      {
+        action: "upcoming",
+        eyebrow: "Orden",
+        title: "Próximos planes",
+        count: coordinationInbox.upcomingCount,
+        body:
+          coordinationInbox.sharedUpcomingCount > 0
+            ? `${coordinationInbox.sharedUpcomingCount} compartido${coordinationInbox.sharedUpcomingCount === 1 ? "" : "s"} dentro de lo que viene.`
+            : "Tu agenda próxima queda lista para revisar sin entrar al calendario completo.",
+        accent: "upcoming",
+      },
+      {
+        action: "history",
+        eyebrow: "Cierre",
+        title: "Historial",
+        count: coordinationInbox.historyCount,
+        body: "Lo que ya pasó queda separado para que la bandeja no compita con lo importante.",
+        accent: "history",
+      },
+    ];
+  }, [coordinationInbox]);
 
   const timelineEvents = useMemo(() => {
     if (!isMobile) return filteredEvents;
@@ -684,6 +785,30 @@ export default function EventsPage() {
     router.push("/events/new/details?type=personal");
   };
 
+  const handleInboxLaneClick = (action: InboxLaneAction) => {
+    if (action === "conflicts") {
+      router.push("/conflicts/detected");
+      return;
+    }
+
+    if (action === "attention") {
+      if (coordinationInbox.conflictEventCount > 0) {
+        router.push("/conflicts/detected");
+        return;
+      }
+
+      setFilters((f) => ({ ...f, view: "upcoming", scope: "groups" }));
+      return;
+    }
+
+    if (action === "history") {
+      setFilters((f) => ({ ...f, view: "history", scope: "all" }));
+      return;
+    }
+
+    setFilters((f) => ({ ...f, view: "upcoming", scope: "all" }));
+  };
+
   const showDigestButton = events.length > 0 && !anySelected;
   const showValueRail =
     false &&
@@ -792,6 +917,45 @@ export default function EventsPage() {
             <button type="button" style={S.focusActionCta} onClick={handleFocusAsideClick}>
               {focusAside.cta}
             </button>
+          </div>
+
+          <div style={S.inboxShell}>
+            <div style={S.inboxHeader}>
+              <div>
+                <div style={S.inboxEyebrow}>Coordination Inbox</div>
+                <div style={S.inboxTitle}>Ordena la bandeja por lo que necesita atención.</div>
+              </div>
+              <div style={S.inboxHint}>Acción → choques → próximos → historial</div>
+            </div>
+
+            <div style={{ ...S.inboxGrid, ...(isMobile ? S.inboxGridMobile : null) }}>
+              {inboxLanes.map((lane) => {
+                const active =
+                  (lane.action === "upcoming" && filters.view === "upcoming" && filters.scope === "all") ||
+                  (lane.action === "history" && filters.view === "history") ||
+                  (lane.action === "attention" && filters.view === "upcoming" && filters.scope === "groups");
+
+                return (
+                  <button
+                    key={lane.action}
+                    type="button"
+                    onClick={() => handleInboxLaneClick(lane.action)}
+                    style={{
+                      ...S.inboxLane,
+                      ...(active ? S.inboxLaneActive : null),
+                      ...(lane.accent === "conflict" && lane.count > 0 ? S.inboxLaneConflict : null),
+                    }}
+                  >
+                    <div style={S.inboxLaneTop}>
+                      <span style={S.inboxLaneEyebrow}>{lane.eyebrow}</span>
+                      <span style={S.inboxLaneCount}>{lane.count}</span>
+                    </div>
+                    <div style={S.inboxLaneTitle}>{lane.title}</div>
+                    <div style={S.inboxLaneBody}>{lane.body}</div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {!loading && urgentEvents.length > 0 ? (
@@ -1204,6 +1368,117 @@ const S: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     padding: "0 14px",
     whiteSpace: "nowrap",
+  },
+
+  inboxShell: {
+    marginTop: 16,
+    borderRadius: 20,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    padding: 14,
+    display: "grid",
+    gap: 12,
+  },
+  inboxHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
+  inboxEyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(125,211,252,0.88)",
+  },
+  inboxTitle: {
+    marginTop: 4,
+    fontSize: 15,
+    lineHeight: 1.3,
+    fontWeight: 950,
+    color: "rgba(255,255,255,0.97)",
+  },
+  inboxHint: {
+    borderRadius: 999,
+    padding: "7px 10px",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    color: "rgba(226,232,240,0.66)",
+    fontSize: 11,
+    fontWeight: 850,
+  },
+  inboxGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: 10,
+  },
+  inboxGridMobile: {
+    gridTemplateColumns: "minmax(0, 1fr)",
+  },
+  inboxLane: {
+    width: "100%",
+    minWidth: 0,
+    minHeight: 132,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(15,23,42,0.46)",
+    padding: "12px 12px",
+    textAlign: "left",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    display: "grid",
+    alignContent: "start",
+    gap: 7,
+  },
+  inboxLaneActive: {
+    border: "1px solid rgba(96,165,250,0.28)",
+    background: "linear-gradient(135deg, rgba(37,99,235,0.18), rgba(255,255,255,0.04))",
+    boxShadow: "0 0 0 1px rgba(96,165,250,0.10) inset",
+  },
+  inboxLaneConflict: {
+    border: "1px solid rgba(251,113,133,0.30)",
+    background: "linear-gradient(135deg, rgba(127,29,29,0.28), rgba(15,23,42,0.50))",
+  },
+  inboxLaneTop: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  inboxLaneEyebrow: {
+    fontSize: 10,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(226,232,240,0.58)",
+  },
+  inboxLaneCount: {
+    minWidth: 30,
+    height: 30,
+    borderRadius: 999,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.055)",
+    fontSize: 13,
+    fontWeight: 950,
+    color: "rgba(255,255,255,0.98)",
+  },
+  inboxLaneTitle: {
+    fontSize: 14,
+    lineHeight: 1.25,
+    fontWeight: 950,
+    color: "rgba(255,255,255,0.98)",
+  },
+  inboxLaneBody: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    fontWeight: 650,
+    color: "rgba(226,232,240,0.68)",
+    overflowWrap: "anywhere",
   },
   focusRail: {
     marginTop: 16,
