@@ -1,7 +1,7 @@
 // src/lib/learningSignals.tsx
 
 import supabase from "@/lib/supabaseClient";
-import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
+import { getMyEventsInRange, type DbEventRow } from "@/lib/eventsDb";
 import { getMyGroups, normalizeGroupType, type GroupRow } from "@/lib/groupsDb";
 import type {
   LearningSignal,
@@ -51,6 +51,12 @@ export type LearningSourceSnapshot = {
 
 export type LoadLearningSourceSnapshotOptions = {
   daysBack?: number;
+  /**
+   * Learning only needs a bounded future window. Older code loaded the full
+   * calendar and filtered in memory; this keeps the same behavior for near-term
+   * planning signals without pulling years of events into Summary.
+   */
+  futureDays?: number;
   limitConflictLogs?: number;
 };
 
@@ -89,6 +95,11 @@ type LearningConflictLogInput = {
   created_at?: unknown;
 };
 function clampDaysBack(value: number | undefined): number {
+  if (!Number.isFinite(value)) return 120;
+  return Math.min(Math.max(Math.trunc(Number(value)), 7), 365);
+}
+
+function clampFutureDays(value: number | undefined): number {
   if (!Number.isFinite(value)) return 120;
   return Math.min(Math.max(Math.trunc(Number(value)), 7), 365);
 }
@@ -335,14 +346,23 @@ export async function loadLearningSourceSnapshot(
   options?: LoadLearningSourceSnapshotOptions,
 ): Promise<LearningSourceSnapshot> {
   const cutoffIso = buildCutoffIso(options?.daysBack);
+  const futureDays = clampFutureDays(options?.futureDays);
   const limitConflictLogs = clampConflictLimit(options?.limitConflictLogs);
 
-  const [events, groups] = await Promise.all([getMyEvents(), getMyGroups()]);
+  const windowEnd = new Date();
+  windowEnd.setHours(23, 59, 59, 999);
+  windowEnd.setDate(windowEnd.getDate() + futureDays);
+  const windowEndIso = windowEnd.toISOString();
+
+  const [events, groups] = await Promise.all([
+    getMyEventsInRange(cutoffIso, windowEndIso),
+    getMyGroups(),
+  ]);
 
   const filteredEvents = (events ?? []).filter((event) => {
     const startIso = normalizeIso(event?.start);
     if (!startIso) return false;
-    return startIso >= cutoffIso;
+    return startIso >= cutoffIso && startIso <= windowEndIso;
   });
 
   const eventIds = Array.from(

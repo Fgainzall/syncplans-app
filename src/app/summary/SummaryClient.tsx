@@ -631,6 +631,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [dismissedPremiumNudge] = useState(false);
   const [summaryNow, setSummaryNow] = useState(() => new Date());
   const premiumNudgeTrackedRef = useRef(false);
+  const quickCaptureLearningCacheRef = useRef<{
+    key: string;
+    at: number;
+    signals: Awaited<ReturnType<typeof getLearningSignals>>;
+  } | null>(null);
 
   const {
     booting,
@@ -826,15 +831,37 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     async function hydrateLearnedQuickCaptureProfile() {
       const raw = quickCaptureValue.trim();
 
-      if (!raw) {
+      if (!raw || raw.length < 4) {
         if (!cancelled) setLearnedQuickCaptureProfile(null);
         return;
       }
 
       try {
-        const signals = await getLearningSignals({ daysBack: 120 });
+        const cacheKey = "quick-capture-learning:120d";
+        const now = Date.now();
+        const cached = quickCaptureLearningCacheRef.current;
+        const shouldUseCached =
+          Boolean(cached) &&
+          cached?.key === cacheKey &&
+          now - cached.at < 5 * 60 * 1000;
+
+        const signals = shouldUseCached && cached
+          ? cached.signals
+          : await getLearningSignals({
+              daysBack: 120,
+              futureDays: 120,
+              limitConflictLogs: 120,
+            });
 
         if (cancelled) return;
+
+        if (!shouldUseCached) {
+          quickCaptureLearningCacheRef.current = {
+            key: cacheKey,
+            at: Date.now(),
+            signals,
+          };
+        }
 
         if (suggestedContextGroupId) {
           const groupProfile = buildLearnedTimeProfile(signals, {
@@ -846,13 +873,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           return;
         }
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (cancelled) return;
-
-        const userId = String(user?.id ?? "").trim();
+        const userId = String(currentUserId ?? "").trim();
 
         if (!userId) {
           setLearnedQuickCaptureProfile(null);
@@ -875,14 +896,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     } else {
       timer = window.setTimeout(() => {
         void hydrateLearnedQuickCaptureProfile();
-      }, 450);
+      }, 650);
     }
 
     return () => {
       cancelled = true;
       if (timer !== null) window.clearTimeout(timer);
     };
-  }, [quickCaptureValue, suggestedContextGroupId]);
+  }, [quickCaptureValue, suggestedContextGroupId, currentUserId]);
 
   const timeSuggestions = useMemo(() => {
     const raw = quickCaptureValue.trim();
