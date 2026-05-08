@@ -160,6 +160,22 @@ function resolutionLabel(value: Resolution | null) {
   return "Todavía no has elegido qué hacer";
 }
 
+function decisionInstruction(value: Resolution | null) {
+  if (value === "keep_existing") {
+    return "Elegiste conservar el plan actual. En el cierre, SyncPlans intentará retirar el plan que entra.";
+  }
+
+  if (value === "replace_with_new") {
+    return "Elegiste conservar el plan nuevo. En el cierre, SyncPlans intentará retirar el plan actual.";
+  }
+
+  if (value === "none") {
+    return "Elegiste mantener ambos. SyncPlans cerrará este choque como revisado sin retirar eventos.";
+  }
+
+  return "Elige una de las tres salidas: conservar el plan actual, conservar el plan nuevo o mantener ambos.";
+}
+
 function parseIndex(value: string | null): number | null {
   if (value == null) return null;
   const n = Number(value);
@@ -549,11 +565,11 @@ export default function CompareClient() {
 
         <section style={styles.hero}>
           <div style={styles.kicker}>Paso 2 de 3 · Comparar</div>
-          <h1 style={styles.h1}>Compara y decide</h1>
+          <h1 style={styles.h1}>Elige qué queda</h1>
           <div style={styles.sub}>
             {focusEventId
               ? "Te trajimos directo al choque relevante. Compara ambos planes y elige qué debe quedar."
-              : "Estos dos planes se cruzan. Elige qué conservar o mantén ambos si todavía no quieres descartar ninguno."}
+              : "Estos dos planes se cruzan. Elige una salida concreta para que el conflicto no vuelva al chat."}
           </div>
 
           <div
@@ -580,11 +596,12 @@ export default function CompareClient() {
 
         <section style={styles.decisionGuide}>
           <div style={styles.decisionGuideEyebrow}>Decisión</div>
-          <div style={styles.decisionGuideTitle}>Elige la salida más clara.</div>
+          <div style={styles.decisionGuideTitle}>SyncPlans necesita una decisión, no más ruido.</div>
           <div style={styles.decisionGuideSub}>
-            Una decisión aquí evita que el mismo choque vuelva al chat o quede abierto como duda compartida.
+            Conservar uno no borra nada de inmediato: primero guardas la decisión y luego la aplicas en el cierre.
           </div>
           <div style={styles.decisionGuideFocus}>{focusSummaryText}</div>
+          <div style={styles.decisionInstruction}>{decisionInstruction(selectedResolution)}</div>
         </section>
 
         <section
@@ -642,7 +659,7 @@ export default function CompareClient() {
                 ...(existingSelected ? styles.choiceBtnSelected : {}),
               }}
             >
-              {saving && existingSelected ? "Guardando…" : "Conservar este plan"}
+              {saving && existingSelected ? "Guardando…" : "Mantener plan actual"}
             </button>
           </article>
 
@@ -693,7 +710,7 @@ export default function CompareClient() {
                 ...(incomingSelected ? styles.choiceBtnSelected : {}),
               }}
             >
-              {saving && incomingSelected ? "Guardando…" : "Conservar este plan"}
+              {saving && incomingSelected ? "Guardando…" : "Mantener plan nuevo"}
             </button>
           </article>
         </section>
@@ -727,7 +744,7 @@ export default function CompareClient() {
                 ...(bothSelected ? styles.secondaryChoiceBtnSelected : {}),
               }}
             >
-              {saving && bothSelected ? "Guardando…" : "Mantener ambos"}
+              {saving && bothSelected ? "Guardando…" : "Mantener ambos sin retirar nada"}
             </button>
           </div>
         </section>
@@ -750,7 +767,7 @@ export default function CompareClient() {
               ...(decisionReady ? null : styles.primaryBtnMuted),
             }}
           >
-            {decisionReady ? "Confirmar y aplicar" : "Primero elige una opción"}
+            {decisionReady ? "Ir al cierre" : "Primero elige una opción"}
           </button>
         </section>
 
@@ -887,6 +904,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     lineHeight: 1.5,
     color: "#F3F6FF",
+    fontWeight: 700,
+  },
+
+  decisionInstruction: {
+    marginTop: 8,
+    borderRadius: 16,
+    border: "1px solid rgba(96,165,250,0.16)",
+    background: "rgba(96,165,250,0.08)",
+    padding: "10px 12px",
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: "rgba(235,241,255,0.80)",
     fontWeight: 700,
   },
   compareGrid: {

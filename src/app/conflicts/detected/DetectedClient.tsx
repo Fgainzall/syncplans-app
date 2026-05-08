@@ -72,6 +72,29 @@ function prettyTimeRange(startIso: string, endIso: string) {
   return `${hhmm(s)} – ${hhmm(e)}`;
 }
 
+function conflictDecisionPreview(conflict: AttachedConflict) {
+  const start = new Date(conflict.overlapStart);
+  const end = new Date(conflict.overlapEnd);
+  const overlapMinutes = Math.max(
+    1,
+    Math.round((end.getTime() - start.getTime()) / 60000)
+  );
+
+  if (!Number.isFinite(overlapMinutes)) {
+    return "Compara ambos planes y elige qué queda para cerrar este choque.";
+  }
+
+  if (overlapMinutes <= 30) {
+    return "Choque corto: podrías mantener ambos, pero conviene confirmar que no se pisan en la práctica.";
+  }
+
+  if (overlapMinutes <= 90) {
+    return "Se cruzan por un rato: compara ambos y decide si uno debe moverse o si realmente pueden convivir.";
+  }
+
+  return "Cruce fuerte: lo más sano es elegir qué plan queda como prioridad antes de seguir coordinando por chat.";
+}
+
 function normalizeForConflicts(gt: string | null | undefined): GroupType {
   return normalizeGroupType(gt) as GroupType;
 }
@@ -639,7 +662,7 @@ const returnPressure = useMemo(() => {
                 ? "No hay choques pendientes por resolver."
                 : isFocusedView
                   ? "Te trajimos directo al choque que conviene cerrar ahora."
-                  : "Detecta el choque, compara las opciones y deja una decisión clara."
+                  : "Detecta el choque, compara las opciones y elige qué queda sin volver al chat."
             }
           />
         </div>
@@ -661,14 +684,14 @@ const returnPressure = useMemo(() => {
             <div style={styles.sub}>
               {summary.pending === 0
                 ? "No encontramos choques pendientes visibles para este contexto."
-                : `Detectamos ${summary.pending} conflicto${summary.pending === 1 ? "" : "s"} pendiente${summary.pending === 1 ? "" : "s"}. Elige uno para comparar opciones y cerrar la decisión.`}
+                : `Detectamos ${summary.pending} conflicto${summary.pending === 1 ? "" : "s"} pendiente${summary.pending === 1 ? "" : "s"}. Elige uno y SyncPlans te llevará a una decisión concreta: conservar, reemplazar o mantener ambos.`}
             </div>
           </div>
 
           <div style={styles.heroRight}>
             {summary.pending > 0 ? (
               <button onClick={resumeNext} style={styles.primaryBtn}>
-                Resolver el primero
+                Decidir el primero
               </button>
             ) : isFocusedView ? (
               <button onClick={openFocusedCompare} style={styles.primaryBtn}>
@@ -768,9 +791,9 @@ const returnPressure = useMemo(() => {
         <section style={styles.listCard}>
           <div style={styles.listTop}>
             <div>
-              <div style={styles.listTitle}>Conflictos pendientes</div>
+              <div style={styles.listTitle}>Choques que necesitan decisión</div>
               <div style={styles.listSub}>
-                Elige un choque para comparar planes y decidir qué queda.
+                Cada tarjeta termina en una decisión simple: conservar uno, reemplazarlo o mantener ambos.
               </div>
             </div>
 
@@ -785,7 +808,7 @@ const returnPressure = useMemo(() => {
               >
                 {summary.decided > 0
                   ? "Aplicar decisiones"
-                  : "Empezar a resolver"}
+                  : "Empezar a decidir"}
               </button>
             )}
           </div>
@@ -849,6 +872,13 @@ const returnPressure = useMemo(() => {
                       <span style={styles.title}>{b?.title || "Evento B"}</span>
                       <span style={styles.time}>
                         {b ? prettyTimeRange(b.start, b.end) : ""}
+                      </span>
+                    </div>
+
+                    <div style={styles.itemDecision}>
+                      <span style={styles.itemDecisionLabel}>Siguiente decisión</span>
+                      <span style={styles.itemDecisionText}>
+                        {conflictDecisionPreview(c)}
                       </span>
                     </div>
                   </button>
@@ -1186,6 +1216,28 @@ const styles: Record<string, React.CSSProperties> = {
   moreText: {
     fontSize: 12,
     color: "rgba(235,241,255,0.60)",
+  },
+
+  itemDecision: {
+    marginTop: 2,
+    borderRadius: 16,
+    border: "1px solid rgba(96,165,250,0.14)",
+    background: "rgba(96,165,250,0.07)",
+    padding: "10px 12px",
+    display: "grid",
+    gap: 3,
+  },
+  itemDecisionLabel: {
+    fontSize: 10,
+    letterSpacing: 1.1,
+    textTransform: "uppercase",
+    fontWeight: 900,
+    color: "rgba(191,219,254,0.88)",
+  },
+  itemDecisionText: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(235,241,255,0.76)",
   },
   loadingCard: {
     marginTop: 18,

@@ -908,13 +908,13 @@ kept_event_title: safeTitle(
           <div style={styles.kicker}>Paso 3 de 3 · Aplicar</div>
           <h1 style={styles.h1}>
             {focusEventId
-              ? "Aplicar esta decisión"
-              : "Aplicar decisiones"}
+              ? "Cerrar esta decisión"
+              : "Cerrar decisiones"}
           </h1>
           <div style={styles.sub}>
             {focusEventId
-              ? "SyncPlans aplicará solo las decisiones ligadas a este evento y devolverá la agenda a un estado claro."
-              : "Aplica lo que ya decidiste. Lo pendiente seguirá visible hasta que lo compares y elijas una salida."}
+              ? "SyncPlans aplicará solo lo que ya elegiste para este evento. Nada fuera de este foco se toca."
+              : "Aplica las decisiones que ya están claras. Lo pendiente seguirá visible hasta que lo compares y elijas una salida."}
           </div>
 
           <div
@@ -944,7 +944,7 @@ kept_event_title: safeTitle(
 
         <section style={styles.loopCard}>
           <div style={styles.loopKicker}>Cierre guiado</div>
-          <div style={styles.loopTitle}>Antes de aplicar, confirma qué quedará claro.</div>
+          <div style={styles.loopTitle}>Antes de cerrar, confirma qué verá cada persona.</div>
           <div
             style={{
               ...styles.loopGrid,
@@ -966,8 +966,8 @@ kept_event_title: safeTitle(
               <div style={styles.loopItemTitle}>Agenda más clara</div>
               <div style={styles.loopItemSub}>
                 {readyToRemoveCount > 0
-                  ? `${readyToRemoveCount} decisión${readyToRemoveCount === 1 ? "" : "es"} intentará${readyToRemoveCount === 1 ? "" : "n"} retirar el evento que sobra para que todos vean un panorama más limpio.`
-                  : "Aquí no vas a retirar nada ahora mismo: este cierre sirve para dejar de tratar este cruce como pendiente inmediato."}
+                  ? `${readyToRemoveCount} decisión${readyToRemoveCount === 1 ? "" : "es"} intentará${readyToRemoveCount === 1 ? "" : "n"} retirar el evento que no quedó como prioridad para que todos vean una agenda más limpia.`
+                  : "Aquí no vas a retirar nada ahora mismo: este cierre solo marca el cruce como revisado y evita mantenerlo como pendiente inmediato."}
               </div>
             </div>
 
@@ -989,7 +989,7 @@ kept_event_title: safeTitle(
               <div style={styles.sectionSub}>
                 {focusEventId
                   ? "Solo se aplicarán las decisiones guardadas para este evento. Nada fuera de este foco se tocará."
-                  : "Solo se aplicarán conflictos que ya tengan una salida elegida. Lo pendiente seguirá visible hasta que lo decidas."}
+                  : "Solo se cerrarán conflictos que ya tengan una salida elegida. Lo pendiente seguirá visible hasta que lo decidas."}
               </div>
             </div>
           </div>
@@ -1071,11 +1071,11 @@ kept_event_title: safeTitle(
                     <div style={styles.decisionBox}>
                       {resolution === "none" ? (
                         <span>
-                          Ambos eventos seguirán visibles. Este cruce dejará de aparecer como pendiente aquí para que puedas revisarlo más adelante con calma.
+                          Ambos eventos seguirán visibles. SyncPlans cerrará este cruce como revisado para que no siga apareciendo como una decisión urgente.
                         </span>
                       ) : (
                         <span>
-                          Se conservará <strong>{keptTitle}</strong> y SyncPlans intentará retirar <strong>{affectedTitle}</strong>. Si no tiene permisos para hacerlo, mantendrá ambos para evitar inconsistencias.
+                          Se conservará <strong>{keptTitle}</strong>. SyncPlans intentará retirar <strong>{affectedTitle}</strong>; si no tiene permisos, mantendrá ambos para evitar inconsistencias.
                         </span>
                       )}
                     </div>
@@ -1137,7 +1137,7 @@ kept_event_title: safeTitle(
                 : null),
             }}
           >
-            {applying ? "Aplicando..." : "Aplicar y volver al resumen"}
+            {applying ? "Aplicando..." : "Cerrar y volver al resumen"}
           </button>
         </section>
 
