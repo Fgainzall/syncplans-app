@@ -15,7 +15,9 @@ import PremiumHeader from "@/components/PremiumHeader";
 import LocationPermissionPrompt from "@/components/location/LocationPermissionPrompt";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
-import SummaryQuickCaptureCard from "./SummaryQuickCaptureCard";
+import SummaryQuickCaptureCard, {
+  type CaptureIntelligence,
+} from "./SummaryQuickCaptureCard";
 import { parseQuickCapture } from "@/lib/quickCaptureParser";
 import { getDisplayName, getMyProfile, type Profile } from "@/lib/profilesDb";
 import { filterOutDeclinedEvents } from "@/lib/eventResponsesDb";
@@ -142,6 +144,46 @@ function formatMoveMinutes(totalMinutes: number | null | undefined): string {
 
   if (minutes === 0) return `${hours} h`;
   return `${hours} h ${minutes} min`;
+}
+
+function formatCaptureDateLabel(date: Date): string {
+  return date.toLocaleDateString("es-PE", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function formatCaptureTimeLabel(hour: number, minutes: number): string {
+  const date = new Date();
+  date.setHours(hour, minutes, 0, 0);
+
+  return date.toLocaleTimeString("es-PE", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatCaptureDurationLabel(minutes: number): string {
+  const safeMinutes = Math.max(1, Math.round(minutes));
+
+  if (safeMinutes < 60) return `${safeMinutes} min`;
+
+  const hours = Math.floor(safeMinutes / 60);
+  const remaining = safeMinutes % 60;
+
+  if (remaining === 0) return `${hours} h`;
+  return `${hours} h ${remaining} min`;
+}
+
+function compactList(items: string[], limit = 2): string {
+  const cleaned = items
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean);
+
+  if (cleaned.length <= limit) return cleaned.join(", ");
+
+  return `${cleaned.slice(0, limit).join(", ")} +${cleaned.length - limit}`;
 }
 
 function useIsMobileWidth(maxWidth = 520) {
@@ -951,6 +993,131 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       return aMs - bMs;
     });
   }, [normalizedEvents]);
+
+  const quickCaptureIntelligence = useMemo<CaptureIntelligence | null>(() => {
+    const raw = quickCaptureValue.trim();
+    if (raw.length < 3) return null;
+
+    const parsed = parseQuickCapture(raw);
+    const title = String(parsed.title || "Nuevo plan").trim();
+    const facts: string[] = [];
+    const missing: string[] = [];
+    const risks: string[] = [];
+
+    const hasDate = !!parsed.date;
+    const hasTime = parsed.startHour !== null;
+    const durationMinutes = Math.max(1, Number(parsed.durationMinutes || 60));
+    const location = String(parsed.locationQuery ?? "").trim();
+    const participants = parsed.participants
+      .map((participant) => String(participant ?? "").trim())
+      .filter(Boolean);
+
+    if (parsed.date) {
+      facts.push(`Fecha: ${formatCaptureDateLabel(parsed.date)}`);
+      facts.push(`Hora: ${fmtTime(parsed.date)}`);
+    } else if (hasTime && parsed.startHour !== null) {
+      facts.push(`Hora: ${formatCaptureTimeLabel(parsed.startHour, parsed.startMinutes)}`);
+      missing.push("fecha");
+    } else {
+      missing.push("fecha y hora");
+    }
+
+    facts.push(`Duración: ${formatCaptureDurationLabel(durationMinutes)}`);
+
+    if (participants.length > 0) {
+      facts.push(`Con: ${compactList(participants, 2)}`);
+    }
+
+    if (location) {
+      facts.push(`Lugar: ${location}`);
+    } else {
+      missing.push("ubicación para calcular salida");
+    }
+
+    const suggestedGroupId = String(smartInterpretation?.groupId ?? "").trim();
+    const suggestedGroup = suggestedGroupId
+      ? groups.find((group) => String(group.id) === suggestedGroupId) ?? null
+      : null;
+    const groupLabel = suggestedGroup ? humanGroupName(suggestedGroup) : null;
+
+    if (smartInterpretation?.intent === "group") {
+      facts.push(`Contexto: ${groupLabel ?? "plan compartido"}`);
+
+      if (!suggestedGroupId) {
+        missing.push("elegir grupo antes de compartir");
+      }
+    } else {
+      facts.push("Contexto: personal");
+    }
+
+    let overlappingTitle: string | null = null;
+
+    if (parsed.date) {
+      const candidateStart = new Date(parsed.date);
+      const candidateEnd = new Date(
+        candidateStart.getTime() + durationMinutes * 60 * 1000
+      );
+
+      const overlap = visibleEvents.find((event) => {
+        if (!event.id || !event.start) return false;
+        return eventOverlapsWindow(event, candidateStart, candidateEnd);
+      });
+
+      overlappingTitle = overlap ? String(overlap.title || "otro plan").trim() : null;
+
+      if (overlappingTitle) {
+        risks.push(`Podría cruzarse con “${overlappingTitle}”.`);
+      }
+    }
+
+    const score = [
+      title.length > 0,
+      hasDate,
+      hasTime,
+      smartInterpretation?.confidence === "high" ||
+        smartInterpretation?.confidence === "medium",
+      location.length > 0,
+    ].filter(Boolean).length;
+
+    const confidenceTone: CaptureIntelligence["confidenceTone"] =
+      score >= 4 ? "high" : score >= 2 ? "medium" : "low";
+    const confidenceLabel =
+      confidenceTone === "high"
+        ? "Confianza alta"
+        : confidenceTone === "medium"
+        ? "Confianza media"
+        : "Faltan datos";
+
+    const whenLabel = parsed.date
+      ? `${formatCaptureDateLabel(parsed.date)} a las ${fmtTime(parsed.date)}`
+      : hasTime && parsed.startHour !== null
+      ? `a las ${formatCaptureTimeLabel(parsed.startHour, parsed.startMinutes)}`
+      : "sin horario cerrado";
+    const placeLabel = location ? ` en ${location}` : "";
+    const naturalSummary = `Quieres crear “${title}” ${whenLabel}${placeLabel}.`;
+
+    let recommendation = "Listo para revisar y guardar.";
+
+    if (overlappingTitle) {
+      recommendation = "Revisa el posible choque antes de guardar.";
+    } else if (!hasDate || !hasTime) {
+      recommendation = "Completa fecha y hora para que pueda coordinarlo bien.";
+    } else if (!location) {
+      recommendation = "Agrega ubicación si quieres calcular a qué hora salir.";
+    } else if (smartInterpretation?.intent === "group" && !suggestedGroupId) {
+      recommendation = "Elige el grupo correcto antes de compartirlo.";
+    }
+
+    return {
+      confidenceLabel,
+      confidenceTone,
+      naturalSummary,
+      facts,
+      missing: Array.from(new Set(missing)),
+      risks,
+      recommendation,
+    };
+  }, [quickCaptureValue, smartInterpretation, groups, visibleEvents]);
 
   const conflictAlert = useMemo(() => {
     const baseAlert = buildConflictAlert(visibleEvents, groups, resMap, ignoredConflictKeys);
@@ -2130,6 +2297,7 @@ if (parsed.locationQuery) {
           preview={quickCapturePreview}
           interpretation={smartInterpretation}
           interpretationLabel={smartInterpretationLabel}
+          intelligence={quickCaptureIntelligence}
           examples={isFirstTimeMode ? quickCaptureExamples.slice(0, 2) : quickCaptureExamples}
           activeGroupName={activeLabel}
           activeGroupType={activeGroupType}

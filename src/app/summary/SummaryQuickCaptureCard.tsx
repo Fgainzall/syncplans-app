@@ -7,6 +7,16 @@ import type {
   SmartInterpretation,
 } from "./summaryHelpers";
 
+export type CaptureIntelligence = {
+  confidenceLabel: string;
+  confidenceTone: "low" | "medium" | "high";
+  naturalSummary: string;
+  facts: string[];
+  missing: string[];
+  risks: string[];
+  recommendation: string | null;
+};
+
 type TimeSuggestion = {
   label: string;
   date: Date;
@@ -18,6 +28,7 @@ type Props = {
   preview: string | null;
   interpretation: SmartInterpretation | null;
   interpretationLabel: string | null;
+  intelligence?: CaptureIntelligence | null;
   examples: QuickCaptureExample[];
   activeGroupName: string | null;
   activeGroupType: GroupType;
@@ -64,6 +75,7 @@ export default function SummaryQuickCaptureCard({
   preview,
   interpretation,
   interpretationLabel,
+  intelligence = null,
   examples,
   activeGroupName,
   activeGroupType,
@@ -94,6 +106,13 @@ export default function SummaryQuickCaptureCard({
       : normalizedActiveGroupName || "Modo rápido";
   const visibleExamples = examples.map(exampleText).filter(Boolean).slice(0, 3);
   const visibleSuggestions = timeSuggestions.slice(0, 3);
+  const showIntelligence = hasValue && !!intelligence;
+  const confidenceStyle =
+    intelligence?.confidenceTone === "high"
+      ? s.confidenceBadgeHigh
+      : intelligence?.confidenceTone === "medium"
+      ? s.confidenceBadgeMedium
+      : s.confidenceBadgeLow;
 
   return (
     <section style={s.card} className="spQc-card">
@@ -157,18 +176,59 @@ export default function SummaryQuickCaptureCard({
         </div>
       </div>
 
-      {(preview || interpretationLabel || visibleSuggestions.length > 0) && (
+      {(showIntelligence || preview || interpretationLabel || visibleSuggestions.length > 0) && (
         <div style={s.previewCard}>
           <div style={s.previewTop}>
             <div>
-              <div style={s.previewEyebrow}>Vista rápida</div>
-              <div style={s.previewTitle}>Así lo estoy entendiendo</div>
+              <div style={s.previewEyebrow}>SyncPlans entendió</div>
+              <div style={s.previewTitle}>Así lo estoy preparando</div>
             </div>
 
-            {isShared ? <span style={s.previewBadge}>Compartido</span> : null}
+            <div style={s.previewBadges}>
+              {showIntelligence ? (
+                <span style={{ ...s.confidenceBadge, ...confidenceStyle }}>
+                  {intelligence?.confidenceLabel}
+                </span>
+              ) : null}
+              {isShared ? <span style={s.previewBadge}>Compartido</span> : null}
+            </div>
           </div>
 
-          {preview ? <div style={s.previewText}>{preview}</div> : null}
+          {showIntelligence ? (
+            <div style={s.intelligenceWrap}>
+              <div style={s.previewText}>{intelligence?.naturalSummary}</div>
+
+              {intelligence && intelligence.facts.length > 0 ? (
+                <div style={s.factsGrid}>
+                  {intelligence.facts.slice(0, 6).map((fact) => (
+                    <span key={fact} style={s.factChip}>
+                      {fact}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
+              {intelligence && intelligence.missing.length > 0 ? (
+                <div style={s.missingBlock}>
+                  <strong>Falta:</strong> {intelligence.missing.slice(0, 3).join(" · ")}
+                </div>
+              ) : null}
+
+              {intelligence && intelligence.risks.length > 0 ? (
+                <div style={s.riskBlock}>
+                  <strong>Ojo:</strong> {intelligence.risks.slice(0, 2).join(" ")}
+                </div>
+              ) : null}
+
+              {intelligence?.recommendation ? (
+                <div style={s.recommendationBlock}>
+                  <strong>Recomendación:</strong> {intelligence.recommendation}
+                </div>
+              ) : null}
+            </div>
+          ) : preview ? (
+            <div style={s.previewText}>{preview}</div>
+          ) : null}
 
           {interpretationLabel ? (
             <div style={s.interpretationLine}>{interpretationLabel}</div>
@@ -489,6 +549,41 @@ const s: Record<string, CSSProperties> = {
     fontSize: 11,
     fontWeight: 850,
   },
+  previewBadges: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  confidenceBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 30,
+    padding: "0 10px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+  },
+  confidenceBadgeHigh: {
+    border: "1px solid rgba(52,211,153,0.26)",
+    background: "rgba(16,185,129,0.13)",
+    color: "rgba(209,250,229,0.96)",
+  },
+  confidenceBadgeMedium: {
+    border: "1px solid rgba(251,191,36,0.28)",
+    background: "rgba(251,191,36,0.12)",
+    color: "rgba(254,243,199,0.96)",
+  },
+  confidenceBadgeLow: {
+    border: "1px solid rgba(148,163,184,0.22)",
+    background: "rgba(15,23,42,0.60)",
+    color: "rgba(226,232,240,0.90)",
+  },
+  intelligenceWrap: {
+    display: "grid",
+    gap: 9,
+  },
   previewText: {
     fontSize: 14,
     lineHeight: 1.55,
@@ -499,6 +594,51 @@ const s: Record<string, CSSProperties> = {
     lineHeight: 1.45,
     color: "rgba(186,230,253,0.94)",
     fontWeight: 800,
+  },
+  factsGrid: {
+    display: "flex",
+    gap: 7,
+    flexWrap: "wrap",
+  },
+  factChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 28,
+    padding: "0 9px",
+    borderRadius: 999,
+    border: "1px solid rgba(45,212,191,0.16)",
+    background: "rgba(15,118,110,0.18)",
+    color: "rgba(240,253,250,0.94)",
+    fontSize: 11,
+    lineHeight: 1.2,
+    fontWeight: 850,
+  },
+  missingBlock: {
+    borderRadius: 15,
+    border: "1px solid rgba(251,191,36,0.18)",
+    background: "rgba(251,191,36,0.08)",
+    padding: "9px 10px",
+    color: "rgba(254,243,199,0.94)",
+    fontSize: 12,
+    lineHeight: 1.45,
+  },
+  riskBlock: {
+    borderRadius: 15,
+    border: "1px solid rgba(248,113,113,0.20)",
+    background: "rgba(127,29,29,0.18)",
+    padding: "9px 10px",
+    color: "rgba(254,226,226,0.94)",
+    fontSize: 12,
+    lineHeight: 1.45,
+  },
+  recommendationBlock: {
+    borderRadius: 15,
+    border: "1px solid rgba(96,165,250,0.18)",
+    background: "rgba(37,99,235,0.12)",
+    padding: "9px 10px",
+    color: "rgba(219,234,254,0.96)",
+    fontSize: 12,
+    lineHeight: 1.45,
   },
   suggestionsBlock: {
     display: "grid",
