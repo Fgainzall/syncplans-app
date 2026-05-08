@@ -3,7 +3,7 @@
 
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { normalizeGroupType as normalizeCanonicalGroupType } from "@/lib/naming";
-import { getMyEvents, type DbEventRow } from "@/lib/eventsDb";
+import { getMyEvents, getMyEventsInRange, type DbEventRow } from "@/lib/eventsDb";
 import {
   normalizeEventGroupType,
   type CalendarEvent,
@@ -12,6 +12,12 @@ import {
 
 export type LoadEventsFromDbOptions = {
   groupId?: string | null;
+  /**
+   * Optional visible window. When present, loads only overlapping events.
+   * This keeps conflict screens fast without changing the default behavior.
+   */
+  startIso?: string | null;
+  endIso?: string | null;
 };
 
 export type LoadEventsFromDbResult = {
@@ -47,13 +53,60 @@ function buildGroupTypeMap(groups: GroupRow[]): GroupTypeMap {
   return m;
 }
 
+function buildConflictWindowAround(startIso: string, endIso: string): {
+  startIso: string;
+  endIso: string;
+} | null {
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return null;
+  }
+
+  const windowStart = new Date(start);
+  windowStart.setDate(windowStart.getDate() - 2);
+
+  const windowEnd = new Date(end);
+  windowEnd.setDate(windowEnd.getDate() + 2);
+
+  return {
+    startIso: windowStart.toISOString(),
+    endIso: windowEnd.toISOString(),
+  };
+}
+
+function buildConflictsScreenWindow(): { startIso: string; endIso: string } {
+  const now = new Date();
+
+  const start = new Date(now);
+  start.setDate(start.getDate() - 30);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(now);
+  end.setDate(end.getDate() + 180);
+  end.setHours(23, 59, 59, 999);
+
+  return {
+    startIso: start.toISOString(),
+    endIso: end.toISOString(),
+  };
+}
+
+export function getDefaultConflictsScreenWindow(): {
+  startIso: string;
+  endIso: string;
+} {
+  return buildConflictsScreenWindow();
+}
+
 function mapDbEventToCalendarEvent(
   row: DbEventRow,
   groupTypeMap: GroupTypeMap
 ): CalendarEvent | null {
   const eventRow = row as DbEventWithDates;
-const start = String(eventRow.start ?? "").trim();
-const end = String(eventRow.end ?? "").trim();
+  const start = String(eventRow.start ?? "").trim();
+  const end = String(eventRow.end ?? "").trim();
 
   if (!start || !end) return null;
 
@@ -93,8 +146,15 @@ export async function loadEventsFromDb(
   opts: LoadEventsFromDbOptions = {}
 ): Promise<LoadEventsFromDbResult> {
   const requestedGroupId = opts.groupId ? String(opts.groupId) : null;
+  const startIso = opts.startIso ? String(opts.startIso).trim() : "";
+  const endIso = opts.endIso ? String(opts.endIso).trim() : "";
+  const hasRange = Boolean(startIso && endIso);
 
-  const [groups, rows] = await Promise.all([getMyGroups(), getMyEvents()]);
+  const rowsPromise = hasRange
+    ? getMyEventsInRange(startIso, endIso)
+    : getMyEvents();
+
+  const [groups, rows] = await Promise.all([getMyGroups(), rowsPromise]);
 
   const validGroups = Array.isArray(groups) ? groups : [];
   const validRows = Array.isArray(rows) ? rows : [];
@@ -151,16 +211,21 @@ export async function loadEventsForConflictPreflight(args: {
   const candidate = args.candidate;
 
   const groupId = candidate.groupId ? String(candidate.groupId) : null;
+  const candidateWindow = buildConflictWindowAround(candidate.start, candidate.end);
 
   const { events, groups } = await loadEventsFromDb({
     groupId,
+    startIso: candidateWindow?.startIso ?? null,
+    endIso: candidateWindow?.endIso ?? null,
   });
 
   let candidateGroupType: GroupType = "personal";
 
   if (groupId) {
     const g = (groups ?? []).find((x) => String(x.id) === groupId);
-   candidateGroupType = normalizeDbGroupType((g as DbGroupWithType | undefined)?.type);
+    candidateGroupType = normalizeDbGroupType(
+      (g as DbGroupWithType | undefined)?.type
+    );
   } else if (candidate.groupType) {
     candidateGroupType = normalizeDbGroupType(candidate.groupType);
   }
@@ -195,7 +260,7 @@ export async function loadEventsForGroupConflict(groupId?: string | null) {
 }
 
 /**
- * Utilidad por si luego quieres usarla en otros mÃƒÂ³dulos.
+ * Utilidad por si luego quieres usarla en otros módulos.
  */
 export async function getVisibleCalendarEventsForGroup(
   groupId?: string | null

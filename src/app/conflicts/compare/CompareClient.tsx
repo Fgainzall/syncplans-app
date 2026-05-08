@@ -18,7 +18,10 @@ import {
 } from "@/lib/conflicts";
 import { normalizeGroupType } from "@/lib/naming";
 import { getConflictDecisionSnapshot } from "@/lib/decisionEngine";
-import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
+import {
+  getDefaultConflictsScreenWindow,
+  loadEventsFromDb,
+} from "@/lib/conflictsDbBridge";
 import {
   type Resolution,
   getMyConflictResolutionsMap,
@@ -197,7 +200,10 @@ export default function CompareClient() {
 
   const loadScreenData = useCallback(async () => {
     const [eventsForConflicts, dbMap, declinedSet, ignoredSet] = await Promise.all([
-      loadEventsFromDb({ groupId: groupIdFromUrl }),
+      loadEventsFromDb({
+        groupId: groupIdFromUrl,
+        ...getDefaultConflictsScreenWindow(),
+      }),
       getMyConflictResolutionsMap(),
       getMyDeclinedEventIds(),
       getIgnoredConflictKeys(),

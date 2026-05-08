@@ -21,7 +21,10 @@ import {
   resolveConflictResolution,
 } from "@/lib/decisionEngine";
 
-import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
+import {
+  getDefaultConflictsScreenWindow,
+  loadEventsFromDb,
+} from "@/lib/conflictsDbBridge";
 import {
   Resolution,
   getMyConflictResolutionsMap,
@@ -158,6 +161,7 @@ export default function DetectedClient() {
         const [{ events: ev }, dbMap, declined, ignored, fetchedProfile] = await Promise.all([
           loadEventsFromDb({
             groupId: groupIdFromUrl ?? undefined,
+            ...getDefaultConflictsScreenWindow(),
           }),
           getMyConflictResolutionsMap().catch(() => ({})),
           getMyDeclinedEventIds().catch(() => new Set<string>()),

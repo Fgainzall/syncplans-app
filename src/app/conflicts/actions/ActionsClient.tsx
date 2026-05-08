@@ -55,7 +55,10 @@ import {
   resolveConflictResolution,
 } from "@/lib/decisionEngine";
 
-import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
+import {
+  getDefaultConflictsScreenWindow,
+  loadEventsFromDb,
+} from "@/lib/conflictsDbBridge";
 
 import type { Resolution } from "@/lib/conflictResolutionsDb";
 import { getMyConflictResolutionsMap } from "@/lib/conflictResolutionsDb";
@@ -259,7 +262,10 @@ export default function ActionsClient() {
 
   const loadScreenData = useCallback(async () => {
     const [eventsForConflicts, dbMap, declinedSet, ignoredSet] = await Promise.all([
-      loadEventsFromDb({ groupId: groupIdFromUrl }),
+      loadEventsFromDb({
+        groupId: groupIdFromUrl,
+        ...getDefaultConflictsScreenWindow(),
+      }),
       getMyConflictResolutionsMap(),
       getMyDeclinedEventIds(),
       getIgnoredConflictKeys(),
