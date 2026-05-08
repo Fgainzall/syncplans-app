@@ -68,6 +68,19 @@ type ControlArea = {
   };
 };
 
+type ActivationStep = {
+  id: string;
+  title: string;
+  copy: string;
+  href: string;
+  cta: string;
+  done: boolean;
+  status: {
+    label: string;
+    tone: "neutral" | "ok" | "warn" | "bad";
+  };
+};
+
 type DetailLink = {
   id: string;
   label: string;
@@ -829,6 +842,84 @@ export default function PanelPage() {
     totalGroups,
   ]);
 
+  const activationSteps = useMemo<ActivationStep[]>(() => {
+    const hasGroups = totalGroups > 0;
+    const hasEvents = totalEvents > 0;
+    const googleConnected = connectionState === "connected";
+    const hasOpenConflicts = conflictsNow > 0;
+
+    return [
+      {
+        id: "space",
+        title: "Espacio compartido",
+        copy: hasGroups
+          ? "Ya tienes una base para coordinar con otras personas."
+          : "Crea un espacio para que SyncPlans deje de ser solo tu calendario y empiece a coordinar contigo.",
+        href: hasGroups ? "/groups" : "/groups/new",
+        cta: hasGroups ? "Gestionar" : "Crear grupo",
+        done: hasGroups,
+        status: {
+          label: hasGroups ? "Listo" : "Pendiente",
+          tone: hasGroups ? "ok" : "warn",
+        },
+      },
+      {
+        id: "plan",
+        title: "Primer plan real",
+        copy: hasEvents
+          ? "Ya hay planes para que el sistema detecte contexto, prioridades y posibles choques."
+          : "Crea un plan concreto desde Resumen para que el valor se vea en menos de un minuto.",
+        href: "/summary",
+        cta: hasEvents ? "Abrir resumen" : "Crear plan",
+        done: hasEvents,
+        status: {
+          label: hasEvents ? "Activo" : "Siguiente",
+          tone: hasEvents ? "ok" : "neutral",
+        },
+      },
+      {
+        id: "calendar",
+        title: "Contexto externo",
+        copy: googleConnected
+          ? "Google Calendar ya aporta contexto para detectar choques y disponibilidad con menos trabajo manual."
+          : "Conectar Google ayuda a que SyncPlans detecte más contexto sin pedirte que dupliques tu agenda.",
+        href: "/settings",
+        cta: googleConnected ? "Gestionar" : googlePrimaryCta,
+        done: googleConnected,
+        status: {
+          label: googleConnected ? "Conectado" : "Opcional",
+          tone: googleConnected ? "ok" : "neutral",
+        },
+      },
+      {
+        id: "clarity",
+        title: "Choques bajo control",
+        copy: hasOpenConflicts
+          ? "Hay decisiones abiertas. Resolverlas mantiene una sola verdad compartida."
+          : "No hay choques activos en la ventana principal. La coordinación está clara por ahora.",
+        href: hasOpenConflicts ? "/conflicts/detected" : "/calendar",
+        cta: hasOpenConflicts ? "Resolver" : "Ver calendario",
+        done: !hasOpenConflicts,
+        status: {
+          label: hasOpenConflicts ? "Revisar" : "Claro",
+          tone: hasOpenConflicts ? "warn" : "ok",
+        },
+      },
+    ];
+  }, [
+    conflictsNow,
+    connectionState,
+    googlePrimaryCta,
+    totalEvents,
+    totalGroups,
+  ]);
+
+  const activationCompleted = activationSteps.filter((step) => step.done).length;
+  const activationReady = activationCompleted === activationSteps.length;
+  const activationCopy = activationReady
+    ? "Tu sistema de coordinación ya tiene las bases listas. Ahora el valor está en usarlo para decidir más rápido."
+    : "Completa estas bases para que SyncPlans tenga más contexto y pueda ayudarte con menos fricción.";
+
   const statusChips = useMemo(
     () => [
       {
@@ -1067,6 +1158,64 @@ export default function PanelPage() {
                 label={chip.label}
                 tone={chip.tone}
               />
+            ))}
+          </div>
+        </section>
+
+        <section style={styles.sectionCardCompact}>
+          <div style={styles.activationHead}>
+            <div style={styles.activationSummary}>
+              <div style={styles.sectionEyebrow}>Activación inteligente</div>
+              <h2 style={styles.sectionTitle}>Configura lo mínimo para que SyncPlans piense mejor</h2>
+              <p style={styles.detailsIntro}>{activationCopy}</p>
+            </div>
+
+            <div style={styles.activationScoreWrap}>
+              <StatusPill
+                label={`${activationCompleted}/${activationSteps.length} listo${activationCompleted === 1 ? "" : "s"}`}
+                tone={activationReady ? "ok" : "warn"}
+              />
+            </div>
+          </div>
+
+          <div
+            style={{
+              ...styles.activationGrid,
+              gridTemplateColumns: isMobile
+                ? "1fr"
+                : "repeat(4, minmax(0, 1fr))",
+            }}
+          >
+            {activationSteps.map((step, index) => (
+              <button
+                key={step.id}
+                type="button"
+                style={{
+                  ...styles.activationStepCard,
+                  ...(step.done ? styles.activationStepCardDone : null),
+                }}
+                onClick={() => router.push(step.href)}
+              >
+                <div style={styles.activationStepTop}>
+                  <span
+                    style={{
+                      ...styles.activationStepIndex,
+                      ...(step.done ? styles.activationStepIndexDone : null),
+                    }}
+                  >
+                    {step.done ? "✓" : index + 1}
+                  </span>
+                  <StatusPill
+                    label={step.status.label}
+                    tone={step.status.tone}
+                  />
+                </div>
+
+                <div style={styles.activationStepTitle}>{step.title}</div>
+                <div style={styles.activationStepCopy}>{step.copy}</div>
+
+                <div style={styles.activationStepCta}>{step.cta}</div>
+              </button>
             ))}
           </div>
         </section>
@@ -1621,6 +1770,97 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     flexWrap: "wrap",
     alignItems: "center",
+  },
+  activationHead: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 14,
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
+  activationSummary: {
+    minWidth: 0,
+    flex: "1 1 520px",
+  },
+  activationScoreWrap: {
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+  },
+  activationGrid: {
+    display: "grid",
+    gap: 10,
+  },
+  activationStepCard: {
+    minHeight: 176,
+    borderRadius: 20,
+    border: "1px solid rgba(255,255,255,0.085)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.052), rgba(255,255,255,0.026))",
+    padding: 14,
+    display: "grid",
+    gap: 10,
+    textAlign: "left",
+    color: "rgba(255,255,255,0.94)",
+    cursor: "pointer",
+    boxShadow: "0 14px 38px rgba(0,0,0,0.16)",
+  },
+  activationStepCardDone: {
+    border: "1px solid rgba(34,197,94,0.20)",
+    background:
+      "linear-gradient(180deg, rgba(34,197,94,0.09), rgba(255,255,255,0.026))",
+  },
+  activationStepTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  activationStepIndex: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "1px solid rgba(125,211,252,0.24)",
+    background: "rgba(56,189,248,0.10)",
+    color: "rgba(224,242,254,0.98)",
+    fontSize: 12,
+    fontWeight: 950,
+  },
+  activationStepIndexDone: {
+    border: "1px solid rgba(34,197,94,0.28)",
+    background: "rgba(34,197,94,0.12)",
+    color: "rgba(220,252,231,0.98)",
+  },
+  activationStepTitle: {
+    fontSize: 16,
+    lineHeight: 1.14,
+    fontWeight: 950,
+    letterSpacing: "-0.025em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  activationStepCopy: {
+    fontSize: 12,
+    lineHeight: 1.48,
+    color: "rgba(226,232,240,0.68)",
+    fontWeight: 650,
+    overflowWrap: "anywhere",
+  },
+  activationStepCta: {
+    alignSelf: "end",
+    justifySelf: "start",
+    display: "inline-flex",
+    minHeight: 32,
+    alignItems: "center",
+    padding: "0 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(125,211,252,0.18)",
+    background: "rgba(56,189,248,0.09)",
+    color: "rgba(240,249,255,0.96)",
+    fontSize: 12,
+    fontWeight: 950,
   },
   controlGrid: {
     display: "grid",
