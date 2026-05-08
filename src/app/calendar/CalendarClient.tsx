@@ -685,6 +685,12 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
     [gridEnd, gridStart, router]
   );
 
+  const refreshCalendarRef = useRef(refreshCalendar);
+
+  useEffect(() => {
+    refreshCalendarRef.current = refreshCalendar;
+  }, [refreshCalendar]);
+
   const handleDeleteEvent = useCallback(
     async (eventId: string) => {
       if (!editingEvent || !currentUserId) return;
@@ -911,7 +917,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
       }
 
       try {
-        await refreshCalendar();
+        await refreshCalendarRef.current();
         lastSecondaryRefreshAtRef.current = Date.now();
       } finally {
         if (!alive) return;
@@ -922,7 +928,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
     return () => {
       alive = false;
     };
-  }, [router, refreshCalendar]);
+  }, [router]);
 
   /* =========================
      Conflictos
