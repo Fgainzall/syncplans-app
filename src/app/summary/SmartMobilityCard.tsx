@@ -28,6 +28,30 @@ function minutesLabel(minutes: number | null): string {
   return `Sal en ${formatMinutesHuman(minutes)}`;
 }
 
+
+function absoluteLeaveTimeLabel(minutes: number | null | undefined): string | null {
+  if (minutes === null || minutes === undefined || !Number.isFinite(Number(minutes))) return null;
+
+  const leaveAt = new Date(Date.now() + Number(minutes) * 60_000);
+  if (Number.isNaN(leaveAt.getTime())) return null;
+
+  return leaveAt.toLocaleTimeString("es-PE", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function actionWindowLabel(minutes: number | null | undefined): string | null {
+  if (minutes === null || minutes === undefined || !Number.isFinite(Number(minutes))) return null;
+
+  const value = Number(minutes);
+  if (value <= -5) return "Salida vencida";
+  if (value <= 0) return "Salir ahora";
+  if (value <= 15) return "Muy pronto";
+  if (value <= 60) return "Dentro de 1 h";
+  return "Planifica tu salida";
+}
+
 function baseRouteLabel(seconds: number | null): string | null {
   if (seconds === null || !Number.isFinite(seconds)) return null;
   const minutes = Math.max(0, Math.round(seconds / 60));
@@ -111,13 +135,15 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
 
   const eventTitle = String(smartMobility.eventTitle ?? "tu próximo plan").trim();
   const eventStart = eventTimeLabel(smartMobility.eventStartIso);
+  const absoluteLeaveAt = absoluteLeaveTimeLabel(leaveInMinutes);
+  const actionWindow = actionWindowLabel(leaveInMinutes);
 
   const title = smartMobility.loading
     ? "Calculando cuándo salir…"
     : smartMobility.reason === "no_origin"
       ? "Activa ubicación para saber cuándo salir"
       : smartMobility.reason === "event_too_far"
-        ? "Actualiza tu ubicación antes de confiar en el ETA"
+        ? "Actualiza tu ubicación para calcular mejor"
         : smartMobility.reason === "route_failed"
           ? "No pude calcular la ruta ahora"
           : minutesLabel(leaveInMinutes);
@@ -130,9 +156,11 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
         ? "La ubicación actual o guardada parece demasiado lejos del destino. Actualízala antes de salir."
         : smartMobility.reason === "route_failed"
           ? "Puedes abrir la ruta igual y volver a intentar en unos segundos."
-          : `Para ${eventTitle}${eventStart ? ` · ${eventStart}` : ""}. Estimado en auto con ${formatMinutesHuman(
-              smartMobility.bufferMinutes
-            )} de margen.`;
+          : absoluteLeaveAt
+            ? `Para ${eventTitle}${eventStart ? ` · ${eventStart}` : ""}. Salida sugerida aprox. ${absoluteLeaveAt}, incluyendo ${formatMinutesHuman(
+                smartMobility.bufferMinutes
+              )} de margen.`
+            : `Para ${eventTitle}${eventStart ? ` · ${eventStart}` : ""}. Calculamos la salida con margen para que no llegues justo.`;
 
   const toneStyle = smartMobility.isLateRisk
     ? styles.dangerTone
@@ -173,6 +201,8 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
         </div>
 
         <div style={styles.metaRow}>
+          {actionWindow ? <span style={styles.metaPill}>{actionWindow}</span> : null}
+          {absoluteLeaveAt ? <span style={styles.metaPill}>Salir aprox. {absoluteLeaveAt}</span> : null}
           {recommendedTravel ? <span style={styles.metaPill}>{recommendedTravel}</span> : null}
           {baseRoute ? <span style={styles.metaPill}>{baseRoute}</span> : null}
           {distance ? <span style={styles.metaPill}>{distance}</span> : null}
@@ -190,7 +220,7 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
             rel="noreferrer"
             style={styles.primaryBtn}
           >
-            Abrir Maps
+            Abrir en Google Maps
           </a>
         ) : null}
 
@@ -201,7 +231,7 @@ export default function SmartMobilityCard({ smartMobility }: Props) {
             rel="noreferrer"
             style={styles.secondaryBtn}
           >
-            Waze
+            Abrir Waze
           </a>
         ) : null}
       </div>

@@ -259,9 +259,9 @@ function getTravelStatusLabel(input: {
   etaLabel: string | null;
   etaError: string | null;
 }) {
-  if (input.isLoadingEta) return "Calculando ruta…";
+  if (input.isLoadingEta) return "Calculando salida…";
   if (input.etaLabel) return "Ruta lista";
-  if (input.etaError) return "Usamos una estimación aproximada";
+  if (input.etaError) return "Necesita revisar ubicación";
   return "Esperando ubicación";
 }
 
@@ -622,6 +622,12 @@ function NewEventDetailsInner() {
   );
   const autocompleteRequestRef = useRef(0);
   const etaRequestRef = useRef(0);
+  const etaCacheRef = useRef<{
+    key: string;
+    at: number;
+    etaSeconds: number | null;
+    etaError: string | null;
+  } | null>(null);
   const locationSessionTokenRef = useRef(
     `sp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
   );
@@ -1262,77 +1268,124 @@ function NewEventDetailsInner() {
       return;
     }
 
+    const destinationPoint = {
+      lat: Number(destination.location_lat),
+      lng: Number(destination.location_lng),
+    };
+    const departureTime = getSafeRouteDepartureTime(startIso);
+    const routeOrigin = resolveSafeRouteOriginForEta({
+      origin,
+      destination: destinationPoint,
+    });
+
+    if (!routeOrigin.canCalculateEta || !routeOrigin.origin) {
+      setIsLoadingEta(false);
+      setEtaSeconds(null);
+      setEtaError(
+        routeOrigin.reason === "event_too_far"
+          ? "Tu ubicación parece demasiado lejos del destino. Actualízala para calcular una ruta confiable."
+          : "Activa o actualiza tu ubicación para calcular cuándo salir.",
+      );
+      return;
+    }
+
+    const requestKey = [
+      routeOrigin.origin.lat.toFixed(5),
+      routeOrigin.origin.lng.toFixed(5),
+      destinationPoint.lat.toFixed(5),
+      destinationPoint.lng.toFixed(5),
+      travelMode,
+      departureTime ?? "",
+    ].join("|");
+
+    const cached = etaCacheRef.current;
+    if (cached?.key === requestKey && Date.now() - cached.at < 60_000) {
+      setEtaSeconds(cached.etaSeconds);
+      setEtaError(cached.etaError);
+      setIsLoadingEta(false);
+      return;
+    }
+
     let cancelled = false;
     const requestId = ++etaRequestRef.current;
     setIsLoadingEta(true);
     setEtaError(null);
 
-    (async () => {
-      try {
-        const destinationPoint = {
-          lat: Number(destination.location_lat),
-          lng: Number(destination.location_lng),
-        };
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch("/api/maps/route-eta", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              origin: routeOrigin.origin,
+              destination: destinationPoint,
+              travelMode,
+              departureTime,
+            }),
+          });
 
-        const routeOrigin = resolveSafeRouteOriginForEta({
-          origin,
-          destination: destinationPoint,
-        });
+          const data = await res.json().catch(() => null);
+          if (cancelled || requestId !== etaRequestRef.current) return;
 
-        if (!routeOrigin.canCalculateEta || !routeOrigin.origin) {
+          if (!res.ok) {
+            const message = String(data?.error ?? "No pudimos estimar el trayecto.");
+            etaCacheRef.current = {
+              key: requestKey,
+              at: Date.now(),
+              etaSeconds: null,
+              etaError: message,
+            };
+            setEtaError(message);
+            setEtaSeconds(null);
+            return;
+          }
+
+          const eta = Number(data?.etaSeconds);
+
+          if (!isReasonableEtaSeconds(eta)) {
+            const message = "No pudimos calcular una ruta razonable para este trayecto.";
+            etaCacheRef.current = {
+              key: requestKey,
+              at: Date.now(),
+              etaSeconds: null,
+              etaError: message,
+            };
+            setEtaSeconds(null);
+            setEtaError(message);
+            return;
+          }
+
+          const roundedEta = Math.round(eta);
+          etaCacheRef.current = {
+            key: requestKey,
+            at: Date.now(),
+            etaSeconds: roundedEta,
+            etaError: null,
+          };
+          setEtaSeconds(roundedEta);
+          setEtaError(null);
+        } catch {
+          if (cancelled || requestId !== etaRequestRef.current) return;
+          const message = "No pudimos calcular la duración en este momento.";
+          etaCacheRef.current = {
+            key: requestKey,
+            at: Date.now(),
+            etaSeconds: null,
+            etaError: message,
+          };
+          setEtaError(message);
           setEtaSeconds(null);
-          setEtaError(
-            routeOrigin.reason === "event_too_far"
-              ? "Tu ubicación parece demasiado lejos del destino. Actualízala para calcular una ruta confiable."
-              : "Activa o actualiza tu ubicación para calcular cuándo salir.",
-          );
-          return;
+        } finally {
+          if (cancelled || requestId !== etaRequestRef.current) return;
+          setIsLoadingEta(false);
         }
-
-        const res = await fetch("/api/maps/route-eta", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            origin: routeOrigin.origin,
-            destination: destinationPoint,
-            travelMode,
-            departureTime: getSafeRouteDepartureTime(startIso),
-          }),
-        });
-
-        const data = await res.json().catch(() => null);
-        if (cancelled || requestId !== etaRequestRef.current) return;
-
-        if (!res.ok) {
-          setEtaError(String(data?.error ?? "No pudimos estimar el trayecto."));
-          setEtaSeconds(null);
-          return;
-        }
-
-        const eta = Number(data?.etaSeconds);
-
-        if (!isReasonableEtaSeconds(eta)) {
-          setEtaSeconds(null);
-          setEtaError(
-            "No pudimos calcular una ruta razonable para este trayecto.",
-          );
-          return;
-        }
-
-        setEtaSeconds(Math.round(eta));
-        setEtaError(null);
-      } catch {
-        if (cancelled || requestId !== etaRequestRef.current) return;
-        setEtaError("No pudimos calcular la duración en este momento.");
-        setEtaSeconds(null);
-      } finally {
-        if (cancelled || requestId !== etaRequestRef.current) return;
-        setIsLoadingEta(false);
-      }
-    })();
+      })();
+    }, 450);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
     };
   }, [selectedPlace, travelMode, startLocal, originPointVersion]);
 useEffect(() => {
@@ -3262,10 +3315,7 @@ useEffect(() => {
                 </div>
 
                 {etaError ? (
-                  <div style={styles.locationHint}>
-                    Si Google no confirma la ruta, SyncPlans usa una estimación
-                    segura para no romper el plan.
-                  </div>
+                  <div style={styles.locationHint}>{etaError}</div>
                 ) : null}
 
                 {mapsLinks ? (
