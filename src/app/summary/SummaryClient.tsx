@@ -124,6 +124,8 @@ type NextMove = {
   subtitle: string;
   cta: string;
   tone: NextMoveTone;
+  priorityLabel: string;
+  rationale: string;
   onClick: () => void;
 };
 
@@ -419,9 +421,13 @@ function NextMoveCard({ move }: { move: NextMove }) {
   return (
     <Card style={{ ...styles.nextMoveCard, ...toneStyle }}>
       <div style={styles.nextMoveCopy}>
-        <div style={styles.nextMoveEyebrow}>{move.eyebrow}</div>
+        <div style={styles.nextMoveTopLine}>
+          <div style={styles.nextMoveEyebrow}>{move.eyebrow}</div>
+          <span style={styles.nextMovePriorityPill}>{move.priorityLabel}</span>
+        </div>
         <div style={styles.nextMoveTitle}>{move.title}</div>
         <div style={styles.nextMoveSubtitle}>{move.subtitle}</div>
+        <div style={styles.nextMoveRationale}>{move.rationale}</div>
       </div>
 
       <button type="button" onClick={move.onClick} style={styles.nextMoveBtn}>
@@ -1811,16 +1817,66 @@ if (parsed.locationQuery) {
       Number.isFinite(leaveInMinutes) &&
       leaveInMinutes <= 180;
 
+    // Prioridad real de la home: primero decisiones que bloquean coordinación,
+    // luego movilidad solo cuando ya afecta llegar a tiempo.
+    if (conflictAlert.count > 0) {
+      return {
+        eyebrow: "Lo más importante ahora",
+        title: `Resuelve ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"}`,
+        subtitle: "Hay dos versiones compitiendo por el mismo tiempo. Decide qué queda antes de seguir creando planes encima.",
+        cta: "Resolver ahora",
+        tone: "warning",
+        priorityLabel: "Prioridad 1 · Decisión",
+        rationale: "SyncPlans lo pone arriba porque un conflicto abierto rompe la promesa de una sola verdad compartida.",
+        onClick: openConflictCenter,
+      };
+    }
+
+    if (pendingInviteCount > 0) {
+      return {
+        eyebrow: "Lo más importante ahora",
+        title: `Responde ${pendingInviteCount} invitación${pendingInviteCount === 1 ? "" : "es"}`,
+        subtitle: "Aceptar o rechazar esto desbloquea coordinación compartida y evita que el plan quede flotando.",
+        cta: "Ver invitaciones",
+        tone: "info",
+        priorityLabel: "Prioridad 2 · Compartido",
+        rationale: "La app prioriza invitaciones porque sin respuesta no hay sincronización real entre personas.",
+        onClick: () =>
+          navigateFromSummary("next_move_invitations", "/invitations", {
+            block: "next_move",
+          }),
+      };
+    }
+
+    if (pendingAttention.proposals > 0 || pendingAttention.captures > 0) {
+      const totalPending = pendingAttention.proposals + pendingAttention.captures;
+      return {
+        eyebrow: "Lo más importante ahora",
+        title: `Cierra ${totalPending} pendiente${totalPending === 1 ? "" : "s"} de coordinación`,
+        subtitle: "Hay respuestas o capturas esperando una decisión. Cerrarlas mantiene la agenda limpia y confiable.",
+        cta: "Revisar pendientes",
+        tone: "info",
+        priorityLabel: "Prioridad 3 · Cerrar ciclo",
+        rationale: "SyncPlans no solo informa; te empuja a cerrar lo que puede generar ida y vuelta por chat.",
+        onClick: () =>
+          navigateFromSummary("next_move_pending", "/events", {
+            block: "next_move",
+          }),
+      };
+    }
+
     if (hasRelevantLeaveSignal) {
       const eventTitle = smartMobility.eventTitle || "tu próximo plan";
 
       if (leaveInMinutes <= -5) {
         return {
-          eyebrow: "Tu siguiente movimiento",
+          eyebrow: "Lo más importante ahora",
           title: `Vas tarde para ${eventTitle}`,
-          subtitle: "Abre la ruta y sal cuanto antes. SyncPlans ya priorizó este aviso porque afecta tu llegada.",
+          subtitle: "Abre la ruta y sal cuanto antes. Este aviso sube porque ya afecta tu llegada, no solo tu agenda.",
           cta: "Abrir ruta",
           tone: "danger",
+          priorityLabel: "Prioridad 4 · Salida",
+          rationale: "La coordinación también es llegar a tiempo; por eso movilidad aparece solo cuando ya es accionable.",
           onClick: () => {
             trackSummaryCta("next_move_open_route_late", smartMobility.mapsUrl || "/calendar", {
               block: "next_move",
@@ -1840,11 +1896,13 @@ if (parsed.locationQuery) {
 
       if (leaveInMinutes <= 0) {
         return {
-          eyebrow: "Tu siguiente movimiento",
+          eyebrow: "Lo más importante ahora",
           title: `Sal ahora para ${eventTitle}`,
           subtitle: "La salida sugerida ya llegó. Abre la ruta y evita llegar justo.",
           cta: "Abrir ruta",
           tone: "warning",
+          priorityLabel: "Prioridad 4 · Salida",
+          rationale: "La app lo sube arriba porque ya no es información; es una acción inmediata.",
           onClick: () => {
             trackSummaryCta("next_move_open_route_now", smartMobility.mapsUrl || "/calendar", {
               block: "next_move",
@@ -1863,11 +1921,13 @@ if (parsed.locationQuery) {
       }
 
       return {
-        eyebrow: "Tu siguiente movimiento",
+        eyebrow: "Lo más importante ahora",
         title: `Prepárate: sales en ${formatMoveMinutes(leaveInMinutes)}`,
-        subtitle: `Para ${eventTitle}. SyncPlans mantiene este aviso arriba porque está dentro de la ventana útil de salida.`,
+        subtitle: `Para ${eventTitle}. El aviso aparece porque ya estás dentro de la ventana útil de salida.`,
         cta: "Ver ruta",
         tone: "info",
+        priorityLabel: "Prioridad 4 · Salida",
+        rationale: "Smart Mobility no ocupa la home todo el día: aparece cuando realmente puede ayudarte a llegar mejor.",
         onClick: () => {
           trackSummaryCta("next_move_open_route_soon", smartMobility.mapsUrl || "/calendar", {
             block: "next_move",
@@ -1885,66 +1945,15 @@ if (parsed.locationQuery) {
       };
     }
 
-    if (conflictAlert.count > 0) {
-      return {
-        eyebrow: "Tu siguiente movimiento",
-        title: `Resuelve ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"}`,
-        subtitle: "Decide una vez y deja una sola versión clara para todos.",
-        cta: "Resolver ahora",
-        tone: "warning",
-        onClick: openConflictCenter,
-      };
-    }
-
-    if (pendingInviteCount > 0) {
-      return {
-        eyebrow: "Tu siguiente movimiento",
-        title: `Responde ${pendingInviteCount} invitación${pendingInviteCount === 1 ? "" : "es"}`,
-        subtitle: "Aceptar o rechazar esto desbloquea coordinación compartida.",
-        cta: "Ver invitaciones",
-        tone: "info",
-        onClick: () =>
-          navigateFromSummary("next_move_invitations", "/invitations", {
-            block: "next_move",
-          }),
-      };
-    }
-
-    if (pendingAttention.proposals > 0 || pendingAttention.captures > 0) {
-      return {
-        eyebrow: "Tu siguiente movimiento",
-        title: "Cierra los pendientes abiertos",
-        subtitle: "Hay respuestas o capturas esperando una decisión para mantener la agenda limpia.",
-        cta: "Revisar pendientes",
-        tone: "info",
-        onClick: () =>
-          navigateFromSummary("next_move_pending", "/events", {
-            block: "next_move",
-          }),
-      };
-    }
-
-    if (showCreateGroupNudge) {
-      return {
-        eyebrow: "Tu siguiente movimiento",
-        title: "Crea tu primer espacio compartido",
-        subtitle: "Ese paso convierte SyncPlans en una referencia real de coordinación, no solo en una agenda personal.",
-        cta: "Crear grupo",
-        tone: "info",
-        onClick: () =>
-          navigateFromSummary("next_move_create_group", "/groups/new", {
-            block: "next_move",
-          }),
-      };
-    }
-
     if (showInviteNudge) {
       return {
-        eyebrow: "Tu siguiente movimiento",
+        eyebrow: "Lo más importante ahora",
         title: "Invita a la otra persona",
         subtitle: "El valor compartido aparece cuando ambos ven lo mismo en el mismo lugar.",
         cta: "Invitar ahora",
         tone: "info",
+        priorityLabel: "Prioridad 5 · Activación",
+        rationale: "Sin otra persona, SyncPlans funciona; con otra persona, empieza a resolver el problema real.",
         onClick: () =>
           navigateFromSummary("next_move_invite_now", "/groups", {
             block: "next_move",
@@ -1952,13 +1961,31 @@ if (parsed.locationQuery) {
       };
     }
 
+    if (showCreateGroupNudge) {
+      return {
+        eyebrow: "Lo más importante ahora",
+        title: "Crea tu primer espacio compartido",
+        subtitle: "Ese paso convierte SyncPlans en una referencia real de coordinación, no solo en una agenda personal.",
+        cta: "Crear grupo",
+        tone: "info",
+        priorityLabel: "Prioridad 5 · Activación",
+        rationale: "La home te empuja a configurar lo mínimo para que la coordinación compartida exista.",
+        onClick: () =>
+          navigateFromSummary("next_move_create_group", "/groups/new", {
+            block: "next_move",
+          }),
+      };
+    }
+
     if (!nextEvent) {
       return {
-        eyebrow: "Tu siguiente movimiento",
+        eyebrow: "Lo más importante ahora",
         title: "Captura el próximo plan",
         subtitle: "Escribe una idea rápida y SyncPlans la convierte en algo revisable.",
         cta: "Crear plan",
         tone: "calm",
+        priorityLabel: "Prioridad 6 · Hábito",
+        rationale: "Cuando no hay urgencias, la mejor acción es alimentar la agenda con el próximo plan real.",
         onClick: () =>
           navigateFromSummary("next_move_create_plan", "/events/new/details?type=personal", {
             block: "next_move",
@@ -1967,11 +1994,13 @@ if (parsed.locationQuery) {
     }
 
     return {
-      eyebrow: "Tu siguiente movimiento",
+      eyebrow: "Lo más importante ahora",
       title: `Revisa lo próximo: ${nextEvent.title}`,
       subtitle: "Tu agenda está clara por ahora. Mantén el hábito revisando lo siguiente o creando un nuevo plan.",
       cta: "Abrir calendario",
       tone: "calm",
+      priorityLabel: "Agenda clara",
+      rationale: "No hay bloqueos visibles; SyncPlans baja el ruido y te deja solo el siguiente contexto útil.",
       onClick: () =>
         navigateFromSummary("next_move_calendar", "/calendar", {
           block: "next_move",
@@ -2468,13 +2497,32 @@ const styles: Record<string, CSSProperties> = {
     minWidth: 0,
     flex: "1 1 420px",
   },
+  nextMoveTopLine: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    marginBottom: 6,
+  },
+  nextMovePriorityPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 22,
+    padding: "0 9px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.08)",
+    color: "rgba(226,232,240,0.88)",
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: "-0.01em",
+  },
   nextMoveEyebrow: {
     fontSize: 11,
     fontWeight: 950,
     textTransform: "uppercase",
     letterSpacing: "0.08em",
     color: "rgba(125,211,252,0.90)",
-    marginBottom: 6,
   },
   nextMoveTitle: {
     fontSize: 22,
@@ -2490,6 +2538,18 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(226,232,240,0.78)",
     fontWeight: 650,
     maxWidth: 760,
+  },
+  nextMoveRationale: {
+    marginTop: 9,
+    padding: "8px 10px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(2,6,23,0.24)",
+    color: "rgba(226,232,240,0.72)",
+    fontSize: 12,
+    lineHeight: 1.42,
+    fontWeight: 700,
+    maxWidth: 820,
   },
   nextMoveBtn: {
     minHeight: 44,
