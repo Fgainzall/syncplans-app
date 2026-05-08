@@ -183,7 +183,7 @@ export function getPlanSnapshot(
   let planTag = "Plan base";
   let statusLabel = "Base Free activa";
   let planDescription =
-    "La base completa para empezar bien: crear el espacio compartido, invitar a la otra persona y validar el hábito antes de que pagar tenga sentido.";
+    "La base para probar la promesa sin fricción: crear un espacio, invitar a la otra persona y comprobar si una sola verdad compartida reduce coordinación por chat.";
 
   if (founder) {
     planLabel = "Founder";
@@ -196,25 +196,25 @@ export function getPlanSnapshot(
     planTag = "Trial Premium";
     statusLabel = "Prueba Premium activa";
     planDescription =
-      "Estás probando la capa que da más claridad, menos fricción y más contexto cuando coordinar con otros ya importa de verdad.";
+      "Estás probando la capa que reduce ida y vuelta, da más contexto y ayuda a decidir mejor cuando coordinar con otros ya importa de verdad.";
   } else if (premiumAccess && billingCycle === "yearly") {
     planLabel = "Premium Anual";
     planTag = "Plan Premium";
     statusLabel = "Premium anual activo";
     planDescription =
-      "Acceso completo para quienes ya usan SyncPlans como sistema real de coordinación y quieren sostener esa claridad compartida en el tiempo.";
+      "Acceso completo para quienes ya usan SyncPlans como sistema real de coordinación y quieren sostener claridad compartida en el tiempo.";
   } else if (premiumAccess && billingCycle === "monthly") {
     planLabel = "Premium Mensual";
     planTag = "Plan Premium";
     statusLabel = "Premium mensual activo";
     planDescription =
-      "Acceso completo con flexibilidad mes a mes para reducir fricción, sumar contexto y decidir mejor sin volver al chat como fuente principal de verdad.";
+      "Acceso completo con flexibilidad mes a mes para reducir ida y vuelta, sumar contexto y decidir mejor sin volver al chat como fuente principal de verdad.";
   } else if (premiumAccess) {
     planLabel = "Premium";
     planTag = "Plan Premium";
     statusLabel = "Premium activo";
     planDescription =
-      "Tienes acceso a la capa premium que convierte coordinación en decisiones más claras, visibles y controlables.";
+      "Tienes acceso a la capa premium que convierte coordinación dispersa en decisiones más claras, visibles y compartidas.";
   }
 
   return {
@@ -328,7 +328,7 @@ export function getPremiumContextCopy(
         title: "Premium tiene sentido cuando los conflictos ya te ahorran discusiones",
         copy:
           "No pagas por otro calendario. Pagas por resolver mejor los momentos donde dos planes compiten por el mismo tiempo y todos necesitan una sola versión clara.",
-        outcome: "Menos ida y vuelta cuando hay que decidir qué queda.",
+        outcome: "Menos ida y vuelta cuando hay que decidir qué queda y qué se mueve.",
         proof: "Conflictos detectados, comparación clara y decisión visible para todos.",
       };
     case "shared_coordination":
@@ -347,7 +347,7 @@ export function getPremiumContextCopy(
         label: "Llegar a tiempo",
         title: "Premium se vuelve natural cuando la app también te ayuda a moverte",
         copy:
-          "Smart Mobility no debería ser un adorno. Tiene valor cuando SyncPlans entiende el plan, mira ubicación y te acerca a la acción correcta: salir a tiempo.",
+          "Smart Mobility no es un adorno. Tiene valor cuando SyncPlans entiende el plan, mira ubicación y te acerca a la acción correcta: salir a tiempo.",
         outcome: "Menos planes que empiezan tarde por falta de contexto.",
         proof: "Ubicación, ruta y momento de salida conectados al plan real.",
       };
@@ -357,7 +357,7 @@ export function getPremiumContextCopy(
         label: "Más espacios",
         title: "Premium tiene lógica cuando tu coordinación ya no cabe en un solo grupo",
         copy:
-          "Free debe activar el hábito. Premium entra cuando quieres manejar pareja, familia y otros espacios sin mezclar contexto ni perder claridad.",
+          "Free activa el hábito. Premium entra cuando quieres manejar pareja, familia y otros espacios sin mezclar contexto ni perder claridad.",
         outcome: "Cada relación con su propio contexto y menos ruido cruzado.",
         proof: "Más grupos y lectura más clara de cada espacio compartido.",
       };
@@ -378,7 +378,7 @@ export function getPremiumContextCopy(
         label: "Uso real",
         title: "Premium debería aparecer cuando SyncPlans ya se volvió parte de tu semana",
         copy:
-          "Si ya estás capturando planes, revisando próximos eventos y cerrando decisiones, Premium no es más decoración: es más contexto y menos desgaste sobre un hábito real.",
+          "Si ya estás capturando planes, revisando próximos eventos y cerrando decisiones, Premium no es más decoración: es más contexto y menos coordinación manual sobre un hábito real.",
         outcome: "Más control cuando la coordinación empieza a repetirse cada semana.",
         proof: "Uso frecuente, próximos planes y coordinación activa en una sola capa.",
       };
@@ -450,7 +450,7 @@ export function getPlanAccessState(
   }
 
   let planStatusHint =
-    "Estás usando la base Free para empezar bien. Premium aparece cuando coordinar con otros ya te pide más claridad, menos fricción y más contexto compartido.";
+    "Estás usando la base Free para empezar bien. Premium aparece cuando coordinar con otros ya te pide menos ida y vuelta, más claridad y más contexto compartido.";
 
   if (accessSource === "founder") {
     planStatusHint =

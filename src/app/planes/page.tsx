@@ -42,18 +42,18 @@ function buildPlanCards(): PlanCardConfig[] {
       price: "Gratis",
       priceSuffix: "durante beta",
       description:
-        "La base completa para una pareja que quiere empezar bien: crear su espacio, invitarse, meter planes y sentir valor real antes de pagar.",
+        "Para empezar sin fricción: crear un espacio, invitar a la otra persona y comprobar si una sola verdad compartida reduce coordinación por chat.",
       idealFor:
-        "Ideal si recién están validando el hábito y quieren comprobar si SyncPlans de verdad les baja fricción.",
+        "Ideal si estás validando el hábito y quieres sentir si SyncPlans realmente evita ida y vuelta antes de pagar.",
       features: [
-        "Crear un espacio compartido e invitar a la otra persona sin fricción artificial de entrada.",
-        `Hasta ${FREE_GROUP_LIMIT} grupo incluido para empezar sin castigar el caso base de pareja.`,
-        "Detección básica de conflictos para que el sistema ya empiece a avisar cuando algo choca.",
-        "Home mínima, quick capture y coordinación esencial disponibles durante la beta privada.",
-        "Sin tarjetas ni cobros automáticos en esta etapa.",
+        "Un espacio compartido para validar el hábito sin barreras.",
+        `Hasta ${FREE_GROUP_LIMIT} grupo incluido para pareja o primer círculo.`,
+        "Quick Capture, calendario compartido y próximos planes en la misma vista.",
+        "Detección básica de choques para probar la promesa central.",
+        "Beta privada sin tarjetas ni cobros automáticos.",
       ],
       emotionalHook:
-        "Free debe dejarte sentir el valor. Premium no debería aparecer antes de tiempo.",
+        "Free debe vender confianza: que la app realmente ahorra coordinación.",
     },
     {
       id: "premium_monthly",
@@ -64,19 +64,19 @@ function buildPlanCards(): PlanCardConfig[] {
       badge: "Recomendado",
       highlight: true,
       description:
-        "Para parejas o grupos que ya sintieron valor real y ahora quieren menos desgaste, más contexto y más claridad sin comprometerse todavía a largo plazo.",
+        "Para cuando SyncPlans ya te ahorra ida y vuelta y quieres que la app te ayude a decidir, compartir y llegar a tiempo con más contexto.",
       idealFor:
-        "Ideal si SyncPlans ya te ahorra fricción cada semana y quieres una capa más potente antes de decidir algo más estable.",
+        "Ideal si ya lo usas cada semana y quieres probar una capa más potente sin comprometerte a largo plazo.",
       features: [
-        "Más de un grupo cuando tu coordinación ya no cabe en un solo espacio compartido.",
-        "Más contexto dentro del sistema: respuestas, propuestas y acciones sin perseguir mensajes por fuera.",
-        "Más claridad para decidir conflictos sin reconstruir la historia en chats sueltos.",
-        "Más visibilidad para entender qué está pasando en el tiempo compartido.",
-        "Integraciones premium para traer contexto externo al mismo lugar donde decides.",
-        "Flexibilidad para validar cuánto valor real te aporta semana a semana.",
+        "Más espacios compartidos sin mezclar pareja, familia y otros planes.",
+        "Decisiones y respuestas visibles para no perseguir confirmaciones por WhatsApp.",
+        "Conflictos con más contexto para elegir qué queda sin reconstruir la historia.",
+        "Smart Mobility como recordatorio accionable: ubicación, ruta y momento de salida.",
+        "Google Calendar como señal adicional para evitar sorpresas.",
+        "Una home que prioriza lo importante antes de que se vuelva problema.",
       ],
       emotionalHook:
-        "La diferencia no es tener más app. Es necesitar menos esfuerzo para coordinar bien.",
+        "Premium no vende más botones. Vende menos fricción cada vez que coordinas.",
     },
     {
       id: "premium_yearly",
@@ -85,17 +85,17 @@ function buildPlanCards(): PlanCardConfig[] {
       price: "Próximamente",
       priceSuffix: "anual",
       description:
-        "Para parejas, familias y grupos que ya entendieron que la tranquilidad compartida vale más que resolver todo por chat y quieren consolidar ese hábito.",
+        "Para parejas, familias o grupos que ya coordinan cada semana y quieren consolidar SyncPlans como su sistema compartido de decisiones.",
       idealFor:
-        "Ideal si SyncPlans ya se volvió parte de la rutina y quieres una relación valor/precio más lógica a largo plazo.",
+        "Ideal si la app ya es hábito y quieres la mejor relación valor/precio para sostener claridad compartida en el tiempo.",
       features: [
-        "Todo lo que ya hace más potente la coordinación en Premium.",
-        "Mejor relación valor/precio para quienes ya usan SyncPlans como hábito real.",
-        "Pensado para coordinación sostenida, no para uso esporádico.",
-        "Más contexto, más continuidad y menos necesidad de reconstruir decisiones fuera del sistema.",
+        "Todo el contexto premium para coordinación sostenida.",
+        "Mejor relación valor/precio cuando SyncPlans ya es parte de la rutina.",
+        "Más continuidad para decisiones, grupos, movilidad e integraciones.",
+        "Menos dependencia del chat como archivo de acuerdos.",
       ],
       emotionalHook:
-        "Cuando coordinar bien ya es parte de la rutina, la tranquilidad compartida vale más que el precio.",
+        "Cuando la coordinación ya es hábito, pagar por claridad sale más barato que corregir malentendidos.",
     },
   ];
 }
@@ -108,7 +108,7 @@ function getDecisionHeadline(state: PlanAccessState): string {
   if (state.hasPremiumAccess) {
     return "Tu coordinación ya funciona con más claridad, menos fricción y mejor contexto.";
   }
-  return "Free sirve para empezar bien. Premium aparece cuando coordinar con otros deja de ser prueba y ya te pide más claridad, menos fricción y mejor contexto.";
+  return "Empieza gratis. Paga solo cuando SyncPlans ya te esté ahorrando coordinación real.";
 }
 
 function getDecisionCopy(state: PlanAccessState): string {
@@ -121,7 +121,7 @@ function getDecisionCopy(state: PlanAccessState): string {
   if (state.hasPremiumAccess) {
     return "Cuando Premium está activo, el valor no se nota en una lista. Se nota en menos desgaste, menos mensajes sueltos y mejores decisiones compartidas.";
   }
-  return "El problema no es guardar eventos. El problema es alinear personas, contexto y decisiones sin perseguir chats ni versiones distintas de la realidad.";
+  return "No estás pagando por guardar eventos. Estás pagando por reducir ida y vuelta, detectar choques antes de discutirlos y mantener una sola verdad compartida.";
 }
 
 function getWhyPayBullets(state: PlanAccessState): string[] {
@@ -150,9 +150,9 @@ function getWhyPayBullets(state: PlanAccessState): string[] {
   }
 
   return [
-    "Free debe dejar vivir bien a una pareja en el caso base antes de pedir pago.",
-    "Premium tiene sentido cuando ya no quieres coordinar desde chats, memoria y buena suerte.",
-    "La diferencia real es más contexto dentro del sistema y menos desgaste fuera de él.",
+    "Free valida el hábito sin fricción ni presión de pago.",
+    "Premium tiene sentido cuando la coordinación ya se repite cada semana.",
+    "La diferencia real es menos chat, menos dudas y mejores decisiones compartidas.",
   ];
 }
 
@@ -199,19 +199,19 @@ function getOutcomeCards(state: PlanAccessState) {
 
   return [
     {
-      label: "Base",
-      value: "Pareja completa",
-      copy: "Free debería dejar crear, invitar y coordinar lo esencial sin matar activación.",
+      label: "Activación",
+      value: "Empezar sin barrera",
+      copy: "Free deja crear, invitar y probar si una sola verdad compartida reduce fricción real.",
     },
     {
-      label: "Premium",
-      value: "Más claridad",
-      copy: "Cuando ya coordinas con otros, aparece una capa más potente de contexto y control.",
+      label: "Upgrade",
+      value: "Menos ida y vuelta",
+      copy: "Premium entra cuando ya no quieres depender de chats, memoria y confirmaciones sueltas.",
     },
     {
       label: "Resultado",
-      value: "Menos fricción",
-      copy: "La diferencia no es más app. Es menos desgaste cada semana.",
+      value: "Decidir mejor",
+      copy: "El valor es que el próximo paso sea más claro antes de que el plan se vuelva problema.",
     },
   ];
 }
@@ -233,7 +233,7 @@ function getCurrentPlanNote(state: PlanAccessState): string {
     return "Tu acceso actual corresponde a Premium Mensual.";
   }
 
-  return `Hoy estás usando SyncPlans desde la base Free con hasta ${FREE_GROUP_LIMIT} grupo incluido antes de que la coordinación se vuelva más compleja.`;
+  return `Hoy estás en Free: suficiente para probar un grupo, invitar a la otra persona y validar si SyncPlans realmente reduce coordinación por chat.`;
 }
 
 function getPlanButtonLabel(card: PlanCardConfig, isCurrent: boolean, founderEquivalent: boolean) {
@@ -256,12 +256,12 @@ function getPlanHint(
     return "Founder ya vive en una capa preferencial. Aquí no necesitas hacer upgrade, sino entender el valor que ya conservas.";
   }
   if (card.id === "free") {
-    return "Free te deja empezar bien. Subir solo tiene sentido cuando la coordinación ya te pide más claridad y menos desgaste.";
+    return "Free te deja empezar bien. Subir solo tiene sentido cuando ya sientes que SyncPlans te ahorra coordinación real.";
   }
   if (state.accessSource === "trial") {
     return "Todavía estás probando Premium. Este click sirve para leer intención real dentro de la beta, no para cobrarte ahora.";
   }
-  return "Durante la beta privada no se cobra ni se activa desde aquí. Este paso nos sirve para medir intención real de upgrade.";
+  return "Durante la beta privada no se cobra ni se activa desde aquí. Este paso registra intención real de upgrade.";
 }
 
 function useIsCompactWidth(maxWidth = 760) {
@@ -401,7 +401,7 @@ export default function PlanesPage() {
         subtitle={
           isCompact
             ? "Tu acceso actual arriba. La diferencia real abajo."
-            : "Premium debería aparecer cuando SyncPlans ya te evita desgaste real: más claridad compartida, menos fricción y mejor contexto para coordinar con otros."
+            : "Premium aparece cuando SyncPlans ya te ahorra coordinación real: menos ida y vuelta, más claridad y mejores decisiones compartidas."
         }
       />
 
@@ -409,7 +409,7 @@ export default function PlanesPage() {
         <section style={styles.hero}>
           <div style={styles.heroTop}>
             <div style={styles.heroCopy}>
-              <div style={styles.eyebrow}>Monetización alineada al valor</div>
+              <div style={styles.eyebrow}>Planes alineados al valor</div>
               <h1 style={styles.h1}>
                 {loading ? "Cargando tu acceso..." : getDecisionHeadline(planState)}
               </h1>
@@ -506,34 +506,34 @@ export default function PlanesPage() {
             <p style={styles.betaNoteTitle}>Beta privada</p>
             <p style={styles.betaNoteBody}>
               Todavía no estamos cobrando ni activando desde esta pantalla.
-              Aquí estamos alineando el upgrade con momentos reales del producto:
-              más contexto, más claridad y menos desgaste al coordinar.
+              La lógica es simple: primero valor real, luego upgrade.
+              Premium debe sentirse como menos coordinación manual, no como una pared de pago.
             </p>
           </div>
         </section>
 
         <section style={styles.proofStrip}>
           <article style={styles.proofCard}>
-            <span style={styles.proofLabel}>El caso base</span>
-            <strong style={styles.proofValue}>Pareja completa en Free</strong>
+            <span style={styles.proofLabel}>Activación</span>
+            <strong style={styles.proofValue}>Free prueba el hábito</strong>
             <p style={styles.proofCopy}>
-              Free debe dejar crear el espacio, invitar a la otra persona y coordinar lo esencial sin matar activación.
+              El usuario debe sentir la promesa antes de pagar: crear, invitar y coordinar lo esencial sin fricción.
             </p>
           </article>
 
           <article style={styles.proofCard}>
-            <span style={styles.proofLabel}>La señal correcta</span>
-            <strong style={styles.proofValue}>Menos desgaste</strong>
+            <span style={styles.proofLabel}>Motivo de pago</span>
+            <strong style={styles.proofValue}>Menos ida y vuelta</strong>
             <p style={styles.proofCopy}>
-              Premium tiene sentido cuando ya no quieres volver al chat como fuente principal de verdad.
+              El upgrade aparece cuando coordinar por chat, memoria y confirmaciones sueltas empieza a costar tiempo.
             </p>
           </article>
 
           <article style={styles.proofCard}>
-            <span style={styles.proofLabel}>El cambio real</span>
-            <strong style={styles.proofValue}>Más contexto</strong>
+            <span style={styles.proofLabel}>Promesa premium</span>
+            <strong style={styles.proofValue}>Decidir mejor</strong>
             <p style={styles.proofCopy}>
-              La capa premium debería sentirse como más claridad compartida, no solo como más funciones.
+              La capa premium debe ayudar a decidir qué hacer, no solo mostrar más información.
             </p>
           </article>
         </section>
@@ -541,10 +541,9 @@ export default function PlanesPage() {
         <section style={styles.plansSection}>
           <header style={styles.plansHeader}>
             <div>
-              <h3 style={styles.plansTitle}>Planes de SyncPlans</h3>
+              <h3 style={styles.plansTitle}>Elige cuánto contexto quieres que SyncPlans cargue por ti</h3>
               <p style={styles.plansSub}>
-                La diferencia real entre planes no es “tener más funciones”.
-                Es cuánto contexto compartido, cuánta visibilidad y cuánta fricción quieres sacar de la coordinación cuando ya no te organizas solo.
+                La diferencia real no es “más funciones”. Es cuánto chat, cuánta duda y cuánta coordinación manual quieres sacar de tu semana.
               </p>
             </div>
           </header>
@@ -562,8 +561,8 @@ export default function PlanesPage() {
                 </strong>
                 <p style={styles.interestBody}>
                   Todavía no estamos cobrando ni activando desde esta pantalla.
-                  Este click sí nos sirve para medir intención real justo después
-                  de que el producto ya empezó a demostrar valor.
+                  Este click sirve para medir intención real justo después
+                  de que el producto empezó a demostrar valor.
                 </p>
               </div>
             </div>
