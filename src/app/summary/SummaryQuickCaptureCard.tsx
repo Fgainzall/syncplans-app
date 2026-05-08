@@ -51,11 +51,15 @@ function actionTone(
   activeGroupType: GroupType,
   interpretation: SmartInterpretation | null
 ) {
-  const isShared =
-    interpretation?.intent === "group" ||
-    activeGroupType === "pair" ||
-    activeGroupType === "family" ||
-    activeGroupType === "other";
+  const interpretedIntent = interpretation?.intent ?? null;
+  const hasExplicitInterpretation =
+    interpretedIntent === "personal" || interpretedIntent === "group";
+
+  const isShared = hasExplicitInterpretation
+    ? interpretedIntent === "group"
+    : activeGroupType === "pair" ||
+      activeGroupType === "family" ||
+      activeGroupType === "other";
 
   return {
     isShared,
