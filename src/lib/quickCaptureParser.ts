@@ -115,6 +115,8 @@ const LOCATION_BREAK_TOKENS = [
   " con ",
   " para ",
   " a las ",
+  " a la ",
+  " al ",
   " alas ",
   " hoy",
   " mañana",
@@ -344,7 +346,7 @@ function splitParticipantChunk(chunk: string): string[] {
 function stripTrailingTimeAndDate(chunk: string) {
   return String(chunk ?? "")
     .replace(/\b(el|la|los|las)?\s*(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b.*$/i, "")
-    .replace(/\b(a\s+las|alas|de)\s+\d{1,2}(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b.*$/i, "")
+    .replace(/\b(a\s+las|a\s+la|al|alas|de)\s+\d{1,2}(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b.*$/i, "")
     .replace(/\b(en casa de|en|por|cerca de|donde|junto a)\b.*$/i, "")
     .replace(/\b(el|la|los|las)\b\s*$/i, "")
     .replace(/[.,;:!?]+$/g, "")
@@ -447,7 +449,7 @@ function sanitizeLocationFragment(raw: string): string {
       /\b(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b.*$/i,
       ""
     )
-    .replace(/\b(a\s+las|alas|de)\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\b.*$/i, "")
+    .replace(/\b(a\s+las|a\s+la|al|alas|de)\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\b.*$/i, "")
     .replace(/\b(\d+)\s?(min|mins|m|h|hora|horas)\b.*$/i, "")
     .trim();
 
@@ -573,7 +575,7 @@ function detectSignals(
     /\bde\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\s+a\s+\d{1,2}(?::(\d{2}))?\s?(am|pm)?\b/i.test(
       raw
     ) ||
-    /\b(a\s+las|alas)?\s*\d{1,2}(?::\d{2})?\s?(am|pm)?\b/i.test(raw) ||
+    /\b(a\s+las|a\s+la|al|alas)?\s*\d{1,2}(?::\d{2})?\s?(am|pm)?\b/i.test(raw) ||
     /\b(mediodia|medianoche)\b/i.test(raw);
 
   const mentionsWeekend =
@@ -757,7 +759,7 @@ function extractTimeRange(text: string): {
   }
 
   const singleMatch = String(text ?? "").match(
-    /(?:a\s+las\s+|alas\s+)?(\d{1,2})(?:[:h](\d{2}))?\s?(a\.?m\.?|p\.?m\.?)?\b/i
+    /(?:a\s+las\s+|a\s+la\s+|al\s+|alas\s+)?(\d{1,2})(?:[:h](\d{2}))?\s?(a\.?m\.?|p\.?m\.?)?\b/i
   );
 
   if (!singleMatch) {
@@ -918,7 +920,7 @@ function removeDateAndTimeTokens(text: string): string {
       /\bde\s+\d{1,2}(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\s+a\s+\d{1,2}(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/gi,
       " "
     )
-    .replace(/\b(a\s+las|alas)\b/gi, " ")
+    .replace(/\b(a\s+las|a\s+la|al|alas)\b/gi, " ")
     .replace(/\b(mediodia|medianoche)\b/gi, " ")
     .replace(
       /\b(\d{1,2})(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b(?!\s?(min|mins|m|h|hora|horas)\b)/gi,

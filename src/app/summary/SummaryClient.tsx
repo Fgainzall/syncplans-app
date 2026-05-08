@@ -26,7 +26,11 @@ import {
   getSuggestionContextLabel,
 } from "@/lib/timeSuggestions";
 import supabase from "@/lib/supabaseClient";
-import { getLearningSignals } from "@/lib/learningSignals";
+import {
+  findLearnedPlaceMatch,
+  getLearningSignals,
+  type PlaceMemoryEvent,
+} from "@/lib/learningSignals";
 import { buildLearnedTimeProfile } from "@/lib/learningProfile";
 import type { LearnedTimeProfile } from "@/lib/learningTypes";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
@@ -1035,6 +1039,23 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     });
   }, [normalizedEvents]);
 
+  const quickCapturePlaceMemoryEvents = useMemo(
+    () => visibleEvents.map((event) => event.raw as unknown as PlaceMemoryEvent),
+    [visibleEvents]
+  );
+
+  const learnedQuickCapturePlaceMatch = useMemo(() => {
+    const raw = quickCaptureValue.trim();
+    if (raw.length < 4) return null;
+
+    const parsed = parseQuickCapture(raw);
+    return findLearnedPlaceMatch({
+      rawText: raw,
+      locationQuery: parsed.locationQuery,
+      events: quickCapturePlaceMemoryEvents,
+    });
+  }, [quickCaptureValue, quickCapturePlaceMemoryEvents]);
+
   const quickCaptureIntelligence = useMemo<CaptureIntelligence | null>(() => {
     const raw = quickCaptureValue.trim();
     if (raw.length < 3) return null;
@@ -1049,6 +1070,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     const hasTime = parsed.startHour !== null;
     const durationMinutes = Math.max(1, Number(parsed.durationMinutes || 60));
     const location = String(parsed.locationQuery ?? "").trim();
+    const learnedPlace = learnedQuickCapturePlaceMatch;
+    const effectiveLocation = learnedPlace?.locationLabel || location;
     const participants = parsed.participants
       .map((participant) => String(participant ?? "").trim())
       .filter(Boolean);
@@ -1069,8 +1092,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       facts.push(`Con: ${compactList(participants, 2)}`);
     }
 
-    if (location) {
-      facts.push(`Lugar: ${location}`);
+    if (effectiveLocation) {
+      facts.push(`Lugar: ${effectiveLocation}`);
+      if (learnedPlace?.locationAddress) {
+        facts.push(`Dirección recordada: ${learnedPlace.locationAddress}`);
+      }
     } else {
       missing.push("ubicación para calcular salida");
     }
@@ -1117,7 +1143,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       hasTime,
       smartInterpretation?.confidence === "high" ||
         smartInterpretation?.confidence === "medium",
-      location.length > 0,
+      effectiveLocation.length > 0,
     ].filter(Boolean).length;
 
     const confidenceTone: CaptureIntelligence["confidenceTone"] =
@@ -1134,7 +1160,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       : hasTime && parsed.startHour !== null
       ? `a las ${formatCaptureTimeLabel(parsed.startHour, parsed.startMinutes)}`
       : "sin horario cerrado";
-    const placeLabel = location ? ` en ${location}` : "";
+    const placeLabel = effectiveLocation ? ` en ${effectiveLocation}` : "";
     const naturalSummary = `Quieres crear “${title}” ${whenLabel}${placeLabel}.`;
 
     let recommendation = "Listo para revisar y guardar.";
@@ -1143,7 +1169,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       recommendation = "Revisa el posible choque antes de guardar.";
     } else if (!hasDate || !hasTime) {
       recommendation = "Completa fecha y hora para que pueda coordinarlo bien.";
-    } else if (!location) {
+    } else if (learnedPlace) {
+      recommendation = `Encontré una dirección usada antes para “${learnedPlace.alias}”. Revísala antes de guardar.`;
+    } else if (!effectiveLocation) {
       recommendation = "Agrega ubicación si quieres calcular a qué hora salir.";
     } else if (smartInterpretation?.intent === "group" && !suggestedGroupId) {
       recommendation = "Elige el grupo correcto antes de compartirlo.";
@@ -1158,7 +1186,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       risks,
       recommendation,
     };
-  }, [quickCaptureValue, smartInterpretation, groups, visibleEvents]);
+  }, [
+    quickCaptureValue,
+    smartInterpretation,
+    groups,
+    visibleEvents,
+    learnedQuickCapturePlaceMatch,
+  ]);
 
   const conflictAlert = useMemo(() => {
     const baseAlert = buildConflictAlert(visibleEvents, groups, resMap, ignoredConflictKeys);
@@ -1314,9 +1348,28 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       if (parsed.title) params.set("title", parsed.title);
       if (parsed.durationMinutes) params.set("duration", String(parsed.durationMinutes));
       if (cleanedNotes) params.set("notes", cleanedNotes);
-if (parsed.locationQuery) {
-  params.set("location_query", parsed.locationQuery);
-}
+
+      const learnedPlace = findLearnedPlaceMatch({
+        rawText: raw,
+        locationQuery: parsed.locationQuery,
+        events: quickCapturePlaceMemoryEvents,
+      });
+
+      if (learnedPlace) {
+        params.set("location_query", learnedPlace.alias);
+        params.set("location_label", learnedPlace.locationLabel);
+        params.set("location_address", learnedPlace.locationAddress);
+        params.set("location_lat", String(learnedPlace.locationLat));
+        params.set("location_lng", String(learnedPlace.locationLng));
+        params.set("location_provider", learnedPlace.locationProvider);
+        if (learnedPlace.locationPlaceId) {
+          params.set("location_place_id", learnedPlace.locationPlaceId);
+        }
+        params.set("location_memory", "1");
+      } else if (parsed.locationQuery) {
+        params.set("location_query", parsed.locationQuery);
+      }
+
       if (parsed.startHour !== null) {
         params.set(
           "time",
@@ -1329,7 +1382,7 @@ if (parsed.locationQuery) {
 
       return params;
     },
-    [groups, activeGroupId]
+    [groups, activeGroupId, quickCapturePlaceMemoryEvents]
   );
 
   const navigateFromQuickCapture = useCallback(

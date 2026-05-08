@@ -534,3 +534,258 @@ export async function getLearningSignals(
   const snapshot = await loadLearningSourceSnapshot(options);
   return buildLearningSignalsFromSnapshot(snapshot, options);
 }
+export type LearnedPlaceMatch = {
+  alias: string;
+  locationLabel: string;
+  locationAddress: string;
+  locationLat: number;
+  locationLng: number;
+  locationProvider: "google";
+  locationPlaceId: string | null;
+  confidence: "medium" | "high";
+  sourceEventTitle: string | null;
+  reason: string;
+};
+
+export type PlaceMemoryEvent = Pick<
+  DbEventRow,
+  | "title"
+  | "notes"
+  | "start"
+  | "location_label"
+  | "location_address"
+  | "location_lat"
+  | "location_lng"
+  | "location_provider"
+  | "location_place_id"
+>;
+
+function normalizePlaceMemoryText(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[.,;:!?()\[\]{}]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function titleCasePlaceAlias(value: string): string {
+  const smallWords = new Set(["de", "del", "la", "las", "el", "los", "y"]);
+  return String(value ?? "")
+    .split(" ")
+    .filter(Boolean)
+    .map((word, index) => {
+      const normalized = normalizePlaceMemoryText(word);
+      if (index > 0 && smallWords.has(normalized)) return normalized;
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(" ");
+}
+
+function cleanupPlaceAliasFragment(value: unknown): string {
+  return normalizePlaceMemoryText(value)
+    .replace(
+      /\b(a\s+las|a\s+la|al|alas|de)\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\b.*$/i,
+      "",
+    )
+    .replace(
+      /\b(hoy|manana|pasado manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b.*$/i,
+      "",
+    )
+    .replace(/\b\d+\s?(min|mins|m|h|hora|horas)\b.*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function addPlaceAliasCandidate(target: Set<string>, value: unknown) {
+  const cleaned = cleanupPlaceAliasFragment(value);
+  if (!cleaned) return;
+  if (cleaned.length < 3) return;
+  if (/^\d+$/.test(cleaned)) return;
+  target.add(cleaned);
+
+  const withoutCasa = cleaned.replace(/^casa\s+de\s+/, "").trim();
+  if (withoutCasa && withoutCasa !== cleaned && withoutCasa.length >= 3) {
+    target.add(withoutCasa);
+  }
+}
+
+export function extractPlaceAliasCandidates(input: unknown): string[] {
+  const raw = String(input ?? "").trim();
+  if (!raw) return [];
+
+  const candidates = new Set<string>();
+  const normalized = normalizePlaceMemoryText(raw);
+
+  const houseRegex = /\bcasa\s+de\s+([^.;:!?]+?)(?=\s+(a\s+las|a\s+la|al|alas|hoy|manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b|$)/gi;
+  let houseMatch: RegExpExecArray | null;
+  while ((houseMatch = houseRegex.exec(normalized)) !== null) {
+    const person = cleanupPlaceAliasFragment(houseMatch[1] ?? "");
+    if (person) addPlaceAliasCandidate(candidates, `casa de ${person}`);
+  }
+
+  const connectorRegex = /\b(en|donde|por|cerca de|junto a)\s+([^.;:!?]+?)(?=\s+(a\s+las|a\s+la|al|alas|hoy|manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b|$)/gi;
+  let connectorMatch: RegExpExecArray | null;
+  while ((connectorMatch = connectorRegex.exec(normalized)) !== null) {
+    addPlaceAliasCandidate(candidates, connectorMatch[2] ?? "");
+  }
+
+  if (/^casa\s+de\s+/.test(normalized)) {
+    addPlaceAliasCandidate(candidates, normalized);
+  }
+
+  return Array.from(candidates).sort((a, b) => b.length - a.length);
+}
+
+function eventPlaceAliasCandidates(event: PlaceMemoryEvent): string[] {
+  const candidates = new Set<string>();
+  for (const value of [event.title, event.notes, event.location_label]) {
+    for (const candidate of extractPlaceAliasCandidates(value)) {
+      candidates.add(candidate);
+    }
+  }
+
+  const label = normalizePlaceMemoryText(event.location_label);
+  if (label && !/^\d/.test(label) && label.length >= 3) {
+    candidates.add(label);
+  }
+
+  return Array.from(candidates).sort((a, b) => b.length - a.length);
+}
+
+function hasUsableEventLocation(event: PlaceMemoryEvent): boolean {
+  const lat = Number(event.location_lat);
+  const lng = Number(event.location_lng);
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lng) <= 180 &&
+    Boolean(String(event.location_label ?? event.location_address ?? "").trim())
+  );
+}
+
+function placeMemoryRecencyMs(event: PlaceMemoryEvent): number {
+  const start = normalizeIso(event.start);
+  const ms = start ? new Date(start).getTime() : 0;
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+export function findLearnedPlaceMatch(input: {
+  rawText?: string | null;
+  locationQuery?: string | null;
+  events?: PlaceMemoryEvent[] | null;
+}): LearnedPlaceMatch | null {
+  const events = Array.isArray(input.events) ? input.events : [];
+  if (!events.length) return null;
+
+  const wantedAliases = new Set<string>();
+  for (const source of [input.locationQuery, input.rawText]) {
+    for (const candidate of extractPlaceAliasCandidates(source)) {
+      wantedAliases.add(candidate);
+    }
+  }
+
+  const wanted = Array.from(wantedAliases).filter(Boolean);
+  if (!wanted.length) return null;
+
+  const matches = events
+    .filter(hasUsableEventLocation)
+    .map((event) => {
+      const eventAliases = eventPlaceAliasCandidates(event);
+      const haystack = normalizePlaceMemoryText(
+        [event.title, event.notes, event.location_label, event.location_address]
+          .filter(Boolean)
+          .join(" "),
+      );
+
+      let score = 0;
+      let matchedAlias = "";
+
+      for (const alias of wanted) {
+        const exactAlias = eventAliases.find((eventAlias) => eventAlias === alias);
+        const partialAlias = eventAliases.find(
+          (eventAlias) =>
+            eventAlias.includes(alias) ||
+            alias.includes(eventAlias) ||
+            haystack.includes(alias),
+        );
+
+        if (exactAlias) {
+          score = Math.max(score, 100 + alias.length);
+          matchedAlias = exactAlias;
+        } else if (partialAlias && alias.length >= 5) {
+          score = Math.max(score, 70 + alias.length);
+          matchedAlias = partialAlias;
+        } else if (haystack.includes(alias) && alias.length >= 5) {
+          score = Math.max(score, 55 + alias.length);
+          matchedAlias = alias;
+        }
+      }
+
+      if (score <= 0 || !matchedAlias) return null;
+
+      const label = String(event.location_label ?? "").trim();
+      const address = String(event.location_address ?? "").trim();
+      const lat = Number(event.location_lat);
+      const lng = Number(event.location_lng);
+
+      return {
+        score,
+        recency: placeMemoryRecencyMs(event),
+        match: {
+          alias: titleCasePlaceAlias(matchedAlias),
+          locationLabel: label || address,
+          locationAddress: address || label,
+          locationLat: lat,
+          locationLng: lng,
+          locationProvider: "google" as const,
+          locationPlaceId: event.location_place_id
+            ? String(event.location_place_id).trim()
+            : null,
+          confidence: score >= 90 ? ("high" as const) : ("medium" as const),
+          sourceEventTitle: event.title ? String(event.title).trim() : null,
+          reason: "Usado antes en tus eventos",
+        },
+      };
+    })
+    .filter(Boolean) as Array<{
+    score: number;
+    recency: number;
+    match: LearnedPlaceMatch;
+  }>;
+
+  if (!matches.length) return null;
+
+  matches.sort((a, b) => b.score - a.score || b.recency - a.recency);
+  return matches[0]?.match ?? null;
+}
+
+export async function getLearnedPlaceMatchForInput(input: {
+  rawText?: string | null;
+  locationQuery?: string | null;
+  daysBack?: number;
+  futureDays?: number;
+}): Promise<LearnedPlaceMatch | null> {
+  const rawText = String(input.rawText ?? "").trim();
+  const locationQuery = String(input.locationQuery ?? "").trim();
+
+  if (!rawText && !locationQuery) return null;
+
+  const now = new Date();
+  const start = new Date(now);
+  start.setDate(start.getDate() - clampDaysBack(input.daysBack ?? 365));
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(now);
+  end.setDate(end.getDate() + clampFutureDays(input.futureDays ?? 365));
+  end.setHours(23, 59, 59, 999);
+
+  const events = await getMyEventsInRange(start.toISOString(), end.toISOString());
+  return findLearnedPlaceMatch({
+    rawText,
+    locationQuery,
+    events,
+  });
+}

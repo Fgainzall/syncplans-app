@@ -33,7 +33,10 @@ import {
 } from "@/lib/conflicts";
 import supabase from "@/lib/supabaseClient";
 import { getSettingsFromDb, type NotificationSettings } from "@/lib/settings";
-import { getLearningSignals } from "@/lib/learningSignals";
+import {
+  getLearnedPlaceMatchForInput,
+  getLearningSignals,
+} from "@/lib/learningSignals";
 import type { LearningSignal } from "@/lib/learningTypes";
 // ✅ DB real (RLS)
 import {
@@ -556,6 +559,13 @@ function NewEventDetailsInner() {
   const originLatParam = sp.get("originLat");
   const originLngParam = sp.get("originLng");
   const locationQueryParam = sp.get("location_query");
+  const locationLabelParam = sp.get("location_label");
+  const locationAddressParam = sp.get("location_address");
+  const locationLatParam = sp.get("location_lat");
+  const locationLngParam = sp.get("location_lng");
+  const locationProviderParam = sp.get("location_provider");
+  const locationPlaceIdParam = sp.get("location_place_id");
+  const locationMemoryParam = sp.get("location_memory");
   const proposalEventIdParam =
     sp.get("proposal_event_id") || sp.get("proposalEventId") || "";
 
@@ -784,10 +794,112 @@ function NewEventDetailsInner() {
     if (isEditing) return;
 
     const incoming = String(locationQueryParam ?? "").trim();
+    const learnedLabel = String(locationLabelParam ?? "").trim();
+    const learnedAddress = String(locationAddressParam ?? "").trim();
+    const learnedLat = Number(locationLatParam);
+    const learnedLng = Number(locationLngParam);
+    const hasLearnedPlace =
+      Number.isFinite(learnedLat) &&
+      Number.isFinite(learnedLng) &&
+      Math.abs(learnedLat) <= 90 &&
+      Math.abs(learnedLng) <= 180 &&
+      Boolean(learnedLabel || learnedAddress);
+
+    if (hasLearnedPlace) {
+      const nextLabel = learnedLabel || incoming || learnedAddress;
+      setLocationInput((current) => (current.trim() ? current : nextLabel));
+      setSelectedPlace((current) =>
+        current
+          ? current
+          : {
+              location_label: nextLabel,
+              location_address: learnedAddress || nextLabel,
+              location_lat: learnedLat,
+              location_lng: learnedLng,
+              location_provider:
+                locationProviderParam === "google" ? "google" : "google",
+              location_place_id: String(locationPlaceIdParam ?? "").trim(),
+            },
+      );
+      return;
+    }
+
     if (!incoming) return;
 
     setLocationInput((current) => (current.trim() ? current : incoming));
-  }, [locationQueryParam, isEditing]);
+  }, [
+    locationQueryParam,
+    locationLabelParam,
+    locationAddressParam,
+    locationLatParam,
+    locationLngParam,
+    locationProviderParam,
+    locationPlaceIdParam,
+    isEditing,
+  ]);
+
+
+  useEffect(() => {
+    if (isEditing) return;
+    if (selectedPlace) return;
+    if (locationMemoryParam === "1") return;
+
+    const raw = String(rawTextParam || quickCaptureTitleParam || title || "").trim();
+    const locationQuery = String(locationQueryParam || locationInput || "").trim();
+
+    if (!raw && !locationQuery) return;
+    if (`${raw} ${locationQuery}`.trim().length < 4) return;
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const learnedPlace = await getLearnedPlaceMatchForInput({
+            rawText: raw,
+            locationQuery,
+            daysBack: 365,
+            futureDays: 365,
+          });
+
+          if (cancelled || !learnedPlace) return;
+
+          setLocationInput((current) =>
+            current.trim() && current.trim() !== locationQuery
+              ? current
+              : learnedPlace.locationLabel,
+          );
+          setSelectedPlace((current) =>
+            current
+              ? current
+              : {
+                  location_label: learnedPlace.locationLabel,
+                  location_address: learnedPlace.locationAddress,
+                  location_lat: learnedPlace.locationLat,
+                  location_lng: learnedPlace.locationLng,
+                  location_provider: learnedPlace.locationProvider,
+                  location_place_id: learnedPlace.locationPlaceId ?? "",
+                },
+          );
+        } catch {
+          // La memoria de lugares no debe bloquear la creación del evento.
+        }
+      })();
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    isEditing,
+    selectedPlace,
+    locationMemoryParam,
+    rawTextParam,
+    quickCaptureTitleParam,
+    title,
+    locationQueryParam,
+    locationInput,
+  ]);
   const startDate = useMemo(() => fromInputLocal(startLocal), [startLocal]);
   const endDate = useMemo(() => fromInputLocal(endLocal), [endLocal]);
   const leaveTimePreview = useMemo(() => {
@@ -887,6 +999,14 @@ function NewEventDetailsInner() {
     if (rawTextParam) params.set("raw_text", rawTextParam);
     if (originLatParam) params.set("originLat", originLatParam);
     if (originLngParam) params.set("originLng", originLngParam);
+    if (locationQueryParam) params.set("location_query", locationQueryParam);
+    if (locationLabelParam) params.set("location_label", locationLabelParam);
+    if (locationAddressParam) params.set("location_address", locationAddressParam);
+    if (locationLatParam) params.set("location_lat", locationLatParam);
+    if (locationLngParam) params.set("location_lng", locationLngParam);
+    if (locationProviderParam) params.set("location_provider", locationProviderParam);
+    if (locationPlaceIdParam) params.set("location_place_id", locationPlaceIdParam);
+    if (locationMemoryParam) params.set("location_memory", locationMemoryParam);
 
     if (intentParam) params.set("intent", intentParam);
     if (proposalParam) params.set("proposal", proposalParam);
@@ -906,6 +1026,14 @@ function NewEventDetailsInner() {
   isEditing,
   originLatParam,
   originLngParam,
+  locationQueryParam,
+  locationLabelParam,
+  locationAddressParam,
+  locationLatParam,
+  locationLngParam,
+  locationProviderParam,
+  locationPlaceIdParam,
+  locationMemoryParam,
   proposalEventIdParam,
   proposalParam,
   proposalResponseParam,
@@ -1681,6 +1809,9 @@ useEffect(() => {
     if (quickCaptureReview?.hasIssues) {
       recommendations.push("Revisa los campos marcados antes de guardar.");
     }
+    if (locationMemoryParam === "1" && selectedPlace) {
+      recommendations.push("Usé una ubicación que ya habías guardado antes. Revísala antes de confirmar.");
+    }
     if (shouldPromptLocation) {
       recommendations.push("Agrega ubicación para calcular salida y ruta.");
     }
@@ -1715,6 +1846,7 @@ useEffect(() => {
     isFirstWowMomentFlow,
     isSharedProposal,
     proposalResponse,
+    locationMemoryParam,
   ]);
 
   const learningInput = useMemo(() => {
