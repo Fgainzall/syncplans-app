@@ -11,8 +11,11 @@ import { getMyProfile, type Profile } from "@/lib/profilesDb";
 import {
   FREE_GROUP_LIMIT,
   getPlanAccessState,
+  getPremiumContextCopy,
+  normalizePremiumContextKey,
   type PlanAccessState,
   type PlanCardId,
+  type PremiumContextKey,
 } from "@/lib/premium";
 import { trackEvent, trackScreenView } from "@/lib/analytics";
 
@@ -289,6 +292,8 @@ export default function PlanesPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [interestPlanId, setInterestPlanId] = useState<PlanCardId | null>(null);
+  const [entryContext, setEntryContext] = useState<PremiumContextKey | null>(null);
+  const [entryContextLoaded, setEntryContextLoaded] = useState(false);
   const isCompact = useIsCompactWidth();
 
   useEffect(() => {
@@ -314,17 +319,36 @@ export default function PlanesPage() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    setEntryContext(normalizePremiumContextKey(params.get("context")));
+    setEntryContextLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!entryContextLoaded) return;
+
     void trackScreenView({ screen: "planes", metadata: { area: "premium" } });
     void trackEvent({
       event: "premium_viewed",
-      metadata: { screen: "planes", area: "premium", placement: "plans_page" },
+      metadata: {
+        screen: "planes",
+        area: "premium",
+        placement: "plans_page",
+        context: entryContext ?? "direct",
+      },
     });
-  }, []);
+  }, [entryContext, entryContextLoaded]);
 
   const cards = useMemo(() => buildPlanCards(), []);
   const planState = useMemo(() => getPlanAccessState(profile), [profile]);
   const whyPayBullets = useMemo(() => getWhyPayBullets(planState), [planState]);
   const outcomeCards = useMemo(() => getOutcomeCards(planState), [planState]);
+  const entryContextCopy = useMemo(
+    () => (entryContext ? getPremiumContextCopy(entryContext) : null),
+    [entryContext]
+  );
 
   async function handlePlanClick(
     card: PlanCardConfig,
@@ -408,6 +432,26 @@ export default function PlanesPage() {
             ))}
           </div>
         </section>
+
+        {entryContextCopy ? (
+          <section style={styles.contextCard}>
+            <div style={styles.contextBadge}>{entryContextCopy.label}</div>
+            <div style={styles.contextCopyWrap}>
+              <h2 style={styles.contextTitle}>{entryContextCopy.title}</h2>
+              <p style={styles.contextText}>{entryContextCopy.copy}</p>
+            </div>
+            <div style={styles.contextProofGrid}>
+              <div style={styles.contextProofItem}>
+                <span style={styles.contextProofLabel}>Resultado</span>
+                <strong style={styles.contextProofValue}>{entryContextCopy.outcome}</strong>
+              </div>
+              <div style={styles.contextProofItem}>
+                <span style={styles.contextProofLabel}>Señal de producto</span>
+                <strong style={styles.contextProofValue}>{entryContextCopy.proof}</strong>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section style={styles.planStateCard}>
           <div
@@ -705,6 +749,72 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 13,
     lineHeight: 1.55,
     color: "rgba(255,255,255,0.92)",
+  },
+  contextCard: {
+    borderRadius: 24,
+    border: "1px solid rgba(216,180,254,0.20)",
+    background:
+      "radial-gradient(circle at 0% 0%, rgba(168,85,247,0.18), transparent 36%), rgba(15,23,42,0.94)",
+    boxShadow: "0 18px 60px rgba(76,29,149,0.20)",
+    padding: "18px",
+    display: "grid",
+    gap: 14,
+  },
+  contextBadge: {
+    width: "fit-content",
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(216,180,254,0.28)",
+    background: "rgba(168,85,247,0.14)",
+    fontSize: 11,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(250,245,255,0.94)",
+  },
+  contextCopyWrap: {
+    display: "grid",
+    gap: 8,
+  },
+  contextTitle: {
+    margin: 0,
+    fontSize: 21,
+    lineHeight: 1.12,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  contextText: {
+    margin: 0,
+    fontSize: 13,
+    lineHeight: 1.58,
+    color: "rgba(233,213,255,0.84)",
+  },
+  contextProofGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+    gap: 10,
+  },
+  contextProofItem: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.045)",
+    padding: "12px",
+    display: "grid",
+    gap: 5,
+  },
+  contextProofLabel: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(216,180,254,0.82)",
+  },
+  contextProofValue: {
+    fontSize: 13,
+    lineHeight: 1.45,
+    fontWeight: 850,
+    color: "rgba(255,255,255,0.94)",
   },
   planStateCard: {
     borderRadius: 24,

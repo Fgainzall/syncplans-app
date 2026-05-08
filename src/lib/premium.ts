@@ -280,6 +280,111 @@ export function canUseUnlimitedGroups(
   return hasPremiumAccess(profile);
 }
 
+
+export type PremiumContextKey =
+  | "conflicts"
+  | "shared_coordination"
+  | "smart_mobility"
+  | "weekly_density"
+  | "groups"
+  | "google_calendar";
+
+export type PremiumContextCopy = {
+  key: PremiumContextKey;
+  label: string;
+  title: string;
+  copy: string;
+  outcome: string;
+  proof: string;
+};
+
+export function normalizePremiumContextKey(
+  value?: string | null
+): PremiumContextKey | null {
+  const normalized = normalizeText(value);
+
+  if (
+    normalized === "conflicts" ||
+    normalized === "shared_coordination" ||
+    normalized === "smart_mobility" ||
+    normalized === "weekly_density" ||
+    normalized === "groups" ||
+    normalized === "google_calendar"
+  ) {
+    return normalized;
+  }
+
+  return null;
+}
+
+export function getPremiumContextCopy(
+  key?: PremiumContextKey | null
+): PremiumContextCopy {
+  switch (key) {
+    case "conflicts":
+      return {
+        key,
+        label: "Decisiones compartidas",
+        title: "Premium tiene sentido cuando los conflictos ya te ahorran discusiones",
+        copy:
+          "No pagas por otro calendario. Pagas por resolver mejor los momentos donde dos planes compiten por el mismo tiempo y todos necesitan una sola versión clara.",
+        outcome: "Menos ida y vuelta cuando hay que decidir qué queda.",
+        proof: "Conflictos detectados, comparación clara y decisión visible para todos.",
+      };
+    case "shared_coordination":
+      return {
+        key,
+        label: "Coordinación compartida",
+        title: "Premium aparece cuando coordinar con otros ya dejó de ser ocasional",
+        copy:
+          "Cuando hay grupos, invitaciones, propuestas y respuestas, el valor premium es mantener contexto y decisiones dentro de SyncPlans en vez de perseguirlas por chat.",
+        outcome: "Más claridad compartida sin reconstruir la historia cada vez.",
+        proof: "Grupos, respuestas, invitaciones y próximos planes en el mismo lugar.",
+      };
+    case "smart_mobility":
+      return {
+        key,
+        label: "Llegar a tiempo",
+        title: "Premium se vuelve natural cuando la app también te ayuda a moverte",
+        copy:
+          "Smart Mobility no debería ser un adorno. Tiene valor cuando SyncPlans entiende el plan, mira ubicación y te acerca a la acción correcta: salir a tiempo.",
+        outcome: "Menos planes que empiezan tarde por falta de contexto.",
+        proof: "Ubicación, ruta y momento de salida conectados al plan real.",
+      };
+    case "groups":
+      return {
+        key,
+        label: "Más espacios",
+        title: "Premium tiene lógica cuando tu coordinación ya no cabe en un solo grupo",
+        copy:
+          "Free debe activar el hábito. Premium entra cuando quieres manejar pareja, familia y otros espacios sin mezclar contexto ni perder claridad.",
+        outcome: "Cada relación con su propio contexto y menos ruido cruzado.",
+        proof: "Más grupos y lectura más clara de cada espacio compartido.",
+      };
+    case "google_calendar":
+      return {
+        key,
+        label: "Contexto externo",
+        title: "Premium vale más cuando SyncPlans se conecta con la agenda que ya usas",
+        copy:
+          "La integración no es para duplicar eventos. Es para que las decisiones compartidas consideren mejor tu contexto real antes de crear choques.",
+        outcome: "Menos sorpresas porque el sistema ve más contexto antes de decidir.",
+        proof: "Agenda externa como señal para coordinar mejor dentro de SyncPlans.",
+      };
+    case "weekly_density":
+    default:
+      return {
+        key: "weekly_density",
+        label: "Uso real",
+        title: "Premium debería aparecer cuando SyncPlans ya se volvió parte de tu semana",
+        copy:
+          "Si ya estás capturando planes, revisando próximos eventos y cerrando decisiones, Premium no es más decoración: es más contexto y menos desgaste sobre un hábito real.",
+        outcome: "Más control cuando la coordinación empieza a repetirse cada semana.",
+        proof: "Uso frecuente, próximos planes y coordinación activa en una sola capa.",
+      };
+  }
+}
+
 export type GroupLimitState = {
   limit: number | null;
   used: number;

@@ -31,7 +31,11 @@ import { buildLearnedTimeProfile } from "@/lib/learningProfile";
 import type { LearnedTimeProfile } from "@/lib/learningTypes";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
 import { trackEvent, trackScreenView } from "@/lib/analytics";
-import { hasPremiumAccess } from "@/lib/premium";
+import {
+  getPremiumContextCopy,
+  hasPremiumAccess,
+  type PremiumContextKey,
+} from "@/lib/premium";
 import {
   computeVisibleConflicts,
   filterIgnoredConflicts,
@@ -98,7 +102,7 @@ type QuickAction = {
 };
 
 type PremiumNudge = {
-  context: string;
+  context: PremiumContextKey;
   eyebrow: string;
   title: string;
   subtitle: string;
@@ -403,6 +407,37 @@ function FocusRail({
       <button type="button" onClick={onClick} style={styles.focusRailBtn}>
         {cta}
       </button>
+    </Card>
+  );
+}
+
+
+function PremiumContextRail({
+  nudge,
+  onPrimary,
+}: {
+  nudge: PremiumNudge;
+  onPrimary: () => void;
+}) {
+  const context = getPremiumContextCopy(nudge.context);
+
+  return (
+    <Card style={styles.premiumRail}>
+      <div style={styles.railCopy}>
+        <div style={styles.premiumRailEyebrow}>{nudge.eyebrow}</div>
+        <div style={styles.railTitle}>{context.title}</div>
+        <div style={styles.premiumRailSub}>{context.copy}</div>
+        <div style={styles.premiumRailProof}>
+          <span style={styles.premiumRailProofLabel}>{context.label}</span>
+          <span>{context.outcome}</span>
+        </div>
+      </div>
+
+      <div style={styles.railActions}>
+        <button type="button" onClick={onPrimary} style={styles.premiumRailPrimary}>
+          {nudge.primaryLabel}
+        </button>
+      </div>
     </Card>
   );
 }
@@ -1598,11 +1633,23 @@ if (parsed.locationQuery) {
     if (groups.length > 0 && (upcomingStats.group > 0 || pendingInviteCount > 0)) {
       return {
         context: "shared_coordination",
-        eyebrow: "Hazlo más compartido",
+        eyebrow: "Premium en contexto",
         title: "Cuando ya coordinas con otros, Premium se vuelve más lógico",
         subtitle:
           "La versión gratis ya te mostró valor. Premium empuja más claridad entre personas, mejor lectura del contexto y menos fricción cuando la agenda compartida empieza a crecer.",
         primaryLabel: "Explorar Premium",
+        secondaryLabel: "Seguir así por ahora",
+      };
+    }
+
+    if (smartMobility.reason === "ready" && smartMobility.eventId) {
+      return {
+        context: "smart_mobility",
+        eyebrow: "Premium en contexto",
+        title: "Cuando el plan ya tiene ruta, Premium se vuelve más tangible",
+        subtitle:
+          "El valor no es otro botón de mapa. Es que SyncPlans conecte plan, lugar y salida para evitar llegar tarde por falta de contexto.",
+        primaryLabel: "Ver Premium",
         secondaryLabel: "Seguir así por ahora",
       };
     }
@@ -1628,6 +1675,8 @@ if (parsed.locationQuery) {
     upcomingStats.group,
     upcomingStats.total,
     pendingInviteCount,
+    smartMobility.reason,
+    smartMobility.eventId,
     valueMoments.hasValue,
   ]);
 
@@ -2268,6 +2317,24 @@ if (parsed.locationQuery) {
 
   const shouldShowSummaryHero = !(showInviteNudge && !hasUrgentSummaryState);
 
+  const openPremiumFromSummary = useCallback(
+    (context: PremiumContextKey) => {
+      void trackEvent({
+        event: "premium_cta_clicked",
+        userId: currentUserId,
+        entityId: activeGroupId ? String(activeGroupId) : null,
+        metadata: {
+          ...summaryAnalyticsBase,
+          placement: "summary",
+          context,
+        },
+      });
+
+      router.push(`/planes?source=summary&context=${context}`);
+    },
+    [activeGroupId, currentUserId, router, summaryAnalyticsBase]
+  );
+
   return (
   <div style={styles.page} className="spSum-page">
     <LocationPermissionPrompt />
@@ -2351,6 +2418,13 @@ if (parsed.locationQuery) {
               : (date: Date) => navigateFromSuggestedSlot(quickCaptureValue, date)
           }
         />
+
+        {premiumNudge ? (
+          <PremiumContextRail
+            nudge={premiumNudge}
+            onPrimary={() => openPremiumFromSummary(premiumNudge.context)}
+          />
+        ) : null}
 
         <UpcomingSection
           booting={booting}
@@ -2886,6 +2960,27 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 13,
     fontWeight: 900,
     cursor: "pointer",
+  },
+  premiumRailProof: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(233,213,255,0.76)",
+    fontWeight: 750,
+  },
+  premiumRailProofLabel: {
+    padding: "4px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(216,180,254,0.24)",
+    background: "rgba(168,85,247,0.16)",
+    color: "rgba(250,245,255,0.94)",
+    fontSize: 11,
+    fontWeight: 900,
+    whiteSpace: "nowrap",
   },
   valueRail: {
     display: "flex",
