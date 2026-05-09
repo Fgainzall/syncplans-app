@@ -673,34 +673,69 @@ const returnPressure = useMemo(() => {
           <span style={styles.conflictStep}>3. Aplicar</span>
         </div>
 
-        <section style={styles.hero}>
+        <section
+          style={{
+            ...styles.hero,
+            ...(isMobile ? styles.heroMobile : null),
+          }}
+        >
           <div style={styles.heroLeft}>
             <div style={styles.kicker}>Paso 1 de 3 · Detectar</div>
-            <h1 style={styles.h1}>
+            <h1
+              style={{
+                ...styles.h1,
+                ...(isMobile ? styles.h1Mobile : null),
+              }}
+            >
               {summary.pending === 0
                 ? "Todo claro por ahora"
                 : "Choques por decidir"}
             </h1>
-            <div style={styles.sub}>
+            <div
+              style={{
+                ...styles.sub,
+                ...(isMobile ? styles.subMobile : null),
+              }}
+            >
               {summary.pending === 0
-                ? "No encontramos choques pendientes visibles para este contexto."
+                ? "No encontramos choques pendientes visibles para este contexto. Tu agenda está limpia y puedes volver al calendario sin tomar ninguna decisión."
                 : `Detectamos ${summary.pending} conflicto${summary.pending === 1 ? "" : "s"} pendiente${summary.pending === 1 ? "" : "s"}. Elige uno y SyncPlans te llevará a una decisión concreta: conservar, reemplazar o mantener ambos.`}
             </div>
           </div>
 
-          <div style={styles.heroRight}>
+          <div
+            style={{
+              ...styles.heroRight,
+              ...(isMobile ? styles.heroRightMobile : null),
+            }}
+          >
             {summary.pending > 0 ? (
-              <button onClick={resumeNext} style={styles.primaryBtn}>
+              <button
+                onClick={resumeNext}
+                style={{
+                  ...styles.primaryBtn,
+                  ...(isMobile ? styles.fullWidthBtn : null),
+                }}
+              >
                 Decidir el primero
               </button>
             ) : isFocusedView ? (
-              <button onClick={openFocusedCompare} style={styles.primaryBtn}>
+              <button
+                onClick={openFocusedCompare}
+                style={{
+                  ...styles.primaryBtn,
+                  ...(isMobile ? styles.fullWidthBtn : null),
+                }}
+              >
                 Revisar este conflicto
               </button>
             ) : (
               <button
                 onClick={() => router.push("/calendar")}
-                style={styles.secondaryBtn}
+                style={{
+                  ...styles.secondaryBtn,
+                  ...(isMobile ? styles.fullWidthBtn : null),
+                }}
               >
                 Ir al calendario
               </button>
@@ -789,11 +824,22 @@ const returnPressure = useMemo(() => {
         ) : null}
 
         <section style={styles.listCard}>
-          <div style={styles.listTop}>
+          <div
+            style={{
+              ...styles.listTop,
+              ...(isMobile ? styles.listTopMobile : null),
+            }}
+          >
             <div>
-              <div style={styles.listTitle}>Choques que necesitan decisión</div>
+              <div style={styles.listTitle}>
+                {summary.pending === 0 && summary.decided === 0
+                  ? "Sin decisiones pendientes"
+                  : "Choques que necesitan decisión"}
+              </div>
               <div style={styles.listSub}>
-                Cada tarjeta termina en una decisión simple: conservar uno, reemplazarlo o mantener ambos.
+                {summary.pending === 0 && summary.decided === 0
+                  ? "Cuando aparezca un choque real, SyncPlans lo pondrá aquí con una decisión clara."
+                  : "Cada tarjeta termina en una decisión simple: conservar uno, reemplazarlo o mantener ambos."}
               </div>
             </div>
 
@@ -916,6 +962,28 @@ const styles: Record<string, React.CSSProperties> = {
     display: "grid",
     gap: 16,
   },
+  conflictStepper: {
+    marginTop: 16,
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  conflictStep: {
+    borderRadius: 999,
+    padding: "7px 11px",
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(235,241,255,0.72)",
+    fontSize: 12,
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+  },
+  conflictStepActive: {
+    border: "1px solid rgba(96,165,250,0.34)",
+    background: "rgba(96,165,250,0.14)",
+    color: "#EFF6FF",
+  },
   hero: {
     marginTop: 16,
     borderRadius: 26,
@@ -929,6 +997,11 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 18,
     alignItems: "center",
   },
+  heroMobile: {
+    gridTemplateColumns: "1fr",
+    padding: 18,
+    gap: 16,
+  },
   heroLeft: {
     display: "grid",
     gap: 8,
@@ -937,6 +1010,10 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "flex-end",
+  },
+  heroRightMobile: {
+    width: "100%",
+    justifyContent: "stretch",
   },
   kicker: {
     fontSize: 12,
@@ -952,10 +1029,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     letterSpacing: "-0.03em",
   },
+  h1Mobile: {
+    fontSize: 30,
+    lineHeight: 1.08,
+  },
   sub: {
     fontSize: 15,
     lineHeight: 1.6,
     color: "rgba(235,241,255,0.74)",
+  },
+  subMobile: {
+    fontSize: 14,
+    lineHeight: 1.55,
   },
   primaryBtn: {
     borderRadius: 16,
@@ -978,6 +1063,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     fontWeight: 800,
     cursor: "pointer",
+  },
+  fullWidthBtn: {
+    width: "100%",
+    justifyContent: "center",
+    textAlign: "center",
   },
   returnCard: {
     marginTop: 16,
@@ -1108,6 +1198,9 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 16,
     flexWrap: "wrap",
   },
+  listTopMobile: {
+    alignItems: "stretch",
+  },
   listTitle: {
     fontSize: 18,
     fontWeight: 900,
@@ -1194,6 +1287,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 24,
     display: "grid",
     gap: 8,
+    borderTop: "1px solid rgba(255,255,255,0.07)",
   },
   emptyTitle: {
     fontSize: 20,

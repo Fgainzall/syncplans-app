@@ -1551,6 +1551,7 @@ const valueVisibility = useMemo(() => {
                       groupTypeById={groupTypeById}
                       currentUserId={currentUserId}
                       trustSignal={trustSignals[String(e.id)]}
+                      isMobile={isMobile}
                       proposalResponsesMap={proposalResponsesMap}
                       inConflict={conflictEventIdsInGrid.has(String(e.id))}
                     />
@@ -2551,6 +2552,7 @@ eventMetaPills: {
   gap: 8,
   minWidth: 0,
   flexWrap: "wrap",
+  flex: "1 1 auto",
 },
 eventActionGroup: {
   display: "inline-flex",
@@ -2574,6 +2576,11 @@ eventTitle: {
     opacity: 0.9,
     color: "rgba(191,219,254,0.78)",
     fontWeight: 750,
+    minWidth: 0,
+    maxWidth: "100%",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
 eventTag: {
   display: "inline-flex",
@@ -3117,13 +3124,14 @@ overviewMetaRowMobile: {
     justifyContent: "space-between",
     alignItems: "center",
     paddingTop: 2,
+    minWidth: 0,
   },
   eventTagMobile: {
-    maxWidth: 112,
+    maxWidth: 120,
     padding: "6px 9px",
   },
   eventTrustBadgeMobile: {
-    maxWidth: 126,
+    maxWidth: 138,
     padding: "6px 9px",
     overflow: "hidden",
     textOverflow: "ellipsis",
