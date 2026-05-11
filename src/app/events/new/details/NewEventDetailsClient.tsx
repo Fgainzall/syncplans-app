@@ -220,6 +220,13 @@ type SelectedPlace = {
   location_place_id: string;
 };
 
+type LearnedPlaceNotice = {
+  alias: string;
+  locationLabel: string;
+  locationAddress: string;
+  source: "summary" | "history";
+};
+
 type SavePayload = {
   groupType: GroupType;
   groupId: string | null;
@@ -620,6 +627,8 @@ function NewEventDetailsInner() {
   const [selectedPlace, setSelectedPlace] = useState<SelectedPlace | null>(
     null,
   );
+  const [learnedPlaceNotice, setLearnedPlaceNotice] =
+    useState<LearnedPlaceNotice | null>(null);
   const [travelMode, setTravelMode] = useState<UiTravelMode>("driving");
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
   const [isLoadingEta, setIsLoadingEta] = useState(false);
@@ -807,6 +816,12 @@ function NewEventDetailsInner() {
 
     if (hasLearnedPlace) {
       const nextLabel = learnedLabel || incoming || learnedAddress;
+      setLearnedPlaceNotice({
+        alias: incoming || nextLabel,
+        locationLabel: nextLabel,
+        locationAddress: learnedAddress || nextLabel,
+        source: "summary",
+      });
       setLocationInput((current) => (current.trim() ? current : nextLabel));
       setSelectedPlace((current) =>
         current
@@ -862,6 +877,13 @@ function NewEventDetailsInner() {
           });
 
           if (cancelled || !learnedPlace) return;
+
+          setLearnedPlaceNotice({
+            alias: learnedPlace.alias,
+            locationLabel: learnedPlace.locationLabel,
+            locationAddress: learnedPlace.locationAddress,
+            source: "history",
+          });
 
           setLocationInput((current) =>
             current.trim() && current.trim() !== locationQuery
@@ -1809,8 +1831,10 @@ useEffect(() => {
     if (quickCaptureReview?.hasIssues) {
       recommendations.push("Revisa los campos marcados antes de guardar.");
     }
-    if (locationMemoryParam === "1" && selectedPlace) {
-      recommendations.push("Usé una ubicación que ya habías guardado antes. Revísala antes de confirmar.");
+    if (learnedPlaceNotice && selectedPlace) {
+      recommendations.push(
+        `Recordé “${learnedPlaceNotice.alias}” y cargué ${learnedPlaceNotice.locationAddress || learnedPlaceNotice.locationLabel}. Cámbiala si no corresponde.`,
+      );
     }
     if (shouldPromptLocation) {
       recommendations.push("Agrega ubicación para calcular salida y ruta.");
@@ -1846,7 +1870,7 @@ useEffect(() => {
     isFirstWowMomentFlow,
     isSharedProposal,
     proposalResponse,
-    locationMemoryParam,
+    learnedPlaceNotice,
   ]);
 
   const learningInput = useMemo(() => {
@@ -2608,6 +2632,7 @@ useEffect(() => {
     };
 
     setSelectedPlace(normalized);
+    setLearnedPlaceNotice(null);
     setLocationInput(normalized.location_label);
     setAutocompleteResults([]);
     setAutocompleteError(null);
@@ -2618,6 +2643,7 @@ useEffect(() => {
 
   const clearSelectedPlace = () => {
     setSelectedPlace(null);
+    setLearnedPlaceNotice(null);
     setLocationInput("");
     setAutocompleteResults([]);
     setAutocompleteError(null);
@@ -3317,6 +3343,7 @@ useEffect(() => {
                         selectedPlace.location_label.trim().toLowerCase()
                     ) {
                       setSelectedPlace(null);
+                      setLearnedPlaceNotice(null);
                       setEtaSeconds(null);
                     }
                   }}
@@ -3382,6 +3409,39 @@ useEffect(() => {
                   </div>
                   <div style={styles.locationSelectedSub}>
                     {selectedPlace.location_address}
+                  </div>
+                </div>
+              ) : null}
+
+              {learnedPlaceNotice && selectedPlace ? (
+                <div style={styles.placeMemoryConfirmBox}>
+                  <div style={styles.placeMemoryEyebrow}>Ubicación recordada</div>
+                  <div style={styles.placeMemoryTitle}>
+                    Recordé “{learnedPlaceNotice.alias}”
+                  </div>
+                  <div style={styles.placeMemoryCopy}>
+                    Usé {learnedPlaceNotice.locationAddress || learnedPlaceNotice.locationLabel}.
+                    Si no corresponde, cámbiala antes de guardar.
+                  </div>
+                  <div style={styles.placeMemoryActions}>
+                    <button
+                      type="button"
+                      style={styles.placeMemoryUseButton}
+                      onClick={() => {
+                        setLocationInput(selectedPlace.location_label);
+                        setAutocompleteResults([]);
+                        setAutocompleteError(null);
+                      }}
+                    >
+                      Usar esta dirección
+                    </button>
+                    <button
+                      type="button"
+                      style={styles.placeMemoryChangeButton}
+                      onClick={clearSelectedPlace}
+                    >
+                      Cambiar ubicación
+                    </button>
                   </div>
                 </div>
               ) : null}
@@ -4372,6 +4432,61 @@ const styles: Record<string, React.CSSProperties> = {
   locationSelectedSub: {
     fontSize: 12,
     opacity: 0.82,
+  },
+  placeMemoryConfirmBox: {
+    marginTop: 10,
+    borderRadius: 18,
+    border: "1px solid rgba(52,211,153,0.24)",
+    background: "linear-gradient(135deg, rgba(6,78,59,0.24), rgba(15,118,110,0.12))",
+    padding: "11px 12px",
+    display: "grid",
+    gap: 6,
+  },
+  placeMemoryEyebrow: {
+    fontSize: 10,
+    fontWeight: 950,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: "rgba(167,243,208,0.86)",
+  },
+  placeMemoryTitle: {
+    fontSize: 14,
+    fontWeight: 950,
+    color: "rgba(236,253,245,0.98)",
+    lineHeight: 1.3,
+  },
+  placeMemoryCopy: {
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: "rgba(209,250,229,0.90)",
+  },
+  placeMemoryActions: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    marginTop: 2,
+  },
+  placeMemoryUseButton: {
+    minHeight: 34,
+    padding: "0 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(52,211,153,0.24)",
+    background: "rgba(16,185,129,0.14)",
+    color: "rgba(236,253,245,0.96)",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  placeMemoryChangeButton: {
+    minHeight: 34,
+    padding: "0 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.20)",
+    background: "rgba(15,23,42,0.62)",
+    color: "rgba(226,232,240,0.94)",
+    fontSize: 12,
+    fontWeight: 850,
+    cursor: "pointer",
   },
   travelMetaCard: {
     borderRadius: 16,

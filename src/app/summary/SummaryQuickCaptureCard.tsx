@@ -15,6 +15,11 @@ export type CaptureIntelligence = {
   missing: string[];
   risks: string[];
   recommendation: string | null;
+  placeMemory?: {
+    alias: string;
+    locationLabel: string;
+    locationAddress: string;
+  } | null;
 };
 
 type TimeSuggestion = {
@@ -221,6 +226,19 @@ export default function SummaryQuickCaptureCard({
               {intelligence && intelligence.risks.length > 0 ? (
                 <div style={s.riskBlock}>
                   <strong>Ojo:</strong> {intelligence.risks.slice(0, 2).join(" ")}
+                </div>
+              ) : null}
+
+              {intelligence?.placeMemory ? (
+                <div style={s.placeMemoryBlock}>
+                  <div style={s.placeMemoryEyebrow}>Ubicación recordada</div>
+                  <div style={s.placeMemoryTitle}>
+                    Recordé “{intelligence.placeMemory.alias}”
+                  </div>
+                  <div style={s.placeMemoryText}>
+                    Usaré {intelligence.placeMemory.locationAddress || intelligence.placeMemory.locationLabel}.
+                    Podrás cambiarla antes de guardar.
+                  </div>
                 </div>
               ) : null}
 
@@ -643,6 +661,32 @@ const s: Record<string, CSSProperties> = {
     color: "rgba(219,234,254,0.96)",
     fontSize: 12,
     lineHeight: 1.45,
+  },
+  placeMemoryBlock: {
+    borderRadius: 16,
+    border: "1px solid rgba(52,211,153,0.22)",
+    background: "linear-gradient(135deg, rgba(6,78,59,0.30), rgba(15,118,110,0.14))",
+    padding: "10px 11px",
+    display: "grid",
+    gap: 3,
+  },
+  placeMemoryEyebrow: {
+    fontSize: 10,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(167,243,208,0.82)",
+  },
+  placeMemoryTitle: {
+    fontSize: 13,
+    fontWeight: 950,
+    color: "rgba(236,253,245,0.98)",
+    lineHeight: 1.3,
+  },
+  placeMemoryText: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(209,250,229,0.90)",
   },
   suggestionsBlock: {
     display: "grid",

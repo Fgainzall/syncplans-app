@@ -1185,6 +1185,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       missing: Array.from(new Set(missing)),
       risks,
       recommendation,
+      placeMemory: learnedPlace
+        ? {
+            alias: learnedPlace.alias,
+            locationLabel: learnedPlace.locationLabel,
+            locationAddress: learnedPlace.locationAddress,
+          }
+        : null,
     };
   }, [
     quickCaptureValue,
