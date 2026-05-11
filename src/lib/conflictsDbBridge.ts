@@ -3,7 +3,11 @@
 
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { normalizeGroupType as normalizeCanonicalGroupType } from "@/lib/naming";
-import { getMyEvents, getMyEventsInRange, type DbEventRow } from "@/lib/eventsDb";
+import {
+  getEventsForGroupsInRange,
+  getMyEvents,
+  type DbEventRow,
+} from "@/lib/eventsDb";
 import {
   normalizeEventGroupType,
   type CalendarEvent,
@@ -150,22 +154,31 @@ export async function loadEventsFromDb(
   const endIso = opts.endIso ? String(opts.endIso).trim() : "";
   const hasRange = Boolean(startIso && endIso);
 
-  const rowsPromise = hasRange
-    ? getMyEventsInRange(startIso, endIso)
-    : getMyEvents();
-
-  const [groups, rows] = await Promise.all([getMyGroups(), rowsPromise]);
+  const groups = await getMyGroups();
 
   const validGroups = Array.isArray(groups) ? groups : [];
-  const validRows = Array.isArray(rows) ? rows : [];
-
-  const groupTypeMap = buildGroupTypeMap(validGroups);
 
   const activeGroupId =
     requestedGroupId &&
     validGroups.some((g) => String(g.id) === requestedGroupId)
       ? requestedGroupId
       : null;
+
+  const groupIdsForQuery = activeGroupId
+    ? [activeGroupId]
+    : validGroups.map((g) => String(g.id)).filter(Boolean);
+
+  // Importante: /calendar ya lee con esta semántica exacta
+  // (personal + grupos visibles). /conflicts/detected debe usar la misma
+  // fuente para no decir “todo claro” cuando el calendario sí muestra
+  // un cruce entre Personal y Pareja/Familia/Compartido.
+  const rows = hasRange
+    ? await getEventsForGroupsInRange(groupIdsForQuery, startIso, endIso)
+    : await getMyEvents();
+
+  const validRows = Array.isArray(rows) ? rows : [];
+
+  const groupTypeMap = buildGroupTypeMap(validGroups);
 
   const filteredRows = validRows.filter((row) => {
     const gid = row.group_id ? String(row.group_id) : null;
