@@ -178,7 +178,10 @@ export default function DetectedClient() {
       try {
         const [{ events: ev }, dbMap, declined, fetchedProfile] = await Promise.all([
           loadEventsFromDb({
-            groupId: groupIdFromUrl ?? undefined,
+            // Si venimos enfocados desde un evento recién creado/editado,
+            // NO filtres por groupId. Hay que comparar contra todo lo visible
+            // en calendario y recién después filtrar por focusEventId.
+            groupId: focusEventId ? undefined : groupIdFromUrl ?? undefined,
             ...getDefaultConflictsScreenWindow(),
           }),
           getMyConflictResolutionsMap().catch(() => ({})),
@@ -208,20 +211,25 @@ export default function DetectedClient() {
     return () => {
       alive = false;
     };
-  }, [router, groupIdFromUrl]);
+  }, [router, groupIdFromUrl, focusEventId]);
 
   useEffect(() => {
     let alive = true;
 
     const refreshFromDb = async () => {
       try {
-        const [nextResMap, nextDeclined] = await Promise.all([
+        const [nextEvents, nextResMap, nextDeclined] = await Promise.all([
+          loadEventsFromDb({
+            groupId: focusEventId ? undefined : groupIdFromUrl ?? undefined,
+            ...getDefaultConflictsScreenWindow(),
+          }).catch(() => ({ events: [] })),
           getMyConflictResolutionsMap().catch(() => ({})),
           getMyDeclinedEventIds().catch(() => new Set<string>()),
         ]);
 
         if (!alive) return;
 
+        setEvents(Array.isArray(nextEvents?.events) ? nextEvents.events : []);
         setResMap(nextResMap ?? {});
         setDeclinedEventIds(nextDeclined ?? new Set());
       } catch {
@@ -233,6 +241,10 @@ export default function DetectedClient() {
       void refreshFromDb();
     };
 
+    const onEventsChanged = () => {
+      void refreshFromDb();
+    };
+
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
         void refreshFromDb();
@@ -240,14 +252,16 @@ export default function DetectedClient() {
     };
 
     window.addEventListener("focus", onFocus);
+    window.addEventListener("sp:events-changed", onEventsChanged as EventListener);
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       alive = false;
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("sp:events-changed", onEventsChanged as EventListener);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []);
+  }, [focusEventId, groupIdFromUrl]);
 
   const visibleEvents = useMemo<CalendarEvent[]>(() => {
     return filterOutDeclinedEvents(

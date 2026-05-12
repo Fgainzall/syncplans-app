@@ -217,7 +217,12 @@ export default function CompareClient() {
   const loadScreenData = useCallback(async () => {
     const [eventsForConflicts, dbMap, declinedSet, ignoredSet] = await Promise.all([
       loadEventsFromDb({
-        groupId: groupIdFromUrl,
+        // En vistas enfocadas por evento/conflicto, carga todo el universo
+        // visible. El filtro se aplica después por eventId/conflictId.
+        groupId:
+          focusEventId || focusConflictId || incomingIdFromUrl || existingIdFromUrl
+            ? null
+            : groupIdFromUrl,
         ...getDefaultConflictsScreenWindow(),
       }),
       getMyConflictResolutionsMap(),
@@ -231,7 +236,7 @@ export default function CompareClient() {
     setResMap(dbMap ?? {});
     setDeclinedIds(declinedSet instanceof Set ? declinedSet : new Set());
     setIgnoredConflictKeys(ignoredSet instanceof Set ? ignoredSet : new Set());
-  }, [groupIdFromUrl]);
+  }, [groupIdFromUrl, focusEventId, focusConflictId, incomingIdFromUrl, existingIdFromUrl]);
 
   useEffect(() => {
     const syncViewport = () => {
@@ -298,10 +303,12 @@ export default function CompareClient() {
     };
 
     window.addEventListener("focus", onFocus);
+    window.addEventListener("sp:events-changed", refreshFromDb as EventListener);
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("sp:events-changed", refreshFromDb as EventListener);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [loadScreenData]);

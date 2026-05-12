@@ -2726,9 +2726,10 @@ useEffect(() => {
         if (conflictResult.targetEventId) {
           qp.set("eventId", String(conflictResult.targetEventId));
         }
-        if (payload.groupId) {
-          qp.set("groupId", String(payload.groupId));
-        }
+        // No enviamos groupId al flujo enfocado: la pantalla de conflictos
+        // debe cargar todo el calendario visible y luego filtrar por eventId.
+        // Si se limita al grupo del evento, puede ocultar choques contra otros
+        // grupos que sí aparecen en el calendario.
         qp.set("from", isEditing ? "event_edit" : "event_create");
 
         window.setTimeout(() => {

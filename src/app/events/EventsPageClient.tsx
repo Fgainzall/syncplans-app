@@ -616,6 +616,28 @@ export default function EventsPage() {
     void refreshData(filters.view);
   }, [booting, filters.view, loadedView, refreshData]);
 
+  useEffect(() => {
+    if (booting) return;
+
+    const refreshCurrentView = () => {
+      void refreshData(filters.view);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refreshCurrentView();
+    };
+
+    window.addEventListener("sp:events-changed", refreshCurrentView as EventListener);
+    window.addEventListener("focus", refreshCurrentView);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.removeEventListener("sp:events-changed", refreshCurrentView as EventListener);
+      window.removeEventListener("focus", refreshCurrentView);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [booting, filters.view, refreshData]);
+
   async function handleDeleteSelected() {
     if (selectedIds.size === 0) return;
 

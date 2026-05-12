@@ -263,7 +263,9 @@ export default function ActionsClient() {
   const loadScreenData = useCallback(async () => {
     const [eventsForConflicts, dbMap, declinedSet, ignoredSet] = await Promise.all([
       loadEventsFromDb({
-        groupId: groupIdFromUrl,
+        // En vistas enfocadas por evento/conflicto, carga todo el universo
+        // visible. El filtro se aplica después por eventId/conflictId.
+        groupId: focusEventId || focusConflictId ? null : groupIdFromUrl,
         ...getDefaultConflictsScreenWindow(),
       }),
       getMyConflictResolutionsMap(),
@@ -277,7 +279,7 @@ export default function ActionsClient() {
     setResMap(dbMap ?? {});
     setDeclinedIds(declinedSet instanceof Set ? declinedSet : new Set());
     setIgnoredConflictKeys(ignoredSet instanceof Set ? ignoredSet : new Set());
-  }, [groupIdFromUrl]);
+  }, [groupIdFromUrl, focusEventId, focusConflictId]);
 
   useEffect(() => {
     const syncViewport = () => {
@@ -332,6 +334,17 @@ export default function ActionsClient() {
       alive = false;
     };
   }, [router, loadScreenData]);
+
+  useEffect(() => {
+    const onEventsChanged = () => {
+      void loadScreenData();
+    };
+
+    window.addEventListener("sp:events-changed", onEventsChanged as EventListener);
+    return () => {
+      window.removeEventListener("sp:events-changed", onEventsChanged as EventListener);
+    };
+  }, [loadScreenData]);
 
   useEffect(() => {
     if (!currentUserId || booting) return;

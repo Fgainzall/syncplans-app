@@ -226,8 +226,12 @@ export async function loadEventsForConflictPreflight(args: {
   const groupId = candidate.groupId ? String(candidate.groupId) : null;
   const candidateWindow = buildConflictWindowAround(candidate.start, candidate.end);
 
+  // Preflight debe comparar contra el mismo universo que ve el calendario:
+  // eventos personales + todos los grupos visibles. Si filtramos por el grupo
+  // del candidato, un plan de Pareja podría cruzarse con Familia/Compartido y
+  // aun así pasar como “todo claro”.
   const { events, groups } = await loadEventsFromDb({
-    groupId,
+    groupId: null,
     startIso: candidateWindow?.startIso ?? null,
     endIso: candidateWindow?.endIso ?? null,
   });

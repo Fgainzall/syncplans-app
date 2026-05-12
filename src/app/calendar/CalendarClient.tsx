@@ -884,11 +884,17 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
       void refreshCalendar();
     };
 
+    const onEventsChanged = () => {
+      void refreshCalendar();
+    };
+
     window.addEventListener("focus", onFocus);
+    window.addEventListener("sp:events-changed", onEventsChanged as EventListener);
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("sp:events-changed", onEventsChanged as EventListener);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [refreshCalendar]);
