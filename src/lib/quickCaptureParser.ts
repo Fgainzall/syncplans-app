@@ -686,6 +686,49 @@ function normalizeHourFromCapture(hour: number, period?: string | null) {
   return safeHour;
 }
 
+function inferAmbiguousSingleTimePeriod(
+  text: string,
+  anchor: string,
+  hour: number
+): "am" | "pm" | null {
+  if (hour < 1 || hour > 11) return null;
+
+  const normalizedText = normalizeForMatching(text);
+  const normalizedAnchor = normalizeForMatching(anchor);
+
+  const idx = normalizedText.indexOf(normalizedAnchor);
+  const contextStart = idx >= 0 ? Math.max(0, idx - 64) : 0;
+  const contextEnd =
+    idx >= 0
+      ? Math.min(normalizedText.length, idx + normalizedAnchor.length + 64)
+      : Math.min(normalizedText.length, 128);
+  const context = normalizedText.slice(contextStart, contextEnd);
+
+  if (
+    /\b(desayuno|brunch|manana|por la manana|de la manana|temprano|amanecer)\b/.test(
+      context
+    )
+  ) {
+    return "am";
+  }
+
+  if (/\b(am|a m)\b/.test(context)) return "am";
+  if (/\b(pm|p m)\b/.test(context)) return "pm";
+
+  if (
+    /\b(cena|cenar|cine|pelicula|peliculas|teatro|concierto|bar|tragos|drinks|fiesta|discoteca|previa|after|parrilla|asado)\b/.test(
+      context
+    )
+  ) {
+    return "pm";
+  }
+
+  if (/\b(almuerzo|lunch|comer)\b/.test(context)) return "pm";
+
+  return null;
+}
+
+
 function inferPeriodFromContext(
   text: string,
   anchor: string
@@ -706,7 +749,11 @@ function inferPeriodFromContext(
   }
   if (/\b(almuerzo|lunch|comer)\b/.test(context)) return "pm";
   if (/\b(de la|por la)\s+(noche|tarde)\b/.test(context)) return "pm";
-  if (/\b(cena|cenar|parrilla|fulbito|futbol|asado|after)\b/.test(context)) {
+  if (
+    /\b(cena|cenar|cine|pelicula|peliculas|teatro|concierto|bar|tragos|drinks|fiesta|discoteca|previa|parrilla|fulbito|futbol|asado|after)\b/.test(
+      context
+    )
+  ) {
     return "pm";
   }
   if (/\b(de la|por la)\s+manana\b/.test(context)) return "am";
@@ -766,10 +813,18 @@ function extractTimeRange(text: string): {
     return { startHour: null, startMinutes: 0, endHour: null, endMinutes: 0 };
   }
 
+  const rawSinglePeriod = singleMatch[3] || null;
+  const numericSingleHour = parseInt(singleMatch[1], 10);
   const inferredSinglePeriod =
-    singleMatch[3] || inferPeriodFromContext(text, singleMatch[0] ?? "");
+    rawSinglePeriod ||
+    inferPeriodFromContext(text, singleMatch[0] ?? "") ||
+    inferAmbiguousSingleTimePeriod(
+      text,
+      singleMatch[0] ?? "",
+      numericSingleHour
+    );
   const startHour = normalizeHourFromCapture(
-    parseInt(singleMatch[1], 10),
+    numericSingleHour,
     inferredSinglePeriod
   );
   const startMinutes = singleMatch[2] ? parseInt(singleMatch[2], 10) : 0;
