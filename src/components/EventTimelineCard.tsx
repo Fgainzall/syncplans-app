@@ -170,30 +170,48 @@ export default function EventTimelineCard({
     isInvitedGroupEvent && effectiveEventResponseStatus === "accepted";
   const declinedByMe =
     isInvitedGroupEvent && effectiveEventResponseStatus === "declined";
+  const acceptedBySharedMember =
+    isOwnerView && isSharedEvent && effectiveEventResponseStatus === "accepted";
+  const declinedBySharedMember =
+    isOwnerView && isSharedEvent && effectiveEventResponseStatus === "declined";
 
   const statusUi =
     safeConflictsCount > 0
       ? baseStatusUi
       : needsMyResponse
         ? getEventStatusUi("pending")
-        : acceptedByMe || (isOwnerView && isSharedEvent && baseStatusUi.status === "scheduled")
+        : acceptedByMe ||
+            acceptedBySharedMember ||
+            (isOwnerView && isSharedEvent && baseStatusUi.status === "scheduled")
           ? getEventStatusUi("confirmed")
           : baseStatusUi;
 
   const ownerWaitingForResponse =
-    isOwnerView && isSharedEvent && baseStatusUi.status === "pending";
-  const stateLabel = ownerWaitingForResponse
-    ? "Esperando respuesta"
-    : declinedByMe
-      ? "Rechazado por ti"
-      : statusUi.label;
-  const stateSubtitle = ownerWaitingForResponse
-    ? "Tú ya creaste este plan. Falta que la otra persona confirme o proponga un cambio."
-    : declinedByMe
-      ? "Ya rechazaste este plan. Si necesitas retomarlo, coordínalo desde el grupo."
-      : needsMyResponse
-        ? "Te invitaron a este plan. Acéptalo si te funciona o recházalo para limpiar tu agenda."
-        : conflictSummary || statusUi.subtitle;
+    isOwnerView &&
+    isSharedEvent &&
+    !acceptedBySharedMember &&
+    !declinedBySharedMember &&
+    baseStatusUi.status === "pending";
+  const stateLabel = acceptedBySharedMember
+    ? "Confirmado"
+    : declinedBySharedMember
+      ? "Rechazado"
+      : ownerWaitingForResponse
+        ? "Esperando respuesta"
+        : declinedByMe
+          ? "Rechazado por ti"
+          : statusUi.label;
+  const stateSubtitle = acceptedBySharedMember
+    ? "La otra persona ya confirmó este plan. La salida ya está clara para ambos."
+    : declinedBySharedMember
+      ? "La otra persona rechazó este plan. Ábrelo para ajustar o coordinar una nueva salida."
+      : ownerWaitingForResponse
+        ? "Tú ya creaste este plan. Falta que la otra persona confirme o proponga un cambio."
+        : declinedByMe
+          ? "Ya rechazaste este plan. Si necesitas retomarlo, coordínalo desde el grupo."
+          : needsMyResponse
+            ? "Te invitaron a este plan. Acéptalo si te funciona o recházalo para limpiar tu agenda."
+            : conflictSummary || statusUi.subtitle;
 
   const basePrimaryAction = getTimelinePrimaryAction({
     eventId,
@@ -201,7 +219,7 @@ export default function EventTimelineCard({
   });
   const primaryAction = needsMyResponse || declinedByMe
     ? null
-    : ownerWaitingForResponse
+    : ownerWaitingForResponse || declinedBySharedMember
       ? {
           label: "Ver estado",
           href: `/events/new/details?eventId=${encodeURIComponent(eventId)}`,
@@ -814,31 +832,49 @@ const S: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
   },
   stateCard: {
-    borderRadius: 16,
+    borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.18)",
-    padding: 14,
+    padding: "16px 16px 15px",
     backgroundBlendMode: "overlay",
-    boxShadow: "0 18px 40px rgba(0,0,0,0.22)",
+    boxShadow: "0 18px 40px rgba(0,0,0,0.20)",
     display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    flexWrap: "wrap",
+    flexDirection: "column",
+    alignItems: "stretch",
+    justifyContent: "flex-start",
+    gap: 12,
+    flexWrap: "nowrap",
   },
   stateCardCopy: {
     display: "flex",
     flexDirection: "column",
-    gap: 4,
+    gap: 7,
     minWidth: 0,
-    flex: 1,
+    width: "100%",
   },
-  stateCardLabel: { fontSize: 12, fontWeight: 900, letterSpacing: "-0.01em" },
+  stateCardLabel: {
+    fontSize: 13,
+    fontWeight: 950,
+    letterSpacing: "-0.01em",
+    lineHeight: 1.25,
+    overflowWrap: "normal",
+    wordBreak: "normal",
+  },
   stateCardSub: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: "rgba(255,255,255,0.82)",
-    lineHeight: 1.5,
+    lineHeight: 1.62,
+    maxWidth: 560,
+    overflowWrap: "normal",
+    wordBreak: "normal",
   },
-  stateCardActions: { display: "flex", alignItems: "center", gap: 8 },
+  stateCardActions: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: 8,
+    flexWrap: "wrap",
+    width: "100%",
+  },
   stateCardPrimaryBtn: {
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.14)",

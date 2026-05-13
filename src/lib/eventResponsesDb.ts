@@ -50,24 +50,40 @@ export async function getMyEventResponsesMap(): Promise<Record<string, EventResp
 
   const { data: rows, error } = await supabase
     .from("event_responses")
-    .select("event_id, response_status")
-    .eq("user_id", uid);
+    .select("event_id, user_id, response_status, updated_at, created_at")
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false });
 
   if (error) throw error;
 
-  const map: Record<string, EventResponseStatus> = {};
+  const ownMap: Record<string, EventResponseStatus> = {};
+  const sharedMap: Record<string, EventResponseStatus> = {};
 
   for (const row of rows ?? []) {
     const eventId = String(row?.event_id ?? "").trim();
+    const userId = String(row?.user_id ?? "").trim();
     const status = String(row?.response_status ?? "").trim();
 
     if (!eventId) continue;
-    if (status === "pending" || status === "accepted" || status === "declined") {
-      map[eventId] = status;
+    if (status !== "pending" && status !== "accepted" && status !== "declined") continue;
+
+    // La respuesta del usuario actual siempre manda para su propia vista.
+    if (userId === uid) {
+      ownMap[eventId] = status;
+      continue;
+    }
+
+    // Para el creador del evento, necesitamos ver si la otra persona ya aceptó
+    // o rechazó. Guardamos la señal compartida más reciente visible por RLS.
+    if (!sharedMap[eventId]) {
+      sharedMap[eventId] = status;
     }
   }
 
-  return map;
+  return {
+    ...sharedMap,
+    ...ownMap,
+  };
 }
 
 export async function setMyEventResponse(input: {

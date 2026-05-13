@@ -244,17 +244,6 @@ const NAV_ITEMS: NavItem[] = [
   { key: "invitations", label: "Invitaciones", path: "/invitations", aria: "Ir a Invitaciones" },
 ];
 
-const BOTTOM_NAV_KEYS = new Set<BottomNavKey>([
-  "summary",
-  "calendar",
-  "events",
-  "conflicts",
-  "panel",
-  "groups",
-]);
-
-const BOTTOM_NAV_ITEMS = NAV_ITEMS.filter((item) => BOTTOM_NAV_KEYS.has(item.key));
-
 function shouldHideBottomNav(pathname: string) {
   return (
     pathname === "/" ||
@@ -295,10 +284,9 @@ function BottomNav() {
 
   const isPanelRelatedPath = (path: string) =>
     path.startsWith("/panel") ||
-    path.startsWith("/members") ||
-    path.startsWith("/invitations") ||
     path.startsWith("/settings") ||
-    path.startsWith("/pricing");
+    path.startsWith("/pricing") ||
+    path.startsWith("/planes");
 
   const isActive = (key: BottomNavKey) => {
     if (key === "summary") return pathname.startsWith("/summary");
@@ -317,7 +305,7 @@ function BottomNav() {
       <div style={S.wrap}>
         <div style={S.viewport}>
           <div style={S.track}>
-            {BOTTOM_NAV_ITEMS.map((item) => {
+            {NAV_ITEMS.map((item) => {
               const active = isActive(item.key);
 
               return (
@@ -356,6 +344,11 @@ function BottomNav() {
           </div>
         </div>
       </div>
+      <style jsx>{`
+        nav div::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
     </nav>
   );
 }
@@ -391,20 +384,27 @@ const S: Record<string, React.CSSProperties> = {
 
   viewport: {
     width: "100%",
-    overflow: "hidden",
+    maxWidth: "100%",
+    overflowX: "auto",
+    overflowY: "hidden",
+    overscrollBehaviorX: "contain",
+    WebkitOverflowScrolling: "touch",
+    scrollbarWidth: "none",
+    touchAction: "pan-x",
   },
 
   track: {
-    width: "100%",
-    minWidth: 0,
-    display: "grid",
-    gridTemplateColumns: `repeat(${BOTTOM_NAV_ITEMS.length}, minmax(0, 1fr))`,
+    width: "max-content",
+    minWidth: "100%",
+    display: "flex",
     alignItems: "stretch",
     gap: 4,
   },
 
   item: {
-    minWidth: 0,
+    flex: "0 0 68px",
+    width: 68,
+    minWidth: 68,
     minHeight: 54,
     padding: "6px 2px 7px",
     borderRadius: 15,
