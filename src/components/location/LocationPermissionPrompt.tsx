@@ -1,14 +1,19 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  clearLocationPromptGranted,
   getCurrentBrowserPosition,
+  getPersistedLocationPromptState,
   isLocationPromptSnoozed,
   markLocationPromptDenied,
+  markLocationPromptGranted,
   persistLocationFromBrowser,
   persistLocationPromptStatus,
   snoozeLocationPrompt,
+  snoozeLocationPromptUntil,
   wasLocationPromptDenied,
+  wasLocationPromptGranted,
 } from "@/lib/locationPermission";
 import { colors } from "@/styles/design-tokens";
 
@@ -16,6 +21,8 @@ type PermissionStateValue = "granted" | "denied" | "prompt" | "unknown";
 
 const LOCATION_PROMPT_VISIBLE_KEY = "syncplans:location_prompt_visible";
 const LOCATION_PROMPT_LAST_SHOWN_KEY = "syncplans:location_prompt_last_shown_at";
+
+let locationPromptReserved = false;
 
 function setLocationPromptVisible(value: boolean) {
   try {
@@ -31,11 +38,23 @@ function setLocationPromptVisible(value: boolean) {
   }
 }
 
+function isPermissionDeniedError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+
+  const maybeError = error as { code?: unknown; name?: unknown; message?: unknown };
+  const code = Number(maybeError.code);
+  const name = String(maybeError.name ?? "").toLowerCase();
+  const message = String(maybeError.message ?? "").toLowerCase();
+
+  return code === 1 || name.includes("permission") || message.includes("denied");
+}
+
 export default function LocationPermissionPrompt() {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const ownsPromptRef = useRef(false);
 
   const enabled = useMemo(() => {
     return process.env.NEXT_PUBLIC_ENABLE_LOCATION_PROMPT !== "false";
@@ -46,17 +65,69 @@ export default function LocationPermissionPrompt() {
   }, []);
 
   useEffect(() => {
-    setLocationPromptVisible(visible);
+    if (visible) {
+      setLocationPromptVisible(true);
+      return () => {
+        if (ownsPromptRef.current) {
+          ownsPromptRef.current = false;
+          locationPromptReserved = false;
+        }
+        setLocationPromptVisible(false);
+      };
+    }
 
-    return () => {
-      if (visible) setLocationPromptVisible(false);
-    };
+    if (ownsPromptRef.current) {
+      ownsPromptRef.current = false;
+      locationPromptReserved = false;
+    }
+    setLocationPromptVisible(false);
+
+    return undefined;
   }, [visible]);
 
   useEffect(() => {
     if (!mounted || !enabled || done) return;
 
     let cancelled = false;
+    let timer: number | null = null;
+
+    function reservePrompt() {
+      if (locationPromptReserved) return false;
+      locationPromptReserved = true;
+      ownsPromptRef.current = true;
+      return true;
+    }
+
+    async function refreshLocationSilently() {
+      try {
+        const point = await getCurrentBrowserPosition();
+        markLocationPromptGranted();
+
+        try {
+          await persistLocationFromBrowser(point);
+        } catch {
+          // Si el backend falla, no volvemos a molestar al usuario.
+          // El permiso del navegador ya fue concedido y se reintentará en otra carga.
+        }
+
+        try {
+          await persistLocationPromptStatus("granted");
+        } catch {
+          // No bloqueamos la app por persistencia secundaria.
+        }
+      } catch (error) {
+        if (isPermissionDeniedError(error)) {
+          clearLocationPromptGranted();
+          markLocationPromptDenied();
+
+          try {
+            await persistLocationPromptStatus("denied");
+          } catch {
+            // No bloqueamos UI por persistencia secundaria.
+          }
+        }
+      }
+    }
 
     async function checkPermission() {
       if (typeof window === "undefined") return;
@@ -79,25 +150,56 @@ export default function LocationPermissionPrompt() {
 
       if (cancelled) return;
 
-      if (state === "granted") {
-        try {
-          const point = await getCurrentBrowserPosition();
-          await persistLocationFromBrowser(point);
-          await persistLocationPromptStatus("granted");
-        } catch {
-          // No bloqueamos la app si el navegador falla al refrescar ubicación.
-        }
-        return;
-      }
-
       if (state === "denied") {
+        clearLocationPromptGranted();
         markLocationPromptDenied();
         await persistLocationPromptStatus("denied");
         return;
       }
 
-      window.setTimeout(() => {
-        if (!cancelled) setVisible(true);
+      if (state === "granted") {
+        await refreshLocationSilently();
+        return;
+      }
+
+      try {
+        const persisted = await getPersistedLocationPromptState();
+
+        if (cancelled) return;
+
+        if (persisted?.promptStatus === "granted" || persisted?.locationEnabled) {
+          markLocationPromptGranted();
+          void refreshLocationSilently();
+          return;
+        }
+
+        if (persisted?.promptStatus === "denied") {
+          clearLocationPromptGranted();
+          markLocationPromptDenied();
+          return;
+        }
+
+        if (persisted?.promptStatus === "dismissed") {
+          snoozeLocationPromptUntil(persisted.dismissedUntil);
+          if (persisted.dismissedUntil && Date.parse(persisted.dismissedUntil) > Date.now()) {
+            return;
+          }
+        }
+      } catch {
+        // Si no podemos leer el estado guardado, seguimos con estado local/navegador.
+      }
+
+      if (cancelled) return;
+
+      if (wasLocationPromptGranted()) {
+        void refreshLocationSilently();
+        return;
+      }
+
+      timer = window.setTimeout(() => {
+        if (cancelled) return;
+        if (!reservePrompt()) return;
+        setVisible(true);
       }, 1200);
     }
 
@@ -105,6 +207,7 @@ export default function LocationPermissionPrompt() {
 
     return () => {
       cancelled = true;
+      if (timer) window.clearTimeout(timer);
     };
   }, [mounted, enabled, done]);
 
@@ -113,14 +216,30 @@ export default function LocationPermissionPrompt() {
 
     try {
       const point = await getCurrentBrowserPosition();
-      await persistLocationFromBrowser(point);
-      await persistLocationPromptStatus("granted");
-
+      markLocationPromptGranted();
       setDone(true);
       setVisible(false);
-    } catch {
-      markLocationPromptDenied();
-      await persistLocationPromptStatus("denied");
+
+      try {
+        await persistLocationFromBrowser(point);
+      } catch {
+        // El usuario ya dio permiso. No volvemos a mostrar el aviso por un fallo de guardado.
+      }
+
+      try {
+        await persistLocationPromptStatus("granted");
+      } catch {
+        // No bloqueamos UI por persistencia secundaria.
+      }
+    } catch (error) {
+      if (isPermissionDeniedError(error)) {
+        clearLocationPromptGranted();
+        markLocationPromptDenied();
+        await persistLocationPromptStatus("denied");
+      } else {
+        snoozeLocationPrompt(1);
+        await persistLocationPromptStatus("dismissed");
+      }
 
       setDone(true);
       setVisible(false);
@@ -137,6 +256,7 @@ export default function LocationPermissionPrompt() {
   }
 
   async function handleNoThanks() {
+    clearLocationPromptGranted();
     markLocationPromptDenied();
     await persistLocationPromptStatus("denied");
     setDone(true);
