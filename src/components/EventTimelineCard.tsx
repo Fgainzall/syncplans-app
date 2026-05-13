@@ -4,6 +4,12 @@ import type { PublicInviteRow } from "@/lib/invitationsDb";
 import type { ConflictTrustSignal } from "@/lib/conflictResolutionsLogDb";
 import type { ProposalResponseRow } from "@/lib/proposalResponsesDb";
 import {
+  acceptEventForCurrentUser,
+  declineEventForCurrentUser,
+  type EventResponseStatus,
+} from "@/lib/eventResponsesDb";
+import { getEventStatusUi } from "@/lib/eventStatusUi";
+import {
   buildConflictSummary,
   buildProposalContextLine,
   formatProposedDate,
@@ -50,7 +56,8 @@ type Props = {
   trustSignal: ConflictTrustSignal | null;
   proposalResponse: ProposalResponseRow | null;
   proposalResponseGroup: ProposalResponseRow[];
-proposalProfile: ProposalProfileLike | null;
+  proposalProfile: ProposalProfileLike | null;
+  eventResponseStatus: EventResponseStatus | null;
   conflictsCount: number;
   eventRef?: (node: HTMLDivElement | null) => void;
 };
@@ -74,6 +81,7 @@ export default function EventTimelineCard({
   proposalResponse,
   proposalResponseGroup,
   proposalProfile,
+  eventResponseStatus,
   conflictsCount,
   eventRef,
 }: Props) {
@@ -111,17 +119,22 @@ export default function EventTimelineCard({
       ? null
       : invite;
 
-  const statusUi = getTimelineEventStatusUi({
+  const baseStatusUi = getTimelineEventStatusUi({
     conflictsCount: safeConflictsCount,
     responses: safeResponses,
     trustSignal,
     invite: safeInvite,
   });
 
-  const primaryAction = getTimelinePrimaryAction({
-    eventId,
-    status: statusUi.status,
-  });
+  const [responseBusy, setResponseBusy] = React.useState<EventResponseStatus | null>(null);
+  const [responseError, setResponseError] = React.useState<string | null>(null);
+  const [localEventResponseStatus, setLocalEventResponseStatus] =
+    React.useState<EventResponseStatus | null>(eventResponseStatus ?? null);
+
+  React.useEffect(() => {
+    setLocalEventResponseStatus(eventResponseStatus ?? null);
+    setResponseError(null);
+  }, [eventId, eventResponseStatus]);
 
   const conflictSummary =
     safeConflictsCount > 0
@@ -146,12 +159,96 @@ export default function EventTimelineCard({
   const isOwnerView =
     !!currentUserId && resolveEventOwnerId(ev) === currentUserId;
   const canDelete = isOwnerView;
+  const isSharedEvent = !!ev.group_id;
+  const isInvitedGroupEvent = isSharedEvent && !isOwnerView;
+  const effectiveEventResponseStatus: EventResponseStatus | null =
+    localEventResponseStatus ??
+    (isInvitedGroupEvent ? "pending" : isOwnerView && isSharedEvent ? "accepted" : null);
+  const needsMyResponse =
+    isInvitedGroupEvent && effectiveEventResponseStatus === "pending";
+  const acceptedByMe =
+    isInvitedGroupEvent && effectiveEventResponseStatus === "accepted";
+  const declinedByMe =
+    isInvitedGroupEvent && effectiveEventResponseStatus === "declined";
+
+  const statusUi =
+    safeConflictsCount > 0
+      ? baseStatusUi
+      : needsMyResponse
+        ? getEventStatusUi("pending")
+        : acceptedByMe || (isOwnerView && isSharedEvent && baseStatusUi.status === "scheduled")
+          ? getEventStatusUi("confirmed")
+          : baseStatusUi;
+
+  const ownerWaitingForResponse =
+    isOwnerView && isSharedEvent && baseStatusUi.status === "pending";
+  const stateLabel = ownerWaitingForResponse
+    ? "Esperando respuesta"
+    : declinedByMe
+      ? "Rechazado por ti"
+      : statusUi.label;
+  const stateSubtitle = ownerWaitingForResponse
+    ? "Tú ya creaste este plan. Falta que la otra persona confirme o proponga un cambio."
+    : declinedByMe
+      ? "Ya rechazaste este plan. Si necesitas retomarlo, coordínalo desde el grupo."
+      : needsMyResponse
+        ? "Te invitaron a este plan. Acéptalo si te funciona o recházalo para limpiar tu agenda."
+        : conflictSummary || statusUi.subtitle;
+
+  const basePrimaryAction = getTimelinePrimaryAction({
+    eventId,
+    status: statusUi.status,
+  });
+  const primaryAction = needsMyResponse || declinedByMe
+    ? null
+    : ownerWaitingForResponse
+      ? {
+          label: "Ver estado",
+          href: `/events/new/details?eventId=${encodeURIComponent(eventId)}`,
+        }
+      : basePrimaryAction;
+
   const canAcceptProposal =
     isOwnerView &&
     invite?.status === "rejected" &&
     !!invite?.proposed_date &&
     !invite?.creator_response;
   const proposedDateLabel = formatProposedDate(invite?.proposed_date ?? null);
+
+  async function respondToEvent(responseStatus: EventResponseStatus) {
+    if (!ev.group_id || responseBusy) return;
+
+    try {
+      setResponseBusy(responseStatus);
+      setResponseError(null);
+
+      if (responseStatus === "accepted") {
+        await acceptEventForCurrentUser(
+          eventId,
+          String(ev.group_id),
+          "Accepted from events timeline"
+        );
+      } else if (responseStatus === "declined") {
+        await declineEventForCurrentUser(
+          eventId,
+          String(ev.group_id),
+          "Declined from events timeline"
+        );
+      }
+
+      setLocalEventResponseStatus(responseStatus);
+      window.dispatchEvent(new Event("sp:events-changed"));
+    } catch (error) {
+      console.error("[EventTimelineCard] respondToEvent error", error);
+      setResponseError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar tu respuesta. Intenta otra vez."
+      );
+    } finally {
+      setResponseBusy(null);
+    }
+  }
 
   function onTakeExternalProposal() {
     if (!invite?.proposed_date) return;
@@ -219,7 +316,7 @@ export default function EventTimelineCard({
               <div style={S.titleText}>{ev.title || "Sin título"}</div>
 
               <div style={S.metaLine}>
-                <span style={S.metaStrong}>{statusUi.label}</span>
+                <span style={S.metaStrong}>{stateLabel}</span>
                 <span>· Evento con lectura compartida</span>
               </div>
             </div>
@@ -281,13 +378,39 @@ export default function EventTimelineCard({
                 ),
               }}
             >
-              {statusUi.label}
+              {stateLabel}
             </div>
-            <div style={S.stateCardSub}>{conflictSummary || statusUi.subtitle}</div>
+            <div style={S.stateCardSub}>{stateSubtitle}</div>
           </div>
 
           <div style={S.stateCardActions}>
-            {primaryAction ? (
+            {needsMyResponse ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void respondToEvent("accepted")}
+                  disabled={!!responseBusy}
+                  style={{
+                    ...S.stateCardAcceptBtn,
+                    opacity: responseBusy ? 0.68 : 1,
+                  }}
+                >
+                  {responseBusy === "accepted" ? "Aceptando…" : "Aceptar"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void respondToEvent("declined")}
+                  disabled={!!responseBusy}
+                  style={{
+                    ...S.stateCardRejectBtn,
+                    opacity: responseBusy ? 0.68 : 1,
+                  }}
+                >
+                  {responseBusy === "declined" ? "Rechazando…" : "Rechazar"}
+                </button>
+              </>
+            ) : primaryAction ? (
               <button
                 type="button"
                 onClick={() => router.push(primaryAction.href)}
@@ -298,6 +421,8 @@ export default function EventTimelineCard({
             ) : null}
           </div>
         </div>
+
+        {responseError ? <div style={S.responseActionError}>{responseError}</div> : null}
 
         <div style={S.signalsRow}>
           <span
@@ -724,6 +849,38 @@ const S: Record<string, React.CSSProperties> = {
     padding: "8px 12px",
     cursor: "pointer",
     whiteSpace: "nowrap",
+  },
+  stateCardAcceptBtn: {
+    borderRadius: 999,
+    border: "1px solid rgba(74,222,128,0.28)",
+    background: "rgba(22,101,52,0.28)",
+    color: "rgba(220,252,231,0.98)",
+    fontSize: 12,
+    fontWeight: 950,
+    padding: "8px 13px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  stateCardRejectBtn: {
+    borderRadius: 999,
+    border: "1px solid rgba(248,113,113,0.24)",
+    background: "rgba(127,29,29,0.18)",
+    color: "rgba(254,226,226,0.98)",
+    fontSize: 12,
+    fontWeight: 900,
+    padding: "8px 13px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  responseActionError: {
+    borderRadius: 12,
+    border: "1px solid rgba(248,113,113,0.18)",
+    background: "rgba(127,29,29,0.12)",
+    color: "rgba(254,202,202,0.96)",
+    fontSize: 12,
+    fontWeight: 800,
+    lineHeight: 1.45,
+    padding: "9px 11px",
   },
   sharePanel: {
     marginTop: 6,

@@ -181,9 +181,6 @@ type EventOwnerLike = {
   title?: unknown;
 };
 
-type GroupMemberUserRow = {
-  user_id?: unknown;
-};
 async function persistLastKnownLocation(point: LatLng) {
   if (typeof window === "undefined") return;
   if (!toLatLng(point.lat, point.lng)) return;
@@ -482,53 +479,24 @@ async function syncAcceptedResponsesForSavedEvent(input: {
   groupId: string | null;
 }) {
   const eventId = String(input.eventId ?? "").trim();
-  if (!eventId) return;
-
-  const fallbackUserId = String(input.currentUserId ?? "").trim();
+  const currentUserId = String(input.currentUserId ?? "").trim();
   const groupId = String(input.groupId ?? "").trim() || null;
 
-  let userIds: string[] = [];
-
-  if (groupId) {
-    const { data: members, error } = await supabase
-      .from("group_members")
-      .select("user_id")
-      .eq("group_id", groupId);
-
-    if (error) {
-      console.error(
-        "group_members fetch failed while syncing responses",
-        error,
-      );
-    }
-
-    userIds = Array.from(
-      new Set(
-        (members ?? [])
-          .map((row: GroupMemberUserRow) => String(row?.user_id ?? "").trim())
-          .filter(Boolean),
-      ),
-    );
-  }
-
-  if (!userIds.length && fallbackUserId) {
-    userIds = [fallbackUserId];
-  }
-
-  if (!userIds.length) return;
-
-  const rows = userIds.map((userId) => ({
-    event_id: eventId,
-    user_id: userId,
-    group_id: groupId,
-    response_status: "accepted",
-    comment: null,
-    updated_at: new Date().toISOString(),
-  }));
+  if (!eventId || !currentUserId) return;
 
   const { error: upsertError } = await supabase
     .from("event_responses")
-    .upsert(rows, { onConflict: "event_id,user_id" });
+    .upsert(
+      {
+        event_id: eventId,
+        user_id: currentUserId,
+        group_id: groupId,
+        response_status: "accepted",
+        comment: null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "event_id,user_id" },
+    );
 
   if (upsertError) {
     console.error("event_responses upsert failed", upsertError);

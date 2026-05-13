@@ -14,6 +14,10 @@ import {
   getProposalResponsesForEvents,
   type ProposalResponseRow,
 } from "@/lib/proposalResponsesDb";
+import {
+  getMyEventResponsesMap,
+  type EventResponseStatus,
+} from "@/lib/eventResponsesDb";
 import { getProfilesMapByIds, type Profile } from "@/lib/profilesDb";
 import {
   buildConflictsByEventId,
@@ -25,6 +29,7 @@ export type InviteStateByEventId = Record<string, PublicInviteRow | null>;
 export type TrustSignalByEventId = Record<string, ConflictTrustSignal | null>;
 export type ProposalResponseByEventId = Record<string, ProposalResponseRow | null>;
 export type ProposalResponsesGroupByEventId = Record<string, ProposalResponseRow[]>;
+export type EventResponseByEventId = Record<string, EventResponseStatus>;
 
 type UseEventsTimelineDataReturn = {
   currentUserId: string | null;
@@ -33,6 +38,7 @@ type UseEventsTimelineDataReturn = {
   trustSignalsByEventId: TrustSignalByEventId;
   proposalResponsesByEventId: ProposalResponseByEventId;
   proposalResponseGroupsByEventId: ProposalResponsesGroupByEventId;
+  eventResponsesByEventId: EventResponseByEventId;
   proposalProfilesById: Record<string, Profile>;
   conflictsByEventId: ConflictByEventId;
   refreshTick: number;
@@ -51,6 +57,8 @@ export function useEventsTimelineData(
     useState<ProposalResponseByEventId>({});
   const [proposalResponseGroupsByEventId, setProposalResponseGroupsByEventId] =
     useState<ProposalResponsesGroupByEventId>({});
+  const [eventResponsesByEventId, setEventResponsesByEventId] =
+    useState<EventResponseByEventId>({});
  const [proposalProfilesById, setProposalProfilesById] = useState<Record<string, Profile>>(
   {}
 );
@@ -178,6 +186,48 @@ export function useEventsTimelineData(
     };
   }, [events, refreshTick]);
 
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadEventResponses() {
+      const eventIds = Array.from(
+        new Set(events.map((ev) => String(ev.id ?? "").trim()).filter(Boolean))
+      );
+
+      if (eventIds.length === 0 || !currentUserId) {
+        setEventResponsesByEventId({});
+        return;
+      }
+
+      try {
+        const data = await getMyEventResponsesMap();
+
+        if (!cancelled) {
+          const filtered: EventResponseByEventId = {};
+
+          for (const eventId of eventIds) {
+            const status = data[eventId];
+            if (status) filtered[eventId] = status;
+          }
+
+          setEventResponsesByEventId(filtered);
+        }
+      } catch (error) {
+        console.error("[useEventsTimelineData] loadEventResponses error", error);
+        if (!cancelled) {
+          setEventResponsesByEventId({});
+        }
+      }
+    }
+
+    void loadEventResponses();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [events, currentUserId, refreshTick]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -299,6 +349,7 @@ export function useEventsTimelineData(
     trustSignalsByEventId,
     proposalResponsesByEventId,
     proposalResponseGroupsByEventId,
+    eventResponsesByEventId,
     proposalProfilesById,
     conflictsByEventId,
     refreshTick,

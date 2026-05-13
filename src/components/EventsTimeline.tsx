@@ -54,6 +54,7 @@ export default function EventsTimeline({
     trustSignalsByEventId,
     proposalResponsesByEventId,
     proposalResponseGroupsByEventId,
+    eventResponsesByEventId,
     proposalProfilesById,
     conflictsByEventId,
       } = useEventsTimelineData(events);
@@ -344,6 +345,7 @@ ${link}`;
                         String(proposalResponsesByEventId[eventId]?.user_id ?? "")
                       ] ?? null
                     }
+                    eventResponseStatus={eventResponsesByEventId[eventId] ?? null}
                     conflictsCount={(conflictsByEventId[eventId] ?? []).length}
                     eventRef={(node) => {
                       eventRefs.current[eventId] = node;
