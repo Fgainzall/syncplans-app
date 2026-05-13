@@ -28,6 +28,7 @@ const DISMISSED_UNTIL_KEY = "syncplans:location_prompt_dismissed_until";
 const DENIED_KEY = "syncplans:location_prompt_denied";
 const GRANTED_KEY = "syncplans:location_prompt_granted";
 const GRANTED_AT_KEY = "syncplans:location_prompt_granted_at";
+const HANDLED_KEY = "syncplans:location_prompt_handled";
 
 const GRANTED_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -44,6 +45,7 @@ export function isLocationPromptSnoozed() {
 export function snoozeLocationPrompt(days = 7) {
   try {
     const until = Date.now() + days * 24 * 60 * 60 * 1000;
+    window.localStorage.setItem(HANDLED_KEY, "1");
     window.localStorage.setItem(DISMISSED_UNTIL_KEY, String(until));
   } catch {}
 }
@@ -56,6 +58,7 @@ export function snoozeLocationPromptUntil(untilIsoOrMs: string | number | null |
         : Date.parse(String(untilIsoOrMs ?? ""));
 
     if (!Number.isFinite(until) || until <= Date.now()) return;
+    window.localStorage.setItem(HANDLED_KEY, "1");
     window.localStorage.setItem(DISMISSED_UNTIL_KEY, String(until));
   } catch {}
 }
@@ -65,9 +68,29 @@ export function clearLocationPromptSnooze() {
     window.localStorage.removeItem(DISMISSED_UNTIL_KEY);
   } catch {}
 }
+export function markLocationPromptHandled() {
+  try {
+    window.localStorage.setItem(HANDLED_KEY, "1");
+  } catch {}
+}
+
+export function wasLocationPromptHandled() {
+  try {
+    return window.localStorage.getItem(HANDLED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+export function clearLocationPromptHandled() {
+  try {
+    window.localStorage.removeItem(HANDLED_KEY);
+  } catch {}
+}
+
 
 export function markLocationPromptDenied() {
   try {
+    window.localStorage.setItem(HANDLED_KEY, "1");
     window.localStorage.setItem(DENIED_KEY, "1");
   } catch {}
 }
@@ -80,6 +103,7 @@ export function clearLocationPromptDenied() {
 
 export function markLocationPromptGranted() {
   try {
+    window.localStorage.setItem(HANDLED_KEY, "1");
     window.localStorage.setItem(GRANTED_KEY, "1");
     window.localStorage.setItem(GRANTED_AT_KEY, String(Date.now()));
     window.localStorage.removeItem(DENIED_KEY);

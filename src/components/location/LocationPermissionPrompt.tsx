@@ -6,6 +6,7 @@ import {
   getCurrentBrowserPosition,
   getPersistedLocationPromptState,
   isLocationPromptSnoozed,
+  markLocationPromptHandled,
   markLocationPromptDenied,
   markLocationPromptGranted,
   persistLocationFromBrowser,
@@ -14,6 +15,7 @@ import {
   snoozeLocationPromptUntil,
   wasLocationPromptDenied,
   wasLocationPromptGranted,
+  wasLocationPromptHandled,
 } from "@/lib/locationPermission";
 import { colors } from "@/styles/design-tokens";
 
@@ -107,7 +109,7 @@ export default function LocationPermissionPrompt() {
           await persistLocationFromBrowser(point);
         } catch {
           // Si el backend falla, no volvemos a molestar al usuario.
-          // El permiso del navegador ya fue concedido y se reintentará en otra carga.
+          // El permiso del navegador ya fue concedido y se reintentarÃ¡ en otra carga.
         }
 
         try {
@@ -162,6 +164,10 @@ export default function LocationPermissionPrompt() {
         return;
       }
 
+      if (wasLocationPromptHandled()) {
+        return;
+      }
+
       try {
         const persisted = await getPersistedLocationPromptState();
 
@@ -180,10 +186,9 @@ export default function LocationPermissionPrompt() {
         }
 
         if (persisted?.promptStatus === "dismissed") {
+          markLocationPromptHandled();
           snoozeLocationPromptUntil(persisted.dismissedUntil);
-          if (persisted.dismissedUntil && Date.parse(persisted.dismissedUntil) > Date.now()) {
-            return;
-          }
+          return;
         }
       } catch {
         // Si no podemos leer el estado guardado, seguimos con estado local/navegador.
@@ -268,14 +273,14 @@ export default function LocationPermissionPrompt() {
   return (
     <div className="sp-location-prompt" role="dialog" aria-live="polite">
       <div className="sp-location-card">
-        <div className="sp-location-icon">↗</div>
+        <div className="sp-location-icon">â†—</div>
 
         <div className="sp-location-copy">
           <p className="sp-location-kicker">Smart Mobility</p>
-          <h2>Avísame cuándo salir con más precisión</h2>
+          <h2>AvÃ­same cuÃ¡ndo salir con mÃ¡s precisiÃ³n</h2>
           <p>
-            SyncPlans usa tu ubicación actual para calcular rutas, tráfico y la
-            hora ideal de salida hacia tus eventos con dirección.
+            SyncPlans usa tu ubicaciÃ³n actual para calcular rutas, trÃ¡fico y la
+            hora ideal de salida hacia tus eventos con direcciÃ³n.
           </p>
           <small>
             No es seguimiento constante. Se usa para mejorar ETA y alertas de
@@ -290,7 +295,7 @@ export default function LocationPermissionPrompt() {
             onClick={handleAllow}
             disabled={busy}
           >
-            {busy ? "Activando…" : "Usar mi ubicación"}
+            {busy ? "Activandoâ€¦" : "Usar mi ubicaciÃ³n"}
           </button>
 
           <button
