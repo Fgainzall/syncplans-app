@@ -244,6 +244,17 @@ const NAV_ITEMS: NavItem[] = [
   { key: "invitations", label: "Invitaciones", path: "/invitations", aria: "Ir a Invitaciones" },
 ];
 
+const BOTTOM_NAV_KEYS = new Set<BottomNavKey>([
+  "summary",
+  "calendar",
+  "events",
+  "conflicts",
+  "panel",
+  "groups",
+]);
+
+const BOTTOM_NAV_ITEMS = NAV_ITEMS.filter((item) => BOTTOM_NAV_KEYS.has(item.key));
+
 function shouldHideBottomNav(pathname: string) {
   return (
     pathname === "/" ||
@@ -282,14 +293,19 @@ function BottomNav() {
 
   if (shouldHideBottomNav(pathname)) return null;
 
-  const isPanelRelatedPath = (path: string) => path.startsWith("/panel");
+  const isPanelRelatedPath = (path: string) =>
+    path.startsWith("/panel") ||
+    path.startsWith("/members") ||
+    path.startsWith("/invitations") ||
+    path.startsWith("/settings") ||
+    path.startsWith("/pricing");
 
   const isActive = (key: BottomNavKey) => {
     if (key === "summary") return pathname.startsWith("/summary");
     if (key === "calendar") return pathname.startsWith("/calendar");
     if (key === "events") return pathname.startsWith("/events");
     if (key === "conflicts") return pathname.startsWith("/conflicts");
-    if (key === "panel") return pathname.startsWith("/panel");
+    if (key === "panel") return isPanelRelatedPath(pathname);
     if (key === "groups") return pathname.startsWith("/groups");
     if (key === "members") return pathname.startsWith("/members");
     if (key === "invitations") return pathname.startsWith("/invitations");
@@ -301,11 +317,8 @@ function BottomNav() {
       <div style={S.wrap}>
         <div style={S.viewport}>
           <div style={S.track}>
-            {NAV_ITEMS.map((item) => {
-              const active =
-                item.key === "panel"
-                  ? isPanelRelatedPath(pathname)
-                  : isActive(item.key);
+            {BOTTOM_NAV_ITEMS.map((item) => {
+              const active = isActive(item.key);
 
               return (
                 <Link
@@ -348,59 +361,53 @@ function BottomNav() {
 }
 
 const S: Record<string, React.CSSProperties> = {
- outer: {
+  outer: {
     position: "fixed",
     left: 0,
     right: 0,
     bottom: 0,
     zIndex: 90,
     pointerEvents: "none",
-    paddingLeft: 10,
-    paddingRight: 10,
-    paddingBottom:
-      "calc(env(safe-area-inset-bottom, 0px) + var(--sp-bottom-nav-offset, 10px))",
+    paddingLeft: "max(8px, env(safe-area-inset-left, 0px))",
+    paddingRight: "max(8px, env(safe-area-inset-right, 0px))",
+    paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + var(--sp-bottom-nav-offset, 8px))",
     boxSizing: "border-box",
   },
 
   wrap: {
     pointerEvents: "auto",
-    width: "min(100%, 540px)",
+    width: "min(calc(100vw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)), 430px)",
+    maxWidth: "100%",
     margin: "0 auto",
-    borderRadius: 18,
+    borderRadius: 20,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(8,12,20,0.90)",
-    boxShadow:
-      "0 18px 40px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.04)",
+    background: "rgba(8,12,20,0.92)",
+    boxShadow: "0 18px 40px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.05)",
     backdropFilter: "blur(18px)",
     WebkitBackdropFilter: "blur(18px)",
-    padding: 3,
+    padding: 4,
+    overflow: "hidden",
   },
 
   viewport: {
     width: "100%",
-    overflowX: "auto",
-    overflowY: "hidden",
-    WebkitOverflowScrolling: "touch",
-    scrollbarWidth: "none",
-    msOverflowStyle: "none",
-    touchAction: "pan-x",
-    overscrollBehaviorX: "contain",
-    overscrollBehaviorY: "none",
+    overflow: "hidden",
   },
 
   track: {
-    display: "inline-flex",
+    width: "100%",
+    minWidth: 0,
+    display: "grid",
+    gridTemplateColumns: `repeat(${BOTTOM_NAV_ITEMS.length}, minmax(0, 1fr))`,
     alignItems: "stretch",
-    gap: 6,
-    minWidth: "max-content",
-    paddingBottom: 2,
+    gap: 4,
   },
 
   item: {
-    minWidth: 68,
-    minHeight: 52,
-    padding: "7px 7px 9px",
-    borderRadius: 14,
+    minWidth: 0,
+    minHeight: 54,
+    padding: "6px 2px 7px",
+    borderRadius: 15,
     border: "1px solid rgba(255,255,255,0.06)",
     background: "rgba(255,255,255,0.025)",
     color: "rgba(255,255,255,0.76)",
@@ -408,27 +415,25 @@ const S: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 5,
     textDecoration: "none",
     WebkitTapHighlightColor: "transparent",
     userSelect: "none",
-    flex: "0 0 auto",
     cursor: "pointer",
-    transition:
-      "background 140ms ease, border-color 140ms ease, transform 120ms ease, box-shadow 140ms ease, color 140ms ease",
+    transition: "background 140ms ease, border-color 140ms ease, transform 120ms ease, box-shadow 140ms ease, color 140ms ease",
   },
 
   itemActive: {
     color: "#F8FBFF",
-    border: "1px solid rgba(96,165,250,0.18)",
-    background: "rgba(59,130,246,0.10)",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+    border: "1px solid rgba(96,165,250,0.20)",
+    background: "rgba(59,130,246,0.11)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
     transform: "translateY(-0.5px)",
   },
 
   iconWrap: {
-    width: 26,
-    height: 26,
+    width: 25,
+    height: 25,
     borderRadius: 9,
     display: "grid",
     placeItems: "center",
@@ -442,10 +447,17 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   label: {
-    fontSize: 8.5,
+    width: "100%",
+    minWidth: 0,
+    maxWidth: "100%",
+    display: "block",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    fontSize: "clamp(8px, 2.15vw, 9.5px)",
     lineHeight: 1,
     fontWeight: 800,
-    letterSpacing: "0.01em",
+    letterSpacing: 0,
+    textAlign: "center",
     whiteSpace: "nowrap",
     opacity: 0.9,
   },

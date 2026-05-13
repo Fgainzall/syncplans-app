@@ -44,7 +44,7 @@ function MobileScaffold({
   maxWidth = layout.maxWidthDesktop,
   paddingDesktop = "20px 18px 22px",
   paddingMobile = "12px 12px 18px",
-  mobileBottomSafe = Math.max(112, layout.mobileBottomSafe + 24),
+  mobileBottomSafe = Math.max(148, layout.mobileBottomSafe + 56),
   className,
   style,
 }: Props) {
