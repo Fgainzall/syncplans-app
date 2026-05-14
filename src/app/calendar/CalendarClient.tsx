@@ -105,6 +105,21 @@ function getErrorMessage(error: unknown): string {
 type Scope = "personal" | "active" | "all";
 type Tab = "month" | "agenda";
 
+const MONTH_LABELS_ES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
+
 /* =========================
    Helpers de fecha y formato
    ========================= */
@@ -1447,22 +1462,38 @@ const valueVisibility = useMemo(() => {
           </Card>
         ) : null}
 
-        <CalendarFilters
-          tab={tab}
-          scope={scope}
-          onChangeTab={setTab}
-          onChangeScope={setScope}
-          enabledGroups={enabledGroups}
-          onToggleGroup={toggleGroup}
-          onPrevMonth={goPrevMonth}
-          onNextMonth={goNextMonth}
-          onToday={goToday}
-          currentMonthIndex={currentMonthIndex}
-          currentYear={currentYear}
-          onChangeMonthYear={(year, monthIndex) => {
-            setAnchor(new Date(year, monthIndex, 1));
-          }}
-        />
+        {isMobile ? (
+          <MobileCalendarControls
+            tab={tab}
+            scope={scope}
+            onChangeTab={setTab}
+            onChangeScope={setScope}
+            enabledGroups={enabledGroups}
+            onToggleGroup={toggleGroup}
+            onPrevMonth={goPrevMonth}
+            onNextMonth={goNextMonth}
+            onToday={goToday}
+            currentMonthIndex={currentMonthIndex}
+            currentYear={currentYear}
+          />
+        ) : (
+          <CalendarFilters
+            tab={tab}
+            scope={scope}
+            onChangeTab={setTab}
+            onChangeScope={setScope}
+            enabledGroups={enabledGroups}
+            onToggleGroup={toggleGroup}
+            onPrevMonth={goPrevMonth}
+            onNextMonth={goNextMonth}
+            onToday={goToday}
+            currentMonthIndex={currentMonthIndex}
+            currentYear={currentYear}
+            onChangeMonthYear={(year, monthIndex) => {
+              setAnchor(new Date(year, monthIndex, 1));
+            }}
+          />
+        )}
 
         {tab === "month" ? (
           <Card style={styles.calendarCard} className="spCal-calendarCard">
@@ -1650,6 +1681,144 @@ onHide={
         />
       </Section>
     </MobileScaffold>
+  );
+}
+
+function MobileCalendarControls({
+  tab,
+  scope,
+  onChangeTab,
+  onChangeScope,
+  enabledGroups,
+  onToggleGroup,
+  onPrevMonth,
+  onNextMonth,
+  onToday,
+  currentMonthIndex,
+  currentYear,
+}: {
+  tab: Tab;
+  scope: Scope;
+  onChangeTab: (tab: Tab) => void;
+  onChangeScope: (scope: Scope) => void;
+  enabledGroups: EnabledGroups;
+  onToggleGroup: (group: GroupType) => void;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+  onToday: () => void;
+  currentMonthIndex: number;
+  currentYear: number;
+}) {
+  const monthLabel = `${MONTH_LABELS_ES[currentMonthIndex] ?? "Mes"} ${currentYear}`;
+
+  const tabItems: Array<{ value: Tab; label: string }> = [
+    { value: "month", label: "Calendario" },
+    { value: "agenda", label: "Seguimiento" },
+  ];
+
+  const scopeItems: Array<{ value: Scope; label: string }> = [
+    { value: "all", label: "Todo" },
+    { value: "personal", label: "Personal" },
+    { value: "active", label: "Compartido" },
+  ];
+
+  const legendItems: Array<{
+    key: keyof EnabledGroups;
+    label: string;
+    dot: string;
+    group: GroupType;
+  }> = [
+    { key: "personal", label: "Personal", dot: "#facc15", group: "personal" as GroupType },
+    { key: "pair", label: "Pareja", dot: "#fb7185", group: "pair" as GroupType },
+    { key: "family", label: "Familia", dot: "#60a5fa", group: "family" as GroupType },
+  ];
+
+  return (
+    <Card style={styles.mobileControlsCard}>
+      <div style={styles.mobileSegmentTwo}>
+        {tabItems.map((item) => {
+          const active = tab === item.value;
+          return (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => onChangeTab(item.value)}
+              style={{
+                ...styles.mobileSegmentBtn,
+                ...(active ? styles.mobileSegmentBtnActive : null),
+              }}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={styles.mobileSegmentThree}>
+        {scopeItems.map((item) => {
+          const active = scope === item.value;
+          return (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => onChangeScope(item.value)}
+              style={{
+                ...styles.mobileScopeBtn,
+                ...(active ? styles.mobileSegmentBtnActive : null),
+              }}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={styles.mobileMonthRow}>
+        <div style={styles.mobileMonthPill}>
+          <button
+            type="button"
+            onClick={onPrevMonth}
+            style={styles.mobileArrowBtn}
+            aria-label="Mes anterior"
+          >
+            ‹
+          </button>
+          <div style={styles.mobileMonthLabel}>{monthLabel}</div>
+          <button
+            type="button"
+            onClick={onNextMonth}
+            style={styles.mobileArrowBtn}
+            aria-label="Mes siguiente"
+          >
+            ›
+          </button>
+        </div>
+
+        <button type="button" onClick={onToday} style={styles.mobileTodayBtn}>
+          Hoy
+        </button>
+      </div>
+
+      <div style={styles.mobileLegendRow}>
+        {legendItems.map((item) => {
+          const active = enabledGroups[item.key];
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onToggleGroup(item.group)}
+              style={{
+                ...styles.mobileLegendChip,
+                ...(active ? styles.mobileLegendChipActive : null),
+              }}
+            >
+              <span style={{ ...styles.mobileLegendDot, background: item.dot }} />
+              <span style={styles.mobileLegendText}>{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
@@ -2165,6 +2334,153 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "space-between",
     flexWrap: "wrap",
+  },
+
+  mobileControlsCard: {
+    borderRadius: 20,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.022))",
+    padding: 10,
+    marginBottom: 12,
+    boxShadow: "0 18px 50px rgba(0,0,0,0.24)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    overflow: "hidden",
+  },
+  mobileSegmentTwo: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 6,
+  },
+  mobileSegmentThree: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 6,
+  },
+  mobileSegmentBtn: {
+    minWidth: 0,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.035)",
+    color: "rgba(248,250,252,0.92)",
+    padding: "9px 8px",
+    fontSize: 13,
+    fontWeight: 950,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  mobileScopeBtn: {
+    minWidth: 0,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.035)",
+    color: "rgba(248,250,252,0.90)",
+    padding: "8px 6px",
+    fontSize: 12,
+    fontWeight: 950,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  mobileSegmentBtnActive: {
+    background:
+      "linear-gradient(180deg, rgba(59,130,246,0.22), rgba(59,130,246,0.11))",
+    border: "1px solid rgba(96,165,250,0.34)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
+  },
+  mobileMonthRow: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) auto",
+    gap: 8,
+    alignItems: "center",
+  },
+  mobileMonthPill: {
+    minWidth: 0,
+    minHeight: 42,
+    borderRadius: 16,
+    border: "1px solid rgba(56,189,248,0.20)",
+    background:
+      "linear-gradient(180deg, rgba(56,189,248,0.11), rgba(59,130,246,0.055))",
+    display: "grid",
+    gridTemplateColumns: "34px minmax(0, 1fr) 34px",
+    alignItems: "center",
+    padding: "4px",
+  },
+  mobileArrowBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.95)",
+    cursor: "pointer",
+    fontSize: 22,
+    fontWeight: 950,
+    lineHeight: 1,
+  },
+  mobileMonthLabel: {
+    minWidth: 0,
+    textAlign: "center",
+    fontSize: 15,
+    fontWeight: 950,
+    color: "rgba(248,250,252,0.96)",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  mobileTodayBtn: {
+    minHeight: 42,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.045)",
+    color: "rgba(248,250,252,0.94)",
+    padding: "0 14px",
+    fontSize: 13,
+    fontWeight: 950,
+    cursor: "pointer",
+  },
+  mobileLegendRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 6,
+  },
+  mobileLegendChip: {
+    minWidth: 0,
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.025)",
+    color: "rgba(226,232,240,0.72)",
+    padding: "8px 7px",
+    fontSize: 11,
+    fontWeight: 900,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    cursor: "pointer",
+    overflow: "hidden",
+  },
+  mobileLegendChipActive: {
+    color: "rgba(248,250,252,0.95)",
+    background: "rgba(255,255,255,0.045)",
+    border: "1px solid rgba(255,255,255,0.14)",
+  },
+  mobileLegendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    flexShrink: 0,
+  },
+  mobileLegendText: {
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
 
   segment: {
