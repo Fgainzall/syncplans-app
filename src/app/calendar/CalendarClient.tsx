@@ -423,6 +423,42 @@ type CalendarClientProps = {
 };
 
 const CALENDAR_SECONDARY_REFRESH_GUARD_MS = 12_000;
+const CALENDAR_GOOGLE_AUTOSYNC_MIN_INTERVAL_MS = 5 * 60_000;
+
+type GoogleConnectionState = "connected" | "needs_reauth" | "disconnected";
+
+type GoogleStatusApiResponse = {
+  ok?: boolean;
+  connected?: boolean;
+  connection_state?: GoogleConnectionState;
+  error?: string;
+  code?: string;
+};
+
+type GoogleSyncApiResponse = {
+  ok?: boolean;
+  imported?: number;
+  error?: string;
+  code?: string;
+  message?: string;
+};
+
+type GoogleSyncRunResult = "synced" | "skipped" | "reauth" | "failed";
+
+type GoogleSyncRunOptions = {
+  force?: boolean;
+  showToast?: boolean;
+  reason?: string;
+};
+
+function isGoogleReauthCode(code: string | null | undefined): boolean {
+  const normalized = String(code ?? "").toUpperCase();
+  return (
+    normalized.includes("REAUTH") ||
+    normalized.includes("TOKEN_REFRESH") ||
+    normalized.includes("GOOGLE_NO_ACCOUNT")
+  );
+}
 
 /* =========================
    COMPONENTE PRINCIPAL
@@ -440,6 +476,8 @@ export default function CalendarClient(
   const eventRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const lastSecondaryRefreshAtRef = useRef(0);
   const lastLoadedRangeKeyRef = useRef<string | null>(null);
+  const lastGoogleAutoSyncAtRef = useRef(0);
+  const googleSyncInFlightRef = useRef(false);
 
   const setEventRef = (id: string) => (el: HTMLDivElement | null) => {
     eventRefs.current[String(id)] = el;
@@ -706,6 +744,147 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
     refreshCalendarRef.current = refreshCalendar;
   }, [refreshCalendar]);
 
+  const runGoogleSyncAndRefresh = useCallback(
+    async (opts: GoogleSyncRunOptions = {}): Promise<GoogleSyncRunResult> => {
+      const force = opts.force ?? false;
+      const showToastFlag = opts.showToast ?? false;
+
+      if (googleSyncInFlightRef.current) {
+        return "skipped";
+      }
+
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token ?? null;
+        const userId = data.session?.user?.id ?? null;
+
+        if (!token || !userId) {
+          return "skipped";
+        }
+
+        const storageKey = `sp_google_calendar_last_auto_sync_at:${userId}`;
+        const now = Date.now();
+
+        if (!force && typeof window !== "undefined") {
+          const persistedRaw = window.localStorage.getItem(storageKey);
+          const persisted = Number(persistedRaw ?? "0");
+          const lastAttempt = Math.max(
+            Number.isFinite(persisted) ? persisted : 0,
+            lastGoogleAutoSyncAtRef.current
+          );
+
+          if (now - lastAttempt < CALENDAR_GOOGLE_AUTOSYNC_MIN_INTERVAL_MS) {
+            return "skipped";
+          }
+
+          lastGoogleAutoSyncAtRef.current = now;
+          window.localStorage.setItem(storageKey, String(now));
+        }
+
+        googleSyncInFlightRef.current = true;
+
+        const authHeaders: Record<string, string> = {
+          Authorization: `Bearer ${token}`,
+        };
+
+        const statusRes = await fetch("/api/google/status", {
+          method: "GET",
+          headers: authHeaders,
+          cache: "no-store",
+        });
+
+        const statusJson = (await statusRes.json().catch(() => ({}))) as GoogleStatusApiResponse;
+        const connectionState =
+          statusJson.connection_state ??
+          (statusJson.connected ? "connected" : "disconnected");
+
+        if (!statusRes.ok || connectionState !== "connected" || !statusJson.connected) {
+          if (showToastFlag && connectionState === "needs_reauth") {
+            setToast({
+              title: "Reconecta Google Calendar",
+              subtitle: "La conexión existe, pero Google necesita renovar permisos.",
+            });
+            window.setTimeout(() => setToast(null), 3600);
+            return "reauth";
+          }
+
+          return "skipped";
+        }
+
+        if (force && typeof window !== "undefined") {
+          lastGoogleAutoSyncAtRef.current = now;
+          window.localStorage.setItem(storageKey, String(now));
+        }
+
+        if (showToastFlag) {
+          setToast({
+            title: "Sincronizando Google…",
+            subtitle: "Importando cambios recientes de Google Calendar.",
+          });
+        }
+
+        const syncRes = await fetch("/api/google/sync", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders,
+          },
+          cache: "no-store",
+        });
+
+        const syncJson = (await syncRes.json().catch(() => ({}))) as GoogleSyncApiResponse;
+
+        if (!syncRes.ok || !syncJson.ok) {
+          const code = syncJson.code ?? null;
+          const needsReauth = isGoogleReauthCode(code);
+
+          if (showToastFlag || needsReauth) {
+            setToast({
+              title: needsReauth ? "Reconecta Google Calendar" : "No se pudo sincronizar Google",
+              subtitle:
+                syncJson.error ||
+                (needsReauth
+                  ? "Vuelve a conectar tu cuenta desde Panel o Ajustes."
+                  : "Tus eventos de SyncPlans siguen disponibles."),
+            });
+            window.setTimeout(() => setToast(null), 3600);
+          }
+
+          return needsReauth ? "reauth" : "failed";
+        }
+
+        await refreshCalendar({ showToast: false });
+
+        const imported = Number(syncJson.imported ?? 0);
+        if (showToastFlag || imported > 0) {
+          setToast({
+            title: "Google Calendar actualizado ✅",
+            subtitle:
+              imported > 0
+                ? `${imported} evento${imported === 1 ? "" : "s"} importado${imported === 1 ? "" : "s"} o actualizado${imported === 1 ? "" : "s"}.`
+                : "Tus eventos externos ya están al día.",
+          });
+          window.setTimeout(() => setToast(null), 2800);
+        }
+
+        return "synced";
+      } catch (error) {
+        if (showToastFlag) {
+          setToast({
+            title: "No se pudo sincronizar Google",
+            subtitle: getErrorMessage(error) || "Intenta nuevamente en unos segundos.",
+          });
+          window.setTimeout(() => setToast(null), 3200);
+        }
+
+        return "failed";
+      } finally {
+        googleSyncInFlightRef.current = false;
+      }
+    },
+    [refreshCalendar]
+  );
+
   const handleDeleteEvent = useCallback(
     async (eventId: string) => {
       if (!editingEvent || !currentUserId) return;
@@ -870,8 +1049,9 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
   }, [refreshCalendar]);
 
   useEffect(() => {
-    return;
-  }, [refreshCalendar]);
+    if (booting) return;
+    void runGoogleSyncAndRefresh({ reason: "calendar_open" });
+  }, [booting, runGoogleSyncAndRefresh]);
 
   useEffect(() => {
     const shouldRefreshFromSecondaryTrigger = () => {
@@ -890,12 +1070,14 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
 
     const onFocus = () => {
       if (!shouldRefreshFromSecondaryTrigger()) return;
+      void runGoogleSyncAndRefresh({ reason: "focus" });
       void refreshCalendar();
     };
 
     const onVisibility = () => {
       if (document.visibilityState !== "visible") return;
       if (!shouldRefreshFromSecondaryTrigger()) return;
+      void runGoogleSyncAndRefresh({ reason: "visibility" });
       void refreshCalendar();
     };
 
@@ -912,7 +1094,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
       window.removeEventListener("sp:events-changed", onEventsChanged as EventListener);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [refreshCalendar]);
+  }, [refreshCalendar, runGoogleSyncAndRefresh]);
 
   useEffect(() => {
     if (booting || !eventsLoaded) return;
@@ -1215,11 +1397,19 @@ const valueVisibility = useMemo(() => {
     });
 
   const handleRefresh = async () => {
-    await refreshCalendar({
+    const googleResult = await runGoogleSyncAndRefresh({
+      force: true,
       showToast: true,
-      toastTitle: "Actualizando…",
-      toastSubtitle: "Recargando desde SyncPlans",
+      reason: "manual_refresh",
     });
+
+    if (googleResult === "skipped") {
+      await refreshCalendar({
+        showToast: true,
+        toastTitle: "Actualizado ✅",
+        toastSubtitle: "Tu calendario de SyncPlans ya está al día.",
+      });
+    }
   };
 
   const openNewEventPersonal = (date?: Date) => {

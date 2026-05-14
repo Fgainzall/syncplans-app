@@ -472,7 +472,71 @@ export async function POST(req: Request) {
     timeMax.setDate(timeMax.getDate() + 120);
     timeMax.setHours(23, 59, 59, 999);
 
-    const calendars = await listAllVisibleCalendars(accessToken);
+    let calendars: GoogleCalendarListItem[] = [];
+
+    try {
+      calendars = await listAllVisibleCalendars(accessToken);
+    } catch (error) {
+      const providerError = error instanceof GoogleProviderError ? error : null;
+      const canRetryWithRefresh =
+        (providerError?.status === 401 || providerError?.status === 403) && !!refreshToken;
+
+      if (!canRetryWithRefresh || !refreshToken) {
+        throw error;
+      }
+
+      try {
+        const refreshed = await refreshGoogleAccessToken(refreshToken);
+        accessToken = refreshed.access_token;
+
+        const nextExpiry = new Date(
+          Date.now() + (refreshed.expires_in ?? 3600) * 1000
+        ).toISOString();
+
+        const { error: retryTokenSaveError } = await supabaseAdmin
+          .from("google_accounts")
+          .update({
+            access_token: accessToken,
+            expires_at: nextExpiry,
+          })
+          .eq("user_id", user.id);
+
+        if (retryTokenSaveError) {
+          return jsonError(ctx, {
+            error: "No se pudo guardar la sesión renovada de Google.",
+            code: "GOOGLE_TOKEN_SAVE_FAILED",
+            status: 500,
+            log: {
+              flow: "google.sync",
+              userId: user.id,
+              providerError: retryTokenSaveError.message,
+            },
+          });
+        }
+
+        calendars = await listAllVisibleCalendars(accessToken);
+      } catch (refreshError) {
+        const retryProviderError =
+          refreshError instanceof GoogleProviderError ? refreshError : null;
+
+        return jsonError(ctx, {
+          error: "No se pudo refrescar la sesión de Google. Vuelve a conectar tu cuenta.",
+          code: "GOOGLE_TOKEN_REFRESH_FAILED",
+          status:
+            retryProviderError?.status === 400 || retryProviderError?.status === 401
+              ? 401
+              : 502,
+          headers: rateLimitHeaders(syncLimit),
+          log: {
+            flow: "google.sync",
+            userId: user.id,
+            providerStatus: retryProviderError?.status ?? null,
+            providerCode: retryProviderError?.providerCode ?? null,
+          },
+        });
+      }
+    }
+
     const syncableCalendars = calendars.filter((cal) => !isInformationalGoogleCalendar(cal));
     const skippedInformationalCalendars = Math.max(0, calendars.length - syncableCalendars.length);
 
