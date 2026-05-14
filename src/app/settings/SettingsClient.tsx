@@ -619,6 +619,23 @@ export default function SettingsClient() {
     })();
   }, [refreshGoogleStatusWithRetry, router, searchParams, showToast]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const scrollToHash = () => {
+      const hash = window.location.hash.replace("#", "");
+      if (!hash) return;
+
+      const target = document.getElementById(hash);
+      if (!target) return;
+
+      target.scrollIntoView({ block: "start", behavior: "smooth" });
+    };
+
+    const timer = window.setTimeout(scrollToHash, 120);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <main style={styles.page}>
       {toast ? (
@@ -640,7 +657,7 @@ export default function SettingsClient() {
           <PremiumHeader
             hideUpgradeCta
             title="Ajustes"
-            subtitle="Configura permisos, avisos e integraciones. La cuenta vive en Perfil; la administración general vive en Panel."
+            subtitle="Configura permisos, avisos e integraciones. Tu identidad vive en Perfil; la administración general vive en Panel."
           />
 
           <section style={styles.hero}>
@@ -669,7 +686,7 @@ export default function SettingsClient() {
               <div>
                 <div style={styles.sectionTitle}>Configuración principal</div>
                 <div style={styles.smallNote}>
-                  Entra solo al área que quieras ajustar. Aquí no se administran grupos ni cuenta: eso vive en Panel y Perfil.
+                  Entra solo al área que quieras ajustar. Aquí no se administran grupos ni perfil completo: eso vive en Panel y Perfil.
                 </div>
               </div>
             </div>
@@ -706,7 +723,7 @@ export default function SettingsClient() {
             </div>
           </section>
 
-          <section style={styles.card}>
+          <section id="mobility" style={{ ...styles.card, ...styles.anchorSection }}>
             <div style={styles.sectionTitleRow}>
               <div>
                 <div style={styles.sectionTitle}>Permisos importantes</div>
@@ -825,7 +842,7 @@ export default function SettingsClient() {
             </div>
           </section>
 
-          <section style={styles.card}>
+          <section id="integrations" style={{ ...styles.card, ...styles.anchorSection }}>
             <div style={styles.sectionTitleRow}>
               <div>
                 <div style={styles.sectionTitle}>Calendarios externos</div>
@@ -1108,6 +1125,7 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.9,
     whiteSpace: "nowrap",
   },
+  anchorSection: { scrollMarginTop: 110 },
   card: {
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",

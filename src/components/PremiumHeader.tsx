@@ -317,7 +317,7 @@ function getAutoSubtitle(pathname: string) {
     return "Administra tu coordinación compartida.";
   }
   if (pathname.startsWith("/settings")) {
-    return "Ajusta integraciones, permisos y cuenta.";
+    return "Ajusta integraciones, permisos y perfil.";
   }
   if (pathname.startsWith("/planes")) {
     return "Compara planes y desbloquea más.";
@@ -706,7 +706,7 @@ const cleaned = normalizeGroupLabel(
                   type="button"
                   style={styles.mobileUserButton}
                   onClick={() => setUserMenuOpen((v) => !v)}
-                  title="Cuenta"
+                  title="Perfil"
                 >
                   <div style={styles.userAvatar}>
                     {headerUser?.initials ?? "T"}
@@ -839,7 +839,7 @@ const cleaned = normalizeGroupLabel(
                     type="button"
                     style={styles.userChip}
                     onClick={() => setUserMenuOpen((v) => !v)}
-                    title="Cuenta y opciones"
+                    title="Perfil y opciones"
                   >
                     <div style={styles.userAvatar}>
                       {headerUser?.initials ?? "T"}
@@ -924,7 +924,7 @@ const cleaned = normalizeGroupLabel(
                     router.push("/profile", { scroll: false });
                   }}
                 >
-                  Profile
+                  Perfil
                 </button>
 
                 <button

@@ -819,7 +819,7 @@ export default function PanelPage() {
         title: "Conecta tu calendario externo",
         copy: "Conectar Google Calendar ayuda a detectar disponibilidad, choques y contexto antes de coordinar.",
         label: googlePrimaryCta,
-        href: "/settings",
+        href: "/settings#integrations",
         tone: "default",
       };
     }
@@ -883,7 +883,7 @@ export default function PanelPage() {
         copy: googleConnected
           ? "Google Calendar ya aporta contexto para detectar choques y disponibilidad con menos trabajo manual."
           : "Conectar Google ayuda a que SyncPlans detecte más contexto sin pedirte que dupliques tu agenda.",
-        href: "/settings",
+        href: "/settings#integrations",
         cta: googleConnected ? "Gestionar" : googlePrimaryCta,
         done: googleConnected,
         status: {
@@ -984,7 +984,7 @@ export default function PanelPage() {
         eyebrow: "Contexto",
         title: "Calendarios e integraciones",
         copy: "Google Calendar y contexto externo.",
-        href: "/settings",
+        href: "/settings#integrations",
         cta: googlePrimaryCta,
         meta:
           connectionState === "connected"
@@ -999,18 +999,18 @@ export default function PanelPage() {
         eyebrow: "Llegada",
         title: "Movilidad inteligente",
         copy: "Rutas, Maps/Waze y alertas de salida.",
-        href: "/settings",
+        href: "/settings#mobility",
         cta: "Configurar",
         meta: "Rutas y alertas",
         status: { label: "Opcional", tone: "neutral" },
       },
       {
         id: "account",
-        eyebrow: "Cuenta",
-        title: "Cuenta y plan",
-        copy: "Perfil, plan y preferencias.",
+        eyebrow: "Perfil",
+        title: "Perfil y plan",
+        copy: "Perfil, preferencias y acceso Premium.",
         href: "/profile",
-        cta: "Ver cuenta",
+        cta: "Ver perfil",
         meta: planInfo.pill === "Free" ? "Acceso Free" : `${planInfo.pill} activo`,
         status: {
           label: planInfo.pill,
@@ -1111,7 +1111,7 @@ export default function PanelPage() {
         subtitle={
           isMobile
             ? "Gestiona lo importante sin ruido."
-            : "Grupos, calendarios, movilidad y cuenta en un solo lugar."
+            : "Grupos, calendarios, movilidad y perfil en un solo lugar."
         }
       />
 
@@ -1131,7 +1131,7 @@ export default function PanelPage() {
               <div style={styles.eyebrow}>Panel</div>
               <h1 style={styles.commandTitle}>Administra SyncPlans</h1>
               <p style={styles.commandCopy}>
-                Personas, calendarios, movilidad y cuenta en un solo lugar.
+                Personas, calendarios, movilidad y perfil en un solo lugar.
                 Lo operativo vive en Resumen, Calendario y Eventos.
               </p>
             </div>
@@ -1568,7 +1568,7 @@ export default function PanelPage() {
                             <button
                               type="button"
                               style={styles.primarySmallButton}
-                              onClick={() => router.push("/settings")}
+                              onClick={() => router.push("/settings#integrations")}
                             >
                               {googlePrimaryCta}
                             </button>

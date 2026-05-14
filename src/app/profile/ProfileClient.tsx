@@ -1403,8 +1403,8 @@ export default function ProfilePage() {
           <div style={styles.headerRow}>
             <PremiumHeader
             hideUpgradeCta
-              title="Cuenta"
-              subtitle="Administra tu identidad, preferencias, plan y acceso."
+              title="Perfil"
+              subtitle="Administra tu identidad, preferencias y acceso."
               rightSlot={<LogoutButton />}
               mobileNav="bottom"
             />
@@ -1438,8 +1438,8 @@ export default function ProfilePage() {
           <div style={styles.headerRow}>
             <PremiumHeader
             hideUpgradeCta
-              title="Cuenta"
-              subtitle="Administra tu identidad, preferencias, plan y acceso."
+              title="Perfil"
+              subtitle="Administra tu identidad, preferencias y acceso."
               rightSlot={<LogoutButton />}
               mobileNav="bottom"
             />
@@ -1452,7 +1452,7 @@ export default function ProfilePage() {
     );
   }
 
-  const accountStatusLabel = verified ? "Cuenta verificada" : "Verifica tu correo";
+  const accountStatusLabel = verified ? "Correo verificado" : "Verifica tu correo";
   const accountStatusHint = verified
     ? "Tu correo está confirmado."
     : "Busca el correo de confirmación en tu bandeja o spam.";
@@ -1484,15 +1484,15 @@ export default function ProfilePage() {
       ? "Premium gana valor cuando tu semana ya se coordina de verdad"
       : premiumContextKey === "groups"
         ? "Premium se vuelve más útil cuando ya compartes tiempo con otros"
-        : "Premium cobra sentido cuando quieres más claridad que solo una cuenta base";
+        : "Premium cobra sentido cuando quieres más claridad que solo un perfil base";
 
   const premiumContextText = premiumContextKey === "conflicts"
     ? `Ya tienes ${conflictsNow} conflicto${conflictsNow === 1 ? "" : "s"} pendiente${conflictsNow === 1 ? "" : "s"}. Premium suma más contexto para anticipar mejor, decidir más rápido y reducir idas y vueltas cuando el tiempo compartido empieza a chocar.`
     : premiumContextKey === "shared_load"
-      ? `Tu cuenta ya mueve ${eventsLast7} eventos visibles en los últimos 7 días y ${totalGroups} grupo${totalGroups === 1 ? "" : "s"}. Premium se siente más lógico cuando SyncPlans deja de ser solo referencia y se vuelve capa real de coordinación.`
+      ? `Tu perfil ya mueve ${eventsLast7} eventos visibles en los últimos 7 días y ${totalGroups} grupo${totalGroups === 1 ? "" : "s"}. Premium se siente más lógico cuando SyncPlans deja de ser solo referencia y se vuelve capa real de coordinación.`
       : premiumContextKey === "groups"
         ? `Ya participas en ${totalGroups} grupo${totalGroups === 1 ? "" : "s"}. Premium no añade ruido: añade más claridad, mejores señales y una experiencia más fuerte cuando la coordinación compartida importa de verdad.`
-        : "Tu cuenta ya está lista. Premium tiene más sentido cuando quieres una experiencia más completa, más clara y mejor preparada para coordinar con menos fricción.";
+        : "Tu perfil ya está listo. Premium tiene más sentido cuando quieres una experiencia más completa, más clara y mejor preparada para coordinar con menos fricción.";
 
   const premiumContextBadge = premiumContextKey === "conflicts"
     ? "Más útil con conflictos"
@@ -1505,7 +1505,7 @@ export default function ProfilePage() {
   const premiumContextCta = premiumActive ? "Ver tu plan" : (planCtaLabel || "Ver planes");
 
   let heroSummary =
-    "Estamos cargando tu cuenta para darte una lectura más clara de tu estado dentro de SyncPlans.";
+    "Estamos cargando tu perfil para darte una lectura más clara de tu estado dentro de SyncPlans.";
 
   if (!statsLoading && stats) {
     if (stats.conflictsNow > 0) {
@@ -1515,20 +1515,20 @@ export default function ProfilePage() {
         stats.totalGroups === 1 ? "" : "s"
       } activo${stats.totalGroups === 1 ? "" : "s"}.`;
     } else if (stats.totalGroups > 0) {
-      heroSummary = `Tu cuenta ya participa en ${stats.totalGroups} grupo${
+      heroSummary = `Tu perfil ya participa en ${stats.totalGroups} grupo${
         stats.totalGroups === 1 ? "" : "s"
       } y SyncPlans está listo para coordinar con menos fricción.`;
     } else {
       heroSummary =
-        "Tu cuenta está lista para empezar. El siguiente salto real llega cuando sumas grupos y compartes tiempo con alguien más.";
+        "Tu perfil está listo para empezar. El siguiente salto real llega cuando sumas grupos y compartes tiempo con alguien más.";
     }
   }
 
   const recommendationTitle =
-    recommendation?.title ?? "Tu cuenta ya está bien encaminada";
+    recommendation?.title ?? "Tu perfil ya está bien encaminado";
   const recommendationHint =
     recommendation?.hint ??
-    "La base de tu cuenta está en orden. Cuando quieras operar, vuelve a Panel, Calendario o Conflictos.";
+    "La base de tu perfil está en orden. Cuando quieras operar, vuelve a Panel, Calendario o Conflictos.";
   const recommendationCtaLabel = recommendation?.ctaLabel ?? "Ir al panel";
   const recommendationHref = getRecommendationHref(recommendation?.ctaTarget);
 
@@ -1543,8 +1543,8 @@ export default function ProfilePage() {
         <div style={styles.headerRow}>
           <PremiumHeader
             hideUpgradeCta
-            title="Cuenta"
-            subtitle="Administra tu identidad, preferencias, plan y acceso."
+            title="Perfil"
+            subtitle="Administra tu identidad, preferencias y acceso."
             mobileNav="bottom"
           />
         </div>
@@ -1555,7 +1555,7 @@ export default function ProfilePage() {
               <div style={avatarStyle}>{initials || "?"}</div>
 
               <div style={styles.identityWrap}>
-                <div style={styles.identityEyebrow}>Tu cuenta</div>
+                <div style={styles.identityEyebrow}>Tu perfil</div>
 
                 <div style={styles.nameRow}>
                   <span style={nameStyle}>
@@ -1603,7 +1603,7 @@ export default function ProfilePage() {
           </div>
 
           <div style={styles.heroStrip}>
-            <div style={styles.heroStripLabel}>Estado de cuenta</div>
+            <div style={styles.heroStripLabel}>Estado del perfil</div>
             <div style={styles.heroStripText}>{heroSummary}</div>
           </div>
 
@@ -1650,7 +1650,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Perfil</div>
                   <h2 style={sectionTitleStyle}>Tu identidad en SyncPlans</h2>
                   <div style={styles.sectionSub}>
-                    Define cómo apareces dentro de SyncPlans. Este bloque sí pertenece a Cuenta.
+                    Define cómo apareces dentro de SyncPlans. Este bloque pertenece a tu Perfil.
                   </div>
                 </div>
 
@@ -1887,7 +1887,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Espacios compartidos</div>
                   <h2 style={sectionTitleStyle}>Tu estructura compartida</h2>
                   <div style={styles.sectionSub}>
-                    Tus grupos siguen formando parte de tu cuenta, pero la operación ya vive en Panel. Aquí solo mantienes una lectura clara de tu estructura para no confundir identidad con administración.
+                    Tus grupos siguen vinculados a tu perfil, pero la operación ya vive en Panel. Aquí solo mantienes una lectura clara de tu estructura para no confundir identidad con administración.
                   </div>
                 </div>
 
@@ -1986,10 +1986,10 @@ export default function ProfilePage() {
             <section style={cardStyle}>
               <div style={styles.sectionHead}>
                 <div>
-                  <div style={styles.sectionLabel}>Cuenta</div>
+                  <div style={styles.sectionLabel}>Acceso</div>
                   <h2 style={sectionTitleStyle}>Plan y acceso</h2>
                   <div style={styles.sectionSub}>
-                    Revisa tu correo, tu plan actual y el acceso asociado a tu cuenta.
+                    Revisa tu correo, tu plan actual y el acceso asociado a tu perfil.
                   </div>
                 </div>
               </div>
@@ -2125,7 +2125,7 @@ export default function ProfilePage() {
                   <div style={styles.sectionLabel}>Recomendación</div>
                   <h2 style={sectionTitleStyle}>Siguiente mejora sugerida</h2>
                   <div style={styles.sectionSub}>
-                    Una sola siguiente acción útil para mejorar tu cuenta sin competir con el loop principal del producto.
+                    Una sola siguiente acción útil para mejorar tu perfil sin competir con el loop principal del producto.
                   </div>
                 </div>
               </div>
@@ -2217,7 +2217,7 @@ export default function ProfilePage() {
         </div>
 
         <section style={styles.footer}>
-          Tu cuenta define cómo apareces, qué plan tienes y qué preferencias personales usa SyncPlans. Para administrar grupos, integraciones, movilidad u operaciones, usa <strong>Panel</strong>.
+          Tu perfil define cómo apareces, qué plan tienes y qué preferencias personales usa SyncPlans. Para administrar grupos, integraciones, movilidad u operaciones, usa <strong>Panel</strong>.
         </section>
       </MobileScaffold>
     </main>
