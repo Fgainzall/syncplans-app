@@ -387,34 +387,6 @@ function StatusPill({ badge }: { badge: StatusBadge }) {
   return <span style={{ ...styles.statusPill, ...badge.style }}>{badge.label}</span>;
 }
 
-function FocusRail({
-  eyebrow,
-  title,
-  subtitle,
-  cta,
-  onClick,
-}: {
-  eyebrow: string;
-  title: string;
-  subtitle: string;
-  cta: string;
-  onClick: () => void;
-}) {
-  return (
-    <Card style={styles.focusRailCard}>
-      <div style={styles.focusRailCopy}>
-        <div style={styles.focusRailEyebrow}>{eyebrow}</div>
-        <div style={styles.focusRailTitle}>{title}</div>
-        <div style={styles.focusRailSubtitle}>{subtitle}</div>
-      </div>
-
-      <button type="button" onClick={onClick} style={styles.focusRailBtn}>
-        {cta}
-      </button>
-    </Card>
-  );
-}
-
 
 function PremiumContextRail({
   nudge,

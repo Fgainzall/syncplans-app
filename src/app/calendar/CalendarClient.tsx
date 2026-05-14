@@ -1280,6 +1280,33 @@ const valueVisibility = useMemo(() => {
   }
 
   const monthTitle = prettyMonthRange(monthStart, monthEnd);
+  const overviewStatusText = !eventsLoaded
+    ? "Revisando señales…"
+    : conflictCount > 0
+      ? `${conflictCount} choque${conflictCount === 1 ? "" : "s"} abierto${conflictCount === 1 ? "" : "s"}`
+      : "Sin choques abiertos";
+
+  const valueSignalParts: string[] = [];
+  if (valueVisibility.resolved > 0) {
+    valueSignalParts.push(
+      `${valueVisibility.resolved} resuelto${valueVisibility.resolved === 1 ? "" : "s"}`
+    );
+  }
+  if (valueVisibility.adjusted > 0) {
+    valueSignalParts.push(
+      `${valueVisibility.adjusted} ajustado${valueVisibility.adjusted === 1 ? "" : "s"}`
+    );
+  }
+  if (valueVisibility.pending === 0) {
+    valueSignalParts.push("Nada pendiente");
+  }
+
+  const valueSignalSummary = valueSignalParts.length
+    ? valueSignalParts.join(" · ")
+    : "Sin señales abiertas";
+  const valueSignalTitle = valueVisibility.pending > 0
+    ? `${valueVisibility.pending} decisión${valueVisibility.pending === 1 ? "" : "es"} pendiente${valueVisibility.pending === 1 ? "" : "s"}`
+    : "Todo claro por ahora";
 
   return (
     <MobileScaffold maxWidth={1120} style={styles.page}>
@@ -1315,18 +1342,10 @@ const valueVisibility = useMemo(() => {
         <Card style={styles.overviewCard} className="spCal-overviewCard">
           <div style={styles.overviewTop}>
             <div style={styles.overviewLeft}>
-              <div style={styles.overviewEyebrow}>Calendario como soporte</div>
-              <h2 style={styles.overviewTitle}>
-                {tab === "month" ? "Lo que está visible" : "Seguimiento de lo visible"}
-              </h2>
+              <div style={styles.overviewEyebrow}>Vista actual</div>
+              <h2 style={styles.overviewTitle}>{monthTitle}</h2>
               <div style={styles.overviewSub}>
-                {monthTitle}
-                {error ? ` · ${error}` : ""}
-                {!error
-                  ? conflictCount > 0
-                    ? " · Aquí solo ubicamos rápido dónde tocar decisión."
-                    : " · Úsalo para ubicar rápido, no para perderte en una agenda fría."
-                  : ""}
+                {error ? error : overviewStatusText}
               </div>
             </div>
 
@@ -1335,61 +1354,43 @@ const valueVisibility = useMemo(() => {
                 onClick={() => openNewEventPersonal()}
                 style={styles.primaryBtnPersonal}
               >
-                + Plan personal
+                + Personal
               </button>
               <button
                 onClick={() => openNewEventGroup()}
                 style={styles.primaryBtnGroup}
               >
-                + Plan compartido
+                + Compartido
               </button>
             </div>
           </div>
 
-          <div
-            style={{
-              ...styles.overviewMetaRow,
-              ...(isMobile ? styles.overviewMetaRowMobile : null),
-            }}
-          >
-            {!eventsLoaded ? (
-              <div style={styles.statusPillNeutral}>
-                <span style={styles.statusDotNeutral} />
-                Revisando…
-              </div>
-            ) : conflictCount > 0 ? (
-              <div style={styles.statusCluster}>
-                <button onClick={openConflicts} style={styles.statusPillDanger}>
-                  <span style={styles.statusDotDanger} />
-                  {conflictCount} choque{conflictCount === 1 ? "" : "s"} abierto{conflictCount === 1 ? "" : "s"}
-                </button>
-
-                <button onClick={resolveNow} style={styles.statusPillAction}>
-                  Resolver ahora
-                </button>
-              </div>
-            ) : (
-              <div
-                style={{
-                  ...styles.statusPillSuccess,
-                  ...(isMobile ? styles.statusPillSuccessMobile : null),
-                }}
-              >
-                <span style={styles.statusDotSuccess} />
-                Sin choques abiertos
-              </div>
-            )}
-
-            <button
-              onClick={handleRefresh}
+          {!eventsLoaded || conflictCount > 0 ? (
+            <div
               style={{
-                ...styles.overviewGhostBtn,
-                ...(isMobile ? styles.overviewGhostBtnMobile : null),
+                ...styles.overviewMetaRow,
+                ...(isMobile ? styles.overviewMetaRowMobile : null),
               }}
             >
-              Actualizar
-            </button>
-          </div>
+              {!eventsLoaded ? (
+                <div style={styles.statusPillNeutral}>
+                  <span style={styles.statusDotNeutral} />
+                  Revisando…
+                </div>
+              ) : (
+                <div style={styles.statusCluster}>
+                  <button onClick={openConflicts} style={styles.statusPillDanger}>
+                    <span style={styles.statusDotDanger} />
+                    {conflictCount} choque{conflictCount === 1 ? "" : "s"} abierto{conflictCount === 1 ? "" : "s"}
+                  </button>
+
+                  <button onClick={resolveNow} style={styles.statusPillAction}>
+                    Resolver ahora
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : null}
         </Card>
 
         {conflictCount > 0 ? (
@@ -1418,37 +1419,30 @@ const valueVisibility = useMemo(() => {
         ) : null}
 
         {valueVisibility.hasValue ? (
-          <Card style={styles.valueRailCard}>
+          <Card
+            style={{
+              ...styles.valueRailCard,
+              ...(valueVisibility.pending > 0 ? styles.valueRailCardPending : null),
+            }}
+          >
             <div style={styles.valueRailTop}>
               <div style={styles.valueRailCopy}>
                 <div style={styles.valueRailEyebrow}>Señales compartidas</div>
-                <div style={styles.valueRailTitle}>
-                  Aquí ubicas rápido qué ya quedó claro y qué todavía necesita una decisión compartida.
-                </div>
-                <div style={styles.valueRailSub}>
-                  {valueVisibility.resolved > 0
-                    ? `${valueVisibility.resolved} resuelto${valueVisibility.resolved === 1 ? "" : "s"}`
-                    : null}
-                  {valueVisibility.resolved > 0 && valueVisibility.adjusted > 0 ? " · " : ""}
-                  {valueVisibility.adjusted > 0
-                    ? `${valueVisibility.adjusted} ajustado${valueVisibility.adjusted === 1 ? "" : "s"}`
-                    : null}
-                  {(valueVisibility.resolved > 0 || valueVisibility.adjusted > 0) && valueVisibility.pending > 0 ? " · " : ""}
-                  {valueVisibility.pending > 0
-                    ? `${valueVisibility.pending} pendiente${valueVisibility.pending === 1 ? "" : "s"}`
-                    : null}
-                </div>
+                <div style={styles.valueRailTitle}>{valueSignalTitle}</div>
+                <div style={styles.valueRailSub}>{valueSignalSummary}</div>
               </div>
 
-              <div style={styles.valueRailActions}>
-                <button
-                  type="button"
-                  onClick={valueVisibility.pending > 0 ? openConflicts : handleRefresh}
-                  style={styles.valueRailBtn}
-                >
-                  {valueVisibility.pending > 0 ? "Resolver lo pendiente" : "Refrescar señales"}
-                </button>
-              </div>
+              {valueVisibility.pending > 0 ? (
+                <div style={styles.valueRailActions}>
+                  <button
+                    type="button"
+                    onClick={openConflicts}
+                    style={styles.valueRailBtn}
+                  >
+                    Resolver
+                  </button>
+                </div>
+              ) : null}
             </div>
           </Card>
         ) : null}
@@ -2672,27 +2666,29 @@ eventTag: {
   },
 
 primaryBtnPersonal: {
-  flex: "1 1 160px",
+  flex: "1 1 140px",
   minWidth: 0,
-  borderRadius: 18,
-  padding: "14px 16px",
-  border: "1px solid rgba(250,204,21,0.34)",
-  background: "linear-gradient(180deg, rgba(250,204,21,0.20), rgba(250,204,21,0.10))",
+  minHeight: 42,
+  borderRadius: 14,
+  padding: "10px 12px",
+  border: "1px solid rgba(250,204,21,0.28)",
+  background: "linear-gradient(180deg, rgba(250,204,21,0.15), rgba(250,204,21,0.07))",
   color: "rgba(255,255,255,0.96)",
-  fontSize: 15,
-  fontWeight: 800,
+  fontSize: 13,
+  fontWeight: 850,
   cursor: "pointer",
 },
 primaryBtnGroup: {
-  flex: "1 1 160px",
+  flex: "1 1 140px",
   minWidth: 0,
-  borderRadius: 18,
-  padding: "14px 16px",
-  border: "1px solid rgba(96,165,250,0.34)",
-  background: "linear-gradient(180deg, rgba(59,130,246,0.22), rgba(59,130,246,0.12))",
+  minHeight: 42,
+  borderRadius: 14,
+  padding: "10px 12px",
+  border: "1px solid rgba(96,165,250,0.28)",
+  background: "linear-gradient(180deg, rgba(59,130,246,0.16), rgba(59,130,246,0.08))",
   color: "rgba(255,255,255,0.96)",
-  fontSize: 15,
-  fontWeight: 800,
+  fontSize: 13,
+  fontWeight: 850,
   cursor: "pointer",
 },
 
@@ -2873,13 +2869,18 @@ primaryBtnGroup: {
     fontWeight: 900,
   },
 valueRailCard: {
-  borderRadius: 18,
-  border: "1px solid rgba(52,211,153,0.20)",
+  borderRadius: 16,
+  border: "1px solid rgba(52,211,153,0.16)",
   background:
-    "linear-gradient(135deg, rgba(20,83,45,0.72), rgba(15,23,42,0.82))",
-  boxShadow: "0 18px 46px rgba(0,0,0,0.18)",
-  padding: "12px 14px",
+    "linear-gradient(135deg, rgba(20,83,45,0.34), rgba(15,23,42,0.72))",
+  boxShadow: "0 12px 34px rgba(0,0,0,0.14)",
+  padding: "10px 12px",
   marginBottom: 8,
+},
+valueRailCardPending: {
+  border: "1px solid rgba(96,165,250,0.24)",
+  background:
+    "linear-gradient(135deg, rgba(30,64,175,0.30), rgba(15,23,42,0.76))",
 },
 valueRailTop: {
   display: "flex",
@@ -2902,16 +2903,16 @@ valueRailEyebrow: {
   color: "rgba(134,239,172,0.90)",
 },
 valueRailTitle: {
-  fontSize: 16,
-  lineHeight: 1.25,
+  fontSize: 15,
+  lineHeight: 1.2,
   fontWeight: 900,
   letterSpacing: "-0.02em",
   color: "rgba(255,255,255,0.98)",
 },
 valueRailSub: {
-  fontSize: 13,
-  lineHeight: 1.55,
-  color: "rgba(220,252,231,0.82)",
+  fontSize: 12,
+  lineHeight: 1.35,
+  color: "rgba(220,252,231,0.78)",
 },
 valueRailActions: {
   display: "flex",
@@ -2922,19 +2923,19 @@ valueRailActions: {
 valueRailBtn: {
   borderRadius: 999,
   border: "1px solid rgba(74,222,128,0.24)",
-  background: "rgba(34,197,94,0.18)",
-  padding: "10px 14px",
-  fontSize: 13,
+  background: "rgba(34,197,94,0.16)",
+  padding: "8px 12px",
+  fontSize: 12,
   color: "rgba(255,255,255,0.96)",
   fontWeight: 900,
   cursor: "pointer",
 },
 overviewCard: {
-  borderRadius: 18,
+  borderRadius: 16,
   border: "1px solid rgba(255,255,255,0.08)",
   background:
-    "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.022))",
-  boxShadow: "0 20px 60px rgba(0,0,0,0.24)",
+    "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.018))",
+  boxShadow: "0 14px 42px rgba(0,0,0,0.18)",
   padding: "10px 12px",
   marginBottom: 8,
 },
@@ -2942,8 +2943,8 @@ overviewCard: {
 overviewTop: {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 14,
+  alignItems: "center",
+  gap: 12,
   flexWrap: "wrap",
 },
 
@@ -2963,24 +2964,24 @@ overviewEyebrow: {
 
 overviewTitle: {
   margin: 0,
-  fontSize: "clamp(20px, 3vw, 28px)",
+  fontSize: "clamp(17px, 2.4vw, 22px)",
   lineHeight: 1.08,
   fontWeight: 950,
   color: "#F8FAFC",
-  letterSpacing: -0.6,
+  letterSpacing: -0.4,
 },
 
 overviewSub: {
-  marginTop: 8,
-  fontSize: 13,
-  lineHeight: 1.5,
-  color: "rgba(226,232,240,0.76)",
+  marginTop: 5,
+  fontSize: 12,
+  lineHeight: 1.35,
+  color: "rgba(226,232,240,0.72)",
 },
 
 overviewActions: {
   display: "grid",
   gridTemplateColumns: "1fr 1fr",
-  gap: 10,
+  gap: 8,
   width: "100%",
 },
 
@@ -2989,9 +2990,9 @@ overviewMetaRow: {
   flexDirection: "column",
   alignItems: "stretch",
   justifyContent: "flex-start",
-  gap: 12,
+  gap: 8,
   width: "100%",
-  marginTop: 12,
+  marginTop: 10,
 },
 
 statusCluster: {
