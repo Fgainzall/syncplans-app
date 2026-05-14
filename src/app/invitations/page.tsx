@@ -56,6 +56,18 @@ function isPendingStatus(status?: string | null) {
   return String(status ?? "pending").toLowerCase() === "pending";
 }
 
+type SentInviteGroup = {
+  group_id: string;
+  group_name: string;
+  group_type: string | null;
+  invites: SentGroupInvitation[];
+  total: number;
+  pending: number;
+  accepted: number;
+  other: number;
+  latestCreatedAt: string | null;
+};
+
 export default function InvitationsPage() {
   const router = useRouter();
 
@@ -63,6 +75,8 @@ export default function InvitationsPage() {
   const [loading, setLoading] = useState(false);
   const [invites, setInvites] = useState<GroupInvitation[]>([]);
   const [sentInvites, setSentInvites] = useState<SentGroupInvitation[]>([]);
+  const [selectedSentGroupId, setSelectedSentGroupId] = useState<string>("all");
+  const [expandedSentGroupIds, setExpandedSentGroupIds] = useState<string[]>([]);
   const [acting, setActing] = useState<string | null>(null);
 
   const [toast, setToast] = useState<UiToast>(null);
@@ -208,6 +222,99 @@ export default function InvitationsPage() {
   const pendingSentInvites = useMemo(() => {
     return normalizedSentInvites.filter((i) => isPendingStatus(i.status));
   }, [normalizedSentInvites]);
+
+  const sentInviteGroups = useMemo<SentInviteGroup[]>(() => {
+    const groups = new Map<string, SentInviteGroup>();
+
+    for (const invite of normalizedSentInvites) {
+      const groupId = String(invite.group_id ?? "").trim();
+      if (!groupId) continue;
+
+      const existing = groups.get(groupId);
+      const group =
+        existing ??
+        ({
+          group_id: groupId,
+          group_name: invite.group_name || "Grupo sin nombre",
+          group_type: invite.group_type ?? null,
+          invites: [],
+          total: 0,
+          pending: 0,
+          accepted: 0,
+          other: 0,
+          latestCreatedAt: null,
+        } satisfies SentInviteGroup);
+
+      group.invites.push(invite);
+      group.total += 1;
+
+      const status = String(invite.status ?? "pending").toLowerCase();
+      if (status === "pending") group.pending += 1;
+      else if (status === "accepted") group.accepted += 1;
+      else group.other += 1;
+
+      const currentLatest = group.latestCreatedAt
+        ? new Date(group.latestCreatedAt).getTime()
+        : 0;
+      const inviteDate = invite.created_at ? new Date(invite.created_at).getTime() : 0;
+      if (inviteDate > currentLatest) group.latestCreatedAt = invite.created_at;
+
+      groups.set(groupId, group);
+    }
+
+    return Array.from(groups.values()).sort((a, b) => {
+      if (b.pending !== a.pending) return b.pending - a.pending;
+      if (b.total !== a.total) return b.total - a.total;
+      return String(a.group_name).localeCompare(String(b.group_name));
+    });
+  }, [normalizedSentInvites]);
+
+  const visibleSentInviteGroups = useMemo(() => {
+    if (selectedSentGroupId === "all") return sentInviteGroups;
+    return sentInviteGroups.filter((group) => group.group_id === selectedSentGroupId);
+  }, [selectedSentGroupId, sentInviteGroups]);
+
+  useEffect(() => {
+    if (sentInviteGroups.length === 0) {
+      if (selectedSentGroupId !== "all") setSelectedSentGroupId("all");
+      setExpandedSentGroupIds([]);
+      return;
+    }
+
+    if (
+      selectedSentGroupId !== "all" &&
+      !sentInviteGroups.some((group) => group.group_id === selectedSentGroupId)
+    ) {
+      setSelectedSentGroupId("all");
+      return;
+    }
+
+    const preferredGroupId =
+      selectedSentGroupId !== "all"
+        ? selectedSentGroupId
+        : sentInviteGroups.find((group) => group.pending > 0)?.group_id ??
+          sentInviteGroups[0]?.group_id;
+
+    setExpandedSentGroupIds((current) => {
+      const validIds = new Set(sentInviteGroups.map((group) => group.group_id));
+      const preserved = current.filter((groupId) => validIds.has(groupId));
+
+      if (selectedSentGroupId !== "all") {
+        return preferredGroupId ? [preferredGroupId] : [];
+      }
+
+      if (preserved.length > 0) return preserved;
+      return preferredGroupId ? [preferredGroupId] : [];
+    });
+  }, [selectedSentGroupId, sentInviteGroups]);
+
+  const toggleSentGroup = useCallback((groupId: string) => {
+    setExpandedSentGroupIds((current) =>
+      current.includes(groupId)
+        ? current.filter((id) => id !== groupId)
+        : [...current, groupId]
+    );
+  }, []);
 
   const isEmpty =
     !loading &&
@@ -458,54 +565,134 @@ export default function InvitationsPage() {
                       Todavía no has enviado invitaciones desde tus grupos.
                     </div>
                   ) : (
-                    <div style={styles.sentList}>
-                      {normalizedSentInvites.map((invite) => {
-                        const pending = isPendingStatus(invite.status);
-                        return (
-                          <Card key={invite.id} tone="muted" style={styles.sentCard}>
-                            <div style={styles.sentTop}>
-                              <div style={styles.inviteMeta}>
-                                <div style={styles.sentEmail}>{invite.invited_email}</div>
-                                <div style={styles.inviteSub}>
-                                  {invite.group_name || "Grupo sin nombre"} ·{" "}
-                                  {labelForGroupType(invite.group_type)} ·{" "}
-                                  {safeDateLabel(invite.created_at)}
+                    <div style={styles.sentGroupsArea}>
+                      {sentInviteGroups.length > 1 ? (
+                        <div style={styles.sentToolbar}>
+                          <label htmlFor="sent-group-filter" style={styles.sentToolbarLabel}>
+                            Mostrar grupo
+                          </label>
+                          <select
+                            id="sent-group-filter"
+                            value={selectedSentGroupId}
+                            onChange={(event) => setSelectedSentGroupId(event.target.value)}
+                            style={styles.sentGroupSelect}
+                          >
+                            <option value="all">Todos los grupos</option>
+                            {sentInviteGroups.map((group) => (
+                              <option key={group.group_id} value={group.group_id}>
+                                {group.group_name || "Grupo sin nombre"} · {group.pending} pendiente
+                                {group.pending === 1 ? "" : "s"}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : null}
+
+                      <div style={styles.sentGroupsStack}>
+                        {visibleSentInviteGroups.map((group) => {
+                          const isOpen = expandedSentGroupIds.includes(group.group_id);
+                          const statusText =
+                            group.pending > 0
+                              ? `${group.pending} pendiente${group.pending === 1 ? "" : "s"}`
+                              : "Todo respondido";
+
+                          return (
+                            <Card key={group.group_id} tone="muted" style={styles.sentGroupCard}>
+                              <div style={styles.sentGroupHeader}>
+                                <div style={styles.sentGroupMeta}>
+                                  <div style={styles.sentGroupKicker}>
+                                    {labelForGroupType(group.group_type)} · {group.total} invitación
+                                    {group.total === 1 ? "" : "es"}
+                                  </div>
+                                  <div style={styles.sentGroupTitle}>
+                                    {group.group_name || "Grupo sin nombre"}
+                                  </div>
+                                  <div style={styles.sentGroupSub}>
+                                    {statusText}
+                                    {group.accepted > 0 ? ` · ${group.accepted} aceptada${group.accepted === 1 ? "" : "s"}` : ""}
+                                    {group.other > 0 ? ` · ${group.other} en otro estado` : ""}
+                                  </div>
+                                </div>
+
+                                <div style={styles.sentGroupActions}>
+                                  <button
+                                    type="button"
+                                    style={styles.compactGhostBtn}
+                                    onClick={() =>
+                                      router.push(
+                                        `/groups/invite?groupId=${encodeURIComponent(group.group_id)}`
+                                      )
+                                    }
+                                  >
+                                    Invitar otra
+                                  </button>
+                                  <button
+                                    type="button"
+                                    style={styles.compactGhostBtn}
+                                    onClick={() => toggleSentGroup(group.group_id)}
+                                  >
+                                    {isOpen ? "Ocultar" : "Ver invitaciones"}
+                                  </button>
                                 </div>
                               </div>
 
-                              <div
-                                style={{
-                                  ...styles.sentStatusBadge,
-                                  ...(pending ? styles.sentStatusPending : styles.sentStatusDone),
-                                }}
-                              >
-                                {statusLabel(invite.status)}
-                              </div>
-                            </div>
+                              {isOpen ? (
+                                <div style={styles.sentList}>
+                                  {group.invites.map((invite) => {
+                                    const pending = isPendingStatus(invite.status);
+                                    return (
+                                      <Card key={invite.id} tone="muted" style={styles.sentCard}>
+                                        <div style={styles.sentTop}>
+                                          <div style={styles.inviteMeta}>
+                                            <div style={styles.sentEmail}>{invite.invited_email}</div>
+                                            <div style={styles.inviteSub}>
+                                              {safeDateLabel(invite.created_at)}
+                                            </div>
+                                          </div>
 
-                            <div style={styles.actions}>
-                              <button
-                                type="button"
-                                style={styles.ghostBtn}
-                                onClick={() => copyInviteLink(invite.accept_url)}
-                              >
-                                Copiar link
-                              </button>
-                              <button
-                                type="button"
-                                style={styles.ghostBtn}
-                                onClick={() =>
-                                  router.push(
-                                    `/groups/invite?groupId=${encodeURIComponent(invite.group_id)}`
-                                  )
-                                }
-                              >
-                                Invitar otra
-                              </button>
-                            </div>
-                          </Card>
-                        );
-                      })}
+                                          <div
+                                            style={{
+                                              ...styles.sentStatusBadge,
+                                              ...(pending
+                                                ? styles.sentStatusPending
+                                                : styles.sentStatusDone),
+                                            }}
+                                          >
+                                            {statusLabel(invite.status)}
+                                          </div>
+                                        </div>
+
+                                        <div style={styles.actions}>
+                                          <button
+                                            type="button"
+                                            style={styles.ghostBtn}
+                                            onClick={() => copyInviteLink(invite.accept_url)}
+                                          >
+                                            Copiar link
+                                          </button>
+                                          <button
+                                            type="button"
+                                            style={styles.ghostBtn}
+                                            onClick={() =>
+                                              router.push(
+                                                `/groups/invite?groupId=${encodeURIComponent(
+                                                  invite.group_id
+                                                )}`
+                                              )
+                                            }
+                                          >
+                                            Invitar otra
+                                          </button>
+                                        </div>
+                                      </Card>
+                                    );
+                                  })}
+                                </div>
+                              ) : null}
+                            </Card>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </Card>
@@ -970,6 +1157,101 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "16px 18px",
     fontSize: 14,
     fontWeight: 800,
+  },
+  sentGroupsArea: {
+    display: "grid",
+    gap: 12,
+  },
+  sentToolbar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    flexWrap: "wrap",
+    padding: "12px 14px",
+    borderRadius: 18,
+    border: "1px solid rgba(148,163,184,0.16)",
+    background: "rgba(15,23,42,0.54)",
+  },
+  sentToolbarLabel: {
+    fontSize: 12,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    color: "rgba(125,211,252,0.92)",
+    fontWeight: 900,
+  },
+  sentGroupSelect: {
+    minWidth: 220,
+    flex: "1 1 240px",
+    appearance: "none",
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.06)",
+    color: "#ffffff",
+    borderRadius: 14,
+    padding: "11px 13px",
+    fontWeight: 850,
+    outline: "none",
+  },
+  sentGroupsStack: {
+    display: "grid",
+    gap: 12,
+  },
+  sentGroupCard: {
+    display: "grid",
+    gap: 12,
+    padding: 16,
+  },
+  sentGroupHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  sentGroupMeta: {
+    minWidth: 0,
+    flex: "1 1 280px",
+    display: "grid",
+    gap: 5,
+  },
+  sentGroupKicker: {
+    fontSize: 11,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    color: "rgba(125,211,252,0.92)",
+    fontWeight: 900,
+  },
+  sentGroupTitle: {
+    fontSize: 18,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
+    overflowWrap: "anywhere",
+  },
+  sentGroupSub: {
+    color: "rgba(226,232,240,0.76)",
+    fontSize: 13,
+    lineHeight: 1.55,
+    fontWeight: 750,
+  },
+  sentGroupActions: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+  compactGhostBtn: {
+    appearance: "none",
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.05)",
+    color: "#ffffff",
+    borderRadius: 14,
+    padding: "10px 12px",
+    fontWeight: 850,
+    fontSize: 13,
+    cursor: "pointer",
+    textAlign: "center",
   },
   sentList: {
     display: "grid",
