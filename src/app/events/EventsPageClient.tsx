@@ -45,6 +45,15 @@ type SegmentOption<T extends string> = {
 };
 
 type InboxLaneAction = "attention" | "conflicts" | "upcoming" | "history";
+type FocusAsideAction = "upcoming" | "conflicts" | "create";
+
+type FocusAsideState = {
+  eyebrow: string;
+  title: string;
+  body: string;
+  cta?: string;
+  action?: FocusAsideAction;
+};
 
 function SegmentedChips<T extends string>({
   options,
@@ -374,23 +383,23 @@ export default function EventsPage() {
       {
         action: "attention",
         eyebrow: "Acción",
-        title: coordinationInbox.actionRequiredCount > 0 ? "Revisar pendientes" : "Todo al día",
+        title: coordinationInbox.actionRequiredCount > 0 ? "Revisar" : "Todo al día",
         count: coordinationInbox.actionRequiredCount,
         body:
           coordinationInbox.actionRequiredCount > 0
-            ? `${coordinationInbox.actionRequiredCount} pendiente${coordinationInbox.actionRequiredCount === 1 ? "" : "s"} por revisar`
+            ? "Acciones abiertas"
             : "Nada pendiente",
         accent: "decision",
       },
       {
         action: "conflicts",
         eyebrow: "Choques",
-        title: coordinationInbox.conflictEventCount > 0 ? "Revisar choques" : "Sin conflictos",
+        title: coordinationInbox.conflictEventCount > 0 ? "Resolver" : "Sin conflictos",
         count: coordinationInbox.conflictEventCount,
         body:
           coordinationInbox.conflictEventCount > 0
-            ? `${coordinationInbox.conflictEventCount} posible${coordinationInbox.conflictEventCount === 1 ? "" : "s"} choque${coordinationInbox.conflictEventCount === 1 ? "" : "s"}`
-            : "Sin conflictos",
+            ? "Requieren decisión"
+            : "Sin choques",
         accent: "conflict",
       },
       {
@@ -398,18 +407,15 @@ export default function EventsPage() {
         eyebrow: "Próximos",
         title: "Lo que viene",
         count: coordinationInbox.upcomingCount,
-        body:
-          coordinationInbox.sharedUpcomingCount > 0
-            ? `${coordinationInbox.sharedUpcomingCount} compartido${coordinationInbox.sharedUpcomingCount === 1 ? "" : "s"}`
-            : "Agenda próxima",
+        body: coordinationInbox.upcomingCount > 0 ? "Planes activos" : "Sin planes",
         accent: "upcoming",
       },
       {
         action: "history",
         eyebrow: "Historial",
-        title: "Ya cerrado",
+        title: "Cerrados",
         count: coordinationInbox.historyCount,
-        body: `${coordinationInbox.historyCount} cerrado${coordinationInbox.historyCount === 1 ? "" : "s"}`,
+        body: coordinationInbox.historyCount > 0 ? "Ya cerrados" : "Sin historial",
         accent: "history",
       },
     ];
@@ -753,34 +759,32 @@ export default function EventsPage() {
       : `${filteredEvents.length} evento${filteredEvents.length === 1 ? "" : "s"} visibles.`
     : headerSubtitle;
 
-  const focusAside = useMemo(() => {
-    if (!loading && urgentEvents.length > 0) {
+  const focusAside = useMemo<FocusAsideState>(() => {
+    if (!loading && coordinationInbox.conflictEventCount > 0) {
       return {
         eyebrow: "Tu foco ahora",
-        title: `${urgentEvents.length} plan${urgentEvents.length === 1 ? "" : "es"} en las próximas 24 h`,
-        body: "Revisa primero lo más cercano para evitar que la coordinación se quede abierta.",
-        cta: "Ver próximos",
-        action: "upcoming" as const,
+        title: "Hay choques por resolver",
+        body: "Empieza por las decisiones que pueden bloquear la coordinación compartida.",
+        cta: "Resolver choques",
+        action: "conflicts",
       };
     }
 
-    if (statusSnapshot.responseCount > 0) {
+    if (!loading && urgentEvents.length > 0) {
       return {
         eyebrow: "Tu foco ahora",
-        title: `${statusSnapshot.responseCount} compartido${statusSnapshot.responseCount === 1 ? "" : "s"} por coordinar`,
-        body: "Los planes compartidos son los que más valor generan cuando están claros para todos.",
-        cta: "Ver compartidos",
-        action: "groups" as const,
+        title: `${urgentEvents.length} plan${urgentEvents.length === 1 ? "" : "es"} cerca`,
+        body: "Revisa primero lo más próximo para que nada se quede abierto a última hora.",
+        cta: "Ver próximos",
+        action: "upcoming",
       };
     }
 
     if (statusSnapshot.nextCount > 0) {
       return {
         eyebrow: "Tu foco ahora",
-        title: "Tus próximos planes están ordenados",
-        body: "Puedes revisar lo que viene o crear un nuevo plan si necesitas mover algo más.",
-        cta: "Crear evento",
-        action: "create" as const,
+        title: "Todo al día",
+        body: "No hay acciones abiertas. Lo que viene queda ordenado debajo.",
       };
     }
 
@@ -789,22 +793,29 @@ export default function EventsPage() {
       title: "Todavía no hay planes visibles",
       body: "Crea el primer evento para convertir esta pantalla en una bandeja útil de coordinación.",
       cta: "Crear evento",
-      action: "create" as const,
+      action: "create",
     };
-  }, [loading, urgentEvents.length, statusSnapshot.responseCount, statusSnapshot.nextCount]);
+  }, [
+    loading,
+    coordinationInbox.conflictEventCount,
+    urgentEvents.length,
+    statusSnapshot.nextCount,
+  ]);
 
   const handleFocusAsideClick = () => {
-    if (focusAside.action === "groups") {
-      setFilters((f) => ({ ...f, view: "upcoming", scope: "groups" }));
+    if (focusAside.action === "conflicts") {
+      router.push("/conflicts/detected");
       return;
     }
 
     if (focusAside.action === "upcoming") {
-      setFilters((f) => ({ ...f, view: "upcoming" }));
+      setFilters((f) => ({ ...f, view: "upcoming", scope: "all" }));
       return;
     }
 
-    router.push("/events/new/details?type=personal");
+    if (focusAside.action === "create") {
+      router.push("/events/new/details?type=personal");
+    }
   };
 
   const handleInboxLaneClick = (action: InboxLaneAction) => {
@@ -893,35 +904,8 @@ export default function EventsPage() {
               <div style={S.kicker}>Planes y decisiones</div>
               <h1 style={S.h1}>Bandeja de coordinación</h1>
               <p style={S.sub}>
-                Planes, respuestas y decisiones en un solo lugar. Entra rápido a lo que sigue, lo compartido o lo ya cerrado.
+                Planes, respuestas y decisiones en un solo lugar.
               </p>
-
-              <div style={S.summaryPillRow}>
-                <button
-                  type="button"
-                  style={{ ...S.summaryPill, ...(filters.view === "upcoming" ? S.summaryPillActive : null) }}
-                  onClick={() => setFilters((f) => ({ ...f, view: "upcoming" }))}
-                >
-                  {statusSnapshot.nextCount} próximo{statusSnapshot.nextCount === 1 ? "" : "s"}
-                </button>
-                <button
-                  type="button"
-                  style={{ ...S.summaryPill, ...(filters.scope === "groups" ? S.summaryPillActive : null) }}
-                  onClick={() => setFilters((f) => ({ ...f, scope: f.scope === "groups" ? "all" : "groups" }))}
-                >
-                  {statusSnapshot.responseCount} compartido{statusSnapshot.responseCount === 1 ? "" : "s"}
-                </button>
-                <button
-                  type="button"
-                  style={{ ...S.summaryPill, ...(filters.view === "history" ? S.summaryPillActive : null) }}
-                  onClick={() => setFilters((f) => ({ ...f, view: "history" }))}
-                >
-                  {statusSnapshot.resolvedCount} cerrado{statusSnapshot.resolvedCount === 1 ? "" : "s"}
-                </button>
-                <span style={S.summaryPillSoft}>
-                  {statusSnapshot.soonCount} en 7 días
-                </span>
-              </div>
             </div>
           </div>
 
@@ -936,9 +920,11 @@ export default function EventsPage() {
               <div style={S.focusActionTitle}>{focusAside.title}</div>
               <div style={S.focusActionHint}>{focusAside.body}</div>
             </div>
-            <button type="button" style={S.focusActionCta} onClick={handleFocusAsideClick}>
-              {focusAside.cta}
-            </button>
+            {focusAside.cta ? (
+              <button type="button" style={S.focusActionCta} onClick={handleFocusAsideClick}>
+                {focusAside.cta}
+              </button>
+            ) : null}
           </div>
 
           <div style={S.inboxShell}>
