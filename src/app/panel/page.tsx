@@ -916,12 +916,17 @@ export default function PanelPage() {
 
   const activationCompleted = activationSteps.filter((step) => step.done).length;
   const activationReady = activationCompleted === activationSteps.length;
+  const showRecommendedAction = recommendedAction.tone !== "success";
   const activationCopy = activationReady
-    ? "Tu sistema de coordinación ya tiene las bases listas. Ahora el valor está en usarlo para decidir más rápido."
+    ? "4/4 bases activas. El setup ya no compite con la operación diaria."
     : "Completa estas bases para que SyncPlans tenga más contexto y pueda ayudarte con menos fricción.";
 
   const statusChips = useMemo(
     () => [
+      {
+        label: `${activationCompleted}/${activationSteps.length} bases`,
+        tone: activationReady ? ("ok" as const) : ("warn" as const),
+      },
       {
         label: showContextGroupName
           ? `${currentContextOption.label} · ${showContextGroupName}`
@@ -944,6 +949,9 @@ export default function PanelPage() {
       },
     ],
     [
+      activationCompleted,
+      activationReady,
+      activationSteps.length,
       currentContextOption.label,
       googlePill,
       planInfo.pill,
@@ -959,12 +967,12 @@ export default function PanelPage() {
         id: "people",
         eyebrow: "Personas",
         title: "Personas y grupos",
-        copy: "Espacios, miembros e invitaciones juntos. Úsalo cuando quieras administrar con quién coordinas.",
+        copy: "Espacios, miembros e invitaciones.",
         href: "/groups",
-        cta: totalGroups === 0 ? "Crear espacio" : "Gestionar personas",
+        cta: totalGroups === 0 ? "Crear espacio" : "Gestionar",
         meta:
           totalGroups === 0
-            ? "Sin grupos todavía"
+            ? "Sin grupos"
             : `${totalGroups} activo${totalGroups === 1 ? "" : "s"}`,
         status: {
           label: totalGroups === 0 ? "Pendiente" : "Activo",
@@ -975,30 +983,35 @@ export default function PanelPage() {
         id: "calendar",
         eyebrow: "Contexto",
         title: "Calendarios e integraciones",
-        copy: "Conecta calendarios externos para sumar contexto sin llenar tu agenda de ruido.",
+        copy: "Google Calendar y contexto externo.",
         href: "/settings",
         cta: googlePrimaryCta,
-        meta: googleLine,
+        meta:
+          connectionState === "connected"
+            ? "Google conectado"
+            : connectionState === "needs_reauth"
+              ? "Requiere reconexión"
+              : "Por conectar",
         status: googlePill,
       },
       {
         id: "mobility",
         eyebrow: "Llegada",
         title: "Movilidad inteligente",
-        copy: "Origen, transporte, rutas y alertas de salida para llegar mejor a tus planes.",
+        copy: "Rutas, Maps/Waze y alertas de salida.",
         href: "/settings",
-        cta: "Configurar movilidad",
-        meta: "Rutas, Maps/Waze y alertas",
+        cta: "Configurar",
+        meta: "Rutas y alertas",
         status: { label: "Opcional", tone: "neutral" },
       },
       {
         id: "account",
         eyebrow: "Cuenta",
         title: "Cuenta y plan",
-        copy: "Perfil, plan, Premium y preferencias importantes sin mezclarlo con la operación diaria.",
+        copy: "Perfil, plan y preferencias.",
         href: "/profile",
         cta: "Ver cuenta",
-        meta: planInfo.supportingCopy,
+        meta: planInfo.pill === "Free" ? "Acceso Free" : `${planInfo.pill} activo`,
         status: {
           label: planInfo.pill,
           tone:
@@ -1011,11 +1024,10 @@ export default function PanelPage() {
       },
     ],
     [
-      googleLine,
+      connectionState,
       googlePill,
       googlePrimaryCta,
       planInfo.pill,
-      planInfo.supportingCopy,
       planInfo.tone,
       totalGroups,
     ],
@@ -1110,45 +1122,45 @@ export default function PanelPage() {
           <div
             style={{
               ...styles.commandTopRow,
-              gridTemplateColumns: isMobile
+              gridTemplateColumns: isMobile || !showRecommendedAction
                 ? "1fr"
-                : "minmax(0, 1fr) minmax(280px, 380px)",
+                : "minmax(0, 1fr) minmax(260px, 340px)",
             }}
           >
             <div style={styles.commandTextWrap}>
               <div style={styles.eyebrow}>Panel</div>
               <h1 style={styles.commandTitle}>Administra SyncPlans</h1>
               <p style={styles.commandCopy}>
-                Ajusta las bases de tu coordinación: personas, calendarios,
-                movilidad y cuenta. Lo operativo vive en Resumen, Calendario y Eventos.
+                Personas, calendarios, movilidad y cuenta en un solo lugar.
+                Lo operativo vive en Resumen, Calendario y Eventos.
               </p>
             </div>
 
-            <div
-              style={{
-                ...styles.recommendedCard,
-                ...(recommendedAction.tone === "warning"
-                  ? styles.recommendedCardWarning
-                  : recommendedAction.tone === "success"
-                    ? styles.recommendedCardSuccess
+            {showRecommendedAction ? (
+              <div
+                style={{
+                  ...styles.recommendedCard,
+                  ...(recommendedAction.tone === "warning"
+                    ? styles.recommendedCardWarning
                     : null),
-              }}
-            >
-              <div style={styles.recommendedEyebrow}>
-                {recommendedAction.eyebrow}
-              </div>
-              <div style={styles.recommendedTitle}>
-                {recommendedAction.title}
-              </div>
-              <div style={styles.recommendedCopy}>{recommendedAction.copy}</div>
-              <button
-                type="button"
-                style={styles.primaryHeroCta}
-                onClick={() => router.push(recommendedAction.href)}
+                }}
               >
-                {recommendedAction.label}
-              </button>
-            </div>
+                <div style={styles.recommendedEyebrow}>
+                  {recommendedAction.eyebrow}
+                </div>
+                <div style={styles.recommendedTitle}>
+                  {recommendedAction.title}
+                </div>
+                <div style={styles.recommendedCopy}>{recommendedAction.copy}</div>
+                <button
+                  type="button"
+                  style={styles.primaryHeroCta}
+                  onClick={() => router.push(recommendedAction.href)}
+                >
+                  {recommendedAction.label}
+                </button>
+              </div>
+            ) : null}
           </div>
 
           <div style={styles.statusStrip}>
@@ -1160,13 +1172,30 @@ export default function PanelPage() {
               />
             ))}
           </div>
+
+          {activationReady ? (
+            <div style={styles.readyStrip}>
+              <div style={styles.readyStripCopy}>
+                <strong>✓ Todo listo</strong>
+                <span>4/4 bases activas. Usa Resumen para operar el día y vuelve aquí solo para ajustar.</span>
+              </div>
+              <button
+                type="button"
+                style={styles.readyStripButton}
+                onClick={() => router.push("/summary")}
+              >
+                Resumen
+              </button>
+            </div>
+          ) : null}
         </section>
 
-        <section style={styles.sectionCardCompact}>
+        {!activationReady ? (
+          <section style={styles.sectionCardCompact}>
           <div style={styles.activationHead}>
             <div style={styles.activationSummary}>
               <div style={styles.sectionEyebrow}>Activación inteligente</div>
-              <h2 style={styles.sectionTitle}>Configura lo mínimo para que SyncPlans piense mejor</h2>
+              <h2 style={styles.sectionTitle}>Completa la base mínima</h2>
               <p style={styles.detailsIntro}>{activationCopy}</p>
             </div>
 
@@ -1219,6 +1248,7 @@ export default function PanelPage() {
             ))}
           </div>
         </section>
+        ) : null}
 
         <section style={styles.sectionCardCompact}>
           <div style={styles.sectionHead}>
@@ -1273,8 +1303,7 @@ export default function PanelPage() {
               <div style={styles.sectionEyebrow}>Más opciones</div>
               <h2 style={styles.sectionTitle}>Detalles avanzados</h2>
               <p style={styles.detailsIntro}>
-                Operaciones, respuestas, integraciones, grupos recientes y contexto activo siguen aquí,
-                pero no compiten con la vista principal.
+                Operaciones, respuestas, integraciones y contexto activo quedan plegados para no ensuciar el Panel.
               </p>
             </div>
 
@@ -1686,20 +1715,20 @@ export default function PanelPage() {
 
 const styles: Record<string, CSSProperties> = {
   commandCard: {
-    borderRadius: 28,
+    borderRadius: 24,
     border: "1px solid rgba(255,255,255,0.08)",
     background:
       "radial-gradient(1000px 520px at 18% -14%, rgba(56,189,248,0.12), transparent 62%), radial-gradient(720px 420px at 100% 0%, rgba(124,58,237,0.12), transparent 58%), rgba(10,15,30,0.80)",
     boxShadow: "0 22px 70px rgba(0,0,0,0.30)",
     backdropFilter: "blur(16px)",
-    padding: 20,
+    padding: 14,
     display: "grid",
-    gap: 14,
+    gap: 8,
   },
   commandTopRow: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) minmax(280px, 380px)",
-    gap: 18,
+    gridTemplateColumns: "minmax(0, 1fr) minmax(260px, 340px)",
+    gap: 14,
     alignItems: "stretch",
   },
   commandTextWrap: {
@@ -1708,18 +1737,18 @@ const styles: Record<string, CSSProperties> = {
     alignContent: "center",
   },
   commandTitle: {
-    margin: "8px 0 0",
-    fontSize: "clamp(30px, 4vw, 44px)",
+    margin: "6px 0 0",
+    fontSize: "clamp(28px, 3.5vw, 38px)",
     lineHeight: 1.02,
     letterSpacing: "-0.045em",
     fontWeight: 950,
     color: "rgba(255,255,255,0.98)",
   },
   commandCopy: {
-    margin: "10px 0 0",
-    maxWidth: 620,
-    fontSize: 14,
-    lineHeight: 1.58,
+    margin: "8px 0 0",
+    maxWidth: 560,
+    fontSize: 13,
+    lineHeight: 1.5,
     color: "rgba(226,232,240,0.78)",
     fontWeight: 650,
     overflowWrap: "anywhere",
@@ -1729,9 +1758,9 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid rgba(96,165,250,0.22)",
     background:
       "linear-gradient(135deg, rgba(30,64,175,0.22), rgba(15,23,42,0.68))",
-    padding: 15,
+    padding: 13,
     display: "grid",
-    gap: 10,
+    gap: 8,
     alignContent: "start",
     boxShadow: "0 18px 46px rgba(0,0,0,0.22)",
   },
@@ -1753,15 +1782,15 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(191,219,254,0.92)",
   },
   recommendedTitle: {
-    fontSize: 20,
+    fontSize: 18,
     lineHeight: 1.14,
     fontWeight: 950,
     letterSpacing: "-0.03em",
     color: "rgba(255,255,255,0.98)",
   },
   recommendedCopy: {
-    fontSize: 13,
-    lineHeight: 1.5,
+    fontSize: 12,
+    lineHeight: 1.45,
     color: "rgba(226,232,240,0.76)",
     fontWeight: 650,
   },
@@ -1770,6 +1799,37 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     flexWrap: "wrap",
     alignItems: "center",
+  },
+  readyStrip: {
+    borderRadius: 18,
+    border: "1px solid rgba(34,197,94,0.20)",
+    background: "linear-gradient(135deg, rgba(20,83,45,0.26), rgba(15,23,42,0.58))",
+    padding: "10px 12px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  readyStripCopy: {
+    minWidth: 0,
+    display: "grid",
+    gap: 2,
+    color: "rgba(220,252,231,0.94)",
+    fontSize: 12,
+    lineHeight: 1.35,
+    fontWeight: 700,
+  },
+  readyStripButton: {
+    minHeight: 32,
+    borderRadius: 999,
+    border: "1px solid rgba(125,211,252,0.20)",
+    background: "rgba(56,189,248,0.10)",
+    color: "rgba(240,249,255,0.98)",
+    fontSize: 12,
+    fontWeight: 950,
+    cursor: "pointer",
+    padding: "0 12px",
   },
   activationHead: {
     display: "flex",
@@ -1792,14 +1852,14 @@ const styles: Record<string, CSSProperties> = {
     gap: 10,
   },
   activationStepCard: {
-    minHeight: 176,
+    minHeight: 126,
     borderRadius: 20,
     border: "1px solid rgba(255,255,255,0.085)",
     background:
       "linear-gradient(180deg, rgba(255,255,255,0.052), rgba(255,255,255,0.026))",
-    padding: 14,
+    padding: 12,
     display: "grid",
-    gap: 10,
+    gap: 8,
     textAlign: "left",
     color: "rgba(255,255,255,0.94)",
     cursor: "pointer",
@@ -1835,18 +1895,22 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(220,252,231,0.98)",
   },
   activationStepTitle: {
-    fontSize: 16,
+    fontSize: 15,
     lineHeight: 1.14,
     fontWeight: 950,
     letterSpacing: "-0.025em",
     color: "rgba(255,255,255,0.98)",
   },
   activationStepCopy: {
-    fontSize: 12,
-    lineHeight: 1.48,
+    fontSize: 11,
+    lineHeight: 1.42,
     color: "rgba(226,232,240,0.68)",
     fontWeight: 650,
     overflowWrap: "anywhere",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
   },
   activationStepCta: {
     alignSelf: "end",
@@ -1867,7 +1931,7 @@ const styles: Record<string, CSSProperties> = {
     gap: 12,
   },
   controlCard: {
-    minHeight: 156,
+    minHeight: 118,
     borderRadius: 22,
     border: "1px solid rgba(255,255,255,0.09)",
     background:
@@ -1895,16 +1959,16 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(125,211,252,0.84)",
   },
   controlTitle: {
-    marginTop: 5,
-    fontSize: 20,
+    marginTop: 4,
+    fontSize: 18,
     lineHeight: 1.12,
     fontWeight: 950,
     letterSpacing: "-0.03em",
     color: "rgba(255,255,255,0.98)",
   },
   controlCopy: {
-    fontSize: 13,
-    lineHeight: 1.48,
+    fontSize: 12,
+    lineHeight: 1.4,
     color: "rgba(226,232,240,0.72)",
     fontWeight: 650,
   },
@@ -1927,7 +1991,7 @@ const styles: Record<string, CSSProperties> = {
   controlCta: {
     display: "inline-flex",
     alignItems: "center",
-    minHeight: 34,
+    minHeight: 30,
     padding: "0 11px",
     borderRadius: 999,
     border: "1px solid rgba(125,211,252,0.20)",
@@ -2158,14 +2222,14 @@ const styles: Record<string, CSSProperties> = {
     overflowWrap: "anywhere",
   },
   sectionCardCompact: {
-    borderRadius: 24,
+    borderRadius: 22,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(10,15,30,0.76)",
     boxShadow: "0 18px 60px rgba(0,0,0,0.24)",
     backdropFilter: "blur(14px)",
-    padding: 16,
+    padding: 14,
     display: "grid",
-    gap: 14,
+    gap: 12,
   },
   sectionHead: {
     display: "flex",
