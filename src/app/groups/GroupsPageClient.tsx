@@ -513,6 +513,16 @@ function GroupRow({
 
         <button
           type="button"
+          style={{ ...styles.inviteBtn, ...(isNarrow ? styles.mobileActionPill : {}) }}
+          onClick={() =>
+            router.push(`/groups/invite?groupId=${encodeURIComponent(String(g.id))}`)
+          }
+        >
+          Invitar
+        </button>
+
+        <button
+          type="button"
           style={{ ...styles.linkBtn, ...(isNarrow ? styles.mobileActionPill : {}) }}
           onClick={() => router.push(`/groups/${g.id}`)}
         >
@@ -969,6 +979,21 @@ const styles: Record<string, React.CSSProperties> = {
     flex: "1 1 160px",
     textAlign: "center",
   },
+  inviteBtn: {
+    padding: "7px 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(96,165,250,0.75)",
+    background: "rgba(30,64,175,0.28)",
+    color: "rgba(219,234,254,0.98)",
+    fontSize: 12,
+    cursor: "pointer",
+    fontWeight: 850,
+    minWidth: 0,
+    maxWidth: "100%",
+    flex: "1 1 160px",
+    textAlign: "center",
+  },
+
   linkBtn: {
     padding: "7px 11px",
     borderRadius: 999,

@@ -1,7 +1,7 @@
 // src/app/groups/invite/GroupInviteClient.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
+import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PremiumHeader from "@/components/PremiumHeader";
 import MobileScaffold from "@/components/MobileScaffold";
@@ -74,6 +74,8 @@ export default function GroupInviteClient() {
   const [sending, setSending] = useState(false);
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState(queryGroupId);
+  const emailInputRef = useRef<HTMLInputElement | null>(null);
+
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState(
     "Quiero que coordinemos desde un solo lugar para evitar cruces y mensajes perdidos."
@@ -149,6 +151,11 @@ rows.find((g) => g.is_active) ??
     !!email.trim() &&
     isEmail(email);
 
+  function handleGroupChange(nextGroupId: string) {
+    setSelectedGroupId(nextGroupId);
+    setLastInviteUrl(null);
+  }
+
   function pushToast(next: ToastState, timeout = 2800) {
     setToast(next);
     window.setTimeout(() => setToast(null), timeout);
@@ -190,6 +197,8 @@ rows.find((g) => g.is_active) ??
 
       setLastInviteUrl(inviteUrl);
 
+      const invitedEmail = email.trim();
+
       void trackEvent({
         event: "invite_sent",
         entityId: inviteId ? String(inviteId) : null,
@@ -197,16 +206,16 @@ rows.find((g) => g.is_active) ??
           screen: "group_invite",
           groupId: selectedGroupId,
           groupType: selectedGroup?.type ?? null,
-          recipientDomain: email.includes("@") ? email.split("@")[1] : null,
+          recipientDomain: invitedEmail.includes("@") ? invitedEmail.split("@")[1] : null,
         },
       });
 
+      setEmail("");
+      window.setTimeout(() => emailInputRef.current?.focus(), 80);
+
       pushToast({
-        title: "Invitación creada ✅",
-        subtitle:
-          selectedGroup?.type === "pair"
-            ? "Ahora el siguiente momento clave es que tu pareja la acepte."
-            : "La invitación ya quedó lista para compartir.",
+        title: "Invitación enviada ✅",
+        subtitle: `Listo. El grupo queda seleccionado para invitar a otra persona.`,
       });
  } catch (error: unknown) {
   pushToast({
@@ -348,7 +357,7 @@ rows.find((g) => g.is_active) ??
                   <label style={styles.label}>Grupo</label>
                   <select
                     value={selectedGroupId}
-                    onChange={(e) => setSelectedGroupId(e.target.value)}
+                    onChange={(e) => handleGroupChange(e.target.value)}
                     style={styles.select}
                   >
                     <option value="">Selecciona un grupo</option>
@@ -368,6 +377,7 @@ rows.find((g) => g.is_active) ??
                 <div style={styles.field}>
                   <label style={styles.label}>Correo de la otra persona</label>
                   <input
+                    ref={emailInputRef}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="correo@ejemplo.com"
@@ -397,7 +407,11 @@ rows.find((g) => g.is_active) ??
                     disabled={!canSend}
                     onClick={handleInvite}
                   >
-                    {sending ? "Enviando…" : "Enviar invitación"}
+                    {sending
+                      ? "Enviando…"
+                      : lastInviteUrl
+                        ? "Enviar otra invitación"
+                        : "Enviar invitación"}
                   </button>
 
                   <button
@@ -428,7 +442,7 @@ rows.find((g) => g.is_active) ??
 
                 {lastInviteUrl ? (
                   <div style={styles.linkPreview}>
-                    <div style={styles.routeLabel}>Link generado</div>
+                    <div style={styles.routeLabel}>Último link generado</div>
                     <div style={styles.linkText}>{lastInviteUrl}</div>
                   </div>
                 ) : (
