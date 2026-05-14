@@ -134,7 +134,7 @@ export default function SummaryQuickCaptureCard({
           <h2 style={s.title}>{headline || "Crea un plan en una línea"}</h2>
           <p style={s.subtitle}>
             {subcopy ||
-              "Escribe la idea como te salga y SyncPlans la deja lista para revisar."}
+              "Escribe el plan y SyncPlans lo deja listo para revisar."}
           </p>
         </div>
 

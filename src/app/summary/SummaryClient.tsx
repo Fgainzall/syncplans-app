@@ -993,12 +993,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [activeGroupId, activeGroupType]);
 
   const quickCaptureSubcopy = useMemo(() => {
-    if (!activeGroupId) {
-      return "Escribe la idea y la dejamos lista para revisar.";
-    }
-
-    return `Lo preparo con el contexto de ${activeLabel}.`;
-  }, [activeGroupId, activeLabel]);
+    return "Escribe el plan y SyncPlans lo deja listo para revisar.";
+  }, []);
 
   const normalizedEvents = useMemo(() => {
     const mapped = (events ?? []).map(normalizeEvent).filter(Boolean) as SummaryEvent[];
