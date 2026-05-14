@@ -605,17 +605,19 @@ function UpcomingSection({
         <div style={styles.emptyBlock}>
           <div style={styles.emptyTitle}>
             {showCreateGroupNudge
-              ? "Activa el loop compartido desde el primer grupo"
+              ? "Aquí aparecerán tus próximos planes"
               : "Crea el próximo plan para que la semana no dependa de memoria"}
           </div>
           <div style={styles.emptySub}>
             {showCreateGroupNudge
-              ? "Tu primer grupo es el paso que convierte SyncPlans en una referencia compartida y no solo en una agenda ordenada."
+              ? "Cuando actives tu primer espacio o captures un plan, esta sección mostrará lo que viene sin repetir acciones."
               : "Si metes el siguiente plan aquí, la coordinación ya no se reparte entre mensajes, recuerdos y supuestos."}
           </div>
-          <button type="button" onClick={onPrimaryEmptyAction} style={styles.emptyBtn}>
-            {showCreateGroupNudge ? "Crear grupo" : "Crear plan"}
-          </button>
+          {!showCreateGroupNudge ? (
+            <button type="button" onClick={onPrimaryEmptyAction} style={styles.emptyBtn}>
+              Crear plan
+            </button>
+          ) : null}
         </div>
       </Card>
     );
@@ -2230,17 +2232,40 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   ]);
 
   const summaryQuickActions = useMemo<QuickAction[]>(() => {
-    if (isFirstTimeMode) {
+    if (showCreateGroupNudge) {
       return [
         {
-          key: "create_group",
-          title: "Crear grupo",
-          subtitle: "Activa la coordinación compartida desde el primer paso.",
+          key: "calendar",
+          title: "Abrir calendario",
+          subtitle: "Ver tu semana de un vistazo.",
           onClick: () =>
-            navigateFromSummary("create_group", "/groups/new", {
+            navigateFromSummary("open_calendar", "/calendar", {
+              block: "summary_calendar",
+            }),
+        },
+        {
+          key: "create_plan",
+          title: "Crear evento",
+          subtitle: "Guarda un plan personal mientras activas tu espacio.",
+          onClick: () =>
+            navigateFromSummary("create_plan", "/events/new/details?type=personal", {
               block: "summary_quick_actions",
             }),
         },
+        {
+          key: "groups",
+          title: "Ver grupos",
+          subtitle: "Revisa tus espacios compartidos desde un solo lugar.",
+          onClick: () =>
+            navigateFromSummary("open_groups", "/groups", {
+              block: "summary_quick_actions",
+            }),
+        },
+      ];
+    }
+
+    if (isFirstTimeMode) {
+      return [
         {
           key: "create_plan",
           title: "Crear primer plan",
@@ -2257,6 +2282,15 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           onClick: () =>
             navigateFromSummary("connect_google", "/settings", {
               block: "summary_quick_actions",
+            }),
+        },
+        {
+          key: "calendar",
+          title: "Abrir calendario",
+          subtitle: "Ver tu semana de un vistazo.",
+          onClick: () =>
+            navigateFromSummary("open_calendar", "/calendar", {
+              block: "summary_calendar",
             }),
         },
       ];
@@ -2280,19 +2314,15 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       },
     ];
 
-    if (showCreateGroupNudge || showInviteNudge) {
+    if (showInviteNudge) {
       items.push({
         key: "groups",
-        title: showCreateGroupNudge ? "Crear grupo" : "Abrir grupos",
-        subtitle: showCreateGroupNudge
-          ? "Activa la coordinación compartida desde tu primer espacio."
-          : "Invita a la otra persona y empiecen a coordinar mejor.",
+        title: "Abrir grupos",
+        subtitle: "Invita a la otra persona y empiecen a coordinar mejor.",
         onClick: () =>
-          navigateFromSummary(
-            showCreateGroupNudge ? "create_group" : "open_groups",
-            showCreateGroupNudge ? "/groups/new" : "/groups",
-            { block: "summary_quick_actions" }
-          ),
+          navigateFromSummary("open_groups", "/groups", {
+            block: "summary_quick_actions",
+          }),
       });
     } else {
       items.push({
@@ -2356,26 +2386,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     pendingAttention.proposals > 0 ||
     pendingAttention.captures > 0;
 
-  const createGroupFocus = useMemo(() => {
-    if (hasUrgentSummaryState || !showCreateGroupNudge || isFirstTimeMode) return null;
-
-    return {
-      eyebrow: "Siguiente mejor paso",
-      title: "Crea tu primer espacio compartido",
-      subtitle:
-        "Ese paso convierte a SyncPlans en una referencia real de coordinación, no solo en una agenda personal bonita.",
-      cta: "Crear grupo",
-      action: () =>
-        navigateFromSummary("create_group", "/groups/new", {
-          block: "create_group_focus",
-        }),
-    };
-  }, [hasUrgentSummaryState, showCreateGroupNudge, isFirstTimeMode, navigateFromSummary]);
-
   const showQuickActions =
     isFirstTimeMode || (!hasUrgentSummaryState && !nextEvent && !showInviteNudge);
 
-  const shouldShowSummaryHero = !(showInviteNudge && !hasUrgentSummaryState);
+  const shouldShowSummaryHero =
+    !(showInviteNudge && !hasUrgentSummaryState) &&
+    !(showCreateGroupNudge && !hasUrgentSummaryState);
 
   const openPremiumFromSummary = useCallback(
     (context: PremiumContextKey) => {
@@ -2434,16 +2450,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 block: "summary_hero",
               })
             }
-          />
-        ) : null}
-
-        {createGroupFocus ? (
-          <FocusRail
-            eyebrow={createGroupFocus.eyebrow}
-            title={createGroupFocus.title}
-            subtitle={createGroupFocus.subtitle}
-            cta={createGroupFocus.cta}
-            onClick={createGroupFocus.action}
           />
         ) : null}
 

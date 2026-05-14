@@ -373,43 +373,43 @@ export default function EventsPage() {
     return [
       {
         action: "attention",
-        eyebrow: "Primero",
-        title: "Requiere acción",
+        eyebrow: "Acción",
+        title: coordinationInbox.actionRequiredCount > 0 ? "Revisar pendientes" : "Todo al día",
         count: coordinationInbox.actionRequiredCount,
         body:
           coordinationInbox.actionRequiredCount > 0
-            ? "Cruces, compartidos cercanos o planes que conviene revisar antes de que se enfríen."
-            : "No hay nada urgente abierto. Puedes revisar lo próximo o crear un plan nuevo.",
+            ? `${coordinationInbox.actionRequiredCount} pendiente${coordinationInbox.actionRequiredCount === 1 ? "" : "s"} por revisar`
+            : "Nada pendiente",
         accent: "decision",
       },
       {
         action: "conflicts",
-        eyebrow: "Decidir",
-        title: "Posibles choques",
+        eyebrow: "Choques",
+        title: coordinationInbox.conflictEventCount > 0 ? "Revisar choques" : "Sin conflictos",
         count: coordinationInbox.conflictEventCount,
         body:
           coordinationInbox.conflictEventCount > 0
-            ? "Hay horarios que compiten entre sí. SyncPlans te lleva directo a decidir qué queda."
-            : "No veo choques claros en la ventana cargada.",
+            ? `${coordinationInbox.conflictEventCount} posible${coordinationInbox.conflictEventCount === 1 ? "" : "s"} choque${coordinationInbox.conflictEventCount === 1 ? "" : "s"}`
+            : "Sin conflictos",
         accent: "conflict",
       },
       {
         action: "upcoming",
-        eyebrow: "Orden",
-        title: "Próximos planes",
+        eyebrow: "Próximos",
+        title: "Lo que viene",
         count: coordinationInbox.upcomingCount,
         body:
           coordinationInbox.sharedUpcomingCount > 0
-            ? `${coordinationInbox.sharedUpcomingCount} compartido${coordinationInbox.sharedUpcomingCount === 1 ? "" : "s"} dentro de lo que viene.`
-            : "Tu agenda próxima queda lista para revisar sin entrar al calendario completo.",
+            ? `${coordinationInbox.sharedUpcomingCount} compartido${coordinationInbox.sharedUpcomingCount === 1 ? "" : "s"}`
+            : "Agenda próxima",
         accent: "upcoming",
       },
       {
         action: "history",
-        eyebrow: "Cierre",
-        title: "Historial",
+        eyebrow: "Historial",
+        title: "Ya cerrado",
         count: coordinationInbox.historyCount,
-        body: "Lo que ya pasó queda separado para que la bandeja no compita con lo importante.",
+        body: `${coordinationInbox.historyCount} cerrado${coordinationInbox.historyCount === 1 ? "" : "s"}`,
         accent: "history",
       },
     ];
@@ -945,9 +945,8 @@ export default function EventsPage() {
             <div style={S.inboxHeader}>
               <div>
                 <div style={S.inboxEyebrow}>Coordination Inbox</div>
-                <div style={S.inboxTitle}>Ordena la bandeja por lo que necesita atención.</div>
+                <div style={S.inboxTitle}>Lo importante primero.</div>
               </div>
-              <div style={S.inboxHint}>Acción → choques → próximos → historial</div>
             </div>
 
             <div style={{ ...S.inboxGrid, ...(isMobile ? S.inboxGridMobile : null) }}>
@@ -1397,9 +1396,9 @@ const S: Record<string, React.CSSProperties> = {
     borderRadius: 20,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(255,255,255,0.035)",
-    padding: 14,
+    padding: 12,
     display: "grid",
-    gap: 12,
+    gap: 10,
   },
   inboxHeader: {
     display: "flex",
@@ -1437,22 +1436,23 @@ const S: Record<string, React.CSSProperties> = {
     gap: 10,
   },
   inboxGridMobile: {
-    gridTemplateColumns: "minmax(0, 1fr)",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 8,
   },
   inboxLane: {
     width: "100%",
     minWidth: 0,
-    minHeight: 132,
-    borderRadius: 18,
+    minHeight: 94,
+    borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.08)",
     background: "rgba(15,23,42,0.46)",
-    padding: "12px 12px",
+    padding: "10px 10px",
     textAlign: "left",
     color: "rgba(255,255,255,0.95)",
     cursor: "pointer",
     display: "grid",
     alignContent: "start",
-    gap: 7,
+    gap: 5,
   },
   inboxLaneActive: {
     border: "1px solid rgba(96,165,250,0.28)",
@@ -1477,27 +1477,27 @@ const S: Record<string, React.CSSProperties> = {
     color: "rgba(226,232,240,0.58)",
   },
   inboxLaneCount: {
-    minWidth: 30,
-    height: 30,
+    minWidth: 26,
+    height: 26,
     borderRadius: 999,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.055)",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 950,
     color: "rgba(255,255,255,0.98)",
   },
   inboxLaneTitle: {
-    fontSize: 14,
-    lineHeight: 1.25,
+    fontSize: 13,
+    lineHeight: 1.2,
     fontWeight: 950,
     color: "rgba(255,255,255,0.98)",
   },
   inboxLaneBody: {
-    fontSize: 12,
-    lineHeight: 1.45,
+    fontSize: 11,
+    lineHeight: 1.3,
     fontWeight: 650,
     color: "rgba(226,232,240,0.68)",
     overflowWrap: "anywhere",
