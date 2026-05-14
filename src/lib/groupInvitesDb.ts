@@ -3,6 +3,7 @@
 
 import supabase from "@/lib/supabaseClient";
 import { inviteToGroup as inviteToGroupCore } from "@/lib/invitationsDb";
+import { getMyGroups, getGroupDisplayName } from "@/lib/groupsDb";
 
 export type InviteResult =
   | {
@@ -165,4 +166,84 @@ export async function inviteToGroup(params: {
     status: "pending",
     ...mail,
   };
+}
+
+export type SentGroupInvitation = {
+  id: string;
+  group_id: string;
+  group_name: string | null;
+  group_type: string | null;
+  invited_email: string;
+  status: string;
+  created_at: string | null;
+  accept_url: string;
+};
+
+type GroupInviteDbRow = {
+  id?: unknown;
+  group_id?: unknown;
+  invited_email?: unknown;
+  status?: unknown;
+  created_at?: unknown;
+};
+
+/**
+ * Invitaciones creadas desde los grupos del usuario.
+ *
+ * Nota de producto: lo mostramos como “enviadas desde tus grupos” para evitar
+ * prometer autoría exacta si la tabla no expone created_by/invited_by en todas
+ * las instalaciones. En la práctica, para el owner/admin es el tracking que
+ * necesita: quién todavía falta aceptar en sus espacios.
+ */
+export async function getSentGroupInvitations(): Promise<SentGroupInvitation[]> {
+  const myGroups = await getMyGroups();
+  const groups = Array.isArray(myGroups) ? myGroups : [];
+
+  const groupIds = groups
+    .map((group) => String(group.id ?? "").trim())
+    .filter(Boolean);
+
+  if (groupIds.length === 0) return [];
+
+  const groupById = new Map(
+    groups.map((group) => [
+      String(group.id),
+      {
+        name: getGroupDisplayName(group),
+        type: String(group.type ?? "other"),
+      },
+    ])
+  );
+
+  const { data, error } = await supabase
+    .from("group_invites")
+    .select("id, group_id, invited_email, status, created_at")
+    .in("group_id", groupIds)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  const rows = (Array.isArray(data) ? data : []) as GroupInviteDbRow[];
+
+  return rows
+    .map((row) => {
+      const id = String(row.id ?? "").trim();
+      const groupId = String(row.group_id ?? "").trim();
+      const invitedEmail = cleanEmail(String(row.invited_email ?? ""));
+      const group = groupById.get(groupId) ?? { name: null, type: null };
+
+      if (!id || !groupId || !invitedEmail) return null;
+
+      return {
+        id,
+        group_id: groupId,
+        group_name: group.name,
+        group_type: group.type,
+        invited_email: invitedEmail,
+        status: String(row.status ?? "pending").trim() || "pending",
+        created_at: row.created_at == null ? null : String(row.created_at),
+        accept_url: `${clientBaseUrl()}/invitations/accept?invite=${encodeURIComponent(id)}`,
+      } satisfies SentGroupInvitation;
+    })
+    .filter((row): row is SentGroupInvitation => Boolean(row));
 }

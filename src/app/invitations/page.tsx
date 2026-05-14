@@ -14,6 +14,10 @@ import {
   declineInvitation,
   type GroupInvitation,
 } from "@/lib/invitationsDb";
+import {
+  getSentGroupInvitations,
+  type SentGroupInvitation,
+} from "@/lib/groupInvitesDb";
 
 type UiToast = { title: string; subtitle?: string } | null;
 
@@ -39,16 +43,31 @@ function safeDateLabel(createdAt?: string | null) {
   return d.toLocaleDateString();
 }
 
+function statusLabel(status?: string | null) {
+  const key = String(status ?? "pending").toLowerCase();
+  if (key === "accepted") return "Aceptada";
+  if (key === "declined") return "Rechazada";
+  if (key === "expired") return "Vencida";
+  if (key === "cancelled" || key === "canceled") return "Cancelada";
+  return "Pendiente";
+}
+
+function isPendingStatus(status?: string | null) {
+  return String(status ?? "pending").toLowerCase() === "pending";
+}
+
 export default function InvitationsPage() {
   const router = useRouter();
 
   const [booting, setBooting] = useState(true);
   const [loading, setLoading] = useState(false);
   const [invites, setInvites] = useState<GroupInvitation[]>([]);
+  const [sentInvites, setSentInvites] = useState<SentGroupInvitation[]>([]);
   const [acting, setActing] = useState<string | null>(null);
 
   const [toast, setToast] = useState<UiToast>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sentError, setSentError] = useState<string | null>(null);
 
   const showToast = useCallback((title: string, subtitle?: string) => {
     setToast({ title, subtitle });
@@ -64,6 +83,17 @@ export default function InvitationsPage() {
       status: i.status ?? "pending",
     }));
   }, [invites]);
+
+
+  const normalizedSentInvites = useMemo(() => {
+    return (sentInvites ?? []).map((i) => ({
+      ...i,
+      created_at: i.created_at ?? null,
+      group_name: i.group_name ?? null,
+      group_type: i.group_type ?? null,
+      status: i.status ?? "pending",
+    }));
+  }, [sentInvites]);
 
   const requireSessionOrRedirect = useCallback(async () => {
     const { data, error } = await supabase.auth.getSession();
@@ -85,6 +115,20 @@ export default function InvitationsPage() {
 
       const data = await getMyInvitations();
       setInvites(Array.isArray(data) ? data : []);
+
+      try {
+        const sentData = await getSentGroupInvitations();
+        setSentInvites(Array.isArray(sentData) ? sentData : []);
+        setSentError(null);
+      } catch (sentInviteError: unknown) {
+        setSentInvites([]);
+        setSentError(
+          sentInviteError instanceof Error
+            ? sentInviteError.message
+            : "No se pudieron cargar las invitaciones enviadas."
+        );
+      }
+
       setError(null);
  } catch (e: unknown) {
   setError(e instanceof Error ? e.message : "Error cargando invitaciones");
@@ -141,14 +185,37 @@ export default function InvitationsPage() {
     }
   };
 
+
+  const copyInviteLink = async (url: string) => {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        showToast("Link copiado ✅", "Ya puedes reenviarlo por WhatsApp o correo.");
+        return;
+      }
+      showToast("No se pudo copiar", "Tu navegador no permitió copiar el link.");
+    } catch {
+      showToast("No se pudo copiar", "Inténtalo nuevamente.");
+    }
+  };
+
   const pendingInvites = useMemo(() => {
     return normalizedInvites.filter(
       (i) => String(i.status ?? "").toLowerCase() === "pending"
     );
   }, [normalizedInvites]);
 
-  const isEmpty = !loading && !error && pendingInvites.length === 0;
+  const pendingSentInvites = useMemo(() => {
+    return normalizedSentInvites.filter((i) => isPendingStatus(i.status));
+  }, [normalizedSentInvites]);
+
+  const isEmpty =
+    !loading &&
+    !error &&
+    pendingInvites.length === 0 &&
+    normalizedSentInvites.length === 0;
   const pendingCount = pendingInvites.length;
+  const pendingSentCount = pendingSentInvites.length;
   const firstPendingInvite = pendingInvites[0] ?? null;
   const invitationValueSteps = useMemo(
     () => [
@@ -175,7 +242,7 @@ export default function InvitationsPage() {
       <Section>
         <PremiumHeader
           title="Invitaciones"
-          subtitle="Responde invitaciones y entra a los espacios donde toca coordinar con otros."
+          subtitle="Acepta las que recibes y revisa las que enviaste desde tus grupos."
         />
 
         <Card style={styles.surfaceCard}>
@@ -185,8 +252,7 @@ export default function InvitationsPage() {
                 <div style={styles.kicker}>Tu bandeja</div>
                 <h1 style={styles.h1}>Invitaciones</h1>
                 <p style={styles.sub}>
-                  Grupos a los que te han invitado. Acepta cuando quieras entrar
-                  al mismo contexto que el resto y dejar de coordinar desde fuera.
+                  Separa lo que tienes que responder de lo que ya enviaste. Así sabes rápido quién falta aceptar y qué espacios siguen pendientes.
                 </p>
               </div>
 
@@ -216,25 +282,28 @@ export default function InvitationsPage() {
                 </div>
 
                 <h2 style={styles.heroTitle}>
-                  Lo que te falta para ver lo mismo que el resto
+                  Lo que requiere respuesta
                 </h2>
 
                 <p style={styles.heroText}>
-                  Aquí aparecen los espacios a los que te invitaron. Aceptar no
-                  es solo entrar: es dejar de coordinar desde fuera y pasar a ver
-                  el mismo grupo, los mismos planes y las mismas decisiones que los demás.
+                  Arriba ves tus invitaciones recibidas. Abajo puedes seguir las invitaciones enviadas desde tus grupos.
                 </p>
               </div>
 
               <Card tone="strong" style={styles.heroSummary}>
                 <div style={styles.heroSummaryTitle}>Resumen rápido</div>
-                <div style={styles.heroSummaryNumber}>{pendingCount}</div>
-                <div style={styles.heroSummaryLabel}>
-                  invitación{pendingCount === 1 ? "" : "es"} pendiente
-                  {pendingCount === 1 ? "" : "s"}
+                <div style={styles.summaryRows}>
+                  <div style={styles.summaryMiniRow}>
+                    <span>Para mí</span>
+                    <strong>{pendingCount}</strong>
+                  </div>
+                  <div style={styles.summaryMiniRow}>
+                    <span>Enviadas</span>
+                    <strong>{pendingSentCount}</strong>
+                  </div>
                 </div>
                 <div style={styles.heroSummaryHint}>
-                  Aceptar te mete al mismo espacio compartido y destraba coordinación real.
+                  Recibidas requieren decisión. Enviadas sirven para seguimiento.
                 </div>
               </Card>
             </Card>
@@ -306,75 +375,157 @@ export default function InvitationsPage() {
                 <div style={styles.errorTitle}>No se pudieron cargar</div>
                 <div style={styles.errorText}>{error}</div>
               </Card>
-            ) : isEmpty ? (
-              <Card tone="muted" style={styles.emptyCard}>
-                <div style={styles.emptyTitle}>
-                  No tienes invitaciones pendientes por ahora
-                </div>
-                <div style={styles.emptySub}>
-                  Tu bandeja está limpia. Cuando alguien te invite a un grupo, aparecerá aquí para que puedas decidir rápido.
-                </div>
-                <div style={styles.emptyActions}>
-                  <button
-                    onClick={() => router.push("/groups")}
-                    style={styles.primaryBtn}
-                  >
-                    Ir a grupos
-                  </button>
-                  <button
-                    onClick={() => router.push("/summary")}
-                    style={styles.ghostBtn}
-                  >
-                    Volver al resumen
-                  </button>
-                </div>
-              </Card>
             ) : (
-              <div style={styles.list}>
-                {pendingInvites.map((invite) => {
-                  const busy = acting === invite.id;
-                  return (
-                    <Card
-                      key={invite.id}
-                      tone="muted"
-                      style={styles.inviteCard}
-                    >
-                      <div style={styles.inviteTop}>
-                        <div style={styles.inviteMeta}>
-                          <div style={styles.inviteTitle}>
-                            {invite.group_name || "Grupo sin nombre"}
-                          </div>
-                          <div style={styles.inviteSub}>
-                            {labelForGroupType(invite.group_type)} ·{" "}
-                            {safeDateLabel(invite.created_at)}
-                          </div>
-                          <div style={styles.inviteMicroCopy}>
-                            Si aceptas, dejas de mirar esta coordinación desde fuera y entras al mismo espacio donde ya se están moviendo planes y decisiones.
-                          </div>
-                        </div>
+              <div style={styles.invitationsSections}>
+                <Card tone="muted" style={styles.sectionPanel}>
+                  <div style={styles.sectionPanelHeader}>
+                    <div>
+                      <div style={styles.sectionEyebrow}>Para mí</div>
+                      <h2 style={styles.sectionPanelTitle}>Invitaciones para aceptar</h2>
+                      <p style={styles.sectionPanelSub}>
+                        Aquí solo aparecen las invitaciones donde tú tienes que decidir.
+                      </p>
+                    </div>
+                    <div style={styles.countBadge}>{pendingCount}</div>
+                  </div>
 
-                        <div style={styles.badgePending}>Pendiente</div>
-                      </div>
+                  {pendingInvites.length === 0 ? (
+                    <div style={styles.compactEmpty}>
+                      No tienes invitaciones para aceptar por ahora.
+                    </div>
+                  ) : (
+                    <div style={styles.list}>
+                      {pendingInvites.map((invite) => {
+                        const busy = acting === invite.id;
+                        return (
+                          <Card key={invite.id} tone="muted" style={styles.inviteCard}>
+                            <div style={styles.inviteTop}>
+                              <div style={styles.inviteMeta}>
+                                <div style={styles.inviteTitle}>
+                                  {invite.group_name || "Grupo sin nombre"}
+                                </div>
+                                <div style={styles.inviteSub}>
+                                  {labelForGroupType(invite.group_type)} ·{" "}
+                                  {safeDateLabel(invite.created_at)}
+                                </div>
+                                <div style={styles.inviteMicroCopy}>
+                                  Si aceptas, entras al mismo espacio donde ya se están moviendo planes y decisiones.
+                                </div>
+                              </div>
 
-                      <div style={styles.actions}>
-                        <button
-                          onClick={() => onAccept(invite.id)}
-                          disabled={busy}
-                          style={styles.primaryBtn}
-                        >
-                          Aceptar y entrar
-                        </button>
-                        <button
-                          onClick={() => onDecline(invite.id)}
-                          disabled={busy}
-                          style={styles.ghostBtn}
-                        >
-                          {busy ? "Procesando…" : "Rechazar"}
-                        </button>
-                      </div>
-                    </Card>
-                  );
-                })}
+                              <div style={styles.badgePending}>Pendiente</div>
+                            </div>
+
+                            <div style={styles.actions}>
+                              <button
+                                onClick={() => onAccept(invite.id)}
+                                disabled={busy}
+                                style={styles.primaryBtn}
+                              >
+                                Aceptar y entrar
+                              </button>
+                              <button
+                                onClick={() => onDecline(invite.id)}
+                                disabled={busy}
+                                style={styles.ghostBtn}
+                              >
+                                {busy ? "Procesando…" : "Rechazar"}
+                              </button>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Card>
+
+                <Card tone="muted" style={styles.sectionPanel}>
+                  <div style={styles.sectionPanelHeader}>
+                    <div>
+                      <div style={styles.sectionEyebrow}>Seguimiento</div>
+                      <h2 style={styles.sectionPanelTitle}>Invitaciones enviadas</h2>
+                      <p style={styles.sectionPanelSub}>
+                        Correos invitados desde tus grupos. Sirve para saber quién falta aceptar.
+                      </p>
+                    </div>
+                    <div style={styles.countBadge}>{pendingSentCount}</div>
+                  </div>
+
+                  {sentError ? (
+                    <div style={styles.compactError}>{sentError}</div>
+                  ) : normalizedSentInvites.length === 0 ? (
+                    <div style={styles.compactEmpty}>
+                      Todavía no has enviado invitaciones desde tus grupos.
+                    </div>
+                  ) : (
+                    <div style={styles.sentList}>
+                      {normalizedSentInvites.map((invite) => {
+                        const pending = isPendingStatus(invite.status);
+                        return (
+                          <Card key={invite.id} tone="muted" style={styles.sentCard}>
+                            <div style={styles.sentTop}>
+                              <div style={styles.inviteMeta}>
+                                <div style={styles.sentEmail}>{invite.invited_email}</div>
+                                <div style={styles.inviteSub}>
+                                  {invite.group_name || "Grupo sin nombre"} ·{" "}
+                                  {labelForGroupType(invite.group_type)} ·{" "}
+                                  {safeDateLabel(invite.created_at)}
+                                </div>
+                              </div>
+
+                              <div
+                                style={{
+                                  ...styles.sentStatusBadge,
+                                  ...(pending ? styles.sentStatusPending : styles.sentStatusDone),
+                                }}
+                              >
+                                {statusLabel(invite.status)}
+                              </div>
+                            </div>
+
+                            <div style={styles.actions}>
+                              <button
+                                type="button"
+                                style={styles.ghostBtn}
+                                onClick={() => copyInviteLink(invite.accept_url)}
+                              >
+                                Copiar link
+                              </button>
+                              <button
+                                type="button"
+                                style={styles.ghostBtn}
+                                onClick={() =>
+                                  router.push(
+                                    `/groups/invite?groupId=${encodeURIComponent(invite.group_id)}`
+                                  )
+                                }
+                              >
+                                Invitar otra
+                              </button>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Card>
+
+                {isEmpty ? (
+                  <Card tone="muted" style={styles.emptyCard}>
+                    <div style={styles.emptyTitle}>Tu bandeja está limpia</div>
+                    <div style={styles.emptySub}>
+                      No tienes invitaciones para aceptar ni invitaciones enviadas desde tus grupos.
+                    </div>
+                    <div style={styles.emptyActions}>
+                      <button
+                        onClick={() => router.push("/groups")}
+                        style={styles.primaryBtn}
+                      >
+                        Ir a grupos
+                      </button>
+                    </div>
+                  </Card>
+                ) : null}
               </div>
             )}
           </Section>
@@ -733,6 +884,133 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     flexWrap: "wrap",
     gap: 10,
+  },
+
+
+  summaryRows: {
+    display: "grid",
+    gap: 8,
+  },
+  summaryMiniRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    padding: "10px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(226,232,240,0.86)",
+    fontSize: 13,
+    fontWeight: 850,
+  },
+  invitationsSections: {
+    display: "grid",
+    gap: 14,
+  },
+  sectionPanel: {
+    display: "grid",
+    gap: 14,
+  },
+  sectionPanelHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  sectionEyebrow: {
+    fontSize: 11,
+    letterSpacing: "0.14em",
+    textTransform: "uppercase",
+    color: "rgba(125,211,252,0.95)",
+    fontWeight: 900,
+    marginBottom: 6,
+  },
+  sectionPanelTitle: {
+    margin: 0,
+    fontSize: 19,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+  },
+  sectionPanelSub: {
+    margin: "6px 0 0",
+    maxWidth: 620,
+    color: "rgba(226,232,240,0.76)",
+    fontSize: 13,
+    lineHeight: 1.6,
+  },
+  countBadge: {
+    minWidth: 42,
+    height: 42,
+    borderRadius: 999,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "1px solid rgba(148,163,184,0.22)",
+    background: "rgba(255,255,255,0.06)",
+    color: "#ffffff",
+    fontSize: 18,
+    fontWeight: 950,
+  },
+  compactEmpty: {
+    borderRadius: 18,
+    border: "1px dashed rgba(148,163,184,0.22)",
+    background: "rgba(15,23,42,0.56)",
+    color: "rgba(226,232,240,0.78)",
+    padding: "16px 18px",
+    fontSize: 14,
+    fontWeight: 800,
+  },
+  compactError: {
+    borderRadius: 18,
+    border: "1px solid rgba(248,113,113,0.22)",
+    background: "rgba(248,113,113,0.08)",
+    color: "#fecaca",
+    padding: "16px 18px",
+    fontSize: 14,
+    fontWeight: 800,
+  },
+  sentList: {
+    display: "grid",
+    gap: 12,
+  },
+  sentCard: {
+    display: "grid",
+    gap: 14,
+  },
+  sentTop: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  sentEmail: {
+    fontSize: 18,
+    fontWeight: 950,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.96)",
+    overflowWrap: "anywhere",
+  },
+  sentStatusBadge: {
+    alignSelf: "flex-start",
+    padding: "8px 12px",
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: "0.05em",
+    textTransform: "uppercase",
+  },
+  sentStatusPending: {
+    border: "1px solid rgba(250,204,21,0.24)",
+    background: "rgba(250,204,21,0.12)",
+    color: "#fde68a",
+  },
+  sentStatusDone: {
+    border: "1px solid rgba(34,197,94,0.24)",
+    background: "rgba(34,197,94,0.12)",
+    color: "#bbf7d0",
   },
 
   toastWrap: {
