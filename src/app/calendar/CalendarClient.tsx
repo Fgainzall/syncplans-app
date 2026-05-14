@@ -799,7 +799,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
           (statusJson.connected ? "connected" : "disconnected");
 
         if (!statusRes.ok || connectionState !== "connected" || !statusJson.connected) {
-          if (showToastFlag && connectionState === "needs_reauth") {
+          if (connectionState === "needs_reauth") {
             setToast({
               title: "Reconecta Google Calendar",
               subtitle: "La conexión existe, pero Google necesita renovar permisos.",
@@ -808,7 +808,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
             return "reauth";
           }
 
-          return "skipped";
+          return showToastFlag ? "failed" : "skipped";
         }
 
         if (force && typeof window !== "undefined") {

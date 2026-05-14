@@ -84,9 +84,19 @@ type SettingsApiResponse = {
   ok?: boolean;
   error?: string;
   reason?: string;
+  code?: string;
   imported?: number;
   message?: string;
 };
+
+function isGoogleReauthCode(code: string | null | undefined): boolean {
+  const normalized = String(code ?? "").toUpperCase();
+  return (
+    normalized.includes("REAUTH") ||
+    normalized.includes("TOKEN_REFRESH") ||
+    normalized.includes("GOOGLE_NO_ACCOUNT")
+  );
+}
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -478,7 +488,7 @@ export default function SettingsClient() {
         connection_state: googleState,
       },
     });
-    window.location.href = "/api/google/connect";
+    window.location.href = `/api/google/connect?next=${encodeURIComponent("/settings#integrations")}`;
   }, [googleState]);
 
   const handleGoogleSyncNow = useCallback(async () => {
@@ -498,10 +508,19 @@ export default function SettingsClient() {
       const json = (await res.json().catch(() => ({}))) as SettingsApiResponse;
 
       if (!res.ok || !json.ok) {
+        const needsReauth = isGoogleReauthCode(json?.code);
         showToast(
-          "No se pudo importar desde Google",
-          json?.error || "Intenta de nuevo. Si persiste, reconecta Google."
+          needsReauth ? "Reconecta Google Calendar" : "No se pudo importar desde Google",
+          json?.error ||
+            (needsReauth
+              ? "La conexión existe, pero Google necesita renovar permisos."
+              : "Intenta de nuevo. Si persiste, reconecta Google.")
         );
+
+        if (needsReauth) {
+          await refreshGoogleStatusWithRetry();
+        }
+
         return;
       }
 
@@ -887,14 +906,22 @@ export default function SettingsClient() {
                       <div>
                         <div style={styles.innerTitle}>Google Calendar</div>
                         <div style={styles.innerSub}>
-                          {googleConnected
+                          {googleState === "connected"
                             ? `Cuenta: ${googleEmail || "—"} · Solo lectura`
-                            : "Conecta Google para sumar contexto a tus decisiones."}
+                            : googleState === "needs_reauth"
+                              ? "Google necesita reconexión para volver a importar eventos."
+                              : "Conecta Google para sumar contexto a tus decisiones."}
                         </div>
                       </div>
                     </div>
 
-                    {!googleConnected && google?.error ? <div style={styles.errorBox}>{google.error}</div> : null}
+                    {googleState === "needs_reauth" ? (
+                      <div style={styles.errorBox}>
+                        La conexión anterior ya no puede sincronizar. Reconecta Google Calendar para renovar permisos.
+                      </div>
+                    ) : !googleConnected && google?.error ? (
+                      <div style={styles.errorBox}>{google.error}</div>
+                    ) : null}
                   </div>
 
                   <div style={styles.actionsWrap}>

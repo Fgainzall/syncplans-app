@@ -134,10 +134,13 @@ function safeNextPath(input: string | null | undefined): string {
 }
 
 function withQuery(path: string, params: Record<string, string>) {
-  const [pathname, query = ""] = path.split("?");
+  const [beforeHash, hash = ""] = path.split("#");
+  const [pathname, query = ""] = beforeHash.split("?");
   const qs = new URLSearchParams(query);
   for (const [key, value] of Object.entries(params)) qs.set(key, value);
-  return `${pathname}?${qs.toString()}`;
+  const queryString = qs.toString();
+  const suffix = hash ? `#${hash}` : "";
+  return `${pathname}${queryString ? `?${queryString}` : ""}${suffix}`;
 }
 
 export async function GET(req: Request) {

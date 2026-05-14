@@ -308,6 +308,12 @@ function getInformationalGoogleEventsCleanupFilter(): string {
   ].join(",");
 }
 
+function isGoogleRefreshTokenInvalid(error: GoogleProviderError | null): boolean {
+  const code = String(error?.providerCode ?? "").toLowerCase();
+  return error?.status === 400 && (code === "invalid_grant" || code === "invalid_request");
+}
+
+
 export async function POST(req: Request) {
   const ctx = createApiRequestContext(req);
   logRequestStart(ctx, { flow: "google.sync" });
@@ -417,6 +423,29 @@ export async function POST(req: Request) {
         refreshed = await refreshGoogleAccessToken(refreshToken);
       } catch (error) {
         const providerError = error instanceof GoogleProviderError ? error : null;
+
+        if (isGoogleRefreshTokenInvalid(providerError)) {
+          const { error: markReauthError } = await supabaseAdmin
+            .from("google_accounts")
+            .update({
+              access_token: null,
+              refresh_token: null,
+              expires_at: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("user_id", user.id);
+
+          if (markReauthError) {
+            logWarn("google.sync.mark_reauth_failed", {
+              requestId: ctx.requestId,
+              endpoint: ctx.endpoint,
+              method: ctx.method,
+              userId: user.id,
+              providerError: markReauthError.message,
+            });
+          }
+        }
+
         return jsonError(ctx, {
           error: "No se pudo refrescar la sesión de Google. Vuelve a conectar tu cuenta.",
           code: "GOOGLE_TOKEN_REFRESH_FAILED",
@@ -427,6 +456,7 @@ export async function POST(req: Request) {
             userId: user.id,
             providerStatus: providerError?.status ?? null,
             providerCode: providerError?.providerCode ?? null,
+            markedNeedsReauth: isGoogleRefreshTokenInvalid(providerError),
           },
         });
       }
@@ -519,6 +549,28 @@ export async function POST(req: Request) {
         const retryProviderError =
           refreshError instanceof GoogleProviderError ? refreshError : null;
 
+        if (isGoogleRefreshTokenInvalid(retryProviderError)) {
+          const { error: markReauthError } = await supabaseAdmin
+            .from("google_accounts")
+            .update({
+              access_token: null,
+              refresh_token: null,
+              expires_at: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("user_id", user.id);
+
+          if (markReauthError) {
+            logWarn("google.sync.mark_reauth_failed", {
+              requestId: ctx.requestId,
+              endpoint: ctx.endpoint,
+              method: ctx.method,
+              userId: user.id,
+              providerError: markReauthError.message,
+            });
+          }
+        }
+
         return jsonError(ctx, {
           error: "No se pudo refrescar la sesión de Google. Vuelve a conectar tu cuenta.",
           code: "GOOGLE_TOKEN_REFRESH_FAILED",
@@ -532,6 +584,7 @@ export async function POST(req: Request) {
             userId: user.id,
             providerStatus: retryProviderError?.status ?? null,
             providerCode: retryProviderError?.providerCode ?? null,
+            markedNeedsReauth: isGoogleRefreshTokenInvalid(retryProviderError),
           },
         });
       }
