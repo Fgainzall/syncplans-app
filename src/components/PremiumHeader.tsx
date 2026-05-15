@@ -508,13 +508,36 @@ export default function PremiumHeader({
   }, []);
 
   useEffect(() => {
-    const delay = openNotif ? 0 : 350;
+    const forceRefresh = openNotif || pathname.startsWith("/conflicts");
+    const delay = forceRefresh ? 0 : 350;
     const timer = window.setTimeout(() => {
-      void refreshBadge(openNotif);
+      void refreshBadge(forceRefresh);
     }, delay);
 
     return () => window.clearTimeout(timer);
   }, [openNotif, pathname, refreshBadge]);
+
+  useEffect(() => {
+    const refreshNow = () => {
+      void refreshBadge(true);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refreshNow();
+    };
+
+    window.addEventListener("focus", refreshNow);
+    window.addEventListener("sp:events-changed", refreshNow as EventListener);
+    window.addEventListener("sp:notifications-changed", refreshNow as EventListener);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.removeEventListener("focus", refreshNow);
+      window.removeEventListener("sp:events-changed", refreshNow as EventListener);
+      window.removeEventListener("sp:notifications-changed", refreshNow as EventListener);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [refreshBadge]);
 
   const activeTab = useMemo<ModeMeta>(() => {
     return MODE_META[activeMode] ?? MODE_META.solo;

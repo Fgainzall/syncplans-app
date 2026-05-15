@@ -92,17 +92,16 @@ function formatRange(startIso?: string | null, endIso?: string | null) {
     }
 
     if (end && !Number.isNaN(end.getTime())) {
-      return `${start.toLocaleString(undefined, {
+      const startLabel = start.toLocaleDateString(undefined, {
         month: "short",
         day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })} → ${end.toLocaleString(undefined, {
+      });
+      const endLabel = end.toLocaleDateString(undefined, {
         month: "short",
         day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })}`;
+      });
+
+      return `Varios días · ${startLabel} – ${endLabel}`;
     }
 
     return formatDateTime(startIso);

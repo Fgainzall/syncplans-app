@@ -13,6 +13,7 @@ import {
   groupMeta,
   computeVisibleConflicts,
   attachEvents,
+  filterIgnoredConflicts,
 } from "@/lib/conflicts";
 import { normalizeGroupType } from "@/lib/naming";
 import {
@@ -35,6 +36,7 @@ import {
 import { markConflictNotificationsAsRead } from "@/lib/notificationsDb";
 import { getMyProfile, type Profile } from "@/lib/profilesDb";
 import { hasPremiumAccess } from "@/lib/premium";
+import { getIgnoredConflictKeys } from "@/lib/conflictPrefs";
 
 /* =========================
    Helpers
@@ -51,10 +53,17 @@ function prettyTimeRange(startIso: string, endIso: string) {
   const s = new Date(startIso);
   const e = new Date(endIso);
 
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
+    return "Fecha inválida";
+  }
+
   const hhmm = (x: Date) =>
     `${String(x.getHours()).padStart(2, "0")}:${String(
       x.getMinutes()
     ).padStart(2, "0")}`;
+
+  const shortDate = (x: Date) =>
+    x.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 
   const sameDay =
     s.getFullYear() === e.getFullYear() &&
@@ -62,9 +71,7 @@ function prettyTimeRange(startIso: string, endIso: string) {
     s.getDate() === e.getDate();
 
   if (!sameDay) {
-    return `${s.toLocaleDateString()} ${hhmm(
-      s
-    )} → ${e.toLocaleDateString()} ${hhmm(e)}`;
+    return `Varios días · ${shortDate(s)} – ${shortDate(e)}`;
   }
 
   return `${hhmm(s)} – ${hhmm(e)}`;
@@ -147,6 +154,9 @@ export default function DetectedClient() {
   const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [ignoredConflictKeys, setIgnoredConflictKeys] = useState<Set<string>>(
+    () => new Set()
+  );
   const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
@@ -176,7 +186,13 @@ export default function DetectedClient() {
       }
 
       try {
-        const [{ events: ev }, dbMap, declined, fetchedProfile] = await Promise.all([
+        const [
+          { events: ev },
+          dbMap,
+          declined,
+          ignoredKeys,
+          fetchedProfile,
+        ] = await Promise.all([
           loadEventsFromDb({
             // Si venimos enfocados desde un evento recién creado/editado,
             // NO filtres por groupId. Hay que comparar contra todo lo visible
@@ -186,6 +202,7 @@ export default function DetectedClient() {
           }),
           getMyConflictResolutionsMap().catch(() => ({})),
           getMyDeclinedEventIds().catch(() => new Set<string>()),
+          getIgnoredConflictKeys().catch(() => new Set<string>()),
           getMyProfile().catch(() => null),
         ]);
 
@@ -194,12 +211,16 @@ export default function DetectedClient() {
         setEvents(Array.isArray(ev) ? ev : []);
         setResMap(dbMap ?? {});
         setDeclinedEventIds(declined ?? new Set());
+        setIgnoredConflictKeys(
+          ignoredKeys instanceof Set ? ignoredKeys : new Set()
+        );
         setProfile(fetchedProfile ?? null);
       } catch {
         if (!alive) return;
         setEvents([]);
         setResMap({});
         setDeclinedEventIds(new Set());
+        setIgnoredConflictKeys(new Set());
         setProfile(null);
       } finally {
         if (alive) {
@@ -218,13 +239,14 @@ export default function DetectedClient() {
 
     const refreshFromDb = async () => {
       try {
-        const [nextEvents, nextResMap, nextDeclined] = await Promise.all([
+        const [nextEvents, nextResMap, nextDeclined, nextIgnoredKeys] = await Promise.all([
           loadEventsFromDb({
             groupId: focusEventId ? undefined : groupIdFromUrl ?? undefined,
             ...getDefaultConflictsScreenWindow(),
           }).catch(() => ({ events: [] })),
           getMyConflictResolutionsMap().catch(() => ({})),
           getMyDeclinedEventIds().catch(() => new Set<string>()),
+          getIgnoredConflictKeys().catch(() => new Set<string>()),
         ]);
 
         if (!alive) return;
@@ -232,6 +254,9 @@ export default function DetectedClient() {
         setEvents(Array.isArray(nextEvents?.events) ? nextEvents.events : []);
         setResMap(nextResMap ?? {});
         setDeclinedEventIds(nextDeclined ?? new Set());
+        setIgnoredConflictKeys(
+          nextIgnoredKeys instanceof Set ? nextIgnoredKeys : new Set()
+        );
       } catch {
         // no rompemos UI por refresh fallido
       }
@@ -277,15 +302,13 @@ export default function DetectedClient() {
     }));
 
     const cx = computeVisibleConflicts(normalized);
+    const visible = filterIgnoredConflicts(cx, ignoredConflictKeys);
 
-    // No filtramos preferencias de “ignorar” en esta pantalla.
-    // Detectar debe reflejar los choques reales que aparecen en calendario;
-    // las decisiones cerradas se siguen ocultando más abajo con resMap.
     return attachEvents(
-      cx,
+      visible,
       visibleEvents
     ) as unknown as AttachedConflict[];
-  }, [visibleEvents]);
+  }, [visibleEvents, ignoredConflictKeys]);
 
   /**
    * Mantenemos solo conflictos pendientes reales:

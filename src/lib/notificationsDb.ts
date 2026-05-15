@@ -7,7 +7,10 @@ import {
   type NotificationSettings as UserNotificationSettings,
 } from "@/lib/userNotificationSettings";
 import { computeVisibleConflicts, attachEvents } from "@/lib/conflicts";
-import { loadEventsFromDb } from "@/lib/conflictsDbBridge";
+import {
+  getDefaultConflictsScreenWindow,
+  loadEventsFromDb,
+} from "@/lib/conflictsDbBridge";
 import { normalizePreferenceGroupType } from "@/lib/naming";
 import { getMyConflictResolutionsMap } from "@/lib/conflictResolutionsDb";
 import { getIgnoredConflictKeys } from "@/lib/conflictPrefs";
@@ -175,6 +178,16 @@ function uniqueNotificationKey(row: {
   ].join("::");
 }
 
+function notifyNotificationsChanged() {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.dispatchEvent(new Event("sp:notifications-changed"));
+  } catch {
+    // No rompemos operaciones de DB por un evento local de UI.
+  }
+}
+
 function isConflictNotificationType(value: unknown): boolean {
   const normalized = String(value ?? "").trim().toLowerCase();
   return CONFLICT_NOTIFICATION_TYPES.includes(
@@ -271,7 +284,9 @@ async function getLiveConflictSummary(): Promise<{
 }> {
   const [{ events }, resMap, ignoredConflictKeys, declinedEventIds] =
     await Promise.all([
-      loadEventsFromDb(),
+      loadEventsFromDb({
+        ...getDefaultConflictsScreenWindow(),
+      }),
       getMyConflictResolutionsMap().catch(() => ({})),
       getIgnoredConflictKeys().catch(() => new Set<string>()),
       getMyDeclinedEventIds().catch(() => new Set<string>()),
@@ -346,6 +361,8 @@ export async function createNotifications(
     console.error("[createNotifications] insert error", error, deduped);
     throw error;
   }
+
+  notifyNotificationsChanged();
 
   return deduped.length;
 }
@@ -593,42 +610,27 @@ export async function getHeaderNotificationSummary(): Promise<{
 }> {
   const uid = await requireUid();
 
-  const [unreadRes, conflictRes] = await Promise.all([
+  // El badge rojo de la campana sigue contando notificaciones no leídas.
+  // El chip de conflictos, en cambio, debe reflejar conflictos vivos del calendario,
+  // no notificaciones antiguas. Así evitamos el caso: “Tienes 2 conflictos”
+  // pero /conflicts/detected dice “Todo claro por ahora”.
+  const [unreadRes, liveConflictSummary] = await Promise.all([
     supabase
       .from("notifications")
       .select("id", { count: "exact", head: true })
       .eq("user_id", uid)
       .is("read_at", null),
-    supabase
-      .from("notifications")
-      .select("id, type, entity_id, payload, created_at, read_at", {
-        count: "exact",
-      })
-      .eq("user_id", uid)
-      .in("type", [...CONFLICT_NOTIFICATION_TYPES])
-      .is("read_at", null)
-      .order("created_at", { ascending: false })
-      .limit(1),
+    getLiveConflictSummary().catch(() => ({ count: 0, latestEventId: null })),
   ]);
 
   if (unreadRes.error) throw unreadRes.error;
-  if (conflictRes.error) throw conflictRes.error;
-
-  const latestConflict = Array.isArray(conflictRes.data)
-    ? conflictRes.data.map(normalizeNotificationRecord)[0] ?? null
-    : null;
-
-  const relatedEventIds = latestConflict
-    ? extractEventIdsFromPayload(
-        latestConflict.payload ?? null,
-        latestConflict.entity_id ?? null
-      )
-    : [];
 
   return {
     unreadCount: Number(unreadRes.count ?? 0),
-    conflictCount: Number(conflictRes.count ?? 0),
-    latestEventId: relatedEventIds[0] ?? null,
+    conflictCount: Number(liveConflictSummary.count ?? 0),
+    latestEventId: liveConflictSummary.latestEventId
+      ? String(liveConflictSummary.latestEventId)
+      : null,
   };
 }
 
@@ -780,6 +782,8 @@ export async function markNotificationRead(id: string) {
     .eq("user_id", uid);
 
   if (error) throw error;
+
+  notifyNotificationsChanged();
 }
 
 export async function markNotificationsRead(ids: string[]) {
@@ -803,6 +807,8 @@ export async function markNotificationsRead(ids: string[]) {
     .is("read_at", null);
 
   if (error) throw error;
+
+  notifyNotificationsChanged();
 }
 
 export async function markAllRead() {
@@ -815,6 +821,8 @@ export async function markAllRead() {
     .is("read_at", null);
 
   if (error) throw error;
+
+  notifyNotificationsChanged();
 }
 
 /* ======================================================
