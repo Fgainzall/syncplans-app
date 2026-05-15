@@ -188,6 +188,43 @@ function getEventStartIso(event: SummaryRawEvent | null | undefined): string | n
   return parsed.toISOString();
 }
 
+function getEventEndIso(event: SummaryRawEvent | null | undefined): string | null {
+  const raw =
+    event?.end ??
+    event?.end_at ??
+    event?.endIso ??
+    event?.ends_at ??
+    null;
+
+  const dateInput = toDateInput(raw);
+  if (!dateInput) return null;
+
+  const parsed = new Date(dateInput);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return parsed.toISOString();
+}
+
+function isSameCalendarDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function isMultiDaySummaryEvent(event: SummaryRawEvent | null | undefined): boolean {
+  const startIso = getEventStartIso(event);
+  const endIso = getEventEndIso(event);
+  if (!startIso || !endIso) return false;
+
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+
+  return end.getTime() > start.getTime() && !isSameCalendarDay(start, end);
+}
+
 function findNextEventWithDestination(events: SummaryRawEvent[]): SummaryRawEvent | null {
   const now = Date.now();
 
@@ -199,6 +236,10 @@ function findNextEventWithDestination(events: SummaryRawEvent[]): SummaryRawEven
 
         const startMs = new Date(startIso).getTime();
         if (!Number.isFinite(startMs)) return false;
+
+        // Los eventos de varios días usan ubicación como contexto de disponibilidad,
+        // no como una cita puntual para calcular una salida diaria.
+        if (isMultiDaySummaryEvent(event)) return false;
 
         if (startMs < now - 15 * 60 * 1000) return false;
 

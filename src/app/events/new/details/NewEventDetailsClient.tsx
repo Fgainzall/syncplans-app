@@ -99,6 +99,38 @@ function addMinutes(d: Date, mins: number) {
   return x;
 }
 
+const DETAILS_MONTHS_SHORT = [
+  "ene",
+  "feb",
+  "mar",
+  "abr",
+  "may",
+  "jun",
+  "jul",
+  "ago",
+  "sep",
+  "oct",
+  "nov",
+  "dic",
+];
+
+function isSameCalendarDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function formatCompactDate(date: Date): string {
+  const month = DETAILS_MONTHS_SHORT[date.getMonth()] ?? "";
+  return `${date.getDate()} ${month}`.trim();
+}
+
+function formatCompactDateRange(start: Date, end: Date): string {
+  return `${formatCompactDate(start)} – ${formatCompactDate(end)}`;
+}
+
 function roundToNextQuarterHour(d: Date) {
   const x = new Date(d);
   x.setSeconds(0, 0);
@@ -897,7 +929,15 @@ function NewEventDetailsInner() {
   ]);
   const startDate = useMemo(() => fromInputLocal(startLocal), [startLocal]);
   const endDate = useMemo(() => fromInputLocal(endLocal), [endLocal]);
+  const isMultiDayEvent = useMemo(() => {
+    if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) {
+      return false;
+    }
+
+    return endDate.getTime() > startDate.getTime() && !isSameCalendarDay(startDate, endDate);
+  }, [startDate, endDate]);
   const leaveTimePreview = useMemo(() => {
+    if (isMultiDayEvent) return null;
     if (!etaSeconds || !Number.isFinite(startDate.getTime())) return null;
     const LEAVE_BUFFER_SECONDS = 5 * 60;
     const leaveAt = new Date(
@@ -905,7 +945,7 @@ function NewEventDetailsInner() {
     );
     if (Number.isNaN(leaveAt.getTime())) return null;
     return leaveAt;
-  }, [etaSeconds, startDate]);
+  }, [etaSeconds, startDate, isMultiDayEvent]);
   const etaLabel = useMemo(() => formatEtaLabel(etaSeconds), [etaSeconds]);
 
   const travelStatusLabel = useMemo(
@@ -1381,6 +1421,15 @@ function NewEventDetailsInner() {
     const origin = originPointRef.current;
     const startIso = safeIsoFromLocalDateInput(startLocal);
 
+    if (isMultiDayEvent) {
+      etaRequestRef.current += 1;
+      etaCacheRef.current = null;
+      setIsLoadingEta(false);
+      setEtaSeconds(null);
+      setEtaError(null);
+      return;
+    }
+
     if (
       !destination ||
       !origin ||
@@ -1512,7 +1561,7 @@ function NewEventDetailsInner() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [selectedPlace, travelMode, startLocal, originPointVersion]);
+  }, [selectedPlace, travelMode, startLocal, originPointVersion, isMultiDayEvent]);
 useEffect(() => {
   if (!selectedPlace || !originPointRef.current) return;
 
@@ -1695,8 +1744,9 @@ useEffect(() => {
 
   const dateRangeLabel = useMemo(() => {
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return "";
+    if (isMultiDayEvent) return formatCompactDateRange(startDate, endDate);
     return fmtRange(startDate.toISOString(), endDate.toISOString());
-  }, [startDate, endDate]);
+  }, [startDate, endDate, isMultiDayEvent]);
 
   const summaryLine = useMemo(() => {
     if (isSharedProposal && proposalResponse === "adjust") {
@@ -1778,7 +1828,7 @@ useEffect(() => {
     const sharedSignal = detailsTextSuggestsSharedPlan(raw || `${title} ${notes}`);
     const locationText = `${raw} ${locationInput}`.trim();
     const hasLocation = !!selectedPlace || locationInput.trim().length >= 3;
-    const shouldPromptLocation = !hasLocation && detailsTextSuggestsLocationNeeded(locationText);
+    const shouldPromptLocation = !isMultiDayEvent && !hasLocation && detailsTextSuggestsLocationNeeded(locationText);
     const groupName = selectedGroup?.name || "el grupo elegido";
     const groupTypeLabel = selectedGroup
       ? getGroupTypeLabel(selectedGroup.type)
@@ -1810,6 +1860,7 @@ useEffect(() => {
 
     const chips: string[] = [];
     chips.push(effectiveType === "group" ? "Compartido" : "Personal");
+    if (isMultiDayEvent) chips.push("Evento de varios días");
     if (durationLabel) chips.push(durationLabel);
     if (dateRangeLabel) chips.push(dateRangeLabel);
     if (hasLocation) chips.push("Con ubicación");
@@ -1824,6 +1875,9 @@ useEffect(() => {
       recommendations.push(
         `Recordé “${learnedPlaceNotice.alias}” y cargué ${learnedPlaceNotice.locationAddress || learnedPlaceNotice.locationLabel}. Cámbiala si no corresponde.`,
       );
+    }
+    if (isMultiDayEvent && hasLocation) {
+      recommendations.push("La ubicación queda como contexto del viaje o estadía. No calcularemos una salida diaria para todo el rango.");
     }
     if (shouldPromptLocation) {
       recommendations.push("Agrega ubicación para calcular salida y ruta.");
@@ -1854,6 +1908,7 @@ useEffect(() => {
     effectiveType,
     durationLabel,
     dateRangeLabel,
+    isMultiDayEvent,
     quickCaptureReview,
     cameFromQuickCapture,
     isFirstWowMomentFlow,
@@ -3437,7 +3492,7 @@ useEffect(() => {
               ) : null}
             </div>
 
-            {selectedPlace ? (
+            {selectedPlace && !isMultiDayEvent ? (
               <div style={styles.field}>
                 <div style={styles.fieldLabel}>Modo de viaje</div>
                 <div style={styles.chips}>
@@ -3469,59 +3524,79 @@ useEffect(() => {
             ) : null}
 
             {selectedPlace ? (
-              <div style={styles.travelMetaCard}>
-                <div style={styles.travelMetaRow}>
-                  <span style={styles.travelMetaLabel}>Estado de ruta</span>
-                  <span style={styles.travelMetaValue}>
-                    {travelStatusLabel}
-                  </span>
-                </div>
-
-                <div style={styles.travelMetaRow}>
-                  <span style={styles.travelMetaLabel}>Origen usado</span>
-                  <span style={styles.travelMetaValue}>
-                    {originSourceLabel}
-                  </span>
-                </div>
-
-                <div style={styles.travelMetaRow}>
-                  <span style={styles.travelMetaLabel}>Duración estimada</span>
-                  <span style={styles.travelMetaValue}>
-                    {isLoadingEta ? "Calculando…" : etaLabel || "Pendiente"}
-                  </span>
-                </div>
-
-                <div style={styles.travelMetaRow}>
-                  <span style={styles.travelMetaLabel}>Salida sugerida</span>
-                  <span style={styles.travelMetaValue}>{leaveTimeLabel}</span>
-                </div>
-
-                {etaError ? (
-                  <div style={styles.locationHint}>{etaError}</div>
-                ) : null}
-
-                {mapsLinks ? (
-                  <div style={styles.travelActionsRow}>
-                    <a
-                      href={mapsLinks.google}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={styles.secondaryButton}
-                    >
-                      Google Maps
-                    </a>
-
-                    <a
-                      href={mapsLinks.waze}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={styles.secondaryButton}
-                    >
-                      Waze
-                    </a>
+              isMultiDayEvent ? (
+                <div style={styles.travelMetaCard}>
+                  <div style={styles.travelMetaRow}>
+                    <span style={styles.travelMetaLabel}>Smart Mobility</span>
+                    <span style={styles.travelMetaValue}>Pausado para evento largo</span>
                   </div>
-                ) : null}
-              </div>
+
+                  <div style={styles.travelMetaRow}>
+                    <span style={styles.travelMetaLabel}>Ubicación usada</span>
+                    <span style={styles.travelMetaValue}>
+                      {selectedPlace.location_label || locationInput || "Ubicación del evento"}
+                    </span>
+                  </div>
+
+                  <div style={styles.locationHint}>
+                    Este plan dura varios días. SyncPlans usa la ubicación como contexto, pero no calcula una salida diaria. Si necesitas una ruta puntual, crea una llegada o traslado específico.
+                  </div>
+                </div>
+              ) : (
+                <div style={styles.travelMetaCard}>
+                  <div style={styles.travelMetaRow}>
+                    <span style={styles.travelMetaLabel}>Estado de ruta</span>
+                    <span style={styles.travelMetaValue}>
+                      {travelStatusLabel}
+                    </span>
+                  </div>
+
+                  <div style={styles.travelMetaRow}>
+                    <span style={styles.travelMetaLabel}>Origen usado</span>
+                    <span style={styles.travelMetaValue}>
+                      {originSourceLabel}
+                    </span>
+                  </div>
+
+                  <div style={styles.travelMetaRow}>
+                    <span style={styles.travelMetaLabel}>Duración estimada</span>
+                    <span style={styles.travelMetaValue}>
+                      {isLoadingEta ? "Calculando…" : etaLabel || "Pendiente"}
+                    </span>
+                  </div>
+
+                  <div style={styles.travelMetaRow}>
+                    <span style={styles.travelMetaLabel}>Salida sugerida</span>
+                    <span style={styles.travelMetaValue}>{leaveTimeLabel}</span>
+                  </div>
+
+                  {etaError ? (
+                    <div style={styles.locationHint}>{etaError}</div>
+                  ) : null}
+
+                  {mapsLinks ? (
+                    <div style={styles.travelActionsRow}>
+                      <a
+                        href={mapsLinks.google}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={styles.secondaryButton}
+                      >
+                        Google Maps
+                      </a>
+
+                      <a
+                        href={mapsLinks.waze}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={styles.secondaryButton}
+                      >
+                        Waze
+                      </a>
+                    </div>
+                  ) : null}
+                </div>
+              )
             ) : null}
 
             {externalProposalActive && (
@@ -3605,7 +3680,7 @@ useEffect(() => {
                       ? "Plan compartido"
                       : "Plan personal"}
                 </span>
-                {durationLabel && durationLabel.includes("día") ? (
+                {isMultiDayEvent ? (
                   <span
                     style={{
                       ...styles.quickSummaryPill,

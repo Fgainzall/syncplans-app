@@ -156,12 +156,25 @@ function formatMoveMinutes(totalMinutes: number | null | undefined): string {
   return `${hours} h ${minutes} min`;
 }
 
+const QC_MONTHS_SHORT = [
+  "ene",
+  "feb",
+  "mar",
+  "abr",
+  "may",
+  "jun",
+  "jul",
+  "ago",
+  "sep",
+  "oct",
+  "nov",
+  "dic",
+];
+
 function formatCaptureDateLabel(date: Date): string {
-  return date.toLocaleDateString("es-PE", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
+  const day = date.getDate();
+  const month = QC_MONTHS_SHORT[date.getMonth()] ?? "";
+  return `${day} ${month}`.trim();
 }
 
 function isSameCalendarDay(a: Date, b: Date): boolean {
@@ -173,14 +186,8 @@ function isSameCalendarDay(a: Date, b: Date): boolean {
 }
 
 function formatCaptureDateRangeLabel(start: Date, end: Date): string {
-  const startLabel = start.toLocaleDateString("es-PE", {
-    day: "numeric",
-    month: "short",
-  });
-  const endLabel = end.toLocaleDateString("es-PE", {
-    day: "numeric",
-    month: "short",
-  });
+  const startLabel = formatCaptureDateLabel(start);
+  const endLabel = formatCaptureDateLabel(end);
   return `${startLabel} – ${endLabel}`;
 }
 
@@ -1081,7 +1088,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     if (parsed.date && isMultiDay && parsedEndDate) {
       facts.push(`Evento de varios días: ${formatCaptureDateRangeLabel(parsed.date, parsedEndDate)}`);
       if (hasTime) {
-        facts.push(`Inicio: ${fmtTime(parsed.date)}`);
+        facts.push(`Hora de inicio: ${fmtTime(parsed.date)}`);
       }
     } else if (parsed.date) {
       facts.push(`Fecha: ${formatCaptureDateLabel(parsed.date)}`);
@@ -1104,6 +1111,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       if (learnedPlace?.locationAddress) {
         facts.push(`Dirección recordada: ${learnedPlace.locationAddress}`);
       }
+    } else if (isMultiDay) {
+      missing.push("ubicación de referencia");
     } else {
       missing.push("ubicación para calcular salida");
     }
@@ -1163,16 +1172,20 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         : "Faltan datos";
 
     const whenLabel = parsed.date && isMultiDay && parsedEndDate
-      ? `del ${formatCaptureDateRangeLabel(parsed.date, parsedEndDate)}`
+      ? formatCaptureDateRangeLabel(parsed.date, parsedEndDate)
       : parsed.date
       ? `${formatCaptureDateLabel(parsed.date)} a las ${fmtTime(parsed.date)}`
       : hasTime && parsed.startHour !== null
       ? `a las ${formatCaptureTimeLabel(parsed.startHour, parsed.startMinutes)}`
       : "sin horario cerrado";
-    const placeLabel = effectiveLocation ? ` en ${effectiveLocation}` : "";
-    const naturalSummary = `Quieres crear “${title}” ${whenLabel}${placeLabel}.`;
+    const placeLabel = effectiveLocation ? ` · ${effectiveLocation}` : "";
+    const naturalSummary = isMultiDay
+      ? `Evento de varios días · ${whenLabel}${placeLabel}`
+      : `Quieres crear “${title}” ${whenLabel}${effectiveLocation ? ` en ${effectiveLocation}` : ""}.`;
 
-    let recommendation = "Listo para revisar y guardar.";
+    let recommendation = isMultiDay
+      ? "Revísalo como un bloque de disponibilidad. Smart Mobility no se activará todos los días."
+      : "Listo para revisar y guardar.";
 
     if (overlappingTitle) {
       recommendation = "Revisa el posible choque antes de guardar.";
@@ -1180,8 +1193,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       recommendation = "Completa fecha y hora para que pueda coordinarlo bien.";
     } else if (learnedPlace) {
       recommendation = `Encontré una dirección usada antes para “${learnedPlace.alias}”. Revísala antes de guardar.`;
-    } else if (!effectiveLocation) {
+    } else if (!effectiveLocation && !isMultiDay) {
       recommendation = "Agrega ubicación si quieres calcular a qué hora salir.";
+    } else if (isMultiDay) {
+      recommendation = "Lo trataré como un evento largo: se verá en todo el rango y no generará salidas diarias.";
     } else if (smartInterpretation?.intent === "group" && !suggestedGroupId) {
       recommendation = "Elige el grupo correcto antes de compartirlo.";
     }
