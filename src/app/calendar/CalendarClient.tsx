@@ -193,6 +193,179 @@ function prettyTimeRange(startIso: string, endIso: string) {
   return formatRangeLabel(startIso, endIso);
 }
 
+
+const SHORT_MONTH_LABELS_ES = [
+  "ene",
+  "feb",
+  "mar",
+  "abr",
+  "may",
+  "jun",
+  "jul",
+  "ago",
+  "sep",
+  "oct",
+  "nov",
+  "dic",
+];
+
+function shortDateLabel(d: Date, includeYear = false) {
+  const base = `${d.getDate()} ${SHORT_MONTH_LABELS_ES[d.getMonth()]}`;
+  return includeYear ? `${base} ${d.getFullYear()}` : base;
+}
+
+function multiDayRangeLabel(event: CalendarEventWithOwner) {
+  const range = getCalendarEventRange(event);
+  if (!range) return prettyTimeRange(event.start, event.end);
+
+  const includeYear = range.startDay.getFullYear() !== range.endDay.getFullYear();
+  return `${shortDateLabel(range.startDay, includeYear)} – ${shortDateLabel(
+    range.endDay,
+    includeYear
+  )}`;
+}
+
+function multiDayContextLabel(
+  event: CalendarEventWithOwner,
+  contextDate?: Date | null
+) {
+  if (!isMultiDayCalendarEvent(event)) return prettyTimeRange(event.start, event.end);
+
+  const position = contextDate ? getEventDayPosition(event, contextDate) : "single";
+  const prefix =
+    position === "start"
+      ? "Inicia"
+      : position === "end"
+      ? "Termina"
+      : contextDate
+      ? "En curso"
+      : "Varios días";
+
+  return `${prefix} · ${multiDayRangeLabel(event)}`;
+}
+
+type EventDayPosition = "single" | "start" | "middle" | "end";
+
+function startOfDayLocal(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function isValidDate(d: Date | null | undefined): d is Date {
+  return !!d && Number.isFinite(d.getTime());
+}
+
+function isLocalMidnight(d: Date) {
+  return (
+    d.getHours() === 0 &&
+    d.getMinutes() === 0 &&
+    d.getSeconds() === 0 &&
+    d.getMilliseconds() === 0
+  );
+}
+
+function parseCalendarEventDate(value: string | null | undefined) {
+  if (!value) return null;
+  const parsed = parseIsoLike(value) ?? new Date(value);
+  return isValidDate(parsed) ? parsed : null;
+}
+
+function getVisualEventEndDate(start: Date, end: Date) {
+  if (end.getTime() <= start.getTime()) return start;
+
+  // All-day style ranges often save the end as midnight of the next day.
+  // Visually, that means the event ends on the previous day.
+  if (isLocalMidnight(end) && !sameDay(start, end)) {
+    const adjusted = new Date(end);
+    adjusted.setDate(adjusted.getDate() - 1);
+    return adjusted;
+  }
+
+  return end;
+}
+
+function getCalendarEventRange(event: CalendarEventWithOwner) {
+  const start = parseCalendarEventDate(event.start);
+  const rawEnd = parseCalendarEventDate(event.end) ?? start;
+
+  if (!start || !rawEnd) return null;
+
+  const end = getVisualEventEndDate(start, rawEnd);
+  const startDay = startOfDayLocal(start);
+  const endDay = startOfDayLocal(end);
+
+  return {
+    start,
+    end,
+    startDay,
+    endDay: endDay.getTime() < startDay.getTime() ? startDay : endDay,
+  };
+}
+
+function isMultiDayCalendarEvent(event: CalendarEventWithOwner) {
+  const range = getCalendarEventRange(event);
+  if (!range) return false;
+  return ymd(range.startDay) !== ymd(range.endDay);
+}
+
+function getEventDayPosition(
+  event: CalendarEventWithOwner,
+  cellDate: Date
+): EventDayPosition {
+  const range = getCalendarEventRange(event);
+  if (!range) return "single";
+
+  const startKey = ymd(range.startDay);
+  const endKey = ymd(range.endDay);
+  const cellKey = ymd(cellDate);
+
+  if (startKey === endKey) return "single";
+  if (cellKey === startKey) return "start";
+  if (cellKey === endKey) return "end";
+  return "middle";
+}
+
+function getMultiDayCellLabel(position: EventDayPosition) {
+  if (position === "start") return "Inicia";
+  if (position === "end") return "Termina";
+  if (position === "middle") return "En curso";
+  return null;
+}
+
+function getEventDayKeysInRange(
+  event: CalendarEventWithOwner,
+  rangeStart: Date,
+  rangeEnd: Date
+) {
+  const eventRange = getCalendarEventRange(event);
+  if (!eventRange) return [];
+
+  const firstDay = new Date(
+    Math.max(
+      eventRange.startDay.getTime(),
+      startOfDayLocal(rangeStart).getTime()
+    )
+  );
+  const lastDay = new Date(
+    Math.min(
+      eventRange.endDay.getTime(),
+      startOfDayLocal(rangeEnd).getTime()
+    )
+  );
+
+  if (firstDay.getTime() > lastDay.getTime()) return [];
+
+  const keys: string[] = [];
+  const cursor = startOfDayLocal(firstDay);
+  while (cursor.getTime() <= lastDay.getTime()) {
+    keys.push(ymd(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return keys;
+}
+
 /** ✅ detecta móvil por ancho */
 function useIsMobileWidth(maxWidth = 720) {
   const [isMobile, setIsMobile] = useState(false);
@@ -1302,21 +1475,37 @@ const valueVisibility = useMemo(() => {
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalendarEventWithOwner[]>();
 
-    for (const e of visibleEvents) {
-      const key = toYmdKey(parseIsoLike(e.start) ?? new Date(e.start));
-      const arr = map.get(key) || [];
-      arr.push(e);
+    for (const event of visibleEvents) {
+      const dayKeys = getEventDayKeysInRange(event, gridStart, gridEnd);
+
+      for (const key of dayKeys) {
+        const arr = map.get(key) || [];
+        if (!arr.some((existing) => String(existing.id) === String(event.id))) {
+          arr.push(event);
+        }
+        map.set(key, arr);
+      }
+    }
+
+    for (const [key, arr] of map.entries()) {
+      arr.sort((a, b) => {
+        const aMulti = isMultiDayCalendarEvent(a);
+        const bMulti = isMultiDayCalendarEvent(b);
+        if (aMulti !== bMulti) return aMulti ? -1 : 1;
+
+        const aStart = toDateMs(a.start);
+        const bStart = toDateMs(b.start);
+        if (aStart !== bStart) return aStart - bStart;
+
+        const aDuration = toDateMs(a.end) - toDateMs(a.start);
+        const bDuration = toDateMs(b.end) - toDateMs(b.start);
+        return bDuration - aDuration;
+      });
       map.set(key, arr);
     }
-    for (const [k, arr] of map.entries()) {
-      arr.sort(
-        (a, b) =>
-          toDateMs(a.start) - toDateMs(b.start)
-      );
-      map.set(k, arr);
-    }
+
     return map;
-  }, [visibleEvents]);
+  }, [visibleEvents, gridStart, gridEnd]);
 
   const agendaEvents = useMemo(() => {
     const list = [...visibleEvents];
@@ -1773,6 +1962,7 @@ const valueVisibility = useMemo(() => {
                       currentUserId={currentUserId}
                       trustSignal={trustSignals[String(e.id)]}
                       isMobile={isMobile}
+                      contextDate={selectedDay}
                       proposalResponsesMap={proposalResponsesMap}
                       inConflict={conflictEventIdsInGrid.has(String(e.id))}
                     />
@@ -2025,6 +2215,7 @@ function EventRow({
   currentUserId,
   trustSignal,
   isMobile,
+  contextDate,
   proposalResponsesMap,
   inConflict = false,
 }: {
@@ -2037,6 +2228,7 @@ function EventRow({
   groupTypeById?: Map<string, "pair" | "family" | "other">;
   trustSignal?: ConflictTrustSignal | null;
   isMobile?: boolean;
+  contextDate?: Date | null;
   proposalResponsesMap?: Record<string, ProposalResponseRow>;
   inConflict?: boolean;
 }) {
@@ -2048,6 +2240,7 @@ function EventRow({
   const isHighlighted =
     highlightId && String(e.id) === String(highlightId);
   const canDelete = isEventOwnedByUser(e, currentUserId);
+  const isMultiDay = isMultiDayCalendarEvent(e);
   const proposalRow = proposalResponsesMap?.[String(e.id)];
   const statusPresentation = getCalendarStatusPresentation({
     eventId: e.id,
@@ -2065,11 +2258,16 @@ function EventRow({
       ref={setRef ? setRef(String(e.id)) : undefined}
       style={{
         ...styles.eventRow,
+        ...(isMultiDay ? styles.eventRowMultiDay : null),
         border: isHighlighted
           ? "1px solid rgba(56,189,248,0.55)"
+          : isMultiDay
+          ? styles.eventRowMultiDay.border
           : styles.eventRow.border,
         background: isHighlighted
           ? "rgba(255,255,255,0.08)"
+          : isMultiDay
+          ? styles.eventRowMultiDay.background
           : styles.eventRow.background,
       }}
       className="spCal-chip"
@@ -2095,7 +2293,17 @@ function EventRow({
           >
             <div style={styles.eventTitle}>{e.title || "Sin título"}</div>
 
-            <div style={styles.eventTime}>{prettyTimeRange(e.start, e.end)}</div>
+            <div
+              style={
+                isMultiDay
+                  ? { ...styles.eventTime, ...styles.eventTimeMultiDay }
+                  : styles.eventTime
+              }
+            >
+              {isMultiDay
+                ? multiDayContextLabel(e, contextDate)
+                : prettyTimeRange(e.start, e.end)}
+            </div>
           </div>
 
           <div
@@ -2119,6 +2327,10 @@ function EventRow({
                 />
                 <span style={styles.eventTagText}>{meta.label}</span>
               </div>
+
+              {isMultiDay ? (
+                <div style={styles.eventMultiDayBadge}>Varios días</div>
+              ) : null}
 
               {statusLabel ? (
                 <div
@@ -2346,6 +2558,10 @@ cells.push(
         const showCellStatusPill =
           cellStatusPresentation.status === "resolved" ||
           cellStatusPresentation.status === "adjusted";
+        const dayPosition = getEventDayPosition(e, cellDate);
+        const multiDayLabel = getMultiDayCellLabel(dayPosition);
+        const isMultiDay = dayPosition !== "single";
+        const displayTitle = e.title || "Evento";
 
         return (
           <div
@@ -2357,6 +2573,10 @@ cells.push(
             }}
             style={{
               ...styles.cellEventLine,
+              ...(isMultiDay ? styles.cellEventLineMultiDay : null),
+              ...(dayPosition === "start" ? styles.cellEventLineMultiDayStart : null),
+              ...(dayPosition === "middle" ? styles.cellEventLineMultiDayMiddle : null),
+              ...(dayPosition === "end" ? styles.cellEventLineMultiDayEnd : null),
               ...(isConflictEvent ? styles.cellEventLineConflict : null),
               cursor: "pointer",
             }}
@@ -2374,8 +2594,12 @@ cells.push(
                 fontSize: styles.cellEventText.fontSize,
               }}
             >
-              {e.title || "Evento"}
+              {displayTitle}
             </span>
+
+            {isMultiDay && multiDayLabel ? (
+              <span style={styles.cellMultiDayPill}>{multiDayLabel}</span>
+            ) : null}
 
             {showCellStatusPill && cellStatusLabel ? (
               <span
@@ -2899,6 +3123,25 @@ cell: {
     borderRadius: 10,
     padding: "2px 4px",
   },
+  cellEventLineMultiDay: {
+    minHeight: 24,
+    border: "1px solid rgba(56,189,248,0.20)",
+    background:
+      "linear-gradient(90deg, rgba(56,189,248,0.16), rgba(99,102,241,0.10))",
+    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.03)",
+  },
+  cellEventLineMultiDayStart: {
+    borderTopRightRadius: 8,
+    borderBottomRightRadius: 8,
+  },
+  cellEventLineMultiDayMiddle: {
+    borderRadius: 8,
+    opacity: 0.96,
+  },
+  cellEventLineMultiDayEnd: {
+    borderTopLeftRadius: 8,
+    borderBottomLeftRadius: 8,
+  },
   cellEventLineConflict: {
     border: "1px solid rgba(248,113,113,0.18)",
     background: "rgba(127,29,29,0.18)",
@@ -2924,6 +3167,19 @@ cellEventText: {
     color: "rgba(191,219,254,0.88)",
     marginTop: 4,
     fontWeight: 800,
+  },
+  cellMultiDayPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "3px 6px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.22)",
+    background: "rgba(8,47,73,0.42)",
+    color: "rgba(186,230,253,0.94)",
+    fontSize: 10,
+    fontWeight: 950,
+    whiteSpace: "nowrap",
+    marginLeft: "auto",
   },
   cellTrustPill: {
     display: "inline-flex",
@@ -3020,6 +3276,13 @@ eventRow: {
   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.025)",
   transition: "background 160ms ease, border-color 160ms ease, transform 160ms ease",
 },
+eventRowMultiDay: {
+  border: "1px solid rgba(56,189,248,0.18)",
+  background:
+    "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(99,102,241,0.07) 48%, rgba(255,255,255,0.03))",
+  boxShadow:
+    "inset 0 1px 0 rgba(255,255,255,0.035), 0 18px 50px rgba(2,132,199,0.08)",
+},
   eventBar: { width: 6, borderRadius: 999 },
 eventBody: {
   flex: 1,
@@ -3088,6 +3351,11 @@ eventTitle: {
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
+  eventTimeMultiDay: {
+    color: "rgba(186,230,253,0.94)",
+    opacity: 0.98,
+    fontWeight: 850,
+  },
 eventTag: {
   display: "inline-flex",
   alignItems: "center",
@@ -3111,6 +3379,19 @@ eventTag: {
     minWidth: 0,
   },
   eventDot: { width: 8, height: 8, borderRadius: 999, flexShrink: 0 },
+  eventMultiDayBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "6px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(56,189,248,0.22)",
+    background: "rgba(8,47,73,0.55)",
+    color: "rgba(186,230,253,0.96)",
+    fontSize: 11,
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+  },
 
   eventTrustBadge: {
     display: "inline-flex",
