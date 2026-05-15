@@ -1184,7 +1184,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       : `Quieres crear “${title}” ${whenLabel}${effectiveLocation ? ` en ${effectiveLocation}` : ""}.`;
 
     let recommendation = isMultiDay
-      ? "Revísalo como un bloque de disponibilidad. Smart Mobility no se activará todos los días."
+      ? "Se tratará como un bloque de disponibilidad. Smart Mobility quedará pausado para este rango."
       : "Listo para revisar y guardar.";
 
     if (overlappingTitle) {
@@ -1196,7 +1196,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     } else if (!effectiveLocation && !isMultiDay) {
       recommendation = "Agrega ubicación si quieres calcular a qué hora salir.";
     } else if (isMultiDay) {
-      recommendation = "Lo trataré como un evento largo: se verá en todo el rango y no generará salidas diarias.";
+      recommendation = "Se verá durante todo el rango. Smart Mobility quedará pausado salvo que agregues una ruta puntual.";
     } else if (smartInterpretation?.intent === "group" && !suggestedGroupId) {
       recommendation = "Elige el grupo correcto antes de compartirlo.";
     }

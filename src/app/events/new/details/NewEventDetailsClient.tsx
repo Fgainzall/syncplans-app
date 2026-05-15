@@ -1834,8 +1834,8 @@ useEffect(() => {
       ? getGroupTypeLabel(selectedGroup.type)
       : null;
 
-    let headline = "SyncPlans dejó este plan como personal.";
-    let explanation = "Solo tú lo verás. Puedes cambiarlo a grupo si quieres coordinarlo con otra persona.";
+    let headline = "Se guardará como plan personal.";
+    let explanation = "Solo tú lo verás. Cambia a grupo si quieres coordinarlo con otra persona.";
     let tone: "personal" | "group" | "review" = "personal";
 
     if (isSharedProposal) {
@@ -1854,14 +1854,14 @@ useEffect(() => {
         : "Elige el grupo correcto antes de guardar para evitar compartirlo en el lugar equivocado.";
     } else if (sharedSignal) {
       tone = "review";
-      headline = "SyncPlans lo dejó personal por ahora.";
-      explanation = "Suena compartible, pero no encontramos un grupo claramente relacionado. Guárdalo personal o elige un grupo si quieres compartirlo.";
+      headline = "Lo dejé como plan personal por ahora.";
+      explanation = "Suena compartible, pero no encontré un grupo claramente relacionado. Guárdalo personal o elige un grupo si quieres compartirlo.";
     }
 
     const chips: string[] = [];
     chips.push(effectiveType === "group" ? "Compartido" : "Personal");
     if (isMultiDayEvent) chips.push("Evento de varios días");
-    if (durationLabel) chips.push(durationLabel);
+    if (durationLabel) chips.push(`Duración: ${durationLabel}`);
     if (dateRangeLabel) chips.push(dateRangeLabel);
     if (hasLocation) chips.push("Con ubicación");
     else if (shouldPromptLocation) chips.push("Falta ubicación");
@@ -1873,11 +1873,11 @@ useEffect(() => {
     }
     if (learnedPlaceNotice && selectedPlace) {
       recommendations.push(
-        `Recordé “${learnedPlaceNotice.alias}” y cargué ${learnedPlaceNotice.locationAddress || learnedPlaceNotice.locationLabel}. Cámbiala si no corresponde.`,
+        `Ubicación detectada: usé “${learnedPlaceNotice.alias}” como referencia. Cámbiala si no corresponde.`,
       );
     }
     if (isMultiDayEvent && hasLocation) {
-      recommendations.push("La ubicación queda como contexto del viaje o estadía. No calcularemos una salida diaria para todo el rango.");
+      recommendations.push("La ubicación queda como contexto del viaje o estadía. Smart Mobility quedará pausado para este rango.");
     }
     if (shouldPromptLocation) {
       recommendations.push("Agrega ubicación para calcular salida y ruta.");
@@ -3460,13 +3460,13 @@ useEffect(() => {
 
               {learnedPlaceNotice && selectedPlace ? (
                 <div style={styles.placeMemoryConfirmBox}>
-                  <div style={styles.placeMemoryEyebrow}>Ubicación recordada</div>
+                  <div style={styles.placeMemoryEyebrow}>Ubicación detectada</div>
                   <div style={styles.placeMemoryTitle}>
-                    Recordé “{learnedPlaceNotice.alias}”
+                    Usamos “{learnedPlaceNotice.alias}”
                   </div>
                   <div style={styles.placeMemoryCopy}>
-                    Usé {learnedPlaceNotice.locationAddress || learnedPlaceNotice.locationLabel}.
-                    Si no corresponde, cámbiala antes de guardar.
+                    La usamos como referencia para este plan.
+                    Cámbiala si no corresponde.
                   </div>
                   <div style={styles.placeMemoryActions}>
                     <button
@@ -3528,7 +3528,7 @@ useEffect(() => {
                 <div style={styles.travelMetaCard}>
                   <div style={styles.travelMetaRow}>
                     <span style={styles.travelMetaLabel}>Smart Mobility</span>
-                    <span style={styles.travelMetaValue}>Pausado para evento largo</span>
+                    <span style={styles.travelMetaValue}>Pausado para este evento</span>
                   </div>
 
                   <div style={styles.travelMetaRow}>
@@ -3539,7 +3539,7 @@ useEffect(() => {
                   </div>
 
                   <div style={styles.locationHint}>
-                    Este plan dura varios días. SyncPlans usa la ubicación como contexto, pero no calcula una salida diaria. Si necesitas una ruta puntual, crea una llegada o traslado específico.
+                    Este es un evento de varios días. Usaremos la ubicación como contexto, pero no calcularemos una salida diaria. Si necesitas una ruta puntual, crea una llegada o traslado específico.
                   </div>
                 </div>
               ) : (
@@ -3692,7 +3692,7 @@ useEffect(() => {
                   </span>
                 ) : null}
                 {durationLabel ? (
-                  <span style={styles.quickSummaryPill}>{durationLabel}</span>
+                  <span style={styles.quickSummaryPill}>Duración: {durationLabel}</span>
                 ) : null}
                 {dateRangeLabel ? (
                   <span style={styles.quickSummaryPill}>{dateRangeLabel}</span>
