@@ -164,6 +164,26 @@ function formatCaptureDateLabel(date: Date): string {
   });
 }
 
+function isSameCalendarDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function formatCaptureDateRangeLabel(start: Date, end: Date): string {
+  const startLabel = start.toLocaleDateString("es-PE", {
+    day: "numeric",
+    month: "short",
+  });
+  const endLabel = end.toLocaleDateString("es-PE", {
+    day: "numeric",
+    month: "short",
+  });
+  return `${startLabel} – ${endLabel}`;
+}
+
 function formatCaptureTimeLabel(hour: number, minutes: number): string {
   const date = new Date();
   date.setHours(hour, minutes, 0, 0);
@@ -176,6 +196,11 @@ function formatCaptureTimeLabel(hour: number, minutes: number): string {
 
 function formatCaptureDurationLabel(minutes: number): string {
   const safeMinutes = Math.max(1, Math.round(minutes));
+
+  if (safeMinutes >= 1440) {
+    const days = Math.max(1, Math.round(safeMinutes / 1440));
+    return days === 1 ? "1 día" : `${days} días`;
+  }
 
   if (safeMinutes < 60) return `${safeMinutes} min`;
 
@@ -1039,6 +1064,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     const hasDate = !!parsed.date;
     const hasTime = parsed.startHour !== null;
     const durationMinutes = Math.max(1, Number(parsed.durationMinutes || 60));
+    const parsedEndDate = parsed.endDate ?? null;
+    const isMultiDay = !!(
+      parsed.date &&
+      parsedEndDate &&
+      Number.isFinite(parsedEndDate.getTime()) &&
+      !isSameCalendarDay(parsed.date, parsedEndDate)
+    );
     const location = String(parsed.locationQuery ?? "").trim();
     const learnedPlace = learnedQuickCapturePlaceMatch;
     const effectiveLocation = learnedPlace?.locationLabel || location;
@@ -1046,7 +1078,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       .map((participant) => String(participant ?? "").trim())
       .filter(Boolean);
 
-    if (parsed.date) {
+    if (parsed.date && isMultiDay && parsedEndDate) {
+      facts.push(`Evento de varios días: ${formatCaptureDateRangeLabel(parsed.date, parsedEndDate)}`);
+      if (hasTime) {
+        facts.push(`Inicio: ${fmtTime(parsed.date)}`);
+      }
+    } else if (parsed.date) {
       facts.push(`Fecha: ${formatCaptureDateLabel(parsed.date)}`);
       facts.push(`Hora: ${fmtTime(parsed.date)}`);
     } else if (hasTime && parsed.startHour !== null) {
@@ -1091,9 +1128,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
     if (parsed.date) {
       const candidateStart = new Date(parsed.date);
-      const candidateEnd = new Date(
-        candidateStart.getTime() + durationMinutes * 60 * 1000
-      );
+      const candidateEnd = parsedEndDate
+        ? new Date(parsedEndDate)
+        : new Date(candidateStart.getTime() + durationMinutes * 60 * 1000);
 
       const overlap = visibleEvents.find((event) => {
         if (!event.id || !event.start) return false;
@@ -1125,7 +1162,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         ? "Confianza media"
         : "Faltan datos";
 
-    const whenLabel = parsed.date
+    const whenLabel = parsed.date && isMultiDay && parsedEndDate
+      ? `del ${formatCaptureDateRangeLabel(parsed.date, parsedEndDate)}`
+      : parsed.date
       ? `${formatCaptureDateLabel(parsed.date)} a las ${fmtTime(parsed.date)}`
       : hasTime && parsed.startHour !== null
       ? `a las ${formatCaptureTimeLabel(parsed.startHour, parsed.startMinutes)}`
@@ -1356,6 +1395,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
       const resolvedDate = suggestedDate ?? parsed.date ?? null;
       if (resolvedDate) params.set("date", resolvedDate.toISOString());
+      if (!suggestedDate && parsed.endDate) {
+        params.set("end_date", parsed.endDate.toISOString());
+      }
 
       return params;
     },

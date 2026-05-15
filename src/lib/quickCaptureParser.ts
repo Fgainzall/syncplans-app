@@ -25,6 +25,7 @@ export type ParsedQuickCapture = {
   title: string;
   notes: string;
   date: Date | null;
+  endDate: Date | null;
   durationMinutes: number;
   participants: string[];
   startHour: number | null;
@@ -46,6 +47,38 @@ const DAYS_MAP: Record<string, number> = {
   sabado: 6,
   sábado: 6,
 };
+
+const MONTHS_MAP: Record<string, number> = {
+  enero: 0,
+  febrero: 1,
+  marzo: 2,
+  abril: 3,
+  mayo: 4,
+  junio: 5,
+  julio: 6,
+  agosto: 7,
+  septiembre: 8,
+  setiembre: 8,
+  octubre: 9,
+  noviembre: 10,
+  diciembre: 11,
+};
+
+const MONTH_WORD_PATTERN =
+  "enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre";
+
+const EXPLICIT_DATE_RANGE_REGEX = new RegExp(
+  String.raw`\b(?:del|desde\s+el|desde)\s+` +
+    String.raw`\d{1,2}(?:(?:\s+de)?\s+(?:${MONTH_WORD_PATTERN})|[/-]\d{1,2}(?:[/-]\d{2,4})?)?(?:\s+de\s+\d{4})?` +
+    String.raw`\s+(?:al|a|hasta|hasta\s+el)\s+` +
+    String.raw`\d{1,2}(?:(?:\s+de)?\s+(?:${MONTH_WORD_PATTERN})|[/-]\d{1,2}(?:[/-]\d{2,4})?)?(?:\s+de\s+\d{4})?`,
+  "gi",
+);
+
+const EXPLICIT_SINGLE_DATE_REGEX = new RegExp(
+  String.raw`\b\d{1,2}(?:(?:\s+de)?\s+(?:${MONTH_WORD_PATTERN})|[/-]\d{1,2}(?:[/-]\d{2,4})?)(?:\s+de\s+\d{4})?\b`,
+  "gi",
+);
 
 const TITLE_NOTES_CONNECTORS = [
   " en casa de ",
@@ -117,6 +150,9 @@ const LOCATION_BREAK_TOKENS = [
   " a las ",
   " a la ",
   " al ",
+  " del ",
+  " desde ",
+  " hasta ",
   " alas ",
   " hoy",
   " mañana",
@@ -293,6 +329,139 @@ function startOfToday() {
     0,
     0
   );
+}
+
+
+function startOfLocalDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+}
+
+function monthIndexFromFragment(fragment: string): number | null {
+  const normalized = normalizeForMatching(fragment);
+  for (const [monthName, monthIndex] of Object.entries(MONTHS_MAP)) {
+    if (new RegExp(`\\b${monthName}\\b`, "i").test(normalized)) {
+      return monthIndex;
+    }
+  }
+  return null;
+}
+
+function yearFromFragment(fragment: string): number | null {
+  const match = normalizeForMatching(fragment).match(/\b(20\d{2}|19\d{2})\b/);
+  if (!match) return null;
+  const rawYear = Number(match[1]);
+  if (!Number.isFinite(rawYear)) return null;
+  return rawYear;
+}
+function normalizeMissingYear(date: Date, yearWasExplicit: boolean) {
+  if (yearWasExplicit) return date;
+
+  const today = startOfLocalDay(new Date());
+  const candidate = new Date(date);
+  if (candidate.getTime() < today.getTime()) {
+    candidate.setFullYear(candidate.getFullYear() + 1);
+  }
+  return candidate;
+}
+
+function buildLocalDate(
+  day: number,
+  month: number,
+  year: number,
+  yearWasExplicit: boolean,
+): Date | null {
+  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) {
+    return null;
+  }
+  if (day < 1 || day > 31 || month < 0 || month > 11) return null;
+
+  const date = new Date(year, month, day, 12, 0, 0, 0);
+  if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) {
+    return null;
+  }
+
+  return normalizeMissingYear(date, yearWasExplicit);
+}
+
+function parseExplicitDateFragment(
+  fragment: string,
+  options: { defaultMonth?: number | null; defaultYear?: number | null } = {},
+): Date | null {
+  const raw = String(fragment ?? "").trim();
+  if (!raw) return null;
+
+  const today = new Date();
+  const numeric = raw.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/);
+  if (numeric) {
+    const day = Number(numeric[1]);
+    const month = Number(numeric[2]) - 1;
+    const rawYear = numeric[3] ? Number(numeric[3]) : options.defaultYear ?? today.getFullYear();
+    const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+    return buildLocalDate(day, month, year, Boolean(numeric[3]));
+  }
+
+  const normalized = normalizeForMatching(raw);
+  const longMatch = normalized.match(
+    new RegExp(`\\b(\\d{1,2})(?:\\s+de)?\\s+(${MONTH_WORD_PATTERN})(?:\\s+de\\s+(\\d{4}|\\d{2}))?\\b`, "i"),
+  );
+  if (longMatch) {
+    const day = Number(longMatch[1]);
+    const month = MONTHS_MAP[longMatch[2]];
+    const rawYear = longMatch[3]
+      ? Number(longMatch[3])
+      : options.defaultYear ?? today.getFullYear();
+    const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+    return buildLocalDate(day, month, year, Boolean(longMatch[3]));
+  }
+
+  const dayOnly = normalized.match(/^\s*(\d{1,2})\s*$/);
+  if (dayOnly && options.defaultMonth !== undefined && options.defaultMonth !== null) {
+    const day = Number(dayOnly[1]);
+    const year = options.defaultYear ?? today.getFullYear();
+    return buildLocalDate(day, options.defaultMonth, year, Boolean(options.defaultYear));
+  }
+
+  return null;
+}
+
+function extractExplicitDateRange(text: string): { start: Date; end: Date } | null {
+  const raw = String(text ?? "");
+  const match = raw.match(
+    /\b(?:del|desde\s+el|desde)\s+(.{1,48}?)\s+(?:al|a|hasta|hasta\s+el)\s+(.{1,48}?)(?=\s+(?:en|con|para|por|a\s+las|a\s+la|alas)\b|[.,;!?]|$)/i,
+  );
+
+  if (!match) return null;
+
+  const startFragment = collapseSpaces(match[1] ?? "");
+  const endFragment = collapseSpaces(match[2] ?? "");
+  const endMonth = monthIndexFromFragment(endFragment);
+  const startYear = yearFromFragment(startFragment);
+  const endYear = yearFromFragment(endFragment);
+  const fallbackYear = startYear ?? endYear ?? null;
+
+  const start = parseExplicitDateFragment(startFragment, {
+    defaultMonth: endMonth,
+    defaultYear: fallbackYear,
+  });
+  const end = parseExplicitDateFragment(endFragment, {
+    defaultYear: start?.getFullYear() ?? fallbackYear,
+  });
+
+  if (!start || !end) return null;
+
+  const normalizedEnd = new Date(end);
+  if (normalizedEnd.getTime() < start.getTime()) {
+    normalizedEnd.setFullYear(normalizedEnd.getFullYear() + 1);
+  }
+
+  return { start, end: normalizedEnd };
+}
+
+function extractExplicitSingleDate(text: string): Date | null {
+  const raw = String(text ?? "");
+  const match = raw.match(EXPLICIT_SINGLE_DATE_REGEX);
+  if (!match?.[0]) return null;
+  return parseExplicitDateFragment(match[0]);
 }
 
 function nextOccurrenceOfDay(base: Date, targetDay: number) {
@@ -569,7 +738,10 @@ function detectSignals(
     ) ||
     /\b(proxima semana|proximo|próximo|proxima|próxima|siguiente|en dos semanas|la otra semana|semana que viene|este fin de semana|el otro finde)\b/.test(
       normalized
-    );
+    ) ||
+    /\b(?:del|desde)\s+\d{1,2}\b/i.test(raw) ||
+    EXPLICIT_SINGLE_DATE_REGEX.test(raw);
+  EXPLICIT_SINGLE_DATE_REGEX.lastIndex = 0;
 
   const hasExplicitTime =
     /\bde\s+\d{1,2}(?::\d{2})?\s?(am|pm)?\s+a\s+\d{1,2}(?::(\d{2}))?\s?(am|pm)?\b/i.test(
@@ -836,6 +1008,26 @@ function extractTimeRange(text: string): {
   return { startHour, startMinutes, endHour: null, endMinutes: 0 };
 }
 
+function extractExplicitSingleClock(text: string): {
+  startHour: number | null;
+  startMinutes: number;
+  endHour: number | null;
+  endMinutes: number;
+} | null {
+  const match = String(text ?? "").match(
+    /\b(?:a\s+las|a\s+la|alas)\s+(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/i,
+  );
+
+  if (!match) return null;
+
+  const rawHour = Number(match[1]);
+  const minutes = match[2] ? Number(match[2]) : 0;
+  const hour = normalizeHourFromCapture(rawHour, match[3] ?? null);
+
+  if (hour > 23 || minutes > 59) return null;
+  return { startHour: hour, startMinutes: minutes, endHour: null, endMinutes: 0 };
+}
+
 function extractDuration(text: string): number {
   const range = extractTimeRange(text);
   if (range.startHour !== null && range.endHour !== null) {
@@ -952,6 +1144,8 @@ function extractDay(text: string): Date | null {
 
 function removeDateAndTimeTokens(text: string): string {
   return String(text ?? "")
+    .replace(EXPLICIT_DATE_RANGE_REGEX, " ")
+    .replace(EXPLICIT_SINGLE_DATE_REGEX, " ")
     .replace(
       /\b(el|la|los|las)\s+(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/gi,
       " "
@@ -1152,22 +1346,51 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
   const participants = extractParticipants(raw);
   const signals = detectSignals(raw, participants);
   const locationIntent = detectLocationIntent(raw);
-  const date = extractDay(raw);
-  const timeRange = extractTimeRange(raw);
-  const duration = extractDuration(normalized);
+  const explicitRange = extractExplicitDateRange(raw);
+  const explicitSingleDate = explicitRange ? null : extractExplicitSingleDate(raw);
+  const date = explicitRange?.start ?? explicitSingleDate ?? extractDay(raw);
+  const rawTimeRange = extractTimeRange(raw);
+  const explicitClockTime = extractExplicitSingleClock(raw);
+  const timeRange = explicitRange
+    ? explicitClockTime ?? { startHour: null, startMinutes: 0, endHour: null, endMinutes: 0 }
+    : rawTimeRange;
+  const inferredDuration = extractDuration(normalized);
 
   let finalDate: Date | null = null;
+  let finalEndDate: Date | null = null;
+  let duration = inferredDuration;
+
   if (date) {
     finalDate = new Date(date);
     if (timeRange.startHour !== null) {
       finalDate.setHours(timeRange.startHour, timeRange.startMinutes, 0, 0);
+    } else if (explicitRange) {
+      finalDate.setHours(10, 0, 0, 0);
     } else {
       finalDate.setHours(12, 0, 0, 0);
     }
   }
 
+  if (explicitRange && finalDate) {
+    finalEndDate = new Date(explicitRange.end);
+    if (timeRange.endHour !== null) {
+      finalEndDate.setHours(timeRange.endHour, timeRange.endMinutes, 0, 0);
+    } else {
+      finalEndDate.setHours(11, 0, 0, 0);
+    }
+
+    if (finalEndDate.getTime() <= finalDate.getTime()) {
+      finalEndDate = new Date(finalDate.getTime() + Math.max(60, inferredDuration) * 60 * 1000);
+    }
+
+    duration = Math.max(60, Math.round((finalEndDate.getTime() - finalDate.getTime()) / 60000));
+  }
+
   const split = splitTitleAndNotes(raw);
-  const titleBase = split.title || cleanFallbackTitle(raw);
+  const titleBase =
+    explicitRange && split.title && /^en\s+/i.test(split.notes)
+      ? `${split.title} ${split.notes}`
+      : split.title || cleanFallbackTitle(raw);
   const title = buildSemanticTitle(titleBase, participants);
   const notesWithoutLocation = cleanNotesFromLocationIntent(
     split.notes,
@@ -1183,6 +1406,7 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
     title: title || formatTitle(cleanFallbackTitle(raw)),
     notes: formatNotes(cleanedNotes),
     date: finalDate,
+    endDate: finalEndDate,
     durationMinutes: duration,
     participants,
     startHour: timeRange.startHour,
@@ -1192,7 +1416,7 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
     locationSource: locationIntent.locationSource,
     signals: {
       ...signals,
-      hasExplicitDate: signals.hasExplicitDate || !!date,
+      hasExplicitDate: signals.hasExplicitDate || !!date || !!explicitRange,
       hasExplicitTime:
         signals.hasExplicitTime || timeRange.startHour !== null,
       confidence:

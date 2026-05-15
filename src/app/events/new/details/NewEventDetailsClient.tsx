@@ -549,6 +549,7 @@ function NewEventDetailsInner() {
 
   const typeParam = (sp.get("type") || "personal") as NewType;
   const dateParam = sp.get("date");
+  const endDateParam = sp.get("end_date") || sp.get("endDate");
   const timeParam = sp.get("time");
   const groupIdParam = sp.get("groupId");
   const wowParam = sp.get("wow");
@@ -604,9 +605,13 @@ function NewEventDetailsInner() {
   const [startLocal, setStartLocal] = useState(() =>
     toInputLocal(initialStart),
   );
-  const [endLocal, setEndLocal] = useState(() =>
-    toInputLocal(addMinutes(initialStart, 60)),
-  );
+  const [endLocal, setEndLocal] = useState(() => {
+    const explicitEnd = endDateParam ? new Date(endDateParam) : null;
+    if (explicitEnd && !Number.isNaN(explicitEnd.getTime())) {
+      return toInputLocal(explicitEnd);
+    }
+    return toInputLocal(addMinutes(initialStart, 60));
+  });
   const autocompleteRequestRef = useRef(0);
   const etaRequestRef = useRef(0);
   const etaCacheRef = useRef<{
@@ -985,6 +990,7 @@ function NewEventDetailsInner() {
       params.set("duration", quickCaptureDurationParam);
     if (quickCaptureNotesParam) params.set("notes", quickCaptureNotesParam);
     if (timeParam) params.set("time", timeParam);
+    if (endDateParam) params.set("end_date", endDateParam);
     if (captureSourceParam) params.set("capture_source", captureSourceParam);
     if (rawTextParam) params.set("raw_text", rawTextParam);
     if (originLatParam) params.set("originLat", originLatParam);
@@ -1035,6 +1041,7 @@ function NewEventDetailsInner() {
   selectedGroupId,
   sp,
   timeParam,
+  endDateParam,
 ]);
 
   useEffect(() => {
@@ -1544,6 +1551,10 @@ useEffect(() => {
     }
 
     const parsedDate = dateParam ? new Date(dateParam) : null;
+    const parsedEndDate = endDateParam ? new Date(endDateParam) : null;
+    const hasValidEndParam = !!(
+      parsedEndDate && !Number.isNaN(parsedEndDate.getTime())
+    );
     const timeMatch = String(timeParam ?? "").match(/^(\d{1,2}):(\d{2})$/);
 
     if (parsedDate && !Number.isNaN(parsedDate.getTime())) {
@@ -1551,7 +1562,11 @@ useEffect(() => {
         parsedDate.setHours(Number(timeMatch[1]), Number(timeMatch[2]), 0, 0);
       }
       setStartLocal(toInputLocal(parsedDate));
-      setEndLocal(toInputLocal(addMinutes(parsedDate, safeDuration)));
+      if (parsedEndDate && hasValidEndParam && parsedEndDate.getTime() > parsedDate.getTime()) {
+        setEndLocal(toInputLocal(parsedEndDate));
+      } else {
+        setEndLocal(toInputLocal(addMinutes(parsedDate, safeDuration)));
+      }
     } else if (timeMatch) {
       const nextStart = fromInputLocal(startLocal);
       if (!Number.isNaN(nextStart.getTime())) {
@@ -1575,6 +1590,7 @@ useEffect(() => {
   quickCaptureDurationParam,
   quickCaptureNotesParam,
   dateParam,
+  endDateParam,
   timeParam,
   startLocal,
 ]);
@@ -1664,6 +1680,11 @@ useEffect(() => {
     if (!Number.isFinite(diffMs) || diffMs <= 0) return null;
 
     const totalMinutes = Math.round(diffMs / 60000);
+    if (totalMinutes >= 1440) {
+      const days = Math.max(1, Math.round(totalMinutes / 1440));
+      return days === 1 ? "1 día" : `${days} días`;
+    }
+
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
 
@@ -3584,6 +3605,17 @@ useEffect(() => {
                       ? "Plan compartido"
                       : "Plan personal"}
                 </span>
+                {durationLabel && durationLabel.includes("día") ? (
+                  <span
+                    style={{
+                      ...styles.quickSummaryPill,
+                      border: "1px solid rgba(56, 189, 248, 0.30)",
+                      background: "rgba(56, 189, 248, 0.10)",
+                    }}
+                  >
+                    Evento de varios días
+                  </span>
+                ) : null}
                 {durationLabel ? (
                   <span style={styles.quickSummaryPill}>{durationLabel}</span>
                 ) : null}
