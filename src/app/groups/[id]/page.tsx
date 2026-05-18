@@ -7,7 +7,6 @@ import PremiumHeader from "@/components/PremiumHeader";
 import MobileScaffold from "@/components/MobileScaffold";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
-import LogoutButton from "@/components/LogoutButton";
 import supabase from "@/lib/supabaseClient";
 import { getMyGroups, getGroupTypeLabel } from "@/lib/groupsDb";
 import { setActiveGroupIdInDb } from "@/lib/activeGroup";
@@ -30,6 +29,7 @@ type ToastState =
       title: string;
       subtitle?: string;
     };
+
 type GroupPageRow = {
   id: string | number;
   name?: string | null;
@@ -38,6 +38,7 @@ type GroupPageRow = {
   members_count?: number | null;
   is_active?: boolean | null;
 };
+
 function roleLabel(role: GroupRole) {
   switch (role) {
     case "owner":
@@ -55,7 +56,7 @@ function groupMeta(type: string) {
       return {
         label: "Pareja",
         dot: "rgba(96,165,250,0.98)",
-        soft: "rgba(96,165,250,0.14)",
+        soft: "rgba(96,165,250,0.13)",
         border: "rgba(96,165,250,0.24)",
       };
     case "family":
@@ -75,6 +76,22 @@ function groupMeta(type: string) {
   }
 }
 
+function getMemberCopy(count: number) {
+  return `${count} persona${count === 1 ? "" : "s"}`;
+}
+
+function compactGroupPurpose(type: string) {
+  if (type === "pair") {
+    return "Usa este espacio para coordinar planes compartidos, evitar cruces y mantener una sola referencia entre ustedes.";
+  }
+
+  if (type === "family") {
+    return "Usa este espacio para ordenar planes familiares, próximos pasos e invitaciones sin depender de mensajes sueltos.";
+  }
+
+  return "Usa este espacio para crear planes compartidos, revisar miembros y mantener al grupo alineado.";
+}
+
 export default function GroupDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -86,14 +103,14 @@ export default function GroupDetailPage() {
   const [toast, setToast] = useState<ToastState>(null);
 
   useEffect(() => {
-   void trackScreenView({
-  screen: "group_detail",
-  metadata: {
-    area: "groups",
-    source: "group_detail",
-    groupId,
-  },
-});
+    void trackScreenView({
+      screen: "group_detail",
+      metadata: {
+        area: "groups",
+        source: "group_detail",
+        groupId,
+      },
+    });
   }, [groupId]);
 
   useEffect(() => {
@@ -165,52 +182,29 @@ export default function GroupDetailPage() {
 
       pushToast({
         title: "Grupo activo actualizado ✅",
-        subtitle: "Este contexto ya está listo para calendario, eventos y captura rápida.",
+        subtitle: "Este grupo ya queda como contexto principal para tus próximos planes.",
       });
-   } catch (error: unknown) {
-  pushToast({
-    title: "No se pudo activar",
-    subtitle: error instanceof Error ? error.message : "Inténtalo nuevamente.",
-  });
-}
-    finally {
+    } catch (error: unknown) {
+      pushToast({
+        title: "No se pudo activar",
+        subtitle: error instanceof Error ? error.message : "Inténtalo nuevamente.",
+      });
+    } finally {
       setSaving(false);
     }
   }
 
   const meta = useMemo(() => groupMeta(group?.type ?? "pair"), [group?.type]);
-
-  const heroTitle = useMemo(() => {
-    if (!group) return "Grupo no encontrado";
-    if (group.type === "pair") return "Aquí empieza la coordinación entre ustedes";
-    if (group.type === "family") return "Aquí vive la coordinación familiar";
-    return "Aquí vive la coordinación compartida";
-  }, [group]);
-
-  const heroText = useMemo(() => {
-    if (!group) {
-      return "No pudimos encontrar este grupo dentro de tus espacios actuales.";
-    }
-
-    if (group.type === "pair") {
-      return "Este grupo debería convertirse en el centro de la agenda compartida: menos mensajes cruzados, menos supuestos y una sola referencia clara entre ustedes.";
-    }
-
-    if (group.type === "family") {
-      return "Este grupo sirve para ordenar mejor el tiempo familiar desde un solo contexto, sin depender de memoria o conversaciones separadas.";
-    }
-
-    return "Este grupo sirve para coordinar con otras personas desde un solo lugar, con menos ruido y más claridad operativa.";
+  const displayName = useMemo(() => {
+    if (!group) return "Grupo";
+    return group.name || getGroupTypeLabel(String(group.type ?? "other"));
   }, [group]);
 
   if (booting) {
     return (
       <MobileScaffold maxWidth={1120} style={styles.page}>
         <Section>
-          <PremiumHeader
-            title="Grupo"
-            subtitle="Preparando este espacio compartido…"
-          />
+          <PremiumHeader title="Grupo" subtitle="Preparando este espacio compartido…" />
           <Card style={styles.surfaceCard}>
             <div style={styles.loadingRow}>
               <div style={styles.loadingDot} />
@@ -239,11 +233,7 @@ export default function GroupDetailPage() {
 
         <Section>
           <div style={styles.topRow}>
-            <PremiumHeader
-              title="Grupo"
-              subtitle="No pudimos abrir este espacio"
-            />
-            <LogoutButton />
+            <PremiumHeader title="Grupo" subtitle="No pudimos abrir este espacio" />
           </div>
 
           <Card style={styles.surfaceCard}>
@@ -281,15 +271,12 @@ export default function GroupDetailPage() {
       <Section>
         <div style={styles.topRow}>
           <PremiumHeader
-           title={group.name || getGroupTypeLabel(String(group.type ?? "other"))}
-            subtitle="Detalle del grupo y siguiente mejor paso dentro de este contexto."
+            title={displayName}
+            subtitle={`${meta.label} · ${getMemberCopy(group.members_count)} · ${roleLabel(group.role)}`}
           />
-          <div style={styles.inlineActions}>
-            <button type="button" style={styles.secondary} onClick={() => router.push("/groups")}>
-              Volver a grupos
-            </button>
-            <LogoutButton />
-          </div>
+          <button type="button" style={styles.backButton} onClick={() => router.push("/groups")}>
+            Volver a grupos
+          </button>
         </div>
 
         <Card style={styles.surfaceCard}>
@@ -302,87 +289,94 @@ export default function GroupDetailPage() {
                 background: `linear-gradient(180deg, ${meta.soft}, rgba(255,255,255,0.03))`,
               }}
             >
-              <div style={styles.heroLeft}>
+              <div style={styles.heroHeaderRow}>
                 <div style={styles.heroPill}>
                   <span style={{ ...styles.heroDot, background: meta.dot }} />
                   {meta.label}
                 </div>
+                {group.is_active ? (
+                  <span style={styles.activeBadge}>Activo</span>
+                ) : (
+                  <span style={styles.inactiveBadge}>No activo</span>
+                )}
+              </div>
 
-                <h1 style={styles.heroTitle}>{heroTitle}</h1>
-                <p style={styles.heroText}>{heroText}</p>
+              <div style={styles.heroMain}>
+                <h1 style={styles.heroTitle}>{displayName}</h1>
+                <p style={styles.heroText}>{compactGroupPurpose(group.type)}</p>
+              </div>
 
-                <div style={styles.metaRow}>
-                  <span style={styles.metaPill}>{roleLabel(group.role)}</span>
-                  <span style={styles.metaPillSoft}>
-                    {group.members_count} persona{group.members_count === 1 ? "" : "s"}
-                  </span>
-                  {group.is_active ? (
-                    <span style={styles.activeBadge}>Contexto activo</span>
-                  ) : null}
+              <div style={styles.metaGrid}>
+                <div style={styles.metricCard}>
+                  <div style={styles.metricLabel}>Miembros</div>
+                  <div style={styles.metricValue}>{getMemberCopy(group.members_count)}</div>
+                </div>
+                <div style={styles.metricCard}>
+                  <div style={styles.metricLabel}>Tu rol</div>
+                  <div style={styles.metricValue}>{roleLabel(group.role)}</div>
+                </div>
+                <div style={styles.metricCard}>
+                  <div style={styles.metricLabel}>Estado</div>
+                  <div style={styles.metricValue}>{group.is_active ? "Activo" : "Pendiente"}</div>
                 </div>
               </div>
 
-              <div style={styles.heroRight}>
-                <div style={styles.nextStepCard}>
-                  <div style={styles.nextStepLabel}>Siguiente mejor paso</div>
-                  <div style={styles.nextStepTitle}>
-                    {group.type === "pair"
-                      ? "Crear el próximo plan entre ustedes"
-                      : "Crear el próximo plan en este grupo"}
-                  </div>
-                  <div style={styles.nextStepText}>
-                    El grupo cobra valor real cuando dejas de verlo como estructura y lo conviertes en agenda compartida.
-                  </div>
-                </div>
+              <div style={styles.heroActions}>
+                <button
+                  type="button"
+                  style={styles.primary}
+                  onClick={() =>
+                    router.push(`/events/new/details?type=group&groupId=${encodeURIComponent(group.id)}`)
+                  }
+                >
+                  Crear plan
+                </button>
 
-                <div style={styles.inlineActions}>
-                  {!group.is_active ? (
-                    <button
-                      type="button"
-                      style={styles.secondary}
-                      onClick={handleActivate}
-                      disabled={saving}
-                    >
-                      {saving ? "Activando…" : "Usar como activo"}
-                    </button>
-                  ) : null}
+                <button
+                  type="button"
+                  style={styles.secondary}
+                  onClick={() => router.push(`/groups/invite?groupId=${encodeURIComponent(group.id)}`)}
+                >
+                  Invitar miembro
+                </button>
 
-                  <button
-                    type="button"
-                    style={styles.primary}
-                    onClick={() =>
-                      router.push(
-                        `/events/new/details?type=group&groupId=${encodeURIComponent(group.id)}`
-                      )
-                    }
-                  >
-                    Crear plan
+                {!group.is_active ? (
+                  <button type="button" style={styles.secondary} onClick={handleActivate} disabled={saving}>
+                    {saving ? "Activando…" : "Usar como activo"}
                   </button>
-                </div>
+                ) : null}
               </div>
             </Card>
 
             <div style={styles.grid}>
               <Card tone="muted" style={styles.infoCard}>
-                <div style={styles.sectionEyebrow}>Este grupo hoy</div>
-                <div style={styles.sectionTitle}>Qué representa</div>
+                <div style={styles.sectionEyebrow}>Miembros</div>
+                <div style={styles.sectionTitle}>{getMemberCopy(group.members_count)} en este grupo</div>
                 <p style={styles.sectionBody}>
-                  {group.type === "pair"
-                    ? "Un solo espacio para que ambos partan de la misma referencia. Menos fricción, menos supuestos y más claridad compartida."
-                    : group.type === "family"
-                      ? "Un punto común para ordenar decisiones, horarios y próximos planes familiares."
-                      : "Un lugar operativo para que un grupo comparta contexto, calendario y próximos pasos sin perder claridad."}
+                  Revisa quién forma parte de este espacio y usa el grupo correcto antes de crear planes compartidos.
                 </p>
+                <button
+                  type="button"
+                  style={styles.cardAction}
+                  onClick={() => router.push(`/members?groupId=${encodeURIComponent(group.id)}`)}
+                >
+                  Ver miembros
+                </button>
               </Card>
 
               <Card tone="muted" style={styles.infoCard}>
-                <div style={styles.sectionEyebrow}>Qué deberías hacer ahora</div>
-                <div style={styles.sectionTitle}>Ruta sugerida</div>
-                <div style={styles.routeList}>
-                  <div style={styles.routeItem}>1. Activar este grupo si aún no está activo</div>
-                  <div style={styles.routeItem}>2. Crear el siguiente plan compartido</div>
-                  <div style={styles.routeItem}>3. Volver aquí cuando necesites ordenar el contexto</div>
-                </div>
+                <div style={styles.sectionEyebrow}>Invitaciones</div>
+                <div style={styles.sectionTitle}>Suma a la persona correcta</div>
+                <p style={styles.sectionBody}>
+                  Invita por email y mantén este grupo listo para coordinar planes con todos desde un mismo lugar.
+                </p>
+                <button
+                  type="button"
+                  style={styles.cardAction}
+                  onClick={() => router.push(`/groups/invite?groupId=${encodeURIComponent(group.id)}`)}
+                >
+                  Invitar miembro
+                </button>
               </Card>
             </div>
 
@@ -391,37 +385,21 @@ export default function GroupDetailPage() {
                 type="button"
                 style={styles.actionCard}
                 onClick={() =>
-                  router.push(
-                    `/events/new/details?type=group&groupId=${encodeURIComponent(group.id)}`
-                  )
+                  router.push(`/events/new/details?type=group&groupId=${encodeURIComponent(group.id)}`)
                 }
               >
                 <div style={styles.actionTitle}>Crear plan</div>
-                <div style={styles.actionSub}>
-                  Lleva una idea a evento sin salir de este contexto.
-                </div>
+                <div style={styles.actionSub}>Convierte una idea en evento compartido para este grupo.</div>
               </button>
 
-              <button
-                type="button"
-                style={styles.actionCard}
-                onClick={() => router.push("/calendar")}
-              >
+              <button type="button" style={styles.actionCard} onClick={() => router.push("/calendar")}>
                 <div style={styles.actionTitle}>Abrir calendario</div>
-                <div style={styles.actionSub}>
-                  Ver cómo este grupo se mezcla con el resto de tu agenda.
-                </div>
+                <div style={styles.actionSub}>Ver cómo este grupo se mezcla con tu agenda personal.</div>
               </button>
 
-              <button
-                type="button"
-                style={styles.actionCard}
-                onClick={() => router.push("/groups")}
-              >
+              <button type="button" style={styles.actionCard} onClick={() => router.push("/groups")}>
                 <div style={styles.actionTitle}>Ver otros grupos</div>
-                <div style={styles.actionSub}>
-                  Cambiar de contexto o revisar otro espacio compartido.
-                </div>
+                <div style={styles.actionSub}>Cambiar de espacio o revisar otro contexto compartido.</div>
               </button>
             </div>
           </Section>
@@ -535,20 +513,7 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
     alignItems: "center",
   },
-  primary: {
-    minHeight: 42,
-    padding: "0 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(96,165,250,0.24)",
-    background:
-      "linear-gradient(135deg, rgba(37,99,235,0.96), rgba(59,130,246,0.90))",
-    color: "white",
-    fontSize: 13,
-    fontWeight: 900,
-    cursor: "pointer",
-    boxShadow: "0 14px 28px rgba(30,64,175,0.22)",
-  },
-  secondary: {
+  backButton: {
     minHeight: 42,
     padding: "0 14px",
     borderRadius: 14,
@@ -559,18 +524,48 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 850,
     cursor: "pointer",
   },
+  primary: {
+    minHeight: 46,
+    padding: "0 16px",
+    borderRadius: 15,
+    border: "1px solid rgba(96,165,250,0.24)",
+    background: "linear-gradient(135deg, rgba(37,99,235,0.96), rgba(59,130,246,0.90))",
+    color: "white",
+    fontSize: 14,
+    fontWeight: 900,
+    cursor: "pointer",
+    boxShadow: "0 14px 28px rgba(30,64,175,0.22)",
+  },
+  secondary: {
+    minHeight: 46,
+    padding: "0 16px",
+    borderRadius: 15,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.94)",
+    fontSize: 14,
+    fontWeight: 850,
+    cursor: "pointer",
+  },
   heroCard: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.06fr) minmax(280px, 0.94fr)",
-    gap: 14,
+    gap: 16,
     borderRadius: 22,
     border: "1px solid rgba(255,255,255,0.08)",
-    padding: 16,
+    padding: 18,
+    overflow: "hidden",
   },
-  heroLeft: {
-    display: "grid",
+  heroHeaderRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 10,
-    alignContent: "start",
+    flexWrap: "wrap",
+  },
+  heroMain: {
+    display: "grid",
+    gap: 8,
+    maxWidth: 820,
   },
   heroPill: {
     width: "fit-content",
@@ -593,12 +588,11 @@ const styles: Record<string, CSSProperties> = {
   },
   heroTitle: {
     margin: 0,
-    fontSize: 30,
-    lineHeight: 1.02,
+    fontSize: "clamp(26px, 7vw, 40px)",
+    lineHeight: 1.03,
     fontWeight: 950,
-    letterSpacing: "-0.04em",
+    letterSpacing: "-0.045em",
     color: "rgba(255,255,255,0.98)",
-    maxWidth: 720,
   },
   heroText: {
     margin: 0,
@@ -607,35 +601,31 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(226,232,240,0.82)",
     maxWidth: 720,
   },
-  metaRow: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-    alignItems: "center",
+  metaGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))",
+    gap: 10,
   },
-  metaPill: {
-    minHeight: 32,
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "0 11px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.06)",
-    fontSize: 12,
+  metricCard: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    padding: "12px 12px",
+    minWidth: 0,
+  },
+  metricLabel: {
+    fontSize: 11,
     fontWeight: 850,
-    color: "rgba(255,255,255,0.94)",
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(148,163,184,0.90)",
   },
-  metaPillSoft: {
-    minHeight: 32,
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "0 11px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-    fontSize: 12,
-    fontWeight: 800,
-    color: "rgba(226,232,240,0.78)",
+  metricValue: {
+    marginTop: 5,
+    fontSize: 15,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.96)",
+    lineHeight: 1.2,
   },
   activeBadge: {
     minHeight: 32,
@@ -649,47 +639,35 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     fontWeight: 900,
   },
-  heroRight: {
-    display: "grid",
-    gap: 12,
-    alignContent: "start",
-  },
-  nextStepCard: {
-    borderRadius: 18,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
-    padding: "14px 14px",
-    display: "grid",
-    gap: 5,
-  },
-  nextStepLabel: {
-    fontSize: 11,
+  inactiveBadge: {
+    minHeight: 32,
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "0 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(251,191,36,0.22)",
+    background: "rgba(251,191,36,0.12)",
+    color: "rgba(254,243,199,0.94)",
+    fontSize: 12,
     fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(125,211,252,0.86)",
   },
-  nextStepTitle: {
-    fontSize: 16,
-    lineHeight: 1.25,
-    fontWeight: 900,
-    color: "rgba(255,255,255,0.98)",
-  },
-  nextStepText: {
-    fontSize: 13,
-    lineHeight: 1.58,
-    color: "rgba(226,232,240,0.80)",
+  heroActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
   },
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
     gap: 12,
   },
   infoCard: {
     borderRadius: 20,
     padding: 16,
     display: "grid",
-    gap: 8,
+    gap: 9,
+    minWidth: 0,
   },
   sectionEyebrow: {
     fontSize: 11,
@@ -699,7 +677,7 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(125,211,252,0.86)",
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 19,
     lineHeight: 1.15,
     fontWeight: 950,
     letterSpacing: "-0.03em",
@@ -711,39 +689,39 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.62,
     color: "rgba(226,232,240,0.82)",
   },
-  routeList: {
-    display: "grid",
-    gap: 8,
-  },
-  routeItem: {
+  cardAction: {
+    justifySelf: "start",
+    minHeight: 38,
+    marginTop: 4,
+    padding: "0 12px",
+    borderRadius: 13,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.94)",
     fontSize: 13,
-    lineHeight: 1.55,
-    color: "rgba(226,232,240,0.82)",
-    padding: "10px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.03)",
+    fontWeight: 850,
+    cursor: "pointer",
   },
   actionGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
     gap: 12,
   },
   actionCard: {
     textAlign: "left",
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
-    background:
-      "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))",
+    background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))",
     padding: "16px 16px",
     display: "grid",
     gap: 8,
     cursor: "pointer",
     color: "rgba(255,255,255,0.96)",
     boxShadow: "0 12px 34px rgba(0,0,0,0.16)",
+    minWidth: 0,
   },
   actionTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: 900,
     lineHeight: 1.25,
   },
@@ -752,4 +730,4 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.55,
     color: "rgba(203,213,225,0.78)",
   },
-}
+};
