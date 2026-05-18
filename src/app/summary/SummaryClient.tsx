@@ -11,8 +11,8 @@ import React, {
   type CSSProperties,
 } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import PremiumHeader from "@/components/PremiumHeader";
-import LocationPermissionPrompt from "@/components/location/LocationPermissionPrompt";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
 import SummaryQuickCaptureCard, {
@@ -51,7 +51,15 @@ import {
   getMyInvitations,
   getPendingPublicInviteCaptures,
 } from "@/lib/invitationsDb";
-import SmartMobilityCard from "./SmartMobilityCard";
+const LocationPermissionPrompt = dynamic(
+  () => import("@/components/location/LocationPermissionPrompt"),
+  { ssr: false, loading: () => null }
+);
+
+const SmartMobilityCard = dynamic(() => import("./SmartMobilityCard"), {
+  ssr: false,
+  loading: () => null,
+});
 import {
   addDays,
   buildCaptureShareUrl,
@@ -723,6 +731,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [dismissedPremiumNudge] = useState(false);
   const [summaryNow, setSummaryNow] = useState(() => new Date());
+  const [showDeferredLaunchPanels, setShowDeferredLaunchPanels] = useState(false);
   const premiumNudgeTrackedRef = useRef(false);
   const quickCaptureLearningCacheRef = useRef<{
     key: string;
@@ -747,6 +756,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     smartMobility,
     showToast,
   } = useSummaryData({ appliedToast });
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setShowDeferredLaunchPanels(true);
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const refreshSummaryNow = () => setSummaryNow(new Date());
@@ -2438,7 +2455,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   return (
   <div style={styles.page} className="spSum-page">
-    <LocationPermissionPrompt />
+    {showDeferredLaunchPanels ? <LocationPermissionPrompt /> : null}
       {toast ? <SummaryToast title={toast.title} subtitle={toast.subtitle} /> : null}
 
       <Section style={styles.shell} className="spSum-shell">
@@ -2453,7 +2470,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
         <DayStatusCard status={dayStatus} />
 
-        <SmartMobilityCard smartMobility={smartMobility} />
+        {showDeferredLaunchPanels ? (
+          <SmartMobilityCard smartMobility={smartMobility} />
+        ) : null}
 
         {shouldShowSummaryHero ? (
           <SummaryHero

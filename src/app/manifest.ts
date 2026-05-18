@@ -7,7 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "SyncPlans",
     description:
       "El calendario que evita discusiones innecesarias cuando compartes tu tiempo.",
-    start_url: "/",
+    start_url: "/summary",
+    scope: "/",
     display: "standalone",
     background_color: "#0B0F19",
     theme_color: "#0B0F19",

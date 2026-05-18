@@ -1,4 +1,4 @@
-﻿// src/app/page.tsx
+// src/app/page.tsx
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { getMyOnboardingState } from "@/lib/profilesDb";
@@ -10,6 +10,21 @@ export const fetchCache = "force-no-store";
 const PUBLIC_LANDING_PATH = "/home";
 const ONBOARDING_PATH = "/onboarding";
 const AUTHENTICATED_HOME_PATH = "/summary";
+
+async function withLaunchTimeout<T>(promise: Promise<T>, fallback: T, ms = 450): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(fallback), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 export default async function HomePage() {
   let hasSession = false;
@@ -25,8 +40,10 @@ export default async function HomePage() {
 
     if (hasSession) {
       try {
-        const onboardingState = await getMyOnboardingState();
-        onboardingCompleted = Boolean(onboardingState.completed);
+        onboardingCompleted = await withLaunchTimeout(
+          getMyOnboardingState().then((state) => Boolean(state.completed)),
+          true,
+        );
       } catch {
         onboardingCompleted = true;
       }

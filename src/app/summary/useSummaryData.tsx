@@ -540,18 +540,18 @@ export function useSummaryData({
     };
   }, []);
 
-  const requireSessionOrRedirect = useCallback(async () => {
+  const getCurrentUserIdOrRedirect = useCallback(async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error) throw error;
 
-    const user = data.user;
+    const userId = String(data.user?.id ?? "").trim();
 
-    if (!user) {
+    if (!userId) {
       router.replace("/auth/login");
       return null;
     }
 
-    return user;
+    return userId;
   }, [router]);
 
   const loadSummaryInternal = useCallback(async () => {
@@ -565,8 +565,9 @@ export function useSummaryData({
     setLoading(true);
 
     try {
-      const user = await requireSessionOrRedirect();
-      if (!user) return;
+      // No bloquees el primer paint esperando el perfil completo del usuario.
+      // Middleware ya protege /summary; el userId solo se necesita para datos secundarios.
+      const userIdPromise = getCurrentUserIdOrRedirect();
 
       const [gs, activeId, es] = await Promise.all([
         getMyGroups(),
@@ -648,9 +649,12 @@ export function useSummaryData({
             getMyDeclinedEventIds().catch(() => new Set<string>()),
             getIgnoredConflictKeys().catch(() => new Set<string>()),
             getRecentConflictResolutionLogs(8).catch(() => []),
-            getMyProposalResponsesForEvents(proposalEventIds, user.id).catch(
-              () => ({})
-            ),
+            userIdPromise.then((userId) => {
+              if (!userId) return {};
+              return getMyProposalResponsesForEvents(proposalEventIds, userId).catch(
+                () => ({})
+              );
+            }),
             getProposalResponsesForEvents(proposalEventIds).catch(() => ({})),
           ]);
 
@@ -692,7 +696,7 @@ export function useSummaryData({
         setLoading(false);
       }
     }
-  }, [requireSessionOrRedirect, showToast]);
+  }, [getCurrentUserIdOrRedirect, showToast]);
 
   const loadSummary = useCallback(async () => {
     if (inFlightLoadRef.current) {
