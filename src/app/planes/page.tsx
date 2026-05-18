@@ -24,13 +24,15 @@ type PlanCardConfig = {
   label: string;
   tag: string;
   price: string;
-  priceSuffix: string;
   description: string;
-  idealFor: string;
   features: string[];
-  emotionalHook: string;
   badge?: string;
   highlight?: boolean;
+};
+
+type BenefitItem = {
+  title: string;
+  copy: string;
 };
 
 function buildPlanCards(): PlanCardConfig[] {
@@ -40,228 +42,128 @@ function buildPlanCards(): PlanCardConfig[] {
       label: "Free",
       tag: "Base",
       price: "Gratis",
-      priceSuffix: "durante beta",
-      description:
-        "Para empezar sin fricción: crear un espacio, invitar a la otra persona y comprobar si una sola verdad compartida reduce coordinación por chat.",
-      idealFor:
-        "Ideal si estás validando el hábito y quieres sentir si SyncPlans realmente evita ida y vuelta antes de pagar.",
+      description: "Para probar SyncPlans con un primer espacio compartido.",
       features: [
-        "Un espacio compartido para validar el hábito sin barreras.",
-        `Hasta ${FREE_GROUP_LIMIT} grupo incluido para pareja o primer círculo.`,
-        "Quick Capture, calendario compartido y próximos planes en la misma vista.",
-        "Detección básica de choques para probar la promesa central.",
-        "Beta privada sin tarjetas ni cobros automáticos.",
+        `Hasta ${FREE_GROUP_LIMIT} grupo cuando termine la beta.`,
+        "Crear planes compartidos.",
+        "Invitar miembros.",
       ],
-      emotionalHook:
-        "Free debe vender confianza: que la app realmente ahorra coordinación.",
     },
     {
       id: "premium_monthly",
-      label: "Premium Mensual",
-      tag: "Premium",
-      price: "Beta privada",
-      priceSuffix: "mensual",
-      badge: "Recomendado",
+      label: "Premium Beta",
+      tag: "Activo ahora",
+      price: "Sin cobro",
+      badge: "Tu acceso actual",
       highlight: true,
-      description:
-        "Para cuando SyncPlans ya te ahorra ida y vuelta y quieres que la app te ayude a decidir, compartir y llegar a tiempo con más contexto.",
-      idealFor:
-        "Ideal si ya lo usas cada semana y quieres probar una capa más potente sin comprometerte a largo plazo.",
+      description: "Acceso completo durante la beta para medir uso real.",
       features: [
-        "Más espacios compartidos sin mezclar pareja, familia y otros planes.",
-        "Decisiones y respuestas visibles para no perseguir confirmaciones por WhatsApp.",
-        "Conflictos con más contexto para elegir qué queda sin reconstruir la historia.",
-        "Smart Mobility como recordatorio accionable: ubicación, ruta y momento de salida.",
-        "Google Calendar como señal adicional para evitar sorpresas.",
-        "Una home que prioriza lo importante antes de que se vuelva problema.",
+        "Grupos ilimitados durante beta.",
+        "Conflictos y decisiones compartidas.",
+        "Quick Capture y Smart Mobility.",
+        "Integraciones y contexto avanzado.",
       ],
-      emotionalHook:
-        "Premium no vende más botones. Vende menos fricción cada vez que coordinas.",
     },
     {
       id: "premium_yearly",
       label: "Premium Anual",
-      tag: "Premium",
-      price: "Próximamente",
-      priceSuffix: "anual",
-      description:
-        "Para parejas, familias o grupos que ya coordinan cada semana y quieren consolidar SyncPlans como su sistema compartido de decisiones.",
-      idealFor:
-        "Ideal si la app ya es hábito y quieres la mejor relación valor/precio para sostener claridad compartida en el tiempo.",
+      tag: "Próximamente",
+      price: "Luego",
+      description: "Para usuarios que conviertan SyncPlans en hábito semanal.",
       features: [
-        "Todo el contexto premium para coordinación sostenida.",
-        "Mejor relación valor/precio cuando SyncPlans ya es parte de la rutina.",
-        "Más continuidad para decisiones, grupos, movilidad e integraciones.",
-        "Menos dependencia del chat como archivo de acuerdos.",
+        "Todo Premium.",
+        "Mejor valor a largo plazo.",
+        "Pensado para coordinación recurrente.",
       ],
-      emotionalHook:
-        "Cuando la coordinación ya es hábito, pagar por claridad sale más barato que corregir malentendidos.",
     },
   ];
 }
 
-function getDecisionHeadline(state: PlanAccessState): string {
-  if (state.isFounder) return "Tu acceso ya vive en una capa preferencial.";
-  if (state.accessSource === "trial") {
-    return "Ahora mismo ya estás sintiendo el valor completo de Premium.";
-  }
-  if (state.hasPremiumAccess) {
-    return "Tu coordinación ya funciona con más claridad, menos fricción y mejor contexto.";
-  }
-  return "Empieza gratis. Paga solo cuando SyncPlans ya te esté ahorrando coordinación real.";
+function getHeroTitle(state: PlanAccessState): string {
+  if (state.isFounder) return "Founder activo";
+  if (state.accessSource === "trial") return "Premium en prueba";
+  if (state.hasPremiumAccess) return "Premium Beta activo";
+  return "Estás en Free";
 }
 
-function getDecisionCopy(state: PlanAccessState): string {
+function getHeroCopy(state: PlanAccessState): string {
   if (state.isFounder) {
-    return "Founder no necesita presión comercial. Necesita reconocer que entraste antes y conservas una posición especial dentro de la capa premium.";
-  }
-  if (state.accessSource === "trial") {
-    return "La decisión no es pagar por más funciones. Es no volver al modo improvisado después de haber probado más claridad, menos fricción y mejor contexto compartido.";
-  }
-  if (state.hasPremiumAccess) {
-    return "Cuando Premium está activo, el valor no se nota en una lista. Se nota en menos desgaste, menos mensajes sueltos y mejores decisiones compartidas.";
-  }
-  return "No estás pagando por guardar eventos. Estás pagando por reducir ida y vuelta, detectar choques antes de discutirlos y mantener una sola verdad compartida.";
-}
-
-function getWhyPayBullets(state: PlanAccessState): string[] {
-  if (state.isFounder) {
-    return [
-      "Founder reconoce tu entrada temprana y tu confianza inicial.",
-      "Tu acceso ya vive dentro de una capa preferencial, sin presión extra.",
-      "Tu lugar debería sentirse especial, no genérico.",
-    ];
+    return "Tienes acceso preferencial dentro de SyncPlans.";
   }
 
   if (state.accessSource === "trial") {
-    return [
-      "Ya viste la diferencia entre registrar cosas y coordinarlas bien.",
-      "Premium reduce fricción justo donde más se siente: decisiones, contexto e integración.",
-      "Volver atrás se nota cuando todos dejan de ver la misma verdad compartida.",
-    ];
+    return "Estás probando la capa completa antes de decidir si pagar.";
   }
 
   if (state.hasPremiumAccess) {
-    return [
-      "Una buena coordinación no se mide en funciones, sino en fricción evitada.",
-      "Mantener claridad compartida vale más que corregir malentendidos después.",
-      "El valor real está en la tranquilidad operativa, no en la decoración visual.",
-    ];
+    return "Tienes acceso completo mientras validamos el producto con usuarios reales.";
   }
 
-  return [
-    "Free valida el hábito sin fricción ni presión de pago.",
-    "Premium tiene sentido cuando la coordinación ya se repite cada semana.",
-    "La diferencia real es menos chat, menos dudas y mejores decisiones compartidas.",
-  ];
-}
-
-function getOutcomeCards(state: PlanAccessState) {
-  if (state.isFounder) {
-    return [
-      {
-        label: "Posición",
-        value: "Founder",
-        copy: "Entraste antes y tu acceso ya vive en una capa preferencial.",
-      },
-      {
-        label: "Valor",
-        value: "Estable",
-        copy: "Tu lugar no depende de un upsell agresivo ni de presión comercial.",
-      },
-      {
-        label: "Lectura",
-        value: "Reconocimiento",
-        copy: "Founder debe sentirse especial porque llegaste cuando todavía todo se estaba construyendo.",
-      },
-    ];
-  }
-
-  if (state.accessSource === "trial" || state.hasPremiumAccess) {
-    return [
-      {
-        label: "Menos ruido",
-        value: "Más contexto",
-        copy: "Más respuestas, más visibilidad y menos ida y vuelta fuera del sistema.",
-      },
-      {
-        label: "Decisión",
-        value: "Más rápida",
-        copy: "Resolver deja de depender de reconstruir chats y versiones cruzadas.",
-      },
-      {
-        label: "Sensación",
-        value: "Más control",
-        copy: "La coordinación se vuelve más clara, más compartida y menos frágil.",
-      },
-    ];
-  }
-
-  return [
-    {
-      label: "Activación",
-      value: "Empezar sin barrera",
-      copy: "Free deja crear, invitar y probar si una sola verdad compartida reduce fricción real.",
-    },
-    {
-      label: "Upgrade",
-      value: "Menos ida y vuelta",
-      copy: "Premium entra cuando ya no quieres depender de chats, memoria y confirmaciones sueltas.",
-    },
-    {
-      label: "Resultado",
-      value: "Decidir mejor",
-      copy: "El valor es que el próximo paso sea más claro antes de que el plan se vuelva problema.",
-    },
-  ];
+  return "Puedes empezar gratis y subir cuando SyncPlans ya te ahorre coordinación real.";
 }
 
 function getCurrentPlanNote(state: PlanAccessState): string {
-  if (state.isFounder) {
-    return "Tu acceso Founder ya vive en una capa preferencial y estable dentro de SyncPlans.";
+  if (state.isFounder) return "Acceso Founder";
+  if (state.accessSource === "trial") return "Prueba Premium activa";
+  if (state.hasPremiumAccess) return "Todas las funciones desbloqueadas durante beta";
+  return "Plan base activo";
+}
+
+function getBenefitItems(state: PlanAccessState): BenefitItem[] {
+  if (state.hasPremiumAccess) {
+    return [
+      {
+        title: "Grupos sin bloqueo",
+        copy: "Crea espacios para pareja, familia u otros grupos durante beta.",
+      },
+      {
+        title: "Conflictos visibles",
+        copy: "Detecta choques y decide qué plan conservar o ajustar.",
+      },
+      {
+        title: "Quick Capture",
+        copy: "Convierte una idea rápida en un plan con menos pasos.",
+      },
+      {
+        title: "Smart Mobility",
+        copy: "Recibe contexto de ruta y hora sugerida de salida.",
+      },
+      {
+        title: "Invitaciones y miembros",
+        copy: "Coordina con otras personas desde un solo lugar.",
+      },
+    ];
   }
 
-  if (state.accessSource === "trial") {
-    return "Hoy tienes acceso premium por trial, así que esta pantalla debe ayudarte a medir el valor real antes que el precio.";
-  }
-
-  if (state.currentPlanCardId === "premium_yearly") {
-    return "Tu acceso actual corresponde a Premium Anual.";
-  }
-
-  if (state.currentPlanCardId === "premium_monthly") {
-    return "Tu acceso actual corresponde a Premium Mensual.";
-  }
-
-  return `Hoy estás en Free: suficiente para probar un grupo, invitar a la otra persona y validar si SyncPlans realmente reduce coordinación por chat.`;
+  return [
+    {
+      title: "Primer grupo",
+      copy: "Prueba SyncPlans con una pareja, familia o grupo pequeño.",
+    },
+    {
+      title: "Planes compartidos",
+      copy: "Crea eventos y mantén una sola versión del plan.",
+    },
+    {
+      title: "Base de coordinación",
+      copy: "Valida si la app reduce ida y vuelta por chat.",
+    },
+  ];
 }
 
 function getPlanButtonLabel(card: PlanCardConfig, isCurrent: boolean, founderEquivalent: boolean) {
-  if (isCurrent) return "Ya tienes este acceso";
-  if (founderEquivalent) return "Tu acceso ya cubre esta capa";
-  if (card.id === "free") return "Seguir con Free";
+  if (isCurrent) return "Plan actual";
+  if (founderEquivalent) return "Incluido en Founder";
+  if (card.id === "free") return "Ir al resumen";
+  if (card.id === "premium_yearly") return "Registrar interés";
   return "Registrar interés";
 }
 
-function getPlanHint(
-  card: PlanCardConfig,
-  state: PlanAccessState,
-  isCurrent: boolean,
-  founderEquivalent: boolean
-) {
-  if (isCurrent) {
-    return "Ya estás en esta capa. Aquí la clave es medir si el valor que sientes coincide con lo que promete tu plan.";
-  }
-  if (founderEquivalent) {
-    return "Founder ya vive en una capa preferencial. Aquí no necesitas hacer upgrade, sino entender el valor que ya conservas.";
-  }
-  if (card.id === "free") {
-    return "Free te deja empezar bien. Subir solo tiene sentido cuando ya sientes que SyncPlans te ahorra coordinación real.";
-  }
-  if (state.accessSource === "trial") {
-    return "Todavía estás probando Premium. Este click sirve para leer intención real dentro de la beta, no para cobrarte ahora.";
-  }
-  return "Durante la beta privada no se cobra ni se activa desde aquí. Este paso registra intención real de upgrade.";
+function getPlanHint(card: PlanCardConfig, isCurrent: boolean, founderEquivalent: boolean) {
+  if (isCurrent) return "No tienes que hacer nada ahora.";
+  if (founderEquivalent) return "Tu acceso ya cubre esta capa.";
+  if (card.id === "free") return "Vuelve al producto y sigue probando.";
+  return "Durante beta no se cobra desde esta pantalla.";
 }
 
 function useIsCompactWidth(maxWidth = 760) {
@@ -343,8 +245,7 @@ export default function PlanesPage() {
 
   const cards = useMemo(() => buildPlanCards(), []);
   const planState = useMemo(() => getPlanAccessState(profile), [profile]);
-  const whyPayBullets = useMemo(() => getWhyPayBullets(planState), [planState]);
-  const outcomeCards = useMemo(() => getOutcomeCards(planState), [planState]);
+  const benefits = useMemo(() => getBenefitItems(planState), [planState]);
   const entryContextCopy = useMemo(
     () => (entryContext ? getPremiumContextCopy(entryContext) : null),
     [entryContext]
@@ -398,37 +299,69 @@ export default function PlanesPage() {
     <MobileScaffold>
       <PremiumHeader
         title="Planes"
-        subtitle={
-          isCompact
-            ? "Tu acceso actual arriba. La diferencia real abajo."
-            : "Premium aparece cuando SyncPlans ya te ahorra coordinación real: menos ida y vuelta, más claridad y mejores decisiones compartidas."
-        }
+        subtitle="Tu acceso actual y qué incluye."
       />
 
       <div style={styles.wrapper}>
         <section style={styles.hero}>
-          <div style={styles.heroTop}>
+          <div style={styles.heroHeader}>
             <div style={styles.heroCopy}>
-              <div style={styles.eyebrow}>Planes alineados al valor</div>
+              <div style={styles.eyebrow}>Plan actual</div>
               <h1 style={styles.h1}>
-                {loading ? "Cargando tu acceso..." : getDecisionHeadline(planState)}
+                {loading ? "Cargando tu plan..." : getHeroTitle(planState)}
               </h1>
               <p style={styles.heroText}>
-                {loading ? "Leyendo tu información de cuenta..." : getDecisionCopy(planState)}
+                {loading ? "Leyendo tu información de cuenta." : getHeroCopy(planState)}
               </p>
             </div>
 
             <div style={styles.statusPill}>
-              {loading ? "Leyendo..." : planState.statusLabel}
+              <span style={styles.statusDot} />
+              {loading ? "Leyendo" : getCurrentPlanNote(planState)}
             </div>
           </div>
 
-          <div style={styles.bulletGrid}>
-            {(isCompact ? whyPayBullets.slice(0, 2) : whyPayBullets).map((item) => (
-              <div key={item} style={styles.bulletCard}>
-                <span style={styles.bulletDot} />
-                <span style={styles.bulletText}>{item}</span>
-              </div>
+          <div style={styles.quickStatsGrid}>
+            <div style={styles.quickStat}>
+              <span style={styles.quickStatLabel}>Cobro</span>
+              <strong style={styles.quickStatValue}>No activo</strong>
+            </div>
+            <div style={styles.quickStat}>
+              <span style={styles.quickStatLabel}>Acceso</span>
+              <strong style={styles.quickStatValue}>
+                {planState.hasPremiumAccess ? "Completo" : "Base"}
+              </strong>
+            </div>
+            <div style={styles.quickStat}>
+              <span style={styles.quickStatLabel}>Estado</span>
+              <strong style={styles.quickStatValue}>
+                {planState.hasPremiumAccess ? "Beta" : "Free"}
+              </strong>
+            </div>
+          </div>
+        </section>
+
+        <section style={styles.sectionCard}>
+          <div style={styles.sectionHeader}>
+            <div>
+              <div style={styles.eyebrow}>Incluye</div>
+              <h2 style={styles.sectionTitle}>
+                {planState.hasPremiumAccess
+                  ? "Todo desbloqueado durante beta"
+                  : "Lo esencial para empezar"}
+              </h2>
+            </div>
+          </div>
+
+          <div style={styles.benefitsGrid}>
+            {(isCompact ? benefits : benefits.slice(0, 6)).map((item) => (
+              <article key={item.title} style={styles.benefitCard}>
+                <div style={styles.checkIcon}>✓</div>
+                <div style={styles.benefitCopy}>
+                  <strong style={styles.benefitTitle}>{item.title}</strong>
+                  <p style={styles.benefitText}>{item.copy}</p>
+                </div>
+              </article>
             ))}
           </div>
         </section>
@@ -436,141 +369,30 @@ export default function PlanesPage() {
         {entryContextCopy ? (
           <section style={styles.contextCard}>
             <div style={styles.contextBadge}>{entryContextCopy.label}</div>
-            <div style={styles.contextCopyWrap}>
-              <h2 style={styles.contextTitle}>{entryContextCopy.title}</h2>
-              <p style={styles.contextText}>{entryContextCopy.copy}</p>
-            </div>
-            <div style={styles.contextProofGrid}>
-              <div style={styles.contextProofItem}>
-                <span style={styles.contextProofLabel}>Resultado</span>
-                <strong style={styles.contextProofValue}>{entryContextCopy.outcome}</strong>
-              </div>
-              <div style={styles.contextProofItem}>
-                <span style={styles.contextProofLabel}>Señal de producto</span>
-                <strong style={styles.contextProofValue}>{entryContextCopy.proof}</strong>
-              </div>
-            </div>
+            <h2 style={styles.contextTitle}>{entryContextCopy.title}</h2>
+            <p style={styles.contextText}>{entryContextCopy.copy}</p>
           </section>
         ) : null}
 
-        <section style={styles.planStateCard}>
-          <div
-            style={{
-              ...styles.planStateHeader,
-              ...(isCompact ? styles.planStateHeaderCompact : null),
-            }}
-          >
-            <div style={styles.planStateCopy}>
-              <div style={styles.planTag}>
-                {loading ? "Cargando plan..." : planState.planTag}
-              </div>
-              <h2 style={styles.planStateTitle}>
-                {loading ? " " : planState.planLabel}
-              </h2>
-              <p style={styles.planStateSub}>
-                {loading ? "Leyendo tu información..." : getCurrentPlanNote(planState)}
-              </p>
-            </div>
-
-            <div
-              style={{
-                ...styles.planStateBadge,
-                ...(isCompact ? styles.planStateBadgeCompact : null),
-              }}
-            >
-              <span style={styles.planStateBadgeDot} />
-              {loading
-                ? "Leyendo..."
-                : planState.hasPremiumAccess
-                  ? "Capa premium activa"
-                  : "Base Free activa"}
-            </div>
-          </div>
-
-          <div
-            style={{
-              ...styles.outcomesGrid,
-              ...(isCompact ? styles.outcomesGridCompact : null),
-            }}
-          >
-            {(isCompact ? outcomeCards.slice(0, 2) : outcomeCards).map((item) => (
-              <article key={item.label} style={styles.outcomeCard}>
-                <span style={styles.outcomeLabel}>{item.label}</span>
-                <strong style={styles.outcomeValue}>{item.value}</strong>
-                <p style={styles.outcomeCopy}>{item.copy}</p>
-              </article>
-            ))}
-          </div>
-
-          <div style={{ ...styles.betaNote, ...(isCompact ? styles.betaNoteCompact : null) }}>
-            <p style={styles.betaNoteTitle}>Beta privada</p>
-            <p style={styles.betaNoteBody}>
-              Todavía no estamos cobrando ni activando desde esta pantalla.
-              La lógica es simple: primero valor real, luego upgrade.
-              Premium debe sentirse como menos coordinación manual, no como una pared de pago.
-            </p>
-          </div>
-        </section>
-
-        <section style={styles.proofStrip}>
-          <article style={styles.proofCard}>
-            <span style={styles.proofLabel}>Activación</span>
-            <strong style={styles.proofValue}>Free prueba el hábito</strong>
-            <p style={styles.proofCopy}>
-              El usuario debe sentir la promesa antes de pagar: crear, invitar y coordinar lo esencial sin fricción.
-            </p>
-          </article>
-
-          <article style={styles.proofCard}>
-            <span style={styles.proofLabel}>Motivo de pago</span>
-            <strong style={styles.proofValue}>Menos ida y vuelta</strong>
-            <p style={styles.proofCopy}>
-              El upgrade aparece cuando coordinar por chat, memoria y confirmaciones sueltas empieza a costar tiempo.
-            </p>
-          </article>
-
-          <article style={styles.proofCard}>
-            <span style={styles.proofLabel}>Promesa premium</span>
-            <strong style={styles.proofValue}>Decidir mejor</strong>
-            <p style={styles.proofCopy}>
-              La capa premium debe ayudar a decidir qué hacer, no solo mostrar más información.
-            </p>
-          </article>
-        </section>
-
-        <section style={styles.plansSection}>
-          <header style={styles.plansHeader}>
+        <section style={styles.sectionCard}>
+          <div style={styles.sectionHeader}>
             <div>
-              <h3 style={styles.plansTitle}>Elige cuánto contexto quieres que SyncPlans cargue por ti</h3>
-              <p style={styles.plansSub}>
-                La diferencia real no es “más funciones”. Es cuánto chat, cuánta duda y cuánta coordinación manual quieres sacar de tu semana.
-              </p>
+              <div style={styles.eyebrow}>Comparación rápida</div>
+              <h2 style={styles.sectionTitle}>Free vs Premium</h2>
             </div>
-          </header>
+          </div>
 
           {interestPlanId ? (
             <div style={styles.interestBanner}>
-              <div style={styles.interestBadge}>Interés registrado</div>
-              <div style={styles.interestCopy}>
-                <strong style={styles.interestTitle}>
-                  Gracias. Ya registramos intención real por{" "}
-                  {interestPlanId === "premium_yearly"
-                    ? "Premium Anual"
-                    : "Premium Mensual"}{" "}
-                  dentro de esta beta.
-                </strong>
-                <p style={styles.interestBody}>
-                  Todavía no estamos cobrando ni activando desde esta pantalla.
-                  Este click sirve para medir intención real justo después
-                  de que el producto empezó a demostrar valor.
-                </p>
-              </div>
+              Interés registrado por {interestPlanId === "premium_yearly" ? "Premium Anual" : "Premium"}. Todavía no hay cobro.
             </div>
           ) : null}
 
           <div style={styles.cardsGrid}>
             {cards.map((card) => {
-              const isCurrent = planState.currentPlanCardId === card.id;
+              const isCurrent =
+                planState.currentPlanCardId === card.id ||
+                (planState.hasPremiumAccess && card.id === "premium_monthly");
               const founderEquivalent = planState.isFounder && card.id !== "free";
 
               return (
@@ -582,49 +404,26 @@ export default function PlanesPage() {
                     ...(isCurrent ? styles.cardCurrent : null),
                   }}
                 >
-                  <div style={styles.cardTop}>
-                    <div style={styles.cardCopy}>
-                      <div style={styles.cardTagRow}>
-                        <span style={styles.cardTag}>{card.tag}</span>
-                        {card.badge ? (
-                          <span style={styles.cardBadge}>{card.badge}</span>
-                        ) : null}
-                      </div>
-
-                      <h4 style={styles.cardTitle}>{card.label}</h4>
-                      <p style={styles.cardDescription}>
-                        {isCompact ? card.idealFor : card.description}
-                      </p>
-                    </div>
-
-                    <div style={styles.priceBlock}>
-                      <div style={styles.priceRow}>
-                        <span style={styles.price}>{card.price}</span>
-                        <span style={styles.priceSuffix}>{card.priceSuffix}</span>
-                      </div>
-
-                      {isCurrent ? (
-                        <span style={styles.currentChip}>Tu plan actual</span>
-                      ) : founderEquivalent ? (
-                        <span style={styles.currentChip}>
-                          Tu acceso Founder se parece a esta capa
-                        </span>
-                      ) : null}
-                    </div>
+                  <div style={styles.cardTopRow}>
+                    <span style={styles.cardTag}>{card.tag}</span>
+                    {card.badge || isCurrent ? (
+                      <span style={styles.cardBadge}>{isCurrent ? "Activo" : card.badge}</span>
+                    ) : null}
                   </div>
 
-                  {!isCompact ? <p style={styles.idealFor}>{card.idealFor}</p> : null}
-                  {!isCompact ? <div style={styles.hook}>{card.emotionalHook}</div> : null}
+                  <div style={styles.cardMain}>
+                    <h3 style={styles.cardTitle}>{card.label}</h3>
+                    <div style={styles.price}>{card.price}</div>
+                    <p style={styles.cardDescription}>{card.description}</p>
+                  </div>
 
                   <ul style={styles.featureList}>
-                    {(isCompact ? card.features.slice(0, 3) : card.features).map(
-                      (feature) => (
-                        <li key={feature} style={styles.featureItem}>
-                          <span style={styles.featureBullet} />
-                          <span style={styles.featureText}>{feature}</span>
-                        </li>
-                      )
-                    )}
+                    {card.features.map((feature) => (
+                      <li key={feature} style={styles.featureItem}>
+                        <span style={styles.featureBullet}>✓</span>
+                        <span>{feature}</span>
+                      </li>
+                    ))}
                   </ul>
 
                   <div style={styles.cardCtaWrap}>
@@ -632,10 +431,10 @@ export default function PlanesPage() {
                       type="button"
                       style={{
                         ...styles.ctaBtn,
-                        ...(card.id !== "free" && !isCurrent && !founderEquivalent
+                        ...(card.highlight && !isCurrent && !founderEquivalent
                           ? styles.ctaBtnActive
                           : null),
-                        opacity: isCurrent || founderEquivalent ? 0.74 : 1,
+                        opacity: isCurrent || founderEquivalent ? 0.72 : 1,
                         cursor: isCurrent || founderEquivalent ? "default" : "pointer",
                       }}
                       disabled={isCurrent || founderEquivalent}
@@ -645,15 +444,22 @@ export default function PlanesPage() {
                     >
                       {getPlanButtonLabel(card, isCurrent, founderEquivalent)}
                     </button>
-
                     <p style={styles.cardHint}>
-                      {getPlanHint(card, planState, isCurrent, founderEquivalent)}
+                      {getPlanHint(card, isCurrent, founderEquivalent)}
                     </p>
                   </div>
                 </article>
               );
             })}
           </div>
+        </section>
+
+        <section style={styles.betaNote}>
+          <strong style={styles.betaNoteTitle}>Nota beta</strong>
+          <p style={styles.betaNoteBody}>
+            Por ahora no hay pagos ni tarjetas. La prioridad es que usuarios reales creen grupos,
+            inviten personas y prueben si SyncPlans reduce la coordinación manual.
+          </p>
         </section>
       </div>
     </MobileScaffold>
@@ -664,211 +470,56 @@ const styles: Record<string, CSSProperties> = {
   wrapper: {
     maxWidth: 760,
     margin: "0 auto",
-    padding: "20px 16px 40px",
+    padding: "18px 16px 40px",
     display: "grid",
-    gap: 16,
+    gap: 14,
   },
   hero: {
     borderRadius: 24,
-    border: "1px solid rgba(255,255,255,0.10)",
+    border: "1px solid rgba(56,189,248,0.18)",
     background:
-      "radial-gradient(900px 280px at 0% 0%, rgba(56,189,248,0.16), transparent 55%), radial-gradient(700px 220px at 100% 0%, rgba(168,85,247,0.12), transparent 60%), rgba(15,23,42,0.96)",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
-    padding: "18px",
+      "radial-gradient(800px 260px at 0% 0%, rgba(56,189,248,0.18), transparent 56%), radial-gradient(700px 220px at 100% 0%, rgba(59,130,246,0.16), transparent 58%), rgba(15,23,42,0.96)",
+    boxShadow: "0 18px 55px rgba(0,0,0,0.22)",
+    padding: 18,
     display: "grid",
     gap: 14,
+    overflow: "hidden",
   },
-  heroTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 14,
-    flexWrap: "wrap",
+  heroHeader: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr)",
+    gap: 12,
   },
   heroCopy: {
     display: "grid",
-    gap: 8,
-    flex: "1 1 420px",
+    gap: 7,
     minWidth: 0,
   },
   eyebrow: {
     fontSize: 11,
-    fontWeight: 900,
+    fontWeight: 950,
     textTransform: "uppercase",
-    letterSpacing: "0.08em",
+    letterSpacing: "0.11em",
     color: "rgba(125,211,252,0.92)",
   },
   h1: {
     margin: 0,
-    fontSize: 28,
-    lineHeight: 1.06,
+    fontSize: 30,
+    lineHeight: 1.02,
     fontWeight: 950,
-    letterSpacing: "-0.04em",
+    letterSpacing: "-0.045em",
     color: "rgba(255,255,255,0.98)",
   },
   heroText: {
     margin: 0,
     fontSize: 14,
-    lineHeight: 1.6,
+    lineHeight: 1.5,
     color: "rgba(226,232,240,0.84)",
   },
   statusPill: {
-    padding: "8px 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.05)",
-    fontSize: 12,
-    fontWeight: 850,
-    color: "rgba(255,255,255,0.95)",
-    whiteSpace: "nowrap",
-  },
-  bulletGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: 10,
-  },
-  bulletCard: {
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    padding: "12px 14px",
-    display: "flex",
-    gap: 10,
-    alignItems: "flex-start",
-  },
-  bulletDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    background: "rgba(56,189,248,0.95)",
-    marginTop: 6,
-    flexShrink: 0,
-  },
-  bulletText: {
-    fontSize: 13,
-    lineHeight: 1.55,
-    color: "rgba(255,255,255,0.92)",
-  },
-  contextCard: {
-    borderRadius: 24,
-    border: "1px solid rgba(216,180,254,0.20)",
-    background:
-      "radial-gradient(circle at 0% 0%, rgba(168,85,247,0.18), transparent 36%), rgba(15,23,42,0.94)",
-    boxShadow: "0 18px 60px rgba(76,29,149,0.20)",
-    padding: "18px",
-    display: "grid",
-    gap: 14,
-  },
-  contextBadge: {
     width: "fit-content",
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(216,180,254,0.28)",
-    background: "rgba(168,85,247,0.14)",
-    fontSize: 11,
-    fontWeight: 950,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(250,245,255,0.94)",
-  },
-  contextCopyWrap: {
-    display: "grid",
-    gap: 8,
-  },
-  contextTitle: {
-    margin: 0,
-    fontSize: 21,
-    lineHeight: 1.12,
-    fontWeight: 950,
-    letterSpacing: "-0.03em",
-    color: "rgba(255,255,255,0.98)",
-  },
-  contextText: {
-    margin: 0,
-    fontSize: 13,
-    lineHeight: 1.58,
-    color: "rgba(233,213,255,0.84)",
-  },
-  contextProofGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-    gap: 10,
-  },
-  contextProofItem: {
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.045)",
-    padding: "12px",
-    display: "grid",
-    gap: 5,
-  },
-  contextProofLabel: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(216,180,254,0.82)",
-  },
-  contextProofValue: {
-    fontSize: 13,
-    lineHeight: 1.45,
-    fontWeight: 850,
-    color: "rgba(255,255,255,0.94)",
-  },
-  planStateCard: {
-    borderRadius: 24,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "radial-gradient(circle at 15% 0%, rgba(56,189,248,0.14), transparent 34%), rgba(15,23,42,0.92)",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.18)",
-    padding: "18px",
-    display: "grid",
-    gap: 14,
-    overflow: "hidden",
-  },
-  planStateHeader: {
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) auto",
-    gap: 14,
-    alignItems: "start",
-  },
-  planStateHeaderCompact: {
-    gridTemplateColumns: "minmax(0, 1fr)",
-    gap: 12,
-  },
-  planStateCopy: {
-    display: "grid",
-    gap: 8,
-    minWidth: 0,
-  },
-  planTag: {
-    width: "fit-content",
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(56,189,248,0.30)",
-    background: "rgba(56,189,248,0.10)",
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(226,242,255,0.92)",
-  },
-  planStateTitle: {
-    margin: 0,
-    fontSize: 22,
-    lineHeight: 1.12,
-    fontWeight: 950,
-    color: "rgba(255,255,255,0.98)",
-  },
-  planStateSub: {
-    margin: 0,
-    fontSize: 13,
-    lineHeight: 1.58,
-    color: "rgba(203,213,225,0.86)",
-    maxWidth: 520,
-  },
-  planStateBadge: {
-    padding: "7px 11px",
+    maxWidth: "100%",
+    padding: "8px 11px",
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.06)",
@@ -877,325 +528,255 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(255,255,255,0.94)",
     display: "inline-flex",
     alignItems: "center",
-    justifyContent: "center",
     gap: 7,
-    whiteSpace: "nowrap",
   },
-  planStateBadgeCompact: {
-    width: "fit-content",
-    maxWidth: "100%",
-  },
-  planStateBadgeDot: {
+  statusDot: {
     width: 7,
     height: 7,
     borderRadius: 999,
     background: "rgba(34,197,94,0.95)",
-    boxShadow: "0 0 18px rgba(34,197,94,0.35)",
+    boxShadow: "0 0 18px rgba(34,197,94,0.40)",
+    flexShrink: 0,
   },
-  outcomesGrid: {
+  quickStatsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: 10,
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 8,
   },
-  outcomesGridCompact: {
-    gridTemplateColumns: "minmax(0, 1fr)",
-  },
-  outcomeCard: {
+  quickStat: {
     borderRadius: 16,
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.04)",
-    padding: "14px",
+    background: "rgba(255,255,255,0.045)",
+    padding: "11px 10px",
     display: "grid",
     gap: 4,
     minWidth: 0,
   },
-  outcomeLabel: {
-    fontSize: 11,
+  quickStatLabel: {
+    fontSize: 10,
     fontWeight: 900,
     textTransform: "uppercase",
     letterSpacing: "0.08em",
-    color: "rgba(148,163,184,0.82)",
+    color: "rgba(148,163,184,0.88)",
   },
-  outcomeValue: {
-    fontSize: 18,
+  quickStatValue: {
+    fontSize: 14,
     lineHeight: 1.1,
     fontWeight: 950,
-    color: "rgba(255,255,255,0.98)",
+    color: "rgba(255,255,255,0.96)",
+    overflowWrap: "anywhere",
   },
-  outcomeCopy: {
-    margin: 0,
-    fontSize: 12,
-    lineHeight: 1.55,
-    color: "rgba(203,213,225,0.82)",
-  },
-  betaNote: {
-    borderRadius: 16,
-    border: "1px dashed rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    padding: "14px",
-    display: "grid",
-    gap: 4,
-    minWidth: 0,
-  },
-  betaNoteCompact: {
-    padding: "14px",
-  },
-  betaNoteTitle: {
-    margin: 0,
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(226,232,240,0.92)",
-  },
-  betaNoteBody: {
-    margin: 0,
-    fontSize: 13,
-    lineHeight: 1.55,
-    color: "rgba(203,213,225,0.82)",
-  },
-  proofStrip: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: 10,
-  },
-  proofCard: {
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(15,23,42,0.84)",
-    padding: "14px",
-    display: "grid",
-    gap: 5,
-  },
-  proofLabel: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(148,163,184,0.82)",
-  },
-  proofValue: {
-    fontSize: 18,
-    lineHeight: 1.12,
-    fontWeight: 950,
-    color: "rgba(255,255,255,0.98)",
-  },
-  proofCopy: {
-    margin: 0,
-    fontSize: 12,
-    lineHeight: 1.55,
-    color: "rgba(203,213,225,0.82)",
-  },
-  plansSection: {
+  sectionCard: {
     borderRadius: 24,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(15,23,42,0.90)",
-    boxShadow: "0 18px 60px rgba(0,0,0,0.18)",
-    padding: "18px",
+    background: "rgba(15,23,42,0.91)",
+    boxShadow: "0 18px 55px rgba(0,0,0,0.18)",
+    padding: 16,
     display: "grid",
-    gap: 14,
+    gap: 13,
+    overflow: "hidden",
   },
-  plansHeader: {
+  sectionHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: 14,
-    flexWrap: "wrap",
+    gap: 12,
   },
-  plansTitle: {
+  sectionTitle: {
+    margin: "5px 0 0",
+    fontSize: 21,
+    lineHeight: 1.12,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  benefitsGrid: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr)",
+    gap: 9,
+  },
+  benefitCard: {
+    borderRadius: 17,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.045)",
+    padding: 12,
+    display: "grid",
+    gridTemplateColumns: "26px minmax(0, 1fr)",
+    gap: 10,
+    alignItems: "start",
+  },
+  checkIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    display: "grid",
+    placeItems: "center",
+    background: "rgba(56,189,248,0.14)",
+    border: "1px solid rgba(56,189,248,0.24)",
+    color: "rgba(125,211,252,0.98)",
+    fontWeight: 950,
+    fontSize: 13,
+  },
+  benefitCopy: {
+    display: "grid",
+    gap: 3,
+    minWidth: 0,
+  },
+  benefitTitle: {
+    fontSize: 14,
+    lineHeight: 1.2,
+    color: "rgba(255,255,255,0.96)",
+  },
+  benefitText: {
+    margin: 0,
+    fontSize: 12.5,
+    lineHeight: 1.45,
+    color: "rgba(203,213,225,0.84)",
+  },
+  contextCard: {
+    borderRadius: 20,
+    border: "1px solid rgba(216,180,254,0.20)",
+    background: "linear-gradient(135deg, rgba(168,85,247,0.14), rgba(15,23,42,0.92))",
+    padding: 15,
+    display: "grid",
+    gap: 7,
+  },
+  contextBadge: {
+    width: "fit-content",
+    padding: "5px 9px",
+    borderRadius: 999,
+    border: "1px solid rgba(216,180,254,0.24)",
+    background: "rgba(168,85,247,0.12)",
+    fontSize: 10.5,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(250,245,255,0.94)",
+  },
+  contextTitle: {
     margin: 0,
     fontSize: 18,
     lineHeight: 1.15,
     fontWeight: 950,
     color: "rgba(255,255,255,0.98)",
   },
-  plansSub: {
-    margin: "6px 0 0",
-    fontSize: 13,
-    lineHeight: 1.58,
-    color: "rgba(203,213,225,0.82)",
-    maxWidth: 640,
+  contextText: {
+    margin: 0,
+    fontSize: 12.5,
+    lineHeight: 1.48,
+    color: "rgba(233,213,255,0.84)",
   },
   interestBanner: {
-    borderRadius: 16,
+    borderRadius: 15,
     border: "1px solid rgba(56,189,248,0.24)",
-    background: "linear-gradient(135deg, rgba(56,189,248,0.12), rgba(37,99,235,0.16))",
-    padding: "14px",
-    display: "flex",
-    gap: 12,
-    alignItems: "flex-start",
-    flexWrap: "wrap",
-  },
-  interestBadge: {
-    padding: "5px 9px",
-    borderRadius: 999,
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(255,255,255,0.95)",
-    border: "1px solid rgba(56,189,248,0.30)",
-    background: "rgba(255,255,255,0.08)",
-  },
-  interestCopy: {
-    display: "grid",
-    gap: 4,
-    flex: "1 1 320px",
-    minWidth: 0,
-  },
-  interestTitle: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.96)",
-  },
-  interestBody: {
-    margin: 0,
-    fontSize: 12,
-    lineHeight: 1.55,
-    color: "rgba(226,232,240,0.84)",
+    background: "rgba(56,189,248,0.10)",
+    padding: "12px 13px",
+    fontSize: 12.5,
+    lineHeight: 1.45,
+    color: "rgba(226,242,255,0.92)",
+    fontWeight: 800,
   },
   cardsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 12,
+    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+    gap: 10,
   },
   card: {
-    borderRadius: 20,
+    borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.04)",
-    padding: "16px",
+    padding: 14,
     display: "grid",
-    gap: 12,
-    boxShadow: "0 14px 34px rgba(0,0,0,0.16)",
+    gap: 11,
+    minWidth: 0,
   },
   cardHighlight: {
-    background: "linear-gradient(135deg, rgba(56,189,248,0.10), rgba(37,99,235,0.20))",
+    background: "linear-gradient(135deg, rgba(56,189,248,0.11), rgba(37,99,235,0.18))",
   },
   cardCurrent: {
-    border: "1px solid rgba(56,189,248,0.36)",
+    border: "1px solid rgba(56,189,248,0.38)",
+    boxShadow: "0 16px 40px rgba(37,99,235,0.12)",
   },
-  cardTop: {
-    display: "grid",
-    gap: 12,
-  },
-  cardCopy: {
-    display: "grid",
-    gap: 8,
-  },
-  cardTagRow: {
+  cardTopRow: {
     display: "flex",
-    gap: 8,
     alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
     flexWrap: "wrap",
   },
   cardTag: {
-    padding: "5px 9px",
+    padding: "5px 8px",
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(255,255,255,0.06)",
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: 900,
     textTransform: "uppercase",
     letterSpacing: "0.08em",
-    color: "rgba(255,255,255,0.92)",
+    color: "rgba(255,255,255,0.90)",
   },
   cardBadge: {
-    padding: "5px 9px",
+    padding: "5px 8px",
     borderRadius: 999,
     border: "1px solid rgba(56,189,248,0.24)",
     background: "rgba(56,189,248,0.14)",
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: 900,
     color: "rgba(226,242,255,0.94)",
+  },
+  cardMain: {
+    display: "grid",
+    gap: 5,
   },
   cardTitle: {
     margin: 0,
     fontSize: 20,
-    lineHeight: 1.1,
+    lineHeight: 1.08,
     fontWeight: 950,
+    color: "rgba(255,255,255,0.98)",
+  },
+  price: {
+    fontSize: 23,
+    lineHeight: 1.05,
+    fontWeight: 950,
+    letterSpacing: "-0.035em",
     color: "rgba(255,255,255,0.98)",
   },
   cardDescription: {
     margin: 0,
-    fontSize: 13,
-    lineHeight: 1.58,
+    fontSize: 12.5,
+    lineHeight: 1.45,
     color: "rgba(203,213,225,0.84)",
-  },
-  priceBlock: {
-    display: "grid",
-    gap: 6,
-  },
-  priceRow: {
-    display: "flex",
-    alignItems: "baseline",
-    gap: 6,
-    flexWrap: "wrap",
-  },
-  price: {
-    fontSize: 28,
-    lineHeight: 1,
-    fontWeight: 950,
-    letterSpacing: "-0.04em",
-    color: "rgba(255,255,255,0.98)",
-  },
-  priceSuffix: {
-    fontSize: 12,
-    fontWeight: 800,
-    color: "rgba(203,213,225,0.78)",
-  },
-  currentChip: {
-    width: "fit-content",
-    padding: "6px 10px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.06)",
-    fontSize: 11,
-    fontWeight: 850,
-    color: "rgba(255,255,255,0.92)",
-  },
-  idealFor: {
-    margin: 0,
-    fontSize: 12,
-    lineHeight: 1.55,
-    color: "rgba(226,232,240,0.84)",
-  },
-  hook: {
-    fontSize: 12,
-    lineHeight: 1.55,
-    color: "rgba(191,219,254,0.92)",
-    fontWeight: 800,
   },
   featureList: {
     margin: 0,
     padding: 0,
     listStyle: "none",
     display: "grid",
-    gap: 10,
+    gap: 7,
   },
   featureItem: {
     display: "grid",
-    gridTemplateColumns: "10px minmax(0, 1fr)",
-    gap: 10,
+    gridTemplateColumns: "17px minmax(0, 1fr)",
+    gap: 7,
     alignItems: "start",
+    fontSize: 12.5,
+    lineHeight: 1.38,
+    color: "rgba(226,232,240,0.86)",
   },
   featureBullet: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    background: "rgba(56,189,248,0.95)",
-    marginTop: 7,
-  },
-  featureText: {
-    fontSize: 13,
-    lineHeight: 1.58,
-    color: "rgba(226,232,240,0.86)",
+    color: "rgba(125,211,252,0.98)",
+    fontWeight: 950,
+    fontSize: 12,
+    lineHeight: 1.35,
   },
   cardCtaWrap: {
     display: "grid",
-    gap: 8,
+    gap: 7,
   },
   ctaBtn: {
-    minHeight: 42,
-    padding: "0 14px",
+    minHeight: 40,
+    padding: "0 13px",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.12)",
     background: "rgba(255,255,255,0.05)",
@@ -1209,8 +790,27 @@ const styles: Record<string, CSSProperties> = {
   },
   cardHint: {
     margin: 0,
-    fontSize: 12,
-    lineHeight: 1.55,
+    fontSize: 11.5,
+    lineHeight: 1.42,
     color: "rgba(148,163,184,0.88)",
+  },
+  betaNote: {
+    borderRadius: 18,
+    border: "1px dashed rgba(255,255,255,0.13)",
+    background: "rgba(255,255,255,0.04)",
+    padding: 14,
+    display: "grid",
+    gap: 5,
+  },
+  betaNoteTitle: {
+    fontSize: 12,
+    fontWeight: 950,
+    color: "rgba(255,255,255,0.94)",
+  },
+  betaNoteBody: {
+    margin: 0,
+    fontSize: 12.5,
+    lineHeight: 1.48,
+    color: "rgba(203,213,225,0.82)",
   },
 };
