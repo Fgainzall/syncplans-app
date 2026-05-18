@@ -35,6 +35,10 @@ import {
 } from "@/lib/conflictResolutionsDb";
 import { getMyProfile } from "@/lib/profilesDb";
 import { hasPremiumAccess } from "@/lib/premium";
+import {
+  getPendingPublicInviteCaptures,
+  type PublicInviteCaptureItem,
+} from "@/lib/invitationsDb";
 
 type ViewMode = "upcoming" | "history" | "all";
 type Scope = "personal" | "groups" | "all";
@@ -233,6 +237,11 @@ export default function EventsPage() {
   } | null>(null);
   const [hasPremium, setHasPremium] = useState(false);
   const [showAdvancedActions, setShowAdvancedActions] = useState(false);
+  const [pendingResponseCaptures, setPendingResponseCaptures] = useState<
+    PublicInviteCaptureItem[]
+  >([]);
+  const [pendingResponseCapturesLoading, setPendingResponseCapturesLoading] =
+    useState(false);
   const focusMode = searchParams.get("focus");
   const focusedEventId = searchParams.get("focusEventId");
   const isPendingResponsesFocus = focusMode === "pending-responses";
@@ -260,6 +269,41 @@ export default function EventsPage() {
       },
     });
   }, [focusMode, focusedEventId, isPendingResponsesFocus]);
+
+  useEffect(() => {
+    let alive = true;
+
+    if (!isPendingResponsesFocus) {
+      setPendingResponseCaptures([]);
+      setPendingResponseCapturesLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
+
+    async function loadPendingResponseCaptures() {
+      try {
+        setPendingResponseCapturesLoading(true);
+        const rows = await getPendingPublicInviteCaptures(12).catch((err) => {
+          console.error("Error cargando respuestas pendientes en /events:", err);
+          return [] as PublicInviteCaptureItem[];
+        });
+
+        if (!alive) return;
+        setPendingResponseCaptures(
+          rows.filter((capture) => capture.status === "rejected"),
+        );
+      } finally {
+        if (alive) setPendingResponseCapturesLoading(false);
+      }
+    }
+
+    void loadPendingResponseCaptures();
+
+    return () => {
+      alive = false;
+    };
+  }, [isPendingResponsesFocus]);
 
   useEffect(() => {
     let alive = true;
@@ -384,8 +428,6 @@ export default function EventsPage() {
 
   const coordinationInbox = useMemo(() => {
     const now = new Date();
-    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
     const visibleEvents = filterVisibleEvents(events, {
       declinedIds: declinedEventIds,
       hiddenIds: hiddenEventIds,
@@ -421,19 +463,8 @@ export default function EventsPage() {
       actionRequiredIds.add(String(conflict.incomingEventId));
     }
 
-    for (const event of upcomingEvents) {
-      const eventId = String(event.id);
-      const start = new Date(event.start);
-
-      if (isWithinNext24Hours(start)) {
-        actionRequiredIds.add(eventId);
-      }
-
-      if (event.group_id && start <= nextWeek) {
-        actionRequiredIds.add(eventId);
-      }
-    }
-
+    // No contamos planes próximos o compartidos como "acción" por defecto.
+    // Un plan confirmado puede ser relevante por cercanía, pero no necesita revisión.
     const sharedUpcomingCount = upcomingEvents.filter((event) => !!event.group_id).length;
 
     return {
@@ -500,13 +531,37 @@ export default function EventsPage() {
     return filteredEvents.slice(0, mobileVisibleCount);
   }, [filteredEvents, isMobile, mobileVisibleCount]);
 
+  const focusedPendingCapture = useMemo(() => {
+    if (!isPendingResponsesFocus) return null;
+
+    if (focusedEventId) {
+      return (
+        pendingResponseCaptures.find(
+          (capture) => String(capture.event_id) === String(focusedEventId),
+        ) ?? null
+      );
+    }
+
+    return pendingResponseCaptures[0] ?? null;
+  }, [focusedEventId, isPendingResponsesFocus, pendingResponseCaptures]);
+
   const pendingResponseEvent = useMemo(() => {
-    if (!focusedEventId) return null;
+    if (!focusedPendingCapture?.event_id) return null;
 
     return (
-      events.find((event) => String(event.id) === String(focusedEventId)) ?? null
+      events.find(
+        (event) => String(event.id) === String(focusedPendingCapture.event_id),
+      ) ?? null
     );
-  }, [events, focusedEventId]);
+  }, [events, focusedPendingCapture]);
+
+  const effectiveFocusedEventId = isPendingResponsesFocus
+    ? (focusedPendingCapture?.event_id ?? null)
+    : focusedEventId;
+
+  const showPendingResponseRail =
+    isPendingResponsesFocus &&
+    (pendingResponseCapturesLoading || loading || Boolean(focusedPendingCapture));
 
   const hasMoreTimelineEvents =
     isMobile && filteredEvents.length > timelineEvents.length;
@@ -844,6 +899,22 @@ export default function EventsPage() {
     setMobileVisibleCount(MOBILE_INITIAL_VISIBLE);
   }, [filters.view, filters.scope, filters.query]);
 
+  useEffect(() => {
+    if (!isPendingResponsesFocus) return;
+    if (loading || pendingResponseCapturesLoading) return;
+    if (focusedPendingCapture) return;
+
+    // La alerta ya no existe o ya fue cerrada. Limpiamos la URL para no
+    // seguir mostrando un plan confirmado como si necesitara revisión.
+    router.replace("/events", { scroll: false });
+  }, [
+    focusedPendingCapture,
+    isPendingResponsesFocus,
+    loading,
+    pendingResponseCapturesLoading,
+    router,
+  ]);
+
   const anySelected = selectedIds.size > 0;
   const compactHeaderSubtitle = isMobile
     ? events.length === 0
@@ -852,7 +923,7 @@ export default function EventsPage() {
     : headerSubtitle;
 
   const focusAside = useMemo<FocusAsideState>(() => {
-    if (isPendingResponsesFocus) {
+    if (isPendingResponsesFocus && (pendingResponseCapturesLoading || focusedPendingCapture)) {
       if (pendingResponseEvent) {
         return {
           eyebrow: "Respuesta pendiente",
@@ -884,9 +955,9 @@ export default function EventsPage() {
 
     if (!loading && urgentEvents.length > 0) {
       return {
-        eyebrow: "Tu foco ahora",
+        eyebrow: "Próximo plan",
         title: `${urgentEvents.length} plan${urgentEvents.length === 1 ? "" : "es"} cerca`,
-        body: "Revisa primero lo más próximo para que nada se quede abierto a última hora.",
+        body: "No es una alerta pendiente: solo te mostramos lo más cercano en tu agenda.",
         cta: "Ver próximos",
         action: "upcoming",
       };
@@ -894,14 +965,14 @@ export default function EventsPage() {
 
     if (statusSnapshot.nextCount > 0) {
       return {
-        eyebrow: "Tu foco ahora",
+        eyebrow: "Estado",
         title: "Todo al día",
         body: "No hay acciones abiertas. Lo que viene queda ordenado debajo.",
       };
     }
 
     return {
-      eyebrow: "Tu foco ahora",
+      eyebrow: "Estado",
       title: "Todavía no hay planes visibles",
       body: "Crea el primer evento para convertir esta pantalla en una bandeja útil de coordinación.",
       cta: "Crear evento",
@@ -909,6 +980,8 @@ export default function EventsPage() {
     };
   }, [
     isPendingResponsesFocus,
+    pendingResponseCapturesLoading,
+    focusedPendingCapture,
     pendingResponseEvent,
     loading,
     coordinationInbox.conflictEventCount,
@@ -917,8 +990,8 @@ export default function EventsPage() {
   ]);
 
   const handleFocusAsideClick = () => {
-    if (focusAside.action === "focused" && focusedEventId) {
-      router.push(`/events/new/details?eventId=${encodeURIComponent(String(focusedEventId))}`);
+    if (focusAside.action === "focused" && effectiveFocusedEventId) {
+      router.push(`/events/new/details?eventId=${encodeURIComponent(String(effectiveFocusedEventId))}`);
       return;
     }
 
@@ -1088,8 +1161,8 @@ export default function EventsPage() {
             <div style={S.focusRail}>
               <div style={S.focusHeader}>
                 <div>
-                  <div style={S.focusEyebrow}>Foco operativo</div>
-                  <div style={S.focusTitle}>Lo que pide movimiento ahora</div>
+                  <div style={S.focusEyebrow}>Próximo plan</div>
+                  <div style={S.focusTitle}>Lo siguiente en tu agenda</div>
                 </div>
                 <div style={S.focusCount}>
                   {urgentEvents.length} evento{urgentEvents.length === 1 ? "" : "s"}
@@ -1148,7 +1221,7 @@ export default function EventsPage() {
             </div>
           ) : null}
 
-          {isPendingResponsesFocus ? (
+          {showPendingResponseRail ? (
             <div style={S.pendingResponseRail}>
               <div style={S.pendingResponseCopy}>
                 <div style={S.pendingResponseEyebrow}>Alerta abierta desde Panel</div>
@@ -1161,8 +1234,8 @@ export default function EventsPage() {
                 </div>
                 <div style={S.pendingResponseSub}>
                   {pendingResponseEvent
-                    ? "Este es el plan que recibió una respuesta externa. Está resaltado en la lista para que revises el estado y decidas el siguiente paso."
-                    : "La alerta puede haberse cerrado, estar fuera del rango visible o no tener permisos con esta sesión."}
+                    ? "Este plan recibió un rechazo o una propuesta de cambio. Está resaltado abajo para que decidas el siguiente paso."
+                    : "Estamos validando si esta alerta sigue abierta."}
                 </div>
               </div>
 
@@ -1304,7 +1377,7 @@ export default function EventsPage() {
               <EventsTimeline
                 events={timelineEvents}
                 selectedIds={selectedIds}
-                focusedEventId={focusedEventId}
+                focusedEventId={effectiveFocusedEventId}
                 onToggleSelected={toggleSelection}
                 onEventsRemoved={(removedIds) => {
                   const removed = new Set(removedIds.map(String));

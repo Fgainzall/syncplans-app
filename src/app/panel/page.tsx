@@ -420,7 +420,7 @@ export default function PanelPage() {
       const rows = await getPendingPublicInviteCaptures(6).catch(
         () => [] as PublicInviteCaptureItem[],
       );
-      setCaptures(rows);
+      setCaptures(rows.filter((capture) => capture.status === "rejected"));
     } catch (err) {
       console.error("Error cargando capturas sugeridas:", err);
       setCaptures([]);
@@ -685,6 +685,10 @@ export default function PanelPage() {
   const trialActive = isTrialActive(profile);
   const premiumActive = isPremiumUser(profile);
   const canUseCaptures = hasPremiumAccess(profile);
+  const actionableCaptures = useMemo(
+    () => captures.filter((capture) => capture.status === "rejected"),
+    [captures],
+  );
   const canUseGoogleIntegration = hasPremiumAccess(profile);
 
   const currentContextOption =
@@ -782,7 +786,7 @@ export default function PanelPage() {
         : "Google Calendar no conectado";
 
   const pendingResponseFocusHref = useMemo(() => {
-    const firstPendingCapture = captures[0];
+    const firstPendingCapture = actionableCaptures[0];
     const params = new URLSearchParams();
 
     params.set("focus", "pending-responses");
@@ -792,7 +796,7 @@ export default function PanelPage() {
     }
 
     return `/events?${params.toString()}`;
-  }, [captures]);
+  }, [actionableCaptures]);
 
   const recommendedAction = useMemo<RecommendedAction>(() => {
     if (conflictsNow > 0) {
@@ -817,15 +821,15 @@ export default function PanelPage() {
       };
     }
 
-    if (captures.length > 0 && canUseCaptures) {
-      const firstPendingCapture = captures[0];
+    if (actionableCaptures.length > 0 && canUseCaptures) {
+      const firstPendingCapture = actionableCaptures[0];
       const planLabel = firstPendingCapture?.event_title
         ? `“${firstPendingCapture.event_title}”`
         : "un plan compartido";
 
       return {
         eyebrow: "Decisión pendiente",
-        title: `${captures.length} plan${captures.length === 1 ? "" : "es"} necesita${captures.length === 1 ? "" : "n"} revisión`,
+        title: `${actionableCaptures.length} plan${actionableCaptures.length === 1 ? "" : "es"} necesita${actionableCaptures.length === 1 ? "" : "n"} revisión`,
         copy: `${planLabel} recibió una respuesta externa. Entra directo al plan para revisar qué pasó y decidir.`,
         label: "Revisar plan",
         href: pendingResponseFocusHref,
@@ -853,7 +857,7 @@ export default function PanelPage() {
       tone: "success",
     };
   }, [
-    captures,
+    actionableCaptures,
     canUseCaptures,
     canUseGoogleIntegration,
     conflictsNow,
@@ -1075,13 +1079,13 @@ export default function PanelPage() {
         id: "invitations",
         label: "Invitaciones",
         href: "/invitations",
-        badge: captures.length > 0 ? `${captures.length}` : undefined,
+        badge: actionableCaptures.length > 0 ? `${actionableCaptures.length}` : undefined,
       },
       { id: "settings", label: "Ajustes", href: "/settings" },
       { id: "plans", label: "Planes", href: "/planes" },
       { id: "operations", label: "Operaciones", href: "/panel/operations" },
     ],
-    [captures.length, conflictsNow, totalEvents],
+    [actionableCaptures.length, conflictsNow, totalEvents],
   );
 
   async function handleContextChange(nextMode: UsageMode) {
@@ -1439,11 +1443,11 @@ export default function PanelPage() {
                       />
                     ) : capturesLoading ? (
                       <EmptyBlock copy="Buscando respuestas…" />
-                    ) : captures.length === 0 ? (
+                    ) : actionableCaptures.length === 0 ? (
                       <EmptyBlock copy="No hay respuestas pendientes." />
                     ) : (
                       <div style={styles.captureList}>
-                        {captures.slice(0, isMobile ? 2 : 3).map((capture) => {
+                        {actionableCaptures.slice(0, isMobile ? 2 : 3).map((capture) => {
                           const hasProposal = Boolean(capture.proposed_date);
                           const statusTone =
                             capture.status === "accepted"

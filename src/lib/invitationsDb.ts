@@ -895,12 +895,11 @@ const normalizedInvites = (inviteRows ?? [])
   .filter(Boolean)
   .filter((row: any) => {
     const status = String(row?.status ?? "").trim().toLowerCase();
-    const proposedDate = String(row?.proposed_date ?? "").trim();
 
-    // Una aceptación directa no requiere decisión del creador.
-    // Solo mantenemos en la bandeja lo que realmente exige acción:
-    // rechazo o propuesta de nueva fecha.
-    return status === "rejected" || proposedDate.length > 0;
+    // Una aceptación directa NO requiere decisión del creador.
+    // La bandeja de revisión solo debe mostrar respuestas que abren una decisión real:
+    // rechazo o rechazo con propuesta de nueva fecha.
+    return status === "rejected";
   }) as Array<{
     invite_id: string;
     token: string;
