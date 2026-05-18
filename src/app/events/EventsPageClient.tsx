@@ -811,22 +811,6 @@ export default function EventsPage() {
     }
   }
 
-  useEffect(() => {
-    if (!isPendingResponsesFocus) return;
-
-    setFilters((current) => {
-      if (current.view === "all" && current.scope === "all" && current.query === "") {
-        return current;
-      }
-
-      return { view: "all", scope: "all", query: "" };
-    });
-
-    if (!booting && loadedView !== "all") {
-      void refreshData("all");
-    }
-  }, [booting, isPendingResponsesFocus, loadedView, refreshData]);
-
   async function sendTodayDigest() {
     try {
       setSendingDigest(true);

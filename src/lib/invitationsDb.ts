@@ -892,7 +892,16 @@ const normalizedInvites = (inviteRows ?? [])
       creator_response: row?.creator_response ?? null,
     };
   })
-  .filter(Boolean) as Array<{
+  .filter(Boolean)
+  .filter((row: any) => {
+    const status = String(row?.status ?? "").trim().toLowerCase();
+    const proposedDate = String(row?.proposed_date ?? "").trim();
+
+    // Una aceptación directa no requiere decisión del creador.
+    // Solo mantenemos en la bandeja lo que realmente exige acción:
+    // rechazo o propuesta de nueva fecha.
+    return status === "rejected" || proposedDate.length > 0;
+  }) as Array<{
     invite_id: string;
     token: string;
     event_id: string;
