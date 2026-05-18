@@ -12,6 +12,8 @@ import {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const MAX_LEAVE_ALERT_LOOKAHEAD_MINUTES = 15;
+
 function getLookaheadMinutes(req: Request): number | undefined {
   const url = new URL(req.url);
   const raw = url.searchParams.get("lookaheadMinutes");
@@ -21,7 +23,10 @@ function getLookaheadMinutes(req: Request): number | undefined {
   const parsed = Number(raw);
   if (!Number.isFinite(parsed)) return undefined;
 
-  return Math.max(1, Math.min(180, Math.round(parsed)));
+  return Math.max(
+    1,
+    Math.min(MAX_LEAVE_ALERT_LOOKAHEAD_MINUTES, Math.round(parsed)),
+  );
 }
 
 async function handleCron(req: Request) {

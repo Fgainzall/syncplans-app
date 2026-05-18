@@ -107,8 +107,9 @@ const VAPID_SUBJECT = String(
 
 export const LEAVE_ALERT_TYPE = "leave_alert";
 
-const DEFAULT_LOOKAHEAD_MINUTES = 15;
-const MAX_LOOKAHEAD_MINUTES = 180;
+const DEFAULT_LOOKAHEAD_MINUTES = 10;
+const MAX_LOOKAHEAD_MINUTES = 15;
+const SMART_MOBILITY_ALERT_BEFORE_MINUTES = 60;
 const LEAVE_BUFFER_SECONDS = 5 * 60;
 const RECALCULATE_UPDATE_THRESHOLD_MS = 60_000;
 const LEAVE_ALERT_GRACE_MINUTES = 3;
@@ -157,18 +158,18 @@ function isEventTooFarPast(startIso: string | null | undefined): boolean {
   return startMs < Date.now() - PAST_EVENT_GRACE_MINUTES * 60 * 1000;
 }
 
-function isLeaveTimeInsideSendWindow(
-  leaveTimeIso: string | null | undefined,
+function isTimeInsideSendWindow(
+  iso: string | null | undefined,
   lookaheadMinutes: number,
 ): boolean {
-  const leaveMs = parseIsoMs(leaveTimeIso);
-  if (leaveMs === null) return false;
+  const targetMs = parseIsoMs(iso);
+  if (targetMs === null) return false;
 
   const now = Date.now();
   const lower = now - LEAVE_ALERT_GRACE_MINUTES * 60 * 1000;
   const upper = now + lookaheadMinutes * 60 * 1000;
 
-  return leaveMs >= lower && leaveMs <= upper;
+  return targetMs >= lower && targetMs <= upper;
 }
 
 function normalizeCronTravelMode(value: string | null | undefined): TravelMode {
@@ -218,6 +219,44 @@ function calculateLeaveTimeIso(
   return new Date(
     start.getTime() - Number(etaSeconds) * 1000 - LEAVE_BUFFER_SECONDS * 1000,
   ).toISOString();
+}
+
+
+function calculateOneHourBeforeEventIso(startIso: string | null | undefined): string | null {
+  const startMs = parseIsoMs(startIso);
+  if (startMs === null) return null;
+
+  return new Date(
+    startMs - SMART_MOBILITY_ALERT_BEFORE_MINUTES * 60 * 1000,
+  ).toISOString();
+}
+
+function calculateSmartMobilityAlertTimeIso(input: {
+  eventStartIso: string | null | undefined;
+  leaveTimeIso: string | null | undefined;
+}): string | null {
+  const oneHourBeforeIso = calculateOneHourBeforeEventIso(input.eventStartIso);
+  const oneHourBeforeMs = parseIsoMs(oneHourBeforeIso);
+  const leaveMs = parseIsoMs(input.leaveTimeIso);
+
+  if (oneHourBeforeMs === null) return input.leaveTimeIso ?? null;
+  if (leaveMs === null) return oneHourBeforeIso;
+
+  const now = Date.now();
+  const graceMs = LEAVE_ALERT_GRACE_MINUTES * 60 * 1000;
+
+  // Normal case: notify one hour before the event.
+  // Safety case: if traffic requires leaving earlier than one hour before,
+  // notify at the calculated leave time instead of notifying too late.
+  if (leaveMs < oneHourBeforeMs) return input.leaveTimeIso ?? oneHourBeforeIso;
+
+  // If the cron missed the one-hour mark but the leave time is still due,
+  // avoid silently losing the alert.
+  if (oneHourBeforeMs < now - graceMs && leaveMs >= now - graceMs) {
+    return input.leaveTimeIso ?? oneHourBeforeIso;
+  }
+
+  return oneHourBeforeIso;
 }
 
 function formatTimeEsPe(
@@ -416,22 +455,66 @@ async function getCandidateEvents(
   client: AdminClient,
   lookaheadMinutes: number,
 ): Promise<LeaveAlertEventRow[]> {
-  const lowerIso = isoMinutesAgo(LEAVE_ALERT_GRACE_MINUTES);
-  const upperIso = isoMinutesFromNow(lookaheadMinutes);
+  const selectColumns =
+    "id, title, user_id, start, leave_time, location_label, location_address, location_lat, location_lng, travel_mode, travel_eta_seconds";
 
-  const { data, error } = await client
-    .from("events")
-    .select(
-      "id, title, user_id, start, leave_time, location_label, location_address, location_lat, location_lng, travel_mode, travel_eta_seconds",
-    )
-    .not("leave_time", "is", null)
-    .gte("leave_time", lowerIso)
-    .lte("leave_time", upperIso)
-    .order("leave_time", { ascending: true });
+  const leaveLowerIso = isoMinutesAgo(LEAVE_ALERT_GRACE_MINUTES);
+  const leaveUpperIso = isoMinutesFromNow(lookaheadMinutes);
 
-  if (error) throw error;
+  const oneHourStartLowerIso = isoMinutesFromNow(
+    SMART_MOBILITY_ALERT_BEFORE_MINUTES - LEAVE_ALERT_GRACE_MINUTES,
+  );
+  const oneHourStartUpperIso = isoMinutesFromNow(
+    SMART_MOBILITY_ALERT_BEFORE_MINUTES + lookaheadMinutes,
+  );
 
-  return ((data ?? []) as LeaveAlertEventRow[]).filter((row) => !!row.user_id);
+  const [leaveWindowResult, oneHourWindowResult] = await Promise.all([
+    client
+      .from("events")
+      .select(selectColumns)
+      .not("leave_time", "is", null)
+      .gte("leave_time", leaveLowerIso)
+      .lte("leave_time", leaveUpperIso)
+      .order("leave_time", { ascending: true }),
+    client
+      .from("events")
+      .select(selectColumns)
+      .not("leave_time", "is", null)
+      .gte("start", oneHourStartLowerIso)
+      .lte("start", oneHourStartUpperIso)
+      .order("start", { ascending: true }),
+  ]);
+
+  if (leaveWindowResult.error) throw leaveWindowResult.error;
+  if (oneHourWindowResult.error) throw oneHourWindowResult.error;
+
+  const byId = new Map<string, LeaveAlertEventRow>();
+
+  for (const row of [
+    ...((leaveWindowResult.data ?? []) as LeaveAlertEventRow[]),
+    ...((oneHourWindowResult.data ?? []) as LeaveAlertEventRow[]),
+  ]) {
+    const eventId = String(row.id ?? "").trim();
+    if (!eventId || !row.user_id) continue;
+    byId.set(eventId, row);
+  }
+
+  return Array.from(byId.values()).sort((a, b) => {
+    const aAlertMs = parseIsoMs(
+      calculateSmartMobilityAlertTimeIso({
+        eventStartIso: a.start,
+        leaveTimeIso: a.leave_time,
+      }),
+    );
+    const bAlertMs = parseIsoMs(
+      calculateSmartMobilityAlertTimeIso({
+        eventStartIso: b.start,
+        leaveTimeIso: b.leave_time,
+      }),
+    );
+
+    return (aAlertMs ?? 0) - (bAlertMs ?? 0);
+  });
 }
 
 async function getUserSettingsByUserId(
@@ -822,10 +905,15 @@ export async function runLeaveAlerts(opts?: {
       });
     }
 
-    if (!isLeaveTimeInsideSendWindow(recalculatedLeaveTimeIso, lookaheadMinutes)) {
+    const alertTimeIso = calculateSmartMobilityAlertTimeIso({
+      eventStartIso: eventRow.start,
+      leaveTimeIso: recalculatedLeaveTimeIso,
+    });
+
+    if (!isTimeInsideSendWindow(alertTimeIso, lookaheadMinutes)) {
       summary.skippedNotDue += 1;
       logSkippedLeaveAlert({
-        reason: "recalculated_leave_time_outside_window",
+        reason: "smart_mobility_alert_time_outside_window",
         eventId,
         userId,
         leaveTimeIso: recalculatedLeaveTimeIso,
@@ -858,6 +946,8 @@ export async function runLeaveAlerts(opts?: {
         event_title: eventRow.title,
         destination_label: eventRow.location_label ?? null,
         destination_address: eventRow.location_address ?? null,
+        alert_time: alertTimeIso,
+        alert_before_minutes: SMART_MOBILITY_ALERT_BEFORE_MINUTES,
         leave_time: recalculatedLeaveTimeIso,
         event_start: eventRow.start,
         eta_seconds: recalculatedEtaSeconds,
