@@ -505,9 +505,11 @@ export default function PanelPage() {
 
   const openEventFromCapture = useCallback(
     (capture: PublicInviteCaptureItem) => {
-      router.push(
-        `/events?focusEventId=${encodeURIComponent(capture.event_id)}`,
-      );
+      const params = new URLSearchParams();
+      params.set("focus", "pending-responses");
+      params.set("focusEventId", String(capture.event_id));
+
+      router.push(`/events?${params.toString()}`);
     },
     [router],
   );
@@ -779,6 +781,19 @@ export default function PanelPage() {
           : "La conexión necesita reconexión"
         : "Google Calendar no conectado";
 
+  const pendingResponseFocusHref = useMemo(() => {
+    const firstPendingCapture = captures[0];
+    const params = new URLSearchParams();
+
+    params.set("focus", "pending-responses");
+
+    if (firstPendingCapture?.event_id) {
+      params.set("focusEventId", String(firstPendingCapture.event_id));
+    }
+
+    return `/events?${params.toString()}`;
+  }, [captures]);
+
   const recommendedAction = useMemo<RecommendedAction>(() => {
     if (conflictsNow > 0) {
       return {
@@ -803,12 +818,17 @@ export default function PanelPage() {
     }
 
     if (captures.length > 0 && canUseCaptures) {
+      const firstPendingCapture = captures[0];
+      const planLabel = firstPendingCapture?.event_title
+        ? `“${firstPendingCapture.event_title}”`
+        : "un plan compartido";
+
       return {
-        eyebrow: "Hay algo por cerrar",
-        title: `${captures.length} respuesta${captures.length === 1 ? "" : "s"} esperando revisión`,
-        copy: "Revisa las respuestas externas y conviértelas en una decisión clara dentro de SyncPlans.",
-        label: "Ver respuestas",
-        href: "/events",
+        eyebrow: "Decisión pendiente",
+        title: `${captures.length} plan${captures.length === 1 ? "" : "es"} necesita${captures.length === 1 ? "" : "n"} revisión`,
+        copy: `${planLabel} recibió una respuesta externa. Entra directo al plan para revisar qué pasó y decidir.`,
+        label: "Revisar plan",
+        href: pendingResponseFocusHref,
         tone: "warning",
       };
     }
@@ -833,12 +853,13 @@ export default function PanelPage() {
       tone: "success",
     };
   }, [
-    captures.length,
+    captures,
     canUseCaptures,
     canUseGoogleIntegration,
     conflictsNow,
     connectionState,
     googlePrimaryCta,
+    pendingResponseFocusHref,
     totalGroups,
   ]);
 

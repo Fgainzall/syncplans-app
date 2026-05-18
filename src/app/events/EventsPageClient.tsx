@@ -73,7 +73,7 @@ type SegmentOption<T extends string> = {
 };
 
 type InboxLaneAction = "attention" | "conflicts" | "upcoming" | "history";
-type FocusAsideAction = "upcoming" | "conflicts" | "create";
+type FocusAsideAction = "upcoming" | "conflicts" | "create" | "focused";
 
 type FocusAsideState = {
   eyebrow: string;
@@ -233,7 +233,9 @@ export default function EventsPage() {
   } | null>(null);
   const [hasPremium, setHasPremium] = useState(false);
   const [showAdvancedActions, setShowAdvancedActions] = useState(false);
+  const focusMode = searchParams.get("focus");
   const focusedEventId = searchParams.get("focusEventId");
+  const isPendingResponsesFocus = focusMode === "pending-responses";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -248,11 +250,16 @@ export default function EventsPage() {
     void trackScreenView({
       screen: "events",
       metadata: {
-        source: focusedEventId ? "focused_event" : "events_tab",
+        source: isPendingResponsesFocus
+          ? "pending_response_focus"
+          : focusedEventId
+            ? "focused_event"
+            : "events_tab",
         focusedEventId: focusedEventId ?? null,
+        focusMode: focusMode ?? null,
       },
     });
-  }, [focusedEventId]);
+  }, [focusMode, focusedEventId, isPendingResponsesFocus]);
 
   useEffect(() => {
     let alive = true;
@@ -492,6 +499,14 @@ export default function EventsPage() {
     if (!isMobile) return filteredEvents;
     return filteredEvents.slice(0, mobileVisibleCount);
   }, [filteredEvents, isMobile, mobileVisibleCount]);
+
+  const pendingResponseEvent = useMemo(() => {
+    if (!focusedEventId) return null;
+
+    return (
+      events.find((event) => String(event.id) === String(focusedEventId)) ?? null
+    );
+  }, [events, focusedEventId]);
 
   const hasMoreTimelineEvents =
     isMobile && filteredEvents.length > timelineEvents.length;
@@ -796,6 +811,22 @@ export default function EventsPage() {
     }
   }
 
+  useEffect(() => {
+    if (!isPendingResponsesFocus) return;
+
+    setFilters((current) => {
+      if (current.view === "all" && current.scope === "all" && current.query === "") {
+        return current;
+      }
+
+      return { view: "all", scope: "all", query: "" };
+    });
+
+    if (!booting && loadedView !== "all") {
+      void refreshData("all");
+    }
+  }, [booting, isPendingResponsesFocus, loadedView, refreshData]);
+
   async function sendTodayDigest() {
     try {
       setSendingDigest(true);
@@ -837,6 +868,26 @@ export default function EventsPage() {
     : headerSubtitle;
 
   const focusAside = useMemo<FocusAsideState>(() => {
+    if (isPendingResponsesFocus) {
+      if (pendingResponseEvent) {
+        return {
+          eyebrow: "Respuesta pendiente",
+          title: "Este plan necesita revisión",
+          body: `${pendingResponseEvent.title || "Este plan"} recibió una respuesta externa. Lo resaltamos abajo para que puedas revisar el estado exacto.`,
+          cta: "Abrir plan",
+          action: "focused",
+        };
+      }
+
+      return {
+        eyebrow: "Respuesta pendiente",
+        title: loading ? "Buscando el plan" : "No encontramos ese plan en la lista",
+        body: loading
+          ? "Estamos cargando la bandeja para llevarte directo a la alerta."
+          : "Puede estar fuera del rango visible o ya haber sido cerrado. Actualiza la lista o vuelve al Panel.",
+      };
+    }
+
     if (!loading && coordinationInbox.conflictEventCount > 0) {
       return {
         eyebrow: "Tu foco ahora",
@@ -873,6 +924,8 @@ export default function EventsPage() {
       action: "create",
     };
   }, [
+    isPendingResponsesFocus,
+    pendingResponseEvent,
     loading,
     coordinationInbox.conflictEventCount,
     urgentEvents.length,
@@ -880,6 +933,11 @@ export default function EventsPage() {
   ]);
 
   const handleFocusAsideClick = () => {
+    if (focusAside.action === "focused" && focusedEventId) {
+      router.push(`/events/new/details?eventId=${encodeURIComponent(String(focusedEventId))}`);
+      return;
+    }
+
     if (focusAside.action === "conflicts") {
       router.push("/conflicts/detected");
       return;
@@ -1103,6 +1161,50 @@ export default function EventsPage() {
               >
                 {premiumContext.cta}
               </button>
+            </div>
+          ) : null}
+
+          {isPendingResponsesFocus ? (
+            <div style={S.pendingResponseRail}>
+              <div style={S.pendingResponseCopy}>
+                <div style={S.pendingResponseEyebrow}>Alerta abierta desde Panel</div>
+                <div style={S.pendingResponseTitle}>
+                  {pendingResponseEvent
+                    ? pendingResponseEvent.title || "Plan compartido"
+                    : loading
+                      ? "Buscando el plan pendiente"
+                      : "No encontramos el plan pendiente"}
+                </div>
+                <div style={S.pendingResponseSub}>
+                  {pendingResponseEvent
+                    ? "Este es el plan que recibió una respuesta externa. Está resaltado en la lista para que revises el estado y decidas el siguiente paso."
+                    : "La alerta puede haberse cerrado, estar fuera del rango visible o no tener permisos con esta sesión."}
+                </div>
+              </div>
+
+              <div style={S.pendingResponseActions}>
+                {pendingResponseEvent ? (
+                  <button
+                    type="button"
+                    style={S.pendingResponsePrimary}
+                    onClick={() =>
+                      router.push(
+                        `/events/new/details?eventId=${encodeURIComponent(String(pendingResponseEvent.id))}`
+                      )
+                    }
+                  >
+                    Abrir plan
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  style={S.pendingResponseSecondary}
+                  onClick={() => router.push("/panel")}
+                >
+                  Volver al Panel
+                </button>
+              </div>
             </div>
           ) : null}
 
@@ -1718,6 +1820,75 @@ const S: Record<string, React.CSSProperties> = {
     width: "100%",
     maxWidth: "100%",
     minWidth: 0,
+  },
+  pendingResponseRail: {
+    marginTop: 14,
+    borderRadius: 22,
+    border: "1px solid rgba(251,191,36,0.22)",
+    background:
+      "linear-gradient(135deg, rgba(251,191,36,0.13), rgba(59,130,246,0.08))",
+    padding: 14,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  pendingResponseCopy: {
+    minWidth: 0,
+    flex: "1 1 280px",
+  },
+  pendingResponseEyebrow: {
+    fontSize: 11,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(253,230,138,0.92)",
+  },
+  pendingResponseTitle: {
+    marginTop: 5,
+    fontSize: 17,
+    lineHeight: 1.18,
+    fontWeight: 950,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.98)",
+    overflowWrap: "anywhere",
+  },
+  pendingResponseSub: {
+    marginTop: 5,
+    maxWidth: 760,
+    fontSize: 13,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.78)",
+    fontWeight: 650,
+  },
+  pendingResponseActions: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  pendingResponsePrimary: {
+    minHeight: 40,
+    borderRadius: 14,
+    border: "1px solid rgba(251,191,36,0.34)",
+    background: "rgba(251,191,36,0.18)",
+    color: "rgba(255,255,255,0.98)",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+    padding: "0 14px",
+  },
+  pendingResponseSecondary: {
+    minHeight: 40,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.86)",
+    fontSize: 13,
+    fontWeight: 850,
+    cursor: "pointer",
+    padding: "0 14px",
   },
   filtersShell: {
     marginTop: 16,
