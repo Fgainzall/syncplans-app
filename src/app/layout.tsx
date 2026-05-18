@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import SWRegister from "./sw-register";
 import { ToastProvider } from "@/components/ui/Toast";
 import BottomNavVisibility from "@/components/BottomNavVisibility";
+import AppLaunchSplash from "@/components/AppLaunchSplash";
 
 export const metadata: Metadata = {
   title: "SyncPlans",
@@ -56,6 +57,7 @@ export default function RootLayout({
         }}
       >
         <SWRegister />
+        <AppLaunchSplash />
         <ToastProvider>
           <div
             style={{
