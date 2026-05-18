@@ -3,7 +3,6 @@
 
 import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
-import PremiumHeader from "@/components/PremiumHeader";
 import MobileScaffold from "@/components/MobileScaffold";
 import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
@@ -39,6 +38,13 @@ type GroupPageRow = {
   is_active?: boolean | null;
 };
 
+type GroupMeta = {
+  label: string;
+  dot: string;
+  soft: string;
+  border: string;
+};
+
 function roleLabel(role: GroupRole) {
   switch (role) {
     case "owner":
@@ -50,7 +56,7 @@ function roleLabel(role: GroupRole) {
   }
 }
 
-function groupMeta(type: string) {
+function groupMeta(type: string): GroupMeta {
   switch (type) {
     case "pair":
       return {
@@ -82,14 +88,38 @@ function getMemberCopy(count: number) {
 
 function compactGroupPurpose(type: string) {
   if (type === "pair") {
-    return "Usa este espacio para coordinar planes compartidos, evitar cruces y mantener una sola referencia entre ustedes.";
+    return "Planes compartidos, invitaciones y decisiones en un solo lugar.";
   }
 
   if (type === "family") {
-    return "Usa este espacio para ordenar planes familiares, próximos pasos e invitaciones sin depender de mensajes sueltos.";
+    return "Organiza planes familiares sin depender de mensajes sueltos.";
   }
 
-  return "Usa este espacio para crear planes compartidos, revisar miembros y mantener al grupo alineado.";
+  return "Coordina planes, miembros e invitaciones desde un solo espacio.";
+}
+
+function DetailStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={styles.statCard}>
+      <div style={styles.statLabel}>{label}</div>
+      <div style={styles.statValue}>{value}</div>
+    </div>
+  );
+}
+
+function SmallPill({ children, meta }: { children: React.ReactNode; meta?: GroupMeta }) {
+  return (
+    <span
+      style={{
+        ...styles.smallPill,
+        borderColor: meta?.border ?? "rgba(255,255,255,0.10)",
+        background: meta?.soft ?? "rgba(255,255,255,0.05)",
+      }}
+    >
+      {meta ? <span style={{ ...styles.pillDot, background: meta.dot }} /> : null}
+      {children}
+    </span>
+  );
 }
 
 export default function GroupDetailPage() {
@@ -182,7 +212,7 @@ export default function GroupDetailPage() {
 
       pushToast({
         title: "Grupo activo actualizado ✅",
-        subtitle: "Este grupo ya queda como contexto principal para tus próximos planes.",
+        subtitle: "Este grupo queda como contexto principal para tus próximos planes.",
       });
     } catch (error: unknown) {
       pushToast({
@@ -200,11 +230,22 @@ export default function GroupDetailPage() {
     return group.name || getGroupTypeLabel(String(group.type ?? "other"));
   }, [group]);
 
+  const activateButtonStyle: CSSProperties = {
+    ...styles.secondary,
+    opacity: saving ? 0.72 : 1,
+    cursor: saving ? "default" : "pointer",
+  };
+
   if (booting) {
     return (
-      <MobileScaffold maxWidth={1120} style={styles.page}>
-        <Section>
-          <PremiumHeader title="Grupo" subtitle="Preparando este espacio compartido…" />
+      <MobileScaffold maxWidth={920} style={styles.page}>
+        <Section style={styles.pageStack}>
+          <div style={styles.topBar}>
+            <button type="button" style={styles.backLink} onClick={() => router.push("/groups")}>
+              ← Grupos
+            </button>
+          </div>
+
           <Card style={styles.surfaceCard}>
             <div style={styles.loadingRow}>
               <div style={styles.loadingDot} />
@@ -221,7 +262,7 @@ export default function GroupDetailPage() {
 
   if (!group) {
     return (
-      <MobileScaffold maxWidth={1120} style={styles.page}>
+      <MobileScaffold maxWidth={920} style={styles.page}>
         {toast ? (
           <div style={styles.toastWrap}>
             <div style={styles.toastCard}>
@@ -231,9 +272,12 @@ export default function GroupDetailPage() {
           </div>
         ) : null}
 
-        <Section>
-          <div style={styles.topRow}>
-            <PremiumHeader title="Grupo" subtitle="No pudimos abrir este espacio" />
+        <Section style={styles.pageStack}>
+          <div style={styles.topBar}>
+            <button type="button" style={styles.backLink} onClick={() => router.push("/groups")}>
+              ← Grupos
+            </button>
+            <SmallPill>Grupo no disponible</SmallPill>
           </div>
 
           <Card style={styles.surfaceCard}>
@@ -258,7 +302,7 @@ export default function GroupDetailPage() {
   }
 
   return (
-    <MobileScaffold maxWidth={1120} style={styles.page}>
+    <MobileScaffold maxWidth={920} style={styles.page}>
       {toast ? (
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
@@ -268,142 +312,130 @@ export default function GroupDetailPage() {
         </div>
       ) : null}
 
-      <Section>
-        <div style={styles.topRow}>
-          <PremiumHeader
-            title={displayName}
-            subtitle={`${meta.label} · ${getMemberCopy(group.members_count)} · ${roleLabel(group.role)}`}
-          />
-          <button type="button" style={styles.backButton} onClick={() => router.push("/groups")}>
-            Volver a grupos
+      <Section style={styles.pageStack}>
+        <div style={styles.topBar}>
+          <button type="button" style={styles.backLink} onClick={() => router.push("/groups")}>
+            ← Grupos
           </button>
+
+          <div style={styles.topPills}>
+            <SmallPill meta={meta}>{meta.label}</SmallPill>
+            <SmallPill>{group.is_active ? "Grupo activo" : "No activo"}</SmallPill>
+          </div>
         </div>
 
-        <Card style={styles.surfaceCard}>
-          <Section style={styles.stack}>
-            <Card
-              tone="muted"
-              style={{
-                ...styles.heroCard,
-                borderColor: meta.border,
-                background: `linear-gradient(180deg, ${meta.soft}, rgba(255,255,255,0.03))`,
-              }}
+        <Card
+          style={{
+            ...styles.heroCard,
+            borderColor: meta.border,
+            background: `linear-gradient(180deg, ${meta.soft}, rgba(10,14,28,0.72))`,
+          }}
+        >
+          <div style={styles.heroTop}>
+            <div style={styles.heroCopy}>
+              <div style={styles.eyebrow}>Detalle del grupo</div>
+              <h1 style={styles.heroTitle}>{displayName}</h1>
+              <p style={styles.heroSubtitle}>{compactGroupPurpose(group.type)}</p>
+            </div>
+
+            {!group.is_active ? (
+              <button type="button" style={activateButtonStyle} onClick={handleActivate} disabled={saving}>
+                {saving ? "Activando…" : "Usar como activo"}
+              </button>
+            ) : null}
+          </div>
+
+          <div style={styles.statsGrid}>
+            <DetailStat label="Tipo" value={meta.label} />
+            <DetailStat label="Miembros" value={getMemberCopy(group.members_count)} />
+            <DetailStat label="Tu rol" value={roleLabel(group.role)} />
+            <DetailStat label="Estado" value={group.is_active ? "Activo" : "No activo"} />
+          </div>
+
+          <div style={styles.heroActions}>
+            <button
+              type="button"
+              style={styles.primary}
+              onClick={() => router.push(`/events/new/details?type=group&groupId=${encodeURIComponent(group.id)}`)}
             >
-              <div style={styles.heroHeaderRow}>
-                <div style={styles.heroPill}>
-                  <span style={{ ...styles.heroDot, background: meta.dot }} />
-                  {meta.label}
-                </div>
-                {group.is_active ? (
-                  <span style={styles.activeBadge}>Activo</span>
-                ) : (
-                  <span style={styles.inactiveBadge}>No activo</span>
-                )}
-              </div>
+              Crear plan
+            </button>
 
-              <div style={styles.heroMain}>
-                <h1 style={styles.heroTitle}>{displayName}</h1>
-                <p style={styles.heroText}>{compactGroupPurpose(group.type)}</p>
-              </div>
+            <button
+              type="button"
+              style={styles.secondary}
+              onClick={() => router.push(`/groups/invite?groupId=${encodeURIComponent(group.id)}`)}
+            >
+              Invitar miembro
+            </button>
 
-              <div style={styles.metaGrid}>
-                <div style={styles.metricCard}>
-                  <div style={styles.metricLabel}>Miembros</div>
-                  <div style={styles.metricValue}>{getMemberCopy(group.members_count)}</div>
-                </div>
-                <div style={styles.metricCard}>
-                  <div style={styles.metricLabel}>Tu rol</div>
-                  <div style={styles.metricValue}>{roleLabel(group.role)}</div>
-                </div>
-                <div style={styles.metricCard}>
-                  <div style={styles.metricLabel}>Estado</div>
-                  <div style={styles.metricValue}>{group.is_active ? "Activo" : "Pendiente"}</div>
-                </div>
-              </div>
-
-              <div style={styles.heroActions}>
-                <button
-                  type="button"
-                  style={styles.primary}
-                  onClick={() =>
-                    router.push(`/events/new/details?type=group&groupId=${encodeURIComponent(group.id)}`)
-                  }
-                >
-                  Crear plan
-                </button>
-
-                <button
-                  type="button"
-                  style={styles.secondary}
-                  onClick={() => router.push(`/groups/invite?groupId=${encodeURIComponent(group.id)}`)}
-                >
-                  Invitar miembro
-                </button>
-
-                {!group.is_active ? (
-                  <button type="button" style={styles.secondary} onClick={handleActivate} disabled={saving}>
-                    {saving ? "Activando…" : "Usar como activo"}
-                  </button>
-                ) : null}
-              </div>
-            </Card>
-
-            <div style={styles.grid}>
-              <Card tone="muted" style={styles.infoCard}>
-                <div style={styles.sectionEyebrow}>Miembros</div>
-                <div style={styles.sectionTitle}>{getMemberCopy(group.members_count)} en este grupo</div>
-                <p style={styles.sectionBody}>
-                  Revisa quién forma parte de este espacio y usa el grupo correcto antes de crear planes compartidos.
-                </p>
-                <button
-                  type="button"
-                  style={styles.cardAction}
-                  onClick={() => router.push(`/members?groupId=${encodeURIComponent(group.id)}`)}
-                >
-                  Ver miembros
-                </button>
-              </Card>
-
-              <Card tone="muted" style={styles.infoCard}>
-                <div style={styles.sectionEyebrow}>Invitaciones</div>
-                <div style={styles.sectionTitle}>Suma a la persona correcta</div>
-                <p style={styles.sectionBody}>
-                  Invita por email y mantén este grupo listo para coordinar planes con todos desde un mismo lugar.
-                </p>
-                <button
-                  type="button"
-                  style={styles.cardAction}
-                  onClick={() => router.push(`/groups/invite?groupId=${encodeURIComponent(group.id)}`)}
-                >
-                  Invitar miembro
-                </button>
-              </Card>
-            </div>
-
-            <div style={styles.actionGrid}>
-              <button
-                type="button"
-                style={styles.actionCard}
-                onClick={() =>
-                  router.push(`/events/new/details?type=group&groupId=${encodeURIComponent(group.id)}`)
-                }
-              >
-                <div style={styles.actionTitle}>Crear plan</div>
-                <div style={styles.actionSub}>Convierte una idea en evento compartido para este grupo.</div>
-              </button>
-
-              <button type="button" style={styles.actionCard} onClick={() => router.push("/calendar")}>
-                <div style={styles.actionTitle}>Abrir calendario</div>
-                <div style={styles.actionSub}>Ver cómo este grupo se mezcla con tu agenda personal.</div>
-              </button>
-
-              <button type="button" style={styles.actionCard} onClick={() => router.push("/groups")}>
-                <div style={styles.actionTitle}>Ver otros grupos</div>
-                <div style={styles.actionSub}>Cambiar de espacio o revisar otro contexto compartido.</div>
-              </button>
-            </div>
-          </Section>
+            <button
+              type="button"
+              style={styles.ghostButton}
+              onClick={() => router.push(`/members?groupId=${encodeURIComponent(group.id)}`)}
+            >
+              Ver miembros
+            </button>
+          </div>
         </Card>
+
+        {!group.is_active ? (
+          <Card tone="muted" style={styles.noticeCard}>
+            <div style={styles.noticeCopy}>
+              <div style={styles.noticeTitle}>Este grupo todavía no es tu contexto activo</div>
+              <p style={styles.noticeText}>
+                Actívalo si quieres que tus próximos planes compartidos usen este grupo por defecto.
+              </p>
+            </div>
+            <button type="button" style={activateButtonStyle} onClick={handleActivate} disabled={saving}>
+              {saving ? "Activando…" : "Activar grupo"}
+            </button>
+          </Card>
+        ) : null}
+
+        <div style={styles.contentGrid}>
+          <Card tone="muted" style={styles.infoCard}>
+            <div style={styles.infoIcon}>👥</div>
+            <div style={styles.infoCopy}>
+              <div style={styles.sectionTitle}>Miembros</div>
+              <p style={styles.sectionBody}>{getMemberCopy(group.members_count)} con acceso a este grupo.</p>
+            </div>
+            <button
+              type="button"
+              style={styles.cardAction}
+              onClick={() => router.push(`/members?groupId=${encodeURIComponent(group.id)}`)}
+            >
+              Ver miembros
+            </button>
+          </Card>
+
+          <Card tone="muted" style={styles.infoCard}>
+            <div style={styles.infoIcon}>✉️</div>
+            <div style={styles.infoCopy}>
+              <div style={styles.sectionTitle}>Invitaciones</div>
+              <p style={styles.sectionBody}>Agrega a la persona correcta a este espacio.</p>
+            </div>
+            <button
+              type="button"
+              style={styles.cardAction}
+              onClick={() => router.push(`/groups/invite?groupId=${encodeURIComponent(group.id)}`)}
+            >
+              Invitar
+            </button>
+          </Card>
+        </div>
+
+        <div style={styles.footerActions}>
+          <button type="button" style={styles.footerAction} onClick={() => router.push("/calendar")}>
+            <span style={styles.footerActionTitle}>Abrir calendario</span>
+            <span style={styles.footerActionSub}>Ver planes y cruces.</span>
+          </button>
+
+          <button type="button" style={styles.footerAction} onClick={() => router.push("/groups")}>
+            <span style={styles.footerActionTitle}>Otros grupos</span>
+            <span style={styles.footerActionSub}>Cambiar de espacio.</span>
+          </button>
+        </div>
       </Section>
     </MobileScaffold>
   );
@@ -416,6 +448,10 @@ const styles: Record<string, CSSProperties> = {
       "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
   },
+  pageStack: {
+    display: "grid",
+    gap: 12,
+  },
   surfaceCard: {
     borderRadius: 24,
     border: "1px solid rgba(255,255,255,0.08)",
@@ -423,16 +459,51 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
     backdropFilter: "blur(12px)",
   },
-  stack: {
-    display: "grid",
-    gap: 14,
-  },
-  topRow: {
+  topBar: {
+    width: "100%",
     display: "flex",
     justifyContent: "space-between",
-    gap: 12,
-    alignItems: "flex-start",
+    gap: 10,
+    alignItems: "center",
     flexWrap: "wrap",
+  },
+  topPills: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  backLink: {
+    minHeight: 34,
+    padding: "0 2px",
+    border: "none",
+    background: "transparent",
+    color: "rgba(226,232,240,0.84)",
+    fontSize: 13,
+    fontWeight: 850,
+    cursor: "pointer",
+  },
+  smallPill: {
+    minHeight: 30,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 7,
+    padding: "0 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.05)",
+    color: "rgba(255,255,255,0.91)",
+    fontSize: 12,
+    fontWeight: 850,
+    lineHeight: 1,
+    whiteSpace: "nowrap",
+  },
+  pillDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    flexShrink: 0,
   },
   toastWrap: {
     position: "fixed",
@@ -490,7 +561,7 @@ const styles: Record<string, CSSProperties> = {
   emptyState: {
     padding: 18,
     display: "grid",
-    gap: 8,
+    gap: 10,
   },
   emptyTitle: {
     margin: 0,
@@ -513,16 +584,82 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
     alignItems: "center",
   },
-  backButton: {
-    minHeight: 42,
-    padding: "0 14px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.94)",
-    fontSize: 13,
-    fontWeight: 850,
-    cursor: "pointer",
+  heroCard: {
+    display: "grid",
+    gap: 16,
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.08)",
+    padding: 18,
+    overflow: "hidden",
+    boxShadow: "0 18px 60px rgba(0,0,0,0.22)",
+    backdropFilter: "blur(12px)",
+  },
+  heroTop: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  heroCopy: {
+    display: "grid",
+    gap: 6,
+    minWidth: 0,
+    flex: "1 1 320px",
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.10em",
+    color: "rgba(125,211,252,0.84)",
+  },
+  heroTitle: {
+    margin: 0,
+    fontSize: "clamp(30px, 8vw, 46px)",
+    lineHeight: 1.02,
+    fontWeight: 950,
+    letterSpacing: "-0.05em",
+    color: "rgba(255,255,255,0.98)",
+  },
+  heroSubtitle: {
+    margin: 0,
+    maxWidth: 640,
+    fontSize: 14,
+    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.80)",
+  },
+  statsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(128px, 1fr))",
+    gap: 10,
+  },
+  statCard: {
+    minWidth: 0,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.035)",
+    padding: "12px 12px",
+  },
+  statLabel: {
+    fontSize: 10.5,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "rgba(148,163,184,0.90)",
+  },
+  statValue: {
+    marginTop: 5,
+    fontSize: 15,
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.96)",
+    lineHeight: 1.2,
+  },
+  heroActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
   },
   primary: {
     minHeight: 46,
@@ -535,164 +672,108 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     cursor: "pointer",
     boxShadow: "0 14px 28px rgba(30,64,175,0.22)",
+    whiteSpace: "nowrap",
   },
   secondary: {
     minHeight: 46,
     padding: "0 16px",
     borderRadius: 15,
     border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
+    background: "rgba(255,255,255,0.045)",
     color: "rgba(255,255,255,0.94)",
     fontSize: 14,
     fontWeight: 850,
     cursor: "pointer",
+    whiteSpace: "nowrap",
   },
-  heroCard: {
-    display: "grid",
-    gap: 16,
-    borderRadius: 22,
+  ghostButton: {
+    minHeight: 46,
+    padding: "0 14px",
+    borderRadius: 15,
     border: "1px solid rgba(255,255,255,0.08)",
-    padding: 18,
-    overflow: "hidden",
+    background: "transparent",
+    color: "rgba(226,232,240,0.86)",
+    fontSize: 14,
+    fontWeight: 850,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   },
-  heroHeaderRow: {
+  noticeCard: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 14,
     flexWrap: "wrap",
+    borderRadius: 20,
+    padding: 16,
+    border: "1px solid rgba(251,191,36,0.16)",
+    background: "rgba(251,191,36,0.06)",
   },
-  heroMain: {
+  noticeCopy: {
     display: "grid",
-    gap: 8,
-    maxWidth: 820,
-  },
-  heroPill: {
-    width: "fit-content",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    minHeight: 32,
-    padding: "0 12px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.05)",
-    fontSize: 12,
-    fontWeight: 850,
-    color: "rgba(255,255,255,0.94)",
-  },
-  heroDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-  },
-  heroTitle: {
-    margin: 0,
-    fontSize: "clamp(26px, 7vw, 40px)",
-    lineHeight: 1.03,
-    fontWeight: 950,
-    letterSpacing: "-0.045em",
-    color: "rgba(255,255,255,0.98)",
-  },
-  heroText: {
-    margin: 0,
-    fontSize: 14,
-    lineHeight: 1.62,
-    color: "rgba(226,232,240,0.82)",
-    maxWidth: 720,
-  },
-  metaGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))",
-    gap: 10,
-  },
-  metricCard: {
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.035)",
-    padding: "12px 12px",
+    gap: 3,
     minWidth: 0,
+    flex: "1 1 280px",
   },
-  metricLabel: {
-    fontSize: 11,
-    fontWeight: 850,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(148,163,184,0.90)",
+  noticeTitle: {
+    fontSize: 14,
+    fontWeight: 950,
+    color: "rgba(255,255,255,0.95)",
   },
-  metricValue: {
-    marginTop: 5,
-    fontSize: 15,
-    fontWeight: 900,
-    color: "rgba(255,255,255,0.96)",
-    lineHeight: 1.2,
+  noticeText: {
+    margin: 0,
+    fontSize: 13,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.76)",
   },
-  activeBadge: {
-    minHeight: 32,
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "0 11px",
-    borderRadius: 999,
-    border: "1px solid rgba(34,197,94,0.22)",
-    background: "rgba(34,197,94,0.14)",
-    color: "rgba(220,252,231,0.94)",
-    fontSize: 12,
-    fontWeight: 900,
-  },
-  inactiveBadge: {
-    minHeight: 32,
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "0 11px",
-    borderRadius: 999,
-    border: "1px solid rgba(251,191,36,0.22)",
-    background: "rgba(251,191,36,0.12)",
-    color: "rgba(254,243,199,0.94)",
-    fontSize: 12,
-    fontWeight: 900,
-  },
-  heroActions: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
-  grid: {
+  contentGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
     gap: 12,
   },
   infoCard: {
     borderRadius: 20,
     padding: 16,
     display: "grid",
-    gap: 9,
+    gridTemplateColumns: "auto 1fr",
+    gap: 12,
+    alignItems: "start",
     minWidth: 0,
   },
-  sectionEyebrow: {
-    fontSize: 11,
-    fontWeight: 900,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "rgba(125,211,252,0.86)",
+  infoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.045)",
+    fontSize: 17,
+  },
+  infoCopy: {
+    display: "grid",
+    gap: 4,
+    minWidth: 0,
   },
   sectionTitle: {
-    fontSize: 19,
-    lineHeight: 1.15,
+    fontSize: 17,
+    lineHeight: 1.2,
     fontWeight: 950,
     letterSpacing: "-0.03em",
     color: "rgba(255,255,255,0.98)",
   },
   sectionBody: {
     margin: 0,
-    fontSize: 14,
-    lineHeight: 1.62,
-    color: "rgba(226,232,240,0.82)",
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.78)",
   },
   cardAction: {
+    gridColumn: "1 / -1",
     justifySelf: "start",
     minHeight: 38,
-    marginTop: 4,
+    marginTop: 2,
     padding: "0 12px",
     borderRadius: 13,
     border: "1px solid rgba(255,255,255,0.12)",
@@ -702,32 +783,31 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 850,
     cursor: "pointer",
   },
-  actionGrid: {
+  footerActions: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
     gap: 12,
   },
-  actionCard: {
+  footerAction: {
+    minWidth: 0,
     textAlign: "left",
     borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))",
-    padding: "16px 16px",
+    background: "linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.018))",
+    padding: "14px 15px",
     display: "grid",
-    gap: 8,
+    gap: 4,
     cursor: "pointer",
     color: "rgba(255,255,255,0.96)",
-    boxShadow: "0 12px 34px rgba(0,0,0,0.16)",
-    minWidth: 0,
   },
-  actionTitle: {
-    fontSize: 17,
+  footerActionTitle: {
+    fontSize: 15,
     fontWeight: 900,
-    lineHeight: 1.25,
+    lineHeight: 1.2,
   },
-  actionSub: {
-    fontSize: 13,
-    lineHeight: 1.55,
-    color: "rgba(203,213,225,0.78)",
+  footerActionSub: {
+    fontSize: 12.5,
+    lineHeight: 1.45,
+    color: "rgba(203,213,225,0.75)",
   },
 };
