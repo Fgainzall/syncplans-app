@@ -12,7 +12,6 @@ import Section from "@/components/ui/Section";
 import Card from "@/components/ui/Card";
 import EventsEmptyState from "@/components/events/EventsEmptyState";
 import EventsTimeline from "@/components/EventsTimeline";
-import { buildConflictsByEventId } from "@/components/eventsTimelineHelpers";
 import { trackEventOnce, trackScreenView } from "@/lib/analytics";
 
 import {
@@ -23,6 +22,17 @@ import {
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
 import { getMyDeclinedEventIds } from "@/lib/eventResponsesDb";
 import { filterVisibleEvents } from "@/lib/tempeventVisibility";
+import {
+  computeVisibleConflicts,
+  filterIgnoredConflicts,
+  type CalendarEvent,
+} from "@/lib/conflicts";
+import { getConflictDecisionSnapshot } from "@/lib/decisionEngine";
+import { getIgnoredConflictKeys } from "@/lib/conflictPrefs";
+import {
+  getMyConflictResolutionsMap,
+  type Resolution,
+} from "@/lib/conflictResolutionsDb";
 import { getMyProfile } from "@/lib/profilesDb";
 import { hasPremiumAccess } from "@/lib/premium";
 
@@ -38,6 +48,24 @@ type FilterState = {
 type EventWithGroup = DbEventRow & {
   group?: GroupRow | null;
 };
+
+function toConflictCalendarEvent(event: EventWithGroup): CalendarEvent | null {
+  const id = String(event.id ?? "").trim();
+  const start = String(event.start ?? "").trim();
+  const end = String(event.end ?? "").trim();
+
+  if (!id || !start || !end) return null;
+
+  return {
+    id,
+    title: String(event.title ?? "Sin título"),
+    start,
+    end,
+    groupType: event.group?.type ?? (event.group_id ? "other" : "personal"),
+    groupId: event.group_id ?? null,
+    notes: event.notes ?? undefined,
+  };
+}
 
 type SegmentOption<T extends string> = {
   value: T;
@@ -180,6 +208,10 @@ export default function EventsPage() {
   const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [resolvedConflictMap, setResolvedConflictMap] = useState<Record<string, Resolution>>({});
+  const [ignoredConflictKeys, setIgnoredConflictKeys] = useState<Set<string>>(
+    () => new Set()
+  );
   const [groups, setGroups] = useState<GroupRow[]>([]);
 
   const [filters, setFilters] = useState<FilterState>({
@@ -233,7 +265,14 @@ export default function EventsPage() {
           return;
         }
 
-        const [eventsRes, groupsRes, declinedRes, profileRes] = await Promise.all([
+        const [
+          eventsRes,
+          groupsRes,
+          declinedRes,
+          conflictResMap,
+          ignoredKeys,
+          profileRes,
+        ] = await Promise.all([
           getEventsForView("upcoming").catch((err) => {
             console.error("Error getMyEventsInRange en /events:", err);
             return [] as DbEventRow[];
@@ -244,6 +283,14 @@ export default function EventsPage() {
           }),
           getMyDeclinedEventIds().catch((err) => {
             console.error("Error getMyDeclinedEventIds en /events:", err);
+            return new Set<string>();
+          }),
+          getMyConflictResolutionsMap().catch((err) => {
+            console.error("Error getMyConflictResolutionsMap en /events:", err);
+            return {};
+          }),
+          getIgnoredConflictKeys().catch((err) => {
+            console.error("Error getIgnoredConflictKeys en /events:", err);
             return new Set<string>();
           }),
           getMyProfile().catch((err) => {
@@ -264,6 +311,8 @@ export default function EventsPage() {
         setEvents(withGroup);
         setGroups(groupsRes);
         setDeclinedEventIds(declinedRes);
+        setResolvedConflictMap(conflictResMap ?? {});
+        setIgnoredConflictKeys(ignoredKeys instanceof Set ? ignoredKeys : new Set());
         setLoadedView("upcoming");
         setHasPremium(hasPremiumAccess(profileRes));
       } catch (err) {
@@ -337,15 +386,33 @@ export default function EventsPage() {
 
     const upcomingEvents = visibleEvents.filter((event) => new Date(event.start) >= now);
     const historyEvents = visibleEvents.filter((event) => new Date(event.end) < now);
-    const conflictsById = buildConflictsByEventId(upcomingEvents);
 
-    const conflictedIds = new Set(
-      Object.entries(conflictsById)
-        .filter(([, conflicts]) => conflicts.length > 0)
-        .map(([eventId]) => eventId)
-    );
+    const eventsForConflictEngine = upcomingEvents
+      .map(toConflictCalendarEvent)
+      .filter(Boolean) as CalendarEvent[];
 
-    const actionRequiredIds = new Set<string>(conflictedIds);
+    const pendingConflicts = filterIgnoredConflicts(
+      computeVisibleConflicts(eventsForConflictEngine),
+      ignoredConflictKeys
+    ).filter((conflict) => {
+      const snapshot = getConflictDecisionSnapshot({
+        conflict: {
+          id: conflict.id,
+          existing: conflict.existingEventId,
+          incoming: conflict.incomingEventId,
+        },
+        resolvedConflictMap,
+      });
+
+      return snapshot.isPending;
+    });
+
+    const actionRequiredIds = new Set<string>();
+
+    for (const conflict of pendingConflicts) {
+      actionRequiredIds.add(String(conflict.existingEventId));
+      actionRequiredIds.add(String(conflict.incomingEventId));
+    }
 
     for (const event of upcomingEvents) {
       const eventId = String(event.id);
@@ -364,12 +431,12 @@ export default function EventsPage() {
 
     return {
       actionRequiredCount: actionRequiredIds.size,
-      conflictEventCount: conflictedIds.size,
+      conflictEventCount: pendingConflicts.length,
       upcomingCount: upcomingEvents.length,
       historyCount: historyEvents.length,
       sharedUpcomingCount,
     };
-  }, [events, declinedEventIds, hiddenEventIds]);
+  }, [events, declinedEventIds, hiddenEventIds, ignoredConflictKeys, resolvedConflictMap]);
 
   const inboxLanes = useMemo<Array<{
     action: InboxLaneAction;
@@ -574,7 +641,7 @@ export default function EventsPage() {
     try {
       setLoading(true);
 
-      const [eventsRes, groupsRes, declinedRes] = await Promise.all([
+      const [eventsRes, groupsRes, declinedRes, conflictResMap, ignoredKeys] = await Promise.all([
         getEventsForView(viewOverride).catch((err) => {
           console.error("Error refrescando getMyEventsInRange:", err);
           return [] as DbEventRow[];
@@ -585,6 +652,14 @@ export default function EventsPage() {
         }),
         getMyDeclinedEventIds().catch((err) => {
           console.error("Error refrescando getMyDeclinedEventIds:", err);
+          return new Set<string>();
+        }),
+        getMyConflictResolutionsMap().catch((err) => {
+          console.error("Error refrescando getMyConflictResolutionsMap:", err);
+          return {};
+        }),
+        getIgnoredConflictKeys().catch((err) => {
+          console.error("Error refrescando getIgnoredConflictKeys:", err);
           return new Set<string>();
         }),
       ]);
@@ -599,6 +674,8 @@ export default function EventsPage() {
       setEvents(withGroup);
       setGroups(groupsRes);
       setDeclinedEventIds(declinedRes);
+      setResolvedConflictMap(conflictResMap ?? {});
+      setIgnoredConflictKeys(ignoredKeys instanceof Set ? ignoredKeys : new Set());
       setLoadedView(viewOverride);
 } catch (err: unknown) {
   console.error("Error refrescando eventos:", err);
