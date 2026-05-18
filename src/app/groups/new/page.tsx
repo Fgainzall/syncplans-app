@@ -108,7 +108,14 @@ export default function NewGroupPage() {
         if (!alive) return;
 
         setProfile(profileRow ?? null);
-        setExistingGroupsCount(Array.isArray(groups) ? groups.length : 0);
+
+        // Para el límite Free futuro, cuenta solo los grupos creados por el usuario,
+        // no los grupos donde fue invitado como miembro. En beta esto no bloquea,
+        // pero deja la lógica correcta para cuando se reactive monetización.
+        const ownedGroupsCount = Array.isArray(groups)
+          ? groups.filter((group) => group.owner_id === data.session.user.id).length
+          : 0;
+        setExistingGroupsCount(ownedGroupsCount);
       } finally {
         if (alive) setBooting(false);
       }

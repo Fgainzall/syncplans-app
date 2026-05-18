@@ -60,6 +60,10 @@ export type PlanAccessState = PlanSnapshot & {
 
 export const FREE_GROUP_LIMIT = 1;
 
+// Beta pública: mientras estamos validando uso real, todos los usuarios
+// tienen acceso premium para no bloquear creación de grupos ni prueba del core.
+export const BETA_PREMIUM_FOR_ALL = true;
+
 const INACTIVE_STATUSES: PlanStatus[] = [
   "inactive",
   "canceled",
@@ -135,6 +139,8 @@ export function getBillingCycle(tier: PlanTier): BillingCycle {
 export function hasPremiumAccess(
   profile: AnyProfile | null | undefined
 ): boolean {
+  if (BETA_PREMIUM_FOR_ALL) return true;
+
   if (!profile) return false;
 
   const tier = normalizePlanTier(profile.plan_tier);
@@ -185,7 +191,13 @@ export function getPlanSnapshot(
   let planDescription =
     "La base para probar la promesa sin fricción: crear un espacio, invitar a la otra persona y comprobar si una sola verdad compartida reduce coordinación por chat.";
 
-  if (founder) {
+  if (BETA_PREMIUM_FOR_ALL) {
+    planLabel = "Beta Premium";
+    planTag = "Beta abierta";
+    statusLabel = "Premium activo durante beta";
+    planDescription =
+      "Durante la beta, todos los usuarios tienen acceso premium para probar grupos, coordinación compartida, conflictos y funciones avanzadas sin bloqueos.";
+  } else if (founder) {
     planLabel = "Founder";
     planTag = "Acceso Founder";
     statusLabel = "Founder activo";
