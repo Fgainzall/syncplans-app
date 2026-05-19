@@ -16,6 +16,7 @@ import {
   jsonError,
   jsonOk,
   logRequestStart,
+  logWarn,
   maskEmail,
   safeError,
   type ApiRequestContext,
@@ -294,6 +295,49 @@ function isEventInviteType(value: string) {
   return value === "event" || value === "event_specific" || value === "event-specific";
 }
 
+
+async function recordEventInviteEmailAudit(
+  req: Request,
+  opts: {
+    inviteId: string;
+    action: string;
+    outcome: "success" | "failed" | "blocked";
+    errorCode?: string;
+    requestId?: string;
+    metadata?: Record<string, unknown>;
+  }
+) {
+  try {
+    const supabase = await createSupabaseUserClient(req);
+    const { error } = await supabase.rpc("log_event_invite_email_result", {
+      p_invite_id: opts.inviteId,
+      p_action: opts.action,
+      p_outcome: opts.outcome,
+      p_error_code: opts.errorCode ?? null,
+      p_request_id: opts.requestId ?? null,
+      p_metadata: opts.metadata ?? {},
+    });
+
+    if (error) {
+      logWarn("event_invite.email_audit_failed", {
+        inviteId: opts.inviteId,
+        action: opts.action,
+        outcome: opts.outcome,
+        requestId: opts.requestId,
+        error: safeError(error),
+      });
+    }
+  } catch (error) {
+    logWarn("event_invite.email_audit_failed", {
+      inviteId: opts.inviteId,
+      action: opts.action,
+      outcome: opts.outcome,
+      requestId: opts.requestId,
+      error: safeError(error),
+    });
+  }
+}
+
 export async function POST(req: Request) {
   const ctx = createApiRequestContext(req);
   logRequestStart(ctx, { flow: "email-invite" });
@@ -395,6 +439,18 @@ export async function POST(req: Request) {
       const invitedEmail = normEmail(eventInvite.invited_email ?? "");
 
       if (!invitedEmail || invitedEmail !== email) {
+        await recordEventInviteEmailAudit(req, {
+          inviteId,
+          action: "event_invite_email_mismatch",
+          outcome: "blocked",
+          errorCode: "EMAIL_EVENT_INVITE_EMAIL_MISMATCH",
+          requestId: ctx.requestId,
+          metadata: {
+            requestedEmail: maskEmail(email),
+            invitedEmail: maskEmail(invitedEmail),
+          },
+        });
+
         return publicError(
           ctx,
           "El email no coincide con la invitación del plan.",
@@ -409,6 +465,15 @@ export async function POST(req: Request) {
       }
 
       if (String(eventInvite.status ?? "pending").trim().toLowerCase() !== "pending") {
+        await recordEventInviteEmailAudit(req, {
+          inviteId,
+          action: "event_invite_email_not_pending",
+          outcome: "blocked",
+          errorCode: "EMAIL_EVENT_INVITE_NOT_PENDING",
+          requestId: ctx.requestId,
+          metadata: { inviteStatus: eventInvite.status ?? null },
+        });
+
         return publicError(
           ctx,
           "La invitación del plan ya no está pendiente.",
@@ -423,6 +488,15 @@ export async function POST(req: Request) {
       );
 
       if (eventError) {
+        await recordEventInviteEmailAudit(req, {
+          inviteId,
+          action: "event_invite_email_event_lookup_failed",
+          outcome: "failed",
+          errorCode: "EMAIL_EVENT_LOOKUP_FAILED",
+          requestId: ctx.requestId,
+          metadata: { error: safeError(eventError) },
+        });
+
         return publicError(
           ctx,
           "No se pudo cargar el plan para enviar el email.",
@@ -437,6 +511,14 @@ export async function POST(req: Request) {
       try {
         resendKey = requiredServerEnv("RESEND_API_KEY");
       } catch {
+        await recordEventInviteEmailAudit(req, {
+          inviteId,
+          action: "event_invite_email_config_failed",
+          outcome: "failed",
+          errorCode: "EMAIL_RESEND_API_KEY_MISSING",
+          requestId: ctx.requestId,
+        });
+
         return publicError(
           ctx,
           "Configuración de email incompleta.",
@@ -448,6 +530,14 @@ export async function POST(req: Request) {
       const from = optionalEnv("EMAIL_FROM", "RESEND_FROM");
 
       if (!from) {
+        await recordEventInviteEmailAudit(req, {
+          inviteId,
+          action: "event_invite_email_config_failed",
+          outcome: "failed",
+          errorCode: "EMAIL_FROM_MISSING",
+          requestId: ctx.requestId,
+        });
+
         return publicError(
           ctx,
           "Configuración de remitente incompleta.",
@@ -477,6 +567,19 @@ export async function POST(req: Request) {
       });
 
       if (error) {
+        await recordEventInviteEmailAudit(req, {
+          inviteId,
+          action: "event_invite_email_failed",
+          outcome: "failed",
+          errorCode: "EMAIL_PROVIDER_REJECTED",
+          requestId: ctx.requestId,
+          metadata: {
+            provider: "resend",
+            email: maskEmail(invitedEmail),
+            error: safeError(error),
+          },
+        });
+
         return jsonError(ctx, {
           error: (error as ResendErrorLike | null)?.message || "Resend error",
           code: "EMAIL_PROVIDER_REJECTED",
@@ -489,6 +592,18 @@ export async function POST(req: Request) {
           },
         });
       }
+
+      await recordEventInviteEmailAudit(req, {
+        inviteId,
+        action: "event_invite_email_sent",
+        outcome: "success",
+        requestId: ctx.requestId,
+        metadata: {
+          provider: "resend",
+          resendId: data?.id ?? null,
+          email: maskEmail(invitedEmail),
+        },
+      });
 
       return jsonOk(
         ctx,
