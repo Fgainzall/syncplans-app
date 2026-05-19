@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { trackEvent } from "@/lib/analytics";
+import { isGoogleEventWithExternalGuests } from "@/lib/naming";
 import {
   deleteEventsByIdsDetailed,
   generatePublicInviteLink,
@@ -17,12 +18,20 @@ import {
   type TimelineEvent,
 } from "./eventsTimelineHelpers";
 
+type TimelineGroupOption = {
+  id: string;
+  name: string | null;
+  type?: string | null;
+};
+
 type Props = {
   events: TimelineEvent[];
   selectedIds: Set<string>;
   focusedEventId?: string | null;
+  groups?: TimelineGroupOption[];
   onToggleSelected: (id: string) => void;
   onEventsRemoved?: (removedIds: string[]) => void;
+  onLinkGoogleGuestEventToGroup?: (event: TimelineEvent, groupId: string) => Promise<void> | void;
 };
 
 type ShareState = {
@@ -36,14 +45,24 @@ export default function EventsTimeline({
   events,
   selectedIds,
   focusedEventId = null,
+  groups = [],
   onToggleSelected,
   onEventsRemoved,
+  onLinkGoogleGuestEventToGroup,
 }: Props) {
   const router = useRouter();
 
   const shareRequestRef = useRef<Partial<Record<string, Promise<string | null>>>>({});
   const eventRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [shareStateById, setShareStateById] = useState<Record<string, ShareState>>(
+    {}
+  );
+  const [linkPanelEventId, setLinkPanelEventId] = useState<string | null>(null);
+  const [selectedGroupByEventId, setSelectedGroupByEventId] = useState<Record<string, string>>(
+    {}
+  );
+  const [linkingEventId, setLinkingEventId] = useState<string | null>(null);
+  const [linkErrorByEventId, setLinkErrorByEventId] = useState<Record<string, string | null>>(
     {}
   );
 
@@ -79,6 +98,16 @@ export default function EventsTimeline({
       dayEvents,
     }));
   }, [sorted]);
+
+  const linkableGroups = useMemo(() => {
+    return (Array.isArray(groups) ? groups : [])
+      .map((group) => ({
+        ...group,
+        id: String(group.id ?? "").trim(),
+        name: String(group.name ?? "").trim() || "Grupo compartido",
+      }))
+      .filter((group) => Boolean(group.id));
+  }, [groups]);
 
 const timelineSummary = useMemo(() => {
   const shared = sorted.filter((ev) => !!ev.group_id).length;
@@ -278,6 +307,58 @@ ${link}`;
     });
   }
 
+  function openLinkPanel(ev: TimelineEvent) {
+    const eventId = String(ev.id);
+    setLinkPanelEventId((current) => (current === eventId ? null : eventId));
+    setLinkErrorByEventId((prev) => ({ ...prev, [eventId]: null }));
+
+    if (!selectedGroupByEventId[eventId] && linkableGroups[0]?.id) {
+      setSelectedGroupByEventId((prev) => ({
+        ...prev,
+        [eventId]: linkableGroups[0].id,
+      }));
+    }
+  }
+
+  async function confirmLinkToGroup(ev: TimelineEvent) {
+    const eventId = String(ev.id);
+    const groupId = String(selectedGroupByEventId[eventId] ?? linkableGroups[0]?.id ?? "").trim();
+
+    if (!groupId) {
+      setLinkErrorByEventId((prev) => ({
+        ...prev,
+        [eventId]: "Primero necesitas elegir un grupo.",
+      }));
+      return;
+    }
+
+    if (!onLinkGoogleGuestEventToGroup) {
+      setLinkErrorByEventId((prev) => ({
+        ...prev,
+        [eventId]: "Esta acción todavía no está disponible.",
+      }));
+      return;
+    }
+
+    try {
+      setLinkingEventId(eventId);
+      setLinkErrorByEventId((prev) => ({ ...prev, [eventId]: null }));
+      await onLinkGoogleGuestEventToGroup(ev, groupId);
+      setLinkPanelEventId(null);
+    } catch (error: unknown) {
+      console.error("[EventsTimeline] link Google guest event to group error", error);
+      setLinkErrorByEventId((prev) => ({
+        ...prev,
+        [eventId]:
+          error instanceof Error
+            ? error.message
+            : "No se pudo traer este evento a SyncPlans. Intenta de nuevo.",
+      }));
+    } finally {
+      setLinkingEventId((current) => (current === eventId ? null : current));
+    }
+  }
+
   return (
     <div style={S.wrapper}>
       <div style={S.headerCard}>
@@ -319,38 +400,124 @@ ${link}`;
                 const eventId = String(ev.id);
 
                 return (
-                  <EventTimelineCard
-                    key={eventId}
-                    ev={ev}
-                    checked={selectedIds.has(eventId)}
-                    focused={focusedEventId === eventId}
-                    currentUserId={currentUserId}
-                    onToggleSelected={onToggleSelected}
-                    onDelete={onDelete}
-                    onCreateShareLink={onCreateShareLink}
-                    onCopyLink={onCopyLink}
-                    onWhatsApp={onWhatsApp}
-                    onCloseShare={onCloseShare}
-                    router={router}
-                    shareState={shareStateById[eventId]}
-                    invite={inviteStateByEventId[eventId] ?? null}
-                    inviteStatesLoading={inviteStatesLoading}
-                    trustSignal={trustSignalsByEventId[eventId] ?? null}
-                    proposalResponse={proposalResponsesByEventId[eventId] ?? null}
-                    proposalResponseGroup={
-                      proposalResponseGroupsByEventId[eventId] ?? []
-                    }
-                    proposalProfile={
-                      proposalProfilesById[
-                        String(proposalResponsesByEventId[eventId]?.user_id ?? "")
-                      ] ?? null
-                    }
-                    eventResponseStatus={eventResponsesByEventId[eventId] ?? null}
-                    conflictsCount={(conflictsByEventId[eventId] ?? []).length}
-                    eventRef={(node) => {
-                      eventRefs.current[eventId] = node;
-                    }}
-                  />
+                  <div key={eventId} style={S.eventShell}>
+                    <EventTimelineCard
+                      ev={ev}
+                      checked={selectedIds.has(eventId)}
+                      focused={focusedEventId === eventId}
+                      currentUserId={currentUserId}
+                      onToggleSelected={onToggleSelected}
+                      onDelete={onDelete}
+                      onCreateShareLink={onCreateShareLink}
+                      onCopyLink={onCopyLink}
+                      onWhatsApp={onWhatsApp}
+                      onCloseShare={onCloseShare}
+                      router={router}
+                      shareState={shareStateById[eventId]}
+                      invite={inviteStateByEventId[eventId] ?? null}
+                      inviteStatesLoading={inviteStatesLoading}
+                      trustSignal={trustSignalsByEventId[eventId] ?? null}
+                      proposalResponse={proposalResponsesByEventId[eventId] ?? null}
+                      proposalResponseGroup={
+                        proposalResponseGroupsByEventId[eventId] ?? []
+                      }
+                      proposalProfile={
+                        proposalProfilesById[
+                          String(proposalResponsesByEventId[eventId]?.user_id ?? "")
+                        ] ?? null
+                      }
+                      eventResponseStatus={eventResponsesByEventId[eventId] ?? null}
+                      conflictsCount={(conflictsByEventId[eventId] ?? []).length}
+                      eventRef={(node) => {
+                        eventRefs.current[eventId] = node;
+                      }}
+                    />
+
+                    {isGoogleEventWithExternalGuests(ev) ? (
+                      <div style={S.googleImportBox}>
+                        <div style={S.googleImportCopy}>
+                          <div style={S.googleImportEyebrow}>Google Calendar detectado</div>
+                          <div style={S.googleImportTitle}>Este plan tiene invitados fuera de SyncPlans.</div>
+                          <div style={S.googleImportBody}>
+                            Puedes traerlo a un espacio existente para coordinarlo como plan compartido. Nadie será invitado automáticamente.
+                          </div>
+                        </div>
+
+                        {linkPanelEventId === eventId ? (
+                          <div style={S.googleImportControls}>
+                            {linkableGroups.length > 0 ? (
+                              <>
+                                <select
+                                  value={selectedGroupByEventId[eventId] ?? linkableGroups[0]?.id ?? ""}
+                                  onChange={(e) =>
+                                    setSelectedGroupByEventId((prev) => ({
+                                      ...prev,
+                                      [eventId]: e.target.value,
+                                    }))
+                                  }
+                                  disabled={linkingEventId === eventId}
+                                  style={S.groupSelect}
+                                >
+                                  {linkableGroups.map((group) => (
+                                    <option key={group.id} value={group.id}>
+                                      {group.name}
+                                    </option>
+                                  ))}
+                                </select>
+
+                                <button
+                                  type="button"
+                                  onClick={() => void confirmLinkToGroup(ev)}
+                                  disabled={linkingEventId === eventId}
+                                  style={S.confirmLinkButton}
+                                >
+                                  {linkingEventId === eventId ? "Vinculando…" : "Vincular"}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setLinkPanelEventId(null)}
+                                  disabled={linkingEventId === eventId}
+                                  style={S.cancelLinkButton}
+                                >
+                                  Cancelar
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => router.push("/groups/new")}
+                                  style={S.confirmLinkButton}
+                                >
+                                  Crear grupo
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setLinkPanelEventId(null)}
+                                  style={S.cancelLinkButton}
+                                >
+                                  Cerrar
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openLinkPanel(ev)}
+                            style={S.openLinkButton}
+                          >
+                            Traer a SyncPlans
+                          </button>
+                        )}
+
+                        {linkErrorByEventId[eventId] ? (
+                          <div style={S.googleImportError}>{linkErrorByEventId[eventId]}</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>
@@ -371,6 +538,107 @@ const S: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     gap: 16,
     marginTop: 12,
+  },
+  eventShell: {
+    width: "100%",
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  googleImportBox: {
+    marginLeft: "clamp(0px, 2vw, 10px)",
+    marginRight: "clamp(0px, 2vw, 10px)",
+    padding: "12px clamp(12px, 3.6vw, 14px)",
+    borderRadius: 18,
+    border: "1px solid rgba(96,165,250,0.22)",
+    background: "linear-gradient(135deg, rgba(15,23,42,0.92), rgba(30,58,138,0.22))",
+    boxShadow: "0 14px 32px rgba(2,6,23,0.20)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  googleImportCopy: {
+    minWidth: 0,
+    display: "grid",
+    gap: 3,
+  },
+  googleImportEyebrow: {
+    fontSize: 10,
+    fontWeight: 950,
+    letterSpacing: 0.55,
+    textTransform: "uppercase",
+    color: "rgba(147,197,253,0.95)",
+  },
+  googleImportTitle: {
+    fontSize: 13,
+    fontWeight: 950,
+    color: "rgba(255,255,255,0.97)",
+    letterSpacing: "-0.01em",
+  },
+  googleImportBody: {
+    maxWidth: 680,
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(203,213,225,0.86)",
+  },
+  googleImportControls: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  groupSelect: {
+    minHeight: 34,
+    minWidth: 180,
+    maxWidth: "100%",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(15,23,42,0.96)",
+    color: "rgba(248,250,252,0.98)",
+    padding: "0 12px",
+    fontSize: 12,
+    fontWeight: 850,
+    outline: "none",
+  },
+  openLinkButton: {
+    alignSelf: "flex-start",
+    minHeight: 34,
+    border: "1px solid rgba(96,165,250,0.30)",
+    borderRadius: 999,
+    background: "rgba(37,99,235,0.18)",
+    color: "rgba(219,234,254,0.98)",
+    padding: "8px 12px",
+    fontSize: 12,
+    fontWeight: 950,
+    cursor: "pointer",
+  },
+  confirmLinkButton: {
+    minHeight: 34,
+    border: "1px solid rgba(96,165,250,0.30)",
+    borderRadius: 999,
+    background: "rgba(37,99,235,0.22)",
+    color: "rgba(219,234,254,0.98)",
+    padding: "8px 12px",
+    fontSize: 12,
+    fontWeight: 950,
+    cursor: "pointer",
+  },
+  cancelLinkButton: {
+    minHeight: 34,
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.045)",
+    color: "rgba(226,232,240,0.92)",
+    padding: "8px 12px",
+    fontSize: 12,
+    fontWeight: 850,
+    cursor: "pointer",
+  },
+  googleImportError: {
+    fontSize: 12,
+    lineHeight: 1.4,
+    color: "rgba(252,165,165,0.96)",
   },
   headerCard: {
     width: "100%",
