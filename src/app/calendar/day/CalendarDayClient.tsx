@@ -24,6 +24,7 @@ import {
   computeVisibleConflicts,
   attachEvents,
 } from "@/lib/conflicts";
+import { getEventAudienceLabel, isGoogleEventWithExternalGuests } from "@/lib/naming";
 type Scope = "personal" | "active" | "all";
 type Tab = "month" | "agenda";
 
@@ -34,6 +35,13 @@ type DbCalendarEventRow = Record<string, unknown> & {
   end?: string | null;
   groupId?: string | null;
   group_id?: string | null;
+  external_source?: string | null;
+  external_attendees_count?: number | string | null;
+};
+
+type DayCalendarEvent = CalendarEvent & {
+  external_source?: string | null;
+  external_attendees_count?: number | null;
 };
 
 type AttachedConflictLike = {
@@ -152,7 +160,7 @@ export default function CalendarDayClient(/* ... */) {
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
 
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [events, setEvents] = useState<DayCalendarEvent[]>([]);
   const [, setGroups] = useState<GroupRow[]>([]);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -222,7 +230,7 @@ const [enabledGroups, setEnabledGroups] = useState<Record<GroupType, boolean>>({
           myGroups.map((g) => [String(g.id), g.type === "solo" ? "personal" : g.type])
         );
 
-        const adapted: CalendarEvent[] = ((raw ?? []) as DbCalendarEventRow[]).map((e) => {
+        const adapted: DayCalendarEvent[] = ((raw ?? []) as DbCalendarEventRow[]).map((e) => {
           const gid = e.groupId ?? e.group_id ?? null;
 
           return {
@@ -232,11 +240,22 @@ const [enabledGroups, setEnabledGroups] = useState<Record<GroupType, boolean>>({
             end: String(e.end ?? e.start ?? ""),
             groupId: gid ? String(gid) : null,
             groupType: normalizeCalendarGroupType(gid ? (typeByGroupId.get(String(gid)) ?? "personal") : "personal"),
+            external_source: e.external_source ? String(e.external_source) : null,
+            external_attendees_count: Number.isFinite(Number(e.external_attendees_count))
+              ? Math.max(0, Math.trunc(Number(e.external_attendees_count)))
+              : 0,
           };
         });
 
         // 5) filtro final si scope === personal
-        const finalEvents = scope === "personal" ? adapted.filter((e) => (e.groupType ?? "personal") === "personal") : adapted;
+        const finalEvents =
+          scope === "personal"
+            ? adapted.filter(
+                (e) =>
+                  (e.groupType ?? "personal") === "personal" &&
+                  !isGoogleEventWithExternalGuests(e)
+              )
+            : adapted;
 
         setEvents(finalEvents);
         setError(null);
@@ -327,7 +346,7 @@ const [enabledGroups, setEnabledGroups] = useState<Record<GroupType, boolean>>({
       if (!isEnabled(gt)) return false;
 
       if (scope === "all") return true;
-      if (scope === "personal") return gt === "personal";
+      if (scope === "personal") return gt === "personal" && !isGoogleEventWithExternalGuests(e);
       // active = ya viene recortado por refreshCalendar (pero dejamos el guard-rail)
       return true;
     });
@@ -370,7 +389,7 @@ const [enabledGroups, setEnabledGroups] = useState<Record<GroupType, boolean>>({
   }, [attachedConflicts, gridStart, gridEnd]);
 
   const eventsByDay = useMemo(() => {
-    const map = new Map<string, CalendarEvent[]>();
+    const map = new Map<string, DayCalendarEvent[]>();
     for (const e of visibleEvents) {
       const key = ymd(new Date(e.start));
       const arr = map.get(key) || [];
@@ -714,7 +733,7 @@ function EventRow({
   highlightId,
   setRef,
 }: {
-  e: CalendarEvent;
+  e: DayCalendarEvent;
   highlightId?: string | null;
   setRef?: (id: string) => (el: HTMLDivElement | null) => void;
 }) {
@@ -738,7 +757,7 @@ function EventRow({
           <div style={styles.eventTitle}>{e.title || "Sin título"}</div>
           <div style={styles.eventTag}>
             <span style={{ ...styles.eventDot, background: meta.dot }} />
-            {meta.label}
+            {getEventAudienceLabel(e, { groupLabel: meta.label })}
           </div>
         </div>
         <div style={styles.eventTime}>{prettyTimeRange(e.start, e.end)}</div>
@@ -753,7 +772,7 @@ function renderMonthCells(opts: {
   monthStart: Date;
   selectedDay: Date;
   setSelectedDay: (d: Date) => void;
-  eventsByDay: Map<string, CalendarEvent[]>;
+  eventsByDay: Map<string, DayCalendarEvent[]>;
   openNewEventPersonal: (date?: Date) => void;
   openNewEventGroup: (date?: Date) => void;
 }) {

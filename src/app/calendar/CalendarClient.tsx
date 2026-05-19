@@ -45,6 +45,7 @@ import {
 } from "@/lib/dateUtils";
 import {
   getEventAudienceLabel,
+  isGoogleEventWithExternalGuests,
   normalizeGroupType,
 } from "@/lib/naming";
 import { buildEventContext } from "@/lib/eventContext";
@@ -1439,7 +1440,7 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
       if (scope === "all") return true;
 
       if (scope === "personal") {
-        return gt === "personal";
+        return gt === "personal" && !isGoogleEventWithExternalGuests(e);
       }
 
       // scope === "active"
