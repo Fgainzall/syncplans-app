@@ -32,6 +32,7 @@ export type DbEventRow = {
   updated_at?: string | null;
   external_source?: string | null;
   external_id?: string | null;
+  external_attendees_count?: number | null;
   location_label?: string | null;
   location_address?: string | null;
   location_lat?: number | null;
@@ -74,6 +75,7 @@ export type DbEvent = {
   updated_at?: string | null;
   external_source?: string | null;
   external_id?: string | null;
+  external_attendees_count?: number | null;
   location_label?: string | null;
   location_address?: string | null;
   location_lat?: number | null;
@@ -160,6 +162,7 @@ type DbEventInputRow = {
   updated_at?: unknown;
   external_source?: unknown;
   external_id?: unknown;
+  external_attendees_count?: unknown;
   location_label?: unknown;
   location_address?: unknown;
   location_provider?: unknown;
@@ -241,7 +244,7 @@ function filterInformationalGoogleEvents<T extends DbEventRow>(rows: T[]): T[] {
 ====================================================== */
 
 const EVENT_SELECT =
-  'id, user_id, owner_id, created_by, group_id, title, notes, start, "end", created_at, updated_at, external_source, external_id, location_label, location_address, location_lat, location_lng, location_provider, location_place_id, travel_mode, travel_eta_seconds, leave_time';
+  'id, user_id, owner_id, created_by, group_id, title, notes, start, "end", created_at, updated_at, external_source, external_id, external_attendees_count, location_label, location_address, location_lat, location_lng, location_provider, location_place_id, travel_mode, travel_eta_seconds, leave_time';
 
 /* ======================================================
   Helper interno: uid actual
@@ -277,6 +280,9 @@ function mapDbEventRow(row: DbEventInputRow): DbEventRow {
     updated_at: row.updated_at ? String(row.updated_at) : null,
     external_source: row.external_source ? String(row.external_source) : null,
     external_id: row.external_id ? String(row.external_id) : null,
+    external_attendees_count: Number.isFinite(Number(row.external_attendees_count))
+      ? Math.max(0, Math.trunc(Number(row.external_attendees_count)))
+      : 0,
     location_label: row.location_label ? String(row.location_label) : null,
     location_address: row.location_address ? String(row.location_address) : null,
     location_provider: row.location_provider

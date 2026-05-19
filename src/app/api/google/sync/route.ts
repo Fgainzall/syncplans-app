@@ -34,12 +34,22 @@ type GoogleCalendarListItem = {
   accessRole?: string;
 };
 
+type GoogleEventAttendee = {
+  email?: string;
+  displayName?: string;
+  responseStatus?: string;
+  self?: boolean;
+  resource?: boolean;
+};
+
 type GoogleEventItem = {
   id: string;
   status?: string;
   summary?: string;
   description?: string;
   updated?: string;
+  attendees?: GoogleEventAttendee[];
+  attendeesOmitted?: boolean;
   start?: {
     dateTime?: string;
     date?: string;
@@ -117,6 +127,38 @@ function isInformationalGoogleEventTitle(title: string): boolean {
     normalizedTitle.includes(normalizeInformationalText(pattern))
   );
 }
+function normalizeGoogleEmail(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function countExternalGoogleAttendees(
+  event: GoogleEventItem,
+  connectedAccountEmail?: string | null
+): number {
+  const attendees = Array.isArray(event.attendees) ? event.attendees : [];
+  if (!attendees.length) return 0;
+
+  const ownEmail = normalizeGoogleEmail(connectedAccountEmail);
+  const externalEmails = new Set<string>();
+  let anonymousExternalGuests = 0;
+
+  for (const attendee of attendees) {
+    if (!attendee || attendee.resource || attendee.self) continue;
+
+    const email = normalizeGoogleEmail(attendee.email);
+    if (ownEmail && email === ownEmail) continue;
+
+    if (email) {
+      externalEmails.add(email);
+      continue;
+    }
+
+    anonymousExternalGuests += 1;
+  }
+
+  return externalEmails.size + anonymousExternalGuests;
+}
+
 
 type GoogleEventUpsertRow = Record<string, unknown>;
 
@@ -696,6 +738,7 @@ export async function POST(req: Request) {
           external_source: "google",
           external_id: externalId,
           external_updated_at: updated,
+          external_attendees_count: countExternalGoogleAttendees(it, ga.email),
         };
       }
     }

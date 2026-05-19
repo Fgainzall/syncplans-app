@@ -47,13 +47,18 @@ export default function AppLaunchSplash() {
       // Si storage falla, igual mostramos una vez durante este montaje.
     }
 
-    setVisible(true);
+ const showFrame = window.requestAnimationFrame(() => {
+  setVisible(true);
+});
 
-    const hideTimer = window.setTimeout(() => {
-      setVisible(false);
+const hideTimer = window.setTimeout(() => {
+  setVisible(false);
     }, 700);
 
-    return () => window.clearTimeout(hideTimer);
+    return () => {
+  window.cancelAnimationFrame(showFrame);
+  window.clearTimeout(hideTimer);
+};
   }, [isEligibleRoute]);
 
   if (!visible) return null;

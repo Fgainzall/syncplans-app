@@ -36,6 +36,10 @@ import {
 import { getMyProfile } from "@/lib/profilesDb";
 import { hasPremiumAccess } from "@/lib/premium";
 import {
+  getEventAudienceLabel,
+  isGoogleEventWithExternalGuests,
+} from "@/lib/naming";
+import {
   getPendingPublicInviteCaptures,
   type PublicInviteCaptureItem,
 } from "@/lib/invitationsDb";
@@ -52,6 +56,12 @@ type FilterState = {
 type EventWithGroup = DbEventRow & {
   group?: GroupRow | null;
 };
+
+function getEventsPageAudienceLabel(event: EventWithGroup): string {
+  return getEventAudienceLabel(event, {
+    groupLabel: event.group?.name ? String(event.group.name) : "Grupo",
+  });
+}
 
 function toConflictCalendarEvent(event: EventWithGroup): CalendarEvent | null {
   const id = String(event.id ?? "").trim();
@@ -594,13 +604,17 @@ export default function EventsPage() {
       hiddenIds: hiddenEventIds,
     });
 
-    const personalCount = visibleEvents.filter((e) => !e.group_id).length;
+    const externalGuestCount = visibleEvents.filter(isGoogleEventWithExternalGuests).length;
+    const personalCount = visibleEvents.filter(
+      (e) => !e.group_id && !isGoogleEventWithExternalGuests(e)
+    ).length;
     const groupCount = visibleEvents.filter((e) => !!e.group_id).length;
     const next24h = visibleEvents.filter((e) => isWithinNext24Hours(e.start)).length;
 
     return {
       personalCount,
       groupCount,
+      externalGuestCount,
       next24h,
       hasValue: visibleEvents.length > 0,
     };
@@ -690,12 +704,19 @@ export default function EventsPage() {
       return "Revisa planes, respuestas y decisiones abiertas desde una sola bandeja.";
     }
 
-    const personal = visibleEvents.filter((e) => !e.group_id).length;
+    const externalGuestEvents = visibleEvents.filter(isGoogleEventWithExternalGuests).length;
+    const personal = visibleEvents.filter(
+      (e) => !e.group_id && !isGoogleEventWithExternalGuests(e)
+    ).length;
     const groupEvents = visibleEvents.filter((e) => !!e.group_id).length;
+    const externalPart =
+      externalGuestEvents > 0
+        ? ` · ${externalGuestEvents} Google con invitado${externalGuestEvents === 1 ? "" : "s"}`
+        : "";
 
     return `${personal} personal${personal === 1 ? "" : "es"} · ${groupEvents} compartido${
       groupEvents === 1 ? "" : "s"
-    }. Entra rápido a lo que sigue, lo compartido o lo ya cerrado.`;
+    }${externalPart}. Entra rápido a lo que sigue, lo compartido o lo ya cerrado.`;
   }, [events, declinedEventIds, hiddenEventIds]);
 
   function toggleSelection(id: string) {
@@ -1182,8 +1203,7 @@ export default function EventsPage() {
                     <div style={S.focusItemMain}>
                       <div style={S.focusName}>{e.title || "Sin título"}</div>
                       <div style={S.focusMeta}>
-                        {shortDateLabel(e.start)} · {shortTimeLabel(e.start)}
-                        {e.group?.name ? ` · ${e.group.name}` : " · Personal"}
+                        {shortDateLabel(e.start)} · {shortTimeLabel(e.start)} · {getEventsPageAudienceLabel(e)}
                       </div>
                     </div>
                   </button>

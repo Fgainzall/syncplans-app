@@ -87,6 +87,7 @@ create table if not exists public.events (
   external_source text,
   external_id text,
   external_updated_at timestamptz,
+  external_attendees_count integer not null default 0,
   travel_mode text,
   travel_eta_seconds integer,
   leave_time timestamptz,

@@ -99,6 +99,68 @@ export function isSharedGroupType(
 }
 
 /* =========================================================
+   EVENT AUDIENCE / EXTERNAL SOURCES
+========================================================= */
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readAudienceField(input: unknown, keys: string[]): unknown {
+  if (!isRecord(input)) return undefined;
+
+  for (const key of keys) {
+    if (key in input) return input[key];
+  }
+
+  const raw = input.raw;
+  if (isRecord(raw)) {
+    for (const key of keys) {
+      if (key in raw) return raw[key];
+    }
+  }
+
+  return undefined;
+}
+
+export function getExternalAttendeesCount(input: unknown): number {
+  const rawValue = readAudienceField(input, [
+    "external_attendees_count",
+    "externalAttendeesCount",
+  ]);
+
+  const count = Number(rawValue ?? 0);
+  if (!Number.isFinite(count)) return 0;
+
+  return Math.max(0, Math.trunc(count));
+}
+
+export function isGoogleEventWithExternalGuests(input: unknown): boolean {
+  const groupId = String(readAudienceField(input, ["group_id", "groupId"]) ?? "").trim();
+  if (groupId) return false;
+
+  const externalSource = String(
+    readAudienceField(input, ["external_source", "externalSource"]) ?? ""
+  )
+    .trim()
+    .toLowerCase();
+
+  return externalSource === "google" && getExternalAttendeesCount(input) > 0;
+}
+
+export function getEventAudienceLabel(
+  input: unknown,
+  options: { groupLabel?: string | null; personalLabel?: string } = {}
+): string {
+  const groupId = String(readAudienceField(input, ["group_id", "groupId"]) ?? "").trim();
+  if (groupId) return String(options.groupLabel ?? "Grupo").trim() || "Grupo";
+
+  if (isGoogleEventWithExternalGuests(input)) return "Google · con invitados";
+
+  return options.personalLabel ?? "Personal";
+}
+
+/* =========================================================
    EVENT DATE FIELDS
 ========================================================= */
 

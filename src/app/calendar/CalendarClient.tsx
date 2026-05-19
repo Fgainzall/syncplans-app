@@ -44,6 +44,7 @@ import {
   toYmdKey,
 } from "@/lib/dateUtils";
 import {
+  getEventAudienceLabel,
   normalizeGroupType,
 } from "@/lib/naming";
 import { buildEventContext } from "@/lib/eventContext";
@@ -70,6 +71,8 @@ type CalendarEventWithOwner = CalendarEvent & {
   user_id?: string | null;
   owner_id?: string | null;
   created_by?: string | null;
+  external_source?: string | null;
+  external_attendees_count?: number | null;
 };
 
 type CalendarDbEventRow = {
@@ -85,6 +88,8 @@ type CalendarDbEventRow = {
   user_id?: unknown;
   owner_id?: unknown;
   created_by?: unknown;
+  external_source?: unknown;
+  external_attendees_count?: unknown;
 };
 
 type EnabledGroups = {
@@ -861,6 +866,10 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
               user_id: ev.user_id ?? null,
               owner_id: ev.owner_id ?? null,
               created_by: ev.created_by ?? null,
+              external_source: ev.external_source ? String(ev.external_source) : null,
+              external_attendees_count: Number.isFinite(Number(ev.external_attendees_count))
+                ? Math.max(0, Math.trunc(Number(ev.external_attendees_count)))
+                : 0,
             } as CalendarEventWithOwner;
           })
           .filter(Boolean) as CalendarEventWithOwner[];
@@ -2237,6 +2246,7 @@ function EventRow({
     : ("personal" as GroupType);
 
   const meta = groupMeta(resolvedType);
+  const audienceLabel = getEventAudienceLabel(e, { groupLabel: meta.label });
   const isHighlighted =
     highlightId && String(e.id) === String(highlightId);
   const canDelete = isEventOwnedByUser(e, currentUserId);
@@ -2325,7 +2335,7 @@ function EventRow({
                     background: meta.dot,
                   }}
                 />
-                <span style={styles.eventTagText}>{meta.label}</span>
+                <span style={styles.eventTagText}>{audienceLabel}</span>
               </div>
 
               {isMultiDay ? (

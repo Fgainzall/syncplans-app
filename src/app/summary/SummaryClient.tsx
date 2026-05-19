@@ -34,6 +34,10 @@ import {
 import { buildLearnedTimeProfile } from "@/lib/learningProfile";
 import type { LearnedTimeProfile } from "@/lib/learningTypes";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
+import {
+  getEventAudienceLabel,
+  isGoogleEventWithExternalGuests,
+} from "@/lib/naming";
 import { trackEvent, trackScreenView } from "@/lib/analytics";
 import {
   getPremiumContextCopy,
@@ -536,6 +540,10 @@ function EventRow({
     ? `${fmtDay(start)} · ${fmtTime(start)}–${fmtTime(end)}`
     : `${fmtDay(start)} · ${fmtTime(start)}`;
 
+  const audienceLabel = getEventAudienceLabel(event.raw ?? event, {
+    groupLabel: event.groupId ? "Grupo" : null,
+  });
+
   return (
     <button
       type="button"
@@ -556,8 +564,7 @@ function EventRow({
       <div style={styles.eventMeta}>
         {statusBadge ? <StatusPill badge={statusBadge} /> : null}
         {!statusBadge && proposalBadge ? <ProposalPill badge={proposalBadge} /> : null}
-        {event.isExternal ? <span style={styles.softPill}>Externo</span> : null}
-        <span style={styles.softPill}>{event.groupId ? "Grupo" : "Personal"}</span>
+        <span style={styles.softPill}>{audienceLabel}</span>
       </div>
     </button>
   );
@@ -1283,9 +1290,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     let external = 0;
 
     for (const event of upcomingAll) {
-      if (event.isExternal) external += 1;
+      const hasGoogleGuests = isGoogleEventWithExternalGuests(event.raw ?? event);
+      if (hasGoogleGuests) external += 1;
       if (event.groupId) group += 1;
-      else personal += 1;
+      else if (!hasGoogleGuests) personal += 1;
     }
 
     return {
@@ -2189,7 +2197,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
     const todayTotal = todayEvents.length;
     const todayShared = todayEvents.filter((event) => Boolean(event.groupId)).length;
-    const todayExternal = todayEvents.filter((event) => Boolean(event.isExternal)).length;
+    const todayExternal = todayEvents.filter((event) =>
+      isGoogleEventWithExternalGuests(event.raw ?? event)
+    ).length;
     const nextToday = todayEvents[0] ?? null;
 
     const pendingTotal =
