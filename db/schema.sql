@@ -131,6 +131,33 @@ create table if not exists public.proposal_responses (
 create index if not exists proposal_responses_event_id_idx on public.proposal_responses(event_id);
 create index if not exists proposal_responses_user_id_idx on public.proposal_responses(user_id);
 
+
+create table if not exists public.event_participants (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null,
+  user_id uuid not null,
+  role text not null default 'participant',
+  created_at timestamptz not null default now(),
+  unique (event_id, user_id)
+);
+create index if not exists idx_event_participants_event_id on public.event_participants(event_id);
+create index if not exists idx_event_participants_user_id on public.event_participants(user_id);
+
+create table if not exists public.event_invites (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null,
+  invited_by uuid not null default auth.uid(),
+  invited_email text not null,
+  token text not null unique,
+  status text not null default 'pending',
+  accepted_user_id uuid,
+  accepted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_event_invites_event_id on public.event_invites(event_id);
+create index if not exists idx_event_invites_invited_by on public.event_invites(invited_by);
+create index if not exists idx_event_invites_token on public.event_invites(token);
+
 create table if not exists public.public_invites (
   id uuid primary key default gen_random_uuid(),
   event_id uuid,

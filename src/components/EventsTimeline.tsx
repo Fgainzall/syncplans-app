@@ -6,6 +6,10 @@ import { useRouter } from "next/navigation";
 import { trackEvent } from "@/lib/analytics";
 import { isGoogleEventWithExternalGuests } from "@/lib/naming";
 import {
+  buildEventInviteUrl,
+  createEventSpecificInvite,
+} from "@/lib/eventInvitesDb";
+import {
   deleteEventsByIdsDetailed,
   generatePublicInviteLink,
 } from "@/lib/eventsDb";
@@ -18,23 +22,23 @@ import {
   type TimelineEvent,
 } from "./eventsTimelineHelpers";
 
-type TimelineGroupOption = {
-  id: string;
-  name: string | null;
-  type?: string | null;
-};
-
 type Props = {
   events: TimelineEvent[];
   selectedIds: Set<string>;
   focusedEventId?: string | null;
-  groups?: TimelineGroupOption[];
   onToggleSelected: (id: string) => void;
   onEventsRemoved?: (removedIds: string[]) => void;
-  onLinkGoogleGuestEventToGroup?: (event: TimelineEvent, groupId: string) => Promise<void> | void;
 };
 
 type ShareState = {
+  loading: boolean;
+  link: string | null;
+  error: string | null;
+  copied: boolean;
+};
+
+type EventSpecificInviteState = {
+  email: string;
   loading: boolean;
   link: string | null;
   error: string | null;
@@ -45,10 +49,8 @@ export default function EventsTimeline({
   events,
   selectedIds,
   focusedEventId = null,
-  groups = [],
   onToggleSelected,
   onEventsRemoved,
-  onLinkGoogleGuestEventToGroup,
 }: Props) {
   const router = useRouter();
 
@@ -57,14 +59,10 @@ export default function EventsTimeline({
   const [shareStateById, setShareStateById] = useState<Record<string, ShareState>>(
     {}
   );
-  const [linkPanelEventId, setLinkPanelEventId] = useState<string | null>(null);
-  const [selectedGroupByEventId, setSelectedGroupByEventId] = useState<Record<string, string>>(
-    {}
-  );
-  const [linkingEventId, setLinkingEventId] = useState<string | null>(null);
-  const [linkErrorByEventId, setLinkErrorByEventId] = useState<Record<string, string | null>>(
-    {}
-  );
+  const [eventInvitePanelId, setEventInvitePanelId] = useState<string | null>(null);
+  const [eventInviteStateById, setEventInviteStateById] = useState<
+    Record<string, EventSpecificInviteState>
+  >({});
 
   const {
     currentUserId,
@@ -98,16 +96,6 @@ export default function EventsTimeline({
       dayEvents,
     }));
   }, [sorted]);
-
-  const linkableGroups = useMemo(() => {
-    return (Array.isArray(groups) ? groups : [])
-      .map((group) => ({
-        ...group,
-        id: String(group.id ?? "").trim(),
-        name: String(group.name ?? "").trim() || "Grupo compartido",
-      }))
-      .filter((group) => Boolean(group.id));
-  }, [groups]);
 
 const timelineSummary = useMemo(() => {
   const shared = sorted.filter((ev) => !!ev.group_id).length;
@@ -307,56 +295,130 @@ ${link}`;
     });
   }
 
-  function openLinkPanel(ev: TimelineEvent) {
-    const eventId = String(ev.id);
-    setLinkPanelEventId((current) => (current === eventId ? null : eventId));
-    setLinkErrorByEventId((prev) => ({ ...prev, [eventId]: null }));
+  function getEventInviteState(eventId: string): EventSpecificInviteState {
+    return (
+      eventInviteStateById[eventId] ?? {
+        email: "",
+        loading: false,
+        link: null,
+        error: null,
+        copied: false,
+      }
+    );
+  }
 
-    if (!selectedGroupByEventId[eventId] && linkableGroups[0]?.id) {
-      setSelectedGroupByEventId((prev) => ({
-        ...prev,
-        [eventId]: linkableGroups[0].id,
-      }));
+  function patchEventInviteState(
+    eventId: string,
+    patch: Partial<EventSpecificInviteState>
+  ) {
+    setEventInviteStateById((prev) => ({
+      ...prev,
+      [eventId]: {
+        email: prev[eventId]?.email ?? "",
+        loading: prev[eventId]?.loading ?? false,
+        link: prev[eventId]?.link ?? null,
+        error: prev[eventId]?.error ?? null,
+        copied: prev[eventId]?.copied ?? false,
+        ...patch,
+      },
+    }));
+  }
+
+  function openEventInvitePanel(ev: TimelineEvent) {
+    const eventId = String(ev.id);
+    setEventInvitePanelId((current) => (current === eventId ? null : eventId));
+    patchEventInviteState(eventId, { error: null, copied: false });
+  }
+
+  function setEventInviteEmail(eventId: string, email: string) {
+    patchEventInviteState(eventId, { email, error: null, copied: false });
+  }
+
+  async function copyEventInviteLink(eventId: string, link: string) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(link);
+      } else {
+        const input = document.createElement("textarea");
+        input.value = link;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        document.body.removeChild(input);
+      }
+
+      patchEventInviteState(eventId, { copied: true, error: null });
+    } catch {
+      patchEventInviteState(eventId, {
+        copied: false,
+        error: "No se pudo copiar automáticamente. Copia el link manualmente.",
+      });
     }
   }
 
-  async function confirmLinkToGroup(ev: TimelineEvent) {
-    const eventId = String(ev.id);
-    const groupId = String(selectedGroupByEventId[eventId] ?? linkableGroups[0]?.id ?? "").trim();
+  async function createSpecificEventInvite(ev: TimelineEvent) {
+    const eventId = String(ev.id ?? "").trim();
+    const state = getEventInviteState(eventId);
+    const email = String(state.email ?? "").trim().toLowerCase();
 
-    if (!groupId) {
-      setLinkErrorByEventId((prev) => ({
-        ...prev,
-        [eventId]: "Primero necesitas elegir un grupo.",
-      }));
+    if (!eventId) {
+      patchEventInviteState(eventId, { error: "No encontramos este evento." });
       return;
     }
 
-    if (!onLinkGoogleGuestEventToGroup) {
-      setLinkErrorByEventId((prev) => ({
-        ...prev,
-        [eventId]: "Esta acción todavía no está disponible.",
-      }));
+    if (!email || !email.includes("@")) {
+      patchEventInviteState(eventId, {
+        error: "Escribe el correo de la persona que podrá aceptar este plan.",
+      });
       return;
     }
 
     try {
-      setLinkingEventId(eventId);
-      setLinkErrorByEventId((prev) => ({ ...prev, [eventId]: null }));
-      await onLinkGoogleGuestEventToGroup(ev, groupId);
-      setLinkPanelEventId(null);
+      patchEventInviteState(eventId, { loading: true, error: null, copied: false });
+
+      const invite = await createEventSpecificInvite({ eventId, email });
+      const link = buildEventInviteUrl(invite.token);
+
+      await trackEvent({
+        event: "event_specific_invite_created",
+        userId: currentUserId,
+        entityId: invite.invite_id ?? eventId,
+        metadata: {
+          source: "events_google_guest_box",
+          eventId,
+        },
+      });
+
+      patchEventInviteState(eventId, {
+        loading: false,
+        link,
+        email: invite.invited_email || email,
+        error: null,
+        copied: false,
+      });
     } catch (error: unknown) {
-      console.error("[EventsTimeline] link Google guest event to group error", error);
-      setLinkErrorByEventId((prev) => ({
-        ...prev,
-        [eventId]:
+      console.error("[EventsTimeline] create event-specific invite error", error);
+      patchEventInviteState(eventId, {
+        loading: false,
+        error:
           error instanceof Error
             ? error.message
-            : "No se pudo traer este evento a SyncPlans. Intenta de nuevo.",
-      }));
-    } finally {
-      setLinkingEventId((current) => (current === eventId ? null : current));
+            : "No se pudo crear la invitación para este plan.",
+      });
     }
+  }
+
+  function openWhatsAppEventInvite(ev: TimelineEvent, link: string) {
+    const text = `Te comparto este plan en SyncPlans 👇
+
+${
+      ev.title || "Plan"
+    }
+
+Ábrelo aquí:
+${link}`;
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -433,90 +495,86 @@ ${link}`;
                       }}
                     />
 
-                    {isGoogleEventWithExternalGuests(ev) ? (
-                      <div style={S.googleImportBox}>
-                        <div style={S.googleImportCopy}>
-                          <div style={S.googleImportEyebrow}>Google Calendar detectado</div>
-                          <div style={S.googleImportTitle}>Este plan tiene invitados fuera de SyncPlans.</div>
-                          <div style={S.googleImportBody}>
-                            Puedes traerlo a un espacio existente para coordinarlo como plan compartido. Nadie será invitado automáticamente.
+                    {isGoogleEventWithExternalGuests(ev) && !ev.group_id ? (() => {
+                      const inviteState = getEventInviteState(eventId);
+
+                      return (
+                        <div style={S.googleImportBox}>
+                          <div style={S.googleImportCopy}>
+                            <div style={S.googleImportEyebrow}>Google Calendar detectado</div>
+                            <div style={S.googleImportTitle}>Este plan tiene invitados fuera de SyncPlans.</div>
+                            <div style={S.googleImportBody}>
+                              Puedes compartir solo este evento con una persona. No verá tu calendario, tus grupos ni otros planes.
+                            </div>
                           </div>
+
+                          {eventInvitePanelId === eventId ? (
+                            <div style={S.googleImportControls}>
+                              <input
+                                type="email"
+                                value={inviteState.email}
+                                onChange={(e) => setEventInviteEmail(eventId, e.target.value)}
+                                placeholder="correo@ejemplo.com"
+                                disabled={inviteState.loading}
+                                style={S.eventInviteInput}
+                              />
+
+                              <button
+                                type="button"
+                                onClick={() => void createSpecificEventInvite(ev)}
+                                disabled={inviteState.loading}
+                                style={S.confirmLinkButton}
+                              >
+                                {inviteState.loading ? "Creando…" : "Crear invitación"}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setEventInvitePanelId(null)}
+                                disabled={inviteState.loading}
+                                style={S.cancelLinkButton}
+                              >
+                                Cerrar
+                              </button>
+
+                              {inviteState.link ? (
+                                <div style={S.eventInviteResult}>
+                                  <div style={S.eventInviteLinkText}>{inviteState.link}</div>
+                                  <div style={S.eventInviteActions}>
+                                    <button
+                                      type="button"
+                                      onClick={() => void copyEventInviteLink(eventId, inviteState.link!)}
+                                      style={S.cancelLinkButton}
+                                    >
+                                      {inviteState.copied ? "Copiado ✅" : "Copiar link"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => openWhatsAppEventInvite(ev, inviteState.link!)}
+                                      style={S.openLinkButton}
+                                    >
+                                      WhatsApp
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => openEventInvitePanel(ev)}
+                              style={S.openLinkButton}
+                            >
+                              Compartir este plan
+                            </button>
+                          )}
+
+                          {inviteState.error ? (
+                            <div style={S.googleImportError}>{inviteState.error}</div>
+                          ) : null}
                         </div>
-
-                        {linkPanelEventId === eventId ? (
-                          <div style={S.googleImportControls}>
-                            {linkableGroups.length > 0 ? (
-                              <>
-                                <select
-                                  value={selectedGroupByEventId[eventId] ?? linkableGroups[0]?.id ?? ""}
-                                  onChange={(e) =>
-                                    setSelectedGroupByEventId((prev) => ({
-                                      ...prev,
-                                      [eventId]: e.target.value,
-                                    }))
-                                  }
-                                  disabled={linkingEventId === eventId}
-                                  style={S.groupSelect}
-                                >
-                                  {linkableGroups.map((group) => (
-                                    <option key={group.id} value={group.id}>
-                                      {group.name}
-                                    </option>
-                                  ))}
-                                </select>
-
-                                <button
-                                  type="button"
-                                  onClick={() => void confirmLinkToGroup(ev)}
-                                  disabled={linkingEventId === eventId}
-                                  style={S.confirmLinkButton}
-                                >
-                                  {linkingEventId === eventId ? "Vinculando…" : "Vincular"}
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => setLinkPanelEventId(null)}
-                                  disabled={linkingEventId === eventId}
-                                  style={S.cancelLinkButton}
-                                >
-                                  Cancelar
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => router.push("/groups/new")}
-                                  style={S.confirmLinkButton}
-                                >
-                                  Crear grupo
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setLinkPanelEventId(null)}
-                                  style={S.cancelLinkButton}
-                                >
-                                  Cerrar
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => openLinkPanel(ev)}
-                            style={S.openLinkButton}
-                          >
-                            Traer a SyncPlans
-                          </button>
-                        )}
-
-                        {linkErrorByEventId[eventId] ? (
-                          <div style={S.googleImportError}>{linkErrorByEventId[eventId]}</div>
-                        ) : null}
-                      </div>
-                    ) : null}
+                      );
+                    })() : null}
                   </div>
                 );
               })}
@@ -588,9 +646,9 @@ const S: Record<string, React.CSSProperties> = {
     gap: 8,
     flexWrap: "wrap",
   },
-  groupSelect: {
-    minHeight: 34,
-    minWidth: 180,
+  eventInviteInput: {
+    minHeight: 36,
+    minWidth: 220,
     maxWidth: "100%",
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.14)",
@@ -600,6 +658,26 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontWeight: 850,
     outline: "none",
+  },
+  eventInviteResult: {
+    width: "100%",
+    display: "grid",
+    gap: 8,
+    padding: 10,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(0,0,0,0.18)",
+  },
+  eventInviteLinkText: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(226,232,240,0.88)",
+    wordBreak: "break-all",
+  },
+  eventInviteActions: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
   },
   openLinkButton: {
     alignSelf: "flex-start",

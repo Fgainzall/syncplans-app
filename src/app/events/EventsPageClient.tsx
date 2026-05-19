@@ -17,7 +17,6 @@ import { trackEventOnce, trackScreenView } from "@/lib/analytics";
 import {
   getMyEventsInRange,
   deleteEventsByIdsDetailed,
-  updateEvent,
   type DbEventRow,
 } from "@/lib/eventsDb";
 import { getMyGroups, type GroupRow } from "@/lib/groupsDb";
@@ -813,43 +812,6 @@ export default function EventsPage() {
     };
   }, [booting, filters.view, refreshData]);
 
-  async function handleLinkGoogleGuestEventToGroup(event: { id?: string | null }, groupId: string) {
-    const eventId = String(event?.id ?? "").trim();
-    const safeGroupId = String(groupId ?? "").trim();
-
-    if (!eventId) {
-      throw new Error("No encontramos el evento para vincularlo.");
-    }
-
-    const group = groups.find((item) => String(item.id) === safeGroupId) ?? null;
-
-    if (!group) {
-      throw new Error("Elige un grupo válido para traer este plan a SyncPlans.");
-    }
-
-    await updateEvent({
-      id: eventId,
-      groupId: safeGroupId,
-    });
-
-    setEvents((prev) =>
-      prev.map((item) =>
-        String(item.id) === eventId
-          ? {
-              ...item,
-              group_id: safeGroupId,
-              group,
-            }
-          : item
-      )
-    );
-
-    setToast({
-      type: "success",
-      message: `Listo. El plan ahora está vinculado a ${group.name || "tu grupo"}.`,
-    });
-  }
-
   async function handleDeleteSelected() {
     if (selectedIds.size === 0) return;
 
@@ -1436,9 +1398,7 @@ export default function EventsPage() {
                 events={timelineEvents}
                 selectedIds={selectedIds}
                 focusedEventId={effectiveFocusedEventId}
-                groups={groups}
                 onToggleSelected={toggleSelection}
-                onLinkGoogleGuestEventToGroup={handleLinkGoogleGuestEventToGroup}
                 onEventsRemoved={(removedIds) => {
                   const removed = new Set(removedIds.map(String));
                   setEvents((prev) =>
