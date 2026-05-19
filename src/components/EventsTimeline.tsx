@@ -8,6 +8,7 @@ import { isGoogleEventWithExternalGuests } from "@/lib/naming";
 import {
   buildEventInviteUrl,
   createEventSpecificInvite,
+  sendEventSpecificInviteEmail,
 } from "@/lib/eventInvitesDb";
 import {
   deleteEventsByIdsDetailed,
@@ -43,6 +44,8 @@ type EventSpecificInviteState = {
   link: string | null;
   error: string | null;
   copied: boolean;
+  emailSent: boolean;
+  emailError: string | null;
 };
 
 export default function EventsTimeline({
@@ -303,6 +306,8 @@ ${link}`;
         link: null,
         error: null,
         copied: false,
+        emailSent: false,
+        emailError: null,
       }
     );
   }
@@ -319,6 +324,8 @@ ${link}`;
         link: prev[eventId]?.link ?? null,
         error: prev[eventId]?.error ?? null,
         copied: prev[eventId]?.copied ?? false,
+        emailSent: prev[eventId]?.emailSent ?? false,
+        emailError: prev[eventId]?.emailError ?? null,
         ...patch,
       },
     }));
@@ -327,11 +334,17 @@ ${link}`;
   function openEventInvitePanel(ev: TimelineEvent) {
     const eventId = String(ev.id);
     setEventInvitePanelId((current) => (current === eventId ? null : eventId));
-    patchEventInviteState(eventId, { error: null, copied: false });
+    patchEventInviteState(eventId, { error: null, copied: false, emailError: null });
   }
 
   function setEventInviteEmail(eventId: string, email: string) {
-    patchEventInviteState(eventId, { email, error: null, copied: false });
+    patchEventInviteState(eventId, {
+      email,
+      error: null,
+      copied: false,
+      emailSent: false,
+      emailError: null,
+    });
   }
 
   async function copyEventInviteLink(eventId: string, link: string) {
@@ -374,18 +387,47 @@ ${link}`;
     }
 
     try {
-      patchEventInviteState(eventId, { loading: true, error: null, copied: false });
+      patchEventInviteState(eventId, {
+        loading: true,
+        error: null,
+        copied: false,
+        emailSent: false,
+        emailError: null,
+      });
 
       const invite = await createEventSpecificInvite({ eventId, email });
       const link = buildEventInviteUrl(invite.token);
 
+      let emailSent = false;
+      let emailError: string | null = null;
+
+      try {
+        await sendEventSpecificInviteEmail({
+          inviteId: invite.invite_id,
+          email: invite.invited_email || email,
+        });
+        emailSent = true;
+      } catch (emailSendError: unknown) {
+        console.error(
+          "[EventsTimeline] send event-specific invite email error",
+          emailSendError
+        );
+        emailError =
+          emailSendError instanceof Error
+            ? emailSendError.message
+            : "No pudimos enviar el email, pero la invitación ya fue creada.";
+      }
+
       await trackEvent({
-        event: "event_specific_invite_created",
+        event: emailSent
+          ? "event_specific_invite_email_sent"
+          : "event_specific_invite_created",
         userId: currentUserId,
         entityId: invite.invite_id ?? eventId,
         metadata: {
           source: "events_google_guest_box",
           eventId,
+          emailSent,
         },
       });
 
@@ -395,6 +437,10 @@ ${link}`;
         email: invite.invited_email || email,
         error: null,
         copied: false,
+        emailSent,
+        emailError: emailError
+          ? "Invitación creada. No pudimos enviar el email, pero puedes copiar el link."
+          : null,
       });
     } catch (error: unknown) {
       console.error("[EventsTimeline] create event-specific invite error", error);
@@ -539,7 +585,7 @@ ${link}`;
                                 disabled={inviteState.loading}
                                 style={S.confirmLinkButton}
                               >
-                                {inviteState.loading ? "Creando…" : "Crear invitación"}
+                                {inviteState.loading ? "Enviando…" : "Enviar invitación"}
                               </button>
 
                               <button
@@ -553,6 +599,14 @@ ${link}`;
 
                               {inviteState.link ? (
                                 <div style={S.eventInviteResult}>
+                                  {inviteState.emailSent ? (
+                                    <div style={S.eventInviteSuccess}>
+                                      Email enviado. Igual puedes copiar el link si quieres mandarlo por WhatsApp.
+                                    </div>
+                                  ) : null}
+                                  {inviteState.emailError ? (
+                                    <div style={S.eventInviteWarning}>{inviteState.emailError}</div>
+                                  ) : null}
                                   <div style={S.eventInviteLinkText}>{inviteState.link}</div>
                                   <div style={S.eventInviteActions}>
                                     <button
@@ -681,6 +735,18 @@ const S: Record<string, React.CSSProperties> = {
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(0,0,0,0.18)",
+  },
+  eventInviteSuccess: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(187,247,208,0.96)",
+    fontWeight: 850,
+  },
+  eventInviteWarning: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(253,224,71,0.96)",
+    fontWeight: 800,
   },
   eventInviteLinkText: {
     fontSize: 12,

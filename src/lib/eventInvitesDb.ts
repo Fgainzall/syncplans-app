@@ -27,8 +27,19 @@ export type AcceptEventInviteResult = {
   status: string;
 };
 
+export type SendEventSpecificInviteEmailResult = {
+  sent: boolean;
+  id: string | null;
+  acceptUrl: string | null;
+};
+
 type CreateEventSpecificInviteInput = {
   eventId: string;
+  email: string;
+};
+
+type SendEventSpecificInviteEmailInput = {
+  inviteId: string;
   email: string;
 };
 
@@ -105,6 +116,45 @@ export async function createEventSpecificInvite(
     event_id: String(row.event_id),
     invited_email: normalizeEmail(String(row.invited_email ?? email)),
     status: String(row.status ?? "pending"),
+  };
+}
+
+
+export async function sendEventSpecificInviteEmail(
+  input: SendEventSpecificInviteEmailInput
+): Promise<SendEventSpecificInviteEmailResult> {
+  const inviteId = String(input.inviteId ?? "").trim();
+  const email = normalizeEmail(input.email);
+
+  if (!inviteId) throw new Error("No encontramos la invitación para enviar.");
+  if (!email || !email.includes("@")) {
+    throw new Error("Escribe un correo válido para enviar este plan.");
+  }
+
+  const response = await fetch("/api/email/invite", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({
+      inviteType: "event",
+      inviteId,
+      email,
+    }),
+  });
+
+  const payload = (await response.json().catch(() => null)) as
+    | { id?: unknown; acceptUrl?: unknown; error?: unknown }
+    | null;
+
+  if (!response.ok) {
+    const message = String(payload?.error ?? "").trim();
+    throw new Error(message || "No pudimos enviar el email de invitación.");
+  }
+
+  return {
+    sent: true,
+    id: payload?.id ? String(payload.id) : null,
+    acceptUrl: payload?.acceptUrl ? String(payload.acceptUrl) : null,
   };
 }
 

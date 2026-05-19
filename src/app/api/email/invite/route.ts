@@ -25,6 +25,9 @@ type InviteEmailRequestBody = {
   email?: unknown;
   inviteId?: unknown;
   groupId?: unknown;
+  inviteType?: unknown;
+  type?: unknown;
+  kind?: unknown;
 };
 
 type GroupInviteRow = {
@@ -36,6 +39,22 @@ type GroupInviteRow = {
   status: string | null;
   role: string | null;
   created_at: string | null;
+};
+
+type EventInviteRow = {
+  id: string;
+  event_id: string;
+  invited_email: string;
+  invited_by: string | null;
+  status: string | null;
+  token: string;
+  created_at: string | null;
+};
+
+type EventEmailRow = {
+  title: string | null;
+  start: string | null;
+  end: string | null;
 };
 
 type ResendErrorLike = {
@@ -130,6 +149,88 @@ function inviteEmailHtml(opts: { acceptUrl: string; appUrl: string }) {
   `;
 }
 
+
+function formatEventDateForEmail(value: string | null) {
+  if (!value) return "";
+
+  try {
+    return new Intl.DateTimeFormat("es-PE", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  } catch {
+    return "";
+  }
+}
+
+function eventInviteEmailHtml(opts: {
+  acceptUrl: string;
+  appUrl: string;
+  eventTitle: string;
+  eventStart: string | null;
+}) {
+  const { acceptUrl, appUrl, eventTitle, eventStart } = opts;
+  const safeAcceptUrl = escapeHtml(acceptUrl);
+  const safeAppUrl = escapeHtml(appUrl);
+  const safeTitle = escapeHtml(eventTitle || "este plan");
+  const safeWhen = escapeHtml(formatEventDateForEmail(eventStart));
+
+  return `
+  <div style="background:#050816;padding:24px 12px;">
+    <div style="max-width:560px;margin:0 auto;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);border-radius:18px;padding:18px 18px 16px;font-family:Arial,Helvetica,sans-serif;color:rgba(255,255,255,0.92);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="width:12px;height:12px;border-radius:999px;background:rgba(56,189,248,0.95);box-shadow:0 0 24px rgba(56,189,248,0.55)"></div>
+        <div style="font-weight:900;letter-spacing:-0.3px;">SyncPlans</div>
+      </div>
+
+      <h2 style="margin:10px 0 6px;font-size:18px;letter-spacing:-0.2px;">
+        Te compartieron un plan
+      </h2>
+
+      <p style="margin:0 0 12px;line-height:1.5;color:rgba(255,255,255,0.82);font-size:13px;">
+        Te invitaron a coordinar solo este evento en SyncPlans. No te da acceso al calendario completo de la otra persona.
+      </p>
+
+      <div style="margin:14px 0;padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,0.10);background:rgba(0,0,0,0.20);">
+        <div style="font-size:12px;opacity:0.65;font-weight:800;margin-bottom:4px;">Plan</div>
+        <div style="font-size:15px;font-weight:900;line-height:1.35;color:rgba(255,255,255,0.96);">${safeTitle}</div>
+        ${safeWhen ? `<div style="margin-top:6px;font-size:12px;opacity:0.76;line-height:1.4;">${safeWhen}</div>` : ""}
+      </div>
+
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:16px 0 14px;">
+        <tr>
+          <td align="center" bgcolor="#2563eb" style="border-radius:12px;">
+            <a href="${safeAcceptUrl}"
+               target="_blank"
+               style="display:inline-block;padding:12px 20px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px;">
+              Ver y aceptar plan ✅
+            </a>
+          </td>
+        </tr>
+      </table>
+
+      <div style="margin-top:14px;padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,0.10);background:rgba(0,0,0,0.20);">
+        <div style="font-size:12px;opacity:0.85;font-weight:800;margin-bottom:6px;">Si el botón no abre:</div>
+        <div style="font-size:12px;opacity:0.75;word-break:break-all;line-height:1.45;">
+          <a href="${safeAcceptUrl}" target="_blank" style="color:rgba(56,189,248,0.95);text-decoration:none;">${safeAcceptUrl}</a>
+        </div>
+      </div>
+
+      <p style="margin:14px 0 0;font-size:12px;opacity:0.65;line-height:1.45;">
+        Si no esperabas esta invitación, puedes ignorar este correo.
+      </p>
+
+      <div style="margin-top:16px;font-size:11px;opacity:0.55;">
+        ${safeAppUrl}
+      </div>
+    </div>
+  </div>
+  `;
+}
+
 function publicError(
   ctx: ApiRequestContext,
   error: string,
@@ -161,6 +262,36 @@ async function loadInviteForCurrentUser(req: Request, inviteId: string) {
     .select("id,group_id,email,invited_email,invited_by,status,role,created_at")
     .eq("id", inviteId)
     .maybeSingle<GroupInviteRow>();
+}
+
+async function loadEventInviteForCurrentUser(req: Request, inviteId: string) {
+  const supabase = await createSupabaseUserClient(req);
+
+  return supabase
+    .from("event_invites")
+    .select("id,event_id,invited_email,invited_by,status,token,created_at")
+    .eq("id", inviteId)
+    .maybeSingle<EventInviteRow>();
+}
+
+async function loadEventForCurrentUser(req: Request, eventId: string) {
+  const supabase = await createSupabaseUserClient(req);
+
+  return supabase
+    .from("events")
+    .select('title,start,"end"')
+    .eq("id", eventId)
+    .maybeSingle<EventEmailRow>();
+}
+
+function inviteTypeFromBody(body: InviteEmailRequestBody) {
+  return String(body.inviteType ?? body.type ?? body.kind ?? "group")
+    .trim()
+    .toLowerCase();
+}
+
+function isEventInviteType(value: string) {
+  return value === "event" || value === "event_specific" || value === "event-specific";
 }
 
 export async function POST(req: Request) {
@@ -223,6 +354,154 @@ export async function POST(req: Request) {
         headers: rateLimitHeaders(dailyLimit),
         log: { userId: auth.user.id },
       });
+    }
+
+
+    const inviteType = inviteTypeFromBody(body);
+
+    if (isEventInviteType(inviteType)) {
+      const { data: eventInvite, error: eventInviteError } =
+        await loadEventInviteForCurrentUser(req, inviteId);
+
+      if (eventInviteError) {
+        return publicError(
+          ctx,
+          "No se pudo validar la invitación del plan.",
+          "EMAIL_EVENT_INVITE_LOOKUP_FAILED",
+          500,
+          { error: safeError(eventInviteError) }
+        );
+      }
+
+      if (!eventInvite) {
+        return publicError(
+          ctx,
+          "Invitación de plan no encontrada.",
+          "EMAIL_EVENT_INVITE_NOT_FOUND",
+          404
+        );
+      }
+
+      if (eventInvite.invited_by !== auth.user.id) {
+        return publicError(
+          ctx,
+          "No tienes permisos para enviar esta invitación.",
+          "EMAIL_EVENT_INVITE_FORBIDDEN",
+          403,
+          { userId: auth.user.id, inviteId }
+        );
+      }
+
+      const invitedEmail = normEmail(eventInvite.invited_email ?? "");
+
+      if (!invitedEmail || invitedEmail !== email) {
+        return publicError(
+          ctx,
+          "El email no coincide con la invitación del plan.",
+          "EMAIL_EVENT_INVITE_EMAIL_MISMATCH",
+          403,
+          {
+            inviteId,
+            requestedEmail: maskEmail(email),
+            invitedEmail: maskEmail(invitedEmail),
+          }
+        );
+      }
+
+      if (String(eventInvite.status ?? "pending").trim().toLowerCase() !== "pending") {
+        return publicError(
+          ctx,
+          "La invitación del plan ya no está pendiente.",
+          "EMAIL_EVENT_INVITE_NOT_PENDING",
+          409
+        );
+      }
+
+      const { data: eventRow, error: eventError } = await loadEventForCurrentUser(
+        req,
+        eventInvite.event_id
+      );
+
+      if (eventError) {
+        return publicError(
+          ctx,
+          "No se pudo cargar el plan para enviar el email.",
+          "EMAIL_EVENT_LOOKUP_FAILED",
+          500,
+          { error: safeError(eventError) }
+        );
+      }
+
+      let resendKey = "";
+
+      try {
+        resendKey = requiredServerEnv("RESEND_API_KEY");
+      } catch {
+        return publicError(
+          ctx,
+          "Configuración de email incompleta.",
+          "EMAIL_RESEND_API_KEY_MISSING",
+          500
+        );
+      }
+
+      const from = optionalEnv("EMAIL_FROM", "RESEND_FROM");
+
+      if (!from) {
+        return publicError(
+          ctx,
+          "Configuración de remitente incompleta.",
+          "EMAIL_FROM_MISSING",
+          500
+        );
+      }
+
+      const appUrl = baseUrl();
+      const acceptUrl = `${appUrl}/event-invite/${encodeURIComponent(eventInvite.token)}`;
+      const eventTitle = String(eventRow?.title ?? "Plan compartido").trim() || "Plan compartido";
+
+      const resend = new Resend(resendKey);
+      const subject = `${eventTitle} · SyncPlans`;
+      const html = eventInviteEmailHtml({
+        acceptUrl,
+        appUrl,
+        eventTitle,
+        eventStart: eventRow?.start ?? null,
+      });
+
+      const { data, error } = await resend.emails.send({
+        from,
+        to: invitedEmail,
+        subject,
+        html,
+      });
+
+      if (error) {
+        return jsonError(ctx, {
+          error: (error as ResendErrorLike | null)?.message || "Resend error",
+          code: "EMAIL_PROVIDER_REJECTED",
+          status: 502,
+          log: {
+            userId: auth.user.id,
+            inviteId,
+            email: maskEmail(invitedEmail),
+            error: safeError(error),
+          },
+        });
+      }
+
+      return jsonOk(
+        ctx,
+        {
+          id: data?.id ?? null,
+          acceptUrl,
+          type: "event",
+        },
+        {
+          headers: rateLimitHeaders(shortLimit),
+          log: { userId: auth.user.id, inviteId, type: "event" },
+        }
+      );
     }
 
     const { data: invite, error: inviteError } = await loadInviteForCurrentUser(req, inviteId);
