@@ -153,12 +153,9 @@ function inviteEmailHtml(opts: { acceptUrl: string; appUrl: string }) {
 
 const EVENT_INVITE_PRIMARY_TIME_ZONE = "America/Lima";
 const EVENT_INVITE_PRIMARY_TIME_ZONE_LABEL = "hora Perú";
-const EVENT_INVITE_REFERENCE_TIME_ZONE = "Europe/Madrid";
-const EVENT_INVITE_REFERENCE_TIME_ZONE_LABEL = "España peninsular";
 
 type EventEmailTimeLines = {
   primary: string;
-  reference: string;
 };
 
 function formatDateTimeInTimeZone(value: string | null, timeZone: string) {
@@ -203,15 +200,10 @@ function formatTimeInTimeZone(value: string | null, timeZone: string) {
 function formatEventDateForEmail(start: string | null, end: string | null): EventEmailTimeLines {
   const primaryStart = formatDateTimeInTimeZone(start, EVENT_INVITE_PRIMARY_TIME_ZONE);
   const primaryEnd = formatTimeInTimeZone(end, EVENT_INVITE_PRIMARY_TIME_ZONE);
-  const referenceStart = formatDateTimeInTimeZone(start, EVENT_INVITE_REFERENCE_TIME_ZONE);
-  const referenceEnd = formatTimeInTimeZone(end, EVENT_INVITE_REFERENCE_TIME_ZONE);
 
   return {
     primary: primaryStart
       ? `${primaryStart}${primaryEnd ? ` – ${primaryEnd}` : ""} (${EVENT_INVITE_PRIMARY_TIME_ZONE_LABEL})`
-      : "",
-    reference: referenceStart
-      ? `${referenceStart}${referenceEnd ? ` – ${referenceEnd}` : ""} (${EVENT_INVITE_REFERENCE_TIME_ZONE_LABEL})`
       : "",
   };
 }
@@ -229,7 +221,6 @@ function eventInviteEmailHtml(opts: {
   const safeTitle = escapeHtml(eventTitle || "este plan");
   const timeLines = formatEventDateForEmail(eventStart, eventEnd);
   const safeWhenPrimary = escapeHtml(timeLines.primary);
-  const safeWhenReference = escapeHtml(timeLines.reference);
 
   return `
   <div style="background:#050816;padding:24px 12px;">
@@ -251,8 +242,7 @@ function eventInviteEmailHtml(opts: {
         <div style="font-size:12px;opacity:0.65;font-weight:800;margin-bottom:4px;">Plan</div>
         <div style="font-size:15px;font-weight:900;line-height:1.35;color:rgba(255,255,255,0.96);">${safeTitle}</div>
         ${safeWhenPrimary ? `<div style="margin-top:8px;font-size:12px;opacity:0.80;line-height:1.45;"><strong style="opacity:0.95;">Hora del plan:</strong> ${safeWhenPrimary}</div>` : ""}
-        ${safeWhenReference ? `<div style="margin-top:3px;font-size:12px;opacity:0.68;line-height:1.45;"><strong style="opacity:0.85;">Referencia:</strong> ${safeWhenReference}</div>` : ""}
-        ${safeWhenPrimary ? `<div style="margin-top:8px;font-size:11px;opacity:0.58;line-height:1.45;">Mostramos la hora base de SyncPlans en Perú para evitar confusiones de zona horaria. Si estás en otro país, revisa la referencia o abre el plan para confirmar.</div>` : ""}
+        ${safeWhenPrimary ? `<div style="margin-top:8px;font-size:11px;opacity:0.58;line-height:1.45;">Mostramos la hora base de SyncPlans en Perú para evitar que el correo use UTC por accidente. Si estás en otro país, abre el plan o revisa tu calendario para confirmar la hora local.</div>` : ""}
       </div>
 
       <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:16px 0 14px;">
