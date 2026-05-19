@@ -33,6 +33,8 @@ export type TimelineEvent = {
   external_source?: string | null;
   external_id?: string | null;
   external_attendees_count?: number | null;
+  /** Evento visible solo por invitación puntual, no por pertenecer al calendario/grupo. */
+  visibility_source?: "direct" | "event_participant";
   group?: {
     id?: string;
     name?: string | null;

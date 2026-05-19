@@ -158,6 +158,10 @@ export default function EventTimelineCard({
     !!shareState?.loading || !!shareState?.link || !!shareState?.error;
   const isOwnerView =
     !!currentUserId && resolveEventOwnerId(ev) === currentUserId;
+  const isEventSpecificGuestView =
+    ev.visibility_source === "event_participant" && !isOwnerView;
+  const canOpenEventDetails = !isEventSpecificGuestView;
+  const canSelectEvent = !isEventSpecificGuestView;
   const canDelete = isOwnerView;
   const isSharedEvent = !!ev.group_id;
   const isInvitedGroupEvent = isSharedEvent && !isOwnerView;
@@ -192,18 +196,22 @@ export default function EventTimelineCard({
     !acceptedBySharedMember &&
     !declinedBySharedMember &&
     baseStatusUi.status === "pending";
-  const stateLabel = acceptedBySharedMember
-    ? "Confirmado"
-    : declinedBySharedMember
+  const stateLabel = isEventSpecificGuestView
+    ? "Invitado a este plan"
+    : acceptedBySharedMember
+      ? "Confirmado"
+      : declinedBySharedMember
       ? "Rechazado"
       : ownerWaitingForResponse
         ? "Esperando respuesta"
         : declinedByMe
           ? "Rechazado por ti"
           : statusUi.label;
-  const stateSubtitle = acceptedBySharedMember
-    ? "La otra persona ya confirmó este plan. La salida ya está clara para ambos."
-    : declinedBySharedMember
+  const stateSubtitle = isEventSpecificGuestView
+    ? "Te compartieron solo este evento. No tienes acceso al calendario completo ni permisos para editarlo."
+    : acceptedBySharedMember
+      ? "La otra persona ya confirmó este plan. La salida ya está clara para ambos."
+      : declinedBySharedMember
       ? "La otra persona rechazó este plan. Ábrelo para ajustar o coordinar una nueva salida."
       : ownerWaitingForResponse
         ? "Tú ya creaste este plan. Falta que la otra persona confirme o proponga un cambio."
@@ -217,7 +225,7 @@ export default function EventTimelineCard({
     eventId,
     status: statusUi.status,
   });
-  const primaryAction = needsMyResponse || declinedByMe
+  const primaryAction = isEventSpecificGuestView || needsMyResponse || declinedByMe
     ? null
     : ownerWaitingForResponse || declinedBySharedMember
       ? {
@@ -302,9 +310,20 @@ export default function EventTimelineCard({
       <label style={S.checkWrap}>
         <input
           type="checkbox"
-          checked={checked}
-          onChange={() => onToggleSelected(eventId)}
-          style={S.checkbox}
+          checked={canSelectEvent ? checked : false}
+          onChange={() => {
+            if (canSelectEvent) onToggleSelected(eventId);
+          }}
+          disabled={!canSelectEvent}
+          title={
+            canSelectEvent
+              ? "Seleccionar evento"
+              : "Este plan fue compartido solo en modo lectura"
+          }
+          style={{
+            ...S.checkbox,
+            ...(!canSelectEvent ? S.checkboxDisabled : null),
+          }}
         />
       </label>
 
@@ -353,14 +372,18 @@ export default function EventTimelineCard({
               </button>
             ) : null}
 
-            <button
-              onClick={() => router.push(`/events/new/details?eventId=${eventId}`)}
-              style={secondaryBtn}
-              title="Editar"
-              type="button"
-            >
-              Abrir
-            </button>
+            {canOpenEventDetails ? (
+              <button
+                onClick={() => router.push(`/events/new/details?eventId=${eventId}`)}
+                style={secondaryBtn}
+                title="Abrir"
+                type="button"
+              >
+                Abrir
+              </button>
+            ) : (
+              <span style={S.readOnlyPill}>Solo este plan</span>
+            )}
 
             {canDelete ? (
               <button
@@ -454,6 +477,10 @@ export default function EventTimelineCard({
           >
             {signal.label}
           </span>
+
+          {isEventSpecificGuestView ? (
+            <span style={S.readOnlySignalBadge}>Acceso puntual · solo lectura</span>
+          ) : null}
         </div>
 
         {proposalInsight ? (
@@ -680,6 +707,7 @@ const S: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   checkbox: { width: 16, height: 16, cursor: "pointer" },
+  checkboxDisabled: { cursor: "not-allowed", opacity: 0.38 },
   eventMain: {
     flex: 1,
     minWidth: 0,
@@ -783,6 +811,19 @@ const S: Record<string, React.CSSProperties> = {
     alignItems: "center",
     marginTop: 2,
   },
+  readOnlyPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 34,
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.045)",
+    color: "rgba(226,232,240,0.86)",
+    fontSize: 12,
+    fontWeight: 900,
+    padding: "8px 12px",
+    whiteSpace: "nowrap",
+  },
   signalsRow: {
     display: "flex",
     gap: 7,
@@ -792,6 +833,16 @@ const S: Record<string, React.CSSProperties> = {
   signalBadge: {
     borderRadius: 999,
     border: "1px solid transparent",
+    padding: "6px 10px",
+    fontSize: 11,
+    fontWeight: 900,
+    lineHeight: 1,
+  },
+  readOnlySignalBadge: {
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.18)",
+    background: "rgba(15,23,42,0.52)",
+    color: "rgba(203,213,225,0.92)",
     padding: "6px 10px",
     fontSize: 11,
     fontWeight: 900,

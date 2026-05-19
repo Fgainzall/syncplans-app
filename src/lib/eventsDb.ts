@@ -18,6 +18,8 @@ export type EventTravelMode =
   | "bicycling"
   | "transit";
 
+export type DbEventVisibilitySource = "direct" | "event_participant";
+
 export type DbEventRow = {
   id: string;
   user_id: string | null;
@@ -42,6 +44,12 @@ export type DbEventRow = {
   travel_mode?: EventTravelMode | null;
   travel_eta_seconds?: number | null;
   leave_time?: string | null;
+  /**
+   * Indica cómo llegó este evento al usuario actual.
+   * - undefined/direct: evento propio o visible por RLS normal.
+   * - event_participant: acceso puntual a un solo evento vía invitación específica.
+   */
+  visibility_source?: DbEventVisibilitySource;
 };
 
 export type CreateEventPayload = {
@@ -85,6 +93,7 @@ export type DbEvent = {
   travel_mode?: EventTravelMode | null;
   travel_eta_seconds?: number | null;
   leave_time?: string | null;
+  visibility_source?: DbEventVisibilitySource;
 };
 
 /**
@@ -406,7 +415,12 @@ export async function getMyEventParticipantEvents(): Promise<DbEventRow[]> {
     return [];
   }
 
-  return filterInformationalGoogleEvents(((data ?? []) as DbEventInputRow[]).map(mapDbEventRow));
+  return filterInformationalGoogleEvents(
+    ((data ?? []) as DbEventInputRow[]).map((row) => ({
+      ...mapDbEventRow(row),
+      visibility_source: "event_participant" as const,
+    }))
+  );
 }
 
 export async function getMyEventParticipantEventsInRange(
