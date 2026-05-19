@@ -5,7 +5,11 @@ import type {
   CalendarEvent,
 } from "@/lib/conflicts";
 import { computeVisibleConflicts } from "@/lib/conflicts";
-import { normalizeGroupType as normalizeCanonicalGroupType } from "@/lib/naming";
+import {
+  getEventAudienceLabel,
+  isGoogleEventWithExternalGuests,
+  normalizeGroupType as normalizeCanonicalGroupType,
+} from "@/lib/naming";
 import { buildEventContext } from "@/lib/eventContext";
 import { getEventStatusUi } from "@/lib/eventStatusUi";
 import type { ConflictTrustSignal } from "@/lib/conflictResolutionsLogDb";
@@ -28,6 +32,7 @@ export type TimelineEvent = {
   group_id?: string | null;
   external_source?: string | null;
   external_id?: string | null;
+  external_attendees_count?: number | null;
   group?: {
     id?: string;
     name?: string | null;
@@ -233,6 +238,16 @@ export function getGroupSignal(ev: TimelineEvent) {
   const rawType = String(ev.group?.type ?? "").toLowerCase();
 
   if (!ev.group_id) {
+    if (isGoogleEventWithExternalGuests(ev)) {
+      return {
+        label: getEventAudienceLabel(ev),
+        dot: "rgba(96,165,250,0.98)",
+        badgeBg: "rgba(30,58,138,0.72)",
+        badgeBorder: "rgba(96,165,250,0.32)",
+        badgeText: "rgba(219,234,254,0.98)",
+      };
+    }
+
     return {
       label: "Personal",
       dot: "rgba(56,189,248,0.98)",

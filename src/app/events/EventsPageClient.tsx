@@ -413,9 +413,9 @@ export default function EventsPage() {
     }
 
     if (filters.scope === "personal") {
-      list = list.filter((e) => !e.group_id);
+      list = list.filter((e) => !e.group_id && !isGoogleEventWithExternalGuests(e));
     } else if (filters.scope === "groups") {
-      list = list.filter((e) => !!e.group_id);
+      list = list.filter((e) => !!e.group_id || isGoogleEventWithExternalGuests(e));
     }
 
     const q = filters.query.trim().toLowerCase();
