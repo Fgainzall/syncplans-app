@@ -1,140 +1,165 @@
 // src/lib/eventInvitesDb.ts
 "use client";
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import supabase from "@/lib/supabaseClient";
 
-export type CreateEventSpecificInviteInput = {
-  eventId: string;
-  email: string;
-};
-
-export type EventSpecificInviteResult = {
+export type EventSpecificInvite = {
   invite_id: string;
-  event_id: string;
   token: string;
+  event_id: string;
   invited_email: string;
+  status: string;
 };
 
 export type EventInvitePreview = {
-  invite_id: string;
-  event_id: string;
+  invite_id: string | null;
+  event_id: string | null;
   event_title: string;
   event_start: string | null;
   event_end: string | null;
   invited_email: string;
+  invited_by: string | null;
   status: string;
-  created_at: string | null;
 };
 
-function cleanEmail(value: unknown) {
+export type AcceptEventInviteResult = {
+  event_id: string;
+  status: string;
+};
+
+type CreateEventSpecificInviteInput = {
+  eventId: string;
+  email: string;
+};
+
+function normalizeEmail(value: string): string {
   return String(value ?? "").trim().toLowerCase();
 }
 
-function normalizeCreateInviteRow(row: any): EventSpecificInviteResult {
-  return {
-    invite_id: String(row?.invite_id ?? row?.id ?? ""),
-    event_id: String(row?.event_id ?? ""),
-    token: String(row?.token ?? ""),
-    invited_email: cleanEmail(row?.invited_email ?? row?.email ?? ""),
-  };
+function getPublicBaseUrl(): string {
+  const envBase = String(
+    process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? ""
+  )
+    .trim()
+    .replace(/\/$/, "");
+
+  if (envBase) return envBase;
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin.replace(/\/$/, "");
+  }
+
+  return "http://localhost:3000";
 }
 
-function normalizePreviewRow(row: any): EventInvitePreview {
-  return {
-    invite_id: String(row?.invite_id ?? row?.id ?? ""),
-    event_id: String(row?.event_id ?? ""),
-    event_title: String(row?.event_title ?? row?.title ?? "Plan"),
-    event_start: row?.event_start ? String(row.event_start) : null,
-    event_end: row?.event_end ? String(row.event_end) : null,
-    invited_email: cleanEmail(row?.invited_email ?? row?.email ?? ""),
-    status: String(row?.status ?? "pending").toLowerCase(),
-    created_at: row?.created_at ? String(row.created_at) : null,
-  };
+function asObjectRow<T extends Record<string, unknown>>(value: unknown): T | null {
+  if (Array.isArray(value)) return (value[0] as T | undefined) ?? null;
+  if (value && typeof value === "object") return value as T;
+  return null;
 }
 
-export function buildEventInviteUrl(token: string, baseUrl?: string | null) {
-  const safeToken = String(token ?? "").trim();
-  const explicitBase = String(baseUrl ?? "").trim().replace(/\/$/, "");
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  if (error && typeof error === "object" && "message" in error) {
+    const msg = String((error as { message?: unknown }).message ?? "").trim();
+    if (msg) return msg;
+  }
+  return fallback;
+}
 
-  const origin =
-    explicitBase ||
-    (typeof window !== "undefined" && window.location?.origin
-      ? window.location.origin.replace(/\/$/, "")
-      : "");
-
-  return `${origin || "http://localhost:3000"}/event-invite/${encodeURIComponent(
-    safeToken
-  )}`;
+export function buildEventInviteUrl(token: string): string {
+  const safeToken = encodeURIComponent(String(token ?? "").trim());
+  return `${getPublicBaseUrl()}/event-invite/${safeToken}`;
 }
 
 export async function createEventSpecificInvite(
   input: CreateEventSpecificInviteInput
-): Promise<EventSpecificInviteResult> {
+): Promise<EventSpecificInvite> {
   const eventId = String(input.eventId ?? "").trim();
-  const email = cleanEmail(input.email);
+  const email = normalizeEmail(input.email);
 
-  if (!eventId) throw new Error("Falta el evento.");
-  if (!email || !email.includes("@")) throw new Error("Escribe un email válido.");
+  if (!eventId) throw new Error("No encontramos el evento para compartir.");
+  if (!email || !email.includes("@")) {
+    throw new Error("Escribe un correo válido para compartir este plan.");
+  }
 
-  const { data, error } = await (supabase as any).rpc("create_event_invite", {
+  const { data, error } = await supabase.rpc("create_event_invite", {
     p_event_id: eventId,
-    p_email: email,
+    p_invited_email: email,
   });
 
   if (error) {
-    throw new Error(error.message || "No se pudo crear la invitación del plan.");
+    throw new Error(
+      getErrorMessage(error, "No se pudo crear la invitación de este plan.")
+    );
   }
 
-  const row = Array.isArray(data) ? data[0] : data;
-  const normalized = normalizeCreateInviteRow(row);
-
-  if (!normalized.invite_id || !normalized.token) {
-    throw new Error("La invitación se creó, pero no devolvió un link válido.");
+  const row = asObjectRow<Record<string, unknown>>(data);
+  if (!row?.token || !row?.event_id) {
+    throw new Error("La invitación se creó, pero no recibimos un link válido.");
   }
 
-  return normalized;
+  return {
+    invite_id: String(row.invite_id ?? row.id ?? ""),
+    token: String(row.token),
+    event_id: String(row.event_id),
+    invited_email: normalizeEmail(String(row.invited_email ?? email)),
+    status: String(row.status ?? "pending"),
+  };
 }
 
 export async function getEventInvitePreview(
   token: string
-): Promise<EventInvitePreview | null> {
+): Promise<EventInvitePreview> {
   const safeToken = String(token ?? "").trim();
-  if (!safeToken) return null;
+  if (!safeToken) throw new Error("Falta el token de invitación.");
 
-  const { data, error } = await (supabase as any).rpc("get_event_invite_preview", {
+  const { data, error } = await supabase.rpc("get_event_invite_preview", {
     p_token: safeToken,
   });
 
   if (error) {
-    throw new Error(error.message || "No se pudo cargar la invitación del plan.");
+    throw new Error(
+      getErrorMessage(error, "No pudimos cargar esta invitación.")
+    );
   }
 
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row) return null;
-
-  return normalizePreviewRow(row);
-}
-
-export async function acceptEventSpecificInvite(token: string): Promise<{
-  event_id: string;
-  status: string;
-}> {
-  const safeToken = String(token ?? "").trim();
-  if (!safeToken) throw new Error("Link inválido.");
-
-  const { data, error } = await (supabase as any).rpc("accept_event_invite", {
-    p_token: safeToken,
-  });
-
-  if (error) {
-    throw new Error(error.message || "No se pudo aceptar la invitación.");
-  }
-
-  const row = Array.isArray(data) ? data[0] : data;
+  const row = asObjectRow<Record<string, unknown>>(data);
+  if (!row) throw new Error("Invitación no encontrada.");
 
   return {
-    event_id: String(row?.event_id ?? ""),
-    status: String(row?.status ?? "accepted"),
+    invite_id: row.invite_id ? String(row.invite_id) : null,
+    event_id: row.event_id ? String(row.event_id) : null,
+    event_title: String(row.event_title ?? "Plan"),
+    event_start: row.event_start ? String(row.event_start) : null,
+    event_end: row.event_end ? String(row.event_end) : null,
+    invited_email: normalizeEmail(String(row.invited_email ?? "")),
+    invited_by: row.invited_by ? String(row.invited_by) : null,
+    status: String(row.status ?? "pending"),
+  };
+}
+
+export async function acceptEventInvite(
+  token: string
+): Promise<AcceptEventInviteResult> {
+  const safeToken = String(token ?? "").trim();
+  if (!safeToken) throw new Error("Falta el token de invitación.");
+
+  const { data, error } = await supabase.rpc("accept_event_invite", {
+    p_token: safeToken,
+  });
+
+  if (error) {
+    throw new Error(
+      getErrorMessage(error, "No pudimos aceptar esta invitación.")
+    );
+  }
+
+  const row = asObjectRow<Record<string, unknown>>(data);
+  if (!row?.event_id) throw new Error("No recibimos el evento aceptado.");
+
+  return {
+    event_id: String(row.event_id),
+    status: String(row.status ?? "accepted"),
   };
 }

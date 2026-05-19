@@ -1,360 +1,301 @@
 // src/app/event-invite/[token]/EventInviteAcceptClient.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import PremiumHeader from "@/components/PremiumHeader";
-import MobileScaffold from "@/components/MobileScaffold";
-import Section from "@/components/ui/Section";
-import Card from "@/components/ui/Card";
 import supabase from "@/lib/supabaseClient";
 import {
-  acceptEventSpecificInvite,
+  acceptEventInvite,
   getEventInvitePreview,
   type EventInvitePreview,
 } from "@/lib/eventInvitesDb";
-import { trackEventOnce, trackScreenView } from "@/lib/analytics";
 
-type Props = {
-  token: string;
-};
-
-type SessionUser = {
-  id: string;
-  email?: string | null;
-};
-
-function formatDateRange(start: string | null, end: string | null) {
-  if (!start) return "Horario por confirmar";
-
-  const startDate = new Date(start);
-  const endDate = end ? new Date(end) : null;
-
-  if (Number.isNaN(startDate.getTime())) return "Horario por confirmar";
-
-  const date = startDate.toLocaleDateString("es-PE", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-  });
-
-  const startTime = startDate.toLocaleTimeString("es-PE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  const endTime =
-    endDate && !Number.isNaN(endDate.getTime())
-      ? endDate.toLocaleTimeString("es-PE", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : null;
-
-  return endTime ? `${date} · ${startTime} – ${endTime}` : `${date} · ${startTime}`;
-}
-
-function cleanEmail(value: unknown) {
-  return String(value ?? "").trim().toLowerCase();
-}
-
-export default function EventInviteAcceptClient({ token }: Props) {
+export default function EventInviteAcceptClient({ token }: { token: string }) {
   const router = useRouter();
-
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<EventInvitePreview | null>(null);
-  const [user, setUser] = useState<SessionUser | null>(null);
+  const [authEmail, setAuthEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [acceptedEventId, setAcceptedEventId] = useState<string | null>(null);
 
-  const safeToken = useMemo(() => String(token ?? "").trim(), [token]);
-  const currentEmail = cleanEmail(user?.email);
-  const invitedEmail = cleanEmail(preview?.invited_email);
-  const emailMismatch = Boolean(
-    preview && currentEmail && invitedEmail && currentEmail !== invitedEmail
+  const expectedEmail = useMemo(
+    () => String(preview?.invited_email ?? "").trim().toLowerCase(),
+    [preview]
   );
-  const alreadyAccepted = String(preview?.status ?? "").toLowerCase() === "accepted";
 
-  useEffect(() => {
-    void trackScreenView({
-      screen: "event_invite_accept",
-      metadata: { source: "event_invite_link" },
-    });
-  }, []);
+  const emailMatches = useMemo(() => {
+    if (!expectedEmail) return true;
+    if (!authEmail) return false;
+    return expectedEmail === authEmail.toLowerCase();
+  }, [authEmail, expectedEmail]);
 
   useEffect(() => {
     let alive = true;
 
-    async function boot() {
+    async function load() {
       try {
         setLoading(true);
         setError(null);
 
-        if (!safeToken) {
-          setError("Este link no es válido.");
-          return;
-        }
-
-        const { data } = await supabase.auth.getSession();
-        const sessionUser = data.session?.user ?? null;
-
-        if (!sessionUser) {
-          const next = encodeURIComponent(window.location.pathname + window.location.search);
-          router.replace(`/auth/login?next=${next}`);
-          return;
-        }
+        const [previewRes, sessionRes] = await Promise.all([
+          getEventInvitePreview(token),
+          supabase.auth.getSession(),
+        ]);
 
         if (!alive) return;
-        setUser({ id: sessionUser.id, email: sessionUser.email ?? null });
 
-        const loadedPreview = await getEventInvitePreview(safeToken);
-
-        if (!alive) return;
-        setPreview(loadedPreview);
-
-        if (!loadedPreview) {
-          setError("No encontramos esta invitación. Puede haber expirado o sido eliminada.");
-        }
+        setPreview(previewRes);
+        setAuthEmail(
+          sessionRes.data.session?.user?.email
+            ? String(sessionRes.data.session.user.email).toLowerCase()
+            : null
+        );
       } catch (err: unknown) {
         if (!alive) return;
-        setError(err instanceof Error ? err.message : "No se pudo cargar la invitación.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No pudimos cargar esta invitación."
+        );
       } finally {
         if (alive) setLoading(false);
       }
     }
 
-    void boot();
+    void load();
 
     return () => {
       alive = false;
     };
-  }, [router, safeToken]);
+  }, [token]);
 
-  useEffect(() => {
-    if (!preview?.invite_id) return;
-
-    void trackEventOnce({
-      event: "event_specific_invite_opened",
-      userId: user?.id ?? undefined,
-      entityId: preview.invite_id,
-      scope: "session",
-      onceKey: `event-specific-invite-opened:${preview.invite_id}`,
-      metadata: {
-        eventId: preview.event_id,
-        status: preview.status,
-      },
-    });
-  }, [preview, user?.id]);
-
-  async function onAccept() {
+  async function handleAccept() {
     try {
-      setBusy(true);
+      setAccepting(true);
       setError(null);
-
-      const result = await acceptEventSpecificInvite(safeToken);
-      setAcceptedEventId(result.event_id || preview?.event_id || null);
-
-      if (preview?.invite_id) {
-        void trackEventOnce({
-          event: "event_specific_invite_accepted",
-          userId: user?.id ?? undefined,
-          entityId: preview.invite_id,
-          scope: "local",
-          onceKey: `event-specific-invite-accepted:${preview.invite_id}`,
-          metadata: { eventId: result.event_id || preview.event_id },
-        });
-      }
+      const result = await acceptEventInvite(token);
+      setAcceptedEventId(result.event_id);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo aceptar la invitación.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No pudimos aceptar esta invitación."
+      );
     } finally {
-      setBusy(false);
+      setAccepting(false);
     }
   }
 
-  function goToEvent() {
-    const eventId = acceptedEventId || preview?.event_id;
-    if (eventId) {
-      router.push(`/events?focusEventId=${encodeURIComponent(eventId)}`);
-      return;
-    }
+  function goLogin() {
+    const next = `/event-invite/${encodeURIComponent(token)}`;
+    router.push(`/auth/login?next=${encodeURIComponent(next)}`);
+  }
 
-    router.push("/events");
+  function goEvents() {
+    const eventId = acceptedEventId ?? preview?.event_id ?? "";
+    router.push(eventId ? `/events?focusEventId=${encodeURIComponent(eventId)}` : "/events");
   }
 
   return (
-    <MobileScaffold maxWidth={860} style={S.page}>
-      <Section>
-        <PremiumHeader
-          hideUpgradeCta
-          title="Invitación a un plan"
-          subtitle="Acceso puntual a un evento específico."
-        />
+    <main style={S.page}>
+      <section style={S.card}>
+        <div style={S.badge}>SyncPlans</div>
+        <h1 style={S.title}>Te compartieron un plan</h1>
 
-        <Card style={S.card}>
-          {loading ? (
-            <div style={S.stateBox}>
-              <div style={S.kicker}>Cargando invitación</div>
-              <h1 style={S.title}>Un momento…</h1>
-              <p style={S.body}>Estamos validando el link de este plan.</p>
-            </div>
-          ) : error && !preview ? (
-            <div style={S.stateBox}>
-              <div style={S.kicker}>Link no disponible</div>
-              <h1 style={S.title}>No pudimos abrir esta invitación</h1>
-              <p style={S.body}>{error}</p>
-              <button type="button" onClick={() => router.push("/events")} style={S.secondaryBtn}>
-                Ir a Eventos
-              </button>
-            </div>
-          ) : acceptedEventId || alreadyAccepted ? (
-            <div style={S.stateBox}>
-              <div style={S.kicker}>Listo</div>
-              <h1 style={S.title}>Ya tienes acceso a este plan</h1>
-              <p style={S.body}>
-                Este evento ya está vinculado a tu cuenta de SyncPlans. Solo verás este plan, no el calendario completo de la otra persona.
-              </p>
-              <button type="button" onClick={goToEvent} style={S.primaryBtn}>
-                Ver plan
-              </button>
-            </div>
-          ) : preview ? (
-            <div style={S.stack}>
-              <div>
-                <div style={S.kicker}>Te compartieron un plan</div>
-                <h1 style={S.title}>{preview.event_title || "Plan compartido"}</h1>
-                <p style={S.body}>{formatDateRange(preview.event_start, preview.event_end)}</p>
-              </div>
-
-              <div style={S.infoBox}>
-                <div style={S.infoTitle}>Qué significa aceptar</div>
-                <div style={S.infoBody}>
-                  Entrarás solo a este evento. No tendrás acceso a otros planes, grupos ni calendario completo de quien te invitó.
-                </div>
-              </div>
-
-              {emailMismatch ? (
-                <div style={S.errorBox}>
-                  Este link fue creado para <strong>{invitedEmail}</strong>, pero estás conectado como <strong>{currentEmail}</strong>. Cierra sesión o entra con el correo correcto.
-                </div>
+        {loading ? (
+          <p style={S.body}>Cargando invitación…</p>
+        ) : error && !preview ? (
+          <div style={S.errorBox}>{error}</div>
+        ) : preview ? (
+          <>
+            <div style={S.planBox}>
+              <div style={S.planEyebrow}>Plan compartido</div>
+              <div style={S.planTitle}>{preview.event_title || "Plan"}</div>
+              {preview.event_start ? (
+                <div style={S.planDate}>{formatPlanDate(preview.event_start, preview.event_end)}</div>
               ) : null}
+            </div>
 
-              {error ? <div style={S.errorBox}>{error}</div> : null}
+            <p style={S.body}>
+              Esta invitación te da acceso solo a este evento. No verás el calendario completo, grupos ni otros planes de la persona que lo compartió.
+            </p>
 
-              <div style={S.actions}>
+            {expectedEmail ? (
+              <div style={S.emailBox}>
+                Invitación para: <strong>{expectedEmail}</strong>
+              </div>
+            ) : null}
+
+            {!authEmail ? (
+              <>
+                <p style={S.muted}>Inicia sesión con ese correo para aceptar el plan.</p>
+                <button type="button" onClick={goLogin} style={S.primaryButton}>
+                  Iniciar sesión para aceptar
+                </button>
+              </>
+            ) : !emailMatches ? (
+              <div style={S.errorBox}>
+                Estás conectado como {authEmail}, pero este link fue creado para {expectedEmail}. Cierra sesión e ingresa con el correo correcto.
+              </div>
+            ) : acceptedEventId || preview.status === "accepted" ? (
+              <>
+                <div style={S.successBox}>Listo. Este plan ya está en tu SyncPlans.</div>
+                <button type="button" onClick={goEvents} style={S.primaryButton}>
+                  Ver en Eventos
+                </button>
+              </>
+            ) : (
+              <>
+                {error ? <div style={S.errorBox}>{error}</div> : null}
                 <button
                   type="button"
-                  onClick={onAccept}
-                  disabled={busy || emailMismatch}
-                  style={{ ...S.primaryBtn, ...(busy || emailMismatch ? S.disabledBtn : null) }}
+                  onClick={() => void handleAccept()}
+                  disabled={accepting}
+                  style={S.primaryButton}
                 >
-                  {busy ? "Aceptando…" : "Aceptar y ver este plan"}
+                  {accepting ? "Aceptando…" : "Aceptar este plan"}
                 </button>
-                <button type="button" onClick={() => router.push("/events")} style={S.secondaryBtn}>
-                  Ahora no
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </Card>
-      </Section>
-    </MobileScaffold>
+              </>
+            )}
+          </>
+        ) : null}
+      </section>
+    </main>
   );
 }
 
-const S: Record<string, CSSProperties> = {
+function formatPlanDate(startIso: string, endIso?: string | null) {
+  const start = new Date(startIso);
+  const end = endIso ? new Date(endIso) : null;
+
+  if (Number.isNaN(start.getTime())) return "Fecha por confirmar";
+
+  const date = start.toLocaleDateString("es-PE", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const startTime = start.toLocaleTimeString("es-PE", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const endTime = end && !Number.isNaN(end.getTime())
+    ? end.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })
+    : null;
+
+  return endTime ? `${date} · ${startTime} – ${endTime}` : `${date} · ${startTime}`;
+}
+
+const S: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
+    display: "grid",
+    placeItems: "center",
+    padding: 20,
     background:
-      "radial-gradient(1000px 560px at 15% -10%, rgba(56,189,248,0.14), transparent 60%), radial-gradient(780px 460px at 100% 0%, rgba(124,58,237,0.12), transparent 58%), #050816",
+      "radial-gradient(circle at top left, rgba(59,130,246,0.22), transparent 32%), #020617",
+    color: "white",
+    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   },
   card: {
-    padding: "clamp(18px, 4vw, 28px)",
+    width: "min(100%, 520px)",
     borderRadius: 28,
-  },
-  stack: {
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.96))",
+    boxShadow: "0 32px 90px rgba(0,0,0,0.42)",
+    padding: "28px clamp(20px, 5vw, 34px)",
     display: "grid",
-    gap: 18,
+    gap: 16,
   },
-  stateBox: {
-    display: "grid",
-    gap: 12,
-  },
-  kicker: {
-    fontSize: 11,
+  badge: {
+    width: "fit-content",
+    borderRadius: 999,
+    border: "1px solid rgba(96,165,250,0.28)",
+    background: "rgba(37,99,235,0.16)",
+    color: "rgba(219,234,254,0.98)",
+    padding: "7px 11px",
+    fontSize: 12,
     fontWeight: 950,
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-    color: "rgba(125,211,252,0.95)",
   },
   title: {
     margin: 0,
-    fontSize: "clamp(26px, 6vw, 42px)",
-    lineHeight: 1.05,
-    letterSpacing: "-0.04em",
-    color: "rgba(255,255,255,0.98)",
+    fontSize: "clamp(28px, 7vw, 42px)",
+    lineHeight: 1.02,
+    letterSpacing: "-0.045em",
   },
   body: {
     margin: 0,
+    color: "rgba(203,213,225,0.86)",
     fontSize: 14,
-    lineHeight: 1.6,
-    color: "rgba(203,213,225,0.86)",
+    lineHeight: 1.55,
   },
-  infoBox: {
-    padding: 14,
-    borderRadius: 18,
-    border: "1px solid rgba(96,165,250,0.20)",
-    background: "rgba(37,99,235,0.10)",
-  },
-  infoTitle: {
+  muted: {
+    margin: 0,
+    color: "rgba(148,163,184,0.95)",
     fontSize: 13,
+    lineHeight: 1.45,
+  },
+  planBox: {
+    borderRadius: 20,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.045)",
+    padding: 16,
+    display: "grid",
+    gap: 5,
+  },
+  planEyebrow: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
     fontWeight: 950,
-    color: "rgba(219,234,254,0.98)",
-    marginBottom: 4,
+    color: "rgba(125,211,252,0.95)",
   },
-  infoBody: {
+  planTitle: {
+    fontSize: 19,
+    fontWeight: 950,
+    color: "rgba(255,255,255,0.97)",
+  },
+  planDate: {
     fontSize: 13,
-    lineHeight: 1.5,
     color: "rgba(203,213,225,0.86)",
+  },
+  emailBox: {
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.035)",
+    padding: 12,
+    fontSize: 13,
+    color: "rgba(226,232,240,0.94)",
   },
   errorBox: {
-    padding: 12,
     borderRadius: 16,
     border: "1px solid rgba(248,113,113,0.28)",
-    background: "rgba(127,29,29,0.20)",
-    color: "rgba(254,226,226,0.96)",
+    background: "rgba(127,29,29,0.28)",
+    color: "rgba(254,226,226,0.98)",
+    padding: 13,
     fontSize: 13,
-    lineHeight: 1.5,
+    lineHeight: 1.45,
   },
-  actions: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
+  successBox: {
+    borderRadius: 16,
+    border: "1px solid rgba(74,222,128,0.26)",
+    background: "rgba(22,101,52,0.22)",
+    color: "rgba(220,252,231,0.98)",
+    padding: 13,
+    fontSize: 13,
+    lineHeight: 1.45,
   },
-  primaryBtn: {
-    minHeight: 42,
-    border: "1px solid rgba(96,165,250,0.34)",
+  primaryButton: {
+    minHeight: 44,
     borderRadius: 999,
-    background: "rgba(37,99,235,0.24)",
-    color: "rgba(219,234,254,0.98)",
-    padding: "10px 16px",
-    fontSize: 13,
+    border: "1px solid rgba(96,165,250,0.30)",
+    background: "linear-gradient(135deg, rgba(37,99,235,0.98), rgba(14,165,233,0.88))",
+    color: "white",
     fontWeight: 950,
+    fontSize: 14,
     cursor: "pointer",
-  },
-  secondaryBtn: {
-    minHeight: 42,
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 999,
-    background: "rgba(255,255,255,0.05)",
-    color: "rgba(226,232,240,0.92)",
-    padding: "10px 16px",
-    fontSize: 13,
-    fontWeight: 850,
-    cursor: "pointer",
-  },
-  disabledBtn: {
-    opacity: 0.55,
-    cursor: "not-allowed",
+    padding: "0 18px",
   },
 };

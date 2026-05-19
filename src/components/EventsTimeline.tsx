@@ -420,6 +420,20 @@ ${link}`;
 
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   }
+  function canCreateSpecificInvite(ev: TimelineEvent): boolean {
+    const uid = String(currentUserId ?? "").trim();
+    if (!uid) return false;
+
+    const ownerCandidates = [ev.owner_id, ev.user_id, ev.created_by]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean);
+
+    return (
+      isGoogleEventWithExternalGuests(ev) &&
+      !ev.group_id &&
+      ownerCandidates.includes(uid)
+    );
+  }
 
   return (
     <div style={S.wrapper}>
@@ -495,7 +509,7 @@ ${link}`;
                       }}
                     />
 
-                    {isGoogleEventWithExternalGuests(ev) && !ev.group_id ? (() => {
+                    {canCreateSpecificInvite(ev) ? (() => {
                       const inviteState = getEventInviteState(eventId);
 
                       return (

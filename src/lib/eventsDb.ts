@@ -364,18 +364,78 @@ function resolvePublicAppBaseUrl(explicitBaseUrl?: string | null): string {
  * - /summary
  * - flujos de conflictos (vía conflictsDbBridge)
  */
+function dedupeEventsById(rows: DbEventRow[]): DbEventRow[] {
+  const map = new Map<string, DbEventRow>();
+
+  for (const row of rows) {
+    const id = String(row.id ?? "").trim();
+    if (!id) continue;
+    if (!map.has(id)) map.set(id, row);
+  }
+
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+  );
+}
+
+function eventOverlapsRange(event: DbEventRow, startIso: string, endIso: string): boolean {
+  const startMs = new Date(startIso).getTime();
+  const endMs = new Date(endIso).getTime();
+  const eventStartMs = new Date(event.start).getTime();
+  const eventEndMs = new Date(event.end).getTime();
+
+  if (
+    !Number.isFinite(startMs) ||
+    !Number.isFinite(endMs) ||
+    !Number.isFinite(eventStartMs) ||
+    !Number.isFinite(eventEndMs)
+  ) {
+    return false;
+  }
+
+  return eventStartMs <= endMs && eventEndMs >= startMs;
+}
+
+export async function getMyEventParticipantEvents(): Promise<DbEventRow[]> {
+  await requireUid();
+
+  const { data, error } = await supabase.rpc("get_my_event_participant_events");
+
+  if (error) {
+    console.warn("[getMyEventParticipantEvents] RPC unavailable or failed", error);
+    return [];
+  }
+
+  return filterInformationalGoogleEvents(((data ?? []) as DbEventInputRow[]).map(mapDbEventRow));
+}
+
+export async function getMyEventParticipantEventsInRange(
+  startIso: string,
+  endIso: string
+): Promise<DbEventRow[]> {
+  const rows = await getMyEventParticipantEvents();
+  return rows.filter((event) => eventOverlapsRange(event, startIso, endIso));
+}
+
 export async function getMyEvents(_opts?: unknown): Promise<DbEventRow[]> {
   void _opts;
   await requireUid();
 
-  const { data, error } = await supabase
-    .from("events")
-    .select(EVENT_SELECT)
-    .order("start", { ascending: true });
+  const [{ data, error }, participantEvents] = await Promise.all([
+    supabase
+      .from("events")
+      .select(EVENT_SELECT)
+      .order("start", { ascending: true }),
+    getMyEventParticipantEvents().catch((err) => {
+      console.warn("[getMyEvents] participant events fallback", err);
+      return [] as DbEventRow[];
+    }),
+  ]);
 
   if (error) throw error;
 
-  return filterInformationalGoogleEvents((data ?? []).map(mapDbEventRow));
+  const directEvents = filterInformationalGoogleEvents((data ?? []).map(mapDbEventRow));
+  return dedupeEventsById([...directEvents, ...participantEvents]);
 }
 
 /**
@@ -400,16 +460,25 @@ export async function getMyEventsInRange(
     throw new Error("Falta el rango de fechas para cargar eventos.");
   }
 
-  const { data, error } = await supabase
-    .from("events")
-    .select(EVENT_SELECT)
-    .lte("start", end)
-    .gte("end", start)
-    .order("start", { ascending: true });
+  const [{ data, error }, participantEvents] = await Promise.all([
+    supabase
+      .from("events")
+      .select(EVENT_SELECT)
+      .lte("start", end)
+      .gte("end", start)
+      .order("start", { ascending: true }),
+    getMyEventParticipantEventsInRange(start, end).catch((err) => {
+      console.warn("[getMyEventsInRange] participant events fallback", err);
+      return [] as DbEventRow[];
+    }),
+  ]);
 
   if (error) throw error;
 
-  let rows = filterInformationalGoogleEvents((data ?? []).map(mapDbEventRow));
+  let rows = dedupeEventsById([
+    ...filterInformationalGoogleEvents((data ?? []).map(mapDbEventRow)),
+    ...participantEvents,
+  ]);
 
   const groupIds = normalizeIds(options.groupIds ?? []);
   if (groupIds.length > 0) {
