@@ -604,7 +604,7 @@ function UpcomingSection({
           <div style={styles.loadingDot} />
           <div>
             <div style={styles.loadingTitle}>Cargando…</div>
-            <div style={styles.loadingSub}>Preparando tu home</div>
+            <div style={styles.loadingSub}>Sincronizando lo esencial</div>
           </div>
         </div>
       </Card>
@@ -767,7 +767,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setShowDeferredLaunchPanels(true);
-    }, 650);
+    }, 900);
 
     return () => window.clearTimeout(timer);
   }, []);
@@ -1318,8 +1318,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const mood = useMemo(() => {
     if (booting) {
       return {
-        title: "Cargando…",
-        subtitle: "Preparando tu resumen",
+        title: "Sincronizando…",
+        subtitle: "Cargando lo esencial",
       };
     }
 

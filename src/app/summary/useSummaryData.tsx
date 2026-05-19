@@ -153,6 +153,63 @@ const EMPTY_SMART_MOBILITY: SmartMobilityState = {
   originConfidence: null,
   originUpdatedAt: null,
 };
+
+const SUMMARY_WARM_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
+
+type SummaryWarmCache = {
+  cachedAt: number;
+  groups: GroupRow[];
+  activeGroupId: string | null;
+  events: SummaryRawEvent[];
+  declinedEventIds: Set<string>;
+  ignoredConflictKeys: Set<string>;
+  resMap: Record<string, Resolution>;
+  recentDecisions: RecentDecision[];
+  proposalResponsesMap: Record<string, ProposalResponseRow>;
+  proposalResponseGroupsMap: Record<string, ProposalResponseRow[]>;
+  smartMobility: SmartMobilityState;
+};
+
+let summaryWarmCache: SummaryWarmCache | null = null;
+
+function cloneSummaryWarmCache(cache: SummaryWarmCache): SummaryWarmCache {
+  return {
+    ...cache,
+    groups: [...cache.groups],
+    events: [...cache.events],
+    declinedEventIds: new Set(cache.declinedEventIds),
+    ignoredConflictKeys: new Set(cache.ignoredConflictKeys),
+    resMap: { ...cache.resMap },
+    recentDecisions: [...cache.recentDecisions],
+    proposalResponsesMap: { ...cache.proposalResponsesMap },
+    proposalResponseGroupsMap: { ...cache.proposalResponseGroupsMap },
+    smartMobility: { ...cache.smartMobility, loading: false },
+  };
+}
+
+function getFreshSummaryWarmCache(): SummaryWarmCache | null {
+  if (!summaryWarmCache) return null;
+  if (Date.now() - summaryWarmCache.cachedAt > SUMMARY_WARM_CACHE_MAX_AGE_MS) return null;
+  return cloneSummaryWarmCache(summaryWarmCache);
+}
+
+function writeSummaryWarmCache(patch: Partial<Omit<SummaryWarmCache, "cachedAt">>) {
+  const previous = summaryWarmCache;
+
+  summaryWarmCache = {
+    cachedAt: Date.now(),
+    groups: patch.groups ?? previous?.groups ?? [],
+    activeGroupId: "activeGroupId" in patch ? (patch.activeGroupId ?? null) : (previous?.activeGroupId ?? null),
+    events: patch.events ?? previous?.events ?? [],
+    declinedEventIds: patch.declinedEventIds ?? previous?.declinedEventIds ?? new Set<string>(),
+    ignoredConflictKeys: patch.ignoredConflictKeys ?? previous?.ignoredConflictKeys ?? new Set<string>(),
+    resMap: patch.resMap ?? previous?.resMap ?? {},
+    recentDecisions: patch.recentDecisions ?? previous?.recentDecisions ?? [],
+    proposalResponsesMap: patch.proposalResponsesMap ?? previous?.proposalResponsesMap ?? {},
+    proposalResponseGroupsMap: patch.proposalResponseGroupsMap ?? previous?.proposalResponseGroupsMap ?? {},
+    smartMobility: { ...(patch.smartMobility ?? previous?.smartMobility ?? EMPTY_SMART_MOBILITY), loading: false },
+  };
+}
 function getEventDestination(event: SummaryRawEvent | null | undefined): LatLng | null {
   if (!event || typeof event !== "object") return null;
 
@@ -461,33 +518,43 @@ export function useSummaryData({
   appliedToast,
 }: UseSummaryDataInput): UseSummaryDataReturn {
   const router = useRouter();
+  const initialWarmCache = getFreshSummaryWarmCache();
 
-  const [booting, setBooting] = useState(true);
+  const [booting, setBooting] = useState(() => !initialWarmCache);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<UiToast>(null);
 
-  const [groups, setGroups] = useState<GroupRow[]>([]);
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
-  const [events, setEvents] = useState<SummaryRawEvent[]>([]);
+  const [groups, setGroups] = useState<GroupRow[]>(() => initialWarmCache?.groups ?? []);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(
+    () => initialWarmCache?.activeGroupId ?? null
+  );
+  const [events, setEvents] = useState<SummaryRawEvent[]>(() => initialWarmCache?.events ?? []);
   const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
-    () => new Set()
+    () => new Set(initialWarmCache?.declinedEventIds ?? [])
   );
   const [ignoredConflictKeys, setIgnoredConflictKeys] = useState<Set<string>>(
-    () => new Set()
+    () => new Set(initialWarmCache?.ignoredConflictKeys ?? [])
   );
-  const [resMap, setResMap] = useState<Record<string, Resolution>>({});
-  const [recentDecisions, setRecentDecisions] = useState<RecentDecision[]>([]);
+  const [resMap, setResMap] = useState<Record<string, Resolution>>(
+    () => initialWarmCache?.resMap ?? {}
+  );
+  const [recentDecisions, setRecentDecisions] = useState<RecentDecision[]>(
+    () => initialWarmCache?.recentDecisions ?? []
+  );
   const [proposalResponsesMap, setProposalResponsesMap] = useState<
     Record<string, ProposalResponseRow>
-  >({});
+  >(() => initialWarmCache?.proposalResponsesMap ?? {});
   const [proposalResponseGroupsMap, setProposalResponseGroupsMap] = useState<
     Record<string, ProposalResponseRow[]>
-  >({});
+  >(() => initialWarmCache?.proposalResponseGroupsMap ?? {});
   const [proposalProfilesMap, setProposalProfilesMap] = useState<
     ProposalProfileMap
   >({});
-  const [smartMobility, setSmartMobility] = useState<SmartMobilityState>(EMPTY_SMART_MOBILITY);
+  const [smartMobility, setSmartMobility] = useState<SmartMobilityState>(
+    () => initialWarmCache?.smartMobility ?? EMPTY_SMART_MOBILITY
+  );
 
+  const hasWarmCacheAtMountRef = useRef(Boolean(initialWarmCache));
   const toastTimeoutRef = useRef<number | null>(null);
   const inFlightLoadRef = useRef<Promise<void> | null>(null);
   const reloadQueuedRef = useRef(false);
@@ -599,6 +666,11 @@ export function useSummaryData({
       setGroups(gs);
       setActiveGroupId(validActive);
       setEvents(safeEvents);
+      writeSummaryWarmCache({
+        groups: gs,
+        activeGroupId: validActive,
+        events: safeEvents,
+      });
 
       setSmartMobility((current) => ({
         ...current,
@@ -619,7 +691,9 @@ export function useSummaryData({
             return;
           }
 
-          setSmartMobility(nextSmartMobility ?? EMPTY_SMART_MOBILITY);
+          const safeSmartMobility = nextSmartMobility ?? EMPTY_SMART_MOBILITY;
+          setSmartMobility(safeSmartMobility);
+          writeSummaryWarmCache({ smartMobility: safeSmartMobility });
         } catch {
           if (
             smartMobilityController.signal.aborted ||
@@ -628,10 +702,12 @@ export function useSummaryData({
             return;
           }
 
-          setSmartMobility({
+          const failedSmartMobility = {
             ...EMPTY_SMART_MOBILITY,
-            reason: "route_failed",
-          });
+            reason: "route_failed" as const,
+          };
+          setSmartMobility(failedSmartMobility);
+          writeSummaryWarmCache({ smartMobility: failedSmartMobility });
         }
       })();
 
@@ -665,9 +741,21 @@ export function useSummaryData({
           setResMap(conflictResolutions ?? {});
           setDeclinedEventIds(declined ?? new Set());
           setIgnoredConflictKeys(ignored ?? new Set());
-          setRecentDecisions((recentDecisionLogs ?? []).map(mapRecentDecision));
-          setProposalResponsesMap(proposalResponses ?? {});
-          setProposalResponseGroupsMap(proposalResponseGroups ?? {});
+          const safeRecentDecisions = (recentDecisionLogs ?? []).map(mapRecentDecision);
+          const safeProposalResponses = proposalResponses ?? {};
+          const safeProposalResponseGroups = proposalResponseGroups ?? {};
+
+          setRecentDecisions(safeRecentDecisions);
+          setProposalResponsesMap(safeProposalResponses);
+          setProposalResponseGroupsMap(safeProposalResponseGroups);
+          writeSummaryWarmCache({
+            declinedEventIds: declined ?? new Set(),
+            ignoredConflictKeys: ignored ?? new Set(),
+            resMap: conflictResolutions ?? {},
+            recentDecisions: safeRecentDecisions,
+            proposalResponsesMap: safeProposalResponses,
+            proposalResponseGroupsMap: safeProposalResponseGroups,
+          });
         } catch {
           // Datos secundarios: no deben bloquear ni tumbar el primer render.
         }
@@ -797,7 +885,8 @@ export function useSummaryData({
 
     (async () => {
       try {
-        setBooting(true);
+        const shouldShowInitialBoot = !hasWarmCacheAtMountRef.current;
+        if (shouldShowInitialBoot) setBooting(true);
         setSmartMobility((current) => ({ ...current, loading: true }));
         await loadSummary();
         lastRefreshRef.current = Date.now();

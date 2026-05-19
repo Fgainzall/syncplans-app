@@ -19,6 +19,8 @@ const PRIVATE_ROUTES = [
   "/planes",
 ];
 
+let launchSplashShownInMemory = false;
+
 function shouldShowForPath(pathname: string | null) {
   if (!pathname) return false;
   return PRIVATE_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
@@ -31,6 +33,7 @@ export default function AppLaunchSplash() {
 
   useEffect(() => {
     if (!isEligibleRoute) return;
+    if (launchSplashShownInMemory) return;
 
     let alreadyShown = false;
     try {
@@ -39,26 +42,31 @@ export default function AppLaunchSplash() {
       alreadyShown = false;
     }
 
-    if (alreadyShown) return;
+    if (alreadyShown) {
+      launchSplashShownInMemory = true;
+      return;
+    }
+
+    launchSplashShownInMemory = true;
 
     try {
       window.sessionStorage.setItem(STORAGE_KEY, "1");
     } catch {
-      // Si storage falla, igual mostramos una vez durante este montaje.
+      // Si storage falla, el guard en memoria evita que aparezca en navegación interna.
     }
 
- const showFrame = window.requestAnimationFrame(() => {
-  setVisible(true);
-});
+    const showFrame = window.requestAnimationFrame(() => {
+      setVisible(true);
+    });
 
-const hideTimer = window.setTimeout(() => {
-  setVisible(false);
-    }, 700);
+    const hideTimer = window.setTimeout(() => {
+      setVisible(false);
+    }, 520);
 
     return () => {
-  window.cancelAnimationFrame(showFrame);
-  window.clearTimeout(hideTimer);
-};
+      window.cancelAnimationFrame(showFrame);
+      window.clearTimeout(hideTimer);
+    };
   }, [isEligibleRoute]);
 
   if (!visible) return null;
@@ -69,8 +77,8 @@ const hideTimer = window.setTimeout(() => {
         <div style={styles.logo}>S</div>
         <div style={styles.copy}>
           <div style={styles.eyebrow}>SyncPlans</div>
-          <div style={styles.title}>Preparando tu resumen…</div>
-          <div style={styles.sub}>Cargando lo esencial primero.</div>
+          <div style={styles.title}>Abriendo SyncPlans…</div>
+          <div style={styles.sub}>Listo para coordinar.</div>
         </div>
       </section>
     </div>

@@ -630,6 +630,54 @@ type GoogleSyncRunOptions = {
   reason?: string;
 };
 
+const CALENDAR_WARM_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
+
+type CalendarWarmCache = {
+  cachedAt: number;
+  events: CalendarEventWithOwner[];
+  groups: GroupRow[];
+  resMap: Record<string, Resolution>;
+  trustSignals: Record<string, ConflictTrustSignal>;
+  proposalResponsesMap: Record<string, ProposalResponseRow>;
+  activeGroupId: string | null;
+  currentUserId: string | null;
+  eventsLoaded: boolean;
+  loadedRangeKey: string | null;
+};
+
+let calendarWarmCache: CalendarWarmCache | null = null;
+
+function getFreshCalendarWarmCache(): CalendarWarmCache | null {
+  if (!calendarWarmCache) return null;
+  if (Date.now() - calendarWarmCache.cachedAt > CALENDAR_WARM_CACHE_MAX_AGE_MS) return null;
+
+  return {
+    ...calendarWarmCache,
+    events: [...calendarWarmCache.events],
+    groups: [...calendarWarmCache.groups],
+    resMap: { ...calendarWarmCache.resMap },
+    trustSignals: { ...calendarWarmCache.trustSignals },
+    proposalResponsesMap: { ...calendarWarmCache.proposalResponsesMap },
+  };
+}
+
+function writeCalendarWarmCache(patch: Partial<Omit<CalendarWarmCache, "cachedAt">>) {
+  const previous = calendarWarmCache;
+
+  calendarWarmCache = {
+    cachedAt: Date.now(),
+    events: patch.events ?? previous?.events ?? [],
+    groups: patch.groups ?? previous?.groups ?? [],
+    resMap: patch.resMap ?? previous?.resMap ?? {},
+    trustSignals: patch.trustSignals ?? previous?.trustSignals ?? {},
+    proposalResponsesMap: patch.proposalResponsesMap ?? previous?.proposalResponsesMap ?? {},
+    activeGroupId: "activeGroupId" in patch ? (patch.activeGroupId ?? null) : (previous?.activeGroupId ?? null),
+    currentUserId: "currentUserId" in patch ? (patch.currentUserId ?? null) : (previous?.currentUserId ?? null),
+    eventsLoaded: patch.eventsLoaded ?? previous?.eventsLoaded ?? false,
+    loadedRangeKey: "loadedRangeKey" in patch ? (patch.loadedRangeKey ?? null) : (previous?.loadedRangeKey ?? null),
+  };
+}
+
 function isGoogleReauthCode(code: string | null | undefined): boolean {
   const normalized = String(code ?? "").toUpperCase();
   return (
@@ -651,10 +699,12 @@ export default function CalendarClient(
   const router = useRouter();
   const pathname = usePathname();
   const isMobile = useIsMobileWidth(820);
+  const initialWarmCache = getFreshCalendarWarmCache();
 
   const eventRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const lastSecondaryRefreshAtRef = useRef(0);
-  const lastLoadedRangeKeyRef = useRef<string | null>(null);
+  const hasWarmCacheAtMountRef = useRef(Boolean(initialWarmCache));
+  const lastSecondaryRefreshAtRef = useRef(Date.now());
+  const lastLoadedRangeKeyRef = useRef<string | null>(initialWarmCache?.loadedRangeKey ?? null);
   const lastGoogleAutoSyncAtRef = useRef(0);
   const googleSyncInFlightRef = useRef(false);
 
@@ -662,7 +712,7 @@ export default function CalendarClient(
     eventRefs.current[String(id)] = el;
   };
 
-  const [booting, setBooting] = useState(true);
+  const [booting, setBooting] = useState(() => !initialWarmCache);
 
   const [tab, setTab] = useState<Tab>("month");
   const [scope, setScope] = useState<Scope>("all");
@@ -670,16 +720,18 @@ export default function CalendarClient(
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
 
-   const [events, setEvents] = useState<CalendarEventWithOwner[]>([]);
-  const [groups, setGroups] = useState<GroupRow[]>([]);
+   const [events, setEvents] = useState<CalendarEventWithOwner[]>(() => initialWarmCache?.events ?? []);
+  const [groups, setGroups] = useState<GroupRow[]>(() => initialWarmCache?.groups ?? []);
 const [, setDeclinedEventIds] = useState<Set<string>>(() => new Set());
-  const [resMap, setResMap] = useState<Record<string, Resolution>>({});
+  const [resMap, setResMap] = useState<Record<string, Resolution>>(
+    () => initialWarmCache?.resMap ?? {}
+  );
   const [trustSignals, setTrustSignals] = useState<
     Record<string, ConflictTrustSignal>
-  >({});
+  >(() => initialWarmCache?.trustSignals ?? {});
   const [proposalResponsesMap, setProposalResponsesMap] = useState<
     Record<string, ProposalResponseRow>
-  >({});
+  >(() => initialWarmCache?.proposalResponsesMap ?? {});
 
   const groupTypeById = useMemo(() => {
     const m = new Map<string, "pair" | "family" | "other">();
@@ -701,10 +753,14 @@ const [, setDeclinedEventIds] = useState<Set<string>>(() => new Set());
   }, [groups]);
 
   const [error, setError] = useState<string | null>(null);
-  const [eventsLoaded, setEventsLoaded] = useState(false);
+  const [eventsLoaded, setEventsLoaded] = useState(() => initialWarmCache?.eventsLoaded ?? false);
 
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(
+    () => initialWarmCache?.activeGroupId ?? null
+  );
+  const [currentUserId, setCurrentUserId] = useState<string | null>(
+    () => initialWarmCache?.currentUserId ?? null
+  );
 
   const [enabledGroups, setEnabledGroups] = useState<EnabledGroups>({
     personal: true,
@@ -891,10 +947,25 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
 
         setEvents(filtered);
         setTrustSignals(nextTrustSignals ?? {});
-        setProposalResponsesMap(proposalResponses ?? {});
-        lastLoadedRangeKeyRef.current = `${rangeStartIso}|${rangeEndIso}`;
+        const loadedRangeKey = `${rangeStartIso}|${rangeEndIso}`;
+        const safeTrustSignals = nextTrustSignals ?? {};
+        const safeProposalResponses = proposalResponses ?? {};
+
+        setProposalResponsesMap(safeProposalResponses);
+        lastLoadedRangeKeyRef.current = loadedRangeKey;
         setEventsLoaded(true);
         setError(null);
+        writeCalendarWarmCache({
+          events: filtered,
+          groups: myGroups,
+          resMap: nextResMap ?? {},
+          trustSignals: safeTrustSignals,
+          proposalResponsesMap: safeProposalResponses,
+          activeGroupId: nextActiveGroupId,
+          currentUserId: data.session.user.id ?? null,
+          eventsLoaded: true,
+          loadedRangeKey,
+        });
 
         if (showToastFlag) {
           setToast({
@@ -1291,7 +1362,8 @@ const handleEditEvent = useCallback((e: CalendarEventWithOwner) => {
     let alive = true;
 
     (async () => {
-      setBooting(true);
+      const shouldShowInitialBoot = !hasWarmCacheAtMountRef.current;
+      if (shouldShowInitialBoot) setBooting(true);
 
       const { data, error } = await supabase.auth.getSession();
       if (!alive) return;
@@ -1671,9 +1743,9 @@ const valueVisibility = useMemo(() => {
             <div style={styles.loadingRow}>
               <div style={styles.loadingDot} />
               <div>
-                <div style={styles.loadingTitle}>Cargando tu tiempo visible…</div>
+                <div style={styles.loadingTitle}>Sincronizando tu calendario…</div>
                 <div style={styles.loadingSub}>
-                  Preparando tus eventos y grupos
+                  Cargando lo esencial primero
                 </div>
               </div>
             </div>

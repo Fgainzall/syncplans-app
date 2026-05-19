@@ -2,7 +2,7 @@
 // src/app/events/EventsPageClient.tsx
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import supabase from "@/lib/supabaseClient";
@@ -179,6 +179,50 @@ const EVENTS_UPCOMING_FUTURE_DAYS = 365;
 const EVENTS_HISTORY_PAST_DAYS = 180;
 const EVENTS_ALL_PAST_DAYS = 180;
 const EVENTS_ALL_FUTURE_DAYS = 365;
+const EVENTS_WARM_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
+const EVENTS_BACKGROUND_REFRESH_GUARD_MS = 12_000;
+
+type EventsWarmCache = {
+  cachedAt: number;
+  events: EventWithGroup[];
+  loadedView: ViewMode;
+  groups: GroupRow[];
+  declinedEventIds: Set<string>;
+  resolvedConflictMap: Record<string, Resolution>;
+  ignoredConflictKeys: Set<string>;
+  hasPremium: boolean;
+};
+
+let eventsWarmCache: EventsWarmCache | null = null;
+
+function getFreshEventsWarmCache(): EventsWarmCache | null {
+  if (!eventsWarmCache) return null;
+  if (Date.now() - eventsWarmCache.cachedAt > EVENTS_WARM_CACHE_MAX_AGE_MS) return null;
+
+  return {
+    ...eventsWarmCache,
+    events: [...eventsWarmCache.events],
+    groups: [...eventsWarmCache.groups],
+    declinedEventIds: new Set(eventsWarmCache.declinedEventIds),
+    resolvedConflictMap: { ...eventsWarmCache.resolvedConflictMap },
+    ignoredConflictKeys: new Set(eventsWarmCache.ignoredConflictKeys),
+  };
+}
+
+function writeEventsWarmCache(patch: Partial<Omit<EventsWarmCache, "cachedAt">>) {
+  const previous = eventsWarmCache;
+
+  eventsWarmCache = {
+    cachedAt: Date.now(),
+    events: patch.events ?? previous?.events ?? [],
+    loadedView: patch.loadedView ?? previous?.loadedView ?? "upcoming",
+    groups: patch.groups ?? previous?.groups ?? [],
+    declinedEventIds: patch.declinedEventIds ?? previous?.declinedEventIds ?? new Set<string>(),
+    resolvedConflictMap: patch.resolvedConflictMap ?? previous?.resolvedConflictMap ?? {},
+    ignoredConflictKeys: patch.ignoredConflictKeys ?? previous?.ignoredConflictKeys ?? new Set<string>(),
+    hasPremium: patch.hasPremium ?? previous?.hasPremium ?? false,
+  };
+}
 
 function getEventsWindowForView(view: ViewMode) {
   const start = new Date();
@@ -212,21 +256,26 @@ async function getEventsForView(view: ViewMode): Promise<DbEventRow[]> {
 export default function EventsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const initialWarmCache = getFreshEventsWarmCache();
 
-  const [booting, setBooting] = useState(true);
-  const [loading, setLoading] = useState(true);
+  const [booting, setBooting] = useState(() => !initialWarmCache);
+  const [loading, setLoading] = useState(() => !initialWarmCache);
 
-  const [events, setEvents] = useState<EventWithGroup[]>([]);
-  const [loadedView, setLoadedView] = useState<ViewMode>("upcoming");
+  const [events, setEvents] = useState<EventWithGroup[]>(() => initialWarmCache?.events ?? []);
+  const [loadedView, setLoadedView] = useState<ViewMode>(
+    () => initialWarmCache?.loadedView ?? "upcoming"
+  );
   const [hiddenEventIds] = useState<Set<string>>(() => new Set());
   const [declinedEventIds, setDeclinedEventIds] = useState<Set<string>>(
-    () => new Set()
+    () => new Set(initialWarmCache?.declinedEventIds ?? [])
   );
-  const [resolvedConflictMap, setResolvedConflictMap] = useState<Record<string, Resolution>>({});
+  const [resolvedConflictMap, setResolvedConflictMap] = useState<Record<string, Resolution>>(
+    () => initialWarmCache?.resolvedConflictMap ?? {}
+  );
   const [ignoredConflictKeys, setIgnoredConflictKeys] = useState<Set<string>>(
-    () => new Set()
+    () => new Set(initialWarmCache?.ignoredConflictKeys ?? [])
   );
-  const [groups, setGroups] = useState<GroupRow[]>([]);
+  const [groups, setGroups] = useState<GroupRow[]>(() => initialWarmCache?.groups ?? []);
 
   const [filters, setFilters] = useState<FilterState>({
     view: "upcoming",
@@ -245,7 +294,9 @@ export default function EventsPage() {
     type: "success" | "error";
     message: string;
   } | null>(null);
-  const [hasPremium, setHasPremium] = useState(false);
+  const [hasPremium, setHasPremium] = useState(() => initialWarmCache?.hasPremium ?? false);
+  const lastBackgroundRefreshAtRef = useRef(Date.now());
+  const refreshInFlightRef = useRef(false);
   const [showAdvancedActions, setShowAdvancedActions] = useState(false);
   const [pendingResponseCaptures, setPendingResponseCaptures] = useState<
     PublicInviteCaptureItem[]
@@ -374,8 +425,19 @@ export default function EventsPage() {
         setDeclinedEventIds(declinedRes);
         setResolvedConflictMap(conflictResMap ?? {});
         setIgnoredConflictKeys(ignoredKeys instanceof Set ? ignoredKeys : new Set());
+        const nextHasPremium = hasPremiumAccess(profileRes);
+
         setLoadedView("upcoming");
-        setHasPremium(hasPremiumAccess(profileRes));
+        setHasPremium(nextHasPremium);
+        writeEventsWarmCache({
+          events: withGroup,
+          loadedView: "upcoming",
+          groups: groupsRes,
+          declinedEventIds: declinedRes,
+          resolvedConflictMap: conflictResMap ?? {},
+          ignoredConflictKeys: ignoredKeys instanceof Set ? ignoredKeys : new Set<string>(),
+          hasPremium: nextHasPremium,
+        });
       } catch (err) {
         console.error("Error booting events:", err);
       } finally {
@@ -728,9 +790,17 @@ export default function EventsPage() {
     });
   }
 
-  const refreshData = useCallback(async (viewOverride: ViewMode = "upcoming") => {
+  const refreshData = useCallback(async (
+    viewOverride: ViewMode = "upcoming",
+    options: { silent?: boolean } = {}
+  ) => {
+    if (refreshInFlightRef.current) return;
+
+    const shouldShowLoading = !(options.silent && events.length > 0);
+    refreshInFlightRef.current = true;
+
     try {
-      setLoading(true);
+      if (shouldShowLoading) setLoading(true);
 
       const [eventsRes, groupsRes, declinedRes, conflictResMap, ignoredKeys] = await Promise.all([
         getEventsForView(viewOverride).catch((err) => {
@@ -766,8 +836,20 @@ export default function EventsPage() {
       setGroups(groupsRes);
       setDeclinedEventIds(declinedRes);
       setResolvedConflictMap(conflictResMap ?? {});
-      setIgnoredConflictKeys(ignoredKeys instanceof Set ? ignoredKeys : new Set());
+      const safeIgnoredKeys = ignoredKeys instanceof Set ? ignoredKeys : new Set<string>();
+
+      setIgnoredConflictKeys(safeIgnoredKeys);
       setLoadedView(viewOverride);
+      lastBackgroundRefreshAtRef.current = Date.now();
+      writeEventsWarmCache({
+        events: withGroup,
+        loadedView: viewOverride,
+        groups: groupsRes,
+        declinedEventIds: declinedRes,
+        resolvedConflictMap: conflictResMap ?? {},
+        ignoredConflictKeys: safeIgnoredKeys,
+        hasPremium,
+      });
 } catch (err: unknown) {
   console.error("Error refrescando eventos:", err);
   setToast({
@@ -779,9 +861,10 @@ export default function EventsPage() {
   });
 }
     finally {
-      setLoading(false);
+      if (shouldShowLoading) setLoading(false);
+      refreshInFlightRef.current = false;
     }
-  }, []);
+  }, [events.length, hasPremium]);
 
   useEffect(() => {
     if (booting) return;
@@ -793,21 +876,29 @@ export default function EventsPage() {
   useEffect(() => {
     if (booting) return;
 
-    const refreshCurrentView = () => {
-      void refreshData(filters.view);
+    const refreshCurrentViewSilently = (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastBackgroundRefreshAtRef.current < EVENTS_BACKGROUND_REFRESH_GUARD_MS) {
+        return;
+      }
+
+      lastBackgroundRefreshAtRef.current = now;
+      void refreshData(filters.view, { silent: true });
     };
 
+    const onEventsChanged = () => refreshCurrentViewSilently(true);
+    const onFocus = () => refreshCurrentViewSilently(false);
     const onVisibility = () => {
-      if (document.visibilityState === "visible") refreshCurrentView();
+      if (document.visibilityState === "visible") refreshCurrentViewSilently(false);
     };
 
-    window.addEventListener("sp:events-changed", refreshCurrentView as EventListener);
-    window.addEventListener("focus", refreshCurrentView);
+    window.addEventListener("sp:events-changed", onEventsChanged as EventListener);
+    window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      window.removeEventListener("sp:events-changed", refreshCurrentView as EventListener);
-      window.removeEventListener("focus", refreshCurrentView);
+      window.removeEventListener("sp:events-changed", onEventsChanged as EventListener);
+      window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [booting, filters.view, refreshData]);
@@ -1383,8 +1474,8 @@ export default function EventsPage() {
               <div style={S.loadingRow}>
                 <div style={S.loadingDot} />
                 <div>
-                  <div style={S.loadingTitle}>Cargando eventos…</div>
-                  <div style={S.loadingSub}>Un momento, por favor.</div>
+                  <div style={S.loadingTitle}>Sincronizando eventos…</div>
+                  <div style={S.loadingSub}>Actualizando en segundo plano.</div>
                 </div>
               </div>
             </div>
