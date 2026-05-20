@@ -180,6 +180,11 @@ type PreflightConflict = {
   range: string;
   overlapStart: string;
   overlapEnd: string;
+  incomingTitle?: string;
+  incomingGroupLabel?: string;
+  incomingRange?: string;
+  overlapRange?: string;
+  isLikelyDuplicate?: boolean;
 };
 
 type PostSaveFormFingerprint = string;
@@ -353,6 +358,58 @@ function getConflictCounterpart(
   }
 
   return null;
+}
+
+
+function normalizeDuplicateTitle(value: unknown): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function safeDateMs(value: unknown): number | null {
+  const d = new Date(String(value ?? ""));
+  const ms = d.getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function isLikelyDuplicateConflict(input: {
+  incomingTitle?: unknown;
+  incomingStart?: unknown;
+  incomingEnd?: unknown;
+  existingTitle?: unknown;
+  existingStart?: unknown;
+  existingEnd?: unknown;
+}): boolean {
+  const incomingTitle = normalizeDuplicateTitle(input.incomingTitle);
+  const existingTitle = normalizeDuplicateTitle(input.existingTitle);
+
+  if (!incomingTitle || !existingTitle || incomingTitle !== existingTitle) {
+    return false;
+  }
+
+  const incomingStart = safeDateMs(input.incomingStart);
+  const incomingEnd = safeDateMs(input.incomingEnd);
+  const existingStart = safeDateMs(input.existingStart);
+  const existingEnd = safeDateMs(input.existingEnd);
+
+  if (
+    incomingStart === null ||
+    incomingEnd === null ||
+    existingStart === null ||
+    existingEnd === null
+  ) {
+    return true;
+  }
+
+  const startDiff = Math.abs(incomingStart - existingStart);
+  const endDiff = Math.abs(incomingEnd - existingEnd);
+  const oneMinute = 60 * 1000;
+
+  return startDiff <= oneMinute && endDiff <= oneMinute;
 }
 
 function mapDefaultResolutionToChoice(
@@ -2165,7 +2222,16 @@ useEffect(() => {
     bootingEvent,
   ]);
 
-  const canSave = errors.length === 0 && !saving && !bootingEvent;
+  const hasSavedUnchangedEvent = Boolean(
+    !isEditing &&
+      postSaveActions?.visible &&
+      postSaveActions.eventId &&
+      postSaveFingerprint &&
+      currentPostSaveFingerprint === postSaveFingerprint,
+  );
+
+  const canSave =
+    errors.length === 0 && !saving && !bootingEvent && !hasSavedUnchangedEvent;
 
   useEffect(() => {
     if (!postSaveActions?.visible) return;
@@ -2853,7 +2919,17 @@ useEffect(() => {
           if (!counterpart?.otherId) return null;
 
           const otherEvent = counterpart.otherEvent;
+          const candidateEvent = pf.candidateEvent;
           const gm = groupMeta(otherEvent?.groupType ?? "personal");
+          const incomingMeta = groupMeta(candidateEvent.groupType ?? "personal");
+          const duplicate = isLikelyDuplicateConflict({
+            incomingTitle: candidateEvent.title,
+            incomingStart: candidateEvent.start,
+            incomingEnd: candidateEvent.end,
+            existingTitle: otherEvent?.title,
+            existingStart: otherEvent?.start,
+            existingEnd: otherEvent?.end,
+          });
 
           return {
             id: c.id,
@@ -2865,6 +2941,11 @@ useEffect(() => {
               : "—",
             overlapStart: c.overlapStart,
             overlapEnd: c.overlapEnd,
+            incomingTitle: candidateEvent.title ?? payload.title,
+            incomingGroupLabel: incomingMeta.label,
+            incomingRange: fmtRange(candidateEvent.start, candidateEvent.end),
+            overlapRange: fmtRange(c.overlapStart, c.overlapEnd),
+            isLikelyDuplicate: duplicate,
           };
         })
         .filter(Boolean) as PreflightConflict[];
@@ -2888,13 +2969,22 @@ useEffect(() => {
     if (saving || saveInFlightRef.current || preflightChoiceInFlightRef.current)
       return;
 
+    if (hasSavedUnchangedEvent) {
+      setToast({
+        title: "Ya está guardado ✅",
+        subtitle:
+          "Este plan ya quedó creado. Para no duplicarlo, ve al calendario o crea otro plan desde cero.",
+      });
+      return;
+    }
+
     clearPreflightState();
     clearPostSaveState({ keepToast: true });
 
     if (!canSave) {
       setToast({
         title: "Revisa el formulario",
-        subtitle: errors[0],
+        subtitle: errors[0] ?? "Hay algo pendiente antes de guardar.",
       });
       return;
     }
@@ -4113,31 +4203,50 @@ useEffect(() => {
         </section>
 
         <section style={styles.footerRow}>
-          <button
-            onClick={isSharedProposal ? handleReviewProposalLater : goBack}
-            style={styles.ghostBtnWide}
-          >
-            {isSharedProposal ? "Revisar luego" : "← Volver"}
-          </button>
-          <button
-            onClick={save}
-            style={{ ...styles.primaryBtnWide, opacity: canSave ? 1 : 0.6 }}
-            disabled={!canSave}
-          >
-            {saving
-              ? "Guardando…"
-              : isEditing
-                ? "Guardar cambios"
-                : isSharedProposal
-                  ? proposalResponse === "adjust"
-                    ? "Guardar propuesta ajustada"
-                    : "Aceptar propuesta"
-                  : effectiveType === "group"
-                    ? isFirstWowMomentFlow && !isEditing
-                      ? "Crear primer plan compartido"
-                      : "Guardar plan compartido"
-                    : "Guardar plan"}
-          </button>
+          {hasSavedUnchangedEvent ? (
+            <>
+              <button
+                onClick={handleCreateAnotherSimilar}
+                style={styles.ghostBtnWide}
+              >
+                Crear otro plan
+              </button>
+              <button
+                onClick={() => router.push("/calendar")}
+                style={styles.primaryBtnWide}
+              >
+                Ver en calendario
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={isSharedProposal ? handleReviewProposalLater : goBack}
+                style={styles.ghostBtnWide}
+              >
+                {isSharedProposal ? "Revisar luego" : "← Volver"}
+              </button>
+              <button
+                onClick={save}
+                style={{ ...styles.primaryBtnWide, opacity: canSave ? 1 : 0.6 }}
+                disabled={!canSave}
+              >
+                {saving
+                  ? "Guardando…"
+                  : isEditing
+                    ? "Guardar cambios"
+                    : isSharedProposal
+                      ? proposalResponse === "adjust"
+                        ? "Guardar propuesta ajustada"
+                        : "Aceptar propuesta"
+                      : effectiveType === "group"
+                        ? isFirstWowMomentFlow && !isEditing
+                          ? "Crear primer plan compartido"
+                          : "Guardar plan compartido"
+                        : "Guardar plan"}
+              </button>
+            </>
+          )}
         </section>
       </div>
     </main>
