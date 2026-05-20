@@ -83,6 +83,17 @@ export default function NewGroupPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [existingGroupsCount, setExistingGroupsCount] = useState(0);
   const [toast, setToast] = useState<UiToast>(null);
+  const [isNarrow, setIsNarrow] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 760px)");
+
+    const sync = () => setIsNarrow(media.matches);
+    sync();
+
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -271,9 +282,9 @@ export default function NewGroupPage() {
 
   if (booting) {
     return (
-      <main style={S.page}>
-        <div style={S.shell}>
-          <div style={S.topRow}>
+      <main style={{ ...S.page, ...(isNarrow ? S.pageMobile : null) }}>
+        <div style={{ ...S.shell, ...(isNarrow ? S.shellMobile : null) }}>
+          <div style={{ ...S.topRow, ...(isNarrow ? S.topRowMobile : null) }}>
             <PremiumHeader title="Nuevo grupo" subtitle="Preparando creación…" />
           </div>
 
@@ -290,7 +301,7 @@ export default function NewGroupPage() {
   }
 
   return (
-    <main style={S.page}>
+    <main style={{ ...S.page, ...(isNarrow ? S.pageMobile : null) }}>
       {toast ? (
         <div style={S.toastWrap}>
           <div style={S.toastCard}>
@@ -300,8 +311,8 @@ export default function NewGroupPage() {
         </div>
       ) : null}
 
-      <div style={S.shell}>
-        <div style={S.topRow}>
+      <div style={{ ...S.shell, ...(isNarrow ? S.shellMobile : null) }}>
+        <div style={{ ...S.topRow, ...(isNarrow ? S.topRowMobile : null) }}>
           <PremiumHeader
             title="Nuevo grupo"
             subtitle="El espacio donde la coordinación deja de vivir en mensajes sueltos y empieza a compartirse de verdad."
@@ -314,14 +325,15 @@ export default function NewGroupPage() {
         <section
           style={{
             ...S.hero,
+            ...(isNarrow ? S.heroMobile : null),
             borderColor: meta.border,
             background: `linear-gradient(180deg, ${meta.soft}, rgba(255,255,255,0.03))`,
           }}
         >
-          <div style={S.heroCopy}>
+          <div style={{ ...S.heroCopy, ...(isNarrow ? S.heroCopyMobile : null) }}>
             <div style={S.kicker}>Bloque 3 · Activación real</div>
-            <h1 style={S.h1}>{meta.title}</h1>
-            <p style={S.sub}>{meta.subtitle}</p>
+            <h1 style={{ ...S.h1, ...(isNarrow ? S.h1Mobile : null) }}>{meta.title}</h1>
+            <p style={{ ...S.sub, ...(isNarrow ? S.subMobile : null) }}>{meta.subtitle}</p>
 
             <div style={S.heroBadges}>
               <span style={S.heroBadge}>Tipo: {meta.label}</span>
@@ -333,8 +345,8 @@ export default function NewGroupPage() {
             </div>
           </div>
 
-          <div style={S.heroActions}>
-            <button type="button" onClick={goBack} style={S.ghostBtn}>
+          <div style={{ ...S.heroActions, ...(isNarrow ? S.heroActionsMobile : null) }}>
+            <button type="button" onClick={goBack} style={{ ...S.ghostBtn, ...(isNarrow ? S.actionBtnMobile : null) }}>
               Cancelar
             </button>
             <button
@@ -343,6 +355,7 @@ export default function NewGroupPage() {
               disabled={!canSave}
               style={{
                 ...S.primaryBtn,
+                ...(isNarrow ? S.actionBtnMobile : null),
                 ...(canSave ? null : S.primaryBtnDisabled),
               }}
             >
@@ -390,11 +403,11 @@ export default function NewGroupPage() {
           </section>
         ) : null}
 
-        <div style={S.grid}>
-          <section style={S.mainCard}>
+        <div style={{ ...S.grid, ...(isNarrow ? S.gridMobile : null) }}>
+          <section style={{ ...S.mainCard, ...(isNarrow ? S.mainCardMobile : null) }}>
             <div style={S.sectionEyebrow}>Paso 1</div>
             <div style={S.sectionTitle}>Elige el tipo de espacio</div>
-            <div style={S.typeGrid}>
+            <div style={{ ...S.typeGrid, ...(isNarrow ? S.typeGridMobile : null) }}>
               {(Object.keys(TYPE_META) as GType[]).map((item) => {
                 const itemMeta = TYPE_META[item];
                 const selected = type === item;
@@ -406,6 +419,7 @@ export default function NewGroupPage() {
                     onClick={() => setType(item)}
                     style={{
                       ...S.typeCard,
+                      ...(isNarrow ? S.typeCardMobile : null),
                       ...(selected
                         ? {
                             borderColor: itemMeta.border,
@@ -465,8 +479,8 @@ export default function NewGroupPage() {
               </div>
             ) : null}
 
-            <div style={S.footerRow}>
-              <button type="button" onClick={goBack} style={S.ghostBtnWide}>
+            <div style={{ ...S.footerRow, ...(isNarrow ? S.footerRowMobile : null) }}>
+              <button type="button" onClick={goBack} style={{ ...S.ghostBtnWide, ...(isNarrow ? S.footerBtnMobile : null) }}>
                 ← Volver
               </button>
               <button
@@ -475,6 +489,7 @@ export default function NewGroupPage() {
                 disabled={!canSave}
                 style={{
                   ...S.primaryBtnWide,
+                  ...(isNarrow ? S.footerBtnMobile : null),
                   ...(canSave ? null : S.primaryBtnDisabled),
                 }}
               >
@@ -489,7 +504,7 @@ export default function NewGroupPage() {
             </div>
           </section>
 
-          <aside style={S.sideCard}>
+          <aside style={{ ...S.sideCard, ...(isNarrow ? S.sideCardMobile : null) }}>
             <div style={S.sideEyebrow}>Por qué importa</div>
             <div style={S.sideTitle}>{helperHeadline}</div>
             <p style={S.sideBody}>
@@ -528,6 +543,103 @@ export default function NewGroupPage() {
 }
 
 const S: Record<string, CSSProperties> = {
+
+  pageMobile: {
+    overflowX: "hidden",
+  },
+  shellMobile: {
+    width: "100%",
+    maxWidth: "100vw",
+    padding: "14px 12px calc(env(safe-area-inset-bottom, 0px) + 150px)",
+    gap: 12,
+    overflowX: "hidden",
+  },
+  topRowMobile: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: 10,
+  },
+  heroMobile: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    alignItems: "stretch",
+    padding: "16px 14px",
+    borderRadius: 20,
+    gap: 14,
+  },
+  heroCopyMobile: {
+    flex: "1 1 auto",
+    width: "100%",
+  },
+  h1Mobile: {
+    fontSize: "clamp(24px, 8vw, 30px)",
+    lineHeight: 1.08,
+    letterSpacing: "-0.035em",
+    maxWidth: "100%",
+    overflowWrap: "anywhere",
+  },
+  subMobile: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    maxWidth: "100%",
+  },
+  heroActionsMobile: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    width: "100%",
+    gap: 8,
+  },
+  actionBtnMobile: {
+    width: "100%",
+    minWidth: 0,
+    justifyContent: "center",
+  },
+  gridMobile: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr)",
+    gap: 12,
+    width: "100%",
+    maxWidth: "100%",
+    overflowX: "hidden",
+  },
+  mainCardMobile: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    padding: 14,
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  typeGridMobile: {
+    gridTemplateColumns: "minmax(0, 1fr)",
+    gap: 9,
+  },
+  typeCardMobile: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    padding: "13px 12px",
+  },
+  footerRowMobile: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: 8,
+  },
+  footerBtnMobile: {
+    width: "100%",
+    minWidth: 0,
+    flex: "1 1 auto",
+  },
+  sideCardMobile: {
+    position: "static",
+    top: "auto",
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    padding: 14,
+    borderRadius: 20,
+    overflow: "hidden",
+  },
   page: {
     minHeight: "100vh",
     background:
@@ -762,11 +874,13 @@ const S: Record<string, CSSProperties> = {
     fontWeight: 900,
     color: "rgba(255,255,255,0.98)",
     lineHeight: 1.25,
+    overflowWrap: "anywhere",
   },
   typeBody: {
     fontSize: 13,
     lineHeight: 1.55,
     color: "rgba(203,213,225,0.78)",
+    overflowWrap: "anywhere",
   },
   divider: {
     height: 1,
@@ -939,6 +1053,7 @@ const S: Record<string, CSSProperties> = {
     fontSize: 13,
     lineHeight: 1.6,
     color: "rgba(203,213,225,0.80)",
+    overflowWrap: "anywhere",
   },
   sideBlock: {
     borderRadius: 16,
