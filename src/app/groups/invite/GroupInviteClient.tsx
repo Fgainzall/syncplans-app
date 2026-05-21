@@ -64,9 +64,27 @@ function groupMeta(type: string) {
   }
 }
 
+function useCompactInviteLayout(maxWidth = 760) {
+  const [isCompact, setIsCompact] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const media = window.matchMedia(`(max-width: ${maxWidth}px)`);
+    const sync = () => setIsCompact(media.matches);
+    sync();
+
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, [maxWidth]);
+
+  return isCompact;
+}
+
 export default function GroupInviteClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isCompact = useCompactInviteLayout();
 
   const queryGroupId = String(searchParams.get("groupId") ?? "").trim();
 
@@ -255,13 +273,13 @@ rows.find((g) => g.is_active) ??
 
   if (booting) {
     return (
-      <MobileScaffold maxWidth={980} style={styles.page}>
+      <MobileScaffold maxWidth={980} style={{ ...styles.page, ...(isCompact ? styles.pageCompact : null) }}>
         <Section>
           <PremiumHeader
             title="Invitar"
             subtitle="Preparando el siguiente paso compartido…"
           />
-          <Card style={styles.surfaceCard}>
+          <Card style={{ ...styles.surfaceCard, ...(isCompact ? styles.surfaceCardCompact : null) }}>
             <div style={styles.loadingRow}>
               <div style={styles.loadingDot} />
               <div>
@@ -276,7 +294,7 @@ rows.find((g) => g.is_active) ??
   }
 
   return (
-    <MobileScaffold maxWidth={980} style={styles.page}>
+    <MobileScaffold maxWidth={980} style={{ ...styles.page, ...(isCompact ? styles.pageCompact : null) }}>
       {toast ? (
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
@@ -287,12 +305,12 @@ rows.find((g) => g.is_active) ??
       ) : null}
 
       <Section>
-        <div style={styles.topRow}>
+        <div style={{ ...styles.topRow, ...(isCompact ? styles.topRowCompact : null) }}>
           <PremiumHeader
             title="Invitar a otra persona"
             subtitle="Este paso convierte un grupo en coordinación real: ya no solo existe el espacio, ahora empieza a compartirse."
           />
-          <div style={styles.topUtilities}>
+          <div style={{ ...styles.topUtilities, ...(isCompact ? styles.topUtilitiesCompact : null) }}>
             <button
               type="button"
               style={styles.secondary}
@@ -304,42 +322,43 @@ rows.find((g) => g.is_active) ??
           </div>
         </div>
 
-        <Card style={styles.surfaceCard}>
-          <Section style={styles.stack}>
+        <Card style={{ ...styles.surfaceCard, ...(isCompact ? styles.surfaceCardCompact : null) }}>
+          <Section style={{ ...styles.stack, ...(isCompact ? styles.stackCompact : null) }}>
             <Card
               tone="muted"
               style={{
                 ...styles.heroCard,
+                ...(isCompact ? styles.heroCardCompact : null),
                 borderColor: meta.border,
                 background: `linear-gradient(180deg, ${meta.soft}, rgba(255,255,255,0.03))`,
               }}
             >
-              <div style={styles.heroLeft}>
+              <div style={{ ...styles.heroLeft, ...(isCompact ? styles.heroLeftCompact : null) }}>
                 <div style={styles.heroPill}>
                   <span style={{ ...styles.heroDot, background: meta.dot }} />
                   {meta.label}
                 </div>
 
-                <h1 style={styles.heroTitle}>
+                <h1 style={{ ...styles.heroTitle, ...(isCompact ? styles.heroTitleCompact : null) }}>
                   {selectedGroup?.type === "pair"
-                    ? "Invita a tu pareja y conviértanlo en una sola agenda compartida"
+                    ? "Invita a tu pareja y compartan la misma agenda"
                     : "Invita a la otra persona y compartan el mismo contexto"}
                 </h1>
 
-                <p style={styles.heroText}>
+                <p style={{ ...styles.heroText, ...(isCompact ? styles.heroTextCompact : null) }}>
                   La invitación es el paso que hace que el grupo tenga sentido: la otra persona entra, ve el mismo contexto y luego pueden crear eventos sin depender del chat.
                 </p>
               </div>
 
-              <div style={styles.heroRight}>
-                <div style={styles.miniCard}>
+              <div style={{ ...styles.heroRight, ...(isCompact ? styles.heroRightCompact : null) }}>
+                <div style={{ ...styles.miniCard, ...(isCompact ? styles.miniCardCompact : null) }}>
                   <div style={styles.miniLabel}>Grupo</div>
                   <div style={styles.miniValue}>
                     {selectedGroup?.name || "Selecciona un grupo"}
                   </div>
                 </div>
 
-                <div style={styles.miniCard}>
+                <div style={{ ...styles.miniCard, ...(isCompact ? styles.miniCardCompact : null) }}>
                   <div style={styles.miniLabel}>Objetivo</div>
                   <div style={styles.miniValue}>
                     Lograr que la otra persona acepte fácil y entienda el valor rápido.
@@ -348,8 +367,8 @@ rows.find((g) => g.is_active) ??
               </div>
             </Card>
 
-            <div style={styles.grid}>
-              <Card tone="muted" style={styles.formCard}>
+            <div style={{ ...styles.grid, ...(isCompact ? styles.gridCompact : null) }}>
+              <Card tone="muted" style={{ ...styles.formCard, ...(isCompact ? styles.formCardCompact : null) }}>
                 <div style={styles.sectionEyebrow}>Paso 1</div>
                 <div style={styles.sectionTitle}>Elige desde qué grupo invitas</div>
 
@@ -397,11 +416,12 @@ rows.find((g) => g.is_active) ??
                   />
                 </div>
 
-                <div style={styles.actionsRow}>
+                <div style={{ ...styles.actionsRow, ...(isCompact ? styles.actionsRowCompact : null) }}>
                   <button
                     type="button"
                     style={{
                       ...styles.primary,
+                      ...(isCompact ? styles.fullWidthButton : null),
                       ...(canSend ? null : styles.primaryDisabled),
                     }}
                     disabled={!canSend}
@@ -416,7 +436,7 @@ rows.find((g) => g.is_active) ??
 
                   <button
                     type="button"
-                    style={styles.secondary}
+                    style={{ ...styles.secondary, ...(isCompact ? styles.fullWidthButton : null) }}
                     onClick={copyInviteLink}
                   >
                     Copiar link
@@ -425,7 +445,7 @@ rows.find((g) => g.is_active) ??
                   {lastInviteUrl && selectedGroupId ? (
                     <button
                       type="button"
-                      style={styles.secondaryStrong}
+                      style={{ ...styles.secondaryStrong, ...(isCompact ? styles.fullWidthButton : null) }}
                       onClick={() =>
                         router.push(
                           `/events/new/details?type=group&groupId=${encodeURIComponent(
@@ -440,7 +460,7 @@ rows.find((g) => g.is_active) ??
                 </div>
               </Card>
 
-              <Card tone="muted" style={styles.sideCard}>
+              <Card tone="muted" style={{ ...styles.sideCard, ...(isCompact ? styles.sideCardCompact : null) }}>
                 <div style={styles.sectionEyebrow}>Por qué importa</div>
                 <div style={styles.sectionTitle}>Este paso cierra activación</div>
                 <p style={styles.sectionBody}>
@@ -478,6 +498,106 @@ rows.find((g) => g.is_active) ??
 }
 
 const styles: Record<string, CSSProperties> = {
+  pageCompact: {
+    overflowX: "hidden",
+  },
+  surfaceCardCompact: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflow: "hidden",
+    borderRadius: 22,
+  },
+  stackCompact: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    gap: 12,
+  },
+  topRowCompact: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr)",
+    gap: 10,
+    width: "100%",
+  },
+  topUtilitiesCompact: {
+    width: "100%",
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) auto",
+    alignItems: "center",
+  },
+  heroCardCompact: {
+    gridTemplateColumns: "minmax(0, 1fr)",
+    gap: 12,
+    padding: 14,
+    borderRadius: 20,
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflow: "hidden",
+  },
+  heroLeftCompact: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+  },
+  heroTitleCompact: {
+    fontSize: "clamp(24px, 8vw, 30px)",
+    lineHeight: 1.08,
+    letterSpacing: "-0.035em",
+    maxWidth: "100%",
+    overflowWrap: "anywhere",
+  },
+  heroTextCompact: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    maxWidth: "100%",
+  },
+  heroRightCompact: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    gridTemplateColumns: "minmax(0, 1fr)",
+  },
+  miniCardCompact: {
+    minWidth: 0,
+    width: "100%",
+    maxWidth: "100%",
+  },
+  gridCompact: {
+    gridTemplateColumns: "minmax(0, 1fr)",
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    gap: 12,
+    overflowX: "hidden",
+  },
+  formCardCompact: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    padding: 14,
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  sideCardCompact: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    padding: 14,
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  actionsRowCompact: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr)",
+    width: "100%",
+  },
+  fullWidthButton: {
+    width: "100%",
+    justifyContent: "center",
+    minWidth: 0,
+  },
   page: {
     minHeight: "100vh",
     background:

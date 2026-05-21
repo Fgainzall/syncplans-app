@@ -129,6 +129,23 @@ function getHeroTitle(inv: GroupInvitation | null, pending: boolean) {
     : "Acepta y entra al mismo espacio compartido";
 }
 
+function useCompactInviteLayout(maxWidth = 760) {
+  const [isCompact, setIsCompact] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const media = window.matchMedia(`(max-width: ${maxWidth}px)`);
+    const sync = () => setIsCompact(media.matches);
+    sync();
+
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, [maxWidth]);
+
+  return isCompact;
+}
+
 function StatusPill({ status }: { status: string | null | undefined }) {
   const s = String(status ?? "").toLowerCase();
   const meta =
@@ -184,6 +201,7 @@ function StatusPill({ status }: { status: string | null | undefined }) {
 export default function AcceptInviteClient() {
   const router = useRouter();
   const sp = useSearchParams();
+  const isCompact = useCompactInviteLayout();
 
   const inviteId = useMemo(
     () => sp.get("invite") || sp.get("inviteId") || "",
@@ -473,13 +491,13 @@ export default function AcceptInviteClient() {
 
   if (loading) {
     return (
-      <MobileScaffold maxWidth={980} style={styles.page}>
+      <MobileScaffold maxWidth={980} style={{ ...styles.page, ...(isCompact ? styles.pageCompact : null) }}>
         <Section>
           <PremiumHeader
             title="Aceptar invitación"
             subtitle="Preparando el contexto compartido…"
           />
-          <Card style={styles.surfaceCard}>
+          <Card style={{ ...styles.surfaceCard, ...(isCompact ? styles.surfaceCardCompact : null) }}>
             <div style={styles.loadingRow}>
               <div style={styles.loadingDot} />
               <div>
@@ -494,7 +512,7 @@ export default function AcceptInviteClient() {
   }
 
   return (
-    <MobileScaffold maxWidth={980} style={styles.page}>
+    <MobileScaffold maxWidth={980} style={{ ...styles.page, ...(isCompact ? styles.pageCompact : null) }}>
       {toast ? (
         <div style={styles.toastWrap}>
           <div style={styles.toastCard}>
@@ -505,7 +523,7 @@ export default function AcceptInviteClient() {
       ) : null}
 
       <Section>
-        <div style={styles.topRow}>
+        <div style={{ ...styles.topRow, ...(isCompact ? styles.topRowCompact : null) }}>
           <PremiumHeader
             title="Invitación"
             subtitle="Entrar al mismo contexto debería sentirse claro, no técnico."
@@ -513,25 +531,26 @@ export default function AcceptInviteClient() {
           <LogoutButton />
         </div>
 
-        <Card style={styles.surfaceCard}>
-          <Section style={styles.stack}>
+        <Card style={{ ...styles.surfaceCard, ...(isCompact ? styles.surfaceCardCompact : null) }}>
+          <Section style={{ ...styles.stack, ...(isCompact ? styles.stackCompact : null) }}>
             <Card
               tone="muted"
               style={{
                 ...styles.heroCard,
+                ...(isCompact ? styles.heroCardCompact : null),
                 borderColor: meta.border,
                 background: `linear-gradient(180deg, ${meta.soft}, rgba(255,255,255,0.03))`,
               }}
             >
-              <div style={styles.heroLeft}>
+              <div style={{ ...styles.heroLeft, ...(isCompact ? styles.heroLeftCompact : null) }}>
                 <div style={styles.heroPill}>
                   <span style={{ ...styles.heroDot, background: meta.dot }} />
                   {meta.label}
                 </div>
 
-                <div style={styles.heroTitle}>{getHeroTitle(inv, pending)}</div>
+                <div style={{ ...styles.heroTitle, ...(isCompact ? styles.heroTitleCompact : null) }}>{getHeroTitle(inv, pending)}</div>
 
-                <div style={styles.heroText}>
+                <div style={{ ...styles.heroText, ...(isCompact ? styles.heroTextCompact : null) }}>
                   {pending
                     ? "Aceptar esta invitación no solo te mete a un grupo. Te mete a la misma versión compartida de lo que ya está en marcha."
                     : "La invitación ya no está pendiente, pero este contexto sigue siendo la mejor puerta para entender qué está pasando y qué te toca ahora."}
@@ -548,23 +567,23 @@ export default function AcceptInviteClient() {
                 </div>
               </div>
 
-              <div style={styles.heroRight}>
-                <div style={styles.miniCard}>
+              <div style={{ ...styles.heroRight, ...(isCompact ? styles.heroRightCompact : null) }}>
+                <div style={{ ...styles.miniCard, ...(isCompact ? styles.miniCardCompact : null) }}>
                   <div style={styles.miniLabel}>Grupo</div>
                   <div style={styles.miniValue}>
                     {inv?.group_name || "Grupo compartido"}
                   </div>
                 </div>
 
-                <div style={styles.miniCard}>
+                <div style={{ ...styles.miniCard, ...(isCompact ? styles.miniCardCompact : null) }}>
                   <div style={styles.miniLabel}>Tipo</div>
                   <div style={styles.miniValue}>{labelType(inv?.group_type)}</div>
                 </div>
               </div>
             </Card>
 
-            <div style={styles.grid}>
-              <Card tone="muted" style={styles.leftCard}>
+            <div style={{ ...styles.grid, ...(isCompact ? styles.gridCompact : null) }}>
+              <Card tone="muted" style={{ ...styles.leftCard, ...(isCompact ? styles.cardCompact : null) }}>
                 <div style={styles.sectionEyebrow}>Qué ganas al entrar</div>
                 <div style={styles.sectionTitle}>Una sola referencia compartida</div>
 
@@ -578,13 +597,14 @@ export default function AcceptInviteClient() {
                 </div>
 
                 {pending ? (
-                  <div style={styles.actionsRow}>
+                  <div style={{ ...styles.actionsRow, ...(isCompact ? styles.actionsRowCompact : null) }}>
                     <button
                       type="button"
                       onClick={onAccept}
                       disabled={busy !== null}
                       style={{
                         ...styles.primary,
+                        ...(isCompact ? styles.fullWidthButton : null),
                         ...(busy !== null ? styles.primaryDisabled : null),
                       }}
                     >
@@ -595,16 +615,16 @@ export default function AcceptInviteClient() {
                       type="button"
                       onClick={onDecline}
                       disabled={busy !== null}
-                      style={styles.secondary}
+                      style={{ ...styles.secondary, ...(isCompact ? styles.fullWidthButton : null) }}
                     >
                       {busy === "decline" ? "Rechazando…" : "Rechazar"}
                     </button>
                   </div>
                 ) : (
-                  <div style={styles.actionsRow}>
+                  <div style={{ ...styles.actionsRow, ...(isCompact ? styles.actionsRowCompact : null) }}>
                     <button
                       type="button"
-                      style={styles.primary}
+                      style={{ ...styles.primary, ...(isCompact ? styles.fullWidthButton : null) }}
                       onClick={() =>
                         inv?.group_id
                           ? router.push(`/groups/${inv.group_id}`)
@@ -616,7 +636,7 @@ export default function AcceptInviteClient() {
 
                     <button
                       type="button"
-                      style={styles.secondary}
+                      style={{ ...styles.secondary, ...(isCompact ? styles.fullWidthButton : null) }}
                       onClick={() => router.push("/calendar")}
                     >
                       Ver calendario
@@ -625,7 +645,7 @@ export default function AcceptInviteClient() {
                 )}
               </Card>
 
-              <Card tone="muted" style={styles.rightCard}>
+              <Card tone="muted" style={{ ...styles.rightCard, ...(isCompact ? styles.cardCompact : null) }}>
                 <div style={styles.sectionEyebrow}>Qué pasa después</div>
                 <div style={styles.sectionTitle}>Ruta de entrada ideal</div>
 
@@ -656,6 +676,92 @@ export default function AcceptInviteClient() {
 }
 
 const styles: Record<string, CSSProperties> = {
+  pageCompact: {
+    overflowX: "hidden",
+  },
+  surfaceCardCompact: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflow: "hidden",
+    borderRadius: 22,
+  },
+  stackCompact: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    gap: 12,
+  },
+  topRowCompact: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr)",
+    gap: 10,
+    width: "100%",
+  },
+  heroCardCompact: {
+    gridTemplateColumns: "minmax(0, 1fr)",
+    gap: 12,
+    padding: 14,
+    borderRadius: 20,
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflow: "hidden",
+  },
+  heroLeftCompact: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+  },
+  heroTitleCompact: {
+    fontSize: "clamp(24px, 8vw, 30px)",
+    lineHeight: 1.08,
+    letterSpacing: "-0.035em",
+    maxWidth: "100%",
+    overflowWrap: "anywhere",
+  },
+  heroTextCompact: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    maxWidth: "100%",
+  },
+  heroRightCompact: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    gridTemplateColumns: "minmax(0, 1fr)",
+  },
+  miniCardCompact: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+  },
+  gridCompact: {
+    gridTemplateColumns: "minmax(0, 1fr)",
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    gap: 12,
+    overflowX: "hidden",
+  },
+  cardCompact: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    padding: 14,
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  actionsRowCompact: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr)",
+    width: "100%",
+  },
+  fullWidthButton: {
+    width: "100%",
+    justifyContent: "center",
+    minWidth: 0,
+  },
   page: {
     minHeight: "100vh",
     background:
