@@ -149,16 +149,37 @@ function cleanContextualPlaceQuery(value: string): string {
   return next;
 }
 
-function prettifyContextualPlaceLabel(value: string): string {
+function prettifyContextualPlaceName(value: string): string {
   return String(value || "")
     .trim()
     .split(/\s+/)
     .filter(Boolean)
     .map((part) => {
-      if (part.length <= 2) return part;
+      if (part.length <= 2) return part.toLowerCase();
       return `${part.charAt(0).toUpperCase()}${part.slice(1)}`;
     })
     .join(" ");
+}
+
+function buildContextualPlaceLabel(cleanedQuery: string, rawText: string): string {
+  const normalizedQuery = normalizeContextText(cleanedQuery);
+  const normalizedRaw = normalizeContextText(rawText);
+
+  const houseMatch = normalizedQuery.match(/^(?:la\s+)?casa\s+de\s+(.+)$/);
+  if (houseMatch?.[1]) {
+    const name = prettifyContextualPlaceName(houseMatch[1]);
+    return normalizedQuery.startsWith("la casa") ? `en la casa de ${name}` : `en casa de ${name}`;
+  }
+
+  const depaMatch = normalizedQuery.match(/^(?:el\s+)?(?:depa|departamento)\s+de\s+(.+)$/);
+  if (depaMatch?.[1]) {
+    return `en el depa de ${prettifyContextualPlaceName(depaMatch[1])}`;
+  }
+
+  const prettyLabel = prettifyContextualPlaceName(cleanedQuery);
+  if (normalizedRaw.includes("donde ")) return `donde ${prettyLabel}`;
+  if (normalizedRaw.includes("en lo de ")) return `en lo de ${prettyLabel}`;
+  return prettyLabel;
 }
 
 function getContextualPlaceDecision(
@@ -235,7 +256,7 @@ function getContextualPlaceDecision(
   const hasVenueOrAddressCue = venueOrAddressCues.some((cue) =>
     normalizedQuery.split(" ").includes(cue),
   );
-  const hasContextPhrase = /\b(donde|casa de|en casa de|en lo de|depa de|departamento de)\b/.test(
+  const hasContextPhrase = /\b(donde|casa de|en casa de|en la casa de|en lo de|depa de|departamento de)\b/.test(
     normalizedRaw,
   );
 
@@ -243,15 +264,12 @@ function getContextualPlaceDecision(
     return null;
   }
 
-  const prettyLabel = prettifyContextualPlaceLabel(cleanedQuery);
-  const label = normalizedRaw.includes("donde ")
-    ? `Donde ${prettyLabel}`
-    : `Casa/lugar familiar: ${prettyLabel}`;
+  const label = buildContextualPlaceLabel(cleanedQuery, rawText);
 
   return {
     label,
     cleanedQuery,
-    note: `Lugar/contexto: ${label}.`,
+    note: `Contexto: ${label}.`,
   };
 }
 
