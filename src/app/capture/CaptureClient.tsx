@@ -1112,7 +1112,7 @@ params.set("title", normalizedTitle);
               background: "rgba(15, 23, 42, 0.9)",
             }}
           >
-            Volver a Summary
+            Volver a Resumen
           </Link>
         </div>
       </section>
