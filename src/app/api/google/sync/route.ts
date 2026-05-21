@@ -17,6 +17,7 @@ export const dynamic = "force-dynamic";
 
 const GOOGLE_SYNC_RATE_LIMIT_WINDOW_SECONDS = 60;
 const GOOGLE_SYNC_RATE_LIMIT_MAX_ATTEMPTS = 5;
+const GOOGLE_SYNC_UPSERT_BATCH_SIZE = 100;
 
 type GoogleAccountRow = {
   user_id: string;
@@ -353,6 +354,19 @@ function getInformationalGoogleEventsCleanupFilter(): string {
 function isGoogleRefreshTokenInvalid(error: GoogleProviderError | null): boolean {
   const code = String(error?.providerCode ?? "").toLowerCase();
   return error?.status === 400 && (code === "invalid_grant" || code === "invalid_request");
+}
+
+function isGoogleProviderReauthRequired(error: GoogleProviderError | null): boolean {
+  if (!error) return false;
+  return error.status === 401 || isGoogleRefreshTokenInvalid(error);
+}
+
+function chunkRows<T>(rows: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < rows.length; i += size) {
+    out.push(rows.slice(i, i + size));
+  }
+  return out;
 }
 
 
@@ -774,25 +788,42 @@ export async function POST(req: Request) {
       );
     }
 
-    const { error: upsertError } = await supabaseAdmin
-      .from("events")
-      .upsert(rowsToUpsert, {
-        onConflict: "user_id,external_source,external_id",
-      });
+    let importedCount = 0;
+    const upsertBatches = chunkRows(rowsToUpsert, GOOGLE_SYNC_UPSERT_BATCH_SIZE);
 
-    if (upsertError) {
-      return jsonError(ctx, {
-        error: "No se pudieron guardar los eventos importados.",
-        code: "GOOGLE_SYNC_UPSERT_FAILED",
-        status: 500,
-        log: { flow: "google.sync", userId: user.id, providerError: upsertError.message },
-      });
+    for (const [batchIndex, batch] of upsertBatches.entries()) {
+      const { error: upsertError } = await supabaseAdmin
+        .from("events")
+        .upsert(batch, {
+          onConflict: "user_id,external_source,external_id",
+        });
+
+      if (upsertError) {
+        return jsonError(ctx, {
+          error: "No se pudieron guardar los eventos importados de Google.",
+          code: "GOOGLE_SYNC_UPSERT_FAILED",
+          status: 500,
+          level: "error",
+          log: {
+            flow: "google.sync",
+            userId: user.id,
+            providerError: upsertError.message,
+            batchIndex,
+            batchSize: batch.length,
+            importedBeforeFailure: importedCount,
+            hint:
+              "Revisa que events tenga las columnas external_source, external_id, external_updated_at, external_attendees_count y un índice único en user_id, external_source, external_id.",
+          },
+        });
+      }
+
+      importedCount += batch.length;
     }
 
     return jsonOk(
       ctx,
       {
-        imported: rowsToUpsert.length,
+        imported: importedCount,
         calendars: syncableCalendars.length,
         skippedInformationalCalendars,
         skippedInformationalEvents,
@@ -805,7 +836,7 @@ export async function POST(req: Request) {
         log: {
           flow: "google.sync",
           userId: user.id,
-          imported: rowsToUpsert.length,
+          imported: importedCount,
           calendars: syncableCalendars.length,
           skippedInformationalCalendars,
           skippedInformationalEvents,
@@ -816,6 +847,26 @@ export async function POST(req: Request) {
       }
     );
   } catch (error) {
+    const providerError = error instanceof GoogleProviderError ? error : null;
+
+    if (providerError) {
+      const needsReauth = isGoogleProviderReauthRequired(providerError);
+
+      return jsonError(ctx, {
+        error: needsReauth
+          ? "Google necesita que vuelvas a conectar tu cuenta."
+          : "Google devolvió un error al sincronizar el calendario.",
+        code: needsReauth ? "GOOGLE_REAUTH_REQUIRED" : "GOOGLE_SYNC_PROVIDER_FAILED",
+        status: needsReauth ? 401 : 502,
+        log: {
+          flow: "google.sync",
+          userId: userIdForLog,
+          providerStatus: providerError.status,
+          providerCode: providerError.providerCode ?? null,
+        },
+      });
+    }
+
     return jsonError(ctx, {
       error: "Falló la sincronización de Google Calendar.",
       code: "GOOGLE_SYNC_FAILED",
