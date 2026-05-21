@@ -932,6 +932,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return activeLabel;
   }, [activeGroupId, activeLabel]);
 
+  const inviteTarget = useMemo(() => {
+    const groupId = String(activeGroupId ?? groups[0]?.id ?? "").trim();
+    return groupId ? `/groups/invite?groupId=${encodeURIComponent(groupId)}` : "/groups";
+  }, [activeGroupId, groups]);
+
   const quickCaptureExamples = useMemo(
     () => getQuickCaptureExamples(activeGroupType, activeLabel, !!activeGroupId),
     [activeGroupType, activeLabel, activeGroupId]
@@ -1093,14 +1098,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [quickCaptureValue, timeSuggestions, suggestedContextGroupType]);
 
   const quickCaptureHeadline = useMemo(() => {
-    if (!activeGroupId) return "Crea algo rápido";
-    if (activeGroupType === "pair") return "Planéalo en una línea";
-    if (activeGroupType === "family") return "Organiza algo rápido";
-    return "Crea un plan rápido";
+    if (!activeGroupId) return "Crear evento rápido";
+    if (activeGroupType === "pair") return "Crear evento rápido";
+    if (activeGroupType === "family") return "Organizar evento rápido";
+    return "Crear evento rápido";
   }, [activeGroupId, activeGroupType]);
 
   const quickCaptureSubcopy = useMemo(() => {
-    return "Escribe el plan y SyncPlans lo deja listo para revisar.";
+    return "Escribe algo como: cena viernes 8 con Ara. SyncPlans lo ordena antes de guardar.";
   }, []);
 
   const normalizedEvents = useMemo(() => {
@@ -1966,7 +1971,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           "Coordinen en un solo lugar y eviten cruces, dudas y mensajes perdidos.",
         primaryLabel: "Invitar ahora",
         primaryAction: () =>
-          navigateFromSummary("invite_someone", "/groups", {
+          navigateFromSummary("invite_someone", inviteTarget, {
             block: "primary_action",
           }),
         secondaryLabel: "Abrir eventos",
@@ -2023,6 +2028,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     nextEvent,
     openConflictCenter,
     navigateFromSummary,
+    inviteTarget,
   ]);
 
   const nextMove = useMemo<NextMove>(() => {
@@ -2171,7 +2177,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         priorityLabel: "Prioridad 5 · Activación",
         rationale: "Sin otra persona, SyncPlans funciona; con otra persona, empieza a resolver el problema real.",
         onClick: () =>
-          navigateFromSummary("next_move_invite_now", "/groups", {
+          navigateFromSummary("next_move_invite_now", inviteTarget, {
             block: "next_move",
           }),
       };
@@ -2238,6 +2244,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     showInviteNudge,
     nextEvent,
     navigateFromSummary,
+    inviteTarget,
     router,
     trackSummaryCta,
   ]);
@@ -2550,104 +2557,116 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             }
           />
         ) : (
-          <NextMoveCard move={nextMove} />
+          <div style={styles.summaryGrid} className="spSum-summaryGrid">
+            <div style={styles.summaryMainColumn} className="spSum-mainColumn">
+              <NextMoveCard move={nextMove} />
+
+              <SummaryQuickCaptureCard
+                value={quickCaptureValue}
+                busy={quickCaptureBusy}
+                preview={quickCapturePreview}
+                interpretation={smartInterpretation}
+                interpretationLabel={smartInterpretationLabel}
+                intelligence={quickCaptureIntelligence}
+                examples={isFirstTimeMode ? quickCaptureExamples.slice(0, 2) : quickCaptureExamples}
+                activeGroupName={activeLabel}
+                activeGroupType={activeGroupType}
+                groups={groups}
+                onChange={setQuickCaptureValue}
+                onSubmit={handleQuickCaptureSubmit}
+                onShare={handleCopyCaptureLink}
+                onWhatsApp={handleShareToWhatsApp}
+                onExampleClick={handleQuickCaptureExample}
+                headline={isFirstTimeMode ? "Prueba con una idea simple" : quickCaptureHeadline}
+                subcopy={
+                  isFirstTimeMode
+                    ? "Escribe algo como lo dirías por WhatsApp. SyncPlans lo convierte en un evento claro antes de guardar."
+                    : quickCaptureSubcopy
+                }
+                onOpenCapture={isFirstTimeMode ? undefined : handleOpenCapture}
+                timeSuggestionsLabel={isFirstTimeMode ? null : timeSuggestionsLabel}
+                timeSuggestions={isFirstTimeMode ? [] : timeSuggestions}
+                onSuggestedSlotClick={
+                  isFirstTimeMode
+                    ? undefined
+                    : (date: Date) => navigateFromSuggestedSlot(quickCaptureValue, date)
+                }
+              />
+            </div>
+
+            <div style={styles.summarySideColumn} className="spSum-sideColumn">
+              <DayStatusCard status={dayStatus} />
+
+              {showDeferredLaunchPanels ? (
+                <SmartMobilityCard smartMobility={smartMobility} />
+              ) : null}
+
+              {shouldShowSummaryHero ? (
+                <SummaryHero
+                  compact={compactSummaryMobile}
+                  contextLabel={contextLabel}
+                  moodTitle={mood.title}
+                  moodSubtitle={mood.subtitle}
+                  upcomingTotal={upcomingStats.total}
+                  upcomingPersonal={upcomingStats.personal}
+                  upcomingGroup={upcomingStats.group}
+                  upcomingExternal={upcomingStats.external}
+                  conflictCount={conflictAlert.count}
+                  pendingInviteCount={pendingInviteCount}
+                  loading={loading && !booting}
+                  primaryAction={primaryAction}
+                  onOpenConflicts={openConflictCenter}
+                  onOpenInvitations={() =>
+                    navigateFromSummary("hero_invites", "/invitations", {
+                      block: "summary_hero",
+                    })
+                  }
+                />
+              ) : null}
+
+              {premiumNudge ? (
+                <PremiumContextRail
+                  nudge={premiumNudge}
+                  onPrimary={() => openPremiumFromSummary(premiumNudge.context)}
+                />
+              ) : null}
+
+              <UpcomingSection
+                booting={booting}
+                nextEvent={nextEvent}
+                remainingUpcoming={remainingUpcoming}
+                showSeeMore={showSeeMore}
+                upcomingAllCount={upcomingAll.length}
+                highlightId={highlightId}
+                getProposalLineForEvent={getProposalLineForEvent}
+                getProposalBadgeForEvent={getProposalBadgeForEvent}
+                getStatusBadgeForEvent={getStatusBadgeForEvent}
+                onOpenCalendar={() =>
+                  navigateFromSummary("open_calendar", "/calendar", {
+                    block: "summary_calendar",
+                  })
+                }
+                showCreateGroupNudge={showCreateGroupNudge}
+                onPrimaryEmptyAction={primaryAction.primaryAction}
+              />
+            </div>
+
+            {showQuickActions ? (
+              <div style={styles.summaryFullWidth} className="spSum-fullWidth">
+                <QuickActionsSection actions={summaryQuickActions} />
+              </div>
+            ) : null}
+          </div>
         )}
-
-        {!isResolvingInitialSummary && !showFirstGroupActivation ? <DayStatusCard status={dayStatus} /> : null}
-
-        {showDeferredLaunchPanels && !isResolvingInitialSummary && !showFirstGroupActivation ? (
-          <SmartMobilityCard smartMobility={smartMobility} />
-        ) : null}
-
-        {!isResolvingInitialSummary && shouldShowSummaryHero ? (
-          <SummaryHero
-            compact={compactSummaryMobile}
-            contextLabel={contextLabel}
-            moodTitle={mood.title}
-            moodSubtitle={mood.subtitle}
-            upcomingTotal={upcomingStats.total}
-            upcomingPersonal={upcomingStats.personal}
-            upcomingGroup={upcomingStats.group}
-            upcomingExternal={upcomingStats.external}
-            conflictCount={conflictAlert.count}
-            pendingInviteCount={pendingInviteCount}
-            loading={loading && !booting}
-            primaryAction={primaryAction}
-            onOpenConflicts={openConflictCenter}
-            onOpenInvitations={() =>
-              navigateFromSummary("hero_invites", "/invitations", {
-                block: "summary_hero",
-              })
-            }
-          />
-        ) : null}
-
-        {!isResolvingInitialSummary && !showFirstGroupActivation ? (
-          <SummaryQuickCaptureCard
-          value={quickCaptureValue}
-          busy={quickCaptureBusy}
-          preview={quickCapturePreview}
-          interpretation={smartInterpretation}
-          interpretationLabel={smartInterpretationLabel}
-          intelligence={quickCaptureIntelligence}
-          examples={isFirstTimeMode ? quickCaptureExamples.slice(0, 2) : quickCaptureExamples}
-          activeGroupName={activeLabel}
-          activeGroupType={activeGroupType}
-          groups={groups}
-          onChange={setQuickCaptureValue}
-          onSubmit={handleQuickCaptureSubmit}
-          onShare={handleCopyCaptureLink}
-          onWhatsApp={handleShareToWhatsApp}
-          onExampleClick={handleQuickCaptureExample}
-          headline={isFirstTimeMode ? "Pruébalo con una idea simple" : quickCaptureHeadline}
-          subcopy={
-            isFirstTimeMode
-              ? "Escribe algo como lo pensarías normalmente y SyncPlans lo convierte en un plan claro."
-              : quickCaptureSubcopy
-          }
-          onOpenCapture={isFirstTimeMode ? undefined : handleOpenCapture}
-          timeSuggestionsLabel={isFirstTimeMode ? null : timeSuggestionsLabel}
-          timeSuggestions={isFirstTimeMode ? [] : timeSuggestions}
-          onSuggestedSlotClick={
-            isFirstTimeMode
-              ? undefined
-              : (date: Date) => navigateFromSuggestedSlot(quickCaptureValue, date)
-          }
-        />
-        ) : null}
-
-        {premiumNudge && !isResolvingInitialSummary && !showFirstGroupActivation ? (
-          <PremiumContextRail
-            nudge={premiumNudge}
-            onPrimary={() => openPremiumFromSummary(premiumNudge.context)}
-          />
-        ) : null}
-
-        {!isResolvingInitialSummary && !showFirstGroupActivation ? (
-          <UpcomingSection
-          booting={booting}
-          nextEvent={nextEvent}
-          remainingUpcoming={remainingUpcoming}
-          showSeeMore={showSeeMore}
-          upcomingAllCount={upcomingAll.length}
-          highlightId={highlightId}
-          getProposalLineForEvent={getProposalLineForEvent}
-          getProposalBadgeForEvent={getProposalBadgeForEvent}
-          getStatusBadgeForEvent={getStatusBadgeForEvent}
-          onOpenCalendar={() =>
-            navigateFromSummary("open_calendar", "/calendar", {
-              block: "summary_calendar",
-            })
-          }
-          showCreateGroupNudge={showCreateGroupNudge}
-          onPrimaryEmptyAction={primaryAction.primaryAction}
-        />
-        ) : null}
-
-        {!isResolvingInitialSummary && showQuickActions ? <QuickActionsSection actions={summaryQuickActions} /> : null}
       </Section>
 
       <style>{`
+        @media (max-width: 960px) {
+          .spSum-summaryGrid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
         @media (max-width: 720px) {
           .spSum-shell {
             padding-left: 14px !important;
@@ -2700,12 +2719,32 @@ const styles: Record<string, CSSProperties> = {
   },
   shell: {
     width: "100%",
-    maxWidth: 1080,
+    maxWidth: 1180,
     margin: "0 auto",
-    padding: "18px 18px calc(var(--sp-bottom-safe, 110px) + 64px)",
+    padding: "20px 22px calc(var(--sp-bottom-safe, 110px) + 64px)",
     display: "flex",
     flexDirection: "column",
-    gap: 14,
+    gap: 16,
+  },
+  summaryGrid: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1.16fr) minmax(340px, 0.84fr)",
+    gap: 16,
+    alignItems: "start",
+  },
+  summaryMainColumn: {
+    display: "grid",
+    gap: 16,
+    minWidth: 0,
+  },
+  summarySideColumn: {
+    display: "grid",
+    gap: 16,
+    minWidth: 0,
+  },
+  summaryFullWidth: {
+    gridColumn: "1 / -1",
+    minWidth: 0,
   },
   toastWrap: {
     position: "fixed",
@@ -2736,16 +2775,16 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 650,
   },
   nextMoveCard: {
-    borderRadius: 22,
-    border: "1px solid rgba(125,211,252,0.16)",
+    borderRadius: 26,
+    border: "1px solid rgba(125,211,252,0.20)",
     background:
-      "linear-gradient(135deg, rgba(15,23,42,0.92), rgba(30,41,59,0.76))",
-    boxShadow: "0 18px 56px rgba(0,0,0,0.24)",
-    padding: 16,
+      "linear-gradient(135deg, rgba(15,23,42,0.96), rgba(30,41,59,0.80))",
+    boxShadow: "0 24px 70px rgba(0,0,0,0.28)",
+    padding: 20,
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 14,
+    gap: 16,
     flexWrap: "wrap",
   },
   nextMoveCalm: {
@@ -2798,22 +2837,22 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(125,211,252,0.90)",
   },
   nextMoveTitle: {
-    fontSize: 22,
+    fontSize: 28,
     lineHeight: 1.12,
     fontWeight: 950,
     letterSpacing: "-0.03em",
     color: "rgba(255,255,255,0.98)",
   },
   nextMoveSubtitle: {
-    marginTop: 7,
-    fontSize: 13,
+    marginTop: 8,
+    fontSize: 14,
     lineHeight: 1.48,
     color: "rgba(226,232,240,0.78)",
     fontWeight: 650,
     maxWidth: 760,
   },
   nextMoveRationale: {
-    marginTop: 9,
+    marginTop: 10,
     padding: "8px 10px",
     borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.10)",
@@ -2825,8 +2864,8 @@ const styles: Record<string, CSSProperties> = {
     maxWidth: 820,
   },
   nextMoveBtn: {
-    minHeight: 44,
-    padding: "0 16px",
+    minHeight: 48,
+    padding: "0 18px",
     borderRadius: 999,
     border: "1px solid rgba(125,211,252,0.26)",
     background: "rgba(56,189,248,0.16)",

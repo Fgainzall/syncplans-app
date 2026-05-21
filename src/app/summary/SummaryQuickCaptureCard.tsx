@@ -69,7 +69,7 @@ function actionTone(
   return {
     isShared,
     contextLabel: isShared ? "Compartido" : "Personal",
-    submitLabel: isShared ? "Convertir en plan" : "Crear plan",
+    submitLabel: isShared ? "Convertir en evento" : "Crear evento",
   };
 }
 
@@ -130,11 +130,11 @@ export default function SummaryQuickCaptureCard({
 
       <header style={s.header}>
         <div style={s.headerCopy}>
-          <div style={s.eyebrow}>Crear plan rápido</div>
-          <h2 style={s.title}>{headline || "Crea un plan en una línea"}</h2>
+          <div style={s.eyebrow}>Crear evento rápido</div>
+          <h2 style={s.title}>{headline || "Crear evento rápido"}</h2>
           <p style={s.subtitle}>
             {subcopy ||
-              "Escribe el plan y SyncPlans lo deja listo para revisar."}
+              "Escribe algo como lo dirías por WhatsApp. SyncPlans lo ordena antes de guardar."}
           </p>
         </div>
 
@@ -365,11 +365,11 @@ const s: Record<string, CSSProperties> = {
     position: "relative",
     overflow: "hidden",
     borderRadius: 26,
-    border: "1px solid rgba(148,163,184,0.16)",
+    border: "1px solid rgba(148,163,184,0.14)",
     background:
-      "linear-gradient(180deg, rgba(11,18,32,0.98) 0%, rgba(6,11,24,0.99) 100%)",
+      "linear-gradient(180deg, rgba(11,18,32,0.96) 0%, rgba(6,11,24,0.98) 100%)",
     boxShadow:
-      "0 30px 90px rgba(2,6,23,0.40), inset 0 1px 0 rgba(255,255,255,0.04)",
+      "0 24px 70px rgba(2,6,23,0.34), inset 0 1px 0 rgba(255,255,255,0.04)",
     padding: 18,
     display: "grid",
     gap: 14,
@@ -418,7 +418,7 @@ const s: Record<string, CSSProperties> = {
   },
   title: {
     margin: 0,
-    fontSize: 24,
+    fontSize: 26,
     lineHeight: 1.05,
     fontWeight: 950,
     letterSpacing: "-0.035em",
@@ -427,7 +427,7 @@ const s: Record<string, CSSProperties> = {
   },
   subtitle: {
     margin: 0,
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 1.55,
     color: "rgba(203,213,225,0.82)",
     maxWidth: 720,
@@ -746,9 +746,9 @@ const s: Record<string, CSSProperties> = {
     position: "relative",
     zIndex: 1,
     borderRadius: 16,
-    border: "1px solid rgba(148,163,184,0.10)",
-    background: "rgba(255,255,255,0.025)",
-    padding: "10px 12px",
+    border: "1px solid rgba(148,163,184,0.08)",
+    background: "rgba(255,255,255,0.018)",
+    padding: "9px 11px",
   },
   detailsSummary: {
     cursor: "pointer",
