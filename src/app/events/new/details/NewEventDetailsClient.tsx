@@ -12,9 +12,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import PremiumHeader from "@/components/PremiumHeader";
 import LogoutButton from "@/components/LogoutButton";
 import EventDetailsHero from "@/components/EventDetailsHero";
-import EventDetailsTemplatesSection from "@/components/EventDetailsTemplatesSection";
 import PostSaveActionsCard from "@/components/PostSaveActionsCard";
-import type { EventTemplate } from "@/lib/eventTemplates";
 import { normalizeGroupType as normalizeCanonicalGroupType } from "@/lib/naming";
 import ConflictPreflightModal from "@/components/ConflictPreflightModal";
 import {
@@ -162,6 +160,175 @@ type DbGroup = {
 
 function normalizeDbGroupType(value: unknown): GroupType {
   return normalizeCanonicalGroupType(String(value ?? ""));
+}
+
+
+type ContextualPlaceDecision = {
+  label: string;
+  note: string;
+  cleanedQuery: string;
+};
+
+function normalizeContextText(value: string): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9ñ\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanContextualPlaceQuery(value: string): string {
+  let next = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^d[oó]nde\s+/i, "")
+    .replace(/^en\s+(la\s+)?casa\s+de\s+/i, "")
+    .replace(/^casa\s+de\s+/i, "")
+    .replace(/^en\s+(el\s+)?depa\s+de\s+/i, "")
+    .replace(/^depa\s+de\s+/i, "")
+    .replace(/^en\s+lo\s+de\s+/i, "");
+
+  const danglingTemporalStarters = [
+    "el",
+    "la",
+    "los",
+    "las",
+    "este",
+    "esta",
+    "estos",
+    "estas",
+    "próximo",
+    "proximo",
+    "próxima",
+    "proxima",
+  ];
+
+  for (let i = 0; i < 2; i += 1) {
+    const parts = next.split(/\s+/).filter(Boolean);
+    const last = normalizeContextText(parts[parts.length - 1] ?? "");
+    if (!last || !danglingTemporalStarters.includes(last)) break;
+    parts.pop();
+    next = parts.join(" ").trim();
+  }
+
+  return next;
+}
+
+function prettifyContextualPlaceLabel(value: string): string {
+  return String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => {
+      if (part.length <= 2) return part;
+      return `${part.charAt(0).toUpperCase()}${part.slice(1)}`;
+    })
+    .join(" ");
+}
+
+function getContextualPlaceDecision(
+  rawText: string,
+  locationQuery: string | null | undefined,
+): ContextualPlaceDecision | null {
+  const cleanedQuery = cleanContextualPlaceQuery(String(locationQuery || ""));
+  if (!cleanedQuery) return null;
+
+  const normalizedQuery = normalizeContextText(cleanedQuery);
+  const normalizedRaw = normalizeContextText(rawText);
+
+  const familyOrHomeCues = [
+    "papapa",
+    "papa",
+    "mama",
+    "mamama",
+    "abuelo",
+    "abuela",
+    "abuelos",
+    "abuelas",
+    "tio",
+    "tia",
+    "tios",
+    "tias",
+    "primo",
+    "prima",
+    "primos",
+    "primas",
+    "hermano",
+    "hermana",
+    "hermanos",
+    "hermanas",
+    "suegro",
+    "suegra",
+    "cuñado",
+    "cuñada",
+    "familia",
+    "familiar",
+    "casa",
+    "depa",
+    "departamento",
+  ];
+
+  const venueOrAddressCues = [
+    "restaurante",
+    "restaurant",
+    "bar",
+    "club",
+    "cancha",
+    "colegio",
+    "universidad",
+    "oficina",
+    "hotel",
+    "mall",
+    "plaza",
+    "jockey",
+    "wong",
+    "parque",
+    "cine",
+    "cafeteria",
+    "cafe",
+    "local",
+    "avenida",
+    "av",
+    "calle",
+    "jiron",
+    "jr",
+  ];
+
+  const hasFamilyOrHomeCue = familyOrHomeCues.some((cue) =>
+    normalizedQuery.includes(cue),
+  );
+  const hasVenueOrAddressCue = venueOrAddressCues.some((cue) =>
+    normalizedQuery.split(" ").includes(cue),
+  );
+  const hasContextPhrase = /\b(donde|casa de|en casa de|en lo de|depa de|departamento de)\b/.test(
+    normalizedRaw,
+  );
+
+  if (!hasFamilyOrHomeCue || hasVenueOrAddressCue || !hasContextPhrase) {
+    return null;
+  }
+
+  const prettyLabel = prettifyContextualPlaceLabel(cleanedQuery);
+  const label = normalizedRaw.includes("donde ")
+    ? `Donde ${prettyLabel}`
+    : `Casa/lugar familiar: ${prettyLabel}`;
+
+  return {
+    label,
+    cleanedQuery,
+    note: `Lugar/contexto: ${label}.`,
+  };
+}
+
+function mergeCaptureNotesWithContext(baseNotes: string, contextNote?: string | null): string {
+  const base = String(baseNotes || "").trim();
+  const extra = String(contextNote || "").trim();
+  if (!extra) return base;
+  if (!base) return extra;
+  if (normalizeContextText(base).includes(normalizeContextText(extra))) return base;
+  return `${base}\n${extra}`;
 }
 
 type NewType = "personal" | "group";
@@ -669,9 +836,6 @@ function NewEventDetailsInner() {
     return d;
   }, [dateParam, timeParam]);
 
-  const [selectedTemplate, setSelectedTemplate] =
-    useState<EventTemplate | null>(null);
-
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [locationInput, setLocationInput] = useState("");
@@ -903,6 +1067,18 @@ function NewEventDetailsInner() {
 
     if (!incoming) return;
 
+    const contextualPlace = getContextualPlaceDecision(
+      String(rawTextParam || quickCaptureTitleParam || ""),
+      incoming,
+    );
+
+    if (contextualPlace) {
+      setNotes((current) =>
+        mergeCaptureNotesWithContext(current, contextualPlace.note),
+      );
+      return;
+    }
+
     setLocationInput((current) => (current.trim() ? current : incoming));
   }, [
     locationQueryParam,
@@ -912,6 +1088,8 @@ function NewEventDetailsInner() {
     locationLngParam,
     locationProviderParam,
     locationPlaceIdParam,
+    rawTextParam,
+    quickCaptureTitleParam,
     isEditing,
   ]);
 
@@ -923,6 +1101,14 @@ function NewEventDetailsInner() {
 
     const raw = String(rawTextParam || quickCaptureTitleParam || title || "").trim();
     const locationQuery = String(locationQueryParam || locationInput || "").trim();
+
+    const contextualPlace = getContextualPlaceDecision(raw, locationQuery);
+    if (contextualPlace) {
+      setNotes((current) =>
+        mergeCaptureNotesWithContext(current, contextualPlace.note),
+      );
+      return;
+    }
 
     if (!raw && !locationQuery) return;
     if (`${raw} ${locationQuery}`.trim().length < 4) return;
@@ -2266,23 +2452,6 @@ useEffect(() => {
     if (e.getTime() <= s.getTime())
       setEndLocal(toInputLocal(addMinutes(s, 60)));
   };
-  const applyTemplateSelection = (template: EventTemplate) => {
-    setSelectedTemplate(template);
-    setTitle(template.title);
-    setNotes(template.defaultNotes ?? "");
-
-    const start = fromInputLocal(startLocal);
-    if (!isNaN(start.getTime())) {
-      const nextEnd = addMinutes(start, template.defaultDurationMinutes);
-      setEndLocal(toInputLocal(nextEnd));
-    }
-  };
-
-  const clearTemplateSelection = () => {
-    setSelectedTemplate(null);
-    setTitle("");
-    setNotes("");
-  };
 
   const buildSuccessToast = (options?: { keepBoth?: boolean }) => {
     const isSharedEvent = effectiveType === "group";
@@ -3396,14 +3565,6 @@ useEffect(() => {
                   : "Título, horario y contexto. Lo esencial primero; el resto queda a mano sin meter ruido."}
               </div>
             </div>
-
-        {!isEditing && !cameFromQuickCapture ? (
-  <EventDetailsTemplatesSection
-    selectedTemplate={selectedTemplate}
-    onSelectTemplate={applyTemplateSelection}
-    onClearTemplate={clearTemplateSelection}
-  />
-) : null}
 
             <div style={styles.field}>
               <div style={styles.fieldLabel}>Título</div>

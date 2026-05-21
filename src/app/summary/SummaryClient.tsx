@@ -95,6 +95,176 @@ import {
   type SummaryEvent,
 } from "./summaryHelpers";
 
+
+type ContextualPlaceDecision = {
+  label: string;
+  note: string;
+  cleanedQuery: string;
+};
+
+function normalizeContextText(value: string): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9ñ\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanContextualPlaceQuery(value: string): string {
+  let next = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^d[oó]nde\s+/i, "")
+    .replace(/^en\s+(la\s+)?casa\s+de\s+/i, "")
+    .replace(/^casa\s+de\s+/i, "")
+    .replace(/^en\s+(el\s+)?depa\s+de\s+/i, "")
+    .replace(/^depa\s+de\s+/i, "")
+    .replace(/^en\s+lo\s+de\s+/i, "");
+
+  const danglingTemporalStarters = [
+    "el",
+    "la",
+    "los",
+    "las",
+    "este",
+    "esta",
+    "estos",
+    "estas",
+    "próximo",
+    "proximo",
+    "próxima",
+    "proxima",
+  ];
+
+  for (let i = 0; i < 2; i += 1) {
+    const parts = next.split(/\s+/).filter(Boolean);
+    const last = normalizeContextText(parts[parts.length - 1] ?? "");
+    if (!last || !danglingTemporalStarters.includes(last)) break;
+    parts.pop();
+    next = parts.join(" ").trim();
+  }
+
+  return next;
+}
+
+function prettifyContextualPlaceLabel(value: string): string {
+  return String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => {
+      if (part.length <= 2) return part;
+      return `${part.charAt(0).toUpperCase()}${part.slice(1)}`;
+    })
+    .join(" ");
+}
+
+function getContextualPlaceDecision(
+  rawText: string,
+  locationQuery: string | null | undefined,
+): ContextualPlaceDecision | null {
+  const cleanedQuery = cleanContextualPlaceQuery(String(locationQuery || ""));
+  if (!cleanedQuery) return null;
+
+  const normalizedQuery = normalizeContextText(cleanedQuery);
+  const normalizedRaw = normalizeContextText(rawText);
+
+  const familyOrHomeCues = [
+    "papapa",
+    "papa",
+    "mama",
+    "mamama",
+    "abuelo",
+    "abuela",
+    "abuelos",
+    "abuelas",
+    "tio",
+    "tia",
+    "tios",
+    "tias",
+    "primo",
+    "prima",
+    "primos",
+    "primas",
+    "hermano",
+    "hermana",
+    "hermanos",
+    "hermanas",
+    "suegro",
+    "suegra",
+    "cuñado",
+    "cuñada",
+    "familia",
+    "familiar",
+    "casa",
+    "depa",
+    "departamento",
+  ];
+
+  const venueOrAddressCues = [
+    "restaurante",
+    "restaurant",
+    "bar",
+    "club",
+    "cancha",
+    "colegio",
+    "universidad",
+    "oficina",
+    "hotel",
+    "mall",
+    "plaza",
+    "jockey",
+    "wong",
+    "parque",
+    "cine",
+    "cafeteria",
+    "cafe",
+    "local",
+    "avenida",
+    "av",
+    "calle",
+    "jiron",
+    "jr",
+  ];
+
+  const hasFamilyOrHomeCue = familyOrHomeCues.some((cue) =>
+    normalizedQuery.includes(cue),
+  );
+  const hasVenueOrAddressCue = venueOrAddressCues.some((cue) =>
+    normalizedQuery.split(" ").includes(cue),
+  );
+  const hasContextPhrase = /\b(donde|casa de|en casa de|en lo de|depa de|departamento de)\b/.test(
+    normalizedRaw,
+  );
+
+  if (!hasFamilyOrHomeCue || hasVenueOrAddressCue || !hasContextPhrase) {
+    return null;
+  }
+
+  const prettyLabel = prettifyContextualPlaceLabel(cleanedQuery);
+  const label = normalizedRaw.includes("donde ")
+    ? `Donde ${prettyLabel}`
+    : `Casa/lugar familiar: ${prettyLabel}`;
+
+  return {
+    label,
+    cleanedQuery,
+    note: `Lugar/contexto: ${label}.`,
+  };
+}
+
+function mergeCaptureNotesWithContext(baseNotes: string, contextNote?: string | null): string {
+  const base = String(baseNotes || "").trim();
+  const extra = String(contextNote || "").trim();
+  if (!extra) return base;
+  if (!base) return extra;
+  if (normalizeContextText(base).includes(normalizeContextText(extra))) return base;
+  return `${base}\n${extra}`;
+}
+
+
 type Props = {
   highlightId: string | null;
   appliedToast: string | null;
@@ -1160,8 +1330,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       !isSameCalendarDay(parsed.date, parsedEndDate)
     );
     const location = String(parsed.locationQuery ?? "").trim();
-    const learnedPlace = learnedQuickCapturePlaceMatch;
-    const effectiveLocation = learnedPlace?.locationLabel || location;
+    const contextualPlace = getContextualPlaceDecision(raw, location);
+    const learnedPlace = contextualPlace ? null : learnedQuickCapturePlaceMatch;
+    const effectiveLocation = contextualPlace ? "" : learnedPlace?.locationLabel || location;
     const participants = parsed.participants
       .map((participant) => String(participant ?? "").trim())
       .filter(Boolean);
@@ -1187,7 +1358,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       facts.push(`Con: ${compactList(participants, 2)}`);
     }
 
-    if (effectiveLocation) {
+    if (contextualPlace) {
+      facts.push(`Contexto: ${contextualPlace.label}`);
+    } else if (effectiveLocation) {
       facts.push(`Lugar: ${effectiveLocation}`);
       if (learnedPlace?.locationAddress) {
         facts.push(`Dirección recordada: ${learnedPlace.locationAddress}`);
@@ -1448,7 +1621,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       if (!raw) return null;
 
       const parsed = parseQuickCapture(raw);
-      const cleanedNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
+      const contextualPlace = getContextualPlaceDecision(raw, parsed.locationQuery);
+      const cleanedNotes = mergeCaptureNotesWithContext(
+        cleanTemporalNoise(String(parsed.notes || "").trim()),
+        contextualPlace?.note,
+      );
       const smart = buildSmartInterpretation({
         raw,
         groups,
@@ -1471,11 +1648,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       if (parsed.durationMinutes) params.set("duration", String(parsed.durationMinutes));
       if (cleanedNotes) params.set("notes", cleanedNotes);
 
-      const learnedPlace = findLearnedPlaceMatch({
-        rawText: raw,
-        locationQuery: parsed.locationQuery,
-        events: quickCapturePlaceMemoryEvents,
-      });
+      const learnedPlace = contextualPlace
+        ? null
+        : findLearnedPlaceMatch({
+            rawText: raw,
+            locationQuery: parsed.locationQuery,
+            events: quickCapturePlaceMemoryEvents,
+          });
 
       if (learnedPlace) {
         params.set("location_query", learnedPlace.alias);
@@ -1488,7 +1667,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           params.set("location_place_id", learnedPlace.locationPlaceId);
         }
         params.set("location_memory", "1");
-      } else if (parsed.locationQuery) {
+      } else if (parsed.locationQuery && !contextualPlace) {
         params.set("location_query", parsed.locationQuery);
       }
 
