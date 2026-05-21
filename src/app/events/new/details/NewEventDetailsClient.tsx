@@ -4255,7 +4255,7 @@ useEffect(() => {
 
 const styles: Record<string, React.CSSProperties> = {
   page: {
-    minHeight: "100vh",
+    minHeight: "100dvh",
     background:
       "radial-gradient(1200px 600px at 20% -10%, rgba(56,189,248,0.18), transparent 60%), radial-gradient(900px 500px at 90% 10%, rgba(124,58,237,0.14), transparent 60%), #050816",
     color: "rgba(255,255,255,0.92)",
@@ -4264,6 +4264,7 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: 860,
     margin: "0 auto",
     padding: "22px 18px 48px",
+    paddingBottom: "calc(190px + env(safe-area-inset-bottom, 0px))",
   },
   toastWrap: {
     position: "fixed",
@@ -4884,10 +4885,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
   footerRow: {
     marginTop: 14,
+    marginBottom: "calc(18px + env(safe-area-inset-bottom, 0px))",
     display: "flex",
     gap: 10,
     justifyContent: "space-between",
     flexWrap: "wrap",
+    scrollMarginBottom: "calc(190px + env(safe-area-inset-bottom, 0px))",
   },
   ghostBtn: {
     padding: "10px 12px",
