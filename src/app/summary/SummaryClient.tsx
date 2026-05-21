@@ -403,6 +403,130 @@ function readTimeToken(match: RegExpMatchArray | null): RawTimeToken | null {
   };
 }
 
+
+const QUICK_CAPTURE_WEEKDAY_INDEX: Record<string, number> = {
+  domingo: 0,
+  lunes: 1,
+  martes: 2,
+  miercoles: 3,
+  jueves: 4,
+  viernes: 5,
+  sabado: 6,
+};
+
+const QUICK_CAPTURE_MONTH_INDEX: Record<string, number> = {
+  enero: 0,
+  febrero: 1,
+  marzo: 2,
+  abril: 3,
+  mayo: 4,
+  junio: 5,
+  julio: 6,
+  agosto: 7,
+  septiembre: 8,
+  setiembre: 8,
+  octubre: 9,
+  noviembre: 10,
+  diciembre: 11,
+};
+
+function buildExplicitQuickCaptureDate(
+  day: number,
+  weekday: string | null,
+  monthName: string | null,
+  parsedDate: Date | null | undefined,
+): Date | null {
+  if (!Number.isFinite(day) || day < 1 || day > 31) return null;
+
+  const base =
+    parsedDate && Number.isFinite(parsedDate.getTime())
+      ? parsedDate
+      : new Date();
+  const normalizedWeekday = normalizeContextText(weekday || "");
+  const expectedWeekday = normalizedWeekday
+    ? QUICK_CAPTURE_WEEKDAY_INDEX[normalizedWeekday]
+    : undefined;
+  const normalizedMonth = normalizeContextText(monthName || "");
+  const hasExplicitMonth = Boolean(normalizedMonth);
+  const preferredMonth = hasExplicitMonth
+    ? QUICK_CAPTURE_MONTH_INDEX[normalizedMonth]
+    : base.getMonth();
+
+  if (preferredMonth === undefined) return null;
+
+  const buildCandidate = (year: number, month: number) => {
+    const candidate = new Date(base);
+    candidate.setFullYear(year, month, day);
+    candidate.setHours(0, 0, 0, 0);
+    return candidate.getMonth() === month && candidate.getDate() === day
+      ? candidate
+      : null;
+  };
+
+  const direct = buildCandidate(base.getFullYear(), preferredMonth);
+
+  if (
+    direct &&
+    (expectedWeekday === undefined || direct.getDay() === expectedWeekday)
+  ) {
+    return direct;
+  }
+
+  const searchStart = new Date(base);
+  searchStart.setHours(0, 0, 0, 0);
+  searchStart.setDate(searchStart.getDate() - 1);
+
+  for (let offset = 0; offset <= 14; offset += 1) {
+    const probe = new Date(base);
+    probe.setMonth(base.getMonth() + offset, 1);
+    const candidate = buildCandidate(probe.getFullYear(), probe.getMonth());
+    if (!candidate) continue;
+    if (candidate.getTime() < searchStart.getTime()) continue;
+    if (hasExplicitMonth && candidate.getMonth() !== preferredMonth) continue;
+    if (expectedWeekday !== undefined && candidate.getDay() !== expectedWeekday)
+      continue;
+    return candidate;
+  }
+
+  return direct;
+}
+
+function extractExplicitQuickCaptureDate(
+  rawText: string,
+  parsedDate: Date | null | undefined,
+): Date | null {
+  const normalizedRaw = normalizeContextText(rawText);
+  if (!normalizedRaw) return null;
+
+  const weekdayThenDay = normalizedRaw.match(
+    /\b(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\s+(?:el\s+)?(\d{1,2})(?:\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre))?\b/,
+  );
+
+  if (weekdayThenDay?.[1] && weekdayThenDay?.[2]) {
+    return buildExplicitQuickCaptureDate(
+      Number(weekdayThenDay[2]),
+      weekdayThenDay[1],
+      weekdayThenDay[3] ?? null,
+      parsedDate,
+    );
+  }
+
+  const dayThenWeekday = normalizedRaw.match(
+    /\b(?:el\s+)?(\d{1,2})(?:\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre))?\s+(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/,
+  );
+
+  if (dayThenWeekday?.[1] && dayThenWeekday?.[3]) {
+    return buildExplicitQuickCaptureDate(
+      Number(dayThenWeekday[1]),
+      dayThenWeekday[3],
+      dayThenWeekday[2] ?? null,
+      parsedDate,
+    );
+  }
+
+  return null;
+}
+
 function extractRawTimeWindow(
   rawText: string,
   parsedDate: Date | null | undefined,
@@ -501,7 +625,11 @@ function hardenQuickCaptureInterpretation(
       parserNotes,
     );
   const baseNotes = actionNotes || (shouldTrustParserNotes ? parserNotes : "");
-  const timeWindow = extractRawTimeWindow(raw, parsed.date ?? null);
+  const explicitDate = extractExplicitQuickCaptureDate(raw, parsed.date ?? null);
+  const timeWindow = extractRawTimeWindow(
+    raw,
+    explicitDate ?? parsed.date ?? null,
+  );
 
   return {
     contextualPlace,
