@@ -548,6 +548,21 @@ function FirstGroupActivationCard({
   );
 }
 
+function SummaryBootCard() {
+  return (
+    <Card style={styles.summaryBootCard}>
+      <div style={styles.summaryBootPulse} />
+      <div style={styles.summaryBootCopy}>
+        <div style={styles.summaryBootEyebrow}>Abriendo SyncPlans</div>
+        <div style={styles.summaryBootTitle}>Estamos cargando tu resumen real</div>
+        <div style={styles.summaryBootSubtitle}>
+          Un momento: estamos revisando tus grupos, eventos, invitaciones y conflictos antes de mostrarte el siguiente paso.
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function ProposalPill({ badge }: { badge: ProposalBadge }) {
   return <span style={{ ...styles.statusPill, ...toneBadgeStyle(badge.tone) }}>{badge.label}</span>;
 }
@@ -1367,8 +1382,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [booting, upcomingStats]);
 
-  const showCreateGroupNudge = groups.length === 0;
-  const showInviteNudge = groups.length > 0 && upcomingStats.group === 0;
+  // Evita un flash engañoso: si el resumen todavía está refrescando y no hay
+  // datos locales, no debemos mostrar “Crea tu primer grupo” como si fuera el
+  // estado final. Primero cargamos el resumen real; luego decidimos el CTA.
+  const isResolvingInitialSummary = booting || (loading && groups.length === 0 && events.length === 0);
+  const showCreateGroupNudge = !isResolvingInitialSummary && groups.length === 0;
+  const showInviteNudge = !isResolvingInitialSummary && groups.length > 0 && upcomingStats.group === 0;
 
   const trackSummaryCta = useCallback(
     (cta: string, target: string, metadata?: Record<string, unknown>) => {
@@ -2515,7 +2534,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           sticky={false}
         />
 
-        {showFirstGroupActivation ? (
+        {isResolvingInitialSummary ? (
+          <SummaryBootCard />
+        ) : showFirstGroupActivation ? (
           <FirstGroupActivationCard
             onCreateGroup={() =>
               navigateFromSummary("first_activation_create_group", "/groups/new", {
@@ -2532,13 +2553,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           <NextMoveCard move={nextMove} />
         )}
 
-        {!showFirstGroupActivation ? <DayStatusCard status={dayStatus} /> : null}
+        {!isResolvingInitialSummary && !showFirstGroupActivation ? <DayStatusCard status={dayStatus} /> : null}
 
-        {showDeferredLaunchPanels && !showFirstGroupActivation ? (
+        {showDeferredLaunchPanels && !isResolvingInitialSummary && !showFirstGroupActivation ? (
           <SmartMobilityCard smartMobility={smartMobility} />
         ) : null}
 
-        {shouldShowSummaryHero ? (
+        {!isResolvingInitialSummary && shouldShowSummaryHero ? (
           <SummaryHero
             compact={compactSummaryMobile}
             contextLabel={contextLabel}
@@ -2561,7 +2582,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           />
         ) : null}
 
-        {!showFirstGroupActivation ? (
+        {!isResolvingInitialSummary && !showFirstGroupActivation ? (
           <SummaryQuickCaptureCard
           value={quickCaptureValue}
           busy={quickCaptureBusy}
@@ -2595,14 +2616,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         />
         ) : null}
 
-        {premiumNudge && !showFirstGroupActivation ? (
+        {premiumNudge && !isResolvingInitialSummary && !showFirstGroupActivation ? (
           <PremiumContextRail
             nudge={premiumNudge}
             onPrimary={() => openPremiumFromSummary(premiumNudge.context)}
           />
         ) : null}
 
-        {!showFirstGroupActivation ? (
+        {!isResolvingInitialSummary && !showFirstGroupActivation ? (
           <UpcomingSection
           booting={booting}
           nextEvent={nextEvent}
@@ -2623,7 +2644,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         />
         ) : null}
 
-        {showQuickActions ? <QuickActionsSection actions={summaryQuickActions} /> : null}
+        {!isResolvingInitialSummary && showQuickActions ? <QuickActionsSection actions={summaryQuickActions} /> : null}
       </Section>
 
       <style>{`
@@ -3508,6 +3529,50 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid rgba(251,191,36,0.25)",
     background: "rgba(251,191,36,0.12)",
     color: "rgba(255,236,179,0.95)",
+  },
+  summaryBootCard: {
+    borderRadius: 26,
+    border: "1px solid rgba(125,211,252,0.18)",
+    background:
+      "linear-gradient(135deg, rgba(15,23,42,0.94), rgba(30,41,59,0.74))",
+    padding: 22,
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    boxShadow: "0 22px 70px rgba(2,6,23,0.30)",
+  },
+  summaryBootPulse: {
+    width: 13,
+    height: 13,
+    borderRadius: 999,
+    background: "rgba(96,165,250,0.96)",
+    boxShadow: "0 0 0 9px rgba(96,165,250,0.10)",
+    flexShrink: 0,
+  },
+  summaryBootCopy: {
+    minWidth: 0,
+    display: "grid",
+    gap: 4,
+  },
+  summaryBootEyebrow: {
+    fontSize: 11,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: "0.10em",
+    color: "rgba(125,211,252,0.92)",
+  },
+  summaryBootTitle: {
+    fontSize: 22,
+    lineHeight: 1.12,
+    fontWeight: 950,
+    letterSpacing: "-0.03em",
+    color: "rgba(248,250,252,0.98)",
+  },
+  summaryBootSubtitle: {
+    fontSize: 13,
+    lineHeight: 1.55,
+    color: "rgba(226,232,240,0.76)",
+    maxWidth: 680,
   },
   firstActivationCard: {
     position: "relative",
