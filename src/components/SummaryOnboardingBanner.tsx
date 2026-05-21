@@ -46,13 +46,13 @@ export default function SummaryOnboardingBanner({
         </div>
 
         <div style={{ fontSize: 16, fontWeight: 900 }}>
-          Dale a SyncPlans una primera semana que coordinar
+          Crea tu primer grupo y empieza con claridad
         </div>
 
         <div style={{ fontSize: 13, opacity: 0.85, maxWidth: 460 }}>
-          Crea tu primer evento o arma un grupo compartido. Desde ahí,
-          SyncPlans ya puede detectar cruces, ordenar decisiones y dejar una
-          sola versión clara de la semana para todos.
+          El camino más claro es crear un grupo, invitar a alguien y luego
+          guardar el primer evento compartido. Así SyncPlans deja de ser una
+          agenda personal y empieza a coordinar de verdad.
         </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
@@ -72,7 +72,7 @@ export default function SummaryOnboardingBanner({
               fontSize: 13,
             }}
           >
-            Crear mi primer evento
+            Crear evento personal
           </button>
 
           <button
@@ -88,7 +88,7 @@ export default function SummaryOnboardingBanner({
               fontSize: 13,
             }}
           >
-            Crear mi primer grupo
+            Crear primer grupo
           </button>
         </div>
       </div>

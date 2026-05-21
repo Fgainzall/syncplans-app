@@ -512,6 +512,42 @@ function DayStatusCard({ status }: { status: DayStatus }) {
   );
 }
 
+function FirstGroupActivationCard({
+  onCreateGroup,
+  onCreatePersonalEvent,
+}: {
+  onCreateGroup: () => void;
+  onCreatePersonalEvent: () => void;
+}) {
+  return (
+    <Card style={styles.firstActivationCard}>
+      <div style={styles.firstActivationCopy}>
+        <div style={styles.firstActivationEyebrow}>Empieza aquí</div>
+        <h1 style={styles.firstActivationTitle}>Crea tu primer grupo compartido</h1>
+        <p style={styles.firstActivationSubtitle}>
+          SyncPlans se entiende mejor cuando lo usas con alguien más: crea un grupo,
+          invita a una persona y luego guarda el primer evento compartido.
+        </p>
+
+        <div style={styles.firstActivationSteps}>
+          <span style={styles.firstActivationStep}>1. Crear grupo</span>
+          <span style={styles.firstActivationStep}>2. Invitar</span>
+          <span style={styles.firstActivationStep}>3. Crear evento</span>
+        </div>
+      </div>
+
+      <div style={styles.firstActivationActions}>
+        <button type="button" onClick={onCreateGroup} style={styles.firstActivationPrimary}>
+          Crear grupo
+        </button>
+        <button type="button" onClick={onCreatePersonalEvent} style={styles.firstActivationSecondary}>
+          Crear evento personal
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 function ProposalPill({ badge }: { badge: ProposalBadge }) {
   return <span style={{ ...styles.statusPill, ...toneBadgeStyle(badge.tone) }}>{badge.label}</span>;
 }
@@ -629,7 +665,7 @@ function UpcomingSection({
           </div>
           <div style={styles.emptySub}>
             {showCreateGroupNudge
-              ? "Cuando actives tu primer espacio o captures un plan, esta sección mostrará lo que viene sin repetir acciones."
+              ? "Cuando actives tu primer grupo o captures un plan, esta sección mostrará lo que viene sin repetir acciones."
               : "Si metes el siguiente plan aquí, la coordinación ya no se reparte entre mensajes, recuerdos y supuestos."}
           </div>
           {!showCreateGroupNudge ? (
@@ -1888,7 +1924,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     if (showCreateGroupNudge) {
       return {
         eyebrow: "Siguiente mejor paso",
-        title: "Abre tu primer espacio compartido",
+        title: "Crea tu primer grupo compartido",
         subtitle: "Crear tu primer grupo activa la coordinación compartida.",
         primaryLabel: "Crear grupo",
         primaryAction: () =>
@@ -2125,12 +2161,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     if (showCreateGroupNudge) {
       return {
         eyebrow: "Lo más importante ahora",
-        title: "Crea tu primer espacio compartido",
+        title: "Crea tu primer grupo compartido",
         subtitle: "Ese paso convierte SyncPlans en una referencia real de coordinación, no solo en una agenda personal.",
         cta: "Crear grupo",
         tone: "info",
         priorityLabel: "Prioridad 5 · Activación",
-        rationale: "La home te empuja a configurar lo mínimo para que la coordinación compartida exista.",
+        rationale: "La home prioriza el grupo porque ahí aparece el valor compartido de SyncPlans.",
         onClick: () =>
           navigateFromSummary("next_move_create_group", "/groups/new", {
             block: "next_move",
@@ -2438,8 +2474,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     pendingAttention.proposals > 0 ||
     pendingAttention.captures > 0;
 
+  const showFirstGroupActivation = showCreateGroupNudge && !hasUrgentSummaryState;
+
   const showQuickActions =
-    isFirstTimeMode || (!hasUrgentSummaryState && !nextEvent && !showInviteNudge);
+    !showFirstGroupActivation &&
+    (isFirstTimeMode || (!hasUrgentSummaryState && !nextEvent && !showInviteNudge));
 
   const shouldShowSummaryHero =
     !(showInviteNudge && !hasUrgentSummaryState) &&
@@ -2465,7 +2504,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   return (
   <div style={styles.page} className="spSum-page">
-    {showDeferredLaunchPanels ? <LocationPermissionPrompt /> : null}
+    {showDeferredLaunchPanels && !showFirstGroupActivation ? <LocationPermissionPrompt /> : null}
       {toast ? <SummaryToast title={toast.title} subtitle={toast.subtitle} /> : null}
 
       <Section style={styles.shell} className="spSum-shell">
@@ -2476,11 +2515,26 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           sticky={false}
         />
 
-        <NextMoveCard move={nextMove} />
+        {showFirstGroupActivation ? (
+          <FirstGroupActivationCard
+            onCreateGroup={() =>
+              navigateFromSummary("first_activation_create_group", "/groups/new", {
+                block: "first_activation",
+              })
+            }
+            onCreatePersonalEvent={() =>
+              navigateFromSummary("first_activation_create_personal_event", "/events/new/details?type=personal", {
+                block: "first_activation",
+              })
+            }
+          />
+        ) : (
+          <NextMoveCard move={nextMove} />
+        )}
 
-        <DayStatusCard status={dayStatus} />
+        {!showFirstGroupActivation ? <DayStatusCard status={dayStatus} /> : null}
 
-        {showDeferredLaunchPanels ? (
+        {showDeferredLaunchPanels && !showFirstGroupActivation ? (
           <SmartMobilityCard smartMobility={smartMobility} />
         ) : null}
 
@@ -2507,7 +2561,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           />
         ) : null}
 
-        <SummaryQuickCaptureCard
+        {!showFirstGroupActivation ? (
+          <SummaryQuickCaptureCard
           value={quickCaptureValue}
           busy={quickCaptureBusy}
           preview={quickCapturePreview}
@@ -2538,15 +2593,17 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               : (date: Date) => navigateFromSuggestedSlot(quickCaptureValue, date)
           }
         />
+        ) : null}
 
-        {premiumNudge ? (
+        {premiumNudge && !showFirstGroupActivation ? (
           <PremiumContextRail
             nudge={premiumNudge}
             onPrimary={() => openPremiumFromSummary(premiumNudge.context)}
           />
         ) : null}
 
-        <UpcomingSection
+        {!showFirstGroupActivation ? (
+          <UpcomingSection
           booting={booting}
           nextEvent={nextEvent}
           remainingUpcoming={remainingUpcoming}
@@ -2564,6 +2621,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           showCreateGroupNudge={showCreateGroupNudge}
           onPrimaryEmptyAction={primaryAction.primaryAction}
         />
+        ) : null}
 
         {showQuickActions ? <QuickActionsSection actions={summaryQuickActions} /> : null}
       </Section>
@@ -3450,6 +3508,102 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid rgba(251,191,36,0.25)",
     background: "rgba(251,191,36,0.12)",
     color: "rgba(255,236,179,0.95)",
+  },
+  firstActivationCard: {
+    position: "relative",
+    overflow: "hidden",
+    borderRadius: 26,
+    border: "1px solid rgba(96,165,250,0.22)",
+    background:
+      "linear-gradient(135deg, rgba(15,23,42,0.96), rgba(30,41,59,0.82))",
+    padding: 20,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 18,
+    flexWrap: "wrap",
+    boxShadow: "0 28px 80px rgba(2,6,23,0.34)",
+  },
+  firstActivationCopy: {
+    minWidth: 0,
+    flex: "1 1 460px",
+    display: "grid",
+    gap: 10,
+  },
+  firstActivationEyebrow: {
+    width: "fit-content",
+    padding: "7px 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(125,211,252,0.22)",
+    background: "rgba(56,189,248,0.10)",
+    color: "rgba(186,230,253,0.96)",
+    fontSize: 11,
+    fontWeight: 950,
+    textTransform: "uppercase",
+    letterSpacing: "0.10em",
+  },
+  firstActivationTitle: {
+    margin: 0,
+    fontSize: 34,
+    lineHeight: 1.02,
+    fontWeight: 950,
+    letterSpacing: "-0.045em",
+    color: "rgba(248,250,252,0.98)",
+  },
+  firstActivationSubtitle: {
+    margin: 0,
+    maxWidth: 700,
+    fontSize: 15,
+    lineHeight: 1.6,
+    color: "rgba(226,232,240,0.82)",
+  },
+  firstActivationSteps: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    marginTop: 2,
+  },
+  firstActivationStep: {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: 32,
+    padding: "0 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,0.16)",
+    background: "rgba(15,23,42,0.58)",
+    color: "rgba(226,232,240,0.88)",
+    fontSize: 12,
+    fontWeight: 850,
+  },
+  firstActivationActions: {
+    flex: "0 1 260px",
+    display: "grid",
+    gap: 10,
+    minWidth: 220,
+  },
+  firstActivationPrimary: {
+    minHeight: 48,
+    padding: "0 18px",
+    borderRadius: 16,
+    border: "1px solid rgba(96,165,250,0.30)",
+    background:
+      "linear-gradient(135deg, rgba(59,130,246,0.96), rgba(37,99,235,0.92))",
+    color: "white",
+    fontSize: 14,
+    fontWeight: 950,
+    cursor: "pointer",
+    boxShadow: "0 16px 34px rgba(30,64,175,0.28)",
+  },
+  firstActivationSecondary: {
+    minHeight: 44,
+    padding: "0 16px",
+    borderRadius: 16,
+    border: "1px solid rgba(148,163,184,0.18)",
+    background: "rgba(15,23,42,0.62)",
+    color: "rgba(226,242,255,0.92)",
+    fontSize: 13,
+    fontWeight: 850,
+    cursor: "pointer",
   },
   quickGrid: {
     marginTop: 14,

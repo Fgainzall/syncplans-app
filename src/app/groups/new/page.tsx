@@ -35,12 +35,12 @@ const TYPE_META: Record<GType, TypeMeta> = {
   pair: {
     key: "pair",
     label: "Pareja",
-    title: "Crea el espacio donde se van a organizar juntos",
+    title: "Crea el grupo donde se van a organizar juntos",
     subtitle:
       "Este debería ser el primer grupo de SyncPlans. Aquí empieza la agenda compartida que evita cruces, olvidos y discusiones innecesarias.",
     example: "Ej: Fernando & Ara",
     activation:
-      "Ruta ideal: crear grupo → crear primer plan → invitar a tu pareja.",
+      "Ruta ideal: crear grupo → invitar a tu pareja → crear el primer evento compartido.",
     color: "rgba(96,165,250,0.98)",
     soft: "rgba(96,165,250,0.14)",
     border: "rgba(96,165,250,0.28)",
@@ -53,7 +53,7 @@ const TYPE_META: Record<GType, TypeMeta> = {
       "Úsalo cuando la coordinación ya no sea de una sola persona y necesites alinear planes, tiempos y contexto desde un mismo lugar.",
     example: "Ej: Familia Llosa",
     activation:
-      "Ruta ideal: crear grupo → definir el primer plan compartido → ordenar el resto desde aquí.",
+      "Ruta ideal: crear grupo → invitar a los miembros → crear el primer evento compartido.",
     color: "rgba(34,197,94,0.98)",
     soft: "rgba(34,197,94,0.12)",
     border: "rgba(34,197,94,0.24)",
@@ -66,7 +66,7 @@ const TYPE_META: Record<GType, TypeMeta> = {
       "Sirve para amigos, trabajo o cualquier grupo donde el tiempo compartido necesite menos ruido y una mejor referencia común.",
     example: "Ej: Pichanga de los jueves",
     activation:
-      "Ruta ideal: crear grupo → activar contexto → convertir la próxima idea en plan.",
+      "Ruta ideal: crear grupo → invitar a la otra persona → convertir la próxima idea en evento.",
     color: "rgba(168,85,247,0.98)",
     soft: "rgba(168,85,247,0.14)",
     border: "rgba(168,85,247,0.30)",
@@ -168,7 +168,7 @@ export default function NewGroupPage() {
   const canSave = errors.length === 0 && !saving && !reachedGroupLimit;
 
   const helperHeadline = useMemo(() => {
-    if (type === "pair") return "Este es el paso que activa el producto de verdad.";
+    if (type === "pair") return "Este es el primer paso para coordinar con alguien más.";
     if (type === "family") return "Aquí empieza una coordinación más clara para todos.";
     return "Un grupo compartido sirve cuando el chat ya no alcanza.";
   }, [type]);
@@ -258,15 +258,13 @@ export default function NewGroupPage() {
       setToast({
         title: "Grupo creado ✅",
         subtitle: type === "pair"
-          ? "Ahora vamos a crear el primer plan compartido."
-          : "Ahora vamos con tu primer plan dentro del grupo.",
+          ? "Ahora invita a tu pareja. Después crea el primer evento compartido."
+          : "Ahora invita a alguien. Después crea el primer evento del grupo.",
       });
 
       window.setTimeout(() => {
         router.push(
-          `/events/new/details?type=group&groupId=${encodeURIComponent(
-            String(gid)
-          )}&wow=1&from=first-group`
+          `/groups/invite?groupId=${encodeURIComponent(String(gid))}&from=first-group`
         );
       }, 450);
   } catch (err: unknown) {
@@ -315,7 +313,7 @@ export default function NewGroupPage() {
         <div style={{ ...S.topRow, ...(isNarrow ? S.topRowMobile : null) }}>
           <PremiumHeader
             title="Nuevo grupo"
-            subtitle="El espacio donde la coordinación deja de vivir en mensajes sueltos y empieza a compartirse de verdad."
+            subtitle="Crea el contexto compartido, invita a alguien y empieza a coordinar eventos con una sola versión clara."
           />
           <div style={S.topActions}>
             <LogoutButton />
@@ -331,7 +329,7 @@ export default function NewGroupPage() {
           }}
         >
           <div style={{ ...S.heroCopy, ...(isNarrow ? S.heroCopyMobile : null) }}>
-            <div style={S.kicker}>Bloque 3 · Activación real</div>
+            <div style={S.kicker}>Activación real</div>
             <h1 style={{ ...S.h1, ...(isNarrow ? S.h1Mobile : null) }}>{meta.title}</h1>
             <p style={{ ...S.sub, ...(isNarrow ? S.subMobile : null) }}>{meta.subtitle}</p>
 
@@ -364,7 +362,7 @@ export default function NewGroupPage() {
                 : saving
                   ? "Creando…"
                   : type === "pair"
-                    ? "Crear espacio"
+                    ? "Crear grupo"
                     : "Crear grupo"}
             </button>
           </div>
@@ -406,7 +404,7 @@ export default function NewGroupPage() {
         <div style={{ ...S.grid, ...(isNarrow ? S.gridMobile : null) }}>
           <section style={{ ...S.mainCard, ...(isNarrow ? S.mainCardMobile : null) }}>
             <div style={S.sectionEyebrow}>Paso 1</div>
-            <div style={S.sectionTitle}>Elige el tipo de espacio</div>
+            <div style={S.sectionTitle}>Elige el tipo de grupo</div>
             <div style={{ ...S.typeGrid, ...(isNarrow ? S.typeGridMobile : null) }}>
               {(Object.keys(TYPE_META) as GType[]).map((item) => {
                 const itemMeta = TYPE_META[item];
@@ -498,7 +496,7 @@ export default function NewGroupPage() {
                   : saving
                     ? "Creando…"
                     : type === "pair"
-                      ? "Crear espacio y seguir"
+                      ? "Crear grupo y seguir"
                       : "Crear grupo y seguir"}
               </button>
             </div>
@@ -521,7 +519,7 @@ export default function NewGroupPage() {
             <div style={S.sideBlock}>
               <div style={S.sideBlockLabel}>Resultado buscado</div>
               <div style={S.sideBlockBody}>
-                Crear el grupo y llevarte directo al primer plan compartido.
+                Crear el grupo y llevarte al paso de invitar, antes del primer evento compartido.
               </div>
             </div>
 

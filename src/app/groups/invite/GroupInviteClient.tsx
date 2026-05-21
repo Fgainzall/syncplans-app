@@ -215,7 +215,7 @@ rows.find((g) => g.is_active) ??
 
       pushToast({
         title: "Invitación enviada ✅",
-        subtitle: `Listo. El grupo queda seleccionado para invitar a otra persona.`,
+        subtitle: "Listo. Ahora puedes crear el primer evento compartido o invitar a otra persona.",
       });
  } catch (error: unknown) {
   pushToast({
@@ -327,7 +327,7 @@ rows.find((g) => g.is_active) ??
                 </h1>
 
                 <p style={styles.heroText}>
-                  La invitación no es un detalle lateral. Es el momento en el que SyncPlans deja de ser algo que tú organizas solo y empieza a funcionar como coordinación compartida.
+                  La invitación es el paso que hace que el grupo tenga sentido: la otra persona entra, ve el mismo contexto y luego pueden crear eventos sin depender del chat.
                 </p>
               </div>
 
@@ -421,6 +421,22 @@ rows.find((g) => g.is_active) ??
                   >
                     Copiar link
                   </button>
+
+                  {lastInviteUrl && selectedGroupId ? (
+                    <button
+                      type="button"
+                      style={styles.secondaryStrong}
+                      onClick={() =>
+                        router.push(
+                          `/events/new/details?type=group&groupId=${encodeURIComponent(
+                            String(selectedGroupId)
+                          )}&from=group-invite`
+                        )
+                      }
+                    >
+                      Crear primer evento
+                    </button>
+                  ) : null}
                 </div>
               </Card>
 
@@ -437,7 +453,7 @@ rows.find((g) => g.is_active) ??
                   <div style={styles.routeItem}>1. Crear grupo</div>
                   <div style={styles.routeItem}>2. Invitar</div>
                   <div style={styles.routeItem}>3. Aceptar fácil</div>
-                  <div style={styles.routeItem}>4. Crear primer plan</div>
+                  <div style={styles.routeItem}>4. Crear primer evento</div>
                 </div>
 
                 {lastInviteUrl ? (
@@ -784,6 +800,17 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(255,255,255,0.94)",
     fontSize: 13,
     fontWeight: 850,
+    cursor: "pointer",
+  },
+  secondaryStrong: {
+    minHeight: 42,
+    padding: "0 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(125,211,252,0.24)",
+    background: "rgba(56,189,248,0.12)",
+    color: "rgba(240,249,255,0.98)",
+    fontSize: 13,
+    fontWeight: 900,
     cursor: "pointer",
   },
 };

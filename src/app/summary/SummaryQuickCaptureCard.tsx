@@ -130,7 +130,7 @@ export default function SummaryQuickCaptureCard({
 
       <header style={s.header}>
         <div style={s.headerCopy}>
-          <div style={s.eyebrow}>Quick Capture</div>
+          <div style={s.eyebrow}>Crear plan rápido</div>
           <h2 style={s.title}>{headline || "Crea un plan en una línea"}</h2>
           <p style={s.subtitle}>
             {subcopy ||
@@ -179,7 +179,7 @@ export default function SummaryQuickCaptureCard({
               style={s.secondaryButton}
               className="spQc-secondaryButton"
             >
-              Capture completo
+              Abrir formulario completo
             </button>
           ) : null}
         </div>
@@ -302,7 +302,7 @@ export default function SummaryQuickCaptureCard({
       ) : null}
 
       <details style={s.details}>
-        <summary style={s.detailsSummary}>Compartir o copiar</summary>
+        <summary style={s.detailsSummary}>Compartir esta idea</summary>
         <div style={s.actionsRow}>
           <button
             type="button"

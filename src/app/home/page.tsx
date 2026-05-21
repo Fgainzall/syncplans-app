@@ -68,7 +68,7 @@ export default function MarketingHomePage() {
               </Link>
 
               <Link
-                href={`/onboarding/1?next=${NEXT_AFTER_AUTH}`}
+                href="#como-funciona"
                 style={S.secondaryCta}
                 className="sp-secondaryCta"
               >
@@ -96,7 +96,7 @@ export default function MarketingHomePage() {
               />
             </div>
 
-            <section style={S.storyCard}>
+            <section id="como-funciona" style={S.storyCard}>
               <div style={S.storyEyebrow}>Por qué se siente distinto</div>
               <div style={S.storyTitle}>
                 No es otro calendario. Es menos fricción entre ustedes.
