@@ -148,6 +148,156 @@ function getSafeDurationMinutes(start: Date, end: Date) {
   return Math.max(15, Math.round(diff / 60000));
 }
 
+
+const DETAILS_WEEKDAY_INDEX: Record<string, number> = {
+  domingo: 0,
+  lunes: 1,
+  martes: 2,
+  miercoles: 3,
+  jueves: 4,
+  viernes: 5,
+  sabado: 6,
+};
+
+const DETAILS_MONTH_INDEX: Record<string, number> = {
+  enero: 0,
+  febrero: 1,
+  marzo: 2,
+  abril: 3,
+  mayo: 4,
+  junio: 5,
+  julio: 6,
+  agosto: 7,
+  septiembre: 8,
+  setiembre: 8,
+  octubre: 9,
+  noviembre: 10,
+  diciembre: 11,
+};
+
+function validDetailsDateCandidate(
+  base: Date,
+  year: number,
+  month: number,
+  day: number,
+): Date | null {
+  const candidate = new Date(base);
+  candidate.setFullYear(year, month, day);
+  candidate.setHours(0, 0, 0, 0);
+
+  return candidate.getFullYear() === year &&
+    candidate.getMonth() === month &&
+    candidate.getDate() === day
+    ? candidate
+    : null;
+}
+
+function buildRawTextExplicitDate(
+  day: number,
+  weekday: string | null,
+  monthName: string | null,
+  anchorDate: Date | null | undefined,
+): Date | null {
+  if (!Number.isFinite(day) || day < 1 || day > 31) return null;
+
+  const reference =
+    anchorDate && Number.isFinite(anchorDate.getTime())
+      ? new Date(anchorDate)
+      : new Date();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const expectedWeekday = weekday
+    ? DETAILS_WEEKDAY_INDEX[normalizeContextText(weekday)]
+    : undefined;
+  const explicitMonth = monthName
+    ? DETAILS_MONTH_INDEX[normalizeContextText(monthName)]
+    : undefined;
+
+  if (monthName && explicitMonth === undefined) return null;
+
+  const searchStart = new Date(today);
+  searchStart.setDate(searchStart.getDate() - 1);
+
+  const candidates: Date[] = [];
+
+  if (explicitMonth !== undefined) {
+    for (const year of [reference.getFullYear(), reference.getFullYear() + 1]) {
+      const candidate = validDetailsDateCandidate(
+        reference,
+        year,
+        explicitMonth,
+        day,
+      );
+      if (candidate && candidate.getTime() >= searchStart.getTime()) {
+        candidates.push(candidate);
+      }
+    }
+  } else {
+    for (let offset = 0; offset <= 11; offset += 1) {
+      const probe = new Date(reference);
+      probe.setDate(1);
+      probe.setMonth(reference.getMonth() + offset);
+      const candidate = validDetailsDateCandidate(
+        reference,
+        probe.getFullYear(),
+        probe.getMonth(),
+        day,
+      );
+      if (candidate && candidate.getTime() >= searchStart.getTime()) {
+        candidates.push(candidate);
+      }
+    }
+  }
+
+  candidates.sort((a, b) => a.getTime() - b.getTime());
+
+  if (expectedWeekday !== undefined) {
+    const weekdayMatch = candidates.find(
+      (candidate) => candidate.getDay() === expectedWeekday,
+    );
+    if (weekdayMatch) return weekdayMatch;
+  }
+
+  return candidates[0] ?? null;
+}
+
+function extractRawTextExplicitDate(
+  rawText: string | null | undefined,
+  anchorDate: Date | null | undefined,
+): Date | null {
+  const normalizedRaw = normalizeContextText(String(rawText || ""));
+  if (!normalizedRaw) return null;
+
+  const weekdayThenDay = normalizedRaw.match(
+    /\b(?:el\s+)?(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\s+(?:el\s+)?(\d{1,2})(?:\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre))?\b/,
+  );
+
+  if (weekdayThenDay?.[1] && weekdayThenDay?.[2]) {
+    return buildRawTextExplicitDate(
+      Number(weekdayThenDay[2]),
+      weekdayThenDay[1],
+      weekdayThenDay[3] ?? null,
+      anchorDate,
+    );
+  }
+
+  const dayThenWeekday = normalizedRaw.match(
+    /\b(?:el\s+)?(\d{1,2})(?:\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre))?\s+(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/,
+  );
+
+  if (dayThenWeekday?.[1] && dayThenWeekday?.[3]) {
+    return buildRawTextExplicitDate(
+      Number(dayThenWeekday[1]),
+      dayThenWeekday[3],
+      dayThenWeekday[2] ?? null,
+      anchorDate,
+    );
+  }
+
+  return null;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Types locales                                                               */
 /* -------------------------------------------------------------------------- */
@@ -833,7 +983,9 @@ function NewEventDetailsInner() {
   const hasExplicitGroupParam = !!String(groupIdParam ?? "").trim();
 
   const initialStart = useMemo(() => {
-    const base = dateParam ? new Date(dateParam) : new Date();
+    const parsedDateParam = dateParam ? new Date(dateParam) : null;
+    const explicitRawDate = extractRawTextExplicitDate(rawTextParam, parsedDateParam);
+    const base = explicitRawDate ?? parsedDateParam ?? new Date();
     const d = new Date(base);
     d.setSeconds(0, 0);
 
@@ -852,7 +1004,7 @@ function NewEventDetailsInner() {
     d.setMinutes(rounded % 60);
     if (rounded >= 60) d.setHours(d.getHours() + 1);
     return d;
-  }, [dateParam, timeParam]);
+  }, [dateParam, rawTextParam, timeParam]);
 
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
@@ -1860,7 +2012,9 @@ useEffect(() => {
       setNotes((current) => (current.trim() ? current : incomingNotes));
     }
 
-    const parsedDate = dateParam ? new Date(dateParam) : null;
+    const parsedDateFromParam = dateParam ? new Date(dateParam) : null;
+    const explicitRawDate = extractRawTextExplicitDate(rawTextParam, parsedDateFromParam);
+    const parsedDate = explicitRawDate ?? parsedDateFromParam;
     const parsedEndDate = endDateParam ? new Date(endDateParam) : null;
     const hasValidEndParam = !!(
       parsedEndDate && !Number.isNaN(parsedEndDate.getTime())
@@ -1899,6 +2053,7 @@ useEffect(() => {
   quickCaptureTitleParam,
   quickCaptureDurationParam,
   quickCaptureNotesParam,
+  rawTextParam,
   dateParam,
   endDateParam,
   timeParam,

@@ -430,6 +430,23 @@ const QUICK_CAPTURE_MONTH_INDEX: Record<string, number> = {
   diciembre: 11,
 };
 
+function validQuickCaptureDateCandidate(
+  base: Date,
+  year: number,
+  month: number,
+  day: number,
+): Date | null {
+  const candidate = new Date(base);
+  candidate.setFullYear(year, month, day);
+  candidate.setHours(0, 0, 0, 0);
+
+  return candidate.getFullYear() === year &&
+    candidate.getMonth() === month &&
+    candidate.getDate() === day
+    ? candidate
+    : null;
+}
+
 function buildExplicitQuickCaptureDate(
   day: number,
   weekday: string | null,
@@ -438,57 +455,70 @@ function buildExplicitQuickCaptureDate(
 ): Date | null {
   if (!Number.isFinite(day) || day < 1 || day > 31) return null;
 
-  const base =
+  const reference =
     parsedDate && Number.isFinite(parsedDate.getTime())
-      ? parsedDate
+      ? new Date(parsedDate)
       : new Date();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   const normalizedWeekday = normalizeContextText(weekday || "");
   const expectedWeekday = normalizedWeekday
     ? QUICK_CAPTURE_WEEKDAY_INDEX[normalizedWeekday]
     : undefined;
   const normalizedMonth = normalizeContextText(monthName || "");
-  const hasExplicitMonth = Boolean(normalizedMonth);
-  const preferredMonth = hasExplicitMonth
+  const explicitMonth = normalizedMonth
     ? QUICK_CAPTURE_MONTH_INDEX[normalizedMonth]
-    : base.getMonth();
+    : undefined;
 
-  if (preferredMonth === undefined) return null;
+  if (normalizedMonth && explicitMonth === undefined) return null;
 
-  const buildCandidate = (year: number, month: number) => {
-    const candidate = new Date(base);
-    candidate.setFullYear(year, month, day);
-    candidate.setHours(0, 0, 0, 0);
-    return candidate.getMonth() === month && candidate.getDate() === day
-      ? candidate
-      : null;
-  };
-
-  const direct = buildCandidate(base.getFullYear(), preferredMonth);
-
-  if (
-    direct &&
-    (expectedWeekday === undefined || direct.getDay() === expectedWeekday)
-  ) {
-    return direct;
-  }
-
-  const searchStart = new Date(base);
-  searchStart.setHours(0, 0, 0, 0);
+  const searchStart = new Date(today);
   searchStart.setDate(searchStart.getDate() - 1);
 
-  for (let offset = 0; offset <= 14; offset += 1) {
-    const probe = new Date(base);
-    probe.setMonth(base.getMonth() + offset, 1);
-    const candidate = buildCandidate(probe.getFullYear(), probe.getMonth());
-    if (!candidate) continue;
-    if (candidate.getTime() < searchStart.getTime()) continue;
-    if (hasExplicitMonth && candidate.getMonth() !== preferredMonth) continue;
-    if (expectedWeekday !== undefined && candidate.getDay() !== expectedWeekday)
-      continue;
-    return candidate;
+  const candidates: Date[] = [];
+
+  if (explicitMonth !== undefined) {
+    for (const year of [reference.getFullYear(), reference.getFullYear() + 1]) {
+      const candidate = validQuickCaptureDateCandidate(
+        reference,
+        year,
+        explicitMonth,
+        day,
+      );
+      if (candidate && candidate.getTime() >= searchStart.getTime()) {
+        candidates.push(candidate);
+      }
+    }
+  } else {
+    for (let offset = 0; offset <= 11; offset += 1) {
+      const probe = new Date(reference);
+      probe.setDate(1);
+      probe.setMonth(reference.getMonth() + offset);
+      const candidate = validQuickCaptureDateCandidate(
+        reference,
+        probe.getFullYear(),
+        probe.getMonth(),
+        day,
+      );
+      if (candidate && candidate.getTime() >= searchStart.getTime()) {
+        candidates.push(candidate);
+      }
+    }
   }
 
-  return direct;
+  candidates.sort((a, b) => a.getTime() - b.getTime());
+
+  if (expectedWeekday !== undefined) {
+    const weekdayMatch = candidates.find(
+      (candidate) => candidate.getDay() === expectedWeekday,
+    );
+    if (weekdayMatch) return weekdayMatch;
+  }
+
+  // Si el usuario escribió un número de día explícito, ese número gana.
+  // Es mejor respetar “sábado 30” como día 30 que caer al sábado más cercano.
+  return candidates[0] ?? null;
 }
 
 function extractExplicitQuickCaptureDate(
@@ -499,7 +529,7 @@ function extractExplicitQuickCaptureDate(
   if (!normalizedRaw) return null;
 
   const weekdayThenDay = normalizedRaw.match(
-    /\b(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\s+(?:el\s+)?(\d{1,2})(?:\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre))?\b/,
+    /\b(?:el\s+)?(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\s+(?:el\s+)?(\d{1,2})(?:\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre))?\b/,
   );
 
   if (weekdayThenDay?.[1] && weekdayThenDay?.[2]) {
@@ -520,6 +550,19 @@ function extractExplicitQuickCaptureDate(
       Number(dayThenWeekday[1]),
       dayThenWeekday[3],
       dayThenWeekday[2] ?? null,
+      parsedDate,
+    );
+  }
+
+  const looseWeekdayDay = normalizedRaw.match(
+    /\b(?:el\s+)?(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b[\s\S]{0,18}?\b(?:el\s+)?(\d{1,2})\b/,
+  );
+
+  if (looseWeekdayDay?.[1] && looseWeekdayDay?.[2]) {
+    return buildExplicitQuickCaptureDate(
+      Number(looseWeekdayDay[2]),
+      looseWeekdayDay[1],
+      null,
       parsedDate,
     );
   }
