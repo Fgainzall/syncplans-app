@@ -122,6 +122,7 @@ type UseSummaryDataReturn = {
   proposalResponseGroupsMap: Record<string, ProposalResponseRow[]>;
   proposalProfilesMap: ProposalProfileMap;
   smartMobility: SmartMobilityState;
+  conflictDataReady: boolean;
   showToast: (title: string, subtitle?: string) => void;
   refreshSummary: () => Promise<void>;
 };
@@ -553,6 +554,7 @@ export function useSummaryData({
   const [smartMobility, setSmartMobility] = useState<SmartMobilityState>(
     () => initialWarmCache?.smartMobility ?? EMPTY_SMART_MOBILITY
   );
+  const [conflictDataReady, setConflictDataReady] = useState(false);
 
   const hasWarmCacheAtMountRef = useRef(Boolean(initialWarmCache));
   const toastTimeoutRef = useRef<number | null>(null);
@@ -630,6 +632,7 @@ export function useSummaryData({
     smartMobilityAbortRef.current = smartMobilityController;
 
     setLoading(true);
+    setConflictDataReady(false);
 
     try {
       // No bloquees el primer paint esperando el perfil completo del usuario.
@@ -756,8 +759,11 @@ export function useSummaryData({
             proposalResponsesMap: safeProposalResponses,
             proposalResponseGroupsMap: safeProposalResponseGroups,
           });
+          setConflictDataReady(true);
         } catch {
           // Datos secundarios: no deben bloquear ni tumbar el primer render.
+          // Si no cargan, mantenemos ocultos los conflictos para no mostrar falsos positivos.
+          setConflictDataReady(false);
         }
       })();
     } catch (e: unknown) {
@@ -963,6 +969,7 @@ export function useSummaryData({
     proposalResponseGroupsMap,
     proposalProfilesMap,
     smartMobility,
+    conflictDataReady,
     showToast,
     refreshSummary: loadSummary,
   };

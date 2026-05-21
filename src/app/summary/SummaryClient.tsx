@@ -812,6 +812,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     proposalResponseGroupsMap,
     proposalProfilesMap,
     smartMobility,
+    conflictDataReady,
     showToast,
   } = useSummaryData({ appliedToast });
 
@@ -1306,13 +1307,17 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   ]);
 
   const conflictAlert = useMemo(() => {
+    if (!conflictDataReady) {
+      return { count: 0, latestEventId: null as string | null };
+    }
+
     const baseAlert = buildConflictAlert(visibleEvents, groups, resMap, ignoredConflictKeys);
 
     return {
       count: baseAlert.count,
       latestEventId: baseAlert.latestEventId ?? null,
     };
-  }, [visibleEvents, groups, resMap, ignoredConflictKeys]);
+  }, [conflictDataReady, visibleEvents, groups, resMap, ignoredConflictKeys]);
 
   const summaryAnalyticsBase = useMemo(
     () => ({
@@ -1391,6 +1396,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   // datos locales, no debemos mostrar “Crea tu primer grupo” como si fuera el
   // estado final. Primero cargamos el resumen real; luego decidimos el CTA.
   const isResolvingInitialSummary = booting || (loading && groups.length === 0 && events.length === 0);
+  const summaryStillReconciling = !booting && (loading || !conflictDataReady);
   const showCreateGroupNudge = !isResolvingInitialSummary && groups.length === 0;
   const showInviteNudge = !isResolvingInitialSummary && groups.length > 0 && upcomingStats.group === 0;
 
@@ -1695,6 +1701,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const conflictEventIds = useMemo(() => {
     const next = new Set<string>();
 
+    if (!conflictDataReady) {
+      return next;
+    }
+
     const conflictEvents: CalendarEvent[] = visibleEvents
       .map((event) => {
         const start = event.startIso;
@@ -1725,7 +1735,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     }
 
     return next;
-  }, [groups, resMap, visibleEvents, ignoredConflictKeys]);
+  }, [conflictDataReady, groups, resMap, visibleEvents, ignoredConflictKeys]);
 
   const decisionSummary = useMemo(() => {
     let pendingProposals = 0;
@@ -2613,7 +2623,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                   upcomingExternal={upcomingStats.external}
                   conflictCount={conflictAlert.count}
                   pendingInviteCount={pendingInviteCount}
-                  loading={loading && !booting}
+                  loading={summaryStillReconciling}
                   primaryAction={primaryAction}
                   onOpenConflicts={openConflictCenter}
                   onOpenInvitations={() =>
