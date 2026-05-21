@@ -65,10 +65,17 @@ export default function ConflictPreflightModal({
   const [selectedChoice, setSelectedChoice] =
     useState<PreflightChoice>(recommendedChoice);
 
-  useEffect(() => {
-    if (!open) return;
+useEffect(() => {
+  if (!open) return;
+
+  const timer = window.setTimeout(() => {
     setSelectedChoice(recommendedChoice);
-  }, [open, recommendedChoice]);
+  }, 0);
+
+  return () => {
+    window.clearTimeout(timer);
+  };
+}, [open, recommendedChoice]);
 
   if (!open) return null;
 

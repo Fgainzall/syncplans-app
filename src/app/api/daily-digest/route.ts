@@ -193,6 +193,59 @@ function formatTime(iso: string, timeZone: string) {
   });
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function localDateKey(iso: string, timeZone: string): string {
+  const parts = getZonedParts(new Date(iso), timeZone);
+  const month = String(parts.monthIndex + 1).padStart(2, "0");
+  const day = String(parts.day).padStart(2, "0");
+
+  return `${parts.year}-${month}-${day}`;
+}
+
+function formatShortDate(iso: string, timeZone: string): string {
+  const d = new Date(iso);
+  const label = new Intl.DateTimeFormat("es-PE", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone,
+  }).format(d);
+
+  return label.replace(/\./g, "");
+}
+
+function formatEventRange(e: EventPayload, timeZone: string): string {
+  const startDate = new Date(e.start);
+  const endDate = new Date(e.end);
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return "Horario por confirmar";
+  }
+
+  const startTime = formatTime(e.start, timeZone);
+  const endTime = formatTime(e.end, timeZone);
+
+  const startsAndEndsSameLocalDay =
+    localDateKey(e.start, timeZone) === localDateKey(e.end, timeZone);
+
+  if (startsAndEndsSameLocalDay) {
+    return `${startTime} – ${endTime}`;
+  }
+
+  return `${formatShortDate(e.start, timeZone)} ${startTime} → ${formatShortDate(
+    e.end,
+    timeZone
+  )} ${endTime}`;
+}
+
 function buildDigestDayRange(dateParam: string | null, timeZoneInput?: string | null) {
   const timeZone = normalizeDigestTimeZone(timeZoneInput);
   let year: number;
@@ -304,15 +357,16 @@ function buildDailyDigestHtml(
   }
 
   const listHtml = events
-    .map(
-      (e) =>
-        `<li style="margin-bottom:6px;">
-           <strong>${formatTime(e.start, timeZone)} – ${formatTime(e.end, timeZone)}</strong> · ${
-          e.title
-        }
-           <span style="color:#9ca3af;"> (${e.groupLabel})</span>
-         </li>`
-    )
+    .map((e) => {
+      const rangeLabel = escapeHtml(formatEventRange(e, timeZone));
+      const title = escapeHtml(e.title);
+      const groupLabel = escapeHtml(e.groupLabel);
+
+      return `<li style="margin-bottom:6px;">
+           <strong>${rangeLabel}</strong> · ${title}
+           <span style="color:#9ca3af;"> (${groupLabel})</span>
+         </li>`;
+    })
     .join("");
 
   const html = `
@@ -392,8 +446,13 @@ const memberGroupIds = memberRows
   let query = client
     .from("events")
     .select("id, title, start, end, group_id")
-    .gte("start", dayStartIso)
-    .lt("start", dayEndIso);
+    // Importante: no buscamos solo eventos que EMPIEZAN hoy.
+    // El digest debe incluir eventos que se cruzan con el día,
+    // por ejemplo: empieza hoy y termina el domingo, o empezó ayer
+    // y sigue activo hoy.
+    .lt("start", dayEndIso)
+    .gt("end", dayStartIso)
+    .order("start", { ascending: true });
 
   if (memberGroupIds.length > 0) {
     const list = `(${memberGroupIds.map((id) => `"${id}"`).join(",")})`;
