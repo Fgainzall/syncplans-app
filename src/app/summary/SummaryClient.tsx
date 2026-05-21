@@ -57,7 +57,7 @@ import {
 } from "@/lib/invitationsDb";
 const LocationPermissionPrompt = dynamic(
   () => import("@/components/location/LocationPermissionPrompt"),
-  { ssr: false, loading: () => null }
+  { ssr: false, loading: () => null },
 );
 
 const SmartMobilityCard = dynamic(() => import("./SmartMobilityCard"), {
@@ -94,7 +94,6 @@ import {
   startOfTodayLocal,
   type SummaryEvent,
 } from "./summaryHelpers";
-
 
 type ContextualPlaceDecision = {
   label: string;
@@ -161,17 +160,24 @@ function prettifyContextualPlaceName(value: string): string {
     .join(" ");
 }
 
-function buildContextualPlaceLabel(cleanedQuery: string, rawText: string): string {
+function buildContextualPlaceLabel(
+  cleanedQuery: string,
+  rawText: string,
+): string {
   const normalizedQuery = normalizeContextText(cleanedQuery);
   const normalizedRaw = normalizeContextText(rawText);
 
   const houseMatch = normalizedQuery.match(/^(?:la\s+)?casa\s+de\s+(.+)$/);
   if (houseMatch?.[1]) {
     const name = prettifyContextualPlaceName(houseMatch[1]);
-    return normalizedQuery.startsWith("la casa") ? `en la casa de ${name}` : `en casa de ${name}`;
+    return normalizedQuery.startsWith("la casa")
+      ? `en la casa de ${name}`
+      : `en casa de ${name}`;
   }
 
-  const depaMatch = normalizedQuery.match(/^(?:el\s+)?(?:depa|departamento)\s+de\s+(.+)$/);
+  const depaMatch = normalizedQuery.match(
+    /^(?:el\s+)?(?:depa|departamento)\s+de\s+(.+)$/,
+  );
   if (depaMatch?.[1]) {
     return `en el depa de ${prettifyContextualPlaceName(depaMatch[1])}`;
   }
@@ -256,9 +262,10 @@ function getContextualPlaceDecision(
   const hasVenueOrAddressCue = venueOrAddressCues.some((cue) =>
     normalizedQuery.split(" ").includes(cue),
   );
-  const hasContextPhrase = /\b(donde|casa de|en casa de|en la casa de|en lo de|depa de|departamento de)\b/.test(
-    normalizedRaw,
-  );
+  const hasContextPhrase =
+    /\b(donde|casa de|en casa de|en la casa de|en lo de|depa de|departamento de)\b/.test(
+      normalizedRaw,
+    );
 
   if (!hasFamilyOrHomeCue || hasVenueOrAddressCue || !hasContextPhrase) {
     return null;
@@ -273,15 +280,239 @@ function getContextualPlaceDecision(
   };
 }
 
-function mergeCaptureNotesWithContext(baseNotes: string, contextNote?: string | null): string {
+function mergeCaptureNotesWithContext(
+  baseNotes: string,
+  contextNote?: string | null,
+): string {
   const base = String(baseNotes || "").trim();
   const extra = String(contextNote || "").trim();
   if (!extra) return base;
   if (!base) return extra;
-  if (normalizeContextText(base).includes(normalizeContextText(extra))) return base;
+  if (normalizeContextText(base).includes(normalizeContextText(extra)))
+    return base;
   return `${base}\n${extra}`;
 }
 
+type QuickCaptureParserResult = ReturnType<typeof parseQuickCapture>;
+
+type RawTimeToken = {
+  hour: number;
+  minutes: number;
+  meridiem: "am" | "pm" | null;
+};
+
+type QuickCaptureHardening = {
+  contextualPlace: ContextualPlaceDecision | null;
+  notes: string;
+  startDate: Date | null;
+  endDate: Date | null;
+  startHour: number | null;
+  startMinutes: number;
+  durationMinutes: number | null;
+};
+
+function getRawTextContextualPlaceDecision(
+  rawText: string,
+): ContextualPlaceDecision | null {
+  const raw = String(rawText || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return null;
+
+  const match = raw.match(
+    /\b(d[oó]nde|en\s+la\s+casa\s+de|en\s+casa\s+de|la\s+casa\s+de|casa\s+de|en\s+lo\s+de|en\s+el\s+depa\s+de|en\s+depa\s+de|depa\s+de|departamento\s+de)\s+([\s\S]+?)(?=(?:\s+(?:el|la|los|las|este|esta|estos|estas|pr[oó]xim[oa]s?|hoy|ma(?:ñ|n)ana|pasado|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b)|(?:\s+(?:a\s+la(?:s)?|a\s+los|desde|hasta)\b)|(?:\s+(?:por\s+\d|durante\s+\d)\b)|(?:\s+(?:llevar|revisar|confirmar|avisar|comprar|pedir|recordar)\b)|[,.;]|$)/i,
+  );
+
+  if (!match?.[1] || !match?.[2]) return null;
+
+  const prefix = match[1].replace(/\s+/g, " ").trim();
+  const body = match[2].replace(/\s+/g, " ").trim();
+  if (!body || body.length < 2) return null;
+
+  const normalizedPrefix = normalizeContextText(prefix);
+  const contextualQuery = normalizedPrefix.includes("casa")
+    ? `la casa de ${body}`
+    : normalizedPrefix.includes("depa") ||
+        normalizedPrefix.includes("departamento")
+      ? `depa de ${body}`
+      : body;
+
+  return getContextualPlaceDecision(raw, contextualQuery);
+}
+
+function normalizeCaptureNoteText(value: string): string {
+  const text = String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .trim();
+  if (!text) return "";
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}`.replace(
+    /[.\s]+$/,
+    ".",
+  );
+}
+
+function extractActionNotesFromRaw(rawText: string): string {
+  const raw = String(rawText || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return "";
+
+  const match = raw.match(
+    /\b(llevar|revisar|confirmar|avisar|comprar|pedir|recordar)\b[\s\S]*$/i,
+  );
+  if (!match?.[0]) return "";
+
+  return normalizeCaptureNoteText(match[0]);
+}
+
+function parseMeridiem(value: string | undefined): "am" | "pm" | null {
+  const normalized = normalizeContextText(String(value || ""));
+  if (!normalized) return null;
+  if (/\b(p\s*m|pm|tarde|noche)\b/.test(normalized)) return "pm";
+  if (/\b(a\s*m|am|manana|mañana)\b/.test(normalized)) return "am";
+  return null;
+}
+
+function normalizeHourFromToken(
+  token: RawTimeToken,
+  fallbackMeridiem: "am" | "pm" | null,
+): number {
+  let hour = token.hour;
+  const meridiem = token.meridiem ?? fallbackMeridiem;
+
+  if (meridiem === "pm" && hour < 12) hour += 12;
+  if (meridiem === "am" && hour === 12) hour = 0;
+
+  return hour;
+}
+
+function readTimeToken(match: RegExpMatchArray | null): RawTimeToken | null {
+  if (!match?.[1]) return null;
+
+  const hour = Number(match[1]);
+  const minutes = match[2] ? Number(match[2]) : match[3] ? 30 : 0;
+
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return null;
+  if (!Number.isFinite(minutes) || minutes < 0 || minutes > 59) return null;
+
+  return {
+    hour,
+    minutes,
+    meridiem: parseMeridiem(match[4]),
+  };
+}
+
+function extractRawTimeWindow(
+  rawText: string,
+  parsedDate: Date | null | undefined,
+) {
+  const raw = String(rawText || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) {
+    return {
+      startDate: null,
+      endDate: null,
+      startHour: null,
+      startMinutes: 0,
+      durationMinutes: null,
+    };
+  }
+
+  const startMatch = raw.match(
+    /\b(?:a\s+la(?:s)?|a\s+los|desde\s+la(?:s)?|desde)\s+(\d{1,2})(?::(\d{2}))?(?:\s+(y\s+media))?\s*(a\.?\s*m\.?|p\.?\s*m\.?|am|pm|de\s+la\s+tarde|de\s+la\s+noche|de\s+la\s+ma(?:ñ|n)ana)?\b/i,
+  );
+  const endMatch = raw.match(
+    /\b(?:hasta\s+la(?:s)?|hasta)\s+(\d{1,2})(?::(\d{2}))?(?:\s+(y\s+media))?\s*(a\.?\s*m\.?|p\.?\s*m\.?|am|pm|de\s+la\s+tarde|de\s+la\s+noche|de\s+la\s+ma(?:ñ|n)ana)?\b/i,
+  );
+
+  const startToken = readTimeToken(startMatch);
+  if (!startToken) {
+    return {
+      startDate: null,
+      endDate: null,
+      startHour: null,
+      startMinutes: 0,
+      durationMinutes: null,
+    };
+  }
+
+  const startHour = normalizeHourFromToken(startToken, null);
+  const startMinutes = startToken.minutes;
+  let startDate: Date | null = null;
+  let endDate: Date | null = null;
+  let durationMinutes: number | null = null;
+
+  if (parsedDate && Number.isFinite(parsedDate.getTime())) {
+    startDate = new Date(parsedDate);
+    startDate.setHours(startHour, startMinutes, 0, 0);
+  }
+
+  const endToken = readTimeToken(endMatch);
+  if (endToken && startDate) {
+    const fallbackMeridiem = endToken.meridiem ? null : startToken.meridiem;
+    let endHour = normalizeHourFromToken(endToken, fallbackMeridiem);
+
+    if (
+      endHour < startHour ||
+      (endHour === startHour && endToken.minutes <= startMinutes)
+    ) {
+      if (!endToken.meridiem && endHour < 12 && startHour >= 12) {
+        endHour += 12;
+      }
+    }
+
+    endDate = new Date(startDate);
+    endDate.setHours(endHour, endToken.minutes, 0, 0);
+
+    if (endDate.getTime() <= startDate.getTime()) {
+      endDate.setDate(endDate.getDate() + 1);
+    }
+
+    durationMinutes = Math.max(
+      1,
+      Math.round((endDate.getTime() - startDate.getTime()) / 60000),
+    );
+  }
+
+  return {
+    startDate,
+    endDate,
+    startHour,
+    startMinutes,
+    durationMinutes,
+  };
+}
+
+function hardenQuickCaptureInterpretation(
+  rawText: string,
+  parsed: QuickCaptureParserResult,
+): QuickCaptureHardening {
+  const raw = String(rawText || "").trim();
+  const rawContext = getRawTextContextualPlaceDecision(raw);
+  const parsedContext = getContextualPlaceDecision(raw, parsed.locationQuery);
+  const contextualPlace = rawContext ?? parsedContext;
+  const actionNotes = extractActionNotesFromRaw(raw);
+  const parserNotes = cleanTemporalNoise(String(parsed.notes || "").trim());
+  const shouldTrustParserNotes =
+    !actionNotes &&
+    !/\b(d[oó]nde|casa\s+de|en\s+casa\s+de|en\s+la\s+casa\s+de|en\s+lo\s+de|depa\s+de|hasta\s+la(?:s)?)\b/i.test(
+      parserNotes,
+    );
+  const baseNotes = actionNotes || (shouldTrustParserNotes ? parserNotes : "");
+  const timeWindow = extractRawTimeWindow(raw, parsed.date ?? null);
+
+  return {
+    contextualPlace,
+    notes: mergeCaptureNotesWithContext(baseNotes, contextualPlace?.note),
+    startDate: timeWindow.startDate,
+    endDate: timeWindow.endDate,
+    startHour: timeWindow.startHour,
+    startMinutes: timeWindow.startMinutes,
+    durationMinutes: timeWindow.durationMinutes,
+  };
+}
 
 type Props = {
   highlightId: string | null;
@@ -445,7 +676,7 @@ function useIsMobileWidth(maxWidth = 520) {
       mq.addListener(onStoreChange);
       return () => mq.removeListener(onStoreChange);
     },
-    [query]
+    [query],
   );
 
   const getSnapshot = useCallback(() => {
@@ -458,7 +689,9 @@ function useIsMobileWidth(maxWidth = 520) {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-function toneBadgeStyle(tone: "pending" | "accepted" | "adjusted" | "neutral"): CSSProperties {
+function toneBadgeStyle(
+  tone: "pending" | "accepted" | "adjusted" | "neutral",
+): CSSProperties {
   if (tone === "accepted") {
     return {
       border: "1px solid rgba(52,211,153,0.24)",
@@ -548,7 +781,11 @@ function SummaryHero({
         </div>
 
         <div style={styles.heroActions}>
-          <button type="button" onClick={primaryAction.primaryAction} style={styles.heroPrimaryBtn}>
+          <button
+            type="button"
+            onClick={primaryAction.primaryAction}
+            style={styles.heroPrimaryBtn}
+          >
             {primaryAction.primaryLabel}
           </button>
           <button
@@ -568,18 +805,29 @@ function SummaryHero({
         </span>
 
         {conflictCount > 0 ? (
-          <button type="button" onClick={onOpenConflicts} style={styles.metaPillWarning}>
+          <button
+            type="button"
+            onClick={onOpenConflicts}
+            style={styles.metaPillWarning}
+          >
             {conflictCount} conflicto{conflictCount === 1 ? "" : "s"}
           </button>
         ) : null}
 
         {pendingInviteCount > 0 ? (
-          <button type="button" onClick={onOpenInvitations} style={styles.metaPillInfo}>
-            {pendingInviteCount} invitación{pendingInviteCount === 1 ? "" : "es"}
+          <button
+            type="button"
+            onClick={onOpenInvitations}
+            style={styles.metaPillInfo}
+          >
+            {pendingInviteCount} invitación
+            {pendingInviteCount === 1 ? "" : "es"}
           </button>
         ) : null}
 
-        {loading ? <span style={styles.metaPillInfo}>Actualizando…</span> : null}
+        {loading ? (
+          <span style={styles.metaPillInfo}>Actualizando…</span>
+        ) : null}
       </div>
 
       <div style={styles.heroBottomRow}>
@@ -596,7 +844,9 @@ function SummaryHero({
               {upcomingExternal > 0 ? (
                 <>
                   <span style={styles.heroStatDot}>·</span>
-                  <span style={styles.heroStat}>{upcomingExternal} externo</span>
+                  <span style={styles.heroStat}>
+                    {upcomingExternal} externo
+                  </span>
                 </>
               ) : null}
             </div>
@@ -616,9 +866,10 @@ function SummaryHero({
 }
 
 function StatusPill({ badge }: { badge: StatusBadge }) {
-  return <span style={{ ...styles.statusPill, ...badge.style }}>{badge.label}</span>;
+  return (
+    <span style={{ ...styles.statusPill, ...badge.style }}>{badge.label}</span>
+  );
 }
-
 
 function PremiumContextRail({
   nudge,
@@ -642,14 +893,17 @@ function PremiumContextRail({
       </div>
 
       <div style={styles.railActions}>
-        <button type="button" onClick={onPrimary} style={styles.premiumRailPrimary}>
+        <button
+          type="button"
+          onClick={onPrimary}
+          style={styles.premiumRailPrimary}
+        >
           {nudge.primaryLabel}
         </button>
       </div>
     </Card>
   );
 }
-
 
 function NextMoveCard({ move }: { move: NextMove }) {
   const toneStyle =
@@ -711,10 +965,13 @@ function FirstGroupActivationCard({
     <Card style={styles.firstActivationCard}>
       <div style={styles.firstActivationCopy}>
         <div style={styles.firstActivationEyebrow}>Empieza aquí</div>
-        <h1 style={styles.firstActivationTitle}>Crea tu primer grupo compartido</h1>
+        <h1 style={styles.firstActivationTitle}>
+          Crea tu primer grupo compartido
+        </h1>
         <p style={styles.firstActivationSubtitle}>
-          SyncPlans se entiende mejor cuando lo usas con alguien más: crea un grupo,
-          invita a una persona y luego guarda el primer evento compartido.
+          SyncPlans se entiende mejor cuando lo usas con alguien más: crea un
+          grupo, invita a una persona y luego guarda el primer evento
+          compartido.
         </p>
 
         <div style={styles.firstActivationSteps}>
@@ -725,10 +982,18 @@ function FirstGroupActivationCard({
       </div>
 
       <div style={styles.firstActivationActions}>
-        <button type="button" onClick={onCreateGroup} style={styles.firstActivationPrimary}>
+        <button
+          type="button"
+          onClick={onCreateGroup}
+          style={styles.firstActivationPrimary}
+        >
           Crear grupo
         </button>
-        <button type="button" onClick={onCreatePersonalEvent} style={styles.firstActivationSecondary}>
+        <button
+          type="button"
+          onClick={onCreatePersonalEvent}
+          style={styles.firstActivationSecondary}
+        >
           Crear evento personal
         </button>
       </div>
@@ -742,9 +1007,12 @@ function SummaryBootCard() {
       <div style={styles.summaryBootPulse} />
       <div style={styles.summaryBootCopy}>
         <div style={styles.summaryBootEyebrow}>Abriendo SyncPlans</div>
-        <div style={styles.summaryBootTitle}>Estamos cargando tu resumen real</div>
+        <div style={styles.summaryBootTitle}>
+          Estamos cargando tu resumen real
+        </div>
         <div style={styles.summaryBootSubtitle}>
-          Un momento: estamos revisando tus grupos, eventos, invitaciones y conflictos antes de mostrarte el siguiente paso.
+          Un momento: estamos revisando tus grupos, eventos, invitaciones y
+          conflictos antes de mostrarte el siguiente paso.
         </div>
       </div>
     </Card>
@@ -752,7 +1020,11 @@ function SummaryBootCard() {
 }
 
 function ProposalPill({ badge }: { badge: ProposalBadge }) {
-  return <span style={{ ...styles.statusPill, ...toneBadgeStyle(badge.tone) }}>{badge.label}</span>;
+  return (
+    <span style={{ ...styles.statusPill, ...toneBadgeStyle(badge.tone) }}>
+      {badge.label}
+    </span>
+  );
 }
 
 function EventRow({
@@ -794,15 +1066,21 @@ function EventRow({
       className="spSum-eventRow"
     >
       <div style={styles.eventLeft}>
-        {featured ? <div style={styles.featuredEventEyebrow}>Próximo evento</div> : null}
+        {featured ? (
+          <div style={styles.featuredEventEyebrow}>Próximo evento</div>
+        ) : null}
         <div style={styles.eventWhen}>{when}</div>
         <div style={styles.eventTitle}>{event.title}</div>
-        {proposalLine ? <div style={styles.proposalContextLine}>{proposalLine}</div> : null}
+        {proposalLine ? (
+          <div style={styles.proposalContextLine}>{proposalLine}</div>
+        ) : null}
       </div>
 
       <div style={styles.eventMeta}>
         {statusBadge ? <StatusPill badge={statusBadge} /> : null}
-        {!statusBadge && proposalBadge ? <ProposalPill badge={proposalBadge} /> : null}
+        {!statusBadge && proposalBadge ? (
+          <ProposalPill badge={proposalBadge} />
+        ) : null}
         <span style={styles.softPill}>{audienceLabel}</span>
       </div>
     </button>
@@ -829,9 +1107,15 @@ function UpcomingSection({
   showSeeMore: boolean;
   upcomingAllCount: number;
   highlightId: string | null;
-  getProposalLineForEvent: (eventId: string | null | undefined) => string | null;
-  getProposalBadgeForEvent: (eventId: string | null | undefined) => ProposalBadge | null;
-  getStatusBadgeForEvent: (eventId: string | null | undefined) => StatusBadge | null;
+  getProposalLineForEvent: (
+    eventId: string | null | undefined,
+  ) => string | null;
+  getProposalBadgeForEvent: (
+    eventId: string | null | undefined,
+  ) => ProposalBadge | null;
+  getStatusBadgeForEvent: (
+    eventId: string | null | undefined,
+  ) => StatusBadge | null;
   onOpenCalendar: () => void;
   showCreateGroupNudge: boolean;
   onPrimaryEmptyAction: () => void;
@@ -872,7 +1156,11 @@ function UpcomingSection({
               : "Si metes el siguiente plan aquí, la coordinación ya no se reparte entre mensajes, recuerdos y supuestos."}
           </div>
           {!showCreateGroupNudge ? (
-            <button type="button" onClick={onPrimaryEmptyAction} style={styles.emptyBtn}>
+            <button
+              type="button"
+              onClick={onPrimaryEmptyAction}
+              style={styles.emptyBtn}
+            >
               Crear plan
             </button>
           ) : null}
@@ -881,7 +1169,8 @@ function UpcomingSection({
     );
   }
 
-  const nextHighlighted = highlightId && String(nextEvent.id ?? "") === String(highlightId);
+  const nextHighlighted =
+    highlightId && String(nextEvent.id ?? "") === String(highlightId);
 
   return (
     <Card style={styles.sectionCard}>
@@ -891,7 +1180,11 @@ function UpcomingSection({
           <div style={styles.sectionTitle}>Lo siguiente en tu agenda</div>
         </div>
 
-        <button type="button" onClick={onOpenCalendar} style={styles.sectionLinkBtn}>
+        <button
+          type="button"
+          onClick={onOpenCalendar}
+          style={styles.sectionLinkBtn}
+        >
           Abrir calendario
         </button>
       </div>
@@ -911,7 +1204,9 @@ function UpcomingSection({
           <EventRow
             key={event.id ?? `${event.title}-${event.startIso}`}
             event={event}
-            highlight={Boolean(highlightId && String(event.id ?? "") === String(highlightId))}
+            highlight={Boolean(
+              highlightId && String(event.id ?? "") === String(highlightId),
+            )}
             proposalLine={getProposalLineForEvent(event.id)}
             proposalBadge={getProposalBadgeForEvent(event.id)}
             statusBadge={getStatusBadgeForEvent(event.id)}
@@ -921,7 +1216,12 @@ function UpcomingSection({
       </div>
 
       {showSeeMore ? (
-        <button type="button" onClick={onOpenCalendar} style={styles.seeMoreBtn} className="spSum-seeMore">
+        <button
+          type="button"
+          onClick={onOpenCalendar}
+          style={styles.seeMoreBtn}
+          className="spSum-seeMore"
+        >
           Ver calendario ({upcomingAllCount})
         </button>
       ) : null}
@@ -929,11 +1229,7 @@ function UpcomingSection({
   );
 }
 
-function QuickActionsSection({
-  actions,
-}: {
-  actions: QuickAction[];
-}) {
+function QuickActionsSection({ actions }: { actions: QuickAction[] }) {
   if (actions.length === 0) return null;
 
   return (
@@ -977,7 +1273,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [dismissedPremiumNudge] = useState(false);
   const [summaryNow, setSummaryNow] = useState(() => new Date());
-  const [showDeferredLaunchPanels, setShowDeferredLaunchPanels] = useState(false);
+  const [showDeferredLaunchPanels, setShowDeferredLaunchPanels] =
+    useState(false);
   const premiumNudgeTrackedRef = useRef(false);
   const quickCaptureLearningCacheRef = useRef<{
     key: string;
@@ -1104,7 +1401,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const activeGroup = useMemo(() => {
     if (!activeGroupId) return null;
-    return groups.find((group) => String(group.id) === String(activeGroupId)) ?? null;
+    return (
+      groups.find((group) => String(group.id) === String(activeGroupId)) ?? null
+    );
   }, [groups, activeGroupId]);
 
   const activeLabel = useMemo(() => {
@@ -1123,17 +1422,20 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const inviteTarget = useMemo(() => {
     const groupId = String(activeGroupId ?? groups[0]?.id ?? "").trim();
-    return groupId ? `/groups/invite?groupId=${encodeURIComponent(groupId)}` : "/groups";
+    return groupId
+      ? `/groups/invite?groupId=${encodeURIComponent(groupId)}`
+      : "/groups";
   }, [activeGroupId, groups]);
 
   const quickCaptureExamples = useMemo(
-    () => getQuickCaptureExamples(activeGroupType, activeLabel, !!activeGroupId),
-    [activeGroupType, activeLabel, activeGroupId]
+    () =>
+      getQuickCaptureExamples(activeGroupType, activeLabel, !!activeGroupId),
+    [activeGroupType, activeLabel, activeGroupId],
   );
 
   const quickCapturePreview = useMemo(
     () => formatQuickCapturePreview(quickCaptureValue),
-    [quickCaptureValue]
+    [quickCaptureValue],
   );
 
   const smartInterpretation = useMemo(() => {
@@ -1152,17 +1454,22 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [smartInterpretation, groups]);
 
   const normalizeSuggestionGroupType = useCallback(
-    (value: string | null | undefined): "personal" | "pair" | "family" | "other" => {
+    (
+      value: string | null | undefined,
+    ): "personal" | "pair" | "family" | "other" => {
       if (value === "pair" || value === "couple") return "pair";
       if (value === "family") return "family";
       if (value === "other" || value === "shared") return "other";
       return "personal";
     },
-    []
+    [],
   );
 
   const suggestedContextGroupId = useMemo(() => {
-    if (smartInterpretation?.intent === "group" && smartInterpretation.groupId) {
+    if (
+      smartInterpretation?.intent === "group" &&
+      smartInterpretation.groupId
+    ) {
       return String(smartInterpretation.groupId);
     }
 
@@ -1177,12 +1484,16 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     if (!suggestedContextGroupId) return null;
 
     return (
-      groups.find((group) => String(group.id) === String(suggestedContextGroupId)) ?? null
+      groups.find(
+        (group) => String(group.id) === String(suggestedContextGroupId),
+      ) ?? null
     );
   }, [groups, suggestedContextGroupId]);
 
   const suggestedContextGroupType = useMemo(() => {
-    return normalizeSuggestionGroupType(String(suggestedContextGroup?.type ?? activeGroupType));
+    return normalizeSuggestionGroupType(
+      String(suggestedContextGroup?.type ?? activeGroupType),
+    );
   }, [suggestedContextGroup, activeGroupType, normalizeSuggestionGroupType]);
 
   useEffect(() => {
@@ -1207,13 +1518,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           cached?.key === cacheKey &&
           now - cached.at < 5 * 60 * 1000;
 
-        const signals = shouldUseCached && cached
-          ? cached.signals
-          : await getLearningSignals({
-              daysBack: 120,
-              futureDays: 120,
-              limitConflictLogs: 120,
-            });
+        const signals =
+          shouldUseCached && cached
+            ? cached.signals
+            : await getLearningSignals({
+                daysBack: 120,
+                futureDays: 120,
+                limitConflictLogs: 120,
+              });
 
         if (cancelled) return;
 
@@ -1277,7 +1589,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return getSuggestedTimeSlots(events, suggestedContextGroupType, raw, {
       learnedProfile: learnedQuickCaptureProfile,
     });
-  }, [quickCaptureValue, events, suggestedContextGroupType, learnedQuickCaptureProfile]);
+  }, [
+    quickCaptureValue,
+    events,
+    suggestedContextGroupType,
+    learnedQuickCaptureProfile,
+  ]);
 
   const timeSuggestionsLabel = useMemo(() => {
     const raw = quickCaptureValue.trim();
@@ -1298,7 +1615,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, []);
 
   const normalizedEvents = useMemo(() => {
-    const mapped = (events ?? []).map(normalizeEvent).filter(Boolean) as SummaryEvent[];
+    const mapped = (events ?? [])
+      .map(normalizeEvent)
+      .filter(Boolean) as SummaryEvent[];
     return filterOutDeclinedEvents(mapped, declinedEventIds);
   }, [events, declinedEventIds]);
 
@@ -1311,8 +1630,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [normalizedEvents]);
 
   const quickCapturePlaceMemoryEvents = useMemo(
-    () => visibleEvents.map((event) => event.raw as unknown as PlaceMemoryEvent),
-    [visibleEvents]
+    () =>
+      visibleEvents.map((event) => event.raw as unknown as PlaceMemoryEvent),
+    [visibleEvents],
   );
 
   const learnedQuickCapturePlaceMatch = useMemo(() => {
@@ -1332,39 +1652,55 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     if (raw.length < 3) return null;
 
     const parsed = parseQuickCapture(raw);
+    const hardened = hardenQuickCaptureInterpretation(raw, parsed);
+    const interpretedDate = hardened.startDate ?? parsed.date;
+    const interpretedEndDate = hardened.endDate ?? parsed.endDate ?? null;
+    const interpretedStartHour = hardened.startHour ?? parsed.startHour;
+    const interpretedStartMinutes =
+      hardened.startHour !== null ? hardened.startMinutes : parsed.startMinutes;
     const title = String(parsed.title || "Nuevo plan").trim();
     const facts: string[] = [];
     const missing: string[] = [];
     const risks: string[] = [];
 
-    const hasDate = !!parsed.date;
-    const hasTime = parsed.startHour !== null;
-    const durationMinutes = Math.max(1, Number(parsed.durationMinutes || 60));
-    const parsedEndDate = parsed.endDate ?? null;
+    const hasDate = !!interpretedDate;
+    const hasTime = interpretedStartHour !== null;
+    const durationMinutes = Math.max(
+      1,
+      Number(hardened.durationMinutes || parsed.durationMinutes || 60),
+    );
+    const parsedEndDate = interpretedEndDate;
     const isMultiDay = !!(
-      parsed.date &&
+      interpretedDate &&
       parsedEndDate &&
       Number.isFinite(parsedEndDate.getTime()) &&
-      !isSameCalendarDay(parsed.date, parsedEndDate)
+      !isSameCalendarDay(interpretedDate, parsedEndDate)
     );
     const location = String(parsed.locationQuery ?? "").trim();
-    const contextualPlace = getContextualPlaceDecision(raw, location);
+    const contextualPlace =
+      hardened.contextualPlace ?? getContextualPlaceDecision(raw, location);
     const learnedPlace = contextualPlace ? null : learnedQuickCapturePlaceMatch;
-    const effectiveLocation = contextualPlace ? "" : learnedPlace?.locationLabel || location;
+    const effectiveLocation = contextualPlace
+      ? ""
+      : learnedPlace?.locationLabel || location;
     const participants = parsed.participants
       .map((participant) => String(participant ?? "").trim())
       .filter(Boolean);
 
-    if (parsed.date && isMultiDay && parsedEndDate) {
-      facts.push(`Evento de varios días: ${formatCaptureDateRangeLabel(parsed.date, parsedEndDate)}`);
+    if (interpretedDate && isMultiDay && parsedEndDate) {
+      facts.push(
+        `Evento de varios días: ${formatCaptureDateRangeLabel(interpretedDate, parsedEndDate)}`,
+      );
       if (hasTime) {
-        facts.push(`Hora de inicio: ${fmtTime(parsed.date)}`);
+        facts.push(`Hora de inicio: ${fmtTime(interpretedDate)}`);
       }
-    } else if (parsed.date) {
-      facts.push(`Fecha: ${formatCaptureDateLabel(parsed.date)}`);
-      facts.push(`Hora: ${fmtTime(parsed.date)}`);
-    } else if (hasTime && parsed.startHour !== null) {
-      facts.push(`Hora: ${formatCaptureTimeLabel(parsed.startHour, parsed.startMinutes)}`);
+    } else if (interpretedDate) {
+      facts.push(`Fecha: ${formatCaptureDateLabel(interpretedDate)}`);
+      facts.push(`Hora: ${fmtTime(interpretedDate)}`);
+    } else if (hasTime && interpretedStartHour !== null) {
+      facts.push(
+        `Hora: ${formatCaptureTimeLabel(interpretedStartHour, interpretedStartMinutes)}`,
+      );
       missing.push("fecha");
     } else {
       missing.push("fecha y hora");
@@ -1391,7 +1727,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
     const suggestedGroupId = String(smartInterpretation?.groupId ?? "").trim();
     const suggestedGroup = suggestedGroupId
-      ? groups.find((group) => String(group.id) === suggestedGroupId) ?? null
+      ? (groups.find((group) => String(group.id) === suggestedGroupId) ?? null)
       : null;
     const groupLabel = suggestedGroup ? humanGroupName(suggestedGroup) : null;
 
@@ -1407,8 +1743,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
     let overlappingTitle: string | null = null;
 
-    if (parsed.date) {
-      const candidateStart = new Date(parsed.date);
+    if (interpretedDate) {
+      const candidateStart = new Date(interpretedDate);
       const candidateEnd = parsedEndDate
         ? new Date(parsedEndDate)
         : new Date(candidateStart.getTime() + durationMinutes * 60 * 1000);
@@ -1418,7 +1754,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         return eventOverlapsWindow(event, candidateStart, candidateEnd);
       });
 
-      overlappingTitle = overlap ? String(overlap.title || "otro plan").trim() : null;
+      overlappingTitle = overlap
+        ? String(overlap.title || "otro plan").trim()
+        : null;
 
       if (overlappingTitle) {
         risks.push(`Podría cruzarse con “${overlappingTitle}”.`);
@@ -1440,16 +1778,17 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       confidenceTone === "high"
         ? "Confianza alta"
         : confidenceTone === "medium"
-        ? "Confianza media"
-        : "Faltan datos";
+          ? "Confianza media"
+          : "Faltan datos";
 
-    const whenLabel = parsed.date && isMultiDay && parsedEndDate
-      ? formatCaptureDateRangeLabel(parsed.date, parsedEndDate)
-      : parsed.date
-      ? `${formatCaptureDateLabel(parsed.date)} a las ${fmtTime(parsed.date)}`
-      : hasTime && parsed.startHour !== null
-      ? `a las ${formatCaptureTimeLabel(parsed.startHour, parsed.startMinutes)}`
-      : "sin horario cerrado";
+    const whenLabel =
+      interpretedDate && isMultiDay && parsedEndDate
+        ? formatCaptureDateRangeLabel(interpretedDate, parsedEndDate)
+        : interpretedDate
+          ? `${formatCaptureDateLabel(interpretedDate)} a las ${fmtTime(interpretedDate)}`
+          : hasTime && interpretedStartHour !== null
+            ? `a las ${formatCaptureTimeLabel(interpretedStartHour, interpretedStartMinutes)}`
+            : "sin horario cerrado";
     const placeLabel = effectiveLocation ? ` · ${effectiveLocation}` : "";
     const naturalSummary = isMultiDay
       ? `Evento de varios días · ${whenLabel}${placeLabel}`
@@ -1468,7 +1807,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     } else if (!effectiveLocation && !isMultiDay) {
       recommendation = "Agrega ubicación si quieres calcular a qué hora salir.";
     } else if (isMultiDay) {
-      recommendation = "Se verá durante todo el rango. Smart Mobility quedará pausado salvo que agregues una ruta puntual.";
+      recommendation =
+        "Se verá durante todo el rango. Smart Mobility quedará pausado salvo que agregues una ruta puntual.";
     } else if (smartInterpretation?.intent === "group" && !suggestedGroupId) {
       recommendation = "Elige el grupo correcto antes de compartirlo.";
     }
@@ -1502,7 +1842,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       return { count: 0, latestEventId: null as string | null };
     }
 
-    const baseAlert = buildConflictAlert(visibleEvents, groups, resMap, ignoredConflictKeys);
+    const baseAlert = buildConflictAlert(
+      visibleEvents,
+      groups,
+      resMap,
+      ignoredConflictKeys,
+    );
 
     return {
       count: baseAlert.count,
@@ -1518,7 +1863,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       pendingCaptureCount,
       unreadConflictCount: conflictAlert.count,
     }),
-    [activeGroupId, pendingInviteCount, pendingCaptureCount, conflictAlert.count]
+    [
+      activeGroupId,
+      pendingInviteCount,
+      pendingCaptureCount,
+      conflictAlert.count,
+    ],
   );
 
   useEffect(() => {
@@ -1533,7 +1883,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     const windowStart = summaryNow;
     const windowEnd = addDays(windowStart, 7);
 
-    return visibleEvents.filter((event) => eventOverlapsWindow(event, windowStart, windowEnd));
+    return visibleEvents.filter((event) =>
+      eventOverlapsWindow(event, windowStart, windowEnd),
+    );
   }, [visibleEvents, summaryNow]);
 
   const upcomingStats = useMemo(() => {
@@ -1542,7 +1894,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     let external = 0;
 
     for (const event of upcomingAll) {
-      const hasGoogleGuests = isGoogleEventWithExternalGuests(event.raw ?? event);
+      const hasGoogleGuests = isGoogleEventWithExternalGuests(
+        event.raw ?? event,
+      );
       if (hasGoogleGuests) external += 1;
       if (event.groupId) group += 1;
       else if (!hasGoogleGuests) personal += 1;
@@ -1560,11 +1914,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
   const upcoming = useMemo(
     () => upcomingAll.slice(0, upcomingLimit),
-    [upcomingAll, upcomingLimit]
+    [upcomingAll, upcomingLimit],
   );
 
   const nextEvent = upcoming.length > 0 ? upcoming[0] : null;
-  const remainingUpcoming = upcoming.length > 1 ? upcoming.slice(1) : ([] as SummaryEvent[]);
+  const remainingUpcoming =
+    upcoming.length > 1 ? upcoming.slice(1) : ([] as SummaryEvent[]);
   const showSeeMore = !booting && upcomingAll.length > upcomingLimit;
 
   const mood = useMemo(() => {
@@ -1586,10 +1941,15 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   // Evita un flash engañoso: si el resumen todavía está refrescando y no hay
   // datos locales, no debemos mostrar “Crea tu primer grupo” como si fuera el
   // estado final. Primero cargamos el resumen real; luego decidimos el CTA.
-  const isResolvingInitialSummary = booting || (loading && groups.length === 0 && events.length === 0);
+  const isResolvingInitialSummary =
+    booting || (loading && groups.length === 0 && events.length === 0);
   const summaryStillReconciling = !booting && (loading || !conflictDataReady);
-  const showCreateGroupNudge = !isResolvingInitialSummary && groups.length === 0;
-  const showInviteNudge = !isResolvingInitialSummary && groups.length > 0 && upcomingStats.group === 0;
+  const showCreateGroupNudge =
+    !isResolvingInitialSummary && groups.length === 0;
+  const showInviteNudge =
+    !isResolvingInitialSummary &&
+    groups.length > 0 &&
+    upcomingStats.group === 0;
 
   const trackSummaryCta = useCallback(
     (cta: string, target: string, metadata?: Record<string, unknown>) => {
@@ -1605,7 +1965,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         },
       });
     },
-    [activeGroupId, currentUserId, summaryAnalyticsBase]
+    [activeGroupId, currentUserId, summaryAnalyticsBase],
   );
 
   const navigateFromSummary = useCallback(
@@ -1613,7 +1973,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       trackSummaryCta(cta, target, metadata);
       router.push(target);
     },
-    [router, trackSummaryCta]
+    [router, trackSummaryCta],
   );
 
   const openConflictCenter = useCallback(() => {
@@ -1639,11 +1999,16 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       if (!raw) return null;
 
       const parsed = parseQuickCapture(raw);
-      const contextualPlace = getContextualPlaceDecision(raw, parsed.locationQuery);
-      const cleanedNotes = mergeCaptureNotesWithContext(
-        cleanTemporalNoise(String(parsed.notes || "").trim()),
-        contextualPlace?.note,
-      );
+      const hardened = hardenQuickCaptureInterpretation(raw, parsed);
+      const contextualPlace =
+        hardened.contextualPlace ??
+        getContextualPlaceDecision(raw, parsed.locationQuery);
+      const cleanedNotes =
+        hardened.notes ||
+        mergeCaptureNotesWithContext(
+          cleanTemporalNoise(String(parsed.notes || "").trim()),
+          contextualPlace?.note,
+        );
       const smart = buildSmartInterpretation({
         raw,
         groups,
@@ -1663,7 +2028,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       }
 
       if (parsed.title) params.set("title", parsed.title);
-      if (parsed.durationMinutes) params.set("duration", String(parsed.durationMinutes));
+      if (hardened.durationMinutes || parsed.durationMinutes) {
+        params.set(
+          "duration",
+          String(hardened.durationMinutes || parsed.durationMinutes),
+        );
+      }
       if (cleanedNotes) params.set("notes", cleanedNotes);
 
       const learnedPlace = contextualPlace
@@ -1689,22 +2059,30 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         params.set("location_query", parsed.locationQuery);
       }
 
-      if (parsed.startHour !== null) {
+      const finalStartHour = hardened.startHour ?? parsed.startHour;
+      const finalStartMinutes =
+        hardened.startHour !== null
+          ? hardened.startMinutes
+          : parsed.startMinutes;
+
+      if (finalStartHour !== null) {
         params.set(
           "time",
-          `${String(parsed.startHour).padStart(2, "0")}:${String(parsed.startMinutes).padStart(2, "0")}`
+          `${String(finalStartHour).padStart(2, "0")}:${String(finalStartMinutes).padStart(2, "0")}`,
         );
       }
 
-      const resolvedDate = suggestedDate ?? parsed.date ?? null;
+      const resolvedDate =
+        suggestedDate ?? hardened.startDate ?? parsed.date ?? null;
       if (resolvedDate) params.set("date", resolvedDate.toISOString());
-      if (!suggestedDate && parsed.endDate) {
-        params.set("end_date", parsed.endDate.toISOString());
+      const resolvedEndDate = hardened.endDate ?? parsed.endDate ?? null;
+      if (!suggestedDate && resolvedEndDate) {
+        params.set("end_date", resolvedEndDate.toISOString());
       }
 
       return params;
     },
-    [groups, activeGroupId, quickCapturePlaceMemoryEvents]
+    [groups, activeGroupId, quickCapturePlaceMemoryEvents],
   );
 
   const navigateFromQuickCapture = useCallback(
@@ -1716,7 +2094,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       trackSummaryCta("quick_capture_submit", target, { hasRawText: true });
       router.push(target);
     },
-    [buildQuickCaptureParams, router, trackSummaryCta]
+    [buildQuickCaptureParams, router, trackSummaryCta],
   );
 
   const navigateFromSuggestedSlot = useCallback(
@@ -1730,7 +2108,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       });
       router.push(target);
     },
-    [buildQuickCaptureParams, router, trackSummaryCta]
+    [buildQuickCaptureParams, router, trackSummaryCta],
   );
 
   const handleQuickCaptureSubmit = useCallback(() => {
@@ -1756,7 +2134,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         navigateFromQuickCapture(value);
       }, 0);
     },
-    [quickCaptureBusy, navigateFromQuickCapture]
+    [quickCaptureBusy, navigateFromQuickCapture],
   );
 
   const handleOpenCapture = useCallback(() => {
@@ -1782,14 +2160,17 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     const raw = quickCaptureValue.trim();
 
     if (!raw) {
-      showToast("Escribe algo primero", "Necesito un texto para generar el link.");
+      showToast(
+        "Escribe algo primero",
+        "Necesito un texto para generar el link.",
+      );
       return;
     }
 
     if (!canUseClipboard()) {
       showToast(
         "No se pudo copiar",
-        "Tu navegador o contexto actual no permite copiar automáticamente."
+        "Tu navegador o contexto actual no permite copiar automáticamente.",
       );
       return;
     }
@@ -1807,7 +2188,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     const raw = quickCaptureValue.trim();
 
     if (!raw) {
-      showToast("Escribe algo primero", "Necesito un texto para compartir por WhatsApp.");
+      showToast(
+        "Escribe algo primero",
+        "Necesito un texto para compartir por WhatsApp.",
+      );
       return;
     }
 
@@ -1821,7 +2205,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     }
   }, [quickCaptureValue, showToast]);
 
-  const visibleDecisions = useMemo(() => recentDecisions.slice(0, 3), [recentDecisions]);
+  const visibleDecisions = useMemo(
+    () => recentDecisions.slice(0, 3),
+    [recentDecisions],
+  );
 
   const summaryActivation = useMemo(
     () =>
@@ -1840,7 +2227,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       pendingCaptureCount,
       visibleDecisions,
       conflictAlert.count,
-    ]
+    ],
   );
 
   const isFirstTimeMode = summaryActivation.shouldUseSimpleSummary;
@@ -1871,7 +2258,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         tone: proposalResponseTone(row?.response),
       };
     },
-    [proposalResponsesMap]
+    [proposalResponsesMap],
   );
 
   const getProposalLineForEvent = useCallback(
@@ -1882,7 +2269,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       const row = proposalResponsesMap[key];
       if (!row) return null;
 
-      const proposalProfile = proposalProfilesMap[String(row.user_id ?? "").trim()];
+      const proposalProfile =
+        proposalProfilesMap[String(row.user_id ?? "").trim()];
       const name = getDisplayName(proposalProfile);
       const time = humanizeRelativeDate(row.updated_at);
 
@@ -1892,7 +2280,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         time,
       });
     },
-    [proposalProfilesMap, proposalResponsesMap]
+    [proposalProfilesMap, proposalResponsesMap],
   );
 
   const conflictEventIds = useMemo(() => {
@@ -1909,22 +2297,27 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         if (!start || !end) return null;
 
         const rawGroup =
-          groups.find((group) => String(group.id) === String(event.groupId ?? ""))?.type ??
-          "personal";
+          groups.find(
+            (group) => String(group.id) === String(event.groupId ?? ""),
+          )?.type ?? "personal";
 
         return {
           id: String(event.id),
           title: String(event.title ?? "Evento"),
           start,
           end,
-          groupType: normalizeSummaryGroupType(String(rawGroup ?? "personal")) as GroupType,
+          groupType: normalizeSummaryGroupType(
+            String(rawGroup ?? "personal"),
+          ) as GroupType,
           groupId: event.groupId ?? null,
         } satisfies CalendarEvent;
       })
       .filter(Boolean) as CalendarEvent[];
 
-    const computed = filterIgnoredConflicts(computeVisibleConflicts(conflictEvents), ignoredConflictKeys)
-      .filter((conflict) => !resolutionForConflict(conflict, resMap));
+    const computed = filterIgnoredConflicts(
+      computeVisibleConflicts(conflictEvents),
+      ignoredConflictKeys,
+    ).filter((conflict) => !resolutionForConflict(conflict, resMap));
 
     for (const conflict of computed) {
       next.add(String(conflict.existingEventId));
@@ -1958,7 +2351,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return {
       invites: pendingInviteCount,
       captures: pendingCaptureCount,
-      proposals: decisionSummary.pendingProposals + decisionSummary.adjustedProposals,
+      proposals:
+        decisionSummary.pendingProposals + decisionSummary.adjustedProposals,
       conflicts: conflictAlert.count,
       total:
         pendingInviteCount +
@@ -1976,9 +2370,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   ]);
 
   const valueMoments = useMemo(() => {
-    const resolvedDecisions = visibleDecisions.filter((decision) => !decision.isFallback).length;
-    const autoAdjusted = visibleDecisions.filter((decision) => decision.isFallback).length;
-    const agendaFeelsClear = conflictAlert.count === 0 && upcomingStats.total > 0;
+    const resolvedDecisions = visibleDecisions.filter(
+      (decision) => !decision.isFallback,
+    ).length;
+    const autoAdjusted = visibleDecisions.filter(
+      (decision) => decision.isFallback,
+    ).length;
+    const agendaFeelsClear =
+      conflictAlert.count === 0 && upcomingStats.total > 0;
 
     return {
       resolvedDecisions,
@@ -1990,7 +2389,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         agendaFeelsClear ||
         pendingAttention.captures > 0,
     };
-  }, [visibleDecisions, conflictAlert.count, upcomingStats.total, pendingAttention.captures]);
+  }, [
+    visibleDecisions,
+    conflictAlert.count,
+    upcomingStats.total,
+    pendingAttention.captures,
+  ]);
 
   const hasPremium = useMemo(() => hasPremiumAccess(profile), [profile]);
 
@@ -2009,7 +2413,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       };
     }
 
-    if (groups.length > 0 && (upcomingStats.group > 0 || pendingInviteCount > 0)) {
+    if (
+      groups.length > 0 &&
+      (upcomingStats.group > 0 || pendingInviteCount > 0)
+    ) {
       return {
         context: "shared_coordination",
         eyebrow: "Premium en contexto",
@@ -2106,7 +2513,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           navigateFromSummary(
             showInviteNudge ? "open_groups" : "open_events",
             showInviteNudge ? "/groups" : "/events",
-            { block: "primary_action" }
+            { block: "primary_action" },
           ),
       };
     }
@@ -2135,15 +2542,21 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         title: "Coordina mejor tu tiempo compartido",
         subtitle:
           "Evita cruces, alinea agendas y deja una sola versión clara desde el inicio.",
-        primaryLabel: showCreateGroupNudge ? "Crear grupo" : "Crear primer plan",
+        primaryLabel: showCreateGroupNudge
+          ? "Crear grupo"
+          : "Crear primer plan",
         primaryAction: () =>
           showCreateGroupNudge
             ? navigateFromSummary("create_group", "/groups/new", {
                 block: "primary_action",
               })
-            : navigateFromSummary("create_plan", "/events/new/details?type=personal", {
-                block: "primary_action",
-              }),
+            : navigateFromSummary(
+                "create_plan",
+                "/events/new/details?type=personal",
+                {
+                  block: "primary_action",
+                },
+              ),
         secondaryLabel: "Conectar Google",
         secondaryAction: () =>
           navigateFromSummary("connect_google", "/settings", {
@@ -2196,9 +2609,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         subtitle: "Si no hay nada cerca, crea un plan y mantén el hábito.",
         primaryLabel: "Crear plan",
         primaryAction: () =>
-          navigateFromSummary("create_plan", "/events/new/details?type=personal", {
-            block: "primary_action",
-          }),
+          navigateFromSummary(
+            "create_plan",
+            "/events/new/details?type=personal",
+            {
+              block: "primary_action",
+            },
+          ),
         secondaryLabel: "Abrir calendario",
         secondaryAction: () =>
           navigateFromSummary("primary_secondary_calendar", "/calendar", {
@@ -2209,7 +2626,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
     return {
       eyebrow: "Tu base de esta semana",
-      title: nextEvent ? `Lo próximo: ${nextEvent.title}` : "Tu agenda está clara por ahora.",
+      title: nextEvent
+        ? `Lo próximo: ${nextEvent.title}`
+        : "Tu agenda está clara por ahora.",
       subtitle: nextEvent
         ? "Revisa lo que viene o crea un nuevo plan sin salir del flujo."
         : "No hay urgencias pendientes. Mantén el hábito creando o revisando tu siguiente plan.",
@@ -2252,11 +2671,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       return {
         eyebrow: "Lo más importante ahora",
         title: `Resuelve ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"}`,
-        subtitle: "Hay dos versiones compitiendo por el mismo tiempo. Decide qué queda antes de seguir creando planes encima.",
+        subtitle:
+          "Hay dos versiones compitiendo por el mismo tiempo. Decide qué queda antes de seguir creando planes encima.",
         cta: "Resolver ahora",
         tone: "warning",
         priorityLabel: "Prioridad 1 · Decisión",
-        rationale: "SyncPlans lo pone arriba porque un conflicto abierto rompe la promesa de una sola verdad compartida.",
+        rationale:
+          "SyncPlans lo pone arriba porque un conflicto abierto rompe la promesa de una sola verdad compartida.",
         onClick: openConflictCenter,
       };
     }
@@ -2265,11 +2686,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       return {
         eyebrow: "Lo más importante ahora",
         title: `Responde ${pendingInviteCount} invitación${pendingInviteCount === 1 ? "" : "es"}`,
-        subtitle: "Aceptar o rechazar esto desbloquea coordinación compartida y evita que el plan quede flotando.",
+        subtitle:
+          "Aceptar o rechazar esto desbloquea coordinación compartida y evita que el plan quede flotando.",
         cta: "Ver invitaciones",
         tone: "info",
         priorityLabel: "Prioridad 2 · Compartido",
-        rationale: "La app prioriza invitaciones porque sin respuesta no hay sincronización real entre personas.",
+        rationale:
+          "La app prioriza invitaciones porque sin respuesta no hay sincronización real entre personas.",
         onClick: () =>
           navigateFromSummary("next_move_invitations", "/invitations", {
             block: "next_move",
@@ -2278,15 +2701,18 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     }
 
     if (pendingAttention.proposals > 0 || pendingAttention.captures > 0) {
-      const totalPending = pendingAttention.proposals + pendingAttention.captures;
+      const totalPending =
+        pendingAttention.proposals + pendingAttention.captures;
       return {
         eyebrow: "Lo más importante ahora",
         title: `Cierra ${totalPending} pendiente${totalPending === 1 ? "" : "s"} de coordinación`,
-        subtitle: "Hay respuestas o capturas esperando una decisión. Cerrarlas mantiene la agenda limpia y confiable.",
+        subtitle:
+          "Hay respuestas o capturas esperando una decisión. Cerrarlas mantiene la agenda limpia y confiable.",
         cta: "Revisar pendientes",
         tone: "info",
         priorityLabel: "Prioridad 3 · Cerrar ciclo",
-        rationale: "SyncPlans no solo informa; te empuja a cerrar lo que puede generar ida y vuelta por chat.",
+        rationale:
+          "SyncPlans no solo informa; te empuja a cerrar lo que puede generar ida y vuelta por chat.",
         onClick: () =>
           navigateFromSummary("next_move_pending", "/events", {
             block: "next_move",
@@ -2301,20 +2727,30 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         return {
           eyebrow: "Lo más importante ahora",
           title: `Vas tarde para ${eventTitle}`,
-          subtitle: "Abre la ruta y sal cuanto antes. Este aviso sube porque ya afecta tu llegada, no solo tu agenda.",
+          subtitle:
+            "Abre la ruta y sal cuanto antes. Este aviso sube porque ya afecta tu llegada, no solo tu agenda.",
           cta: "Abrir ruta",
           tone: "danger",
           priorityLabel: "Prioridad 4 · Salida",
-          rationale: "La coordinación también es llegar a tiempo; por eso movilidad aparece solo cuando ya es accionable.",
+          rationale:
+            "La coordinación también es llegar a tiempo; por eso movilidad aparece solo cuando ya es accionable.",
           onClick: () => {
-            trackSummaryCta("next_move_open_route_late", smartMobility.mapsUrl || "/calendar", {
-              block: "next_move",
-              eventId: smartMobility.eventId,
-              leaveInMinutes,
-            });
+            trackSummaryCta(
+              "next_move_open_route_late",
+              smartMobility.mapsUrl || "/calendar",
+              {
+                block: "next_move",
+                eventId: smartMobility.eventId,
+                leaveInMinutes,
+              },
+            );
 
             if (smartMobility.mapsUrl && typeof window !== "undefined") {
-              window.open(smartMobility.mapsUrl, "_blank", "noopener,noreferrer");
+              window.open(
+                smartMobility.mapsUrl,
+                "_blank",
+                "noopener,noreferrer",
+              );
               return;
             }
 
@@ -2327,20 +2763,30 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         return {
           eyebrow: "Lo más importante ahora",
           title: `Sal ahora para ${eventTitle}`,
-          subtitle: "La salida sugerida ya llegó. Abre la ruta y evita llegar justo.",
+          subtitle:
+            "La salida sugerida ya llegó. Abre la ruta y evita llegar justo.",
           cta: "Abrir ruta",
           tone: "warning",
           priorityLabel: "Prioridad 4 · Salida",
-          rationale: "La app lo sube arriba porque ya no es información; es una acción inmediata.",
+          rationale:
+            "La app lo sube arriba porque ya no es información; es una acción inmediata.",
           onClick: () => {
-            trackSummaryCta("next_move_open_route_now", smartMobility.mapsUrl || "/calendar", {
-              block: "next_move",
-              eventId: smartMobility.eventId,
-              leaveInMinutes,
-            });
+            trackSummaryCta(
+              "next_move_open_route_now",
+              smartMobility.mapsUrl || "/calendar",
+              {
+                block: "next_move",
+                eventId: smartMobility.eventId,
+                leaveInMinutes,
+              },
+            );
 
             if (smartMobility.mapsUrl && typeof window !== "undefined") {
-              window.open(smartMobility.mapsUrl, "_blank", "noopener,noreferrer");
+              window.open(
+                smartMobility.mapsUrl,
+                "_blank",
+                "noopener,noreferrer",
+              );
               return;
             }
 
@@ -2356,13 +2802,18 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         cta: "Ver ruta",
         tone: "info",
         priorityLabel: "Prioridad 4 · Salida",
-        rationale: "Smart Mobility no ocupa la home todo el día: aparece cuando realmente puede ayudarte a llegar mejor.",
+        rationale:
+          "Smart Mobility no ocupa la home todo el día: aparece cuando realmente puede ayudarte a llegar mejor.",
         onClick: () => {
-          trackSummaryCta("next_move_open_route_soon", smartMobility.mapsUrl || "/calendar", {
-            block: "next_move",
-            eventId: smartMobility.eventId,
-            leaveInMinutes,
-          });
+          trackSummaryCta(
+            "next_move_open_route_soon",
+            smartMobility.mapsUrl || "/calendar",
+            {
+              block: "next_move",
+              eventId: smartMobility.eventId,
+              leaveInMinutes,
+            },
+          );
 
           if (smartMobility.mapsUrl && typeof window !== "undefined") {
             window.open(smartMobility.mapsUrl, "_blank", "noopener,noreferrer");
@@ -2378,11 +2829,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       return {
         eyebrow: "Lo más importante ahora",
         title: "Invita a la otra persona",
-        subtitle: "El valor compartido aparece cuando ambos ven lo mismo en el mismo lugar.",
+        subtitle:
+          "El valor compartido aparece cuando ambos ven lo mismo en el mismo lugar.",
         cta: "Invitar ahora",
         tone: "info",
         priorityLabel: "Prioridad 5 · Activación",
-        rationale: "Sin otra persona, SyncPlans funciona; con otra persona, empieza a resolver el problema real.",
+        rationale:
+          "Sin otra persona, SyncPlans funciona; con otra persona, empieza a resolver el problema real.",
         onClick: () =>
           navigateFromSummary("next_move_invite_now", inviteTarget, {
             block: "next_move",
@@ -2394,11 +2847,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       return {
         eyebrow: "Lo más importante ahora",
         title: "Crea tu primer grupo compartido",
-        subtitle: "Ese paso convierte SyncPlans en una referencia real de coordinación, no solo en una agenda personal.",
+        subtitle:
+          "Ese paso convierte SyncPlans en una referencia real de coordinación, no solo en una agenda personal.",
         cta: "Crear grupo",
         tone: "info",
         priorityLabel: "Prioridad 5 · Activación",
-        rationale: "La home prioriza el grupo porque ahí aparece el valor compartido de SyncPlans.",
+        rationale:
+          "La home prioriza el grupo porque ahí aparece el valor compartido de SyncPlans.",
         onClick: () =>
           navigateFromSummary("next_move_create_group", "/groups/new", {
             block: "next_move",
@@ -2410,26 +2865,34 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       return {
         eyebrow: "Lo más importante ahora",
         title: "Captura el próximo plan",
-        subtitle: "Escribe una idea rápida y SyncPlans la convierte en algo revisable.",
+        subtitle:
+          "Escribe una idea rápida y SyncPlans la convierte en algo revisable.",
         cta: "Crear plan",
         tone: "calm",
         priorityLabel: "Prioridad 6 · Hábito",
-        rationale: "Cuando no hay urgencias, la mejor acción es alimentar la agenda con el próximo plan real.",
+        rationale:
+          "Cuando no hay urgencias, la mejor acción es alimentar la agenda con el próximo plan real.",
         onClick: () =>
-          navigateFromSummary("next_move_create_plan", "/events/new/details?type=personal", {
-            block: "next_move",
-          }),
+          navigateFromSummary(
+            "next_move_create_plan",
+            "/events/new/details?type=personal",
+            {
+              block: "next_move",
+            },
+          ),
       };
     }
 
     return {
       eyebrow: "Lo más importante ahora",
       title: `Revisa lo próximo: ${nextEvent.title}`,
-      subtitle: "Tu agenda está clara por ahora. Mantén el hábito revisando lo siguiente o creando un nuevo plan.",
+      subtitle:
+        "Tu agenda está clara por ahora. Mantén el hábito revisando lo siguiente o creando un nuevo plan.",
       cta: "Abrir calendario",
       tone: "calm",
       priorityLabel: "Agenda clara",
-      rationale: "No hay bloqueos visibles; SyncPlans baja el ruido y te deja solo el siguiente contexto útil.",
+      rationale:
+        "No hay bloqueos visibles; SyncPlans baja el ruido y te deja solo el siguiente contexto útil.",
       onClick: () =>
         navigateFromSummary("next_move_calendar", "/calendar", {
           block: "next_move",
@@ -2461,13 +2924,15 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     const tomorrowStart = addDays(todayStart, 1);
 
     const todayEvents = visibleEvents.filter((event) =>
-      eventOverlapsWindow(event, summaryNow, tomorrowStart)
+      eventOverlapsWindow(event, summaryNow, tomorrowStart),
     );
 
     const todayTotal = todayEvents.length;
-    const todayShared = todayEvents.filter((event) => Boolean(event.groupId)).length;
+    const todayShared = todayEvents.filter((event) =>
+      Boolean(event.groupId),
+    ).length;
     const todayExternal = todayEvents.filter((event) =>
-      isGoogleEventWithExternalGuests(event.raw ?? event)
+      isGoogleEventWithExternalGuests(event.raw ?? event),
     ).length;
     const nextToday = todayEvents[0] ?? null;
 
@@ -2504,7 +2969,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       return {
         eyebrow: "Estado del día",
         title: `Hoy hay ${conflictAlert.count} conflicto${conflictAlert.count === 1 ? "" : "s"} que resolver`,
-        subtitle: "Tu día necesita una decisión clara antes de seguir acumulando coordinación por fuera.",
+        subtitle:
+          "Tu día necesita una decisión clara antes de seguir acumulando coordinación por fuera.",
         pills,
       };
     }
@@ -2513,7 +2979,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       return {
         eyebrow: "Estado del día",
         title: `Tienes ${pendingTotal} pendiente${pendingTotal === 1 ? "" : "s"} por cerrar`,
-        subtitle: "Cerrar esto mantiene SyncPlans como una sola verdad compartida, no como otra lista más.",
+        subtitle:
+          "Cerrar esto mantiene SyncPlans como una sola verdad compartida, no como otra lista más.",
         pills,
       };
     }
@@ -2531,7 +2998,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       return {
         eyebrow: "Estado del día",
         title: `Hoy tienes ${todayTotal} plan${todayTotal === 1 ? "" : "es"}`,
-        subtitle: "Todo se ve ordenado por ahora. SyncPlans queda como referencia para cualquier cambio.",
+        subtitle:
+          "Todo se ve ordenado por ahora. SyncPlans queda como referencia para cualquier cambio.",
         pills,
       };
     }
@@ -2539,7 +3007,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     return {
       eyebrow: "Estado del día",
       title: "Día tranquilo por ahora",
-      subtitle: "Buen momento para capturar un plan o dejar algo compartido listo antes de que se pierda en el chat.",
+      subtitle:
+        "Buen momento para capturar un plan o dejar algo compartido listo antes de que se pierda en el chat.",
       pills,
     };
   }, [
@@ -2569,9 +3038,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           title: "Crear evento",
           subtitle: "Guarda un plan personal mientras activas tu espacio.",
           onClick: () =>
-            navigateFromSummary("create_plan", "/events/new/details?type=personal", {
-              block: "summary_quick_actions",
-            }),
+            navigateFromSummary(
+              "create_plan",
+              "/events/new/details?type=personal",
+              {
+                block: "summary_quick_actions",
+              },
+            ),
         },
         {
           key: "groups",
@@ -2592,9 +3065,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           title: "Crear primer plan",
           subtitle: "Prueba SyncPlans con algo simple y veloz.",
           onClick: () =>
-            navigateFromSummary("create_plan", "/events/new/details?type=personal", {
-              block: "summary_quick_actions",
-            }),
+            navigateFromSummary(
+              "create_plan",
+              "/events/new/details?type=personal",
+              {
+                block: "summary_quick_actions",
+              },
+            ),
         },
         {
           key: "connect_google",
@@ -2669,36 +3146,37 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   ]);
 
   const getStatusBadgeForEvent = useCallback(
-  (eventId: string | null | undefined): StatusBadge | null => {
-    const key = String(eventId ?? "").trim();
-    if (!key) return null;
+    (eventId: string | null | undefined): StatusBadge | null => {
+      const key = String(eventId ?? "").trim();
+      if (!key) return null;
 
-    const event = visibleEvents.find((item) => String(item.id ?? "") === key) ?? null;
+      const event =
+        visibleEvents.find((item) => String(item.id ?? "") === key) ?? null;
 
-    const status = getUnifiedEventStatus({
-      eventId,
-      conflictEventIds,
-      proposalResponseGroupsMap,
-    });
+      const status = getUnifiedEventStatus({
+        eventId,
+        conflictEventIds,
+        proposalResponseGroupsMap,
+      });
 
-    if (!status || status === "scheduled") return null;
+      if (!status || status === "scheduled") return null;
 
-    // Un evento personal creado por el usuario no necesita badge de confirmación.
-    // Si no pertenece a grupo, no hay nadie más que lo tenga que aceptar.
-    if (status === "pending" && !event?.groupId) {
-      return null;
-    }
+      // Un evento personal creado por el usuario no necesita badge de confirmación.
+      // Si no pertenece a grupo, no hay nadie más que lo tenga que aceptar.
+      if (status === "pending" && !event?.groupId) {
+        return null;
+      }
 
-    const conflictsCount = conflictEventIds.has(key) ? 1 : 0;
-    const statusUi = getEventStatusUi(status, { conflictsCount });
+      const conflictsCount = conflictEventIds.has(key) ? 1 : 0;
+      const statusUi = getEventStatusUi(status, { conflictsCount });
 
-    return {
-      label: statusUi.label,
-      style: statusUi.badgeStyle,
-    };
-  },
-  [conflictEventIds, proposalResponseGroupsMap, visibleEvents]
-);
+      return {
+        label: statusUi.label,
+        style: statusUi.badgeStyle,
+      };
+    },
+    [conflictEventIds, proposalResponseGroupsMap, visibleEvents],
+  );
 
   const compactSummaryMobile = isMobile;
   const hasUrgentSummaryState =
@@ -2707,11 +3185,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     pendingAttention.proposals > 0 ||
     pendingAttention.captures > 0;
 
-  const showFirstGroupActivation = showCreateGroupNudge && !hasUrgentSummaryState;
+  const showFirstGroupActivation =
+    showCreateGroupNudge && !hasUrgentSummaryState;
 
   const showQuickActions =
     !showFirstGroupActivation &&
-    (isFirstTimeMode || (!hasUrgentSummaryState && !nextEvent && !showInviteNudge));
+    (isFirstTimeMode ||
+      (!hasUrgentSummaryState && !nextEvent && !showInviteNudge));
 
   const shouldShowSummaryHero =
     !(showInviteNudge && !hasUrgentSummaryState) &&
@@ -2732,13 +3212,17 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
       router.push(`/planes?source=summary&context=${context}`);
     },
-    [activeGroupId, currentUserId, router, summaryAnalyticsBase]
+    [activeGroupId, currentUserId, router, summaryAnalyticsBase],
   );
 
   return (
-  <div style={styles.page} className="spSum-page">
-    {showDeferredLaunchPanels && !showFirstGroupActivation ? <LocationPermissionPrompt /> : null}
-      {toast ? <SummaryToast title={toast.title} subtitle={toast.subtitle} /> : null}
+    <div style={styles.page} className="spSum-page">
+      {showDeferredLaunchPanels && !showFirstGroupActivation ? (
+        <LocationPermissionPrompt />
+      ) : null}
+      {toast ? (
+        <SummaryToast title={toast.title} subtitle={toast.subtitle} />
+      ) : null}
 
       <Section style={styles.shell} className="spSum-shell">
         <PremiumHeader
@@ -2753,14 +3237,22 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         ) : showFirstGroupActivation ? (
           <FirstGroupActivationCard
             onCreateGroup={() =>
-              navigateFromSummary("first_activation_create_group", "/groups/new", {
-                block: "first_activation",
-              })
+              navigateFromSummary(
+                "first_activation_create_group",
+                "/groups/new",
+                {
+                  block: "first_activation",
+                },
+              )
             }
             onCreatePersonalEvent={() =>
-              navigateFromSummary("first_activation_create_personal_event", "/events/new/details?type=personal", {
-                block: "first_activation",
-              })
+              navigateFromSummary(
+                "first_activation_create_personal_event",
+                "/events/new/details?type=personal",
+                {
+                  block: "first_activation",
+                },
+              )
             }
           />
         ) : (
@@ -2775,7 +3267,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 interpretation={smartInterpretation}
                 interpretationLabel={smartInterpretationLabel}
                 intelligence={quickCaptureIntelligence}
-                examples={isFirstTimeMode ? quickCaptureExamples.slice(0, 2) : quickCaptureExamples}
+                examples={
+                  isFirstTimeMode
+                    ? quickCaptureExamples.slice(0, 2)
+                    : quickCaptureExamples
+                }
                 activeGroupName={activeLabel}
                 activeGroupType={activeGroupType}
                 groups={groups}
@@ -2784,19 +3280,26 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 onShare={handleCopyCaptureLink}
                 onWhatsApp={handleShareToWhatsApp}
                 onExampleClick={handleQuickCaptureExample}
-                headline={isFirstTimeMode ? "Prueba con una idea simple" : quickCaptureHeadline}
+                headline={
+                  isFirstTimeMode
+                    ? "Prueba con una idea simple"
+                    : quickCaptureHeadline
+                }
                 subcopy={
                   isFirstTimeMode
                     ? "Escribe algo como lo dirías por WhatsApp. SyncPlans lo convierte en un evento claro antes de guardar."
                     : quickCaptureSubcopy
                 }
                 onOpenCapture={isFirstTimeMode ? undefined : handleOpenCapture}
-                timeSuggestionsLabel={isFirstTimeMode ? null : timeSuggestionsLabel}
+                timeSuggestionsLabel={
+                  isFirstTimeMode ? null : timeSuggestionsLabel
+                }
                 timeSuggestions={isFirstTimeMode ? [] : timeSuggestions}
                 onSuggestedSlotClick={
                   isFirstTimeMode
                     ? undefined
-                    : (date: Date) => navigateFromSuggestedSlot(quickCaptureValue, date)
+                    : (date: Date) =>
+                        navigateFromSuggestedSlot(quickCaptureValue, date)
                 }
               />
             </div>
@@ -3997,4 +4500,4 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     cursor: "pointer",
   },
-}
+};
