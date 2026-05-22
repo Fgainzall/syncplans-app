@@ -1038,7 +1038,7 @@ function SummaryHero({
 
 function StatusPill({ badge }: { badge: StatusBadge }) {
   return (
-    <span style={{ ...styles.statusPill, ...badge.style }}>{badge.label}</span>
+    <span className="spSum-statusPill" style={{ ...styles.statusPill, ...badge.style }}>{badge.label}</span>
   );
 }
 
@@ -1192,7 +1192,10 @@ function SummaryBootCard() {
 
 function ProposalPill({ badge }: { badge: ProposalBadge }) {
   return (
-    <span style={{ ...styles.statusPill, ...toneBadgeStyle(badge.tone) }}>
+    <span
+      className="spSum-statusPill"
+      style={{ ...styles.statusPill, ...toneBadgeStyle(badge.tone) }}
+    >
       {badge.label}
     </span>
   );
@@ -1236,7 +1239,7 @@ function EventRow({
       }}
       className="spSum-eventRow"
     >
-      <div style={styles.eventLeft}>
+      <div style={styles.eventLeft} className="spSum-eventLeft">
         {featured ? (
           <div style={styles.featuredEventEyebrow}>Próximo evento</div>
         ) : null}
@@ -1247,12 +1250,12 @@ function EventRow({
         ) : null}
       </div>
 
-      <div style={styles.eventMeta}>
+      <div style={styles.eventMeta} className="spSum-eventMeta">
         {statusBadge ? <StatusPill badge={statusBadge} /> : null}
         {!statusBadge && proposalBadge ? (
           <ProposalPill badge={proposalBadge} />
         ) : null}
-        <span style={styles.softPill}>{audienceLabel}</span>
+        <span style={styles.softPill} className="spSum-softPill">{audienceLabel}</span>
       </div>
     </button>
   );
@@ -3569,6 +3572,29 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           .spSum-eventRow {
             min-height: 72px !important;
             padding: 12px !important;
+            align-items: flex-start !important;
+            flex-direction: column !important;
+            gap: 10px !important;
+          }
+
+          .spSum-eventLeft {
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+
+          .spSum-eventMeta {
+            width: 100% !important;
+            max-width: 100% !important;
+            justify-content: flex-start !important;
+            gap: 6px !important;
+          }
+
+          .spSum-statusPill,
+          .spSum-softPill {
+            max-width: 100% !important;
+            white-space: nowrap !important;
+            font-size: 11px !important;
+            line-height: 1.1 !important;
           }
 
           .spSum-quickGrid {
@@ -4300,6 +4326,7 @@ const styles: Record<string, CSSProperties> = {
   },
   eventLeft: {
     minWidth: 0,
+    flex: "1 1 auto",
     display: "grid",
     gap: 4,
   },
@@ -4328,6 +4355,8 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     flexWrap: "wrap",
     justifyContent: "flex-end",
+    flex: "0 0 auto",
+    maxWidth: "46%",
   },
   statusPill: {
     display: "inline-flex",
@@ -4336,6 +4365,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 999,
     fontSize: 12,
     fontWeight: 800,
+    whiteSpace: "nowrap",
   },
   softPill: {
     display: "inline-flex",
@@ -4346,6 +4376,7 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.10)",
     fontSize: 11,
     fontWeight: 900,
+    whiteSpace: "nowrap",
   },
   proposalContextLine: {
     fontSize: 11,

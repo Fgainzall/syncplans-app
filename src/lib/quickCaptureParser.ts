@@ -491,14 +491,16 @@ function normalizePossibleName(value: string) {
 
 function normalizeGenericGroupLabel(rawChunk: string): string | null {
   const value = normalizeForMatching(rawChunk);
+  const withoutArticle = value.replace(/^(el|la|los|las)\s+/, "");
 
-  if (!value) return null;
-  if (value === "los chicos" || value === "las chicas") return "Amigos";
-  if (value === "los amigos" || value === "las amigas") return "Amigos";
-  if (value === "amigos" || value === "amigas") return "Amigos";
-  if (value === "familia" || value === "mi familia") return "Familia";
-  if (value === "equipo" || value === "grupo") return "Equipo";
-  if (value === "todos" || value === "nosotros" || value === "ustedes") {
+  if (!withoutArticle) return null;
+  if (withoutArticle === "chicos" || withoutArticle === "chicas") return "Amigos";
+  if (withoutArticle === "amigos" || withoutArticle === "amigas") return "Amigos";
+  if (withoutArticle === "familia" || withoutArticle === "mi familia") return "Familia";
+  if (withoutArticle.startsWith("familia ")) return "Familia";
+  if (withoutArticle.startsWith("amigos ") || withoutArticle.startsWith("amigas ")) return "Amigos";
+  if (withoutArticle === "equipo" || withoutArticle === "grupo") return "Equipo";
+  if (withoutArticle === "todos" || withoutArticle === "nosotros" || withoutArticle === "ustedes") {
     return "Grupo";
   }
 
@@ -515,8 +517,9 @@ function splitParticipantChunk(chunk: string): string[] {
 function stripTrailingTimeAndDate(chunk: string) {
   return String(chunk ?? "")
     .replace(/\b(el|la|los|las)?\s*(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b.*$/i, "")
-    .replace(/\b(a\s+las|a\s+la|al|alas|de)\s+\d{1,2}(?::\d{2})?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b.*$/i, "")
+    .replace(/\b(a\s+las|a\s+la|al|alas|de)?\s*\d{1,2}(?::\d{2})?\s*(?:a\s+\d{1,2}(?::\d{2})?\s*)?(a\.?m\.?|p\.?m\.?|am|pm)?\b.*$/i, "")
     .replace(/\b(en casa de|en|por|cerca de|donde|junto a)\b.*$/i, "")
+    .replace(/\b(de|desde|hasta|a|al)\b\s*$/i, "")
     .replace(/\b(el|la|los|las)\b\s*$/i, "")
     .replace(/[.,;:!?]+$/g, "")
     .trim();
@@ -582,7 +585,12 @@ function removeParticipantPhrases(raw: string): string {
   let text = String(raw ?? "");
 
   text = text.replace(
-    /\b(con|junto a|en casa de)\s+(los chicos|las chicas|los amigos|las amigas|amigos|amigas|familia|mi familia|equipo|grupo|todos|nosotros|ustedes)\b/gi,
+    /\b(con|junto a|en casa de)\s+(?:el|la|los|las)?\s*(chicos|chicas|amigos|amigas|familia|mi familia|equipo|grupo|todos|nosotros|ustedes)\b/gi,
+    " "
+  );
+
+  text = text.replace(
+    /\b(en)\s+(?:el|la|los|las)?\s*(familia|pareja|grupo)\b/gi,
     " "
   );
 
@@ -877,9 +885,8 @@ function inferAmbiguousSingleTimePeriod(
   const context = normalizedText.slice(contextStart, contextEnd);
 
   if (
-    /\b(desayuno|brunch|manana|por la manana|de la manana|temprano|amanecer)\b/.test(
-      context
-    )
+    /\b(desayuno|brunch|temprano|amanecer)\b/.test(context) ||
+    /\b(por la|de la)\s+manana\b/.test(context)
   ) {
     return "am";
   }
@@ -916,10 +923,13 @@ function inferPeriodFromContext(
       : Math.min(normalizedText.length, 84);
   const context = normalizedText.slice(contextStart, contextEnd);
 
-  if (/\b(desayuno|brunch|manana|por la manana|temprano)\b/.test(context)) {
+  if (/\b(almuerzo|lunch|comer)\b/.test(context)) return "pm";
+  if (
+    /\b(desayuno|brunch|temprano)\b/.test(context) ||
+    /\b(por la|de la)\s+manana\b/.test(context)
+  ) {
     return "am";
   }
-  if (/\b(almuerzo|lunch|comer)\b/.test(context)) return "pm";
   if (/\b(de la|por la)\s+(noche|tarde)\b/.test(context)) return "pm";
   if (
     /\b(cena|cenar|cine|pelicula|peliculas|teatro|concierto|bar|tragos|drinks|fiesta|discoteca|previa|parrilla|fulbito|futbol|asado|after)\b/.test(
@@ -949,23 +959,25 @@ function extractTimeRange(text: string): {
   }
 
   const rangeMatch = String(text ?? "").match(
-    /\bde\s+(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?)?\s+a\s+(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?)?\b/i
+    /\b(?:de\s+)?(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\s+a\s+(\d{1,2})(?::(\d{2}))?\s?(a\.?m\.?|p\.?m\.?|am|pm)?\b/i
   );
 
   if (rangeMatch) {
     const inferredRangePeriod = inferPeriodFromContext(text, rangeMatch[0] ?? "");
+    const rawStartHour = parseInt(rangeMatch[1], 10);
+    const rawEndHour = parseInt(rangeMatch[4], 10);
     const startPeriod = rangeMatch[3] || inferredRangePeriod;
     const endPeriod = rangeMatch[6] || rangeMatch[3] || inferredRangePeriod;
-    const startHour = normalizeHourFromCapture(
-      parseInt(rangeMatch[1], 10),
-      startPeriod
-    );
+    const startHour = normalizeHourFromCapture(rawStartHour, startPeriod);
     const startMinutes = rangeMatch[2] ? parseInt(rangeMatch[2], 10) : 0;
-    const endHour = normalizeHourFromCapture(
-      parseInt(rangeMatch[4], 10),
-      endPeriod
-    );
+    let endHour = normalizeHourFromCapture(rawEndHour, endPeriod);
     const endMinutes = rangeMatch[5] ? parseInt(rangeMatch[5], 10) : 0;
+
+    // Caso típico en español: "de 12:30 a 1:30" suele significar 12:30–13:30,
+    // no 12:30–01:30. Si no hay AM/PM explícito, ajustamos el final.
+    if (!rangeMatch[3] && !rangeMatch[6] && startHour >= 12 && endHour < startHour && rawEndHour <= 11) {
+      endHour += 12;
+    }
 
     if (
       startHour <= 23 &&
@@ -1178,9 +1190,19 @@ function removeDateAndTimeTokens(text: string): string {
     .replace(/\b(\d+)\s?(min|mins|m|h|hora|horas)\b/gi, " ")
     .replace(/\b(en dos semanas)\b/gi, " ")
     .replace(/\b(el|la|los|las)\b(?=\s+(en casa de|en|donde|por|cerca de|junto a)\b)/gi, " ")
+    .replace(/\b(de|desde|hasta|a|al)\b(?=\s*$)/gi, " ")
     .replace(/\b(el|la|los|las)\b(?=\s*$)/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function cleanCapturedTitleText(raw: string): string {
+  return collapseSpaces(
+    removeParticipantPhrases(removeDateAndTimeTokens(raw))
+      .replace(/\b(con|junto a|para|por|en|de|desde|hasta|a|al)\b(?=\s*$)/gi, " ")
+      .replace(/\b(el|la|los|las)\b(?=\s*$)/gi, " ")
+      .replace(/^[,.;:\-\s]+|[,.;:\-\s]+$/g, " ")
+  );
 }
 
 function escapeRegExp(value: string) {
@@ -1200,7 +1222,7 @@ function findConnectorIndex(cleaned: string, connector: string) {
 }
 
 function splitTitleAndNotes(original: string): { title: string; notes: string } {
-  const cleaned = collapseSpaces(removeDateAndTimeTokens(original));
+  const cleaned = cleanCapturedTitleText(original);
 
   for (const connector of TITLE_NOTES_CONNECTORS) {
     const rawIndex = findConnectorIndex(cleaned, connector);
@@ -1281,9 +1303,7 @@ function cleanNotesFromParticipantIntent(notes: string, participants: string[]) 
 }
 
 function cleanFallbackTitle(raw: string): string {
-  const cleaned = collapseSpaces(
-    removeDateAndTimeTokens(removeParticipantPhrases(raw))
-  );
+  const cleaned = cleanCapturedTitleText(raw);
   if (!cleaned) return collapseSpaces(raw).slice(0, 40);
   return cleaned.slice(0, 60);
 }
