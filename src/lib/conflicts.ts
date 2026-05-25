@@ -151,6 +151,18 @@ export function filterIgnoredConflicts(
   });
 }
 
+export function isConflictStillRelevant(
+  conflict: Pick<ConflictItem, "overlapEnd"> | null | undefined,
+  nowMs = Date.now()
+): boolean {
+  if (!conflict?.overlapEnd) return true;
+
+  const endMs = toMs(String(conflict.overlapEnd));
+  if (!Number.isFinite(endMs)) return true;
+
+  return endMs >= nowMs;
+}
+
 /* =========================
    Soft-rejected / hidden events
    ========================= */

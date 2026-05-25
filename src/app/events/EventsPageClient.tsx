@@ -25,6 +25,7 @@ import { filterVisibleEvents } from "@/lib/tempeventVisibility";
 import {
   computeVisibleConflicts,
   filterIgnoredConflicts,
+  isConflictStillRelevant,
   type CalendarEvent,
 } from "@/lib/conflicts";
 import { getConflictDecisionSnapshot } from "@/lib/decisionEngine";
@@ -143,6 +144,16 @@ function isWithinNext24Hours(value: string | Date) {
   const d = value instanceof Date ? value : new Date(value);
   const diff = d.getTime() - now.getTime();
   return diff >= 0 && diff <= 24 * 60 * 60 * 1000;
+}
+
+function hasEventEnded(value: string | Date) {
+  const now = new Date();
+  const d = value instanceof Date ? value : new Date(value);
+  const time = d.getTime();
+
+  if (!Number.isFinite(time)) return false;
+
+  return time < now.getTime();
 }
 
 function shortDateLabel(value: string | Date) {
@@ -506,14 +517,19 @@ export default function EventsPage() {
     });
 
     const upcomingEvents = visibleEvents.filter((event) => new Date(event.start) >= now);
-    const historyEvents = visibleEvents.filter((event) => new Date(event.end) < now);
+    const historyEvents = visibleEvents.filter((event) => hasEventEnded(event.end));
+    const activeOrUpcomingEvents = visibleEvents.filter(
+      (event) => !hasEventEnded(event.end)
+    );
 
-    const eventsForConflictEngine = upcomingEvents
+    const eventsForConflictEngine = activeOrUpcomingEvents
       .map(toConflictCalendarEvent)
       .filter(Boolean) as CalendarEvent[];
 
     const pendingConflicts = filterIgnoredConflicts(
-      computeVisibleConflicts(eventsForConflictEngine),
+      computeVisibleConflicts(eventsForConflictEngine).filter((conflict) =>
+        isConflictStillRelevant(conflict)
+      ),
       ignoredConflictKeys
     ).filter((conflict) => {
       const snapshot = getConflictDecisionSnapshot({

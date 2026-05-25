@@ -40,6 +40,9 @@ type DbGroupWithType = {
   id?: string | number | null;
   type?: string | null;
 };
+
+const CONFLICTS_SCREEN_PAST_DAYS = 30;
+const CONFLICTS_SCREEN_FUTURE_DAYS = 365;
 function normalizeDbGroupType(raw: string | null | undefined): GroupType {
   return normalizeCanonicalGroupType(raw);
 }
@@ -84,11 +87,11 @@ function buildConflictsScreenWindow(): { startIso: string; endIso: string } {
   const now = new Date();
 
   const start = new Date(now);
-  start.setDate(start.getDate() - 30);
+  start.setDate(start.getDate() - CONFLICTS_SCREEN_PAST_DAYS);
   start.setHours(0, 0, 0, 0);
 
   const end = new Date(now);
-  end.setDate(end.getDate() + 180);
+  end.setDate(end.getDate() + CONFLICTS_SCREEN_FUTURE_DAYS);
   end.setHours(23, 59, 59, 999);
 
   return {

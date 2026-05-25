@@ -14,6 +14,7 @@ import {
   computeVisibleConflicts,
   attachEvents,
   filterIgnoredConflicts,
+  isConflictStillRelevant,
 } from "@/lib/conflicts";
 import { normalizeGroupType } from "@/lib/naming";
 import {
@@ -304,10 +305,12 @@ export default function DetectedClient() {
     const cx = computeVisibleConflicts(normalized);
     const visible = filterIgnoredConflicts(cx, ignoredConflictKeys);
 
-    return attachEvents(
+    return (attachEvents(
       visible,
       visibleEvents
-    ) as unknown as AttachedConflict[];
+    ) as unknown as AttachedConflict[]).filter((conflict) =>
+      isConflictStillRelevant(conflict)
+    );
   }, [visibleEvents, ignoredConflictKeys]);
 
   /**
