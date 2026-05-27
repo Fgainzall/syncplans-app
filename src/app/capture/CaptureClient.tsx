@@ -44,7 +44,7 @@ function pickIncomingSource(searchParams: ReturnType<typeof useSearchParams>) {
     searchParams.get("source")?.trim() ||
     searchParams.get("from")?.trim() ||
     searchParams.get("origin")?.trim() ||
-    "deep-link"
+    "manual"
   );
 }
 
@@ -109,12 +109,22 @@ function sentenceCase(value: string) {
 
 function humanizeSource(source: string) {
   const safe = source.trim().toLowerCase();
-  if (!safe) return "Link";
-  if (safe === "summary") return "Summary";
+  if (!safe || safe === "manual") return "Manual";
+  if (safe === "summary") return "Inicio";
   if (safe === "whatsapp") return "WhatsApp";
   if (safe === "copy_link") return "Link copiado";
-  if (safe === "deep-link") return "Link";
+  if (safe === "deep-link" || safe === "link") return "Link";
   return source;
+}
+
+function shouldReadClipboardForSource(source: string) {
+  const safe = source.trim().toLowerCase();
+  return (
+    safe === "deep-link" ||
+    safe === "link" ||
+    safe === "copy_link" ||
+    safe === "whatsapp"
+  );
 }
 
 export default function CaptureClient({ initialText = "" }: CaptureClientProps) {
@@ -129,6 +139,10 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   );
 
   const source = useMemo(() => pickIncomingSource(searchParams), [searchParams]);
+  const shouldReadClipboard = useMemo(
+    () => shouldReadClipboardForSource(source),
+    [source]
+  );
   const intent = useMemo(() => pickIntent(searchParams), [searchParams]);
   const proposalEventId = useMemo(
     () => pickProposalEventId(searchParams),
@@ -178,6 +192,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
 
   useEffect(() => {
     if (attemptedClipboardRef.current) return;
+    if (!shouldReadClipboard) return;
     if (incomingText.trim()) return;
     if (typeof window === "undefined") return;
     if (!window.isSecureContext) return;
@@ -206,7 +221,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
           "No pudimos leer tu portapapeles. Puedes pegar el texto manualmente."
         );
       });
-  }, [incomingText]);
+  }, [incomingText, shouldReadClipboard]);
 
   const parsed = useMemo(() => parseQuickCapture(draft.trim()), [draft]);
 
@@ -220,6 +235,14 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   const canContinue = Boolean(draft.trim() && normalizedTitle);
   const hasNotes = Boolean(prettyNotes);
   const isDraftEmpty = !draft.trim();
+  const isManualEntry =
+    source.trim().toLowerCase() === "manual" && !isSharedIntent;
+  const pageTitle = isManualEntry
+    ? "Crea tu plan rápido ✨"
+    : "Esto es lo que entendí 👇";
+  const pageSubtitle = isManualEntry
+    ? "Escribe tu plan como se lo contarías a alguien. Lo ordenamos antes de crearlo."
+    : "Revísalo y decide cómo quieres continuar.";
 
   const missingChecks = useMemo(
     () => ({
@@ -293,9 +316,9 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     const params = new URLSearchParams();
     params.set("qc", "1");
     params.set("from", "capture");
-params.set("capture_source", source);
-params.set("type", isSharedIntent ? "group" : "personal");
-params.set("title", normalizedTitle);
+    params.set("capture_source", source);
+    params.set("type", isSharedIntent ? "group" : "personal");
+    params.set("title", normalizedTitle);
     params.set("duration", String(durationMinutes));
     params.set("raw_text", draft.trim());
 
@@ -494,7 +517,7 @@ params.set("title", normalizedTitle);
               textTransform: "uppercase",
             }}
           >
-            Capture
+            {isManualEntry ? "Crear plan" : "Capture"}
           </span>
 
           <span
@@ -510,7 +533,7 @@ params.set("title", normalizedTitle);
               fontWeight: 700,
             }}
           >
-            Fuente: {humanizeSource(source)}
+            {isManualEntry ? "Entrada manual" : `Fuente: ${humanizeSource(source)}`}
           </span>
 
           {isSharedIntent ? (
@@ -578,7 +601,7 @@ params.set("title", normalizedTitle);
               letterSpacing: "-0.03em",
             }}
           >
-            Esto es lo que entendí 👇
+            {pageTitle}
           </h1>
 
           <p
@@ -590,7 +613,7 @@ params.set("title", normalizedTitle);
               color: "rgba(226, 232, 240, 0.82)",
             }}
           >
-            Revísalo y decide cómo quieres continuar.
+            {pageSubtitle}
           </p>
         </header>
 
