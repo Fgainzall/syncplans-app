@@ -398,6 +398,29 @@ function buildContextualPlaceLabel(cleanedQuery: string, rawText: string): strin
   if (normalizedRaw.includes("en lo de ")) return `en lo de ${prettyLabel}`;
   return prettyLabel;
 }
+function buildPlaceMemoryAlias(input: { locationInput: string; rawText: string }): string | null {
+  const candidates = [input.locationInput, input.rawText];
+
+  for (const candidate of candidates) {
+    const value = String(candidate || "").trim();
+    if (!value) continue;
+
+    const houseMatch = value.match(/\b(?:en\s+)?(?:la\s+|el\s+)?casa\s+de\s+([^.;:!?]+?)(?=\s+(?:a\s+las|a\s+la|al|alas|hoy|mañana|manana|lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)\b|[.;:!?]|$)/i);
+    if (houseMatch?.[1]) {
+      const name = cleanContextualPlaceQuery(String(houseMatch[1] || ""));
+      if (name) return `Casa de ${prettifyContextualPlaceName(name)}`;
+    }
+
+    const depaMatch = value.match(/\b(?:en\s+)?(?:el\s+)?(?:depa|departamento)\s+de\s+([^.;:!?]+?)(?=\s+(?:a\s+las|a\s+la|al|alas|hoy|mañana|manana|lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)\b|[.;:!?]|$)/i);
+    if (depaMatch?.[1]) {
+      const name = cleanContextualPlaceQuery(String(depaMatch[1] || ""));
+      if (name) return `Depa de ${prettifyContextualPlaceName(name)}`;
+    }
+  }
+
+  return null;
+}
+
 
 function getContextualPlaceDecision(
   rawText: string,
@@ -3077,11 +3100,17 @@ useEffect(() => {
   };
 
   const handleSelectPlace = (item: MapsPlaceSuggestion) => {
+    const rawLabel = String(item.label ?? "").trim() || String(item.address ?? "").trim();
+    const rawAddress = String(item.address ?? "").trim() || rawLabel;
+    const placeMemoryAlias = buildPlaceMemoryAlias({
+      locationInput,
+      rawText: String(rawTextParam || quickCaptureTitleParam || title || ""),
+    });
+    const labelForMemory = placeMemoryAlias || rawLabel;
+
     const normalized: SelectedPlace = {
-      location_label:
-        String(item.label ?? "").trim() || String(item.address ?? "").trim(),
-      location_address:
-        String(item.address ?? "").trim() || String(item.label ?? "").trim(),
+      location_label: labelForMemory,
+      location_address: rawAddress,
       location_lat: Number(item.lat),
       location_lng: Number(item.lng),
       location_provider: "google",
@@ -3089,7 +3118,16 @@ useEffect(() => {
     };
 
     setSelectedPlace(normalized);
-    setLearnedPlaceNotice(null);
+    setLearnedPlaceNotice(
+      placeMemoryAlias
+        ? {
+            alias: placeMemoryAlias,
+            locationLabel: labelForMemory,
+            locationAddress: rawAddress,
+            source: "summary",
+          }
+        : null,
+    );
     setLocationInput(normalized.location_label);
     setAutocompleteResults([]);
     setAutocompleteError(null);

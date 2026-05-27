@@ -468,7 +468,7 @@ function nextOccurrenceOfDay(base: Date, targetDay: number) {
   const result = new Date(base);
   const currentDay = result.getDay();
   let diff = targetDay - currentDay;
-  if (diff <= 0) diff += 7;
+  if (diff < 0) diff += 7;
   result.setDate(result.getDate() + diff);
   return result;
 }
@@ -675,7 +675,7 @@ function detectLocationIntent(raw: string): {
   const text = String(raw ?? "");
 
   const houseMatch = text.match(
-    /\ben\s+casa\s+de\s+([^.;:!?]+(?:\s+[^.;:!?]+){0,5})/i
+    /\ben\s+(?:la\s+|el\s+)?casa\s+de\s+([^.;:!?]+(?:\s+[^.;:!?]+){0,5})/i
   );
   if (houseMatch) {
     const cleaned = sanitizeLocationFragment(`Casa de ${houseMatch[1] ?? ""}`);
@@ -810,7 +810,7 @@ function detectSignals(
       normalized
     );
   const mentionsAtSymbolLocation = /@[^\s,.;:!?]+/.test(raw);
-  const mentionsHouseOfLocation = /\ben\s+casa\s+de\s+[a-záéíóúñ]/i.test(raw);
+  const mentionsHouseOfLocation = /\ben\s+(?:la\s+|el\s+)?casa\s+de\s+[a-záéíóúñ]/i.test(raw);
 
   let confidenceScore = 0;
   if (hasExplicitDate) confidenceScore += 1;
@@ -1131,15 +1131,8 @@ function extractDay(text: string): Date | null {
     if (!regex.test(normalized)) continue;
 
     let result = nextOccurrenceOfDay(today, dayIndex);
-    if (hasNextWeekIntent || hasOtherDayIntent) result = addDays(result, 7);
-    if (hasTwoWeeksIntent) result = addDays(result, 14);
-    else if (
-      hasNextDayIntent &&
-      !hasNextWeekIntent &&
-      !hasOtherDayIntent
-    ) {
-      result = nextOccurrenceOfDay(addDays(today, 1), dayIndex);
-    }
+    if (hasNextWeekIntent || hasOtherDayIntent || hasNextDayIntent) result = addDays(result, 7);
+    if (hasTwoWeeksIntent) result = addDays(nextOccurrenceOfDay(today, dayIndex), 14);
     return result;
   }
 
@@ -1256,7 +1249,7 @@ function cleanNotesFromLocationIntent(
     const houseName = locationQuery.replace(/^Casa\s+de\s+/i, "").trim();
     const escapedHouseName = houseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     next = next.replace(
-      new RegExp(`\\ben\\s+casa\\s+de\\s+(${escaped}|${escapedHouseName})\\b`, "i"),
+      new RegExp(`\\ben\\s+(?:la\\s+|el\\s+)?casa\\s+de\\s+(${escaped}|${escapedHouseName})\\b`, "i"),
       ""
     );
   } else {
@@ -1368,12 +1361,16 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
   const locationIntent = detectLocationIntent(raw);
   const explicitRange = extractExplicitDateRange(raw);
   const explicitSingleDate = explicitRange ? null : extractExplicitSingleDate(raw);
-  const date = explicitRange?.start ?? explicitSingleDate ?? extractDay(raw);
   const rawTimeRange = extractTimeRange(raw);
   const explicitClockTime = extractExplicitSingleClock(raw);
   const timeRange = explicitRange
     ? explicitClockTime ?? { startHour: null, startMinutes: 0, endHour: null, endMinutes: 0 }
     : rawTimeRange;
+  const date =
+    explicitRange?.start ??
+    explicitSingleDate ??
+    extractDay(raw) ??
+    (timeRange.startHour !== null ? startOfToday() : null);
   const inferredDuration = extractDuration(normalized);
 
   let finalDate: Date | null = null;
@@ -1436,7 +1433,7 @@ export function parseQuickCapture(input: string): ParsedQuickCapture {
     locationSource: locationIntent.locationSource,
     signals: {
       ...signals,
-      hasExplicitDate: signals.hasExplicitDate || !!date || !!explicitRange,
+      hasExplicitDate: signals.hasExplicitDate || !!explicitSingleDate || !!explicitRange,
       hasExplicitTime:
         signals.hasExplicitTime || timeRange.startHour !== null,
       confidence:
