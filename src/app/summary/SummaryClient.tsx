@@ -26,6 +26,7 @@ import {
   getSuggestionContextLabel,
 } from "@/lib/timeSuggestions";
 import supabase from "@/lib/supabaseClient";
+import { upsertProposalResponse } from "@/lib/proposalResponsesDb";
 import {
   findLearnedPlaceMatch,
   getLearningSignals,
@@ -1225,6 +1226,8 @@ function EventRow({
   proposalBadge,
   statusBadge,
   onClick,
+  onConfirm,
+  confirming = false,
   featured = false,
 }: {
   event: SummaryEvent;
@@ -1233,6 +1236,8 @@ function EventRow({
   proposalBadge: ProposalBadge | null;
   statusBadge: StatusBadge | null;
   onClick: () => void;
+  onConfirm?: () => void;
+  confirming?: boolean;
   featured?: boolean;
 }) {
   const start = event.start as Date;
@@ -1245,11 +1250,23 @@ function EventRow({
   const audienceLabel = getEventAudienceLabel(event.raw ?? event, {
     groupLabel: event.groupId ? "Grupo" : null,
   });
+  const canConfirm =
+    Boolean(onConfirm) &&
+    Boolean(event.groupId) &&
+    String(statusBadge?.label ?? "").toLowerCase().includes("confirmar");
+
+  const handleKeyDown = (eventKey: React.KeyboardEvent<HTMLDivElement>) => {
+    if (eventKey.key !== "Enter" && eventKey.key !== " ") return;
+    eventKey.preventDefault();
+    onClick();
+  };
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
       style={{
         ...(featured ? styles.featuredEventRow : styles.eventRow),
         ...(highlight ? styles.eventRowHighlight : null),
@@ -1272,9 +1289,23 @@ function EventRow({
         {!statusBadge && proposalBadge ? (
           <ProposalPill badge={proposalBadge} />
         ) : null}
+        {canConfirm ? (
+          <button
+            type="button"
+            onClick={(clickEvent) => {
+              clickEvent.preventDefault();
+              clickEvent.stopPropagation();
+              onConfirm?.();
+            }}
+            disabled={confirming}
+            style={styles.confirmEventBtn}
+          >
+            {confirming ? "Confirmando…" : "Confirmar"}
+          </button>
+        ) : null}
         <span style={styles.softPill} className="spSum-softPill">{audienceLabel}</span>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -1289,6 +1320,8 @@ function UpcomingSection({
   getProposalBadgeForEvent,
   getStatusBadgeForEvent,
   onOpenCalendar,
+  onConfirmEvent,
+  confirmingEventIds,
   showCreateGroupNudge,
 }: {
   booting: boolean;
@@ -1307,6 +1340,8 @@ function UpcomingSection({
     eventId: string | null | undefined,
   ) => StatusBadge | null;
   onOpenCalendar: () => void;
+  onConfirmEvent: (event: SummaryEvent) => void;
+  confirmingEventIds: Set<string>;
   showCreateGroupNudge: boolean;
 }) {
   if (booting) {
@@ -1377,6 +1412,8 @@ function UpcomingSection({
           proposalBadge={getProposalBadgeForEvent(nextEvent.id)}
           statusBadge={getStatusBadgeForEvent(nextEvent.id)}
           onClick={onOpenCalendar}
+          onConfirm={() => onConfirmEvent(nextEvent)}
+          confirming={confirmingEventIds.has(String(nextEvent.id ?? ""))}
           featured
         />
 
@@ -1391,6 +1428,8 @@ function UpcomingSection({
             proposalBadge={getProposalBadgeForEvent(event.id)}
             statusBadge={getStatusBadgeForEvent(event.id)}
             onClick={onOpenCalendar}
+            onConfirm={() => onConfirmEvent(event)}
+            confirming={confirmingEventIds.has(String(event.id ?? ""))}
           />
         ))}
       </div>
@@ -1450,6 +1489,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const [pendingInviteCount, setPendingInviteCount] = useState(0);
   const [pendingCaptureCount, setPendingCaptureCount] = useState(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [confirmingEventIds, setConfirmingEventIds] = useState<Set<string>>(() => new Set());
   const [profile, setProfile] = useState<Profile | null>(null);
   const [dismissedPremiumNudge] = useState(false);
   const [summaryNow, setSummaryNow] = useState(() => new Date());
@@ -1479,6 +1519,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     smartMobility,
     conflictDataReady,
     showToast,
+    refreshSummary,
   } = useSummaryData({ appliedToast });
 
   useEffect(() => {
@@ -3333,6 +3374,60 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     showInviteNudge,
   ]);
 
+  const handleConfirmFromSummary = useCallback(
+    async (event: SummaryEvent) => {
+      const eventId = String(event?.id ?? "").trim();
+      const userId = String(currentUserId ?? "").trim();
+
+      if (!eventId) return;
+
+      if (!userId) {
+        showToast(
+          "Inicia sesión para confirmar",
+          "Necesitamos identificar tu respuesta antes de marcar el plan como confirmado.",
+        );
+        return;
+      }
+
+      setConfirmingEventIds((prev) => {
+        const next = new Set(prev);
+        next.add(eventId);
+        return next;
+      });
+
+      try {
+        await upsertProposalResponse({
+          eventId,
+          userId,
+          response: "accepted",
+        });
+
+        showToast(
+          "Plan confirmado",
+          `${event.title || "Este plan"} ya quedó marcado como confirmado.`,
+        );
+
+        await refreshSummary();
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("sp:notifications-changed"));
+        }
+      } catch {
+        showToast(
+          "No pudimos confirmar el plan",
+          "Intenta nuevamente o abre el detalle del plan.",
+        );
+      } finally {
+        setConfirmingEventIds((prev) => {
+          const next = new Set(prev);
+          next.delete(eventId);
+          return next;
+        });
+      }
+    },
+    [currentUserId, refreshSummary, showToast],
+  );
+
   const getStatusBadgeForEvent = useCallback(
     (eventId: string | null | undefined): StatusBadge | null => {
       const key = String(eventId ?? "").trim();
@@ -3460,6 +3555,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                     block: "summary_calendar",
                   })
                 }
+                onConfirmEvent={handleConfirmFromSummary}
+                confirmingEventIds={confirmingEventIds}
                 showCreateGroupNudge={showCreateGroupNudge}
               />
 
@@ -4404,6 +4501,21 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     fontWeight: 800,
     whiteSpace: "nowrap",
+  },
+  confirmEventBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 31,
+    padding: "6px 11px",
+    borderRadius: 999,
+    border: "1px solid rgba(52,211,153,0.32)",
+    background: "rgba(16,185,129,0.18)",
+    color: "rgba(209,250,229,0.98)",
+    fontSize: 12,
+    fontWeight: 950,
+    whiteSpace: "nowrap",
+    cursor: "pointer",
   },
   softPill: {
     display: "inline-flex",

@@ -963,6 +963,16 @@ export function notificationHref(n: NotificationRow): string {
     return "/invitations";
   }
 
+  if (t === "event_created") {
+    const eventId = n.payload?.event_id || n.payload?.eventId || n.entity_id || null;
+
+    if (eventId) {
+      return `/events/new/details?eventId=${encodeURIComponent(String(eventId))}&from=notification`;
+    }
+
+    return "/calendar";
+  }
+
   if (t === "event_rejected") {
     const eventId = n.payload?.event_id || n.entity_id || null;
 

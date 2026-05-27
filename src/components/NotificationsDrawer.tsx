@@ -14,6 +14,8 @@ import {
 } from "@/lib/notificationsDb";
 import { getMyInvitations, type GroupInvitation } from "@/lib/invitationsDb";
 import { formatSmartTime } from "@/lib/timeFormat";
+import supabase from "@/lib/supabaseClient";
+import { upsertProposalResponse } from "@/lib/proposalResponsesDb";
 
 export type NavigationMode = "push" | "replace";
 
@@ -48,6 +50,24 @@ function payloadString(
   }
 
   return fallback;
+}
+
+function eventIdForNotification(n: NotificationRow): string | null {
+  const payload = payloadFor(n);
+  const raw =
+    payloadString(payload, "event_id") ||
+    payloadString(payload, "eventId") ||
+    payloadString(payload, "targetEventId") ||
+    payloadString(payload, "affectedEventId") ||
+    String(n.entity_id ?? "").trim();
+
+  return raw ? raw : null;
+}
+
+function canConfirmPlanFromNotification(n: NotificationRow): boolean {
+  const type = String(n.type || "").toLowerCase();
+  if (type !== "event_created") return false;
+  return Boolean(eventIdForNotification(n));
 }
 
 function payloadDisplayValue(
@@ -183,6 +203,7 @@ function actionLabelFor(n: NotificationRow): string {
   const type = String(n.type || "").toLowerCase();
   if (type === "group_invite") return "Ver invitación";
   if (type === "leave_alert") return "Abrir ruta";
+  if (type === "event_created") return "Ver plan";
   return "Abrir";
 }
 
@@ -321,7 +342,7 @@ function typeLabel(n: NotificationRow): string {
   if (t === "conflict" || t === "conflict_detected") return "Conflicto";
   if (t === "conflict_decision") return "Decisión aplicada";
   if (t === "conflict_auto_adjusted") return "Ajuste automático";
-  if (t === "event_created" || t === "event_deleted") return "Evento";
+  if (t === "event_created" || t === "event_deleted") return "Plan";
   if (t === "leave_alert") return "Salida inteligente";
   if (t === "event_rejected") return "Decisión";
   if (t === "group_message") return "Mensaje";
@@ -632,6 +653,59 @@ export default function NotificationsDrawer({
     }
   }
 
+  async function onConfirmPlanFromNotification(n: NotificationRow) {
+    const type = String(n.type || "").toLowerCase();
+    if (type !== "event_created") return;
+
+    const eventId = eventIdForNotification(n);
+    const id = String(n.id);
+
+    if (!eventId) {
+      setToast({
+        title: "No encontramos el plan",
+        subtitle: "Abre la notificación para revisar el detalle.",
+      });
+      return;
+    }
+
+    try {
+      busyIds.current.add(id);
+
+      const { data, error } = await supabase.auth.getUser();
+      const userId = String(data?.user?.id ?? "").trim();
+
+      if (error || !userId) {
+        throw error || new Error("No authenticated user");
+      }
+
+      await upsertProposalResponse({
+        eventId,
+        userId,
+        response: "accepted",
+      });
+
+      setItems((prev) => prev.filter((x) => String(x.id) !== id));
+      await markNotificationRead(id);
+
+      setToast({
+        title: "Plan confirmado",
+        subtitle: "Ya no debería aparecer como por confirmar.",
+      });
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("sp:notifications-changed"));
+      }
+    } catch {
+      setToast({
+        title: "No pudimos confirmar el plan",
+        subtitle: "Intenta abrirlo y confirmar desde el detalle.",
+      });
+      void refreshFromDb(true);
+    } finally {
+      busyIds.current.delete(id);
+    }
+  }
+
   async function onDeleteNotificationClick(n: NotificationRow) {
     const type = String(n.type || "").toLowerCase();
     if (type === "group_invite") return;
@@ -708,6 +782,16 @@ export default function NotificationsDrawer({
                 >
                   Actualizar
                 </button>
+                <button
+                  type="button"
+                  style={smallSoftBtn}
+                  onClick={() => {
+                    navTo("/settings/notifications");
+                    onClose();
+                  }}
+                >
+                  Activar iPhone
+                </button>
                 <button type="button" style={iconBtn} onClick={onClose}>
                   ✕
                 </button>
@@ -739,6 +823,10 @@ export default function NotificationsDrawer({
                 </button>
               </div>
             )}
+
+            <div style={pushHintBox}>
+              <b>¿No te aparecen en iPhone?</b> Abre SyncPlans desde el ícono de pantalla de inicio y activa notificaciones desde Ajustes. Safari no siempre muestra push si entras solo desde el navegador.
+            </div>
 
             <div style={body}>
               {loading && items.length === 0 ? (
@@ -848,6 +936,20 @@ export default function NotificationsDrawer({
                             ...(isMobile ? rowActionsMobile : null),
                           }}
                         >
+                          {canConfirmPlanFromNotification(n) ? (
+                            <button
+                              type="button"
+                              onClick={() => void onConfirmPlanFromNotification(n)}
+                              disabled={isBusy}
+                              style={{
+                                ...confirmPlanBtn,
+                                ...(isMobile ? mobileActionBtn : null),
+                              }}
+                            >
+                              Confirmar plan
+                            </button>
+                          ) : null}
+
                           <button
                             type="button"
                             onClick={() => void onOpenNotification(n)}
@@ -994,6 +1096,17 @@ const bulkActionsRowMobile: React.CSSProperties = {
   flexDirection: "column",
 };
 
+const pushHintBox: React.CSSProperties = {
+  marginTop: 12,
+  padding: "10px 12px",
+  borderRadius: 14,
+  border: "1px solid rgba(56,189,248,0.18)",
+  background: "rgba(8,47,73,0.20)",
+  color: "rgba(226,232,240,0.76)",
+  fontSize: 12,
+  lineHeight: 1.45,
+};
+
 const body: React.CSSProperties = {
   marginTop: 16,
   flex: 1,
@@ -1128,6 +1241,18 @@ const dangerHeaderBtn: React.CSSProperties = {
   color: "rgba(254,242,242,0.98)",
   fontSize: 13,
   fontWeight: 800,
+};
+
+const confirmPlanBtn: React.CSSProperties = {
+  border: "1px solid rgba(52,211,153,0.28)",
+  background: "rgba(16,185,129,0.18)",
+  color: "rgba(209,250,229,0.98)",
+  minHeight: 36,
+  padding: "0 13px",
+  borderRadius: 12,
+  fontSize: 12,
+  fontWeight: 950,
+  cursor: "pointer",
 };
 
 const primaryRowBtn: React.CSSProperties = {
