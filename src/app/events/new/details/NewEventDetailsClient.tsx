@@ -50,7 +50,6 @@ import {
   getEventById,
   updateEvent,
 } from "@/lib/eventsDb";
-import { getOrCreatePublicInvite } from "@/lib/invitationsDb";
 // ✅ active group desde DB
 import { getActiveGroupIdFromDb } from "@/lib/activeGroup";
 import { loadEventsForConflictPreflight } from "@/lib/conflictsDbBridge";
@@ -161,6 +160,87 @@ function getSafeDurationMinutes(start: Date, end: Date) {
   const diff = end.getTime() - start.getTime();
   if (!Number.isFinite(diff) || diff <= 0) return 60;
   return Math.max(15, Math.round(diff / 60000));
+}
+
+type PostSaveShareContext = {
+  title?: string | null;
+  timeLabel?: string | null;
+  locationLabel?: string | null;
+  groupLabel?: string | null;
+  isShared?: boolean;
+};
+
+function compactShareLine(label: string, value: string | null | undefined) {
+  const safeValue = String(value ?? "").trim();
+  if (!safeValue || safeValue.toLowerCase() === "sin ubicación") return "";
+  return `${label}: ${safeValue}`;
+}
+
+function buildSmartPlanShareText(input: PostSaveShareContext, shareUrl: string) {
+  const title = String(input.title ?? "").trim() || "este plan";
+  const lines = [
+    `Te comparto este plan en SyncPlans: ${title}`,
+    compactShareLine("Cuándo", input.timeLabel),
+    compactShareLine("Dónde", input.locationLabel),
+    input.isShared ? compactShareLine("Espacio", input.groupLabel) : "",
+    "",
+    "Ábrelo para confirmar, rechazar o proponer un cambio:",
+    shareUrl,
+  ].filter((line, index, arr) => {
+    if (line !== "") return true;
+    return arr[index - 1] !== "" && arr[index + 1] !== "";
+  });
+
+  return lines.join("\n").trim();
+}
+
+async function createPublicInviteShareUrl(eventId: string) {
+  const response = await fetch("/api/public-invite/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ eventId }),
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      typeof payload?.error === "string" && payload.error.trim()
+        ? payload.error.trim()
+        : "No se pudo generar el link del plan.";
+    throw new Error(message);
+  }
+
+  const token = String(
+    payload?.invite?.token ?? payload?.token ?? payload?.data?.invite?.token ?? ""
+  ).trim();
+
+  if (!token) throw new Error("No se pudo generar el link del plan.");
+
+  return `${window.location.origin}/invite/${token}`;
+}
+
+async function copyShareTextToClipboard(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  try {
+    return document.execCommand("copy");
+  } finally {
+    document.body.removeChild(textarea);
+  }
 }
 
 
@@ -3749,32 +3829,24 @@ useEffect(() => {
 
       setSharingPostSave(true);
 
-      const invite = await getOrCreatePublicInvite({
-        eventId: postSaveActions.eventId,
-      });
-
-      const token =
-        typeof invite === "string"
-          ? invite
-          : invite?.token || invite?.id || null;
-
-      if (!token) {
-        throw new Error("No se pudo generar el link.");
-      }
-
-      const shareUrl = `${window.location.origin}/invite/${token}`;
+      const shareUrl = await createPublicInviteShareUrl(postSaveActions.eventId);
+      const shareText = buildSmartPlanShareText(postSaveActions, shareUrl);
       setPostSaveShareUrl(shareUrl);
 
       if (navigator.share) {
         try {
           await navigator.share({
-            title: postSaveActions.title || "Plan compartido",
-            text: postSaveActions.title
-              ? `Te comparto este plan: ${postSaveActions.title}`
-              : "Te comparto este plan.",
+            title: postSaveActions.title
+              ? `SyncPlans · ${postSaveActions.title}`
+              : "SyncPlans · Plan compartido",
+            text: shareText,
             url: shareUrl,
           });
 
+          setToast({
+            title: "Plan listo para coordinar ✅",
+            subtitle: "La otra persona solo verá este plan, no tu calendario completo.",
+          });
           return;
         } catch (shareErr: unknown) {
           if ((shareErr instanceof DOMException ? shareErr.name : "") === "AbortError") {
@@ -3783,18 +3855,13 @@ useEffect(() => {
         }
       }
 
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shareUrl);
-        setToast({
-          title: "Link copiado ✅",
-          subtitle: "Ya puedes compartirlo donde quieras.",
-        });
-      } else {
-        setToast({
-          title: "Link listo ✅",
-          subtitle: "Cópialo manualmente desde la caja de abajo.",
-        });
-      }
+      const copied = await copyShareTextToClipboard(shareText);
+      setToast({
+        title: copied ? "Mensaje copiado ✅" : "Link listo ✅",
+        subtitle: copied
+          ? "Pégalo en WhatsApp, iMessage, correo o donde quieras."
+          : "Cópialo manualmente desde la caja de abajo.",
+      });
     } catch (err: unknown) {
       setToast({
         title: "No se pudo compartir",
@@ -4755,12 +4822,18 @@ useEffect(() => {
               onShare={handleSharePostSave}
               onCreateAnother={handleCreateAnotherSimilar}
               onCopyLink={async () => {
-                if (!postSaveShareUrl) return;
+                if (!postSaveShareUrl || !postSaveActions) return;
                 try {
-                  await navigator.clipboard.writeText(postSaveShareUrl);
+                  const shareText = buildSmartPlanShareText(
+                    postSaveActions,
+                    postSaveShareUrl,
+                  );
+                  const copied = await copyShareTextToClipboard(shareText);
                   setToast({
-                    title: "Link copiado ✅",
-                    subtitle: "Ya puedes compartirlo donde quieras.",
+                    title: copied ? "Mensaje copiado ✅" : "Link listo ✅",
+                    subtitle: copied
+                      ? "Pégalo en WhatsApp, iMessage, correo o donde quieras."
+                      : "Cópialo manualmente desde aquí.",
                   });
                 } catch {
                   setToast({
