@@ -186,15 +186,9 @@ export default function GroupsPage() {
 
   const headerSubtitle =
     summary.total === 0
-      ? "Personas con las que te organizas."
-      : `Tienes ${summary.total} grupo${
-          summary.total === 1 ? "" : "s"
-        } para coordinar tu tiempo.`;
+      ? "Crea tu primer espacio compartido cuando necesites coordinar con otra persona."
+      : `Tus espacios compartidos en un solo lugar.`;
 
-  const invitationsLabel =
-    pendingInvites === 0
-      ? "Invitaciones"
-      : `Invitaciones (${pendingInvites})`;
 
   if (booting) {
     return (
@@ -237,7 +231,7 @@ export default function GroupsPage() {
       <Section>
         <PremiumHeader
           title="Grupos"
-          subtitle="Organiza tus espacios compartidos y define desde dónde se coordina el tiempo."
+          subtitle="Tus grupos, miembros e invitaciones viven aquí."
         />
 
         <Card style={styles.surfaceCard}>
@@ -250,13 +244,15 @@ export default function GroupsPage() {
               </div>
 
               <div style={{ ...styles.topActions, ...(isNarrow ? styles.mobileTopActions : {}) }}>
-                <button
-                  type="button"
-                  style={{ ...styles.secondary, ...(isNarrow ? styles.mobileFullButton : {}) }}
-                  onClick={() => router.push("/invitations")}
-                >
-                  {invitationsLabel}
-                </button>
+                {pendingInvites > 0 ? (
+                  <button
+                    type="button"
+                    style={{ ...styles.secondary, ...(isNarrow ? styles.mobileFullButton : {}) }}
+                    onClick={() => router.push("/invitations")}
+                  >
+                    Revisar invitaciones ({pendingInvites})
+                  </button>
+                ) : null}
 
                 <button
                   type="button"
@@ -265,72 +261,30 @@ export default function GroupsPage() {
                     reachedGroupLimit ? router.push("/planes") : router.push("/groups/new")
                   }
                 >
-                  {reachedGroupLimit ? "Ver planes" : "+ Nuevo grupo"}
+                  {reachedGroupLimit ? "Ver planes" : "Crear grupo"}
                 </button>
               </div>
             </div>
 
-            <Card tone="muted" style={{ ...styles.heroSection, ...(isNarrow ? styles.mobileHeroSection : {}) }}>
-              <div style={{ ...styles.heroLeft, ...(isNarrow ? styles.mobileHeroLeft : {}) }}>
-                <div style={styles.heroPill}>
-                  <span style={styles.heroDot} />
-                  Personas con las que te organizas
-                </div>
-
-                <h2 style={styles.heroTitle}>
-                  Grupos para coordinar sin fricciones
-                </h2>
-
-                <p style={styles.heroText}>
-                  Cada grupo tiene su propio calendario compartido. Aquí decides
-                  con quién se cruzan tus planes: pareja, familia o grupos
-                  compartidos como amigos, deporte o equipos.
-                </p>
-
-                <div style={styles.heroTip}>
-                  <div style={styles.heroTipLabel}>Tip</div>
-                  <p style={styles.heroTipText}>
-                    Crea primero el grupo de <b>Pareja</b> o <b>Familia</b>.
-                    Después puedes sumar grupos compartidos y dejar que
-                    SyncPlans te señale los choques con claridad.
+            {pendingInvites > 0 ? (
+              <Card tone="muted" style={styles.pendingBanner}>
+                <div>
+                  <div style={styles.pendingBadge}>Invitación pendiente</div>
+                  <h2 style={styles.pendingTitle}>Tienes una invitación por revisar</h2>
+                  <p style={styles.pendingText}>
+                    Acéptala o recházala desde Invitaciones. Cuando la aceptes, el grupo aparecerá aquí.
                   </p>
                 </div>
-              </div>
 
-              <Card tone="strong" style={{ ...styles.heroSummary, ...(isNarrow ? styles.mobileHeroSummary : {}) }}>
-                <div style={styles.heroSummaryTitle}>Resumen de tus grupos</div>
-
-                <div style={styles.heroSummaryRow}>
-                  <span style={styles.heroSummaryDotPair} />
-                  <span>
-                    {summary.pair} de pareja
-                    {summary.pair === 1 ? "" : "s"}
-                  </span>
-                </div>
-
-                <div style={styles.heroSummaryRow}>
-                  <span style={styles.heroSummaryDotFamily} />
-                  <span>
-                    {summary.family} de familia
-                    {summary.family === 1 ? "" : "s"}
-                  </span>
-                </div>
-
-                <div style={styles.heroSummaryRow}>
-                  <span style={styles.heroSummaryDotShared} />
-                  <span>
-                    {summary.shared} compartido
-                    {summary.shared === 1 ? "" : "s"}
-                  </span>
-                </div>
-
-                <div style={styles.heroSummaryHint}>
-                  El grupo activo se usa como base para eventos compartidos y
-                  conflictos.
-                </div>
+                <button
+                  type="button"
+                  style={{ ...styles.primary, ...(isNarrow ? styles.mobileFullButton : {}) }}
+                  onClick={() => router.push("/invitations")}
+                >
+                  Revisar ahora
+                </button>
               </Card>
-            </Card>
-
+            ) : null}
 
             {reachedGroupLimit ? (
               <Card tone="muted" style={styles.limitBanner}>
@@ -426,8 +380,8 @@ export default function GroupsPage() {
               <Card tone="muted" style={styles.emptyState}>
                 <h2 style={styles.emptyTitle}>Aún no tienes grupos</h2>
                 <p style={styles.emptySub}>
-                  Crea tu primer grupo de pareja, familia o compartido para
-                  empezar a coordinar con otros.
+                  Crea un grupo solo cuando quieras coordinar planes con otra persona.
+                  Si ya tienes una invitación pendiente, revísala arriba.
                 </p>
                 <div style={styles.emptyActions}>
                   <button
@@ -490,10 +444,11 @@ function GroupRow({
             </span>
             <span style={styles.dotSeparator}>•</span>
             <span style={styles.groupMetaMembers}>
-              {g.members_count} persona{g.members_count === 1 ? "" : "s"}
+              {g.members_count} miembro{g.members_count === 1 ? "" : "s"}
             </span>
-            <span style={styles.dotSeparator}>•</span>
-            <span style={styles.groupMetaRole}>{roleLabel(g.role)}</span>
+          </div>
+          <div style={styles.groupHint}>
+            Abre el grupo para ver miembros, invitaciones y planes.
           </div>
         </div>
       </div>
@@ -513,20 +468,10 @@ function GroupRow({
 
         <button
           type="button"
-          style={{ ...styles.inviteBtn, ...(isNarrow ? styles.mobileActionPill : {}) }}
-          onClick={() =>
-            router.push(`/groups/invite?groupId=${encodeURIComponent(String(g.id))}`)
-          }
-        >
-          Invitar
-        </button>
-
-        <button
-          type="button"
           style={{ ...styles.linkBtn, ...(isNarrow ? styles.mobileActionPill : {}) }}
           onClick={() => router.push(`/groups/${g.id}`)}
         >
-          Ver detalles
+          Abrir
         </button>
       </div>
     </Card>
@@ -555,17 +500,6 @@ function useIsNarrowScreen() {
   }, []);
 
   return isNarrow;
-}
-
-function roleLabel(role: GroupRole) {
-  switch (role) {
-    case "owner":
-      return "Propietario";
-    case "admin":
-      return "Admin";
-    default:
-      return "Miembro";
-  }
 }
 
 function metaForGroupType(type: string) {
@@ -677,6 +611,46 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     flexWrap: "wrap",
     width: "100%",
+  },
+
+  pendingBanner: {
+    marginTop: 2,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 14,
+    flexWrap: "wrap",
+    border: "1px solid rgba(56,189,248,0.24)",
+    background:
+      "linear-gradient(135deg, rgba(14,165,233,0.14), rgba(59,130,246,0.08))",
+  },
+  pendingBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: 999,
+    padding: "6px 10px",
+    background: "rgba(56,189,248,0.13)",
+    border: "1px solid rgba(56,189,248,0.22)",
+    color: "#bae6fd",
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: "0.10em",
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  pendingTitle: {
+    margin: 0,
+    fontSize: "clamp(16px, 4.8vw, 19px)",
+    fontWeight: 950,
+    letterSpacing: "-0.02em",
+  },
+  pendingText: {
+    marginTop: 6,
+    marginBottom: 0,
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: "rgba(226,232,240,0.84)",
+    maxWidth: 560,
   },
 
   heroSection: {
@@ -938,7 +912,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
   groupMetaType: {},
   groupMetaMembers: {},
-  groupMetaRole: {},
+  groupHint: {
+    marginTop: 7,
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "rgba(203,213,225,0.78)",
+  },
 
   groupRight: {
     display: "flex",
