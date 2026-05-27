@@ -127,6 +127,49 @@ function shouldReadClipboardForSource(source: string) {
   );
 }
 
+function normalizeCaptureTextForMatching(value: string) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9ñ\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function resolveLocationQueryForDetails(
+  locationQuery: string | null | undefined,
+  participants: string[] | null | undefined,
+  rawText: string
+) {
+  const query = normalizeTitle(String(locationQuery || ""));
+  if (!query) return "";
+
+  const normalizedRaw = normalizeCaptureTextForMatching(rawText);
+  const normalizedQuery = normalizeCaptureTextForMatching(query);
+  const firstParticipant = (participants || [])
+    .map((participant) => normalizeTitle(String(participant || "")))
+    .find(Boolean);
+
+  const pointsToParticipantHome =
+    /\ben\s+(su|sus)\s+casa\b/.test(normalizedRaw) ||
+    /^(su|sus)\s+casa$/.test(normalizedQuery);
+
+  if (pointsToParticipantHome && firstParticipant) {
+    return `Casa de ${firstParticipant}`;
+  }
+
+  const pointsToParticipantApartment =
+    /\ben\s+(su|sus)\s+(depa|departamento)\b/.test(normalizedRaw) ||
+    /^(su|sus)\s+(depa|departamento)$/.test(normalizedQuery);
+
+  if (pointsToParticipantApartment && firstParticipant) {
+    return `Depa de ${firstParticipant}`;
+  }
+
+  return query;
+}
+
 export default function CaptureClient({ initialText = "" }: CaptureClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -321,6 +364,16 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     params.set("title", normalizedTitle);
     params.set("duration", String(durationMinutes));
     params.set("raw_text", draft.trim());
+
+    const locationQueryForDetails = resolveLocationQueryForDetails(
+      parsed.locationQuery,
+      parsed.participants,
+      draft.trim()
+    );
+
+    if (locationQueryForDetails) {
+      params.set("location_query", locationQueryForDetails);
+    }
 
     if (isSharedIntent) {
       params.set("intent", "shared");
@@ -1135,7 +1188,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               background: "rgba(15, 23, 42, 0.9)",
             }}
           >
-            Volver a Resumen
+            Volver a Inicio
           </Link>
         </div>
       </section>

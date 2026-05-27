@@ -1246,6 +1246,9 @@ function NewEventDetailsInner() {
       setNotes((current) =>
         mergeCaptureNotesWithContext(current, contextualPlace.note),
       );
+      setLocationInput((current) =>
+        current.trim() ? current : contextualPlace.cleanedQuery || incoming,
+      );
       return;
     }
 
@@ -1277,7 +1280,9 @@ function NewEventDetailsInner() {
       setNotes((current) =>
         mergeCaptureNotesWithContext(current, contextualPlace.note),
       );
-      return;
+      setLocationInput((current) =>
+        current.trim() ? current : contextualPlace.cleanedQuery || locationQuery,
+      );
     }
 
     if (!raw && !locationQuery) return;

@@ -142,7 +142,7 @@ function GroupsIcon({ active }: { active: boolean }) {
 const NAV_ITEMS: NavItem[] = [
   { key: "summary", label: "Inicio", path: "/summary", aria: "Ir a Inicio" },
   { key: "calendar", label: "Calendario", path: "/calendar", aria: "Ir a Calendario" },
-  { key: "capture", label: "Crear plan", path: "/capture", aria: "Crear plan" },
+  { key: "capture", label: "Crear Plan", path: "/capture", aria: "Crear Plan" },
   { key: "conflicts", label: "Conflictos", path: "/conflicts/detected", aria: "Ir a Conflictos" },
   { key: "groups", label: "Grupos", path: "/groups", aria: "Ir a Grupos" },
 ];

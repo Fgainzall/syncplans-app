@@ -188,6 +188,43 @@ function buildContextualPlaceLabel(
   return prettyLabel;
 }
 
+function cleanQuickCaptureLocationQuery(value: string | null | undefined): string {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function resolveQuickCaptureLocationQuery(
+  locationQuery: string | null | undefined,
+  participants: string[] | null | undefined,
+  rawText: string,
+): string {
+  const query = cleanQuickCaptureLocationQuery(locationQuery);
+  if (!query) return "";
+
+  const normalizedRaw = normalizeContextText(rawText);
+  const normalizedQuery = normalizeContextText(query);
+  const firstParticipant = (participants || [])
+    .map((participant) => cleanQuickCaptureLocationQuery(String(participant || "")))
+    .find(Boolean);
+
+  const pointsToParticipantHome =
+    /\ben\s+(su|sus)\s+casa\b/.test(normalizedRaw) ||
+    /^(su|sus)\s+casa$/.test(normalizedQuery);
+
+  if (pointsToParticipantHome && firstParticipant) {
+    return `Casa de ${firstParticipant}`;
+  }
+
+  const pointsToParticipantApartment =
+    /\ben\s+(su|sus)\s+(depa|departamento)\b/.test(normalizedRaw) ||
+    /^(su|sus)\s+(depa|departamento)$/.test(normalizedQuery);
+
+  if (pointsToParticipantApartment && firstParticipant) {
+    return `Depa de ${firstParticipant}`;
+  }
+
+  return query;
+}
+
 function getContextualPlaceDecision(
   rawText: string,
   locationQuery: string | null | undefined,
@@ -1783,9 +1820,14 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     if (raw.length < 4) return null;
 
     const parsed = parseQuickCapture(raw);
+    const resolvedLocationQuery = resolveQuickCaptureLocationQuery(
+      parsed.locationQuery,
+      parsed.participants,
+      raw,
+    );
     return findLearnedPlaceMatch({
       rawText: raw,
-      locationQuery: parsed.locationQuery,
+      locationQuery: resolvedLocationQuery || parsed.locationQuery,
       events: quickCapturePlaceMemoryEvents,
     });
   }, [quickCaptureValue, quickCapturePlaceMemoryEvents]);
@@ -1819,7 +1861,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       Number.isFinite(parsedEndDate.getTime()) &&
       !isSameCalendarDay(interpretedDate, parsedEndDate)
     );
-    const location = String(parsed.locationQuery ?? "").trim();
+    const location = resolveQuickCaptureLocationQuery(
+      parsed.locationQuery,
+      parsed.participants,
+      raw,
+    );
     const contextualPlace =
       hardened.contextualPlace ?? getContextualPlaceDecision(raw, location);
     const learnedPlace = contextualPlace ? null : learnedQuickCapturePlaceMatch;
@@ -2142,10 +2188,15 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       if (!raw) return null;
 
       const parsed = parseQuickCapture(raw);
+      const resolvedLocationQuery = resolveQuickCaptureLocationQuery(
+        parsed.locationQuery,
+        parsed.participants,
+        raw,
+      );
       const hardened = hardenQuickCaptureInterpretation(raw, parsed);
       const contextualPlace =
         hardened.contextualPlace ??
-        getContextualPlaceDecision(raw, parsed.locationQuery);
+        getContextualPlaceDecision(raw, resolvedLocationQuery || parsed.locationQuery);
       const cleanedNotes =
         hardened.notes ||
         mergeCaptureNotesWithContext(
@@ -2183,7 +2234,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         ? null
         : findLearnedPlaceMatch({
             rawText: raw,
-            locationQuery: parsed.locationQuery,
+            locationQuery: resolvedLocationQuery || parsed.locationQuery,
             events: quickCapturePlaceMemoryEvents,
           });
 
@@ -2198,6 +2249,8 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           params.set("location_place_id", learnedPlace.locationPlaceId);
         }
         params.set("location_memory", "1");
+      } else if (resolvedLocationQuery && !contextualPlace) {
+        params.set("location_query", resolvedLocationQuery);
       } else if (parsed.locationQuery && !contextualPlace) {
         params.set("location_query", parsed.locationQuery);
       }
