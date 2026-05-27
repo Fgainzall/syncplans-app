@@ -340,7 +340,7 @@ export default function GroupDetailPage() {
 
             {!group.is_active ? (
               <button type="button" style={activateButtonStyle} onClick={handleActivate} disabled={saving}>
-                {saving ? "Activando…" : "Usar como activo"}
+                {saving ? "Activando…" : "Activar grupo"}
               </button>
             ) : null}
           </div>
@@ -379,19 +379,6 @@ export default function GroupDetailPage() {
           </div>
         </Card>
 
-        {!group.is_active ? (
-          <Card tone="muted" style={styles.noticeCard}>
-            <div style={styles.noticeCopy}>
-              <div style={styles.noticeTitle}>Este grupo todavía no es tu contexto activo</div>
-              <p style={styles.noticeText}>
-                Actívalo si quieres que tus próximos planes compartidos usen este grupo por defecto.
-              </p>
-            </div>
-            <button type="button" style={activateButtonStyle} onClick={handleActivate} disabled={saving}>
-              {saving ? "Activando…" : "Activar grupo"}
-            </button>
-          </Card>
-        ) : null}
 
         <div style={styles.contentGrid}>
           <Card tone="muted" style={styles.infoCard}>
