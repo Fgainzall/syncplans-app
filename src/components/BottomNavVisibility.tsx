@@ -10,6 +10,8 @@ const HIDDEN_PREFIXES = [
   "/register",
   "/onboarding",
   "/auth",
+  "/invite",
+  "/event-invite",
 ];
 
 export default function BottomNavVisibility() {

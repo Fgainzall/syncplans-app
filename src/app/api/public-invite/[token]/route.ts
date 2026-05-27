@@ -26,6 +26,7 @@ type PublicInviteStatus = "pending" | "accepted" | "rejected";
 type PublicInviteRow = {
   id: string;
   event_id: string | null;
+  contact: string | null;
   status: string | null;
   proposed_date: string | null;
   message: string | null;
@@ -47,6 +48,7 @@ const PUBLIC_INVITE_TTL_HOURS = Math.max(
 
 const MAX_BODY_BYTES = 4_000;
 const MAX_MESSAGE_LENGTH = 1_000;
+const MAX_RESPONDER_NAME_LENGTH = 80;
 
 function normalizeToken(token: string | null | undefined) {
   return String(token ?? "").trim();
@@ -61,6 +63,15 @@ function normalizeInviteStatus(status: string | null | undefined): PublicInviteS
   if (value === "accepted") return "accepted";
   if (value === "rejected" || value === "declined") return "rejected";
   return "pending";
+}
+
+function normalizeResponderName(value: unknown) {
+  const clean = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_RESPONDER_NAME_LENGTH);
+
+  return clean.length >= 2 ? clean : null;
 }
 
 function isInviteExpired(createdAt: string | null | undefined) {
@@ -94,6 +105,9 @@ function toPublicInviteDto(invite: PublicInviteRow | null) {
     id: invite.id,
     event_id: invite.event_id,
     eventId: invite.event_id,
+    contact: invite.contact,
+    responder_name: invite.contact,
+    responderName: invite.contact,
     status,
     created_at: invite.created_at,
     createdAt: invite.created_at,
@@ -133,7 +147,7 @@ async function enforcePublicInviteRateLimit(
 async function loadPublicInviteByToken(supabase: ReturnType<typeof getAdminClient>, token: string) {
   return supabase
     .from("public_invites")
-    .select("id,event_id,status,proposed_date,message,created_at,creator_response")
+    .select("id,event_id,contact,status,proposed_date,message,created_at,creator_response")
     .eq("token", token)
     .maybeSingle<PublicInviteRow>();
 }
@@ -281,6 +295,10 @@ export async function POST(req: NextRequest, context: RouteContext) {
       });
     }
 
+    const responderNameFromBody = normalizeResponderName(
+      body.responderName ?? body.responder_name ?? body.contact
+    );
+
     const messageRaw = typeof body.message === "string" ? body.message.trim() : "";
     const message = messageRaw ? messageRaw.slice(0, MAX_MESSAGE_LENGTH) : null;
 
@@ -324,16 +342,28 @@ export async function POST(req: NextRequest, context: RouteContext) {
       return tokenUsedResponse(ctx, currentInvite, currentEvent);
     }
 
+    const finalResponderName =
+      normalizeResponderName(currentInvite.contact) ?? responderNameFromBody;
+
+    if (!finalResponderName) {
+      return jsonError(ctx, {
+        error: "Dinos quién está respondiendo para dejar clara la decisión.",
+        code: "PUBLIC_INVITE_RESPONDER_REQUIRED",
+        status: 400,
+      });
+    }
+
     const { data: updatedInvite, error: updateError } = await supabase
       .from("public_invites")
       .update({
         status,
+        contact: finalResponderName,
         message,
         proposed_date: proposedDate,
       })
       .eq("id", currentInvite.id)
       .eq("status", "pending")
-      .select("id,event_id,status,proposed_date,message,created_at,creator_response")
+      .select("id,event_id,contact,status,proposed_date,message,created_at,creator_response")
       .maybeSingle<PublicInviteRow>();
 
     if (updateError) {
@@ -348,7 +378,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
     if (!updatedInvite) {
       const { data: latestInvite } = await supabase
         .from("public_invites")
-        .select("id,event_id,status,proposed_date,message,created_at,creator_response")
+        .select("id,event_id,contact,status,proposed_date,message,created_at,creator_response")
         .eq("id", currentInvite.id)
         .maybeSingle<PublicInviteRow>();
 

@@ -153,7 +153,9 @@ function shouldHideBottomNav(pathname: string) {
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
     pathname.startsWith("/onboarding") ||
-    pathname.startsWith("/auth")
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/invite") ||
+    pathname.startsWith("/event-invite")
   );
 }
 
@@ -252,22 +254,22 @@ const S: Record<string, React.CSSProperties> = {
     pointerEvents: "none",
     paddingLeft: "max(8px, env(safe-area-inset-left, 0px))",
     paddingRight: "max(8px, env(safe-area-inset-right, 0px))",
-    paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + var(--sp-bottom-nav-offset, 8px))",
+    paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + var(--sp-bottom-nav-offset, 6px))",
     boxSizing: "border-box",
   },
 
   wrap: {
     pointerEvents: "auto",
-    width: "min(calc(100vw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)), 430px)",
+    width: "min(calc(100vw - 18px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)), 410px)",
     maxWidth: "100%",
     margin: "0 auto",
-    borderRadius: 20,
+    borderRadius: 18,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "rgba(8,12,20,0.92)",
     boxShadow: "0 18px 40px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.05)",
     backdropFilter: "blur(18px)",
     WebkitBackdropFilter: "blur(18px)",
-    padding: 4,
+    padding: 3,
     overflow: "hidden",
   },
 
@@ -277,14 +279,14 @@ const S: Record<string, React.CSSProperties> = {
     display: "grid",
     gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
     alignItems: "stretch",
-    gap: 4,
+    gap: 3,
   },
 
   item: {
     minWidth: 0,
-    minHeight: 54,
-    padding: "6px 2px 7px",
-    borderRadius: 15,
+    minHeight: 48,
+    padding: "5px 1px 6px",
+    borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.06)",
     background: "rgba(255,255,255,0.025)",
     color: "rgba(255,255,255,0.76)",
@@ -292,7 +294,7 @@ const S: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    gap: 5,
+    gap: 4,
     textDecoration: "none",
     WebkitTapHighlightColor: "transparent",
     userSelect: "none",
@@ -319,9 +321,9 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   iconWrap: {
-    width: 25,
-    height: 25,
-    borderRadius: 9,
+    width: 23,
+    height: 23,
+    borderRadius: 8,
     display: "grid",
     placeItems: "center",
     color: "inherit",
@@ -330,9 +332,9 @@ const S: Record<string, React.CSSProperties> = {
   },
 
   iconWrapPrimary: {
-    width: 27,
-    height: 27,
-    borderRadius: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 9,
     background: "rgba(255,255,255,0.08)",
   },
 
@@ -351,7 +353,7 @@ const S: Record<string, React.CSSProperties> = {
     display: "block",
     overflow: "hidden",
     textOverflow: "ellipsis",
-    fontSize: "clamp(8px, 2.15vw, 9.5px)",
+    fontSize: "clamp(7.5px, 2vw, 8.8px)",
     lineHeight: 1,
     fontWeight: 800,
     letterSpacing: 0,

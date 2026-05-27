@@ -31,8 +31,8 @@ export default function RootLayout({
     style={
   {
     background: "#0B0F19",
-    "--sp-bottom-nav-height": "88px",
-    "--sp-bottom-nav-offset": "10px",
+    "--sp-bottom-nav-height": "74px",
+    "--sp-bottom-nav-offset": "6px",
     "--sp-bottom-safe":
       "calc(var(--sp-bottom-nav-height) + var(--sp-bottom-nav-offset) + env(safe-area-inset-bottom))",
   } as React.CSSProperties & Record<`--${string}`, string>

@@ -218,6 +218,7 @@ export default function InviteClient({ token }: Props) {
   const [message, setMessage] = useState("");
   const [proposedDate, setProposedDate] = useState("");
   const [mode, setMode] = useState<ResponseMode>("idle");
+  const [responderName, setResponderName] = useState("");
 
   useEffect(() => {
     void trackScreenView({
@@ -225,6 +226,17 @@ export default function InviteClient({ token }: Props) {
       metadata: { token_present: Boolean(token) },
     });
   }, [token]);
+
+  useEffect(() => {
+    try {
+      const remembered = window.localStorage.getItem("sp_public_invite_responder_name");
+      if (remembered && remembered.trim().length >= 2) {
+        setResponderName(remembered.trim().slice(0, 80));
+      }
+    } catch {
+      // LocalStorage can be unavailable in private browsing. The form still works.
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -243,13 +255,18 @@ export default function InviteClient({ token }: Props) {
 
         if (!res.ok) {
           const code = String(json?.code ?? "").trim().toLowerCase();
-          const inviteFromError = (json?.invite ?? null) as PublicInviteRow | null;
-          const eventFromError = (json?.event ?? null) as PublicInviteEvent | null;
+          const inviteFromError = (json?.invite ?? json?.data?.invite ?? null) as PublicInviteRow | null;
+          const eventFromError = (json?.event ?? json?.data?.event ?? null) as PublicInviteEvent | null;
 
-          if (res.status === 409 && code === "token_used" && inviteFromError) {
+          if (
+            res.status === 409 &&
+            (code === "token_used" || code === "public_invite_token_used") &&
+            inviteFromError
+          ) {
             if (!cancelled) {
               setInvite(inviteFromError);
               setEvent(eventFromError);
+              setResponderName(String(inviteFromError.contact ?? "").trim());
               setMessage(inviteFromError.message ?? "");
               setProposedDate(toDateTimeLocalValue(inviteFromError.proposed_date));
               setMode("idle");
@@ -267,6 +284,7 @@ export default function InviteClient({ token }: Props) {
 
           setInvite(nextInvite);
           setEvent(nextEvent);
+          if (nextInvite?.contact) setResponderName(String(nextInvite.contact).trim());
           setMessage(nextInvite?.message ?? "");
           setProposedDate(toDateTimeLocalValue(nextInvite?.proposed_date));
           setMode("idle");
@@ -318,12 +336,21 @@ export default function InviteClient({ token }: Props) {
   const hasFinalResponse =
     invite?.status === "accepted" || invite?.status === "rejected";
   const proposedDateLabel = formatProposedDate(invite?.proposed_date);
-  const canSubmit = !loading && !!invite && submittingAction === null;
+  const responderNameClean = responderName.replace(/\s+/g, " ").trim();
+  const storedResponderName = String(invite?.contact ?? "").trim();
+  const effectiveResponderName = storedResponderName || responderNameClean;
+  const hasResponderName = effectiveResponderName.length >= 2;
+  const canSubmit =
+    !loading &&
+    !!invite &&
+    !hasFinalResponse &&
+    submittingAction === null &&
+    hasResponderName;
   const canAccept = canSubmit;
   const canReject = canSubmit;
   const canSendProposal = canSubmit && proposedDate.trim().length > 0;
 
-  const inviteeLabel = String(invite?.contact ?? "").trim() || "la persona invitada";
+  const inviteeLabel = effectiveResponderName || "pendiente de identificar";
   const eventTitle = String(event?.title ?? "").trim() || "este plan";
   const hasSoftFinalState = invite?.status === "accepted" || invite?.status === "rejected";
 
@@ -345,8 +372,16 @@ export default function InviteClient({ token }: Props) {
       setSubmittingAction(nextStatus);
       setError(null);
 
+      const finalResponderName = effectiveResponderName.trim();
+
+      if (finalResponderName.length < 2) {
+        setError("Escribe tu nombre para que la otra persona sepa quién respondió.");
+        return;
+      }
+
       const payload = {
         status: nextStatus,
+        responderName: finalResponderName,
         message: message.trim() || null,
         proposedDate: null,
       };
@@ -367,6 +402,15 @@ export default function InviteClient({ token }: Props) {
 
       const updatedInvite = (json?.invite ?? null) as PublicInviteRow | null;
       setInvite(updatedInvite);
+      const savedResponderName = String(updatedInvite?.contact ?? payload.responderName ?? "").trim();
+      if (savedResponderName) {
+        setResponderName(savedResponderName);
+        try {
+          window.localStorage.setItem("sp_public_invite_responder_name", savedResponderName);
+        } catch {
+          // Ignore storage errors. The answer is already saved server-side.
+        }
+      }
       setMessage(updatedInvite?.message ?? payload.message ?? "");
       setProposedDate(toDateTimeLocalValue(updatedInvite?.proposed_date));
       setMode("idle");
@@ -386,7 +430,8 @@ export default function InviteClient({ token }: Props) {
             event_id: updatedInvite.event_id ?? event?.id ?? null,
             invite_status: nextStatus,
             response_mode: nextStatus,
-            contact: updatedInvite.contact ?? null,
+            contact: savedResponderName || updatedInvite.contact || null,
+            responder_name: savedResponderName || null,
             has_message: Boolean(payload.message),
             has_proposed_date: false,
           },
@@ -413,8 +458,16 @@ export default function InviteClient({ token }: Props) {
       setSubmittingAction("rejected");
       setError(null);
 
+      const finalResponderName = effectiveResponderName.trim();
+
+      if (finalResponderName.length < 2) {
+        setError("Escribe tu nombre para que la otra persona sepa quién propuso el cambio.");
+        return;
+      }
+
       const payload = {
         status: "rejected" as const,
+        responderName: finalResponderName,
         message: message.trim() || null,
         proposedDate,
       };
@@ -435,6 +488,15 @@ export default function InviteClient({ token }: Props) {
 
       const updatedInvite = (json?.invite ?? null) as PublicInviteRow | null;
       setInvite(updatedInvite);
+      const savedResponderName = String(updatedInvite?.contact ?? payload.responderName ?? "").trim();
+      if (savedResponderName) {
+        setResponderName(savedResponderName);
+        try {
+          window.localStorage.setItem("sp_public_invite_responder_name", savedResponderName);
+        } catch {
+          // Ignore storage errors. The answer is already saved server-side.
+        }
+      }
       setMessage(updatedInvite?.message ?? payload.message ?? "");
       setProposedDate(toDateTimeLocalValue(updatedInvite?.proposed_date));
       setMode("idle");
@@ -453,7 +515,8 @@ export default function InviteClient({ token }: Props) {
             event_id: updatedInvite.event_id ?? event?.id ?? null,
             invite_status: "rejected",
             response_mode: "propose_new_date",
-            contact: updatedInvite.contact ?? null,
+            contact: savedResponderName || updatedInvite.contact || null,
+            responder_name: savedResponderName || null,
             has_message: Boolean(payload.message),
             has_proposed_date: Boolean(payload.proposedDate),
             proposed_date: payload.proposedDate,
@@ -774,7 +837,7 @@ export default function InviteClient({ token }: Props) {
                   <div>{statusInfo.description}</div>
 
                   <div>
-                    <strong style={{ color: "#0f172a" }}>Invitación enviada a:</strong>{" "}
+                    <strong style={{ color: "#0f172a" }}>Respuesta de:</strong>{" "}
                     {inviteeLabel}
                   </div>
 
@@ -839,6 +902,50 @@ export default function InviteClient({ token }: Props) {
                   marginBottom: 18,
                 }}
               >
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: "#334155",
+                      marginBottom: 8,
+                    }}
+                  >
+                    ¿Quién está respondiendo?
+                  </label>
+                  <input
+                    type="text"
+                    value={responderName}
+                    onChange={(e) => setResponderName(e.target.value.slice(0, 80))}
+                    placeholder="Ej: Ara"
+                    disabled={submittingAction !== null || Boolean(storedResponderName) || hasFinalResponse}
+                    style={{
+                      width: "100%",
+                      borderRadius: 14,
+                      border: hasResponderName ? "1px solid #cbd5e1" : "1px solid #f59e0b",
+                      padding: 12,
+                      fontSize: 14,
+                      outline: "none",
+                      boxSizing: "border-box",
+                      background: storedResponderName || hasFinalResponse ? "#f8fafc" : "#fff",
+                      color: "#0f172a",
+                    }}
+                  />
+                  <div
+                    style={{
+                      marginTop: 8,
+                      fontSize: 12,
+                      lineHeight: 1.5,
+                      color: hasResponderName ? "#64748b" : "#92400e",
+                    }}
+                  >
+                    {hasResponderName
+                      ? "Tu nombre aparecerá junto a la respuesta del plan."
+                      : "Necesitamos tu nombre para que la respuesta no quede anónima."}
+                  </div>
+                </div>
+
                 <div>
                   <label
                     style={{
