@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { parseQuickCapture } from "@/lib/quickCaptureParser";
 import supabase from "@/lib/supabaseClient";
@@ -170,6 +170,177 @@ function resolveLocationQueryForDetails(
   return query;
 }
 
+
+type ContextPlaceKind =
+  | "casa"
+  | "depa"
+  | "oficina"
+  | "club"
+  | "playa"
+  | "cancha"
+  | "campo"
+  | "colegio"
+  | "universidad"
+  | "local"
+  | "terraza";
+
+type ContextPlaceIssue = {
+  key: string;
+  phrase: string;
+  kind: ContextPlaceKind;
+  placeLabel: string;
+  mode: "owner" | "generic";
+  ownerHint: "self" | "other" | "unknown";
+  participantSuggestion: string;
+  question: string;
+  unresolvedLabel: string;
+};
+
+type ContextPlaceChoice = "self" | "participant" | "other" | "unknown" | null;
+
+const CONTEXT_PLACE_LABELS: Record<ContextPlaceKind, string> = {
+  casa: "Casa",
+  depa: "Depa",
+  oficina: "Oficina",
+  club: "Club",
+  playa: "Playa",
+  cancha: "Cancha",
+  campo: "Campo",
+  colegio: "Colegio",
+  universidad: "Universidad",
+  local: "Local",
+  terraza: "Terraza",
+};
+
+function normalizeContextPlaceKind(value: string): ContextPlaceKind {
+  const normalized = normalizeCaptureTextForMatching(value);
+  if (normalized === "departamento") return "depa";
+  return (normalized as ContextPlaceKind) || "casa";
+}
+
+function getFirstRelevantParticipant(participants: string[] | null | undefined) {
+  return (
+    (participants || [])
+      .map((participant) => normalizeTitle(String(participant || "")))
+      .find(Boolean) || ""
+  );
+}
+
+function prettifyContextOwner(value: string) {
+  return normalizeTitle(
+    String(value || "")
+      .replace(/^(mi|mis|tu|tus|su|sus)\s+/i, "")
+      .trim()
+  );
+}
+
+function detectContextualPlaceIssue(
+  rawText: string,
+  participants: string[] | null | undefined
+): ContextPlaceIssue | null {
+  const raw = String(rawText || "");
+  if (!raw.trim()) return null;
+
+  const firstParticipant = getFirstRelevantParticipant(participants);
+  const placeWords =
+    "casa|depa|departamento|oficina|club|playa|cancha|campo|colegio|universidad|local|terraza";
+
+  const possessiveMatch = raw.match(
+    new RegExp(`\\b(mi|mis|tu|tus|su|sus)\\s+(${placeWords})\\b`, "i")
+  );
+
+  if (possessiveMatch?.[1] && possessiveMatch?.[2]) {
+    const pronoun = normalizeCaptureTextForMatching(possessiveMatch[1]);
+    const kind = normalizeContextPlaceKind(possessiveMatch[2]);
+    const placeLabel = CONTEXT_PLACE_LABELS[kind] || "Lugar";
+    const ownerHint = pronoun === "mi" || pronoun === "mis" ? "self" : "other";
+    const participantSuggestion = ownerHint === "other" ? firstParticipant : "";
+    const phrase = `${possessiveMatch[1]} ${possessiveMatch[2]}`.trim();
+
+    return {
+      key: `owner:${normalizeCaptureTextForMatching(phrase)}:${participantSuggestion}`,
+      phrase,
+      kind,
+      placeLabel,
+      mode: "owner",
+      ownerHint,
+      participantSuggestion,
+      question:
+        ownerHint === "self"
+          ? `¿Quieres guardar “${phrase}” como tu ${placeLabel.toLowerCase()}?`
+          : `¿De quién es “${phrase}”?`,
+      unresolvedLabel: `${placeLabel} por confirmar`,
+    };
+  }
+
+  const whereRelativeMatch = raw.match(
+    /\bdonde\s+(mi|tu|su)\s+(mam[aá]|pap[aá]|herman[oa]|amig[oa]|primo|prima|t[ií]o|t[ií]a|abuelo|abuela|pareja|novi[oa])\b/i
+  );
+
+  if (whereRelativeMatch?.[1] && whereRelativeMatch?.[2]) {
+    const pronoun = normalizeCaptureTextForMatching(whereRelativeMatch[1]);
+    const owner = prettifyContextOwner(whereRelativeMatch[2]);
+    const phrase = `${whereRelativeMatch[1]} ${whereRelativeMatch[2]}`.trim();
+
+    return {
+      key: `relative:${normalizeCaptureTextForMatching(phrase)}`,
+      phrase: `donde ${phrase}`,
+      kind: "casa",
+      placeLabel: "Casa",
+      mode: "owner",
+      ownerHint: pronoun === "mi" ? "self" : "other",
+      participantSuggestion: owner,
+      question: `¿“donde ${phrase}” significa Casa de ${owner}?`,
+      unresolvedLabel: "Casa por confirmar",
+    };
+  }
+
+  const genericMatch = raw.match(
+    /\b(?:en|por|cerca de|junto a|donde)\s+(?:el|la)\s+(club|playa|cancha|campo|oficina|colegio|universidad|local|terraza)\b(?!\s+(?:de|del)\b)(?!\s+[a-záéíóúñ]{3,})/i
+  );
+
+  if (genericMatch?.[1]) {
+    const kind = normalizeContextPlaceKind(genericMatch[1]);
+    const placeLabel = CONTEXT_PLACE_LABELS[kind] || "Lugar";
+    const phrase = String(genericMatch[0] || genericMatch[1]).trim();
+
+    return {
+      key: `generic:${normalizeCaptureTextForMatching(phrase)}`,
+      phrase,
+      kind,
+      placeLabel,
+      mode: "generic",
+      ownerHint: "unknown",
+      participantSuggestion: "",
+      question: `¿Qué ${placeLabel.toLowerCase()} es?`,
+      unresolvedLabel: `${placeLabel} por confirmar`,
+    };
+  }
+
+  return null;
+}
+
+function buildResolvedContextLocation(
+  issue: ContextPlaceIssue | null,
+  choice: ContextPlaceChoice,
+  customValue: string
+) {
+  if (!issue) return "";
+
+  const custom = normalizeTitle(String(customValue || ""));
+
+  if (choice === "self") return `Mi ${issue.placeLabel.toLowerCase()}`;
+  if (choice === "participant" && issue.participantSuggestion) {
+    return `${issue.placeLabel} de ${issue.participantSuggestion}`;
+  }
+  if (choice === "other" && custom) {
+    return issue.mode === "generic" ? custom : `${issue.placeLabel} de ${custom}`;
+  }
+  if (choice === "unknown") return issue.unresolvedLabel;
+
+  return "";
+}
+
 export default function CaptureClient({ initialText = "" }: CaptureClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -201,6 +372,23 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   const [isSavingLater, setIsSavingLater] = useState(false);
 
   const parsed = useMemo(() => parseQuickCapture(draft.trim()), [draft]);
+  const contextPlaceIssue = useMemo(
+    () => detectContextualPlaceIssue(draft.trim(), parsed.participants),
+    [draft, parsed.participants]
+  );
+  const [contextPlaceChoice, setContextPlaceChoice] = useState<ContextPlaceChoice>(null);
+  const [contextPlaceCustomValue, setContextPlaceCustomValue] = useState("");
+  const resolvedContextLocation = useMemo(
+    () =>
+      buildResolvedContextLocation(
+        contextPlaceIssue,
+        contextPlaceChoice,
+        contextPlaceCustomValue
+      ),
+    [contextPlaceChoice, contextPlaceCustomValue, contextPlaceIssue]
+  );
+  const contextLocationPreview =
+    resolvedContextLocation || contextPlaceIssue?.unresolvedLabel || "";
   const inferredGroupPlanIntent =
     parsed.participants.length > 0 ||
     parsed.signals.mentionsPeople ||
@@ -212,6 +400,11 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
   useEffect(() => {
     setDraft(incomingText);
   }, [incomingText]);
+
+  useEffect(() => {
+    setContextPlaceChoice(null);
+    setContextPlaceCustomValue("");
+  }, [contextPlaceIssue?.key]);
 
   useEffect(() => {
     void trackEvent({
@@ -372,14 +565,20 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
     params.set("duration", String(durationMinutes));
     params.set("raw_text", draft.trim());
 
-    const locationQueryForDetails = resolveLocationQueryForDetails(
-      parsed.locationQuery,
-      parsed.participants,
-      draft.trim()
-    );
+    const locationQueryForDetails =
+      resolvedContextLocation ||
+      contextPlaceIssue?.unresolvedLabel ||
+      resolveLocationQueryForDetails(
+        parsed.locationQuery,
+        parsed.participants,
+        draft.trim()
+      );
 
     if (locationQueryForDetails) {
       params.set("location_query", locationQueryForDetails);
+      if (contextPlaceIssue) {
+        params.set("location_context", contextPlaceIssue.key);
+      }
     }
 
     if (isSharedIntent) {
@@ -945,7 +1144,127 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
                 severity={missingChecks.date ? "warn" : "default"}
               />
               <PreviewRow label="Duración" value={`${durationMinutes} min`} />
+              <PreviewRow
+                label="Ubicación"
+                value={
+                  contextLocationPreview ||
+                  parsed.locationQuery ||
+                  "Sin ubicación detectada"
+                }
+                muted={!contextLocationPreview && !parsed.locationQuery}
+                severity={contextPlaceIssue ? "warn" : "default"}
+              />
             </div>
+
+            {contextPlaceIssue ? (
+              <div
+                style={{
+                  marginTop: 14,
+                  borderRadius: 18,
+                  padding: 14,
+                  background: "rgba(245, 158, 11, 0.10)",
+                  border: "1px solid rgba(245, 158, 11, 0.24)",
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#fef3c7",
+                    fontSize: 12,
+                    fontWeight: 900,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Necesito aclarar una ubicación
+                </p>
+                <p
+                  style={{
+                    margin: "8px 0 0",
+                    color: "rgba(254, 243, 199, 0.94)",
+                    fontSize: 14,
+                    fontWeight: 800,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {contextPlaceIssue.question}
+                </p>
+                <p
+                  style={{
+                    margin: "6px 0 0",
+                    color: "rgba(254, 243, 199, 0.76)",
+                    fontSize: 12,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  No voy a adivinar. Si no estás seguro, lo dejamos por confirmar.
+                </p>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 8,
+                    marginTop: 12,
+                  }}
+                >
+                  {contextPlaceIssue.ownerHint === "self" ? (
+                    <ContextChoiceButton
+                      active={contextPlaceChoice === "self"}
+                      onClick={() => setContextPlaceChoice("self")}
+                    >
+                      Mi {contextPlaceIssue.placeLabel.toLowerCase()}
+                    </ContextChoiceButton>
+                  ) : null}
+
+                  {contextPlaceIssue.participantSuggestion ? (
+                    <ContextChoiceButton
+                      active={contextPlaceChoice === "participant"}
+                      onClick={() => setContextPlaceChoice("participant")}
+                    >
+                      {contextPlaceIssue.placeLabel} de {contextPlaceIssue.participantSuggestion}
+                    </ContextChoiceButton>
+                  ) : null}
+
+                  <ContextChoiceButton
+                    active={contextPlaceChoice === "other"}
+                    onClick={() => setContextPlaceChoice("other")}
+                  >
+                    {contextPlaceIssue.mode === "generic" ? "Poner nombre" : "Otra persona"}
+                  </ContextChoiceButton>
+
+                  <ContextChoiceButton
+                    active={contextPlaceChoice === "unknown"}
+                    onClick={() => setContextPlaceChoice("unknown")}
+                  >
+                    Dejar por confirmar
+                  </ContextChoiceButton>
+                </div>
+
+                {contextPlaceChoice === "other" ? (
+                  <input
+                    value={contextPlaceCustomValue}
+                    onChange={(event) => setContextPlaceCustomValue(event.target.value)}
+                    placeholder={
+                      contextPlaceIssue.mode === "generic"
+                        ? `Ej. ${contextPlaceIssue.placeLabel} Regatas, Playa Asia, Cancha del cole`
+                        : "Nombre de la persona"
+                    }
+                    style={{
+                      width: "100%",
+                      marginTop: 12,
+                      borderRadius: 14,
+                      border: "1px solid rgba(245, 158, 11, 0.28)",
+                      background: "rgba(15, 23, 42, 0.86)",
+                      color: "#fff7ed",
+                      padding: "12px 13px",
+                      fontSize: 14,
+                      outline: "none",
+                    }}
+                  />
+                ) : null}
+              </div>
+            ) : null}
 
             <div
               style={{
@@ -1197,6 +1516,39 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
         </div>
       </section>
     </main>
+  );
+}
+
+function ContextChoiceButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        borderRadius: 999,
+        padding: "9px 12px",
+        border: active
+          ? "1px solid rgba(251, 191, 36, 0.62)"
+          : "1px solid rgba(245, 158, 11, 0.26)",
+        background: active
+          ? "rgba(245, 158, 11, 0.24)"
+          : "rgba(15, 23, 42, 0.72)",
+        color: active ? "#fff7ed" : "rgba(254, 243, 199, 0.86)",
+        fontSize: 12,
+        fontWeight: 900,
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
