@@ -520,8 +520,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               style={{
                 fontSize: 12,
                 fontWeight: 900,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
+                                letterSpacing: "0.01em",
                 color: "#7dd3fc",
               }}
             >
@@ -573,9 +572,8 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               color: "#bfdbfe",
               fontSize: 12,
               fontWeight: 800,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-            }}
+              letterSpacing: "0.01em",
+                          }}
           >
             {isManualEntry ? "Crear plan" : "Quick Capture"}
           </span>
@@ -1063,8 +1061,7 @@ export default function CaptureClient({ initialText = "" }: CaptureClientProps) 
               style={{
                 fontSize: 12,
                 fontWeight: 900,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
+                                letterSpacing: "0.01em",
                 color: "#bfdbfe",
               }}
             >
@@ -1234,8 +1231,7 @@ function PreviewRow({
         style={{
           fontSize: 12,
           fontWeight: 800,
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
+                    letterSpacing: "0.01em",
           color:
             severity === "warn"
               ? "rgba(253, 230, 138, 0.95)"

@@ -287,8 +287,8 @@ function getAutoTitle(pathname: string) {
   if (pathname.startsWith("/groups")) return "Grupos";
   if (pathname.startsWith("/members")) return "Miembros";
   if (pathname.startsWith("/invitations")) return "Invitaciones";
-  if (pathname.startsWith("/capture")) return "Crear plan";
-  if (pathname.startsWith("/events/new")) return "Crear plan";
+  if (pathname.startsWith("/capture")) return "Crear Plan";
+  if (pathname.startsWith("/events/new")) return "Crear Plan";
   if (pathname.startsWith("/events")) return "Eventos";
   if (pathname.startsWith("/summary")) return "Inicio";
   if (pathname.startsWith("/calendar")) return "Calendario";
@@ -665,7 +665,7 @@ const cleaned = normalizeGroupLabel(
       active: pathname.startsWith("/calendar"),
     },
     {
-      label: "Crear plan",
+      label: "Crear Plan",
       path: "/capture",
       active: pathname.startsWith("/capture") || pathname.startsWith("/events/new"),
     },
