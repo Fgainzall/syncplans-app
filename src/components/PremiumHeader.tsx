@@ -963,6 +963,17 @@ const cleaned = normalizeGroupLabel(
                   style={styles.menuItem}
                   onClick={() => {
                     setUserMenuOpen(false);
+                    router.push("/panel", { scroll: false });
+                  }}
+                >
+                  Panel
+                </button>
+
+                <button
+                  type="button"
+                  style={styles.menuItem}
+                  onClick={() => {
+                    setUserMenuOpen(false);
                     router.push("/planes", { scroll: false });
                   }}
                 >

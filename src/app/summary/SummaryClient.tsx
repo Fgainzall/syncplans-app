@@ -764,6 +764,31 @@ type StatusBadge = {
   style: CSSProperties;
 };
 
+function getSummaryEventCreatorId(event: SummaryEvent | null | undefined) {
+  const raw = (event?.raw ?? event ?? {}) as Record<string, unknown>;
+  const candidates = [
+    raw.created_by,
+    raw.owner_id,
+    raw.user_id,
+    (event as unknown as Record<string, unknown> | null)?.created_by,
+    (event as unknown as Record<string, unknown> | null)?.owner_id,
+    (event as unknown as Record<string, unknown> | null)?.user_id,
+  ];
+
+  return candidates
+    .map((value) => String(value ?? "").trim())
+    .find(Boolean) ?? null;
+}
+
+function isEventCreatedByCurrentUser(
+  event: SummaryEvent | null | undefined,
+  currentUserId: string | null | undefined,
+) {
+  const creatorId = getSummaryEventCreatorId(event);
+  const userId = String(currentUserId ?? "").trim();
+  return Boolean(creatorId && userId && creatorId === userId);
+}
+
 type NextMoveTone = "calm" | "info" | "warning" | "danger";
 
 type NextMove = {
@@ -3444,8 +3469,13 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
 
       if (!status || status === "scheduled") return null;
 
-      // Un evento personal creado por el usuario no necesita badge de confirmación.
-      // Si no pertenece a grupo, no hay nadie más que lo tenga que aceptar.
+      // El creador no debe confirmarse a sí mismo.
+      // El pendiente es para los demás miembros del grupo.
+      if (status === "pending" && isEventCreatedByCurrentUser(event, currentUserId)) {
+        return null;
+      }
+
+      // Un plan personal no necesita confirmación.
       if (status === "pending" && !event?.groupId) {
         return null;
       }
@@ -3458,7 +3488,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         style: statusUi.badgeStyle,
       };
     },
-    [conflictEventIds, proposalResponseGroupsMap, visibleEvents],
+    [conflictEventIds, currentUserId, proposalResponseGroupsMap, visibleEvents],
   );
 
   const compactSummaryMobile = isMobile;

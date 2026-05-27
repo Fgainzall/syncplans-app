@@ -154,6 +154,17 @@ const LOCATION_BREAK_TOKENS = [
   " desde ",
   " hasta ",
   " alas ",
+  " el proximo ",
+  " el próximo ",
+  " la proxima ",
+  " la próxima ",
+  " proximo ",
+  " próximo ",
+  " proxima ",
+  " próxima ",
+  " siguiente ",
+  " este ",
+  " esta ",
   " hoy",
   " mañana",
   " manana",
@@ -494,6 +505,20 @@ function normalizeGenericGroupLabel(rawChunk: string): string | null {
   const withoutArticle = value.replace(/^(el|la|los|las)\s+/, "");
 
   if (!withoutArticle) return null;
+
+  const namedGroup = withoutArticle.match(/^de\s+(.{2,40})$/);
+  if (namedGroup?.[1]) {
+    const cleanedGroup = collapseSpaces(
+      namedGroup[1]
+        .replace(/\b(hoy|manana|mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b.*$/i, "")
+        .replace(/\b(a\s+las|a\s+la|al|alas)\s+\d{1,2}.*$/i, "")
+        .replace(/^[,.;:\-\s]+|[,.;:\-\s]+$/g, ""),
+    );
+    if (cleanedGroup && cleanedGroup.split(" ").length <= 4) {
+      return capitalizeNameLikeText(cleanedGroup);
+    }
+  }
+
   if (withoutArticle === "chicos" || withoutArticle === "chicas") return "Amigos";
   if (withoutArticle === "amigos" || withoutArticle === "amigas") return "Amigos";
   if (withoutArticle === "familia" || withoutArticle === "mi familia") return "Familia";
@@ -611,6 +636,11 @@ function removeParticipantPhrases(raw: string): string {
   );
 
   text = text.replace(
+    /\b(con|junto a)\s+(?:los|las)\s+de\s+[^.;:!?]+?(?=\s+(?:en|donde|por|cerca de|junto a|a\s+las|a\s+la|al|alas|hoy|mañana|manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|proximo|próximo|proxima|próxima|siguiente)\b|[.,;:!?]|$)/gi,
+    " ",
+  );
+
+  text = text.replace(
     /\b(en)\s+(?:el|la|los|las)?\s*(familia|pareja|grupo)\b/gi,
     " "
   );
@@ -643,6 +673,10 @@ function sanitizeLocationFragment(raw: string): string {
     .replace(/[\s,.;:!?-]+$/, "");
 
   value = value
+    .replace(
+      /\b(?:el|la)?\s*(?:proximo|próximo|proxima|próxima|siguiente|este|esta|otro|otra)\s+(?:lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|fin de semana|finde|semana)\b.*$/i,
+      "",
+    )
     .replace(
       /\b(hoy|mañana|manana|pasado mañana|pasado manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b.*$/i,
       ""
@@ -716,6 +750,27 @@ function detectLocationIntent(raw: string): {
       return {
         locationQuery: capitalizeNameLikeText(cleaned),
         locationSource: "at_symbol",
+        locationConfidence: "high",
+      };
+    }
+  }
+
+  const wherePersonMatch = text.match(
+    /\bdonde\s+([a-záéíóúñ]{2,}(?:\s+[a-záéíóúñ]{2,}){0,2})(?=\s+(?:el\s+proximo|el\s+próximo|la\s+proxima|la\s+próxima|proximo|próximo|proxima|próxima|siguiente|este|esta|hoy|mañana|manana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|con|a\s+las|a\s+la|al|alas)\b|[.,;:!?]|$)/i,
+  );
+  if (wherePersonMatch?.[1]) {
+    const owner = sanitizeLocationFragment(String(wherePersonMatch[1] ?? ""));
+    const normalizedOwner = normalizeForMatching(owner);
+    const ownerWords = normalizedOwner.split(" ").filter(Boolean);
+    const looksLikePerson =
+      ownerWords.length > 0 &&
+      ownerWords.length <= 3 &&
+      ownerWords.every((word) => !NAME_STOPWORDS.has(word) && !GENERIC_GROUP_PHRASES.includes(word));
+
+    if (looksLikePerson) {
+      return {
+        locationQuery: `Casa de ${capitalizeNameLikeText(owner)}`,
+        locationSource: "house_of",
         locationConfidence: "high",
       };
     }
