@@ -942,38 +942,50 @@ function SummaryHero({
   onOpenConflicts: () => void;
   onOpenInvitations: () => void;
 }) {
+  const sharedTotal = upcomingGroup + upcomingExternal;
+  const pendingTotal = conflictCount + pendingInviteCount;
+
   return (
-    <Card style={styles.heroCard}>
-      <div style={styles.heroTopRow}>
-        <div style={{ minWidth: 0, flex: "1 1 440px" }}>
-          <div style={styles.heroEyebrow}>Hoy en SyncPlans</div>
-          <div style={styles.heroTitle}>{primaryAction.title}</div>
-          <div style={styles.heroSubtitle}>{primaryAction.subtitle}</div>
+    <Card style={styles.coordinationCard}>
+      <div style={styles.sectionHeadMini}>
+        <div>
+          <div style={styles.sectionEyebrow}>Coordinación</div>
+          <div style={styles.sectionTitle}>Tu semana en una línea</div>
         </div>
 
-        <div style={styles.heroActions}>
-          <button
-            type="button"
-            onClick={primaryAction.primaryAction}
-            style={styles.heroPrimaryBtn}
-          >
-            {primaryAction.primaryLabel}
-          </button>
-          <button
-            type="button"
-            onClick={primaryAction.secondaryAction}
-            style={styles.heroSecondaryBtn}
-          >
-            {primaryAction.secondaryLabel}
-          </button>
+        {loading ? <span style={styles.metaPillInfo}>Actualizando…</span> : null}
+      </div>
+
+      <div style={styles.coordinationCopy}>
+        <div style={styles.coordinationTitle}>{compact ? primaryAction.eyebrow : moodTitle}</div>
+        <div style={styles.coordinationSubtitle}>
+          {moodSubtitle}
         </div>
       </div>
 
       <div style={styles.heroMetaRow}>
         <span style={styles.metaPill}>{contextLabel}</span>
         <span style={styles.metaPillSoft}>
-          {upcomingTotal} evento{upcomingTotal === 1 ? "" : "s"} en 7 días
+          {upcomingTotal} plan{upcomingTotal === 1 ? "" : "es"} próximos
         </span>
+
+        {sharedTotal > 0 ? (
+          <span style={styles.metaPillSoft}>
+            {sharedTotal} compartido{sharedTotal === 1 ? "" : "s"}
+          </span>
+        ) : null}
+
+        {upcomingPersonal > 0 ? (
+          <span style={styles.metaPillSoft}>
+            {upcomingPersonal} personal
+          </span>
+        ) : null}
+
+        {upcomingExternal > 0 ? (
+          <span style={styles.metaPillSoft}>
+            {upcomingExternal} externo{upcomingExternal === 1 ? "" : "s"}
+          </span>
+        ) : null}
 
         {conflictCount > 0 ? (
           <button
@@ -996,40 +1008,8 @@ function SummaryHero({
           </button>
         ) : null}
 
-        {loading ? (
-          <span style={styles.metaPillInfo}>Actualizando…</span>
-        ) : null}
-      </div>
-
-      <div style={styles.heroBottomRow}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={styles.heroMoodTitle}>{moodTitle}</div>
-          <div style={styles.heroMoodSubtitle}>{moodSubtitle}</div>
-          {!compact ? (
-            <div style={styles.heroStatsRow}>
-              <span style={styles.heroStat}>{upcomingTotal} total</span>
-              <span style={styles.heroStatDot}>·</span>
-              <span style={styles.heroStat}>{upcomingPersonal} personal</span>
-              <span style={styles.heroStatDot}>·</span>
-              <span style={styles.heroStat}>{upcomingGroup} grupo</span>
-              {upcomingExternal > 0 ? (
-                <>
-                  <span style={styles.heroStatDot}>·</span>
-                  <span style={styles.heroStat}>
-                    {upcomingExternal} externo
-                  </span>
-                </>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-
-        {!compact ? (
-          <div style={styles.heroKpi}>
-            <div style={styles.heroKpiLabel}>Próximos 7 días</div>
-            <div style={styles.heroKpiNumber}>{upcomingTotal}</div>
-            <div style={styles.heroKpiHint}>Con contexto real</div>
-          </div>
+        {pendingTotal === 0 ? (
+          <span style={styles.metaPillSoft}>Sin pendientes críticos</span>
         ) : null}
       </div>
     </Card>
@@ -1140,15 +1120,15 @@ function FirstGroupActivationCard({
           Crea tu primer grupo compartido
         </h1>
         <p style={styles.firstActivationSubtitle}>
-          SyncPlans se entiende mejor cuando lo usas con alguien más: crea un
-          grupo, invita a una persona y luego guarda el primer evento
-          compartido.
+          SyncPlans se entiende mejor cuando lo usas con alguien más. Crea un
+          grupo si ya sabes con quién coordinar, o empieza con un plan rápido
+          si quieres probarlo solo.
         </p>
 
         <div style={styles.firstActivationSteps}>
           <span style={styles.firstActivationStep}>1. Crear grupo</span>
           <span style={styles.firstActivationStep}>2. Invitar</span>
-          <span style={styles.firstActivationStep}>3. Crear evento</span>
+          <span style={styles.firstActivationStep}>3. Crear plan</span>
         </div>
       </div>
 
@@ -1165,7 +1145,7 @@ function FirstGroupActivationCard({
           onClick={onCreatePersonalEvent}
           style={styles.firstActivationSecondary}
         >
-          Crear evento personal
+          Crear plan solo
         </button>
       </div>
     </Card>
@@ -1241,7 +1221,7 @@ function EventRow({
     >
       <div style={styles.eventLeft} className="spSum-eventLeft">
         {featured ? (
-          <div style={styles.featuredEventEyebrow}>Próximo evento</div>
+          <div style={styles.featuredEventEyebrow}>Próximo plan</div>
         ) : null}
         <div style={styles.eventWhen}>{when}</div>
         <div style={styles.eventTitle}>{event.title}</div>
@@ -1778,10 +1758,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   }, [quickCaptureValue, timeSuggestions, suggestedContextGroupType]);
 
   const quickCaptureHeadline = useMemo(() => {
-    if (!activeGroupId) return "Crear evento rápido";
-    if (activeGroupType === "pair") return "Crear evento rápido";
+    if (!activeGroupId) return "Crear plan rápido";
+    if (activeGroupType === "pair") return "Crear plan rápido";
     if (activeGroupType === "family") return "Organizar evento rápido";
-    return "Crear evento rápido";
+    return "Crear plan rápido";
   }, [activeGroupId, activeGroupType]);
 
   const quickCaptureSubcopy = useMemo(() => {
@@ -2084,7 +2064,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
     };
   }, [upcomingAll]);
 
-  const upcomingLimit = isMobile ? 3 : 6;
+  const upcomingLimit = 3;
 
   const upcoming = useMemo(
     () => upcomingAll.slice(0, upcomingLimit),
@@ -2407,16 +2387,10 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const isFirstTimeMode = summaryActivation.shouldUseSimpleSummary;
 
   const summarySubtitle = isFirstTimeMode
-    ? isMobile
-      ? "Tu primer paso en SyncPlans"
-      : "Empieza con una sola versión clara de tu tiempo"
-    : isMobile
-      ? activeGroupId
-        ? `Hoy · ${activeLabel}`
-        : "Hoy · Personal"
-      : activeGroupId
-        ? `Hoy · ${activeLabel} · tu siguiente paso`
-        : "Hoy · Personal · tu siguiente paso";
+    ? "Crea tu primer plan y empieza a coordinar con menos ruido"
+    : activeGroupId
+      ? `Crea, comparte y evita choques · ${activeLabel}`
+      : "Crea, comparte y evita choques en tus planes";
 
   const getProposalBadgeForEvent = useCallback(
     (eventId: string | null | undefined): ProposalBadge | null => {
@@ -2682,13 +2656,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           navigateFromSummary("review_invitations", "/invitations", {
             block: "primary_action",
           }),
-        secondaryLabel: showInviteNudge ? "Abrir grupos" : "Abrir eventos",
+        secondaryLabel: "Abrir grupos",
         secondaryAction: () =>
-          navigateFromSummary(
-            showInviteNudge ? "open_groups" : "open_events",
-            showInviteNudge ? "/groups" : "/events",
-            { block: "primary_action" },
-          ),
+          navigateFromSummary("open_groups", "/groups", {
+            block: "primary_action",
+          }),
       };
     }
 
@@ -2726,7 +2698,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
               })
             : navigateFromSummary(
                 "create_plan",
-                "/events/new/details?type=personal",
+                "/capture?source=summary",
                 {
                   block: "primary_action",
                 },
@@ -2768,9 +2740,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           navigateFromSummary("invite_someone", inviteTarget, {
             block: "primary_action",
           }),
-        secondaryLabel: "Abrir eventos",
+        secondaryLabel: "Abrir grupos",
         secondaryAction: () =>
-          navigateFromSummary("open_events", "/events", {
+          navigateFromSummary("open_groups", "/groups", {
             block: "primary_action",
           }),
       };
@@ -2785,7 +2757,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         primaryAction: () =>
           navigateFromSummary(
             "create_plan",
-            "/events/new/details?type=personal",
+            "/capture?source=summary",
             {
               block: "primary_action",
             },
@@ -2811,9 +2783,9 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         navigateFromSummary("open_calendar", "/calendar", {
           block: "primary_action",
         }),
-      secondaryLabel: "Abrir eventos",
+      secondaryLabel: "Abrir grupos",
       secondaryAction: () =>
-        navigateFromSummary("open_events", "/events", {
+        navigateFromSummary("open_groups", "/groups", {
           block: "primary_action",
         }),
     };
@@ -3049,7 +3021,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         onClick: () =>
           navigateFromSummary(
             "next_move_create_plan",
-            "/events/new/details?type=personal",
+            "/capture?source=summary",
             {
               block: "next_move",
             },
@@ -3209,12 +3181,12 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
         },
         {
           key: "create_plan",
-          title: "Crear evento",
-          subtitle: "Guarda un plan personal mientras activas tu espacio.",
+          title: "Crear plan",
+          subtitle: "Guarda un plan rápido mientras activas tu espacio.",
           onClick: () =>
             navigateFromSummary(
               "create_plan",
-              "/events/new/details?type=personal",
+              "/capture?source=summary",
               {
                 block: "summary_quick_actions",
               },
@@ -3241,7 +3213,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           onClick: () =>
             navigateFromSummary(
               "create_plan",
-              "/events/new/details?type=personal",
+              "/capture?source=summary",
               {
                 block: "summary_quick_actions",
               },
@@ -3298,11 +3270,11 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       });
     } else {
       items.push({
-        key: "events",
-        title: "Abrir eventos",
-        subtitle: "Ver respuestas, estados y pendientes en un solo lugar.",
+        key: "groups",
+        title: "Abrir grupos",
+        subtitle: "Revisa grupos, miembros e invitaciones desde un solo lugar.",
         onClick: () =>
-          navigateFromSummary("open_events", "/events", {
+          navigateFromSummary("open_groups", "/groups", {
             block: "summary_events",
           }),
       });
@@ -3362,10 +3334,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
   const showFirstGroupActivation =
     showCreateGroupNudge && !hasUrgentSummaryState;
 
-  const showQuickActions =
-    !showFirstGroupActivation &&
-    (isFirstTimeMode ||
-      (!hasUrgentSummaryState && !nextEvent && !showInviteNudge));
+  const showQuickActions = false;
 
   const shouldShowSummaryHero =
     !(showInviteNudge && !hasUrgentSummaryState) &&
@@ -3401,7 +3370,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
       <Section style={styles.shell} className="spSum-shell">
         <PremiumHeader
           hideUpgradeCta
-          title="Resumen"
+          title="Inicio"
           subtitle={summarySubtitle}
           sticky={false}
         />
@@ -3422,7 +3391,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
             onCreatePersonalEvent={() =>
               navigateFromSummary(
                 "first_activation_create_personal_event",
-                "/events/new/details?type=personal",
+                "/capture?source=summary",
                 {
                   block: "first_activation",
                 },
@@ -3433,6 +3402,25 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
           <div style={styles.summaryGrid} className="spSum-summaryGrid">
             <div style={styles.summaryMainColumn} className="spSum-mainColumn">
               <NextMoveCard move={nextMove} />
+
+              <UpcomingSection
+                booting={booting}
+                nextEvent={nextEvent}
+                remainingUpcoming={remainingUpcoming}
+                showSeeMore={showSeeMore}
+                upcomingAllCount={upcomingAll.length}
+                highlightId={highlightId}
+                getProposalLineForEvent={getProposalLineForEvent}
+                getProposalBadgeForEvent={getProposalBadgeForEvent}
+                getStatusBadgeForEvent={getStatusBadgeForEvent}
+                onOpenCalendar={() =>
+                  navigateFromSummary("open_calendar", "/calendar", {
+                    block: "summary_calendar",
+                  })
+                }
+                showCreateGroupNudge={showCreateGroupNudge}
+                onPrimaryEmptyAction={primaryAction.primaryAction}
+              />
 
               <SummaryQuickCaptureCard
                 value={quickCaptureValue}
@@ -3461,7 +3449,7 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 }
                 subcopy={
                   isFirstTimeMode
-                    ? "Escribe algo como lo dirías por WhatsApp. SyncPlans lo convierte en un evento claro antes de guardar."
+                    ? "Escribe algo como lo dirías por WhatsApp. SyncPlans lo convierte en un plan claro antes de guardar."
                     : quickCaptureSubcopy
                 }
                 onOpenCapture={isFirstTimeMode ? undefined : handleOpenCapture}
@@ -3515,24 +3503,6 @@ export default function SummaryClient({ highlightId, appliedToast }: Props) {
                 />
               ) : null}
 
-              <UpcomingSection
-                booting={booting}
-                nextEvent={nextEvent}
-                remainingUpcoming={remainingUpcoming}
-                showSeeMore={showSeeMore}
-                upcomingAllCount={upcomingAll.length}
-                highlightId={highlightId}
-                getProposalLineForEvent={getProposalLineForEvent}
-                getProposalBadgeForEvent={getProposalBadgeForEvent}
-                getStatusBadgeForEvent={getStatusBadgeForEvent}
-                onOpenCalendar={() =>
-                  navigateFromSummary("open_calendar", "/calendar", {
-                    block: "summary_calendar",
-                  })
-                }
-                showCreateGroupNudge={showCreateGroupNudge}
-                onPrimaryEmptyAction={primaryAction.primaryAction}
-              />
             </div>
 
             {showQuickActions ? (
@@ -3850,6 +3820,33 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: "0 24px 72px rgba(0,0,0,0.24)",
     backdropFilter: "blur(12px)",
     padding: 18,
+  },
+  coordinationCard: {
+    borderRadius: 22,
+    border: "1px solid rgba(125,211,252,0.12)",
+    background:
+      "linear-gradient(180deg, rgba(15,23,42,0.76), rgba(2,6,23,0.56))",
+    boxShadow: "0 18px 54px rgba(0,0,0,0.20)",
+    backdropFilter: "blur(12px)",
+    padding: 16,
+  },
+  coordinationCopy: {
+    marginTop: 12,
+    display: "grid",
+    gap: 5,
+  },
+  coordinationTitle: {
+    fontSize: 16,
+    lineHeight: 1.25,
+    fontWeight: 950,
+    letterSpacing: "-0.02em",
+    color: "rgba(255,255,255,0.96)",
+  },
+  coordinationSubtitle: {
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: "rgba(226,232,240,0.74)",
+    fontWeight: 650,
   },
   heroTopRow: {
     display: "flex",
