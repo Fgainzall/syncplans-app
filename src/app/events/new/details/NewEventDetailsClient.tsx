@@ -1127,6 +1127,12 @@ async function syncAcceptedResponsesForSavedEvent(input: {
     console.error("event_responses upsert failed", upsertError);
   }
 }
+
+function runSaveSideEffect(label: string, task: () => Promise<unknown>) {
+  void task().catch((error) => {
+    console.error(label, error);
+  });
+}
 export default function NewEventDetailsClient() {
   return (
     <Suspense fallback={<main style={styles.page} />}>
@@ -3117,36 +3123,43 @@ useEffect(() => {
       savedEventId = String(eventIdParam);
 
       if (savedEventId) {
-        await syncAcceptedResponsesForSavedEvent({
-          eventId: savedEventId,
-          currentUserId,
-          groupId: payload.groupId ?? null,
-        });
+        const editedEventId = savedEventId;
+        runSaveSideEffect("event_responses sync after edit failed", () =>
+          syncAcceptedResponsesForSavedEvent({
+            eventId: editedEventId,
+            currentUserId,
+            groupId: payload.groupId ?? null,
+          }),
+        );
       }
 
       if (currentUserId && savedEventId) {
+        const editedEventId = savedEventId;
         const analyticsPayload = {
           user_id: currentUserId,
           event_type: "event_edited",
-          entity_id: savedEventId,
+          entity_id: editedEventId,
           metadata: {
             type: payload.groupId ? "group" : "personal",
           },
         };
 
-        const { error: analyticsError } = await supabase
-          .from("events_analytics")
-          .insert(analyticsPayload);
+        runSaveSideEffect("event_edited analytics insert failed", async () => {
+          const { error: analyticsError } = await supabase
+            .from("events_analytics")
+            .insert(analyticsPayload);
 
-        if (analyticsError) {
-          console.error("event_edited analytics insert failed", analyticsError);
-        }
+          if (analyticsError) {
+            throw analyticsError;
+          }
+        });
       }
 
       const proposalSource = sp.get("proposalSource");
       const proposalIntent = sp.get("proposalIntent");
 
       if (proposalSource === "public_invite" && savedEventId) {
+        const publicInviteEventId = savedEventId;
         const creatorResponse =
           proposalIntent === "accept"
             ? "accepted"
@@ -3155,10 +3168,16 @@ useEffect(() => {
               : null;
 
         if (creatorResponse) {
-          await supabase
-            .from("public_invites")
-            .update({ creator_response: creatorResponse })
-            .eq("event_id", savedEventId);
+          runSaveSideEffect("public invite creator response update failed", async () => {
+            const { error } = await supabase
+              .from("public_invites")
+              .update({ creator_response: creatorResponse })
+              .eq("event_id", publicInviteEventId);
+
+            if (error) {
+              throw error;
+            }
+          });
         }
       }
     } else {
@@ -3181,11 +3200,14 @@ useEffect(() => {
       savedEventId = created?.id ? String(created.id) : null;
 
       if (savedEventId) {
-        await syncAcceptedResponsesForSavedEvent({
-          eventId: savedEventId,
-          currentUserId,
-          groupId: payload.groupId ?? null,
-        });
+        const createdEventId = savedEventId;
+        runSaveSideEffect("event_responses sync after create failed", () =>
+          syncAcceptedResponsesForSavedEvent({
+            eventId: createdEventId,
+            currentUserId,
+            groupId: payload.groupId ?? null,
+          }),
+        );
       }
 
       if (
@@ -3194,26 +3216,28 @@ useEffect(() => {
         proposalResponse &&
         currentUserId
       ) {
-        try {
-          await upsertProposalResponse({
-            eventId: savedEventId,
+        const proposalEventId = savedEventId;
+        runSaveSideEffect("proposal response persist failed", () =>
+          upsertProposalResponse({
+            eventId: proposalEventId,
             userId: currentUserId,
             response: proposalResponse === "adjust" ? "adjusted" : "accepted",
-          });
-        } catch (err) {
-          console.error("proposal response persist failed", err);
-        }
+          }),
+        );
       }
 
       if (savedEventId) {
-        await trackEvent({
-          event: "event_created",
-          userId: currentUserId,
-          entityId: savedEventId,
-          metadata: {
-            type: payload.groupId ? "group" : "personal",
-          },
-        });
+        const createdEventId = savedEventId;
+        runSaveSideEffect("event_created analytics track failed", () =>
+          trackEvent({
+            event: "event_created",
+            userId: currentUserId,
+            entityId: createdEventId,
+            metadata: {
+              type: payload.groupId ? "group" : "personal",
+            },
+          }),
+        );
       }
     }
 
@@ -3436,32 +3460,34 @@ useEffect(() => {
         return savedEventId;
       }
 
-      const conflictResult =
-        await runConflictNotificationForSavedEvent(savedEventId);
-
-      if (conflictResult.conflictCount > 0) {
-        setToast({
-          title: "⚠️ Conflicto detectado",
-          subtitle: "Te llevo a revisarlo ahora…",
-        });
-
-        const qp = new URLSearchParams();
-        if (conflictResult.targetEventId) {
-          qp.set("eventId", String(conflictResult.targetEventId));
-        }
-        // No enviamos groupId al flujo enfocado: la pantalla de conflictos
-        // debe cargar todo el calendario visible y luego filtrar por eventId.
-        // Si se limita al grupo del evento, puede ocultar choques contra otros
-        // grupos que sí aparecen en el calendario.
-        qp.set("from", isEditing ? "event_edit" : "event_create");
-
-        window.setTimeout(() => {
-          router.push(`/conflicts/detected?${qp.toString()}`);
-        }, 500);
-        return savedEventId;
-      }
-
       showPostSaveCard(savedEventId, payload);
+
+      runSaveSideEffect("post-save conflict notification failed", async () => {
+        const conflictResult =
+          await runConflictNotificationForSavedEvent(savedEventId);
+
+        if (conflictResult.conflictCount > 0) {
+          setToast({
+            title: "⚠️ Conflicto detectado",
+            subtitle: "Te llevo a revisarlo ahora…",
+          });
+
+          const qp = new URLSearchParams();
+          if (conflictResult.targetEventId) {
+            qp.set("eventId", String(conflictResult.targetEventId));
+          }
+          // No enviamos groupId al flujo enfocado: la pantalla de conflictos
+          // debe cargar todo el calendario visible y luego filtrar por eventId.
+          // Si se limita al grupo del evento, puede ocultar choques contra otros
+          // grupos que sí aparecen en el calendario.
+          qp.set("from", isEditing ? "event_edit" : "event_create");
+
+          window.setTimeout(() => {
+            router.push(`/conflicts/detected?${qp.toString()}`);
+          }, 500);
+        }
+      });
+
       return savedEventId;
     } catch (err: unknown) {
       setToast({
